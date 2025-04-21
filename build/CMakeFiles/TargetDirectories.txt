@@ -1,0 +1,3 @@
+/home/matthew/Documents/git_repos/sdl_raster/build/CMakeFiles/rs.dir
+/home/matthew/Documents/git_repos/sdl_raster/build/CMakeFiles/edit_cache.dir
+/home/matthew/Documents/git_repos/sdl_raster/build/CMakeFiles/rebuild_cache.dir
