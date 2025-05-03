@@ -1,0 +1,1 @@
+/usr/bin/cc -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/rs.dir/src/main.c.o -o rs   -L/opt/homebrew/Cellar/sdl2/2.32.4_1/lib  -Wl,-rpath,/opt/homebrew/Cellar/sdl2/2.32.4_1/lib /opt/homebrew/Cellar/sdl2/2.32.4_1/lib/libSDL2.dylib

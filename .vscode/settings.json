@@ -2,6 +2,7 @@
     "editor.formatOnSave": true,
     "files.associations": {
         "stdio.h": "c",
-        "sdl.h": "c"
+        "sdl.h": "c",
+        "locale": "cpp"
     }
 }
