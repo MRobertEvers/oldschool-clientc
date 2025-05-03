@@ -679,16 +679,36 @@ main(int argc, char* argv[])
 
     struct Triangle2D* triangles_2d =
         (struct Triangle2D*)malloc(num_faces * sizeof(struct Triangle2D));
+
+    int triangle_count = 0;
     for( int i = 0; i < num_faces; i++ )
     {
-        triangles_2d[i].p1.x = (triangles[i].p1.x * 100) / (triangles[i].p1.z + 100);
-        triangles_2d[i].p1.y = (triangles[i].p1.y * 100) / (triangles[i].p1.z + 100);
+        // calculate normals and skip if facing away from the camera
 
-        triangles_2d[i].p2.x = (triangles[i].p2.x * 100) / (triangles[i].p2.z + 100);
-        triangles_2d[i].p2.y = (triangles[i].p2.y * 100) / (triangles[i].p2.z + 100);
+        // calculate the normal of the triangle
+        int dx1 = triangles[i].p2.x - triangles[i].p1.x;
+        int dy1 = triangles[i].p2.y - triangles[i].p1.y;
+        int dz1 = triangles[i].p2.z - triangles[i].p1.z;
+        int dx2 = triangles[i].p3.x - triangles[i].p1.x;
+        int dy2 = triangles[i].p3.y - triangles[i].p1.y;
+        int dz2 = triangles[i].p3.z - triangles[i].p1.z;
+        int normal_x = dy1 * dz2 - dy2 * dz1;
+        int normal_y = dz1 * dx2 - dz2 * dx1;
+        int normal_z = dx1 * dy2 - dx2 * dy1;
+        // check if the triangle is facing away from the camera
+        if( normal_z > 0 )
+        {
+            // skip the triangle
+            continue;
+        }
 
-        triangles_2d[i].p3.x = (triangles[i].p3.x * 100) / (triangles[i].p3.z + 100);
-        triangles_2d[i].p3.y = (triangles[i].p3.y * 100) / (triangles[i].p3.z + 100);
+        triangles_2d[triangle_count].p1.x = (triangles[i].p1.x * 100) / (triangles[i].p1.z + 100);
+        triangles_2d[triangle_count].p1.y = (triangles[i].p1.y * 100) / (triangles[i].p1.z + 100);
+        triangles_2d[triangle_count].p2.x = (triangles[i].p2.x * 100) / (triangles[i].p2.z + 100);
+        triangles_2d[triangle_count].p2.y = (triangles[i].p2.y * 100) / (triangles[i].p2.z + 100);
+        triangles_2d[triangle_count].p3.x = (triangles[i].p3.x * 100) / (triangles[i].p3.z + 100);
+        triangles_2d[triangle_count].p3.y = (triangles[i].p3.y * 100) / (triangles[i].p3.z + 100);
+        triangle_count += 1;
     }
     free(triangles);
 
@@ -739,7 +759,7 @@ main(int argc, char* argv[])
         SDL_RenderClear(renderer);
 
         // raster the triangles
-        for( int i = 0; i < num_faces; i++ )
+        for( int i = 0; i < triangle_count; i++ )
         {
             struct Triangle2D triangle;
             triangle.p1.x = triangles_2d[i].p1.x + SCREEN_WIDTH / 2;
@@ -761,6 +781,12 @@ main(int argc, char* argv[])
             gouraud_colors.color1 = g_palette[color_a];
             gouraud_colors.color2 = g_palette[color_b];
             gouraud_colors.color3 = g_palette[color_c];
+
+            printf(
+                "gouraud_colors.color1: %d, gouraud_colors.color2: %d, gouraud_colors.color3: %d\n",
+                gouraud_colors.color1,
+                gouraud_colors.color2,
+                gouraud_colors.color3);
 
             raster_triangle(pixel_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
         }
