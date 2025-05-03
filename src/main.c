@@ -190,6 +190,13 @@ struct Triangle2D
     struct Point2D p3;
 };
 
+struct GouraudColors
+{
+    int color1;
+    int color2;
+    int color3;
+};
+
 struct Triangle3D
 {
     struct Point3D p1;
@@ -229,17 +236,135 @@ draw_scanline(struct Pixel* pixel_buffer, int color, int x1, int x2, int y, int 
             pixel->r = color & 0xFF;
             pixel->g = (color >> 8) & 0xFF;
             pixel->b = (color >> 16) & 0xFF;
-            // pixel->a = ((color >> 24) & 0xFF) / 2;
+            pixel->a = ((color >> 24) & 0xFF) / 2;
         }
 
         // if it's the last pixel, make it black
-        // if( x == x1 || x == x2 )
-        // {
-        //     pixel->r = color & 0xFF;
-        //     pixel->g = (color >> 8) & 0xFF;
-        //     pixel->b = (color >> 16) & 0xFF;
-        //     pixel->a = (color >> 24) & 0xFF;
-        // }
+        if( x == x1 || x == x2 )
+        {
+            pixel->r = color & 0xFF;
+            pixel->g = (color >> 8) & 0xFF;
+            pixel->b = (color >> 16) & 0xFF;
+            pixel->a = (color >> 24) & 0xFF;
+        }
+    }
+}
+
+static inline int
+interpolate(int a, int b, float t)
+{
+    return a + (int)((b - a) * t);
+}
+
+static void
+draw_scanline_gouraud(
+    int* pixel_buffer, int y, int x_start, int x_end, int color_start, int color_end)
+{
+    if( x_start > x_end )
+    {
+        int tmp;
+        tmp = x_start;
+        x_start = x_end;
+        x_end = tmp;
+        tmp = color_start;
+        color_start = color_end;
+        color_end = tmp;
+    }
+
+    int dx = x_end - x_start;
+    for( int x = x_start; x <= x_end; ++x )
+    {
+        float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
+
+        int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
+        int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
+        int b = interpolate(color_start & 0xFF, color_end & 0xFF, t);
+        int a = 255; // Alpha value
+
+        int color = (a << 24) | (r << 16) | (g << 8) | b;
+
+        if( x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT )
+            pixel_buffer[y * SCREEN_WIDTH + x] = color;
+    }
+}
+
+void
+raster_gouraud(
+    int* pixel_buffer,
+    int x0,
+    int x1,
+    int x2,
+    int y0,
+    int y1,
+    int y2,
+    int color0,
+    int color1,
+    int color2)
+{
+    // Sort vertices by y
+    if( y0 > y1 )
+    {
+        int t;
+        t = y0;
+        y0 = y1;
+        y1 = t;
+        t = x0;
+        x0 = x1;
+        x1 = t;
+        t = color0;
+        color0 = color1;
+        color1 = t;
+    }
+    if( y0 > y2 )
+    {
+        int t;
+        t = y0;
+        y0 = y2;
+        y2 = t;
+        t = x0;
+        x0 = x2;
+        x2 = t;
+        t = color0;
+        color0 = color2;
+        color2 = t;
+    }
+    if( y1 > y2 )
+    {
+        int t;
+        t = y1;
+        y1 = y2;
+        y2 = t;
+        t = x1;
+        x1 = x2;
+        x2 = t;
+        t = color1;
+        color1 = color2;
+        color2 = t;
+    }
+
+    int total_height = y2 - y0;
+    if( total_height == 0 )
+        return;
+
+    for( int i = 0; i < total_height; ++i )
+    {
+        bool second_half = i > (y1 - y0) || y1 == y0;
+        int segment_height = second_half ? y2 - y1 : y1 - y0;
+        if( segment_height == 0 )
+            continue;
+
+        float alpha = (float)i / total_height;
+        float beta = (float)(i - (second_half ? y1 - y0 : 0)) / segment_height;
+
+        int ax = interpolate(x0, x2, alpha);
+        int bx = second_half ? interpolate(x1, x2, beta) : interpolate(x0, x1, beta);
+
+        int acolor = interpolate(color0, color2, alpha);
+        int bcolor =
+            second_half ? interpolate(color1, color2, beta) : interpolate(color0, color1, beta);
+
+        int y = y0 + i;
+        draw_scanline_gouraud(pixel_buffer, y, ax, bx, acolor, bcolor);
     }
 }
 
@@ -329,9 +454,30 @@ fill_triangle(
 }
 
 void
+fill_triangle_gouraud(
+    struct Pixel* pixel_buffer,
+    struct GouraudColors colors,
+    struct Point2D p0,
+    struct Point2D p1,
+    struct Point2D p2)
+{
+    raster_gouraud(
+        (int*)pixel_buffer,
+        p0.x,
+        p1.x,
+        p2.x,
+        p0.y,
+        p1.y,
+        p2.y,
+        colors.color1,
+        colors.color2,
+        colors.color3);
+}
+
+void
 raster_triangle(
     struct Pixel* pixel_buffer,
-    int color,
+    struct GouraudColors colors,
     struct Triangle2D triangle,
     int screen_width,
     int screen_height)
@@ -365,7 +511,8 @@ raster_triangle(
         max_y = screen_height - 1;
     // Loop through each pixel in the bounding box and only do math with ints
 
-    fill_triangle(pixel_buffer, color, triangle.p1, triangle.p2, triangle.p3);
+    // fill_triangle(pixel_buffer, color, triangle.p1, triangle.p2, triangle.p3);
+    fill_triangle_gouraud(pixel_buffer, colors, triangle.p1, triangle.p2, triangle.p3);
 }
 
 int
@@ -610,7 +757,12 @@ main(int argc, char* argv[])
             // Convert the palette color to RGB
             int color = g_palette[color_b];
 
-            raster_triangle(pixel_buffer, color, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
+            struct GouraudColors gouraud_colors;
+            gouraud_colors.color1 = g_palette[color_a];
+            gouraud_colors.color2 = g_palette[color_b];
+            gouraud_colors.color3 = g_palette[color_c];
+
+            raster_triangle(pixel_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
         }
 
         // render pixel buffer to SDL_Surface
