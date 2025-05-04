@@ -1,6 +1,7 @@
 #include "gouraud.c"
 
 #include <SDL.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -155,9 +156,9 @@ struct Point2D
 
 struct Triangle2D
 {
-    struct Point2D p1;
-    struct Point2D p2;
-    struct Point2D p3;
+    struct Point3D p1;
+    struct Point3D p2;
+    struct Point3D p3;
 };
 
 struct GouraudColors
@@ -193,7 +194,15 @@ edge_interpolate(int x0, int y0, int x1, int y1, int y)
 
 static void
 draw_scanline_gouraud(
-    int* pixel_buffer, int y, int x_start, int x_end, int color_start, int color_end)
+    int* pixel_buffer,
+    int* z_buffer,
+    int y,
+    int x_start,
+    int x_end,
+    int depth_start,
+    int depth_end,
+    int color_start,
+    int color_end)
 {
     if( x_start > x_end )
     {
@@ -201,6 +210,9 @@ draw_scanline_gouraud(
         tmp = x_start;
         x_start = x_end;
         x_end = tmp;
+        tmp = depth_start;
+        depth_start = depth_end;
+        depth_end = tmp;
         tmp = color_start;
         color_start = color_end;
         color_end = tmp;
@@ -210,6 +222,12 @@ draw_scanline_gouraud(
     for( int x = x_start; x <= x_end; ++x )
     {
         float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
+
+        int depth = interpolate(depth_start, depth_end, t);
+        if( z_buffer[y * SCREEN_WIDTH + x] > depth )
+            z_buffer[y * SCREEN_WIDTH + x] = depth;
+        else
+            continue;
 
         int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
         int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
@@ -244,12 +262,16 @@ interpolate_color(int color1, int color2, float t)
 void
 raster_gouraud(
     int* pixel_buffer,
+    int* z_buffer,
     int x0,
     int x1,
     int x2,
     int y0,
     int y1,
     int y2,
+    int z0,
+    int z1,
+    int z2,
     int color0,
     int color1,
     int color2)
@@ -265,6 +287,9 @@ raster_gouraud(
         t = x0;
         x0 = x1;
         x1 = t;
+        t = z0;
+        z0 = z1;
+        z1 = t;
         t = color0;
         color0 = color1;
         color1 = t;
@@ -278,6 +303,9 @@ raster_gouraud(
         t = x0;
         x0 = x2;
         x2 = t;
+        t = z0;
+        z0 = z2;
+        z2 = t;
         t = color0;
         color0 = color2;
         color2 = t;
@@ -291,6 +319,9 @@ raster_gouraud(
         t = x1;
         x1 = x2;
         x2 = t;
+        t = z1;
+        z1 = z2;
+        z2 = t;
         t = color1;
         color1 = color2;
         color2 = t;
@@ -319,44 +350,51 @@ raster_gouraud(
         int bcolor = second_half ? interpolate_color(color1, color2, beta)
                                  : interpolate_color(color0, color1, beta);
 
-        // acolor = color0;
-        // bcolor = second_half ? color2 : color1;
-        printf(
-            "color0: %08x, color1: %08x, color2: %08x acolor: %08x bcolor %08x\n",
-            color0,
-            color1,
-            color2,
-            acolor,
-            bcolor);
+        int adepth = interpolate(z0, z2, alpha);
+        int bdepth = second_half ? interpolate(z1, z2, beta) : interpolate(z0, z1, beta);
+
+        // // acolor = color0;
+        // // bcolor = second_half ? color2 : color1;
+        // printf(
+        //     "color0: %08x, color1: %08x, color2: %08x acolor: %08x bcolor %08x\n",
+        //     color0,
+        //     color1,
+        //     color2,
+        //     acolor,
+        //     bcolor);
         int y = y0 + i;
-        draw_scanline_gouraud(pixel_buffer, y, ax, bx, acolor, bcolor);
+        draw_scanline_gouraud(pixel_buffer, z_buffer, y, ax, bx, adepth, bdepth, acolor, bcolor);
     }
 }
 
-void
-fill_triangle_gouraud(
-    struct Pixel* pixel_buffer,
-    struct GouraudColors colors,
-    struct Point2D p0,
-    struct Point2D p1,
-    struct Point2D p2)
-{
-    raster_gouraud(
-        (int*)pixel_buffer,
-        p0.x,
-        p1.x,
-        p2.x,
-        p0.y,
-        p1.y,
-        p2.y,
-        colors.color1,
-        colors.color2,
-        colors.color3);
-}
+// void
+// fill_triangle_gouraud(
+//     struct Pixel* pixel_buffer,
+//     struct GouraudColors colors,
+//     struct Point2D p0,
+//     struct Point2D p1,
+//     struct Point2D p2)
+// {
+//     raster_gouraud(
+//         (int*)pixel_buffer,
+//         p0.x,
+//         p1.x,
+//         p2.x,
+//         p0.y,
+//         p1.y,
+//         p2.y,
+//         p0.z,
+//         p1.z,
+//         p2.z,
+//         colors.color1,
+//         colors.color2,
+//         colors.color3);
+// }
 
 void
 raster_triangle(
     struct Pixel* pixel_buffer,
+    int* z_buffer,
     struct GouraudColors colors,
     struct Triangle2D triangle,
     int screen_width,
@@ -365,7 +403,23 @@ raster_triangle(
     // Rasterization logic goes here
 
     // fill_triangle(pixel_buffer, color, triangle.p1, triangle.p2, triangle.p3);
-    fill_triangle_gouraud(pixel_buffer, colors, triangle.p1, triangle.p2, triangle.p3);
+    // fill_triangle_gouraud(pixel_buffer, colors, triangle.p1, triangle.p2, triangle.p3);
+
+    raster_gouraud(
+        (int*)pixel_buffer,
+        z_buffer,
+        triangle.p1.x,
+        triangle.p2.x,
+        triangle.p3.x,
+        triangle.p1.y,
+        triangle.p2.y,
+        triangle.p3.y,
+        triangle.p1.z,
+        triangle.p2.z,
+        triangle.p3.z,
+        colors.color1,
+        colors.color2,
+        colors.color3);
 }
 
 int
@@ -503,6 +557,52 @@ main(int argc, char* argv[])
     memcpy(colors_c, buffer + 4 + num_faces * sizeof(int) * 2, num_faces * sizeof(int));
     free(buffer);
 
+    // Load the face priorities
+    file = fopen("../model.priorities", "rb");
+    if( file == NULL )
+    {
+        printf("Failed to open model.priorities\n");
+        return -1;
+    }
+
+    // Read the file into a buffer
+    fseek(file, 0, SEEK_END);
+    file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    buffer = (char*)malloc(file_size);
+    if( buffer == NULL )
+    {
+        printf("Failed to allocate memory for model.priorities\n");
+        fclose(file);
+        return -1;
+    }
+
+    bytes_read = fread(buffer, 1, file_size, file);
+    if( bytes_read != file_size )
+    {
+        printf("Failed to read model.priorities\n");
+        free(buffer);
+        fclose(file);
+        return -1;
+    }
+
+    fclose(file);
+
+    // read int from the first buffer
+    num_faces = *(int*)buffer;
+    printf("num_faces: %d\n", num_faces);
+    int* face_priority = (int*)malloc(num_faces * sizeof(int));
+    memcpy(face_priority, buffer + 4, num_faces * sizeof(int));
+    free(buffer);
+
+    // print the face priorities
+    // for( int i = 0; i < num_faces; i++ )
+    // {
+    //     printf("face_priority[%d]: %d\n", i, face_priority[i]);
+    // }
+
+    int max_model_depth = 211;
+
     struct Triangle3D* triangles =
         (struct Triangle3D*)malloc(num_faces * sizeof(struct Triangle3D));
     for( int i = 0; i < num_faces; i++ )
@@ -526,6 +626,13 @@ main(int argc, char* argv[])
     free(face_b);
     free(face_c);
 
+    int sorted_triangle_indexes[12][256] = { 0 };
+    int sorted_triangle_count[12] = { 0 };
+    for( int i = 0; i < num_faces; i++ )
+    {
+        int face_prio = face_priority[i];
+        sorted_triangle_indexes[face_prio][sorted_triangle_count[face_prio]++] = i;
+    }
     // project the triangle to the screen 2d
 
     struct Triangle2D* triangles_2d =
@@ -547,11 +654,11 @@ main(int argc, char* argv[])
         int normal_y = dz1 * dx2 - dz2 * dx1;
         int normal_z = dx1 * dy2 - dx2 * dy1;
         // check if the triangle is facing away from the camera
-        if( normal_z > 0 )
-        {
-            // skip the triangle
-            continue;
-        }
+        // if( normal_z > 0 )
+        // {
+        //     // skip the triangle
+        //     continue;
+        // }
 
         // int x = m->vertices_x[v];
         // int y = m->vertices_y[v];
@@ -572,6 +679,14 @@ main(int argc, char* argv[])
         // z = (y * sinCameraPitch + z * cosCameraPitch) >> 16;
 
         int scene_z = 420;
+        int scene_x = 0;
+        int scene_y = 0;
+        int cos_camera_yaw = g_cos_table[0];
+        int sin_camera_yaw = g_sin_table[0];
+        int cos_camera_pitch = g_cos_table[0];
+        int sin_camera_pitch = g_sin_table[0];
+        int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+        int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
 
         int x = triangles[i].p1.x;
         int y = triangles[i].p1.y;
@@ -580,14 +695,17 @@ main(int argc, char* argv[])
         z = scene_z + triangles[i].p1.z;
         triangles_2d[triangle_count].p1.x = (triangles[i].p1.x << 9) / (z);
         triangles_2d[triangle_count].p1.y = (triangles[i].p1.y << 9) / (z);
+        triangles_2d[triangle_count].p3.z = z - b;
 
         z = scene_z + triangles[i].p2.z;
         triangles_2d[triangle_count].p2.x = (triangles[i].p2.x << 9) / (z);
         triangles_2d[triangle_count].p2.y = (triangles[i].p2.y << 9) / (z);
+        triangles_2d[triangle_count].p3.z = z - b;
 
         z = scene_z + triangles[i].p3.z;
         triangles_2d[triangle_count].p3.x = (triangles[i].p3.x << 9) / (z);
         triangles_2d[triangle_count].p3.y = (triangles[i].p3.y << 9) / (z);
+        triangles_2d[triangle_count].p3.z = z - b;
         triangle_count += 1;
     }
     free(triangles);
@@ -595,6 +713,10 @@ main(int argc, char* argv[])
     struct Pixel* pixel_buffer =
         (struct Pixel*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
     memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
+
+    int* z_buffer = (int*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    memset(z_buffer, INT32_MAX, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+
     int init = SDL_INIT_VIDEO;
 
     int res = SDL_Init(init);
@@ -636,31 +758,42 @@ main(int argc, char* argv[])
     // SDL_Renderer* renderer = SDL_GetRenderer(window);
     while( true )
     {
+        for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
+            z_buffer[i] = INT32_MAX;
+
         // SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
         SDL_RenderClear(renderer);
 
         // raster the triangles
         // triangle_count = triangle_count
-        for( int i = 0; i < triangle_count; i++ )
+        for( int prio = 0; prio < 12; prio++ )
         {
-            struct Triangle2D triangle;
-            triangle.p1.x = triangles_2d[i].p1.x + SCREEN_WIDTH / 2;
-            triangle.p1.y = triangles_2d[i].p1.y + SCREEN_HEIGHT / 2;
-            triangle.p2.x = triangles_2d[i].p2.x + SCREEN_WIDTH / 2;
-            triangle.p2.y = triangles_2d[i].p2.y + SCREEN_HEIGHT / 2;
-            triangle.p3.x = triangles_2d[i].p3.x + SCREEN_WIDTH / 2;
-            triangle.p3.y = triangles_2d[i].p3.y + SCREEN_HEIGHT / 2;
+            int* triangle_indexes = sorted_triangle_indexes[prio];
+            int triangle_count = sorted_triangle_count[prio];
 
-            int color_a = colors_a[i];
-            int color_b = colors_b[i];
-            int color_c = colors_c[i];
+            for( int i = 0; i < triangle_count; i++ )
+            {
+                int index = triangle_indexes[i];
+                struct Triangle2D triangle;
+                triangle.p1.x = triangles_2d[index].p1.x + SCREEN_WIDTH / 2;
+                triangle.p1.y = triangles_2d[index].p1.y + SCREEN_HEIGHT / 2;
+                triangle.p2.x = triangles_2d[index].p2.x + SCREEN_WIDTH / 2;
+                triangle.p2.y = triangles_2d[index].p2.y + SCREEN_HEIGHT / 2;
+                triangle.p3.x = triangles_2d[index].p3.x + SCREEN_WIDTH / 2;
+                triangle.p3.y = triangles_2d[index].p3.y + SCREEN_HEIGHT / 2;
 
-            struct GouraudColors gouraud_colors;
-            gouraud_colors.color1 = g_palette[color_a];
-            gouraud_colors.color2 = g_palette[color_b];
-            gouraud_colors.color3 = g_palette[color_c];
+                int color_a = colors_a[index];
+                int color_b = colors_b[index];
+                int color_c = colors_c[index];
 
-            raster_triangle(pixel_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
+                struct GouraudColors gouraud_colors;
+                gouraud_colors.color1 = g_palette[color_a];
+                gouraud_colors.color2 = g_palette[color_b];
+                gouraud_colors.color3 = g_palette[color_c];
+
+                raster_triangle(
+                    pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
+            }
         }
 
         // render pixel buffer to SDL_Surface
