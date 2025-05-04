@@ -3,6 +3,7 @@
     "files.associations": {
         "stdio.h": "c",
         "sdl.h": "c",
-        "locale": "cpp"
+        "locale": "cpp",
+        "math.h": "c"
     }
 }
