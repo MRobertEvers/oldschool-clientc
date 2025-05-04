@@ -553,12 +553,41 @@ main(int argc, char* argv[])
             continue;
         }
 
-        triangles_2d[triangle_count].p1.x = (triangles[i].p1.x * 100) / (triangles[i].p1.z + 70);
-        triangles_2d[triangle_count].p1.y = (triangles[i].p1.y * 100) / (triangles[i].p1.z + 70);
-        triangles_2d[triangle_count].p2.x = (triangles[i].p2.x * 100) / (triangles[i].p2.z + 70);
-        triangles_2d[triangle_count].p2.y = (triangles[i].p2.y * 100) / (triangles[i].p2.z + 70);
-        triangles_2d[triangle_count].p3.x = (triangles[i].p3.x * 100) / (triangles[i].p3.z + 70);
-        triangles_2d[triangle_count].p3.y = (triangles[i].p3.y * 100) / (triangles[i].p3.z + 70);
+        // int x = m->vertices_x[v];
+        // int y = m->vertices_y[v];
+        // int z = m->vertices_z[v];
+        // int temp;
+        // if (yaw != 0) {
+        //     temp = (z * yawsin + x * yawcos) >> 16;
+        //     z = (z * yawcos - x * yawsin) >> 16;
+        //     x = temp;
+        // }
+        // x += sceneX;
+        // y += sceneY;
+        // z += sceneZ;
+        // temp = (z * sinCameraYaw + x * cosCameraYaw) >> 16;
+        // z = (z * cosCameraYaw - x * sinCameraYaw) >> 16;
+        // x = temp;
+        // temp = (y * cosCameraPitch - z * sinCameraPitch) >> 16;
+        // z = (y * sinCameraPitch + z * cosCameraPitch) >> 16;
+
+        int scene_z = 420;
+
+        int x = triangles[i].p1.x;
+        int y = triangles[i].p1.y;
+        int z = triangles[i].p1.z;
+
+        z = scene_z + triangles[i].p1.z;
+        triangles_2d[triangle_count].p1.x = (triangles[i].p1.x << 9) / (z);
+        triangles_2d[triangle_count].p1.y = (triangles[i].p1.y << 9) / (z);
+
+        z = scene_z + triangles[i].p2.z;
+        triangles_2d[triangle_count].p2.x = (triangles[i].p2.x << 9) / (z);
+        triangles_2d[triangle_count].p2.y = (triangles[i].p2.y << 9) / (z);
+
+        z = scene_z + triangles[i].p3.z;
+        triangles_2d[triangle_count].p3.x = (triangles[i].p3.x << 9) / (z);
+        triangles_2d[triangle_count].p3.y = (triangles[i].p3.y << 9) / (z);
         triangle_count += 1;
     }
     free(triangles);
