@@ -223,11 +223,11 @@ draw_scanline_gouraud(
     {
         float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
 
-        int depth = interpolate(depth_start, depth_end, t);
-        if( z_buffer[y * SCREEN_WIDTH + x] > depth )
-            z_buffer[y * SCREEN_WIDTH + x] = depth;
-        else
-            continue;
+        // int depth = interpolate(depth_start, depth_end, t);
+        // if( z_buffer[y * SCREEN_WIDTH + x] > depth )
+        //     z_buffer[y * SCREEN_WIDTH + x] = depth;
+        // else
+        //     continue;
 
         int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
         int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
