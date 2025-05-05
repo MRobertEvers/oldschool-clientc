@@ -368,15 +368,15 @@ raster_gouraud(
         int adepth = interpolate(z0, z2, alpha);
         int bdepth = second_half ? interpolate(z1, z2, beta) : interpolate(z0, z1, beta);
 
-        // // acolor = color0;
-        // // bcolor = second_half ? color2 : color1;
-        // printf(
-        //     "color0: %08x, color1: %08x, color2: %08x acolor: %08x bcolor %08x\n",
-        //     color0,
-        //     color1,
-        //     color2,
-        //     acolor,
-        //     bcolor);
+        /**
+         * The decompiled renderer code uses the average of the three z values
+         * to calculate the depth of the scanline.
+         */
+        int depth_average = (z0 + z1 + z2) / 3;
+
+        adepth = depth_average;
+        bdepth = depth_average;
+
         int y = y0 + i;
         draw_scanline_gouraud(pixel_buffer, z_buffer, y, ax, bx, adepth, bdepth, acolor, bcolor);
     }
