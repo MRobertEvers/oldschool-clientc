@@ -49,3 +49,36 @@ I found that you can also render with z-buffering instead of sorting by depth.
 1. Partition models in layer order.
 2. For each layer, reset the z-buffer
 3. then render each face.
+
+### Rendering Notes
+
+Interesting render
+
+/Users/matthewevers/Documents/git_repos/runelite/runelite-client/src/main/resources/net/runelite/client/plugins/gpu/priority_render.cl
+
+### Rendering Notes - Priority 10 and 11
+
+These seem to be relevant when merging models. For example, model id 44 is a wizards hat and the brim is layer 10. Some I suspect that is something that relies on some dynamic behavior...
+
+```
+    case 10:
+      if (distance > avg1) {
+        return 0;
+      } else if (distance > avg2) {
+        return 5;
+      } else if (distance > avg3) {
+        return 9;
+      } else {
+        return 16;
+      }
+    case 11:
+      if (distance > avg1 && _min10 > avg1) {
+        return 1;
+      } else if (distance > avg2 && (_min10 > avg1 || _min10 > avg2)) {
+        return 6;
+      } else if (distance > avg3 && (_min10 > avg1 || _min10 > avg2 || _min10 > avg3)) {
+        return 10;
+      } else {
+        return 17;
+      }
+```

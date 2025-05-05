@@ -22,6 +22,24 @@ static int tmp_priority_face_count[12] = { 0 };
 static int tmp_priority_depth_sum[12] = { 0 };
 static int tmp_priority_faces[12][2000] = { 0 };
 
+void
+init_sin_table()
+{
+    // 0.0030679615 = 2 * PI / 2048
+    // (int)(sin((double)i * 0.0030679615) * 65536.0);
+    for( int i = 0; i < 2048; i++ )
+        g_sin_table[i] = (int)(sin((double)i * 0.0030679615) * (1 << 16));
+}
+
+void
+init_cos_table()
+{
+    // 0.0030679615 = 2 * PI / 2048
+    // (int)(cos((double)i * 0.0030679615) * 65536.0);
+    for( int i = 0; i < 2048; i++ )
+        g_cos_table[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
+}
+
 static inline int
 interpolate(int a, int b, float t)
 {
@@ -135,8 +153,6 @@ pix3d_set_brightness(int* palette, double brightness)
             int rgb = (intR << 16) + (intG << 8) + intB;
             int rgbAdjusted = pix3d_set_gamma(rgb, random_brightness);
             palette[offset++] = rgbAdjusted;
-            if( offset == 4513 || offset == 4512 )
-                printf("%d: %d\n", offset - 1, rgbAdjusted);
         }
     }
 }
@@ -232,11 +248,11 @@ draw_scanline_gouraud(
     {
         float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
 
-        int depth = interpolate(depth_start, depth_end, t);
-        if( z_buffer[y * SCREEN_WIDTH + x] >= depth )
-            z_buffer[y * SCREEN_WIDTH + x] = depth;
-        else
-            continue;
+        // int depth = interpolate(depth_start, depth_end, t);
+        // if( z_buffer[y * SCREEN_WIDTH + x] >= depth )
+        //     z_buffer[y * SCREEN_WIDTH + x] = depth;
+        // else
+        //     continue;
 
         int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
         int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
@@ -372,10 +388,10 @@ raster_gouraud(
          * The decompiled renderer code uses the average of the three z values
          * to calculate the depth of the scanline.
          */
-        // int depth_average = (z0 + z1 + z2) / 3;
+        int depth_average = (z0 + z1 + z2) / 3;
 
-        // adepth = depth_average;
-        // bdepth = depth_average;
+        adepth = depth_average;
+        bdepth = depth_average;
 
         int y = y0 + i;
         draw_scanline_gouraud(pixel_buffer, z_buffer, y, ax, bx, adepth, bdepth, acolor, bcolor);
@@ -437,9 +453,140 @@ raster_triangle(
         colors.color3);
 }
 
+struct Triangle2D
+project(
+    int x1,
+    int x2,
+    int x3,
+    int y1,
+    int y2,
+    int y3,
+    int z1,
+    int z2,
+    int z3,
+    int yaw,
+    int pitch,
+    int roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int screen_width,
+    int screen_height)
+{
+    struct Triangle2D projected_triangle;
+    int cos_camera_yaw = g_cos_table[0];
+    int sin_camera_yaw = g_sin_table[0];
+    int cos_camera_pitch = g_cos_table[0];
+    int sin_camera_pitch = g_sin_table[0];
+    int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+    int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
+    // b = 0;
+
+    // Apply rotation
+    int sin_yaw = g_sin_table[yaw];
+    int cos_yaw = g_cos_table[yaw];
+    int sin_pitch = g_sin_table[pitch];
+    int cos_pitch = g_cos_table[pitch];
+    int sin_roll = g_sin_table[roll];
+    int cos_roll = g_cos_table[roll];
+
+    // Rotate around Y-axis
+    int x1_rotated = x1 * cos_yaw - z1 * sin_yaw;
+    x1_rotated >>= 16;
+    int z1_rotated = x1 * sin_yaw + z1 * cos_yaw;
+    z1_rotated >>= 16;
+    int x2_rotated = x2 * cos_yaw - z2 * sin_yaw;
+    x2_rotated >>= 16;
+    int z2_rotated = x2 * sin_yaw + z2 * cos_yaw;
+    z2_rotated >>= 16;
+    int x3_rotated = x3 * cos_yaw - z3 * sin_yaw;
+    x3_rotated >>= 16;
+    int z3_rotated = x3 * sin_yaw + z3 * cos_yaw;
+    z3_rotated >>= 16;
+    // Rotate around X-axis
+    int y1_rotated = y1 * cos_pitch - z1_rotated * sin_pitch;
+    y1_rotated >>= 16;
+    int z1_rotated2 = y1 * sin_pitch + z1_rotated * cos_pitch;
+    z1_rotated2 >>= 16;
+    int y2_rotated = y2 * cos_pitch - z2_rotated * sin_pitch;
+    y2_rotated >>= 16;
+    int z2_rotated2 = y2 * sin_pitch + z2_rotated * cos_pitch;
+    z2_rotated2 >>= 16;
+    int y3_rotated = y3 * cos_pitch - z3_rotated * sin_pitch;
+    y3_rotated >>= 16;
+    int z3_rotated2 = y3 * sin_pitch + z3_rotated * cos_pitch;
+    z3_rotated2 >>= 16;
+    // Rotate around Z-axis
+    int x1_final = x1_rotated * cos_roll - y1_rotated * sin_roll;
+    x1_final >>= 16;
+    int y1_final = x1_rotated * sin_roll + y1_rotated * cos_roll;
+    y1_final >>= 16;
+    int x2_final = x2_rotated * cos_roll - y2_rotated * sin_roll;
+    x2_final >>= 16;
+    int y2_final = x2_rotated * sin_roll + y2_rotated * cos_roll;
+    y2_final >>= 16;
+    int x3_final = x3_rotated * cos_roll - y3_rotated * sin_roll;
+    x3_final >>= 16;
+    int y3_final = x3_rotated * sin_roll + y3_rotated * cos_roll;
+    y3_final >>= 16;
+
+    // Perspective projection
+    int z1_final = z1_rotated2 + scene_z;
+    int z2_final = z2_rotated2 + scene_z;
+    int z3_final = z3_rotated2 + scene_z;
+    int screen_x1 = (x1_final * 256) / z1_final + scene_x;
+    int screen_y1 = (y1_final * 256) / z1_final + scene_y;
+    int screen_x2 = (x2_final * 256) / z2_final + scene_x;
+    int screen_y2 = (y2_final * 256) / z2_final + scene_y;
+    int screen_x3 = (x3_final * 256) / z3_final + scene_x;
+    int screen_y3 = (y3_final * 256) / z3_final + scene_y;
+
+    // Clip to screen bounds
+    if( screen_x1 < 0 )
+        screen_x1 = 0;
+    if( screen_x1 >= screen_width )
+
+        screen_x1 = screen_width - 1;
+    if( screen_y1 < 0 )
+        screen_y1 = 0;
+    if( screen_y1 >= screen_height )
+        screen_y1 = screen_height - 1;
+    if( screen_x2 < 0 )
+        screen_x2 = 0;
+    if( screen_x2 >= screen_width )
+        screen_x2 = screen_width - 1;
+    if( screen_y2 < 0 )
+        screen_y2 = 0;
+    if( screen_y2 >= screen_height )
+        screen_y2 = screen_height - 1;
+    if( screen_x3 < 0 )
+        screen_x3 = 0;
+    if( screen_x3 >= screen_width )
+        screen_x3 = screen_width - 1;
+    if( screen_y3 < 0 )
+        screen_y3 = 0;
+    if( screen_y3 >= screen_height )
+        screen_y3 = screen_height - 1;
+
+    // Set the projected triangle
+    projected_triangle.p1.x = screen_x1;
+    projected_triangle.p1.y = screen_y1;
+    projected_triangle.p1.z = z1_final - b;
+    projected_triangle.p2.x = screen_x2;
+    projected_triangle.p2.y = screen_y2;
+    projected_triangle.p2.z = z2_final - b;
+    projected_triangle.p3.x = screen_x3;
+    projected_triangle.p3.y = screen_y3;
+    projected_triangle.p3.z = z3_final - b;
+
+    return projected_triangle;
+}
+
 int
 main(int argc, char* argv[])
 {
+    init_cos_table();
+    init_sin_table();
     init_palette();
 
     // load model.vt
@@ -662,21 +809,28 @@ main(int argc, char* argv[])
         (struct Triangle2D*)malloc(num_faces * sizeof(struct Triangle2D));
     int* triangles_2d_map = (int*)malloc(num_faces * sizeof(int));
 
+    int model_pitch = 0;
+    int model_yaw = 500;
+    int model_roll = 0;
+
+    // int model_yawcos = g_cos_table[model_yaw];
+    // int model_yawsin = g_sin_table[model_yaw];
+
     int triangle_count = 0;
     for( int i = 0; i < num_faces; i++ )
     {
         // calculate normals and skip if facing away from the camera
 
         // calculate the normal of the triangle
-        int dx1 = triangles[i].p2.x - triangles[i].p1.x;
-        int dy1 = triangles[i].p2.y - triangles[i].p1.y;
-        int dz1 = triangles[i].p2.z - triangles[i].p1.z;
-        int dx2 = triangles[i].p3.x - triangles[i].p1.x;
-        int dy2 = triangles[i].p3.y - triangles[i].p1.y;
-        int dz2 = triangles[i].p3.z - triangles[i].p1.z;
-        int normal_x = dy1 * dz2 - dy2 * dz1;
-        int normal_y = dz1 * dx2 - dz2 * dx1;
-        int normal_z = dx1 * dy2 - dx2 * dy1;
+        // int dx1 = triangles[i].p2.x - triangles[i].p1.x;
+        // int dy1 = triangles[i].p2.y - triangles[i].p1.y;
+        // int dz1 = triangles[i].p2.z - triangles[i].p1.z;
+        // int dx2 = triangles[i].p3.x - triangles[i].p1.x;
+        // int dy2 = triangles[i].p3.y - triangles[i].p1.y;
+        // int dz2 = triangles[i].p3.z - triangles[i].p1.z;
+        // int normal_x = dy1 * dz2 - dy2 * dz1;
+        // int normal_y = dz1 * dx2 - dz2 * dx1;
+        // int normal_z = dx1 * dy2 - dx2 * dy1;
         // check if the triangle is facing away from the camera
         // if( normal_z < 0 )
         // {
@@ -702,55 +856,90 @@ main(int argc, char* argv[])
         // temp = (y * cosCameraPitch - z * sinCameraPitch) >> 16;
         // z = (y * sinCameraPitch + z * cosCameraPitch) >> 16;
 
-        int scene_z = 420;
-        int scene_x = 0;
-        int scene_y = 0;
-        int cos_camera_yaw = g_cos_table[0];
-        int sin_camera_yaw = g_sin_table[0];
-        int cos_camera_pitch = g_cos_table[0];
-        int sin_camera_pitch = g_sin_table[0];
-        int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
-        int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
+        // int scene_z = 420;
+        // int scene_x = 0;
+        // int scene_y = 0;
+        // int cos_camera_yaw = g_cos_table[0];
+        // int sin_camera_yaw = g_sin_table[0];
+        // int cos_camera_pitch = g_cos_table[0];
+        // int sin_camera_pitch = g_sin_table[0];
+        // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+        // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
 
-        int x = triangles[i].p1.x;
-        int y = triangles[i].p1.y;
-        int z = triangles[i].p1.z;
+        // int x = triangles[i].p1.x;
+        // int y = triangles[i].p1.y;
+        // int z = triangles[i].p1.z;
 
-        z = scene_z + triangles[i].p1.z;
-        if( z < g_depth_min )
-            g_depth_min = z;
-        if( z > g_depth_max )
-            g_depth_max = z;
+        // z = scene_z + triangles[i].p1.z;
+        // if( z < g_depth_min )
+        //     g_depth_min = z;
+        // if( z > g_depth_max )
+        //     g_depth_max = z;
 
-        triangles_2d[triangle_count].p1.x = (triangles[i].p1.x << 9) / (z);
-        triangles_2d[triangle_count].p1.y = (triangles[i].p1.y << 9) / (z);
-        triangles_2d[triangle_count].p1.z = z;
+        // // Project the 3D point to 2D with model_pitch, yaw, roll
+        // triangles_2d[triangle_count].p1.x <<= 9;
+        // triangles_2d[triangle_count].p1.y <<= 9;
+        // triangles_2d[triangle_count].p1.z = z;
+        // int x = (triangles[i].p1.x * cos_camera_yaw - triangles[i].p1.z * sin_camera_yaw) >> 16;
+        // int y = (triangles[i].p1.y * cos_camera_pitch - triangles[i].p1.z * sin_camera_pitch) >>
+        // 16; int z = (triangles[i].p1.z * cos_camera_pitch + triangles[i].p1.y * sin_camera_pitch)
+        // >> 16;
 
-        z = scene_z + triangles[i].p2.z;
-        if( z < g_depth_min )
-            g_depth_min = z;
-        if( z > g_depth_max )
-            g_depth_max = z;
+        // int temp;
+        // if( model_yaw != 0 )
+        // {
+        //     temp = (z * model_yawsin + x * model_yawcos) >> 16;
+        //     z = (z * model_yawcos - x * model_yawsin) >> 16;
+        //     x = temp;
+        // }
 
-        triangles_2d[triangle_count].p2.x = (triangles[i].p2.x << 9) / (z);
-        triangles_2d[triangle_count].p2.y = (triangles[i].p2.y << 9) / (z);
-        triangles_2d[triangle_count].p2.z = z;
+        // // triangles_2d[triangle_count].p1.x = (triangles[i].p1.x << 9) / (z);
+        // // triangles_2d[triangle_count].p1.y = (triangles[i].p1.y << 9) / (z);
+        // // triangles_2d[triangle_count].p1.z = z;
 
-        z = scene_z + triangles[i].p3.z;
-        if( z < g_depth_min )
-            g_depth_min = z;
-        if( z > g_depth_max )
-            g_depth_max = z;
+        // z = scene_z + triangles[i].p2.z;
+        // if( z < g_depth_min )
+        //     g_depth_min = z;
+        // if( z > g_depth_max )
+        //     g_depth_max = z;
 
-        triangles_2d[triangle_count].p3.x = (triangles[i].p3.x << 9) / (z);
-        triangles_2d[triangle_count].p3.y = (triangles[i].p3.y << 9) / (z);
-        triangles_2d[triangle_count].p3.z = z;
+        // triangles_2d[triangle_count].p2.x = (triangles[i].p2.x << 9) / (z);
+        // triangles_2d[triangle_count].p2.y = (triangles[i].p2.y << 9) / (z);
+        // triangles_2d[triangle_count].p2.z = z;
+
+        // z = scene_z + triangles[i].p3.z;
+        // if( z < g_depth_min )
+        //     g_depth_min = z;
+        // if( z > g_depth_max )
+        //     g_depth_max = z;
+
+        // triangles_2d[triangle_count].p3.x = (triangles[i].p3.x << 9) / (z);
+        // triangles_2d[triangle_count].p3.y = (triangles[i].p3.y << 9) / (z);
+        // triangles_2d[triangle_count].p3.z = z;
+
+        triangles_2d[triangle_count] = project(
+            vertex_x[face_a[i]],
+            vertex_x[face_b[i]],
+            vertex_x[face_c[i]],
+            vertex_y[face_a[i]],
+            vertex_y[face_b[i]],
+            vertex_y[face_c[i]],
+            vertex_z[face_a[i]],
+            vertex_z[face_b[i]],
+            vertex_z[face_c[i]],
+            model_yaw,
+            model_pitch,
+            model_roll,
+            SCREEN_WIDTH / 2,
+            SCREEN_HEIGHT / 2,
+            420,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT);
 
         triangles_2d_map[i] = triangle_count;
 
         triangle_count += 1;
     }
-    free(triangles);
 
     int model_min_depth = 96;
 
@@ -771,13 +960,33 @@ main(int argc, char* argv[])
         int b = face_b[f];
         int c = face_c[f];
 
-        int xa = vertex_x[a];
-        int xb = vertex_x[b];
-        int xc = vertex_x[c];
+        // int xa = vertex_x[a];
+        // int xb = vertex_x[b];
+        // int xc = vertex_x[c];
 
-        if( (xa - xb) * (vertex_y[c] - vertex_y[b]) - (vertex_y[a] - vertex_y[b]) * (xc - xb) > 0 )
+        int xa = triangles_2d[f].p1.x;
+        int xb = triangles_2d[f].p2.x;
+        int xc = triangles_2d[f].p3.x;
+
+        // int ya = vertex_y[a];
+        // int yb = vertex_y[b];
+        // int yc = vertex_y[c];
+
+        int ya = triangles_2d[f].p1.y;
+        int yb = triangles_2d[f].p2.y;
+        int yc = triangles_2d[f].p3.y;
+
+        // int za = vertex_z[a];
+        // int zb = vertex_z[b];
+        // int zc = vertex_z[c];
+
+        int za = triangles_2d[f].p1.z;
+        int zb = triangles_2d[f].p2.z;
+        int zc = triangles_2d[f].p3.z;
+
+        if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) > 0 )
         {
-            int depth_average = (vertex_z[a] + vertex_z[b] + vertex_z[c]) / 3 + model_min_depth;
+            int depth_average = (za + zb + zc) / 3 + model_min_depth;
             if( depth_average < 1500 )
             {
                 tmp_depth_faces[depth_average][tmp_depth_face_count[depth_average]++] = f;
@@ -860,38 +1069,84 @@ main(int argc, char* argv[])
         SCREEN_HEIGHT);
     SDL_Event event;
     // renderer
-
+    int step = 20;
     // SDL_Renderer* renderer = SDL_GetRenderer(window);
     while( true )
     {
         for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
             z_buffer[i] = INT32_MAX;
 
+        // Clear the pixel buffer
+        // memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
+
+        // Get keyboard input
+        SDL_PollEvent(&event);
+        if( event.type == SDL_QUIT )
+            break;
+
+        model_yaw = (model_yaw + 1) % 2048;
+        // Check if a key is pressed
+        if( event.type == SDL_KEYDOWN )
+        {
+            printf("key: %d\n", event.key.keysym.sym);
+            if( event.key.keysym.sym == SDLK_ESCAPE )
+                break;
+            if( event.key.keysym.sym == SDLK_UP )
+                model_pitch += step;
+            if( event.key.keysym.sym == SDLK_DOWN )
+                model_pitch -= step;
+            if( event.key.keysym.sym == SDLK_LEFT )
+                model_yaw -= step;
+            if( event.key.keysym.sym == SDLK_RIGHT )
+                model_yaw += step;
+            if( event.key.keysym.sym == SDLK_q )
+                model_roll -= step;
+            if( event.key.keysym.sym == SDLK_e )
+                model_roll += step;
+        }
+
+        // for( int i = 0; i < num_faces; i++ )
+        // {
+        //     triangles_2d[i] = project(
+        //         triangles[i].p1.x,
+        //         triangles[i].p2.x,
+        //         triangles[i].p3.x,
+        //         triangles[i].p1.y,
+        //         triangles[i].p2.y,
+        //         triangles[i].p3.y,
+        //         triangles[i].p1.z,
+        //         triangles[i].p2.z,
+        //         triangles[i].p3.z,
+        //         model_yaw,
+        //         model_pitch,
+        //         model_roll,
+        //         SCREEN_WIDTH / 2,
+        //         SCREEN_HEIGHT / 2,
+        //         420,
+        //         SCREEN_WIDTH,
+        //         SCREEN_HEIGHT);
+        // }
         // SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
         SDL_RenderClear(renderer);
 
         // raster the triangles
         // triangle_count = triangle_count
-        for( int prio = 0; prio < 10; prio++ )
+        for( int prio = 0; prio < 12; prio++ )
         {
             int triangle_count = tmp_priority_face_count[prio];
             int* triangle_indexes = tmp_priority_faces[prio];
 
             int offset_x = SCREEN_WIDTH / 2;
             int offset_y = SCREEN_HEIGHT / 2;
+            offset_x = 0;
+            offset_y = 0;
 
             // offset_x = offset_x + (prio - 5) * 120;
-            offset_x += 240;
+            // offset_x += 240;
             for( int i = 0; i < triangle_count; i++ )
             {
                 int index = triangle_indexes[i];
-                struct Triangle2D triangle = { 0 };
-                triangle.p1.x = triangles_2d[index].p1.x + offset_x;
-                triangle.p1.y = triangles_2d[index].p1.y + offset_y;
-                triangle.p2.x = triangles_2d[index].p2.x + offset_x;
-                triangle.p2.y = triangles_2d[index].p2.y + offset_y;
-                triangle.p3.x = triangles_2d[index].p3.x + offset_x;
-                triangle.p3.y = triangles_2d[index].p3.y + offset_y;
+                struct Triangle2D triangle = triangles_2d[triangles_2d_map[index]];
 
                 int color_a = colors_a[index];
                 int color_b = colors_b[index];
@@ -906,46 +1161,47 @@ main(int argc, char* argv[])
                     pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
             }
         }
-        for( int prio = 0; prio < 12; prio++ )
-        {
-            // reset the z buffer for each priority.
-            for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
-                z_buffer[i] = INT32_MAX;
+        // for( int prio = 0; prio < 12; prio++ )
+        // {
+        //     // reset the z buffer for each priority.
+        //     for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
+        //         z_buffer[i] = INT32_MAX;
 
-            int* triangle_indexes = sorted_triangle_indexes[prio];
-            int triangle_count = sorted_triangle_count[prio];
+        //     int* triangle_indexes = sorted_triangle_indexes[prio];
+        //     int triangle_count = sorted_triangle_count[prio];
 
-            for( int i = 0; i < triangle_count; i++ )
-            {
-                int index_original = triangle_indexes[i];
-                int index = triangles_2d_map[index_original];
+        //     for( int i = 0; i < triangle_count; i++ )
+        //     {
+        //         int index_original = triangle_indexes[i];
+        //         int index = triangles_2d_map[index_original];
 
-                struct Triangle2D triangle;
-                triangle.p1.x = triangles_2d[index].p1.x + SCREEN_WIDTH / 2;
-                triangle.p1.y = triangles_2d[index].p1.y + SCREEN_HEIGHT / 2;
-                triangle.p1.z = triangles_2d[index].p1.z;
+        //         struct Triangle2D triangle;
+        //         triangle.p1.x = triangles_2d[index].p1.x + SCREEN_WIDTH / 2;
+        //         triangle.p1.y = triangles_2d[index].p1.y + SCREEN_HEIGHT / 2;
+        //         triangle.p1.z = triangles_2d[index].p1.z;
 
-                triangle.p2.x = triangles_2d[index].p2.x + SCREEN_WIDTH / 2;
-                triangle.p2.y = triangles_2d[index].p2.y + SCREEN_HEIGHT / 2;
-                triangle.p2.z = triangles_2d[index].p2.z;
+        //         triangle.p2.x = triangles_2d[index].p2.x + SCREEN_WIDTH / 2;
+        //         triangle.p2.y = triangles_2d[index].p2.y + SCREEN_HEIGHT / 2;
+        //         triangle.p2.z = triangles_2d[index].p2.z;
 
-                triangle.p3.x = triangles_2d[index].p3.x + SCREEN_WIDTH / 2;
-                triangle.p3.y = triangles_2d[index].p3.y + SCREEN_HEIGHT / 2;
-                triangle.p3.z = triangles_2d[index].p3.z;
+        //         triangle.p3.x = triangles_2d[index].p3.x + SCREEN_WIDTH / 2;
+        //         triangle.p3.y = triangles_2d[index].p3.y + SCREEN_HEIGHT / 2;
+        //         triangle.p3.z = triangles_2d[index].p3.z;
 
-                int color_a = colors_a[index];
-                int color_b = colors_b[index];
-                int color_c = colors_c[index];
+        //         int color_a = colors_a[index];
+        //         int color_b = colors_b[index];
+        //         int color_c = colors_c[index];
 
-                struct GouraudColors gouraud_colors;
-                gouraud_colors.color1 = g_palette[color_a];
-                gouraud_colors.color2 = g_palette[color_b];
-                gouraud_colors.color3 = g_palette[color_c];
+        //         struct GouraudColors gouraud_colors;
+        //         gouraud_colors.color1 = g_palette[color_a];
+        //         gouraud_colors.color2 = g_palette[color_b];
+        //         gouraud_colors.color3 = g_palette[color_c];
 
-                raster_triangle(
-                    pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
-            }
-        }
+        //         raster_triangle(
+        //             pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH,
+        //             SCREEN_HEIGHT);
+        //     }
+        // }
 
         // render pixel buffer to SDL_Surface
         SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
