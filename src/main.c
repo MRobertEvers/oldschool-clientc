@@ -16,10 +16,10 @@ static int g_cos_table[2048];
 
 static int g_palette[65536];
 
-static int depth_face_count[1500] = { 0 };
+static int tmp_depth_face_count[1500] = { 0 };
 static int tmp_depth_faces[1500][512] = { 0 };
-static int tmp_priority_depth_sum[12] = { 0 };
 static int tmp_priority_face_count[12] = { 0 };
+static int tmp_priority_depth_sum[12] = { 0 };
 static int tmp_priority_faces[12][2000] = { 0 };
 
 static inline int
@@ -189,6 +189,9 @@ struct Pixel
     char a;
 };
 
+int g_depth_min = INT_MAX;
+int g_depth_max = INT_MIN;
+
 int
 edge_interpolate(int x0, int y0, int x1, int y1, int y)
 {
@@ -229,16 +232,22 @@ draw_scanline_gouraud(
     {
         float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
 
-        // int depth = interpolate(depth_start, depth_end, t);
-        // if( z_buffer[y * SCREEN_WIDTH + x] > depth )
-        //     z_buffer[y * SCREEN_WIDTH + x] = depth;
-        // else
-        //     continue;
+        int depth = interpolate(depth_start, depth_end, t);
+        if( z_buffer[y * SCREEN_WIDTH + x] >= depth )
+            z_buffer[y * SCREEN_WIDTH + x] = depth;
+        else
+            continue;
 
         int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
         int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
         int b = interpolate(color_start & 0xFF, color_end & 0xFF, t);
         int a = 0xFF; // Alpha value
+
+        // g = 0;
+        // b = 0;
+        // int range = (g_depth_max - g_depth_min);
+        // float numer = ((float)(depth + (g_depth_min)));
+        // r = (numer / range) * 255;
 
         int color = (a << 24) | (r << 16) | (g << 8) | b;
 
@@ -630,7 +639,7 @@ main(int argc, char* argv[])
      * Sort faces by "priority"
      */
 
-    int sorted_triangle_indexes[12][256] = { 0 };
+    int sorted_triangle_indexes[12][500] = { 0 };
     int sorted_triangle_count[12] = { 0 };
     for( int i = 0; i < num_faces; i++ )
     {
@@ -651,6 +660,7 @@ main(int argc, char* argv[])
 
     struct Triangle2D* triangles_2d =
         (struct Triangle2D*)malloc(num_faces * sizeof(struct Triangle2D));
+    int* triangles_2d_map = (int*)malloc(num_faces * sizeof(int));
 
     int triangle_count = 0;
     for( int i = 0; i < num_faces; i++ )
@@ -668,7 +678,7 @@ main(int argc, char* argv[])
         int normal_y = dz1 * dx2 - dz2 * dx1;
         int normal_z = dx1 * dy2 - dx2 * dy1;
         // check if the triangle is facing away from the camera
-        // if( normal_z > 0 )
+        // if( normal_z < 0 )
         // {
         //     // skip the triangle
         //     continue;
@@ -707,19 +717,37 @@ main(int argc, char* argv[])
         int z = triangles[i].p1.z;
 
         z = scene_z + triangles[i].p1.z;
+        if( z < g_depth_min )
+            g_depth_min = z;
+        if( z > g_depth_max )
+            g_depth_max = z;
+
         triangles_2d[triangle_count].p1.x = (triangles[i].p1.x << 9) / (z);
         triangles_2d[triangle_count].p1.y = (triangles[i].p1.y << 9) / (z);
-        triangles_2d[triangle_count].p3.z = z - b;
+        triangles_2d[triangle_count].p1.z = z;
 
         z = scene_z + triangles[i].p2.z;
+        if( z < g_depth_min )
+            g_depth_min = z;
+        if( z > g_depth_max )
+            g_depth_max = z;
+
         triangles_2d[triangle_count].p2.x = (triangles[i].p2.x << 9) / (z);
         triangles_2d[triangle_count].p2.y = (triangles[i].p2.y << 9) / (z);
-        triangles_2d[triangle_count].p3.z = z - b;
+        triangles_2d[triangle_count].p2.z = z;
 
         z = scene_z + triangles[i].p3.z;
+        if( z < g_depth_min )
+            g_depth_min = z;
+        if( z > g_depth_max )
+            g_depth_max = z;
+
         triangles_2d[triangle_count].p3.x = (triangles[i].p3.x << 9) / (z);
         triangles_2d[triangle_count].p3.y = (triangles[i].p3.y << 9) / (z);
-        triangles_2d[triangle_count].p3.z = z - b;
+        triangles_2d[triangle_count].p3.z = z;
+
+        triangles_2d_map[i] = triangle_count;
+
         triangle_count += 1;
     }
     free(triangles);
@@ -741,7 +769,7 @@ main(int argc, char* argv[])
             int depth_average = (vertex_z[a] + vertex_z[b] + vertex_z[c]) / 3 + model_min_depth;
             if( depth_average < 1500 )
             {
-                tmp_depth_faces[depth_average][depth_face_count[depth_average]++] = f;
+                tmp_depth_faces[depth_average][tmp_depth_face_count[depth_average]++] = f;
             }
         }
     }
@@ -750,7 +778,7 @@ main(int argc, char* argv[])
     //    _Model.vertex_screen_z[c]) / 3 + m->min_depth;
     for( int depth = max_model_depth; depth >= 0 && depth < 1500; depth-- )
     {
-        const int face_count = depth_face_count[depth];
+        const int face_count = tmp_depth_face_count[depth];
         if( face_count > 0 )
         {
             int* faces = tmp_depth_faces[depth];
@@ -832,50 +860,26 @@ main(int argc, char* argv[])
 
         // raster the triangles
         // triangle_count = triangle_count
-        for( int prio = 0; prio < 10; prio++ )
-        {
-            int triangle_count = tmp_priority_face_count[prio];
-            int* triangle_indexes = tmp_priority_faces[prio];
-
-            for( int i = 0; i < triangle_count; i++ )
-            {
-                int index = triangle_indexes[i];
-                struct Triangle2D triangle;
-                triangle.p1.x = triangles_2d[index].p1.x + SCREEN_WIDTH / 2;
-                triangle.p1.y = triangles_2d[index].p1.y + SCREEN_HEIGHT / 2;
-                triangle.p2.x = triangles_2d[index].p2.x + SCREEN_WIDTH / 2;
-                triangle.p2.y = triangles_2d[index].p2.y + SCREEN_HEIGHT / 2;
-                triangle.p3.x = triangles_2d[index].p3.x + SCREEN_WIDTH / 2;
-                triangle.p3.y = triangles_2d[index].p3.y + SCREEN_HEIGHT / 2;
-
-                int color_a = colors_a[index];
-                int color_b = colors_b[index];
-                int color_c = colors_c[index];
-
-                struct GouraudColors gouraud_colors;
-                gouraud_colors.color1 = g_palette[color_a];
-                gouraud_colors.color2 = g_palette[color_b];
-                gouraud_colors.color3 = g_palette[color_c];
-
-                raster_triangle(
-                    pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
-            }
-        }
-        // for( int prio = 0; prio < 12; prio++ )
+        // for( int prio = 0; prio < 10; prio++ )
         // {
-        //     int* triangle_indexes = sorted_triangle_indexes[prio];
-        //     int triangle_count = sorted_triangle_count[prio];
+        //     int triangle_count = tmp_priority_face_count[prio];
+        //     int* triangle_indexes = tmp_priority_faces[prio];
+
+        //     int offset_x = SCREEN_WIDTH / 2;
+        //     int offset_y = SCREEN_HEIGHT / 2;
+
+        //     offset_x = offset_x + (prio - 5) * 120;
 
         //     for( int i = 0; i < triangle_count; i++ )
         //     {
         //         int index = triangle_indexes[i];
-        //         struct Triangle2D triangle;
-        //         triangle.p1.x = triangles_2d[index].p1.x + SCREEN_WIDTH / 2;
-        //         triangle.p1.y = triangles_2d[index].p1.y + SCREEN_HEIGHT / 2;
-        //         triangle.p2.x = triangles_2d[index].p2.x + SCREEN_WIDTH / 2;
-        //         triangle.p2.y = triangles_2d[index].p2.y + SCREEN_HEIGHT / 2;
-        //         triangle.p3.x = triangles_2d[index].p3.x + SCREEN_WIDTH / 2;
-        //         triangle.p3.y = triangles_2d[index].p3.y + SCREEN_HEIGHT / 2;
+        //         struct Triangle2D triangle = {0};
+        //         triangle.p1.x = triangles_2d[index].p1.x + offset_x;
+        //         triangle.p1.y = triangles_2d[index].p1.y + offset_y;
+        //         triangle.p2.x = triangles_2d[index].p2.x + offset_x;
+        //         triangle.p2.y = triangles_2d[index].p2.y + offset_y;
+        //         triangle.p3.x = triangles_2d[index].p3.x + offset_x;
+        //         triangle.p3.y = triangles_2d[index].p3.y + offset_y;
 
         //         int color_a = colors_a[index];
         //         int color_b = colors_b[index];
@@ -891,6 +895,42 @@ main(int argc, char* argv[])
         //             SCREEN_HEIGHT);
         //     }
         // }
+        for( int prio = 0; prio < 12; prio++ )
+        {
+            int* triangle_indexes = sorted_triangle_indexes[prio];
+            int triangle_count = sorted_triangle_count[prio];
+
+            for( int i = 0; i < triangle_count; i++ )
+            {
+                int index_original = triangle_indexes[i];
+                int index = triangles_2d_map[index_original];
+
+                struct Triangle2D triangle;
+                triangle.p1.x = triangles_2d[index].p1.x + SCREEN_WIDTH / 2;
+                triangle.p1.y = triangles_2d[index].p1.y + SCREEN_HEIGHT / 2;
+                triangle.p1.z = triangles_2d[index].p1.z;
+
+                triangle.p2.x = triangles_2d[index].p2.x + SCREEN_WIDTH / 2;
+                triangle.p2.y = triangles_2d[index].p2.y + SCREEN_HEIGHT / 2;
+                triangle.p2.z = triangles_2d[index].p2.z;
+
+                triangle.p3.x = triangles_2d[index].p3.x + SCREEN_WIDTH / 2;
+                triangle.p3.y = triangles_2d[index].p3.y + SCREEN_HEIGHT / 2;
+                triangle.p3.z = triangles_2d[index].p3.z;
+
+                int color_a = colors_a[index];
+                int color_b = colors_b[index];
+                int color_c = colors_c[index];
+
+                struct GouraudColors gouraud_colors;
+                gouraud_colors.color1 = g_palette[color_a];
+                gouraud_colors.color2 = g_palette[color_b];
+                gouraud_colors.color3 = g_palette[color_c];
+
+                raster_triangle(
+                    pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
+            }
+        }
 
         // render pixel buffer to SDL_Surface
         SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
