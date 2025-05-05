@@ -16,6 +16,12 @@ static int g_cos_table[2048];
 
 static int g_palette[65536];
 
+static int depth_face_count[1500] = { 0 };
+static int tmp_depth_faces[1500][512] = { 0 };
+static int tmp_priority_depth_sum[12] = { 0 };
+static int tmp_priority_face_count[12] = { 0 };
+static int tmp_priority_faces[12][2000] = { 0 };
+
 static inline int
 interpolate(int a, int b, float t)
 {
@@ -619,12 +625,10 @@ main(int argc, char* argv[])
         triangles[i].p3.y = vertex_y[face_c[i]];
         triangles[i].p3.z = vertex_z[face_c[i]];
     }
-    free(vertex_x);
-    free(vertex_y);
-    free(vertex_z);
-    free(face_a);
-    free(face_b);
-    free(face_c);
+
+    /**
+     * Sort faces by "priority"
+     */
 
     int sorted_triangle_indexes[12][256] = { 0 };
     int sorted_triangle_count[12] = { 0 };
@@ -633,7 +637,17 @@ main(int argc, char* argv[])
         int face_prio = face_priority[i];
         sorted_triangle_indexes[face_prio][sorted_triangle_count[face_prio]++] = i;
     }
-    // project the triangle to the screen 2d
+
+    /**
+     * Sort by depth
+     */
+    // _Model.tmp_depth_face_count = calloc(MODEL_MAX_DEPTH, sizeof(int));
+    // _Model.tmp_depth_faces = calloc(MODEL_MAX_DEPTH, sizeof(int *));
+    // for (int i = 0; i < MODEL_MAX_DEPTH; i++) {
+    //     _Model.tmp_depth_faces[i] = calloc(MODEL_DEPTH_FACE_COUNT, sizeof(int));
+    // }
+    // _Model.tmp_priority_face_count = calloc(12, sizeof(int));
+    // _Model.tmp_priority_faces = calloc(12, sizeof(int *));
 
     struct Triangle2D* triangles_2d =
         (struct Triangle2D*)malloc(num_faces * sizeof(struct Triangle2D));
@@ -710,6 +724,58 @@ main(int argc, char* argv[])
     }
     free(triangles);
 
+    int model_min_depth = 96;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int a = face_a[f];
+        int b = face_b[f];
+        int c = face_c[f];
+
+        int xa = vertex_x[a];
+        int xb = vertex_x[b];
+        int xc = vertex_x[c];
+
+        if( (xa - xb) * (vertex_y[c] - vertex_y[b]) - (vertex_y[a] - vertex_y[b]) * (xc - xb) > 0 )
+        {
+            int depth_average = (vertex_z[a] + vertex_z[b] + vertex_z[c]) / 3 + model_min_depth;
+            if( depth_average < 1500 )
+            {
+                tmp_depth_faces[depth_average][depth_face_count[depth_average]++] = f;
+            }
+        }
+    }
+
+    //    int depth_average = (_Model.vertex_screen_z[a] + _Model.vertex_screen_z[b] +
+    //    _Model.vertex_screen_z[c]) / 3 + m->min_depth;
+    for( int depth = max_model_depth; depth >= 0 && depth < 1500; depth-- )
+    {
+        const int face_count = depth_face_count[depth];
+        if( face_count > 0 )
+        {
+            int* faces = tmp_depth_faces[depth];
+            for( int i = 0; i < face_count; i++ )
+            {
+                int priority_depth_face_index = faces[i];
+                int depth_average = face_priority[priority_depth_face_index];
+                int priority_face_count = tmp_priority_face_count[depth_average]++;
+                tmp_priority_faces[depth_average][priority_face_count] = priority_depth_face_index;
+                if( depth_average < 10 )
+                {
+                    tmp_priority_depth_sum[depth_average] += depth;
+                }
+                // else if( depth_average == 10 )
+                // {
+                //     _Model.tmp_priority10_face_depth[priority_face_count] = depth;
+                // }
+                // else
+                // {
+                //     _Model.tmp_priority11_face_depth[priority_face_count] = depth;
+                // }
+            }
+        }
+    }
+
     struct Pixel* pixel_buffer =
         (struct Pixel*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
     memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
@@ -766,10 +832,10 @@ main(int argc, char* argv[])
 
         // raster the triangles
         // triangle_count = triangle_count
-        for( int prio = 0; prio < 12; prio++ )
+        for( int prio = 0; prio < 10; prio++ )
         {
-            int* triangle_indexes = sorted_triangle_indexes[prio];
-            int triangle_count = sorted_triangle_count[prio];
+            int triangle_count = tmp_priority_face_count[prio];
+            int* triangle_indexes = tmp_priority_faces[prio];
 
             for( int i = 0; i < triangle_count; i++ )
             {
@@ -795,6 +861,36 @@ main(int argc, char* argv[])
                     pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
             }
         }
+        // for( int prio = 0; prio < 12; prio++ )
+        // {
+        //     int* triangle_indexes = sorted_triangle_indexes[prio];
+        //     int triangle_count = sorted_triangle_count[prio];
+
+        //     for( int i = 0; i < triangle_count; i++ )
+        //     {
+        //         int index = triangle_indexes[i];
+        //         struct Triangle2D triangle;
+        //         triangle.p1.x = triangles_2d[index].p1.x + SCREEN_WIDTH / 2;
+        //         triangle.p1.y = triangles_2d[index].p1.y + SCREEN_HEIGHT / 2;
+        //         triangle.p2.x = triangles_2d[index].p2.x + SCREEN_WIDTH / 2;
+        //         triangle.p2.y = triangles_2d[index].p2.y + SCREEN_HEIGHT / 2;
+        //         triangle.p3.x = triangles_2d[index].p3.x + SCREEN_WIDTH / 2;
+        //         triangle.p3.y = triangles_2d[index].p3.y + SCREEN_HEIGHT / 2;
+
+        //         int color_a = colors_a[index];
+        //         int color_b = colors_b[index];
+        //         int color_c = colors_c[index];
+
+        //         struct GouraudColors gouraud_colors;
+        //         gouraud_colors.color1 = g_palette[color_a];
+        //         gouraud_colors.color2 = g_palette[color_b];
+        //         gouraud_colors.color3 = g_palette[color_c];
+
+        //         raster_triangle(
+        //             pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH,
+        //             SCREEN_HEIGHT);
+        //     }
+        // }
 
         // render pixel buffer to SDL_Surface
         SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
