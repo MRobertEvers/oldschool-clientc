@@ -372,10 +372,10 @@ raster_gouraud(
          * The decompiled renderer code uses the average of the three z values
          * to calculate the depth of the scanline.
          */
-        int depth_average = (z0 + z1 + z2) / 3;
+        // int depth_average = (z0 + z1 + z2) / 3;
 
-        adepth = depth_average;
-        bdepth = depth_average;
+        // adepth = depth_average;
+        // bdepth = depth_average;
 
         int y = y0 + i;
         draw_scanline_gouraud(pixel_buffer, z_buffer, y, ax, bx, adepth, bdepth, acolor, bcolor);
@@ -754,6 +754,17 @@ main(int argc, char* argv[])
 
     int model_min_depth = 96;
 
+    // bucket sort the faces by depth
+    // ex.
+    //
+    // depth = 0: 0, 1, 2, 3
+    // depth = 1: 4, 5, 6
+    // depth = 2: 7, 8, 9
+    //
+    // len = 0: 4
+    // len = 1: 3
+    // len = 2: 3
+    //
     for( int f = 0; f < num_faces; f++ )
     {
         int a = face_a[f];
@@ -774,8 +785,9 @@ main(int argc, char* argv[])
         }
     }
 
-    //    int depth_average = (_Model.vertex_screen_z[a] + _Model.vertex_screen_z[b] +
-    //    _Model.vertex_screen_z[c]) / 3 + m->min_depth;
+    //
+    // partition the sorted faces by priority.
+    // So each partition are sorted by depth.
     for( int depth = max_model_depth; depth >= 0 && depth < 1500; depth-- )
     {
         const int face_count = tmp_depth_face_count[depth];
@@ -784,13 +796,13 @@ main(int argc, char* argv[])
             int* faces = tmp_depth_faces[depth];
             for( int i = 0; i < face_count; i++ )
             {
-                int priority_depth_face_index = faces[i];
-                int depth_average = face_priority[priority_depth_face_index];
-                int priority_face_count = tmp_priority_face_count[depth_average]++;
-                tmp_priority_faces[depth_average][priority_face_count] = priority_depth_face_index;
-                if( depth_average < 10 )
+                int face_idx = faces[i];
+                int prio = face_priority[face_idx];
+                int priority_face_count = tmp_priority_face_count[prio]++;
+                tmp_priority_faces[prio][priority_face_count] = face_idx;
+                if( prio < 10 )
                 {
-                    tmp_priority_depth_sum[depth_average] += depth;
+                    tmp_priority_depth_sum[prio] += depth;
                 }
                 // else if( depth_average == 10 )
                 // {
@@ -860,43 +872,46 @@ main(int argc, char* argv[])
 
         // raster the triangles
         // triangle_count = triangle_count
-        // for( int prio = 0; prio < 10; prio++ )
-        // {
-        //     int triangle_count = tmp_priority_face_count[prio];
-        //     int* triangle_indexes = tmp_priority_faces[prio];
+        for( int prio = 0; prio < 10; prio++ )
+        {
+            int triangle_count = tmp_priority_face_count[prio];
+            int* triangle_indexes = tmp_priority_faces[prio];
 
-        //     int offset_x = SCREEN_WIDTH / 2;
-        //     int offset_y = SCREEN_HEIGHT / 2;
+            int offset_x = SCREEN_WIDTH / 2;
+            int offset_y = SCREEN_HEIGHT / 2;
 
-        //     offset_x = offset_x + (prio - 5) * 120;
+            // offset_x = offset_x + (prio - 5) * 120;
+            offset_x += 240;
+            for( int i = 0; i < triangle_count; i++ )
+            {
+                int index = triangle_indexes[i];
+                struct Triangle2D triangle = { 0 };
+                triangle.p1.x = triangles_2d[index].p1.x + offset_x;
+                triangle.p1.y = triangles_2d[index].p1.y + offset_y;
+                triangle.p2.x = triangles_2d[index].p2.x + offset_x;
+                triangle.p2.y = triangles_2d[index].p2.y + offset_y;
+                triangle.p3.x = triangles_2d[index].p3.x + offset_x;
+                triangle.p3.y = triangles_2d[index].p3.y + offset_y;
 
-        //     for( int i = 0; i < triangle_count; i++ )
-        //     {
-        //         int index = triangle_indexes[i];
-        //         struct Triangle2D triangle = {0};
-        //         triangle.p1.x = triangles_2d[index].p1.x + offset_x;
-        //         triangle.p1.y = triangles_2d[index].p1.y + offset_y;
-        //         triangle.p2.x = triangles_2d[index].p2.x + offset_x;
-        //         triangle.p2.y = triangles_2d[index].p2.y + offset_y;
-        //         triangle.p3.x = triangles_2d[index].p3.x + offset_x;
-        //         triangle.p3.y = triangles_2d[index].p3.y + offset_y;
+                int color_a = colors_a[index];
+                int color_b = colors_b[index];
+                int color_c = colors_c[index];
 
-        //         int color_a = colors_a[index];
-        //         int color_b = colors_b[index];
-        //         int color_c = colors_c[index];
+                struct GouraudColors gouraud_colors;
+                gouraud_colors.color1 = g_palette[color_a];
+                gouraud_colors.color2 = g_palette[color_b];
+                gouraud_colors.color3 = g_palette[color_c];
 
-        //         struct GouraudColors gouraud_colors;
-        //         gouraud_colors.color1 = g_palette[color_a];
-        //         gouraud_colors.color2 = g_palette[color_b];
-        //         gouraud_colors.color3 = g_palette[color_c];
-
-        //         raster_triangle(
-        //             pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH,
-        //             SCREEN_HEIGHT);
-        //     }
-        // }
+                raster_triangle(
+                    pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
+            }
+        }
         for( int prio = 0; prio < 12; prio++ )
         {
+            // reset the z buffer for each priority.
+            for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
+                z_buffer[i] = INT32_MAX;
+
             int* triangle_indexes = sorted_triangle_indexes[prio];
             int triangle_count = sorted_triangle_count[prio];
 
