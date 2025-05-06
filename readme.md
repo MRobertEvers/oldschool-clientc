@@ -82,3 +82,9 @@ These seem to be relevant when merging models. For example, model id 44 is a wiz
         return 17;
       }
 ```
+
+### Rendering Notes - OSRS
+
+OSRS does appear to still use the painters algorithm.
+
+![Eye Clipping Over Hood](./res/eye_clippng_over_hood.png)
