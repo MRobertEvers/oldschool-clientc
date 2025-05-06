@@ -248,11 +248,11 @@ draw_scanline_gouraud(
     {
         float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
 
-        // int depth = interpolate(depth_start, depth_end, t);
-        // if( z_buffer[y * SCREEN_WIDTH + x] >= depth )
-        //     z_buffer[y * SCREEN_WIDTH + x] = depth;
-        // else
-        //     continue;
+        int depth = interpolate(depth_start, depth_end, t);
+        if( z_buffer[y * SCREEN_WIDTH + x] >= depth )
+            z_buffer[y * SCREEN_WIDTH + x] = depth;
+        else
+            continue;
 
         int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
         int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
@@ -388,10 +388,10 @@ raster_gouraud(
          * The decompiled renderer code uses the average of the three z values
          * to calculate the depth of the scanline.
          */
-        int depth_average = (z0 + z1 + z2) / 3;
+        // int depth_average = (z0 + z1 + z2) / 3;
 
-        adepth = depth_average;
-        bdepth = depth_average;
+        // adepth = depth_average;
+        // bdepth = depth_average;
 
         int y = y0 + i;
         draw_scanline_gouraud(pixel_buffer, z_buffer, y, ax, bx, adepth, bdepth, acolor, bcolor);
@@ -813,110 +813,14 @@ main(int argc, char* argv[])
     int model_yaw = 500;
     int model_roll = 0;
 
+    int model_min_depth = 96;
+
     // int model_yawcos = g_cos_table[model_yaw];
     // int model_yawsin = g_sin_table[model_yaw];
 
     int triangle_count = 0;
     for( int i = 0; i < num_faces; i++ )
     {
-        // calculate normals and skip if facing away from the camera
-
-        // calculate the normal of the triangle
-        // int dx1 = triangles[i].p2.x - triangles[i].p1.x;
-        // int dy1 = triangles[i].p2.y - triangles[i].p1.y;
-        // int dz1 = triangles[i].p2.z - triangles[i].p1.z;
-        // int dx2 = triangles[i].p3.x - triangles[i].p1.x;
-        // int dy2 = triangles[i].p3.y - triangles[i].p1.y;
-        // int dz2 = triangles[i].p3.z - triangles[i].p1.z;
-        // int normal_x = dy1 * dz2 - dy2 * dz1;
-        // int normal_y = dz1 * dx2 - dz2 * dx1;
-        // int normal_z = dx1 * dy2 - dx2 * dy1;
-        // check if the triangle is facing away from the camera
-        // if( normal_z < 0 )
-        // {
-        //     // skip the triangle
-        //     continue;
-        // }
-
-        // int x = m->vertices_x[v];
-        // int y = m->vertices_y[v];
-        // int z = m->vertices_z[v];
-        // int temp;
-        // if (yaw != 0) {
-        //     temp = (z * yawsin + x * yawcos) >> 16;
-        //     z = (z * yawcos - x * yawsin) >> 16;
-        //     x = temp;
-        // }
-        // x += sceneX;
-        // y += sceneY;
-        // z += sceneZ;
-        // temp = (z * sinCameraYaw + x * cosCameraYaw) >> 16;
-        // z = (z * cosCameraYaw - x * sinCameraYaw) >> 16;
-        // x = temp;
-        // temp = (y * cosCameraPitch - z * sinCameraPitch) >> 16;
-        // z = (y * sinCameraPitch + z * cosCameraPitch) >> 16;
-
-        // int scene_z = 420;
-        // int scene_x = 0;
-        // int scene_y = 0;
-        // int cos_camera_yaw = g_cos_table[0];
-        // int sin_camera_yaw = g_sin_table[0];
-        // int cos_camera_pitch = g_cos_table[0];
-        // int sin_camera_pitch = g_sin_table[0];
-        // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
-        // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
-
-        // int x = triangles[i].p1.x;
-        // int y = triangles[i].p1.y;
-        // int z = triangles[i].p1.z;
-
-        // z = scene_z + triangles[i].p1.z;
-        // if( z < g_depth_min )
-        //     g_depth_min = z;
-        // if( z > g_depth_max )
-        //     g_depth_max = z;
-
-        // // Project the 3D point to 2D with model_pitch, yaw, roll
-        // triangles_2d[triangle_count].p1.x <<= 9;
-        // triangles_2d[triangle_count].p1.y <<= 9;
-        // triangles_2d[triangle_count].p1.z = z;
-        // int x = (triangles[i].p1.x * cos_camera_yaw - triangles[i].p1.z * sin_camera_yaw) >> 16;
-        // int y = (triangles[i].p1.y * cos_camera_pitch - triangles[i].p1.z * sin_camera_pitch) >>
-        // 16; int z = (triangles[i].p1.z * cos_camera_pitch + triangles[i].p1.y * sin_camera_pitch)
-        // >> 16;
-
-        // int temp;
-        // if( model_yaw != 0 )
-        // {
-        //     temp = (z * model_yawsin + x * model_yawcos) >> 16;
-        //     z = (z * model_yawcos - x * model_yawsin) >> 16;
-        //     x = temp;
-        // }
-
-        // // triangles_2d[triangle_count].p1.x = (triangles[i].p1.x << 9) / (z);
-        // // triangles_2d[triangle_count].p1.y = (triangles[i].p1.y << 9) / (z);
-        // // triangles_2d[triangle_count].p1.z = z;
-
-        // z = scene_z + triangles[i].p2.z;
-        // if( z < g_depth_min )
-        //     g_depth_min = z;
-        // if( z > g_depth_max )
-        //     g_depth_max = z;
-
-        // triangles_2d[triangle_count].p2.x = (triangles[i].p2.x << 9) / (z);
-        // triangles_2d[triangle_count].p2.y = (triangles[i].p2.y << 9) / (z);
-        // triangles_2d[triangle_count].p2.z = z;
-
-        // z = scene_z + triangles[i].p3.z;
-        // if( z < g_depth_min )
-        //     g_depth_min = z;
-        // if( z > g_depth_max )
-        //     g_depth_max = z;
-
-        // triangles_2d[triangle_count].p3.x = (triangles[i].p3.x << 9) / (z);
-        // triangles_2d[triangle_count].p3.y = (triangles[i].p3.y << 9) / (z);
-        // triangles_2d[triangle_count].p3.z = z;
-
         triangles_2d[triangle_count] = project(
             vertex_x[face_a[i]],
             vertex_x[face_b[i]],
@@ -940,8 +844,6 @@ main(int argc, char* argv[])
 
         triangle_count += 1;
     }
-
-    int model_min_depth = 96;
 
     // bucket sort the faces by depth
     // ex.
@@ -1009,10 +911,10 @@ main(int argc, char* argv[])
                 int prio = face_priority[face_idx];
                 int priority_face_count = tmp_priority_face_count[prio]++;
                 tmp_priority_faces[prio][priority_face_count] = face_idx;
-                if( prio < 10 )
-                {
-                    tmp_priority_depth_sum[prio] += depth;
-                }
+                // if( prio < 10 )
+                // {
+                //     tmp_priority_depth_sum[prio] += depth;
+                // }
                 // else if( depth_average == 10 )
                 // {
                 //     _Model.tmp_priority10_face_depth[priority_face_count] = depth;
@@ -1069,68 +971,181 @@ main(int argc, char* argv[])
         SCREEN_HEIGHT);
     SDL_Event event;
     // renderer
-    int step = 20;
+    int step = 200;
     // SDL_Renderer* renderer = SDL_GetRenderer(window);
     while( true )
     {
+        memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
+        for( int i = 0; i < 1500; i++ )
+            memset(tmp_depth_faces[i], 0, sizeof(tmp_depth_faces[i]));
+
+        memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
+
+        for( int i = 0; i < 12; i++ )
+            memset(tmp_priority_faces[i], 0, sizeof(tmp_priority_faces[i]));
+
         for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
             z_buffer[i] = INT32_MAX;
 
         // Clear the pixel buffer
-        // memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
+        memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
 
         // Get keyboard input
-        SDL_PollEvent(&event);
-        if( event.type == SDL_QUIT )
-            break;
-
-        model_yaw = (model_yaw + 1) % 2048;
-        // Check if a key is pressed
-        if( event.type == SDL_KEYDOWN )
+        bool keydown = false;
+        while( SDL_PollEvent(&event) )
         {
-            printf("key: %d\n", event.key.keysym.sym);
-            if( event.key.keysym.sym == SDLK_ESCAPE )
-                break;
-            if( event.key.keysym.sym == SDLK_UP )
-                model_pitch += step;
-            if( event.key.keysym.sym == SDLK_DOWN )
-                model_pitch -= step;
-            if( event.key.keysym.sym == SDLK_LEFT )
-                model_yaw -= step;
-            if( event.key.keysym.sym == SDLK_RIGHT )
-                model_yaw += step;
-            if( event.key.keysym.sym == SDLK_q )
-                model_roll -= step;
-            if( event.key.keysym.sym == SDLK_e )
-                model_roll += step;
+            switch( event.type )
+            {
+            case SDL_QUIT:
+                goto done;
+            case SDL_KEYDOWN:
+            {
+                keydown = true;
+                switch( event.key.keysym.sym )
+                {
+                case SDLK_ESCAPE:
+                    goto done;
+                case SDLK_UP:
+                    model_pitch = (model_pitch + step) % 2048;
+                    break;
+                case SDLK_DOWN:
+                    model_pitch = (model_pitch - step + 2048) % 2048;
+                    break;
+                case SDLK_LEFT:
+                    model_yaw = (model_yaw - step + 2048) % 2048;
+                    break;
+                case SDLK_RIGHT:
+                    model_yaw = (model_yaw + step) % 2048;
+                    break;
+                case SDLK_q:
+                    model_roll = (model_roll - step + 2048) % 2048;
+                    break;
+                case SDLK_e:
+                    model_roll = (model_roll + step) % 2048;
+                    break;
+                }
+            }
+            }
         }
 
-        // for( int i = 0; i < num_faces; i++ )
-        // {
-        //     triangles_2d[i] = project(
-        //         triangles[i].p1.x,
-        //         triangles[i].p2.x,
-        //         triangles[i].p3.x,
-        //         triangles[i].p1.y,
-        //         triangles[i].p2.y,
-        //         triangles[i].p3.y,
-        //         triangles[i].p1.z,
-        //         triangles[i].p2.z,
-        //         triangles[i].p3.z,
-        //         model_yaw,
-        //         model_pitch,
-        //         model_roll,
-        //         SCREEN_WIDTH / 2,
-        //         SCREEN_HEIGHT / 2,
-        //         420,
-        //         SCREEN_WIDTH,
-        //         SCREEN_HEIGHT);
-        // }
+        // Check if a key is pressed
+        triangle_count = 0;
+        for( int i = 0; i < num_faces; i++ )
+        {
+            triangles_2d[triangle_count] = project(
+                vertex_x[face_a[i]],
+                vertex_x[face_b[i]],
+                vertex_x[face_c[i]],
+                vertex_y[face_a[i]],
+                vertex_y[face_b[i]],
+                vertex_y[face_c[i]],
+                vertex_z[face_a[i]],
+                vertex_z[face_b[i]],
+                vertex_z[face_c[i]],
+                model_yaw,
+                model_pitch,
+                model_roll,
+                SCREEN_WIDTH / 2,
+                SCREEN_HEIGHT / 2,
+                420,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT);
+
+            triangles_2d_map[i] = triangle_count;
+
+            triangle_count += 1;
+        }
+
+        // bucket sort the faces by depth
+        // ex.
+        //
+        // depth = 0: 0, 1, 2, 3
+        // depth = 1: 4, 5, 6
+        // depth = 2: 7, 8, 9
+        //
+        // len = 0: 4
+        // len = 1: 3
+        // len = 2: 3
+        //
+        for( int f = 0; f < num_faces; f++ )
+        {
+            int a = face_a[f];
+            int b = face_b[f];
+            int c = face_c[f];
+
+            // int xa = vertex_x[a];
+            // int xb = vertex_x[b];
+            // int xc = vertex_x[c];
+
+            int xa = triangles_2d[f].p1.x;
+            int xb = triangles_2d[f].p2.x;
+            int xc = triangles_2d[f].p3.x;
+
+            // int ya = vertex_y[a];
+            // int yb = vertex_y[b];
+            // int yc = vertex_y[c];
+
+            int ya = triangles_2d[f].p1.y;
+            int yb = triangles_2d[f].p2.y;
+            int yc = triangles_2d[f].p3.y;
+
+            // int za = vertex_z[a];
+            // int zb = vertex_z[b];
+            // int zc = vertex_z[c];
+
+            int za = triangles_2d[f].p1.z;
+            int zb = triangles_2d[f].p2.z;
+            int zc = triangles_2d[f].p3.z;
+
+            if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) > 0 )
+            {
+                int depth_average = (za + zb + zc) / 3 + model_min_depth;
+                if( depth_average < 1500 )
+                {
+                    tmp_depth_faces[depth_average][tmp_depth_face_count[depth_average]++] = f;
+                }
+            }
+        }
+
+        //
+        // partition the sorted faces by priority.
+        // So each partition are sorted by depth.
+        for( int depth = max_model_depth; depth >= 0 && depth < 1500; depth-- )
+        {
+            const int face_count = tmp_depth_face_count[depth];
+            if( face_count > 0 )
+            {
+                int* faces = tmp_depth_faces[depth];
+                for( int i = 0; i < face_count; i++ )
+                {
+                    int face_idx = faces[i];
+                    int prio = face_priority[face_idx];
+                    int priority_face_count = tmp_priority_face_count[prio]++;
+                    tmp_priority_faces[prio][priority_face_count] = face_idx;
+                    // if( prio < 10 )
+                    // {
+                    //     tmp_priority_depth_sum[prio] += depth;
+                    // }
+                    // else if( depth_average == 10 )
+                    // {
+                    //     _Model.tmp_priority10_face_depth[priority_face_count] = depth;
+                    // }
+                    // else
+                    // {
+                    //     _Model.tmp_priority11_face_depth[priority_face_count] = depth;
+                    // }
+                }
+            }
+        }
+
         // SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
         SDL_RenderClear(renderer);
 
         // raster the triangles
         // triangle_count = triangle_count
+
+        for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
+            z_buffer[i] = INT32_MAX;
         for( int prio = 0; prio < 12; prio++ )
         {
             int triangle_count = tmp_priority_face_count[prio];
@@ -1238,16 +1253,9 @@ main(int argc, char* argv[])
 
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
-
-        //
-        if( SDL_PollEvent(&event) )
-        {
-            if( SDL_QUIT == event.type )
-            {
-                break;
-            }
-        }
     }
+
+done:
 
     SDL_DestroyWindow(window);
     SDL_Quit();
