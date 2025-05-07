@@ -474,6 +474,7 @@ project(
     int camera_yaw,
     int camera_pitch,
     int camera_roll,
+    int fov, // FOV in units of (2π/2048) radians
     int screen_width,
     int screen_height)
 {
@@ -484,6 +485,11 @@ project(
     int sin_camera_pitch = g_sin_table[camera_pitch];
     int cos_camera_roll = g_cos_table[camera_roll];
     int sin_camera_roll = g_sin_table[camera_roll];
+
+    // Field of view parameters
+    const int Z_NEAR = 1 << 9;
+    const int Z_FAR = 1500 << 16;
+    const int ASPECT_RATIO = 1; // Aspect ratio shifted up by 16
 
     // Apply model rotation
     int sin_yaw = g_sin_table[yaw];
@@ -589,16 +595,51 @@ project(
     int y3_final_scene = x3_scene * sin_camera_roll + y3_scene * cos_camera_roll;
     y3_final_scene >>= 16;
 
-    // Perspective projection
+    // Perspective projection with FOV
     int z1_final = z1_scene2;
     int z2_final = z2_scene2;
     int z3_final = z3_scene2;
-    int screen_x1 = (x1_final_scene * 256) / z1_final + screen_width / 2;
-    int screen_y1 = (y1_final_scene * 256) / z1_final + screen_height / 2;
-    int screen_x2 = (x2_final_scene * 256) / z2_final + screen_width / 2;
-    int screen_y2 = (y2_final_scene * 256) / z2_final + screen_height / 2;
-    int screen_x3 = (x3_final_scene * 256) / z3_final + screen_width / 2;
-    int screen_y3 = (y3_final_scene * 256) / z3_final + screen_height / 2;
+
+    // Check if any vertex is behind the camera or too far
+    // if( z1_final < (Z_NEAR >> 16) || z1_final > (Z_FAR >> 16) || z2_final < (Z_NEAR >> 16) ||
+    //     z2_final > (Z_FAR >> 16) || z3_final < (Z_NEAR >> 16) || z3_final > (Z_FAR >> 16) )
+    // {
+    //     // Return a degenerate triangle (all points at origin)
+    //     projected_triangle.p1.x = 0;
+    //     projected_triangle.p1.y = 0;
+    //     projected_triangle.p1.z = INT_MAX;
+    //     projected_triangle.p2.x = 0;
+    //     projected_triangle.p2.y = 0;
+    //     projected_triangle.p2.z = INT_MAX;
+    //     projected_triangle.p3.x = 0;
+    //     projected_triangle.p3.y = 0;
+    //     projected_triangle.p3.z = INT_MAX;
+    //     return projected_triangle;
+    // }
+
+    // Calculate FOV scale based on the angle using sin/cos tables
+    // fov is in units of (2π/2048) radians
+    // For perspective projection, we need tan(fov/2)
+    // tan(x) = sin(x)/cos(x)
+    int fov_half = fov >> 1; // fov/2
+    int sin_fov_half = g_sin_table[fov_half];
+    int cos_fov_half = g_cos_table[fov_half];
+    // fov_scale = 1/tan(fov/2) = cos(fov/2)/sin(fov/2)
+    int fov_scale = (cos_fov_half << 8) / sin_fov_half;
+
+    // Apply FOV scaling to x and y coordinates
+    int scale1 = (fov_scale * Z_NEAR) / z1_final;
+    int scale2 = (fov_scale * Z_NEAR) / z2_final;
+    int scale3 = (fov_scale * Z_NEAR) / z3_final;
+
+    // Project to screen space with FOV
+    // Shift down by 8 to account for the scale factor
+    int screen_x1 = ((x1_final_scene * scale1 * ASPECT_RATIO) >> 8) + screen_width / 2;
+    int screen_y1 = ((y1_final_scene * scale1) >> 8) + screen_height / 2;
+    int screen_x2 = ((x2_final_scene * scale2 * ASPECT_RATIO) >> 8) + screen_width / 2;
+    int screen_y2 = ((y2_final_scene * scale2) >> 8) + screen_height / 2;
+    int screen_x3 = ((x3_final_scene * scale3 * ASPECT_RATIO) >> 8) + screen_width / 2;
+    int screen_y3 = ((y3_final_scene * scale3) >> 8) + screen_height / 2;
 
     // Clip to screen bounds
     if( screen_x1 < 0 )
@@ -654,6 +695,7 @@ main(int argc, char* argv[])
     int camera_yaw = 0;
     int camera_pitch = 0;
     int camera_roll = 0;
+    int camera_fov = 512; // Default FOV (approximately 90 degrees)
 
     // load model.vt
     FILE* file = fopen("../model.vertices", "rb");
@@ -877,7 +919,7 @@ main(int argc, char* argv[])
     int* triangles_2d_map = (int*)malloc(num_faces * sizeof(int));
 
     int model_pitch = 0;
-    int model_yaw = 500;
+    int model_yaw = 0;
     int model_roll = 0;
 
     int model_min_depth = 96;
@@ -907,6 +949,7 @@ main(int argc, char* argv[])
             camera_yaw,
             camera_pitch,
             camera_roll,
+            camera_fov,
             SCREEN_WIDTH,
             SCREEN_HEIGHT);
 
@@ -1123,6 +1166,18 @@ main(int argc, char* argv[])
                 case SDLK_l:
                     model_yaw = (model_yaw + step) % 2048;
                     break;
+                case SDLK_u:
+                    model_roll = (model_roll - step + 2048) % 2048;
+                    break;
+                case SDLK_o:
+                    model_roll = (model_roll + step) % 2048;
+                    break;
+                case SDLK_f:
+                    camera_fov = (camera_fov - 50 + 2048) % 2048; // Decrease FOV (zoom in)
+                    break;
+                case SDLK_g:
+                    camera_fov = (camera_fov + 50) % 2048; // Increase FOV (zoom out)
+                    break;
                 }
             }
             }
@@ -1151,6 +1206,7 @@ main(int argc, char* argv[])
                 camera_yaw,
                 camera_pitch,
                 camera_roll,
+                camera_fov,
                 SCREEN_WIDTH,
                 SCREEN_HEIGHT);
 
