@@ -393,9 +393,24 @@ raster_gouraud(
         // adepth = depth_average;
         // bdepth = depth_average;
 
+        // clip to screen bounds
+
         int y = y0 + i;
-        draw_scanline_gouraud_zbuf(
-            pixel_buffer, z_buffer, SCREEN_WIDTH, y, ax, bx, adepth, bdepth, acolor, bcolor);
+        if( y >= 0 && y < SCREEN_HEIGHT )
+        {
+            if( ax < 0 )
+                ax = 0;
+            if( ax >= SCREEN_WIDTH )
+                ax = SCREEN_WIDTH - 1;
+
+            if( bx < 0 )
+                bx = 0;
+            if( bx >= SCREEN_WIDTH )
+                bx = SCREEN_WIDTH - 1;
+
+            draw_scanline_gouraud_zbuf(
+                pixel_buffer, z_buffer, SCREEN_WIDTH, y, ax, bx, adepth, bdepth, acolor, bcolor);
+        }
     }
 }
 
@@ -600,23 +615,6 @@ project(
     int z2_final = z2_scene2;
     int z3_final = z3_scene2;
 
-    // Check if any vertex is behind the camera or too far
-    // if( z1_final < (Z_NEAR >> 16) || z1_final > (Z_FAR >> 16) || z2_final < (Z_NEAR >> 16) ||
-    //     z2_final > (Z_FAR >> 16) || z3_final < (Z_NEAR >> 16) || z3_final > (Z_FAR >> 16) )
-    // {
-    //     // Return a degenerate triangle (all points at origin)
-    //     projected_triangle.p1.x = 0;
-    //     projected_triangle.p1.y = 0;
-    //     projected_triangle.p1.z = INT_MAX;
-    //     projected_triangle.p2.x = 0;
-    //     projected_triangle.p2.y = 0;
-    //     projected_triangle.p2.z = INT_MAX;
-    //     projected_triangle.p3.x = 0;
-    //     projected_triangle.p3.y = 0;
-    //     projected_triangle.p3.z = INT_MAX;
-    //     return projected_triangle;
-    // }
-
     // Calculate FOV scale based on the angle using sin/cos tables
     // fov is in units of (2π/2048) radians
     // For perspective projection, we need tan(fov/2)
@@ -640,32 +638,6 @@ project(
     int screen_y2 = ((y2_final_scene * scale2) >> 8) + screen_height / 2;
     int screen_x3 = ((x3_final_scene * scale3 * ASPECT_RATIO) >> 8) + screen_width / 2;
     int screen_y3 = ((y3_final_scene * scale3) >> 8) + screen_height / 2;
-
-    // Clip to screen bounds
-    if( screen_x1 < 0 )
-        screen_x1 = 0;
-    if( screen_x1 >= screen_width )
-        screen_x1 = screen_width - 1;
-    if( screen_y1 < 0 )
-        screen_y1 = 0;
-    if( screen_y1 >= screen_height )
-        screen_y1 = screen_height - 1;
-    if( screen_x2 < 0 )
-        screen_x2 = 0;
-    if( screen_x2 >= screen_width )
-        screen_x2 = screen_width - 1;
-    if( screen_y2 < 0 )
-        screen_y2 = 0;
-    if( screen_y2 >= screen_height )
-        screen_y2 = screen_height - 1;
-    if( screen_x3 < 0 )
-        screen_x3 = 0;
-    if( screen_x3 >= screen_width )
-        screen_x3 = screen_width - 1;
-    if( screen_y3 < 0 )
-        screen_y3 = 0;
-    if( screen_y3 >= screen_height )
-        screen_y3 = screen_height - 1;
 
     // Set the projected triangle
     projected_triangle.p1.x = screen_x1;
