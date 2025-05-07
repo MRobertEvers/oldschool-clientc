@@ -88,3 +88,4 @@ These seem to be relevant when merging models. For example, model id 44 is a wiz
 OSRS does appear to still use the painters algorithm.
 
 ![Eye Clipping Over Hood](./res/eye_clippng_over_hood.png)
+![Weapon Clipping Through Body](./res/weapon_clipping_through.png)

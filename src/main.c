@@ -217,60 +217,60 @@ edge_interpolate(int x0, int y0, int x1, int y1, int y)
     return x0 + (x1 - x0) * (y - y0) / (y1 - y0);
 }
 
-static void
-draw_scanline_gouraud(
-    int* pixel_buffer,
-    int* z_buffer,
-    int y,
-    int x_start,
-    int x_end,
-    int depth_start,
-    int depth_end,
-    int color_start,
-    int color_end)
-{
-    if( x_start > x_end )
-    {
-        int tmp;
-        tmp = x_start;
-        x_start = x_end;
-        x_end = tmp;
-        tmp = depth_start;
-        depth_start = depth_end;
-        depth_end = tmp;
-        tmp = color_start;
-        color_start = color_end;
-        color_end = tmp;
-    }
+// static void
+// draw_scanline_gouraud(
+//     int* pixel_buffer,
+//     int* z_buffer,
+//     int y,
+//     int x_start,
+//     int x_end,
+//     int depth_start,
+//     int depth_end,
+//     int color_start,
+//     int color_end)
+// {
+//     if( x_start > x_end )
+//     {
+//         int tmp;
+//         tmp = x_start;
+//         x_start = x_end;
+//         x_end = tmp;
+//         tmp = depth_start;
+//         depth_start = depth_end;
+//         depth_end = tmp;
+//         tmp = color_start;
+//         color_start = color_end;
+//         color_end = tmp;
+//     }
 
-    int dx = x_end - x_start;
-    for( int x = x_start; x <= x_end; ++x )
-    {
-        float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
+//     int dx = x_end - x_start;
+//     for( int x = x_start; x <= x_end; ++x )
+//     {
+//         float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
 
-        int depth = interpolate(depth_start, depth_end, t);
-        if( z_buffer[y * SCREEN_WIDTH + x] >= depth )
-            z_buffer[y * SCREEN_WIDTH + x] = depth;
-        else
-            continue;
+//         int depth = interpolate(depth_start, depth_end, t);
+//         if( z_buffer[y * SCREEN_WIDTH + x] >= depth )
+//             z_buffer[y * SCREEN_WIDTH + x] = depth;
+//         else
+//             continue;
 
-        int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
-        int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
-        int b = interpolate(color_start & 0xFF, color_end & 0xFF, t);
-        int a = 0xFF; // Alpha value
+//         int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
+//         int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
+//         int b = interpolate(color_start & 0xFF, color_end & 0xFF, t);
+//         int a = 0xFF; // Alpha value
 
-        // g = 0;
-        // b = 0;
-        // int range = (g_depth_max - g_depth_min);
-        // float numer = ((float)(depth + (g_depth_min)));
-        // r = (numer / range) * 255;
+//         // g = 0;
+//         // b = 0;
+//         // int range = (g_depth_max - g_depth_min);
+//         // float numer = ((float)(depth + (g_depth_min)));
+//         // r = (numer / range) * 255;
 
-        int color = (a << 24) | (r << 16) | (g << 8) | b;
+//         int color = (a << 24) | (r << 16) | (g << 8) | b;
 
-        if( x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT )
-            pixel_buffer[y * SCREEN_WIDTH + x] = color;
-    }
-}
+//         if( x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT )
+//             pixel_buffer[y * SCREEN_WIDTH + x] = color;
+//     }
+// }
 
 int
 interpolate_color(int color1, int color2, float t)
@@ -394,7 +394,8 @@ raster_gouraud(
         // bdepth = depth_average;
 
         int y = y0 + i;
-        draw_scanline_gouraud(pixel_buffer, z_buffer, y, ax, bx, adepth, bdepth, acolor, bcolor);
+        draw_scanline_gouraud_zbuf(
+            pixel_buffer, z_buffer, SCREEN_WIDTH, y, ax, bx, adepth, bdepth, acolor, bcolor);
     }
 }
 
@@ -467,22 +468,24 @@ project(
     int yaw,
     int pitch,
     int roll,
-    int scene_x,
-    int scene_y,
-    int scene_z,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    int camera_yaw,
+    int camera_pitch,
+    int camera_roll,
     int screen_width,
     int screen_height)
 {
     struct Triangle2D projected_triangle;
-    int cos_camera_yaw = g_cos_table[0];
-    int sin_camera_yaw = g_sin_table[0];
-    int cos_camera_pitch = g_cos_table[0];
-    int sin_camera_pitch = g_sin_table[0];
-    int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
-    int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
-    // b = 0;
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_roll = g_cos_table[camera_roll];
+    int sin_camera_roll = g_sin_table[camera_roll];
 
-    // Apply rotation
+    // Apply model rotation
     int sin_yaw = g_sin_table[yaw];
     int cos_yaw = g_cos_table[yaw];
     int sin_pitch = g_sin_table[pitch];
@@ -490,7 +493,7 @@ project(
     int sin_roll = g_sin_table[roll];
     int cos_roll = g_cos_table[roll];
 
-    // Rotate around Y-axis
+    // Rotate around Y-axis (yaw)
     int x1_rotated = x1 * cos_yaw - z1 * sin_yaw;
     x1_rotated >>= 16;
     int z1_rotated = x1 * sin_yaw + z1 * cos_yaw;
@@ -503,7 +506,8 @@ project(
     x3_rotated >>= 16;
     int z3_rotated = x3 * sin_yaw + z3 * cos_yaw;
     z3_rotated >>= 16;
-    // Rotate around X-axis
+
+    // Rotate around X-axis (pitch)
     int y1_rotated = y1 * cos_pitch - z1_rotated * sin_pitch;
     y1_rotated >>= 16;
     int z1_rotated2 = y1 * sin_pitch + z1_rotated * cos_pitch;
@@ -516,7 +520,8 @@ project(
     y3_rotated >>= 16;
     int z3_rotated2 = y3 * sin_pitch + z3_rotated * cos_pitch;
     z3_rotated2 >>= 16;
-    // Rotate around Z-axis
+
+    // Rotate around Z-axis (roll)
     int x1_final = x1_rotated * cos_roll - y1_rotated * sin_roll;
     x1_final >>= 16;
     int y1_final = x1_rotated * sin_roll + y1_rotated * cos_roll;
@@ -530,22 +535,75 @@ project(
     int y3_final = x3_rotated * sin_roll + y3_rotated * cos_roll;
     y3_final >>= 16;
 
+    // Translate points relative to camera position
+    x1_final -= camera_x;
+    y1_final -= camera_y;
+    z1_rotated2 -= camera_z;
+    x2_final -= camera_x;
+    y2_final -= camera_y;
+    z2_rotated2 -= camera_z;
+    x3_final -= camera_x;
+    y3_final -= camera_y;
+    z3_rotated2 -= camera_z;
+
+    // Apply scene rotation
+    // First rotate around Y-axis (scene yaw)
+    int x1_scene = x1_final * cos_camera_yaw - z1_rotated2 * sin_camera_yaw;
+    x1_scene >>= 16;
+    int z1_scene = x1_final * sin_camera_yaw + z1_rotated2 * cos_camera_yaw;
+    z1_scene >>= 16;
+    int x2_scene = x2_final * cos_camera_yaw - z2_rotated2 * sin_camera_yaw;
+    x2_scene >>= 16;
+    int z2_scene = x2_final * sin_camera_yaw + z2_rotated2 * cos_camera_yaw;
+    z2_scene >>= 16;
+    int x3_scene = x3_final * cos_camera_yaw - z3_rotated2 * sin_camera_yaw;
+    x3_scene >>= 16;
+    int z3_scene = x3_final * sin_camera_yaw + z3_rotated2 * cos_camera_yaw;
+    z3_scene >>= 16;
+
+    // Then rotate around X-axis (scene pitch)
+    int y1_scene = y1_final * cos_camera_pitch - z1_scene * sin_camera_pitch;
+    y1_scene >>= 16;
+    int z1_scene2 = y1_final * sin_camera_pitch + z1_scene * cos_camera_pitch;
+    z1_scene2 >>= 16;
+    int y2_scene = y2_final * cos_camera_pitch - z2_scene * sin_camera_pitch;
+    y2_scene >>= 16;
+    int z2_scene2 = y2_final * sin_camera_pitch + z2_scene * cos_camera_pitch;
+    z2_scene2 >>= 16;
+    int y3_scene = y3_final * cos_camera_pitch - z3_scene * sin_camera_pitch;
+    y3_scene >>= 16;
+    int z3_scene2 = y3_final * sin_camera_pitch + z3_scene * cos_camera_pitch;
+    z3_scene2 >>= 16;
+
+    // Finally rotate around Z-axis (scene roll)
+    int x1_final_scene = x1_scene * cos_camera_roll - y1_scene * sin_camera_roll;
+    x1_final_scene >>= 16;
+    int y1_final_scene = x1_scene * sin_camera_roll + y1_scene * cos_camera_roll;
+    y1_final_scene >>= 16;
+    int x2_final_scene = x2_scene * cos_camera_roll - y2_scene * sin_camera_roll;
+    x2_final_scene >>= 16;
+    int y2_final_scene = x2_scene * sin_camera_roll + y2_scene * cos_camera_roll;
+    y2_final_scene >>= 16;
+    int x3_final_scene = x3_scene * cos_camera_roll - y3_scene * sin_camera_roll;
+    x3_final_scene >>= 16;
+    int y3_final_scene = x3_scene * sin_camera_roll + y3_scene * cos_camera_roll;
+    y3_final_scene >>= 16;
+
     // Perspective projection
-    int z1_final = z1_rotated2 + scene_z;
-    int z2_final = z2_rotated2 + scene_z;
-    int z3_final = z3_rotated2 + scene_z;
-    int screen_x1 = (x1_final * 256) / z1_final + scene_x;
-    int screen_y1 = (y1_final * 256) / z1_final + scene_y;
-    int screen_x2 = (x2_final * 256) / z2_final + scene_x;
-    int screen_y2 = (y2_final * 256) / z2_final + scene_y;
-    int screen_x3 = (x3_final * 256) / z3_final + scene_x;
-    int screen_y3 = (y3_final * 256) / z3_final + scene_y;
+    int z1_final = z1_scene2;
+    int z2_final = z2_scene2;
+    int z3_final = z3_scene2;
+    int screen_x1 = (x1_final_scene * 256) / z1_final + screen_width / 2;
+    int screen_y1 = (y1_final_scene * 256) / z1_final + screen_height / 2;
+    int screen_x2 = (x2_final_scene * 256) / z2_final + screen_width / 2;
+    int screen_y2 = (y2_final_scene * 256) / z2_final + screen_height / 2;
+    int screen_x3 = (x3_final_scene * 256) / z3_final + screen_width / 2;
+    int screen_y3 = (y3_final_scene * 256) / z3_final + screen_height / 2;
 
     // Clip to screen bounds
     if( screen_x1 < 0 )
         screen_x1 = 0;
     if( screen_x1 >= screen_width )
-
         screen_x1 = screen_width - 1;
     if( screen_y1 < 0 )
         screen_y1 = 0;
@@ -571,13 +629,13 @@ project(
     // Set the projected triangle
     projected_triangle.p1.x = screen_x1;
     projected_triangle.p1.y = screen_y1;
-    projected_triangle.p1.z = z1_final - b;
+    projected_triangle.p1.z = z1_final;
     projected_triangle.p2.x = screen_x2;
     projected_triangle.p2.y = screen_y2;
-    projected_triangle.p2.z = z2_final - b;
+    projected_triangle.p2.z = z2_final;
     projected_triangle.p3.x = screen_x3;
     projected_triangle.p3.y = screen_y3;
-    projected_triangle.p3.z = z3_final - b;
+    projected_triangle.p3.z = z3_final;
 
     return projected_triangle;
 }
@@ -588,6 +646,14 @@ main(int argc, char* argv[])
     init_cos_table();
     init_sin_table();
     init_palette();
+
+    // Camera variables
+    int camera_x = 0;
+    int camera_y = 0;
+    int camera_z = -420; // Start at a reasonable distance
+    int camera_yaw = 0;
+    int camera_pitch = 0;
+    int camera_roll = 0;
 
     // load model.vt
     FILE* file = fopen("../model.vertices", "rb");
@@ -763,7 +829,8 @@ main(int argc, char* argv[])
     //     printf("face_priority[%d]: %d\n", i, face_priority[i]);
     // }
 
-    int max_model_depth = 211;
+    // int max_model_depth = 211;
+    int max_model_depth = 1499;
 
     struct Triangle3D* triangles =
         (struct Triangle3D*)malloc(num_faces * sizeof(struct Triangle3D));
@@ -834,9 +901,12 @@ main(int argc, char* argv[])
             model_yaw,
             model_pitch,
             model_roll,
-            SCREEN_WIDTH / 2,
-            SCREEN_HEIGHT / 2,
-            420,
+            camera_x,
+            camera_y,
+            camera_z,
+            camera_yaw,
+            camera_pitch,
+            camera_roll,
             SCREEN_WIDTH,
             SCREEN_HEIGHT);
 
@@ -973,6 +1043,7 @@ main(int argc, char* argv[])
     // renderer
     int step = 200;
     // SDL_Renderer* renderer = SDL_GetRenderer(window);
+
     while( true )
     {
         memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
@@ -1006,22 +1077,51 @@ main(int argc, char* argv[])
                 case SDLK_ESCAPE:
                     goto done;
                 case SDLK_UP:
-                    model_pitch = (model_pitch + step) % 2048;
+                    camera_pitch = (camera_pitch + step) % 2048;
                     break;
                 case SDLK_DOWN:
-                    model_pitch = (model_pitch - step + 2048) % 2048;
+                    camera_pitch = (camera_pitch - step + 2048) % 2048;
                     break;
                 case SDLK_LEFT:
-                    model_yaw = (model_yaw - step + 2048) % 2048;
+                    camera_yaw = (camera_yaw - step + 2048) % 2048;
                     break;
                 case SDLK_RIGHT:
-                    model_yaw = (model_yaw + step) % 2048;
+                    camera_yaw = (camera_yaw + step) % 2048;
+                    break;
+                case SDLK_GREATER:
+                    break;
+                case SDLK_LESS:
+                    camera_z += 10;
+                    break;
+                case SDLK_w:
+                    camera_z -= 10;
+                    break;
+                case SDLK_s:
+                    camera_z += 10;
+                    break;
+                case SDLK_a:
+                    camera_x -= 10;
+                    break;
+                case SDLK_d:
+                    camera_x += 10;
                     break;
                 case SDLK_q:
-                    model_roll = (model_roll - step + 2048) % 2048;
+                    camera_roll = (camera_yaw - step + 2048) % 2048;
                     break;
                 case SDLK_e:
-                    model_roll = (model_roll + step) % 2048;
+                    camera_roll = (camera_yaw + step) % 2048;
+                    break;
+                case SDLK_i:
+                    model_pitch = (model_pitch - step + 2048) % 2048;
+                    break;
+                case SDLK_k:
+                    model_pitch = (model_pitch + step) % 2048;
+                    break;
+                case SDLK_j:
+                    model_yaw = (model_yaw - step + 2048) % 2048;
+                    break;
+                case SDLK_l:
+                    model_yaw = (model_yaw + step) % 2048;
                     break;
                 }
             }
@@ -1045,9 +1145,12 @@ main(int argc, char* argv[])
                 model_yaw,
                 model_pitch,
                 model_roll,
-                SCREEN_WIDTH / 2,
-                SCREEN_HEIGHT / 2,
-                420,
+                camera_x,
+                camera_y,
+                camera_z,
+                camera_yaw,
+                camera_pitch,
+                camera_roll,
                 SCREEN_WIDTH,
                 SCREEN_HEIGHT);
 
