@@ -86,18 +86,66 @@ CMakeFiles/rs.dir/src/main.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/rs.dir/src/main.c.s"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /Users/matthewevers/Documents/git_repos/3draster/src/main.c -o CMakeFiles/rs.dir/src/main.c.s
 
+CMakeFiles/rs.dir/src/projection.c.o: CMakeFiles/rs.dir/flags.make
+CMakeFiles/rs.dir/src/projection.c.o: /Users/matthewevers/Documents/git_repos/3draster/src/projection.c
+CMakeFiles/rs.dir/src/projection.c.o: CMakeFiles/rs.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building C object CMakeFiles/rs.dir/src/projection.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/rs.dir/src/projection.c.o -MF CMakeFiles/rs.dir/src/projection.c.o.d -o CMakeFiles/rs.dir/src/projection.c.o -c /Users/matthewevers/Documents/git_repos/3draster/src/projection.c
+
+CMakeFiles/rs.dir/src/projection.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/rs.dir/src/projection.c.i"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /Users/matthewevers/Documents/git_repos/3draster/src/projection.c > CMakeFiles/rs.dir/src/projection.c.i
+
+CMakeFiles/rs.dir/src/projection.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/rs.dir/src/projection.c.s"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /Users/matthewevers/Documents/git_repos/3draster/src/projection.c -o CMakeFiles/rs.dir/src/projection.c.s
+
+CMakeFiles/rs.dir/src/gouraud.c.o: CMakeFiles/rs.dir/flags.make
+CMakeFiles/rs.dir/src/gouraud.c.o: /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.c
+CMakeFiles/rs.dir/src/gouraud.c.o: CMakeFiles/rs.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building C object CMakeFiles/rs.dir/src/gouraud.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/rs.dir/src/gouraud.c.o -MF CMakeFiles/rs.dir/src/gouraud.c.o.d -o CMakeFiles/rs.dir/src/gouraud.c.o -c /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.c
+
+CMakeFiles/rs.dir/src/gouraud.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/rs.dir/src/gouraud.c.i"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.c > CMakeFiles/rs.dir/src/gouraud.c.i
+
+CMakeFiles/rs.dir/src/gouraud.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/rs.dir/src/gouraud.c.s"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.c -o CMakeFiles/rs.dir/src/gouraud.c.s
+
+CMakeFiles/rs.dir/src/load_separate.c.o: CMakeFiles/rs.dir/flags.make
+CMakeFiles/rs.dir/src/load_separate.c.o: /Users/matthewevers/Documents/git_repos/3draster/src/load_separate.c
+CMakeFiles/rs.dir/src/load_separate.c.o: CMakeFiles/rs.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building C object CMakeFiles/rs.dir/src/load_separate.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/rs.dir/src/load_separate.c.o -MF CMakeFiles/rs.dir/src/load_separate.c.o.d -o CMakeFiles/rs.dir/src/load_separate.c.o -c /Users/matthewevers/Documents/git_repos/3draster/src/load_separate.c
+
+CMakeFiles/rs.dir/src/load_separate.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/rs.dir/src/load_separate.c.i"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /Users/matthewevers/Documents/git_repos/3draster/src/load_separate.c > CMakeFiles/rs.dir/src/load_separate.c.i
+
+CMakeFiles/rs.dir/src/load_separate.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/rs.dir/src/load_separate.c.s"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /Users/matthewevers/Documents/git_repos/3draster/src/load_separate.c -o CMakeFiles/rs.dir/src/load_separate.c.s
+
 # Object files for target rs
 rs_OBJECTS = \
-"CMakeFiles/rs.dir/src/main.c.o"
+"CMakeFiles/rs.dir/src/main.c.o" \
+"CMakeFiles/rs.dir/src/projection.c.o" \
+"CMakeFiles/rs.dir/src/gouraud.c.o" \
+"CMakeFiles/rs.dir/src/load_separate.c.o"
 
 # External object files for target rs
 rs_EXTERNAL_OBJECTS =
 
 rs: CMakeFiles/rs.dir/src/main.c.o
+rs: CMakeFiles/rs.dir/src/projection.c.o
+rs: CMakeFiles/rs.dir/src/gouraud.c.o
+rs: CMakeFiles/rs.dir/src/load_separate.c.o
 rs: CMakeFiles/rs.dir/build.make
 rs: /opt/homebrew/Cellar/sdl2/2.32.4_1/lib/libSDL2.dylib
 rs: CMakeFiles/rs.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking C executable rs"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Linking C executable rs"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/rs.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

@@ -85,12 +85,12 @@ clean: CMakeFiles/rs.dir/clean
 CMakeFiles/rs.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=1,2 "Built target rs"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=1,2,3,4,5 "Built target rs"
 .PHONY : CMakeFiles/rs.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/rs.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles 2
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles 5
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/rs.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles 0
 .PHONY : CMakeFiles/rs.dir/rule
@@ -102,7 +102,7 @@ rs: CMakeFiles/rs.dir/rule
 # codegen rule for target.
 CMakeFiles/rs.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=1,2 "Finished codegen for target rs"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles --progress-num=1,2,3,4,5 "Finished codegen for target rs"
 .PHONY : CMakeFiles/rs.dir/codegen
 
 # clean rule for target.

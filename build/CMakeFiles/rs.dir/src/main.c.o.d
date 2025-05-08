@@ -1,6 +1,9 @@
 CMakeFiles/rs.dir/src/main.c.o: \
   /Users/matthewevers/Documents/git_repos/3draster/src/main.c \
-  /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.c \
+  /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.h \
+  /Users/matthewevers/Documents/git_repos/3draster/src/load_separate.h \
+  /Users/matthewevers/Documents/git_repos/3draster/src/model.h \
+  /Users/matthewevers/Documents/git_repos/3draster/src/projection.h \
   /opt/homebrew/Cellar/sdl2/2.32.4_1/include/SDL2/SDL.h \
   /opt/homebrew/Cellar/sdl2/2.32.4_1/include/SDL2/SDL_main.h \
   /opt/homebrew/Cellar/sdl2/2.32.4_1/include/SDL2/SDL_stdinc.h \

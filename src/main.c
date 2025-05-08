@@ -1,4 +1,6 @@
-#include "gouraud.c"
+#include "gouraud.h"
+#include "load_separate.h"
+#include "projection.h"
 
 #include <SDL.h>
 #include <limits.h>
@@ -11,10 +13,10 @@
 #define SCREEN_WIDTH 1280
 #define SCREEN_HEIGHT 720
 
-static int g_sin_table[2048];
-static int g_cos_table[2048];
+int g_sin_table[2048];
+int g_cos_table[2048];
 
-static int g_palette[65536];
+int g_palette[65536];
 
 static int tmp_depth_face_count[1500] = { 0 };
 static int tmp_depth_faces[1500][512] = { 0 };
@@ -208,236 +210,6 @@ struct Pixel
 int g_depth_min = INT_MAX;
 int g_depth_max = INT_MIN;
 
-int
-edge_interpolate(int x0, int y0, int x1, int y1, int y)
-{
-    // Integer linear interpolation: avoids floats
-    if( y1 == y0 )
-        return x0;
-    return x0 + (x1 - x0) * (y - y0) / (y1 - y0);
-}
-
-// static void
-// draw_scanline_gouraud(
-//     int* pixel_buffer,
-//     int* z_buffer,
-//     int y,
-//     int x_start,
-//     int x_end,
-//     int depth_start,
-//     int depth_end,
-//     int color_start,
-//     int color_end)
-// {
-//     if( x_start > x_end )
-//     {
-//         int tmp;
-//         tmp = x_start;
-//         x_start = x_end;
-//         x_end = tmp;
-//         tmp = depth_start;
-//         depth_start = depth_end;
-//         depth_end = tmp;
-//         tmp = color_start;
-//         color_start = color_end;
-//         color_end = tmp;
-//     }
-
-//     int dx = x_end - x_start;
-//     for( int x = x_start; x <= x_end; ++x )
-//     {
-//         float t = dx == 0 ? 0.0f : (float)(x - x_start) / dx;
-
-//         int depth = interpolate(depth_start, depth_end, t);
-//         if( z_buffer[y * SCREEN_WIDTH + x] >= depth )
-//             z_buffer[y * SCREEN_WIDTH + x] = depth;
-//         else
-//             continue;
-
-//         int r = interpolate((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t);
-//         int g = interpolate((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t);
-//         int b = interpolate(color_start & 0xFF, color_end & 0xFF, t);
-//         int a = 0xFF; // Alpha value
-
-//         // g = 0;
-//         // b = 0;
-//         // int range = (g_depth_max - g_depth_min);
-//         // float numer = ((float)(depth + (g_depth_min)));
-//         // r = (numer / range) * 255;
-
-//         int color = (a << 24) | (r << 16) | (g << 8) | b;
-
-//         if( x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT )
-//             pixel_buffer[y * SCREEN_WIDTH + x] = color;
-//     }
-// }
-
-int
-interpolate_color(int color1, int color2, float t)
-{
-    int r1 = (color1 >> 16) & 0xFF;
-    int g1 = (color1 >> 8) & 0xFF;
-    int b1 = color1 & 0xFF;
-
-    int r2 = (color2 >> 16) & 0xFF;
-    int g2 = (color2 >> 8) & 0xFF;
-    int b2 = color2 & 0xFF;
-
-    int r = (int)(r1 + (r2 - r1) * t);
-    int g = (int)(g1 + (g2 - g1) * t);
-    int b = (int)(b1 + (b2 - b1) * t);
-
-    return (r << 16) | (g << 8) | b;
-}
-
-void
-raster_gouraud(
-    int* pixel_buffer,
-    int* z_buffer,
-    int x0,
-    int x1,
-    int x2,
-    int y0,
-    int y1,
-    int y2,
-    int z0,
-    int z1,
-    int z2,
-    int color0,
-    int color1,
-    int color2)
-{
-    // Sort vertices by y
-    // where y0 is the bottom vertex and y2 is the top vertex
-    if( y0 > y1 )
-    {
-        int t;
-        t = y0;
-        y0 = y1;
-        y1 = t;
-        t = x0;
-        x0 = x1;
-        x1 = t;
-        t = z0;
-        z0 = z1;
-        z1 = t;
-        t = color0;
-        color0 = color1;
-        color1 = t;
-    }
-    if( y0 > y2 )
-    {
-        int t;
-        t = y0;
-        y0 = y2;
-        y2 = t;
-        t = x0;
-        x0 = x2;
-        x2 = t;
-        t = z0;
-        z0 = z2;
-        z2 = t;
-        t = color0;
-        color0 = color2;
-        color2 = t;
-    }
-    if( y1 > y2 )
-    {
-        int t;
-        t = y1;
-        y1 = y2;
-        y2 = t;
-        t = x1;
-        x1 = x2;
-        x2 = t;
-        t = z1;
-        z1 = z2;
-        z2 = t;
-        t = color1;
-        color1 = color2;
-        color2 = t;
-    }
-
-    int total_height = y2 - y0;
-    if( total_height == 0 )
-        return;
-
-    for( int i = 0; i < total_height; ++i )
-    {
-        bool second_half = i > (y1 - y0) || y1 == y0;
-        int segment_height = second_half ? y2 - y1 : y1 - y0;
-        if( segment_height == 0 )
-            continue;
-
-        float alpha = (float)i / total_height;
-        float beta = (float)(i - (second_half ? y1 - y0 : 0)) / segment_height;
-
-        int ax = interpolate(x0, x2, alpha);
-        int bx = second_half ? interpolate(x1, x2, beta) : interpolate(x0, x1, beta);
-
-        // interpolate colors
-
-        int acolor = interpolate_color(color0, color2, alpha);
-        int bcolor = second_half ? interpolate_color(color1, color2, beta)
-                                 : interpolate_color(color0, color1, beta);
-
-        int adepth = interpolate(z0, z2, alpha);
-        int bdepth = second_half ? interpolate(z1, z2, beta) : interpolate(z0, z1, beta);
-
-        /**
-         * The decompiled renderer code uses the average of the three z values
-         * to calculate the depth of the scanline.
-         */
-        // int depth_average = (z0 + z1 + z2) / 3;
-
-        // adepth = depth_average;
-        // bdepth = depth_average;
-
-        // clip to screen bounds
-
-        int y = y0 + i;
-        if( y >= 0 && y < SCREEN_HEIGHT )
-        {
-            if( ax < 0 )
-                ax = 0;
-            if( ax >= SCREEN_WIDTH )
-                ax = SCREEN_WIDTH - 1;
-
-            if( bx < 0 )
-                bx = 0;
-            if( bx >= SCREEN_WIDTH )
-                bx = SCREEN_WIDTH - 1;
-
-            draw_scanline_gouraud_zbuf(
-                pixel_buffer, z_buffer, SCREEN_WIDTH, y, ax, bx, adepth, bdepth, acolor, bcolor);
-        }
-    }
-}
-
-// void
-// fill_triangle_gouraud(
-//     struct Pixel* pixel_buffer,
-//     struct GouraudColors colors,
-//     struct Point2D p0,
-//     struct Point2D p1,
-//     struct Point2D p2)
-// {
-//     raster_gouraud(
-//         (int*)pixel_buffer,
-//         p0.x,
-//         p1.x,
-//         p2.x,
-//         p0.y,
-//         p1.y,
-//         p2.y,
-//         p0.z,
-//         p1.z,
-//         p2.z,
-//         colors.color1,
-//         colors.color2,
-//         colors.color3);
-// }
-
 void
 raster_triangle(
     struct Pixel* pixel_buffer,
@@ -447,14 +219,11 @@ raster_triangle(
     int screen_width,
     int screen_height)
 {
-    // Rasterization logic goes here
-
-    // fill_triangle(pixel_buffer, color, triangle.p1, triangle.p2, triangle.p3);
-    // fill_triangle_gouraud(pixel_buffer, colors, triangle.p1, triangle.p2, triangle.p3);
-
-    raster_gouraud(
+    raster_gouraud_zbuf(
         (int*)pixel_buffer,
         z_buffer,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
         triangle.p1.x,
         triangle.p2.x,
         triangle.p3.x,
@@ -469,449 +238,58 @@ raster_triangle(
         colors.color3);
 }
 
-struct Triangle2D
-project(
-    int x1,
-    int x2,
-    int x3,
-    int y1,
-    int y2,
-    int y3,
-    int z1,
-    int z2,
-    int z3,
-    int yaw,
-    int pitch,
-    int roll,
+static struct Triangle3D*
+create_triangles_from_model(struct Model* model)
+{
+    struct Triangle3D* triangles =
+        (struct Triangle3D*)malloc(model->face_count * sizeof(struct Triangle3D));
+
+    for( int i = 0; i < model->face_count; i++ )
+    {
+        triangles[i].p1.x = model->vertices_x[model->face_indices_a[i]];
+        triangles[i].p1.y = model->vertices_y[model->face_indices_a[i]];
+        triangles[i].p1.z = model->vertices_z[model->face_indices_a[i]];
+
+        triangles[i].p2.x = model->vertices_x[model->face_indices_b[i]];
+        triangles[i].p2.y = model->vertices_y[model->face_indices_b[i]];
+        triangles[i].p2.z = model->vertices_z[model->face_indices_b[i]];
+
+        triangles[i].p3.x = model->vertices_x[model->face_indices_c[i]];
+        triangles[i].p3.y = model->vertices_y[model->face_indices_c[i]];
+        triangles[i].p3.z = model->vertices_z[model->face_indices_c[i]];
+    }
+
+    return triangles;
+}
+
+static void
+project_vertices(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int num_vertices,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int model_yaw,
+    int model_pitch,
+    int model_roll,
     int camera_x,
     int camera_y,
     int camera_z,
     int camera_yaw,
     int camera_pitch,
     int camera_roll,
-    int fov, // FOV in units of (2π/2048) radians
+    int camera_fov,
     int screen_width,
     int screen_height)
 {
-    struct Triangle2D projected_triangle;
-    int cos_camera_yaw = g_cos_table[camera_yaw];
-    int sin_camera_yaw = g_sin_table[camera_yaw];
-    int cos_camera_pitch = g_cos_table[camera_pitch];
-    int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_roll = g_cos_table[camera_roll];
-    int sin_camera_roll = g_sin_table[camera_roll];
-
-    // Field of view parameters
-    const int Z_NEAR = 1 << 9;
-    const int Z_FAR = 1500 << 16;
-    const int ASPECT_RATIO = 1; // Aspect ratio shifted up by 16
-
-    // Apply model rotation
-    int sin_yaw = g_sin_table[yaw];
-    int cos_yaw = g_cos_table[yaw];
-    int sin_pitch = g_sin_table[pitch];
-    int cos_pitch = g_cos_table[pitch];
-    int sin_roll = g_sin_table[roll];
-    int cos_roll = g_cos_table[roll];
-
-    // Rotate around Y-axis (yaw)
-    int x1_rotated = x1 * cos_yaw - z1 * sin_yaw;
-    x1_rotated >>= 16;
-    int z1_rotated = x1 * sin_yaw + z1 * cos_yaw;
-    z1_rotated >>= 16;
-    int x2_rotated = x2 * cos_yaw - z2 * sin_yaw;
-    x2_rotated >>= 16;
-    int z2_rotated = x2 * sin_yaw + z2 * cos_yaw;
-    z2_rotated >>= 16;
-    int x3_rotated = x3 * cos_yaw - z3 * sin_yaw;
-    x3_rotated >>= 16;
-    int z3_rotated = x3 * sin_yaw + z3 * cos_yaw;
-    z3_rotated >>= 16;
-
-    // Rotate around X-axis (pitch)
-    int y1_rotated = y1 * cos_pitch - z1_rotated * sin_pitch;
-    y1_rotated >>= 16;
-    int z1_rotated2 = y1 * sin_pitch + z1_rotated * cos_pitch;
-    z1_rotated2 >>= 16;
-    int y2_rotated = y2 * cos_pitch - z2_rotated * sin_pitch;
-    y2_rotated >>= 16;
-    int z2_rotated2 = y2 * sin_pitch + z2_rotated * cos_pitch;
-    z2_rotated2 >>= 16;
-    int y3_rotated = y3 * cos_pitch - z3_rotated * sin_pitch;
-    y3_rotated >>= 16;
-    int z3_rotated2 = y3 * sin_pitch + z3_rotated * cos_pitch;
-    z3_rotated2 >>= 16;
-
-    // Rotate around Z-axis (roll)
-    int x1_final = x1_rotated * cos_roll - y1_rotated * sin_roll;
-    x1_final >>= 16;
-    int y1_final = x1_rotated * sin_roll + y1_rotated * cos_roll;
-    y1_final >>= 16;
-    int x2_final = x2_rotated * cos_roll - y2_rotated * sin_roll;
-    x2_final >>= 16;
-    int y2_final = x2_rotated * sin_roll + y2_rotated * cos_roll;
-    y2_final >>= 16;
-    int x3_final = x3_rotated * cos_roll - y3_rotated * sin_roll;
-    x3_final >>= 16;
-    int y3_final = x3_rotated * sin_roll + y3_rotated * cos_roll;
-    y3_final >>= 16;
-
-    // Translate points relative to camera position
-    x1_final -= camera_x;
-    y1_final -= camera_y;
-    z1_rotated2 -= camera_z;
-    x2_final -= camera_x;
-    y2_final -= camera_y;
-    z2_rotated2 -= camera_z;
-    x3_final -= camera_x;
-    y3_final -= camera_y;
-    z3_rotated2 -= camera_z;
-
-    // Apply scene rotation
-    // First rotate around Y-axis (scene yaw)
-    int x1_scene = x1_final * cos_camera_yaw - z1_rotated2 * sin_camera_yaw;
-    x1_scene >>= 16;
-    int z1_scene = x1_final * sin_camera_yaw + z1_rotated2 * cos_camera_yaw;
-    z1_scene >>= 16;
-    int x2_scene = x2_final * cos_camera_yaw - z2_rotated2 * sin_camera_yaw;
-    x2_scene >>= 16;
-    int z2_scene = x2_final * sin_camera_yaw + z2_rotated2 * cos_camera_yaw;
-    z2_scene >>= 16;
-    int x3_scene = x3_final * cos_camera_yaw - z3_rotated2 * sin_camera_yaw;
-    x3_scene >>= 16;
-    int z3_scene = x3_final * sin_camera_yaw + z3_rotated2 * cos_camera_yaw;
-    z3_scene >>= 16;
-
-    // Then rotate around X-axis (scene pitch)
-    int y1_scene = y1_final * cos_camera_pitch - z1_scene * sin_camera_pitch;
-    y1_scene >>= 16;
-    int z1_scene2 = y1_final * sin_camera_pitch + z1_scene * cos_camera_pitch;
-    z1_scene2 >>= 16;
-    int y2_scene = y2_final * cos_camera_pitch - z2_scene * sin_camera_pitch;
-    y2_scene >>= 16;
-    int z2_scene2 = y2_final * sin_camera_pitch + z2_scene * cos_camera_pitch;
-    z2_scene2 >>= 16;
-    int y3_scene = y3_final * cos_camera_pitch - z3_scene * sin_camera_pitch;
-    y3_scene >>= 16;
-    int z3_scene2 = y3_final * sin_camera_pitch + z3_scene * cos_camera_pitch;
-    z3_scene2 >>= 16;
-
-    // Finally rotate around Z-axis (scene roll)
-    int x1_final_scene = x1_scene * cos_camera_roll - y1_scene * sin_camera_roll;
-    x1_final_scene >>= 16;
-    int y1_final_scene = x1_scene * sin_camera_roll + y1_scene * cos_camera_roll;
-    y1_final_scene >>= 16;
-    int x2_final_scene = x2_scene * cos_camera_roll - y2_scene * sin_camera_roll;
-    x2_final_scene >>= 16;
-    int y2_final_scene = x2_scene * sin_camera_roll + y2_scene * cos_camera_roll;
-    y2_final_scene >>= 16;
-    int x3_final_scene = x3_scene * cos_camera_roll - y3_scene * sin_camera_roll;
-    x3_final_scene >>= 16;
-    int y3_final_scene = x3_scene * sin_camera_roll + y3_scene * cos_camera_roll;
-    y3_final_scene >>= 16;
-
-    // Perspective projection with FOV
-    int z1_final = z1_scene2;
-    int z2_final = z2_scene2;
-    int z3_final = z3_scene2;
-
-    // Calculate FOV scale based on the angle using sin/cos tables
-    // fov is in units of (2π/2048) radians
-    // For perspective projection, we need tan(fov/2)
-    // tan(x) = sin(x)/cos(x)
-    int fov_half = fov >> 1; // fov/2
-    int sin_fov_half = g_sin_table[fov_half];
-    int cos_fov_half = g_cos_table[fov_half];
-    // fov_scale = 1/tan(fov/2) = cos(fov/2)/sin(fov/2)
-    int fov_scale = (cos_fov_half << 8) / sin_fov_half;
-
-    // Apply FOV scaling to x and y coordinates
-    int scale1 = (fov_scale * Z_NEAR) / z1_final;
-    int scale2 = (fov_scale * Z_NEAR) / z2_final;
-    int scale3 = (fov_scale * Z_NEAR) / z3_final;
-
-    // Project to screen space with FOV
-    // Shift down by 8 to account for the scale factor
-    int screen_x1 = ((x1_final_scene * scale1 * ASPECT_RATIO) >> 8) + screen_width / 2;
-    int screen_y1 = ((y1_final_scene * scale1) >> 8) + screen_height / 2;
-    int screen_x2 = ((x2_final_scene * scale2 * ASPECT_RATIO) >> 8) + screen_width / 2;
-    int screen_y2 = ((y2_final_scene * scale2) >> 8) + screen_height / 2;
-    int screen_x3 = ((x3_final_scene * scale3 * ASPECT_RATIO) >> 8) + screen_width / 2;
-    int screen_y3 = ((y3_final_scene * scale3) >> 8) + screen_height / 2;
-
-    // Set the projected triangle
-    projected_triangle.p1.x = screen_x1;
-    projected_triangle.p1.y = screen_y1;
-    projected_triangle.p1.z = z1_final;
-    projected_triangle.p2.x = screen_x2;
-    projected_triangle.p2.y = screen_y2;
-    projected_triangle.p2.z = z2_final;
-    projected_triangle.p3.x = screen_x3;
-    projected_triangle.p3.y = screen_y3;
-    projected_triangle.p3.z = z3_final;
-
-    return projected_triangle;
-}
-
-int
-main(int argc, char* argv[])
-{
-    init_cos_table();
-    init_sin_table();
-    init_palette();
-
-    // Camera variables
-    int camera_x = 0;
-    int camera_y = 0;
-    int camera_z = -420; // Start at a reasonable distance
-    int camera_yaw = 0;
-    int camera_pitch = 0;
-    int camera_roll = 0;
-    int camera_fov = 512; // Default FOV (approximately 90 degrees)
-
-    // load model.vt
-    FILE* file = fopen("../model.vertices", "rb");
-    if( file == NULL )
+    for( int i = 0; i < num_vertices; i++ )
     {
-        printf("Failed to open model.vt\n");
-        return -1;
-    }
-
-    // Read the file into a buffer
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    char* buffer = (char*)malloc(file_size);
-    if( buffer == NULL )
-    {
-        printf("Failed to allocate memory for model.vt\n");
-        fclose(file);
-        return -1;
-    }
-    size_t bytes_read = fread(buffer, 1, file_size, file);
-    if( bytes_read != file_size )
-    {
-        printf("Failed to read model.vt\n");
-        free(buffer);
-        fclose(file);
-        return -1;
-    }
-    fclose(file);
-
-    // read int from the first buffer
-    int num_vertices = *(int*)buffer;
-    printf("num_vertices: %d\n", num_vertices);
-
-    int* vertex_x = (int*)malloc(num_vertices * sizeof(int));
-    int* vertex_y = (int*)malloc(num_vertices * sizeof(int));
-    int* vertex_z = (int*)malloc(num_vertices * sizeof(int));
-
-    memcpy(vertex_x, buffer + 4, num_vertices * sizeof(int));
-    memcpy(vertex_y, buffer + 4 + num_vertices * sizeof(int), num_vertices * sizeof(int));
-    memcpy(vertex_z, buffer + 4 + num_vertices * sizeof(int) * 2, num_vertices * sizeof(int));
-    free(buffer);
-
-    // load the faces
-    file = fopen("../model.faces", "rb");
-    if( file == NULL )
-    {
-        printf("Failed to open model.faces\n");
-        return -1;
-    }
-
-    // Read the file into a buffer
-    fseek(file, 0, SEEK_END);
-    file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    buffer = (char*)malloc(file_size);
-    if( buffer == NULL )
-    {
-        printf("Failed to allocate memory for model.faces\n");
-        fclose(file);
-        return -1;
-    }
-
-    bytes_read = fread(buffer, 1, file_size, file);
-    if( bytes_read != file_size )
-    {
-        printf("Failed to read model.faces\n");
-        free(buffer);
-        fclose(file);
-        return -1;
-    }
-
-    fclose(file);
-
-    // read int from the first buffer
-    int num_faces = *(int*)buffer;
-    printf("num_faces: %d\n", num_faces);
-
-    int* face_a = (int*)malloc(num_faces * sizeof(int));
-    int* face_b = (int*)malloc(num_faces * sizeof(int));
-    int* face_c = (int*)malloc(num_faces * sizeof(int));
-
-    memcpy(face_a, buffer + 4, num_faces * sizeof(int));
-    memcpy(face_b, buffer + 4 + num_faces * sizeof(int), num_faces * sizeof(int));
-    memcpy(face_c, buffer + 4 + num_faces * sizeof(int) * 2, num_faces * sizeof(int));
-    free(buffer);
-
-    // load the colors
-    file = fopen("../model.colors", "rb");
-    if( file == NULL )
-    {
-        printf("Failed to open model.colors\n");
-        return -1;
-    }
-
-    // Read the file into a buffer
-    fseek(file, 0, SEEK_END);
-    file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    buffer = (char*)malloc(file_size);
-    if( buffer == NULL )
-    {
-        printf("Failed to allocate memory for model.faces\n");
-        fclose(file);
-        return -1;
-    }
-
-    bytes_read = fread(buffer, 1, file_size, file);
-    if( bytes_read != file_size )
-    {
-        printf("Failed to read model.faces\n");
-        free(buffer);
-        fclose(file);
-        return -1;
-    }
-
-    fclose(file);
-
-    // read int from the first buffer
-    num_faces = *(int*)buffer;
-    printf("num_faces: %d\n", num_faces);
-
-    int* colors_a = (int*)malloc(num_faces * sizeof(int));
-    int* colors_b = (int*)malloc(num_faces * sizeof(int));
-    int* colors_c = (int*)malloc(num_faces * sizeof(int));
-
-    memcpy(colors_a, buffer + 4, num_faces * sizeof(int));
-    memcpy(colors_b, buffer + 4 + num_faces * sizeof(int), num_faces * sizeof(int));
-    memcpy(colors_c, buffer + 4 + num_faces * sizeof(int) * 2, num_faces * sizeof(int));
-    free(buffer);
-
-    // Load the face priorities
-    file = fopen("../model.priorities", "rb");
-    if( file == NULL )
-    {
-        printf("Failed to open model.priorities\n");
-        return -1;
-    }
-
-    // Read the file into a buffer
-    fseek(file, 0, SEEK_END);
-    file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    buffer = (char*)malloc(file_size);
-    if( buffer == NULL )
-    {
-        printf("Failed to allocate memory for model.priorities\n");
-        fclose(file);
-        return -1;
-    }
-
-    bytes_read = fread(buffer, 1, file_size, file);
-    if( bytes_read != file_size )
-    {
-        printf("Failed to read model.priorities\n");
-        free(buffer);
-        fclose(file);
-        return -1;
-    }
-
-    fclose(file);
-
-    // read int from the first buffer
-    num_faces = *(int*)buffer;
-    printf("num_faces: %d\n", num_faces);
-    int* face_priority = (int*)malloc(num_faces * sizeof(int));
-    memcpy(face_priority, buffer + 4, num_faces * sizeof(int));
-    free(buffer);
-
-    // print the face priorities
-    // for( int i = 0; i < num_faces; i++ )
-    // {
-    //     printf("face_priority[%d]: %d\n", i, face_priority[i]);
-    // }
-
-    // int max_model_depth = 211;
-    int max_model_depth = 1499;
-
-    struct Triangle3D* triangles =
-        (struct Triangle3D*)malloc(num_faces * sizeof(struct Triangle3D));
-    for( int i = 0; i < num_faces; i++ )
-    {
-        triangles[i].p1.x = vertex_x[face_a[i]];
-        triangles[i].p1.y = vertex_y[face_a[i]];
-        triangles[i].p1.z = vertex_z[face_a[i]];
-
-        triangles[i].p2.x = vertex_x[face_b[i]];
-        triangles[i].p2.y = vertex_y[face_b[i]];
-        triangles[i].p2.z = vertex_z[face_b[i]];
-
-        triangles[i].p3.x = vertex_x[face_c[i]];
-        triangles[i].p3.y = vertex_y[face_c[i]];
-        triangles[i].p3.z = vertex_z[face_c[i]];
-    }
-
-    /**
-     * Sort faces by "priority"
-     */
-
-    int sorted_triangle_indexes[12][500] = { 0 };
-    int sorted_triangle_count[12] = { 0 };
-    for( int i = 0; i < num_faces; i++ )
-    {
-        int face_prio = face_priority[i];
-        sorted_triangle_indexes[face_prio][sorted_triangle_count[face_prio]++] = i;
-    }
-
-    /**
-     * Sort by depth
-     */
-    // _Model.tmp_depth_face_count = calloc(MODEL_MAX_DEPTH, sizeof(int));
-    // _Model.tmp_depth_faces = calloc(MODEL_MAX_DEPTH, sizeof(int *));
-    // for (int i = 0; i < MODEL_MAX_DEPTH; i++) {
-    //     _Model.tmp_depth_faces[i] = calloc(MODEL_DEPTH_FACE_COUNT, sizeof(int));
-    // }
-    // _Model.tmp_priority_face_count = calloc(12, sizeof(int));
-    // _Model.tmp_priority_faces = calloc(12, sizeof(int *));
-
-    struct Triangle2D* triangles_2d =
-        (struct Triangle2D*)malloc(num_faces * sizeof(struct Triangle2D));
-    int* triangles_2d_map = (int*)malloc(num_faces * sizeof(int));
-
-    int model_pitch = 0;
-    int model_yaw = 0;
-    int model_roll = 0;
-
-    int model_min_depth = 96;
-
-    // int model_yawcos = g_cos_table[model_yaw];
-    // int model_yawsin = g_sin_table[model_yaw];
-
-    int triangle_count = 0;
-    for( int i = 0; i < num_faces; i++ )
-    {
-        triangles_2d[triangle_count] = project(
-            vertex_x[face_a[i]],
-            vertex_x[face_b[i]],
-            vertex_x[face_c[i]],
-            vertex_y[face_a[i]],
-            vertex_y[face_b[i]],
-            vertex_y[face_c[i]],
-            vertex_z[face_a[i]],
-            vertex_z[face_b[i]],
-            vertex_z[face_c[i]],
+        struct ProjectedTriangle projected_triangle = project(
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
             model_yaw,
             model_pitch,
             model_roll,
@@ -925,92 +303,150 @@ main(int argc, char* argv[])
             SCREEN_WIDTH,
             SCREEN_HEIGHT);
 
-        triangles_2d_map[i] = triangle_count;
-
-        triangle_count += 1;
+        screen_vertices_x[i] = projected_triangle.x1;
+        screen_vertices_y[i] = projected_triangle.y1;
+        screen_vertices_z[i] = projected_triangle.depth1;
     }
+}
 
-    // bucket sort the faces by depth
-    // ex.
-    //
-    // depth = 0: 0, 1, 2, 3
-    // depth = 1: 4, 5, 6
-    // depth = 2: 7, 8, 9
-    //
-    // len = 0: 4
-    // len = 1: 3
-    // len = 2: 3
-    //
+static void
+bucket_sort_by_average_depth(
+    int face_depth_buckets[1500][512],
+    int* face_depth_bucket_counts,
+    int model_min_depth,
+    int num_faces,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* face_a,
+    int* face_b,
+    int* face_c)
+{
     for( int f = 0; f < num_faces; f++ )
     {
         int a = face_a[f];
         int b = face_b[f];
         int c = face_c[f];
 
-        // int xa = vertex_x[a];
-        // int xb = vertex_x[b];
-        // int xc = vertex_x[c];
+        int xa = vertex_x[a];
+        int xb = vertex_x[b];
+        int xc = vertex_x[c];
 
-        int xa = triangles_2d[f].p1.x;
-        int xb = triangles_2d[f].p2.x;
-        int xc = triangles_2d[f].p3.x;
+        int ya = vertex_y[a];
+        int yb = vertex_y[b];
+        int yc = vertex_y[c];
 
-        // int ya = vertex_y[a];
-        // int yb = vertex_y[b];
-        // int yc = vertex_y[c];
-
-        int ya = triangles_2d[f].p1.y;
-        int yb = triangles_2d[f].p2.y;
-        int yc = triangles_2d[f].p3.y;
-
-        // int za = vertex_z[a];
-        // int zb = vertex_z[b];
-        // int zc = vertex_z[c];
-
-        int za = triangles_2d[f].p1.z;
-        int zb = triangles_2d[f].p2.z;
-        int zc = triangles_2d[f].p3.z;
+        int za = vertex_z[a];
+        int zb = vertex_z[b];
+        int zc = vertex_z[c];
 
         if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) > 0 )
         {
             int depth_average = (za + zb + zc) / 3 + model_min_depth;
-            if( depth_average < 1500 )
+            if( depth_average < 1500 && depth_average > 0 )
             {
-                tmp_depth_faces[depth_average][tmp_depth_face_count[depth_average]++] = f;
+                int bucket_index = face_depth_bucket_counts[depth_average]++;
+                face_depth_buckets[depth_average][bucket_index] = f;
             }
         }
     }
+}
 
-    //
-    // partition the sorted faces by priority.
-    // So each partition are sorted by depth.
-    for( int depth = max_model_depth; depth >= 0 && depth < 1500; depth-- )
+static void
+parition_faces_by_priority(
+    int face_priority_buckets[12][2000],
+    int* face_priority_bucket_counts,
+    int face_depth_buckets[1500][512],
+    int* face_depth_bucket_counts,
+    int num_faces,
+    int* face_priorities,
+    int depth_lower_bound,
+    int depth_upper_bound)
+{
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
     {
-        const int face_count = tmp_depth_face_count[depth];
-        if( face_count > 0 )
+        int face_count = face_depth_bucket_counts[depth];
+        if( face_count == 0 )
+            continue;
+
+        int* faces = face_depth_buckets[depth];
+        for( int i = 0; i < face_count; i++ )
         {
-            int* faces = tmp_depth_faces[depth];
-            for( int i = 0; i < face_count; i++ )
-            {
-                int face_idx = faces[i];
-                int prio = face_priority[face_idx];
-                int priority_face_count = tmp_priority_face_count[prio]++;
-                tmp_priority_faces[prio][priority_face_count] = face_idx;
-                // if( prio < 10 )
-                // {
-                //     tmp_priority_depth_sum[prio] += depth;
-                // }
-                // else if( depth_average == 10 )
-                // {
-                //     _Model.tmp_priority10_face_depth[priority_face_count] = depth;
-                // }
-                // else
-                // {
-                //     _Model.tmp_priority11_face_depth[priority_face_count] = depth;
-                // }
-            }
+            int face_idx = faces[i];
+            int prio = face_priorities[face_idx];
+            int priority_face_count = face_priority_bucket_counts[prio]++;
+            face_priority_buckets[prio][priority_face_count] = face_idx;
+            // if( prio < 10 )
+            // {
+            //     tmp_priority_depth_sum[prio] += depth;
+            // }
+            // else if( depth_average == 10 )
+            // {
+            //     _Model.tmp_priority10_face_depth[priority_face_count] = depth;
+            // }
+            // else
+            // {
+            //     _Model.tmp_priority11_face_depth[priority_face_count] = depth;
+            // }
         }
     }
+}
+
+int
+main(int argc, char* argv[])
+{
+    init_cos_table();
+    init_sin_table();
+    init_palette();
+
+    // Camera variables
+    int camera_x = 0;
+    int camera_y = 0;
+    int camera_z = 420; // Start at a reasonable distance
+    int camera_yaw = 0;
+    int camera_pitch = 0;
+    int camera_roll = 0;
+    int camera_fov = 512; // Default FOV (approximately 90 degrees)
+
+    struct Model model = load_separate("../model");
+
+    int max_model_depth = 1499;
+
+    struct Triangle3D* triangles = create_triangles_from_model(&model);
+
+    struct Triangle2D* triangles_2d =
+        (struct Triangle2D*)malloc(model.face_count * sizeof(struct Triangle2D));
+
+    int* screen_vertices_x = (int*)malloc(model.vertex_count * sizeof(int));
+    int* screen_vertices_y = (int*)malloc(model.vertex_count * sizeof(int));
+    int* screen_vertices_z = (int*)malloc(model.vertex_count * sizeof(int));
+
+    int model_pitch = 0;
+    int model_yaw = 0;
+    int model_roll = 0;
+
+    project_vertices(
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        model.vertex_count,
+        model.vertices_x,
+        model.vertices_y,
+        model.vertices_z,
+        model_yaw,
+        model_pitch,
+        model_roll,
+        camera_x,
+        camera_y,
+        camera_z,
+        camera_yaw,
+        camera_pitch,
+        camera_roll,
+        camera_fov,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT);
+
+    int model_min_depth = 96;
 
     struct Pixel* pixel_buffer =
         (struct Pixel*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
@@ -1155,37 +591,31 @@ main(int argc, char* argv[])
             }
         }
 
-        // Check if a key is pressed
-        triangle_count = 0;
-        for( int i = 0; i < num_faces; i++ )
-        {
-            triangles_2d[triangle_count] = project(
-                vertex_x[face_a[i]],
-                vertex_x[face_b[i]],
-                vertex_x[face_c[i]],
-                vertex_y[face_a[i]],
-                vertex_y[face_b[i]],
-                vertex_y[face_c[i]],
-                vertex_z[face_a[i]],
-                vertex_z[face_b[i]],
-                vertex_z[face_c[i]],
-                model_yaw,
-                model_pitch,
-                model_roll,
-                camera_x,
-                camera_y,
-                camera_z,
-                camera_yaw,
-                camera_pitch,
-                camera_roll,
-                camera_fov,
-                SCREEN_WIDTH,
-                SCREEN_HEIGHT);
+        if( camera_fov < 171 ) // 20 degrees in units of 2048ths of 2π (20/360 * 2048)
+            camera_fov = 171;
+        if( camera_fov > 1280 ) // 150 degrees in units of 2048ths of 2π (150/360 * 2048)
+            camera_fov = 1280;
 
-            triangles_2d_map[i] = triangle_count;
-
-            triangle_count += 1;
-        }
+        project_vertices(
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            model.vertex_count,
+            model.vertices_x,
+            model.vertices_y,
+            model.vertices_z,
+            model_yaw,
+            model_pitch,
+            model_roll,
+            camera_x,
+            camera_y,
+            camera_z,
+            camera_yaw,
+            camera_pitch,
+            camera_roll,
+            camera_fov,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT);
 
         // bucket sort the faces by depth
         // ex.
@@ -1198,76 +628,30 @@ main(int argc, char* argv[])
         // len = 1: 3
         // len = 2: 3
         //
-        for( int f = 0; f < num_faces; f++ )
-        {
-            int a = face_a[f];
-            int b = face_b[f];
-            int c = face_c[f];
-
-            // int xa = vertex_x[a];
-            // int xb = vertex_x[b];
-            // int xc = vertex_x[c];
-
-            int xa = triangles_2d[f].p1.x;
-            int xb = triangles_2d[f].p2.x;
-            int xc = triangles_2d[f].p3.x;
-
-            // int ya = vertex_y[a];
-            // int yb = vertex_y[b];
-            // int yc = vertex_y[c];
-
-            int ya = triangles_2d[f].p1.y;
-            int yb = triangles_2d[f].p2.y;
-            int yc = triangles_2d[f].p3.y;
-
-            // int za = vertex_z[a];
-            // int zb = vertex_z[b];
-            // int zc = vertex_z[c];
-
-            int za = triangles_2d[f].p1.z;
-            int zb = triangles_2d[f].p2.z;
-            int zc = triangles_2d[f].p3.z;
-
-            if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) > 0 )
-            {
-                int depth_average = (za + zb + zc) / 3 + model_min_depth;
-                if( depth_average < 1500 )
-                {
-                    tmp_depth_faces[depth_average][tmp_depth_face_count[depth_average]++] = f;
-                }
-            }
-        }
+        bucket_sort_by_average_depth(
+            tmp_depth_faces,
+            tmp_depth_face_count,
+            model_min_depth,
+            model.face_count,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            model.face_indices_a,
+            model.face_indices_b,
+            model.face_indices_c);
 
         //
         // partition the sorted faces by priority.
         // So each partition are sorted by depth.
-        for( int depth = max_model_depth; depth >= 0 && depth < 1500; depth-- )
-        {
-            const int face_count = tmp_depth_face_count[depth];
-            if( face_count > 0 )
-            {
-                int* faces = tmp_depth_faces[depth];
-                for( int i = 0; i < face_count; i++ )
-                {
-                    int face_idx = faces[i];
-                    int prio = face_priority[face_idx];
-                    int priority_face_count = tmp_priority_face_count[prio]++;
-                    tmp_priority_faces[prio][priority_face_count] = face_idx;
-                    // if( prio < 10 )
-                    // {
-                    //     tmp_priority_depth_sum[prio] += depth;
-                    // }
-                    // else if( depth_average == 10 )
-                    // {
-                    //     _Model.tmp_priority10_face_depth[priority_face_count] = depth;
-                    // }
-                    // else
-                    // {
-                    //     _Model.tmp_priority11_face_depth[priority_face_count] = depth;
-                    // }
-                }
-            }
-        }
+        parition_faces_by_priority(
+            tmp_priority_faces,
+            tmp_priority_face_count,
+            tmp_depth_faces,
+            tmp_depth_face_count,
+            model.face_count,
+            model.face_priorities,
+            0,
+            1499);
 
         // SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
         SDL_RenderClear(renderer);
@@ -1292,11 +676,22 @@ main(int argc, char* argv[])
             for( int i = 0; i < triangle_count; i++ )
             {
                 int index = triangle_indexes[i];
-                struct Triangle2D triangle = triangles_2d[triangles_2d_map[index]];
+                struct Triangle2D triangle = { 0 };
+                triangle.p1.x = screen_vertices_x[model.face_indices_a[index]] + offset_x;
+                triangle.p1.y = screen_vertices_y[model.face_indices_a[index]] + offset_y;
+                triangle.p1.z = screen_vertices_z[model.face_indices_a[index]];
 
-                int color_a = colors_a[index];
-                int color_b = colors_b[index];
-                int color_c = colors_c[index];
+                triangle.p2.x = screen_vertices_x[model.face_indices_b[index]] + offset_x;
+                triangle.p2.y = screen_vertices_y[model.face_indices_b[index]] + offset_y;
+                triangle.p2.z = screen_vertices_z[model.face_indices_b[index]];
+
+                triangle.p3.x = screen_vertices_x[model.face_indices_c[index]] + offset_x;
+                triangle.p3.y = screen_vertices_y[model.face_indices_c[index]] + offset_y;
+                triangle.p3.z = screen_vertices_z[model.face_indices_c[index]];
+
+                int color_a = model.face_color_a[index];
+                int color_b = model.face_color_b[index];
+                int color_c = model.face_color_c[index];
 
                 struct GouraudColors gouraud_colors;
                 gouraud_colors.color1 = g_palette[color_a];

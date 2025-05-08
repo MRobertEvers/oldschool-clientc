@@ -4,6 +4,7 @@
         "stdio.h": "c",
         "sdl.h": "c",
         "locale": "cpp",
-        "math.h": "c"
+        "math.h": "c",
+        "gouraud.h": "c"
     }
 }

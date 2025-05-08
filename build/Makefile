@@ -129,6 +129,54 @@ rs/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/build
 .PHONY : rs/fast
 
+src/gouraud.o: src/gouraud.c.o
+.PHONY : src/gouraud.o
+
+# target to build an object file
+src/gouraud.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/gouraud.c.o
+.PHONY : src/gouraud.c.o
+
+src/gouraud.i: src/gouraud.c.i
+.PHONY : src/gouraud.i
+
+# target to preprocess a source file
+src/gouraud.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/gouraud.c.i
+.PHONY : src/gouraud.c.i
+
+src/gouraud.s: src/gouraud.c.s
+.PHONY : src/gouraud.s
+
+# target to generate assembly for a file
+src/gouraud.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/gouraud.c.s
+.PHONY : src/gouraud.c.s
+
+src/load_separate.o: src/load_separate.c.o
+.PHONY : src/load_separate.o
+
+# target to build an object file
+src/load_separate.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/load_separate.c.o
+.PHONY : src/load_separate.c.o
+
+src/load_separate.i: src/load_separate.c.i
+.PHONY : src/load_separate.i
+
+# target to preprocess a source file
+src/load_separate.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/load_separate.c.i
+.PHONY : src/load_separate.c.i
+
+src/load_separate.s: src/load_separate.c.s
+.PHONY : src/load_separate.s
+
+# target to generate assembly for a file
+src/load_separate.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/load_separate.c.s
+.PHONY : src/load_separate.c.s
+
 src/main.o: src/main.c.o
 .PHONY : src/main.o
 
@@ -153,6 +201,30 @@ src/main.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/main.c.s
 .PHONY : src/main.c.s
 
+src/projection.o: src/projection.c.o
+.PHONY : src/projection.o
+
+# target to build an object file
+src/projection.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/projection.c.o
+.PHONY : src/projection.c.o
+
+src/projection.i: src/projection.c.i
+.PHONY : src/projection.i
+
+# target to preprocess a source file
+src/projection.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/projection.c.i
+.PHONY : src/projection.c.i
+
+src/projection.s: src/projection.c.s
+.PHONY : src/projection.s
+
+# target to generate assembly for a file
+src/projection.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/projection.c.s
+.PHONY : src/projection.c.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -162,9 +234,18 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... rs"
+	@echo "... src/gouraud.o"
+	@echo "... src/gouraud.i"
+	@echo "... src/gouraud.s"
+	@echo "... src/load_separate.o"
+	@echo "... src/load_separate.i"
+	@echo "... src/load_separate.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... src/projection.o"
+	@echo "... src/projection.i"
+	@echo "... src/projection.s"
 .PHONY : help
 
 

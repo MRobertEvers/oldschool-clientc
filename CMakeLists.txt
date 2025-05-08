@@ -6,9 +6,11 @@ project(RSClient
 find_package(SDL2 REQUIRED)
 include_directories(RSClient ${SDL2_INCLUDE_DIRS})
 
-add_executable(rs 
+add_executable(rs
     src/main.c
+    src/projection.c
+    src/gouraud.c
+    src/load_separate.c
 )
 
 target_link_libraries(rs ${SDL2_LIBRARIES})
-
