@@ -7,6 +7,7 @@ extern int g_tan_table[2048];
 /**
  * Treats the camera as if it is at the origin (0, 0, 0)
  *
+ * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  *
  */
 struct ProjectedTriangle
@@ -114,9 +115,6 @@ project(
     int screen_x1 = ((x1_final_scene * fov_scale_ish16) >> 16) + screen_width / 2;
     int screen_y1 = ((y1_final_scene * fov_scale_ish16) >> 16) + screen_height / 2;
 
-    int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
-    int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
-
     // z is the distance from the camera.
     // It is a judgement call to say when to cull the triangle, but
     // things you can consider are the average size of models.
@@ -127,12 +125,6 @@ project(
     projected_triangle.x1 = screen_x1;
     projected_triangle.y1 = screen_y1;
     projected_triangle.z1 = z1_final;
-
-    // Not entirely sure why the osrs renderer does this.
-    // It is done to calculate sorting. Perhaps it's because they
-    // want to sort by z in the world coordinate system, not distance from
-    // the camera?
-    projected_triangle.depth1 = z1_final - b;
 
     return projected_triangle;
 }

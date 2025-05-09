@@ -282,9 +282,9 @@ project_vertices(
     int model_yaw,
     int model_pitch,
     int model_roll,
-    int camera_x,
-    int camera_y,
-    int camera_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
     int camera_yaw,
     int camera_pitch,
     int camera_roll,
@@ -292,6 +292,18 @@ project_vertices(
     int screen_width,
     int screen_height)
 {
+    // Assumes no camera roll.
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+    // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
+    // So the depth is the z projection distance from the origin of the model.
+    int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
+
+    int model_origin_z_projection = b;
+
     for( int i = 0; i < num_vertices; i++ )
     {
         struct ProjectedTriangle projected_triangle = project(
@@ -301,9 +313,9 @@ project_vertices(
             model_yaw,
             model_pitch,
             model_roll,
-            camera_x,
-            camera_y,
-            camera_z,
+            scene_x,
+            scene_y,
+            scene_z,
             camera_yaw,
             camera_pitch,
             camera_roll,
@@ -313,7 +325,7 @@ project_vertices(
 
         screen_vertices_x[i] = projected_triangle.x1;
         screen_vertices_y[i] = projected_triangle.y1;
-        screen_vertices_z[i] = projected_triangle.depth1;
+        screen_vertices_z[i] = projected_triangle.z1 - model_origin_z_projection;
     }
 }
 
@@ -350,6 +362,29 @@ bucket_sort_by_average_depth(
 
         if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) > 0 )
         {
+            // the z's are the depth of the vertex relative to the origin of the model.
+            // This means some of the z's will be negative.
+            // model_min_depth is calculate from as the radius sphere around the origin of the
+            // model, that encloses all vertices on the model. This adjusts all the z's to be
+            // positive, but maintain relative order.
+            //
+            //
+            // Note: In osrs, the min_depth is actually calculated from a cylinder that encloses
+            // the model
+            //
+            //                   / |
+            //  min_depth ->   /    |
+            //               /      |
+            //              /       |
+            //              --------
+            //              ^ model xz radius
+            //    Note: There is a lower cylinder as well, but it is not used in depth sorting.
+            // The reason is uses the models "upper ys" (max_y) is because OSRS assumes the camera
+            // will always be above the model, so the closest vertices to the camera will be towards
+            // the top of the model. (i.e. lowest z values)
+            // Relative to the model's origin, there may be negative z values, but always |z| <
+            // min_depth so the min_depth is used to adjust all z values to be positive, but
+            // maintain relative order.
             int depth_average = (za + zb + zc) / 3 + model_min_depth;
             if( depth_average < 1500 && depth_average > 0 )
             {
