@@ -191,6 +191,10 @@ struct Triangle2D
     struct Point3D p1;
     struct Point3D p2;
     struct Point3D p3;
+
+    int color1;
+    int color2;
+    int color3;
 };
 
 struct GouraudColors
@@ -219,7 +223,7 @@ int g_depth_min = INT_MAX;
 int g_depth_max = INT_MIN;
 
 void
-raster_triangle(
+raster_triangle_zbuf(
     struct Pixel* pixel_buffer,
     int* z_buffer,
     struct GouraudColors colors,
@@ -241,6 +245,29 @@ raster_triangle(
         triangle.p1.z,
         triangle.p2.z,
         triangle.p3.z,
+        colors.color1,
+        colors.color2,
+        colors.color3);
+}
+
+void
+raster_triangle(
+    struct Pixel* pixel_buffer,
+    struct GouraudColors colors,
+    struct Triangle2D triangle,
+    int screen_width,
+    int screen_height)
+{
+    raster_gouraud(
+        (int*)pixel_buffer,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        triangle.p1.x,
+        triangle.p2.x,
+        triangle.p3.x,
+        triangle.p1.y,
+        triangle.p2.y,
+        triangle.p3.y,
         colors.color1,
         colors.color2,
         colors.color3);
@@ -312,6 +339,8 @@ calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int*
     bounding_cylinder.center_to_bottom_edge = (int)sqrt(radius_squared + min_y * min_y) + 1;
     bounding_cylinder.center_to_top_edge = (int)sqrt(radius_squared + max_y * max_y) + 1;
 
+    // Use max of the two here because OSRS assumes the camera is always above the model,
+    // which may not be the case for us.
     bounding_cylinder.min_z_depth_any_rotation =
         bounding_cylinder.center_to_top_edge > bounding_cylinder.center_to_bottom_edge
             ? bounding_cylinder.center_to_top_edge
@@ -507,6 +536,109 @@ parition_faces_by_priority(
             //     _Model.tmp_priority11_face_depth[priority_face_count] = depth;
             // }
         }
+    }
+}
+
+void
+raster_osrs(
+    struct Pixel* pixel_buffer,
+    int priority_faces[12][2000],
+    int* priority_face_counts,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int offset_x,
+    int offset_y,
+    int screen_width,
+    int screen_height)
+{
+    for( int prio = 0; prio < 12; prio++ )
+    {
+        int* triangle_indexes = priority_faces[prio];
+        int triangle_count = priority_face_counts[prio];
+
+        for( int i = 0; i < triangle_count; i++ )
+        {
+            int index = triangle_indexes[i];
+
+            struct Triangle2D triangle;
+            triangle.p1.x = vertex_x[face_indices_a[index]] + offset_x;
+            triangle.p1.y = vertex_y[face_indices_a[index]] + offset_y;
+            triangle.p1.z = vertex_z[face_indices_a[index]];
+
+            triangle.p2.x = vertex_x[face_indices_b[index]] + offset_x;
+            triangle.p2.y = vertex_y[face_indices_b[index]] + offset_y;
+            triangle.p2.z = vertex_z[face_indices_b[index]];
+
+            triangle.p3.x = vertex_x[face_indices_c[index]] + offset_x;
+            triangle.p3.y = vertex_y[face_indices_c[index]] + offset_y;
+            triangle.p3.z = vertex_z[face_indices_c[index]];
+
+            int color_a = colors_a[index];
+            int color_b = colors_b[index];
+            int color_c = colors_c[index];
+
+            struct GouraudColors gouraud_colors;
+            gouraud_colors.color1 = g_palette[color_a];
+            gouraud_colors.color2 = g_palette[color_b];
+            gouraud_colors.color3 = g_palette[color_c];
+
+            raster_triangle(pixel_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
+        }
+    }
+}
+
+void
+raster_zbuf(
+    struct Pixel* pixel_buffer,
+    int* z_buffer,
+    int num_faces,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int offset_x,
+    int offset_y,
+    int screen_width,
+    int screen_height)
+{
+    for( int index = 0; index < num_faces; index++ )
+    {
+        struct Triangle2D triangle;
+        triangle.p1.x = vertex_x[face_indices_a[index]] + offset_x;
+        triangle.p1.y = vertex_y[face_indices_a[index]] + offset_y;
+        triangle.p1.z = vertex_z[face_indices_a[index]];
+
+        triangle.p2.x = vertex_x[face_indices_b[index]] + offset_x;
+        triangle.p2.y = vertex_y[face_indices_b[index]] + offset_y;
+        triangle.p2.z = vertex_z[face_indices_b[index]];
+
+        triangle.p3.x = vertex_x[face_indices_c[index]] + offset_x;
+        triangle.p3.y = vertex_y[face_indices_c[index]] + offset_y;
+        triangle.p3.z = vertex_z[face_indices_c[index]];
+
+        int color_a = colors_a[index];
+        int color_b = colors_b[index];
+        int color_c = colors_c[index];
+
+        struct GouraudColors gouraud_colors;
+        gouraud_colors.color1 = g_palette[color_a];
+        gouraud_colors.color2 = g_palette[color_b];
+        gouraud_colors.color3 = g_palette[color_c];
+
+        raster_triangle_zbuf(
+            pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
     }
 }
 
@@ -775,99 +907,45 @@ main(int argc, char* argv[])
             tmp_depth_face_count,
             model.face_count,
             model.face_priorities,
-            model_min_depth,
             model_min_depth * 2);
 
-        // SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
         SDL_RenderClear(renderer);
 
-        // raster the triangles
-        // triangle_count = triangle_count
+        raster_osrs(
+            pixel_buffer,
+            tmp_priority_faces,
+            tmp_priority_face_count,
+            model.face_indices_a,
+            model.face_indices_b,
+            model.face_indices_c,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            model.face_color_a,
+            model.face_color_b,
+            model.face_color_c,
+            -SCREEN_WIDTH / 4,
+            0,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT);
 
-        for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
-            z_buffer[i] = INT32_MAX;
-        for( int prio = 0; prio < 12; prio++ )
-        {
-            int triangle_count = tmp_priority_face_count[prio];
-            int* triangle_indexes = tmp_priority_faces[prio];
-
-            int offset_x = SCREEN_WIDTH / 2;
-            int offset_y = SCREEN_HEIGHT / 2;
-            offset_x = 0;
-            offset_y = 0;
-
-            // offset_x = offset_x + (prio - 5) * 120;
-            // offset_x += 240;
-            for( int i = 0; i < triangle_count; i++ )
-            {
-                int index = triangle_indexes[i];
-                struct Triangle2D triangle = { 0 };
-                triangle.p1.x = screen_vertices_x[model.face_indices_a[index]] + offset_x;
-                triangle.p1.y = screen_vertices_y[model.face_indices_a[index]] + offset_y;
-                triangle.p1.z = screen_vertices_z[model.face_indices_a[index]];
-
-                triangle.p2.x = screen_vertices_x[model.face_indices_b[index]] + offset_x;
-                triangle.p2.y = screen_vertices_y[model.face_indices_b[index]] + offset_y;
-                triangle.p2.z = screen_vertices_z[model.face_indices_b[index]];
-
-                triangle.p3.x = screen_vertices_x[model.face_indices_c[index]] + offset_x;
-                triangle.p3.y = screen_vertices_y[model.face_indices_c[index]] + offset_y;
-                triangle.p3.z = screen_vertices_z[model.face_indices_c[index]];
-
-                int color_a = model.face_color_a[index];
-                int color_b = model.face_color_b[index];
-                int color_c = model.face_color_c[index];
-
-                struct GouraudColors gouraud_colors;
-                gouraud_colors.color1 = g_palette[color_a];
-                gouraud_colors.color2 = g_palette[color_b];
-                gouraud_colors.color3 = g_palette[color_c];
-
-                raster_triangle(
-                    pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
-            }
-        }
-        // for( int prio = 0; prio < 12; prio++ )
-        // {
-        //     // reset the z buffer for each priority.
-        //     for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
-        //         z_buffer[i] = INT32_MAX;
-
-        //     int* triangle_indexes = sorted_triangle_indexes[prio];
-        //     int triangle_count = sorted_triangle_count[prio];
-
-        //     for( int i = 0; i < triangle_count; i++ )
-        //     {
-        //         int index_original = triangle_indexes[i];
-        //         int index = triangles_2d_map[index_original];
-
-        //         struct Triangle2D triangle;
-        //         triangle.p1.x = triangles_2d[index].p1.x + SCREEN_WIDTH / 2;
-        //         triangle.p1.y = triangles_2d[index].p1.y + SCREEN_HEIGHT / 2;
-        //         triangle.p1.z = triangles_2d[index].p1.z;
-
-        //         triangle.p2.x = triangles_2d[index].p2.x + SCREEN_WIDTH / 2;
-        //         triangle.p2.y = triangles_2d[index].p2.y + SCREEN_HEIGHT / 2;
-        //         triangle.p2.z = triangles_2d[index].p2.z;
-
-        //         triangle.p3.x = triangles_2d[index].p3.x + SCREEN_WIDTH / 2;
-        //         triangle.p3.y = triangles_2d[index].p3.y + SCREEN_HEIGHT / 2;
-        //         triangle.p3.z = triangles_2d[index].p3.z;
-
-        //         int color_a = colors_a[index];
-        //         int color_b = colors_b[index];
-        //         int color_c = colors_c[index];
-
-        //         struct GouraudColors gouraud_colors;
-        //         gouraud_colors.color1 = g_palette[color_a];
-        //         gouraud_colors.color2 = g_palette[color_b];
-        //         gouraud_colors.color3 = g_palette[color_c];
-
-        //         raster_triangle(
-        //             pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH,
-        //             SCREEN_HEIGHT);
-        //     }
-        // }
+        raster_zbuf(
+            pixel_buffer,
+            z_buffer,
+            model.face_count,
+            model.face_indices_a,
+            model.face_indices_b,
+            model.face_indices_c,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            model.face_color_a,
+            model.face_color_b,
+            model.face_color_c,
+            SCREEN_WIDTH / 4,
+            0,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT);
 
         // render pixel buffer to SDL_Surface
         SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(

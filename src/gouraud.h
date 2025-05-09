@@ -50,9 +50,6 @@ void raster_gouraud(
     int y0,
     int y1,
     int y2,
-    int z0,
-    int z1,
-    int z2,
     int color0,
     int color1,
     int color2);
