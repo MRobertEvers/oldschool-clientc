@@ -270,6 +270,56 @@ create_triangles_from_model(struct Model* model)
     return triangles;
 }
 
+/**
+ * A top and bottom cylinder that bounds the model.
+ */
+struct BoundingCylinder
+{
+    int center_to_top_edge;
+    int center_to_bottom_edge;
+    int radius;
+
+    // TODO: Name?
+    // - Max extent from model origin.
+    // - Distance to farthest vertex?
+    int min_z_depth_any_rotation;
+};
+
+static struct BoundingCylinder
+calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z)
+{
+    struct BoundingCylinder bounding_cylinder = { 0 };
+
+    int min_y = INT_MAX;
+    int max_y = INT_MIN;
+    int radius_squared = 0;
+
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        int x = vertex_x[i];
+        int y = vertex_y[i];
+        int z = vertex_z[i];
+        if( y < min_y )
+            min_y = y;
+        if( y > max_y )
+            max_y = y;
+        int radius_squared_vertex = x * x + z * z;
+        if( radius_squared_vertex > radius_squared )
+            radius_squared = radius_squared_vertex;
+    }
+
+    // Reminder, +y is down on the screen.
+    bounding_cylinder.center_to_bottom_edge = (int)sqrt(radius_squared + min_y * min_y) + 1;
+    bounding_cylinder.center_to_top_edge = (int)sqrt(radius_squared + max_y * max_y) + 1;
+
+    bounding_cylinder.min_z_depth_any_rotation =
+        bounding_cylinder.center_to_top_edge > bounding_cylinder.center_to_bottom_edge
+            ? bounding_cylinder.center_to_top_edge
+            : bounding_cylinder.center_to_bottom_edge;
+
+    return bounding_cylinder;
+}
+
 static void
 project_vertices(
     int* screen_vertices_x,
@@ -411,7 +461,8 @@ bucket_sort_by_average_depth(
             // min_depth so the min_depth is used to adjust all z values to be positive, but
             // maintain relative order.
             int depth_average = (za + zb + zc) / 3 + model_min_depth;
-            if( depth_average < 1500 && depth_average > 0 )
+
+            if( depth_average < 1500 )
             {
                 int bucket_index = face_depth_bucket_counts[depth_average]++;
                 face_depth_buckets[depth_average][bucket_index] = f;
@@ -428,10 +479,9 @@ parition_faces_by_priority(
     int* face_depth_bucket_counts,
     int num_faces,
     int* face_priorities,
-    int depth_lower_bound,
     int depth_upper_bound)
 {
-    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
+    for( int depth = depth_upper_bound; depth >= 0 && depth < 1500; depth-- )
     {
         int face_count = face_depth_bucket_counts[depth];
         if( face_count == 0 )
@@ -515,7 +565,10 @@ main(int argc, char* argv[])
         SCREEN_WIDTH,
         SCREEN_HEIGHT);
 
-    int model_min_depth = 96;
+    struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
+        model.vertex_count, model.vertices_x, model.vertices_y, model.vertices_z);
+
+    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
 
     struct Pixel* pixel_buffer =
         (struct Pixel*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
@@ -712,6 +765,9 @@ main(int argc, char* argv[])
         //
         // partition the sorted faces by priority.
         // So each partition are sorted by depth.
+
+        // since the depth of the faces is shifted up by model_min_depth,
+        // that means the depth upper bound is model_min_depth*2
         parition_faces_by_priority(
             tmp_priority_faces,
             tmp_priority_face_count,
@@ -719,8 +775,8 @@ main(int argc, char* argv[])
             tmp_depth_face_count,
             model.face_count,
             model.face_priorities,
-            0,
-            1499);
+            model_min_depth,
+            model_min_depth * 2);
 
         // SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
         SDL_RenderClear(renderer);
