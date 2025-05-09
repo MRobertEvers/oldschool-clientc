@@ -292,21 +292,41 @@ project_vertices(
     int screen_width,
     int screen_height)
 {
-    // Assumes no camera roll.
+    struct ProjectedTriangle projected_triangle;
     int cos_camera_pitch = g_cos_table[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
     int cos_camera_yaw = g_cos_table[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
-    int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
-    // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
-    // So the depth is the z projection distance from the origin of the model.
-    int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
+    int cos_camera_roll = g_cos_table[camera_roll];
+    int sin_camera_roll = g_sin_table[camera_roll];
 
-    int model_origin_z_projection = b;
+    projected_triangle = project(
+        0,
+        0,
+        0,
+        model_yaw,
+        model_pitch,
+        model_roll,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_yaw,
+        camera_pitch,
+        camera_roll,
+        camera_fov,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT);
+
+    // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+    // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
+    // // So the depth is the z projection distance from the origin of the model.
+    // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
+
+    int model_origin_z_projection = projected_triangle.z1;
 
     for( int i = 0; i < num_vertices; i++ )
     {
-        struct ProjectedTriangle projected_triangle = project(
+        projected_triangle = project(
             vertex_x[i],
             vertex_y[i],
             vertex_z[i],
