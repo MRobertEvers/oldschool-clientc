@@ -360,6 +360,11 @@ bucket_sort_by_average_depth(
         int zb = vertex_z[b];
         int zc = vertex_z[c];
 
+        // dot product of the vectors (AB, BC)
+        // If the dot product is 0, then AB and BC are on the same line.
+        // if the dot product is negative, then the triangle is facing away from the camera.
+        // Note: This assumes that face vertices are ordered in some way. TODO: Determine that
+        // order.
         if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) > 0 )
         {
             // the z's are the depth of the vertex relative to the origin of the model.

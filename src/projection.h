@@ -8,11 +8,13 @@ struct ProjectedTriangle
 
     // z1 is the distance from the camera to the point
     int z1;
-
-    // depth is a sorting point
-    int depth1;
 };
 
+/**
+ * Treats the camera as if it is at the origin (0, 0, 0)
+ *
+ * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
+ */
 struct ProjectedTriangle project(
     int x1,
     int y1,
