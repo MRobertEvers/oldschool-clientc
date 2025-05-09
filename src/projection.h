@@ -6,6 +6,10 @@ struct ProjectedTriangle
     int x1;
     int y1;
 
+    // z1 is the distance from the camera to the point
+    int z1;
+
+    // depth is a sorting point
     int depth1;
 };
 

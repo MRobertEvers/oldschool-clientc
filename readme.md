@@ -89,3 +89,33 @@ OSRS does appear to still use the painters algorithm.
 
 ![Eye Clipping Over Hood](./res/eye_clippng_over_hood.png)
 ![Weapon Clipping Through Body](./res/weapon_clipping_through.png)
+
+### Rendering Notes - OSRS - Jagex (Mod Ry)
+
+https://www.reddit.com/r/2007scape/comments/68di8r/infernal_cape_design_model_animation/
+
+The biggest issue with this is that we can't use geometry that has an 'upwards' or top facing normal on capes because of how we sort polygon render order.
+
+We don't have a z-buffer so render order is done with values of 1 - 9 that are individually assigned to polygons with the higher number always being rendered above those that are smaller.
+
+Some typical values are:
+
+Cape Outside: 7
+
+Cape Inside: 2
+
+Head: 8
+
+Torso: 5
+
+Legs: 3
+
+The cape is higher than the torso because when viewed from behind we want the cape to be shown and not the torso. The back-face of polygons is culled so the cape becomes 'see through' when viewed from the front and doesn't cause order issues allowing the torso to be shown properly. The inside of the cape is the outside cape, duplicated and flipped with a lower value than the torso and legs so that it's correctly rendered behind them.
+
+When we start to introduce polygons to the cape that stick out from the cape's regular plane we run into a problem where the 'top facing' polygons can be seen through the player because they have the highest render order. They can't be lower because otherwise the torso and/or legs will show where the rock is supposed to be when viewed from behind.
+
+![This is an exaggerated example but you get the idea](./res/cape_explanation.png)
+
+This effect can already be seen on capes that try to minimise this problem and have perfectly flat backs.
+
+![See skillcapes ](./res/skillcapes.png)

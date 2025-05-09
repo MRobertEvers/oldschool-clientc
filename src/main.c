@@ -15,6 +15,7 @@
 
 int g_sin_table[2048];
 int g_cos_table[2048];
+int g_tan_table[2048];
 
 int g_palette[65536];
 
@@ -40,6 +41,13 @@ init_cos_table()
     // (int)(cos((double)i * 0.0030679615) * 65536.0);
     for( int i = 0; i < 2048; i++ )
         g_cos_table[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
+}
+
+void
+init_tan_table()
+{
+    for( int i = 0; i < 2048; i++ )
+        g_tan_table[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
 }
 
 static inline int
@@ -397,6 +405,7 @@ main(int argc, char* argv[])
 {
     init_cos_table();
     init_sin_table();
+    init_tan_table();
     init_palette();
 
     // Camera variables
