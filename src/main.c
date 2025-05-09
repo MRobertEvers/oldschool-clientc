@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define SCREEN_WIDTH 1280
 #define SCREEN_HEIGHT 720
@@ -882,6 +883,7 @@ main(int argc, char* argv[])
         // len = 1: 3
         // len = 2: 3
         //
+        clock_t start = clock();
         bucket_sort_by_average_depth(
             tmp_depth_faces,
             tmp_depth_face_count,
@@ -928,7 +930,10 @@ main(int argc, char* argv[])
             0,
             SCREEN_WIDTH,
             SCREEN_HEIGHT);
+        clock_t end = clock();
+        printf("raster_osrs: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
 
+        start = clock();
         raster_zbuf(
             pixel_buffer,
             z_buffer,
@@ -946,6 +951,8 @@ main(int argc, char* argv[])
             0,
             SCREEN_WIDTH,
             SCREEN_HEIGHT);
+        end = clock();
+        printf("raster_zbuf: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
 
         // render pixel buffer to SDL_Surface
         SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
