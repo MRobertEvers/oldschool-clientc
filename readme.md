@@ -119,3 +119,40 @@ When we start to introduce polygons to the cape that stick out from the cape's r
 This effect can already be seen on capes that try to minimise this problem and have perfectly flat backs.
 
 ![See skillcapes ](./res/skillcapes.png)
+
+### Rendering Notes - OSRS - Bitset
+
+The renderer also takes a "key" or "bitset", the bitset contains information about what the model is from the games perspective which is later used to see if things are clicked on.
+
+It appears
+
+Calculated
+
+```c
+   int entityType = bitset >> 29 & 0x3;
+
+   entity_types
+   0 := Player
+   1 := NPC
+   2 := Loc
+   3 := Object Stack
+
+
+
+    //  if (entityType == 0) {
+    //   PlayerEntity *player = c->players[typeId];
+
+    // if (entityType == 1) {
+    //     NpcEntity *npc = c->npcs[typeId];
+
+    // if (entityType == 2 && world3d_get_info(c->scene, c->currentLevel, x, z, bitset) >= 0) {
+    // LocType *loc = loctype_get(typeId);
+
+    // (entityType == 3) {
+    //         LinkList *objs = c->level_obj_stacks[c->currentLevel][x][z];
+```
+
+Player_Mask = 0x0000_0000
+NPC_Mask = 0x2000_0000
+Loc_Mask = 0x4000_0000
+Obj_Mask = 0x6000_0000 (1610612736 in dec)
