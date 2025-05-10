@@ -12,6 +12,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/matthewevers/Documents/git_repos/3draster/src/load_separate.c" "CMakeFiles/rs.dir/src/load_separate.c.o" "gcc" "CMakeFiles/rs.dir/src/load_separate.c.o.d"
   "/Users/matthewevers/Documents/git_repos/3draster/src/main.c" "CMakeFiles/rs.dir/src/main.c.o" "gcc" "CMakeFiles/rs.dir/src/main.c.o.d"
   "/Users/matthewevers/Documents/git_repos/3draster/src/projection.c" "CMakeFiles/rs.dir/src/projection.c.o" "gcc" "CMakeFiles/rs.dir/src/projection.c.o.d"
+  "/Users/matthewevers/Documents/git_repos/3draster/src/texture.c" "CMakeFiles/rs.dir/src/texture.c.o" "gcc" "CMakeFiles/rs.dir/src/texture.c.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

@@ -11,6 +11,13 @@ add_executable(rs
     src/projection.c
     src/gouraud.c
     src/load_separate.c
+    src/texture.c
+)
+
+add_executable(texture_test
+    src/texture_test.c
+    src/texture.c
 )
 
 target_link_libraries(rs ${SDL2_LIBRARIES})
+target_link_libraries(texture_test ${SDL2_LIBRARIES})

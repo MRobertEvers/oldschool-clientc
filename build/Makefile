@@ -129,6 +129,19 @@ rs/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/build
 .PHONY : rs/fast
 
+#=============================================================================
+# Target rules for targets named texture_test
+
+# Build rule for target.
+texture_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 texture_test
+.PHONY : texture_test
+
+# fast build rule for target.
+texture_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/texture_test.dir/build.make CMakeFiles/texture_test.dir/build
+.PHONY : texture_test/fast
+
 src/gouraud.o: src/gouraud.c.o
 .PHONY : src/gouraud.o
 
@@ -225,6 +238,57 @@ src/projection.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/projection.c.s
 .PHONY : src/projection.c.s
 
+src/texture.o: src/texture.c.o
+.PHONY : src/texture.o
+
+# target to build an object file
+src/texture.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/texture.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/texture_test.dir/build.make CMakeFiles/texture_test.dir/src/texture.c.o
+.PHONY : src/texture.c.o
+
+src/texture.i: src/texture.c.i
+.PHONY : src/texture.i
+
+# target to preprocess a source file
+src/texture.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/texture.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/texture_test.dir/build.make CMakeFiles/texture_test.dir/src/texture.c.i
+.PHONY : src/texture.c.i
+
+src/texture.s: src/texture.c.s
+.PHONY : src/texture.s
+
+# target to generate assembly for a file
+src/texture.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/texture.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/texture_test.dir/build.make CMakeFiles/texture_test.dir/src/texture.c.s
+.PHONY : src/texture.c.s
+
+src/texture_test.o: src/texture_test.c.o
+.PHONY : src/texture_test.o
+
+# target to build an object file
+src/texture_test.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/texture_test.dir/build.make CMakeFiles/texture_test.dir/src/texture_test.c.o
+.PHONY : src/texture_test.c.o
+
+src/texture_test.i: src/texture_test.c.i
+.PHONY : src/texture_test.i
+
+# target to preprocess a source file
+src/texture_test.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/texture_test.dir/build.make CMakeFiles/texture_test.dir/src/texture_test.c.i
+.PHONY : src/texture_test.c.i
+
+src/texture_test.s: src/texture_test.c.s
+.PHONY : src/texture_test.s
+
+# target to generate assembly for a file
+src/texture_test.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/texture_test.dir/build.make CMakeFiles/texture_test.dir/src/texture_test.c.s
+.PHONY : src/texture_test.c.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -234,6 +298,7 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... rs"
+	@echo "... texture_test"
 	@echo "... src/gouraud.o"
 	@echo "... src/gouraud.i"
 	@echo "... src/gouraud.s"
@@ -246,6 +311,12 @@ help:
 	@echo "... src/projection.o"
 	@echo "... src/projection.i"
 	@echo "... src/projection.s"
+	@echo "... src/texture.o"
+	@echo "... src/texture.i"
+	@echo "... src/texture.s"
+	@echo "... src/texture_test.o"
+	@echo "... src/texture_test.i"
+	@echo "... src/texture_test.s"
 .PHONY : help
 
 

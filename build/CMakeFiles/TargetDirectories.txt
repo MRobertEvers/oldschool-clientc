@@ -1,3 +1,4 @@
 /Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles/rs.dir
+/Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles/texture_test.dir
 /Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles/edit_cache.dir
 /Users/matthewevers/Documents/git_repos/3draster/build/CMakeFiles/rebuild_cache.dir

@@ -7,6 +7,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/rs.dir/src/main.c.o.d"
   "CMakeFiles/rs.dir/src/projection.c.o"
   "CMakeFiles/rs.dir/src/projection.c.o.d"
+  "CMakeFiles/rs.dir/src/texture.c.o"
+  "CMakeFiles/rs.dir/src/texture.c.o.d"
   "rs"
   "rs.pdb"
 )

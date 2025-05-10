@@ -156,3 +156,7 @@ Player_Mask = 0x0000_0000
 NPC_Mask = 0x2000_0000
 Loc_Mask = 0x4000_0000
 Obj_Mask = 0x6000_0000 (1610612736 in dec)
+
+### Rendering Notes
+
+Model 135 has textures.

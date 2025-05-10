@@ -1,6 +1,7 @@
 #include "gouraud.h"
 #include "load_separate.h"
 #include "projection.h"
+#include "texture.h"
 
 #include <SDL.h>
 #include <limits.h>
@@ -25,6 +26,21 @@ static int tmp_depth_faces[1500][512] = { 0 };
 static int tmp_priority_face_count[12] = { 0 };
 static int tmp_priority_depth_sum[12] = { 0 };
 static int tmp_priority_faces[12][2000] = { 0 };
+
+// Helper function to create a simple test texture
+static void
+create_test_texture(int* texels, int width, int height)
+{
+    for( int y = 0; y < height; y++ )
+    {
+        for( int x = 0; x < width; x++ )
+        {
+            // Create a simple checkerboard pattern
+            int color = ((x / 8) + (y / 8)) % 2 ? 0xFFFFFF : 0x000000;
+            texels[y * width + x] = color;
+        }
+    }
+}
 
 void
 init_sin_table()
@@ -651,6 +667,13 @@ main(int argc, char* argv[])
     init_tan_table();
     init_palette();
 
+    const int TEXTURE_WIDTH = 32;
+    const int TEXTURE_HEIGHT = 32;
+
+    // Create test buffers
+    int* texels = malloc(TEXTURE_WIDTH * TEXTURE_HEIGHT * sizeof(int));
+    create_test_texture(texels, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+
     // Camera variables
     int camera_x = 0;
     int camera_y = 0;
@@ -926,33 +949,58 @@ main(int argc, char* argv[])
             model.face_color_a,
             model.face_color_b,
             model.face_color_c,
-            -SCREEN_WIDTH / 4,
+            0,
             0,
             SCREEN_WIDTH,
             SCREEN_HEIGHT);
         clock_t end = clock();
         printf("raster_osrs: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
 
-        start = clock();
-        raster_zbuf(
+        // start = clock();
+        // raster_zbuf(
+        //     pixel_buffer,
+        //     z_buffer,
+        //     model.face_count,
+        //     model.face_indices_a,
+        //     model.face_indices_b,
+        //     model.face_indices_c,
+        //     screen_vertices_x,
+        //     screen_vertices_y,
+        //     screen_vertices_z,
+        //     model.face_color_a,
+        //     model.face_color_b,
+        //     model.face_color_c,
+        //     SCREEN_WIDTH / 4,
+        //     0,
+        //     SCREEN_WIDTH,
+        //     SCREEN_HEIGHT);
+        // end = clock();
+        // printf("raster_zbuf: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
+
+        // Create test texture in upper left corner
+
+        // Draw textured triangle in upper left
+        raster_texture(
             pixel_buffer,
-            z_buffer,
-            model.face_count,
-            model.face_indices_a,
-            model.face_indices_b,
-            model.face_indices_c,
-            screen_vertices_x,
-            screen_vertices_y,
-            screen_vertices_z,
-            model.face_color_a,
-            model.face_color_b,
-            model.face_color_c,
-            SCREEN_WIDTH / 4,
-            0,
             SCREEN_WIDTH,
-            SCREEN_HEIGHT);
-        end = clock();
-        printf("raster_zbuf: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
+            SCREEN_HEIGHT,
+            10,
+            100,
+            100, // x coords
+            10,
+            10,
+            100, // y coords
+            0,
+            31,
+            31, // z coords
+            0,
+            31,
+            31, // u coords
+            0,
+            0,
+            31, // v coords
+            texels,
+            TEXTURE_WIDTH);
 
         // render pixel buffer to SDL_Surface
         SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(

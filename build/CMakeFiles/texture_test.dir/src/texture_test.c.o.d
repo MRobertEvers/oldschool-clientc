@@ -1,9 +1,5 @@
-CMakeFiles/rs.dir/src/main.c.o: \
-  /Users/matthewevers/Documents/git_repos/3draster/src/main.c \
-  /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.h \
-  /Users/matthewevers/Documents/git_repos/3draster/src/load_separate.h \
-  /Users/matthewevers/Documents/git_repos/3draster/src/model.h \
-  /Users/matthewevers/Documents/git_repos/3draster/src/projection.h \
+CMakeFiles/texture_test.dir/src/texture_test.c.o: \
+  /Users/matthewevers/Documents/git_repos/3draster/src/texture_test.c \
   /Users/matthewevers/Documents/git_repos/3draster/src/texture.h \
   /opt/homebrew/Cellar/sdl2/2.32.4_1/include/SDL2/SDL.h \
   /opt/homebrew/Cellar/sdl2/2.32.4_1/include/SDL2/SDL_main.h \
@@ -225,10 +221,6 @@ CMakeFiles/rs.dir/src/main.c.o: \
   /opt/homebrew/Cellar/sdl2/2.32.4_1/include/SDL2/SDL_version.h \
   /opt/homebrew/Cellar/sdl2/2.32.4_1/include/SDL2/SDL_locale.h \
   /opt/homebrew/Cellar/sdl2/2.32.4_1/include/SDL2/SDL_misc.h \
-  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/limits.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/limits.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/machine/limits.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/arm/limits.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/arm/_limits.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/syslimits.h \
-  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdbool.h
+  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/assert.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_assert.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_static_assert.h
