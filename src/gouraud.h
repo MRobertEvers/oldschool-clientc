@@ -53,5 +53,4 @@ void raster_gouraud(
     int color0,
     int color1,
     int color2);
-
 #endif

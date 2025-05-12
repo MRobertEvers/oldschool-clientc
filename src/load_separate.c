@@ -82,18 +82,14 @@ load_separate(const char* filename)
     fread(&model.face_count, sizeof(int), 1, file);
 
     // Malloc and read colors
-    model.face_color_a = (int*)malloc(model.face_count * sizeof(int));
-    model.face_color_b = (int*)malloc(model.face_count * sizeof(int));
-    model.face_color_c = (int*)malloc(model.face_count * sizeof(int));
-    if( !model.face_color_a || !model.face_color_b || !model.face_color_c )
+    model.face_colors = (int*)malloc(model.face_count * sizeof(int));
+    if( !model.face_colors )
     {
         fclose(file);
         goto cleanup_faces;
     }
 
-    fread(model.face_color_a, sizeof(int), model.face_count, file);
-    fread(model.face_color_b, sizeof(int), model.face_count, file);
-    fread(model.face_color_c, sizeof(int), model.face_count, file);
+    fread(model.face_colors, sizeof(int), model.face_count, file);
     fclose(file);
 
     // Load priorities file
@@ -119,9 +115,7 @@ load_separate(const char* filename)
     return model;
 
 cleanup_colors:
-    free(model.face_color_a);
-    free(model.face_color_b);
-    free(model.face_color_c);
+    free(model.face_colors);
 cleanup_faces:
     free(model.face_indices_a);
     free(model.face_indices_b);

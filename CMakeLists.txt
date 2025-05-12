@@ -12,6 +12,7 @@ add_executable(rs
     src/gouraud.c
     src/load_separate.c
     src/texture.c
+    src/lighting.c
 )
 
 add_executable(texture_test

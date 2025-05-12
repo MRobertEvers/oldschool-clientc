@@ -160,3 +160,8 @@ Obj_Mask = 0x6000_0000 (1610612736 in dec)
 ### Rendering Notes
 
 Model 135 has textures.
+
+### Rendering Notes
+
+The colors in face_colors_a, etc are stored as HSL. 16 bit?
+g_palette is a HSL->RGB table.

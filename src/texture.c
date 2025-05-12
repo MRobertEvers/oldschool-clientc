@@ -33,8 +33,14 @@ draw_scanline_texture(
     // xt = screen_x_t * zt
     int dx = screen_x_end - screen_x_start;
 
+    // Apply FOV scaling to x and y coordinates
+    // Note: Because FOV scaling (Tangent stuff) and z-near (multiplication by Z_NEAR) are not
+    // dependent on z, we only need to adjust u and v by the transformation that is dependent on z,
+    // which is 1/z.
+
     // Note: This does not account for FOV scaling and assumes FOV of 90 degrees
     // Pre-compute u/z and v/z values
+    // Since perspective correction depends on z, we need to interpolate u/z and v/z
     int u_over_z_start = (u_start << 16) / z_start;
     int u_over_z_end = (u_end << 16) / z_end;
     int v_over_z_start = (v_start << 16) / z_start;
@@ -60,11 +66,6 @@ draw_scanline_texture(
         int vt = (v_over_z << 12) / inv_z;
 
         int texel_index = (vt * texture_width + ut) >> 12;
-        if( texel_index < 0 || texel_index >= texture_width * 32 )
-        {
-            printf("texel_index out of bounds: %d\n", texel_index);
-            continue;
-        }
         int color = texels[texel_index];
         pixel_buffer[y * stride_width + x] = color;
     }

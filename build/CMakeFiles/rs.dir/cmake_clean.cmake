@@ -1,6 +1,8 @@
 file(REMOVE_RECURSE
   "CMakeFiles/rs.dir/src/gouraud.c.o"
   "CMakeFiles/rs.dir/src/gouraud.c.o.d"
+  "CMakeFiles/rs.dir/src/lighting.c.o"
+  "CMakeFiles/rs.dir/src/lighting.c.o.d"
   "CMakeFiles/rs.dir/src/load_separate.c.o"
   "CMakeFiles/rs.dir/src/load_separate.c.o.d"
   "CMakeFiles/rs.dir/src/main.c.o"

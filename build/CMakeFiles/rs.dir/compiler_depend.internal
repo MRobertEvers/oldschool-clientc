@@ -5,6 +5,19 @@ CMakeFiles/rs.dir/src/gouraud.c.o
  /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.c
  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdbool.h
 
+CMakeFiles/rs.dir/src/lighting.c.o
+ /Users/matthewevers/Documents/git_repos/3draster/src/lighting.c
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/Availability.h
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/AvailabilityInternal.h
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/AvailabilityInternalLegacy.h
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/AvailabilityVersions.h
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/math.h
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_posix_availability.h
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_symbol_aliasing.h
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h
+ /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/ptrcheck.h
+ /Users/matthewevers/Documents/git_repos/3draster/src/lighting.h
+
 CMakeFiles/rs.dir/src/load_separate.c.o
  /Users/matthewevers/Documents/git_repos/3draster/src/load_separate.c
  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/Availability.h
@@ -282,6 +295,7 @@ CMakeFiles/rs.dir/src/main.c.o
  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stddef.h
  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdint.h
  /Users/matthewevers/Documents/git_repos/3draster/src/gouraud.h
+ /Users/matthewevers/Documents/git_repos/3draster/src/lighting.h
  /Users/matthewevers/Documents/git_repos/3draster/src/load_separate.h
  /Users/matthewevers/Documents/git_repos/3draster/src/model.h
  /Users/matthewevers/Documents/git_repos/3draster/src/projection.h

@@ -166,6 +166,30 @@ src/gouraud.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/gouraud.c.s
 .PHONY : src/gouraud.c.s
 
+src/lighting.o: src/lighting.c.o
+.PHONY : src/lighting.o
+
+# target to build an object file
+src/lighting.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/lighting.c.o
+.PHONY : src/lighting.c.o
+
+src/lighting.i: src/lighting.c.i
+.PHONY : src/lighting.i
+
+# target to preprocess a source file
+src/lighting.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/lighting.c.i
+.PHONY : src/lighting.c.i
+
+src/lighting.s: src/lighting.c.s
+.PHONY : src/lighting.s
+
+# target to generate assembly for a file
+src/lighting.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/rs.dir/build.make CMakeFiles/rs.dir/src/lighting.c.s
+.PHONY : src/lighting.c.s
+
 src/load_separate.o: src/load_separate.c.o
 .PHONY : src/load_separate.o
 
@@ -302,6 +326,9 @@ help:
 	@echo "... src/gouraud.o"
 	@echo "... src/gouraud.i"
 	@echo "... src/gouraud.s"
+	@echo "... src/lighting.o"
+	@echo "... src/lighting.i"
+	@echo "... src/lighting.s"
 	@echo "... src/load_separate.o"
 	@echo "... src/load_separate.i"
 	@echo "... src/load_separate.s"

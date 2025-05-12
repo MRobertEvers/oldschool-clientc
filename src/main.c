@@ -1,4 +1,5 @@
 #include "gouraud.h"
+#include "lighting.h"
 #include "load_separate.h"
 #include "projection.h"
 #include "texture.h"
@@ -19,7 +20,10 @@ int g_sin_table[2048];
 int g_cos_table[2048];
 int g_tan_table[2048];
 
-int g_palette[65536];
+//   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
+//             for hue, 3 for saturation and 7 for lightness, bitpacked and
+//             represented as a short.
+int g_hsl16_to_rgb_table[65536];
 
 static int tmp_depth_face_count[1500] = { 0 };
 static int tmp_depth_faces[1500][512] = { 0 };
@@ -185,9 +189,9 @@ pix3d_set_brightness(int* palette, double brightness)
 }
 
 void
-init_palette()
+init_hsl16_to_rgb_table()
 {
-    pix3d_set_brightness(g_palette, 0.8);
+    pix3d_set_brightness(g_hsl16_to_rgb_table, 0.8);
 }
 
 struct Point3D
@@ -602,9 +606,9 @@ raster_osrs(
             int color_c = colors_c[index];
 
             struct GouraudColors gouraud_colors;
-            gouraud_colors.color1 = g_palette[color_a];
-            gouraud_colors.color2 = g_palette[color_b];
-            gouraud_colors.color3 = g_palette[color_c];
+            gouraud_colors.color1 = g_hsl16_to_rgb_table[color_a];
+            gouraud_colors.color2 = g_hsl16_to_rgb_table[color_b];
+            gouraud_colors.color3 = g_hsl16_to_rgb_table[color_c];
 
             raster_triangle(pixel_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
         }
@@ -650,9 +654,9 @@ raster_zbuf(
         int color_c = colors_c[index];
 
         struct GouraudColors gouraud_colors;
-        gouraud_colors.color1 = g_palette[color_a];
-        gouraud_colors.color2 = g_palette[color_b];
-        gouraud_colors.color3 = g_palette[color_c];
+        gouraud_colors.color1 = g_hsl16_to_rgb_table[color_a];
+        gouraud_colors.color2 = g_hsl16_to_rgb_table[color_b];
+        gouraud_colors.color3 = g_hsl16_to_rgb_table[color_c];
 
         raster_triangle_zbuf(
             pixel_buffer, z_buffer, gouraud_colors, triangle, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -665,7 +669,7 @@ main(int argc, char* argv[])
     init_cos_table();
     init_sin_table();
     init_tan_table();
-    init_palette();
+    init_hsl16_to_rgb_table();
 
     const int TEXTURE_WIDTH = 32;
     const int TEXTURE_HEIGHT = 32;
@@ -695,6 +699,13 @@ main(int argc, char* argv[])
     int* screen_vertices_x = (int*)malloc(model.vertex_count * sizeof(int));
     int* screen_vertices_y = (int*)malloc(model.vertex_count * sizeof(int));
     int* screen_vertices_z = (int*)malloc(model.vertex_count * sizeof(int));
+
+    struct VertexNormal* vertex_normals =
+        (struct VertexNormal*)malloc(model.vertex_count * sizeof(struct VertexNormal));
+
+    int* face_colors_a_hsl16 = (int*)malloc(model.face_count * sizeof(int));
+    int* face_colors_b_hsl16 = (int*)malloc(model.face_count * sizeof(int));
+    int* face_colors_c_hsl16 = (int*)malloc(model.face_count * sizeof(int));
 
     int model_pitch = 0;
     int model_yaw = 0;
@@ -936,6 +947,43 @@ main(int argc, char* argv[])
 
         SDL_RenderClear(renderer);
 
+        calculate_vertex_normals(
+            vertex_normals,
+            model.face_indices_a,
+            model.face_indices_b,
+            model.face_indices_c,
+            model.vertices_x,
+            model.vertices_y,
+            model.vertices_z,
+            model.face_count);
+
+        int light_ambient = 64;
+        int light_attenuation = 850;
+        int lightsrc_x = -30;
+        int lightsrc_y = -50;
+        int lightsrc_z = -30;
+        int light_magnitude =
+            (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+        int attenuation = light_attenuation * light_magnitude >> 8;
+        apply_lighting(
+            face_colors_a_hsl16,
+            face_colors_b_hsl16,
+            face_colors_c_hsl16,
+            vertex_normals,
+            model.face_indices_a,
+            model.face_indices_b,
+            model.face_indices_c,
+            model.face_count,
+            model.vertices_x,
+            model.vertices_y,
+            model.vertices_z,
+            model.face_colors,
+            light_ambient,
+            attenuation,
+            lightsrc_x,
+            lightsrc_y,
+            lightsrc_z);
+
         raster_osrs(
             pixel_buffer,
             tmp_priority_faces,
@@ -946,9 +994,9 @@ main(int argc, char* argv[])
             screen_vertices_x,
             screen_vertices_y,
             screen_vertices_z,
-            model.face_color_a,
-            model.face_color_b,
-            model.face_color_c,
+            face_colors_a_hsl16,
+            face_colors_b_hsl16,
+            face_colors_c_hsl16,
             0,
             0,
             SCREEN_WIDTH,
@@ -981,7 +1029,7 @@ main(int argc, char* argv[])
 
         // Draw textured triangle in upper left
         raster_texture(
-            pixel_buffer,
+            (int*)pixel_buffer,
             SCREEN_WIDTH,
             SCREEN_HEIGHT,
             10,
