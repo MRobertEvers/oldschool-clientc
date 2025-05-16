@@ -165,3 +165,7 @@ Model 135 has textures.
 
 The colors in face_colors_a, etc are stored as HSL. 16 bit?
 g_palette is a HSL->RGB table.
+
+### Cache information
+
+https://www.osrsbox.com/osrs-cache/

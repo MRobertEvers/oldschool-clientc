@@ -12,9 +12,6 @@ struct Model
     int* face_indices_a;
     int* face_indices_b;
     int* face_indices_c;
-    int* face_color_a;
-    int* face_color_b;
-    int* face_color_c;
     int* face_alphas;
     int* face_infos;
     int* face_priorities;

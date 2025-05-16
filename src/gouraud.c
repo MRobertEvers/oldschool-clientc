@@ -181,6 +181,8 @@ raster_gouraud_zbuf(
 
     for( int i = 0; i < total_height; ++i )
     {
+
+        
         /*
          *          /\      y2
          *         /  \

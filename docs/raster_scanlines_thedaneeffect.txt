@@ -1,0 +1,385 @@
+    public static void fillTexturedTriangle(int y0, int y1, int y2, int x0, int x1, int x2, int shade0, int shade1, int shade2, int tx0, int tx1, int tx2, int ty0, int ty1, int ty2, int tz0, int tz1, int tz2, int texture) {
+        int[] texels = getTexels(texture);
+        opaque = !translucent[texture];
+
+        // t1 becomes a normal
+        tx1 = tx0 - tx1;
+        ty1 = ty0 - ty1;
+        tz1 = tz0 - tz1;
+
+        // t2 becomes a normal
+        tx2 -= tx0;
+        ty2 -= ty0;
+        tz2 -= tz0;
+
+        // https://www.gamers.org/dEngine/rsc/pcgpe-1.0/texture.txt
+
+        // hStep/vStep = horizontal & vertical steps
+
+        int u = ((tx2 * ty0) - (ty2 * tx0)) << 14; // 18.14 fixed int
+        int uStepHorizontal = ((ty2 * tz0) - (tz2 * ty0)) << 5; // 27.5 fixed int
+        int uStepVertical = ((tz2 * tx0) - (tx2 * tz0)) << 5; // 27.5 fixed int
+
+        int v = ((tx1 * ty0) - (ty1 * tx0)) << 14;
+        int vStepHorizontal = ((ty1 * tz0) - (tz1 * ty0)) << 5;
+        int vStepVertical = ((tz1 * tx0) - (tx1 * tz0)) << 5;
+
+        int w = ((ty1 * tx2) - (tx1 * ty2)) << 14;
+        int wStepHorizontal = ((tz1 * ty2) - (ty1 * tz2)) << 5;
+        int wStepVertical = ((tx1 * tz2) - (tz1 * tx2)) << 5;
+
+
+        // To simplify the code we need the points and their attributes of our triangle to be organized in this order:
+        // A above B above C.
+        //
+        //       A
+        //     /   \
+        //   /      \
+        // B         \
+        //   \        \
+        //     \       \
+        //       \      \
+        //         \     \
+        //           \    \
+        //             \   \
+        //               \  \
+        //                 \ \
+        //                   C
+
+
+        // A below C
+        if (y0 > y2) {
+            int tmp = x0;
+            x0 = x2;
+            x2 = tmp;
+
+            tmp = y0;
+            y0 = y2;
+            y2 = tmp;
+
+            tmp = shade0;
+            shade0 = shade2;
+            shade2 = tmp;
+        }
+
+        // A below B
+        if (y0 > y1) {
+            int tmp = x0;
+            x0 = x1;
+            x1 = tmp;
+
+            tmp = y0;
+            y0 = y1;
+            y1 = tmp;
+
+            tmp = shade0;
+            shade0 = shade1;
+            shade1 = tmp;
+        }
+
+        // B below C
+        if (y1 > y2) {
+            int tmp = x1;
+            x1 = x2;
+            x2 = tmp;
+
+            tmp = y1;
+            y1 = y2;
+            y2 = tmp;
+
+            tmp = shade1;
+            shade1 = shade2;
+            shade2 = tmp;
+        }
+
+        int xStepAB = 0;
+        int shadeStepAB = 0;
+
+        if (y1 != y0) {
+            xStepAB = ((x1 - x0) << 16) / (y1 - y0);
+            shadeStepAB = ((shade1 - shade0) << 16) / (y1 - y0);
+        }
+
+        int xStepBC = 0;
+        int shadeStepBC = 0;
+
+        if (y2 != y1) {
+            xStepBC = ((x2 - x1) << 16) / (y2 - y1);
+            shadeStepBC = ((shade2 - shade1) << 16) / (y2 - y1);
+        }
+
+        int xStepAC = 0;
+        int shadeStepAC = 0;
+
+        if (y2 != y0) {
+            xStepAC = ((x0 - x2) << 16) / (y0 - y2);
+            shadeStepAC = ((shade0 - shade2) << 16) / (y0 - y2);
+        }
+
+        if (y0 >= Raster2D.bottom) {
+            return;
+        }
+
+        if (y1 > Raster2D.bottom) {
+            y1 = Raster2D.bottom;
+        }
+
+        if (y2 > Raster2D.bottom) {
+            y2 = Raster2D.bottom;
+        }
+
+        x2 = (x0 <<= 16);
+        shade2 = (shade0 <<= 16); // int to 16.16 fixed int
+
+        // trim upper
+        if (y0 < 0) {
+            x2 -= xStepAC * y0;
+            x0 -= xStepAB * y0;
+            shade2 -= shadeStepAC * y0;
+            shade0 -= shadeStepAB * y0;
+            y0 = 0;
+        }
+
+        x1 <<= 16;
+        shade1 <<= 16;
+
+        // trim lower
+        if (y1 < 0) {
+            x1 -= xStepBC * y1;
+            shade1 -= shadeStepBC * y1;
+            y1 = 0;
+        }
+
+        int dy = y0 - centerY;
+
+        u += uStepVertical * dy;
+        v += vStepVertical * dy;
+        w += wStepVertical * dy;
+
+        int remaining0 = y1 - y0;
+        int remaining1 = y2 - y1;
+        int offset = offsetY[y0];
+
+        while (--remaining0 >= 0) {
+            drawTexturedScanline(Raster2D.data, texels, offset, y0, x2 >> 16, x0 >> 16, shade2 >> 8, shade0 >> 8, u, v, w, uStepHorizontal, vStepHorizontal, wStepHorizontal);
+            x2 += xStepAC;
+            x0 += xStepAB;
+            shade2 += shadeStepAC;
+            shade0 += shadeStepAB;
+            offset += Raster2D.width;
+            u += uStepVertical;
+            v += vStepVertical;
+            w += wStepVertical;
+            y0++;
+        }
+
+        while (--remaining1 >= 0) {
+            drawTexturedScanline(Raster2D.data, texels, offset, y1, x2 >> 16, x1 >> 16, shade2 >> 8, shade1 >> 8, u, v, w, uStepHorizontal, vStepHorizontal, wStepHorizontal);
+            x2 += xStepAC;
+            x1 += xStepBC;
+            shade2 += shadeStepAC;
+            shade1 += shadeStepBC;
+            offset += Raster2D.width;
+            u += uStepVertical;
+            v += vStepVertical;
+            w += wStepVertical;
+            y1++;
+        }
+    }
+
+    /**
+     * @param dst    the destination pixels
+     * @param texels the source texels
+     * @param offset the destination offset
+     * @param x0     left x boundary as whole numbers
+     * @param x1     right x boundary as whole numbers
+     * @param shade0 left darkness value as a 24.8 fixed int
+     * @param shade1 right darkness value as a 24.8 fixed int
+     * @param u      the u coordinate on the texture plane (x) as a 18.14 fixed int
+     * @param v      the v coordinate on the texture plane (y) as a 18.14 fixed int
+     * @param w      the w coordinate on the texture plane (z) as a 18.14 fixed int
+     * @param uStep  the horizontal stride for the u texture plane coordinate as a 24.8 fixed int
+     * @param vStep  the horizontal stride for the v texture plane coordinate as a 24.8 fixed int
+     * @param wStep  the horizontal stride for the w texture plane coordinate as a 24.8 fixed int
+     */
+    private static void drawTexturedScanline(int[] dst, int[] texels, int offset, int y, int x0, int x1, int shade0, int shade1, int u, int v, int w, int uStep, int vStep, int wStep) {
+        // Ensure the scanline is in A->B order
+        if (x0 == x1) {
+            return;
+        } else if (x0 > x1) {
+            int tmp = x0;
+            x0 = x1;
+            x1 = tmp;
+
+            tmp = shade0;
+            shade0 = shade1;
+            shade1 = tmp;
+        }
+
+        int shadeStep = (shade1 - shade0) / (x1 - x0);
+
+        if (x1 > Raster2D.boundX) {
+            x1 = Raster2D.boundX;
+        }
+
+        if (x0 < 0) {
+            shade0 -= x0 * shadeStep;
+            x0 = 0;
+        }
+
+        int length = x1 - x0;
+
+        // convert shade0 and shadeStep to 15.17 fixed ints
+        shadeStep <<= 9;
+        shade0 <<= 9;
+
+        offset += x0;
+
+        int dx = x0 - centerX;
+
+        u += uStep * dx;
+        v += vStep * dx;
+        w += wStep * dx;
+
+        if (!Client.lowmem) {
+            if (opaque) {
+                drawOpaqueTexturedScanlineHighmem(dst, texels, offset, x0, y, shade0, u, v, w, uStep, vStep, wStep, shadeStep, length);
+            } else {
+                drawTransparentTexturedScanlineHighmem(dst, texels, offset, x0, y, shade0, u, v, w, uStep, vStep, wStep, shadeStep, length);
+            }
+        } else {
+            if (opaque) {
+                drawOpaqueTexturedScanlineLowmem(dst, texels, offset, x0, y, shade0, u, v, w, uStep, vStep, wStep, shadeStep, length);
+            } else {
+                drawTransparentTexturedScanlineLowmem(dst, texels, offset, x0, y, shade0, u, v, w, uStep, vStep, wStep, shadeStep, length);
+            }
+        }
+    }
+
+    private static void drawOpaqueTexturedScanlineLowmem(int[] dst, int[] texels, int offset, int x, int y, int shade, int u, int v, int w, int uStep, int vStep, int wStep, int shadeStep, int length) {
+        while (length-- > 0) {
+            int w1 = w >> 12;
+            int u1 = 0;
+            int v1 = 0;
+
+            if (w1 != 0) {
+                u1 = u / w1; // recalculate destination uv for next iteration
+                v1 = v / w1;
+
+                if (u1 < 7) {
+                    u1 = 7;
+                } else if (u1 > 4032) {
+                    u1 = 4032;
+                }
+            }
+
+            // shift texture to the given shade
+            u1 += (shade & 0x600000) >> 3;
+
+            dst[offset++] = texels[(v1 & 0xfc0) + (u1 >> 6)] >>> (shade >>> 23);
+
+            x++;
+            u += uStep;
+            v += vStep;
+            w += wStep;
+            shade += shadeStep;
+        }
+    }
+
+    private static void drawTransparentTexturedScanlineLowmem(int[] dst, int[] texels, int offset, int x, int y, int shade, int u, int v, int w, int uStep, int vStep, int wStep, int shadeStep, int length) {
+        while (length-- > 0) {
+            int w1 = w >> 12;
+            int u1 = 0;
+            int v1 = 0;
+
+            if (w1 != 0) {
+                u1 = u / w1; // recalculate destination uv for next iteration
+                v1 = v / w1;
+
+                if (u1 < 7) {
+                    u1 = 7;
+                } else if (u1 > 4032) {
+                    u1 = 4032;
+                }
+            }
+
+            // shift texture to the given shade
+            u1 += (shade & 0x600000) >> 3;
+
+            int texel;
+            if ((texel = texels[(v1 & 0xfc0) + (u1 >> 6)] >>> (shade >>> 23)) != 0) {
+                dst[offset] = texel;
+            }
+            offset++;
+
+            x++;
+            u += uStep;
+            v += vStep;
+            w += wStep;
+            shade += shadeStep;
+        }
+    }
+
+    private static void drawOpaqueTexturedScanlineHighmem(int[] dst, int[] texels, int offset, int x, int y, int shade, int u, int v, int w, int uStep, int vStep, int wStep, int shadeStep, int length) {
+        while (length-- > 0) {
+            int w1 = w >> 14;
+            int u1 = 0;
+            int v1 = 0;
+
+            if (w1 != 0) {
+                u1 = u / w1; // recalculate destination uv for next iteration
+                v1 = v / w1;
+
+                if (u1 < 7) {
+                    u1 = 7;
+                } else if (u1 > 16256) {
+                    u1 = 16256;
+                }
+            }
+
+            // shift texture to the given shade
+            u1 += (shade & 0x600000);
+
+            dst[offset++] = texels[(v1 & 0x3f80) + (u1 >> 7)] >>> (shade >>> 23);
+
+            x++;
+            u += uStep;
+            v += vStep;
+            w += wStep;
+            shade += shadeStep;
+        }
+    }
+
+    private static void drawTransparentTexturedScanlineHighmem(int[] dst, int[] texels, int offset, int x, int y, int shade, int u, int v, int w, int uStep, int vStep, int wStep, int shadeStep, int length) {
+        while (length-- > 0) {
+            int w1 = w >> 14;
+            int u1 = 0;
+            int v1 = 0;
+
+            if (w1 != 0) {
+                u1 = u / w1; // recalculate destination uv for next iteration
+                v1 = v / w1;
+
+                if (u1 < 7) {
+                    u1 = 7;
+                } else if (u1 > 16256) {
+                    u1 = 16256;
+                }
+            }
+
+            // shift texture to the given shade
+            u1 += (shade & 0x600000);
+
+            int texel;
+            if ((texel = texels[(v1 & 0x3f80) + (u1 >> 7)] >>> (shade >>> 23)) != 0) {
+                dst[offset] = texel;
+            }
+
+            offset++;
+            x++;
+            u += uStep;
+            v += vStep;
+            w += wStep;
+            shade += shadeStep;
+        }
+    }

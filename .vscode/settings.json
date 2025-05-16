@@ -5,6 +5,10 @@
         "sdl.h": "c",
         "locale": "cpp",
         "math.h": "c",
-        "gouraud.h": "c"
+        "gouraud.h": "c",
+        "string.h": "c",
+        "stdlib.h": "c",
+        "bzlib.h": "c",
+        "osrs_cache.h": "c"
     }
 }
