@@ -1,10 +1,12 @@
 #include "osrs_cache.h"
+// #include "xtea.h"
 
 #include <bzlib.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zlib.h>
 
 #define CACHE_PATH "../cache"
 
@@ -34,26 +36,39 @@ struct Buffer
 };
 
 static int
-read_24(char* data, int data_size, struct Buffer* buffer)
+read_8(struct Buffer* buffer)
+{
+    buffer->position += 1;
+    return buffer->data[buffer->position - 1] & 0xFF;
+}
+
+static int
+read_24(struct Buffer* buffer)
 {
     buffer->position += 3;
-    return (data[buffer->position - 3] << 16) | (data[buffer->position - 2] << 8) |
-           data[buffer->position - 1];
+    return ((buffer->data[buffer->position - 3] & 0xFF) << 16) |
+           ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
+           (buffer->data[buffer->position - 1] & 0xFF);
 }
 
 static int
-read_16(char* data, int data_size, struct Buffer* buffer)
+read_16(struct Buffer* buffer)
 {
     buffer->position += 2;
-    return (data[buffer->position - 2] << 8) | data[buffer->position - 1];
+    return ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
+           (buffer->data[buffer->position - 1] & 0xFF);
 }
 
 static int
-read_32(char* data, int data_size, struct Buffer* buffer)
+read_32(struct Buffer* buffer)
 {
     buffer->position += 4;
-    return (data[buffer->position - 4] << 24) | (data[buffer->position - 3] << 16) |
-           (data[buffer->position - 2] << 8) | data[buffer->position - 1];
+    // print the 4 bytes at the current position
+
+    return ((buffer->data[buffer->position - 4] & 0xFF) << 24) |
+           ((buffer->data[buffer->position - 3] & 0xFF) << 16) |
+           ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
+           (buffer->data[buffer->position - 1] & 0xFF);
 }
 
 static int
@@ -75,96 +90,6 @@ static void
 bump(int count, struct Buffer* buffer)
 {
     buffer->position += count;
-}
-
-/**
- *
- *     int unpackedSize = buffer.read24();
-        int packedSize = buffer.read24();
-
-        if (packedSize != unpackedSize) {
-            data = new byte[unpackedSize];
-            BZip2.decompress(src, 6, packedSize, data);
-            buffer = new Buffer(data);
-            unpacked = true;
-        } else {
-            data = src;
-            unpacked = false;
-        }
-
-        fileCount = buffer.readU16();
-        fileHash = new int[fileCount];
-        fileSizeInflated = new int[fileCount];
-        fileSizeDeflated = new int[fileCount];
-        fileOffset = new int[fileCount];
-
-        int offset = buffer.position + (fileCount * 10);
-
-        for (int file = 0; file < fileCount; file++) {
-            fileHash[file] = buffer.read32();
-            fileSizeInflated[file] = buffer.read24();
-            fileSizeDeflated[file] = buffer.read24();
-            fileOffset[file] = offset;
-            offset += fileSizeDeflated[file];
-        }
- *
- * @param data
- * @param data_size
- * @param file_archive
- */
-void
-parse_file_archive(char* data, int data_size, struct FileArchive* file_archive)
-{
-    struct Buffer buffer = { .data = data, .position = 0 };
-    int unpacked_size = read_24(data, data_size, &buffer);
-    int packed_size = read_24(data, data_size, &buffer);
-
-    if( packed_size != unpacked_size )
-    {
-        file_archive->data = malloc(unpacked_size);
-        int result = BZ2_bzBuffToBuffDecompress(
-            file_archive->data, &unpacked_size, data + 6, packed_size, 0, 0);
-        if( result != BZ_OK )
-        {
-            printf("Error decompressing file archive: %d\n", result);
-            return;
-        }
-        buffer.data = file_archive->data;
-        buffer.position = 0;
-
-        file_archive->unpacked = true;
-    }
-    else
-    {
-        file_archive->data = malloc(data_size);
-        memcpy(file_archive->data, data, data_size);
-
-        file_archive->unpacked = false;
-    }
-
-    int file_count = read_16(file_archive->data, unpacked_size, &buffer);
-
-    file_archive->file_count = file_count;
-    file_archive->file_name_hash = malloc(file_archive->file_count * sizeof(int));
-    file_archive->file_size_inflated = malloc(file_archive->file_count * sizeof(int));
-    file_archive->file_size_deflated = malloc(file_archive->file_count * sizeof(int));
-    file_archive->file_offset = malloc(file_archive->file_count * sizeof(int));
-
-    int offset = read_24(file_archive->data, unpacked_size, &buffer);
-
-    bump(file_count * 10, &buffer);
-
-    for( int file = 0; file < file_count; file++ )
-    {
-        file_archive->file_name_hash[file] = read_32(file_archive->data, unpacked_size, &buffer);
-        file_archive->file_size_inflated[file] =
-            read_24(file_archive->data, unpacked_size, &buffer);
-        file_archive->file_size_deflated[file] =
-            read_24(file_archive->data, unpacked_size, &buffer);
-        file_archive->file_offset[file] = offset;
-
-        offset += file_archive->file_size_deflated[file];
-    }
 }
 
 #define INDEX_255_ENTRY_SIZE 6
@@ -210,6 +135,13 @@ read_index_entry(
     record->idx_file_id = index_file_id;
 }
 
+struct Dat2Archive
+{
+    char* data;
+    int data_size;
+    int archive_record_id;
+};
+
 /**
  * @brief In the dat2 file, the records are archives.
  *
@@ -221,8 +153,15 @@ read_index_entry(
  * @param sector
  * @param length
  */
-static char*
-read_dat2(char* data, int data_size, int idx_file_id, int record_id, int sector, int length)
+static int
+read_dat2(
+    struct Dat2Archive* archive,
+    char* data,
+    int data_size,
+    int idx_file_id,
+    int record_id,
+    int sector,
+    int length)
 {
     struct Buffer data_buffer = { .data = data, .position = 0, .data_size = data_size };
 
@@ -239,7 +178,7 @@ read_dat2(char* data, int data_size, int idx_file_id, int record_id, int sector,
     if( sector <= 0L || data_size / SECTOR_SIZE < (long)sector )
     {
         printf("bad read, dat length %d, requested sector %d", data_size, sector);
-        return NULL;
+        return -1;
     }
 
     int out_len = 0;
@@ -251,7 +190,7 @@ read_dat2(char* data, int data_size, int idx_file_id, int record_id, int sector,
         if( sector == 0 )
         {
             printf("Unexpected end of file\n");
-            return NULL;
+            return -1;
         }
         data_buffer.position = sector * SECTOR_SIZE;
 
@@ -267,7 +206,7 @@ read_dat2(char* data, int data_size, int idx_file_id, int record_id, int sector,
             if( bytes_read < header_size + data_block_size )
             {
                 printf("short read when reading file data for %d/%d\n", record_id, current_index);
-                return NULL;
+                return -1;
             }
 
             read_buffer_len = bytes_read;
@@ -290,7 +229,7 @@ read_dat2(char* data, int data_size, int idx_file_id, int record_id, int sector,
             if( bytes_read < header_size + data_block_size )
             {
                 printf("short read when reading file data for %d/%d\n", record_id, current_index);
-                return NULL;
+                return -1;
             }
 
             read_buffer_len = bytes_read;
@@ -312,13 +251,13 @@ read_dat2(char* data, int data_size, int idx_file_id, int record_id, int sector,
                 current_part,
                 idx_file_id,
                 current_index);
-            return NULL;
+            return -1;
         }
 
         if( next_sector < 0 || data_size / SECTOR_SIZE < (long)next_sector )
         {
             printf("invalid next sector");
-            return NULL;
+            return -1;
         }
 
         memcpy(out + out_len, read_buffer + header_size, data_block_size);
@@ -329,7 +268,170 @@ read_dat2(char* data, int data_size, int idx_file_id, int record_id, int sector,
         ++part;
     }
 
-    return out;
+    archive->data = out;
+    archive->data_size = out_len;
+    archive->archive_record_id = record_id;
+
+    return 0;
+}
+
+static void
+decompress_dat2archive(struct Dat2Archive* archive)
+{
+    // int keys = load_xtea_keys(CACHE_PATH "/xteas.json");
+    // if( keys == -1 )
+    // {
+    //     printf("Failed to load xteas.json");
+    //     return -1;
+    // }
+
+    // InputStream stream = new InputStream(b);
+
+    // int compression = stream.readUnsignedByte();
+    // int compressedLength = stream.readInt();
+    // if( compressedLength < 0 || compressedLength > 1000000 )
+    // {
+    //     throw new RuntimeException("Invalid data");
+    // }
+
+    // Crc32 crc32 = new Crc32();
+    // crc32.update(b, 0, 5); // compression + length
+
+    struct Buffer buffer = { .data = archive->data,
+                             .position = 0,
+                             .data_size = archive->data_size };
+
+    int compression = read_8(&buffer);
+    int compressed_length = read_32(&buffer);
+
+    if( compressed_length < 0 || compressed_length > 1000000 )
+    {
+        printf("Invalid data");
+        return;
+    }
+
+    unsigned int crc = 0;
+    for( int i = 0; i < 5; i++ )
+    {
+        crc = (crc << 8) ^ archive->data[i];
+    }
+
+    switch( compression )
+    {
+    case 0:
+        // No compression
+        break;
+    case 1:
+        // BZip compression
+        {
+            // byte[] encryptedData = new byte[compressedLength + 4];
+            char* encrypted_data = malloc(compressed_length + 4);
+            int bytes_read =
+                readto(encrypted_data, compressed_length + 4, buffer.data_size, &buffer);
+            if( bytes_read < compressed_length + 4 )
+            {
+                printf(
+                    "short read when reading file data for %d/%d\n",
+                    archive->archive_record_id,
+                    archive->archive_record_id);
+            }
+
+            // Allocate buffer for decompressed data
+            char* decompressed_data = malloc(compressed_length * 2); // Start with 2x size
+            unsigned int decompressed_size = compressed_length * 2;
+
+            // Decompress using bzlib
+            int ret = BZ2_bzBuffToBuffDecompress(
+                decompressed_data,
+                &decompressed_size,
+                encrypted_data,
+                compressed_length,
+                0, // Small memory usage
+                0  // Verbosity level
+            );
+
+            if( ret != BZ_OK )
+            {
+                printf("BZ2 decompression failed with error code: %d\n", ret);
+                free(decompressed_data);
+                free(encrypted_data);
+                return;
+            }
+
+            // Update archive with decompressed data
+            free(archive->data);
+            archive->data = decompressed_data;
+            archive->data_size = decompressed_size;
+            free(encrypted_data);
+        }
+        break;
+    case 2:
+        // GZ compression
+        {
+            // 	int uncompressedLength = buffer.getInt();
+            int uncompressed_length = read_32(&buffer);
+            char* compressed_data = malloc(compressed_length);
+            int bytes_read = readto(compressed_data, compressed_length, compressed_length, &buffer);
+            if( bytes_read < compressed_length )
+            {
+                printf(
+                    "short read when reading file data for %d/%d\n",
+                    archive->archive_record_id,
+                    archive->archive_record_id);
+                free(compressed_data);
+                return;
+            }
+
+            // Allocate buffer for decompressed data
+            char* decompressed_data = malloc(uncompressed_length); // Start with 2x size
+
+            // Initialize zlib stream
+            z_stream strm;
+            strm.zalloc = Z_NULL;
+            strm.zfree = Z_NULL;
+            strm.opaque = Z_NULL;
+            strm.avail_in = compressed_length;
+            strm.next_in = (Bytef*)compressed_data;
+            strm.avail_out = uncompressed_length;
+            strm.next_out = (Bytef*)decompressed_data;
+
+            // Initialize for GZIP format
+            int ret = inflateInit2(&strm, 15 + 32); // 15 for max window size, 32 for GZIP format
+            if( ret != Z_OK )
+            {
+                printf("inflateInit2 failed with error code: %d\n", ret);
+                free(decompressed_data);
+                free(compressed_data);
+                return;
+            }
+
+            // Decompress
+            ret = inflate(&strm, Z_FINISH);
+            if( ret != Z_STREAM_END )
+            {
+                printf("inflate failed with error code: %d\n", ret);
+                inflateEnd(&strm);
+                free(decompressed_data);
+                free(compressed_data);
+                return;
+            }
+
+            // Update archive with decompressed data
+            free(archive->data);
+            archive->data = decompressed_data;
+            archive->data_size = strm.total_out;
+
+            // Cleanup
+            inflateEnd(&strm);
+            free(compressed_data);
+        }
+        break;
+    default:
+        printf("Unknown compression method: %d\n", compression);
+        return;
+    }
+
+    // cleanup_xtea_keys();
 }
 
 /**
@@ -382,8 +484,25 @@ load_models()
     fread(master_index_data, 1, master_index_size, master_index);
     fclose(master_index);
 
+    int model_index_size;
+    char* model_index_data;
+    FILE* model_index = fopen(CACHE_PATH "/main_file_cache.idx7", "rb");
+    if( model_index == NULL )
+    {
+        printf("Failed to open model index file");
+        return NULL;
+    }
+    fseek(model_index, 0, SEEK_END);
+    model_index_size = ftell(model_index);
+    fseek(model_index, 0, SEEK_SET);
+    model_index_data = malloc(model_index_size);
+    fread(model_index_data, 1, model_index_size, model_index);
+    fclose(model_index);
+
     int master_index_record_count = master_index_size / INDEX_255_ENTRY_SIZE;
 
+    struct Dat2Archive* archives = malloc(master_index_record_count * sizeof(struct Dat2Archive));
+    memset(archives, 0, master_index_record_count * sizeof(struct Dat2Archive));
     for( int i = 0; i < master_index_record_count; i++ )
     {
         struct IndexRecord record;
@@ -392,6 +511,26 @@ load_models()
         // record now contains a region in the .dat2 file that contains the data indexed by
         // idx<i>.
 
-        read_dat2(dat2_data, dat2_size, 255, record.record_id, record.sector, record.length);
+        read_dat2(
+            &archives[i],
+            dat2_data,
+            dat2_size,
+            255,
+            record.record_id,
+            record.sector,
+            record.length);
     }
+
+    struct Dat2Archive* model_archive = &archives[7];
+
+    struct IndexRecord record;
+    read_index_entry(7, model_index_data, model_index_size, 0, &record);
+
+    // char* record_buffer = malloc(record.length);
+    // readto(record_buffer, record.length, record.length, model_archive);
+
+    struct Dat2Archive archive;
+    read_dat2(&archive, dat2_data, dat2_size, 7, record.record_id, record.sector, record.length);
+
+    decompress_dat2archive(&archive);
 }
