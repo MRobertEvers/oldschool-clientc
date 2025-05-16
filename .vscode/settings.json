@@ -9,6 +9,7 @@
         "string.h": "c",
         "stdlib.h": "c",
         "bzlib.h": "c",
-        "osrs_cache.h": "c"
+        "osrs_cache.h": "c",
+        "__locale": "c"
     }
 }
