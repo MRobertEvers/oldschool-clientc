@@ -278,24 +278,7 @@ read_dat2(
 static void
 decompress_dat2archive(struct Dat2Archive* archive)
 {
-    // int keys = load_xtea_keys(CACHE_PATH "/xteas.json");
-    // if( keys == -1 )
-    // {
-    //     printf("Failed to load xteas.json");
-    //     return -1;
-    // }
-
-    // InputStream stream = new InputStream(b);
-
-    // int compression = stream.readUnsignedByte();
-    // int compressedLength = stream.readInt();
-    // if( compressedLength < 0 || compressedLength > 1000000 )
-    // {
-    //     throw new RuntimeException("Invalid data");
-    // }
-
-    // Crc32 crc32 = new Crc32();
-    // crc32.update(b, 0, 5); // compression + length
+    // TODO: CRC32
 
     struct Buffer buffer = { .data = archive->data,
                              .position = 0,
@@ -320,6 +303,18 @@ decompress_dat2archive(struct Dat2Archive* archive)
     {
     case 0:
         // No compression
+        char* data = malloc(compressed_length);
+        int bytes_read = readto(data, compressed_length, compressed_length, &buffer);
+        if( bytes_read < compressed_length )
+        {
+            printf(
+                "short read when reading file data for %d/%d\n",
+                archive->archive_record_id,
+                archive->archive_record_id);
+        }
+
+        archive->data = data;
+        archive->data_size = bytes_read;
         break;
     case 1:
         // BZip compression
@@ -435,19 +430,43 @@ decompress_dat2archive(struct Dat2Archive* archive)
 }
 
 /**
- * Load .dat2 file
- *  - The dat2 file contains the compressed data.
- *  - The idx files
- * Load index255 which has indexes for the other idx files
- *  - It's entries point to where in the .dat2 file that, e.g. idx2 can be found.
- *  - For example, the second entry in index255 points to the data indexed by idx2 in the .dat2
- * file.
+ * Load .dat2 file. The .dat2 file contains tables for each of the idx files.
+ *  - The dat2 file may contain compressed data.
+ * index255 has IndexRecords that point to metadata for the other tables stored in the .dat2 file.
+ *  - It's entries contain table information such as number of entries, crc, compressed size,
+ * uncompressed size, entry ids, etc.
+ * The other idx files contain IndexRecords that point to data such as model data, object data, etc.
  *
- * The other indexes contain archives inside the chunks of from the .dat2 file
+ * Each dat2 record may be uncompressed, compressed with bzip, or compressed with gzip.
+ * This includes the meta table and all other tables.
  *
- * Each of the indexes from 0-25 are compressed with bzip2
+ * All IndexRecords reference some location in the .dat2 file.
  *
- * For each index entry in index 255,
+ * Table 7 (indexed by idx7) is the model table.
+ *
+ * |--------------------------------|
+ * |  Meta Table                    |
+ * |    |- Table 7 Record           |
+ * |    |- ...                      |
+ * |--------------------------------|
+ * |  Model Table                   |
+ * |    |- Model Record             |
+ * |    |- ...                      |
+ * |--------------------------------|
+ *
+ * The .dat2 file itself is written in sectors. Each sector is 520 bytes.
+ * Each record in the .dat2 resides in some number of sectors.
+ * All records are aligned to sector boundaries.
+ *
+ *
+ * Index files are all the same, and are arrays of IndexRecords. These a FIXED SIZE!
+ * They are 6 bytes each.
+ * struct IndexRecord
+ * {
+ *     int idx_file_id; // The file extension, e.g. 2 := idx2
+ *     int record_id, sector, length;
+ * };
+ *
  *
  * @return struct Model*
  */
