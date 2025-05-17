@@ -1043,13 +1043,17 @@ load_models()
 
     struct Archive* packed_archive = decode_archive(&config_archive_buffer, npc_config_table_size);
 
-    for( int i = 0; i < packed_archive->entry_count; i++ )
+    for( int i = 3127; i < 3127 + 1; i++ )
     {
         struct Buffer buffer = { .data = packed_archive->entries[i],
                                  .data_size = packed_archive->entry_sizes[i],
                                  .position = 0 };
         struct NPCType npc = { 0 };
         decode_npc_type(&npc, &buffer);
-        print_npc_type(&npc);
+
+        if( npc.name )
+        {
+            printf("NPC: %s\n", npc.name);
+        }
     }
 }

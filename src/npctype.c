@@ -2,44 +2,62 @@
 #include <stdio.h>
 #include <string.h>
 
+/**
+ * Sourced from Runelite!
+ *
+ */
 struct NPCType
 {
     int* models;
     int models_count;
     char* name;
-    int tile_spaces_occupied;
-    int stance_animation;
-    int walk_animation;
-    int anInt2165;
-    int anInt2189;
+    int size;
+    int standing_animation;
+    int walking_animation;
+    int idle_rotate_left_animation;
+    int idle_rotate_right_animation;
     int rotate180_animation;
-    int rotate90_right_animation;
-    int rotate90_left_animation;
-    char* options[5]; // Options 30-34
+    int rotate_left_animation;
+    int rotate_right_animation;
+    char* actions[5]; // Options 30-34
     short* recolor_to_find;
     short* recolor_to_replace;
     int recolor_count;
     short* retexture_to_find;
     short* retexture_to_replace;
     int retexture_count;
-    int* models_2;
-    int models_2_count;
-    bool render_on_minimap;
+    int* chathead_models;
+    int chathead_models_count;
+    bool is_minimap_visible;
     int combat_level;
-    int resize_x;
-    int resize_y;
+    int width_scale;
+    int height_scale;
     bool has_render_priority;
     int ambient;
     int contrast;
-    int head_icon;
-    int anInt2156;
-    int anInt2174;
-    int anInt2187;
-    int* anIntArray2185;
-    int anIntArray2185_count;
-    bool is_clickable;
-    bool aBool2170;
-    bool aBool2190;
+    int* head_icon_archive_ids;
+    short* head_icon_sprite_index;
+    int head_icon_count;
+    int rotation_speed;
+    int varbit_id;
+    int varp_index;
+    int* configs;
+    int configs_count;
+    bool is_interactable;
+    bool rotation_flag;
+    bool is_pet;
+    int run_animation;
+    int run_rotate180_animation;
+    int run_rotate_left_animation;
+    int run_rotate_right_animation;
+    int crawl_animation;
+    int crawl_rotate180_animation;
+    int crawl_rotate_left_animation;
+    int crawl_rotate_right_animation;
+    bool low_priority_follower_ops;
+    int height;
+    int category;
+    int stats[6]; // Stats for opcodes 74-79
     // HashMap equivalent for params
     struct
     {
@@ -54,13 +72,30 @@ struct NPCType
 static void
 decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
 {
+    // print the buffer in hex
+    for( int i = 0; i < buffer->data_size; i++ )
+    {
+        // if it's ascii, print the character
+        if( buffer->data[i] >= 32 && buffer->data[i] <= 126 )
+        {
+            printf("%c ", buffer->data[i]);
+        }
+        else
+        {
+            printf("%d ", buffer->data[i]);
+        }
+    }
+    printf("\n");
+
     while( 1 )
     {
         int opcode = read_8(buffer) & 0xFF;
         if( opcode == 0 )
             return;
 
-        if( 1 == opcode )
+        switch( opcode )
+        {
+        case 1:
         {
             int length = read_8(buffer) & 0xFF;
             npc->models = malloc(length * sizeof(int));
@@ -70,8 +105,9 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
             {
                 npc->models[idx] = read_16(buffer) & 0xFFFF;
             }
+            break;
         }
-        else if( 2 == opcode )
+        case 2:
         {
             // Read string length first
             int str_len = 0;
@@ -80,36 +116,48 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
                 str_len++;
             }
             npc->name = malloc(str_len + 1);
+            memset(npc->name, 0, str_len + 1);
             readto(npc->name, str_len + 1, str_len + 1, buffer);
+            break;
         }
-        else if( 12 == opcode )
+        case 12:
         {
-            npc->tile_spaces_occupied = read_8(buffer) & 0xFF;
+            npc->size = read_8(buffer) & 0xFF;
+            break;
         }
-        else if( opcode == 13 )
+        case 13:
         {
-            npc->stance_animation = read_16(buffer) & 0xFFFF;
+            npc->standing_animation = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( opcode == 14 )
+        case 14:
         {
-            npc->walk_animation = read_16(buffer) & 0xFFFF;
+            npc->walking_animation = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( 15 == opcode )
+        case 15:
         {
-            npc->anInt2165 = read_16(buffer) & 0xFFFF;
+            npc->idle_rotate_left_animation = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( opcode == 16 )
+        case 16:
         {
-            npc->anInt2189 = read_16(buffer) & 0xFFFF;
+            npc->idle_rotate_right_animation = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( 17 == opcode )
+        case 17:
         {
-            npc->walk_animation = read_16(buffer) & 0xFFFF;
+            npc->walking_animation = read_16(buffer) & 0xFFFF;
             npc->rotate180_animation = read_16(buffer) & 0xFFFF;
-            npc->rotate90_right_animation = read_16(buffer) & 0xFFFF;
-            npc->rotate90_left_animation = read_16(buffer) & 0xFFFF;
+            npc->rotate_left_animation = read_16(buffer) & 0xFFFF;
+            npc->rotate_right_animation = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( opcode >= 30 && opcode < 35 )
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
         {
             int idx = opcode - 30;
             // Read string length first
@@ -118,17 +166,18 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
             {
                 str_len++;
             }
-            npc->options[idx] = malloc(str_len + 1);
-            readto(npc->options[idx], str_len + 1, str_len + 1, buffer);
+            npc->actions[idx] = malloc(str_len + 1);
+            readto(npc->actions[idx], str_len + 1, str_len + 1, buffer);
 
             // Check if string is "Hidden"
-            if( strcmp(npc->options[idx], "Hidden") == 0 )
+            if( strcmp(npc->actions[idx], "Hidden") == 0 )
             {
-                free(npc->options[idx]);
-                npc->options[idx] = NULL;
+                free(npc->actions[idx]);
+                npc->actions[idx] = NULL;
             }
+            break;
         }
-        else if( opcode == 40 )
+        case 40:
         {
             int length = read_8(buffer) & 0xFF;
             npc->recolor_to_find = malloc(length * sizeof(short));
@@ -140,8 +189,9 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
                 npc->recolor_to_find[idx] = (short)(read_16(buffer) & 0xFFFF);
                 npc->recolor_to_replace[idx] = (short)(read_16(buffer) & 0xFFFF);
             }
+            break;
         }
-        else if( opcode == 41 )
+        case 41:
         {
             int length = read_8(buffer) & 0xFF;
             npc->retexture_to_find = malloc(length * sizeof(short));
@@ -153,107 +203,114 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
                 npc->retexture_to_find[idx] = (short)(read_16(buffer) & 0xFFFF);
                 npc->retexture_to_replace[idx] = (short)(read_16(buffer) & 0xFFFF);
             }
+            break;
         }
-        else if( 60 == opcode )
+        case 60:
         {
             int length = read_8(buffer) & 0xFF;
-            npc->models_2 = malloc(length * sizeof(int));
-            npc->models_2_count = length;
+            npc->chathead_models = malloc(length * sizeof(int));
+            npc->chathead_models_count = length;
 
             for( int idx = 0; idx < length; ++idx )
             {
-                npc->models_2[idx] = read_16(buffer) & 0xFFFF;
+                npc->chathead_models[idx] = read_16(buffer) & 0xFFFF;
             }
+            break;
         }
-        else if( opcode == 93 )
+        case 93:
         {
-            npc->render_on_minimap = false;
+            npc->is_minimap_visible = false;
+            break;
         }
-        else if( 95 == opcode )
+        case 95:
         {
             npc->combat_level = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( 97 == opcode )
+        case 97:
         {
-            npc->resize_x = read_16(buffer) & 0xFFFF;
+            npc->width_scale = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( 98 == opcode )
+        case 98:
         {
-            npc->resize_y = read_16(buffer) & 0xFFFF;
+            npc->height_scale = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( opcode == 99 )
+        case 99:
         {
             npc->has_render_priority = true;
+            break;
         }
-        else if( 100 == opcode )
+        case 100:
         {
             npc->ambient = read_8(buffer);
+            break;
         }
-        else if( 101 == opcode )
+        case 101:
         {
             npc->contrast = read_8(buffer);
+            break;
         }
-        else if( opcode == 102 )
+        case 102:
         {
-            npc->head_icon = read_16(buffer) & 0xFFFF;
-        }
-        else if( 103 == opcode )
-        {
-            npc->anInt2156 = read_16(buffer) & 0xFFFF;
-        }
-        else if( opcode == 106 )
-        {
-            npc->anInt2174 = read_16(buffer) & 0xFFFF;
-            if( 0xFFFF == npc->anInt2174 )
+            bool rev210_head_icons = true; // TODO: Make this configurable
+            int default_head_icon_archive = -1;
+
+            if( !rev210_head_icons )
             {
-                npc->anInt2174 = -1;
+                npc->head_icon_archive_ids = malloc(sizeof(int));
+                npc->head_icon_sprite_index = malloc(sizeof(short));
+                npc->head_icon_count = 1;
+                npc->head_icon_archive_ids[0] = default_head_icon_archive;
+                npc->head_icon_sprite_index[0] = (short)(read_16(buffer) & 0xFFFF);
             }
-
-            npc->anInt2187 = read_16(buffer) & 0xFFFF;
-            if( 0xFFFF == npc->anInt2187 )
+            else
             {
-                npc->anInt2187 = -1;
-            }
-
-            int length = read_8(buffer) & 0xFF;
-            npc->anIntArray2185 = malloc((length + 2) * sizeof(int));
-            npc->anIntArray2185_count = length + 2;
-
-            for( int idx = 0; idx <= length; ++idx )
-            {
-                npc->anIntArray2185[idx] = read_16(buffer) & 0xFFFF;
-                if( npc->anIntArray2185[idx] == 0xFFFF )
+                int bitfield = read_8(buffer) & 0xFF;
+                int len = 0;
+                for( int var5 = bitfield; var5 != 0; var5 >>= 1 )
                 {
-                    npc->anIntArray2185[idx] = -1;
+                    ++len;
+                }
+
+                npc->head_icon_archive_ids = malloc(len * sizeof(int));
+                npc->head_icon_sprite_index = malloc(len * sizeof(short));
+                npc->head_icon_count = len;
+
+                for( int i = 0; i < len; i++ )
+                {
+                    if( (bitfield & (1 << i)) == 0 )
+                    {
+                        npc->head_icon_archive_ids[i] = -1;
+                        npc->head_icon_sprite_index[i] = -1;
+                    }
+                    else
+                    {
+                        npc->head_icon_archive_ids[i] = get_smart_int(buffer);
+                        npc->head_icon_sprite_index[i] = (short)(read_16(buffer) & 0xFFFF) - 1;
+                    }
                 }
             }
-
-            npc->anIntArray2185[length + 1] = -1;
+            break;
         }
-        else if( 107 == opcode )
+        case 103:
         {
-            npc->is_clickable = false;
+            npc->rotation_speed = read_16(buffer) & 0xFFFF;
+            break;
         }
-        else if( opcode == 109 )
+        case 106:
         {
-            npc->aBool2170 = false;
-        }
-        else if( opcode == 111 )
-        {
-            npc->aBool2190 = true;
-        }
-        else if( opcode == 118 )
-        {
-            npc->anInt2174 = read_16(buffer) & 0xFFFF;
-            if( 0xFFFF == npc->anInt2174 )
+            npc->varbit_id = read_16(buffer) & 0xFFFF;
+            if( npc->varbit_id == 0xFFFF )
             {
-                npc->anInt2174 = -1;
+                npc->varbit_id = -1;
             }
 
-            npc->anInt2187 = read_16(buffer) & 0xFFFF;
-            if( 0xFFFF == npc->anInt2187 )
+            npc->varp_index = read_16(buffer) & 0xFFFF;
+            if( npc->varp_index == 0xFFFF )
             {
-                npc->anInt2187 = -1;
+                npc->varp_index = -1;
             }
 
             int var = read_16(buffer) & 0xFFFF;
@@ -263,21 +320,149 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
             }
 
             int length = read_8(buffer) & 0xFF;
-            npc->anIntArray2185 = malloc((length + 2) * sizeof(int));
-            npc->anIntArray2185_count = length + 2;
+            npc->configs = malloc((length + 2) * sizeof(int));
+            npc->configs_count = length + 2;
 
             for( int idx = 0; idx <= length; ++idx )
             {
-                npc->anIntArray2185[idx] = read_16(buffer) & 0xFFFF;
-                if( npc->anIntArray2185[idx] == 0xFFFF )
+                npc->configs[idx] = read_16(buffer) & 0xFFFF;
+                if( npc->configs[idx] == 0xFFFF )
                 {
-                    npc->anIntArray2185[idx] = -1;
+                    npc->configs[idx] = -1;
                 }
             }
 
-            npc->anIntArray2185[length + 1] = var;
+            npc->configs[length + 1] = var;
+            break;
         }
-        else if( opcode == 249 )
+        case 107:
+        {
+            npc->is_interactable = false;
+            break;
+        }
+        case 109:
+        {
+            npc->rotation_flag = false;
+            break;
+        }
+        case 111:
+        {
+            npc->is_pet = true;
+            break;
+        }
+        case 114:
+        {
+            npc->run_animation = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 115:
+        {
+            npc->run_animation = read_16(buffer) & 0xFFFF;
+            npc->run_rotate180_animation = read_16(buffer) & 0xFFFF;
+            npc->run_rotate_left_animation = read_16(buffer) & 0xFFFF;
+            npc->run_rotate_right_animation = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 116:
+        {
+            npc->crawl_animation = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 117:
+        {
+            npc->crawl_animation = read_16(buffer) & 0xFFFF;
+            npc->crawl_rotate180_animation = read_16(buffer) & 0xFFFF;
+            npc->crawl_rotate_left_animation = read_16(buffer) & 0xFFFF;
+            npc->crawl_rotate_right_animation = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 118:
+        {
+            npc->varbit_id = read_16(buffer) & 0xFFFF;
+            if( npc->varbit_id == 0xFFFF )
+            {
+                npc->varbit_id = -1;
+            }
+
+            npc->varp_index = read_16(buffer) & 0xFFFF;
+            if( npc->varp_index == 0xFFFF )
+            {
+                npc->varp_index = -1;
+            }
+
+            int var = read_16(buffer) & 0xFFFF;
+            if( var == 0xFFFF )
+            {
+                var = -1;
+            }
+
+            int length = read_8(buffer) & 0xFF;
+            npc->configs = malloc((length + 2) * sizeof(int));
+            npc->configs_count = length + 2;
+
+            for( int idx = 0; idx <= length; ++idx )
+            {
+                npc->configs[idx] = read_16(buffer) & 0xFFFF;
+                if( npc->configs[idx] == 0xFFFF )
+                {
+                    npc->configs[idx] = -1;
+                }
+            }
+
+            npc->configs[length + 1] = var;
+            break;
+        }
+        case 122:
+        {
+            npc->is_pet = true;
+            break;
+        }
+        case 123:
+        {
+            npc->low_priority_follower_ops = true;
+            break;
+        }
+        case 124:
+        {
+            npc->height = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 18:
+        {
+            npc->category = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 74:
+        {
+            npc->stats[0] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 75:
+        {
+            npc->stats[1] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 76:
+        {
+            npc->stats[2] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 77:
+        {
+            npc->stats[3] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 78:
+        {
+            npc->stats[4] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 79:
+        {
+            npc->stats[5] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 249:
         {
             int length = read_8(buffer) & 0xFF;
 
@@ -322,6 +507,13 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
                 npc->params.is_string[npc->params.count] = is_string;
                 npc->params.count++;
             }
+            break;
+        }
+        default:
+        {
+            printf("Unknown opcode: %d\n", opcode);
+            break;
+        }
         }
     }
 }
@@ -346,30 +538,40 @@ print_npc_type(const struct NPCType* npc)
     }
     printf("\n");
 
-    // Print models_2
-    printf("Models 2 (%d): ", npc->models_2_count);
-    if( npc->models_2 )
+    // Print chathead_models
+    printf("Chathead Models (%d): ", npc->chathead_models_count);
+    if( npc->chathead_models )
     {
-        for( int i = 0; i < npc->models_2_count; i++ )
+        for( int i = 0; i < npc->chathead_models_count; i++ )
         {
-            printf("%d ", npc->models_2[i]);
+            printf("%d ", npc->chathead_models[i]);
         }
     }
     printf("\n");
 
     // Print animations
     printf("Animations:\n");
-    printf("  Stance: %d\n", npc->stance_animation);
-    printf("  Walk: %d\n", npc->walk_animation);
+    printf("  Standing: %d\n", npc->standing_animation);
+    printf("  Walking: %d\n", npc->walking_animation);
+    printf("  Idle Rotate Left: %d\n", npc->idle_rotate_left_animation);
+    printf("  Idle Rotate Right: %d\n", npc->idle_rotate_right_animation);
     printf("  Rotate 180: %d\n", npc->rotate180_animation);
-    printf("  Rotate 90 Right: %d\n", npc->rotate90_right_animation);
-    printf("  Rotate 90 Left: %d\n", npc->rotate90_left_animation);
+    printf("  Rotate Left: %d\n", npc->rotate_left_animation);
+    printf("  Rotate Right: %d\n", npc->rotate_right_animation);
+    printf("  Run: %d\n", npc->run_animation);
+    printf("  Run Rotate 180: %d\n", npc->run_rotate180_animation);
+    printf("  Run Rotate Left: %d\n", npc->run_rotate_left_animation);
+    printf("  Run Rotate Right: %d\n", npc->run_rotate_right_animation);
+    printf("  Crawl: %d\n", npc->crawl_animation);
+    printf("  Crawl Rotate 180: %d\n", npc->crawl_rotate180_animation);
+    printf("  Crawl Rotate Left: %d\n", npc->crawl_rotate_left_animation);
+    printf("  Crawl Rotate Right: %d\n", npc->crawl_rotate_right_animation);
 
-    // Print options
-    printf("Options:\n");
+    // Print actions
+    printf("Actions:\n");
     for( int i = 0; i < 5; i++ )
     {
-        printf("  Option %d: %s\n", i + 30, npc->options[i] ? npc->options[i] : "NULL");
+        printf("  Action %d: %s\n", i + 30, npc->actions[i] ? npc->actions[i] : "NULL");
     }
 
     // Print recoloring info
@@ -394,37 +596,42 @@ print_npc_type(const struct NPCType* npc)
 
     // Print other properties
     printf("Properties:\n");
-    printf("  Tile Spaces Occupied: %d\n", npc->tile_spaces_occupied);
+    printf("  Size: %d\n", npc->size);
     printf("  Combat Level: %d\n", npc->combat_level);
-    printf("  Resize X: %d\n", npc->resize_x);
-    printf("  Resize Y: %d\n", npc->resize_y);
+    printf("  Width Scale: %d\n", npc->width_scale);
+    printf("  Height Scale: %d\n", npc->height_scale);
     printf("  Ambient: %d\n", npc->ambient);
     printf("  Contrast: %d\n", npc->contrast);
-    printf("  Head Icon: %d\n", npc->head_icon);
 
     // Print flags
     printf("Flags:\n");
-    printf("  Render On Minimap: %s\n", npc->render_on_minimap ? "true" : "false");
+    printf("  Is Minimap Visible: %s\n", npc->is_minimap_visible ? "true" : "false");
     printf("  Has Render Priority: %s\n", npc->has_render_priority ? "true" : "false");
-    printf("  Is Clickable: %s\n", npc->is_clickable ? "true" : "false");
-    printf("  aBool2170: %s\n", npc->aBool2170 ? "true" : "false");
-    printf("  aBool2190: %s\n", npc->aBool2190 ? "true" : "false");
+    printf("  Is Interactable: %s\n", npc->is_interactable ? "true" : "false");
+    printf("  Rotation Flag: %s\n", npc->rotation_flag ? "true" : "false");
+    printf("  Is Pet: %s\n", npc->is_pet ? "true" : "false");
+    printf("  Low Priority Follower Ops: %s\n", npc->low_priority_follower_ops ? "true" : "false");
 
     // Print special integers
     printf("Special Integers:\n");
-    printf("  anInt2165: %d\n", npc->anInt2165);
-    printf("  anInt2189: %d\n", npc->anInt2189);
-    printf("  anInt2156: %d\n", npc->anInt2156);
-    printf("  anInt2174: %d\n", npc->anInt2174);
-    printf("  anInt2187: %d\n", npc->anInt2187);
+    printf("  Rotation Speed: %d\n", npc->rotation_speed);
+    printf("  Height: %d\n", npc->height);
+    printf("  Category: %d\n", npc->category);
+    printf("  Stats:\n");
+    printf("    Stat 0: %d\n", npc->stats[0]);
+    printf("    Stat 1: %d\n", npc->stats[1]);
+    printf("    Stat 2: %d\n", npc->stats[2]);
+    printf("    Stat 3: %d\n", npc->stats[3]);
+    printf("    Stat 4: %d\n", npc->stats[4]);
+    printf("    Stat 5: %d\n", npc->stats[5]);
 
-    // Print anIntArray2185
-    printf("anIntArray2185 (%d elements): ", npc->anIntArray2185_count);
-    if( npc->anIntArray2185 )
+    // Print configs
+    printf("Configs (%d elements): ", npc->configs_count);
+    if( npc->configs )
     {
-        for( int i = 0; i < npc->anIntArray2185_count; i++ )
+        for( int i = 0; i < npc->configs_count; i++ )
         {
-            printf("%d ", npc->anIntArray2185[i]);
+            printf("%d ", npc->configs[i]);
         }
     }
     printf("\n");
