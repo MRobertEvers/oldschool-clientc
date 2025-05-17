@@ -486,6 +486,7 @@ decompress_dat2archive(struct Dat2Archive* archive)
 struct Archive
 {
     char** entries;
+    int* entry_sizes;
     int entry_count;
 };
 
@@ -499,7 +500,8 @@ decode_archive(struct Buffer* buffer, int size)
         return NULL;
     }
     archive->entries = malloc(size * sizeof(char*));
-    if( !archive->entries )
+    archive->entry_sizes = malloc(size * sizeof(int));
+    if( !archive->entries || !archive->entry_sizes )
     {
         free(archive);
         return NULL;
@@ -599,6 +601,7 @@ decode_archive(struct Buffer* buffer, int size)
 
             /* copy this chunk into the file buffer */
             readto(archive->entries[id], chunk_size, chunk_size, buffer);
+            archive->entry_sizes[id] = chunk_size;
         }
     }
 
@@ -846,6 +849,8 @@ decode_reference_table(struct Buffer* buffer)
     return table;
 }
 
+#include "npctype.c"
+
 /**
  * Load .dat2 file. The .dat2 file contains tables for each of the idx files.
  *  - The dat2 file may contain compressed data.
@@ -974,8 +979,6 @@ load_models()
         decompress_dat2archive(&archives[i]);
     }
 
-    struct Dat2Archive* model_archive = &archives[7];
-
     // From source
     // cache.read(CacheIndex.MODELS, modelId: 0)
 
@@ -988,6 +991,10 @@ load_models()
     decompress_dat2archive(&archive);
 
     // End cache.read
+
+    /***
+     * Read the NPC Type Table
+     */
 
     int enum_config_table_index = 8;
     int npcs_config_table_index = 9;
@@ -1008,11 +1015,11 @@ load_models()
         int index = reference_table->ids[i];
         if( reference_table->entries[index].index == i )
         {
-            printf("Entry %d: %d\n", i, reference_table->entries[index].index);
-            // print the size
-            printf("Size: %d\n", reference_table->entries[index].uncompressed);
-            printf("Compressed: %d\n", reference_table->entries[index].compressed);
-            printf("Children: %d\n", reference_table->entries[index].children.count);
+            // printf("Entry %d: %d\n", i, reference_table->entries[index].index);
+            // // print the size
+            // printf("Size: %d\n", reference_table->entries[index].uncompressed);
+            // printf("Compressed: %d\n", reference_table->entries[index].compressed);
+            // printf("Children: %d\n", reference_table->entries[index].children.count);
         }
     }
 
@@ -1038,6 +1045,11 @@ load_models()
 
     for( int i = 0; i < packed_archive->entry_count; i++ )
     {
-        printf("Entry %d: %s\n", i, packed_archive->entries[i]);
+        struct Buffer buffer = { .data = packed_archive->entries[i],
+                                 .data_size = packed_archive->entry_sizes[i],
+                                 .position = 0 };
+        struct NPCType npc = { 0 };
+        decode_npc_type(&npc, &buffer);
+        print_npc_type(&npc);
     }
 }
