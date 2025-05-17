@@ -10,6 +10,11 @@
         "stdlib.h": "c",
         "bzlib.h": "c",
         "osrs_cache.h": "c",
-        "__locale": "c"
+        "__locale": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c",
+        "vector": "c",
+        "variant": "c"
     }
 }

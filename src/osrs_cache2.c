@@ -275,6 +275,55 @@ read_dat2(
     return 0;
 }
 
+/**
+ * The Config table and Textures table use records of this form.
+ *
+ */
+struct PackedArchive
+{};
+
+static void
+read_packed_archive(struct PackedArchive* archive, char* data, int data_size, int archive_size)
+{
+    struct Buffer buffer = { .data = data, .position = 0, .data_size = data_size };
+
+    // /* read the number of chunks at the end of the archive */
+    // buffer.position(buffer.limit() - 1);
+    // int chunks = buffer.get() & 0xFF;
+
+    buffer.position = buffer.data_size - 1;
+    int chunks = read_8(&buffer);
+    buffer.position = 0;
+
+    // int[][] chunkSizes = new int[chunks][size];
+    // int[] sizes = new int[size];
+    // buffer.position(buffer.limit() - 1 - chunks * size * 4);
+
+    buffer.position = buffer.data_size - 1 - chunks * 4;
+    for( int i = 0; i < chunks; i++ )
+    {
+        // int chunkSize = 0;
+        // for (int id = 0; id < size; id++) {
+        // 	/* read the delta-encoded chunk length */
+        // 	int delta = buffer.getInt();
+        // 	chunkSize += delta;
+
+        // 	/* store the size of this chunk */
+        // 	chunkSizes[chunk][id] = chunkSize;
+
+        // 	/* and add it to the size of the whole file */
+        // 	sizes[id] += chunkSize;
+        // }
+        int chunk_size = read_32(&buffer);
+        int chunk_data = readto(NULL, chunk_size, chunk_size, &buffer);
+    }
+}
+
+/**
+ * @brief TODO: CRC and XTEA for archives that need it.
+ *
+ * @param archive
+ */
 static void
 decompress_dat2archive(struct Dat2Archive* archive)
 {
@@ -299,12 +348,14 @@ decompress_dat2archive(struct Dat2Archive* archive)
         crc = (crc << 8) ^ archive->data[i];
     }
 
+    int bytes_read;
+
     switch( compression )
     {
     case 0:
         // No compression
         char* data = malloc(compressed_length);
-        int bytes_read = readto(data, compressed_length, compressed_length, &buffer);
+        bytes_read = readto(data, compressed_length, compressed_length, &buffer);
         if( bytes_read < compressed_length )
         {
             printf(
@@ -319,45 +370,48 @@ decompress_dat2archive(struct Dat2Archive* archive)
     case 1:
         // BZip compression
         {
-            // byte[] encryptedData = new byte[compressedLength + 4];
-            char* encrypted_data = malloc(compressed_length + 4);
-            int bytes_read =
-                readto(encrypted_data, compressed_length + 4, buffer.data_size, &buffer);
-            if( bytes_read < compressed_length + 4 )
+            int uncompressed_length = read_32(&buffer);
+
+            char* compressed_data = malloc(compressed_length + 4); // Add space for magic header
+            // Add BZIP2 magic header (BZh1)
+            compressed_data[0] = 'B';
+            compressed_data[1] = 'Z';
+            compressed_data[2] = 'h';
+            compressed_data[3] = '1';
+
+            bytes_read = readto(compressed_data + 4, compressed_length, compressed_length, &buffer);
+            if( bytes_read < compressed_length )
             {
                 printf(
                     "short read when reading file data for %d/%d\n",
                     archive->archive_record_id,
                     archive->archive_record_id);
+                free(compressed_data);
+                return;
             }
 
-            // Allocate buffer for decompressed data
-            char* decompressed_data = malloc(compressed_length * 2); // Start with 2x size
-            unsigned int decompressed_size = compressed_length * 2;
-
-            // Decompress using bzlib
+            char* decompressed_data = malloc(uncompressed_length);
             int ret = BZ2_bzBuffToBuffDecompress(
                 decompressed_data,
-                &decompressed_size,
-                encrypted_data,
-                compressed_length,
-                0, // Small memory usage
-                0  // Verbosity level
+                &uncompressed_length,
+                compressed_data,
+                compressed_length + 4, // Include magic header in length
+                0,                     // Small memory usage
+                0                      // Verbosity level
             );
 
             if( ret != BZ_OK )
             {
                 printf("BZ2 decompression failed with error code: %d\n", ret);
                 free(decompressed_data);
-                free(encrypted_data);
+                free(compressed_data);
                 return;
             }
 
-            // Update archive with decompressed data
             free(archive->data);
             archive->data = decompressed_data;
-            archive->data_size = decompressed_size;
-            free(encrypted_data);
+            archive->data_size = uncompressed_length;
+            free(compressed_data);
         }
         break;
     case 2:
@@ -366,7 +420,7 @@ decompress_dat2archive(struct Dat2Archive* archive)
             // 	int uncompressedLength = buffer.getInt();
             int uncompressed_length = read_32(&buffer);
             char* compressed_data = malloc(compressed_length);
-            int bytes_read = readto(compressed_data, compressed_length, compressed_length, &buffer);
+            bytes_read = readto(compressed_data, compressed_length, compressed_length, &buffer);
             if( bytes_read < compressed_length )
             {
                 printf(
@@ -427,6 +481,369 @@ decompress_dat2archive(struct Dat2Archive* archive)
     }
 
     // cleanup_xtea_keys();
+}
+
+struct Archive
+{
+    char** entries;
+    int entry_count;
+};
+
+static struct Archive*
+decode_archive(struct Buffer* buffer, int size)
+{
+    /* allocate a new archive object */
+    struct Archive* archive = malloc(sizeof(struct Archive));
+    if( !archive )
+    {
+        return NULL;
+    }
+    archive->entries = malloc(size * sizeof(char*));
+    if( !archive->entries )
+    {
+        free(archive);
+        return NULL;
+    }
+    archive->entry_count = size;
+
+    /* read the number of chunks at the end of the archive */
+    buffer->position = buffer->data_size - 1;
+    int chunks = read_8(buffer);
+    buffer->position = 0;
+
+    /* read the sizes of the child entries and individual chunks */
+    int** chunk_sizes = malloc(chunks * sizeof(int*));
+    if( !chunk_sizes )
+    {
+        free(archive->entries);
+        free(archive);
+        return NULL;
+    }
+    for( int i = 0; i < chunks; i++ )
+    {
+        chunk_sizes[i] = malloc(size * sizeof(int));
+        if( !chunk_sizes[i] )
+        {
+            for( int j = 0; j < i; j++ )
+            {
+                free(chunk_sizes[j]);
+            }
+            free(chunk_sizes);
+            free(archive->entries);
+            free(archive);
+            return NULL;
+        }
+    }
+    int* sizes = malloc(size * sizeof(int));
+    if( !sizes )
+    {
+        for( int i = 0; i < chunks; i++ )
+        {
+            free(chunk_sizes[i]);
+        }
+        free(chunk_sizes);
+        free(archive->entries);
+        free(archive);
+        return NULL;
+    }
+    memset(sizes, 0, size * sizeof(int));
+
+    buffer->position = buffer->data_size - 1 - chunks * size * 4;
+    for( int chunk = 0; chunk < chunks; chunk++ )
+    {
+        int chunk_size = 0;
+        for( int id = 0; id < size; id++ )
+        {
+            /* read the delta-encoded chunk length */
+            int delta = read_32(buffer);
+            chunk_size += delta;
+
+            /* store the size of this chunk */
+            chunk_sizes[chunk][id] = chunk_size;
+
+            /* and add it to the size of the whole file */
+            sizes[id] += chunk_size;
+        }
+    }
+
+    /* allocate the buffers for the child entries */
+    for( int id = 0; id < size; id++ )
+    {
+        archive->entries[id] = malloc(sizes[id]);
+        if( !archive->entries[id] )
+        {
+            for( int j = 0; j < id; j++ )
+            {
+                free(archive->entries[j]);
+            }
+            free(archive->entries);
+            free(sizes);
+            for( int j = 0; j < chunks; j++ )
+            {
+                free(chunk_sizes[j]);
+            }
+            free(chunk_sizes);
+            free(archive);
+            return NULL;
+        }
+    }
+
+    /* read the data into the buffers */
+    buffer->position = 0;
+    for( int chunk = 0; chunk < chunks; chunk++ )
+    {
+        for( int id = 0; id < size; id++ )
+        {
+            /* get the length of this chunk */
+            int chunk_size = chunk_sizes[chunk][id];
+
+            /* copy this chunk into the file buffer */
+            readto(archive->entries[id], chunk_size, chunk_size, buffer);
+        }
+    }
+
+    /* cleanup */
+    for( int i = 0; i < chunks; i++ )
+    {
+        free(chunk_sizes[i]);
+    }
+    free(chunk_sizes);
+    free(sizes);
+
+    /* return the archive */
+    return archive;
+}
+
+#define FLAG_IDENTIFIERS 0x1
+#define FLAG_WHIRLPOOL 0x2
+#define FLAG_SIZES 0x4
+#define FLAG_HASH 0x8
+
+struct ReferenceTableEntry
+{
+    int index;
+    int identifier;
+    int crc;
+    int hash;
+    unsigned char whirlpool[64];
+    int compressed;
+    int uncompressed;
+    int version;
+    struct
+    {
+        int* entries;
+        int count;
+    } children;
+};
+
+struct ReferenceTable
+{
+    int format;
+    int version;
+    int flags;
+    int id_count;
+    int* ids; // entries is a sparse array. ids is the list of indices that are valid.
+    struct ReferenceTableEntry* entries;
+    int entry_count;
+};
+
+// public static int getSmartInt(ByteBuffer buffer) {
+// 	if (buffer.get(buffer.position()) < 0)
+// 		return buffer.getInt() & 0x7fffffff;
+// 	return buffer.getShort() & 0xFFFF;
+// }
+static int
+get_smart_int(struct Buffer* buffer)
+{
+    if( (buffer->data[buffer->position] & 0xFF) < 0 )
+        return read_32(buffer) & 0x7fffffff;
+    return read_16(buffer) & 0xFFFF;
+}
+
+struct ReferenceTable*
+decode_reference_table(struct Buffer* buffer)
+{
+    // print the first 20 bytes of the buffer
+    for( int i = 0; i < 20; i++ )
+    {
+        printf("%02X (%d) ", buffer->data[i], buffer->data[i]);
+    }
+    printf("\n");
+
+    struct ReferenceTable* table = malloc(sizeof(struct ReferenceTable));
+    if( !table )
+    {
+        return NULL;
+    }
+    memset(table, 0, sizeof(struct ReferenceTable));
+
+    // Read header
+    table->format = read_8(buffer) & 0xFF;
+    if( table->format < 5 || table->format > 7 )
+    {
+        free(table);
+        return NULL;
+    }
+
+    if( table->format >= 6 )
+    {
+        table->version = read_32(buffer);
+    }
+
+    table->flags = read_8(buffer) & 0xFF;
+
+    // Read the IDs
+    int id_count;
+    if( table->format >= 7 )
+        id_count = get_smart_int(buffer);
+    else
+        id_count = read_16(buffer) & 0xFFFF;
+    int* ids = malloc(id_count * sizeof(int));
+    if( !ids )
+    {
+        free(table);
+        return NULL;
+    }
+
+    table->ids = ids;
+    table->id_count = id_count;
+
+    int accumulator = 0;
+    int max_id = -1;
+    for( int i = 0; i < id_count; i++ )
+    {
+        int delta = table->format >= 7 ? get_smart_int(buffer) : read_16(buffer) & 0xFFFF;
+        ids[i] = accumulator += delta;
+        if( ids[i] > max_id )
+        {
+            max_id = ids[i];
+        }
+    }
+    max_id++;
+
+    // Allocate entries array
+    table->entries = malloc(max_id * sizeof(struct ReferenceTableEntry));
+    if( !table->entries )
+    {
+        free(ids);
+        free(table);
+        return NULL;
+    }
+    memset(table->entries, 0, max_id * sizeof(struct ReferenceTableEntry));
+    // Set index to -1 to indicate it is a sparse array
+    for( int i = 0; i < max_id; i++ )
+        table->entries[i].index = -1;
+    table->entry_count = max_id;
+
+    // Initialize entries
+    for( int i = 0; i < id_count; i++ )
+    {
+        table->entries[ids[i]].index = i;
+    }
+
+    // Read identifiers if present
+    if( (table->flags & FLAG_IDENTIFIERS) != 0 )
+    {
+        for( int i = 0; i < id_count; i++ )
+        {
+            int id = ids[i];
+            table->entries[id].identifier = read_32(buffer);
+        }
+    }
+
+    // Read CRC32 checksums
+    for( int i = 0; i < id_count; i++ )
+    {
+        int id = ids[i];
+        table->entries[id].crc = read_32(buffer);
+    }
+
+    // Read hash if present
+    if( (table->flags & FLAG_HASH) != 0 )
+    {
+        for( int i = 0; i < id_count; i++ )
+        {
+            int id = ids[i];
+            table->entries[id].hash = read_32(buffer);
+        }
+    }
+
+    // Read whirlpool digests if present
+    if( (table->flags & FLAG_WHIRLPOOL) != 0 )
+    {
+        for( int i = 0; i < id_count; i++ )
+        {
+            int id = ids[i];
+            readto((char*)table->entries[id].whirlpool, 64, 64, buffer);
+        }
+    }
+
+    // Read sizes if present
+    if( (table->flags & FLAG_SIZES) != 0 )
+    {
+        for( int i = 0; i < id_count; i++ )
+        {
+            int id = ids[i];
+            table->entries[id].compressed = read_32(buffer);
+            table->entries[id].uncompressed = read_32(buffer);
+        }
+    }
+
+    // Read version numbers
+    for( int i = 0; i < id_count; i++ )
+    {
+        int id = ids[i];
+        table->entries[id].version = read_32(buffer);
+    }
+
+    // Read child sizes
+    for( int i = 0; i < id_count; i++ )
+    {
+        int id = ids[i];
+        int child_count = table->format >= 7 ? get_smart_int(buffer) : read_16(buffer) & 0xFFFF;
+        table->entries[id].children.count = child_count;
+        table->entries[id].children.entries = malloc(child_count * sizeof(int));
+        if( !table->entries[id].children.entries )
+        {
+            // Cleanup on error
+            for( int j = 0; j < i; j++ )
+            {
+                free(table->entries[ids[j]].children.entries);
+            }
+            free(ids);
+            free(table->entries);
+            free(table);
+            return NULL;
+        }
+    }
+
+    // Read child IDs
+    for( int i = 0; i < id_count; i++ )
+    {
+        int id = ids[i];
+        accumulator = 0;
+        for( int j = 0; j < table->entries[id].children.count; j++ )
+        {
+            int delta = table->format >= 7 ? get_smart_int(buffer) : read_16(buffer) & 0xFFFF;
+            table->entries[id].children.entries[j] = accumulator += delta;
+        }
+    }
+
+    // Read child identifiers if present
+    if( (table->flags & FLAG_IDENTIFIERS) != 0 )
+    {
+        for( int i = 0; i < id_count; i++ )
+        {
+            int id = ids[i];
+            for( int j = 0; j < table->entries[id].children.count; j++ )
+            {
+                // Child identifiers are not stored in the table structure
+                read_32(buffer); // Skip child identifier
+            }
+        }
+    }
+
+    return table;
 }
 
 /**
@@ -518,6 +935,21 @@ load_models()
     fread(model_index_data, 1, model_index_size, model_index);
     fclose(model_index);
 
+    int config_index_size;
+    char* config_index_data;
+    FILE* config_index = fopen(CACHE_PATH "/main_file_cache.idx2", "rb");
+    if( config_index == NULL )
+    {
+        printf("Failed to open config index file");
+        return NULL;
+    }
+    fseek(config_index, 0, SEEK_END);
+    config_index_size = ftell(config_index);
+    fseek(config_index, 0, SEEK_SET);
+    config_index_data = malloc(config_index_size);
+    fread(config_index_data, 1, config_index_size, config_index);
+    fclose(config_index);
+
     int master_index_record_count = master_index_size / INDEX_255_ENTRY_SIZE;
 
     struct Dat2Archive* archives = malloc(master_index_record_count * sizeof(struct Dat2Archive));
@@ -538,18 +970,74 @@ load_models()
             record.record_id,
             record.sector,
             record.length);
+
+        decompress_dat2archive(&archives[i]);
     }
 
     struct Dat2Archive* model_archive = &archives[7];
 
+    // From source
+    // cache.read(CacheIndex.MODELS, modelId: 0)
+
     struct IndexRecord record;
     read_index_entry(7, model_index_data, model_index_size, 0, &record);
-
-    // char* record_buffer = malloc(record.length);
-    // readto(record_buffer, record.length, record.length, model_archive);
 
     struct Dat2Archive archive;
     read_dat2(&archive, dat2_data, dat2_size, 7, record.record_id, record.sector, record.length);
 
     decompress_dat2archive(&archive);
+
+    // End cache.read
+
+    int enum_config_table_index = 8;
+    int npcs_config_table_index = 9;
+    int config_reference_table_index = 2;
+    struct Dat2Archive* config_reference_table = &archives[config_reference_table_index];
+    struct Buffer config_reference_table_buffer = { .data = config_reference_table->data,
+                                                    .data_size = config_reference_table->data_size,
+                                                    .position = 0 };
+    struct ReferenceTable* reference_table = decode_reference_table(&config_reference_table_buffer);
+
+    for( int i = 0; i < reference_table->id_count; i++ )
+    {
+        // The reference table entries is a sparse array.
+        // The "index" is the index of the entry in the reference table.
+        // not necessarily the index of the entry in the entry array.
+        // look for the entry with index i
+
+        int index = reference_table->ids[i];
+        if( reference_table->entries[index].index == i )
+        {
+            printf("Entry %d: %d\n", i, reference_table->entries[index].index);
+            // print the size
+            printf("Size: %d\n", reference_table->entries[index].uncompressed);
+            printf("Compressed: %d\n", reference_table->entries[index].compressed);
+            printf("Children: %d\n", reference_table->entries[index].children.count);
+        }
+    }
+
+    int npc_config_table_index = reference_table->ids[npcs_config_table_index];
+    int npc_config_table_size = reference_table->entries[npc_config_table_index].children.count;
+    // cache.read(CacheIndex.CONFIGS, ConfigArchive.NPC)
+
+    read_index_entry(2, config_index_data, config_index_size, 9, &record);
+
+    // struct Dat2Archive archive;
+    memset(&archive, 0, sizeof(struct Dat2Archive));
+    read_dat2(&archive, dat2_data, dat2_size, 2, record.record_id, record.sector, record.length);
+
+    decompress_dat2archive(&archive);
+
+    // End cache.read   struct IndexRecord record;
+
+    struct Buffer config_archive_buffer = { .data = archive.data,
+                                            .data_size = archive.data_size,
+                                            .position = 0 };
+
+    struct Archive* packed_archive = decode_archive(&config_archive_buffer, npc_config_table_size);
+
+    for( int i = 0; i < packed_archive->entry_count; i++ )
+    {
+        printf("Entry %d: %s\n", i, packed_archive->entries[i]);
+    }
 }
