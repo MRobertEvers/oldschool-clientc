@@ -1,6 +1,7 @@
 #include "osrs_cache.h"
 // #include "xtea.h"
 
+#include <assert.h>
 #include <bzlib.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -38,6 +39,7 @@ struct Buffer
 static int
 read_8(struct Buffer* buffer)
 {
+    assert(buffer->position + 1 <= buffer->data_size);
     buffer->position += 1;
     return buffer->data[buffer->position - 1] & 0xFF;
 }
@@ -45,6 +47,7 @@ read_8(struct Buffer* buffer)
 static int
 read_24(struct Buffer* buffer)
 {
+    assert(buffer->position + 3 <= buffer->data_size);
     buffer->position += 3;
     return ((buffer->data[buffer->position - 3] & 0xFF) << 16) |
            ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
@@ -54,6 +57,7 @@ read_24(struct Buffer* buffer)
 static int
 read_16(struct Buffer* buffer)
 {
+    assert(buffer->position + 2 <= buffer->data_size);
     buffer->position += 2;
     return ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
            (buffer->data[buffer->position - 1] & 0xFF);
@@ -62,6 +66,7 @@ read_16(struct Buffer* buffer)
 static int
 read_32(struct Buffer* buffer)
 {
+    assert(buffer->position + 4 <= buffer->data_size);
     buffer->position += 4;
     // print the 4 bytes at the current position
 
@@ -74,6 +79,7 @@ read_32(struct Buffer* buffer)
 static int
 readto(char* out, int out_size, int len, struct Buffer* buffer)
 {
+    assert(buffer->position + len <= buffer->data_size);
     int bytes_read = 0;
     while( len > 0 && buffer->position < buffer->data_size )
     {
@@ -89,6 +95,7 @@ readto(char* out, int out_size, int len, struct Buffer* buffer)
 static void
 bump(int count, struct Buffer* buffer)
 {
+    assert(buffer->position + count <= buffer->data_size);
     buffer->position += count;
 }
 
@@ -1043,7 +1050,7 @@ load_models()
 
     struct Archive* packed_archive = decode_archive(&config_archive_buffer, npc_config_table_size);
 
-    for( int i = 3127; i < 3127 + 1; i++ )
+    for( int i = 0; i < packed_archive->entry_count; i++ )
     {
         struct Buffer buffer = { .data = packed_archive->entries[i],
                                  .data_size = packed_archive->entry_sizes[i],
@@ -1051,9 +1058,9 @@ load_models()
         struct NPCType npc = { 0 };
         decode_npc_type(&npc, &buffer);
 
-        if( npc.name )
-        {
-            printf("NPC: %s\n", npc.name);
-        }
+        // if( npc.name )
+        // {
+        //     printf("NPC: %s\n", npc.name);
+        // }
     }
 }

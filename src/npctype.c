@@ -1,3 +1,4 @@
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -72,37 +73,59 @@ struct NPCType
 static void
 decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
 {
-    // print the buffer in hex
-    for( int i = 0; i < buffer->data_size; i++ )
+    if( !npc || !buffer || !buffer->data )
     {
-        // if it's ascii, print the character
-        if( buffer->data[i] >= 32 && buffer->data[i] <= 126 )
-        {
-            printf("%c ", buffer->data[i]);
-        }
-        else
-        {
-            printf("%d ", buffer->data[i]);
-        }
+        printf("decode_npc_type: Invalid input parameters\n");
+        return;
     }
-    printf("\n");
 
     while( 1 )
     {
+        if( buffer->position >= buffer->data_size )
+        {
+            printf(
+                "decode_npc_type: Buffer position %d exceeded data size %d\n",
+                buffer->position,
+                buffer->data_size);
+            return;
+        }
+
         int opcode = read_8(buffer) & 0xFF;
         if( opcode == 0 )
+        {
+            printf("decode_npc_type: Reached end of data (opcode 0)\n");
             return;
+        }
 
         switch( opcode )
         {
         case 1:
         {
+            if( buffer->position >= buffer->data_size )
+            {
+                printf("decode_npc_type: Buffer overflow in case 1\n");
+                return;
+            }
             int length = read_8(buffer) & 0xFF;
             npc->models = malloc(length * sizeof(int));
+            if( !npc->models )
+            {
+                printf("decode_npc_type: Failed to allocate models array of size %d\n", length);
+                return;
+            }
             npc->models_count = length;
 
             for( int idx = 0; idx < length; ++idx )
             {
+                if( buffer->position + 1 >= buffer->data_size )
+                {
+                    printf(
+                        "decode_npc_type: Buffer overflow while reading models at index %d\n", idx);
+                    free(npc->models);
+                    npc->models = NULL;
+                    npc->models_count = 0;
+                    return;
+                }
                 npc->models[idx] = read_16(buffer) & 0xFFFF;
             }
             break;
@@ -111,11 +134,22 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
         {
             // Read string length first
             int str_len = 0;
-            while( buffer->data[buffer->position + str_len] != '\0' )
+            while( buffer->position + str_len < buffer->data_size &&
+                   buffer->data[buffer->position + str_len] != '\0' )
             {
                 str_len++;
             }
+            if( buffer->position + str_len >= buffer->data_size )
+            {
+                printf("decode_npc_type: Buffer overflow while reading name string\n");
+                return;
+            }
             npc->name = malloc(str_len + 1);
+            if( !npc->name )
+            {
+                printf("decode_npc_type: Failed to allocate name string of length %d\n", str_len);
+                return;
+            }
             memset(npc->name, 0, str_len + 1);
             readto(npc->name, str_len + 1, str_len + 1, buffer);
             break;
@@ -162,9 +196,14 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
             int idx = opcode - 30;
             // Read string length first
             int str_len = 0;
-            while( buffer->data[buffer->position + str_len] != '\0' )
+            while( buffer->position + str_len < buffer->data_size &&
+                   buffer->data[buffer->position + str_len] != '\0' )
             {
                 str_len++;
+            }
+            if( buffer->position + str_len >= buffer->data_size )
+            {
+                return;
             }
             npc->actions[idx] = malloc(str_len + 1);
             readto(npc->actions[idx], str_len + 1, str_len + 1, buffer);
@@ -464,6 +503,11 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
         }
         case 249:
         {
+            if( buffer->position >= buffer->data_size )
+            {
+                printf("decode_npc_type: Buffer overflow in case 249\n");
+                return;
+            }
             int length = read_8(buffer) & 0xFF;
 
             // Initialize params with next power of 2 size
@@ -476,11 +520,48 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
             npc->params.keys = malloc(capacity * sizeof(int));
             npc->params.values = malloc(capacity * sizeof(void*));
             npc->params.is_string = malloc(capacity * sizeof(bool));
+
+            if( !npc->params.keys || !npc->params.values || !npc->params.is_string )
+            {
+                printf(
+                    "decode_npc_type: Failed to allocate params arrays of capacity %d\n", capacity);
+                if( npc->params.keys )
+                    free(npc->params.keys);
+                if( npc->params.values )
+                    free(npc->params.values);
+                if( npc->params.is_string )
+                    free(npc->params.is_string);
+                return;
+            }
+
             npc->params.count = 0;
             npc->params.capacity = capacity;
 
             for( int i = 0; i < length; i++ )
             {
+                if( buffer->position >= buffer->data_size )
+                {
+                    printf(
+                        "decode_npc_type: Buffer overflow while reading params at index %d\n", i);
+                    // Cleanup on error
+                    for( int j = 0; j < npc->params.count; j++ )
+                    {
+                        if( npc->params.values[j] )
+                        {
+                            free(npc->params.values[j]);
+                        }
+                    }
+                    free(npc->params.keys);
+                    free(npc->params.values);
+                    free(npc->params.is_string);
+                    npc->params.keys = NULL;
+                    npc->params.values = NULL;
+                    npc->params.is_string = NULL;
+                    npc->params.count = 0;
+                    npc->params.capacity = 0;
+                    return;
+                }
+
                 bool is_string = (read_8(buffer) & 0xFF) == 1;
                 int key = read_24(buffer);
                 void* value;
@@ -489,16 +570,111 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
                 {
                     // Read string length first
                     int str_len = 0;
-                    while( buffer->data[buffer->position + str_len] != '\0' )
+                    while( buffer->position + str_len < buffer->data_size &&
+                           buffer->data[buffer->position + str_len] != '\0' )
                     {
                         str_len++;
                     }
+                    if( buffer->position + str_len >= buffer->data_size )
+                    {
+                        printf(
+                            "decode_npc_type: Buffer overflow while reading param string at index "
+                            "%d\n",
+                            i);
+                        // Cleanup on error
+                        for( int j = 0; j < npc->params.count; j++ )
+                        {
+                            if( npc->params.values[j] )
+                            {
+                                free(npc->params.values[j]);
+                            }
+                        }
+                        free(npc->params.keys);
+                        free(npc->params.values);
+                        free(npc->params.is_string);
+                        npc->params.keys = NULL;
+                        npc->params.values = NULL;
+                        npc->params.is_string = NULL;
+                        npc->params.count = 0;
+                        npc->params.capacity = 0;
+                        return;
+                    }
                     value = malloc(str_len + 1);
+                    if( !value )
+                    {
+                        printf(
+                            "decode_npc_type: Failed to allocate param string of length %d at "
+                            "index %d\n",
+                            str_len,
+                            i);
+                        // Cleanup on error
+                        for( int j = 0; j < npc->params.count; j++ )
+                        {
+                            if( npc->params.values[j] )
+                            {
+                                free(npc->params.values[j]);
+                            }
+                        }
+                        free(npc->params.keys);
+                        free(npc->params.values);
+                        free(npc->params.is_string);
+                        npc->params.keys = NULL;
+                        npc->params.values = NULL;
+                        npc->params.is_string = NULL;
+                        npc->params.count = 0;
+                        npc->params.capacity = 0;
+                        return;
+                    }
                     readto(value, str_len + 1, str_len + 1, buffer);
                 }
                 else
                 {
+                    if( buffer->position + 3 >= buffer->data_size )
+                    {
+                        printf(
+                            "decode_npc_type: Buffer overflow while reading param int at index "
+                            "%d\n",
+                            i);
+                        // Cleanup on error
+                        for( int j = 0; j < npc->params.count; j++ )
+                        {
+                            if( npc->params.values[j] )
+                            {
+                                free(npc->params.values[j]);
+                            }
+                        }
+                        free(npc->params.keys);
+                        free(npc->params.values);
+                        free(npc->params.is_string);
+                        npc->params.keys = NULL;
+                        npc->params.values = NULL;
+                        npc->params.is_string = NULL;
+                        npc->params.count = 0;
+                        npc->params.capacity = 0;
+                        return;
+                    }
                     value = malloc(sizeof(int));
+                    if( !value )
+                    {
+                        printf("decode_npc_type: Failed to allocate param int at index %d\n", i);
+                        // Cleanup on error
+                        for( int j = 0; j < npc->params.count; j++ )
+                        {
+                            if( npc->params.values[j] )
+                            {
+                                free(npc->params.values[j]);
+                            }
+                        }
+                        free(npc->params.keys);
+                        free(npc->params.values);
+                        free(npc->params.is_string);
+                        npc->params.keys = NULL;
+                        npc->params.values = NULL;
+                        npc->params.is_string = NULL;
+                        npc->params.count = 0;
+                        npc->params.capacity = 0;
+                        return;
+                    }
                     *(int*)value = read_32(buffer);
                 }
 
@@ -511,7 +687,7 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
         }
         default:
         {
-            printf("Unknown opcode: %d\n", opcode);
+            printf("decode_npc_type: Unknown opcode %d\n", opcode);
             break;
         }
         }
