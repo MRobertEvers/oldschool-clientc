@@ -665,11 +665,19 @@ struct ReferenceTable
 static int
 get_smart_int(struct Buffer* buffer)
 {
-    if( (buffer->data[buffer->position] & 0xFF) < 0 )
+    assert(buffer->position < buffer->data_size);
+    if( (buffer->data[buffer->position]) < 0 )
         return read_32(buffer) & 0x7fffffff;
     return read_16(buffer) & 0xFFFF;
 }
 
+/**
+ * @brief OpenRS calls this ReferenceTable. Runelite calls this "IndexData". See those classes
+ * RuneLite/IndexData.java
+ * OpenRS/ReferenceTable.java
+ * @param buffer
+ * @return struct ReferenceTable*
+ */
 struct ReferenceTable*
 decode_reference_table(struct Buffer* buffer)
 {
@@ -768,26 +776,6 @@ decode_reference_table(struct Buffer* buffer)
         table->entries[id].crc = read_32(buffer);
     }
 
-    // Read hash if present
-    if( (table->flags & FLAG_HASH) != 0 )
-    {
-        for( int i = 0; i < id_count; i++ )
-        {
-            int id = ids[i];
-            table->entries[id].hash = read_32(buffer);
-        }
-    }
-
-    // Read whirlpool digests if present
-    if( (table->flags & FLAG_WHIRLPOOL) != 0 )
-    {
-        for( int i = 0; i < id_count; i++ )
-        {
-            int id = ids[i];
-            readto((char*)table->entries[id].whirlpool, 64, 64, buffer);
-        }
-    }
-
     // Read sizes if present
     if( (table->flags & FLAG_SIZES) != 0 )
     {
@@ -810,7 +798,11 @@ decode_reference_table(struct Buffer* buffer)
     for( int i = 0; i < id_count; i++ )
     {
         int id = ids[i];
-        int child_count = table->format >= 7 ? get_smart_int(buffer) : read_16(buffer) & 0xFFFF;
+        int child_count;
+        if( table->format >= 7 )
+            child_count = get_smart_int(buffer);
+        else
+            child_count = read_16(buffer) & 0xFFFF;
         table->entries[id].children.count = child_count;
         table->entries[id].children.entries = malloc(child_count * sizeof(int));
         if( !table->entries[id].children.entries )
@@ -839,16 +831,27 @@ decode_reference_table(struct Buffer* buffer)
         }
     }
 
-    // Read child identifiers if present
+    // Read identifiers if present
     if( (table->flags & FLAG_IDENTIFIERS) != 0 )
     {
+        // for (int index = 0; index < validArchivesCount; ++index)
+        // 	{
+        // 		ArchiveData ad = archives[index];
+        // 		int num = numberOfFiles[index];
+
+        // 		for (int i = 0; i < num; ++i)
+        // 		{
+        // 			FileData fd = ad.files[i];
+        // 			int name = stream.readInt();
+        // 			fd.nameHash = name;
+        // 		}
+        // 	}
         for( int i = 0; i < id_count; i++ )
         {
             int id = ids[i];
             for( int j = 0; j < table->entries[id].children.count; j++ )
             {
-                // Child identifiers are not stored in the table structure
-                read_32(buffer); // Skip child identifier
+                table->entries[id].children.entries[j] = read_32(buffer);
             }
         }
     }
@@ -968,6 +971,7 @@ load_models()
     memset(archives, 0, master_index_record_count * sizeof(struct Dat2Archive));
     for( int i = 0; i < master_index_record_count; i++ )
     {
+        // cache.read(CacheIndex.META = 255, table: 0)
         struct IndexRecord record;
         read_index_entry(255, master_index_data, master_index_size, i, &record);
 
@@ -987,7 +991,7 @@ load_models()
     }
 
     // From source
-    // cache.read(CacheIndex.MODELS, modelId: 0)
+    // cache.read(CacheIndex.MODELS = 7, modelId: 0)
 
     struct IndexRecord record;
     read_index_entry(7, model_index_data, model_index_size, 0, &record);
