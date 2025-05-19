@@ -1,6 +1,8 @@
 #include "osrs_cache.h"
 // #include "xtea.h"
 
+#include "modeltype.c"
+
 #include <assert.h>
 #include <bzlib.h>
 #include <stdbool.h>
@@ -756,7 +758,7 @@ decode_reference_table(struct Buffer* buffer)
     // Initialize entries
     for( int i = 0; i < id_count; i++ )
     {
-        table->entries[ids[i]].index = i;
+        table->entries[ids[i]].index = ids[i];
     }
 
     // Read identifiers if present
@@ -991,15 +993,23 @@ load_models()
     }
 
     // From source
+    // OpenRS2
     // cache.read(CacheIndex.MODELS = 7, modelId: 0)
+    // Runelite
+    // Index index = store.getIndex(IndexType.MODELS);
 
+    int tztok_jad_id = 9319;
     struct IndexRecord record;
-    read_index_entry(7, model_index_data, model_index_size, 0, &record);
+    read_index_entry(7, model_index_data, model_index_size, tztok_jad_id, &record);
 
     struct Dat2Archive archive;
     read_dat2(&archive, dat2_data, dat2_size, 7, record.record_id, record.sector, record.length);
 
     decompress_dat2archive(&archive);
+
+    struct Model* model = decodeModel(archive.data, archive.data_size);
+
+    write_model_separate(model, "model2");
 
     // End cache.read
 
@@ -1024,17 +1034,22 @@ load_models()
         // look for the entry with index i
 
         int index = reference_table->ids[i];
-        if( reference_table->entries[index].index == i )
-        {
-            // printf("Entry %d: %d\n", i, reference_table->entries[index].index);
-            // // print the size
-            // printf("Size: %d\n", reference_table->entries[index].uncompressed);
-            // printf("Compressed: %d\n", reference_table->entries[index].compressed);
-            // printf("Children: %d\n", reference_table->entries[index].children.count);
-        }
+        printf("Entry %d: %d\n", i, reference_table->entries[index].index);
+        // print the size
+        printf("Size: %d\n", reference_table->entries[index].uncompressed);
+        printf("Compressed: %d\n", reference_table->entries[index].compressed);
+        printf("Children: %d\n", reference_table->entries[index].children.count);
     }
 
-    int npc_config_table_index = reference_table->ids[npcs_config_table_index];
+    int npc_config_table_index;
+    for( int i = 0; i < reference_table->id_count; i++ )
+    {
+        if( reference_table->entries[i].index == npcs_config_table_index )
+        {
+            npc_config_table_index = i;
+            break;
+        }
+    }
     int npc_config_table_size = reference_table->entries[npc_config_table_index].children.count;
     // cache.read(CacheIndex.CONFIGS, ConfigArchive.NPC)
 

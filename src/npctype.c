@@ -70,6 +70,14 @@ struct NPCType
     } params;
 };
 
+/**
+ * @brief
+ *
+ * Runelite//Users/matthewevers/Documents/git_repos/runelite/cache/src/main/java/net/runelite/cache/definitions/loaders/NpcLoader.java
+ *
+ * @param npc
+ * @param buffer
+ */
 static void
 decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
 {
@@ -352,12 +360,6 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
                 npc->varp_index = -1;
             }
 
-            int var = read_16(buffer) & 0xFFFF;
-            if( var == 0xFFFF )
-            {
-                var = -1;
-            }
-
             int length = read_8(buffer) & 0xFF;
             npc->configs = malloc((length + 2) * sizeof(int));
             npc->configs_count = length + 2;
@@ -371,7 +373,7 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
                 }
             }
 
-            npc->configs[length + 1] = var;
+            npc->configs[length + 1] = -1;
             break;
         }
         case 107:

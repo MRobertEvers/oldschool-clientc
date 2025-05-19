@@ -687,7 +687,12 @@ main(int argc, char* argv[])
     int camera_roll = 0;
     int camera_fov = 512; // Default FOV (approximately 90 degrees)
 
-    struct Model model = load_separate("model");
+    struct Model model = load_separate("../model2");
+    if( model.vertex_count == 0 )
+    {
+        printf("Failed to load model\n");
+        return -1;
+    }
 
     int max_model_depth = 1499;
 

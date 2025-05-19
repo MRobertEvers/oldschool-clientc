@@ -23,4 +23,7 @@ struct Model
     int* textured_n_coordinate;
 };
 
+struct Model* decodeModel(const unsigned char* inputData, int inputLength);
+void write_model_separate(const struct Model* model, const char* filename);
+
 #endif
