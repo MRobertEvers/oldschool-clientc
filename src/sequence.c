@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // package net.runelite.cache.definitions.loaders;
 
@@ -242,13 +243,89 @@ add_frame_sound(struct FrameSoundMap* map, int frame, struct FrameSound sound)
     map->count++;
 }
 
-void
-decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buffer)
+static void
+decode_pre_220_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
 {
-    def->id = -1; // Set by caller
-    bool rev220_frame_sounds = revision > REV_220_SEQ_ARCHIVE_REV;
-    bool rev226 = revision > REV_226_SEQ_ARCHIVE_REV;
+    // Old format: 24-bit int with packed fields
+    int bits = read_24(buffer);
+    sound->location = bits & 15;
+    sound->id = bits >> 8;
+    sound->loops = (bits >> 4) & 7;
+    sound->retain = 0;
+    sound->weight = -1;
+}
 
+static void
+decode_220_226_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
+{
+    // New format: separate fields
+    sound->id = read_16(buffer);
+    sound->loops = read_8(buffer);
+    sound->location = read_8(buffer);
+    sound->retain = read_8(buffer);
+    sound->weight = -1;
+}
+
+static void
+decode_226_plus_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
+{
+    // New format: frame sounds with weights
+    sound->id = read_16(buffer);
+    sound->weight = read_8(buffer);
+    sound->loops = read_8(buffer);
+    sound->location = read_8(buffer);
+    sound->retain = read_8(buffer);
+}
+
+static void
+handle_frame_sounds_pre_220(struct SequenceDefinition* def, struct Buffer* buffer)
+{
+    int var3 = read_8(buffer);
+    for( int var4 = 0; var4 < var3; ++var4 )
+    {
+        struct FrameSound sound = { 0 };
+        decode_pre_220_frame_sound(&sound, buffer);
+        if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
+        {
+            add_frame_sound(&def->frame_sounds, var4, sound);
+        }
+    }
+}
+
+static void
+handle_frame_sounds_220_226(struct SequenceDefinition* def, struct Buffer* buffer)
+{
+    int var3 = read_8(buffer);
+    for( int var4 = 0; var4 < var3; ++var4 )
+    {
+        struct FrameSound sound = { 0 };
+        decode_220_226_frame_sound(&sound, buffer);
+        if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
+        {
+            add_frame_sound(&def->frame_sounds, var4, sound);
+        }
+    }
+}
+
+static void
+handle_frame_sounds_226_plus(struct SequenceDefinition* def, struct Buffer* buffer)
+{
+    int var3 = read_16(buffer);
+    for( int var4 = 0; var4 < var3; ++var4 )
+    {
+        int frame = read_16(buffer);
+        struct FrameSound sound = { 0 };
+        decode_226_plus_frame_sound(&sound, buffer);
+        if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
+        {
+            add_frame_sound(&def->frame_sounds, frame, sound);
+        }
+    }
+}
+
+static void
+decode_sequence_pre_220(struct SequenceDefinition* def, struct Buffer* buffer)
+{
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
     def->frame_sounds.sounds = NULL;
@@ -271,20 +348,17 @@ decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buf
             def->frame_count = var3;
             def->frame_lengths = malloc(var3 * sizeof(int));
             def->frame_ids = malloc(var3 * sizeof(int));
+            memset(def->frame_lengths, 0, var3 * sizeof(int));
+            memset(def->frame_ids, 0, var3 * sizeof(int));
 
-            // Read frame lengths
             for( int var4 = 0; var4 < var3; ++var4 )
             {
                 def->frame_lengths[var4] = read_16(buffer);
             }
-
-            // Read frame IDs (lower 16 bits)
             for( int var4 = 0; var4 < var3; ++var4 )
             {
                 def->frame_ids[var4] = read_16(buffer);
             }
-
-            // Read frame IDs (upper 16 bits)
             for( int var4 = 0; var4 < var3; ++var4 )
             {
                 def->frame_ids[var4] += read_16(buffer) << 16;
@@ -298,6 +372,7 @@ decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buf
         {
             int var3 = read_8(buffer);
             def->interleave_leave = malloc((var3 + 1) * sizeof(int));
+            memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
                 def->interleave_leave[var4] = read_8(buffer);
@@ -333,6 +408,7 @@ decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buf
         {
             int var3 = read_8(buffer);
             def->chat_frame_ids = malloc(var3 * sizeof(int));
+            memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
                 def->chat_frame_ids[var4] = read_16(buffer);
@@ -344,102 +420,17 @@ decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buf
             break;
         }
         case 13:
-            if( !rev226 )
-            {
-                // Old frame sounds format
-                int var3 = read_8(buffer);
-                for( int var4 = 0; var4 < var3; ++var4 )
-                {
-                    struct FrameSound sound = { 0 };
-                    if( !rev220_frame_sounds )
-                    {
-                        // Old format: 24-bit int with packed fields
-                        int bits = read_24(buffer);
-                        sound.location = bits & 15;
-                        sound.id = bits >> 8;
-                        sound.loops = (bits >> 4) & 7;
-                        sound.retain = 0;
-                    }
-                    else
-                    {
-                        // New format: separate fields
-                        sound.id = read_16(buffer);
-                        sound.loops = read_8(buffer);
-                        sound.location = read_8(buffer);
-                        sound.retain = read_8(buffer);
-                    }
-                    if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 &&
-                        sound.retain >= 0 )
-                    {
-                        add_frame_sound(&def->frame_sounds, var4, sound);
-                    }
-                }
-            }
-            else
-            {
-                // New format: anim maya ID
-                def->anim_maya_id = read_32(buffer);
-            }
+            handle_frame_sounds_pre_220(def, buffer);
             break;
         case 14:
-            if( rev226 )
-            {
-                // New format: frame sounds with weights
-                int var3 = read_16(buffer);
-                for( int var4 = 0; var4 < var3; ++var4 )
-                {
-                    int frame = read_16(buffer);
-                    struct FrameSound sound = { 0 };
-                    sound.id = read_16(buffer);
-                    sound.weight = read_8(buffer);
-                    sound.loops = read_8(buffer);
-                    sound.location = read_8(buffer);
-                    sound.retain = read_8(buffer);
-                    if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 &&
-                        sound.retain >= 0 )
-                    {
-                        add_frame_sound(&def->frame_sounds, frame, sound);
-                    }
-                }
-            }
-            else
-            {
-                // Old format: anim maya ID
-                def->anim_maya_id = read_32(buffer);
-            }
+            def->anim_maya_id = read_32(buffer);
             break;
         case 15:
-            if( rev226 )
-            {
-                def->anim_maya_start = read_16(buffer);
-                def->anim_maya_end = read_16(buffer);
-            }
-            else
-            {
-                // Old format: frame sounds
-                int var3 = read_16(buffer);
-                for( int var4 = 0; var4 < var3; ++var4 )
-                {
-                    int frame = read_16(buffer);
-                    struct FrameSound sound = { 0 };
-                    sound.id = read_16(buffer);
-                    sound.loops = read_8(buffer);
-                    sound.location = read_8(buffer);
-                    sound.retain = read_8(buffer);
-                    if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 &&
-                        sound.retain >= 0 )
-                    {
-                        add_frame_sound(&def->frame_sounds, frame, sound);
-                    }
-                }
-            }
+            handle_frame_sounds_220_226(def, buffer);
             break;
         case 16:
-            if( !rev226 )
-            {
-                def->anim_maya_start = read_16(buffer);
-                def->anim_maya_end = read_16(buffer);
-            }
+            def->anim_maya_start = read_16(buffer);
+            def->anim_maya_end = read_16(buffer);
             break;
         case 17:
         {
@@ -458,6 +449,278 @@ decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buf
             printf("Unrecognized opcode %d\n", opcode);
             break;
         }
+    }
+}
+
+static void
+decode_sequence_220_226(struct SequenceDefinition* def, struct Buffer* buffer)
+{
+    // Initialize frame sounds map
+    def->frame_sounds.frames = NULL;
+    def->frame_sounds.sounds = NULL;
+    def->frame_sounds.count = 0;
+    def->frame_sounds.capacity = 0;
+
+    while( true )
+    {
+        int opcode = read_8(buffer);
+        if( opcode == 0 )
+        {
+            break;
+        }
+
+        switch( opcode )
+        {
+        case 1:
+        {
+            int var3 = read_16(buffer);
+            def->frame_count = var3;
+            def->frame_lengths = malloc(var3 * sizeof(int));
+            def->frame_ids = malloc(var3 * sizeof(int));
+            memset(def->frame_lengths, 0, var3 * sizeof(int));
+            memset(def->frame_ids, 0, var3 * sizeof(int));
+
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->frame_lengths[var4] = read_16(buffer);
+            }
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->frame_ids[var4] = read_16(buffer);
+            }
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->frame_ids[var4] += read_16(buffer) << 16;
+            }
+            break;
+        }
+        case 2:
+            def->frame_step = read_16(buffer);
+            break;
+        case 3:
+        {
+            int var3 = read_8(buffer);
+            def->interleave_leave = malloc((var3 + 1) * sizeof(int));
+            memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->interleave_leave[var4] = read_8(buffer);
+            }
+            def->interleave_leave[var3] = 9999999;
+            break;
+        }
+        case 4:
+            def->stretches = true;
+            break;
+        case 5:
+            def->forced_priority = read_8(buffer);
+            break;
+        case 6:
+            def->left_hand_item = read_16(buffer);
+            break;
+        case 7:
+            def->right_hand_item = read_16(buffer);
+            break;
+        case 8:
+            def->max_loops = read_8(buffer);
+            break;
+        case 9:
+            def->precedence_animating = read_8(buffer);
+            break;
+        case 10:
+            def->priority = read_8(buffer);
+            break;
+        case 11:
+            def->reply_mode = read_8(buffer);
+            break;
+        case 12:
+        {
+            int var3 = read_8(buffer);
+            def->chat_frame_ids = malloc(var3 * sizeof(int));
+            memset(def->chat_frame_ids, 0, var3 * sizeof(int));
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->chat_frame_ids[var4] = read_16(buffer);
+            }
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->chat_frame_ids[var4] += read_16(buffer) << 16;
+            }
+            break;
+        }
+        case 13:
+            handle_frame_sounds_220_226(def, buffer);
+            break;
+        case 14:
+            def->anim_maya_id = read_32(buffer);
+            break;
+        case 15:
+            handle_frame_sounds_220_226(def, buffer);
+            break;
+        case 16:
+            def->anim_maya_start = read_16(buffer);
+            def->anim_maya_end = read_16(buffer);
+            break;
+        case 17:
+        {
+            def->anim_maya_masks = calloc(256, sizeof(bool));
+            int var3 = read_8(buffer);
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->anim_maya_masks[read_8(buffer)] = true;
+            }
+            break;
+        }
+        case 18:
+            def->debug_name = read_string(buffer);
+            break;
+        default:
+            printf("Unrecognized opcode %d\n", opcode);
+            break;
+        }
+    }
+}
+
+static void
+decode_sequence_226_plus(struct SequenceDefinition* def, struct Buffer* buffer)
+{
+    // Initialize frame sounds map
+    def->frame_sounds.frames = NULL;
+    def->frame_sounds.sounds = NULL;
+    def->frame_sounds.count = 0;
+    def->frame_sounds.capacity = 0;
+
+    while( true )
+    {
+        int opcode = read_8(buffer);
+        if( opcode == 0 )
+        {
+            break;
+        }
+
+        switch( opcode )
+        {
+        case 1:
+        {
+            int var3 = read_16(buffer);
+            def->frame_count = var3;
+            def->frame_lengths = malloc(var3 * sizeof(int));
+            def->frame_ids = malloc(var3 * sizeof(int));
+            memset(def->frame_lengths, 0, var3 * sizeof(int));
+            memset(def->frame_ids, 0, var3 * sizeof(int));
+
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->frame_lengths[var4] = read_16(buffer);
+            }
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->frame_ids[var4] = read_16(buffer);
+            }
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->frame_ids[var4] += read_16(buffer) << 16;
+            }
+            break;
+        }
+        case 2:
+            def->frame_step = read_16(buffer);
+            break;
+        case 3:
+        {
+            int var3 = read_8(buffer);
+            def->interleave_leave = malloc((var3 + 1) * sizeof(int));
+            memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->interleave_leave[var4] = read_8(buffer);
+            }
+            def->interleave_leave[var3] = 9999999;
+            break;
+        }
+        case 4:
+            def->stretches = true;
+            break;
+        case 5:
+            def->forced_priority = read_8(buffer);
+            break;
+        case 6:
+            def->left_hand_item = read_16(buffer);
+            break;
+        case 7:
+            def->right_hand_item = read_16(buffer);
+            break;
+        case 8:
+            def->max_loops = read_8(buffer);
+            break;
+        case 9:
+            def->precedence_animating = read_8(buffer);
+            break;
+        case 10:
+            def->priority = read_8(buffer);
+            break;
+        case 11:
+            def->reply_mode = read_8(buffer);
+            break;
+        case 12:
+        {
+            int var3 = read_8(buffer);
+            def->chat_frame_ids = malloc(var3 * sizeof(int));
+            memset(def->chat_frame_ids, 0, var3 * sizeof(int));
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->chat_frame_ids[var4] = read_16(buffer);
+            }
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->chat_frame_ids[var4] += read_16(buffer) << 16;
+            }
+            break;
+        }
+        case 13:
+            def->anim_maya_id = read_32(buffer);
+            break;
+        case 14:
+            handle_frame_sounds_226_plus(def, buffer);
+            break;
+        case 15:
+            def->anim_maya_start = read_16(buffer);
+            def->anim_maya_end = read_16(buffer);
+            break;
+        case 17:
+        {
+            def->anim_maya_masks = calloc(256, sizeof(bool));
+            int var3 = read_8(buffer);
+            for( int var4 = 0; var4 < var3; ++var4 )
+            {
+                def->anim_maya_masks[read_8(buffer)] = true;
+            }
+            break;
+        }
+        case 18:
+            def->debug_name = read_string(buffer);
+            break;
+        default:
+            printf("Unrecognized opcode %d\n", opcode);
+            break;
+        }
+    }
+}
+
+void
+decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buffer)
+{
+    if( revision <= REV_220_SEQ_ARCHIVE_REV )
+    {
+        decode_sequence_pre_220(def, buffer);
+    }
+    else if( revision <= REV_226_SEQ_ARCHIVE_REV )
+    {
+        decode_sequence_220_226(def, buffer);
+    }
+    else
+    {
+        decode_sequence_226_plus(def, buffer);
     }
 }
 

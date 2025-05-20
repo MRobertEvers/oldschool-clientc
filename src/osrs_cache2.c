@@ -1114,6 +1114,7 @@ load_models()
                                  .data_size = packed_archive->entry_sizes[i],
                                  .position = 0 };
         struct SequenceDefinition sequence = { 0 };
+        sequence.id = i;
         decode_sequence(&sequence, sequence_config_table_revision, &buffer);
         if( sequence.id == 2650 )
         {
