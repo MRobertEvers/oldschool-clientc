@@ -225,50 +225,6 @@ read_dat2(
 }
 
 /**
- * The Config table and Textures table use records of this form.
- *
- */
-struct PackedArchive
-{};
-
-static void
-read_packed_archive(struct PackedArchive* archive, char* data, int data_size, int archive_size)
-{
-    struct Buffer buffer = { .data = data, .position = 0, .data_size = data_size };
-
-    // /* read the number of chunks at the end of the archive */
-    // buffer.position(buffer.limit() - 1);
-    // int chunks = buffer.get() & 0xFF;
-
-    buffer.position = buffer.data_size - 1;
-    int chunks = read_8(&buffer);
-    buffer.position = 0;
-
-    // int[][] chunkSizes = new int[chunks][size];
-    // int[] sizes = new int[size];
-    // buffer.position(buffer.limit() - 1 - chunks * size * 4);
-
-    buffer.position = buffer.data_size - 1 - chunks * 4;
-    for( int i = 0; i < chunks; i++ )
-    {
-        // int chunkSize = 0;
-        // for (int id = 0; id < size; id++) {
-        // 	/* read the delta-encoded chunk length */
-        // 	int delta = buffer.getInt();
-        // 	chunkSize += delta;
-
-        // 	/* store the size of this chunk */
-        // 	chunkSizes[chunk][id] = chunkSize;
-
-        // 	/* and add it to the size of the whole file */
-        // 	sizes[id] += chunkSize;
-        // }
-        int chunk_size = read_32(&buffer);
-        int chunk_data = readto(NULL, chunk_size, chunk_size, &buffer);
-    }
-}
-
-/**
  * @brief TODO: CRC and XTEA for archives that need it.
  *
  * @param archive
@@ -822,6 +778,7 @@ decode_reference_table(struct Buffer* buffer)
  * uncompressed size, entry ids, etc.
  * The other idx files contain IndexRecords that point to data such as model data, object data, etc.
  *
+ *
  * Each dat2 record may be uncompressed, compressed with bzip, or compressed with gzip.
  * This includes the meta table and all other tables.
  *
@@ -851,6 +808,8 @@ decode_reference_table(struct Buffer* buffer)
  *     int idx_file_id; // The file extension, e.g. 2 := idx2
  *     int record_id, sector, length;
  * };
+ *
+ * Additionally, the config
  *
  *
  * @return struct Model*
@@ -1089,6 +1048,7 @@ load_models()
 
     int config_type_sequence = 12;
     memset(&record, 0, sizeof(struct IndexRecord));
+
     read_index_entry(2, config_index_data, config_index_size, config_type_sequence, &record);
 
     // RuneLite
