@@ -5,6 +5,23 @@
 
 #include <stdbool.h>
 
+struct FrameSound
+{
+    int id;
+    int loops;
+    int location;
+    int retain;
+    int weight; // Only used in rev226+
+};
+
+struct FrameSoundMap
+{
+    int* frames;               // Frame indices
+    struct FrameSound* sounds; // Sound data
+    int count;
+    int capacity;
+};
+
 struct SequenceDefinition
 {
     int id;
@@ -27,9 +44,10 @@ struct SequenceDefinition
     int* chat_frame_ids;
     bool* anim_maya_masks;
     char* debug_name;
+    struct FrameSoundMap frame_sounds; // Map of frame index to sound data
 };
 
-void decode_sequence(struct SequenceDefinition* def, struct Buffer* buffer);
+void decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buffer);
 void print_sequence(struct SequenceDefinition* def);
 void free_sequence(struct SequenceDefinition* def);
 

@@ -58,10 +58,20 @@ read_index_entry(
 {
     struct Buffer buffer = { .data = data, .position = entry_slot * INDEX_255_ENTRY_SIZE };
 
-    int length = (data[buffer.position] << 16) | (data[buffer.position + 1] << 8) |
-                 (data[buffer.position + 2] & 0xFF);
-    int sector = (data[buffer.position + 3] << 16) | (data[buffer.position + 4] << 8) |
-                 (data[buffer.position + 5] & 0xFF);
+    // 	int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
+    // int sector = ((buffer[3] & 0xFF) << 16) | ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
+
+    // Convert Java:
+    // int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
+    // int sector = ((buffer[3] & 0xFF) << 16) | ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
+
+    // Read 3 bytes for length and 3 bytes for sector
+    // Need to mask with 0xFF to handle sign extension when converting to int
+    int length = ((data[buffer.position] & 0xFF) << 16) |
+                 ((data[buffer.position + 1] & 0xFF) << 8) | (data[buffer.position + 2] & 0xFF);
+
+    int sector = ((data[buffer.position + 3] & 0xFF) << 16) |
+                 ((data[buffer.position + 4] & 0xFF) << 8) | (data[buffer.position + 5] & 0xFF);
 
     if( length <= 0 || sector <= 0 )
     {
@@ -431,6 +441,8 @@ struct Archive
 
 /**
  * @brief
+ *
+ * RuneLite: ArchiveFiles.loadContents
  *
  * Size is specified in the reference table.
  *
@@ -913,8 +925,8 @@ load_models()
     for( int i = 0; i < master_index_record_count; i++ )
     {
         // cache.read(CacheIndex.META = 255, table: 0)
-        struct IndexRecord record;
-        read_index_entry(255, master_index_data, master_index_size, i, &record);
+        struct IndexRecord tmp_record;
+        read_index_entry(255, master_index_data, master_index_size, i, &tmp_record);
 
         // record now contains a region in the .dat2 file that contains the data indexed by
         // idx<i>.
@@ -924,9 +936,9 @@ load_models()
             dat2_data,
             dat2_size,
             255,
-            record.record_id,
-            record.sector,
-            record.length);
+            tmp_record.record_id,
+            tmp_record.sector,
+            tmp_record.length);
 
         decompress_dat2archive(&archives[i]);
     }
@@ -955,11 +967,12 @@ load_models()
     /***
      * Read the NPC Type Table
      */
-
-    int enum_config_table_index = 8;
-    int npcs_config_table_index = 9;
-    int config_reference_table_index = 2;
-    struct Dat2Archive* config_reference_table = &archives[config_reference_table_index];
+    // TypeCode Indexes taken from RuneLite
+    // /runelite/cache/src/main/java/net/runelite/cache/ConfigType.java
+    int npcs_config_table_typecode_index = 9;
+    int sequences_config_table_typecode_index = 12;
+    int config_reference_table_idx_index = 2;
+    struct Dat2Archive* config_reference_table = &archives[config_reference_table_idx_index];
     struct Buffer config_reference_table_buffer = { .data = config_reference_table->data,
                                                     .data_size = config_reference_table->data_size,
                                                     .position = 0 };
@@ -984,11 +997,11 @@ load_models()
     int sequence_config_table_index;
     for( int i = 0; i < reference_table->id_count; i++ )
     {
-        if( reference_table->entries[i].index == npcs_config_table_index )
+        if( reference_table->entries[i].index == npcs_config_table_typecode_index )
         {
             npc_config_table_index = i;
         }
-        else if( reference_table->entries[i].index == sequence_config_table_index )
+        else if( reference_table->entries[i].index == sequences_config_table_typecode_index )
         {
             sequence_config_table_index = i;
         }
@@ -996,11 +1009,18 @@ load_models()
     int npc_config_table_size = reference_table->entries[npc_config_table_index].children.count;
     int sequence_config_table_size =
         reference_table->entries[sequence_config_table_index].children.count;
-    // cache.read(CacheIndex.CONFIGS, ConfigArchive.NPC)
+    int sequence_config_table_revision =
+        reference_table->entries[sequence_config_table_index].version;
+    // OpenRS
+    // cache.read(CacheIndex.CONFIGS, ConfigArchive.NPC = 9)
+    // Runelite
+    // Index index = store.getIndex(IndexType.CONFIGS);
+    // Archive archive = index.getArchive(ConfigType.NPC.getId());
 
     read_index_entry(2, config_index_data, config_index_size, 9, &record);
 
-    // struct Dat2Archive archive;
+    // RuneLite
+    // byte[] archiveData = storage.loadArchive(archive);
     memset(&archive, 0, sizeof(struct Dat2Archive));
     read_dat2(&archive, dat2_data, dat2_size, 2, record.record_id, record.sector, record.length);
 
@@ -1067,17 +1087,21 @@ load_models()
     // Archive archive = index.getArchive(ConfigType.SEQUENCE.getId());
 
     int config_type_sequence = 12;
+    memset(&record, 0, sizeof(struct IndexRecord));
     read_index_entry(2, config_index_data, config_index_size, config_type_sequence, &record);
 
-    // struct Dat2Archive archive;
+    // RuneLite
+    // byte[] archiveData = storage.loadArchive(archive);
     memset(&archive, 0, sizeof(struct Dat2Archive));
     read_dat2(&archive, dat2_data, dat2_size, 2, record.record_id, record.sector, record.length);
 
-    // byte[] archiveData = storage.loadArchive(archive);
     decompress_dat2archive(&archive);
 
-    // ArchiveFiles files = archive.getFiles(archiveData);
-    // Read packed archive
+    // Note: In RuneLite, "FileData" objects are constructed
+    // earlier and the read all the information about index from the reference table. One of the
+    // things there is that the "size" of the archive is specified implicitly by the number of
+    // "FileData" objects instantiated. ArchiveFiles files = archive.getFiles(archiveData); Read
+    // packed archive
     struct Buffer archive_buffer = { .data = archive.data,
                                      .data_size = archive.data_size,
                                      .position = 0 };
@@ -1089,8 +1113,8 @@ load_models()
         struct Buffer buffer = { .data = packed_archive->entries[i],
                                  .data_size = packed_archive->entry_sizes[i],
                                  .position = 0 };
-        struct SequenceDefinition sequence;
-        decode_sequence(&sequence, &buffer);
+        struct SequenceDefinition sequence = { 0 };
+        decode_sequence(&sequence, sequence_config_table_revision, &buffer);
         if( sequence.id == 2650 )
         {
             print_sequence(&sequence);
