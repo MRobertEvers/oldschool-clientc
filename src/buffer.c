@@ -136,6 +136,34 @@ read_string(struct Buffer* buffer)
     return string;
 }
 
+// public int readBigSmart2()
+// {
+// 	if (peek() < 0)
+// 	{
+// 		return readInt() & Integer.MAX_VALUE; // and off sign bit
+// 	}
+// 	int value = readUnsignedShort();
+// 	return value == 32767 ? -1 : value;
+
+int
+read_big_smart2(struct Buffer* buffer)
+{
+    int peek = buffer->data[buffer->position] & 0xFF;
+    if( peek < 0 )
+        return read_32(buffer) & 0xFFFFFFFF;
+    int value = read_16(buffer);
+    if( value == 32767 )
+        return -1;
+    return value;
+}
+
+int
+read_unsigned_short_smart_minus_one(struct Buffer* buffer)
+{
+    int peek = buffer->data[buffer->position] & 0xFF;
+    return peek < 128 ? read_8(buffer) - 1 : read_16(buffer) - 0x8001;
+}
+
 int
 readto(char* out, int out_size, int len, struct Buffer* buffer)
 {

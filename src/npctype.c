@@ -1,8 +1,9 @@
 
+#include "buffer.h"
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-
 /**
  * Sourced from Runelite!
  *
@@ -70,6 +71,8 @@ struct NPCType
     } params;
 };
 
+#define REV_210_NPC_ARCHIVE_REV 1493
+
 /**
  * @brief
  *
@@ -79,7 +82,7 @@ struct NPCType
  * @param buffer
  */
 static void
-decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
+decode_npc_type(struct NPCType* npc, int revision, struct Buffer* buffer)
 {
     if( !npc || !buffer || !buffer->data )
     {
@@ -87,6 +90,9 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
         return;
     }
 
+    bool rev210_head_icons = revision >= REV_210_NPC_ARCHIVE_REV;
+
+    int prev_opcode = -1;
     while( 1 )
     {
         if( buffer->position >= buffer->data_size )
@@ -195,6 +201,11 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
             npc->rotate_right_animation = read_16(buffer) & 0xFFFF;
             break;
         }
+        case 18:
+        {
+            npc->category = read_16(buffer);
+            break;
+        }
         case 30:
         case 31:
         case 32:
@@ -262,6 +273,36 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
             {
                 npc->chathead_models[idx] = read_16(buffer) & 0xFFFF;
             }
+            break;
+        }
+        case 74:
+        {
+            npc->stats[0] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 75:
+        {
+            npc->stats[1] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 76:
+        {
+            npc->stats[2] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 77:
+        {
+            npc->stats[3] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 78:
+        {
+            npc->stats[4] = read_16(buffer) & 0xFFFF;
+            break;
+        }
+        case 79:
+        {
+            npc->stats[5] = read_16(buffer) & 0xFFFF;
             break;
         }
         case 93:
@@ -334,8 +375,9 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
                     }
                     else
                     {
-                        npc->head_icon_archive_ids[i] = get_smart_int(buffer);
-                        npc->head_icon_sprite_index[i] = (short)(read_16(buffer) & 0xFFFF) - 1;
+                        npc->head_icon_archive_ids[i] = read_big_smart2(buffer);
+                        npc->head_icon_sprite_index[i] =
+                            read_unsigned_short_smart_minus_one(buffer);
                     }
                 }
             }
@@ -466,41 +508,6 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
         case 124:
         {
             npc->height = read_16(buffer) & 0xFFFF;
-            break;
-        }
-        case 18:
-        {
-            npc->category = read_16(buffer) & 0xFFFF;
-            break;
-        }
-        case 74:
-        {
-            npc->stats[0] = read_16(buffer) & 0xFFFF;
-            break;
-        }
-        case 75:
-        {
-            npc->stats[1] = read_16(buffer) & 0xFFFF;
-            break;
-        }
-        case 76:
-        {
-            npc->stats[2] = read_16(buffer) & 0xFFFF;
-            break;
-        }
-        case 77:
-        {
-            npc->stats[3] = read_16(buffer) & 0xFFFF;
-            break;
-        }
-        case 78:
-        {
-            npc->stats[4] = read_16(buffer) & 0xFFFF;
-            break;
-        }
-        case 79:
-        {
-            npc->stats[5] = read_16(buffer) & 0xFFFF;
             break;
         }
         case 249:
@@ -689,10 +696,11 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
         }
         default:
         {
-            printf("decode_npc_type: Unknown opcode %d\n", opcode);
+            printf("decode_npc_type: Unknown opcode %d previous opcode %d\n", opcode, prev_opcode);
             break;
         }
         }
+        prev_opcode = opcode;
     }
 }
 

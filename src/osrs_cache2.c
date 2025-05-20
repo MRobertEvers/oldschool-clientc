@@ -1007,6 +1007,7 @@ load_models()
         }
     }
     int npc_config_table_size = reference_table->entries[npc_config_table_index].children.count;
+    int npc_config_table_revision = reference_table->entries[npc_config_table_index].version;
     int sequence_config_table_size =
         reference_table->entries[sequence_config_table_index].children.count;
     int sequence_config_table_revision =
@@ -1034,13 +1035,13 @@ load_models()
 
     struct Archive* packed_archive = decode_archive(&config_archive_buffer, npc_config_table_size);
 
-    for( int i = 0; i < packed_archive->entry_count; i++ )
+    for( int i = 963; i < packed_archive->entry_count; i++ )
     {
         struct Buffer buffer = { .data = packed_archive->entries[i],
                                  .data_size = packed_archive->entry_sizes[i],
                                  .position = 0 };
         struct NPCType npc = { 0 };
-        decode_npc_type(&npc, &buffer);
+        decode_npc_type(&npc, npc_config_table_revision, &buffer);
 
         // Print TzTok-Jad
         if( npc.name && strcmp(npc.name, "TzTok-Jad") == 0 )
