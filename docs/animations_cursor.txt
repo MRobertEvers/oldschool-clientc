@@ -1,0 +1,110 @@
+Let me search through the codebase to understand how OSRS model animations work with Frames, Sequences, and Framemaps.
+
+
+Ran tool
+Let me explain how OSRS model animations work based on the code:
+
+1. **Frame System Overview**:
+- Animations in OSRS are built using a combination of Frames, Sequences, and Framemaps
+- Each animation is composed of multiple frames that define how a model's vertices move over time
+
+2. **Key Components**:
+
+a) **FrameDefinition**:
+- Represents a single frame of animation
+- Contains:
+  - `translator_x`, `translator_y`, `translator_z`: Arrays that define how vertices move in 3D space
+  - `framemap`: Reference to the FramemapDefinition that defines how vertices are grouped
+  - `indexFrameIds`: Maps frame indices to vertex groups
+  - `showing`: Boolean flag indicating if the frame should be displayed
+
+b) **FramemapDefinition**:
+- Defines how vertices are grouped for animation
+- Contains:
+  - `types`: Array of animation types for each vertex group
+  - `frameMaps`: 2D array mapping frame indices to vertex groups
+  - `length`: Number of vertex groups
+
+c) **SequenceDefinition**:
+- Defines a complete animation sequence
+- Contains:
+  - `frameIDs`: Array of frame definitions (top 16 bits are FrameDefinition IDs)
+  - `frameLengths`: How long each frame should be displayed
+  - `frameStep`: Base frame step value
+  - `stretches`: Whether the animation can stretch
+  - `maxLoops`: Maximum number of times the animation can loop
+  - `frameSounds`: Sound effects tied to specific frames
+
+3. **Animation Types**:
+The code shows several types of animations (from ModelDefinition.java):
+- Type 0: Base position calculation
+- Type 1: Simple translation (move vertices by dx, dy, dz)
+- Type 2: Rotation around a point
+- Type 3: Scaling
+- Type 5: Alpha/transparency animation
+
+4. **Animation Process**:
+1. A model is loaded with its base vertices
+2. When an animation is played:
+   - The sequence defines which frames to use and for how long
+   - Each frame contains translation data for vertex groups
+   - The framemap defines how vertices are grouped for animation
+   - The model's vertices are transformed according to the frame data
+   - This process repeats for each frame in the sequence
+
+5. **Example Usage**:
+```java
+// From ModelDefinition.java
+public void animate(int type, int[] frameMap, int dx, int dy, int dz) {
+    // Type 0: Calculate base position
+    if (type == 0) {
+        // Calculate center point for rotation/scaling
+    }
+    // Type 1: Simple translation
+    else if (type == 1) {
+        // Move vertices by dx, dy, dz
+    }
+    // Type 2: Rotation
+    else if (type == 2) {
+        // Rotate vertices around calculated center point
+    }
+    // Type 3: Scaling
+    else if (type == 3) {
+        // Scale vertices relative to center point
+    }
+}
+```
+
+6. **Integration with Game Objects**:
+- Objects, NPCs, and interfaces can have animations
+- They reference animation IDs that map to sequences
+- The game engine applies these animations to the models during rendering
+
+This system allows for complex animations while keeping the data format efficient. The separation of frames, sequences, and framemaps allows for reuse of animation data across different models and provides flexibility in how animations are defined and played.
+
+Let me search through the code to find information about the lower 16 bits of the frameId.
+
+
+Ran tool
+Looking at the code, particularly in `SequenceLoader.java`, we can see how the frameId is constructed. The lower 16 bits of the frameId are used to store the frame's index within its archive. This is shown in the code where it reads the frame IDs:
+
+```java
+def.frameIDs = new int[var3];
+for (var4 = 0; var4 < var3; ++var4) {
+    def.frameIDs[var4] = stream.readUnsignedShort();
+}
+for (var4 = 0; var4 < var3; ++var4) {
+    def.frameIDs[var4] += stream.readUnsignedShort() << 16;
+}
+```
+
+So the frameId is a 32-bit integer where:
+- The upper 16 bits (bits 16-31) contain the FrameDefinition ID
+- The lower 16 bits (bits 0-15) contain the frame's index within its archive
+
+This is also confirmed by the comment in `SequenceDefinition.java`:
+```java
+public int[] frameIDs; // top 16 bits are FrameDefinition ids
+```
+
+This structure allows the game to efficiently reference both the frame definition and its specific index within that definition using a single 32-bit integer.

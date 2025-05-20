@@ -1,6 +1,6 @@
-#include "osrs_cache.h"
+#include "sequence.h"
 // #include "xtea.h"
-
+#include "buffer.h"
 #include "modeltype.c"
 
 #include <assert.h>
@@ -30,76 +30,6 @@ struct FileArchive
     int* file_offset;
     bool unpacked;
 };
-
-struct Buffer
-{
-    char* data;
-    int position;
-    int data_size;
-};
-
-static int
-read_8(struct Buffer* buffer)
-{
-    assert(buffer->position + 1 <= buffer->data_size);
-    buffer->position += 1;
-    return buffer->data[buffer->position - 1] & 0xFF;
-}
-
-static int
-read_24(struct Buffer* buffer)
-{
-    assert(buffer->position + 3 <= buffer->data_size);
-    buffer->position += 3;
-    return ((buffer->data[buffer->position - 3] & 0xFF) << 16) |
-           ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
-           (buffer->data[buffer->position - 1] & 0xFF);
-}
-
-static int
-read_16(struct Buffer* buffer)
-{
-    assert(buffer->position + 2 <= buffer->data_size);
-    buffer->position += 2;
-    return ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
-           (buffer->data[buffer->position - 1] & 0xFF);
-}
-
-static int
-read_32(struct Buffer* buffer)
-{
-    assert(buffer->position + 4 <= buffer->data_size);
-    buffer->position += 4;
-    // print the 4 bytes at the current position
-
-    return ((buffer->data[buffer->position - 4] & 0xFF) << 24) |
-           ((buffer->data[buffer->position - 3] & 0xFF) << 16) |
-           ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
-           (buffer->data[buffer->position - 1] & 0xFF);
-}
-
-static int
-readto(char* out, int out_size, int len, struct Buffer* buffer)
-{
-    assert(buffer->position + len <= buffer->data_size);
-    int bytes_read = 0;
-    while( len > 0 && buffer->position < buffer->data_size )
-    {
-        out[bytes_read] = buffer->data[buffer->position];
-        len--;
-        buffer->position++;
-        bytes_read++;
-    }
-
-    return bytes_read;
-}
-
-static void
-bump(int count, struct Buffer* buffer)
-{
-    assert(buffer->position + count <= buffer->data_size);
-    buffer->position += count;
-}
 
 #define INDEX_255_ENTRY_SIZE 6
 #define SECTOR_SIZE 520
@@ -499,6 +429,15 @@ struct Archive
     int entry_count;
 };
 
+/**
+ * @brief
+ *
+ * Size is specified in the reference table.
+ *
+ * @param buffer
+ * @param size
+ * @return struct Archive*
+ */
 static struct Archive*
 decode_archive(struct Buffer* buffer, int size)
 {
@@ -1042,15 +981,21 @@ load_models()
     }
 
     int npc_config_table_index;
+    int sequence_config_table_index;
     for( int i = 0; i < reference_table->id_count; i++ )
     {
         if( reference_table->entries[i].index == npcs_config_table_index )
         {
             npc_config_table_index = i;
-            break;
+        }
+        else if( reference_table->entries[i].index == sequence_config_table_index )
+        {
+            sequence_config_table_index = i;
         }
     }
     int npc_config_table_size = reference_table->entries[npc_config_table_index].children.count;
+    int sequence_config_table_size =
+        reference_table->entries[sequence_config_table_index].children.count;
     // cache.read(CacheIndex.CONFIGS, ConfigArchive.NPC)
 
     read_index_entry(2, config_index_data, config_index_size, 9, &record);
@@ -1077,9 +1022,79 @@ load_models()
         struct NPCType npc = { 0 };
         decode_npc_type(&npc, &buffer);
 
-        // if( npc.name )
-        // {
-        //     printf("NPC: %s\n", npc.name);
-        // }
+        // Print TzTok-Jad
+        if( npc.name && strcmp(npc.name, "TzTok-Jad") == 0 )
+        {
+            print_npc_type(&npc);
+        }
+    }
+
+    // Read animations from the osrs cache
+    int animations_index_size;
+    char* animations_index_data;
+    FILE* animations_index = fopen(CACHE_PATH "/main_file_cache.idx0", "rb");
+    if( animations_index == NULL )
+    {
+        printf("Failed to open animations index file");
+        return NULL;
+    }
+    fseek(animations_index, 0, SEEK_END);
+    animations_index_size = ftell(animations_index);
+    fseek(animations_index, 0, SEEK_SET);
+    animations_index_data = malloc(animations_index_size);
+    fread(animations_index_data, 1, animations_index_size, animations_index);
+    fclose(animations_index);
+
+    // Load skeletons from index 1
+    int skeletons_index_size;
+    char* skeletons_index_data;
+    FILE* skeletons_index = fopen(CACHE_PATH "/main_file_cache.idx1", "rb");
+    if( skeletons_index == NULL )
+    {
+        printf("Failed to open skeletons index file");
+        return NULL;
+    }
+    fseek(skeletons_index, 0, SEEK_END);
+    skeletons_index_size = ftell(skeletons_index);
+    fseek(skeletons_index, 0, SEEK_SET);
+    skeletons_index_data = malloc(skeletons_index_size);
+    fread(skeletons_index_data, 1, skeletons_index_size, skeletons_index);
+    fclose(skeletons_index);
+
+    // Read sequence
+    // Runelite
+    // Index index = store.getIndex(IndexType.CONFIGS);
+    // Archive archive = index.getArchive(ConfigType.SEQUENCE.getId());
+
+    int config_type_sequence = 12;
+    read_index_entry(2, config_index_data, config_index_size, config_type_sequence, &record);
+
+    // struct Dat2Archive archive;
+    memset(&archive, 0, sizeof(struct Dat2Archive));
+    read_dat2(&archive, dat2_data, dat2_size, 2, record.record_id, record.sector, record.length);
+
+    // byte[] archiveData = storage.loadArchive(archive);
+    decompress_dat2archive(&archive);
+
+    // ArchiveFiles files = archive.getFiles(archiveData);
+    // Read packed archive
+    struct Buffer archive_buffer = { .data = archive.data,
+                                     .data_size = archive.data_size,
+                                     .position = 0 };
+    // ArchiveFiles files = archive.getFiles(archiveData);
+    packed_archive = decode_archive(&archive_buffer, sequence_config_table_size);
+
+    for( int i = 0; i < packed_archive->entry_count; i++ )
+    {
+        struct Buffer buffer = { .data = packed_archive->entries[i],
+                                 .data_size = packed_archive->entry_sizes[i],
+                                 .position = 0 };
+        struct SequenceDefinition sequence;
+        decode_sequence(&sequence, &buffer);
+        if( sequence.id == 2650 )
+        {
+            print_sequence(&sequence);
+        }
+        free_sequence(&sequence);
     }
 }

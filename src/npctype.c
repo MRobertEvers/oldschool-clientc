@@ -101,7 +101,7 @@ decode_npc_type(struct NPCType* npc, struct Buffer* buffer)
         int opcode = read_8(buffer) & 0xFF;
         if( opcode == 0 )
         {
-            printf("decode_npc_type: Reached end of data (opcode 0)\n");
+            // printf("decode_npc_type: Reached end of data (opcode 0)\n");
             return;
         }
 
