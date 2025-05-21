@@ -258,6 +258,7 @@ decompress_dat2archive(struct Dat2Archive* archive)
     switch( compression )
     {
     case 0:
+    {
         // No compression
         char* data = malloc(compressed_length);
         bytes_read = readto(data, compressed_length, compressed_length, &buffer);
@@ -272,6 +273,7 @@ decompress_dat2archive(struct Dat2Archive* archive)
         archive->data = data;
         archive->data_size = bytes_read;
         break;
+    }
     case 1:
         // BZip compression
         {
@@ -538,6 +540,9 @@ decode_archive(struct Buffer* buffer, int size)
 #define FLAG_SIZES 0x4
 #define FLAG_HASH 0x8
 
+/**
+ * Each entry contains metadata information for each archive in the main_file_cache.dat2 file.
+ */
 struct ReferenceTableEntry
 {
     int index;
@@ -917,11 +922,25 @@ load_models()
 
     decompress_dat2archive(&archive);
 
+    // THe model table does not use "PackedArchives", or "Files".
     struct Model* model = decodeModel(archive.data, archive.data_size);
 
     write_model_separate(model, "model2");
 
     // End cache.read
+
+    /**
+     * Read the models reference table
+     */
+    int models_reference_table_idx_index = 7;
+    struct Dat2Archive* models_reference_table_archive =
+        &archives[models_reference_table_idx_index];
+    struct Buffer models_reference_table_buffer = { .data = models_reference_table_archive->data,
+                                                    .data_size =
+                                                        models_reference_table_archive->data_size,
+                                                    .position = 0 };
+    struct ReferenceTable* models_reference_table =
+        decode_reference_table(&models_reference_table_buffer);
 
     /***
      * Read the NPC Type Table
@@ -931,46 +950,51 @@ load_models()
     int npcs_config_table_typecode_index = 9;
     int sequences_config_table_typecode_index = 12;
     int config_reference_table_idx_index = 2;
-    struct Dat2Archive* config_reference_table = &archives[config_reference_table_idx_index];
-    struct Buffer config_reference_table_buffer = { .data = config_reference_table->data,
-                                                    .data_size = config_reference_table->data_size,
+    struct Dat2Archive* config_reference_table_archive =
+        &archives[config_reference_table_idx_index];
+    struct Buffer config_reference_table_buffer = { .data = config_reference_table_archive->data,
+                                                    .data_size =
+                                                        config_reference_table_archive->data_size,
                                                     .position = 0 };
-    struct ReferenceTable* reference_table = decode_reference_table(&config_reference_table_buffer);
+    struct ReferenceTable* config_reference_table =
+        decode_reference_table(&config_reference_table_buffer);
 
-    for( int i = 0; i < reference_table->id_count; i++ )
+    for( int i = 0; i < config_reference_table->id_count; i++ )
     {
         // The reference table entries is a sparse array.
         // The "index" is the index of the entry in the reference table.
         // not necessarily the index of the entry in the entry array.
         // look for the entry with index i
 
-        int index = reference_table->ids[i];
-        printf("Entry %d: %d\n", i, reference_table->entries[index].index);
+        int index = config_reference_table->ids[i];
+        printf("Entry %d: %d\n", i, config_reference_table->entries[index].index);
         // print the size
-        printf("Size: %d\n", reference_table->entries[index].uncompressed);
-        printf("Compressed: %d\n", reference_table->entries[index].compressed);
-        printf("Children: %d\n", reference_table->entries[index].children.count);
+        printf("Size: %d\n", config_reference_table->entries[index].uncompressed);
+        printf("Compressed: %d\n", config_reference_table->entries[index].compressed);
+        printf("Children: %d\n", config_reference_table->entries[index].children.count);
     }
 
     int npc_config_table_index;
     int sequence_config_table_index;
-    for( int i = 0; i < reference_table->id_count; i++ )
+    for( int i = 0; i < config_reference_table->id_count; i++ )
     {
-        if( reference_table->entries[i].index == npcs_config_table_typecode_index )
+        if( config_reference_table->entries[i].index == npcs_config_table_typecode_index )
         {
             npc_config_table_index = i;
         }
-        else if( reference_table->entries[i].index == sequences_config_table_typecode_index )
+        else if( config_reference_table->entries[i].index == sequences_config_table_typecode_index )
         {
             sequence_config_table_index = i;
         }
     }
-    int npc_config_table_size = reference_table->entries[npc_config_table_index].children.count;
-    int npc_config_table_revision = reference_table->entries[npc_config_table_index].version;
+    int npc_config_table_size =
+        config_reference_table->entries[npc_config_table_index].children.count;
+    int npc_config_table_revision = config_reference_table->entries[npc_config_table_index].version;
     int sequence_config_table_size =
-        reference_table->entries[sequence_config_table_index].children.count;
+        config_reference_table->entries[sequence_config_table_index].children.count;
     int sequence_config_table_revision =
-        reference_table->entries[sequence_config_table_index].version;
+        config_reference_table->entries[sequence_config_table_index].version;
+
     // OpenRS
     // cache.read(CacheIndex.CONFIGS, ConfigArchive.NPC = 9)
     // Runelite
