@@ -643,6 +643,10 @@ main(int argc, const char* argv[])
         // Create the application first
         NSApplication* app = [NSApplication sharedApplication];
 
+        // Set up the application as a GUI application
+        // Otherwise the terminal will maintain keyboard focus
+        [app setActivationPolicy:NSApplicationActivationPolicyRegular];
+
         // Create the window
         CustomWindow* window = [[CustomWindow alloc]
             initWithContentRect:NSMakeRect(0, 0, 800, 600)
@@ -669,6 +673,7 @@ main(int argc, const char* argv[])
 
         // Configure window for input
         [window setAcceptsMouseMovedEvents:YES];
+
         [window makeKeyAndOrderFront:nil];
         [window makeMainWindow];
         [window makeFirstResponder:metalView];
