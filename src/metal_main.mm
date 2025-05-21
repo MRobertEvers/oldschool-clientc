@@ -169,6 +169,7 @@ typedef struct
 - (void)handleHorizontalScroll:(float)delta;
 - (void)moveCameraUp:(float)amount;
 - (void)moveCameraDown:(float)amount;
+- (void)handleMouseClick:(NSPoint)point inView:(MTKView*)view;
 
 @end
 
@@ -574,6 +575,9 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     return m;
 }
 
+- (void)handleMouseClick:(NSPoint)point inView:(MTKView*)view
+{}
+
 @end
 
 @interface MetalView : MTKView
@@ -607,6 +611,13 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
 - (BOOL)acceptsFirstResponder
 {
     return YES;
+}
+
+- (void)mouseDown:(NSEvent*)event
+{
+    MetalRenderer* renderer = (MetalRenderer*)self.delegate;
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    [renderer handleMouseClick:point inView:self];
 }
 
 @end
