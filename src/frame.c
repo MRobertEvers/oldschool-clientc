@@ -134,17 +134,17 @@ decode_frame(
     // Allocate final arrays
     def->translator_count = index;
     def->index_frame_ids = malloc(index * sizeof(int));
-    def->translator_x = malloc(index * sizeof(int));
-    def->translator_y = malloc(index * sizeof(int));
-    def->translator_z = malloc(index * sizeof(int));
+    def->translator_arg_x = malloc(index * sizeof(int));
+    def->translator_arg_y = malloc(index * sizeof(int));
+    def->translator_arg_z = malloc(index * sizeof(int));
 
     // Copy data to final arrays
     for( int i = 0; i < index; ++i )
     {
         def->index_frame_ids[i] = index_frame_ids[i];
-        def->translator_x[i] = scratch_translator_x[i];
-        def->translator_y[i] = scratch_translator_y[i];
-        def->translator_z[i] = scratch_translator_z[i];
+        def->translator_arg_x[i] = scratch_translator_x[i];
+        def->translator_arg_y[i] = scratch_translator_y[i];
+        def->translator_arg_z[i] = scratch_translator_z[i];
     }
 
     // Free temporary arrays
@@ -161,16 +161,16 @@ free_frame(struct FrameDefinition* def)
     {
         free(def->index_frame_ids);
     }
-    if( def->translator_x )
+    if( def->translator_arg_x )
     {
-        free(def->translator_x);
+        free(def->translator_arg_x);
     }
-    if( def->translator_y )
+    if( def->translator_arg_y )
     {
-        free(def->translator_y);
+        free(def->translator_arg_y);
     }
-    if( def->translator_z )
+    if( def->translator_arg_z )
     {
-        free(def->translator_z);
+        free(def->translator_arg_z);
     }
 }

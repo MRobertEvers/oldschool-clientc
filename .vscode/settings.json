@@ -17,6 +17,7 @@
         "vector": "c",
         "variant": "c",
         "buffer.h": "c",
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "anim.h": "c"
     }
 }

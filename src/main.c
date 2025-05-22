@@ -1025,6 +1025,7 @@ main(int argc, char* argv[])
         int light_magnitude =
             (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
         int attenuation = light_attenuation * light_magnitude >> 8;
+
         apply_lighting(
             face_colors_a_hsl16,
             face_colors_b_hsl16,

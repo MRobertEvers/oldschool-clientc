@@ -10,11 +10,11 @@ decode_framemap(struct FramemapDefinition* def, int id, struct Buffer* buffer)
     def->id = id;
     def->length = read_8(buffer);
     def->types = malloc(def->length * sizeof(int));
-    def->frameMaps = malloc(def->length * sizeof(int*));
-    def->frameMapLengths = malloc(def->length * sizeof(int));
+    def->vertex_groups = malloc(def->length * sizeof(int*));
+    def->vertex_group_lengths = malloc(def->length * sizeof(int));
     memset(def->types, 0, def->length * sizeof(int));
-    memset(def->frameMaps, 0, def->length * sizeof(int*));
-    memset(def->frameMapLengths, 0, def->length * sizeof(int));
+    memset(def->vertex_groups, 0, def->length * sizeof(int*));
+    memset(def->vertex_group_lengths, 0, def->length * sizeof(int));
 
     // Read the types array
     for( int i = 0; i < def->length; i++ )
@@ -25,17 +25,17 @@ decode_framemap(struct FramemapDefinition* def, int id, struct Buffer* buffer)
     // Read the frame maps lengths
     for( int i = 0; i < def->length; i++ )
     {
-        def->frameMapLengths[i] = read_8(buffer);
-        def->frameMaps[i] = malloc(def->frameMapLengths[i] * sizeof(int));
-        memset(def->frameMaps[i], 0, def->frameMapLengths[i] * sizeof(int));
+        def->vertex_group_lengths[i] = read_8(buffer);
+        def->vertex_groups[i] = malloc(def->vertex_group_lengths[i] * sizeof(int));
+        memset(def->vertex_groups[i], 0, def->vertex_group_lengths[i] * sizeof(int));
     }
 
     // Read the frame maps data
     for( int i = 0; i < def->length; i++ )
     {
-        for( int j = 0; j < def->frameMapLengths[i]; j++ )
+        for( int j = 0; j < def->vertex_group_lengths[i]; j++ )
         {
-            def->frameMaps[i][j] = read_8(buffer);
+            def->vertex_groups[i][j] = read_8(buffer);
         }
     }
 }
@@ -47,15 +47,15 @@ free_framemap(struct FramemapDefinition* def)
     {
         free(def->types);
     }
-    if( def->frameMaps )
+    if( def->vertex_groups )
     {
         for( int i = 0; i < def->length; i++ )
         {
-            if( def->frameMaps[i] )
+            if( def->vertex_groups[i] )
             {
-                free(def->frameMaps[i]);
+                free(def->vertex_groups[i]);
             }
         }
-        free(def->frameMaps);
+        free(def->vertex_groups);
     }
 }

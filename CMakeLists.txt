@@ -16,6 +16,9 @@ add_executable(rs
     src/texture.c
     src/lighting.c
     src/buffer.c
+    src/framemap.c
+    src/frame.c
+    src/anim.c
 )
 
 add_executable(osrs_cache_test

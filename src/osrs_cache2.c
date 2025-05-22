@@ -1,5 +1,6 @@
 #include "sequence.h"
 // #include "xtea.h"
+#include "anim.h"
 #include "buffer.h"
 #include "frame.h"
 #include "framemap.h"
@@ -1164,6 +1165,18 @@ load_models()
         struct FramemapDefinition framemap = { 0 };
         decode_framemap(&framemap, framemap_archive_id, &framemap_buffer);
 
+        // Write framemap buffer to file
+        char framemap_filename[256];
+        snprintf(framemap_filename, sizeof(framemap_filename), "framemap_%d.bin", i);
+        FILE* framemap_file = fopen(framemap_filename, "wb");
+        if( framemap_file == NULL )
+        {
+            printf("Failed to open %s for writing\n", framemap_filename);
+            return NULL;
+        }
+        fwrite(framemap_buffer.data, 1, framemap_buffer.data_size, framemap_file);
+        fclose(framemap_file);
+
         // TODO: Read "size" from the animation idx0, I looked up what it is for this particular
         // entry and hardcoded it.
         struct Archive* frame_archive = decode_archive(&anim_buffer, 16);
@@ -1175,9 +1188,22 @@ load_models()
         struct Buffer frame_buffer = { .data = frame_archive->entries[0],
                                        .data_size = frame_archive->entry_sizes[0],
                                        .position = 0 };
+
         // Decode the frame
         struct FrameDefinition frame = { 0 };
         decode_frame(&frame, &framemap, index_in_sequence, &frame_buffer);
+
+        // Write frame buffer to file
+        char frame_filename[256];
+        snprintf(frame_filename, sizeof(frame_filename), "frame_%d.bin", i);
+        FILE* frame_file = fopen(frame_filename, "wb");
+        if( frame_file == NULL )
+        {
+            printf("Failed to open %s for writing\n", frame_filename);
+            return NULL;
+        }
+        fwrite(frame_buffer.data, 1, frame_buffer.data_size, frame_file);
+        fclose(frame_file);
 
         // Print frame information
         printf("Frame %d:\n", frame.id);

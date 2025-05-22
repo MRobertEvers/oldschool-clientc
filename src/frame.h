@@ -12,9 +12,9 @@ struct FrameDefinition
     struct FramemapDefinition* framemap;
     int translator_count;
     int* index_frame_ids;
-    int* translator_x;
-    int* translator_y;
-    int* translator_z;
+    int* translator_arg_x;
+    int* translator_arg_y;
+    int* translator_arg_z;
     bool showing;
 };
 

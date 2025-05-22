@@ -5,11 +5,11 @@
 
 struct FramemapDefinition
 {
-    int id;              // ID of the framemap
-    int* types;          // Array of animation types for each vertex group
-    int** frameMaps;     // 2D array of frame maps for each vertex group
-    int* frameMapLengths; // Array of lengths of frame maps for each vertex group
-    int length;          // Number of vertex groups
+    int id;                    // ID of the framemap
+    int* types;                // Array of animation types for each vertex group
+    int** vertex_groups;       // 2D array of frame maps for each vertex group
+    int* vertex_group_lengths; // Array of lengths of frame maps for each vertex group
+    int length;                // Number of vertex groups
 };
 
 void decode_framemap(struct FramemapDefinition* def, int id, struct Buffer* buffer);
