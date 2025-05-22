@@ -177,19 +177,19 @@ typedef struct
 
 - (void)handleScroll:(float)delta
 {
-    // Adjust zoom level based on scroll delta
-    // delta > 0 means scroll up (zoom in)
-    // delta < 0 means scroll down (zoom out)
-    _zoomLevel = fmaxf(0.5f, fminf(5.0f, _zoomLevel - delta * 0.1f));
+    // Adjust yaw angle based on vertical scroll
+    // delta > 0 means scroll up (rotate right)
+    // delta < 0 means scroll down (rotate left)
+    _yawAngle += delta * 0.01f; // Adjust rotation speed here
     [self updateUniforms];
 }
 
 - (void)handleHorizontalScroll:(float)delta
 {
-    // Adjust yaw angle based on horizontal scroll
-    // delta > 0 means scroll right (rotate right)
-    // delta < 0 means scroll left (rotate left)
-    _yawAngle += delta * 0.01f; // Adjust rotation speed here
+    // Adjust zoom level based on horizontal scroll
+    // delta > 0 means scroll right (zoom in)
+    // delta < 0 means scroll left (zoom out)
+    _zoomLevel = fmaxf(0.5f, fminf(5.0f, _zoomLevel - delta * 0.1f));
     [self updateUniforms];
 }
 

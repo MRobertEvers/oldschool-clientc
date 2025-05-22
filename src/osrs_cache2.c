@@ -13,35 +13,10 @@
 
 #define CACHE_PATH "../cache"
 
-// public byte[] data;
-// public int fileCount;
-// public int[] fileHash;
-// public int[] fileSizeInflated;
-// public int[] fileSizeDeflated;
-// public int[] fileOffset;
-// public boolean unpacked;
-struct FileArchive
-{
-    char* data;
-    int file_count;
-    int* file_name_hash;
-    int* file_size_inflated;
-    int* file_size_deflated;
-    int* file_offset;
-    bool unpacked;
-};
-
 #define INDEX_255_ENTRY_SIZE 6
 #define SECTOR_SIZE 520
 
 // Index255 is sometimes known as ref table.
-
-// xtea are keys used to encrypt map data.
-void
-load_index255(char* data, int data_size)
-{
-    int index_count = data_size / INDEX_255_ENTRY_SIZE;
-}
 
 /**
  * @brief "idx" files are indexes.
@@ -543,6 +518,12 @@ decode_archive(struct Buffer* buffer, int size)
 /**
  * Each entry contains metadata information for each archive in the main_file_cache.dat2 file.
  */
+struct ReferenceTableEntryFileMetadata
+{
+    int name_hash;
+    int id;
+};
+
 struct ReferenceTableEntry
 {
     int index;
@@ -555,7 +536,7 @@ struct ReferenceTableEntry
     int version;
     struct
     {
-        int* entries;
+        struct ReferenceTableEntryFileMetadata* entries;
         int count;
     } children;
 };
@@ -595,13 +576,6 @@ get_smart_int(struct Buffer* buffer)
 struct ReferenceTable*
 decode_reference_table(struct Buffer* buffer)
 {
-    // print the first 20 bytes of the buffer
-    for( int i = 0; i < 20; i++ )
-    {
-        printf("%02X (%d) ", buffer->data[i], buffer->data[i]);
-    }
-    printf("\n");
-
     struct ReferenceTable* table = malloc(sizeof(struct ReferenceTable));
     if( !table )
     {
@@ -718,7 +692,8 @@ decode_reference_table(struct Buffer* buffer)
         else
             child_count = read_16(buffer) & 0xFFFF;
         table->entries[id].children.count = child_count;
-        table->entries[id].children.entries = malloc(child_count * sizeof(int));
+        table->entries[id].children.entries =
+            malloc(child_count * sizeof(struct ReferenceTableEntryFileMetadata));
         if( !table->entries[id].children.entries )
         {
             // Cleanup on error
@@ -741,7 +716,7 @@ decode_reference_table(struct Buffer* buffer)
         for( int j = 0; j < table->entries[id].children.count; j++ )
         {
             int delta = table->format >= 7 ? get_smart_int(buffer) : read_16(buffer) & 0xFFFF;
-            table->entries[id].children.entries[j] = accumulator += delta;
+            table->entries[id].children.entries[j].id = accumulator += delta;
         }
     }
 
@@ -765,7 +740,7 @@ decode_reference_table(struct Buffer* buffer)
             int id = ids[i];
             for( int j = 0; j < table->entries[id].children.count; j++ )
             {
-                table->entries[id].children.entries[j] = read_32(buffer);
+                table->entries[id].children.entries[j].name_hash = read_32(buffer);
             }
         }
     }
@@ -1018,7 +993,7 @@ load_models()
 
     struct Archive* packed_archive = decode_archive(&config_archive_buffer, npc_config_table_size);
 
-    for( int i = 963; i < packed_archive->entry_count; i++ )
+    for( int i = 0; i < packed_archive->entry_count; i++ )
     {
         struct Buffer buffer = { .data = packed_archive->entries[i],
                                  .data_size = packed_archive->entry_sizes[i],
