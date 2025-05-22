@@ -2,13 +2,12 @@
 #define FRAME_H
 
 #include "buffer.h"
+#include "framemap.h"
 
-struct FramemapDefinition {
-    int* types;  // Array of animation types for each vertex group
-    int length;  // Number of vertex groups
-};
+#include <stdbool.h>
 
-struct FrameDefinition {
+struct FrameDefinition
+{
     int id;
     struct FramemapDefinition* framemap;
     int translator_count;
@@ -19,7 +18,11 @@ struct FrameDefinition {
     bool showing;
 };
 
-void decode_frame(struct FrameDefinition* def, struct FramemapDefinition* framemap, int id, struct Buffer* buffer);
+void decode_frame(
+    struct FrameDefinition* def,
+    struct FramemapDefinition* framemap,
+    int id,
+    struct Buffer* buffer);
 void free_frame(struct FrameDefinition* def);
 
-#endif // FRAME_H 
+#endif // FRAME_H

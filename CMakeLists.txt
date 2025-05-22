@@ -24,6 +24,8 @@ add_executable(osrs_cache_test
     src/xtea.c
     src/buffer.c
     src/sequence.c
+    src/frame.c
+    src/framemap.c
 )
 
 add_executable(texture_test

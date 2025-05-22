@@ -1,6 +1,8 @@
 #include "sequence.h"
 // #include "xtea.h"
 #include "buffer.h"
+#include "frame.h"
+#include "framemap.h"
 #include "modeltype.c"
 
 #include <assert.h>
@@ -359,6 +361,7 @@ decompress_dat2archive(struct Dat2Archive* archive)
         break;
     default:
         printf("Unknown compression method: %d\n", compression);
+        assert("Unknown compression method" && 0);
         return;
     }
 
@@ -399,6 +402,7 @@ decode_archive(struct Buffer* buffer, int size)
         free(archive);
         return NULL;
     }
+    memset(archive->entry_sizes, 0, size * sizeof(int));
     archive->entry_count = size;
 
     /* read the number of chunks at the end of the archive */
@@ -462,6 +466,9 @@ decode_archive(struct Buffer* buffer, int size)
     }
 
     /* allocate the buffers for the child entries */
+    int* file_offsets = malloc(size * sizeof(int));
+    memset(file_offsets, 0, size * sizeof(int));
+
     for( int id = 0; id < size; id++ )
     {
         archive->entries[id] = malloc(sizes[id]);
@@ -493,8 +500,13 @@ decode_archive(struct Buffer* buffer, int size)
             int chunk_size = chunk_sizes[chunk][id];
 
             /* copy this chunk into the file buffer */
-            readto(archive->entries[id], chunk_size, chunk_size, buffer);
-            archive->entry_sizes[id] = chunk_size;
+            readto(
+                archive->entries[id] + file_offsets[id],
+                sizes[id] - file_offsets[id],
+                chunk_size,
+                buffer);
+            file_offsets[id] += chunk_size;
+            archive->entry_sizes[id] += chunk_size;
         }
     }
 
@@ -505,6 +517,7 @@ decode_archive(struct Buffer* buffer, int size)
     }
     free(chunk_sizes);
     free(sizes);
+    free(file_offsets);
 
     /* return the archive */
     return archive;
@@ -1068,6 +1081,7 @@ load_models()
     // ArchiveFiles files = archive.getFiles(archiveData);
     packed_archive = decode_archive(&archive_buffer, sequence_config_table_size);
 
+    struct SequenceDefinition sequence_2650 = { 0 };
     for( int i = 0; i < packed_archive->entry_count; i++ )
     {
         struct Buffer buffer = { .data = packed_archive->entries[i],
@@ -1079,7 +1093,109 @@ load_models()
         if( sequence.id == 2650 )
         {
             print_sequence(&sequence);
+            sequence_2650 = sequence;
         }
-        free_sequence(&sequence);
+        else
+        {
+            free_sequence(&sequence);
+        }
     }
+
+    // Frame Dumper functionality
+    printf("\nDumping frames...\n");
+    int frame_count = 0;
+
+    // Create output directory if it doesn't exist
+
+    // Get the number of animation archives
+    int animation_archive_count = animations_index_size / INDEX_255_ENTRY_SIZE;
+
+    for( int i = 0; i < sequence_2650.frame_count; i++ )
+    {
+        // Process each animation in the
+        int archive_id = sequence_2650.frame_ids[i];
+        int index_in_sequence = archive_id & 0xFFFF;
+        // Get the frame definition ID from the second 2 bytes of the sequence frame ID
+        archive_id = (archive_id >> 16) & 0xFFFFF;
+
+        struct IndexRecord anim_record;
+        read_index_entry(0, animations_index_data, animations_index_size, archive_id, &anim_record);
+
+        struct Dat2Archive anim_archive;
+        read_dat2(
+            &anim_archive,
+            dat2_data,
+            dat2_size,
+            0,
+            anim_record.record_id,
+            anim_record.sector,
+            anim_record.length);
+        decompress_dat2archive(&anim_archive);
+
+        struct Buffer anim_buffer = { .data = anim_archive.data,
+                                      .data_size = anim_archive.data_size,
+                                      .position = 0 };
+
+        int framemap_archive_id = (anim_buffer.data[0] & 0xFF) << 8 | (anim_buffer.data[1] & 0xFF);
+
+        // Load framemap
+        struct IndexRecord framemap_record;
+        read_index_entry(
+            1, skeletons_index_data, skeletons_index_size, framemap_archive_id, &framemap_record);
+
+        struct Dat2Archive framemap_archive;
+        read_dat2(
+            &framemap_archive,
+            dat2_data,
+            dat2_size,
+            1,
+            framemap_record.record_id,
+            framemap_record.sector,
+            framemap_record.length);
+        decompress_dat2archive(&framemap_archive);
+
+        // Load frame data using framemap
+
+        struct Buffer framemap_buffer = { .data = framemap_archive.data,
+                                          .data_size = framemap_archive.data_size,
+                                          .position = 0 };
+
+        // Decode the framemap
+        struct FramemapDefinition framemap = { 0 };
+        decode_framemap(&framemap, framemap_archive_id, &framemap_buffer);
+
+        // TODO: Read "size" from the animation idx0, I looked up what it is for this particular
+        // entry and hardcoded it.
+        struct Archive* frame_archive = decode_archive(&anim_buffer, 16);
+        if( frame_archive->entry_count != 16 )
+        {
+            printf("No frame data found for frame %d\n", archive_id);
+            return NULL;
+        }
+        struct Buffer frame_buffer = { .data = frame_archive->entries[0],
+                                       .data_size = frame_archive->entry_sizes[0],
+                                       .position = 0 };
+        // Decode the frame
+        struct FrameDefinition frame = { 0 };
+        decode_frame(&frame, &framemap, index_in_sequence, &frame_buffer);
+
+        // Print frame information
+        printf("Frame %d:\n", frame.id);
+        printf("  Framemap ID: %d\n", framemap_archive_id);
+        printf("  Vertex groups: %d\n", framemap.length);
+        printf("  Translators: %d\n", frame.translator_count);
+        printf("  Showing: %s\n", frame.showing ? "true" : "false");
+
+        // Cleanup
+        free_frame(&frame);
+        free_framemap(&framemap);
+        free(framemap_archive.data);
+        free(anim_archive.data);
+    }
+
+    // Cleanup
+    free(animations_index_data);
+    free(skeletons_index_data);
+
+    return model;
 }

@@ -16,6 +16,7 @@
         "string_view": "c",
         "vector": "c",
         "variant": "c",
-        "buffer.h": "c"
+        "buffer.h": "c",
+        "stdbool.h": "c"
     }
 }

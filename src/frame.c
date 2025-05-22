@@ -1,8 +1,25 @@
 #include "frame.h"
 
+#include "buffer.h"
+
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+
+static int
+read_short_smart(struct Buffer* buffer)
+{
+    int value = read_8(buffer) & 0xFF;
+    if( value < 128 )
+    {
+        return value - 64;
+    }
+    else
+    {
+        unsigned short ushort_value = read_16(buffer);
+        return (int)(ushort_value - 0xC000);
+    }
+}
 
 void
 decode_frame(
@@ -19,7 +36,7 @@ decode_frame(
 
     // Skip the framemap archive index and length in the data buffer
     struct Buffer data = *buffer;
-    data.position += 3 + length;
+    data.position = 3 + length;
 
     // Allocate temporary arrays for processing
     int* index_frame_ids = malloc(500 * sizeof(int));
