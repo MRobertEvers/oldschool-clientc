@@ -9,10 +9,10 @@
 static int
 read_short_smart(struct Buffer* buffer)
 {
-    int value = read_8(buffer) & 0xFF;
+    int value = buffer->data[buffer->position] & 0xFF;
     if( value < 128 )
     {
-        return value - 64;
+        return read_8(buffer) - 64;
     }
     else
     {
