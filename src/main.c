@@ -420,6 +420,11 @@ project_vertices(
         SCREEN_WIDTH,
         SCREEN_HEIGHT);
 
+    // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+    // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
+    // // So the depth is the z projection distance from the origin of the model.
+    // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
+
     int model_origin_z_projection = projected_triangle.z1;
 
     for( int i = 0; i < num_vertices; i++ )
