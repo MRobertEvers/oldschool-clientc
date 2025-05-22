@@ -16,6 +16,9 @@
 #define SCREEN_WIDTH 1280
 #define SCREEN_HEIGHT 720
 
+// Add near plane clipping constant
+#define NEAR_PLANE_Z 50 // Minimum z distance before clipping
+
 int g_sin_table[2048];
 int g_cos_table[2048];
 int g_tan_table[2048];
@@ -26,10 +29,10 @@ int g_tan_table[2048];
 int g_hsl16_to_rgb_table[65536];
 
 static int tmp_depth_face_count[1500] = { 0 };
-static int tmp_depth_faces[1500][512] = { 0 };
+static int tmp_depth_faces[1500 * 512] = { 0 };
 static int tmp_priority_face_count[12] = { 0 };
 static int tmp_priority_depth_sum[12] = { 0 };
-static int tmp_priority_faces[12][2000] = { 0 };
+static int tmp_priority_faces[12 * 2000] = { 0 };
 
 // Helper function to create a simple test texture
 static void
@@ -417,11 +420,6 @@ project_vertices(
         SCREEN_WIDTH,
         SCREEN_HEIGHT);
 
-    // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
-    // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
-    // // So the depth is the z projection distance from the origin of the model.
-    // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
-
     int model_origin_z_projection = projected_triangle.z1;
 
     for( int i = 0; i < num_vertices; i++ )
@@ -443,15 +441,26 @@ project_vertices(
             SCREEN_WIDTH,
             SCREEN_HEIGHT);
 
-        screen_vertices_x[i] = projected_triangle.x1;
-        screen_vertices_y[i] = projected_triangle.y1;
-        screen_vertices_z[i] = projected_triangle.z1 - model_origin_z_projection;
+        // If vertex is too close to camera, set it to a large negative value
+        // This will cause it to be clipped in the rasterization step
+        if( projected_triangle.z1 < NEAR_PLANE_Z )
+        {
+            screen_vertices_x[i] = -1;
+            screen_vertices_y[i] = -1;
+            screen_vertices_z[i] = -1;
+        }
+        else
+        {
+            screen_vertices_x[i] = projected_triangle.x1;
+            screen_vertices_y[i] = projected_triangle.y1;
+            screen_vertices_z[i] = projected_triangle.z1 - model_origin_z_projection;
+        }
     }
 }
 
 static void
 bucket_sort_by_average_depth(
-    int face_depth_buckets[1500][512],
+    int* face_depth_buckets,
     int* face_depth_bucket_counts,
     int model_min_depth,
     int num_faces,
@@ -515,7 +524,7 @@ bucket_sort_by_average_depth(
             if( depth_average < 1500 )
             {
                 int bucket_index = face_depth_bucket_counts[depth_average]++;
-                face_depth_buckets[depth_average][bucket_index] = f;
+                face_depth_buckets[depth_average * 512 + bucket_index] = f;
             }
         }
     }
@@ -523,9 +532,9 @@ bucket_sort_by_average_depth(
 
 static void
 parition_faces_by_priority(
-    int face_priority_buckets[12][2000],
+    int* face_priority_buckets,
     int* face_priority_bucket_counts,
-    int face_depth_buckets[1500][512],
+    int* face_depth_buckets,
     int* face_depth_bucket_counts,
     int num_faces,
     int* face_priorities,
@@ -537,25 +546,13 @@ parition_faces_by_priority(
         if( face_count == 0 )
             continue;
 
-        int* faces = face_depth_buckets[depth];
+        int* faces = &face_depth_buckets[depth * 512];
         for( int i = 0; i < face_count; i++ )
         {
             int face_idx = faces[i];
             int prio = face_priorities[face_idx];
             int priority_face_count = face_priority_bucket_counts[prio]++;
-            face_priority_buckets[prio][priority_face_count] = face_idx;
-            // if( prio < 10 )
-            // {
-            //     tmp_priority_depth_sum[prio] += depth;
-            // }
-            // else if( depth_average == 10 )
-            // {
-            //     _Model.tmp_priority10_face_depth[priority_face_count] = depth;
-            // }
-            // else
-            // {
-            //     _Model.tmp_priority11_face_depth[priority_face_count] = depth;
-            // }
+            face_priority_buckets[prio * 2000 + priority_face_count] = face_idx;
         }
     }
 }
@@ -563,7 +560,7 @@ parition_faces_by_priority(
 void
 raster_osrs(
     struct Pixel* pixel_buffer,
-    int priority_faces[12][2000],
+    int* priority_faces,
     int* priority_face_counts,
     int* face_indices_a,
     int* face_indices_b,
@@ -581,7 +578,7 @@ raster_osrs(
 {
     for( int prio = 0; prio < 12; prio++ )
     {
-        int* triangle_indexes = priority_faces[prio];
+        int* triangle_indexes = &priority_faces[prio * 2000];
         int triangle_count = priority_face_counts[prio];
 
         for( int i = 0; i < triangle_count; i++ )
@@ -600,6 +597,12 @@ raster_osrs(
             triangle.p3.x = vertex_x[face_indices_c[index]] + offset_x;
             triangle.p3.y = vertex_y[face_indices_c[index]] + offset_y;
             triangle.p3.z = vertex_z[face_indices_c[index]];
+
+            // Skip triangle if any vertex was clipped
+            if( triangle.p1.x < 0 || triangle.p2.x < 0 || triangle.p3.x < 0 )
+            {
+                continue;
+            }
 
             int color_a = colors_a[index];
             int color_b = colors_b[index];
@@ -636,18 +639,29 @@ raster_zbuf(
 {
     for( int index = 0; index < num_faces; index++ )
     {
+        // Get vertex z coordinates for near plane check
+        int z1 = vertex_z[face_indices_a[index]];
+        int z2 = vertex_z[face_indices_b[index]];
+        int z3 = vertex_z[face_indices_c[index]];
+
+        // Skip triangle if any vertex is too close to camera
+        if( z1 < NEAR_PLANE_Z || z2 < NEAR_PLANE_Z || z3 < NEAR_PLANE_Z )
+        {
+            continue;
+        }
+
         struct Triangle2D triangle;
         triangle.p1.x = vertex_x[face_indices_a[index]] + offset_x;
         triangle.p1.y = vertex_y[face_indices_a[index]] + offset_y;
-        triangle.p1.z = vertex_z[face_indices_a[index]];
+        triangle.p1.z = z1;
 
         triangle.p2.x = vertex_x[face_indices_b[index]] + offset_x;
         triangle.p2.y = vertex_y[face_indices_b[index]] + offset_y;
-        triangle.p2.z = vertex_z[face_indices_b[index]];
+        triangle.p2.z = z2;
 
         triangle.p3.x = vertex_x[face_indices_c[index]] + offset_x;
         triangle.p3.y = vertex_y[face_indices_c[index]] + offset_y;
-        triangle.p3.z = vertex_z[face_indices_c[index]];
+        triangle.p3.z = z3;
 
         int color_a = colors_a[index];
         int color_b = colors_b[index];
@@ -789,16 +803,17 @@ main(int argc, char* argv[])
     int step = 200;
     // SDL_Renderer* renderer = SDL_GetRenderer(window);
 
+    // Add mouse state tracking
+    int last_mouse_x = 0;
+    int last_mouse_y = 0;
+    bool mouse_down = false;
+
     while( true )
     {
         memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
-        for( int i = 0; i < 1500; i++ )
-            memset(tmp_depth_faces[i], 0, sizeof(tmp_depth_faces[i]));
-
+        memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
         memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
-
-        for( int i = 0; i < 12; i++ )
-            memset(tmp_priority_faces[i], 0, sizeof(tmp_priority_faces[i]));
+        memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
 
         for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
             z_buffer[i] = INT32_MAX;
@@ -814,6 +829,41 @@ main(int argc, char* argv[])
             {
             case SDL_QUIT:
                 goto done;
+            case SDL_MOUSEBUTTONDOWN:
+                if( event.button.button == SDL_BUTTON_LEFT )
+                {
+                    mouse_down = true;
+                    last_mouse_x = event.button.x;
+                    last_mouse_y = event.button.y;
+                }
+                break;
+            case SDL_MOUSEBUTTONUP:
+                if( event.button.button == SDL_BUTTON_LEFT )
+                {
+                    mouse_down = false;
+                }
+                break;
+            case SDL_MOUSEMOTION:
+                if( mouse_down )
+                {
+                    int dx = -(event.motion.x - last_mouse_x);
+                    int dy = -(event.motion.y - last_mouse_y);
+
+                    // Update model rotation based on mouse movement
+                    model_yaw = (model_yaw - dx * 2 + 2048) % 2048;
+                    model_pitch = (model_pitch - dy * 2 + 2048) % 2048;
+
+                    last_mouse_x = event.motion.x;
+                    last_mouse_y = event.motion.y;
+                }
+                break;
+            case SDL_MOUSEWHEEL:
+                // Adjust camera distance based on scroll direction
+                // Positive y is scroll up (zoom in), negative y is scroll down (zoom out)
+                camera_z -= event.wheel.y * 10; // Move camera closer/further
+                if( camera_z < 50 )
+                    camera_z = 50; // Prevent getting too close
+                break;
             case SDL_KEYDOWN:
             {
                 keydown = true;
