@@ -154,10 +154,12 @@ typedef struct
     id<MTLRenderPipelineState> _pipelineState;
     id<MTLBuffer> _vertexBuffer;
     id<MTLBuffer> _uniformBuffer;
+    id<MTLBuffer> _axisLinesBuffer; // New buffer for axis lines
     Uniforms _uniforms;
     Model _model;
     float _zoomLevel;
     float _yawAngle;
+    float _pitchAngle;
     float _cameraHeight;
     id<MTLDepthStencilState> _depthStencilState;
 }
@@ -165,31 +167,26 @@ typedef struct
 - (instancetype)initWithMetalView:(MTKView*)metalView;
 - (void)updateUniforms;
 - (BOOL)loadModel:(const char*)filename;
-- (void)handleScroll:(float)delta;
-- (void)handleHorizontalScroll:(float)delta;
+- (void)handleRotation:(float)deltaX pitch:(float)deltaY;
 - (void)moveCameraUp:(float)amount;
 - (void)moveCameraDown:(float)amount;
 - (void)handleMouseClick:(NSPoint)point inView:(MTKView*)view;
+- (void)handleZoom:(float)delta;
+- (void)createAxisLines;
 
 @end
 
 @implementation MetalRenderer
 
-- (void)handleScroll:(float)delta
+- (void)handleRotation:(float)deltaX pitch:(float)deltaY
 {
-    // Adjust yaw angle based on vertical scroll
-    // delta > 0 means scroll up (rotate right)
-    // delta < 0 means scroll down (rotate left)
-    _yawAngle += delta * 0.01f; // Adjust rotation speed here
-    [self updateUniforms];
-}
+    // Update both yaw and pitch based on gesture movement
+    _yawAngle += deltaX;   // Rotate left/right
+    _pitchAngle += deltaY; // Rotate up/down
 
-- (void)handleHorizontalScroll:(float)delta
-{
-    // Adjust zoom level based on horizontal scroll
-    // delta > 0 means scroll right (zoom in)
-    // delta < 0 means scroll left (zoom out)
-    _zoomLevel = fmaxf(0.5f, fminf(5.0f, _zoomLevel - delta * 0.1f));
+    // Clamp pitch to prevent over-rotation
+    _pitchAngle = fmaxf(-M_PI / 2, fminf(M_PI / 2, _pitchAngle));
+
     [self updateUniforms];
 }
 
@@ -227,17 +224,28 @@ typedef struct
         .columns[3] = { 0,       0, 0,      1 }
     };
 
+    // Create pitch rotation matrix (around X axis)
+    float cosPitch = cosf(_pitchAngle);
+    float sinPitch = sinf(_pitchAngle);
+    simd_float4x4 pitchMatrix = {
+        .columns[0] = { 1, 0,        0,         0 },
+        .columns[1] = { 0, cosPitch, -sinPitch, 0 },
+        .columns[2] = { 0, sinPitch, cosPitch,  0 },
+        .columns[3] = { 0, 0,        0,         1 }
+    };
+
     // Create translation matrix to move model back (zoom out) and up/down
     simd_float4x4 translationMatrix = {
         .columns[0] = { 1, 0,             0,          0 },
         .columns[1] = { 0, 1,             0,          0 },
         .columns[2] = { 0, 0,             1,          0 },
-        .columns[3] = { 0, _cameraHeight, _zoomLevel, 1 }  // Add camera height
+        .columns[3] = { 0, _cameraHeight, _zoomLevel, 1 }
     };
 
     // Combine matrices: first translate to origin, then rotate, then translate back
     // This ensures the model rotates around its own center
-    simd_float4x4 combinedMatrix = simd_mul(translationMatrix, simd_mul(yawMatrix, rollMatrix));
+    simd_float4x4 combinedMatrix =
+        simd_mul(translationMatrix, simd_mul(pitchMatrix, simd_mul(yawMatrix, rollMatrix)));
     _uniforms.modelViewMatrix = combinedMatrix;
     _uniforms.projectionMatrix = matrix4x4_perspective(90.0f * (M_PI / 180.0f), 1.0f, 0.1f, 100.0f);
 
@@ -350,9 +358,10 @@ typedef struct
         metalView.delegate = self;
         metalView.clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
 
-        // Set initial zoom level, yaw, and camera height
+        // Set initial zoom level, yaw, pitch, and camera height
         _zoomLevel = 2.0f;
         _yawAngle = 0.0f;
+        _pitchAngle = 0.0f;
         _cameraHeight = -0.35f;
 
         _commandQueue = [_device newCommandQueue];
@@ -411,6 +420,9 @@ typedef struct
 
         _uniformBuffer = [_device newBufferWithLength:sizeof(Uniforms)
                                               options:MTLResourceStorageModeShared];
+
+        // Create axis lines after device initialization
+        [self createAxisLines];
 
         // Create pipeline state
         NSError* error = nil;
@@ -511,6 +523,44 @@ typedef struct
     return self;
 }
 
+- (void)createAxisLines
+{
+    const int numPoints = 64;  // Number of points in each circle
+    const float radius = 0.5f; // Radius of the circles
+    Vertex* axisLines = (Vertex*)malloc(numPoints * 3 * sizeof(Vertex)); // 3 circles (X, Y, Z)
+
+    // Create circles for each axis
+    for( int i = 0; i < numPoints; i++ )
+    {
+        float angle = (float)i / numPoints * 2.0f * M_PI;
+        float x = cosf(angle) * radius;
+        float y = sinf(angle) * radius;
+
+        // XY circle (Z axis)
+        axisLines[i] = (Vertex){
+            .position = simd_make_float3(x, y, 0),
+            .color = simd_make_float4(0, 0, 1, 1) // Blue for Z
+        };
+
+        // XZ circle (Y axis)
+        axisLines[i + numPoints] = (Vertex){
+            .position = simd_make_float3(x, 0, y),
+            .color = simd_make_float4(0, 1, 0, 1) // Green for Y
+        };
+
+        // YZ circle (X axis)
+        axisLines[i + numPoints * 2] = (Vertex){
+            .position = simd_make_float3(0, x, y),
+            .color = simd_make_float4(1, 0, 0, 1) // Red for X
+        };
+    }
+
+    _axisLinesBuffer = [_device newBufferWithBytes:axisLines
+                                            length:numPoints * 3 * sizeof(Vertex)
+                                           options:MTLResourceStorageModeShared];
+    free(axisLines);
+}
+
 - (void)drawInMTKView:(MTKView*)view
 {
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
@@ -524,13 +574,28 @@ typedef struct
         [renderEncoder setDepthStencilState:_depthStencilState];
         [renderEncoder setCullMode:MTLCullModeBack];
         [renderEncoder setFrontFacingWinding:MTLWindingClockwise];
+
+        // Draw the model
         [renderEncoder setVertexBuffer:_vertexBuffer offset:0 atIndex:0];
         [renderEncoder setVertexBuffer:_uniformBuffer offset:0 atIndex:1];
         [renderEncoder drawPrimitives:MTLPrimitiveTypeTriangle
                           vertexStart:0
                           vertexCount:_model.face_count * 3];
-        [renderEncoder endEncoding];
 
+        // Draw axis lines
+        [renderEncoder setVertexBuffer:_axisLinesBuffer offset:0 atIndex:0];
+        [renderEncoder setVertexBuffer:_uniformBuffer offset:0 atIndex:1];
+
+        // Draw each circle
+        const int numPoints = 64;
+        for( int i = 0; i < 3; i++ )
+        {
+            [renderEncoder drawPrimitives:MTLPrimitiveTypeLineStrip
+                              vertexStart:i * numPoints
+                              vertexCount:numPoints];
+        }
+
+        [renderEncoder endEncoding];
         [commandBuffer presentDrawable:view.currentDrawable];
     }
 
@@ -578,18 +643,56 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
 - (void)handleMouseClick:(NSPoint)point inView:(MTKView*)view
 {}
 
+- (void)handleZoom:(float)delta
+{
+    // Adjust zoom level based on vertical scroll
+    // delta > 0 means scroll up (zoom in)
+    // delta < 0 means scroll down (zoom out)
+    _zoomLevel = fmaxf(0.5f, fminf(5.0f, _zoomLevel - delta * 0.1f));
+    [self updateUniforms];
+}
+
 @end
 
 @interface MetalView : MTKView
+{
+    NSPanGestureRecognizer* _panGestureRecognizer;
+}
 @end
 
 @implementation MetalView
 
-- (void)scrollWheel:(NSEvent*)event
+- (instancetype)initWithFrame:(NSRect)frame
+{
+    self = [super initWithFrame:frame];
+    if( self )
+    {
+        // Create and configure the pan gesture recognizer
+        _panGestureRecognizer =
+            [[NSPanGestureRecognizer alloc] initWithTarget:self
+                                                    action:@selector(handlePanGesture:)];
+        _panGestureRecognizer.numberOfTouchesRequired = 2; // Require two fingers
+        [self addGestureRecognizer:_panGestureRecognizer];
+    }
+    return self;
+}
+
+- (void)handlePanGesture:(NSPanGestureRecognizer*)gesture
 {
     MetalRenderer* renderer = (MetalRenderer*)self.delegate;
-    [renderer handleScroll:event.deltaY];
-    [renderer handleHorizontalScroll:event.deltaX];
+    NSPoint translation = [gesture translationInView:self];
+
+    // Convert the translation to rotation angles
+    // Scale the movement to control rotation speed
+    float rotationSpeed = 0.01f;
+    float deltaX = translation.x * rotationSpeed;
+    float deltaY = -translation.y * rotationSpeed;
+
+    // Update the model's rotation
+    [renderer handleRotation:deltaX pitch:deltaY];
+
+    // Reset the translation to prevent accumulation
+    [gesture setTranslation:NSZeroPoint inView:self];
 }
 
 - (void)keyDown:(NSEvent*)event
@@ -618,6 +721,13 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     MetalRenderer* renderer = (MetalRenderer*)self.delegate;
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     [renderer handleMouseClick:point inView:self];
+}
+
+- (void)scrollWheel:(NSEvent*)event
+{
+    MetalRenderer* renderer = (MetalRenderer*)self.delegate;
+    // Only handle vertical scroll for zoom
+    [renderer handleZoom:event.deltaY];
 }
 
 @end
