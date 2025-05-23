@@ -169,3 +169,54 @@ g_palette is a HSL->RGB table.
 ### Cache information
 
 https://www.osrsbox.com/osrs-cache/
+
+### CRC Table
+
+/Users/matthewevers/Documents/git_repos/openrs2-nonfree/client/src/main/java/BufferedFile.java
+
+```
+	static {
+		for (@Pc(4) int i = 0; i < 256; i++) {
+			@Pc(12) long crc = i;
+			for (@Pc(14) int j = 0; j < 8; j++) {
+				if ((crc & 0x1L) == 1L) {
+					crc = crc >>> 1 ^ 0xC96C5795D7870F42L;
+				} else {
+					crc >>>= 1;
+				}
+			}
+			CRC64_TABLE[i] = crc;
+		}
+	}
+```
+
+### Sequence from RuneLite
+
+Seq: 2650
+
+"SequenceDefinition(id=2650, debugName=lordmagmus_ready, frameIDs=[827326465, 827326466, 827326467, 827326468, 827326469, 827326470, 827326471, 827326472, 827326473, 827326474, 827326475, 827326476, 827326477, 827326478, 827326479, 827326480], chatFrameIds=null, frameLengths=[6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5], frameStep=-1, interleaveLeave=null, stretches=false, forcedPriority=5, leftHandItem=-1, rightHandItem=-1, maxLoops=99, precedenceAnimating=-1, priority=-1, replyMode=2, animMayaID=-1, frameSounds={}, animMayaStart=0, animMayaEnd=0, animMayaMasks=null)"
+
+private void method3825(@OriginalArg(0) AnimBase base, @OriginalArg(1) AnimFrame arg1, @OriginalArg(2) AnimFrame arg2, @OriginalArg(3) int arg3, @OriginalArg(4) int arg4, @OriginalArg(5) boolean[] arg5, @OriginalArg(6) boolean arg6, @OriginalArg(7) boolean arg7, @OriginalArg(8) int parts, @OriginalArg(9) int[] arg9) {
+if (arg2 == null || arg3 == 0) {
+for (@Pc(5) int i = 0; i < arg1.transforms; i++) {
+@Pc(14) short index = arg1.indices[i];
+if (arg5 == null || arg5[index] == arg6 || base.types[index] == 0) {
+@Pc(32) short prevOriginIndex = arg1.prevOriginIndices[i];
+if (prevOriginIndex != -1) {
+@Pc(42) int parts2 = parts & base.parts[prevOriginIndex];
+if (parts2 == 65535) {
+this.transform(0, base.bones[prevOriginIndex], 0, 0, 0, arg7);
+} else {
+this.transform(0, base.bones[prevOriginIndex], 0, 0, 0, arg7, parts2, arg9);
+}
+}
+@Pc(77) int parts2 = parts & base.parts[index];
+if (parts2 == 65535) {
+this.transform(base.types[index], base.bones[index], arg1.x[i], arg1.y[i], arg1.z[i], arg7);
+} else {
+this.transform(base.types[index], base.bones[index], arg1.x[i], arg1.y[i], arg1.z[i], arg7, parts2, arg9);
+}
+}
+}
+return;
+}

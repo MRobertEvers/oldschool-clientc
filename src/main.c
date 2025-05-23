@@ -1,3 +1,7 @@
+#include "anim.h"
+#include "buffer.h"
+#include "frame.h"
+#include "framemap.h"
 #include "gouraud.h"
 #include "lighting.h"
 #include "load_separate.h"
@@ -526,10 +530,20 @@ bucket_sort_by_average_depth(
             // maintain relative order.
             int depth_average = (za + zb + zc) / 3 + model_min_depth;
 
-            if( depth_average < 1500 )
+            if( depth_average < 1500 && depth_average > 0 )
             {
                 int bucket_index = face_depth_bucket_counts[depth_average]++;
                 face_depth_buckets[depth_average * 512 + bucket_index] = f;
+            }
+            else
+            {
+                printf(
+                    "Out of bounds %d, (%d, %d, %d) - %d\n",
+                    depth_average,
+                    za,
+                    zb,
+                    zc,
+                    model_min_depth);
             }
         }
     }
@@ -706,6 +720,7 @@ main(int argc, char* argv[])
     int camera_roll = 0;
     int camera_fov = 512; // Default FOV (approximately 90 degrees)
 
+    // struct Model model = load_separate("../model2");
     struct Model model = load_separate("../model2");
     if( model.vertex_count == 0 )
     {
@@ -735,6 +750,11 @@ main(int argc, char* argv[])
     int model_yaw = 0;
     int model_roll = 0;
 
+    // Add frame timing variables
+    int current_frame = 0;
+    int32_t last_frame_time = -200000;
+    const int32_t FRAME_DURATION = 2000; // 2 seconds in milliseconds
+
     project_vertices(
         screen_vertices_x,
         screen_vertices_y,
@@ -759,7 +779,7 @@ main(int argc, char* argv[])
     struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
         model.vertex_count, model.vertices_x, model.vertices_y, model.vertices_z);
 
-    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
+    int model_min_depth = 300;
 
     struct Pixel* pixel_buffer =
         (struct Pixel*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
@@ -776,6 +796,11 @@ main(int argc, char* argv[])
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return -1;
     }
+
+    // Make a copy of the model vertices for animation
+    int* animated_vertices_x = malloc(sizeof(int) * model.vertex_count);
+    int* animated_vertices_y = malloc(sizeof(int) * model.vertex_count);
+    int* animated_vertices_z = malloc(sizeof(int) * model.vertex_count);
 
     SDL_Window* window = SDL_CreateWindow(
         "Oldschool Runescape",
@@ -945,6 +970,89 @@ main(int argc, char* argv[])
         if( camera_fov > 1280 ) // 150 degrees in units of 2048ths of 2π (150/360 * 2048)
             camera_fov = 1280;
 
+        // Update frame timing
+        // Uint32 current_time = SDL_GetTicks();
+        // bool update_frame = false;
+        // if( current_time - last_frame_time >= FRAME_DURATION )
+        // {
+        //     current_frame = (current_frame + 1) % 16; // Wrap at 15
+        //     last_frame_time = current_time;
+        //     update_frame = true;
+        // }
+
+        // if( update_frame )
+        // {
+        //     memcpy(animated_vertices_x, model.vertices_x, sizeof(int) * model.vertex_count);
+        //     memcpy(animated_vertices_y, model.vertices_y, sizeof(int) * model.vertex_count);
+        //     memcpy(animated_vertices_z, model.vertices_z, sizeof(int) * model.vertex_count);
+
+        //     // // Load and apply frame transformation for current frame
+        //     // char framemap_filename[256];
+        //     // char frame_filename[256];
+        //     // snprintf(
+        //     //     framemap_filename, sizeof(framemap_filename), "framemap_%d.bin",
+        //     current_frame);
+        //     // snprintf(frame_filename, sizeof(frame_filename), "frame_%d.bin", current_frame);
+
+        //     // // Load framemap
+        //     // FILE* framemap_file = fopen(framemap_filename, "rb");
+        //     // if( !framemap_file )
+        //     // {
+        //     //     printf("Failed to open framemap file %s\n", framemap_filename);
+        //     // }
+        //     // else
+        //     // {
+        //     //     fseek(framemap_file, 0, SEEK_END);
+        //     //     int framemap_size = ftell(framemap_file);
+        //     //     fseek(framemap_file, 0, SEEK_SET);
+        //     //     char* framemap_data = malloc(framemap_size);
+        //     //     fread(framemap_data, 1, framemap_size, framemap_file);
+        //     //     fclose(framemap_file);
+
+        //     //     // Load frame
+        //     //     FILE* frame_file = fopen(frame_filename, "rb");
+        //     //     if( !frame_file )
+        //     //     {
+        //     //         printf("Failed to open frame file %s\n", frame_filename);
+        //     //         free(framemap_data);
+        //     //     }
+        //     //     else
+        //     //     {
+        //     //         fseek(frame_file, 0, SEEK_END);
+        //     //         int frame_size = ftell(frame_file);
+        //     //         fseek(frame_file, 0, SEEK_SET);
+        //     //         char* frame_data = malloc(frame_size);
+        //     //         fread(frame_data, 1, frame_size, frame_file);
+        //     //         fclose(frame_file);
+
+        //     //         // Decode framemap and frame
+        //     //         struct Buffer framemap_buffer = { .data = framemap_data,
+        //     //                                           .data_size = framemap_size,
+        //     //                                           .position = 0 };
+        //     //         struct Buffer frame_buffer = { .data = frame_data,
+        //     //                                        .data_size = frame_size,
+        //     //                                        .position = 0 };
+
+        //     //         struct FramemapDefinition framemap = { 0 };
+        //     //         decode_framemap(&framemap, current_frame, &framemap_buffer);
+
+        //     //         struct FrameDefinition frame = { 0 };
+        //     //         decode_frame(&frame, &framemap, current_frame, &frame_buffer);
+
+        //     //         // Apply frame transformation
+        //     //         anim_frame_apply(
+        //     //             &frame, animated_vertices_x, animated_vertices_y,
+        //     animated_vertices_z);
+
+        //     //         // Cleanup
+        //     //         free_frame(&frame);
+        //     //         free_framemap(&framemap);
+        //     //         free(framemap_data);
+        //     //         free(frame_data);
+        //     //     }
+        //     // }
+        // }
+
         project_vertices(
             screen_vertices_x,
             screen_vertices_y,
@@ -1003,7 +1111,8 @@ main(int argc, char* argv[])
             tmp_depth_face_count,
             model.face_count,
             model.face_priorities,
-            model_min_depth * 2);
+            1499);
+        // model_min_depth * 2);
 
         SDL_RenderClear(renderer);
 

@@ -1,5 +1,7 @@
 #include "anim.h"
 
+#include <string.h>
+
 extern int g_cos_table[2048];
 extern int g_sin_table[2048];
 extern int g_tan_table[2048];
@@ -15,10 +17,7 @@ animate(
      * [1] => Vertex Group 5
      * [2] => Vertex Group 9 etc.
      */
-    int* frame_map,
-    int frame_map_length,
-    int** vertex_groups,
-    int* vertex_groups_lengths,
+    int* vertex_group,
     int vertex_groups_length,
     int arg_x,
     int arg_y,
@@ -36,23 +35,16 @@ animate(
         int avg_z = 0;
         int count = 0;
 
-        for( int i = 0; i < frame_map_length; ++i )
-        {
-            int vertex_group_index = frame_map[i];
-            if( vertex_group_index < vertex_groups_length )
-            {
-                int* face_indices = vertex_groups[vertex_group_index];
-                int face_indices_length = vertex_groups_lengths[vertex_group_index];
+        int* face_indices = vertex_group;
+        int face_indices_length = vertex_groups_length;
 
-                for( int j = 0; j < face_indices_length; ++j )
-                {
-                    int face_index = face_indices[j];
-                    avg_x += vertices_x[face_index];
-                    avg_y += vertices_y[face_index];
-                    avg_z += vertices_z[face_index];
-                    ++count;
-                }
-            }
+        for( int j = 0; j < face_indices_length; ++j )
+        {
+            int face_index = face_indices[j];
+            avg_x += vertices_x[face_index];
+            avg_y += vertices_y[face_index];
+            avg_z += vertices_z[face_index];
+            ++count;
         }
 
         if( count > 0 )
@@ -71,111 +63,87 @@ animate(
     }
     case 1:
     {
-        for( int i = 0; i < frame_map_length; ++i )
-        {
-            int vertex_group_index = frame_map[i];
-            if( vertex_group_index < vertex_groups_length )
-            {
-                int* face_indices = vertex_groups[vertex_group_index];
-                int face_indices_length = vertex_groups_lengths[vertex_group_index];
+        int* face_indices = vertex_group;
+        int face_indices_length = vertex_groups_length;
 
-                for( int j = 0; j < face_indices_length; ++j )
-                {
-                    int face_index = face_indices[j];
-                    vertices_x[face_index] += arg_x;
-                    vertices_y[face_index] += arg_y;
-                    vertices_z[face_index] += arg_z;
-                }
-            }
+        for( int j = 0; j < face_indices_length; ++j )
+        {
+            int face_index = face_indices[j];
+            vertices_x[face_index] += arg_x;
+            vertices_y[face_index] += arg_y;
+            vertices_z[face_index] += arg_z;
         }
         break;
     }
     case 2:
     {
-        for( int i = 0; i < frame_map_length; ++i )
+        int* face_indices = vertex_group;
+        int face_indices_length = vertex_groups_length;
+
+        for( int j = 0; j < face_indices_length; ++j )
         {
-            int vertex_group_index = frame_map[i];
-            if( vertex_group_index < vertex_groups_length )
+            int face_index = face_indices[j];
+            vertices_x[face_index] -= transformation->origin_x;
+            vertices_y[face_index] -= transformation->origin_y;
+            vertices_z[face_index] -= transformation->origin_z;
+            int pitch = (arg_x & 255) * 8;
+            int yaw = (arg_y & 255) * 8;
+            int roll = (arg_z & 255) * 8;
+            int var17;
+            if( roll != 0 )
             {
-                int* face_indices = vertex_groups[vertex_group_index];
-                int face_indices_length = vertex_groups_lengths[vertex_group_index];
-
-                for( int j = 0; j < face_indices_length; ++j )
-                {
-                    int face_index = face_indices[j];
-                    vertices_x[face_index] -= transformation->origin_x;
-                    vertices_y[face_index] -= transformation->origin_y;
-                    vertices_z[face_index] -= transformation->origin_z;
-                    int var12 = (arg_x & 255) * 8;
-                    int var13 = (arg_y & 255) * 8;
-                    int var14 = (arg_z & 255) * 8;
-                    int var15;
-                    int var16;
-                    int var17;
-                    if( var14 != 0 )
-                    {
-                        var15 = g_sin_table[var14];
-                        var16 = g_cos_table[var14];
-                        var17 =
-                            var15 * vertices_y[face_index] + var16 * vertices_x[face_index] >> 16;
-                        vertices_y[face_index] =
-                            var16 * vertices_y[face_index] - var15 * vertices_x[face_index] >> 16;
-                        vertices_x[face_index] = var17;
-                    }
-
-                    if( var12 != 0 )
-                    {
-                        var15 = g_sin_table[var12];
-                        var16 = g_cos_table[var12];
-                        var17 =
-                            (var16 * vertices_y[face_index] - var15 * vertices_z[face_index]) >> 16;
-                        vertices_z[face_index] =
-                            (var15 * vertices_y[face_index] + var16 * vertices_z[face_index]) >> 16;
-                        vertices_y[face_index] = var17;
-                    }
-
-                    if( var13 != 0 )
-                    {
-                        var15 = g_sin_table[var13];
-                        var16 = g_cos_table[var13];
-                        var17 =
-                            (var15 * vertices_z[face_index] + var16 * vertices_x[face_index]) >> 16;
-                        vertices_z[face_index] =
-                            (var16 * vertices_z[face_index] - var15 * vertices_x[face_index]) >> 16;
-                        vertices_x[face_index] = var17;
-                    }
-
-                    vertices_x[face_index] += arg_x;
-                    vertices_y[face_index] += arg_y;
-                    vertices_z[face_index] += arg_z;
-                }
+                int sin_roll = g_sin_table[roll];
+                int cos_roll = g_cos_table[roll];
+                var17 = sin_roll * vertices_y[face_index] + cos_roll * vertices_x[face_index] >> 16;
+                vertices_y[face_index] =
+                    cos_roll * vertices_y[face_index] - sin_roll * vertices_x[face_index] >> 16;
+                vertices_x[face_index] = var17;
             }
+
+            if( pitch != 0 )
+            {
+                int sin_pitch = g_sin_table[pitch];
+                int cos_pitch = g_cos_table[pitch];
+                var17 =
+                    (cos_pitch * vertices_y[face_index] - sin_pitch * vertices_z[face_index]) >> 16;
+                vertices_z[face_index] =
+                    (sin_pitch * vertices_y[face_index] + cos_pitch * vertices_z[face_index]) >> 16;
+                vertices_y[face_index] = var17;
+            }
+
+            if( yaw != 0 )
+            {
+                int sin_yaw = g_sin_table[yaw];
+                int cos_yaw = g_cos_table[yaw];
+                var17 = (sin_yaw * vertices_z[face_index] + cos_yaw * vertices_x[face_index]) >> 16;
+                vertices_z[face_index] =
+                    (cos_yaw * vertices_z[face_index] - sin_yaw * vertices_x[face_index]) >> 16;
+                vertices_x[face_index] = var17;
+            }
+
+            vertices_x[face_index] += transformation->origin_x;
+            vertices_y[face_index] += transformation->origin_y;
+            vertices_z[face_index] += transformation->origin_z;
         }
     }
     case 3:
     {
-        for( int i = 0; i < frame_map_length; ++i )
-        {
-            int vertex_group_index = frame_map[i];
-            if( vertex_group_index < vertex_groups_length )
-            {
-                int* face_indices = vertex_groups[vertex_group_index];
-                int face_indices_length = vertex_groups_lengths[vertex_group_index];
+        break;
+        int* face_indices = vertex_group;
+        int face_indices_length = vertex_groups_length;
 
-                for( int j = 0; j < face_indices_length; ++j )
-                {
-                    int face_index = face_indices[j];
-                    vertices_x[face_index] -= transformation->origin_x;
-                    vertices_y[face_index] -= transformation->origin_y;
-                    vertices_z[face_index] -= transformation->origin_z;
-                    vertices_x[face_index] = arg_x * vertices_x[face_index] / 128;
-                    vertices_y[face_index] = arg_y * vertices_y[face_index] / 128;
-                    vertices_z[face_index] = arg_z * vertices_z[face_index] / 128;
-                    vertices_x[face_index] += transformation->origin_x;
-                    vertices_y[face_index] += transformation->origin_y;
-                    vertices_z[face_index] += transformation->origin_z;
-                }
-            }
+        for( int j = 0; j < face_indices_length; ++j )
+        {
+            int face_index = face_indices[j];
+            vertices_x[face_index] -= transformation->origin_x;
+            vertices_y[face_index] -= transformation->origin_y;
+            vertices_z[face_index] -= transformation->origin_z;
+            vertices_x[face_index] = arg_x * vertices_x[face_index] / 128;
+            vertices_y[face_index] = arg_y * vertices_y[face_index] / 128;
+            vertices_z[face_index] = arg_z * vertices_z[face_index] / 128;
+            vertices_x[face_index] += transformation->origin_x;
+            vertices_y[face_index] += transformation->origin_y;
+            vertices_z[face_index] += transformation->origin_z;
         }
     }
     case 5:
@@ -188,22 +156,37 @@ int
 anim_frame_apply(struct FrameDefinition* frame, int* vertices_x, int* vertices_y, int* vertices_z)
 {
     struct Transformation transformation = { 0 };
-    for( int i = 0; i < frame->framemap->length; i++ )
+    for( int i = 0; i < frame->translator_count; i++ )
     {
-        animate(
-            &transformation,
-            frame->framemap->types[i],
-            0,
-            frame->index_frame_ids,
-            frame->translator_count,
-            frame->framemap->vertex_groups,
-            frame->framemap->vertex_group_lengths,
-            frame->framemap->length,
-            frame->translator_arg_x[i],
-            frame->translator_arg_y[i],
-            frame->translator_arg_z[i],
-            vertices_x,
-            vertices_y,
-            vertices_z);
+        memset(&transformation, 0, sizeof(struct Transformation));
+
+        int x = frame->translator_arg_x[i];
+        int y = frame->translator_arg_y[i];
+        int z = frame->translator_arg_z[i];
+
+        int index = frame->index_frame_ids[i];
+        for( int j = 0; j < frame->framemap->length; j++ )
+        {
+            int* bones = frame->framemap->vertex_groups[index];
+            int bones_length = frame->framemap->vertex_group_lengths[index];
+
+            int type = frame->framemap->types[index];
+
+            int frame_id = 0;
+
+            // cache/src/main/java/net/runelite/cache/definitions/ModelDefinition.java
+            animate(
+                &transformation,
+                type,
+                frame_id,
+                bones,
+                bones_length,
+                x,
+                y,
+                z,
+                vertices_x,
+                vertices_y,
+                vertices_z);
+        }
     }
 }
