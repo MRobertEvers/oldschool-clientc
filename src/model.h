@@ -9,7 +9,7 @@ struct Model
     int* vertices_z;
     // Each vertex can belong to 32 bone groups.
     // This is
-    int* vertex_packed_bone_groups;
+    int* vertex_bone_map;
 
     int face_count;
     int* face_indices_a;
@@ -28,10 +28,10 @@ struct Model
 
 struct ModelBones
 {
-    int bone_groups_count;
-    // Array of arrays vertices
-    int** bone_groups;
-    int* bone_groups_sizes;
+    int bones_count;
+    // Array of arrays vertices... AKA arrays of bones.
+    int** bones;
+    int* bones_sizes;
 };
 
 struct ModelBones* model_decode_bones(int* packed_bone_groups, int packed_bone_groups_count);

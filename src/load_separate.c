@@ -30,8 +30,8 @@ load_separate(const char* filename)
     model.vertices_x = (int*)malloc(model.vertex_count * sizeof(int));
     model.vertices_y = (int*)malloc(model.vertex_count * sizeof(int));
     model.vertices_z = (int*)malloc(model.vertex_count * sizeof(int));
-    model.vertex_packed_bone_groups = (int*)malloc(model.vertex_count * sizeof(int));
-    memset(model.vertex_packed_bone_groups, 0, model.vertex_count * sizeof(int));
+    model.vertex_bone_map = (int*)malloc(model.vertex_count * sizeof(int));
+    memset(model.vertex_bone_map, 0, model.vertex_count * sizeof(int));
 
     if( !model.vertices_x || !model.vertices_y || !model.vertices_z )
     {
@@ -43,7 +43,7 @@ load_separate(const char* filename)
     fread(model.vertices_x, sizeof(int), model.vertex_count, file);
     fread(model.vertices_y, sizeof(int), model.vertex_count, file);
     fread(model.vertices_z, sizeof(int), model.vertex_count, file);
-    fread(model.vertex_packed_bone_groups, sizeof(int), model.vertex_count, file);
+    fread(model.vertex_bone_map, sizeof(int), model.vertex_count, file);
     fclose(file);
 
     // Load faces file

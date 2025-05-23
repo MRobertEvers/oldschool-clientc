@@ -16,8 +16,8 @@ int anim_frame_apply(
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
-    int bone_groups_count,
-    int** bone_groups,
-    int* bone_groups_sizes);
+    int bones_count,
+    int** bones,
+    int* bones_sizes);
 
 #endif

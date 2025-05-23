@@ -46,7 +46,7 @@ read_short_smart(const unsigned char* buffer, int* offset)
 }
 
 struct ModelBones*
-model_decode_bones(int* packed_bone_groups, int packed_bone_groups_count)
+model_decode_bones(int* vertex_bone_map, int vertex_bone_map_count)
 {
     struct ModelBones* bones = (struct ModelBones*)malloc(sizeof(struct ModelBones));
     if( !bones )
@@ -81,45 +81,43 @@ model_decode_bones(int* packed_bone_groups, int packed_bone_groups_count)
     // }
 
     // Initialize group counts array
-    int group_counts[256] = { 0 };
-    int num_groups = 0;
+    int bone_counts[256] = { 0 };
+    int num_bones = 0;
 
     // Count occurrences of each group and find max group number
-    for( int i = 0; i < packed_bone_groups_count; i++ )
+    for( int i = 0; i < vertex_bone_map_count; i++ )
     {
-        int group = packed_bone_groups[i];
-        group_counts[group]++;
-        if( group > num_groups )
-        {
-            num_groups = group;
-        }
+        int bone = vertex_bone_map[i];
+        bone_counts[bone]++;
+        if( bone > num_bones )
+            num_bones = bone;
     }
 
     // Allocate arrays
-    bones->bone_groups_count = num_groups + 1;
-    bones->bone_groups = (int**)malloc((num_groups + 1) * sizeof(int*));
-    bones->bone_groups_sizes = (int*)malloc((num_groups + 1) * sizeof(int));
+    bones->bones_count = num_bones + 1;
+    bones->bones = (int**)malloc((num_bones + 1) * sizeof(int*));
+    bones->bones_sizes = (int*)malloc((num_bones + 1) * sizeof(int));
 
-    if( !bones->bone_groups || !bones->bone_groups_sizes )
+    if( !bones->bones || !bones->bones_sizes )
     {
-        free(bones->bone_groups);
-        free(bones->bone_groups_sizes);
+        free(bones->bones);
+        free(bones->bones_sizes);
         free(bones);
         return NULL;
     }
 
     // Allocate each group array
-    for( int i = 0; i <= num_groups; i++ )
+    for( int i = 0; i <= num_bones; i++ )
     {
-        bones->bone_groups[i] = (int*)malloc(group_counts[i] * sizeof(int));
-        bones->bone_groups_sizes[i] = 0;
+        bones->bones[i] = (int*)malloc(bone_counts[i] * sizeof(int));
+        bones->bones_sizes[i] = 0;
     }
 
     // Fill the groups
-    for( int i = 0; i < packed_bone_groups_count; i++ )
+    for( int i = 0; i < vertex_bone_map_count; i++ )
     {
-        int group = packed_bone_groups[i];
-        bones->bone_groups[group][bones->bone_groups_sizes[group]++] = i;
+        int bone = vertex_bone_map[i];
+        bones->bones[bone][bones->bones_sizes[bone]++] = i;
     }
 
     return bones;
@@ -674,7 +672,7 @@ decodeType2(const unsigned char* inputData, int inputLength)
     model->vertices_x = (int*)malloc(vertexCount * sizeof(int));
     model->vertices_y = (int*)malloc(vertexCount * sizeof(int));
     model->vertices_z = (int*)malloc(vertexCount * sizeof(int));
-    model->vertex_packed_bone_groups = (int*)malloc(vertexCount * sizeof(int));
+    model->vertex_bone_map = (int*)malloc(vertexCount * sizeof(int));
 
     // Allocate memory for faces
     model->face_indices_a = (int*)malloc(faceCount * sizeof(int));
@@ -721,7 +719,7 @@ decodeType2(const unsigned char* inputData, int inputLength)
 
         if( hasPackedVertexGroups == 1 )
         {
-            model->vertex_packed_bone_groups[i] = read_byte(inputData, &offsetOfPackedBoneGroups);
+            model->vertex_bone_map[i] = read_byte(inputData, &offsetOfPackedBoneGroups);
         }
     }
 
@@ -892,9 +890,9 @@ write_model_separate(const struct Model* model, const char* filename)
     fwrite(model->vertices_x, sizeof(int), model->vertex_count, file);
     fwrite(model->vertices_y, sizeof(int), model->vertex_count, file);
     fwrite(model->vertices_z, sizeof(int), model->vertex_count, file);
-    if( model->vertex_packed_bone_groups )
+    if( model->vertex_bone_map )
     {
-        fwrite(model->vertex_packed_bone_groups, sizeof(int), model->vertex_count, file);
+        fwrite(model->vertex_bone_map, sizeof(int), model->vertex_count, file);
     }
     fclose(file);
 

@@ -818,8 +818,7 @@ main(int argc, char* argv[])
         return -1;
     }
 
-    struct ModelBones* bones =
-        model_decode_bones(model.vertex_packed_bone_groups, model.vertex_count);
+    struct ModelBones* bones = model_decode_bones(model.vertex_bone_map, model.vertex_count);
 
     // Initialize file modification times
     // init_file_mtimes(model_path);
@@ -947,7 +946,7 @@ main(int argc, char* argv[])
             free(model.vertices_x);
             free(model.vertices_y);
             free(model.vertices_z);
-            free(model.vertex_packed_bone_groups);
+            free(model.vertex_bone_map);
             free(model.face_indices_a);
             free(model.face_indices_b);
             free(model.face_indices_c);
@@ -977,7 +976,7 @@ main(int argc, char* argv[])
             bounding_cylinder = calculate_bounding_cylinder(
                 model.vertex_count, model.vertices_x, model.vertices_y, model.vertices_z);
 
-            bones = model_decode_bones(model.vertex_packed_bone_groups, model.vertex_count);
+            bones = model_decode_bones(model.vertex_bone_map, model.vertex_count);
         }
 
         memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
@@ -1184,9 +1183,9 @@ main(int argc, char* argv[])
                         animated_vertices_x,
                         animated_vertices_y,
                         animated_vertices_z,
-                        bones->bone_groups_count,
-                        bones->bone_groups,
-                        bones->bone_groups_sizes);
+                        bones->bones_count,
+                        bones->bones,
+                        bones->bones_sizes);
 
                     // Cleanup
                     free_frame(&frame);

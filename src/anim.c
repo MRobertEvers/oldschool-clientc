@@ -16,14 +16,14 @@ animate(
      * [1] => Bone Group 5
      * [2] => Bone Group 9 etc.
      */
-    int* bones,
-    int bones_length,
+    int* bone_group,
+    int bone_group_length,
     int arg_x,
     int arg_y,
     int arg_z,
-    int bone_groups_count,
-    int** bone_groups,
-    int* bone_groups_sizes,
+    int bones_count,
+    int** bones,
+    int* bones_sizes,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z)
@@ -37,18 +37,18 @@ animate(
         int avg_z = 0;
         int count = 0;
 
-        for( int i = 0; i < bones_length; i++ )
+        for( int i = 0; i < bone_group_length; i++ )
         {
-            int bone_group_index = bones[i];
-            if( bone_group_index >= bone_groups_count )
+            int bone_index = bone_group[i];
+            if( bone_index >= bones_count )
                 continue;
 
-            int* bone_group = bone_groups[bone_group_index];
-            int bone_group_length = bone_groups_sizes[bone_group_index];
+            int* bone = bones[bone_index];
+            int bone_length = bones_sizes[bone_index];
 
-            for( int j = 0; j < bone_group_length; j++ )
+            for( int j = 0; j < bone_length; j++ )
             {
-                int face_index = bone_group[j];
+                int face_index = bone[j];
                 avg_x += vertices_x[face_index];
                 avg_y += vertices_y[face_index];
                 avg_z += vertices_z[face_index];
@@ -72,18 +72,18 @@ animate(
     }
     case 1:
     {
-        for( int i = 0; i < bones_length; i++ )
+        for( int i = 0; i < bone_group_length; i++ )
         {
-            int bone_group_index = bones[i];
-            if( bone_group_index >= bone_groups_count )
+            int bone_index = bone_group[i];
+            if( bone_index >= bones_count )
                 continue;
 
-            int* bone_group = bone_groups[bone_group_index];
-            int bone_group_length = bone_groups_sizes[bone_group_index];
+            int* bone = bones[bone_index];
+            int bone_length = bones_sizes[bone_index];
 
-            for( int j = 0; j < bone_group_length; ++j )
+            for( int j = 0; j < bone_length; ++j )
             {
-                int face_index = bone_group[j];
+                int face_index = bone[j];
                 vertices_x[face_index] += arg_x;
                 vertices_y[face_index] += arg_y;
                 vertices_z[face_index] += arg_z;
@@ -93,18 +93,18 @@ animate(
     }
     case 2:
     {
-        for( int i = 0; i < bones_length; i++ )
+        for( int i = 0; i < bone_group_length; i++ )
         {
-            int bone_group_index = bones[i];
-            if( bone_group_index >= bone_groups_count )
+            int bone_index = bone_group[i];
+            if( bone_index >= bones_count )
                 continue;
 
-            int* bone_group = bone_groups[bone_group_index];
-            int bone_group_length = bone_groups_sizes[bone_group_index];
+            int* bone = bones[bone_index];
+            int bone_length = bones_sizes[bone_index];
 
-            for( int j = 0; j < bone_group_length; ++j )
+            for( int j = 0; j < bone_length; ++j )
             {
-                int face_index = bone_group[j];
+                int face_index = bone[j];
                 vertices_x[face_index] -= transformation->origin_x;
                 vertices_y[face_index] -= transformation->origin_y;
                 vertices_z[face_index] -= transformation->origin_z;
@@ -157,18 +157,18 @@ animate(
     }
     case 3:
     {
-        for( int i = 0; i < bones_length; i++ )
+        for( int i = 0; i < bone_group_length; i++ )
         {
-            int bone_group_index = bones[i];
-            if( bone_group_index >= bone_groups_count )
+            int bone_index = bone_group[i];
+            if( bone_index >= bones_count )
                 continue;
 
-            int* bone_group = bone_groups[bone_group_index];
-            int bone_group_length = bone_groups_sizes[bone_group_index];
+            int* bone = bones[bone_index];
+            int bone_length = bones_sizes[bone_index];
 
-            for( int j = 0; j < bone_group_length; ++j )
+            for( int j = 0; j < bone_length; ++j )
             {
-                int face_index = bone_group[j];
+                int face_index = bone[j];
                 vertices_x[face_index] -= transformation->origin_x;
                 vertices_y[face_index] -= transformation->origin_y;
                 vertices_z[face_index] -= transformation->origin_z;
@@ -194,9 +194,9 @@ anim_frame_apply(
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
-    int bone_groups_count,
-    int** bone_groups,
-    int* bone_groups_sizes)
+    int bones_count,
+    int** bones,
+    int* bones_sizes)
 {
     struct Transformation transformation = { 0 };
     for( int i = 0; i < frame->translator_count; i++ )
@@ -207,8 +207,8 @@ anim_frame_apply(
 
         int index = frame->index_frame_ids[i];
 
-        int* frame_bone_group = frame->framemap->vertex_groups[index];
-        int frame_bone_group_length = frame->framemap->vertex_group_lengths[index];
+        int* bone_group = frame->framemap->bone_groups[index];
+        int bone_group_length = frame->framemap->bone_groups_lengths[index];
 
         int type = frame->framemap->types[index];
 
@@ -216,14 +216,14 @@ anim_frame_apply(
         animate(
             &transformation,
             type,
-            frame_bone_group,
-            frame_bone_group_length,
+            bone_group,
+            bone_group_length,
             x,
             y,
             z,
-            bone_groups_count,
-            bone_groups,
-            bone_groups_sizes,
+            bones_count,
+            bones,
+            bones_sizes,
             vertices_x,
             vertices_y,
             vertices_z);
