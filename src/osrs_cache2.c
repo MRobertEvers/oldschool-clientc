@@ -1185,8 +1185,8 @@ load_models()
             printf("No frame data found for frame %d\n", archive_id);
             return NULL;
         }
-        struct Buffer frame_buffer = { .data = frame_archive->entries[0],
-                                       .data_size = frame_archive->entry_sizes[0],
+        struct Buffer frame_buffer = { .data = frame_archive->entries[i],
+                                       .data_size = frame_archive->entry_sizes[i],
                                        .position = 0 };
 
         // Decode the frame

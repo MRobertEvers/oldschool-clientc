@@ -45,6 +45,86 @@ read_short_smart(const unsigned char* buffer, int* offset)
     }
 }
 
+struct ModelBones*
+model_decode_bones(int* packed_bone_groups, int packed_bone_groups_count)
+{
+    struct ModelBones* bones = (struct ModelBones*)malloc(sizeof(struct ModelBones));
+    if( !bones )
+        return NULL;
+
+    // int[] groupCounts = new int[256];
+    // int numGroups = 0;
+    // int var3, var4;
+
+    // for( var3 = 0; var3 < this.vertexCount; ++var3 )
+    // {
+    //     var4 = this.packedVertexGroups[var3];
+    //     ++groupCounts[var4];
+    //     if( var4 > numGroups )
+    //     {
+    //         numGroups = var4;
+    //     }
+    // }
+
+    // this.vertexGroups = new int[numGroups + 1][];
+
+    // for( var3 = 0; var3 <= numGroups; ++var3 )
+    // {
+    //     this.vertexGroups[var3] = new int[groupCounts[var3]];
+    //     groupCounts[var3] = 0;
+    // }
+
+    // for( var3 = 0; var3 < this.vertexCount; this.vertexGroups[var4][groupCounts[var4]++] = var3++
+    // )
+    // {
+    //     var4 = this.packedVertexGroups[var3];
+    // }
+
+    // Initialize group counts array
+    int group_counts[256] = { 0 };
+    int num_groups = 0;
+
+    // Count occurrences of each group and find max group number
+    for( int i = 0; i < packed_bone_groups_count; i++ )
+    {
+        int group = packed_bone_groups[i];
+        group_counts[group]++;
+        if( group > num_groups )
+        {
+            num_groups = group;
+        }
+    }
+
+    // Allocate arrays
+    bones->bone_groups_count = num_groups + 1;
+    bones->bone_groups = (int**)malloc((num_groups + 1) * sizeof(int*));
+    bones->bone_groups_sizes = (int*)malloc((num_groups + 1) * sizeof(int));
+
+    if( !bones->bone_groups || !bones->bone_groups_sizes )
+    {
+        free(bones->bone_groups);
+        free(bones->bone_groups_sizes);
+        free(bones);
+        return NULL;
+    }
+
+    // Allocate each group array
+    for( int i = 0; i <= num_groups; i++ )
+    {
+        bones->bone_groups[i] = (int*)malloc(group_counts[i] * sizeof(int));
+        bones->bone_groups_sizes[i] = 0;
+    }
+
+    // Fill the groups
+    for( int i = 0; i < packed_bone_groups_count; i++ )
+    {
+        int group = packed_bone_groups[i];
+        bones->bone_groups[group][bones->bone_groups_sizes[group]++] = i;
+    }
+
+    return bones;
+}
+
 struct Model*
 decodeOldFormat(const unsigned char* inputData, int inputLength)
 {
@@ -565,7 +645,7 @@ decodeType2(const unsigned char* inputData, int inputLength)
         dataOffset += faceCount;
     }
 
-    int offsetOfFaceColors = dataOffset;
+    int offsetOfPackedBoneGroups = dataOffset;
     dataOffset += faceColorDataByteCount;
     int offsetOfFaceTransparencies = dataOffset;
     if( hasFaceTransparencies == 1 )
@@ -594,6 +674,7 @@ decodeType2(const unsigned char* inputData, int inputLength)
     model->vertices_x = (int*)malloc(vertexCount * sizeof(int));
     model->vertices_y = (int*)malloc(vertexCount * sizeof(int));
     model->vertices_z = (int*)malloc(vertexCount * sizeof(int));
+    model->vertex_packed_bone_groups = (int*)malloc(vertexCount * sizeof(int));
 
     // Allocate memory for faces
     model->face_indices_a = (int*)malloc(faceCount * sizeof(int));
@@ -608,6 +689,7 @@ decodeType2(const unsigned char* inputData, int inputLength)
     int previousVertexX = 0;
     int previousVertexY = 0;
     int previousVertexZ = 0;
+    int previousBoneGroup = 0;
     offset = offsetOfVertexFlags;
 
     for( int i = 0; i < vertexCount; i++ )
@@ -636,6 +718,11 @@ decodeType2(const unsigned char* inputData, int inputLength)
         previousVertexX = model->vertices_x[i];
         previousVertexY = model->vertices_y[i];
         previousVertexZ = model->vertices_z[i];
+
+        if( hasPackedVertexGroups == 1 )
+        {
+            model->vertex_packed_bone_groups[i] = read_byte(inputData, &offsetOfPackedBoneGroups);
+        }
     }
 
     // Read face data
@@ -805,6 +892,10 @@ write_model_separate(const struct Model* model, const char* filename)
     fwrite(model->vertices_x, sizeof(int), model->vertex_count, file);
     fwrite(model->vertices_y, sizeof(int), model->vertex_count, file);
     fwrite(model->vertices_z, sizeof(int), model->vertex_count, file);
+    if( model->vertex_packed_bone_groups )
+    {
+        fwrite(model->vertex_packed_bone_groups, sizeof(int), model->vertex_count, file);
+    }
     fclose(file);
 
     // Write faces file

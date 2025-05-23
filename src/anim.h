@@ -11,7 +11,13 @@ struct Transformation
     int origin_z;
 };
 
-int
-anim_frame_apply(struct FrameDefinition* frame, int* vertices_x, int* vertices_y, int* vertices_z);
+int anim_frame_apply(
+    struct FrameDefinition* frame,
+    int* vertices_x,
+    int* vertices_y,
+    int* vertices_z,
+    int bone_groups_count,
+    int** bone_groups,
+    int* bone_groups_sizes);
 
 #endif

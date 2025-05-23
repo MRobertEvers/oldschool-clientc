@@ -5,8 +5,10 @@
 #include "gouraud.h"
 #include "lighting.h"
 #include "load_separate.h"
+#include "modeltype.c"
 #include "projection.h"
 #include "texture.h"
+#include <sys/stat.h>
 
 #include <SDL.h>
 #include <limits.h>
@@ -21,7 +23,7 @@
 #define SCREEN_HEIGHT 720
 
 // Add near plane clipping constant
-#define NEAR_PLANE_Z 50 // Minimum z distance before clipping
+#define NEAR_PLANE_Z 10 // Minimum z distance before clipping
 
 int g_sin_table[2048];
 int g_cos_table[2048];
@@ -37,6 +39,99 @@ static int tmp_depth_faces[1500 * 512] = { 0 };
 static int tmp_priority_face_count[12] = { 0 };
 static int tmp_priority_depth_sum[12] = { 0 };
 static int tmp_priority_faces[12 * 2000] = { 0 };
+
+// Add file change detection variables
+static time_t last_vertices_mtime = 0;
+static time_t last_faces_mtime = 0;
+static time_t last_colors_mtime = 0;
+static time_t last_priorities_mtime = 0;
+
+// Function to check if any model file has changed
+static bool
+check_model_files_changed(const char* model_path)
+{
+    struct stat st;
+    char filename[256];
+    bool changed = false;
+
+    // Check vertices file
+    snprintf(filename, sizeof(filename), "%s.vertices", model_path);
+    if( stat(filename, &st) == 0 )
+    {
+        if( st.st_mtime > last_vertices_mtime )
+        {
+            last_vertices_mtime = st.st_mtime;
+            changed = true;
+        }
+    }
+
+    // Check faces file
+    snprintf(filename, sizeof(filename), "%s.faces", model_path);
+    if( stat(filename, &st) == 0 )
+    {
+        if( st.st_mtime > last_faces_mtime )
+        {
+            last_faces_mtime = st.st_mtime;
+            changed = true;
+        }
+    }
+
+    // Check colors file
+    snprintf(filename, sizeof(filename), "%s.colors", model_path);
+    if( stat(filename, &st) == 0 )
+    {
+        if( st.st_mtime > last_colors_mtime )
+        {
+            last_colors_mtime = st.st_mtime;
+            changed = true;
+        }
+    }
+
+    // Check priorities file
+    snprintf(filename, sizeof(filename), "%s.priorities", model_path);
+    if( stat(filename, &st) == 0 )
+    {
+        if( st.st_mtime > last_priorities_mtime )
+        {
+            last_priorities_mtime = st.st_mtime;
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+// Function to initialize file modification times
+static void
+init_file_mtimes(const char* model_path)
+{
+    struct stat st;
+    char filename[256];
+
+    snprintf(filename, sizeof(filename), "%s.vertices", model_path);
+    if( stat(filename, &st) == 0 )
+    {
+        last_vertices_mtime = st.st_mtime;
+    }
+
+    snprintf(filename, sizeof(filename), "%s.faces", model_path);
+    if( stat(filename, &st) == 0 )
+    {
+        last_faces_mtime = st.st_mtime;
+    }
+
+    snprintf(filename, sizeof(filename), "%s.colors", model_path);
+    if( stat(filename, &st) == 0 )
+    {
+        last_colors_mtime = st.st_mtime;
+    }
+
+    snprintf(filename, sizeof(filename), "%s.priorities", model_path);
+    if( stat(filename, &st) == 0 )
+    {
+        last_priorities_mtime = st.st_mtime;
+    }
+}
 
 // Helper function to create a simple test texture
 static void
@@ -663,12 +758,6 @@ raster_zbuf(
         int z2 = vertex_z[face_indices_b[index]];
         int z3 = vertex_z[face_indices_c[index]];
 
-        // Skip triangle if any vertex is too close to camera
-        if( z1 < NEAR_PLANE_Z || z2 < NEAR_PLANE_Z || z3 < NEAR_PLANE_Z )
-        {
-            continue;
-        }
-
         struct Triangle2D triangle;
         triangle.p1.x = vertex_x[face_indices_a[index]] + offset_x;
         triangle.p1.y = vertex_y[face_indices_a[index]] + offset_y;
@@ -721,12 +810,19 @@ main(int argc, char* argv[])
     int camera_fov = 512; // Default FOV (approximately 90 degrees)
 
     // struct Model model = load_separate("../model2");
-    struct Model model = load_separate("../model2");
+    const char* model_path = "../model2";
+    struct Model model = load_separate(model_path);
     if( model.vertex_count == 0 )
     {
         printf("Failed to load model\n");
         return -1;
     }
+
+    struct ModelBones* bones =
+        model_decode_bones(model.vertex_packed_bone_groups, model.vertex_count);
+
+    // Initialize file modification times
+    // init_file_mtimes(model_path);
 
     int max_model_depth = 1499;
 
@@ -751,9 +847,9 @@ main(int argc, char* argv[])
     int model_roll = 0;
 
     // Add frame timing variables
-    int current_frame = 0;
+    int current_frame = -1;
     int32_t last_frame_time = -200000;
-    const int32_t FRAME_DURATION = 2000; // 2 seconds in milliseconds
+    const int32_t FRAME_DURATION = 1000; // 2 seconds in milliseconds
 
     project_vertices(
         screen_vertices_x,
@@ -779,7 +875,7 @@ main(int argc, char* argv[])
     struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
         model.vertex_count, model.vertices_x, model.vertices_y, model.vertices_z);
 
-    int model_min_depth = 300;
+    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
 
     struct Pixel* pixel_buffer =
         (struct Pixel*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(struct Pixel));
@@ -840,6 +936,48 @@ main(int argc, char* argv[])
 
     while( true )
     {
+        // Check if model files have changed
+        if( check_model_files_changed(model_path) )
+        {
+            printf("Model files changed, reloading...\n");
+
+            // Free old model data
+            free(model.vertices_x);
+            free(model.vertices_y);
+            free(model.vertices_z);
+            free(model.vertex_packed_bone_groups);
+            free(model.face_indices_a);
+            free(model.face_indices_b);
+            free(model.face_indices_c);
+            free(model.face_colors);
+            free(model.face_priorities);
+
+            // Load new model
+            model = load_separate(model_path);
+            if( model.vertex_count == 0 )
+            {
+                printf("Failed to reload model\n");
+                goto done;
+            }
+
+            // Recreate triangles and other model-dependent data
+            free(triangles);
+            triangles = create_triangles_from_model(&model);
+
+            free(triangles_2d);
+            triangles_2d = (struct Triangle2D*)malloc(model.face_count * sizeof(struct Triangle2D));
+
+            free(vertex_normals);
+            vertex_normals =
+                (struct VertexNormal*)malloc(model.vertex_count * sizeof(struct VertexNormal));
+
+            // Recalculate bounding cylinder
+            bounding_cylinder = calculate_bounding_cylinder(
+                model.vertex_count, model.vertices_x, model.vertices_y, model.vertices_z);
+
+            bones = model_decode_bones(model.vertex_packed_bone_groups, model.vertex_count);
+        }
+
         memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
         memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
         memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
@@ -971,96 +1109,111 @@ main(int argc, char* argv[])
             camera_fov = 1280;
 
         // Update frame timing
-        // Uint32 current_time = SDL_GetTicks();
-        // bool update_frame = false;
-        // if( current_time - last_frame_time >= FRAME_DURATION )
-        // {
-        //     current_frame = (current_frame + 1) % 16; // Wrap at 15
-        //     last_frame_time = current_time;
-        //     update_frame = true;
-        // }
+        Uint32 current_time = SDL_GetTicks();
+        bool update_frame = false;
+        if( current_time - last_frame_time >= FRAME_DURATION )
+        {
+            current_frame = (current_frame + 1) % 16; // Wrap at 15
+            last_frame_time = current_time;
+            update_frame = true;
+        }
 
-        // if( update_frame )
-        // {
-        //     memcpy(animated_vertices_x, model.vertices_x, sizeof(int) * model.vertex_count);
-        //     memcpy(animated_vertices_y, model.vertices_y, sizeof(int) * model.vertex_count);
-        //     memcpy(animated_vertices_z, model.vertices_z, sizeof(int) * model.vertex_count);
+        if( update_frame )
+        {
+            // Load and apply frame transformation for current frame
+            char framemap_filename[256];
+            char frame_filename[256];
+            snprintf(
+                framemap_filename, sizeof(framemap_filename), "framemap_%d.bin", current_frame);
+            snprintf(frame_filename, sizeof(frame_filename), "frame_%d.bin", current_frame);
 
-        //     // // Load and apply frame transformation for current frame
-        //     // char framemap_filename[256];
-        //     // char frame_filename[256];
-        //     // snprintf(
-        //     //     framemap_filename, sizeof(framemap_filename), "framemap_%d.bin",
-        //     current_frame);
-        //     // snprintf(frame_filename, sizeof(frame_filename), "frame_%d.bin", current_frame);
+            // Load framemap
+            FILE* framemap_file = fopen(framemap_filename, "rb");
+            if( !framemap_file )
+            {
+                printf("Failed to open framemap file %s\n", framemap_filename);
+            }
+            else
+            {
+                fseek(framemap_file, 0, SEEK_END);
+                int framemap_size = ftell(framemap_file);
+                fseek(framemap_file, 0, SEEK_SET);
+                char* framemap_data = malloc(framemap_size);
+                fread(framemap_data, 1, framemap_size, framemap_file);
+                fclose(framemap_file);
 
-        //     // // Load framemap
-        //     // FILE* framemap_file = fopen(framemap_filename, "rb");
-        //     // if( !framemap_file )
-        //     // {
-        //     //     printf("Failed to open framemap file %s\n", framemap_filename);
-        //     // }
-        //     // else
-        //     // {
-        //     //     fseek(framemap_file, 0, SEEK_END);
-        //     //     int framemap_size = ftell(framemap_file);
-        //     //     fseek(framemap_file, 0, SEEK_SET);
-        //     //     char* framemap_data = malloc(framemap_size);
-        //     //     fread(framemap_data, 1, framemap_size, framemap_file);
-        //     //     fclose(framemap_file);
+                // Load frame
+                FILE* frame_file = fopen(frame_filename, "rb");
+                if( !frame_file )
+                {
+                    printf("Failed to open frame file %s\n", frame_filename);
+                    free(framemap_data);
+                }
+                else
+                {
+                    fseek(frame_file, 0, SEEK_END);
+                    int frame_size = ftell(frame_file);
+                    fseek(frame_file, 0, SEEK_SET);
+                    char* frame_data = malloc(frame_size);
+                    fread(frame_data, 1, frame_size, frame_file);
+                    fclose(frame_file);
 
-        //     //     // Load frame
-        //     //     FILE* frame_file = fopen(frame_filename, "rb");
-        //     //     if( !frame_file )
-        //     //     {
-        //     //         printf("Failed to open frame file %s\n", frame_filename);
-        //     //         free(framemap_data);
-        //     //     }
-        //     //     else
-        //     //     {
-        //     //         fseek(frame_file, 0, SEEK_END);
-        //     //         int frame_size = ftell(frame_file);
-        //     //         fseek(frame_file, 0, SEEK_SET);
-        //     //         char* frame_data = malloc(frame_size);
-        //     //         fread(frame_data, 1, frame_size, frame_file);
-        //     //         fclose(frame_file);
+                    // Decode framemap and frame
+                    struct Buffer framemap_buffer = { .data = framemap_data,
+                                                      .data_size = framemap_size,
+                                                      .position = 0 };
+                    struct Buffer frame_buffer = { .data = frame_data,
+                                                   .data_size = frame_size,
+                                                   .position = 0 };
 
-        //     //         // Decode framemap and frame
-        //     //         struct Buffer framemap_buffer = { .data = framemap_data,
-        //     //                                           .data_size = framemap_size,
-        //     //                                           .position = 0 };
-        //     //         struct Buffer frame_buffer = { .data = frame_data,
-        //     //                                        .data_size = frame_size,
-        //     //                                        .position = 0 };
+                    struct FramemapDefinition framemap = { 0 };
+                    decode_framemap(&framemap, current_frame, &framemap_buffer);
 
-        //     //         struct FramemapDefinition framemap = { 0 };
-        //     //         decode_framemap(&framemap, current_frame, &framemap_buffer);
+                    struct FrameDefinition frame = { 0 };
+                    decode_frame(&frame, &framemap, current_frame, &frame_buffer);
 
-        //     //         struct FrameDefinition frame = { 0 };
-        //     //         decode_frame(&frame, &framemap, current_frame, &frame_buffer);
+                    memcpy(animated_vertices_x, model.vertices_x, sizeof(int) * model.vertex_count);
+                    memcpy(animated_vertices_y, model.vertices_y, sizeof(int) * model.vertex_count);
+                    memcpy(animated_vertices_z, model.vertices_z, sizeof(int) * model.vertex_count);
 
-        //     //         // Apply frame transformation
-        //     //         anim_frame_apply(
-        //     //             &frame, animated_vertices_x, animated_vertices_y,
-        //     animated_vertices_z);
+                    // Apply frame transformation
+                    anim_frame_apply(
+                        &frame,
+                        animated_vertices_x,
+                        animated_vertices_y,
+                        animated_vertices_z,
+                        bones->bone_groups_count,
+                        bones->bone_groups,
+                        bones->bone_groups_sizes);
 
-        //     //         // Cleanup
-        //     //         free_frame(&frame);
-        //     //         free_framemap(&framemap);
-        //     //         free(framemap_data);
-        //     //         free(frame_data);
-        //     //     }
-        //     // }
-        // }
+                    printf("Animated vertices after frame %d:\n", current_frame);
+                    for( int i = 0; i < model.vertex_count; i++ )
+                    {
+                        printf(
+                            "Vertex %d: (%d, %d, %d)\n",
+                            i,
+                            animated_vertices_x[i],
+                            animated_vertices_y[i],
+                            animated_vertices_z[i]);
+                    }
+
+                    // Cleanup
+                    free_frame(&frame);
+                    free_framemap(&framemap);
+                    free(framemap_data);
+                    free(frame_data);
+                }
+            }
+        }
 
         project_vertices(
             screen_vertices_x,
             screen_vertices_y,
             screen_vertices_z,
             model.vertex_count,
-            model.vertices_x,
-            model.vertices_y,
-            model.vertices_z,
+            animated_vertices_x,
+            animated_vertices_y,
+            animated_vertices_z,
             model_yaw,
             model_pitch,
             model_roll,
@@ -1111,19 +1264,17 @@ main(int argc, char* argv[])
             tmp_depth_face_count,
             model.face_count,
             model.face_priorities,
-            1499);
-        // model_min_depth * 2);
-
-        SDL_RenderClear(renderer);
+            // 1499);
+            model_min_depth * 2);
 
         calculate_vertex_normals(
             vertex_normals,
             model.face_indices_a,
             model.face_indices_b,
             model.face_indices_c,
-            model.vertices_x,
-            model.vertices_y,
-            model.vertices_z,
+            animated_vertices_x,
+            animated_vertices_y,
+            animated_vertices_z,
             model.face_count);
 
         int light_ambient = 64;
@@ -1144,9 +1295,9 @@ main(int argc, char* argv[])
             model.face_indices_b,
             model.face_indices_c,
             model.face_count,
-            model.vertices_x,
-            model.vertices_y,
-            model.vertices_z,
+            animated_vertices_x,
+            animated_vertices_y,
+            animated_vertices_z,
             model.face_colors,
             light_ambient,
             attenuation,

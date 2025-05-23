@@ -7,6 +7,9 @@ struct Model
     int* vertices_x;
     int* vertices_y;
     int* vertices_z;
+    // Each vertex can belong to 32 bone groups.
+    // This is
+    int* vertex_packed_bone_groups;
 
     int face_count;
     int* face_indices_a;
@@ -22,6 +25,16 @@ struct Model
     int* textured_m_coordinate;
     int* textured_n_coordinate;
 };
+
+struct ModelBones
+{
+    int bone_groups_count;
+    // Array of arrays vertices
+    int** bone_groups;
+    int* bone_groups_sizes;
+};
+
+struct ModelBones* model_decode_bones(int* packed_bone_groups, int packed_bone_groups_count);
 
 struct Model* decodeModel(const unsigned char* inputData, int inputLength);
 void write_model_separate(const struct Model* model, const char* filename);
