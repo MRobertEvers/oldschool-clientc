@@ -849,7 +849,9 @@ main(int argc, char* argv[])
     // Add frame timing variables
     int current_frame = -1;
     int32_t last_frame_time = -200000;
-    const int32_t FRAME_DURATION = 1000; // 2 seconds in milliseconds
+    // Pretty sure the sequence contains the number of 30fps frames that pass before the next
+    // frame is played.
+    const int32_t FRAME_DURATION = 150;
 
     project_vertices(
         screen_vertices_x,
@@ -1185,17 +1187,6 @@ main(int argc, char* argv[])
                         bones->bone_groups_count,
                         bones->bone_groups,
                         bones->bone_groups_sizes);
-
-                    printf("Animated vertices after frame %d:\n", current_frame);
-                    for( int i = 0; i < model.vertex_count; i++ )
-                    {
-                        printf(
-                            "Vertex %d: (%d, %d, %d)\n",
-                            i,
-                            animated_vertices_x[i],
-                            animated_vertices_y[i],
-                            animated_vertices_z[i]);
-                    }
 
                     // Cleanup
                     free_frame(&frame);
