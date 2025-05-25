@@ -36,7 +36,7 @@ struct ModelBones
 
 struct ModelBones* model_decode_bones(int* packed_bone_groups, int packed_bone_groups_count);
 
-struct Model* decodeModel(const unsigned char* inputData, int inputLength);
+struct Model* model_decode(const unsigned char* inputData, int inputLength);
 void write_model_separate(const struct Model* model, const char* filename);
 
 #endif

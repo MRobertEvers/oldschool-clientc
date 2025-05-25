@@ -1,10 +1,12 @@
-#include "sequence.h"
+#include "osrs/sequence.h"
 // #include "xtea.h"
-#include "anim.h"
 #include "buffer.h"
-#include "frame.h"
-#include "framemap.h"
-#include "modeltype.c"
+#include "osrs/anim.h"
+#include "osrs/config_npctype.h"
+#include "osrs/frame.h"
+#include "osrs/framemap.h"
+#include "osrs/model.h"
+#include "osrs_cache.h"
 
 #include <assert.h>
 #include <bzlib.h>
@@ -555,17 +557,6 @@ struct ReferenceTableEntry
     } children;
 };
 
-struct ReferenceTable
-{
-    int format;
-    int version;
-    int flags;
-    int id_count;
-    int* ids; // entries is a sparse array. ids is the list of indices that are valid.
-    struct ReferenceTableEntry* entries;
-    int entry_count;
-};
-
 // public static int getSmartInt(ByteBuffer buffer) {
 // 	if (buffer.get(buffer.position()) < 0)
 // 		return buffer.getInt() & 0x7fffffff;
@@ -587,7 +578,7 @@ get_smart_int(struct Buffer* buffer)
  * @param buffer
  * @return struct ReferenceTable*
  */
-struct ReferenceTable*
+static struct ReferenceTable*
 decode_reference_table(struct Buffer* buffer)
 {
     struct ReferenceTable* table = malloc(sizeof(struct ReferenceTable));
@@ -762,8 +753,6 @@ decode_reference_table(struct Buffer* buffer)
     return table;
 }
 
-#include "npctype.c"
-
 /**
  * Load .dat2 file. The .dat2 file contains tables for each of the idx files.
  *  - The dat2 file may contain compressed data.
@@ -912,9 +901,9 @@ load_models()
     decompress_dat2archive(&archive);
 
     // THe model table does not use "PackedArchives", or "Files".
-    struct Model* model = decodeModel(archive.data, archive.data_size);
+    struct Model* model = model_decode(archive.data, archive.data_size);
 
-    write_model_separate(model, "model2");
+    // write_model_separate(model, "model2");
 
     // End cache.read
 
@@ -1224,4 +1213,226 @@ load_models()
     free(skeletons_index_data);
 
     return model;
+}
+
+static const int MODEL_IDX = 7;
+
+struct Model*
+cache_load_model(int model_id)
+{
+    int model_index_size;
+    char* model_index_data;
+
+    FILE* model_index = fopen(CACHE_PATH "/main_file_cache.idx7", "rb");
+    if( model_index == NULL )
+    {
+        printf("Failed to open model index file");
+        return NULL;
+    }
+    fseek(model_index, 0, SEEK_END);
+    model_index_size = ftell(model_index);
+    fseek(model_index, 0, SEEK_SET);
+    model_index_data = malloc(model_index_size);
+    fread(model_index_data, 1, model_index_size, model_index);
+    fclose(model_index);
+
+    char* dat2_data;
+    int dat2_size;
+    FILE* dat2 = fopen(CACHE_PATH "/main_file_cache.dat2", "rb");
+    if( dat2 == NULL )
+    {
+        printf("Failed to open dat2 file");
+        return NULL;
+    }
+    fseek(dat2, 0, SEEK_END);
+    dat2_size = ftell(dat2);
+    fseek(dat2, 0, SEEK_SET);
+    dat2_data = malloc(dat2_size);
+    fread(dat2_data, 1, dat2_size, dat2);
+    fclose(dat2);
+
+    struct IndexRecord record = { 0 };
+    read_index_entry(MODEL_IDX, model_index_data, model_index_size, model_id, &record);
+
+    struct Dat2Archive archive = { 0 };
+    read_dat2(
+        &archive, dat2_data, dat2_size, MODEL_IDX, record.record_id, record.sector, record.length);
+
+    decompress_dat2archive(&archive);
+
+    // THe model table does not use "PackedArchives", or "Files".
+    struct Model* model = model_decode(archive.data, archive.data_size);
+
+    free(model_index_data);
+    free(dat2_data);
+
+    return model;
+}
+
+static const int CONFIGS_IDX = 2;
+static const int CONFIG_TABLE_NPC_FILE_ID = 9;
+
+struct NPCType*
+cache_load_config_npctype(int npc_type_id)
+{
+    char* dat2_data;
+    int dat2_size;
+    FILE* dat2 = fopen(CACHE_PATH "/main_file_cache.dat2", "rb");
+    if( dat2 == NULL )
+    {
+        printf("Failed to open dat2 file");
+        return NULL;
+    }
+    fseek(dat2, 0, SEEK_END);
+    dat2_size = ftell(dat2);
+    fseek(dat2, 0, SEEK_SET);
+    dat2_data = malloc(dat2_size);
+    fread(dat2_data, 1, dat2_size, dat2);
+    fclose(dat2);
+
+    int config_index_size;
+    char* config_index_data;
+    FILE* config_index = fopen(CACHE_PATH "/main_file_cache.idx2", "rb");
+    if( config_index == NULL )
+    {
+        printf("Failed to open config index file");
+        return NULL;
+    }
+    fseek(config_index, 0, SEEK_END);
+    config_index_size = ftell(config_index);
+    fseek(config_index, 0, SEEK_SET);
+    config_index_data = malloc(config_index_size);
+    fread(config_index_data, 1, config_index_size, config_index);
+    fclose(config_index);
+
+    struct ReferenceTable* config_reference_table = cache_load_reference_table(CONFIGS_IDX);
+
+    int npc_config_table_index;
+    for( int i = 0; i < config_reference_table->id_count; i++ )
+    {
+        if( config_reference_table->entries[i].index == CONFIG_TABLE_NPC_FILE_ID )
+            npc_config_table_index = i;
+    }
+
+    int npc_config_table_size =
+        config_reference_table->entries[npc_config_table_index].children.count;
+    int npc_config_table_revision = config_reference_table->entries[npc_config_table_index].version;
+
+    // OpenRS
+    // cache.read(CacheIndex.CONFIGS, ConfigArchive.NPC = 9)
+    // Runelite
+    // Index index = store.getIndex(IndexType.CONFIGS);
+    // Archive archive = index.getArchive(ConfigType.NPC.getId());
+
+    struct IndexRecord record = { 0 };
+    read_index_entry(
+        CONFIGS_IDX, config_index_data, config_index_size, CONFIG_TABLE_NPC_FILE_ID, &record);
+
+    // RuneLite
+    // byte[] archiveData = storage.loadArchive(archive);
+    struct Dat2Archive archive = { 0 };
+    read_dat2(
+        &archive,
+        dat2_data,
+        dat2_size,
+        CONFIGS_IDX,
+        record.record_id,
+        record.sector,
+        record.length);
+
+    decompress_dat2archive(&archive);
+
+    // End cache.read   struct IndexRecord record;
+
+    struct Buffer config_archive_buffer = { .data = archive.data,
+                                            .data_size = archive.data_size,
+                                            .position = 0 };
+
+    struct Archive* packed_archive = decode_archive(&config_archive_buffer, npc_config_table_size);
+
+    struct NPCType* out = malloc(sizeof(struct NPCType));
+    struct Buffer buffer = { .data = packed_archive->entries[npc_type_id],
+                             .data_size = packed_archive->entry_sizes[npc_type_id],
+                             .position = 0 };
+
+    decode_npc_type(out, npc_config_table_revision, &buffer);
+
+    free(packed_archive);
+    free(archive.data);
+    free(config_index_data);
+    free(config_reference_table);
+
+    return out;
+}
+
+struct ReferenceTable*
+cache_load_reference_table(int reference_table_id)
+{
+    char* dat2_data;
+    int dat2_size;
+    FILE* dat2 = fopen(CACHE_PATH "/main_file_cache.dat2", "rb");
+    if( dat2 == NULL )
+    {
+        printf("Failed to open dat2 file");
+        return NULL;
+    }
+    fseek(dat2, 0, SEEK_END);
+    dat2_size = ftell(dat2);
+    fseek(dat2, 0, SEEK_SET);
+    dat2_data = malloc(dat2_size);
+    fread(dat2_data, 1, dat2_size, dat2);
+    fclose(dat2);
+
+    int master_index_size;
+    char* master_index_data;
+    FILE* master_index = fopen(CACHE_PATH "/main_file_cache.idx255", "rb");
+    if( master_index == NULL )
+    {
+        printf("Failed to open master index file");
+        return NULL;
+    }
+    fseek(master_index, 0, SEEK_END);
+    master_index_size = ftell(master_index);
+    fseek(master_index, 0, SEEK_SET);
+    master_index_data = malloc(master_index_size);
+    fread(master_index_data, 1, master_index_size, master_index);
+    fclose(master_index);
+
+    int master_index_record_count = master_index_size / INDEX_255_ENTRY_SIZE;
+
+    struct Dat2Archive* archives = malloc(master_index_record_count * sizeof(struct Dat2Archive));
+    memset(archives, 0, master_index_record_count * sizeof(struct Dat2Archive));
+    for( int i = 0; i < master_index_record_count; i++ )
+    {
+        // cache.read(CacheIndex.META = 255, table: 0)
+        struct IndexRecord tmp_record;
+        read_index_entry(255, master_index_data, master_index_size, i, &tmp_record);
+
+        // record now contains a region in the .dat2 file that contains the data indexed by
+        // idx<i>.
+
+        read_dat2(
+            &archives[i],
+            dat2_data,
+            dat2_size,
+            255,
+            tmp_record.record_id,
+            tmp_record.sector,
+            tmp_record.length);
+
+        decompress_dat2archive(&archives[i]);
+    }
+
+    struct Dat2Archive* reference_table_archive = &archives[reference_table_id];
+    struct Buffer reference_table_buffer = { .data = reference_table_archive->data,
+                                             .data_size = reference_table_archive->data_size,
+                                             .position = 0 };
+    struct ReferenceTable* reference_table = decode_reference_table(&reference_table_buffer);
+
+    // TODO: Free the archives.
+    free(dat2_data);
+    free(master_index_data);
+    free(archives);
+
+    return reference_table;
 }

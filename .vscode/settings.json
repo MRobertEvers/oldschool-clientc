@@ -18,6 +18,15 @@
         "variant": "c",
         "buffer.h": "c",
         "stdbool.h": "c",
-        "anim.h": "c"
+        "anim.h": "c",
+        "frame.h": "c",
+        "framemap.h": "c",
+        "load_separate.h": "c",
+        "projection.h": "c",
+        "texture.h": "c",
+        "stat.h": "c",
+        "npctype.h": "c",
+        "config_npctype.h": "c",
+        "model.h": "c"
     }
 }

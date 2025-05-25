@@ -841,7 +841,7 @@ decodeType2(const unsigned char* inputData, int inputLength)
 }
 
 struct Model*
-decodeModel(const unsigned char* inputData, int inputLength)
+model_decode(const unsigned char* inputData, int inputLength)
 {
     // Check the last two bytes to determine model type
     if( inputLength >= 2 )

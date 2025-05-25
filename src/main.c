@@ -1,11 +1,12 @@
-#include "anim.h"
 #include "buffer.h"
-#include "frame.h"
-#include "framemap.h"
 #include "gouraud.h"
 #include "lighting.h"
 #include "load_separate.h"
-#include "modeltype.c"
+#include "osrs/anim.h"
+#include "osrs/frame.h"
+#include "osrs/framemap.h"
+#include "osrs/model.h"
+#include "osrs_cache.h"
 #include "projection.h"
 #include "texture.h"
 #include <sys/stat.h>
@@ -785,6 +786,12 @@ raster_zbuf(
     }
 }
 
+static struct Model*
+load_from_cache(int model_id)
+{
+    return cache_load_model(model_id);
+}
+
 int
 main(int argc, char* argv[])
 {
@@ -809,37 +816,33 @@ main(int argc, char* argv[])
     int camera_roll = 0;
     int camera_fov = 512; // Default FOV (approximately 90 degrees)
 
-    // struct Model model = load_separate("../model2");
-    const char* model_path = "../model2";
-    struct Model model = load_separate(model_path);
-    if( model.vertex_count == 0 )
+    static const int TZTOK_JAD_MODEL_ID = 9319;
+    static const int TZTOK_JAD_NPCTYPE_ID = 3127;
+    struct Model* model = load_from_cache(TZTOK_JAD_MODEL_ID);
+    struct NPCType* npc_type = cache_load_config_npctype(TZTOK_JAD_NPCTYPE_ID);
+    if( model == NULL || model->vertex_count == 0 || npc_type == NULL )
     {
         printf("Failed to load model\n");
         return -1;
     }
 
-    struct ModelBones* bones = model_decode_bones(model.vertex_bone_map, model.vertex_count);
+    if( npc_type->name && strcmp(npc_type->name, "TzTok-Jad") == 0 )
+    {
+        printf("TzTok-Jad\n");
+    }
 
-    // Initialize file modification times
-    // init_file_mtimes(model_path);
+    struct ModelBones* bones = model_decode_bones(model->vertex_bone_map, model->vertex_count);
 
-    int max_model_depth = 1499;
-
-    struct Triangle3D* triangles = create_triangles_from_model(&model);
-
-    struct Triangle2D* triangles_2d =
-        (struct Triangle2D*)malloc(model.face_count * sizeof(struct Triangle2D));
-
-    int* screen_vertices_x = (int*)malloc(model.vertex_count * sizeof(int));
-    int* screen_vertices_y = (int*)malloc(model.vertex_count * sizeof(int));
-    int* screen_vertices_z = (int*)malloc(model.vertex_count * sizeof(int));
+    int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
+    int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
+    int* screen_vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
 
     struct VertexNormal* vertex_normals =
-        (struct VertexNormal*)malloc(model.vertex_count * sizeof(struct VertexNormal));
+        (struct VertexNormal*)malloc(model->vertex_count * sizeof(struct VertexNormal));
 
-    int* face_colors_a_hsl16 = (int*)malloc(model.face_count * sizeof(int));
-    int* face_colors_b_hsl16 = (int*)malloc(model.face_count * sizeof(int));
-    int* face_colors_c_hsl16 = (int*)malloc(model.face_count * sizeof(int));
+    int* face_colors_a_hsl16 = (int*)malloc(model->face_count * sizeof(int));
+    int* face_colors_b_hsl16 = (int*)malloc(model->face_count * sizeof(int));
+    int* face_colors_c_hsl16 = (int*)malloc(model->face_count * sizeof(int));
 
     int model_pitch = 0;
     int model_yaw = 0;
@@ -852,29 +855,8 @@ main(int argc, char* argv[])
     // frame is played.
     const int32_t FRAME_DURATION = 150;
 
-    project_vertices(
-        screen_vertices_x,
-        screen_vertices_y,
-        screen_vertices_z,
-        model.vertex_count,
-        model.vertices_x,
-        model.vertices_y,
-        model.vertices_z,
-        model_yaw,
-        model_pitch,
-        model_roll,
-        camera_x,
-        camera_y,
-        camera_z,
-        camera_yaw,
-        camera_pitch,
-        camera_roll,
-        camera_fov,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT);
-
     struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
-        model.vertex_count, model.vertices_x, model.vertices_y, model.vertices_z);
+        model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
 
     int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
 
@@ -895,9 +877,9 @@ main(int argc, char* argv[])
     }
 
     // Make a copy of the model vertices for animation
-    int* animated_vertices_x = malloc(sizeof(int) * model.vertex_count);
-    int* animated_vertices_y = malloc(sizeof(int) * model.vertex_count);
-    int* animated_vertices_z = malloc(sizeof(int) * model.vertex_count);
+    int* animated_vertices_x = malloc(sizeof(int) * model->vertex_count);
+    int* animated_vertices_y = malloc(sizeof(int) * model->vertex_count);
+    int* animated_vertices_z = malloc(sizeof(int) * model->vertex_count);
 
     SDL_Window* window = SDL_CreateWindow(
         "Oldschool Runescape",
@@ -937,48 +919,6 @@ main(int argc, char* argv[])
 
     while( true )
     {
-        // Check if model files have changed
-        if( check_model_files_changed(model_path) )
-        {
-            printf("Model files changed, reloading...\n");
-
-            // Free old model data
-            free(model.vertices_x);
-            free(model.vertices_y);
-            free(model.vertices_z);
-            free(model.vertex_bone_map);
-            free(model.face_indices_a);
-            free(model.face_indices_b);
-            free(model.face_indices_c);
-            free(model.face_colors);
-            free(model.face_priorities);
-
-            // Load new model
-            model = load_separate(model_path);
-            if( model.vertex_count == 0 )
-            {
-                printf("Failed to reload model\n");
-                goto done;
-            }
-
-            // Recreate triangles and other model-dependent data
-            free(triangles);
-            triangles = create_triangles_from_model(&model);
-
-            free(triangles_2d);
-            triangles_2d = (struct Triangle2D*)malloc(model.face_count * sizeof(struct Triangle2D));
-
-            free(vertex_normals);
-            vertex_normals =
-                (struct VertexNormal*)malloc(model.vertex_count * sizeof(struct VertexNormal));
-
-            // Recalculate bounding cylinder
-            bounding_cylinder = calculate_bounding_cylinder(
-                model.vertex_count, model.vertices_x, model.vertices_y, model.vertices_z);
-
-            bones = model_decode_bones(model.vertex_bone_map, model.vertex_count);
-        }
-
         memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
         memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
         memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
@@ -1173,9 +1113,12 @@ main(int argc, char* argv[])
                     struct FrameDefinition frame = { 0 };
                     decode_frame(&frame, &framemap, current_frame, &frame_buffer);
 
-                    memcpy(animated_vertices_x, model.vertices_x, sizeof(int) * model.vertex_count);
-                    memcpy(animated_vertices_y, model.vertices_y, sizeof(int) * model.vertex_count);
-                    memcpy(animated_vertices_z, model.vertices_z, sizeof(int) * model.vertex_count);
+                    memcpy(
+                        animated_vertices_x, model->vertices_x, sizeof(int) * model->vertex_count);
+                    memcpy(
+                        animated_vertices_y, model->vertices_y, sizeof(int) * model->vertex_count);
+                    memcpy(
+                        animated_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
 
                     // Apply frame transformation
                     anim_frame_apply(
@@ -1200,7 +1143,7 @@ main(int argc, char* argv[])
             screen_vertices_x,
             screen_vertices_y,
             screen_vertices_z,
-            model.vertex_count,
+            model->vertex_count,
             animated_vertices_x,
             animated_vertices_y,
             animated_vertices_z,
@@ -1233,13 +1176,13 @@ main(int argc, char* argv[])
             tmp_depth_faces,
             tmp_depth_face_count,
             model_min_depth,
-            model.face_count,
+            model->face_count,
             screen_vertices_x,
             screen_vertices_y,
             screen_vertices_z,
-            model.face_indices_a,
-            model.face_indices_b,
-            model.face_indices_c);
+            model->face_indices_a,
+            model->face_indices_b,
+            model->face_indices_c);
 
         //
         // partition the sorted faces by priority.
@@ -1252,20 +1195,20 @@ main(int argc, char* argv[])
             tmp_priority_face_count,
             tmp_depth_faces,
             tmp_depth_face_count,
-            model.face_count,
-            model.face_priorities,
+            model->face_count,
+            model->face_priorities,
             // 1499);
             model_min_depth * 2);
 
         calculate_vertex_normals(
             vertex_normals,
-            model.face_indices_a,
-            model.face_indices_b,
-            model.face_indices_c,
+            model->face_indices_a,
+            model->face_indices_b,
+            model->face_indices_c,
             animated_vertices_x,
             animated_vertices_y,
             animated_vertices_z,
-            model.face_count);
+            model->face_count);
 
         int light_ambient = 64;
         int light_attenuation = 850;
@@ -1281,14 +1224,14 @@ main(int argc, char* argv[])
             face_colors_b_hsl16,
             face_colors_c_hsl16,
             vertex_normals,
-            model.face_indices_a,
-            model.face_indices_b,
-            model.face_indices_c,
-            model.face_count,
+            model->face_indices_a,
+            model->face_indices_b,
+            model->face_indices_c,
+            model->face_count,
             animated_vertices_x,
             animated_vertices_y,
             animated_vertices_z,
-            model.face_colors,
+            model->face_colors,
             light_ambient,
             attenuation,
             lightsrc_x,
@@ -1299,9 +1242,9 @@ main(int argc, char* argv[])
             pixel_buffer,
             tmp_priority_faces,
             tmp_priority_face_count,
-            model.face_indices_a,
-            model.face_indices_b,
-            model.face_indices_c,
+            model->face_indices_a,
+            model->face_indices_b,
+            model->face_indices_c,
             screen_vertices_x,
             screen_vertices_y,
             screen_vertices_z,

@@ -3,6 +3,12 @@
 
 #include "buffer.h"
 
+/**
+ * A framemap is a rigging/skeletons for a set of frames.
+ * "bone_groups" is a list of skeletons (i.e. a list of a list of bones)
+ *
+ * A frame contains a list of parameters for how to transform each bone in each skeleton.
+ */
 struct FramemapDefinition
 {
     int id;

@@ -6,9 +6,14 @@
 
 #include <stdbool.h>
 
+/**
+ * @brief A frame is a set of parameters for how to transform each bone in each skeleton.
+ *
+ */
 struct FrameDefinition
 {
     int id;
+    // The "rigging"/"skeletons" for this frame.
     struct FramemapDefinition* framemap;
     int translator_count;
     int* index_frame_ids;
