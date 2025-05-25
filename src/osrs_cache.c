@@ -1,3 +1,5 @@
+#include "osrs_cache.h"
+
 #include "osrs/sequence.h"
 // #include "xtea.h"
 #include "buffer.h"
@@ -6,7 +8,6 @@
 #include "osrs/frame.h"
 #include "osrs/framemap.h"
 #include "osrs/model.h"
-#include "osrs_cache.h"
 
 #include <assert.h>
 #include <bzlib.h>
@@ -530,32 +531,6 @@ decode_archive(struct Buffer* buffer, int size)
 #define FLAG_WHIRLPOOL 0x2
 #define FLAG_SIZES 0x4
 #define FLAG_HASH 0x8
-
-/**
- * Each entry contains metadata information for each archive in the main_file_cache.dat2 file.
- */
-struct ReferenceTableEntryFileMetadata
-{
-    int name_hash;
-    int id;
-};
-
-struct ReferenceTableEntry
-{
-    int index;
-    int identifier;
-    int crc;
-    int hash;
-    unsigned char whirlpool[64];
-    int compressed;
-    int uncompressed;
-    int version;
-    struct
-    {
-        struct ReferenceTableEntryFileMetadata* entries;
-        int count;
-    } children;
-};
 
 // public static int getSmartInt(ByteBuffer buffer) {
 // 	if (buffer.get(buffer.position()) < 0)
@@ -1404,7 +1379,7 @@ cache_load_reference_table(int reference_table_id)
     memset(archives, 0, master_index_record_count * sizeof(struct Dat2Archive));
     for( int i = 0; i < master_index_record_count; i++ )
     {
-        // cache.read(CacheIndex.META = 255, table: 0)
+        // cache.read(CacheIndex.META = 255, table: i)
         struct IndexRecord tmp_record;
         read_index_entry(255, master_index_data, master_index_size, i, &tmp_record);
 
