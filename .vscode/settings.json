@@ -27,6 +27,10 @@
         "stat.h": "c",
         "npctype.h": "c",
         "config_npctype.h": "c",
-        "model.h": "c"
+        "model.h": "c",
+        "__node_handle": "c",
+        "archive_decompress.h": "c",
+        "cache.h": "c",
+        "reference_table.h": "c"
     }
 }

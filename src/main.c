@@ -1,11 +1,9 @@
 #include "buffer.h"
 #include "gouraud.h"
 #include "lighting.h"
-#include "load_separate.h"
 #include "osrs/anim.h"
-#include "osrs/frame.h"
-#include "osrs/framemap.h"
-#include "osrs/model.h"
+#include "osrs/tables/framemap.h"
+#include "osrs/tables/model.h"
 #include "osrs_cache.h"
 #include "projection.h"
 #include "texture.h"
@@ -831,7 +829,7 @@ main(int argc, char* argv[])
         printf("TzTok-Jad\n");
     }
 
-    struct ModelBones* bones = model_decode_bones(model->vertex_bone_map, model->vertex_count);
+    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
 
     int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
     int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
@@ -1107,11 +1105,11 @@ main(int argc, char* argv[])
                                                    .data_size = frame_size,
                                                    .position = 0 };
 
-                    struct FramemapDefinition framemap = { 0 };
-                    decode_framemap(&framemap, current_frame, &framemap_buffer);
+                    struct FramemapDefinition* framemap =
+                        framemap_new_decode(current_frame, &framemap_buffer);
 
-                    struct FrameDefinition frame = { 0 };
-                    decode_frame(&frame, &framemap, current_frame, &frame_buffer);
+                    struct FrameDefinition* frame =
+                        frame_new_decode(current_frame, framemap, &frame_buffer);
 
                     memcpy(
                         animated_vertices_x, model->vertices_x, sizeof(int) * model->vertex_count);
@@ -1122,7 +1120,8 @@ main(int argc, char* argv[])
 
                     // Apply frame transformation
                     anim_frame_apply(
-                        &frame,
+                        frame,
+                        framemap,
                         animated_vertices_x,
                         animated_vertices_y,
                         animated_vertices_z,
@@ -1131,8 +1130,8 @@ main(int argc, char* argv[])
                         bones->bones_sizes);
 
                     // Cleanup
-                    free_frame(&frame);
-                    free_framemap(&framemap);
+                    frame_free(frame);
+                    framemap_free(framemap);
                     free(framemap_data);
                     free(frame_data);
                 }

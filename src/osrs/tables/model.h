@@ -34,9 +34,15 @@ struct ModelBones
     int* bones_sizes;
 };
 
-struct ModelBones* model_decode_bones(int* packed_bone_groups, int packed_bone_groups_count);
+struct ModelBones* modelbones_new_decode(int* packed_bone_groups, int packed_bone_groups_count);
 
-struct Model* model_decode(const unsigned char* inputData, int inputLength);
+struct Cache;
+struct Model* model_new_from_cache(struct Cache* cache, int model_id);
+struct Model* model_new_decode(const unsigned char* inputData, int inputLength);
+
+void modelbones_free(struct ModelBones* modelbones);
+void model_free(struct Model* model);
+
 void write_model_separate(const struct Model* model, const char* filename);
 
 #endif

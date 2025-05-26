@@ -191,9 +191,11 @@ animate(
 int
 anim_frame_apply(
     struct FrameDefinition* frame,
+    struct FramemapDefinition* framemap,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
+    // These are the bones of the model. They are defined with the model.
     int bones_count,
     int** bones,
     int* bones_sizes)
@@ -207,10 +209,9 @@ anim_frame_apply(
 
         int index = frame->index_frame_ids[i];
 
-        int* bone_group = frame->framemap->bone_groups[index];
-        int bone_group_length = frame->framemap->bone_groups_lengths[index];
-
-        int type = frame->framemap->types[index];
+        int* bone_group = framemap->bone_groups[index];
+        int bone_group_length = framemap->bone_groups_lengths[index];
+        int type = framemap->types[index];
 
         // cache/src/main/java/net/runelite/cache/definitions/ModelDefinition.java
         animate(

@@ -3,9 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-void
-decode_framemap(struct FramemapDefinition* def, int id, struct Buffer* buffer)
+struct FramemapDefinition*
+framemap_new_decode(int id, struct Buffer* buffer)
 {
+    struct FramemapDefinition* def = malloc(sizeof(struct FramemapDefinition));
+    memset(def, 0, sizeof(struct FramemapDefinition));
+
     // Initialize the framemap definition
     def->id = id;
     def->length = read_8(buffer);
@@ -38,24 +41,26 @@ decode_framemap(struct FramemapDefinition* def, int id, struct Buffer* buffer)
             def->bone_groups[i][j] = read_8(buffer);
         }
     }
+
+    return def;
 }
 
 void
-free_framemap(struct FramemapDefinition* def)
+framemap_free(struct FramemapDefinition* def)
 {
     if( def->types )
-    {
         free(def->types);
-    }
+
     if( def->bone_groups )
     {
         for( int i = 0; i < def->length; i++ )
         {
             if( def->bone_groups[i] )
-            {
                 free(def->bone_groups[i]);
-            }
         }
         free(def->bone_groups);
     }
+
+    free(def->bone_groups_lengths);
+    free(def);
 }

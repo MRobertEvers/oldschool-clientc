@@ -8,33 +8,49 @@ find_package(BZip2 REQUIRED)
 find_package(ZLIB REQUIRED)
 include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
 
+add_executable(main_rs
+    src/main_rs.c
+    src/osrs/cache.c
+    src/osrs/tables/model.c
+    src/buffer.c
+    src/osrs/archive_decompress.c
+    src/osrs/reference_table.c
+)
+
 add_executable(rs
     src/main.c
     src/projection.c
     src/gouraud.c
-    src/load_separate.c
     src/texture.c
     src/lighting.c
     src/buffer.c
-    src/osrs/framemap.c
-    src/osrs/frame.c
+    src/osrs/tables/framemap.c
+    src/osrs/tables/frame.c
     src/osrs/anim.c
-    src/osrs/config_npctype.c
-    src/osrs/sequence.c
-    src/osrs/model.c
-    src/osrs_cache2.c
+    src/osrs/tables/config_npctype.c
+    src/osrs/tables/sequence.c
+    src/osrs/tables/model.c
+    src/osrs_cache.c
+    src/osrs/cache.c
+    src/osrs/tables/model.c
+    src/osrs/archive_decompress.c
+    src/osrs/reference_table.c
 )
 
 add_executable(osrs_cache_test
     src/osrs_cache_test.c
-    src/osrs_cache2.c
+    src/osrs_cache.c
     src/buffer.c
     src/osrs/xtea.c
-    src/osrs/sequence.c
-    src/osrs/frame.c
-    src/osrs/framemap.c
-    src/osrs/config_npctype.c
-    src/osrs/model.c
+    src/osrs/tables/sequence.c
+    src/osrs/tables/frame.c
+    src/osrs/tables/framemap.c
+    src/osrs/tables/config_npctype.c
+    src/osrs/tables/model.c
+    src/osrs/cache.c
+    src/osrs/tables/model.c
+    src/osrs/archive_decompress.c
+    src/osrs/reference_table.c
 )
 
 add_executable(texture_test
@@ -43,6 +59,7 @@ add_executable(texture_test
     src/buffer.c
 )
 
+target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(texture_test ${SDL2_LIBRARIES})
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})

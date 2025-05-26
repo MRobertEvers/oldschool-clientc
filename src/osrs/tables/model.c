@@ -1,5 +1,8 @@
 #include "model.h"
 
+#include "osrs/cache.h"
+
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -46,7 +49,7 @@ read_short_smart(const unsigned char* buffer, int* offset)
 }
 
 struct ModelBones*
-model_decode_bones(int* vertex_bone_map, int vertex_bone_map_count)
+modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
 {
     struct ModelBones* bones = (struct ModelBones*)malloc(sizeof(struct ModelBones));
     if( !bones )
@@ -841,7 +844,24 @@ decodeType2(const unsigned char* inputData, int inputLength)
 }
 
 struct Model*
-model_decode(const unsigned char* inputData, int inputLength)
+model_new_from_cache(struct Cache* cache, int model_id)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_MODELS, model_id);
+    if( !archive )
+    {
+        printf("Failed to load model %d\n", model_id);
+        return NULL;
+    }
+
+    struct Model* model = model_new_decode(archive->data, archive->data_size);
+
+    cache_archive_free(archive);
+
+    return model;
+}
+
+struct Model*
+model_new_decode(const unsigned char* inputData, int inputLength)
 {
     // Check the last two bytes to determine model type
     if( inputLength >= 2 )
@@ -939,4 +959,47 @@ write_model_separate(const struct Model* model, const char* filename)
     fwrite(&model->face_count, sizeof(int), 1, file);
     fwrite(model->face_priorities, sizeof(int), model->face_count, file);
     fclose(file);
+}
+
+void
+modelbones_free(struct ModelBones* modelbones)
+{
+    for( int i = 0; i < modelbones->bones_count; i++ )
+        free(modelbones->bones[i]);
+    free(modelbones->bones);
+    free(modelbones->bones_sizes);
+
+    free(modelbones);
+}
+
+void
+model_free(struct Model* model)
+{
+    if( !model )
+        return;
+
+    if( model->vertices_x )
+        free(model->vertices_x);
+    if( model->vertices_y )
+        free(model->vertices_y);
+    if( model->vertices_z )
+        free(model->vertices_z);
+    if( model->vertex_bone_map )
+        free(model->vertex_bone_map);
+    if( model->face_indices_a )
+        free(model->face_indices_a);
+    if( model->face_indices_b )
+        free(model->face_indices_b);
+    if( model->face_indices_c )
+        free(model->face_indices_c);
+    if( model->face_colors )
+        free(model->face_colors);
+    if( model->face_priorities )
+        free(model->face_priorities);
+    if( model->face_alphas )
+        free(model->face_alphas);
+    if( model->face_infos )
+        free(model->face_infos);
+
+    free(model);
 }

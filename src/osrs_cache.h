@@ -1,8 +1,8 @@
 #ifndef OSRS_CACHE_H
 #define OSRS_CACHE_H
 
-#include "osrs/config_npctype.h"
-#include "osrs/model.h"
+#include "osrs/tables/config_npctype.h"
+#include "osrs/tables/model.h"
 
 struct Model* load_models();
 

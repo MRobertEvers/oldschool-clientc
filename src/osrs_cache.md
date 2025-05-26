@@ -9,9 +9,9 @@ The OSRS cache is a structured data storage system used by Old School RuneScape 
 ### main_file_cache.dat2
 
 - The primary data file containing all actual game data
-- Contains compressed and uncompressed data blocks
-- Data is organized into sectors of 520 bytes each
-- Supports multiple compression formats:
+- Contains compressed and uncompressed data blocks - each block is called an "Archive".
+- Data is stored on disk in sectors of 520 bytes
+- Each archive can be in one of multiple compression formats:
   - No compression (type 0)
   - BZip2 compression (type 1)
   - GZip compression (type 2)
@@ -19,17 +19,21 @@ The OSRS cache is a structured data storage system used by Old School RuneScape 
 ### main_file_cache.idx255
 
 - Special index file that describes all other tables
+- Index entries are 6 bytes long.
 - Known as "ReferenceTable" in OpenRS or "IndexData" in RuneLite
 - Contains metadata about other cache tables including:
   - Format version
   - Entry counts
   - Compression flags
   - CRC checksums
-  - Child entry information
+  - Archive Metadata
+  - File ids for multi-file archives.
 
 ### main_file_cache.idx0-N
 
 - Individual index files for different types of game data
+- Index entries are 6 bytes long.
+- Contains the 'sector' and length of each archive belonging to that table
 - Each index file points to specific data in the .dat2 file
 - Common indexes include:
   - idx0: Animations
@@ -232,15 +236,6 @@ struct ReferenceTableEntry {
   - Frame data
   - Timing information
   - Transformation data
-
-## Entity Types
-
-The cache uses specific bit masks to identify different entity types:
-
-- Player: 0x0000_0000
-- NPC: 0x2000_0000
-- Location: 0x4000_0000
-- Object Stack: 0x6000_0000
 
 ## Notes
 

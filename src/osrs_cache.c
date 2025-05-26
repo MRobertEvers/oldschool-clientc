@@ -1,13 +1,13 @@
 #include "osrs_cache.h"
 
-#include "osrs/sequence.h"
+#include "osrs/tables/sequence.h"
 // #include "xtea.h"
 #include "buffer.h"
 #include "osrs/anim.h"
-#include "osrs/config_npctype.h"
-#include "osrs/frame.h"
-#include "osrs/framemap.h"
-#include "osrs/model.h"
+#include "osrs/tables/config_npctype.h"
+#include "osrs/tables/frame.h"
+#include "osrs/tables/framemap.h"
+#include "osrs/tables/model.h"
 
 #include <assert.h>
 #include <bzlib.h>
@@ -37,7 +37,9 @@ static void
 read_index_entry(
     int index_file_id, char* data, int data_size, int entry_slot, struct IndexRecord* record)
 {
-    struct Buffer buffer = { .data = data, .position = entry_slot * INDEX_255_ENTRY_SIZE };
+    struct Buffer buffer = { .data = data,
+                             .data_size = data_size,
+                             .position = entry_slot * INDEX_255_ENTRY_SIZE };
 
     // 	int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
     // int sector = ((buffer[3] & 0xFF) << 16) | ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
@@ -58,6 +60,23 @@ read_index_entry(
     {
         return;
     }
+
+    record->length = length;
+    record->sector = sector;
+    record->record_id = entry_slot;
+    record->idx_file_id = index_file_id;
+}
+
+static void
+decode_index_entry(
+    int index_file_id, char* data, int data_size, int entry_slot, struct IndexRecord* record)
+{
+    int length = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+
+    int sector = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
+
+    if( length <= 0 || sector <= 0 )
+        return;
 
     record->length = length;
     record->sector = sector;
@@ -876,7 +895,7 @@ load_models()
     decompress_dat2archive(&archive);
 
     // THe model table does not use "PackedArchives", or "Files".
-    struct Model* model = model_decode(archive.data, archive.data_size);
+    struct Model* model = model_new_decode(archive.data, archive.data_size);
 
     // write_model_separate(model, "model2");
 
@@ -1126,8 +1145,8 @@ load_models()
                                           .position = 0 };
 
         // Decode the framemap
-        struct FramemapDefinition framemap = { 0 };
-        decode_framemap(&framemap, framemap_archive_id, &framemap_buffer);
+        struct FramemapDefinition* framemap =
+            framemap_new_decode(framemap_archive_id, &framemap_buffer);
 
         // Write framemap buffer to file
         char framemap_filename[256];
@@ -1154,8 +1173,8 @@ load_models()
                                        .position = 0 };
 
         // Decode the frame
-        struct FrameDefinition frame = { 0 };
-        decode_frame(&frame, &framemap, index_in_sequence, &frame_buffer);
+        struct FrameDefinition* frame =
+            frame_new_decode(index_in_sequence, &framemap, &frame_buffer);
 
         // Write frame buffer to file
         char frame_filename[256];
@@ -1170,15 +1189,15 @@ load_models()
         fclose(frame_file);
 
         // Print frame information
-        printf("Frame %d:\n", frame.id);
+        printf("Frame %d:\n", frame->id);
         printf("  Framemap ID: %d\n", framemap_archive_id);
-        printf("  Vertex groups: %d\n", framemap.length);
-        printf("  Translators: %d\n", frame.translator_count);
-        printf("  Showing: %s\n", frame.showing ? "true" : "false");
+        printf("  Vertex groups: %d\n", framemap->length);
+        printf("  Translators: %d\n", frame->translator_count);
+        printf("  Showing: %s\n", frame->showing ? "true" : "false");
 
         // Cleanup
-        free_frame(&frame);
-        free_framemap(&framemap);
+        frame_free(frame);
+        framemap_free(framemap);
         free(framemap_archive.data);
         free(anim_archive.data);
     }
@@ -1236,7 +1255,7 @@ cache_load_model(int model_id)
     decompress_dat2archive(&archive);
 
     // THe model table does not use "PackedArchives", or "Files".
-    struct Model* model = model_decode(archive.data, archive.data_size);
+    struct Model* model = model_new_decode(archive.data, archive.data_size);
 
     free(model_index_data);
     free(dat2_data);

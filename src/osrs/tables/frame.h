@@ -13,8 +13,8 @@
 struct FrameDefinition
 {
     int id;
-    // The "rigging"/"skeletons" for this frame.
-    struct FramemapDefinition* framemap;
+    // This is the rigging for the frame.
+    int framemap_id;
     int translator_count;
     int* index_frame_ids;
     int* translator_arg_x;
@@ -23,11 +23,8 @@ struct FrameDefinition
     bool showing;
 };
 
-void decode_frame(
-    struct FrameDefinition* def,
-    struct FramemapDefinition* framemap,
-    int id,
-    struct Buffer* buffer);
-void free_frame(struct FrameDefinition* def);
+struct FrameDefinition*
+frame_new_decode(int id, struct FramemapDefinition* framemap, struct Buffer* buffer);
+void frame_free(struct FrameDefinition* frame);
 
 #endif // FRAME_H

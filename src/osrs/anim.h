@@ -1,8 +1,8 @@
 #ifndef ANIM_H
 #define ANIM_H
 
-#include "frame.h"
-#include "model.h"
+#include "osrs/tables/frame.h"
+#include "osrs/tables/model.h"
 
 struct Transformation
 {
@@ -13,6 +13,7 @@ struct Transformation
 
 int anim_frame_apply(
     struct FrameDefinition* frame,
+    struct FramemapDefinition* framemap,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,

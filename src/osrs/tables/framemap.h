@@ -18,7 +18,7 @@ struct FramemapDefinition
     int length;
 };
 
-void decode_framemap(struct FramemapDefinition* def, int id, struct Buffer* buffer);
-void free_framemap(struct FramemapDefinition* def);
+struct FramemapDefinition* framemap_new_decode(int id, struct Buffer* buffer);
+void framemap_free(struct FramemapDefinition* framemap);
 
 #endif // FRAMEMAP_H

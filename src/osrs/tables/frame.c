@@ -21,13 +21,15 @@ read_short_smart(struct Buffer* buffer)
     }
 }
 
-void
-decode_frame(
-    struct FrameDefinition* def, struct FramemapDefinition* framemap, int id, struct Buffer* buffer)
+struct FrameDefinition*
+frame_new_decode(int id, struct FramemapDefinition* framemap, struct Buffer* buffer)
 {
     // Initialize the frame definition
+    struct FrameDefinition* def = malloc(sizeof(struct FrameDefinition));
+    memset(def, 0, sizeof(struct FrameDefinition));
+
     def->id = id;
-    def->framemap = framemap;
+    def->framemap_id = framemap->id;
     def->showing = false;
 
     // Read the framemap archive index and length
@@ -128,7 +130,7 @@ decode_frame(
         free(scratch_translator_x);
         free(scratch_translator_y);
         free(scratch_translator_z);
-        return;
+        return NULL;
     }
 
     // Allocate final arrays
@@ -152,10 +154,12 @@ decode_frame(
     free(scratch_translator_x);
     free(scratch_translator_y);
     free(scratch_translator_z);
+
+    return def;
 }
 
 void
-free_frame(struct FrameDefinition* def)
+frame_free(struct FrameDefinition* def)
 {
     if( def->index_frame_ids )
     {
