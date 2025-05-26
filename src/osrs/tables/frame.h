@@ -9,6 +9,14 @@
 /**
  * @brief A frame is a set of parameters for how to transform each bone in each skeleton.
  *
+ * Nah. Each animation consists of a list of frames. All those frames belong in the same frame map.
+You derive the frame map from the stand/walk animation of the monster, and then find all animations
+that contain frames which belong to that same frame map. Ultimately gives you the ability to extract
+a lot more than what Armar's provided. I personally extract these fields, although they can be
+extended even further. https://gist.github.com/555196afa946955d37d4525a162712ea
+
+Oh and this is also a more up to date version of what the OP provided, as of right now it's the
+current OSRS's cache dump.
  */
 struct FrameDefinition
 {

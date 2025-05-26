@@ -8,6 +8,20 @@ find_package(BZip2 REQUIRED)
 find_package(ZLIB REQUIRED)
 include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
 
+add_executable(main_client
+    src/main_client.c
+    src/osrs/cache.c
+    src/osrs/tables/model.c
+    src/buffer.c
+    src/osrs/archive_decompress.c
+    src/osrs/reference_table.c
+    src/osrs/tables/config_npctype.c
+    src/osrs/tables/config_sequence.c
+    src/osrs/tables/framemap.c
+    src/osrs/tables/frame.c
+    src/osrs/filelist.c
+)
+
 add_executable(main_rs
     src/main_rs.c
     src/osrs/cache.c
@@ -65,6 +79,7 @@ add_executable(texture_test
     src/buffer.c
 )
 
+target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(texture_test ${SDL2_LIBRARIES})

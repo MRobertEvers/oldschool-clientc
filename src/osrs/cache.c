@@ -216,7 +216,7 @@ error:
         reference_table_free(table);
     if( cache )
         free(cache);
-    return cache;
+    return NULL;
 }
 
 void
@@ -314,6 +314,9 @@ cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
 {
     int res = 0;
     bool decompressed = false;
+    char* dat2_data = NULL;
+    struct Dat2Archive dat2_archive = { 0 };
+
     struct CacheArchive* archive = malloc(sizeof(struct CacheArchive));
     memset(archive, 0, sizeof(struct CacheArchive));
 
@@ -325,14 +328,13 @@ cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
     }
 
     int dat2_size = 0;
-    char* dat2_data = load_dat2_memory(cache->directory, &dat2_size);
+    dat2_data = load_dat2_memory(cache->directory, &dat2_size);
     if( !dat2_data )
     {
         printf("Failed to load dat2\n");
         goto error;
     }
 
-    struct Dat2Archive dat2_archive = { 0 };
     res = read_dat2(
         &dat2_archive,
         dat2_data,

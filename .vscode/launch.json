@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/build/main_rs",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${fileDirname}",
+            "cwd": "${workspaceFolder}/build",
             "environment": [],
             "externalConsole": false,
             "MIMode": "lldb"
