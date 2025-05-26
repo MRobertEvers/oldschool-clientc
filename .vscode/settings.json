@@ -31,6 +31,7 @@
         "__node_handle": "c",
         "archive_decompress.h": "c",
         "cache.h": "c",
-        "reference_table.h": "c"
+        "reference_table.h": "c",
+        "sequence.h": "c"
     }
 }

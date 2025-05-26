@@ -49,6 +49,7 @@ struct CacheArchive
 
     int archive_id;
     int table_id;
+    int revision;
 
     int file_count;
 };

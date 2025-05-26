@@ -1,4 +1,6 @@
-#include "sequence.h"
+#include "config_sequence.h"
+
+#include "osrs/cache.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -705,6 +707,58 @@ decode_sequence_226_plus(struct SequenceDefinition* def, struct Buffer* buffer)
             break;
         }
     }
+}
+
+struct SequenceDefinition*
+config_sequence_new_decode(int revision, char* data, int data_size)
+{
+    struct SequenceDefinition* def = malloc(sizeof(struct SequenceDefinition));
+    memset(def, 0, sizeof(struct SequenceDefinition));
+
+    struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
+
+    decode_sequence(def, revision, &buffer);
+
+    return def;
+}
+
+void
+config_sequence_free(struct SequenceDefinition* def)
+{
+    if( def->frame_ids )
+    {
+        free(def->frame_ids);
+    }
+    if( def->frame_lengths )
+    {
+        free(def->frame_lengths);
+    }
+    if( def->interleave_leave )
+    {
+        free(def->interleave_leave);
+    }
+    if( def->chat_frame_ids )
+    {
+        free(def->chat_frame_ids);
+    }
+    if( def->anim_maya_masks )
+    {
+        free(def->anim_maya_masks);
+    }
+    if( def->debug_name )
+    {
+        free(def->debug_name);
+    }
+    if( def->frame_sounds.frames )
+    {
+        free(def->frame_sounds.frames);
+    }
+    if( def->frame_sounds.sounds )
+    {
+        free(def->frame_sounds.sounds);
+    }
+
+    free(def);
 }
 
 void

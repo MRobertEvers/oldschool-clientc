@@ -18,7 +18,20 @@ struct FramemapDefinition
     int length;
 };
 
+struct Cache;
+struct FramemapDefinition* framemap_new_from_cache(struct Cache* cache, int framemap_id);
+
+/**
+ * Frame archives store the framemap id in the first 2 bytes.
+ *
+ * @param data
+ * @param data_size
+ * @return int
+ */
+int framemap_id_from_frame_archive(char* data, int data_size);
+
 struct FramemapDefinition* framemap_new_decode(int id, struct Buffer* buffer);
+struct FramemapDefinition* framemap_new_decode2(int id, char* data, int data_size);
 void framemap_free(struct FramemapDefinition* framemap);
 
 #endif // FRAMEMAP_H

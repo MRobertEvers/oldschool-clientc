@@ -15,6 +15,11 @@ add_executable(main_rs
     src/buffer.c
     src/osrs/archive_decompress.c
     src/osrs/reference_table.c
+    src/osrs/tables/config_npctype.c
+    src/osrs/tables/config_sequence.c
+    src/osrs/tables/framemap.c
+    src/osrs/tables/frame.c
+    src/osrs/filelist.c
 )
 
 add_executable(rs
@@ -28,8 +33,9 @@ add_executable(rs
     src/osrs/tables/frame.c
     src/osrs/anim.c
     src/osrs/tables/config_npctype.c
-    src/osrs/tables/sequence.c
+    src/osrs/tables/config_sequence.c
     src/osrs/tables/model.c
+
     src/osrs_cache.c
     src/osrs/cache.c
     src/osrs/tables/model.c
@@ -42,7 +48,7 @@ add_executable(osrs_cache_test
     src/osrs_cache.c
     src/buffer.c
     src/osrs/xtea.c
-    src/osrs/tables/sequence.c
+    src/osrs/tables/config_sequence.c
     src/osrs/tables/frame.c
     src/osrs/tables/framemap.c
     src/osrs/tables/config_npctype.c

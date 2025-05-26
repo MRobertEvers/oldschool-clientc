@@ -1,8 +1,10 @@
 #include "frame.h"
 
 #include "buffer.h"
+#include "osrs/cache.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,6 +21,31 @@ read_short_smart(struct Buffer* buffer)
         unsigned short ushort_value = read_16(buffer);
         return (int)(ushort_value - 0xC000);
     }
+}
+
+struct FrameDefinition*
+frame_new_from_cache(struct Cache* cache, int frame_id, struct FramemapDefinition* framemap)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_id);
+    if( !archive )
+    {
+        printf("Failed to load frame %d\n", frame_id);
+        return NULL;
+    }
+
+    struct FrameDefinition* frame =
+        frame_new_decode2(frame_id, framemap, archive->data, archive->data_size);
+
+    cache_archive_free(archive);
+
+    return frame;
+}
+
+struct FrameDefinition*
+frame_new_decode2(int id, struct FramemapDefinition* framemap, char* data, int data_size)
+{
+    struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
+    return frame_new_decode(id, framemap, &buffer);
 }
 
 struct FrameDefinition*

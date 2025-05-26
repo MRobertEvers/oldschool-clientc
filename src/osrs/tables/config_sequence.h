@@ -47,6 +47,9 @@ struct SequenceDefinition
     struct FrameSoundMap frame_sounds; // Map of frame index to sound data
 };
 
+struct SequenceDefinition* config_sequence_new_decode(int revision, char* buffer, int buffer_size);
+void config_sequence_free(struct SequenceDefinition* sequence);
+
 void decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buffer);
 void print_sequence(struct SequenceDefinition* def);
 void free_sequence(struct SequenceDefinition* def);

@@ -396,7 +396,7 @@ cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
         int id = table->ids[i];
         if( table->archives[id].index == archive_id )
         {
-            archive_slot = i;
+            archive_slot = id;
             break;
         }
     }
@@ -458,6 +458,7 @@ cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
     archive->archive_id = archive_id;
     archive->table_id = table_id;
 
+    archive->revision = archive_reference->version;
     archive->file_count = archive_reference->children.count;
 
     return archive;

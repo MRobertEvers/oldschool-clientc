@@ -23,6 +23,13 @@ struct FrameDefinition
     bool showing;
 };
 
+struct Cache;
+struct FrameDefinition*
+frame_new_from_cache(struct Cache* cache, int frame_id, struct FramemapDefinition* framemap);
+
+struct FrameDefinition*
+frame_new_decode2(int frame_id, struct FramemapDefinition* framemap, char* data, int data_size);
+
 struct FrameDefinition*
 frame_new_decode(int id, struct FramemapDefinition* framemap, struct Buffer* buffer);
 void frame_free(struct FrameDefinition* frame);

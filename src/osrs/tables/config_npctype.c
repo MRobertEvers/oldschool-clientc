@@ -9,6 +9,61 @@
 
 #define REV_210_NPC_ARCHIVE_REV 1493
 
+struct NPCType*
+config_npctype_new_decode(int revision, char* data, int data_size)
+{
+    struct NPCType* npc = malloc(sizeof(struct NPCType));
+    if( !npc )
+    {
+        printf("config_npctype_new_decode: Failed to allocate memory for NPCType\n");
+        return NULL;
+    }
+
+    struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
+
+    decode_npc_type(npc, revision, &buffer);
+
+    return npc;
+}
+
+void
+config_npctype_free(struct NPCType* npc)
+{
+    if( !npc )
+        return;
+
+    free(npc->name);
+    free(npc->models);
+    free(npc->recolor_to_find);
+    free(npc->recolor_to_replace);
+    free(npc->retexture_to_find);
+    free(npc->retexture_to_replace);
+    free(npc->chathead_models);
+    free(npc->head_icon_archive_ids);
+    free(npc->head_icon_sprite_index);
+    free(npc->actions[0]);
+    free(npc->actions[1]);
+    free(npc->actions[2]);
+    free(npc->actions[3]);
+    free(npc->actions[4]);
+    free(npc->configs);
+    for( int i = 0; i < npc->params.count; i++ )
+    {
+        if( npc->params.is_string[i] )
+        {
+            free(npc->params.values[i]);
+        }
+        else
+        {
+            free(npc->params.values[i]);
+        }
+    }
+    free(npc->params.keys);
+    free(npc->params.values);
+    free(npc->params.is_string);
+    free(npc);
+}
+
 /**
  * @brief
  *

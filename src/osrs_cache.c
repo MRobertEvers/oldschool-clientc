@@ -1,6 +1,6 @@
 #include "osrs_cache.h"
 
-#include "osrs/tables/sequence.h"
+#include "osrs/tables/config_sequence.h"
 // #include "xtea.h"
 #include "buffer.h"
 #include "osrs/anim.h"

@@ -1,0 +1,50 @@
+#ifndef CONFIGS_H
+#define CONFIGS_H
+
+enum CONFIG_ENTRY
+{
+    // UNDERLAY(1),
+    // 	IDENTKIT(3),
+    // 	OVERLAY(4),
+    // 	INV(5),
+    // 	OBJECT(6),
+    // 	ENUM(8),
+    // 	NPC(9),
+    // 	ITEM(10),
+    // 	PARAMS(11),
+    // 	SEQUENCE(12),
+    // 	SPOTANIM(13),
+    // 	VARBIT(14),
+    // 	VARCLIENT(19),
+    // 	VARCLIENTSTRING(15),
+    // 	VARPLAYER(16),
+    // 	HITSPLAT(32),
+    // 	HEALTHBAR(33),
+    // 	STRUCT(34),
+    // 	AREA(35),
+    // 	DBROW(38),
+    // 	DBTABLE(39);
+    CONFIG_UNDERLAY = 1,
+    CONFIG_IDENTKIT = 3,
+    CONFIG_OVERLAY = 4,
+    CONFIG_INV = 5,
+    CONFIG_OBJECT = 6,
+    CONFIG_ENUM = 8,
+    CONFIG_NPC = 9,
+    CONFIG_ITEM = 10,
+    CONFIG_PARAMS = 11,
+    CONFIG_SEQUENCE = 12,
+    CONFIG_SPOTANIM = 13,
+    CONFIG_VARBIT = 14,
+    CONFIG_VARCLIENT = 19,
+    CONFIG_VARCLIENTSTRING = 15,
+    CONFIG_VARPLAYER = 16,
+    CONFIG_HITSPLAT = 32,
+    CONFIG_HEALTHBAR = 33,
+    CONFIG_STRUCT = 34,
+    CONFIG_AREA = 35,
+    CONFIG_DBROW = 38,
+    CONFIG_DBTABLE = 39
+};
+
+#endif
