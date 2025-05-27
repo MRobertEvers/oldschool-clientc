@@ -365,7 +365,7 @@ render_model_frame(
     int camera_roll,
     int fov,
     struct Model* model,
-    struct ModelBones* bones,
+    struct ModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable)
 {
@@ -402,7 +402,7 @@ render_model_frame(
 
     int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
 
-    if( frame_nullable && framemap_nullable )
+    if( frame_nullable && framemap_nullable && bones_nullable )
     {
         anim_frame_apply(
             frame_nullable,
@@ -410,9 +410,9 @@ render_model_frame(
             vertices_x,
             vertices_y,
             vertices_z,
-            bones->bones_count,
-            bones->bones,
-            bones->bones_sizes);
+            bones_nullable->bones_count,
+            bones_nullable->bones,
+            bones_nullable->bones_sizes);
     }
 
     calculate_vertex_normals(

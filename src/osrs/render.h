@@ -24,7 +24,7 @@ void render_model_frame(
     int camera_roll,
     int fov,
     struct Model* model,
-    struct ModelBones* bones,
+    struct ModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable);
 
