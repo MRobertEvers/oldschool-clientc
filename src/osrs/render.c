@@ -1,5 +1,7 @@
 #include "osrs/render.h"
 
+#include "anim.h"
+#include "gouraud.h"
 #include "lighting.h"
 #include "projection.h"
 #include "tables/model.h"
@@ -8,6 +10,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 extern int g_sin_table[2048];
@@ -198,7 +201,8 @@ bucket_sort_by_average_depth(
         // if the dot product is negative, then the triangle is facing away from the camera.
         // Note: This assumes that face vertices are ordered in some way. TODO: Determine that
         // order.
-        if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) > 0 )
+        int dot_product = (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb);
+        if( dot_product > 0 )
         {
             // the z's are the depth of the vertex relative to the origin of the model.
             // This means some of the z's will be negative.
@@ -254,7 +258,7 @@ parition_faces_by_priority(
     int* face_priorities,
     int depth_upper_bound)
 {
-    for( int depth = depth_upper_bound; depth >= 0 && depth < 1500; depth-- )
+    for( int depth = 1499; depth >= 0 && depth < 1500; depth-- )
     {
         int face_count = face_depth_bucket_counts[depth];
         if( face_count == 0 )
@@ -316,6 +320,10 @@ raster_osrs(
             int color_a = colors_a[index];
             int color_b = colors_b[index];
             int color_c = colors_c[index];
+
+            color_a = g_hsl16_to_rgb_table[color_a];
+            color_b = g_hsl16_to_rgb_table[color_b];
+            color_c = g_hsl16_to_rgb_table[color_c];
 
             raster_gouraud(
                 pixel_buffer,
@@ -385,6 +393,10 @@ render_model_frame(
     memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
     memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
 
+    int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
+    int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
+    int* screen_vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
+
     struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
         model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
 
@@ -442,9 +454,9 @@ render_model_frame(
         lightsrc_z);
 
     project_vertices(
-        vertices_x,
-        vertices_y,
-        vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
         model->vertex_count,
         vertices_x,
         vertices_y,
@@ -464,13 +476,13 @@ render_model_frame(
         near_plane_z);
 
     bucket_sort_by_average_depth(
-        tmp_depth_face_count,
         tmp_depth_faces,
+        tmp_depth_face_count,
         model_min_depth,
         model->face_count,
-        vertices_x,
-        vertices_y,
-        vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
         model->face_indices_a,
         model->face_indices_b,
         model->face_indices_c);
@@ -482,10 +494,10 @@ render_model_frame(
         tmp_depth_face_count,
         model->face_count,
         model->face_priorities,
-        model_min_depth);
+        model_min_depth * 2);
 
     for( int i = 0; i < model->face_count; i++ )
-
+    {
         raster_osrs(
             pixel_buffer,
             tmp_priority_faces,
@@ -493,9 +505,9 @@ render_model_frame(
             model->face_indices_a,
             model->face_indices_b,
             model->face_indices_c,
-            vertices_x,
-            vertices_y,
-            vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
             face_colors_a_hsl16,
             face_colors_b_hsl16,
             face_colors_c_hsl16,
@@ -503,4 +515,5 @@ render_model_frame(
             0,
             width,
             height);
+    }
 }

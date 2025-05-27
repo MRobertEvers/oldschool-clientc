@@ -1,7 +1,12 @@
 #include "osrs/cache.h"
+#include "osrs/render.h"
+#include "osrs/tables/model.h"
 
 #include <SDL.h>
 #include <stdbool.h>
+
+#define SCREEN_WIDTH 800
+#define SCREEN_HEIGHT 600
 
 int g_sin_table[2048];
 int g_cos_table[2048];
@@ -431,7 +436,6 @@ game_input_sdl2(struct GameInput* input)
         }
     }
 done:
-    printf("done\n");
     return;
 }
 
@@ -441,6 +445,8 @@ game_init(struct Game* game)
     game->cache = cache_new_from_directory("../cache");
     if( !game->cache )
         return false;
+
+    game->camera_z = 420;
 
     return true;
 }
@@ -533,13 +539,72 @@ game_update(struct Game* game, struct GameInput* input)
 static void
 game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 {
-    SDL_RenderClear(platform->renderer);
-    SDL_RenderCopy(platform->renderer, platform->texture, NULL, NULL);
-    SDL_RenderPresent(platform->renderer);
-}
+    SDL_Texture* texture = platform->texture;
+    SDL_Renderer* renderer = platform->renderer;
+    int* pixel_buffer = platform->pixel_buffer;
 
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 600
+    struct Model* model = model_new_from_cache(game->cache, game->model_id);
+
+    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+
+    render_model_frame(
+        pixel_buffer,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        10,
+        game->model_yaw,
+        game->model_pitch,
+        game->model_roll,
+        game->camera_x,
+        game->camera_y,
+        game->camera_z,
+        game->camera_yaw,
+        game->camera_pitch,
+        game->camera_roll,
+        game->camera_fov,
+        model,
+        bones,
+        NULL,
+        NULL);
+
+    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
+        pixel_buffer,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        32,
+        SCREEN_WIDTH * sizeof(int),
+        0x00FF0000,
+        0x0000FF00,
+        0x000000FF,
+        0xFF000000);
+
+    // Copy the pixels into the texture
+    int* pix_write = NULL;
+    int _pitch_unused = 0;
+    if( SDL_LockTexture(texture, NULL, (void**)&pix_write, &_pitch_unused) < 0 )
+        return;
+
+    int row_size = SCREEN_WIDTH * sizeof(int);
+    int* src_pixels = (int*)surface->pixels;
+    for( int src_y = 0; src_y < (SCREEN_HEIGHT); src_y++ )
+    {
+        // Calculate offset in texture to write a single row of pixels
+        int* row = &pix_write[(src_y * SCREEN_WIDTH)];
+        // Copy a single row of pixels
+        memcpy(row, &src_pixels[(src_y - 0) * SCREEN_WIDTH], row_size);
+    }
+
+    // Unlock the texture so that it may be used elsewhere
+    SDL_UnlockTexture(texture);
+    SDL_RenderCopy(renderer, texture, NULL, NULL);
+
+    SDL_RenderPresent(renderer);
+
+    SDL_FreeSurface(surface);
+
+    model_free(model);
+    modelbones_free(bones);
+}
 
 static bool
 platform_sdl2_init(struct PlatformSDL2* platform)
@@ -585,6 +650,11 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 int
 main(int argc, char* argv[])
 {
+    init_cos_table();
+    init_sin_table();
+    init_tan_table();
+    init_hsl16_to_rgb_table();
+
     struct GameInput input = { 0 };
     struct Game game = { 0 };
     struct PlatformSDL2 platform = { 0 };

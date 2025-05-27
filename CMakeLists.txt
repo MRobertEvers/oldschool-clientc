@@ -20,6 +20,12 @@ add_executable(main_client
     src/osrs/tables/framemap.c
     src/osrs/tables/frame.c
     src/osrs/filelist.c
+    src/osrs/render.c
+    src/gouraud.c
+    src/lighting.c
+    src/projection.c
+    src/texture.c
+    src/osrs/anim.c
 )
 
 add_executable(main_rs

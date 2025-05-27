@@ -5,6 +5,8 @@
 
 struct Model;
 struct ModelBones;
+struct Frame;
+struct Framemap;
 
 void render_model_frame(
     int* pixel_buffer,
