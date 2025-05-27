@@ -258,7 +258,7 @@ parition_faces_by_priority(
     int* face_priorities,
     int depth_upper_bound)
 {
-    for( int depth = 1499; depth >= 0 && depth < 1500; depth-- )
+    for( int depth = depth_upper_bound; depth >= 0 && depth < 1500; depth-- )
     {
         int face_count = face_depth_bucket_counts[depth];
         if( face_count == 0 )
@@ -496,24 +496,32 @@ render_model_frame(
         model->face_priorities,
         model_min_depth * 2);
 
-    for( int i = 0; i < model->face_count; i++ )
-    {
-        raster_osrs(
-            pixel_buffer,
-            tmp_priority_faces,
-            tmp_priority_face_count,
-            model->face_indices_a,
-            model->face_indices_b,
-            model->face_indices_c,
-            screen_vertices_x,
-            screen_vertices_y,
-            screen_vertices_z,
-            face_colors_a_hsl16,
-            face_colors_b_hsl16,
-            face_colors_c_hsl16,
-            0,
-            0,
-            width,
-            height);
-    }
+    raster_osrs(
+        pixel_buffer,
+        tmp_priority_faces,
+        tmp_priority_face_count,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        face_colors_a_hsl16,
+        face_colors_b_hsl16,
+        face_colors_c_hsl16,
+        0,
+        0,
+        width,
+        height);
+
+    free(vertices_x);
+    free(vertices_y);
+    free(vertices_z);
+    free(face_colors_a_hsl16);
+    free(face_colors_b_hsl16);
+    free(face_colors_c_hsl16);
+    free(vertex_normals);
+    free(screen_vertices_x);
+    free(screen_vertices_y);
+    free(screen_vertices_z);
 }

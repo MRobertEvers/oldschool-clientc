@@ -320,16 +320,16 @@ game_input_sdl2(struct GameInput* input)
                 input->key_down |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
                 break;
             case SDLK_w:
-                input->key_up |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
+                input->key_w |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
                 break;
             case SDLK_s:
-                input->key_down |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
+                input->key_s |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
                 break;
             case SDLK_a:
-                input->key_left |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
+                input->key_a |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
                 break;
             case SDLK_d:
-                input->key_right |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
+                input->key_d |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
                 break;
             case SDLK_q:
                 input->key_q |= KEY_FLAG_ACTIVE | KEY_FLAG_EV_DOWN;
@@ -369,62 +369,81 @@ game_input_sdl2(struct GameInput* input)
             switch( event.key.keysym.sym )
             {
             case SDLK_UP:
+                input->key_up &= ~KEY_FLAG_ACTIVE;
                 input->key_up |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_DOWN:
+                input->key_down &= ~KEY_FLAG_ACTIVE;
                 input->key_down |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_LEFT:
+                input->key_left &= ~KEY_FLAG_ACTIVE;
                 input->key_left |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_RIGHT:
+                input->key_right &= ~KEY_FLAG_ACTIVE;
                 input->key_right |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_GREATER:
                 break;
             case SDLK_LESS:
+                input->key_down &= ~KEY_FLAG_ACTIVE;
                 input->key_down |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_w:
-                input->key_up |= KEY_FLAG_EV_UP;
+                input->key_w &= ~KEY_FLAG_ACTIVE;
+                input->key_w |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_s:
-                input->key_down |= KEY_FLAG_EV_UP;
+                input->key_s &= ~KEY_FLAG_ACTIVE;
+                input->key_s |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_a:
-                input->key_left |= KEY_FLAG_EV_UP;
+                input->key_a &= ~KEY_FLAG_ACTIVE;
+                input->key_a |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_d:
-                input->key_right |= KEY_FLAG_EV_UP;
+                input->key_d &= ~KEY_FLAG_ACTIVE;
+                input->key_d |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_q:
+                input->key_q &= ~KEY_FLAG_ACTIVE;
                 input->key_q |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_e:
+                input->key_e &= ~KEY_FLAG_ACTIVE;
                 input->key_e |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_i:
+                input->key_i &= ~KEY_FLAG_ACTIVE;
                 input->key_i |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_k:
+                input->key_k &= ~KEY_FLAG_ACTIVE;
                 input->key_k |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_j:
+                input->key_j &= ~KEY_FLAG_ACTIVE;
                 input->key_j |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_l:
+                input->key_l &= ~KEY_FLAG_ACTIVE;
                 input->key_l |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_u:
+                input->key_u &= ~KEY_FLAG_ACTIVE;
                 input->key_u |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_o:
+                input->key_o &= ~KEY_FLAG_ACTIVE;
                 input->key_o |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_f:
+                input->key_f &= ~KEY_FLAG_ACTIVE;
                 input->key_f |= KEY_FLAG_EV_UP;
                 break;
             case SDLK_g:
+                input->key_g &= ~KEY_FLAG_ACTIVE;
                 input->key_g |= KEY_FLAG_EV_UP;
                 break;
             }
@@ -517,8 +536,10 @@ game_update(struct Game* game, struct GameInput* input)
     {
         if( game->mouse_held )
         {
-            game->model_yaw = (game->model_yaw + (input->mouse_x - game->last_mouse_x)) % 2048;
-            game->model_pitch = (game->model_pitch + (input->mouse_y - game->last_mouse_y)) % 2048;
+            game->model_yaw =
+                (game->model_yaw + (input->mouse_x - game->last_mouse_x) + 2048) % 2048;
+            game->model_pitch =
+                (game->model_pitch + (input->mouse_y - game->last_mouse_y) + 2048) % 2048;
         }
 
         game->last_mouse_x = input->mouse_x;
@@ -542,6 +563,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_Texture* texture = platform->texture;
     SDL_Renderer* renderer = platform->renderer;
     int* pixel_buffer = platform->pixel_buffer;
+    memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
     struct Model* model = model_new_from_cache(game->cache, game->model_id);
 
@@ -597,10 +619,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     // Unlock the texture so that it may be used elsewhere
     SDL_UnlockTexture(texture);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
-
     SDL_RenderPresent(renderer);
-
-    SDL_FreeSurface(surface);
 
     model_free(model);
     modelbones_free(bones);

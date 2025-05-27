@@ -37,6 +37,9 @@ struct Cache
     char const* directory;
 
     struct ReferenceTable* tables[CACHE_TABLE_COUNT];
+
+    char* _dat2;
+    int _dat2_size;
 };
 
 struct Cache* cache_new_from_directory(char const* directory);

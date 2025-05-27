@@ -1334,7 +1334,6 @@ main(int argc, char* argv[])
 
         // Unlock the texture so that it may be used elsewhere
         SDL_UnlockTexture(texture);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
 
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);

@@ -12,6 +12,30 @@
 #define SECTOR_SIZE 520
 #define INDEX_ENTRY_SIZE 6
 
+static char*
+load_dat2_memory(char const* cache_directory, int* out_size)
+{
+    char* data = NULL;
+    int data_size = 0;
+
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_directory);
+    FILE* dat2_file = fopen(path, "rb");
+    if( !dat2_file )
+        return NULL;
+
+    fseek(dat2_file, 0, SEEK_END);
+    data_size = ftell(dat2_file);
+    fseek(dat2_file, 0, SEEK_SET);
+
+    data = malloc(data_size);
+    fread(data, data_size, 1, dat2_file);
+    *out_size = data_size;
+    fclose(dat2_file);
+
+    return data;
+}
+
 /**
  * @brief In the dat2 file, the records are archives.
  *
@@ -186,6 +210,8 @@ cache_new_from_directory(char const* directory)
 
     cache->directory = strdup(directory);
 
+    cache->_dat2 = load_dat2_memory(cache->directory, &cache->_dat2_size);
+
     struct CacheArchive* table_archive = NULL;
     struct ReferenceTable* table = NULL;
     for( int i = 0; i < CACHE_TABLE_COUNT; ++i )
@@ -285,30 +311,6 @@ read_index(struct IndexRecord* record, char const* cache_directory, int table_id
     return 0;
 }
 
-static char*
-load_dat2_memory(char const* cache_directory, int* out_size)
-{
-    char* data = NULL;
-    int data_size = 0;
-
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_directory);
-    FILE* dat2_file = fopen(path, "rb");
-    if( !dat2_file )
-        return NULL;
-
-    fseek(dat2_file, 0, SEEK_END);
-    data_size = ftell(dat2_file);
-    fseek(dat2_file, 0, SEEK_SET);
-
-    data = malloc(data_size);
-    fread(data, data_size, 1, dat2_file);
-    *out_size = data_size;
-    fclose(dat2_file);
-
-    return data;
-}
-
 struct CacheArchive*
 cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
 {
@@ -327,23 +329,14 @@ cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
         goto error;
     }
 
-    int dat2_size = 0;
-    dat2_data = load_dat2_memory(cache->directory, &dat2_size);
-    if( !dat2_data )
-    {
-        printf("Failed to load dat2\n");
-        goto error;
-    }
-
     res = read_dat2(
         &dat2_archive,
-        dat2_data,
-        dat2_size,
+        cache->_dat2,
+        cache->_dat2_size,
         index_record.idx_file_id,
         index_record.archive_idx,
         index_record.sector,
         index_record.length);
-    free(dat2_data);
 
     if( res != 0 )
     {
@@ -424,24 +417,15 @@ cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
         goto error;
     }
 
-    int dat2_size = 0;
-    char* dat2_data = load_dat2_memory(cache->directory, &dat2_size);
-    if( !dat2_data )
-    {
-        printf("Failed to load dat2\n");
-        goto error;
-    }
-
     struct Dat2Archive dat2_archive = { 0 };
     int res = read_dat2(
         &dat2_archive,
-        dat2_data,
-        dat2_size,
+        cache->_dat2,
+        cache->_dat2_size,
         index_record.idx_file_id,
         index_record.archive_idx,
         index_record.sector,
         index_record.length);
-    free(dat2_data);
     if( res != 0 )
     {
         printf("Failed to read dat2 archive for table %d\n", table_id);
@@ -468,8 +452,6 @@ cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
 error:
     if( dat2_archive.data )
         free(dat2_archive.data);
-    if( dat2_data )
-        free(dat2_data);
     free(archive);
     return NULL;
 }
