@@ -465,6 +465,7 @@ game_init(struct Game* game)
     if( !game->cache )
         return false;
 
+    game->model_id = 9319;
     game->camera_z = 420;
 
     return true;
@@ -473,35 +474,37 @@ game_init(struct Game* game)
 static void
 game_update(struct Game* game, struct GameInput* input)
 {
+    static const int CAMERA_SPEED = 10;
+    static const int CAMERA_ANGLE_SPEED = 10;
     if( input->key_w & KEY_FLAG_ACTIVE )
-        game->camera_z += 1;
+        game->camera_z += CAMERA_SPEED;
 
     if( input->key_s & KEY_FLAG_ACTIVE )
-        game->camera_z -= 1;
+        game->camera_z -= CAMERA_SPEED;
 
     if( input->key_a & KEY_FLAG_ACTIVE )
-        game->camera_x -= 1;
+        game->camera_x -= CAMERA_SPEED;
 
     if( input->key_d & KEY_FLAG_ACTIVE )
-        game->camera_x += 1;
+        game->camera_x += CAMERA_SPEED;
 
     if( input->key_up & KEY_FLAG_ACTIVE )
-        game->camera_pitch = (game->camera_pitch + 1) % 2048;
+        game->camera_pitch = (game->camera_pitch + CAMERA_ANGLE_SPEED) % 2048;
 
     if( input->key_down & KEY_FLAG_ACTIVE )
-        game->camera_pitch = (game->camera_pitch - 1 + 2048) % 2048;
+        game->camera_pitch = (game->camera_pitch - CAMERA_ANGLE_SPEED + 2048) % 2048;
 
     if( input->key_left & KEY_FLAG_ACTIVE )
-        game->camera_yaw = (game->camera_yaw - 1 + 2048) % 2048;
+        game->camera_yaw = (game->camera_yaw - CAMERA_ANGLE_SPEED + 2048) % 2048;
 
     if( input->key_right & KEY_FLAG_ACTIVE )
-        game->camera_yaw = (game->camera_yaw + 1) % 2048;
+        game->camera_yaw = (game->camera_yaw + CAMERA_ANGLE_SPEED) % 2048;
 
     if( input->key_q & KEY_FLAG_ACTIVE )
-        game->camera_roll = (game->camera_roll - 1 + 2048) % 2048;
+        game->camera_roll = (game->camera_roll - CAMERA_ANGLE_SPEED + 2048) % 2048;
 
     if( input->key_e & KEY_FLAG_ACTIVE )
-        game->camera_roll = (game->camera_roll + 1) % 2048;
+        game->camera_roll = (game->camera_roll + CAMERA_ANGLE_SPEED) % 2048;
 
     if( input->key_i & KEY_FLAG_ACTIVE )
         game->camera_fov += 1;
@@ -510,27 +513,30 @@ game_update(struct Game* game, struct GameInput* input)
         game->camera_fov -= 1;
 
     if( input->key_j & KEY_FLAG_ACTIVE )
-        game->model_yaw = (game->model_yaw + 1) % 2048;
+        game->model_yaw = (game->model_yaw + CAMERA_ANGLE_SPEED) % 2048;
 
     if( input->key_l & KEY_FLAG_ACTIVE )
-        game->model_yaw = (game->model_yaw - 1 + 2048) % 2048;
+        game->model_yaw = (game->model_yaw - CAMERA_ANGLE_SPEED + 2048) % 2048;
 
     if( input->key_u & KEY_FLAG_ACTIVE )
-        game->model_pitch = (game->model_pitch + 1) % 2048;
+        game->model_pitch = (game->model_pitch + CAMERA_ANGLE_SPEED) % 2048;
 
     if( input->key_o & KEY_FLAG_ACTIVE )
-        game->model_pitch = (game->model_pitch - 1 + 2048) % 2048;
+        game->model_pitch = (game->model_pitch - CAMERA_ANGLE_SPEED + 2048) % 2048;
 
     if( input->key_f & KEY_FLAG_ACTIVE )
-        game->model_roll = (game->model_roll + 1) % 2048;
+        game->model_roll = (game->model_roll + CAMERA_ANGLE_SPEED) % 2048;
 
     if( input->key_g & KEY_FLAG_ACTIVE )
-        game->model_roll = (game->model_roll - 1 + 2048) % 2048;
+        game->model_roll = (game->model_roll - CAMERA_ANGLE_SPEED + 2048) % 2048;
 
     if( game->camera_fov < 171 ) // 20 degrees in units of 2048ths of 2π (20/360 * 2048)
         game->camera_fov = 171;
     if( game->camera_fov > 1280 ) // 150 degrees in units of 2048ths of 2π (150/360 * 2048)
         game->camera_fov = 1280;
+
+    if( input->mouse_wheel_ev )
+        game->camera_z += input->mouse_wheel_ev * 10;
 
     if( input->mouse & MOUSE_FLAG_ACTIVE && input->mouse & MOUSE_FLAG_EV_MOVED )
     {
@@ -562,85 +568,6 @@ game_update(struct Game* game, struct GameInput* input)
         game->mouse_held = false;
 }
 
-struct Model*
-sphere_create()
-{
-    // Create a sphere with 20x20 grid of vertices (400 vertices)
-    const int num_rings = 20;
-    const int num_segments = 20;
-    const int vertex_count = num_rings * num_segments;
-    // Each grid cell forms 2 triangles, and we have (num_rings-1) * (num_segments-1) cells
-    const int face_count = (num_rings - 1) * (num_segments - 1) * 2;
-
-    struct Model* model = malloc(sizeof(struct Model));
-    memset(model, 0, sizeof(struct Model));
-    if( !model )
-        return NULL;
-
-    model->vertex_count = vertex_count;
-    model->vertices_x = malloc(model->vertex_count * sizeof(int));
-    model->vertices_y = malloc(model->vertex_count * sizeof(int));
-    model->vertices_z = malloc(model->vertex_count * sizeof(int));
-
-    model->face_count = face_count;
-    model->face_indices_a = malloc(model->face_count * sizeof(int));
-    model->face_indices_b = malloc(model->face_count * sizeof(int));
-    model->face_indices_c = malloc(model->face_count * sizeof(int));
-
-    model->face_colors = malloc(model->face_count * sizeof(int));
-    for( int i = 0; i < model->face_count; i++ )
-        model->face_colors[i] = 2040;
-
-    model->face_priorities = malloc(model->face_count * sizeof(int));
-    memset(model->face_priorities, 0x00, model->face_count * sizeof(int));
-
-    // Create vertices in a grid pattern
-    for( int ring = 0; ring < num_rings; ring++ )
-    {
-        float phi = (float)ring / (num_rings - 1) * M_PI;
-        for( int segment = 0; segment < num_segments; segment++ )
-        {
-            float theta = (float)segment / num_segments * 2 * M_PI;
-            int vertex_index = ring * num_segments + segment;
-
-            float x = sin(phi) * cos(theta);
-            float y = sin(phi) * sin(theta);
-            float z = cos(phi);
-
-            model->vertices_x[vertex_index] = x * 10;
-            model->vertices_y[vertex_index] = y * 10;
-            model->vertices_z[vertex_index] = z * 10;
-        }
-    }
-
-    // Create faces (triangles) connecting the vertices
-    int face_index = 0;
-    for( int ring = 0; ring < num_rings - 1; ring++ )
-    {
-        for( int segment = 0; segment < num_segments; segment++ )
-        {
-            int v0 = ring * num_segments + segment;
-            int v1 = ring * num_segments + ((segment + 1) % num_segments);
-            int v2 = (ring + 1) * num_segments + segment;
-            int v3 = (ring + 1) * num_segments + ((segment + 1) % num_segments);
-
-            // First triangle
-            model->face_indices_a[face_index] = v0;
-            model->face_indices_b[face_index] = v1;
-            model->face_indices_c[face_index] = v2;
-            face_index++;
-
-            // Second triangle
-            model->face_indices_a[face_index] = v1;
-            model->face_indices_b[face_index] = v3;
-            model->face_indices_c[face_index] = v2;
-            face_index++;
-        }
-    }
-
-    return model;
-}
-
 static void
 game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 {
@@ -653,36 +580,14 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
 
-    // render_model_frame(
-    //     pixel_buffer,
-    //     SCREEN_WIDTH,
-    //     SCREEN_HEIGHT,
-    //     10,
-    //     game->model_yaw,
-    //     game->model_pitch,
-    //     game->model_roll,
-    //     game->camera_x,
-    //     game->camera_y,
-    //     game->camera_z,
-    //     game->camera_yaw,
-    //     game->camera_pitch,
-    //     game->camera_roll,
-    //     game->camera_fov,
-    //     model,
-    //     bones,
-    //     NULL,
-    //     NULL);
-
-    struct Model* sphere = sphere_create();
-
     render_model_frame(
         pixel_buffer,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
         10,
-        0,
-        0,
-        0,
+        game->model_yaw,
+        game->model_pitch,
+        game->model_roll,
         game->camera_x,
         game->camera_y,
         game->camera_z,
@@ -690,8 +595,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_pitch,
         game->camera_roll,
         game->camera_fov,
-        sphere,
-        NULL,
+        model,
+        bones,
         NULL,
         NULL);
 
