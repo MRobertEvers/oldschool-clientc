@@ -1,5 +1,11 @@
 #include "osrs/cache.h"
+#include "osrs/filelist.h"
 #include "osrs/render.h"
+#include "osrs/tables/config_npctype.h"
+#include "osrs/tables/config_sequence.h"
+#include "osrs/tables/configs.h"
+#include "osrs/tables/frame.h"
+#include "osrs/tables/framemap.h"
 #include "osrs/tables/model.h"
 
 #include <SDL.h>
@@ -161,6 +167,8 @@ init_tan_table()
 
 struct Game
 {
+    int tick;
+
     int camera_yaw;
     int camera_pitch;
     int camera_roll;
@@ -181,8 +189,16 @@ struct Game
     int last_mouse_x;
     int last_mouse_y;
 
+    int npc_id;
     int model_id;
     int frame_id;
+    int subframe_id;
+
+    struct SequenceDefinition* sequence;
+    struct FramemapDefinition* framemap;
+    struct FrameDefinition** frames;
+    int frame_count;
+    int frame_tick;
 
     // Business end
     struct Cache* cache;
@@ -465,8 +481,88 @@ game_init(struct Game* game)
     if( !game->cache )
         return false;
 
-    game->model_id = 9319;
-    game->camera_z = 420;
+    game->npc_id = 3127; // TzTok Jad
+    game->camera_z = 2500;
+
+    int file_index = -1;
+    for( int i = 0; i < game->cache->tables[CACHE_CONFIGS]->archives[CONFIG_NPC].children.count;
+         i++ )
+    {
+        if( game->cache->tables[CACHE_CONFIGS]->archives[CONFIG_NPC].children.files[i].id ==
+            game->npc_id )
+        {
+            file_index = i;
+            break;
+        }
+    }
+
+    struct CacheArchive* archive = cache_archive_new_load(game->cache, CACHE_CONFIGS, CONFIG_NPC);
+
+    struct FileList* filelist = filelist_new_from_cache_archive(archive);
+
+    struct NPCType* npc = config_npctype_new_decode(
+        archive->revision, filelist->files[file_index], filelist->file_sizes[file_index]);
+
+    game->model_id = npc->models[0];
+
+    int standing_sequence = npc->standing_animation;
+
+    file_index = -1;
+    for( int i = 0; i < game->cache->tables[CACHE_CONFIGS]->archives[CONFIG_NPC].children.count;
+         i++ )
+    {
+        if( game->cache->tables[CACHE_CONFIGS]->archives[CONFIG_SEQUENCE].children.files[i].id ==
+            standing_sequence )
+        {
+            file_index = i;
+            break;
+        }
+    }
+
+    struct CacheArchive* sequence_archive =
+        cache_archive_new_load(game->cache, CACHE_CONFIGS, CONFIG_SEQUENCE);
+    struct FileList* sequence_filelist = filelist_new_from_cache_archive(sequence_archive);
+    struct SequenceDefinition* sequence = config_sequence_new_decode(
+        sequence_archive->revision,
+        sequence_filelist->files[file_index],
+        sequence_filelist->file_sizes[file_index]);
+
+    game->sequence = sequence;
+
+    game->frame_id = sequence->frame_ids[0] >> 16;
+    game->subframe_id = sequence->frame_ids[0] & 0xFFFF;
+
+    struct CacheArchive* animation_archive =
+        cache_archive_new_load(game->cache, CACHE_ANIMATIONS, game->frame_id);
+
+    int framemap_id =
+        (animation_archive->data[0] & 0xFF) << 8 | (animation_archive->data[1] & 0xFF);
+    struct FramemapDefinition* framemap = framemap_new_from_cache(game->cache, framemap_id);
+
+    struct FileList* animation_filelist = filelist_new_from_cache_archive(animation_archive);
+    game->frames = malloc(sequence->frame_count * sizeof(struct FrameDefinition*));
+    for( int i = 0; i < sequence->frame_count; i++ )
+    {
+        game->frames[i] = frame_new_decode2(
+            sequence->frame_ids[i] >> 16,
+            framemap,
+            animation_filelist->files[i],
+            animation_filelist->file_sizes[i]);
+    }
+
+    game->frame_count = sequence->frame_count;
+    game->framemap = framemap;
+
+    cache_archive_free(animation_archive);
+    cache_archive_free(sequence_archive);
+    filelist_free(sequence_filelist);
+    // config_sequence_free(sequence);
+    cache_archive_free(archive);
+    config_npctype_free(npc);
+    filelist_free(filelist);
+    config_npctype_free(npc);
+
+    game->tick = 0;
 
     return true;
 }
@@ -566,6 +662,14 @@ game_update(struct Game* game, struct GameInput* input)
 
     if( input->mouse & MOUSE_FLAG_EV_UP )
         game->mouse_held = false;
+
+    game->tick++;
+
+    if( game->frame_tick++ >= game->sequence->frame_lengths[game->frame_id] )
+    {
+        game->frame_tick = 0;
+        game->frame_id = (game->frame_id + 1) % game->frame_count;
+    }
 }
 
 static void
@@ -597,8 +701,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_fov,
         model,
         bones,
-        NULL,
-        NULL);
+        game->frames[game->frame_id],
+        game->framemap);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,

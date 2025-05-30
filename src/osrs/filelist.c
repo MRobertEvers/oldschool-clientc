@@ -14,23 +14,39 @@
 struct FileList*
 filelist_new_from_cache_archive(struct CacheArchive* archive)
 {
+    return filelist_new_from_decode(archive->data, archive->data_size, archive->file_count);
+}
+
+struct FileList*
+filelist_new_from_decode(char* data, int data_size, int num_files)
+{
     struct FileList* filelist = malloc(sizeof(struct FileList));
     if( !filelist )
         return NULL;
 
-    struct Buffer buffer = { .data = archive->data,
-                             .position = 0,
-                             .data_size = archive->data_size };
+    struct Buffer buffer = { .data = data, .position = 0, .data_size = data_size };
 
-    filelist->files = malloc(archive->file_count * sizeof(char*));
-    filelist->file_sizes = malloc(archive->file_count * sizeof(int));
+    filelist->files = malloc(num_files * sizeof(char*));
+    filelist->file_sizes = malloc(num_files * sizeof(int));
     if( !filelist->files || !filelist->file_sizes )
     {
         free(filelist);
         return NULL;
     }
-    memset(filelist->file_sizes, 0, archive->file_count * sizeof(int));
-    filelist->file_count = archive->file_count;
+    memset(filelist->file_sizes, 0, num_files * sizeof(int));
+    filelist->file_count = num_files;
+
+    if( num_files == 1 )
+    {
+        /* if there is only one file, the data is the file. */
+        filelist->files[0] = malloc(data_size);
+        if( !filelist->files[0] )
+            goto error;
+        memcpy(filelist->files[0], data, data_size);
+        filelist->file_sizes[0] = data_size;
+
+        return filelist;
+    }
 
     /* read the number of chunks at the end of the archive */
     buffer.position = buffer.data_size - 1;
@@ -44,7 +60,7 @@ filelist_new_from_cache_archive(struct CacheArchive* archive)
 
     for( int i = 0; i < chunks; i++ )
     {
-        chunk_sizes[i] = malloc(archive->file_count * sizeof(int));
+        chunk_sizes[i] = malloc(num_files * sizeof(int));
         if( !chunk_sizes[i] )
         {
             printf("Failed to allocate chunk sizes\n");
@@ -52,16 +68,16 @@ filelist_new_from_cache_archive(struct CacheArchive* archive)
         }
     }
 
-    int* sizes = malloc(archive->file_count * sizeof(int));
+    int* sizes = malloc(num_files * sizeof(int));
     if( !sizes )
         goto error;
-    memset(sizes, 0, archive->file_count * sizeof(int));
+    memset(sizes, 0, num_files * sizeof(int));
 
-    buffer.position = buffer.data_size - 1 - chunks * archive->file_count * 4;
+    buffer.position = buffer.data_size - 1 - chunks * num_files * 4;
     for( int chunk = 0; chunk < chunks; chunk++ )
     {
         int chunk_size = 0;
-        for( int id = 0; id < archive->file_count; id++ )
+        for( int id = 0; id < num_files; id++ )
         {
             /* read the delta-encoded chunk length */
             int delta = read_32(&buffer);
@@ -76,10 +92,10 @@ filelist_new_from_cache_archive(struct CacheArchive* archive)
     }
 
     /* allocate the buffers for the child entries */
-    int* file_offsets = malloc(archive->file_count * sizeof(int));
-    memset(file_offsets, 0, archive->file_count * sizeof(int));
+    int* file_offsets = malloc(num_files * sizeof(int));
+    memset(file_offsets, 0, num_files * sizeof(int));
 
-    for( int id = 0; id < archive->file_count; id++ )
+    for( int id = 0; id < num_files; id++ )
     {
         filelist->files[id] = malloc(sizes[id]);
         if( !filelist->files[id] )
@@ -90,7 +106,7 @@ filelist_new_from_cache_archive(struct CacheArchive* archive)
     buffer.position = 0;
     for( int chunk = 0; chunk < chunks; chunk++ )
     {
-        for( int id = 0; id < archive->file_count; id++ )
+        for( int id = 0; id < num_files; id++ )
         {
             /* get the length of this chunk */
             int chunk_size = chunk_sizes[chunk][id];
@@ -118,6 +134,21 @@ filelist_new_from_cache_archive(struct CacheArchive* archive)
     return filelist;
 
 error:
+    if( chunk_sizes )
+    {
+        for( int i = 0; i < chunks; i++ )
+        {
+            free(chunk_sizes[i]);
+        }
+        free(chunk_sizes);
+    }
+
+    if( sizes )
+        free(sizes);
+
+    if( file_offsets )
+        free(file_offsets);
+
     filelist_free(filelist);
     return NULL;
 }

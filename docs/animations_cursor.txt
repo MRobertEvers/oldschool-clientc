@@ -28,7 +28,7 @@ b) **FramemapDefinition**:
 c) **SequenceDefinition**:
 - Defines a complete animation sequence
 - Contains:
-  - `frameIDs`: Array of frame definitions (top 16 bits are FrameDefinition IDs)
+  - `frameIDs`: Array of frame definitions (top 16 bits are FrameDefinition IDs lower 16 bits are file id in the FrameDefinition archive)
   - `frameLengths`: How long each frame should be displayed
   - `frameStep`: Base frame step value
   - `stretches`: Whether the animation can stretch
