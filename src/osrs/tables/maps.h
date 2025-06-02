@@ -1,0 +1,47 @@
+#ifndef MAPS_H
+#define MAPS_H
+
+#define MAP_TERRAIN_X 64
+#define MAP_TERRAIN_Y 64
+#define MAP_TERRAIN_Z 4
+
+#define MAP_TILE_COORD(x, y, z) (x + y * MAP_TERRAIN_X + z * MAP_TERRAIN_X * MAP_TERRAIN_Y)
+
+struct MapLocs
+{
+    int id;
+    int width;
+    int height;
+    int* tiles;
+};
+
+struct MapTile
+{
+    int height;
+    int attrOpcode;
+    int settings;
+    int overlayId;
+    int overlayPath;
+    int overlayRotation;
+    int underlayId;
+};
+
+struct MapTerrain
+{
+    int map_x;
+    int map_y;
+    struct MapTile tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];
+};
+
+struct MapNPCSpawns
+{};
+
+struct Cache;
+struct MapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
+struct MapTerrain* map_terrain_new_from_decode(char* data, int data_size);
+struct MapLocs* map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
+
+void map_terrain_free(struct MapTerrain* map_terrain);
+void map_locs_free(struct MapLocs* map_locs);
+
+#endif

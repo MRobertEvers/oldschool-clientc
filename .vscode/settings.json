@@ -33,6 +33,7 @@
         "cache.h": "c",
         "reference_table.h": "c",
         "sequence.h": "c",
-        "limits.h": "c"
+        "limits.h": "c",
+        "archive.h": "c"
     }
 }

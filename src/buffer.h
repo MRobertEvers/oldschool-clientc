@@ -9,7 +9,9 @@ struct Buffer
 };
 
 int read_8(struct Buffer* buffer);
+int read_u8(struct Buffer* buffer);
 int read_16(struct Buffer* buffer);
+int read_u16(struct Buffer* buffer);
 int read_24(struct Buffer* buffer);
 int read_32(struct Buffer* buffer);
 

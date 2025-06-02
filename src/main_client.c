@@ -560,7 +560,6 @@ game_init(struct Game* game)
     cache_archive_free(archive);
     config_npctype_free(npc);
     filelist_free(filelist);
-    config_npctype_free(npc);
 
     game->tick = 0;
 

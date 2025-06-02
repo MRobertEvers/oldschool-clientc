@@ -4,12 +4,19 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <wchar.h>
+
 int
 read_8(struct Buffer* buffer)
 {
     assert(buffer->position + 1 <= buffer->data_size);
     buffer->position += 1;
-    return buffer->data[buffer->position - 1] & 0xFF;
+    return buffer->data[buffer->position - 1];
+}
+
+int
+read_u8(struct Buffer* buffer)
+{
+    return read_8(buffer) & 0xFF;
 }
 
 int
@@ -29,6 +36,12 @@ read_16(struct Buffer* buffer)
     buffer->position += 2;
     return ((buffer->data[buffer->position - 2] & 0xFF) << 8) |
            (buffer->data[buffer->position - 1] & 0xFF);
+}
+
+int
+read_u16(struct Buffer* buffer)
+{
+    return read_16(buffer) & 0xFFFF;
 }
 
 int

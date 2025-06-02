@@ -3,7 +3,9 @@
 #include "archive.h"
 #include "archive_decompress.h"
 #include "buffer.h"
+#include "xtea_config.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -371,6 +373,13 @@ error:
 struct CacheArchive*
 cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
 {
+    return cache_archive_new_load_decrypted(cache, table_id, archive_id, NULL);
+}
+
+struct CacheArchive*
+cache_archive_new_load_decrypted(
+    struct Cache* cache, int table_id, int archive_id, uint32_t* xtea_key_nullable)
+{
     struct CacheArchive* archive = malloc(sizeof(struct CacheArchive));
     memset(archive, 0, sizeof(struct CacheArchive));
 
@@ -432,7 +441,7 @@ cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
         goto error;
     }
 
-    bool decompressed = archive_decompress(&dat2_archive);
+    bool decompressed = archive_decrypt_decompress(&dat2_archive, xtea_key_nullable);
     if( !decompressed )
     {
         printf("Failed to decompress dat2 archive for table %d\n", table_id);
@@ -454,6 +463,12 @@ error:
         free(dat2_archive.data);
     free(archive);
     return NULL;
+}
+
+uint32_t*
+cache_archive_xtea_key(struct Cache* cache, int table_id, int archive_id)
+{
+    return xtea_config_find_key(table_id, archive_id);
 }
 
 void

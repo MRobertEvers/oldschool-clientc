@@ -26,6 +26,22 @@ add_executable(main_client
     src/projection.c
     src/texture.c
     src/osrs/anim.c
+    src/osrs/xtea.c
+    src/osrs/archive.c
+    src/osrs/xtea_config.c
+)
+
+add_executable(xtea_test
+    src/xtea_test.c
+    src/osrs/xtea_config.c
+    src/osrs/tables/maps.c
+    src/osrs/cache.c
+    src/osrs/archive_decompress.c
+    src/osrs/xtea.c
+    src/osrs/xtea_config.c
+    src/osrs/archive.c
+    src/osrs/reference_table.c
+    src/buffer.c
 )
 
 add_executable(main_rs
@@ -40,6 +56,9 @@ add_executable(main_rs
     src/osrs/tables/framemap.c
     src/osrs/tables/frame.c
     src/osrs/filelist.c
+    src/osrs/xtea.c
+    src/osrs/archive.c
+    src/osrs/xtea_config.c
 )
 
 add_executable(rs
@@ -61,6 +80,9 @@ add_executable(rs
     src/osrs/tables/model.c
     src/osrs/archive_decompress.c
     src/osrs/reference_table.c
+    src/osrs/xtea.c
+    src/osrs/archive.c
+    src/osrs/xtea_config.c
 )
 
 add_executable(osrs_cache_test
@@ -77,6 +99,8 @@ add_executable(osrs_cache_test
     src/osrs/tables/model.c
     src/osrs/archive_decompress.c
     src/osrs/reference_table.c
+    src/osrs/archive.c
+    src/osrs/xtea_config.c
 )
 
 add_executable(texture_test
@@ -90,6 +114,7 @@ target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRAR
 target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(texture_test ${SDL2_LIBRARIES})
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
+target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 
 cmake_minimum_required(VERSION 3.10)
 project(metal_renderer)

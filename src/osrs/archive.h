@@ -16,4 +16,6 @@ struct Dat2Archive
     int archive_id;
 };
 
+int archive_name_hash(char* name);
+
 #endif

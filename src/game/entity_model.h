@@ -1,0 +1,24 @@
+#ifndef ENTITY_MODEL_H
+#define ENTITY_MODEL_H
+
+#include "../osrs/cache.h"
+#include "../osrs/tables/config_sequence.h"
+#include "../osrs/tables/frame.h"
+#include "../osrs/tables/framemap.h"
+#include "../osrs/tables/model.h"
+
+struct EntityModel
+{
+    struct Model* model;
+    struct ModelBones* bones_nullable;
+
+    struct FrameDefinition** frames_nullable;
+    struct FramemapDefinition* framemap_nullable;
+    struct SequenceDefinition* sequence_nullable;
+
+    int frame_tick;
+};
+
+struct EntityModel* entity_model_new_from_cache(struct Cache* cache, int model_id);
+
+#endif
