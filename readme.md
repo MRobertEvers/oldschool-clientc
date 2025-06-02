@@ -2,6 +2,7 @@
 
 ```
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 # For compiler invocations
 make VERBOSE=1
@@ -15,7 +16,7 @@ Thoughts?
 
 QFC: 16-17-216-61384753
 
-“When we’re rendering our 3D scene, historically we have sorted all of our world entities (such as players, walls, particle effects etc) into view depth order. We then render them in this order, from furthest away to closest, giving the view you would expect, where nearer things appear over far things. Whilst this has the advantage of being quite fast, it’s also somewhat inflexible, and leads to various graphical glitches that you’re probably familiar with if you play in the ‘Safe mode’ or ‘Software’ graphics modes, whereby things appear to draw on top of - or through - each other when they shouldn’t (player capes are an excellent example of this). With this update, we’ve moved to using an industry-standard technique called ‘Z-buffering’, which allows us to be a lot more flexible with our 3D rendering in the future. As an example, it allows us to have player kit or animations which extend outside of the square on which your character is standing. It also allows for more complex models and a number of other improvements which we’ve been wanting to do for a while.”
+"When we're rendering our 3D scene, historically we have sorted all of our world entities (such as players, walls, particle effects etc) into view depth order. We then render them in this order, from furthest away to closest, giving the view you would expect, where nearer things appear over far things. Whilst this has the advantage of being quite fast, it's also somewhat inflexible, and leads to various graphical glitches that you're probably familiar with if you play in the 'Safe mode' or 'Software' graphics modes, whereby things appear to draw on top of - or through - each other when they shouldn't (player capes are an excellent example of this). With this update, we've moved to using an industry-standard technique called 'Z-buffering', which allows us to be a lot more flexible with our 3D rendering in the future. As an example, it allows us to have player kit or animations which extend outside of the square on which your character is standing. It also allows for more complex models and a number of other improvements which we've been wanting to do for a while."
 
 ~ Mod Chris E
 
@@ -190,6 +191,12 @@ https://www.osrsbox.com/osrs-cache/
 	}
 ```
 
+### Mouse Hit Detection OSRS
+
+The OSRS client (based on the de-ob) does hit testing for GL and Software Models the same way. There are two methods of hit-testing they use. AABB hit box testing and Model Testing. Model testing checks each triangle.
+
+For GL Models, it is done out of line with rendering, and each model gets the screen coords of its triangles.
+
 ### Sequence from RuneLite
 
 Seq: 2650
@@ -220,3 +227,31 @@ this.transform(base.types[index], base.bones[index], arg1.x[i], arg1.y[i], arg1.
 }
 return;
 }
+
+## Profiling
+
+```
+sudo ../profile.d -c ./main_client > out.stacks
+
+sudo ../profile.d -c ./main_client > out.stacks
+```
+
+Then using flamegraph
+
+Which you can get from here:
+https://github.com/brendangregg/FlameGraph
+
+```
+./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded
+./flamegraph.pl out.folded > flamegraph.svg
+open flamegraph.svg
+```
+
+## Profiling - Inline
+
+```
+# Dump symbols from binary (macOS)
+dsymutil -s <binary_path> > symbols.txt
+
+dsymutil -s ./build/main_client > symbols.txt
+```

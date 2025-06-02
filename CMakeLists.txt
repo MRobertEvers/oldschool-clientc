@@ -3,6 +3,8 @@ project(RSClient
     LANGUAGES C
 )
 
+set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
+
 find_package(SDL2 REQUIRED)
 find_package(BZip2 REQUIRED)
 find_package(ZLIB REQUIRED)
@@ -125,6 +127,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Check if we're on macOS
 if(APPLE)
+    # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PROFILING_FLAGS}")
+
+    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${PROFILING_FLAGS}")
+
     # Set Objective-C++ as the language
     set(CMAKE_OBJCXX_STANDARD 17)
     set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
@@ -186,6 +192,8 @@ if(APPLE)
     # Add the metallib as a dependency
     add_custom_target(metal_shaders DEPENDS ${CMAKE_BINARY_DIR}/Shaders.metallib)
     add_dependencies(metal_renderer metal_shaders)
+
+    target_compile_options(main_client PRIVATE ${PROFILING_FLAGS})
 else()
     # On non-macOS platforms, create an empty executable
     add_executable(metal_renderer)
