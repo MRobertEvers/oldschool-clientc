@@ -4,6 +4,7 @@
 #include "osrs/archive.h"
 #include "osrs/archive_decompress.h"
 #include "osrs/cache.h"
+#include "osrs/rsbuf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -203,21 +204,172 @@ struct MapLocs*
 map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y)
 {
     int archive_id = dat2_map_loc_id(cache, map_x, map_y);
+    struct MapLocs* map_locs = NULL;
+    struct CacheArchive* archive = NULL;
+    uint32_t* xtea_key = cache_archive_xtea_key(cache, CACHE_MAPS, archive_id);
 
-    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_MAPS, archive_id);
+    if( !xtea_key )
+    {
+        printf("Failed to load xtea key for map %d, %d\n", map_x, map_y);
+        goto error;
+    }
+
+    archive = cache_archive_new_load_decrypted(cache, CACHE_MAPS, archive_id, xtea_key);
     if( !archive )
     {
         printf("Failed to load map %d, %d\n", map_x, map_y);
         return NULL;
     }
 
-    uint32_t* xtea_key = cache_archive_xtea_key(cache, CACHE_MAPS, archive_id);
-
-    if( !xtea_key )
+    map_locs = map_locs_new_from_decode(archive->data, archive->data_size);
+    if( !map_locs )
     {
-        printf("Failed to load xtea key for map %d, %d\n", map_x, map_y);
+        printf("Failed to load map %d, %d\n", map_x, map_y);
+        goto error;
+    }
+
+    cache_archive_free(archive);
+
+    return map_locs;
+
+error:
+    map_locs_free(map_locs);
+    cache_archive_free(archive);
+    return NULL;
+}
+
+// public static Position
+// fromPacked(int packedPosition)
+// {
+//     if( packedPosition == -1 )
+//     {
+//         return new Position(-1, -1, -1);
+//     }
+
+//     int z = packedPosition >> 28 & 3;
+//     int x = packedPosition >> 14 & 16383;
+//     int y = packedPosition & 16383;
+//     return new Position(x, y, z);
+// }
+
+// private void loadLocations(LocationsDefinition loc, byte[] b)
+// {
+// 	InputStream buf = new InputStream(b);
+
+// 	int id = -1;
+// 	int idOffset;
+
+// 	while ((idOffset = buf.readUnsignedIntSmartShortCompat()) != 0)
+// 	{
+// 		id += idOffset;
+
+// 		int position = 0;
+// 		int positionOffset;
+
+// 		while ((positionOffset = buf.readUnsignedShortSmart()) != 0)
+// 		{
+// 			position += positionOffset - 1;
+
+// 			int localY = position & 0x3F;
+// 			int localX = position >> 6 & 0x3F;
+// 			int height = position >> 12 & 0x3;
+
+// 			int attributes = buf.readUnsignedByte();
+// 			int type = attributes >> 2;
+// 			int orientation = attributes & 0x3;
+
+// 			loc.getLocations().add(new Location(id, type, orientation, new Position(localX, localY,
+// height)));
+// 		}
+// 	}
+// }
+
+struct MapLocs*
+map_locs_new_from_decode(char* data, int data_size)
+{
+    struct MapLocs* map_locs = malloc(sizeof(struct MapLocs));
+    if( !map_locs )
+    {
         return NULL;
     }
 
-    archive_decrypt_decompress(archive, xtea_key);
+    // First pass to count number of locations
+    int count = 0;
+    int pos = 0;
+    int id = -1;
+    int id_offset;
+
+    struct RSBuffer buffer = { .data = data, .position = 0, .size = data_size };
+
+    while( pos < data_size &&
+           (id_offset = rsbuf_read_unsigned_int_smart_short_compat(&buffer)) != 0 )
+    {
+        id += id_offset;
+
+        int position = 0;
+        int pos_offset;
+        while( (pos_offset = rsbuf_read_unsigned_short_smart(&buffer)) != 0 )
+        {
+            position += pos_offset - 1;
+            count++;
+            pos++; // Skip attributes byte
+        }
+    }
+
+    map_locs->locs = malloc(sizeof(struct MapLoc) * count);
+    if( !map_locs->locs )
+    {
+        free(map_locs);
+        return NULL;
+    }
+    map_locs->locs_count = count;
+
+    buffer.position = 0;
+
+    // Second pass to actually read the data
+    pos = 0;
+    id = -1;
+    int loc_idx = 0;
+
+    while( pos < data_size &&
+           (id_offset = rsbuf_read_unsigned_int_smart_short_compat(&buffer)) != 0 )
+    {
+        id += id_offset;
+
+        int position = 0;
+        int pos_offset;
+        while( (pos_offset = rsbuf_read_unsigned_short_smart(&buffer)) != 0 )
+        {
+            position += pos_offset - 1;
+
+            int local_y = position & 0x3F;
+            int local_x = (position >> 6) & 0x3F;
+            int height = (position >> 12) & 0x3;
+
+            int attributes = rsbuf_g1(&buffer);
+            int type = attributes >> 2;
+            int orientation = attributes & 0x3;
+
+            map_locs->locs[loc_idx].id = id;
+            map_locs->locs[loc_idx].type = type;
+            map_locs->locs[loc_idx].orientation = orientation;
+            map_locs->locs[loc_idx].pos_x = local_x;
+            map_locs->locs[loc_idx].pos_y = local_y;
+            map_locs->locs[loc_idx].pos_z = height;
+
+            loc_idx++;
+        }
+    }
+
+    return map_locs;
+}
+
+void
+map_locs_free(struct MapLocs* map_locs)
+{
+    if( map_locs )
+    {
+        free(map_locs->locs);
+        free(map_locs);
+    }
 }

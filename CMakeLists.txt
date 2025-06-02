@@ -42,6 +42,7 @@ add_executable(xtea_test
     src/osrs/archive.c
     src/osrs/reference_table.c
     src/buffer.c
+    src/osrs/rsbuf.c
 )
 
 add_executable(main_rs

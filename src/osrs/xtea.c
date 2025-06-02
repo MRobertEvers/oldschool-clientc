@@ -1,3 +1,5 @@
+#include "buffer.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,34 +31,41 @@
 // 	return out.flip();
 // }
 
-char*
+static void
+write_32(char* data, uint32_t value)
+{
+    data[0] = (value >> 24) & 0xFF;
+    data[1] = (value >> 16) & 0xFF;
+    data[2] = (value >> 8) & 0xFF;
+    data[3] = value & 0xFF;
+}
+
+void
 xtea_decrypt(char* data, int length, uint32_t key[4])
 {
     int num_blocks = length / 8;
-    uint32_t* blocks = (uint32_t*)data;
-    char* out_buffer = (char*)malloc(length);
-    if( !out_buffer )
-        return NULL;
-
-    uint32_t* out_blocks = (uint32_t*)out_buffer;
+    struct Buffer buffer = { .data = data, .position = 0, .data_size = length };
 
     for( int block = 0; block < num_blocks; block++ )
     {
-        uint32_t v0 = blocks[block * 2];
-        uint32_t v1 = blocks[block * 2 + 1];
+        uint32_t v0 = read_32(&buffer);
+        uint32_t v1 = read_32(&buffer);
 
-        uint32_t sum = 0xC6EF3720; // GOLDEN_RATIO * ROUNDS
+        uint32_t sum = XTEA_DELTA * XTEA_ROUNDS;
 
-        for( int i = 0; i < 32; i++ )
-        { // ROUNDS = 32
-            v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum >> 11) & 3]);
-            sum -= 0x9E3779B9; // GOLDEN_RATIO
-            v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
+        for( int i = 0; i < XTEA_ROUNDS; i++ )
+        {
+            uint32_t v0_shift_left = (v0 << 4);
+            uint32_t v0_shift_right = ((uint32_t)v0 >> 5);
+            v1 -= ((v0_shift_left ^ v0_shift_right) + v0) ^ (sum + key[(sum >> 11) & 3]);
+            sum -= XTEA_DELTA;
+
+            uint32_t v1_shift_left = (v1 << 4);
+            uint32_t v1_shift_right = ((uint32_t)v1 >> 5);
+            v0 -= ((v1_shift_left ^ v1_shift_right) + v1) ^ (sum + key[sum & 3]);
         }
 
-        out_blocks[block * 2] = v0;
-        out_blocks[block * 2 + 1] = v1;
+        write_32(data + block * 8, v0);
+        write_32(data + block * 8 + 4, v1);
     }
-
-    return out_buffer;
 }

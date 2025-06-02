@@ -22,4 +22,7 @@ int rsbuf_g3(struct RSBuffer* buffer);
 int rsbuf_g4(struct RSBuffer* buffer);
 int64_t rsbuf_g8(struct RSBuffer* buffer);
 
+int rsbuf_read_unsigned_int_smart_short_compat(struct RSBuffer* buffer);
+int rsbuf_read_unsigned_short_smart(struct RSBuffer* buffer);
+
 #endif

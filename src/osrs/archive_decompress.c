@@ -10,30 +10,13 @@
 #include <string.h>
 #include <zlib.h>
 
-static char*
-decrypt_xtea(char* data, int data_length, uint32_t* keys_nullable)
-{
-    if( !keys_nullable )
-        return data;
-
-    char* decrypted_data = xtea_decrypt(data, data_length, keys_nullable);
-    if( !decrypted_data )
-    {
-        printf("Failed to decrypt XTEA data\n");
-        return NULL;
-    }
-
-    free(data);
-    return decrypted_data;
-}
-
 /**
  * @brief TODO: CRC and XTEA for archives that need it.
  *
  * @param archive
  */
 bool
-archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nullable)
+archive_decrypt_decompress(struct Dat2Archive* archive, int32_t* xtea_key_nullable)
 {
     // TODO: CRC32
 
@@ -42,13 +25,10 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
                              .data_size = archive->data_size };
 
     int compression = read_8(&buffer);
-    int compressed_length = read_32(&buffer);
-
-    if( compressed_length < 0 || compressed_length > 1000000 )
-    {
-        printf("Invalid data");
-        return false;
-    }
+    // Uncompressed size
+    int size = read_32(&buffer);
+    if( xtea_key_nullable )
+        xtea_decrypt(archive->data + buffer.position, size + 4, xtea_key_nullable);
 
     unsigned int crc = 0;
     for( int i = 0; i < 5; i++ )
@@ -63,12 +43,10 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
     case 0:
     {
         // No compression
-        char* data = malloc(compressed_length);
-        bytes_read = readto(data, compressed_length, compressed_length, &buffer);
-        if( bytes_read < compressed_length )
+        char* data = malloc(size);
+        bytes_read = readto(data, size, size, &buffer);
+        if( bytes_read < size )
             return false;
-
-        data = decrypt_xtea(data, bytes_read, xtea_key_nullable);
 
         archive->data = data;
         archive->data_size = bytes_read;
@@ -79,31 +57,21 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
         // BZip compression
         int uncompressed_length = read_32(&buffer);
 
-        char* compressed_data = malloc(compressed_length);
-        bytes_read = readto(compressed_data, compressed_length, compressed_length, &buffer);
-
-        compressed_data = decrypt_xtea(compressed_data, compressed_length, xtea_key_nullable);
-
-        char* bzip_data = malloc(compressed_length + 4); // Add space for magic header
-        if( !bzip_data )
-        {
-            free(compressed_data);
-            return false;
-        }
+        char* compressed_data = malloc(size + 4);
+        bytes_read = readto(compressed_data + 4, size, size, &buffer);
 
         // Add BZIP2 magic header (BZh1)
-        bzip_data[0] = 'B';
-        bzip_data[1] = 'Z';
-        bzip_data[2] = 'h';
-        bzip_data[3] = '1';
-        memcpy(bzip_data + 4, compressed_data, compressed_length);
+        compressed_data[0] = 'B';
+        compressed_data[1] = 'Z';
+        compressed_data[2] = 'h';
+        compressed_data[3] = '1';
 
         char* decompressed_data = malloc(uncompressed_length);
         int ret = BZ2_bzBuffToBuffDecompress(
             decompressed_data,
             &uncompressed_length,
-            bzip_data,
-            compressed_length + 4,
+            compressed_data,
+            size + 4,
             0, // Small memory usage
             0  // Verbosity level
         );
@@ -120,23 +88,20 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
         archive->data = decompressed_data;
         archive->data_size = uncompressed_length;
         free(compressed_data);
-        free(bzip_data);
     }
     break;
     case 2:
     {
         // GZ compression
         // 	int uncompressedLength = buffer.getInt();
-        int uncompressed_length = read_32(&buffer);
-        char* compressed_data = malloc(compressed_length);
-        bytes_read = readto(compressed_data, compressed_length, compressed_length, &buffer);
-        if( bytes_read < compressed_length )
+        int uncompressed_length = read_32(&buffer) & 0xFFFFFFFF;
+        char* compressed_data = malloc(size);
+        bytes_read = readto(compressed_data, size, size, &buffer);
+        if( bytes_read < size )
         {
             free(compressed_data);
             return false;
         }
-
-        compressed_data = decrypt_xtea(compressed_data, compressed_length, xtea_key_nullable);
 
         char* decompressed_data = malloc(uncompressed_length);
         if( !decompressed_data )
@@ -150,7 +115,7 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
         strm.zalloc = Z_NULL;
         strm.zfree = Z_NULL;
         strm.opaque = Z_NULL;
-        strm.avail_in = compressed_length;
+        strm.avail_in = size;
         strm.next_in = (Bytef*)compressed_data;
         strm.avail_out = uncompressed_length;
         strm.next_out = (Bytef*)decompressed_data;

@@ -13,7 +13,7 @@ struct XteaKey
     int name_hash;
     char name[32];
     int mapsquare;
-    uint32_t key[4];
+    int32_t key[4];
 };
 
 static struct XteaKey* xtea_keys = NULL;
@@ -70,7 +70,7 @@ parse_string(const char** json, char* out, int max_len)
 }
 
 static void
-parse_key_array(const char** json, uint32_t* key)
+parse_key_array(const char** json, int32_t* key)
 {
     skip_whitespace(json);
     if( **json != '[' )
@@ -79,7 +79,7 @@ parse_key_array(const char** json, uint32_t* key)
 
     for( int i = 0; i < 4; i++ )
     {
-        key[i] = (uint32_t)parse_int(json);
+        key[i] = (int32_t)parse_int(json);
         skip_whitespace(json);
         if( **json == ',' )
             (*json)++;
@@ -197,15 +197,13 @@ xtea_config_load_keys(const char* filename)
     return xtea_key_count;
 }
 
-uint32_t*
+int32_t*
 xtea_config_find_key(int archive, int group)
 {
     for( int i = 0; i < xtea_key_count; i++ )
     {
         if( xtea_keys[i].archive == archive && xtea_keys[i].group == group )
-        {
             return &xtea_keys[i].key;
-        }
     }
     return NULL;
 }

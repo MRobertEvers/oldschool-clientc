@@ -12,7 +12,7 @@ int xtea_config_load_keys(const char* filename);
  *
  * Group X refers the the Xth archive in the Map Index.
  */
-uint32_t* xtea_config_find_key(int archive, int group);
+int32_t* xtea_config_find_key(int archive, int group);
 
 // Clean up XTEA key storage
 void xtea_config_cleanup_keys(void);

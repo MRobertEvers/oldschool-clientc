@@ -34,6 +34,7 @@
         "reference_table.h": "c",
         "sequence.h": "c",
         "limits.h": "c",
-        "archive.h": "c"
+        "archive.h": "c",
+        "istream": "c"
     }
 }

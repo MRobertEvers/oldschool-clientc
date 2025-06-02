@@ -7,12 +7,20 @@
 
 #define MAP_TILE_COORD(x, y, z) (x + y * MAP_TERRAIN_X + z * MAP_TERRAIN_X * MAP_TERRAIN_Y)
 
-struct MapLocs
+struct MapLoc
 {
     int id;
-    int width;
-    int height;
-    int* tiles;
+    int type;
+    int orientation;
+    int pos_x;
+    int pos_y;
+    int pos_z;
+};
+
+struct MapLocs
+{
+    struct MapLoc* locs;
+    int locs_count;
 };
 
 struct MapTile
@@ -39,7 +47,9 @@ struct MapNPCSpawns
 struct Cache;
 struct MapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
 struct MapTerrain* map_terrain_new_from_decode(char* data, int data_size);
+
 struct MapLocs* map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
+struct MapLocs* map_locs_new_from_decode(char* data, int data_size);
 
 void map_terrain_free(struct MapTerrain* map_terrain);
 void map_locs_free(struct MapLocs* map_locs);

@@ -11,6 +11,6 @@
  * @param key
  * @return char*
  */
-char* xtea_decrypt(char* data, int data_length, uint32_t* key);
+void xtea_decrypt(char* data, int data_length, int32_t* key);
 
 #endif // XTEA_H
