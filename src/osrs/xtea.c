@@ -41,7 +41,7 @@ write_32(char* data, uint32_t value)
 }
 
 void
-xtea_decrypt(char* data, int length, uint32_t key[4])
+xtea_decrypt(char* data, int length, int32_t key[4])
 {
     int num_blocks = length / 8;
     struct Buffer buffer = { .data = data, .position = 0, .data_size = length };
@@ -55,14 +55,9 @@ xtea_decrypt(char* data, int length, uint32_t key[4])
 
         for( int i = 0; i < XTEA_ROUNDS; i++ )
         {
-            uint32_t v0_shift_left = (v0 << 4);
-            uint32_t v0_shift_right = ((uint32_t)v0 >> 5);
-            v1 -= ((v0_shift_left ^ v0_shift_right) + v0) ^ (sum + key[(sum >> 11) & 3]);
+            v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum >> 11) & 3]);
             sum -= XTEA_DELTA;
-
-            uint32_t v1_shift_left = (v1 << 4);
-            uint32_t v1_shift_right = ((uint32_t)v1 >> 5);
-            v0 -= ((v1_shift_left ^ v1_shift_right) + v1) ^ (sum + key[sum & 3]);
+            v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
         }
 
         write_32(data + block * 8, v0);
