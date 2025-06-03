@@ -255,3 +255,35 @@ dsymutil -s <binary_path> > symbols.txt
 
 dsymutil -s ./build/main_client > symbols.txt
 ```
+
+## Map Cache
+
+Map Tiles are stored in sequence.
+
+```
+        for (let level = 0; level < Scene.MAX_LEVELS; level++) {
+            for (let x = 0; x < Scene.MAP_SQUARE_SIZE; x++) {
+                for (let y = 0; y < Scene.MAP_SQUARE_SIZE; y++) {
+```
+
+They are decoded in order.
+
+Map viewer parallelizes the properties (Data Oriented style)
+
+Ex.
+
+```
+       scene.tileOverlays[level][x][y] = readTerrainValue(
+                        buffer,
+                        this.newTerrainFormat,
+                    );
+                    scene.tileShapes[level][x][y] = (v - 2) / 4;
+                    scene.tileRotations[level][x][y] = (v - 2 + rotOffset) & 3;
+                } else if (v <= 81) {
+                    scene.tileRenderFlags[level][x][y] = v - 49;
+                } else {
+                    scene.tileUnderlays[level][x][y] = v - 81;
+```
+
+In `src/rs/scene/SceneBuilder.ts`.`addTileModels`, the MapTiles are decoded to Map Models.
+With vertices and colors and what not.

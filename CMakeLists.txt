@@ -43,7 +43,7 @@ add_executable(tiles_test
 )
 
 add_executable(xtea_test
-    src/xtea_test.c
+    test/xtea_test.c
     src/osrs/xtea_config.c
     src/osrs/tables/maps.c
     src/osrs/cache.c
@@ -98,7 +98,7 @@ add_executable(rs
 )
 
 add_executable(osrs_cache_test
-    src/osrs_cache_test.c
+    test/osrs_cache_test.c
     src/osrs_cache.c
     src/buffer.c
     src/osrs/xtea.c
@@ -115,16 +115,9 @@ add_executable(osrs_cache_test
     src/osrs/xtea_config.c
 )
 
-add_executable(texture_test
-    src/texture_test.c
-    src/texture.c
-    src/buffer.c
-)
-
 target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
-target_link_libraries(texture_test ${SDL2_LIBRARIES})
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(tiles_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
