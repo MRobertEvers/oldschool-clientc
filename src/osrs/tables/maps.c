@@ -59,6 +59,27 @@ dat2_map_loc_id(struct Cache* cache, int map_x, int map_y)
     return -1;
 }
 
+static int
+dat2_map_npc_id(struct Cache* cache, int map_x, int map_y)
+{
+    char name[13];
+    snprintf(name, sizeof(name), "n%d_%d", map_x, map_y);
+
+    int name_hash = archive_name_hash(name);
+
+    struct ReferenceTable* table = cache->tables[CACHE_MAPS];
+
+    for( int i = 0; i < table->archive_count; i++ )
+    {
+        struct ArchiveReference* archive_reference = &table->archives[i];
+
+        if( archive_reference->identifier == name_hash )
+            return archive_reference->index;
+    }
+
+    return -1;
+}
+
 // private void loadTerrain(MapDefinition map, byte[] buf)
 // 	{
 // 		Tile[][][] tiles = map.getTiles();
@@ -172,10 +193,10 @@ map_terrain_new_from_decode(char* data, int data_size)
                     }
                     else if( attribute <= 49 )
                     {
-                        tile->attrOpcode = attribute;
-                        tile->overlayId = read_16(&buffer);
-                        tile->overlayPath = (attribute - 2) / 4;
-                        tile->overlayRotation = attribute - 2 & 3;
+                        tile->attr_opcode = attribute;
+                        tile->overlay_id = read_16(&buffer);
+                        tile->shape = (attribute - 2) / 4;
+                        tile->rotation = attribute - 2 & 3;
                     }
                     else if( attribute <= 81 )
                     {
@@ -183,7 +204,7 @@ map_terrain_new_from_decode(char* data, int data_size)
                     }
                     else
                     {
-                        tile->underlayId = attribute - 81;
+                        tile->underlay_id = attribute - 81;
                     }
                 }
             }
@@ -289,9 +310,7 @@ map_locs_new_from_decode(char* data, int data_size)
 {
     struct MapLocs* map_locs = malloc(sizeof(struct MapLocs));
     if( !map_locs )
-    {
         return NULL;
-    }
 
     // First pass to count number of locations
     int count = 0;

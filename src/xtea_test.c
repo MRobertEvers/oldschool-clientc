@@ -64,7 +64,7 @@ main()
     {
         struct MapLoc* loc = &map_locs->locs[i];
         printf(
-            "Loc %d: %d, %d, %d, %d, %d, %d\n",
+            "Loc %d: %d, %d, %d, %d, %d\n",
             loc->id,
             loc->type,
             loc->orientation,

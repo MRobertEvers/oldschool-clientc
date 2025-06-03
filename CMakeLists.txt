@@ -3,7 +3,8 @@ project(RSClient
     LANGUAGES C
 )
 
-set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
+# set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
+set(PROFILING_FLAGS)
 
 find_package(SDL2 REQUIRED)
 find_package(BZip2 REQUIRED)
@@ -21,8 +22,10 @@ add_executable(main_client
     src/osrs/tables/config_sequence.c
     src/osrs/tables/framemap.c
     src/osrs/tables/frame.c
+    src/osrs/tables/maps.c
     src/osrs/filelist.c
     src/osrs/render.c
+    src/osrs/rsbuf.c
     src/gouraud.c
     src/lighting.c
     src/projection.c

@@ -26,12 +26,12 @@ struct MapLocs
 struct MapTile
 {
     int height;
-    int attrOpcode;
+    int attr_opcode;
     int settings;
-    int overlayId;
-    int overlayPath;
-    int overlayRotation;
-    int underlayId;
+    int overlay_id;
+    int shape;
+    int rotation;
+    int underlay_id;
 };
 
 struct MapTerrain
@@ -40,9 +40,6 @@ struct MapTerrain
     int map_y;
     struct MapTile tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];
 };
-
-struct MapNPCSpawns
-{};
 
 struct Cache;
 struct MapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);

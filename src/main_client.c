@@ -6,7 +6,9 @@
 #include "osrs/tables/configs.h"
 #include "osrs/tables/frame.h"
 #include "osrs/tables/framemap.h"
+#include "osrs/tables/maps.h"
 #include "osrs/tables/model.h"
+#include "osrs/xtea_config.h"
 
 #include <SDL.h>
 #include <stdbool.h>
@@ -199,6 +201,11 @@ struct Game
     struct FrameDefinition** frames;
     int frame_count;
     int frame_tick;
+
+    int map_x;
+    int map_y;
+    struct MapTerrain* map_terrain;
+    struct MapLocs* map_locs;
 
     // Business end
     struct Cache* cache;
@@ -477,6 +484,13 @@ done:
 static bool
 game_init(struct Game* game)
 {
+    int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
+    if( xtea_keys_count == -1 )
+    {
+        printf("Failed to load xtea keys\n");
+        return 1;
+    }
+
     game->cache = cache_new_from_directory("../cache");
     if( !game->cache )
         return false;
@@ -560,6 +574,11 @@ game_init(struct Game* game)
     cache_archive_free(archive);
     config_npctype_free(npc);
     filelist_free(filelist);
+
+    game->map_x = 50;
+    game->map_y = 49;
+    game->map_terrain = map_terrain_new_from_cache(game->cache, game->map_x, game->map_y);
+    game->map_locs = map_locs_new_from_cache(game->cache, game->map_x, game->map_y);
 
     game->tick = 0;
 
@@ -679,18 +698,39 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     int* pixel_buffer = platform->pixel_buffer;
     memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
-    struct Model* model = model_new_from_cache(game->cache, game->model_id);
+    // struct Model* model = model_new_from_cache(game->cache, game->model_id);
 
-    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+    // struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map,
+    // model->vertex_count);
 
-    render_model_frame(
+    // render_model_frame(
+    //     pixel_buffer,
+    //     SCREEN_WIDTH,
+    //     SCREEN_HEIGHT,
+    //     10,
+    //     game->model_yaw,
+    //     game->model_pitch,
+    //     game->model_roll,
+    //     game->camera_x,
+    //     game->camera_y,
+    //     game->camera_z,
+    //     game->camera_yaw,
+    //     game->camera_pitch,
+    //     game->camera_roll,
+    //     game->camera_fov,
+    //     model,
+    //     bones,
+    //     game->frames[game->frame_id],
+    //     game->framemap);
+
+    //     model_free(model);
+    // modelbones_free(bones);
+
+    render_map_terrain(
         pixel_buffer,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
         10,
-        game->model_yaw,
-        game->model_pitch,
-        game->model_roll,
         game->camera_x,
         game->camera_y,
         game->camera_z,
@@ -698,10 +738,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_pitch,
         game->camera_roll,
         game->camera_fov,
-        model,
-        bones,
-        game->frames[game->frame_id],
-        game->framemap);
+        game->map_terrain,
+        game->map_locs);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,
@@ -734,9 +772,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_UnlockTexture(texture);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
     SDL_RenderPresent(renderer);
-
-    model_free(model);
-    modelbones_free(bones);
 }
 
 static bool

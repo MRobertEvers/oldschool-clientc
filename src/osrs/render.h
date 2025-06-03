@@ -28,4 +28,22 @@ void render_model_frame(
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable);
 
+struct MapTerrain;
+struct MapLocs;
+
+void render_map_terrain(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_yaw,
+    int camera_pitch,
+    int camera_roll,
+    int fov,
+    struct MapTerrain* map_terrain,
+    struct MapLocs* map_locs);
+
 #endif
