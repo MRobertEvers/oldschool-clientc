@@ -36,6 +36,7 @@
         "limits.h": "c",
         "archive.h": "c",
         "istream": "c",
-        "xtea_config.h": "c"
+        "xtea_config.h": "c",
+        "config_sequence.h": "c"
     }
 }

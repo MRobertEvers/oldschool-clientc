@@ -1,6 +1,7 @@
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/render.h"
+#include "osrs/scene_tile.h"
 #include "osrs/tables/config_npctype.h"
 #include "osrs/tables/config_sequence.h"
 #include "osrs/tables/configs.h"
@@ -207,6 +208,9 @@ struct Game
     struct MapTerrain* map_terrain;
     struct MapLocs* map_locs;
 
+    int tile_count;
+    struct SceneTile* tiles;
+
     // Business end
     struct Cache* cache;
 };
@@ -270,7 +274,6 @@ struct PlatformSDL2
     SDL_Window* window;
     SDL_Renderer* renderer;
     SDL_Texture* texture;
-
     int* pixel_buffer;
 };
 
@@ -496,7 +499,18 @@ game_init(struct Game* game)
         return false;
 
     game->npc_id = 3127; // TzTok Jad
-    game->camera_z = 2500;
+    // 3242, -26, 3202, -245, 1862
+    game->camera_x = 3242;
+    game->camera_y = -26;
+    game->camera_z = 3202;
+    game->camera_pitch = 105;
+    game->camera_yaw = 284;
+
+    game->model_pitch = 0;
+    game->model_roll = 0;
+    game->model_x = 0;
+    game->model_y = 0;
+    game->model_z = 0;
 
     int file_index = -1;
     for( int i = 0; i < game->cache->tables[CACHE_CONFIGS]->archives[CONFIG_NPC].children.count;
@@ -577,8 +591,10 @@ game_init(struct Game* game)
 
     game->map_x = 50;
     game->map_y = 49;
-    game->map_terrain = map_terrain_new_from_cache(game->cache, game->map_x, game->map_y);
-    game->map_locs = map_locs_new_from_cache(game->cache, game->map_x, game->map_y);
+    // game->map_terrain = map_terrain_new_from_cache(game->cache, game->map_x, game->map_y);
+    // game->map_locs = map_locs_new_from_cache(game->cache, game->map_x, game->map_y);
+
+    game->tiles = parse_tiles_data("../docs/tiles_data.bin", &game->tile_count);
 
     game->tick = 0;
 
@@ -714,8 +730,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     //     game->camera_x,
     //     game->camera_y,
     //     game->camera_z,
-    //     game->camera_yaw,
     //     game->camera_pitch,
+    //     game->camera_yaw,
     //     game->camera_roll,
     //     game->camera_fov,
     //     model,
@@ -726,20 +742,35 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     //     model_free(model);
     // modelbones_free(bones);
 
-    render_map_terrain(
+    // render_map_terrain(
+    //     pixel_buffer,
+    //     SCREEN_WIDTH,
+    //     SCREEN_HEIGHT,
+    //     10,
+    //     game->camera_x,
+    //     game->camera_y,
+    //     game->camera_z,
+    //     game->camera_yaw,
+    //     game->camera_pitch,
+    //     game->camera_roll,
+    //     game->camera_fov,
+    //     game->map_terrain,
+    //     game->map_locs);
+
+    render_scene_tiles(
         pixel_buffer,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
         10,
         game->camera_x,
-        game->camera_y,
         game->camera_z,
-        game->camera_yaw,
+        game->camera_y,
         game->camera_pitch,
+        game->camera_yaw,
         game->camera_roll,
         game->camera_fov,
-        game->map_terrain,
-        game->map_locs);
+        game->tiles,
+        game->tile_count);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,
@@ -751,6 +782,15 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         0x0000FF00,
         0x000000FF,
         0xFF000000);
+
+    // Draw debug text for camera position and rotation
+    printf(
+        "Camera: x=%d y=%d z=%d pitch=%d yaw=%d\n",
+        game->camera_x,
+        game->camera_y,
+        game->camera_z,
+        game->camera_pitch,
+        game->camera_yaw);
 
     // Copy the pixels into the texture
     int* pix_write = NULL;
@@ -772,6 +812,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_UnlockTexture(texture);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
     SDL_RenderPresent(renderer);
+
+    SDL_FreeSurface(surface);
 }
 
 static bool
@@ -785,6 +827,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
+
     SDL_Window* window = SDL_CreateWindow(
         "Oldschool Runescape",
         SDL_WINDOWPOS_UNDEFINED,
@@ -833,7 +876,8 @@ main(int argc, char* argv[])
     if( !game_init(&game) )
         return 2;
 
-    const int TARGET_FRAME_TIME = 1000 / 30; // 30 FPS = 33.33ms per frame
+    // const int TARGET_FRAME_TIME = 1000 / 30; // 30 FPS = 33.33ms per frame
+    const int TARGET_FRAME_TIME = 1000 / 5; // 30 FPS = 33.33ms per frame
     Uint32 last_frame_time = SDL_GetTicks();
 
     while( !input.quit )
@@ -855,6 +899,9 @@ main(int argc, char* argv[])
 
         game_render_sdl2(&game, &platform);
     }
+
+    // Cleanup
+    SDL_Quit();
 
     return 0;
 }

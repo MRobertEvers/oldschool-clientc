@@ -4,6 +4,7 @@
 #include "gouraud.h"
 #include "lighting.h"
 #include "projection.h"
+#include "scene_tile.h"
 #include "tables/maps.h"
 #include "tables/model.h"
 
@@ -418,8 +419,8 @@ render_model_frame(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_yaw,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll,
     int fov,
     struct Model* model,
@@ -622,23 +623,6 @@ static int tile_shape_faces[15][30] = {
 
 static int tile_shape_face_counts[15] = {
     8, 8, 8, 12, 12, 12, 12, 16, 16, 16, 24, 24, 24, 24, 24,
-};
-
-struct SceneTile
-{
-    int* vertex_count;
-    int* vertex_x;
-    int* vertex_y;
-    int* vertex_z;
-
-    int* face_count;
-    int* faces_a;
-    int* faces_b;
-    int* faces_c;
-
-    int* face_colors_a;
-    int* face_colors_b;
-    int* face_colors_c;
 };
 
 #define TILE_SIZE 128
@@ -1186,4 +1170,75 @@ render_map_terrain(
             }
         }
     }
+}
+
+void
+render_scene_tiles(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    struct SceneTile* tiles,
+    int tile_count)
+{
+    int* screen_vertices_x = (int*)malloc(20 * sizeof(int));
+    int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
+    int* screen_vertices_z = (int*)malloc(20 * sizeof(int));
+    for( int i = 0; i < tile_count; i++ )
+    {
+        struct SceneTile* tile = &tiles[i];
+
+        project_vertices(
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            tile->vertex_count,
+            tile->vertex_x,
+            tile->vertex_y,
+            tile->vertex_z,
+            0,
+            0,
+            0,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_yaw,
+            camera_pitch,
+            camera_roll,
+            fov,
+            width,
+            height,
+            near_plane_z);
+
+        for( int face = 0; face < tile->face_count; face++ )
+        {
+            raster_osrs_single(
+                pixel_buffer,
+                face,
+                tile->faces_a,
+                tile->faces_b,
+                tile->faces_c,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                tile->face_color_hsl,
+                tile->face_color_hsl,
+                tile->face_color_hsl,
+                0,
+                0,
+                width,
+                height);
+        }
+    }
+
+    free(screen_vertices_x);
+    free(screen_vertices_y);
+    free(screen_vertices_z);
 }

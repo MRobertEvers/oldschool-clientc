@@ -14,6 +14,7 @@ include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZL
 add_executable(main_client
     src/main_client.c
     src/osrs/cache.c
+    src/osrs/scene_tile_parser.c
     src/osrs/tables/model.c
     src/buffer.c
     src/osrs/archive_decompress.c
@@ -34,6 +35,11 @@ add_executable(main_client
     src/osrs/xtea.c
     src/osrs/archive.c
     src/osrs/xtea_config.c
+)
+
+add_executable(tiles_test
+    src/tiles_test.c
+    src/osrs/scene_tile_parser.c
 )
 
 add_executable(xtea_test
@@ -121,6 +127,7 @@ target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(texture_test ${SDL2_LIBRARIES})
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
+target_link_libraries(tiles_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 
 cmake_minimum_required(VERSION 3.10)
 project(metal_renderer)

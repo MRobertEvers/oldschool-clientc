@@ -5,6 +5,30 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Launch to_bin.js",
+            "program": "${workspaceFolder}/docs/to_bin.js",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/docs",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node"
+        },
+        
+
+        {
+            "name": "(lldb) Launch Tiles Test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/tiles_test",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
             "name": "(lldb) Launch xtea Test",
             "type": "cppdbg",
             "request": "launch",
