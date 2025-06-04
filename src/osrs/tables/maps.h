@@ -4,8 +4,13 @@
 #define MAP_TERRAIN_X 64
 #define MAP_TERRAIN_Y 64
 #define MAP_TERRAIN_Z 4
+#define MAP_CHUNK_SIZE 64
 
-#define MAP_TILE_COORD(x, y, z) (x + y * MAP_TERRAIN_X + z * MAP_TERRAIN_X * MAP_TERRAIN_Y)
+// From meteor-client deob and from rs map viewer
+#define MAP_UNITS_LEVEL_HEIGHT 240
+#define MAP_UNITS_TILE_HEIGHT_BASIS 8
+
+#define MAP_TILE_COORD(x, y, z) (y + (x) * MAP_TERRAIN_X + (z) * MAP_TERRAIN_X * MAP_TERRAIN_Y)
 
 struct MapLoc
 {
