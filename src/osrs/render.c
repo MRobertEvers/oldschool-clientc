@@ -8,6 +8,7 @@
 #include "tables/maps.h"
 #include "tables/model.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
@@ -382,6 +383,10 @@ raster_osrs_single(
     int color_b = colors_b[index];
     int color_c = colors_c[index];
 
+    assert(color_a >= 0 && color_a < 65536);
+    assert(color_b >= 0 && color_b < 65536);
+    assert(color_c >= 0 && color_c < 65536);
+
     color_a = g_hsl16_to_rgb_table[color_a];
     color_b = g_hsl16_to_rgb_table[color_b];
     color_c = g_hsl16_to_rgb_table[color_c];
@@ -585,7 +590,7 @@ render_model_frame(
     free(screen_vertices_z);
 }
 
-static int tile_shape_vertex_indices[15][4] = {
+static int tile_shape_vertex_indices[15][6] = {
     { 1, 3, 5, 7 },
     { 1, 3, 5, 7 },
     { 1, 3, 5, 7 },
@@ -1194,6 +1199,8 @@ render_scene_tiles(
     for( int i = 0; i < tile_count; i++ )
     {
         struct SceneTile* tile = &tiles[i];
+        if( tile->vertex_count == 0 )
+            continue;
 
         project_vertices(
             screen_vertices_x,
@@ -1228,9 +1235,10 @@ render_scene_tiles(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
-                tile->face_color_hsl,
-                tile->face_color_hsl,
-                tile->face_color_hsl,
+                // TODO: Remove legacy face_color_hsl.
+                tile->face_color_hsl_a ? tile->face_color_hsl_a : tile->face_color_hsl,
+                tile->face_color_hsl_b ? tile->face_color_hsl_b : tile->face_color_hsl,
+                tile->face_color_hsl_c ? tile->face_color_hsl_c : tile->face_color_hsl,
                 0,
                 0,
                 width,

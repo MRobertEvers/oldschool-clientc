@@ -14,8 +14,18 @@
             ],
             "type": "node"
         },
-        
-
+        {
+            "name": "(lldb) Launch Scene Tiles Test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/scene_tile_test",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
         {
             "name": "(lldb) Launch Tiles Test",
             "type": "cppdbg",

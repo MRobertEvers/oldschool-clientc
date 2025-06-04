@@ -13,6 +13,7 @@ include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZL
 
 add_executable(main_client
     src/main_client.c
+    src/osrs/palette.c
     src/osrs/cache.c
     src/osrs/scene_tile_parser.c
     src/osrs/tables/model.c
@@ -21,6 +22,7 @@ add_executable(main_client
     src/osrs/reference_table.c
     src/osrs/tables/config_npctype.c
     src/osrs/tables/config_sequence.c
+    src/osrs/tables/config_floortype.c
     src/osrs/tables/framemap.c
     src/osrs/tables/frame.c
     src/osrs/tables/maps.c
@@ -38,9 +40,41 @@ add_executable(main_client
 )
 
 add_executable(tiles_test
-    src/tiles_test.c
+    test/tiles_test.c
     src/osrs/scene_tile_parser.c
+    src/osrs/palette.c
 )
+
+add_executable(scene_tile_test
+    test/scene_tile_test.c
+    src/osrs/scene_tile_parser.c
+    src/osrs/palette.c
+    src/osrs/cache.c
+    src/osrs/scene_tile_parser.c
+    src/osrs/tables/model.c
+    src/buffer.c
+    src/osrs/archive_decompress.c
+    src/osrs/reference_table.c
+    src/osrs/tables/config_npctype.c
+    src/osrs/tables/config_sequence.c
+    src/osrs/tables/config_floortype.c
+    src/osrs/tables/framemap.c
+    src/osrs/tables/frame.c
+    src/osrs/tables/maps.c
+    src/osrs/filelist.c
+    src/osrs/render.c
+    src/osrs/rsbuf.c
+    src/gouraud.c
+    src/lighting.c
+    src/projection.c
+    src/texture.c
+    src/osrs/anim.c
+    src/osrs/xtea.c
+    src/osrs/archive.c
+    src/osrs/xtea_config.c
+)
+
+target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 
 add_executable(xtea_test
     test/xtea_test.c
@@ -121,6 +155,7 @@ target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(tiles_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
+target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 
 cmake_minimum_required(VERSION 3.10)
 project(metal_renderer)

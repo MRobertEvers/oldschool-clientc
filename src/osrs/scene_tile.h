@@ -1,6 +1,8 @@
 #ifndef SCENE_TILE_H
 #define SCENE_TILE_H
 
+#include "tables/maps.h"
+
 struct SceneTile
 {
     int vertex_count;
@@ -13,10 +15,28 @@ struct SceneTile
     int* faces_b;
     int* faces_c;
 
+    /* deprecated */
     int* face_color_hsl;
+
+    int* face_color_hsl_a;
+    int* face_color_hsl_b;
+    int* face_color_hsl_c;
 };
 
 struct SceneTile* parse_tiles_data(const char* filename, int* tile_count);
+
+struct Overlay;
+struct Underlay;
+struct MapTerrain;
+
+struct SceneTile* scene_tiles_new_from_map_terrain(
+    struct MapTerrain* map_terrain,
+    struct Overlay* overlays,
+    int* overlay_ids,
+    int overlays_count,
+    struct Underlay* underlays,
+    int* underlay_ids,
+    int underlays_count);
 
 void free_tiles(struct SceneTile* tiles, int tile_count);
 

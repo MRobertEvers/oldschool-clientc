@@ -50,8 +50,19 @@ struct SequenceDefinition
 struct SequenceDefinition* config_sequence_new_decode(int revision, char* buffer, int buffer_size);
 void config_sequence_free(struct SequenceDefinition* sequence);
 
+/**
+ * @deprecated
+ */
 void decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buffer);
+
+/**
+ * @deprecated
+ */
 void print_sequence(struct SequenceDefinition* def);
+
+/**
+ * @deprecated
+ */
 void free_sequence(struct SequenceDefinition* def);
 
 #endif // SEQUENCE_H

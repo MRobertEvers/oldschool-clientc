@@ -37,6 +37,9 @@
         "archive.h": "c",
         "istream": "c",
         "xtea_config.h": "c",
-        "config_sequence.h": "c"
+        "config_sequence.h": "c",
+        "rsbuf.h": "c",
+        "palette.h": "c",
+        "stdint.h": "c"
     }
 }

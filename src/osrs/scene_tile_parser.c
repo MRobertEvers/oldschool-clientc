@@ -1,5 +1,8 @@
+#include "osrs/tables/config_floortype.h"
+#include "palette.h"
 #include "scene_tile.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -180,4 +183,379 @@ free_tiles(struct SceneTile* tiles, int tile_count)
         free(tiles[i].face_color_hsl);
     }
     free(tiles);
+}
+
+// TODO: Lookup table for overlay ids and underlay ids.
+
+static int tile_shape_vertex_indices[15][6] = {
+    { 1, 3, 5, 7 },
+    { 1, 3, 5, 7 },
+    { 1, 3, 5, 7 },
+    { 1, 3, 5, 7, 6 },
+    { 1, 3, 5, 7, 6 },
+    { 1, 3, 5, 7, 6 },
+    { 1, 3, 5, 7, 6 },
+    { 1, 3, 5, 7, 2, 6 },
+    { 1, 3, 5, 7, 2, 8 },
+    { 1, 3, 5, 7, 2, 8 },
+    { 1, 3, 5, 7, 11, 12 },
+    { 1, 3, 5, 7, 11, 12 },
+    { 1, 3, 5, 7, 13, 14 },
+};
+
+static int tile_shape_vertex_indices_lengths[15] = {
+    4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6,
+};
+
+static int tile_shape_faces[15][30] = {
+    { 0, 1, 2, 3, 0, 0, 1, 3 },
+    { 1, 1, 2, 3, 1, 0, 1, 3 },
+    { 0, 1, 2, 3, 1, 0, 1, 3 },
+    { 0, 0, 1, 2, 0, 0, 2, 4, 1, 0, 4, 3 },
+    { 0, 0, 1, 4, 0, 0, 4, 3, 1, 1, 2, 4 },
+    { 0, 0, 4, 3, 1, 0, 1, 2, 1, 0, 2, 4 },
+    { 0, 1, 2, 4, 1, 0, 1, 4, 1, 0, 4, 3 },
+    { 0, 4, 1, 2, 0, 4, 2, 5, 1, 0, 4, 5, 1, 0, 5, 3 },
+    { 0, 4, 1, 2, 0, 4, 2, 3, 0, 4, 3, 5, 1, 0, 4, 5 },
+    { 0, 0, 4, 5, 1, 4, 1, 2, 1, 4, 2, 3, 1, 4, 3, 5 },
+    { 0, 0, 1, 5, 0, 1, 4, 5, 0, 1, 2, 4, 1, 0, 5, 3, 1, 5, 4, 3, 1, 4, 2, 3 },
+    { 1, 0, 1, 5, 1, 1, 4, 5, 1, 1, 2, 4, 0, 0, 5, 3, 0, 5, 4, 3, 0, 4, 2, 3 },
+    { 1, 0, 5, 4, 1, 0, 1, 5, 0, 0, 4, 3, 0, 4, 5, 3, 0, 5, 2, 3, 0, 1, 2, 5 },
+};
+
+static int tile_shape_face_counts[15] = {
+    8, 8, 8, 12, 12, 12, 12, 16, 16, 16, 24, 24, 24, 24, 24,
+};
+
+#define TILE_SIZE 128
+#define LEVEL_HEIGHT 240
+
+static int
+get_index(int* ids, int count, int id)
+{
+    for( int i = 0; i < count; i++ )
+    {
+        if( ids[i] == id )
+            return i;
+    }
+    return -1;
+}
+
+static bool
+decode_tile(
+    struct SceneTile* tile,
+    int shape,
+    int rotation,
+    int tile_coord_x,
+    int tile_coord_y,
+    int tile_coord_z,
+    int height_sw,
+    int height_se,
+    int height_ne,
+    int height_nw,
+    int blended_underlay_hsl_sw,
+    int blended_underlay_hsl_se,
+    int blended_underlay_hsl_ne,
+    int blended_underlay_hsl_nw,
+    int overlay_hsl)
+{
+    // memset(tile, 0, sizeof(struct SceneTile));
+    int tile_x = tile_coord_x * TILE_SIZE;
+    int tile_y = tile_coord_y * TILE_SIZE;
+    int tile_z = tile_coord_z * TILE_SIZE;
+
+    int* vertex_indices = tile_shape_vertex_indices[shape];
+    int vertex_count = tile_shape_vertex_indices_lengths[shape];
+
+    int* vertex_x = (int*)malloc(vertex_count * sizeof(int));
+    int* vertex_y = (int*)malloc(vertex_count * sizeof(int));
+    int* vertex_z = (int*)malloc(vertex_count * sizeof(int));
+
+    int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
+    int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
+
+    for( int i = 0; i < vertex_count; i++ )
+    {
+        int vertex_index = vertex_indices[i];
+        if( (vertex_index & 1) == 0 && vertex_index <= 8 )
+        {
+            vertex_index = ((vertex_index - rotation - rotation - 1) & 7) + 1;
+        }
+
+        if( vertex_index > 8 && vertex_index <= 12 )
+        {
+            vertex_index = ((vertex_index - 9 - rotation) & 3) + 9;
+        }
+
+        if( vertex_index > 12 && vertex_index <= 16 )
+        {
+            vertex_index = ((vertex_index - 13 - rotation) & 3) + 13;
+        }
+
+        int vert_x = 0;
+        int vert_z = 0;
+        int vert_y = 0;
+        int vert_underlay_color_hsl = blended_underlay_hsl_sw;
+        int vert_overlay_color_hsl = overlay_hsl;
+
+        if( vertex_index == 1 )
+        {
+            vert_x = tile_x;
+            vert_z = tile_y;
+            vert_y = height_sw;
+
+            // vert_underlay_color_hsl = blended_underlay_hsl_sw;
+            // vert_overlay_color_hsl = overlay_hsl;
+        }
+        else if( vertex_index == 2 )
+        {
+            vert_x = tile_x + TILE_SIZE / 2;
+            vert_z = tile_y;
+            vert_y = (height_se + height_sw) >> 1;
+        }
+        else if( vertex_index == 3 )
+        {
+            vert_x = tile_x + TILE_SIZE;
+            vert_z = tile_y;
+            vert_y = height_se;
+        }
+        else if( vertex_index == 4 )
+        {
+            vert_x = tile_x + TILE_SIZE;
+            vert_z = tile_y + TILE_SIZE / 2;
+            vert_y = (height_ne + height_se) >> 1;
+        }
+        else if( vertex_index == 5 )
+        {
+            vert_x = tile_x + TILE_SIZE;
+            vert_z = tile_y + TILE_SIZE;
+            vert_y = height_ne;
+        }
+        else if( vertex_index == 6 )
+        {
+            vert_x = tile_x + TILE_SIZE / 2;
+            vert_z = tile_y + TILE_SIZE;
+            vert_y = (height_ne + height_nw) >> 1;
+        }
+        else if( vertex_index == 7 )
+        {
+            vert_x = tile_x;
+            vert_z = tile_y + TILE_SIZE;
+            vert_y = height_nw;
+        }
+        else if( vertex_index == 8 )
+        {
+            vert_x = tile_x;
+            vert_z = tile_y + TILE_SIZE / 2;
+            vert_y = (height_nw + height_sw) >> 1;
+        }
+        else if( vertex_index == 9 )
+        {
+            vert_x = tile_x + TILE_SIZE / 2;
+            vert_z = tile_y + TILE_SIZE / 4;
+            vert_y = (height_sw + height_se) >> 1;
+        }
+        else if( vertex_index == 10 )
+        {
+            vert_x = tile_x + TILE_SIZE * 3 / 4;
+            vert_z = tile_y + TILE_SIZE / 2;
+            vert_y = (height_se + height_ne) >> 1;
+        }
+        else if( vertex_index == 11 )
+        {
+            vert_x = tile_x + TILE_SIZE / 2;
+            vert_z = tile_y + TILE_SIZE * 3 / 4;
+            vert_y = (height_ne + height_nw) >> 1;
+        }
+        else if( vertex_index == 12 )
+        {
+            vert_x = tile_x + TILE_SIZE / 4;
+            vert_z = tile_y + TILE_SIZE / 2;
+            vert_y = (height_nw + height_sw) >> 1;
+        }
+        else if( vertex_index == 13 )
+        {
+            vert_x = tile_x + TILE_SIZE / 4;
+            vert_z = tile_y + TILE_SIZE / 4;
+            vert_y = height_sw;
+        }
+        else if( vertex_index == 14 )
+        {
+            vert_x = tile_x + TILE_SIZE * 3 / 4;
+            vert_z = tile_y + TILE_SIZE / 4;
+            vert_y = height_se;
+        }
+        else if( vertex_index == 15 )
+        {
+            vert_x = tile_x + TILE_SIZE * 3 / 4;
+            vert_z = tile_y + TILE_SIZE * 3 / 4;
+            vert_y = height_ne;
+        }
+        else
+        {
+            vert_x = tile_x + TILE_SIZE / 4;
+            vert_z = tile_y + TILE_SIZE * 3 / 4;
+            vert_y = height_nw;
+        }
+
+        // TODO: For the target level, subtract LEVEL_HEIGHT from the vertex y.
+        vertex_x[i] = vert_x;
+        vertex_y[i] = vert_y;
+        vertex_z[i] = vert_z;
+
+        underlay_colors_hsl[i] = vert_underlay_color_hsl;
+        overlay_colors_hsl[i] = vert_overlay_color_hsl;
+    }
+
+    int* face_indices = tile_shape_faces[shape];
+    int face_count = tile_shape_face_counts[shape];
+
+    int* faces_a = (int*)malloc(face_count * sizeof(int));
+    int* faces_b = (int*)malloc(face_count * sizeof(int));
+    int* faces_c = (int*)malloc(face_count * sizeof(int));
+
+    int* face_colors_hsl_a = (int*)malloc(face_count * sizeof(int));
+    int* face_colors_hsl_b = (int*)malloc(face_count * sizeof(int));
+    int* face_colors_hsl_c = (int*)malloc(face_count * sizeof(int));
+
+    for( int i = 0; i < face_count; i++ )
+    {
+        bool is_overlay = face_indices[i * 4] == 1;
+        int a = face_indices[i * 4 + 1];
+        int b = face_indices[i * 4 + 2];
+        int c = face_indices[i * 4 + 3];
+
+        if( a < 4 )
+            a = (a - rotation) & 3;
+
+        if( b < 4 )
+            b = (b - rotation) & 3;
+
+        if( c < 4 )
+            c = (c - rotation) & 3;
+
+        faces_a[i] = a;
+        faces_b[i] = b;
+        faces_c[i] = c;
+
+        int color_a = is_overlay ? overlay_colors_hsl[a] : underlay_colors_hsl[a];
+        int color_b = is_overlay ? overlay_colors_hsl[b] : underlay_colors_hsl[b];
+        int color_c = is_overlay ? overlay_colors_hsl[c] : underlay_colors_hsl[c];
+
+        face_colors_hsl_a[i] = color_a;
+        face_colors_hsl_b[i] = color_b;
+        face_colors_hsl_c[i] = color_c;
+    }
+
+    free(underlay_colors_hsl);
+    free(overlay_colors_hsl);
+
+    tile->vertex_count = vertex_count;
+    tile->vertex_x = vertex_x;
+    tile->vertex_y = vertex_y;
+    tile->vertex_z = vertex_z;
+    tile->face_count = face_count;
+    tile->faces_a = faces_a;
+    tile->faces_b = faces_b;
+    tile->faces_c = faces_c;
+
+    tile->face_color_hsl_a = face_colors_hsl_a;
+    tile->face_color_hsl_b = face_colors_hsl_b;
+    tile->face_color_hsl_c = face_colors_hsl_c;
+    return true;
+error:
+    free(vertex_x);
+    free(vertex_y);
+    free(vertex_z);
+    free(underlay_colors_hsl);
+    free(overlay_colors_hsl);
+    free(faces_a);
+    free(faces_b);
+    free(faces_c);
+    free(face_colors_hsl_a);
+    free(face_colors_hsl_b);
+    free(face_colors_hsl_c);
+    return false;
+}
+
+struct SceneTile*
+scene_tiles_new_from_map_terrain(
+    struct MapTerrain* map_terrain,
+    struct Overlay* overlays,
+    int* overlay_ids,
+    int overlays_count,
+    struct Underlay* underlays,
+    int* underlay_ids,
+    int underlays_count)
+{
+    struct Underlay* underlay = NULL;
+    struct Overlay* overlay = NULL;
+    printf("MAP_TILE_COUNT: %d\n", MAP_TILE_COUNT);
+    struct SceneTile* tiles = (struct SceneTile*)malloc(MAP_TILE_COUNT * sizeof(struct SceneTile));
+
+    if( !tiles )
+    {
+        fprintf(stderr, "Failed to allocate memory for tiles\n");
+        return NULL;
+    }
+
+    for( int i = 0; i < MAP_TILE_COUNT; i++ )
+        memset(&tiles[i], 0, sizeof(struct SceneTile));
+
+    for( int z = 0; z < MAP_TERRAIN_Z; z++ )
+    {
+        for( int y = 0; y < MAP_TERRAIN_Y - 1; y++ )
+        {
+            for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
+            {
+                struct MapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+
+                struct SceneTile* scene_tile = &tiles[MAP_TILE_COORD(x, y, z)];
+                int underlay_id = map->underlay_id - 1;
+
+                int overlay_id = map->overlay_id - 1;
+
+                if( underlay_id == -1 && overlay_id == -1 )
+                    continue;
+
+                int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)].height;
+                int height_se = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, z)].height;
+                int height_ne = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y + 1, z)].height;
+                int height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, z)].height;
+
+                // Just get the underlay color for now.
+
+                int underlay_hsl = 0;
+                if( underlay_id != -1 )
+                {
+                    int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
+                    assert(underlay_index != -1);
+
+                    underlay = &underlays[underlay_index];
+                    underlay_hsl = palette_rgb_to_hsl16(underlay->rgb_color);
+                }
+
+                bool success = decode_tile(
+                    scene_tile,
+                    map->shape,
+                    map->rotation,
+                    x,
+                    y,
+                    z,
+                    height_sw,
+                    height_se,
+                    height_ne,
+                    height_nw,
+                    underlay_hsl,
+                    underlay_hsl,
+                    underlay_hsl,
+                    underlay_hsl,
+                    // Overlay color.
+                    underlay_hsl);
+                assert(success);
+            }
+        }
+    }
+
+    return tiles;
 }

@@ -2,6 +2,7 @@
 #include "osrs/filelist.h"
 #include "osrs/render.h"
 #include "osrs/scene_tile.h"
+#include "osrs/tables/config_floortype.h"
 #include "osrs/tables/config_npctype.h"
 #include "osrs/tables/config_sequence.h"
 #include "osrs/tables/configs.h"
@@ -210,6 +211,13 @@ struct Game
 
     int tile_count;
     struct SceneTile* tiles;
+
+    struct Overlay* overlays;
+    int* overlay_ids;
+    int overlays_count;
+    struct Underlay* underlays;
+    int* underlay_ids;
+    int underlays_count;
 
     // Business end
     struct Cache* cache;

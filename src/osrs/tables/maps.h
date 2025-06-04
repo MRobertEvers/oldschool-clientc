@@ -41,6 +41,8 @@ struct MapTerrain
     struct MapTile tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];
 };
 
+#define MAP_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z))
+
 struct Cache;
 struct MapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
 struct MapTerrain* map_terrain_new_from_decode(char* data, int data_size);
