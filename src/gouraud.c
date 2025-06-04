@@ -75,7 +75,7 @@ draw_scanline_gouraud_zbuf(
         int t_sh16 = dx_stride == 0 ? 0 : ((x - x_start) << 16) / dx_stride;
 
         int depth = interpolate_ish16(depth_start, depth_end, t_sh16);
-        if( z_buffer[y * stride_width + x] >= depth )
+        if( z_buffer[y * stride_width + x] <= depth )
             z_buffer[y * stride_width + x] = depth;
         else
             continue;

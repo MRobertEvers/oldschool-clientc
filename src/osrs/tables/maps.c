@@ -188,7 +188,8 @@ map_terrain_new_from_decode(char* data, int data_size)
                     }
                     else if( attribute == 1 )
                     {
-                        tile->height = read_u8(&buffer);
+                        int height = read_u8(&buffer);
+                        tile->height = height;
                         break;
                     }
                     else if( attribute <= 49 )

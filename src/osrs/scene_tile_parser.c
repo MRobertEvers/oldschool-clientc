@@ -42,23 +42,14 @@ parse_tiles_data(const char* filename, int* tile_count)
 
     // Allocate array of SceneTiles
     struct SceneTile* tiles = (struct SceneTile*)malloc(num_tiles * sizeof(struct SceneTile));
+    for( int i = 0; i < num_tiles; i++ )
+        memset(&tiles[i], 0, sizeof(struct SceneTile));
+
     if( !tiles )
     {
         fprintf(stderr, "Failed to allocate memory for tiles\n");
         fclose(file);
         return NULL;
-    }
-
-    // Initialize all pointers to NULL
-    for( int i = 0; i < num_tiles; i++ )
-    {
-        tiles[i].vertex_x = NULL;
-        tiles[i].vertex_y = NULL;
-        tiles[i].vertex_z = NULL;
-        tiles[i].faces_a = NULL;
-        tiles[i].faces_b = NULL;
-        tiles[i].faces_c = NULL;
-        tiles[i].face_color_hsl = NULL;
     }
 
     // Read each tile
@@ -207,7 +198,7 @@ static int tile_shape_vertex_indices_lengths[15] = {
     4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6,
 };
 
-static int tile_shape_faces[15][30] = {
+static int tile_shape_faces[15][25] = {
     { 0, 1, 2, 3, 0, 0, 1, 3 },
     { 1, 1, 2, 3, 1, 0, 1, 3 },
     { 0, 1, 2, 3, 1, 0, 1, 3 },
@@ -224,7 +215,7 @@ static int tile_shape_faces[15][30] = {
 };
 
 static int tile_shape_face_counts[15] = {
-    8, 8, 8, 12, 12, 12, 12, 16, 16, 16, 24, 24, 24, 24, 24,
+    8, 8, 8, 12, 12, 12, 12, 16, 16, 16, 24, 24, 24,
 };
 
 #define TILE_SIZE 128
@@ -262,7 +253,6 @@ decode_tile(
     // memset(tile, 0, sizeof(struct SceneTile));
     int tile_x = tile_coord_x * TILE_SIZE;
     int tile_y = tile_coord_y * TILE_SIZE;
-    int tile_z = tile_coord_z * TILE_SIZE;
 
     int* vertex_indices = tile_shape_vertex_indices[shape];
     int vertex_count = tile_shape_vertex_indices_lengths[shape];
@@ -312,6 +302,7 @@ decode_tile(
             vert_x = tile_x + TILE_SIZE / 2;
             vert_z = tile_y;
             vert_y = (height_se + height_sw) >> 1;
+            // vert_y = height_sw;
         }
         else if( vertex_index == 3 )
         {
@@ -324,6 +315,7 @@ decode_tile(
             vert_x = tile_x + TILE_SIZE;
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_ne + height_se) >> 1;
+            // vert_y = height_sw;
         }
         else if( vertex_index == 5 )
         {
@@ -336,6 +328,7 @@ decode_tile(
             vert_x = tile_x + TILE_SIZE / 2;
             vert_z = tile_y + TILE_SIZE;
             vert_y = (height_ne + height_nw) >> 1;
+            // vert_y = height_sw;
         }
         else if( vertex_index == 7 )
         {
@@ -348,6 +341,7 @@ decode_tile(
             vert_x = tile_x;
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_nw + height_sw) >> 1;
+            // vert_y = height_sw;
         }
         else if( vertex_index == 9 )
         {
@@ -365,6 +359,7 @@ decode_tile(
         {
             vert_x = tile_x + TILE_SIZE / 2;
             vert_z = tile_y + TILE_SIZE * 3 / 4;
+
             vert_y = (height_ne + height_nw) >> 1;
         }
         else if( vertex_index == 12 )
@@ -377,7 +372,6 @@ decode_tile(
         {
             vert_x = tile_x + TILE_SIZE / 4;
             vert_z = tile_y + TILE_SIZE / 4;
-            vert_y = height_sw;
         }
         else if( vertex_index == 14 )
         {
@@ -401,6 +395,17 @@ decode_tile(
         // TODO: For the target level, subtract LEVEL_HEIGHT from the vertex y.
         vertex_x[i] = vert_x;
         vertex_y[i] = vert_y;
+        if( vert_y > 500 )
+        {
+            printf(
+                "vert_y: %d (x: %d, y: %d, z: %d)\n",
+                vert_y,
+                tile_coord_x,
+                tile_coord_y,
+                tile_coord_z);
+        }
+
+        // vertex_y[i] = ;
         vertex_z[i] = vert_z;
 
         underlay_colors_hsl[i] = vert_underlay_color_hsl;
@@ -408,7 +413,7 @@ decode_tile(
     }
 
     int* face_indices = tile_shape_faces[shape];
-    int face_count = tile_shape_face_counts[shape];
+    int face_count = tile_shape_face_counts[shape] / 4;
 
     int* faces_a = (int*)malloc(face_count * sizeof(int));
     int* faces_b = (int*)malloc(face_count * sizeof(int));
@@ -477,6 +482,135 @@ error:
     free(face_colors_hsl_c);
     return false;
 }
+extern int g_cos_table[2048];
+
+static int
+interpolate(int i, int i_4_, int i_5_, int freq)
+{
+    int i_8_ = (65536 - g_cos_table[(i_5_ * 1024) / freq]) >> 1;
+    return ((i_8_ * i_4_) >> 16) + (((65536 - i_8_) * i) >> 16);
+}
+
+static int
+noise(int x, int y)
+{
+    int n = y * 57 + x;
+    n = (n << 13) ^ n;
+    int n2 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
+    return (n2 >> 19) & 0xff;
+}
+
+static int
+smoothedNoise1(int x, int y)
+{
+    int corners =
+        noise(x - 1, y - 1) + noise(x + 1, y - 1) + noise(x - 1, y + 1) + noise(x + 1, y + 1);
+    int sides = noise(x - 1, y) + noise(x + 1, y) + noise(x, y - 1) + noise(x, y + 1);
+    int center = noise(x, y);
+    return (center / 4) + (sides / 8) + (corners / 16);
+}
+
+static int
+interpolateNoise(int x, int y, int freq)
+{
+    int intX = x / freq;
+    int fracX = x & (freq - 1);
+    int intY = y / freq;
+    int fracY = y & (freq - 1);
+    int v1 = smoothedNoise1(intX, intY);
+    int v2 = smoothedNoise1(intX + 1, intY);
+    int v3 = smoothedNoise1(intX, intY + 1);
+    int v4 = smoothedNoise1(intX + 1, intY + 1);
+    int i1 = interpolate(v1, v2, fracX, freq);
+    int i2 = interpolate(v3, v4, fracX, freq);
+    return interpolate(i1, i2, fracY, freq);
+}
+
+static int
+generateHeight(int x, int y)
+{
+    int n = interpolateNoise(x + 45365, y + 91923, 4) - 128 +
+            ((interpolateNoise(x + 10294, y + 37821, 2) - 128) >> 1) +
+            ((interpolateNoise(x, y, 1) - 128) >> 2);
+    n = (int)(0.3 * n) + 35;
+    if( n < 10 )
+    {
+        n = 10;
+    }
+    else if( n > 60 )
+    {
+        n = 60;
+    }
+    return n;
+}
+
+/**
+ * Normally, some of this calculation is done in the map terrain loader.
+ *
+ * The deob meteor client and rs map viewer do this calculation there.
+ * src/rs/scene/SceneBuilder.ts decodeTerrainTile
+ */
+static void
+fix_terrain_tile(struct MapTerrain* map_terrain, int world_scene_origin_x, int world_scene_origin_y)
+{
+    for( int z = 0; z < MAP_TERRAIN_Z; z++ )
+    {
+        for( int y = 0; y < MAP_TERRAIN_Y - 1; y++ )
+        {
+            for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
+            {
+                struct MapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+
+                if( map->height == 0 )
+                {
+                    if( z == 0 )
+                    {
+                        int worldX = world_scene_origin_x + (-58) + 932731;
+                        int worldY = world_scene_origin_y + (-58) + 556238;
+                        map->height = -generateHeight(worldX, worldY) * MAP_UNITS_TILE_HEIGHT_BASIS;
+                        if( map->height > 500 )
+                        {
+                            printf("map->height: %d (x: %d, y: %d, z: %d)\n", map->height, x, y, z);
+                        }
+                    }
+                    else
+                    {
+                        int lower = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z - 1)].height;
+                        map->height = lower - MAP_UNITS_LEVEL_HEIGHT;
+                        if( map->height > 500 )
+                        {
+                            printf("map->height: %d (x: %d, y: %d, z: %d)\n", map->height, x, y, z);
+                        }
+                    }
+                }
+                else
+                {
+                    if( map->height == 1 )
+                        map->height = 0;
+
+                    if( z == 0 )
+                    {
+                        map->height = -map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
+                        if( map->height > 500 )
+                        {
+                            printf("map->height: %d (x: %d, y: %d, z: %d)\n", map->height, x, y, z);
+                        }
+                    }
+                    else
+                    {
+                        map->height = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z - 1)].height -
+                                      map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
+
+                        if( map->height > 500 )
+                        {
+                            printf("map->height: %d (x: %d, y: %d, z: %d)\n", map->height, x, y, z);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 struct SceneTile*
 scene_tiles_new_from_map_terrain(
@@ -492,6 +626,8 @@ scene_tiles_new_from_map_terrain(
     struct Overlay* overlay = NULL;
     printf("MAP_TILE_COUNT: %d\n", MAP_TILE_COUNT);
     struct SceneTile* tiles = (struct SceneTile*)malloc(MAP_TILE_COUNT * sizeof(struct SceneTile));
+
+    fix_terrain_tile(map_terrain, 50 * MAP_CHUNK_SIZE, 50 * MAP_CHUNK_SIZE);
 
     if( !tiles )
     {
@@ -534,11 +670,18 @@ scene_tiles_new_from_map_terrain(
                     underlay = &underlays[underlay_index];
                     underlay_hsl = palette_rgb_to_hsl16(underlay->rgb_color);
                 }
+                else
+                {
+                    underlay_hsl = palette_rgb_to_hsl16(0xDDDDDD);
+                }
+
+                int shape = map->overlay_id == -1 ? 0 : map->shape + 1;
+                int rotation = map->overlay_id == -1 ? 0 : map->rotation;
 
                 bool success = decode_tile(
                     scene_tile,
-                    map->shape,
-                    map->rotation,
+                    shape,
+                    rotation,
                     x,
                     y,
                     z,
@@ -552,6 +695,7 @@ scene_tiles_new_from_map_terrain(
                     underlay_hsl,
                     // Overlay color.
                     underlay_hsl);
+
                 assert(success);
             }
         }

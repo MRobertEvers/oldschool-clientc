@@ -376,7 +376,7 @@ main()
     filelist_free(filelist);
     cache_archive_free(archive);
 
-    struct MapTerrain* map_terrain = map_terrain_new_from_cache(cache, 49, 49);
+    struct MapTerrain* map_terrain = map_terrain_new_from_cache(cache, 50, 50);
     if( !map_terrain )
     {
         printf("Failed to load map terrain\n");
@@ -405,8 +405,36 @@ main()
     game.tiles = tiles;
     game.tile_count = MAP_TILE_COUNT;
 
+    // printf("Map Tile Count: %d\n", MAP_TILE_COUNT);
+    // for( int z = 0; z < 1; z++ )
+    // {
+    //     for( int x = 0; x < 2; x++ )
+    //     {
+    //         for( int y = 0; y < 2; y++ )
+    //         {
+    //             struct SceneTile* tile = &tiles[MAP_TILE_COORD(x, y, z)];
+    //             if( tile->vertex_count == 0 )
+    //                 continue;
+
+    //             printf("Tile %d, z: %d, x: %d, y: %d\n", MAP_TILE_COORD(x, y, z), z, x, y);
+    //             for( int i = 0; i < tile->vertex_count; i++ )
+    //             {
+    //                 printf(
+    //                     "Vertex %d: (%d, %d, %d)\n",
+    //                     i,
+    //                     tile->vertex_x[i],
+    //                     tile->vertex_y[i],
+    //                     tile->vertex_z[i]);
+    //             }
+
+    //             printf("\n");
+    //         }
+    //     }
+    // }
+    // return 0;
     // Main loop
     bool quit = false;
+    int speed = 200;
     SDL_Event event;
     while( !quit )
     {
@@ -436,16 +464,16 @@ main()
                     game.camera_yaw = (game.camera_yaw + 10) % 2048;
                     break;
                 case SDLK_w:
-                    game.camera_z += 10;
+                    game.camera_z += speed;
                     break;
                 case SDLK_s:
-                    game.camera_z -= 10;
+                    game.camera_z -= speed;
                     break;
                 case SDLK_a:
-                    game.camera_x -= 10;
+                    game.camera_x -= speed;
                     break;
                 case SDLK_d:
-                    game.camera_x += 10;
+                    game.camera_x += speed;
                     break;
                 case SDLK_q:
                     game.camera_roll = (game.camera_roll - 10 + 2048) % 2048;
