@@ -415,6 +415,9 @@ main()
     int left_pressed = 0;
     int right_pressed = 0;
 
+    int f_pressed = 0;
+    int r_pressed = 0;
+
     bool quit = false;
     int speed = 200;
     SDL_Event event;
@@ -457,6 +460,12 @@ main()
                 case SDLK_a:
                     a_pressed = 1;
                     break;
+                case SDLK_r:
+                    r_pressed = 1;
+                    break;
+                case SDLK_f:
+                    f_pressed = 1;
+                    break;
                 case SDLK_q:
                     game.camera_roll = (game.camera_roll - 10 + 2048) % 2048;
                     break;
@@ -486,6 +495,12 @@ main()
                     break;
                 case SDLK_a:
                     a_pressed = 0;
+                    break;
+                case SDLK_r:
+                    r_pressed = 0;
+                    break;
+                case SDLK_f:
+                    f_pressed = 0;
                     break;
                 case SDLK_UP:
                     up_pressed = 0;
@@ -546,6 +561,17 @@ main()
         {
             game.camera_pitch = (game.camera_pitch - 10 + 2048) % 2048;
         }
+
+        if( f_pressed )
+        {
+            game.camera_z -= speed;
+        }
+
+        if( r_pressed )
+        {
+            game.camera_z += speed;
+        }
+
         // Render frame
         game_render_sdl2(&game, &platform);
 

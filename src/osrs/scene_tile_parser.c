@@ -634,6 +634,7 @@ scene_tiles_new_from_map_terrain(
                 // Just get the underlay color for now.
 
                 int underlay_hsl = 0;
+                int overlay_hsl = 0;
                 if( underlay_id != -1 )
                 {
                     int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
@@ -641,10 +642,17 @@ scene_tiles_new_from_map_terrain(
 
                     underlay = &underlays[underlay_index];
                     underlay_hsl = palette_rgb_to_hsl16(underlay->rgb_color);
+                    overlay_hsl = underlay_hsl;
                 }
-                else
+
+                if( overlay_id != -1 )
                 {
-                    underlay_hsl = palette_rgb_to_hsl16(0xDDDDDD);
+                    int overlay_index = get_index(overlay_ids, overlays_count, overlay_id);
+                    assert(overlay_index != -1);
+
+                    overlay = &overlays[overlay_index];
+
+                    overlay_hsl = palette_rgb_to_hsl16(overlay->rgb_color);
                 }
 
                 int shape = map->overlay_id == -1 ? 0 : map->shape + 1;
@@ -666,7 +674,7 @@ scene_tiles_new_from_map_terrain(
                     underlay_hsl,
                     underlay_hsl,
                     // Overlay color.
-                    underlay_hsl);
+                    overlay_hsl);
 
                 assert(success);
             }
