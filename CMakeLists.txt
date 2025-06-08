@@ -13,6 +13,7 @@ include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZL
 
 add_executable(main_client
     src/main_client.c
+    src/osrs/blend_underlays.c
     src/osrs/palette.c
     src/osrs/cache.c
     src/osrs/scene_tile_parser.c
@@ -41,12 +42,14 @@ add_executable(main_client
 
 add_executable(tiles_test
     test/tiles_test.c
+    src/osrs/blend_underlays.c
     src/osrs/scene_tile_parser.c
     src/osrs/palette.c
 )
 
 add_executable(scene_tile_test
     test/scene_tile_test.c
+    src/osrs/blend_underlays.c
     src/osrs/scene_tile_parser.c
     src/osrs/palette.c
     src/osrs/cache.c

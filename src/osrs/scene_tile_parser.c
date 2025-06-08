@@ -1,3 +1,4 @@
+#include "blend_underlays.h"
 #include "osrs/tables/config_floortype.h"
 #include "palette.h"
 #include "scene_tile.h"
@@ -607,6 +608,10 @@ scene_tiles_new_from_map_terrain(
         return NULL;
     }
 
+    // Blend underlays and calculate lights
+
+    int* blended_underlays = blend_underlays(map_terrain, underlays, underlay_ids, underlays_count);
+
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
         memset(&tiles[i], 0, sizeof(struct SceneTile));
 
@@ -633,16 +638,31 @@ scene_tiles_new_from_map_terrain(
 
                 // Just get the underlay color for now.
 
-                int underlay_hsl = 0;
+                int underlay_hsl_sw = 0;
+                int underlay_hsl_se = 0;
+                int underlay_hsl_ne = 0;
+                int underlay_hsl_nw = 0;
                 int overlay_hsl = 0;
+
                 if( underlay_id != -1 )
                 {
                     int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
                     assert(underlay_index != -1);
 
                     underlay = &underlays[underlay_index];
-                    underlay_hsl = palette_rgb_to_hsl16(underlay->rgb_color);
-                    overlay_hsl = underlay_hsl;
+                    underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];
+                    underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
+                    underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
+                    underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
+
+                    if( underlay_hsl_se == -1 )
+                        underlay_hsl_se = underlay_hsl_sw;
+                    if( underlay_hsl_ne == -1 )
+                        underlay_hsl_ne = underlay_hsl_sw;
+                    if( underlay_hsl_nw == -1 )
+                        underlay_hsl_nw = underlay_hsl_sw;
+
+                    overlay_hsl = underlay_hsl_sw;
                 }
 
                 if( overlay_id != -1 )
@@ -669,10 +689,10 @@ scene_tiles_new_from_map_terrain(
                     height_se,
                     height_ne,
                     height_nw,
-                    underlay_hsl,
-                    underlay_hsl,
-                    underlay_hsl,
-                    underlay_hsl,
+                    underlay_hsl_sw,
+                    underlay_hsl_se,
+                    underlay_hsl_ne,
+                    underlay_hsl_nw,
                     // Overlay color.
                     overlay_hsl);
 
