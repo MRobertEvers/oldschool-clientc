@@ -678,8 +678,10 @@ render_scene_tiles(
             0,
             0,
             scene_x,
-            scene_y,
+            // world_y is scene_z
             scene_z,
+            // world_z is scene_y
+            scene_y,
             camera_yaw,
             camera_pitch,
             camera_roll,

@@ -244,8 +244,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         SCREEN_HEIGHT,
         10,
         game->camera_x,
-        game->camera_z,
         game->camera_y,
+        game->camera_z,
         game->camera_pitch,
         game->camera_yaw,
         game->camera_roll,
@@ -405,34 +405,16 @@ main()
     game.tiles = tiles;
     game.tile_count = MAP_TILE_COUNT;
 
-    // printf("Map Tile Count: %d\n", MAP_TILE_COUNT);
-    // for( int z = 0; z < 1; z++ )
-    // {
-    //     for( int x = 0; x < 2; x++ )
-    //     {
-    //         for( int y = 0; y < 2; y++ )
-    //         {
-    //             struct SceneTile* tile = &tiles[MAP_TILE_COORD(x, y, z)];
-    //             if( tile->vertex_count == 0 )
-    //                 continue;
+    int w_pressed = 0;
+    int a_pressed = 0;
+    int s_pressed = 0;
+    int d_pressed = 0;
 
-    //             printf("Tile %d, z: %d, x: %d, y: %d\n", MAP_TILE_COORD(x, y, z), z, x, y);
-    //             for( int i = 0; i < tile->vertex_count; i++ )
-    //             {
-    //                 printf(
-    //                     "Vertex %d: (%d, %d, %d)\n",
-    //                     i,
-    //                     tile->vertex_x[i],
-    //                     tile->vertex_y[i],
-    //                     tile->vertex_z[i]);
-    //             }
+    int up_pressed = 0;
+    int down_pressed = 0;
+    int left_pressed = 0;
+    int right_pressed = 0;
 
-    //             printf("\n");
-    //         }
-    //     }
-    // }
-    // return 0;
-    // Main loop
     bool quit = false;
     int speed = 200;
     SDL_Event event;
@@ -452,32 +434,28 @@ main()
                     quit = true;
                     break;
                 case SDLK_UP:
-                    game.camera_pitch = (game.camera_pitch + 10) % 2048;
+                    up_pressed = 1;
                     break;
                 case SDLK_DOWN:
-                    game.camera_pitch = (game.camera_pitch - 10 + 2048) % 2048;
+                    down_pressed = 1;
                     break;
                 case SDLK_LEFT:
-                    game.camera_yaw = (game.camera_yaw - 10 + 2048) % 2048;
+                    left_pressed = 1;
                     break;
                 case SDLK_RIGHT:
-                    game.camera_yaw = (game.camera_yaw + 10) % 2048;
+                    right_pressed = 1;
                     break;
                 case SDLK_s:
-                    game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
-                    game.camera_y += (g_cos_table[game.camera_yaw] * speed) >> 16;
+                    s_pressed = 1;
                     break;
                 case SDLK_w:
-                    game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
-                    game.camera_y -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+                    w_pressed = 1;
                     break;
                 case SDLK_d:
-                    game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
-                    game.camera_y += (g_sin_table[game.camera_yaw] * speed) >> 16;
+                    d_pressed = 1;
                     break;
                 case SDLK_a:
-                    game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
-                    game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+                    a_pressed = 1;
                     break;
                 case SDLK_q:
                     game.camera_roll = (game.camera_roll - 10 + 2048) % 2048;
@@ -493,8 +471,81 @@ main()
                     break;
                 }
             }
+            else if( event.type == SDL_KEYUP )
+            {
+                switch( event.key.keysym.sym )
+                {
+                case SDLK_s:
+                    s_pressed = 0;
+                    break;
+                case SDLK_w:
+                    w_pressed = 0;
+                    break;
+                case SDLK_d:
+                    d_pressed = 0;
+                    break;
+                case SDLK_a:
+                    a_pressed = 0;
+                    break;
+                case SDLK_UP:
+                    up_pressed = 0;
+                    break;
+                case SDLK_DOWN:
+                    down_pressed = 0;
+                    break;
+                case SDLK_LEFT:
+                    left_pressed = 0;
+                    break;
+                case SDLK_RIGHT:
+                    right_pressed = 0;
+                    break;
+                }
+            }
         }
 
+        if( w_pressed )
+        {
+            game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_y -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+        }
+
+        if( a_pressed )
+        {
+            game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
+            game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+        }
+
+        if( s_pressed )
+        {
+            game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_y += (g_cos_table[game.camera_yaw] * speed) >> 16;
+        }
+
+        if( d_pressed )
+        {
+            game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+            game.camera_y += (g_sin_table[game.camera_yaw] * speed) >> 16;
+        }
+
+        if( up_pressed )
+        {
+            game.camera_pitch = (game.camera_pitch + 10) % 2048;
+        }
+
+        if( left_pressed )
+        {
+            game.camera_yaw = (game.camera_yaw - 10 + 2048) % 2048;
+        }
+
+        if( right_pressed )
+        {
+            game.camera_yaw = (game.camera_yaw + 10) % 2048;
+        }
+
+        if( down_pressed )
+        {
+            game.camera_pitch = (game.camera_pitch - 10 + 2048) % 2048;
+        }
         // Render frame
         game_render_sdl2(&game, &platform);
 
