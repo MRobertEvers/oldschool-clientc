@@ -21,6 +21,8 @@ struct SceneTile
     int* face_color_hsl_a;
     int* face_color_hsl_b;
     int* face_color_hsl_c;
+
+    int* face_texture_ids;
 };
 
 struct SceneTile* parse_tiles_data(const char* filename, int* tile_count);

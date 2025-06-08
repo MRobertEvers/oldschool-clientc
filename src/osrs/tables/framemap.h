@@ -4,10 +4,43 @@
 #include "buffer.h"
 
 /**
- * A framemap is a rigging/skeletons for a set of frames.
- * "bone_groups" is a list of skeletons (i.e. a list of a list of bones)
+ * A framemap acts as the "rigging" for a model.
  *
- * A frame contains a list of parameters for how to transform each bone in each skeleton.
+ *
+ * Conceptually, it essentially defines a virtual machine containing all the operations that can be
+ * performed on a model.
+ *
+ * A conceptual example,
+ * [
+ *  OP_SET_HIP_ROTATION_ORIGIN(x, y, z),
+ *  OP_ROTATE_HIP(pitch, yaw, roll),
+ *  OP_SET_JAW_ROTATION_ORIGIN(x, y, z),
+ *  OP_ROTATE_JAW(pitch, yaw, roll),
+ *  OP_SCALE_JAW(x, y, z),
+ *  ...
+ * ]
+ *
+ * Where the frames now specify "programs" to construct the model keyframe.
+ *
+ * Ex.
+ *
+ * [
+ *  OP_SET_HIP_ROTATION_ORIGIN(0, 0, 0),
+ *  OP_ROTATE_HIP(pitch: 512, yaw: 0, roll: 0),
+ *  OP_SCALE_JAW(10, 10, 5),
+ * ]
+ *
+ * The function is interpreted by the animation code.
+ *
+ * The way the effect is achieved is by defining the list of operation types, and then the list of
+ * "labels" (or bones) that are affected by each operation.
+ *
+ * Ex.
+ *
+ * [
+ *  (type: SET_ORIGIN, labels: [...<hip_rotation_origin>...]),
+ *  (type: ROTATE, labels: [...<hip_labels>...]),
+ * ]
  */
 struct FramemapDefinition
 {
