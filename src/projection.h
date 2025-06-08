@@ -8,6 +8,9 @@ struct ProjectedTriangle
 
     // z1 is the distance from the camera to the point
     int z1;
+
+    // If the projection is too close or behind the screen, clipped is nonzero.
+    int clipped;
 };
 
 /**
@@ -30,6 +33,7 @@ struct ProjectedTriangle project(
     int camera_roll_r2pi2048,
     // FOV in units of (2π/2048) radians
     int fov_r2pi2048,
+    int near_clip,
     int screen_width,
     int screen_height);
 

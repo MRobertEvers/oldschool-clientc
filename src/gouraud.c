@@ -1,4 +1,7 @@
+#include <assert.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static int
 interpolate_ish16(int x_begin, int x_end, int t_sh16)
@@ -237,6 +240,8 @@ draw_scanline_gouraud(
     int color_start,
     int color_end)
 {
+    if( x_start == x_end )
+        return;
     if( x_start > x_end )
     {
         int tmp;
@@ -336,6 +341,13 @@ raster_gouraud(
     int total_height = y2 - y0;
     if( total_height == 0 )
         return;
+
+    if( total_height >= screen_height )
+    {
+        // This can happen if vertices extremely close to the camera plane, but outside the FOV
+        // are projected. Those vertices need to be culled.
+        return;
+    }
 
     // skip if the triangle is degenerate
     if( x0 == x1 && x1 == x2 )

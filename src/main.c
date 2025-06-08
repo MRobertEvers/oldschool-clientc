@@ -515,14 +515,26 @@ project_vertices(
         camera_pitch,
         camera_roll,
         camera_fov,
+        NEAR_PLANE_Z, // near clip
         SCREEN_WIDTH,
         SCREEN_HEIGHT);
+
+    if( projected_triangle.clipped )
+    {
+        for( int i = 0; i < num_vertices; i++ )
+        {
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = -5000;
+            screen_vertices_z[i] = -5000;
+
+            return;
+        }
+    }
 
     // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
     // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
     // // So the depth is the z projection distance from the origin of the model.
     // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
-
     int model_origin_z_projection = projected_triangle.z1;
 
     for( int i = 0; i < num_vertices; i++ )
@@ -541,16 +553,17 @@ project_vertices(
             camera_pitch,
             camera_roll,
             camera_fov,
+            NEAR_PLANE_Z,
             SCREEN_WIDTH,
             SCREEN_HEIGHT);
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step
-        if( projected_triangle.z1 < NEAR_PLANE_Z )
+        if( projected_triangle.clipped )
         {
-            screen_vertices_x[i] = -1;
-            screen_vertices_y[i] = -1;
-            screen_vertices_z[i] = -1;
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = -5000;
+            screen_vertices_z[i] = -5000;
         }
         else
         {
@@ -616,12 +629,12 @@ bucket_sort_by_average_depth(
             //              --------
             //              ^ model xz radius
             //    Note: There is a lower cylinder as well, but it is not used in depth sorting.
-            // The reason is uses the models "upper ys" (max_y) is because OSRS assumes the camera
-            // will always be above the model, so the closest vertices to the camera will be towards
-            // the top of the model. (i.e. lowest z values)
-            // Relative to the model's origin, there may be negative z values, but always |z| <
-            // min_depth so the min_depth is used to adjust all z values to be positive, but
-            // maintain relative order.
+            // The reason is uses the models "upper ys" (max_y) is because OSRS assumes the
+            // camera will always be above the model, so the closest vertices to the camera will
+            // be towards the top of the model. (i.e. lowest z values) Relative to the model's
+            // origin, there may be negative z values, but always |z| < min_depth so the
+            // min_depth is used to adjust all z values to be positive, but maintain relative
+            // order.
             int depth_average = (za + zb + zc) / 3 + model_min_depth;
 
             if( depth_average < 1500 && depth_average > 0 )

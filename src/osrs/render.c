@@ -101,6 +101,11 @@ project_vertices(
     int near_plane_z)
 {
     struct ProjectedTriangle projected_triangle;
+
+    assert(camera_pitch >= 0 && camera_pitch < 2048);
+    assert(camera_yaw >= 0 && camera_yaw < 2048);
+    assert(camera_roll >= 0 && camera_roll < 2048);
+
     int cos_camera_pitch = g_cos_table[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
     int cos_camera_yaw = g_cos_table[camera_yaw];
@@ -122,6 +127,7 @@ project_vertices(
         camera_pitch,
         camera_roll,
         camera_fov,
+        near_plane_z,
         screen_width,
         screen_height);
 
@@ -148,6 +154,7 @@ project_vertices(
             camera_pitch,
             camera_roll,
             camera_fov,
+            near_plane_z,
             screen_width,
             screen_height);
 
@@ -155,9 +162,9 @@ project_vertices(
         // This will cause it to be clipped in the rasterization step
         if( projected_triangle.z1 < near_plane_z )
         {
-            screen_vertices_x[i] = -1;
-            screen_vertices_y[i] = -1;
-            screen_vertices_z[i] = -1;
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = -5000;
+            screen_vertices_z[i] = -5000;
         }
         else
         {
@@ -317,7 +324,7 @@ raster_osrs(
             int z3 = vertex_z[face_indices_c[index]];
 
             // Skip triangle if any vertex was clipped
-            if( x1 < 0 || x2 < 0 || x3 < 0 )
+            if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
                 continue;
 
             int color_a = colors_a[index];
@@ -376,7 +383,8 @@ raster_osrs_single(
     int z3 = vertex_z[face_indices_c[index]];
 
     // Skip triangle if any vertex was clipped
-    if( x1 < 0 || x2 < 0 || x3 < 0 )
+    // TODO: Perhaps use a separate buffer to track this.
+    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
         return;
 
     int color_a = colors_a[index];

@@ -395,17 +395,6 @@ decode_tile(
         // TODO: For the target level, subtract LEVEL_HEIGHT from the vertex y.
         vertex_x[i] = vert_x;
         vertex_y[i] = vert_y;
-        if( vert_y > 500 )
-        {
-            printf(
-                "vert_y: %d (x: %d, y: %d, z: %d)\n",
-                vert_y,
-                tile_coord_x,
-                tile_coord_y,
-                tile_coord_z);
-        }
-
-        // vertex_y[i] = ;
         vertex_z[i] = vert_z;
 
         underlay_colors_hsl[i] = vert_underlay_color_hsl;
@@ -568,19 +557,11 @@ fix_terrain_tile(struct MapTerrain* map_terrain, int world_scene_origin_x, int w
                         int worldX = world_scene_origin_x + (-58) + 932731;
                         int worldY = world_scene_origin_y + (-58) + 556238;
                         map->height = -generateHeight(worldX, worldY) * MAP_UNITS_TILE_HEIGHT_BASIS;
-                        if( map->height > 500 )
-                        {
-                            printf("map->height: %d (x: %d, y: %d, z: %d)\n", map->height, x, y, z);
-                        }
                     }
                     else
                     {
                         int lower = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z - 1)].height;
                         map->height = lower - MAP_UNITS_LEVEL_HEIGHT;
-                        if( map->height > 500 )
-                        {
-                            printf("map->height: %d (x: %d, y: %d, z: %d)\n", map->height, x, y, z);
-                        }
                     }
                 }
                 else
@@ -591,20 +572,11 @@ fix_terrain_tile(struct MapTerrain* map_terrain, int world_scene_origin_x, int w
                     if( z == 0 )
                     {
                         map->height = -map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
-                        if( map->height > 500 )
-                        {
-                            printf("map->height: %d (x: %d, y: %d, z: %d)\n", map->height, x, y, z);
-                        }
                     }
                     else
                     {
                         map->height = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z - 1)].height -
                                       map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
-
-                        if( map->height > 500 )
-                        {
-                            printf("map->height: %d (x: %d, y: %d, z: %d)\n", map->height, x, y, z);
-                        }
                     }
                 }
             }

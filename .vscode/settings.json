@@ -40,6 +40,8 @@
         "config_sequence.h": "c",
         "rsbuf.h": "c",
         "palette.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "__config": "c",
+        "cerrno": "c"
     }
 }

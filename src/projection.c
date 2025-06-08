@@ -1,5 +1,8 @@
 #include "projection.h"
 
+#include <assert.h>
+#include <string.h>
+
 extern int g_cos_table[2048];
 extern int g_sin_table[2048];
 extern int g_tan_table[2048];
@@ -25,10 +28,16 @@ project(
     int camera_pitch,
     int camera_roll,
     int fov, // FOV in units of (2π/2048) radians
+    int near_clip,
     int screen_width,
     int screen_height)
 {
     struct ProjectedTriangle projected_triangle;
+
+    assert(camera_pitch >= 0 && camera_pitch < 2048);
+    assert(camera_yaw >= 0 && camera_yaw < 2048);
+    assert(camera_roll >= 0 && camera_roll < 2048);
+
     int cos_camera_yaw = g_cos_table[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
     int cos_camera_pitch = g_cos_table[camera_pitch];
@@ -39,9 +48,7 @@ project(
     // Field of view parameters
     // Conceptually, Z_NEAR is the location of the screen. At this point, points on the near plane
     // are projected to the screen with a scale factor of Z_FOCAL/z_final = fov_scale
-    const int Z_NEAR = 512;
-    // const int Z_FAR = 1500;
-    // const int ASPECT_RATIO = 1;
+    const int UNIT_SCALE = 512;
 
     // Apply model rotation
     int sin_yaw = g_sin_table[yaw];
@@ -107,10 +114,20 @@ project(
     // cot(x) = 1/tan(x)
     // cot(x) = tan(pi/2 - x)
     // cot(x + pi) = cot(x)
+    assert(fov_half < 1536);
     int cot_fov_half = g_tan_table[1536 - fov_half];
 
+    if( z_final < near_clip )
+    {
+        memset(&projected_triangle, 0x00, sizeof(projected_triangle));
+        projected_triangle.z1 = z_final;
+        return projected_triangle;
+    }
+
+    assert(z_final != 0);
+
     // Apply FOV scaling to x and y coordinates
-    int fov_scale_ish16 = (cot_fov_half * Z_NEAR) / z_final;
+    int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z_final;
 
     // Project to screen space with FOV
     int screen_x = ((x_final_scene * fov_scale_ish16) >> 16) + screen_width / 2;

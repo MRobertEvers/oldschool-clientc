@@ -463,17 +463,21 @@ main()
                 case SDLK_RIGHT:
                     game.camera_yaw = (game.camera_yaw + 10) % 2048;
                     break;
-                case SDLK_w:
-                    game.camera_z += speed;
-                    break;
                 case SDLK_s:
-                    game.camera_z -= speed;
+                    game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
+                    game.camera_y += (g_cos_table[game.camera_yaw] * speed) >> 16;
                     break;
-                case SDLK_a:
-                    game.camera_x -= speed;
+                case SDLK_w:
+                    game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+                    game.camera_y -= (g_cos_table[game.camera_yaw] * speed) >> 16;
                     break;
                 case SDLK_d:
-                    game.camera_x += speed;
+                    game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+                    game.camera_y += (g_sin_table[game.camera_yaw] * speed) >> 16;
+                    break;
+                case SDLK_a:
+                    game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
+                    game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
                     break;
                 case SDLK_q:
                     game.camera_roll = (game.camera_roll - 10 + 2048) % 2048;
