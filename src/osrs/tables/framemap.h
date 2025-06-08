@@ -22,7 +22,7 @@
  *
  * Where the frames now specify "programs" to construct the model keyframe.
  *
- * Ex.
+ * Ex. Frame
  *
  * [
  *  OP_SET_HIP_ROTATION_ORIGIN(0, 0, 0),
@@ -38,8 +38,8 @@
  * Ex.
  *
  * [
- *  (type: SET_ORIGIN, labels: [...<hip_rotation_origin>...]),
- *  (type: ROTATE, labels: [...<hip_labels>...]),
+ *  OP_SET_HIP_ROTATION_ORIGIN := (type: SET_ORIGIN, labels: [...<hip_rotation_origin>...]),
+ *  OP_ROTATE_HIP := (type: ROTATE, labels: [...<hip_labels>...]),
  * ]
  */
 struct FramemapDefinition
