@@ -4,6 +4,7 @@
 #include "scene_tile.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -233,6 +234,95 @@ get_index(int* ids, int count, int id)
     return -1;
 }
 
+// export function adjustUnderlayLight(hsl: number, light: number) {
+//     if (hsl === -1) {
+//         return INVALID_HSL_COLOR;
+//     } else {
+//         light = ((hsl & 127) * light) >> 7;
+//         if (light < 2) {
+//             light = 2;
+//         } else if (light > 126) {
+//             light = 126;
+//         }
+
+//         return (hsl & 0xff80) + light;
+//     }
+// }
+
+static int
+adjust_underlay_light(int hsl, int light)
+{
+    if( hsl == -1 )
+        return -1;
+
+    light = ((hsl & 127) * light) >> 7;
+    if( light < 2 )
+        light = 2;
+    else if( light > 126 )
+        light = 126;
+
+    return (hsl & 0xff80) + light;
+}
+
+// export function mixHsl(hslA: number, hslB: number): number {
+//     if (hslA === INVALID_HSL_COLOR || hslB === INVALID_HSL_COLOR) {
+//         return INVALID_HSL_COLOR;
+//     }
+//     if (hslA === -1) {
+//         return hslB;
+//     } else if (hslB === -1) {
+//         return hslA;
+//     } else {
+//         let hue = (hslA >> 10) & 0x3f;
+//         let saturation = (hslA >> 7) & 0x7;
+//         let lightness = hslA & 0x7f;
+
+//         let hueB = (hslB >> 10) & 0x3f;
+//         let saturationB = (hslB >> 7) & 0x7;
+//         let lightnessB = hslB & 0x7f;
+
+//         hue += hueB;
+//         saturation += saturationB;
+//         lightness += lightnessB;
+
+//         hue >>= 1;
+//         saturation >>= 1;
+//         lightness >>= 1;
+
+//         return (hue << 10) + (saturation << 7) + lightness;
+//     }
+// }
+
+static int
+mix_hsl(int hsl_a, int hsl_b)
+{
+    if( hsl_a == -1 || hsl_b == -1 )
+        return -1;
+
+    if( hsl_a == -1 )
+        return hsl_b;
+    else if( hsl_b == -1 )
+        return hsl_a;
+
+    int hue = (hsl_a >> 10) & 0x3f;
+    int saturation = (hsl_a >> 7) & 0x7;
+    int lightness = hsl_a & 0x7f;
+
+    int hue_b = (hsl_b >> 10) & 0x3f;
+    int saturation_b = (hsl_b >> 7) & 0x7;
+    int lightness_b = hsl_b & 0x7f;
+
+    hue += hue_b;
+    saturation += saturation_b;
+    lightness += lightness_b;
+
+    hue >>= 1;
+    saturation >>= 1;
+    lightness >>= 1;
+
+    return (hue << 10) + (saturation << 7) + lightness;
+}
+
 static bool
 decode_tile(
     struct SceneTile* tile,
@@ -245,6 +335,10 @@ decode_tile(
     int height_se,
     int height_ne,
     int height_nw,
+    int light_sw,
+    int light_se,
+    int light_ne,
+    int light_nw,
     int blended_underlay_hsl_sw,
     int blended_underlay_hsl_se,
     int blended_underlay_hsl_ne,
@@ -264,6 +358,16 @@ decode_tile(
 
     int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
     int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
+
+    blended_underlay_hsl_sw = adjust_underlay_light(blended_underlay_hsl_sw, light_sw);
+    blended_underlay_hsl_se = adjust_underlay_light(blended_underlay_hsl_se, light_se);
+    blended_underlay_hsl_ne = adjust_underlay_light(blended_underlay_hsl_ne, light_ne);
+    blended_underlay_hsl_nw = adjust_underlay_light(blended_underlay_hsl_nw, light_nw);
+
+    int overlay_hsl_sw = adjust_underlay_light(overlay_hsl, light_sw);
+    int overlay_hsl_se = adjust_underlay_light(overlay_hsl, light_se);
+    int overlay_hsl_ne = adjust_underlay_light(overlay_hsl, light_ne);
+    int overlay_hsl_nw = adjust_underlay_light(overlay_hsl, light_nw);
 
     for( int i = 0; i < vertex_count; i++ )
     {
@@ -295,6 +399,8 @@ decode_tile(
             vert_z = tile_y;
             vert_y = height_sw;
 
+            vert_underlay_color_hsl = blended_underlay_hsl_sw;
+            vert_overlay_color_hsl = overlay_hsl_sw;
             // vert_underlay_color_hsl = blended_underlay_hsl_sw;
             // vert_overlay_color_hsl = overlay_hsl;
         }
@@ -304,12 +410,18 @@ decode_tile(
             vert_z = tile_y;
             vert_y = (height_se + height_sw) >> 1;
             // vert_y = height_sw;
+
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_sw);
+            vert_overlay_color_hsl = (overlay_hsl_se + overlay_hsl_sw) >> 1;
         }
         else if( vertex_index == 3 )
         {
             vert_x = tile_x + TILE_SIZE;
             vert_z = tile_y;
             vert_y = height_se;
+
+            vert_underlay_color_hsl = blended_underlay_hsl_se;
+            vert_overlay_color_hsl = overlay_hsl_se;
         }
         else if( vertex_index == 4 )
         {
@@ -317,12 +429,18 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_ne + height_se) >> 1;
             // vert_y = height_sw;
+
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_ne);
+            vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_se) >> 1;
         }
         else if( vertex_index == 5 )
         {
             vert_x = tile_x + TILE_SIZE;
             vert_z = tile_y + TILE_SIZE;
             vert_y = height_ne;
+
+            vert_underlay_color_hsl = blended_underlay_hsl_ne;
+            vert_overlay_color_hsl = overlay_hsl_ne;
         }
         else if( vertex_index == 6 )
         {
@@ -330,12 +448,18 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE;
             vert_y = (height_ne + height_nw) >> 1;
             // vert_y = height_sw;
+
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_ne, blended_underlay_hsl_nw);
+            vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_nw) >> 1;
         }
         else if( vertex_index == 7 )
         {
             vert_x = tile_x;
             vert_z = tile_y + TILE_SIZE;
             vert_y = height_nw;
+
+            vert_underlay_color_hsl = blended_underlay_hsl_nw;
+            vert_overlay_color_hsl = overlay_hsl_nw;
         }
         else if( vertex_index == 8 )
         {
@@ -343,18 +467,27 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_nw + height_sw) >> 1;
             // vert_y = height_sw;
+
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_nw, blended_underlay_hsl_sw);
+            vert_overlay_color_hsl = (overlay_hsl_nw + overlay_hsl_sw) >> 1;
         }
         else if( vertex_index == 9 )
         {
             vert_x = tile_x + TILE_SIZE / 2;
             vert_z = tile_y + TILE_SIZE / 4;
             vert_y = (height_sw + height_se) >> 1;
+
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_sw, blended_underlay_hsl_se);
+            vert_overlay_color_hsl = (overlay_hsl_sw + overlay_hsl_se) >> 1;
         }
         else if( vertex_index == 10 )
         {
             vert_x = tile_x + TILE_SIZE * 3 / 4;
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_se + height_ne) >> 1;
+
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_ne);
+            vert_overlay_color_hsl = (overlay_hsl_se + overlay_hsl_ne) >> 1;
         }
         else if( vertex_index == 11 )
         {
@@ -362,35 +495,54 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE * 3 / 4;
 
             vert_y = (height_ne + height_nw) >> 1;
+
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_ne, blended_underlay_hsl_nw);
+            vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_nw) >> 1;
         }
         else if( vertex_index == 12 )
         {
             vert_x = tile_x + TILE_SIZE / 4;
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_nw + height_sw) >> 1;
+
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_nw, blended_underlay_hsl_sw);
+            vert_overlay_color_hsl = (overlay_hsl_nw + overlay_hsl_sw) >> 1;
         }
         else if( vertex_index == 13 )
         {
             vert_x = tile_x + TILE_SIZE / 4;
             vert_z = tile_y + TILE_SIZE / 4;
+            vert_y = height_sw;
+
+            vert_underlay_color_hsl = blended_underlay_hsl_sw;
+            vert_overlay_color_hsl = overlay_hsl_sw;
         }
         else if( vertex_index == 14 )
         {
             vert_x = tile_x + TILE_SIZE * 3 / 4;
             vert_z = tile_y + TILE_SIZE / 4;
             vert_y = height_se;
+
+            vert_underlay_color_hsl = blended_underlay_hsl_se;
+            vert_overlay_color_hsl = overlay_hsl_se;
         }
         else if( vertex_index == 15 )
         {
             vert_x = tile_x + TILE_SIZE * 3 / 4;
             vert_z = tile_y + TILE_SIZE * 3 / 4;
             vert_y = height_ne;
+
+            vert_underlay_color_hsl = blended_underlay_hsl_ne;
+            vert_overlay_color_hsl = overlay_hsl_ne;
         }
         else
         {
             vert_x = tile_x + TILE_SIZE / 4;
             vert_z = tile_y + TILE_SIZE * 3 / 4;
             vert_y = height_nw;
+
+            vert_underlay_color_hsl = blended_underlay_hsl_nw;
+            vert_overlay_color_hsl = overlay_hsl_nw;
         }
 
         // TODO: For the target level, subtract LEVEL_HEIGHT from the vertex y.
@@ -585,6 +737,94 @@ fix_terrain_tile(struct MapTerrain* map_terrain, int world_scene_origin_x, int w
     }
 }
 
+#define LIGHT_DIR_X -50
+#define LIGHT_DIR_Y -10
+#define LIGHT_DIR_Z -50
+#define LIGHT_INTENSITY_BASE 96
+#define LIGHT_INTENSITY_FACTOR 768
+#define HEIGHT_SCALE 65536
+
+static int*
+calculate_lights(struct MapTerrain* map_terrain)
+{
+    int* lights = (int*)malloc(MAP_TERRAIN_X * MAP_TERRAIN_Y * sizeof(int));
+    for( int y = 0; y < MAP_TERRAIN_Y; y++ )
+    {
+        for( int x = 0; x < MAP_TERRAIN_X; x++ )
+        {
+            lights[MAP_TILE_COORD(x, y, 0)] = 0;
+        }
+    }
+
+    int magnitude =
+        sqrt(LIGHT_DIR_X * LIGHT_DIR_X + LIGHT_DIR_Y * LIGHT_DIR_Y + LIGHT_DIR_Z * LIGHT_DIR_Z);
+    int intensity = (magnitude * LIGHT_INTENSITY_FACTOR) >> 8;
+
+    for( int y = 1; y < MAP_TERRAIN_Y - 1; y++ )
+    {
+        for( int x = 1; x < MAP_TERRAIN_X - 1; x++ )
+        {
+            // First we need to calculate the normals for each tile.
+            // This is typically by doing a cross product on the tangent vectors which can be
+            // derived from the differences in height between adjacent tiles. The code below seems
+            // to be calculating the normals directly by skipping the cross product.
+
+            int height_delta_x = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, 0)].height -
+                                 map_terrain->tiles_xyz[MAP_TILE_COORD(x - 1, y, 0)].height;
+            int height_delta_y = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, 0)].height -
+                                 map_terrain->tiles_xyz[MAP_TILE_COORD(x, y - 1, 0)].height;
+            // const tileNormalLength =
+            //                 Math.sqrt(
+            //                     heightDeltaY * heightDeltaY + heightDeltaX * heightDeltaX +
+            //                     HEIGHT_SCALE,
+            //                 ) | 0;
+
+            //             const normalizedTileNormalX = ((heightDeltaX << 8) / tileNormalLength) |
+            //             0; const normalizedTileNormalY = (HEIGHT_SCALE / tileNormalLength) | 0;
+            //             const normalizedTileNormalZ = ((heightDeltaY << 8) / tileNormalLength) |
+            //             0;
+
+            int tile_normal_length = sqrt(
+                height_delta_y * height_delta_y + height_delta_x * height_delta_x + HEIGHT_SCALE);
+
+            int normalized_tile_normal_x = (height_delta_x << 8) / tile_normal_length;
+            int normalized_tile_normal_y = HEIGHT_SCALE / tile_normal_length;
+            int normalized_tile_normal_z = (height_delta_y << 8) / tile_normal_length;
+
+            // Now we calculate the light contribution based on a simplified Phong model,
+            // specifically
+            // we ignore the material coefficients and there are no specular contributions.
+
+            // For reference, this is the standard Phong model:
+            //  I = Ia * Ka + Id * Kd * (N dot L)
+            //  I: Total intensity of light at a point on the surface.
+            //  Ia: Intensity of ambient light in the scene (constant and uniform).
+            //  Ka: Ambient reflection coefficient of the material.
+            //  Id: Intensity of the directional (diffuse) light source.
+            //  Kd: Diffuse reflection coefficient of the material.
+            //  N: Normalized surface normal vector at the point.
+            //  L: Normalized direction vector from the point to the light source.
+            //  (N dot L): Dot product between the surface normal vector and the light direction
+            //  vector.
+
+            // const dot =
+            //     normalizedTileNormalX * LIGHT_DIR_X +
+            //     normalizedTileNormalY * LIGHT_DIR_Y +
+            //     normalizedTileNormalZ * LIGHT_DIR_Z;
+            // const sunLight = (dot / lightIntensity + LIGHT_INTENSITY_BASE) | 0;
+
+            int dot = normalized_tile_normal_x * LIGHT_DIR_X +
+                      normalized_tile_normal_y * LIGHT_DIR_Y +
+                      normalized_tile_normal_z * LIGHT_DIR_Z;
+            int sunlight = (dot / intensity + LIGHT_INTENSITY_BASE) | 0;
+
+            lights[MAP_TILE_COORD(x, y, 0)] = sunlight;
+        }
+    }
+
+    return lights;
+}
+
 struct SceneTile*
 scene_tiles_new_from_map_terrain(
     struct MapTerrain* map_terrain,
@@ -610,13 +850,15 @@ scene_tiles_new_from_map_terrain(
 
     // Blend underlays and calculate lights
 
-    int* blended_underlays = blend_underlays(map_terrain, underlays, underlay_ids, underlays_count);
-
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
         memset(&tiles[i], 0, sizeof(struct SceneTile));
 
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
+        int* blended_underlays =
+            blend_underlays(map_terrain, underlays, underlay_ids, underlays_count);
+        int* lights = calculate_lights(map_terrain);
+
         for( int y = 0; y < MAP_TERRAIN_Y - 1; y++ )
         {
             for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
@@ -635,6 +877,11 @@ scene_tiles_new_from_map_terrain(
                 int height_se = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, z)].height;
                 int height_ne = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y + 1, z)].height;
                 int height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, z)].height;
+
+                int light_sw = lights[MAP_TILE_COORD(x, y, z)];
+                int light_se = lights[MAP_TILE_COORD(x + 1, y, z)];
+                int light_ne = lights[MAP_TILE_COORD(x + 1, y + 1, z)];
+                int light_nw = lights[MAP_TILE_COORD(x, y + 1, z)];
 
                 // Just get the underlay color for now.
 
@@ -689,6 +936,10 @@ scene_tiles_new_from_map_terrain(
                     height_se,
                     height_ne,
                     height_nw,
+                    light_sw,
+                    light_se,
+                    light_ne,
+                    light_nw,
                     underlay_hsl_sw,
                     underlay_hsl_se,
                     underlay_hsl_ne,
@@ -699,6 +950,9 @@ scene_tiles_new_from_map_terrain(
                 assert(success);
             }
         }
+
+        free(blended_underlays);
+        free(lights);
     }
 
     return tiles;
