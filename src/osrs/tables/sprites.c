@@ -234,6 +234,7 @@ sprite_pack_new_decode(const unsigned char* data, int length)
     if( !palette )
         return NULL;
     memset(palette, 0, palette_length * sizeof(uint32_t));
+    pack->palette_length = palette_length;
 
     for( int i = 1; i < palette_length; i++ )
     {
@@ -309,19 +310,22 @@ sprite_pack_new_decode(const unsigned char* data, int length)
             }
         }
 
-        int* pixels = (int*)malloc(dimension * sizeof(int));
-        if( !pixels )
-            return NULL;
-        memset(pixels, 0, dimension * sizeof(int));
+        sprite->pixel_alphas = pixel_alpha;
+        sprite->palette_pixels = pixel_idx;
 
-        for( int j = 0; j < dimension; j++ )
-        {
-            int index = pixel_idx[j] & 0xFF;
-            int pixel = palette[index] | (pixel_alpha[j] << 24);
-            pixels[j] = pixel;
-        }
+        // int* pixels = (int*)malloc(dimension * sizeof(int));
+        // if( !pixels )
+        //     return NULL;
+        // memset(pixels, 0, dimension * sizeof(int));
 
-        sprite->pixels = pixels;
+        // for( int j = 0; j < dimension; j++ )
+        // {
+        //     int index = pixel_idx[j] & 0xFF;
+        //     int pixel = palette[index] | (pixel_alpha[j] << 24);
+        //     pixels[j] = pixel;
+        // }
+
+        // sprite->pixels = pixels;
     }
 
     return pack;
@@ -376,7 +380,7 @@ sprite_get_pixels(struct Sprite* sprite, int* palette, int brightness)
         return NULL;
     memset(pixels, 0, sprite->width * sprite->height * sizeof(int));
 
-    int* sprite_pixels = sprite->pixels;
+    uint8_t* palette_pixels = sprite->palette_pixels;
 
     // for( int pi = 0; pi < sprite->width * sprite->height; pi++ )
     // {
@@ -388,8 +392,9 @@ sprite_get_pixels(struct Sprite* sprite, int* palette, int brightness)
 
     for( int pixel_index = 0; pixel_index < sprite->width * sprite->height; pixel_index++ )
     {
-        int palette_index = sprite_pixels[pixel_index];
-        pixels[pixel_index] = palette_index;
+        int palette_index = palette_pixels[pixel_index];
+        uint8_t alpha = sprite->pixel_alphas[pixel_index];
+        pixels[pixel_index] = (alpha << 24) | palette[palette_index];
     }
 
     return pixels;

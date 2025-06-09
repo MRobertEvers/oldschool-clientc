@@ -17,8 +17,10 @@ struct Sprite
     int height;
     int offset_x;
     int offset_y;
-    // This is the raw argb pixels.
-    int* pixels;
+
+    // Pixel data using the palette indexes.
+    uint8_t* palette_pixels;
+    uint8_t* pixel_alphas;
 };
 
 struct SpritePack
@@ -26,6 +28,7 @@ struct SpritePack
     int count;
     struct Sprite* sprites;
 
+    int palette_length;
     int* palette;
 };
 

@@ -27,7 +27,7 @@ texture_pixels_new_from_definition(
     struct SpritePack* sprite_packs,
     int* pack_ids,
     int pack_count,
-    int brightness)
+    double brightness)
 {
     int* pixels = (int*)malloc(size * size * sizeof(int));
     if( !pixels )
@@ -39,14 +39,16 @@ texture_pixels_new_from_definition(
         int sprite_id = def->sprite_ids[sprite_index];
 
         int* palette = NULL;
+        int palette_length = 0;
         struct Sprite* sprite = NULL;
-        int* sprite_pixels = NULL;
+        uint8_t* palette_pixels = NULL;
         for( int i = 0; i < pack_count; i++ )
         {
             if( pack_ids[i] == sprite_id )
             {
                 sprite = &sprite_packs[i].sprites[0];
                 palette = sprite_packs[i].palette;
+                palette_length = sprite_packs[i].palette_length;
                 break;
             }
         }
@@ -57,14 +59,19 @@ texture_pixels_new_from_definition(
             return NULL;
         }
 
-        sprite_pixels = sprite->pixels;
+        palette_pixels = sprite->palette_pixels;
 
-        for( int pi = 0; pi < sprite->width * sprite->height; pi++ )
+        int* adjusted_palette = (int*)malloc(palette_length * sizeof(int));
+        if( !adjusted_palette )
+            return NULL;
+        memset(adjusted_palette, 0, palette_length * sizeof(int));
+
+        for( int pi = 0; pi < palette_length; pi++ )
         {
             int alpha = 0xff;
             if( palette[pi] == 0 )
                 alpha = 0;
-            palette[pi] = (alpha << 24) | palette[pi];
+            adjusted_palette[pi] = (alpha << 24) | brighten_rgb(palette[pi], brightness);
         }
 
         int index = 0;
@@ -78,7 +85,8 @@ texture_pixels_new_from_definition(
                 for( int pixel_index = 0; pixel_index < sprite->width * sprite->height;
                      pixel_index++ )
                 {
-                    pixels[pixel_index] = sprite_pixels[pixel_index];
+                    int palette_index = palette_pixels[pixel_index];
+                    pixels[pixel_index] = adjusted_palette[palette_index];
                 }
             }
             else if( sprite->width == 64 && size == 128 )
@@ -88,8 +96,8 @@ texture_pixels_new_from_definition(
                 {
                     for( int x = 0; x < size; x++ )
                     {
-                        int palette_index = sprite_pixels[((x >> 1) << 6) + (y >> 1)];
-                        pixels[pixel_index] = palette_index;
+                        int palette_index = palette_pixels[((x >> 1) << 6) + (y >> 1)];
+                        pixels[pixel_index] = adjusted_palette[palette_index];
                         pixel_index++;
                     }
                 }
@@ -107,13 +115,15 @@ texture_pixels_new_from_definition(
                 {
                     for( int y = 0; y < size; y++ )
                     {
-                        int palette_index = sprite_pixels[(y << 1) + ((x << 1) << 7)];
-                        pixels[pixel_index] = palette_index;
+                        int palette_index = palette_pixels[(y << 1) + ((x << 1) << 7)];
+                        pixels[pixel_index] = adjusted_palette[palette_index];
                         pixel_index++;
                     }
                 }
             }
         }
+
+        free(adjusted_palette);
     }
 
     return pixels;
