@@ -149,7 +149,7 @@ palette_rgb_to_hsl16(int rgb)
 //         this.hue = (this.hueMultiplier * hue) | 0;
 
 struct HSL
-palette_rgb_to_hsl(int rgb)
+palette_rgb_to_hsl24(int rgb)
 {
     double r = (double)((rgb >> 16) & 255) / 256.0;
     double g = (double)((rgb >> 8) & 255) / 256.0;
@@ -198,49 +198,52 @@ palette_rgb_to_hsl(int rgb)
     }
 
     hue /= 6.0;
-    if( hue < 0.0 )
-        hue += 1.0;
 
-    // Convert to 16-bit format:
-    // - 6 bits for hue (0-63)
-    // - 3 bits for saturation (0-7)
-    // - 7 bits for lightness (0-127)
-    int hue_bits = (int)(hue * 64.0);
-    int sat_bits = (int)((saturation - 0.0625) * 8.0);
-    int light_bits = (int)(lightness * 128.0);
+    int hue_int = (int)(hue * 256.0);
+    int sat_int = (int)(saturation * 256.0);
+    int light_int = (int)(lightness * 256.0);
 
-    // Clamp values
-    if( hue_bits < 0 )
-        hue_bits = 0;
-    else if( hue_bits > 63 )
-        hue_bits = 63;
+    if( sat_int < 0 )
+        sat_int = 0;
+    else if( sat_int > 255 )
+        sat_int = 255;
 
-    if( sat_bits < 0 )
-        sat_bits = 0;
-    else if( sat_bits > 7 )
-        sat_bits = 7;
+    if( light_int < 0 )
+        light_int = 0;
+    else if( light_int > 255 )
+        light_int = 255;
 
-    if( light_bits < 0 )
-        light_bits = 0;
-    else if( light_bits > 127 )
-        light_bits = 127;
-
+    int mul_int;
     if( lightness > 0.5 )
-        mul = (1.0 - lightness) * 2.0;
+        mul_int = (int)(saturation * (1.0 - lightness) * 2.0 * 256.0);
     else
-        mul = lightness * 2.0;
+        mul_int = (int)(saturation * lightness * 2.0 * 256.0);
 
-    if( mul < 1.0 )
-        mul = 1.0;
-
-    // Pack into 16-bit value
-    int hsl16 = (hue_bits << 10) | (sat_bits << 7) | light_bits;
-    assert(hsl16 >= 0 && hsl16 < 65536);
+    if( mul_int < 1 )
+        mul_int = 1;
 
     struct HSL hsl;
-    hsl.hue = hue_bits;
-    hsl.sat = sat_bits;
-    hsl.light = light_bits;
-    hsl.mul = mul;
+    hsl.hue = hue_int;
+    hsl.sat = sat_int;
+    hsl.light = light_int;
+    hsl.mul = mul_int;
     return hsl;
+}
+
+int
+palette_hsl24_to_hsl16(int hue, int saturation, int lightness)
+{
+    if( lightness > 179 )
+        saturation = (saturation / 2);
+
+    if( lightness > 192 )
+        saturation = (saturation / 2);
+
+    if( lightness > 217 )
+        saturation = (saturation / 2);
+
+    if( lightness > 243 )
+        saturation = (saturation / 2);
+
+    return ((saturation / 32) << 7) + ((hue / 4) << 10) + ((lightness / 2));
 }

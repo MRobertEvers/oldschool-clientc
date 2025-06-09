@@ -11,6 +11,7 @@ int* blend_underlays(
     struct MapTerrain* map_terrain,
     struct Underlay* underlays,
     int* underlay_ids,
-    int underlays_count);
+    int underlays_count,
+    int level);
 
 #endif

@@ -660,58 +660,66 @@ render_scene_tiles(
     int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
     int* screen_vertices_z = (int*)malloc(20 * sizeof(int));
 
-    for( int i = 0; i < tile_count; i++ )
+    for( int z = 0; z < 1; z++ )
     {
-        struct SceneTile* tile = &tiles[i];
-        if( tile->vertex_count == 0 )
-            continue;
-
-        project_vertices(
-            screen_vertices_x,
-            screen_vertices_y,
-            screen_vertices_z,
-            tile->vertex_count,
-            tile->vertex_x,
-            tile->vertex_y,
-            tile->vertex_z,
-            0,
-            0,
-            0,
-            scene_x,
-            // world_y is scene_z
-            scene_z,
-            // world_z is scene_y
-            scene_y,
-            camera_yaw,
-            camera_pitch,
-            camera_roll,
-            fov,
-            width,
-            height,
-            near_plane_z);
-
-        for( int face = 0; face < tile->face_count; face++ )
+        // y = 5, and x = 40 is the left corner of the church.
+        for( int y = 0; y < MAP_TERRAIN_Y; y++ )
         {
-            raster_osrs_single(
-                pixel_buffer,
-                face,
-                tile->faces_a,
-                tile->faces_b,
-                tile->faces_c,
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                // TODO: Remove legacy face_color_hsl.
-                tile->face_color_hsl_a ? tile->face_color_hsl_a : tile->face_color_hsl,
-                tile->face_color_hsl_b ? tile->face_color_hsl_b : tile->face_color_hsl,
-                tile->face_color_hsl_c ? tile->face_color_hsl_c : tile->face_color_hsl,
-                0,
-                0,
-                width,
-                height);
+            for( int x = 0; x < MAP_TERRAIN_X; x++ )
+            {
+                int i = MAP_TILE_COORD(x, y, z);
+                struct SceneTile* tile = &tiles[i];
+
+                if( tile->vertex_count == 0 || tile->face_color_hsl_a == NULL )
+                    continue;
+
+                project_vertices(
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z,
+                    tile->vertex_count,
+                    tile->vertex_x,
+                    tile->vertex_y,
+                    tile->vertex_z,
+                    0,
+                    0,
+                    0,
+                    scene_x,
+                    // world_y is scene_z
+                    scene_z,
+                    // world_z is scene_y
+                    scene_y,
+                    camera_yaw,
+                    camera_pitch,
+                    camera_roll,
+                    fov,
+                    width,
+                    height,
+                    near_plane_z);
+
+                for( int face = 0; face < tile->face_count; face++ )
+                {
+                    raster_osrs_single(
+                        pixel_buffer,
+                        face,
+                        tile->faces_a,
+                        tile->faces_b,
+                        tile->faces_c,
+                        screen_vertices_x,
+                        screen_vertices_y,
+                        screen_vertices_z,
+                        // TODO: Remove legacy face_color_hsl.
+                        tile->face_color_hsl_a,
+                        tile->face_color_hsl_b,
+                        tile->face_color_hsl_c,
+                        0,
+                        0,
+                        width,
+                        height);
+                }
+            }
         }
     }
-
     free(screen_vertices_x);
     free(screen_vertices_y);
     free(screen_vertices_z);

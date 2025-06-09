@@ -793,16 +793,10 @@ fix_terrain_tile(struct MapTerrain* map_terrain, int world_scene_origin_x, int w
 #define HEIGHT_SCALE 65536
 
 static int*
-calculate_lights(struct MapTerrain* map_terrain)
+calculate_lights(struct MapTerrain* map_terrain, int level)
 {
     int* lights = (int*)malloc(MAP_TERRAIN_X * MAP_TERRAIN_Y * sizeof(int));
-    for( int y = 0; y < MAP_TERRAIN_Y; y++ )
-    {
-        for( int x = 0; x < MAP_TERRAIN_X; x++ )
-        {
-            lights[MAP_TILE_COORD(x, y, 0)] = 0;
-        }
-    }
+    memset(lights, 0, MAP_TERRAIN_X * MAP_TERRAIN_Y * sizeof(int));
 
     int magnitude =
         sqrt(LIGHT_DIR_X * LIGHT_DIR_X + LIGHT_DIR_Y * LIGHT_DIR_Y + LIGHT_DIR_Z * LIGHT_DIR_Z);
@@ -817,10 +811,10 @@ calculate_lights(struct MapTerrain* map_terrain)
             // derived from the differences in height between adjacent tiles. The code below seems
             // to be calculating the normals directly by skipping the cross product.
 
-            int height_delta_x = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, 0)].height -
-                                 map_terrain->tiles_xyz[MAP_TILE_COORD(x - 1, y, 0)].height;
-            int height_delta_y = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, 0)].height -
-                                 map_terrain->tiles_xyz[MAP_TILE_COORD(x, y - 1, 0)].height;
+            int height_delta_x = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, level)].height -
+                                 map_terrain->tiles_xyz[MAP_TILE_COORD(x - 1, y, level)].height;
+            int height_delta_y = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, level)].height -
+                                 map_terrain->tiles_xyz[MAP_TILE_COORD(x, y - 1, level)].height;
             // const tileNormalLength =
             //                 Math.sqrt(
             //                     heightDeltaY * heightDeltaY + heightDeltaX * heightDeltaX +
@@ -904,8 +898,8 @@ scene_tiles_new_from_map_terrain(
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
         int* blended_underlays =
-            blend_underlays(map_terrain, underlays, underlay_ids, underlays_count);
-        int* lights = calculate_lights(map_terrain);
+            blend_underlays(map_terrain, underlays, underlay_ids, underlays_count, z);
+        int* lights = calculate_lights(map_terrain, z);
 
         for( int y = 0; y < MAP_TERRAIN_Y - 1; y++ )
         {
@@ -965,7 +959,10 @@ scene_tiles_new_from_map_terrain(
 
                     overlay = &overlays[overlay_index];
 
-                    overlay_hsl = palette_rgb_to_hsl16(overlay->rgb_color);
+                    if( overlay->texture != -1 )
+                        overlay_hsl = -1;
+                    else
+                        overlay_hsl = palette_rgb_to_hsl16(overlay->rgb_color);
                 }
 
                 int shape = overlay_id == -1 ? 0 : map->shape + 1;

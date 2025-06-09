@@ -8,16 +8,6 @@
 
 #define BLEND_RADIUS 5
 
-// Helper function to pack HSL values into a single integer
-static int
-pack_hsl(int hue, int sat, int light)
-{
-    int h = hue;
-    int s = sat;
-    int l = light;
-    return (h << 10) | (s << 7) | l;
-}
-
 static int
 get_index(int* ids, int count, int id)
 {
@@ -34,7 +24,8 @@ blend_underlays(
     struct MapTerrain* map_terrain,
     struct Underlay* underlays,
     int* underlay_ids,
-    int underlays_count)
+    int underlays_count,
+    int level)
 {
     int size_x = MAP_TERRAIN_X;
     int size_y = MAP_TERRAIN_Y;
@@ -67,7 +58,8 @@ blend_underlays(
             int x_east = xi + BLEND_RADIUS;
             if( x_east >= 0 && x_east < size_x )
             {
-                int underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(x_east, yi, 0)].underlay_id;
+                int underlay_id =
+                    map_terrain->tiles_xyz[MAP_TILE_COORD(x_east, yi, level)].underlay_id;
                 if( underlay_id > 0 )
                 {
                     int idx = get_index(underlay_ids, underlays_count, underlay_id - 1);
@@ -75,7 +67,7 @@ blend_underlays(
                     {
                         struct Underlay* underlay = &underlays[idx];
 
-                        struct HSL hsl = palette_rgb_to_hsl(underlay->rgb_color);
+                        struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
                         int hue = hsl.hue;
                         int sat = hsl.sat;
                         int lightness = hsl.light;
@@ -93,14 +85,15 @@ blend_underlays(
             int x_west = xi - BLEND_RADIUS;
             if( x_west >= 0 && x_west < size_x )
             {
-                int underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(x_west, yi, 0)].underlay_id;
+                int underlay_id =
+                    map_terrain->tiles_xyz[MAP_TILE_COORD(x_west, yi, level)].underlay_id;
                 if( underlay_id > 0 )
                 {
                     int idx = get_index(underlay_ids, underlays_count, underlay_id - 1);
                     if( idx != -1 )
                     {
                         struct Underlay* underlay = &underlays[idx];
-                        struct HSL hsl = palette_rgb_to_hsl(underlay->rgb_color);
+                        struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
 
                         hues[yi] -= hsl.hue;
                         sats[yi] -= hsl.sat;
@@ -153,14 +146,14 @@ blend_underlays(
                 continue;
             }
 
-            int underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(xi, yi, 0)].underlay_id;
+            int underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(xi, yi, level)].underlay_id;
             if( underlay_id > 0 )
             {
                 int avg_hue = running_hues / running_number;
                 int avg_sat = running_sat / running_number;
                 int avg_light = running_light / running_number;
 
-                int hsl = pack_hsl(avg_hue, avg_sat, avg_light);
+                int hsl = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
                 colors[COLOR_COORD(xi, yi)] = hsl;
             }
         }

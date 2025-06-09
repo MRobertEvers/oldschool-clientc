@@ -2,9 +2,11 @@
 
 #include "osrs/rsbuf.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // void
 // config_floortype_overlay_init(struct Overlay* overlay)
@@ -73,45 +75,17 @@ config_floortype_overlay_new_decode(char* data, int data_size)
     config_floortype_overlay_decode_inplace(overlay, data, data_size);
 
     return overlay;
-
-    // OverlayDefinition def = new OverlayDefinition();
-    // 	InputStream is = new InputStream(b);
-
-    // 	def.setId(id);
-
-    // 	for (;;)
-    // 	{
-    // 		int opcode = is.readUnsignedByte();
-    // 		if (opcode == 0)
-    // 		{
-    // 			break;
-    // 		}
-
-    // 		if (opcode == 1)
-    // 		{
-    // 			int color = is.read24BitInt();
-    // 			def.setRgbColor(color);
-    // 		}
-    // 		else if (opcode == 2)
-    // 		{
-    // 			int texture = is.readUnsignedByte();
-    // 			def.setTexture(texture);
-    // 		}
-    // 		else if (opcode == 5)
-    // 		{
-    // 			def.setHideUnderlay(false);
-    // 		}
-    // 		else if (opcode == 7)
-    // 		{
-    // 			int secondaryColor = is.read24BitInt();
-    // 			def.setSecondaryRgbColor(secondaryColor);
-    // 		}
-    // 	}
 }
 
 void
 config_floortype_overlay_decode_inplace(struct Overlay* overlay, char* data, int data_size)
 {
+    memset(overlay, 0, sizeof(struct Overlay));
+
+    overlay->texture = -1;
+    overlay->hide_underlay = true;
+    overlay->secondary_rgb_color = -1;
+
     struct RSBuffer buffer = {
         .data = data,
         .size = data_size,
@@ -131,7 +105,7 @@ config_floortype_overlay_decode_inplace(struct Overlay* overlay, char* data, int
         }
         else if( opcode == 2 )
         {
-            int texture = rsbuf_g2(&buffer);
+            int texture = rsbuf_g1(&buffer);
             overlay->texture = texture;
         }
         else if( opcode == 5 )
@@ -142,6 +116,10 @@ config_floortype_overlay_decode_inplace(struct Overlay* overlay, char* data, int
         {
             int secondary_color = rsbuf_g3(&buffer);
             overlay->secondary_rgb_color = secondary_color;
+        }
+        else
+        {
+            assert(false);
         }
     }
 }
@@ -188,6 +166,8 @@ config_floortype_underlay_new_decode(char* data, int data_size)
 void
 config_floortype_underlay_decode_inplace(struct Underlay* underlay, char* data, int data_size)
 {
+    memset(underlay, 0, sizeof(struct Underlay));
+
     struct RSBuffer buffer = {
         .data = data,
         .size = data_size,
