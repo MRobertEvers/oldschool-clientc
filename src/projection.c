@@ -32,7 +32,7 @@ project(
     int screen_width,
     int screen_height)
 {
-    struct ProjectedTriangle projected_triangle;
+    struct ProjectedTriangle projected_triangle = { 0 };
 
     assert(camera_pitch >= 0 && camera_pitch < 2048);
     assert(camera_yaw >= 0 && camera_yaw < 2048);
@@ -121,6 +121,7 @@ project(
     {
         memset(&projected_triangle, 0x00, sizeof(projected_triangle));
         projected_triangle.z1 = z_final;
+        projected_triangle.clipped = 1;
         return projected_triangle;
     }
 

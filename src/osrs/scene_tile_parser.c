@@ -918,7 +918,7 @@ scene_tiles_new_from_map_terrain(
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
         memset(&tiles[i], 0, sizeof(struct SceneTile));
 
-    for( int z = 0; z < 1; z++ )
+    for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
         int* blended_underlays =
             blend_underlays(map_terrain, underlays, underlay_ids, underlays_count, z);

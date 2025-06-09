@@ -242,7 +242,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         pixel_buffer,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        10,
+        50,
         game->camera_x,
         game->camera_y,
         game->camera_z,

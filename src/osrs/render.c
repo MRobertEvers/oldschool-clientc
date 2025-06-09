@@ -106,13 +106,6 @@ project_vertices(
     assert(camera_yaw >= 0 && camera_yaw < 2048);
     assert(camera_roll >= 0 && camera_roll < 2048);
 
-    int cos_camera_pitch = g_cos_table[camera_pitch];
-    int sin_camera_pitch = g_sin_table[camera_pitch];
-    int cos_camera_yaw = g_cos_table[camera_yaw];
-    int sin_camera_yaw = g_sin_table[camera_yaw];
-    int cos_camera_roll = g_cos_table[camera_roll];
-    int sin_camera_roll = g_sin_table[camera_roll];
-
     projected_triangle = project(
         0,
         0,
@@ -138,6 +131,17 @@ project_vertices(
 
     int model_origin_z_projection = projected_triangle.z1;
 
+    if( projected_triangle.clipped )
+    {
+        for( int i = 0; i < num_vertices; i++ )
+        {
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = -5000;
+            screen_vertices_z[i] = -5000;
+        }
+        return;
+    }
+
     for( int i = 0; i < num_vertices; i++ )
     {
         projected_triangle = project(
@@ -160,7 +164,7 @@ project_vertices(
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step
-        if( projected_triangle.z1 < near_plane_z )
+        if( projected_triangle.clipped )
         {
             screen_vertices_x[i] = -5000;
             screen_vertices_y[i] = -5000;
@@ -173,6 +177,85 @@ project_vertices(
             screen_vertices_z[i] = projected_triangle.z1 - model_origin_z_projection;
         }
     }
+}
+
+/**
+ * Terrain is treated as a single, so the origin test does not apply.
+ */
+static void
+project_vertices_terrain(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int num_vertices,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int model_yaw,
+    int model_pitch,
+    int model_roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_yaw,
+    int camera_pitch,
+    int camera_roll,
+    int camera_fov,
+    int screen_width,
+    int screen_height,
+    int near_plane_z)
+{
+    struct ProjectedTriangle projected_triangle;
+
+    assert(camera_pitch >= 0 && camera_pitch < 2048);
+    assert(camera_yaw >= 0 && camera_yaw < 2048);
+    assert(camera_roll >= 0 && camera_roll < 2048);
+
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        projected_triangle = project(
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_yaw,
+            model_pitch,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_yaw,
+            camera_pitch,
+            camera_roll,
+            camera_fov,
+            near_plane_z,
+            screen_width,
+            screen_height);
+
+        if( projected_triangle.clipped )
+        {
+            // Since terrain vertexes are calculated as a single mesh rather,
+            // than around some origin, assume that if any vertex is clipped,
+            // then the entire terrain is clipped.
+            goto clipped;
+        }
+        else
+        {
+            screen_vertices_x[i] = projected_triangle.x1;
+            screen_vertices_y[i] = projected_triangle.y1;
+            screen_vertices_z[i] = projected_triangle.z1;
+        }
+    }
+
+    return;
+clipped:
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        screen_vertices_x[i] = -5000;
+        screen_vertices_y[i] = -5000;
+        screen_vertices_z[i] = -5000;
+    }
+
+    return;
 }
 
 static void
@@ -673,7 +756,27 @@ render_scene_tiles(
                 if( tile->vertex_count == 0 || tile->face_color_hsl_a == NULL )
                     continue;
 
-                project_vertices(
+                // TODO: A faster culling
+                // if the tile is far enough away, skip it.
+                // Calculate distance from camera to tile center
+                int tile_center_x = x * TILE_SIZE + TILE_SIZE / 2;
+                int tile_center_y = y * TILE_SIZE + TILE_SIZE / 2;
+                int tile_center_z = z * 240;
+
+                int dx = tile_center_x + scene_x;
+                int dy = tile_center_y + scene_z;
+                int dz = tile_center_z + scene_y;
+
+                // Simple squared distance - avoid sqrt for performance
+                int dist_sq = dx * dx;
+                if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
+                    continue;
+
+                dist_sq = dy * dy;
+                if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
+                    continue;
+
+                project_vertices_terrain(
                     screen_vertices_x,
                     screen_vertices_y,
                     screen_vertices_z,

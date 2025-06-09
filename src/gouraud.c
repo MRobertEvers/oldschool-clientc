@@ -349,6 +349,14 @@ raster_gouraud(
         return;
     }
 
+    if( (x0 < 0 || x1 < 0 || x2 < 0) &&
+        (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
+    {
+        // This can happen if vertices extremely close to the camera plane, but outside the FOV
+        // are projected. Those vertices need to be culled.
+        return;
+    }
+
     // skip if the triangle is degenerate
     if( x0 == x1 && x1 == x2 )
         return;
