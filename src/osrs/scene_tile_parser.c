@@ -249,11 +249,13 @@ get_index(int* ids, int count, int id)
 //     }
 // }
 
+#define INVALID_HSL_COLOR 12345678
+
 static int
 adjust_underlay_light(int hsl, int light)
 {
     if( hsl == -1 )
-        return -1;
+        return INVALID_HSL_COLOR;
 
     light = ((hsl & 127) * light) >> 7;
     if( light < 2 )
@@ -291,7 +293,7 @@ static int
 adjust_overlay_light(int hsl, int light)
 {
     if( hsl == -2 )
-        return -1;
+        return INVALID_HSL_COLOR;
 
     if( hsl == -1 )
     {
@@ -344,12 +346,12 @@ adjust_overlay_light(int hsl, int light)
 static int
 mix_hsl(int hsl_a, int hsl_b)
 {
-    if( hsl_a == -1 || hsl_b == -1 )
-        return -1;
+    if( hsl_a == INVALID_HSL_COLOR || hsl_b == INVALID_HSL_COLOR )
+        return INVALID_HSL_COLOR;
 
-    if( hsl_a == -1 )
+    if( hsl_a == INVALID_HSL_COLOR )
         return hsl_b;
-    else if( hsl_b == -1 )
+    else if( hsl_b == INVALID_HSL_COLOR )
         return hsl_a;
 
     int hue = (hsl_a >> 10) & 0x3f;
@@ -609,6 +611,8 @@ decode_tile(
     int* faces_b = (int*)malloc(face_count * sizeof(int));
     int* faces_c = (int*)malloc(face_count * sizeof(int));
 
+    int* valid_faces = (int*)malloc(face_count * sizeof(int));
+
     int* face_colors_hsl_a = (int*)malloc(face_count * sizeof(int));
     int* face_colors_hsl_b = (int*)malloc(face_count * sizeof(int));
     int* face_colors_hsl_c = (int*)malloc(face_count * sizeof(int));
@@ -640,6 +644,11 @@ decode_tile(
         face_colors_hsl_a[i] = color_a;
         face_colors_hsl_b[i] = color_b;
         face_colors_hsl_c[i] = color_c;
+
+        if( color_a == INVALID_HSL_COLOR )
+            valid_faces[i] = 0;
+        else
+            valid_faces[i] = 1;
     }
 
     free(underlay_colors_hsl);
@@ -654,11 +663,13 @@ decode_tile(
     tile->faces_b = faces_b;
     tile->faces_c = faces_c;
 
+    tile->valid_faces = valid_faces;
     tile->face_color_hsl_a = face_colors_hsl_a;
     tile->face_color_hsl_b = face_colors_hsl_b;
     tile->face_color_hsl_c = face_colors_hsl_c;
     return true;
 error:
+    free(valid_faces);
     free(vertex_x);
     free(vertex_y);
     free(vertex_z);
@@ -895,7 +906,7 @@ scene_tiles_new_from_map_terrain(
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
         memset(&tiles[i], 0, sizeof(struct SceneTile));
 
-    for( int z = 0; z < MAP_TERRAIN_Z; z++ )
+    for( int z = 0; z < 1; z++ )
     {
         int* blended_underlays =
             blend_underlays(map_terrain, underlays, underlay_ids, underlays_count, z);
@@ -927,10 +938,113 @@ scene_tiles_new_from_map_terrain(
 
                 // Just get the underlay color for now.
 
-                int underlay_hsl_sw = 0;
-                int underlay_hsl_se = 0;
-                int underlay_hsl_ne = 0;
-                int underlay_hsl_nw = 0;
+                int underlay_hsl_sw = -1;
+                int underlay_hsl_se = -1;
+                int underlay_hsl_ne = -1;
+                int underlay_hsl_nw = -1;
+                int overlay_hsl = 0;
+
+                if( underlay_id != -1 )
+                {
+                    int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
+                    assert(underlay_index != -1);
+
+                    underlay = &underlays[underlay_index];
+                    underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];
+                    underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
+                    underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
+                    underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
+
+                    if( underlay_hsl_se == -1 )
+                        underlay_hsl_se = underlay_hsl_sw;
+                    if( underlay_hsl_ne == -1 )
+                        underlay_hsl_ne = underlay_hsl_sw;
+                    if( underlay_hsl_nw == -1 )
+                        underlay_hsl_nw = underlay_hsl_sw;
+                }
+
+                if( overlay_id != -1 )
+                {
+                    int overlay_index = get_index(overlay_ids, overlays_count, overlay_id);
+                    assert(overlay_index != -1);
+
+                    overlay = &overlays[overlay_index];
+
+                    if( overlay->texture != -1 )
+                        overlay_hsl = -1;
+                    else
+                        overlay_hsl = palette_rgb_to_hsl16(overlay->rgb_color);
+                }
+
+                int shape = overlay_id == -1 ? 0 : map->shape + 1;
+                int rotation = overlay_id == -1 ? 0 : map->rotation;
+
+                bool success = decode_tile(
+                    scene_tile,
+                    shape,
+                    rotation,
+                    x,
+                    y,
+                    z,
+                    height_sw,
+                    height_se,
+                    height_ne,
+                    height_nw,
+                    light_sw,
+                    light_se,
+                    light_ne,
+                    light_nw,
+                    underlay_hsl_sw,
+                    underlay_hsl_se,
+                    underlay_hsl_ne,
+                    underlay_hsl_nw,
+                    // Overlay color.
+                    overlay_hsl);
+
+                assert(success);
+            }
+        }
+
+        free(blended_underlays);
+        free(lights);
+    }
+
+    for( int z = 1; z < MAP_TERRAIN_Z; z++ )
+    {
+        int* blended_underlays =
+            blend_underlays(map_terrain, underlays, underlay_ids, underlays_count, z);
+        int* lights = calculate_lights(map_terrain, z);
+
+        for( int y = 0; y < MAP_TERRAIN_Y - 1; y++ )
+        {
+            for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
+            {
+                struct MapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+
+                struct SceneTile* scene_tile = &tiles[MAP_TILE_COORD(x, y, z)];
+                int underlay_id = map->underlay_id - 1;
+
+                int overlay_id = map->overlay_id - 1;
+
+                if( underlay_id == -1 && overlay_id == -1 )
+                    continue;
+
+                int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)].height;
+                int height_se = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, z)].height;
+                int height_ne = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y + 1, z)].height;
+                int height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, z)].height;
+
+                int light_sw = lights[MAP_TILE_COORD(x, y, z)];
+                int light_se = lights[MAP_TILE_COORD(x + 1, y, z)];
+                int light_ne = lights[MAP_TILE_COORD(x + 1, y + 1, z)];
+                int light_nw = lights[MAP_TILE_COORD(x, y + 1, z)];
+
+                // Just get the underlay color for now.
+
+                int underlay_hsl_sw = -1;
+                int underlay_hsl_se = -1;
+                int underlay_hsl_ne = -1;
+                int underlay_hsl_nw = -1;
                 int overlay_hsl = 0;
 
                 if( underlay_id != -1 )

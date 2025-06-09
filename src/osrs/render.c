@@ -660,7 +660,7 @@ render_scene_tiles(
     int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
     int* screen_vertices_z = (int*)malloc(20 * sizeof(int));
 
-    for( int z = 0; z < 1; z++ )
+    for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
         // y = 5, and x = 40 is the left corner of the church.
         for( int y = 0; y < MAP_TERRAIN_Y; y++ )
@@ -699,6 +699,9 @@ render_scene_tiles(
 
                 for( int face = 0; face < tile->face_count; face++ )
                 {
+                    if( tile->valid_faces[face] == 0 )
+                        continue;
+
                     raster_osrs_single(
                         pixel_buffer,
                         face,

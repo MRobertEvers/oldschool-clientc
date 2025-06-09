@@ -14,6 +14,7 @@ struct SceneTile
     int* faces_a;
     int* faces_b;
     int* faces_c;
+    int* valid_faces;
 
     /* deprecated */
     int* face_color_hsl;
