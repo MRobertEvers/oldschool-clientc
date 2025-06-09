@@ -197,7 +197,7 @@ static int tile_shape_vertex_indices[15][6] = {
 };
 
 static int tile_shape_vertex_indices_lengths[15] = {
-    4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6,
+    4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6,
 };
 
 static int tile_shape_faces[15][25] = {
@@ -637,9 +637,21 @@ decode_tile(
         faces_b[i] = b;
         faces_c[i] = c;
 
-        int color_a = is_overlay ? overlay_colors_hsl[a] : underlay_colors_hsl[a];
-        int color_b = is_overlay ? overlay_colors_hsl[b] : underlay_colors_hsl[b];
-        int color_c = is_overlay ? overlay_colors_hsl[c] : underlay_colors_hsl[c];
+        int color_a;
+        int color_b;
+        int color_c;
+        if( is_overlay )
+        {
+            color_a = overlay_colors_hsl[a];
+            color_b = overlay_colors_hsl[b];
+            color_c = overlay_colors_hsl[c];
+        }
+        else
+        {
+            color_a = underlay_colors_hsl[a];
+            color_b = underlay_colors_hsl[b];
+            color_c = underlay_colors_hsl[c];
+        }
 
         face_colors_hsl_a[i] = color_a;
         face_colors_hsl_b[i] = color_b;
@@ -931,10 +943,10 @@ scene_tiles_new_from_map_terrain(
                 int height_ne = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y + 1, z)].height;
                 int height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, z)].height;
 
-                int light_sw = lights[MAP_TILE_COORD(x, y, z)];
-                int light_se = lights[MAP_TILE_COORD(x + 1, y, z)];
-                int light_ne = lights[MAP_TILE_COORD(x + 1, y + 1, z)];
-                int light_nw = lights[MAP_TILE_COORD(x, y + 1, z)];
+                int light_sw = lights[MAP_TILE_COORD(x, y, 0)];
+                int light_se = lights[MAP_TILE_COORD(x + 1, y, 0)];
+                int light_ne = lights[MAP_TILE_COORD(x + 1, y + 1, 0)];
+                int light_nw = lights[MAP_TILE_COORD(x, y + 1, 0)];
 
                 // Just get the underlay color for now.
 
@@ -976,110 +988,7 @@ scene_tiles_new_from_map_terrain(
                         overlay_hsl = palette_rgb_to_hsl16(overlay->rgb_color);
                 }
 
-                int shape = overlay_id == -1 ? 0 : map->shape + 1;
-                int rotation = overlay_id == -1 ? 0 : map->rotation;
-
-                bool success = decode_tile(
-                    scene_tile,
-                    shape,
-                    rotation,
-                    x,
-                    y,
-                    z,
-                    height_sw,
-                    height_se,
-                    height_ne,
-                    height_nw,
-                    light_sw,
-                    light_se,
-                    light_ne,
-                    light_nw,
-                    underlay_hsl_sw,
-                    underlay_hsl_se,
-                    underlay_hsl_ne,
-                    underlay_hsl_nw,
-                    // Overlay color.
-                    overlay_hsl);
-
-                assert(success);
-            }
-        }
-
-        free(blended_underlays);
-        free(lights);
-    }
-
-    for( int z = 1; z < MAP_TERRAIN_Z; z++ )
-    {
-        int* blended_underlays =
-            blend_underlays(map_terrain, underlays, underlay_ids, underlays_count, z);
-        int* lights = calculate_lights(map_terrain, z);
-
-        for( int y = 0; y < MAP_TERRAIN_Y - 1; y++ )
-        {
-            for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
-            {
-                struct MapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
-
-                struct SceneTile* scene_tile = &tiles[MAP_TILE_COORD(x, y, z)];
-                int underlay_id = map->underlay_id - 1;
-
-                int overlay_id = map->overlay_id - 1;
-
-                if( underlay_id == -1 && overlay_id == -1 )
-                    continue;
-
-                int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)].height;
-                int height_se = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, z)].height;
-                int height_ne = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y + 1, z)].height;
-                int height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, z)].height;
-
-                int light_sw = lights[MAP_TILE_COORD(x, y, z)];
-                int light_se = lights[MAP_TILE_COORD(x + 1, y, z)];
-                int light_ne = lights[MAP_TILE_COORD(x + 1, y + 1, z)];
-                int light_nw = lights[MAP_TILE_COORD(x, y + 1, z)];
-
-                // Just get the underlay color for now.
-
-                int underlay_hsl_sw = -1;
-                int underlay_hsl_se = -1;
-                int underlay_hsl_ne = -1;
-                int underlay_hsl_nw = -1;
-                int overlay_hsl = 0;
-
-                if( underlay_id != -1 )
-                {
-                    int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
-                    assert(underlay_index != -1);
-
-                    underlay = &underlays[underlay_index];
-                    underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];
-                    underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
-                    underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
-                    underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
-
-                    if( underlay_hsl_se == -1 )
-                        underlay_hsl_se = underlay_hsl_sw;
-                    if( underlay_hsl_ne == -1 )
-                        underlay_hsl_ne = underlay_hsl_sw;
-                    if( underlay_hsl_nw == -1 )
-                        underlay_hsl_nw = underlay_hsl_sw;
-                }
-
-                if( overlay_id != -1 )
-                {
-                    int overlay_index = get_index(overlay_ids, overlays_count, overlay_id);
-                    assert(overlay_index != -1);
-
-                    overlay = &overlays[overlay_index];
-
-                    if( overlay->texture != -1 )
-                        overlay_hsl = -1;
-                    else
-                        overlay_hsl = palette_rgb_to_hsl16(overlay->rgb_color);
-                }
-
-                int shape = overlay_id == -1 ? 0 : map->shape + 1;
+                int shape = overlay_id == -1 ? 0 : (map->shape + 1);
                 int rotation = overlay_id == -1 ? 0 : map->rotation;
 
                 bool success = decode_tile(
