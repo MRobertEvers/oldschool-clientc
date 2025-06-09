@@ -7,6 +7,8 @@
 #include "scene_tile.h"
 #include "tables/maps.h"
 #include "tables/model.h"
+#include "tables/sprites.h"
+#include "tables/texture_pixels.h"
 #include "texture.h"
 
 #include <assert.h>
@@ -515,8 +517,12 @@ raster_osrs_single_texture(
     int* face_texture_v_b,
     int* face_texture_u_c,
     int* face_texture_v_c,
-    struct TextureDefinition* texture_definitions,
-    int texture_definitions_count,
+    struct TextureDefinition* textures,
+    int* texture_ids,
+    int texture_count,
+    struct SpritePack* sprite_packs,
+    int* sprite_ids,
+    int sprite_count,
     int offset_x,
     int offset_y,
     int screen_width,
@@ -539,23 +545,68 @@ raster_osrs_single_texture(
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
         return;
 
-    int color_a = g_hsl16_to_rgb_table[0];
-    int color_b = g_hsl16_to_rgb_table[0];
-    int color_c = g_hsl16_to_rgb_table[0];
+    int u0 = face_texture_u_a[index];
+    int v0 = face_texture_v_a[index];
+    int u1 = face_texture_u_b[index];
+    int v1 = face_texture_v_b[index];
+    int u2 = face_texture_u_c[index];
+    int v2 = face_texture_v_c[index];
 
-    // raster_texture(
-    //     pixel_buffer,
-    //     screen_width,
-    //     screen_height,
-    //     x1,
-    //     x2,
-    //     x3,
-    //     y1,
-    //     y2,
-    //     y3,
-    //     color_a,
-    //     color_b,
-    //     color_c);
+    int texture_id = face_texture_ids[index];
+    if( texture_id == -1 )
+        return;
+
+    struct SpritePack* sprite_pack = NULL;
+    for( int i = 0; i < sprite_count; i++ )
+    {
+        if( sprite_ids[i] == texture_id )
+        {
+            sprite_pack = &sprite_packs[i];
+            break;
+        }
+    }
+
+    struct TextureDefinition* texture_definition = NULL;
+    for( int i = 0; i < texture_count; i++ )
+    {
+        if( texture_ids[i] == texture_id )
+        {
+            texture_definition = &textures[i];
+            break;
+        }
+    }
+
+    if( !texture_definition )
+        return;
+
+    int* texels = texture_pixels_new_from_definition(
+        texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1);
+    if( !texels )
+        return;
+
+    raster_texture(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        z1,
+        z2,
+        z3,
+        u0,
+        u1,
+        u2,
+        v0,
+        v1,
+        v2,
+        texels,
+        sprite_pack->sprites[0].width * sprite_pack->sprites[0].height);
+
+    free(texels);
 }
 
 static int tmp_depth_face_count[1500] = { 0 };
@@ -798,7 +849,13 @@ render_scene_tiles(
     int camera_roll,
     int fov,
     struct SceneTile* tiles,
-    int tile_count)
+    int tile_count,
+    struct SpritePack* sprite_packs,
+    int* sprite_ids,
+    int sprite_count,
+    struct TextureDefinition* textures,
+    int* texture_ids,
+    int texture_count)
 {
     int* screen_vertices_x = (int*)malloc(20 * sizeof(int));
     int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
@@ -904,8 +961,12 @@ render_scene_tiles(
                             tile->face_texture_v_b,
                             tile->face_texture_u_c,
                             tile->face_texture_v_c,
-                            NULL,
-                            0,
+                            textures,
+                            texture_ids,
+                            texture_count,
+                            sprite_packs,
+                            sprite_ids,
+                            sprite_count,
                             0,
                             0,
                             width,

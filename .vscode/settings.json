@@ -43,6 +43,7 @@
         "stdint.h": "c",
         "__config": "c",
         "cerrno": "c",
-        "textures.h": "c"
+        "textures.h": "c",
+        "texture_pixels.h": "c"
     }
 }

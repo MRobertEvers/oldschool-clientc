@@ -30,6 +30,9 @@ void render_model_frame(
 
 struct SceneTile;
 
+struct SpritePack;
+struct TextureDefinition;
+
 void render_scene_tiles(
     int* pixel_buffer,
     int width,
@@ -43,6 +46,12 @@ void render_scene_tiles(
     int camera_roll,
     int fov,
     struct SceneTile* tiles,
-    int tile_count);
+    int tile_count,
+    struct SpritePack* sprite_packs,
+    int* sprite_ids,
+    int sprite_count,
+    struct TextureDefinition* textures,
+    int* texture_ids,
+    int texture_count);
 
 #endif

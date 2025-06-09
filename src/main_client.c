@@ -765,20 +765,20 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     //     game->map_terrain,
     //     game->map_locs);
 
-    render_scene_tiles(
-        pixel_buffer,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
-        10,
-        game->camera_x,
-        game->camera_z,
-        game->camera_y,
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_roll,
-        game->camera_fov,
-        game->tiles,
-        game->tile_count);
+    // render_scene_tiles(
+    //     pixel_buffer,
+    //     SCREEN_WIDTH,
+    //     SCREEN_HEIGHT,
+    //     10,
+    //     game->camera_x,
+    //     game->camera_z,
+    //     game->camera_y,
+    //     game->camera_pitch,
+    //     game->camera_yaw,
+    //     game->camera_roll,
+    //     game->camera_fov,
+    //     game->tiles,
+    //     game->tile_count);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,

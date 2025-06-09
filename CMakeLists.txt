@@ -13,6 +13,9 @@ include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZL
 
 add_executable(main_client
     src/main_client.c
+    src/osrs/tables/texture_pixels.c
+    src/osrs/tables/textures.c
+    src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
     src/osrs/palette.c
     src/osrs/cache.c
