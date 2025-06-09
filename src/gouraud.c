@@ -342,6 +342,7 @@ raster_gouraud(
     if( total_height == 0 )
         return;
 
+    // TODO: Remove this check for callers that cull correctly.
     if( total_height >= screen_height )
     {
         // This can happen if vertices extremely close to the camera plane, but outside the FOV
@@ -349,6 +350,7 @@ raster_gouraud(
         return;
     }
 
+    // TODO: Remove this check for callers that cull correctly.
     if( (x0 < 0 || x1 < 0 || x2 < 0) &&
         (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
     {

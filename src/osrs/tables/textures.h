@@ -9,8 +9,8 @@ struct TextureDefinition
 {
     int average_hsl;
     bool opaque;
-    int* file_ids;
-    int file_ids_count;
+    int* sprite_ids;
+    int sprite_ids_count;
 
     int* sprite_types;
     int* transforms;
@@ -23,5 +23,7 @@ struct TextureDefinition* texture_definition_new_from_cache(struct Cache* cache,
 
 struct TextureDefinition*
 texture_definition_new_decode(const unsigned char* inputData, int inputLength);
+struct TextureDefinition* texture_definition_decode_inplace(
+    struct TextureDefinition*, const unsigned char* inputData, int inputLength);
 
 #endif

@@ -49,6 +49,9 @@ add_executable(tiles_test
 
 add_executable(scene_tile_test
     test/scene_tile_test.c
+    src/osrs/tables/texture_pixels.c
+    src/osrs/tables/textures.c
+    src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
     src/osrs/scene_tile_parser.c
     src/osrs/palette.c

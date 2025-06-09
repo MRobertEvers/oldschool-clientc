@@ -7,6 +7,7 @@
 #include "scene_tile.h"
 #include "tables/maps.h"
 #include "tables/model.h"
+#include "texture.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -436,7 +437,7 @@ raster_osrs(
 }
 
 void
-raster_osrs_single(
+raster_osrs_single_gouraud(
     struct Pixel* pixel_buffer,
     int face,
     int* face_indices_a,
@@ -495,6 +496,66 @@ raster_osrs_single(
         color_a,
         color_b,
         color_c);
+}
+
+void
+raster_osrs_single_texture(
+    struct Pixel* pixel_buffer,
+    int face,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* face_texture_ids,
+    int* face_texture_u_a,
+    int* face_texture_v_a,
+    int* face_texture_u_b,
+    int* face_texture_v_b,
+    int* face_texture_u_c,
+    int* face_texture_v_c,
+    struct TextureDefinition* texture_definitions,
+    int texture_definitions_count,
+    int offset_x,
+    int offset_y,
+    int screen_width,
+    int screen_height)
+{
+    int index = face;
+
+    int x1 = vertex_x[face_indices_a[index]] + offset_x;
+    int y1 = vertex_y[face_indices_a[index]] + offset_y;
+    int z1 = vertex_z[face_indices_a[index]];
+    int x2 = vertex_x[face_indices_b[index]] + offset_x;
+    int y2 = vertex_y[face_indices_b[index]] + offset_y;
+    int z2 = vertex_z[face_indices_b[index]];
+    int x3 = vertex_x[face_indices_c[index]] + offset_x;
+    int y3 = vertex_y[face_indices_c[index]] + offset_y;
+    int z3 = vertex_z[face_indices_c[index]];
+
+    // Skip triangle if any vertex was clipped
+    // TODO: Perhaps use a separate buffer to track this.
+    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
+        return;
+
+    int color_a = g_hsl16_to_rgb_table[0];
+    int color_b = g_hsl16_to_rgb_table[0];
+    int color_c = g_hsl16_to_rgb_table[0];
+
+    // raster_texture(
+    //     pixel_buffer,
+    //     screen_width,
+    //     screen_height,
+    //     x1,
+    //     x2,
+    //     x3,
+    //     y1,
+    //     y2,
+    //     y3,
+    //     color_a,
+    //     color_b,
+    //     color_c);
 }
 
 static int tmp_depth_face_count[1500] = { 0 };
@@ -805,23 +866,51 @@ render_scene_tiles(
                     if( tile->valid_faces[face] == 0 )
                         continue;
 
-                    raster_osrs_single(
-                        pixel_buffer,
-                        face,
-                        tile->faces_a,
-                        tile->faces_b,
-                        tile->faces_c,
-                        screen_vertices_x,
-                        screen_vertices_y,
-                        screen_vertices_z,
-                        // TODO: Remove legacy face_color_hsl.
-                        tile->face_color_hsl_a,
-                        tile->face_color_hsl_b,
-                        tile->face_color_hsl_c,
-                        0,
-                        0,
-                        width,
-                        height);
+                    if( tile->face_texture_ids == NULL )
+                    {
+                        raster_osrs_single_gouraud(
+                            pixel_buffer,
+                            face,
+                            tile->faces_a,
+                            tile->faces_b,
+                            tile->faces_c,
+                            screen_vertices_x,
+                            screen_vertices_y,
+                            screen_vertices_z,
+                            // TODO: Remove legacy face_color_hsl.
+                            tile->face_color_hsl_a,
+                            tile->face_color_hsl_b,
+                            tile->face_color_hsl_c,
+                            0,
+                            0,
+                            width,
+                            height);
+                    }
+                    else
+                    {
+                        raster_osrs_single_texture(
+                            pixel_buffer,
+                            face,
+                            tile->faces_a,
+                            tile->faces_b,
+                            tile->faces_c,
+                            screen_vertices_x,
+                            screen_vertices_y,
+                            screen_vertices_z,
+                            tile->face_texture_ids,
+                            tile->face_texture_u_a,
+                            tile->face_texture_v_a,
+                            tile->face_texture_u_b,
+                            tile->face_texture_v_b,
+                            tile->face_texture_u_c,
+                            tile->face_texture_v_c,
+                            NULL,
+                            0,
+                            0,
+                            0,
+                            width,
+                            height);
+                    }
                 }
             }
         }

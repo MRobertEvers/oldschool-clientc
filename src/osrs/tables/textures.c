@@ -29,6 +29,13 @@ texture_definition_new_decode(const unsigned char* data, int length)
     if( !def )
         return NULL;
 
+    return texture_definition_decode_inplace(def, data, length);
+}
+
+struct TextureDefinition*
+texture_definition_decode_inplace(
+    struct TextureDefinition* def, const unsigned char* data, int length)
+{
     struct RSBuffer buffer;
     rsbuf_init(&buffer, data, length);
 
@@ -38,15 +45,15 @@ texture_definition_new_decode(const unsigned char* data, int length)
 
     // Read count of files
     int count = rsbuf_g1(&buffer);
-    def->file_ids_count = count;
+    def->sprite_ids_count = count;
 
     // Allocate and read file IDs
-    def->file_ids = malloc(count * sizeof(int));
-    if( !def->file_ids )
+    def->sprite_ids = malloc(count * sizeof(int));
+    if( !def->sprite_ids )
         goto error;
 
     for( int i = 0; i < count; i++ )
-        def->file_ids[i] = rsbuf_g2(&buffer);
+        def->sprite_ids[i] = rsbuf_g2(&buffer);
 
     // Handle field1780 (count > 1 case)
     if( count > 1 )
@@ -81,7 +88,7 @@ texture_definition_new_decode(const unsigned char* data, int length)
     return def;
 
 error:
-    free(def->file_ids);
+    free(def->sprite_ids);
     free(def->sprite_types);
     free(def->transforms);
     free(def);

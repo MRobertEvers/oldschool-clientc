@@ -4,9 +4,13 @@
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
 #include "osrs/tables/configs.h"
+#include "osrs/tables/sprites.h"
+#include "osrs/tables/texture_pixels.h"
+#include "osrs/tables/textures.h"
 #include "osrs/xtea_config.h"
 
 #include <SDL.h>
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -178,6 +182,9 @@ struct Game
 
     struct SceneTile* tiles;
     int tile_count;
+
+    struct TextureDefinition* texture_definitions;
+    int texture_definitions_count;
 };
 
 struct PlatformSDL2
@@ -297,6 +304,84 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_FreeSurface(surface);
 }
 
+void
+write_bmp_file(const char* filename, int* pixels, int width, int height)
+{
+    FILE* file = fopen(filename, "wb");
+    if( !file )
+    {
+        printf("Failed to open file for writing: %s\n", filename);
+        return;
+    }
+
+    // BMP header (14 bytes)
+    unsigned char header[14] = {
+        'B', 'M',       // Magic number
+        0,   0,   0, 0, // File size (to be filled)
+        0,   0,         // Reserved
+        0,   0,         // Reserved
+        54,  0,   0, 0  // Pixel data offset
+    };
+
+    // DIB header (40 bytes)
+    unsigned char dib_header[40] = {
+        40, 0, 0, 0, // DIB header size
+        0,  0, 0, 0, // Width (to be filled)
+        0,  0, 0, 0, // Height (to be filled)
+        1,  0,       // Planes
+        32, 0,       // Bits per pixel
+        0,  0, 0, 0, // Compression
+        0,  0, 0, 0, // Image size
+        0,  0, 0, 0, // X pixels per meter
+        0,  0, 0, 0, // Y pixels per meter
+        0,  0, 0, 0, // Colors in color table
+        0,  0, 0, 0  // Important color count
+    };
+
+    // Fill in width and height
+    dib_header[4] = width & 0xFF;
+    dib_header[5] = (width >> 8) & 0xFF;
+    dib_header[6] = (width >> 16) & 0xFF;
+    dib_header[7] = (width >> 24) & 0xFF;
+    dib_header[8] = height & 0xFF;
+    dib_header[9] = (height >> 8) & 0xFF;
+    dib_header[10] = (height >> 16) & 0xFF;
+    dib_header[11] = (height >> 24) & 0xFF;
+
+    // Calculate file size
+    int pixel_data_size = width * height * 4; // 4 bytes per pixel (32-bit)
+    int file_size = 54 + pixel_data_size;     // 54 = header size (14 + 40)
+    header[2] = file_size & 0xFF;
+    header[3] = (file_size >> 8) & 0xFF;
+    header[4] = (file_size >> 16) & 0xFF;
+    header[5] = (file_size >> 24) & 0xFF;
+
+    // Write headers
+    fwrite(header, 1, 14, file);
+    fwrite(dib_header, 1, 40, file);
+
+    // Write pixel data (BMP is stored bottom-up)
+    for( int y = height - 1; y >= 0; y-- )
+    {
+        for( int x = 0; x < width; x++ )
+        {
+            int pixel = pixels[y * width + x];
+            // Source is RGBA, need to convert to BGRA for BMP
+            unsigned char r = (pixel >> 16) & 0xFF; // Red (was incorrectly reading as Blue)
+            unsigned char g = (pixel >> 8) & 0xFF;  // Green
+            unsigned char b = pixel & 0xFF;         // Blue (was incorrectly reading as Red)
+            unsigned char a = (pixel >> 24) & 0xFF; // Alpha
+            // Write in BGRA order for BMP
+            fwrite(&b, 1, 1, file);
+            fwrite(&g, 1, 1, file);
+            fwrite(&r, 1, 1, file);
+            fwrite(&a, 1, 1, file);
+        }
+    }
+
+    fclose(file);
+}
+
 int
 main()
 {
@@ -375,6 +460,94 @@ main()
 
     filelist_free(filelist);
     cache_archive_free(archive);
+
+    archive = cache_archive_new_load(cache, CACHE_TEXTURES, 0);
+    if( !archive )
+    {
+        printf("Failed to load textures archive\n");
+        return 1;
+    }
+
+    filelist = filelist_new_from_cache_archive(archive);
+
+    int texture_definitions_count = filelist->file_count;
+    struct TextureDefinition* texture_definitions = (struct TextureDefinition*)malloc(
+        texture_definitions_count * sizeof(struct TextureDefinition));
+    int* texture_ids = (int*)malloc(texture_definitions_count * sizeof(int));
+    for( int i = 0; i < texture_definitions_count; i++ )
+    {
+        struct TextureDefinition* texture_definition = &texture_definitions[i];
+
+        struct ArchiveReference* archives = cache->tables[CACHE_TEXTURES]->archives;
+
+        texture_definition = texture_definition_decode_inplace(
+            texture_definition, filelist->files[i], filelist->file_sizes[i]);
+        assert(texture_definition != NULL);
+        int file_id = archives[cache->tables[CACHE_TEXTURES]->ids[0]].children.files[i].id;
+        texture_ids[i] = file_id;
+    }
+
+    filelist_free(filelist);
+    cache_archive_free(archive);
+    int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
+    struct SpritePack* sprite_packs =
+        (struct SpritePack*)malloc(sprite_count * sizeof(struct SpritePack));
+    int* sprite_ids = (int*)malloc(sprite_count * sizeof(int));
+
+    for( int sprite_index = 0; sprite_index < sprite_count; sprite_index++ )
+    {
+        archive = cache_archive_new_load(cache, CACHE_SPRITES, sprite_index);
+        if( !archive )
+        {
+            printf("Failed to load sprites archive\n");
+            return 1;
+        }
+
+        struct ArchiveReference* archives = cache->tables[CACHE_SPRITES]->archives;
+
+        struct SpritePack* sprite_pack = sprite_pack_new_decode(archive->data, archive->data_size);
+        if( !sprite_pack )
+        {
+            printf("Failed to load sprites pack\n");
+            return 1;
+        }
+
+        sprite_packs[sprite_index] = *sprite_pack;
+        // DO NOT FREE
+        // sprite_pack_free(sprite_pack);
+
+        if( sprite_index == 0 )
+        {
+            int* pixels = sprite_get_pixels(&sprite_pack->sprites[0], sprite_pack->palette, 1);
+
+            if( !pixels )
+                return 1;
+
+            // Replace the existing BMP writing code with:
+            write_bmp_file(
+                "sprite.bmp",
+                pixels,
+                sprite_pack->sprites[0].width,
+                sprite_pack->sprites[0].height);
+            free(pixels);
+        }
+
+        // return 0;
+
+        int file_id = archives[cache->tables[CACHE_SPRITES]->ids[sprite_index]].index;
+
+        sprite_ids[sprite_index] = file_id;
+
+        cache_archive_free(archive);
+    }
+
+    struct TextureDefinition* texture_definition = &texture_definitions[0];
+    int* pixels = texture_pixels_new_from_definition(
+        texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1.0);
+    write_bmp_file("texture.bmp", pixels, 128, 128);
+    free(pixels);
+
+    return 0;
 
     struct MapTerrain* map_terrain = map_terrain_new_from_cache(cache, 50, 50);
     if( !map_terrain )

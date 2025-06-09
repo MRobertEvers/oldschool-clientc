@@ -378,6 +378,7 @@ decode_tile(
     struct SceneTile* tile,
     int shape,
     int rotation,
+    int texture_id,
     int tile_coord_x,
     int tile_coord_y,
     int tile_coord_z,
@@ -617,6 +618,24 @@ decode_tile(
     int* face_colors_hsl_b = (int*)malloc(face_count * sizeof(int));
     int* face_colors_hsl_c = (int*)malloc(face_count * sizeof(int));
 
+    int* face_texture_ids = NULL;
+    int* face_texture_u_a = NULL;
+    int* face_texture_v_a = NULL;
+    int* face_texture_u_b = NULL;
+    int* face_texture_v_b = NULL;
+    int* face_texture_u_c = NULL;
+    int* face_texture_v_c = NULL;
+    if( texture_id != -1 )
+    {
+        face_texture_ids = (int*)malloc(face_count * sizeof(int));
+        face_texture_u_a = (int*)malloc(face_count * sizeof(int));
+        face_texture_v_a = (int*)malloc(face_count * sizeof(int));
+        face_texture_u_b = (int*)malloc(face_count * sizeof(int));
+        face_texture_v_b = (int*)malloc(face_count * sizeof(int));
+        face_texture_u_c = (int*)malloc(face_count * sizeof(int));
+        face_texture_v_c = (int*)malloc(face_count * sizeof(int));
+    }
+
     for( int i = 0; i < face_count; i++ )
     {
         bool is_overlay = face_indices[i * 4] == 1;
@@ -640,27 +659,70 @@ decode_tile(
         int color_a;
         int color_b;
         int color_c;
+        int face_texture_id = -1;
+
         if( is_overlay )
         {
             color_a = overlay_colors_hsl[a];
             color_b = overlay_colors_hsl[b];
             color_c = overlay_colors_hsl[c];
+
+            face_texture_id = texture_id;
+            if( texture_id != -1 )
+                face_texture_ids[i] = texture_id;
         }
         else
         {
             color_a = underlay_colors_hsl[a];
             color_b = underlay_colors_hsl[b];
             color_c = underlay_colors_hsl[c];
+
+            face_texture_id = -1;
+            if( texture_id != -1 )
+                face_texture_ids[i] = -1;
         }
 
         face_colors_hsl_a[i] = color_a;
         face_colors_hsl_b[i] = color_b;
         face_colors_hsl_c[i] = color_c;
 
-        if( color_a == INVALID_HSL_COLOR )
+        if( color_a == INVALID_HSL_COLOR && texture_id == -1 )
+        {
             valid_faces[i] = 0;
+            continue;
+        }
         else
             valid_faces[i] = 1;
+
+        //  const u0 = (this.vertexX[a] - tileX) / TILE_SIZE;
+        // const v0 = (this.vertexZ[a] - tileY) / TILE_SIZE;
+
+        // const u1 = (this.vertexX[b] - tileX) / TILE_SIZE;
+        // const v1 = (this.vertexZ[b] - tileY) / TILE_SIZE;
+
+        // const u2 = (this.vertexX[c] - tileX) / TILE_SIZE;
+        // const v2 = (this.vertexZ[c] - tileY) / TILE_SIZE;
+
+        int u0 = (vertex_x[a] - tile_x) / TILE_SIZE;
+        int v0 = (vertex_z[a] - tile_y) / TILE_SIZE;
+
+        int u1 = (vertex_x[b] - tile_x) / TILE_SIZE;
+        int v1 = (vertex_z[b] - tile_y) / TILE_SIZE;
+
+        int u2 = (vertex_x[c] - tile_x) / TILE_SIZE;
+        int v2 = (vertex_z[c] - tile_y) / TILE_SIZE;
+
+        if( texture_id != -1 )
+        {
+            face_texture_u_a[i] = u0;
+            face_texture_v_a[i] = v0;
+
+            face_texture_u_b[i] = u1;
+            face_texture_v_b[i] = v1;
+
+            face_texture_u_c[i] = u2;
+            face_texture_v_c[i] = v2;
+        }
     }
 
     free(underlay_colors_hsl);
@@ -674,6 +736,14 @@ decode_tile(
     tile->faces_a = faces_a;
     tile->faces_b = faces_b;
     tile->faces_c = faces_c;
+
+    tile->face_texture_ids = face_texture_ids;
+    tile->face_texture_u_a = face_texture_u_a;
+    tile->face_texture_v_a = face_texture_v_a;
+    tile->face_texture_u_b = face_texture_u_b;
+    tile->face_texture_v_b = face_texture_v_b;
+    tile->face_texture_u_c = face_texture_u_c;
+    tile->face_texture_v_c = face_texture_v_c;
 
     tile->valid_faces = valid_faces;
     tile->face_color_hsl_a = face_colors_hsl_a;
@@ -693,6 +763,13 @@ error:
     free(face_colors_hsl_a);
     free(face_colors_hsl_b);
     free(face_colors_hsl_c);
+    free(face_texture_ids);
+    free(face_texture_u_a);
+    free(face_texture_v_a);
+    free(face_texture_u_b);
+    free(face_texture_v_b);
+    free(face_texture_u_c);
+    free(face_texture_v_c);
     return false;
 }
 extern int g_cos_table[2048];
@@ -990,11 +1067,13 @@ scene_tiles_new_from_map_terrain(
 
                 int shape = overlay_id == -1 ? 0 : (map->shape + 1);
                 int rotation = overlay_id == -1 ? 0 : map->rotation;
+                int texture_id = overlay_id == -1 ? -1 : overlay->texture;
 
                 bool success = decode_tile(
                     scene_tile,
                     shape,
                     rotation,
+                    texture_id,
                     x,
                     y,
                     z,
