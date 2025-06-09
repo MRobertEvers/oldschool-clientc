@@ -264,6 +264,54 @@ adjust_underlay_light(int hsl, int light)
     return (hsl & 0xff80) + light;
 }
 
+// export function adjustOverlayLight(hsl: number, light: number) {
+//     if (hsl === -2) {
+//         return INVALID_HSL_COLOR;
+//     } else if (hsl === -1) {
+//         if (light < 2) {
+//             light = 2;
+//         } else if (light > 126) {
+//             light = 126;
+//         }
+
+//         return light;
+//     } else {
+//         light = ((hsl & 127) * light) >> 7;
+//         if (light < 2) {
+//             light = 2;
+//         } else if (light > 126) {
+//             light = 126;
+//         }
+
+//         return (hsl & 0xff80) + light;
+//     }
+// }
+
+static int
+adjust_overlay_light(int hsl, int light)
+{
+    if( hsl == -2 )
+        return -1;
+
+    if( hsl == -1 )
+    {
+        if( light < 2 )
+            light = 2;
+        else if( light > 126 )
+            light = 126;
+
+        return light;
+    }
+
+    light = ((hsl & 127) * light) >> 7;
+    if( light < 2 )
+        light = 2;
+    else if( light > 126 )
+        light = 126;
+
+    return (hsl & 0xff80) + light;
+}
+
 // export function mixHsl(hslA: number, hslB: number): number {
 //     if (hslA === INVALID_HSL_COLOR || hslB === INVALID_HSL_COLOR) {
 //         return INVALID_HSL_COLOR;
@@ -364,10 +412,10 @@ decode_tile(
     blended_underlay_hsl_ne = adjust_underlay_light(blended_underlay_hsl_ne, light_ne);
     blended_underlay_hsl_nw = adjust_underlay_light(blended_underlay_hsl_nw, light_nw);
 
-    int overlay_hsl_sw = adjust_underlay_light(overlay_hsl, light_sw);
-    int overlay_hsl_se = adjust_underlay_light(overlay_hsl, light_se);
-    int overlay_hsl_ne = adjust_underlay_light(overlay_hsl, light_ne);
-    int overlay_hsl_nw = adjust_underlay_light(overlay_hsl, light_nw);
+    int overlay_hsl_sw = adjust_overlay_light(overlay_hsl, light_sw);
+    int overlay_hsl_se = adjust_overlay_light(overlay_hsl, light_se);
+    int overlay_hsl_ne = adjust_overlay_light(overlay_hsl, light_ne);
+    int overlay_hsl_nw = adjust_overlay_light(overlay_hsl, light_nw);
 
     for( int i = 0; i < vertex_count; i++ )
     {
@@ -908,8 +956,6 @@ scene_tiles_new_from_map_terrain(
                         underlay_hsl_ne = underlay_hsl_sw;
                     if( underlay_hsl_nw == -1 )
                         underlay_hsl_nw = underlay_hsl_sw;
-
-                    overlay_hsl = underlay_hsl_sw;
                 }
 
                 if( overlay_id != -1 )
@@ -922,8 +968,8 @@ scene_tiles_new_from_map_terrain(
                     overlay_hsl = palette_rgb_to_hsl16(overlay->rgb_color);
                 }
 
-                int shape = map->overlay_id == -1 ? 0 : map->shape + 1;
-                int rotation = map->overlay_id == -1 ? 0 : map->rotation;
+                int shape = overlay_id == -1 ? 0 : map->shape + 1;
+                int rotation = overlay_id == -1 ? 0 : map->rotation;
 
                 bool success = decode_tile(
                     scene_tile,
