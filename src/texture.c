@@ -1,7 +1,9 @@
 #include "texture.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -25,47 +27,30 @@ draw_scanline_texture(
     int u_end,
     int v_start,
     int v_end,
-    // Max texture is 4096x4096... TODO: Document this.
     int* texels,
     int texture_width)
 {
-    // screen_x_t = xt / zt
-    // xt = screen_x_t * zt
     int dx = screen_x_end - screen_x_start;
-
-    // Apply FOV scaling to x and y coordinates
-    // Note: Because FOV scaling (Tangent stuff) and z-near (multiplication by Z_NEAR) are not
-    // dependent on z, we only need to adjust u and v by the transformation that is dependent on z,
-    // which is 1/z.
-
-    // Note: This does not account for FOV scaling and assumes FOV of 90 degrees
-    // Pre-compute u/z and v/z values
-    // Since perspective correction depends on z, we need to interpolate u/z and v/z
-    int u_over_z_start = (u_start << 16) / z_start;
-    int u_over_z_end = (u_end << 16) / z_end;
-    int v_over_z_start = (v_start << 16) / z_start;
-    int v_over_z_end = (v_end << 16) / z_end;
-
-    // Pre-compute 1/z values
-    int inv_z_start = (1 << 16) / z_start;
-    int inv_z_end = (1 << 16) / z_end;
+    if( dx <= 0 )
+        return;
 
     for( int x = screen_x_start; x < screen_x_end; ++x )
     {
         int t_ish16 = ((x - screen_x_start) << 16) / dx;
 
-        // Interpolate 1/z
-        int inv_z = interpolate_ish12(inv_z_start, inv_z_end, t_ish16);
+        // Linear interpolation of texture coordinates
+        uint32_t ut = u_start + ((u_end - u_start) * t_ish16 >> 16);
+        uint32_t vt = v_start + ((v_end - v_start) * t_ish16 >> 16);
 
-        // Interpolate u/z and v/z
-        int u_over_z = interpolate_ish12(u_over_z_start, u_over_z_end, t_ish16);
-        int v_over_z = interpolate_ish12(v_over_z_start, v_over_z_end, t_ish16);
+        // Convert to texture space (assuming texture coordinates are in 16.16 fixed point)
+        int texel_x = (ut) >> 20;
+        int texel_y = (vt) >> 20;
 
-        // Divide by 1/z to get final texture coordinates
-        int ut = (u_over_z << 12) / inv_z;
-        int vt = (v_over_z << 12) / inv_z;
+        // Clamp texture coordinates
+        texel_x = MAX(0, MIN(texel_x, texture_width - 1));
+        texel_y = MAX(0, MIN(texel_y, texture_width - 1));
 
-        int texel_index = (vt * texture_width + ut) >> 12;
+        int texel_index = texel_y * texture_width + texel_x;
         int color = texels[texel_index];
         pixel_buffer[y * stride_width + x] = color;
     }
@@ -120,6 +105,26 @@ raster_texture(
         SWAP(z1, z2);
     }
 
+    // Convert texture coordinates to 16.16 fixed point
+    u0 <<= 20;
+    u1 <<= 20;
+    u2 <<= 20;
+    v0 <<= 20;
+    v1 <<= 20;
+    v2 <<= 20;
+
+    // Pre-compute perspective-correct values
+    int u_over_z0 = (u0) / z0;
+    int u_over_z1 = (u1) / z1;
+    int u_over_z2 = (u2) / z2;
+    int v_over_z0 = (v0) / z0;
+    int v_over_z1 = (v1) / z1;
+    int v_over_z2 = (v2) / z2;
+
+    int inv_z0 = (1 << 16) / (z0);
+    int inv_z1 = (1 << 16) / (z1);
+    int inv_z2 = (1 << 16) / (z2);
+
     // Calculate deltas for interpolation
     int dy1 = y1 - y0;
     int dy2 = y2 - y0;
@@ -130,18 +135,18 @@ raster_texture(
     int dx2 = x2 - x0;
     int dx3 = x2 - x1;
 
-    int dz1 = z1 - z0;
-    int dz2 = z2 - z0;
-    int dz3 = z2 - z1;
+    // Compute perspective-correct deltas
+    int du_over_z1 = u_over_z1 - u_over_z0;
+    int du_over_z2 = u_over_z2 - u_over_z0;
+    int du_over_z3 = u_over_z2 - u_over_z1;
 
-    // Compute texture coordinate deltas
-    int du1 = u1 - u0;
-    int du2 = u2 - u0;
-    int du3 = u2 - u1;
+    int dv_over_z1 = v_over_z1 - v_over_z0;
+    int dv_over_z2 = v_over_z2 - v_over_z0;
+    int dv_over_z3 = v_over_z2 - v_over_z1;
 
-    int dv1 = v1 - v0;
-    int dv2 = v2 - v0;
-    int dv3 = v2 - v1;
+    int dinv_z1 = inv_z1 - inv_z0;
+    int dinv_z2 = inv_z2 - inv_z0;
+    int dinv_z3 = inv_z2 - inv_z1;
 
     // Rasterize upper triangle
     if( dy1 > 0 )
@@ -157,27 +162,34 @@ raster_texture(
             int start_x = x0 + ((dx1 * t1) >> 16);
             int end_x = x0 + ((dx2 * t2) >> 16);
 
-            int start_u = u0 + ((du1 * t1) >> 16);
-            int end_u = u0 + ((du2 * t2) >> 16);
+            // Interpolate perspective-correct values
+            int start_u_over_z = u_over_z0 + ((du_over_z1 * t1) >> 20);
+            int end_u_over_z = u_over_z0 + ((du_over_z2 * t2) >> 20);
 
-            int start_v = v0 + ((dv1 * t1) >> 16);
-            int end_v = v0 + ((dv2 * t2) >> 16);
+            int start_v_over_z = v_over_z0 + ((dv_over_z1 * t1) >> 20);
+            int end_v_over_z = v_over_z0 + ((dv_over_z2 * t2) >> 20);
 
-            int start_z = z0 + ((dz1 * t1) >> 16);
-            int end_z = z0 + ((dz2 * t2) >> 16);
+            int start_inv_z = inv_z0 + ((dinv_z1 * t1) >> 16);
+            int end_inv_z = inv_z0 + ((dinv_z2 * t2) >> 16);
 
             // Ensure left-to-right rasterization
             if( start_x > end_x )
             {
                 SWAP(start_x, end_x);
-                SWAP(start_u, end_u);
-                SWAP(start_v, end_v);
-                SWAP(start_z, end_z);
+                SWAP(start_u_over_z, end_u_over_z);
+                SWAP(start_v_over_z, end_v_over_z);
+                SWAP(start_inv_z, end_inv_z);
             }
 
-            // Clip x coordinates
-            start_x = MAX(0, MIN(start_x, screen_width - 1));
-            end_x = MAX(0, MIN(end_x, screen_width - 1));
+            // Convert perspective-correct values to screen space
+            int start_z = (1 << 16) / start_inv_z;
+            int end_z = (1 << 16) / end_inv_z;
+
+            // Convert to final texture coordinates (in 16.16 fixed point)
+            int start_u = (start_u_over_z * start_z);
+            int end_u = (end_u_over_z * end_z);
+            int start_v = (start_v_over_z * start_z);
+            int end_v = (end_v_over_z * end_z);
 
             draw_scanline_texture(
                 pixel_buffer,
@@ -210,27 +222,34 @@ raster_texture(
             int start_x = x1 + ((dx3 * t1) >> 16);
             int end_x = x0 + ((dx2 * t2) >> 16);
 
-            int start_u = u1 + ((du3 * t1) >> 16);
-            int end_u = u0 + ((du2 * t2) >> 16);
+            // Interpolate perspective-correct values
+            int start_u_over_z = u_over_z1 + ((du_over_z3 * t1) >> 20);
+            int end_u_over_z = u_over_z0 + ((du_over_z2 * t2) >> 20);
 
-            int start_v = v1 + ((dv3 * t1) >> 16);
-            int end_v = v0 + ((dv2 * t2) >> 16);
+            int start_v_over_z = v_over_z1 + ((dv_over_z3 * t1) >> 20);
+            int end_v_over_z = v_over_z0 + ((dv_over_z2 * t2) >> 20);
 
-            int start_z = z1 + ((dz3 * t1) >> 16);
-            int end_z = z0 + ((dz2 * t2) >> 16);
+            int start_inv_z = inv_z1 + ((dinv_z3 * t1) >> 16);
+            int end_inv_z = inv_z0 + ((dinv_z2 * t2) >> 16);
 
             // Ensure left-to-right rasterization
             if( start_x > end_x )
             {
                 SWAP(start_x, end_x);
-                SWAP(start_u, end_u);
-                SWAP(start_v, end_v);
-                SWAP(start_z, end_z);
+                SWAP(start_u_over_z, end_u_over_z);
+                SWAP(start_v_over_z, end_v_over_z);
+                SWAP(start_inv_z, end_inv_z);
             }
 
-            // Clip x coordinates
-            start_x = MAX(0, MIN(start_x, screen_width - 1));
-            end_x = MAX(0, MIN(end_x, screen_width - 1));
+            // Convert perspective-correct values to screen space
+            int start_z = (1 << 16) / start_inv_z;
+            int end_z = (1 << 16) / end_inv_z;
+
+            // Convert to final texture coordinates (in 16.16 fixed point)
+            int start_u = (start_u_over_z * start_z);
+            int end_u = (end_u_over_z * end_z);
+            int start_v = (start_v_over_z * start_z);
+            int end_v = (end_v_over_z * end_z);
 
             draw_scanline_texture(
                 pixel_buffer,

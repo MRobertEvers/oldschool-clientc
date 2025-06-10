@@ -14,7 +14,7 @@ extern int g_tan_table[2048];
  *
  */
 struct ProjectedTriangle
-project(
+project_orthographic(
     int x,
     int y,
     int z,
@@ -26,17 +26,16 @@ project(
     int scene_z,
     int camera_yaw,
     int camera_pitch,
-    int camera_roll,
-    int fov, // FOV in units of (2π/2048) radians
-    int near_clip,
-    int screen_width,
-    int screen_height)
+    int camera_roll)
 {
     struct ProjectedTriangle projected_triangle = { 0 };
 
     assert(camera_pitch >= 0 && camera_pitch < 2048);
     assert(camera_yaw >= 0 && camera_yaw < 2048);
     assert(camera_roll >= 0 && camera_roll < 2048);
+    assert(yaw >= 0 && yaw < 2048);
+    assert(pitch >= 0 && pitch < 2048);
+    assert(roll >= 0 && roll < 2048);
 
     int cos_camera_yaw = g_cos_table[camera_yaw];
     int sin_camera_yaw = g_sin_table[camera_yaw];
@@ -44,11 +43,6 @@ project(
     int sin_camera_pitch = g_sin_table[camera_pitch];
     int cos_camera_roll = g_cos_table[camera_roll];
     int sin_camera_roll = g_sin_table[camera_roll];
-
-    // Field of view parameters
-    // Conceptually, Z_NEAR is the location of the screen. At this point, points on the near plane
-    // are projected to the screen with a scale factor of Z_FOCAL/z_final = fov_scale
-    const int UNIT_SCALE = 512;
 
     // Apply model rotation
     int sin_yaw = g_sin_table[yaw];
@@ -91,8 +85,8 @@ project(
     // Then rotate around X-axis (scene pitch)
     int y_scene = y_final * cos_camera_pitch - z_scene * sin_camera_pitch;
     y_scene >>= 16;
-    int z_scene2 = y_final * sin_camera_pitch + z_scene * cos_camera_pitch;
-    z_scene2 >>= 16;
+    int z_final_scene = y_final * sin_camera_pitch + z_scene * cos_camera_pitch;
+    z_final_scene >>= 16;
 
     // Finally rotate around Z-axis (scene roll)
     int x_final_scene = x_scene * cos_camera_roll - y_scene * sin_camera_roll;
@@ -100,9 +94,47 @@ project(
     int y_final_scene = x_scene * sin_camera_roll + y_scene * cos_camera_roll;
     y_final_scene >>= 16;
 
-    int z_final = z_scene2;
+    projected_triangle.x = x_final_scene;
+    projected_triangle.y = y_final_scene;
+    projected_triangle.z = z_final_scene;
+
+    return projected_triangle;
+}
+
+/**
+ * Treats the camera as if it is at the origin (0, 0, 0)
+ *
+ * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
+ *
+ */
+struct ProjectedTriangle
+project_perspective(
+    int x,
+    int y,
+    int z,
+    int fov, // FOV in units of (2π/2048) radians
+    int near_clip)
+{
+    assert(z != 0);
+
+    struct ProjectedTriangle projected_triangle = { 0 };
+
+    const int UNIT_SCALE = 512;
 
     // Perspective projection with FOV
+
+    // z is the distance from the camera.
+    // It is a judgement call to say when to cull the triangle, but
+    // things you can consider are the average size of models.
+    // It is up to the caller to cull the triangle if it is too close or behind the camera.
+    // e.g. z <= 50
+    if( z < near_clip )
+    {
+        memset(&projected_triangle, 0x00, sizeof(projected_triangle));
+        projected_triangle.z = z;
+        projected_triangle.clipped = 1;
+        return projected_triangle;
+    }
 
     // Calculate FOV scale based on the angle using sin/cos tables
     // fov is in units of (2π/2048) radians
@@ -117,33 +149,63 @@ project(
     assert(fov_half < 1536);
     int cot_fov_half = g_tan_table[1536 - fov_half];
 
-    if( z_final < near_clip )
-    {
-        memset(&projected_triangle, 0x00, sizeof(projected_triangle));
-        projected_triangle.z1 = z_final;
-        projected_triangle.clipped = 1;
-        return projected_triangle;
-    }
-
-    assert(z_final != 0);
-
     // Apply FOV scaling to x and y coordinates
-    int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z_final;
+    int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
 
     // Project to screen space with FOV
-    int screen_x = ((x_final_scene * fov_scale_ish16) >> 16) + screen_width / 2;
-    int screen_y = ((y_final_scene * fov_scale_ish16) >> 16) + screen_height / 2;
-
-    // z is the distance from the camera.
-    // It is a judgement call to say when to cull the triangle, but
-    // things you can consider are the average size of models.
-    // It is up to the caller to cull the triangle if it is too close or behind the camera.
-    // e.g. z_final <= 50
+    int screen_x = ((x * fov_scale_ish16) >> 16);
+    int screen_y = ((y * fov_scale_ish16) >> 16);
 
     // Set the projected triangle
-    projected_triangle.x1 = screen_x;
-    projected_triangle.y1 = screen_y;
-    projected_triangle.z1 = z_final;
+    projected_triangle.x = screen_x;
+    projected_triangle.y = screen_y;
+    projected_triangle.z = z;
+    projected_triangle.clipped = 0;
+
+    return projected_triangle;
+}
+
+/**
+ * Treats the camera as if it is at the origin (0, 0, 0)
+ *
+ * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
+ *
+ */
+struct ProjectedTriangle
+project(
+    int x,
+    int y,
+    int z,
+    int yaw,
+    int pitch,
+    int roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_yaw,
+    int camera_pitch,
+    int camera_roll,
+    int fov, // FOV in units of (2π/2048) radians
+    int near_clip)
+{
+    struct ProjectedTriangle projected_triangle;
+
+    projected_triangle = project_orthographic(
+        x,
+        y,
+        z,
+        yaw,
+        pitch,
+        roll,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_yaw,
+        camera_pitch,
+        camera_roll);
+
+    projected_triangle = project_perspective(
+        projected_triangle.x, projected_triangle.y, projected_triangle.z, fov, near_clip);
 
     return projected_triangle;
 }

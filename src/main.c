@@ -515,9 +515,7 @@ project_vertices(
         camera_pitch,
         camera_roll,
         camera_fov,
-        NEAR_PLANE_Z, // near clip
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT);
+        NEAR_PLANE_Z);
 
     if( projected_triangle.clipped )
     {
@@ -535,7 +533,7 @@ project_vertices(
     // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
     // // So the depth is the z projection distance from the origin of the model.
     // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
-    int model_origin_z_projection = projected_triangle.z1;
+    int model_origin_z_projection = projected_triangle.z;
 
     for( int i = 0; i < num_vertices; i++ )
     {
@@ -553,9 +551,7 @@ project_vertices(
             camera_pitch,
             camera_roll,
             camera_fov,
-            NEAR_PLANE_Z,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT);
+            NEAR_PLANE_Z);
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step
@@ -567,9 +563,9 @@ project_vertices(
         }
         else
         {
-            screen_vertices_x[i] = projected_triangle.x1;
-            screen_vertices_y[i] = projected_triangle.y1;
-            screen_vertices_z[i] = projected_triangle.z1 - model_origin_z_projection;
+            screen_vertices_x[i] = projected_triangle.x;
+            screen_vertices_y[i] = projected_triangle.y;
+            screen_vertices_z[i] = projected_triangle.z - model_origin_z_projection;
         }
     }
 }

@@ -123,16 +123,14 @@ project_vertices(
         camera_pitch,
         camera_roll,
         camera_fov,
-        near_plane_z,
-        screen_width,
-        screen_height);
+        near_plane_z);
 
     // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
     // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
     // // So the depth is the z projection distance from the origin of the model.
     // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
 
-    int model_origin_z_projection = projected_triangle.z1;
+    int model_origin_z_projection = projected_triangle.z;
 
     if( projected_triangle.clipped )
     {
@@ -161,9 +159,7 @@ project_vertices(
             camera_pitch,
             camera_roll,
             camera_fov,
-            near_plane_z,
-            screen_width,
-            screen_height);
+            near_plane_z);
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step
@@ -175,9 +171,9 @@ project_vertices(
         }
         else
         {
-            screen_vertices_x[i] = projected_triangle.x1;
-            screen_vertices_y[i] = projected_triangle.y1;
-            screen_vertices_z[i] = projected_triangle.z1 - model_origin_z_projection;
+            screen_vertices_x[i] = projected_triangle.x;
+            screen_vertices_y[i] = projected_triangle.y;
+            screen_vertices_z[i] = projected_triangle.z - model_origin_z_projection;
         }
     }
 }
@@ -230,9 +226,7 @@ project_vertices_terrain(
             camera_pitch,
             camera_roll,
             camera_fov,
-            near_plane_z,
-            screen_width,
-            screen_height);
+            near_plane_z);
 
         if( projected_triangle.clipped )
         {
@@ -243,9 +237,9 @@ project_vertices_terrain(
         }
         else
         {
-            screen_vertices_x[i] = projected_triangle.x1;
-            screen_vertices_y[i] = projected_triangle.y1;
-            screen_vertices_z[i] = projected_triangle.z1;
+            screen_vertices_x[i] = projected_triangle.x;
+            screen_vertices_y[i] = projected_triangle.y;
+            screen_vertices_z[i] = projected_triangle.z;
         }
     }
 
@@ -556,16 +550,6 @@ raster_osrs_single_texture(
     if( texture_id == -1 )
         return;
 
-    struct SpritePack* sprite_pack = NULL;
-    for( int i = 0; i < sprite_count; i++ )
-    {
-        if( sprite_ids[i] == texture_id )
-        {
-            sprite_pack = &sprite_packs[i];
-            break;
-        }
-    }
-
     struct TextureDefinition* texture_definition = NULL;
     for( int i = 0; i < texture_count; i++ )
     {
@@ -597,14 +581,14 @@ raster_osrs_single_texture(
         z1,
         z2,
         z3,
-        u0,
-        u1,
-        u2,
-        v0,
-        v1,
-        v2,
+        u0 * 128,
+        u1 * 128,
+        u2 * 128,
+        v0 * 128,
+        v1 * 128,
+        v2 * 128,
         texels,
-        sprite_pack->sprites[0].width * sprite_pack->sprites[0].height);
+        128);
 
     free(texels);
 }
