@@ -115,8 +115,6 @@ project_perspective(
     int fov, // FOV in units of (2π/2048) radians
     int near_clip)
 {
-    assert(z != 0);
-
     struct ProjectedTriangle projected_triangle = { 0 };
 
     const int UNIT_SCALE = 512;
@@ -135,6 +133,8 @@ project_perspective(
         projected_triangle.clipped = 1;
         return projected_triangle;
     }
+
+    assert(z != 0);
 
     // Calculate FOV scale based on the angle using sin/cos tables
     // fov is in units of (2π/2048) radians

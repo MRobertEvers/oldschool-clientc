@@ -1290,27 +1290,27 @@ main(int argc, char* argv[])
         // Create test texture in upper left corner
 
         // Draw textured triangle in upper left
-        raster_texture(
-            (int*)pixel_buffer,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            10,
-            100,
-            100, // x coords
-            10,
-            10,
-            100, // y coords
-            0,
-            31,
-            31, // z coords
-            0,
-            31,
-            31, // u coords
-            0,
-            0,
-            31, // v coords
-            texels,
-            TEXTURE_WIDTH);
+        // raster_texture(
+        //     (int*)pixel_buffer,
+        //     SCREEN_WIDTH,
+        //     SCREEN_HEIGHT,
+        //     10,
+        //     100,
+        //     100, // x coords
+        //     10,
+        //     10,
+        //     100, // y coords
+        //     0,
+        //     31,
+        //     31, // z coords
+        //     0,
+        //     31,
+        //     31, // u coords
+        //     0,
+        //     0,
+        //     31, // v coords
+        //     texels,
+        //     TEXTURE_WIDTH);
 
         // render pixel buffer to SDL_Surface
         SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(

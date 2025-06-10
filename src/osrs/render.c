@@ -200,8 +200,6 @@ project_vertices_terrain(
     int camera_pitch,
     int camera_roll,
     int camera_fov,
-    int screen_width,
-    int screen_height,
     int near_plane_z)
 {
     struct ProjectedTriangle projected_triangle;
@@ -244,6 +242,96 @@ project_vertices_terrain(
     }
 
     return;
+clipped:
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        screen_vertices_x[i] = -5000;
+        screen_vertices_y[i] = -5000;
+        screen_vertices_z[i] = -5000;
+    }
+
+    return;
+}
+
+/**
+ * Terrain is treated as a single, so the origin test does not apply.
+ */
+static void
+project_vertices_terrain_textured(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int num_vertices,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int model_yaw,
+    int model_pitch,
+    int model_roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_yaw,
+    int camera_pitch,
+    int camera_roll,
+    int camera_fov,
+    int near_plane_z)
+{
+    struct ProjectedTriangle projected_triangle;
+
+    assert(camera_pitch >= 0 && camera_pitch < 2048);
+    assert(camera_yaw >= 0 && camera_yaw < 2048);
+    assert(camera_roll >= 0 && camera_roll < 2048);
+
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        projected_triangle = project_orthographic(
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_yaw,
+            model_pitch,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_yaw,
+            camera_pitch,
+            camera_roll);
+
+        assert(projected_triangle.clipped == 0);
+
+        orthographic_vertices_x[i] = projected_triangle.x;
+        orthographic_vertices_y[i] = projected_triangle.y;
+        orthographic_vertices_z[i] = projected_triangle.z;
+
+        projected_triangle = project_perspective(
+            orthographic_vertices_x[i],
+            orthographic_vertices_y[i],
+            orthographic_vertices_z[i],
+            camera_fov,
+            near_plane_z);
+
+        if( projected_triangle.clipped )
+        {
+            // Since terrain vertexes are calculated as a single mesh rather,
+            // than around some origin, assume that if any vertex is clipped,
+            // then the entire terrain is clipped.
+            goto clipped;
+        }
+        else
+        {
+            screen_vertices_x[i] = projected_triangle.x;
+            screen_vertices_y[i] = projected_triangle.y;
+            screen_vertices_z[i] = projected_triangle.z;
+        }
+    }
+
+    return;
+
 clipped:
     for( int i = 0; i < num_vertices; i++ )
     {
@@ -311,12 +399,12 @@ bucket_sort_by_average_depth(
             //              --------
             //              ^ model xz radius
             //    Note: There is a lower cylinder as well, but it is not used in depth sorting.
-            // The reason is uses the models "upper ys" (max_y) is because OSRS assumes the camera
-            // will always be above the model, so the closest vertices to the camera will be towards
-            // the top of the model. (i.e. lowest z values)
-            // Relative to the model's origin, there may be negative z values, but always |z| <
-            // min_depth so the min_depth is used to adjust all z values to be positive, but
-            // maintain relative order.
+            // The reason is uses the models "upper ys" (max_y) is because OSRS assumes the
+            // camera will always be above the model, so the closest vertices to the camera will
+            // be towards the top of the model. (i.e. lowest z values) Relative to the model's
+            // origin, there may be negative z values, but always |z| < min_depth so the
+            // min_depth is used to adjust all z values to be positive, but maintain relative
+            // order.
             int depth_average = (za + zb + zc) / 3 + model_min_depth;
 
             if( depth_average < 1500 && depth_average > 0 )
@@ -497,13 +585,18 @@ raster_osrs_single_gouraud(
 void
 raster_osrs_single_texture(
     struct Pixel* pixel_buffer,
+    int width,
+    int height,
     int face,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
+    int* screen_vertex_x,
+    int* screen_vertex_y,
+    int* screen_vertex_z,
+    int* orthographic_vertex_x,
+    int* orthographic_vertex_y,
+    int* orthographic_vertex_z,
     int* face_texture_ids,
     int* face_texture_u_a,
     int* face_texture_v_a,
@@ -518,21 +611,29 @@ raster_osrs_single_texture(
     int* sprite_ids,
     int sprite_count,
     int offset_x,
-    int offset_y,
-    int screen_width,
-    int screen_height)
+    int offset_y)
 {
     int index = face;
 
-    int x1 = vertex_x[face_indices_a[index]] + offset_x;
-    int y1 = vertex_y[face_indices_a[index]] + offset_y;
-    int z1 = vertex_z[face_indices_a[index]];
-    int x2 = vertex_x[face_indices_b[index]] + offset_x;
-    int y2 = vertex_y[face_indices_b[index]] + offset_y;
-    int z2 = vertex_z[face_indices_b[index]];
-    int x3 = vertex_x[face_indices_c[index]] + offset_x;
-    int y3 = vertex_y[face_indices_c[index]] + offset_y;
-    int z3 = vertex_z[face_indices_c[index]];
+    int x1 = screen_vertex_x[face_indices_a[index]] + offset_x;
+    int y1 = screen_vertex_y[face_indices_a[index]] + offset_y;
+    int z1 = screen_vertex_z[face_indices_a[index]];
+    int x2 = screen_vertex_x[face_indices_b[index]] + offset_x;
+    int y2 = screen_vertex_y[face_indices_b[index]] + offset_y;
+    int z2 = screen_vertex_z[face_indices_b[index]];
+    int x3 = screen_vertex_x[face_indices_c[index]] + offset_x;
+    int y3 = screen_vertex_y[face_indices_c[index]] + offset_y;
+    int z3 = screen_vertex_z[face_indices_c[index]];
+
+    int ortho_x1 = orthographic_vertex_x[face_indices_a[index]];
+    int ortho_y1 = orthographic_vertex_y[face_indices_a[index]];
+    int ortho_z1 = orthographic_vertex_z[face_indices_a[index]];
+    int ortho_x2 = orthographic_vertex_x[face_indices_b[index]];
+    int ortho_y2 = orthographic_vertex_y[face_indices_b[index]];
+    int ortho_z2 = orthographic_vertex_z[face_indices_b[index]];
+    int ortho_x3 = orthographic_vertex_x[face_indices_c[index]];
+    int ortho_y3 = orthographic_vertex_y[face_indices_c[index]];
+    int ortho_z3 = orthographic_vertex_z[face_indices_c[index]];
 
     // Skip triangle if any vertex was clipped
     // TODO: Perhaps use a separate buffer to track this.
@@ -570,8 +671,8 @@ raster_osrs_single_texture(
 
     raster_texture(
         pixel_buffer,
-        screen_width,
-        screen_height,
+        width,
+        height,
         x1,
         x2,
         x3,
@@ -581,12 +682,21 @@ raster_osrs_single_texture(
         z1,
         z2,
         z3,
-        u0 * 128,
-        u1 * 128,
-        u2 * 128,
-        v0 * 128,
-        v1 * 128,
-        v2 * 128,
+        ortho_x1,
+        ortho_x2,
+        ortho_x3,
+        ortho_y1,
+        ortho_y2,
+        ortho_y3,
+        ortho_z1,
+        ortho_z2,
+        ortho_z3,
+        u0 * 127,
+        u1 * 127,
+        u2 * 127,
+        v0 * 127,
+        v1 * 127,
+        v2 * 127,
         texels,
         128);
 
@@ -845,6 +955,11 @@ render_scene_tiles(
     int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
     int* screen_vertices_z = (int*)malloc(20 * sizeof(int));
 
+    // These are the vertices prior to perspective correction.
+    int* ortho_vertices_x = (int*)malloc(20 * sizeof(int));
+    int* ortho_vertices_y = (int*)malloc(20 * sizeof(int));
+    int* ortho_vertices_z = (int*)malloc(20 * sizeof(int));
+
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
         // y = 5, and x = 40 is the left corner of the church.
@@ -878,30 +993,6 @@ render_scene_tiles(
                 if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
                     continue;
 
-                project_vertices_terrain(
-                    screen_vertices_x,
-                    screen_vertices_y,
-                    screen_vertices_z,
-                    tile->vertex_count,
-                    tile->vertex_x,
-                    tile->vertex_y,
-                    tile->vertex_z,
-                    0,
-                    0,
-                    0,
-                    scene_x,
-                    // world_y is scene_z
-                    scene_z,
-                    // world_z is scene_y
-                    scene_y,
-                    camera_yaw,
-                    camera_pitch,
-                    camera_roll,
-                    fov,
-                    width,
-                    height,
-                    near_plane_z);
-
                 for( int face = 0; face < tile->face_count; face++ )
                 {
                     if( tile->valid_faces[face] == 0 )
@@ -909,6 +1000,28 @@ render_scene_tiles(
 
                     if( tile->face_texture_ids == NULL )
                     {
+                        project_vertices_terrain(
+                            screen_vertices_x,
+                            screen_vertices_y,
+                            screen_vertices_z,
+                            tile->vertex_count,
+                            tile->vertex_x,
+                            tile->vertex_y,
+                            tile->vertex_z,
+                            0,
+                            0,
+                            0,
+                            scene_x,
+                            // world_y is scene_z
+                            scene_z,
+                            // world_z is scene_y
+                            scene_y,
+                            camera_yaw,
+                            camera_pitch,
+                            camera_roll,
+                            fov,
+                            near_plane_z);
+
                         raster_osrs_single_gouraud(
                             pixel_buffer,
                             face,
@@ -929,8 +1042,35 @@ render_scene_tiles(
                     }
                     else
                     {
+                        project_vertices_terrain_textured(
+                            screen_vertices_x,
+                            screen_vertices_y,
+                            screen_vertices_z,
+                            ortho_vertices_x,
+                            ortho_vertices_y,
+                            ortho_vertices_z,
+                            tile->vertex_count,
+                            tile->vertex_x,
+                            tile->vertex_y,
+                            tile->vertex_z,
+                            0,
+                            0,
+                            0,
+                            scene_x,
+                            // world_y is scene_z
+                            scene_z,
+                            // world_z is scene_y
+                            scene_y,
+                            camera_yaw,
+                            camera_pitch,
+                            camera_roll,
+                            fov,
+                            near_plane_z);
+
                         raster_osrs_single_texture(
                             pixel_buffer,
+                            width,
+                            height,
                             face,
                             tile->faces_a,
                             tile->faces_b,
@@ -938,6 +1078,9 @@ render_scene_tiles(
                             screen_vertices_x,
                             screen_vertices_y,
                             screen_vertices_z,
+                            ortho_vertices_x,
+                            ortho_vertices_y,
+                            ortho_vertices_z,
                             tile->face_texture_ids,
                             tile->face_texture_u_a,
                             tile->face_texture_v_a,
@@ -952,9 +1095,7 @@ render_scene_tiles(
                             sprite_ids,
                             sprite_count,
                             0,
-                            0,
-                            width,
-                            height);
+                            0);
                     }
                 }
             }

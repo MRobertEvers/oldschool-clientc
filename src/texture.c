@@ -17,7 +17,8 @@ interpolate_ish12(int x_begin, int x_end, int t_sh16)
 void
 draw_scanline_texture(
     int* pixel_buffer,
-    int stride_width,
+    int screen_width,
+    int screen_height,
     int y,
     int screen_x_start,
     int screen_x_end,
@@ -34,42 +35,157 @@ draw_scanline_texture(
     if( dx <= 0 )
         return;
 
-    for( int x = screen_x_start; x < screen_x_end; ++x )
+    // Initialize fixed-point values (16.16 format)
+    int u = u_start << 16;
+    int v = v_start << 16;
+    int z = z_start << 16;
+
+    // Calculate steps per pixel using fixed-point arithmetic
+    int du = ((u_end - u_start) << 16) / dx;
+    int dv = ((v_end - v_start) << 16) / dx;
+    int dz = ((z_end - z_start) << 16) / dx;
+
+    // Pre-calculate texture width shift for faster multiplication
+    int texture_width_shift = 0;
+    int temp_width = texture_width;
+    while( temp_width > 1 )
     {
-        int t_ish16 = ((x - screen_x_start) << 16) / dx;
+        texture_width_shift++;
+        temp_width >>= 1;
+    }
 
-        // Linear interpolation of texture coordinates
-        uint32_t ut = u_start + ((u_end - u_start) * t_ish16 >> 16);
-        uint32_t vt = v_start + ((v_end - v_start) * t_ish16 >> 16);
-
-        // Convert to texture space (assuming texture coordinates are in 16.16 fixed point)
-        int texel_x = (ut) >> 20;
-        int texel_y = (vt) >> 20;
+    // Draw the scanline
+    screen_x_start = MAX(screen_x_start, 0);
+    screen_x_end = MIN(screen_x_end, screen_width - 1);
+    for( int x = screen_x_start; x < screen_x_end; x++ )
+    {
+        int texel_x = (u >> 16);
+        int texel_y = (v >> 16);
 
         // Clamp texture coordinates
-        texel_x = MAX(0, MIN(texel_x, texture_width - 1));
-        texel_y = MAX(0, MIN(texel_y, texture_width - 1));
+        assert(texel_x >= 0 && texel_x < texture_width && texel_y >= 0 && texel_y < texture_width);
 
-        int texel_index = texel_y * texture_width + texel_x;
+        // Calculate texture index using shift instead of multiplication
+        int texel_index = (texel_y << texture_width_shift) + texel_x;
         int color = texels[texel_index];
-        pixel_buffer[y * stride_width + x] = color;
+
+        // Write pixel
+        assert(y >= 0 && y < screen_height && x >= 0 && x < screen_width);
+        pixel_buffer[y * screen_width + x] = color;
+
+        // Step texture coordinates
+        u += du;
+        v += dv;
+        z += dz;
     }
 }
 
+// Helper struct to hold edge stepping state
+typedef struct
+{
+    int x;     // Current x position
+    int z;     // Current z position
+    int u;     // Current u texture coordinate
+    int v;     // Current v texture coordinate
+    int dx;    // x step per scanline
+    int dz;    // z step per scanline
+    int du;    // u step per scanline
+    int dv;    // v step per scanline
+    int x_rem; // Remainder for x stepping
+    int z_rem; // Remainder for z stepping
+    int u_rem; // Remainder for u stepping
+    int v_rem; // Remainder for v stepping
+    int dy;    // Total y distance
+} EdgeStepper;
+
+static void
+init_edge_stepper(
+    EdgeStepper* stepper,
+    int x0,
+    int y0,
+    int z0,
+    int u0,
+    int v0,
+    int x1,
+    int y1,
+    int z1,
+    int u1,
+    int v1)
+{
+    int dy = y1 - y0;
+    if( dy == 0 )
+    {
+        // Handle horizontal edge case
+        stepper->dx = 0;
+        stepper->dz = 0;
+        stepper->du = 0;
+        stepper->dv = 0;
+        stepper->x_rem = 0;
+        stepper->z_rem = 0;
+        stepper->u_rem = 0;
+        stepper->v_rem = 0;
+        stepper->dy = 0;
+        return;
+    }
+
+    // Calculate steps using fixed-point arithmetic (16.16)
+    int dx = x1 - x0;
+    int dz = z1 - z0;
+    int du = u1 - u0;
+    int dv = v1 - v0;
+
+    // Initialize current values
+    stepper->x = x0 << 16;
+    stepper->z = z0 << 16;
+    stepper->u = u0 << 16;
+    stepper->v = v0 << 16;
+    stepper->dy = dy;
+
+    // Calculate steps per scanline
+    stepper->dx = (dx << 16) / dy;
+    stepper->dz = (dz << 16) / dy;
+    stepper->du = (du << 16) / dy;
+    stepper->dv = (dv << 16) / dy;
+
+    // Initialize remainders
+    stepper->x_rem = 0;
+    stepper->z_rem = 0;
+    stepper->u_rem = 0;
+    stepper->v_rem = 0;
+}
+
+static void
+step_edge(EdgeStepper* stepper)
+{
+    stepper->x += stepper->dx;
+    stepper->z += stepper->dz;
+    stepper->u += stepper->du;
+    stepper->v += stepper->dv;
+}
+
 void
-raster_texture(
+raster_texture2(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
-    int x0,
-    int x1,
-    int x2,
-    int y0,
-    int y1,
-    int y2,
-    int z0,
-    int z1,
-    int z2,
+    int screen_x0,
+    int screen_x1,
+    int screen_x2,
+    int screen_y0,
+    int screen_y1,
+    int screen_y2,
+    int screen_z0,
+    int screen_z1,
+    int screen_z2,
+    int orthographic_x0,
+    int orthographic_x1,
+    int orthographic_x2,
+    int orthographic_y0,
+    int orthographic_y1,
+    int orthographic_y2,
+    int orthographic_z0,
+    int orthographic_z1,
+    int orthographic_z2,
     int u0,
     int u1,
     int u2,
@@ -80,191 +196,401 @@ raster_texture(
     int texture_width)
 {
     // Sort vertices by y-coordinate
-    if( y1 < y0 )
+    if( screen_y1 < screen_y0 )
     {
-        SWAP(y0, y1);
-        SWAP(x0, x1);
+        SWAP(screen_y0, screen_y1);
+        SWAP(screen_x0, screen_x1);
+        SWAP(screen_z0, screen_z1);
+        SWAP(orthographic_x0, orthographic_x1);
+        SWAP(orthographic_y0, orthographic_y1);
+        SWAP(orthographic_z0, orthographic_z1);
         SWAP(u0, u1);
         SWAP(v0, v1);
-        SWAP(z0, z1);
     }
-    if( y2 < y0 )
+    if( screen_y2 < screen_y0 )
     {
-        SWAP(y0, y2);
-        SWAP(x0, x2);
+        SWAP(screen_y0, screen_y2);
+        SWAP(screen_x0, screen_x2);
+        SWAP(screen_z0, screen_z2);
+        SWAP(orthographic_x0, orthographic_x2);
+        SWAP(orthographic_y0, orthographic_y2);
+        SWAP(orthographic_z0, orthographic_z2);
         SWAP(u0, u2);
         SWAP(v0, v2);
-        SWAP(z0, z2);
     }
-    if( y2 < y1 )
+    if( screen_y2 < screen_y1 )
     {
-        SWAP(y1, y2);
-        SWAP(x1, x2);
+        SWAP(screen_y1, screen_y2);
+        SWAP(screen_x1, screen_x2);
+        SWAP(screen_z1, screen_z2);
+        SWAP(orthographic_x1, orthographic_x2);
+        SWAP(orthographic_y1, orthographic_y2);
+        SWAP(orthographic_z1, orthographic_z2);
         SWAP(u1, u2);
         SWAP(v1, v2);
-        SWAP(z1, z2);
     }
 
-    // Convert texture coordinates to 16.16 fixed point
-    u0 <<= 20;
-    u1 <<= 20;
-    u2 <<= 20;
-    v0 <<= 20;
-    v1 <<= 20;
-    v2 <<= 20;
+    /**
+     * Texture coordinates are mapped from face coordinates.
+     * Note: Modal coordinates are the same as screen coordinates prior to projection (aka the
+     * orthographic coordinates).
+     *
+     * We have been given model coordinates, so we need to convert them to face coordinates, which
+     * we can then map to texture coordinates.
+     *
+     * Math: A normal vector defines the coefficients of a plane equation.
+     * For example, if the normal vector is (A, B, C), the plane equation is Ax + By + Cz + D = 0.
+     *
+     * Math: The cross product of two vectors give a vector that is perpendicular to both.
+     * With that, if we have two vectors on a plane, we can find the normal vector by taking the
+     * cross product.
+     */
 
-    // Pre-compute perspective-correct values
-    int u_over_z0 = (u0) / z0;
-    int u_over_z1 = (u1) / z1;
-    int u_over_z2 = (u2) / z2;
-    int v_over_z0 = (v0) / z0;
-    int v_over_z1 = (v1) / z1;
-    int v_over_z2 = (v2) / z2;
+    /**
+     * AB and CA are vectors defining the face plane in model coordinates. AB and CA are the basis
+     * of the face coordinates, and we represent the AB and CA vectors in model coordinates because,
+     * as we scan across the screen, we are traversing model coordinates.
+     * And we know how to map AB => (u, v), and CA => (u, v).
+     */
+    int ABx = orthographic_x0 - orthographic_x1;
+    int ABy = orthographic_y0 - orthographic_y1;
+    int ABz = orthographic_z0 - orthographic_z1;
 
-    int inv_z0 = (1 << 16) / (z0);
-    int inv_z1 = (1 << 16) / (z1);
-    int inv_z2 = (1 << 16) / (z2);
+    int CAx = orthographic_x2 - orthographic_x0;
+    int CAy = orthographic_y2 - orthographic_y0;
+    int CAz = orthographic_z2 - orthographic_z0;
 
-    // Calculate deltas for interpolation
-    int dy1 = y1 - y0;
-    int dy2 = y2 - y0;
-    int dy3 = y2 - y1;
+    /**
+     * U is the cross product of OA and AB in model coordinates.
+     *
+     * We want this because as we step across the screen, we are traversing model coordinates, and
+     * we want to convert that to the AB, CA basis.
+     *
+     *
+     * The abbreviation "hat" means "basis vector".
+     *  "sz" means "screen z basis vector".
+     *  "sx" means "screen x basis vector".
+     *  "sy" means "screen y basis vector".
+     *
+     * We use the term "stride" to mean x direction across the screen and "step" to mean y.
+     */
 
-    // Compute x coordinates for each scanline
-    int dx1 = x1 - x0;
-    int dx2 = x2 - x0;
-    int dx3 = x2 - x1;
+    // u
+    int determinant_CAxy_originxy = (CAx * orthographic_y0 - CAy * orthographic_x0);
 
-    // Compute perspective-correct deltas
-    int du_over_z1 = u_over_z1 - u_over_z0;
-    int du_over_z2 = u_over_z2 - u_over_z0;
-    int du_over_z3 = u_over_z2 - u_over_z1;
+    int u_szhat = determinant_CAxy_originxy << 14;
 
-    int dv_over_z1 = v_over_z1 - v_over_z0;
-    int dv_over_z2 = v_over_z2 - v_over_z0;
-    int dv_over_z3 = v_over_z2 - v_over_z1;
+    // u_stride
+    int determinant_CAyz_originyz = (CAy * orthographic_z0 - CAz * orthographic_y0);
 
-    int dinv_z1 = inv_z1 - inv_z0;
-    int dinv_z2 = inv_z2 - inv_z0;
-    int dinv_z3 = inv_z2 - inv_z1;
+    int u_sxhat = determinant_CAyz_originyz << 8;
 
-    // Rasterize upper triangle
-    if( dy1 > 0 )
+    // u_step
+    int determinant_CAzx_originxz = (CAz * orthographic_x0 - CAx * orthographic_z0);
+
+    int u_syhat = determinant_CAzx_originxz << 5;
+
+    // v
+    int determinant_ABxy_originxy = (ABx * orthographic_y0 - ABy * orthographic_x0);
+    int v_szhat = determinant_ABxy_originxy << 14;
+
+    // v_stride
+    int determinant_AByz_originyz = (ABy * orthographic_z0 - ABz * orthographic_y0);
+
+    int v_sxhat_stride = determinant_AByz_originyz << 8;
+
+    // v_step
+    int determinant_ABzx_originzx = (ABz * orthographic_x0 - ABx * orthographic_z0);
+
+    int v_syhat_step = determinant_ABzx_originzx << 5;
+
+    /**
+     * For perspective correct projection, we also need to know the "z" coordinate of the point in
+     * model coordinates. As we scan across the screen, the normal vector given by AB cross CA gives
+     * the plane equation for the face in model coordinates. We then look at the z component of the
+     * point on that plane in model coordinates which we use for perspective projection.
+     */
+
+    // w
+    int determinant_ABxy_CAxy = (ABx * CAy - ABy * CAx);
+    int w_szhat = determinant_ABxy_CAxy << 14;
+
+    // w_stride
+    int determinant_AByz_CAyz = (ABy * CAz - ABz * CAy);
+    int w_sxhat_stride = determinant_AByz_CAyz << 8;
+
+    // w_step
+    int determinant_ABzx_CAzx = (ABz * CAx - ABx * CAz);
+    int w_syhat_step = determinant_ABzx_CAzx << 5;
+}
+
+void
+raster_texture(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int screen_x0,
+    int screen_x1,
+    int screen_x2,
+    int screen_y0,
+    int screen_y1,
+    int screen_y2,
+    int screen_z0,
+    int screen_z1,
+    int screen_z2,
+    int orthographic_x0,
+    int orthographic_x1,
+    int orthographic_x2,
+    int orthographic_y0,
+    int orthographic_y1,
+    int orthographic_y2,
+    int orthographic_z0,
+    int orthographic_z1,
+    int orthographic_z2,
+    int u0,
+    int u1,
+    int u2,
+    int v0,
+    int v1,
+    int v2,
+    int* texels,
+    int texture_width)
+{
+    // Sort vertices by y-coordinate
+    if( screen_y1 < screen_y0 )
     {
-        for( int y = y0; y < y1; y++ )
+        SWAP(screen_y0, screen_y1);
+        SWAP(screen_x0, screen_x1);
+        SWAP(screen_z0, screen_z1);
+        SWAP(orthographic_x0, orthographic_x1);
+        SWAP(orthographic_y0, orthographic_y1);
+        SWAP(orthographic_z0, orthographic_z1);
+        SWAP(u0, u1);
+        SWAP(v0, v1);
+    }
+    if( screen_y2 < screen_y0 )
+    {
+        SWAP(screen_y0, screen_y2);
+        SWAP(screen_x0, screen_x2);
+        SWAP(screen_z0, screen_z2);
+        SWAP(orthographic_x0, orthographic_x2);
+        SWAP(orthographic_y0, orthographic_y2);
+        SWAP(orthographic_z0, orthographic_z2);
+        SWAP(u0, u2);
+        SWAP(v0, v2);
+    }
+    if( screen_y2 < screen_y1 )
+    {
+        SWAP(screen_y1, screen_y2);
+        SWAP(screen_x1, screen_x2);
+        SWAP(screen_z1, screen_z2);
+        SWAP(orthographic_x1, orthographic_x2);
+        SWAP(orthographic_y1, orthographic_y2);
+        SWAP(orthographic_z1, orthographic_z2);
+        SWAP(u1, u2);
+        SWAP(v1, v2);
+    }
+
+    // Initialize edge steppers for both parts of the triangle
+    EdgeStepper left_edge, right_edge;
+
+    // Top part of triangle (y0 to y1)
+    if( screen_y1 > screen_y0 )
+    {
+        // Determine which edge is left and right
+        int x_mid = screen_x0 +
+                    ((screen_x1 - screen_x0) * (screen_y1 - screen_y0)) / (screen_y2 - screen_y0);
+
+        if( screen_x1 < x_mid )
+        {
+            // Left edge: (x0,y0) to (x1,y1)
+            init_edge_stepper(
+                &left_edge,
+                screen_x0,
+                screen_y0,
+                screen_z0,
+                u0,
+                v0,
+                screen_x1,
+                screen_y1,
+                screen_z1,
+                u1,
+                v1);
+            // Right edge: (x0,y0) to (x2,y2)
+            init_edge_stepper(
+                &right_edge,
+                screen_x0,
+                screen_y0,
+                screen_z0,
+                u0,
+                v0,
+                screen_x2,
+                screen_y2,
+                screen_z2,
+                u2,
+                v2);
+        }
+        else
+        {
+            // Left edge: (x0,y0) to (x2,y2)
+            init_edge_stepper(
+                &left_edge,
+                screen_x0,
+                screen_y0,
+                screen_z0,
+                u0,
+                v0,
+                screen_x2,
+                screen_y2,
+                screen_z2,
+                u2,
+                v2);
+            // Right edge: (x0,y0) to (x1,y1)
+            init_edge_stepper(
+                &right_edge,
+                screen_x0,
+                screen_y0,
+                screen_z0,
+                u0,
+                v0,
+                screen_x1,
+                screen_y1,
+                screen_z1,
+                u1,
+                v1);
+        }
+
+        // Draw top part of triangle
+        for( int y = screen_y0; y < screen_y1; y++ )
         {
             if( y < 0 || y >= screen_height )
                 continue;
 
-            int t1 = ((y - y0) << 16) / dy1;
-            int t2 = ((y - y0) << 16) / dy2;
-
-            int start_x = x0 + ((dx1 * t1) >> 16);
-            int end_x = x0 + ((dx2 * t2) >> 16);
-
-            // Interpolate perspective-correct values
-            int start_u_over_z = u_over_z0 + ((du_over_z1 * t1) >> 20);
-            int end_u_over_z = u_over_z0 + ((du_over_z2 * t2) >> 20);
-
-            int start_v_over_z = v_over_z0 + ((dv_over_z1 * t1) >> 20);
-            int end_v_over_z = v_over_z0 + ((dv_over_z2 * t2) >> 20);
-
-            int start_inv_z = inv_z0 + ((dinv_z1 * t1) >> 16);
-            int end_inv_z = inv_z0 + ((dinv_z2 * t2) >> 16);
-
-            // Ensure left-to-right rasterization
-            if( start_x > end_x )
-            {
-                SWAP(start_x, end_x);
-                SWAP(start_u_over_z, end_u_over_z);
-                SWAP(start_v_over_z, end_v_over_z);
-                SWAP(start_inv_z, end_inv_z);
-            }
-
-            // Convert perspective-correct values to screen space
-            int start_z = (1 << 16) / start_inv_z;
-            int end_z = (1 << 16) / end_inv_z;
-
-            // Convert to final texture coordinates (in 16.16 fixed point)
-            int start_u = (start_u_over_z * start_z);
-            int end_u = (end_u_over_z * end_z);
-            int start_v = (start_v_over_z * start_z);
-            int end_v = (end_v_over_z * end_z);
+            int x_start = left_edge.x >> 16;
+            int x_end = right_edge.x >> 16;
+            int z_start = left_edge.z >> 16;
+            int z_end = right_edge.z >> 16;
+            int u_start = left_edge.u >> 16;
+            int u_end = right_edge.u >> 16;
+            int v_start = left_edge.v >> 16;
+            int v_end = right_edge.v >> 16;
 
             draw_scanline_texture(
                 pixel_buffer,
                 screen_width,
+                screen_height,
                 y,
-                start_x,
-                end_x,
-                start_z,
-                end_z,
-                start_u,
-                end_u,
-                start_v,
-                end_v,
+                x_start,
+                x_end,
+                z_start,
+                z_end,
+                u_start,
+                u_end,
+                v_start,
+                v_end,
                 texels,
                 texture_width);
+
+            step_edge(&left_edge);
+            step_edge(&right_edge);
         }
     }
 
-    // Rasterize lower triangle
-    if( dy3 > 0 )
+    // Bottom part of triangle (y1 to y2)
+    if( screen_y2 > screen_y1 )
     {
-        for( int y = y1; y <= y2; y++ )
+        // Determine which edge is left and right
+        if( screen_x1 < screen_x2 )
+        {
+            // Left edge: (x1,y1) to (x2,y2)
+            init_edge_stepper(
+                &left_edge,
+                screen_x1,
+                screen_y1,
+                screen_z1,
+                u1,
+                v1,
+                screen_x2,
+                screen_y2,
+                screen_z2,
+                u2,
+                v2);
+            // Right edge: (x0,y0) to (x2,y2)
+            init_edge_stepper(
+                &right_edge,
+                screen_x0,
+                screen_y0,
+                screen_z0,
+                u0,
+                v0,
+                screen_x2,
+                screen_y2,
+                screen_z2,
+                u2,
+                v2);
+        }
+        else
+        {
+            // Left edge: (x0,y0) to (x2,y2)
+            init_edge_stepper(
+                &left_edge,
+                screen_x0,
+                screen_y0,
+                screen_z0,
+                u0,
+                v0,
+                screen_x2,
+                screen_y2,
+                screen_z2,
+                u2,
+                v2);
+            // Right edge: (x1,y1) to (x2,y2)
+            init_edge_stepper(
+                &right_edge,
+                screen_x1,
+                screen_y1,
+                screen_z1,
+                u1,
+                v1,
+                screen_x2,
+                screen_y2,
+                screen_z2,
+                u2,
+                v2);
+        }
+
+        // Draw bottom part of triangle
+        for( int y = screen_y1; y < screen_y2; y++ )
         {
             if( y < 0 || y >= screen_height )
                 continue;
-
-            int t1 = ((y - y1) << 16) / dy3;
-            int t2 = ((y - y0) << 16) / dy2;
-
-            int start_x = x1 + ((dx3 * t1) >> 16);
-            int end_x = x0 + ((dx2 * t2) >> 16);
-
-            // Interpolate perspective-correct values
-            int start_u_over_z = u_over_z1 + ((du_over_z3 * t1) >> 20);
-            int end_u_over_z = u_over_z0 + ((du_over_z2 * t2) >> 20);
-
-            int start_v_over_z = v_over_z1 + ((dv_over_z3 * t1) >> 20);
-            int end_v_over_z = v_over_z0 + ((dv_over_z2 * t2) >> 20);
-
-            int start_inv_z = inv_z1 + ((dinv_z3 * t1) >> 16);
-            int end_inv_z = inv_z0 + ((dinv_z2 * t2) >> 16);
-
-            // Ensure left-to-right rasterization
-            if( start_x > end_x )
-            {
-                SWAP(start_x, end_x);
-                SWAP(start_u_over_z, end_u_over_z);
-                SWAP(start_v_over_z, end_v_over_z);
-                SWAP(start_inv_z, end_inv_z);
-            }
-
-            // Convert perspective-correct values to screen space
-            int start_z = (1 << 16) / start_inv_z;
-            int end_z = (1 << 16) / end_inv_z;
-
-            // Convert to final texture coordinates (in 16.16 fixed point)
-            int start_u = (start_u_over_z * start_z);
-            int end_u = (end_u_over_z * end_z);
-            int start_v = (start_v_over_z * start_z);
-            int end_v = (end_v_over_z * end_z);
+            int x_start = left_edge.x >> 16;
+            int x_end = right_edge.x >> 16;
+            int z_start = left_edge.z >> 16;
+            int z_end = right_edge.z >> 16;
+            int u_start = left_edge.u >> 16;
+            int u_end = right_edge.u >> 16;
+            int v_start = left_edge.v >> 16;
+            int v_end = right_edge.v >> 16;
 
             draw_scanline_texture(
                 pixel_buffer,
                 screen_width,
+                screen_height,
                 y,
-                start_x,
-                end_x,
-                start_z,
-                end_z,
-                start_u,
-                end_u,
-                start_v,
-                end_v,
+                x_start,
+                x_end,
+                z_start,
+                z_end,
+                u_start,
+                u_end,
+                v_start,
+                v_end,
                 texels,
                 texture_width);
+
+            step_edge(&left_edge);
+            step_edge(&right_edge);
         }
     }
 }

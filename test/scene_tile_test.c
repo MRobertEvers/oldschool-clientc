@@ -527,7 +527,7 @@ main()
         // DO NOT FREE
         // sprite_pack_free(sprite_pack);
 
-        if( sprite_index == 0 )
+        if( sprite_index == 448 )
         {
             int* pixels = sprite_get_pixels(&sprite_pack->sprites[0], sprite_pack->palette, 1);
 
@@ -536,7 +536,7 @@ main()
 
             // Replace the existing BMP writing code with:
             write_bmp_file(
-                "sprite.bmp",
+                "sprite_448.bmp",
                 pixels,
                 sprite_pack->sprites[0].width,
                 sprite_pack->sprites[0].height);
