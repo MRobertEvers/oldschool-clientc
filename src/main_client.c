@@ -508,11 +508,11 @@ game_init(struct Game* game)
 
     game->npc_id = 3127; // TzTok Jad
     // 3242, -26, 3202, -245, 1862
-    game->camera_x = 3242;
-    game->camera_y = -26;
-    game->camera_z = 3202;
-    game->camera_pitch = 105;
-    game->camera_yaw = 284;
+    game->camera_x = 600;
+    game->camera_y = 600;
+    game->camera_z = 2800;
+    game->camera_pitch = 0;
+    game->camera_yaw = 0;
 
     game->model_pitch = 0;
     game->model_roll = 0;
@@ -722,33 +722,32 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     int* pixel_buffer = platform->pixel_buffer;
     memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
-    // struct Model* model = model_new_from_cache(game->cache, game->model_id);
+    struct Model* model = model_new_from_cache(game->cache, game->model_id);
 
-    // struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map,
-    // model->vertex_count);
+    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
 
-    // render_model_frame(
-    //     pixel_buffer,
-    //     SCREEN_WIDTH,
-    //     SCREEN_HEIGHT,
-    //     10,
-    //     game->model_yaw,
-    //     game->model_pitch,
-    //     game->model_roll,
-    //     game->camera_x,
-    //     game->camera_y,
-    //     game->camera_z,
-    //     game->camera_pitch,
-    //     game->camera_yaw,
-    //     game->camera_roll,
-    //     game->camera_fov,
-    //     model,
-    //     bones,
-    //     game->frames[game->frame_id],
-    //     game->framemap);
+    render_model_frame(
+        pixel_buffer,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        10,
+        game->model_yaw,
+        game->model_pitch,
+        game->model_roll,
+        game->camera_x,
+        game->camera_y,
+        game->camera_z,
+        game->camera_pitch,
+        game->camera_yaw,
+        game->camera_roll,
+        game->camera_fov,
+        model,
+        bones,
+        game->frames[game->frame_id],
+        game->framemap);
 
-    //     model_free(model);
-    // modelbones_free(bones);
+    model_free(model);
+    modelbones_free(bones);
 
     // render_map_terrain(
     //     pixel_buffer,
