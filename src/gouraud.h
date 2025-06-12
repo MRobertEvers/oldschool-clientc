@@ -53,4 +53,32 @@ void raster_gouraud(
     int color0,
     int color1,
     int color2);
+
+void raster_gouraud2(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int x0,
+    int x1,
+    int x2,
+    int y0,
+    int y1,
+    int y2,
+    int color0,
+    int color1,
+    int color2);
+
+void raster_gouraud3(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int x0,
+    int x1,
+    int x2,
+    int y0,
+    int y1,
+    int y2,
+    int color0,
+    int color1,
+    int color2);
 #endif

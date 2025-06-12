@@ -567,7 +567,7 @@ raster_osrs_single_gouraud(
     color_b = g_hsl16_to_rgb_table[color_b];
     color_c = g_hsl16_to_rgb_table[color_c];
 
-    raster_gouraud(
+    raster_gouraud3(
         pixel_buffer,
         screen_width,
         screen_height,
@@ -967,6 +967,9 @@ render_scene_tiles(
         {
             for( int x = 0; x < MAP_TERRAIN_X; x++ )
             {
+                // if( x != 5 || y != 0 )
+                //     continue;
+
                 int i = MAP_TILE_COORD(x, y, z);
                 struct SceneTile* tile = &tiles[i];
 
