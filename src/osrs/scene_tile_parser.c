@@ -686,6 +686,15 @@ decode_tile(
         face_colors_hsl_b[i] = color_b;
         face_colors_hsl_c[i] = color_c;
 
+        // TODO: Skip texture rendering right now
+
+        if( color_a == INVALID_HSL_COLOR )
+            face_colors_hsl_a[i] = 0;
+        if( color_b == INVALID_HSL_COLOR )
+            face_colors_hsl_b[i] = 0;
+        if( color_c == INVALID_HSL_COLOR )
+            face_colors_hsl_c[i] = 0;
+
         if( color_a == INVALID_HSL_COLOR && texture_id == -1 )
         {
             valid_faces[i] = 0;

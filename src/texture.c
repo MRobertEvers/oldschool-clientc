@@ -264,7 +264,8 @@ raster_texture2(
      * U is the cross product of OA and AB in model coordinates.
      *
      * We want this because as we step across the screen, we are traversing model coordinates, and
-     * we want to convert that to the AB, CA basis.
+     * we want to convert that to the AB, CA basis. This plane will give us the "AB" component of
+     * the face coordinates as we scan the screen.
      *
      *
      * The abbreviation "hat" means "basis vector".
@@ -313,15 +314,15 @@ raster_texture2(
 
     // w
     int determinant_ABxy_CAxy = (ABx * CAy - ABy * CAx);
-    int w_szhat = determinant_ABxy_CAxy << 14;
+    int w_szhat = determinant_ABxy_CAxy;
 
     // w_stride
     int determinant_AByz_CAyz = (ABy * CAz - ABz * CAy);
-    int w_sxhat_stride = determinant_AByz_CAyz << 8;
+    int w_sxhat_stride = determinant_AByz_CAyz;
 
     // w_step
     int determinant_ABzx_CAzx = (ABz * CAx - ABx * CAz);
-    int w_syhat_step = determinant_ABzx_CAzx << 5;
+    int w_syhat_step = determinant_ABzx_CAzx;
 }
 
 void
