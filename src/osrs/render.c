@@ -987,15 +987,6 @@ render_scene_tiles(
         {
             for( int x = 0; x < MAP_TERRAIN_X; x++ )
             {
-                // if( x > 10 || y > 10 )
-                //     continue;
-
-                // if( x != 8 || y != 7 )
-                //     continue;
-
-                // if( y < 60 )
-                //     continue;
-
                 int i = MAP_TILE_COORD(x, y, z);
                 struct SceneTile* tile = &tiles[i];
 
@@ -1010,8 +1001,8 @@ render_scene_tiles(
                 int tile_center_z = z * 240;
 
                 int dx = tile_center_x + scene_x;
-                int dy = tile_center_y + scene_z;
-                int dz = tile_center_z + scene_y;
+                int dy = tile_center_y + scene_y;
+                int dz = tile_center_z + scene_z;
 
                 // Simple squared distance - avoid sqrt for performance
                 int dist_sq = dx * dx;
