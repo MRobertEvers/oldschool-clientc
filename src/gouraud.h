@@ -54,7 +54,7 @@ void raster_gouraud(
     int color1_hsl16,
     int color2_hsl16);
 
-void raster_gouraud2(
+void raster_gouraud_lerp(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
@@ -67,33 +67,5 @@ void raster_gouraud2(
     int color0,
     int color1,
     int color2);
-
-void raster_gouraud3(
-    int* pixel_buffer,
-    int screen_width,
-    int screen_height,
-    int x0,
-    int x1,
-    int x2,
-    int y0,
-    int y1,
-    int y2,
-    int color0,
-    int color1,
-    int color2);
-
-void gouraudTriangle(
-    int* pixels,
-    int xA,
-    int xB,
-    int xC,
-    int yA,
-    int yB,
-    int yC,
-    int colorA,
-    int colorB,
-    int colorC);
-
-void gouraudRaster(int x0, int x1, int color0, int color1, int* dst, int offset, int length);
 
 #endif

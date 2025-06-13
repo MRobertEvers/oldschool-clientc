@@ -576,14 +576,6 @@ raster_osrs_single_gouraud(
     assert(color_b >= 0 && color_b < 65536);
     assert(color_c >= 0 && color_c < 65536);
 
-    // color_a = g_hsl16_to_rgb_table[color_a];
-    // color_b = g_hsl16_to_rgb_table[color_b];
-    // color_c = g_hsl16_to_rgb_table[color_c];
-
-    // color_a = 14102;
-    // color_b = 14102;
-    // color_c = 14100;
-
     // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
 
     raster_gouraud(

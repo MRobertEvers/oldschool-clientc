@@ -80,14 +80,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                             return;
 //                                         }
 
-//                                         drawGouraudScanline(pixels, y1, 0, 0, x2 >>
+//                                         gouraud_deob_draw_scanline(pixels, y1, 0, 0, x2 >>
 //                                         14, x3 >> 14, hsl1, var19); x3 += var17; x2 += var15;
 //                                         hsl1 += var20;
 //                                         y1 += WIDTH;
 //                                     }
 //                                 }
 
-//                                 drawGouraudScanline(pixels, y1, 0, 0, x1 >> 14, x3
+//                                 gouraud_deob_draw_scanline(pixels, y1, 0, 0, x1 >> 14, x3
 //                                 >> 14, hsl1, var19); x3 += var17; x1 += var16; hsl1 += var20; y1
 //                                 += WIDTH;
 //                             }
@@ -105,14 +105,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                             return;
 //                                         }
 
-//                                         drawGouraudScanline(pixels, y1, 0, 0, x3 >>
+//                                         gouraud_deob_draw_scanline(pixels, y1, 0, 0, x3 >>
 //                                         14, x2 >> 14, hsl1, var19); x3 += var17; x2 += var15;
 //                                         hsl1 += var20;
 //                                         y1 += WIDTH;
 //                                     }
 //                                 }
 
-//                                 drawGouraudScanline(pixels, y1, 0, 0, x3 >> 14, x1
+//                                 gouraud_deob_draw_scanline(pixels, y1, 0, 0, x3 >> 14, x1
 //                                 >> 14, hsl1, var19); x3 += var17; x1 += var16; hsl1 += var20; y1
 //                                 += WIDTH;
 //                             }
@@ -146,14 +146,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                             return;
 //                                         }
 
-//                                         drawGouraudScanline(pixels, y1, 0, 0, x3 >>
+//                                         gouraud_deob_draw_scanline(pixels, y1, 0, 0, x3 >>
 //                                         14, x1 >> 14, hsl1, var19); x3 += var15; x1 += var16;
 //                                         hsl1 += var20;
 //                                         y1 += WIDTH;
 //                                     }
 //                                 }
 
-//                                 drawGouraudScanline(pixels, y1, 0, 0, x2 >> 14, x1
+//                                 gouraud_deob_draw_scanline(pixels, y1, 0, 0, x2 >> 14, x1
 //                                 >> 14, hsl1, var19); x2 += var17; x1 += var16; hsl1 += var20; y1
 //                                 += WIDTH;
 //                             }
@@ -171,14 +171,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                             return;
 //                                         }
 
-//                                         drawGouraudScanline(pixels, y1, 0, 0, x1 >>
+//                                         gouraud_deob_draw_scanline(pixels, y1, 0, 0, x1 >>
 //                                         14, x3 >> 14, hsl1, var19); x3 += var15; x1 += var16;
 //                                         hsl1 += var20;
 //                                         y1 += WIDTH;
 //                                     }
 //                                 }
 
-//                                 drawGouraudScanline(pixels, y1, 0, 0, x1 >> 14, x2
+//                                 gouraud_deob_draw_scanline(pixels, y1, 0, 0, x1 >> 14, x2
 //                                 >> 14, hsl1, var19); x2 += var17; x1 += var16; hsl1 += var20; y1
 //                                 += WIDTH;
 //                             }
@@ -225,14 +225,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                             return;
 //                                         }
 
-//                                         drawGouraudScanline(pixels, y2, 0, 0, x3 >>
+//                                         gouraud_deob_draw_scanline(pixels, y2, 0, 0, x3 >>
 //                                         14, x1 >> 14, hsl2, var19); x1 += var16; x3 += var17;
 //                                         hsl2 += var20;
 //                                         y2 += WIDTH;
 //                                     }
 //                                 }
 
-//                                 drawGouraudScanline(pixels, y2, 0, 0, x2 >> 14, x1
+//                                 gouraud_deob_draw_scanline(pixels, y2, 0, 0, x2 >> 14, x1
 //                                 >> 14, hsl2, var19); x1 += var16; x2 += var15; hsl2 += var20; y2
 //                                 += WIDTH;
 //                             }
@@ -250,14 +250,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                             return;
 //                                         }
 
-//                                         drawGouraudScanline(pixels, y2, 0, 0, x1 >>
+//                                         gouraud_deob_draw_scanline(pixels, y2, 0, 0, x1 >>
 //                                         14, x3 >> 14, hsl2, var19); x1 += var16; x3 += var17;
 //                                         hsl2 += var20;
 //                                         y2 += WIDTH;
 //                                     }
 //                                 }
 
-//                                 drawGouraudScanline(pixels, y2, 0, 0, x1 >> 14, x2
+//                                 gouraud_deob_draw_scanline(pixels, y2, 0, 0, x1 >> 14, x2
 //                                 >> 14, hsl2, var19); x1 += var16; x2 += var15; hsl2 += var20; y2
 //                                 += WIDTH;
 //                             }
@@ -291,14 +291,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                             return;
 //                                         }
 
-//                                         drawGouraudScanline(pixels, y2, 0, 0, x1 >>
+//                                         gouraud_deob_draw_scanline(pixels, y2, 0, 0, x1 >>
 //                                         14, x2 >> 14, hsl2, var19); x1 += var17; x2 += var15;
 //                                         hsl2 += var20;
 //                                         y2 += WIDTH;
 //                                     }
 //                                 }
 
-//                                 drawGouraudScanline(pixels, y2, 0, 0, x3 >> 14, x2
+//                                 gouraud_deob_draw_scanline(pixels, y2, 0, 0, x3 >> 14, x2
 //                                 >> 14, hsl2, var19); x3 += var16; x2 += var15; hsl2 += var20; y2
 //                                 += WIDTH;
 //                             }
@@ -316,14 +316,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                             return;
 //                                         }
 
-//                                         drawGouraudScanline(pixels, y2, 0, 0, x2 >>
+//                                         gouraud_deob_draw_scanline(pixels, y2, 0, 0, x2 >>
 //                                         14, x1 >> 14, hsl2, var19); x1 += var17; x2 += var15;
 //                                         hsl2 += var20;
 //                                         y2 += WIDTH;
 //                                     }
 //                                 }
 
-//                                 drawGouraudScanline(pixels, y2, 0, 0, x2 >> 14, x3
+//                                 gouraud_deob_draw_scanline(pixels, y2, 0, 0, x2 >> 14, x3
 //                                 >> 14, hsl2, var19); x3 += var16; x2 += var15; hsl2 += var20; y2
 //                                 += WIDTH;
 //                             }
@@ -369,13 +369,13 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                         return;
 //                                     }
 
-//                                     drawGouraudScanline(pixels, y3, 0, 0, x2 >> 14,
+//                                     gouraud_deob_draw_scanline(pixels, y3, 0, 0, x2 >> 14,
 //                                     x1 >> 14, hsl3, var19); x2 += var15; x1 += var16; hsl3 +=
 //                                     var20; y3 += WIDTH;
 //                                 }
 //                             }
 
-//                             drawGouraudScanline(pixels, y3, 0, 0, x2 >> 14, x3 >>
+//                             gouraud_deob_draw_scanline(pixels, y3, 0, 0, x2 >> 14, x3 >>
 //                             14, hsl3, var19); x2 += var15; x3 += var17; hsl3 += var20; y3 +=
 //                             WIDTH;
 //                         }
@@ -393,13 +393,13 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                         return;
 //                                     }
 
-//                                     drawGouraudScanline(pixels, y3, 0, 0, x1 >> 14,
+//                                     gouraud_deob_draw_scanline(pixels, y3, 0, 0, x1 >> 14,
 //                                     x2 >> 14, hsl3, var19); x2 += var15; x1 += var16; hsl3 +=
 //                                     var20; y3 += WIDTH;
 //                                 }
 //                             }
 
-//                             drawGouraudScanline(pixels, y3, 0, 0, x3 >> 14, x2 >>
+//                             gouraud_deob_draw_scanline(pixels, y3, 0, 0, x3 >> 14, x2 >>
 //                             14, hsl3, var19); x2 += var15; x3 += var17; hsl3 += var20; y3 +=
 //                             WIDTH;
 //                         }
@@ -433,13 +433,13 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                         return;
 //                                     }
 
-//                                     drawGouraudScanline(pixels, y3, 0, 0, x2 >> 14,
+//                                     gouraud_deob_draw_scanline(pixels, y3, 0, 0, x2 >> 14,
 //                                     x3 >> 14, hsl3, var19); x2 += var16; x3 += var17; hsl3 +=
 //                                     var20; y3 += WIDTH;
 //                                 }
 //                             }
 
-//                             drawGouraudScanline(pixels, y3, 0, 0, x1 >> 14, x3 >>
+//                             gouraud_deob_draw_scanline(pixels, y3, 0, 0, x1 >> 14, x3 >>
 //                             14, hsl3, var19); x1 += var15; x3 += var17; hsl3 += var20; y3 +=
 //                             WIDTH;
 //                         }
@@ -457,13 +457,13 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                         return;
 //                                     }
 
-//                                     drawGouraudScanline(pixels, y3, 0, 0, x3 >> 14,
+//                                     gouraud_deob_draw_scanline(pixels, y3, 0, 0, x3 >> 14,
 //                                     x2 >> 14, hsl3, var19); x2 += var16; x3 += var17; hsl3 +=
 //                                     var20; y3 += WIDTH;
 //                                 }
 //                             }
 
-//                             drawGouraudScanline(pixels, y3, 0, 0, x3 >> 14, x1 >>
+//                             gouraud_deob_draw_scanline(pixels, y3, 0, 0, x3 >> 14, x1 >>
 //                             14, hsl3, var19); x1 += var15; x3 += var17; hsl3 += var20; y3 +=
 //                             WIDTH;
 //                         }
@@ -474,8 +474,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //     }
 
 // Code:
-// public static void drawGouraudScanline(int var0[], int var1, int var2, int var3, int var4, int
-// var5, int var6, int var7) {
+// public static void gouraud_deob_draw_scanline(int var0[], int var1, int var2, int var3, int var4,
+// int var5, int var6, int var7) {
 //         if (textureOutOfDrawingBounds) {
 //             if (var5 > lastX) {
 //                 var5 = lastX;
@@ -580,7 +580,7 @@ extern int g_hsl16_to_rgb_table[65536];
 //     }
 
 void
-drawGouraudTriangle(
+gouraud_deob_draw_triangle(
     int* pixels, int y1, int y2, int y3, int x1, int x2, int x3, int hsl1, int hsl2, int hsl3)
 {
     int dx_AB = x2 - x1;
@@ -676,7 +676,7 @@ drawGouraudTriangle(
                                         return;
                                     }
 
-                                    drawGouraudScanline(
+                                    gouraud_deob_draw_scanline(
                                         pixels, y1, 0, 0, x2 >> 14, x3 >> 14, hsl1, var19);
                                     x3 += dxdy_AC;
                                     x2 += dxdy_BC;
@@ -685,7 +685,8 @@ drawGouraudTriangle(
                                 }
                             }
 
-                            drawGouraudScanline(pixels, y1, 0, 0, x1 >> 14, x3 >> 14, hsl1, var19);
+                            gouraud_deob_draw_scanline(
+                                pixels, y1, 0, 0, x1 >> 14, x3 >> 14, hsl1, var19);
                             x3 += dxdy_AC;
                             x1 += dxdy_AB;
                             hsl1 += var20;
@@ -711,7 +712,7 @@ drawGouraudTriangle(
                                         return;
                                     }
 
-                                    drawGouraudScanline(
+                                    gouraud_deob_draw_scanline(
                                         pixels, y1, 0, 0, x3 >> 14, x2 >> 14, hsl1, var19);
                                     x3 += dxdy_AC;
                                     x2 += dxdy_BC;
@@ -720,7 +721,8 @@ drawGouraudTriangle(
                                 }
                             }
 
-                            drawGouraudScanline(pixels, y1, 0, 0, x3 >> 14, x1 >> 14, hsl1, var19);
+                            gouraud_deob_draw_scanline(
+                                pixels, y1, 0, 0, x3 >> 14, x1 >> 14, hsl1, var19);
                             x3 += dxdy_AC;
                             x1 += dxdy_AB;
                             hsl1 += var20;
@@ -765,7 +767,7 @@ drawGouraudTriangle(
                                         return;
                                     }
 
-                                    drawGouraudScanline(
+                                    gouraud_deob_draw_scanline(
                                         pixels, y1, 0, 0, x3 >> 14, x1 >> 14, hsl1, var19);
                                     x3 += dxdy_BC;
                                     x1 += dxdy_AB;
@@ -774,7 +776,8 @@ drawGouraudTriangle(
                                 }
                             }
 
-                            drawGouraudScanline(pixels, y1, 0, 0, x2 >> 14, x1 >> 14, hsl1, var19);
+                            gouraud_deob_draw_scanline(
+                                pixels, y1, 0, 0, x2 >> 14, x1 >> 14, hsl1, var19);
                             x2 += dxdy_AC;
                             x1 += dxdy_AB;
                             hsl1 += var20;
@@ -800,7 +803,7 @@ drawGouraudTriangle(
                                         return;
                                     }
 
-                                    drawGouraudScanline(
+                                    gouraud_deob_draw_scanline(
                                         pixels, y1, 0, 0, x1 >> 14, x3 >> 14, hsl1, var19);
                                     x3 += dxdy_BC;
                                     x1 += dxdy_AB;
@@ -809,7 +812,8 @@ drawGouraudTriangle(
                                 }
                             }
 
-                            drawGouraudScanline(pixels, y1, 0, 0, x1 >> 14, x2 >> 14, hsl1, var19);
+                            gouraud_deob_draw_scanline(
+                                pixels, y1, 0, 0, x1 >> 14, x2 >> 14, hsl1, var19);
                             x2 += dxdy_AC;
                             x1 += dxdy_AB;
                             hsl1 += var20;
@@ -871,7 +875,7 @@ drawGouraudTriangle(
                                         return;
                                     }
 
-                                    drawGouraudScanline(
+                                    gouraud_deob_draw_scanline(
                                         pixels, y2, 0, 0, x3 >> 14, x1 >> 14, hsl2, var19);
                                     x1 += dxdy_AB;
                                     x3 += dxdy_AC;
@@ -880,7 +884,8 @@ drawGouraudTriangle(
                                 }
                             }
 
-                            drawGouraudScanline(pixels, y2, 0, 0, x2 >> 14, x1 >> 14, hsl2, var19);
+                            gouraud_deob_draw_scanline(
+                                pixels, y2, 0, 0, x2 >> 14, x1 >> 14, hsl2, var19);
                             x1 += dxdy_AB;
                             x2 += dxdy_BC;
                             hsl2 += var20;
@@ -906,7 +911,7 @@ drawGouraudTriangle(
                                         return;
                                     }
 
-                                    drawGouraudScanline(
+                                    gouraud_deob_draw_scanline(
                                         pixels, y2, 0, 0, x1 >> 14, x3 >> 14, hsl2, var19);
                                     x1 += dxdy_AB;
                                     x3 += dxdy_AC;
@@ -915,7 +920,8 @@ drawGouraudTriangle(
                                 }
                             }
 
-                            drawGouraudScanline(pixels, y2, 0, 0, x1 >> 14, x2 >> 14, hsl2, var19);
+                            gouraud_deob_draw_scanline(
+                                pixels, y2, 0, 0, x1 >> 14, x2 >> 14, hsl2, var19);
                             x1 += dxdy_AB;
                             x2 += dxdy_BC;
                             hsl2 += var20;
@@ -960,7 +966,7 @@ drawGouraudTriangle(
                                         return;
                                     }
 
-                                    drawGouraudScanline(
+                                    gouraud_deob_draw_scanline(
                                         pixels, y2, 0, 0, x1 >> 14, x2 >> 14, hsl2, var19);
                                     x1 += dxdy_AC;
                                     x2 += dxdy_BC;
@@ -969,7 +975,8 @@ drawGouraudTriangle(
                                 }
                             }
 
-                            drawGouraudScanline(pixels, y2, 0, 0, x3 >> 14, x2 >> 14, hsl2, var19);
+                            gouraud_deob_draw_scanline(
+                                pixels, y2, 0, 0, x3 >> 14, x2 >> 14, hsl2, var19);
                             x3 += dxdy_AB;
                             x2 += dxdy_BC;
                             hsl2 += var20;
@@ -995,7 +1002,7 @@ drawGouraudTriangle(
                                         return;
                                     }
 
-                                    drawGouraudScanline(
+                                    gouraud_deob_draw_scanline(
                                         pixels, y2, 0, 0, x2 >> 14, x1 >> 14, hsl2, var19);
                                     x1 += dxdy_AC;
                                     x2 += dxdy_BC;
@@ -1004,7 +1011,8 @@ drawGouraudTriangle(
                                 }
                             }
 
-                            drawGouraudScanline(pixels, y2, 0, 0, x2 >> 14, x3 >> 14, hsl2, var19);
+                            gouraud_deob_draw_scanline(
+                                pixels, y2, 0, 0, x2 >> 14, x3 >> 14, hsl2, var19);
                             x3 += dxdy_AB;
                             x2 += dxdy_BC;
                             hsl2 += var20;
@@ -1064,7 +1072,7 @@ drawGouraudTriangle(
                                     return;
                                 }
 
-                                drawGouraudScanline(
+                                gouraud_deob_draw_scanline(
                                     pixels, y3, 0, 0, x2 >> 14, x1 >> 14, hsl3, var19);
                                 x2 += dxdy_BC;
                                 x1 += dxdy_AB;
@@ -1073,7 +1081,8 @@ drawGouraudTriangle(
                             }
                         }
 
-                        drawGouraudScanline(pixels, y3, 0, 0, x2 >> 14, x3 >> 14, hsl3, var19);
+                        gouraud_deob_draw_scanline(
+                            pixels, y3, 0, 0, x2 >> 14, x3 >> 14, hsl3, var19);
                         x2 += dxdy_BC;
                         x3 += dxdy_AC;
                         hsl3 += var20;
@@ -1099,7 +1108,7 @@ drawGouraudTriangle(
                                     return;
                                 }
 
-                                drawGouraudScanline(
+                                gouraud_deob_draw_scanline(
                                     pixels, y3, 0, 0, x1 >> 14, x2 >> 14, hsl3, var19);
                                 x2 += dxdy_BC;
                                 x1 += dxdy_AB;
@@ -1108,7 +1117,8 @@ drawGouraudTriangle(
                             }
                         }
 
-                        drawGouraudScanline(pixels, y3, 0, 0, x3 >> 14, x2 >> 14, hsl3, var19);
+                        gouraud_deob_draw_scanline(
+                            pixels, y3, 0, 0, x3 >> 14, x2 >> 14, hsl3, var19);
                         x2 += dxdy_BC;
                         x3 += dxdy_AC;
                         hsl3 += var20;
@@ -1153,7 +1163,7 @@ drawGouraudTriangle(
                                     return;
                                 }
 
-                                drawGouraudScanline(
+                                gouraud_deob_draw_scanline(
                                     pixels, y3, 0, 0, x2 >> 14, x3 >> 14, hsl3, var19);
                                 x2 += dxdy_AB;
                                 x3 += dxdy_AC;
@@ -1162,7 +1172,8 @@ drawGouraudTriangle(
                             }
                         }
 
-                        drawGouraudScanline(pixels, y3, 0, 0, x1 >> 14, x3 >> 14, hsl3, var19);
+                        gouraud_deob_draw_scanline(
+                            pixels, y3, 0, 0, x1 >> 14, x3 >> 14, hsl3, var19);
                         x1 += dxdy_BC;
                         x3 += dxdy_AC;
                         hsl3 += var20;
@@ -1188,7 +1199,7 @@ drawGouraudTriangle(
                                     return;
                                 }
 
-                                drawGouraudScanline(
+                                gouraud_deob_draw_scanline(
                                     pixels, y3, 0, 0, x3 >> 14, x2 >> 14, hsl3, var19);
                                 x2 += dxdy_AB;
                                 x3 += dxdy_AC;
@@ -1197,7 +1208,8 @@ drawGouraudTriangle(
                             }
                         }
 
-                        drawGouraudScanline(pixels, y3, 0, 0, x3 >> 14, x1 >> 14, hsl3, var19);
+                        gouraud_deob_draw_scanline(
+                            pixels, y3, 0, 0, x3 >> 14, x1 >> 14, hsl3, var19);
                         x1 += dxdy_BC;
                         x3 += dxdy_AC;
                         hsl3 += var20;
@@ -1208,10 +1220,12 @@ drawGouraudTriangle(
         }
     }
 }
-// drawGouraudScanline(int* pixels, int y, int x1, int x2, int x3, int hsl1, int hsl2, int hsl3)
+// gouraud_deob_draw_scanline(int* pixels, int y, int x1, int x2, int x3, int hsl1, int hsl2, int
+// hsl3)
 
 void
-drawGouraudScanline(int* var0, int var1, int var2, int var3, int var4, int var5, int var6, int var7)
+gouraud_deob_draw_scanline(
+    int* var0, int var1, int var2, int var3, int var4, int var5, int var6, int var7)
 {
     if( var4 < 0 || var5 < 0 )
     {
