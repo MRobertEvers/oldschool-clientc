@@ -628,18 +628,29 @@ raster_gouraud(
     int edge_color_AB_ish15 = color0_hsl16 << 15;
     int edge_color_BC_ish15 = color1_hsl16 << 15;
 
+    if( y0 < 0 )
+    {
+        edge_x_AC_ish16 -= step_edge_x_AC_ish16 * y0;
+        edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
+
+        edge_color_AC_ish15 -= step_edge_color_AC_ish15 * y0;
+        edge_color_AB_ish15 -= step_edge_color_AB_ish15 * y0;
+
+        y0 = 0;
+    }
+
+    if( y1 < 0 )
+    {
+        edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y1;
+        edge_x_BC_ish16 -= step_edge_x_BC_ish16 * y1;
+
+        edge_color_AB_ish15 -= step_edge_color_AB_ish15 * y1;
+        edge_color_BC_ish15 -= step_edge_color_BC_ish15 * y1;
+
+        y1 = 0;
+    }
+
     int i = y0;
-    // if( i < 0 )
-    // {
-    //     edge_x_AC_ish16 -= step_edge_x_AC_ish16 * i;
-    //     edge_x_AB_ish16 -= step_edge_x_AB_ish16 * i;
-
-    //     edge_color_AC_ish15 -= step_edge_color_AC_ish15 * i;
-    //     edge_color_AB_ish15 -= step_edge_color_AB_ish15 * i;
-
-    //     i = 0;
-    // }
-
     for( ; i < y1 && i < screen_height; ++i )
     {
         int x_start_current = edge_x_AC_ish16 >> 16;
@@ -649,40 +660,21 @@ raster_gouraud(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_AB_ish15 >> 7;
 
-        //         17137664
-        // colorC
-        // 17432576
-
-        // color_start_current = 311001088 >> 7;
-        // color_end_current = 311336960 >> 7;
-
-        if( i >= 0 )
-        {
-            draw_scanline_gouraud(
-                pixel_buffer,
-                screen_width,
-                i,
-                x_start_current,
-                x_end_current,
-                color_start_current,
-                color_end_current);
-        }
+        draw_scanline_gouraud(
+            pixel_buffer,
+            screen_width,
+            i,
+            x_start_current,
+            x_end_current,
+            color_start_current,
+            color_end_current);
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
 
         edge_color_AC_ish15 += step_edge_color_AC_ish15;
         edge_color_AB_ish15 += step_edge_color_AB_ish15;
     }
-    // if( i < 0 )
-    // {
-    //     edge_x_AC_ish16 -= step_edge_x_AC_ish16 * i;
-    //     edge_x_BC_ish16 -= step_edge_x_BC_ish16 * i;
 
-    //     edge_color_AC_ish15 -= step_edge_color_AC_ish15 * i;
-    //     edge_color_BC_ish15 -= step_edge_color_BC_ish15 * i;
-
-    //     i = 0;
-    // }
     for( ; i < y2 && i < screen_height; ++i )
     {
         int x_start_current = edge_x_AC_ish16 >> 16;
@@ -692,15 +684,14 @@ raster_gouraud(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_BC_ish15 >> 7;
 
-        if( i >= 0 )
-            draw_scanline_gouraud(
-                pixel_buffer,
-                screen_width,
-                i,
-                x_start_current,
-                x_end_current,
-                color_start_current,
-                color_end_current);
+        draw_scanline_gouraud(
+            pixel_buffer,
+            screen_width,
+            i,
+            x_start_current,
+            x_end_current,
+            color_start_current,
+            color_end_current);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;
