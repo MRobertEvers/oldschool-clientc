@@ -475,85 +475,6 @@ draw_scanline_gouraud(
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
         pixel_buffer[offset++] = rgb_color;
     }
-
-    // int dx_stride = x_end - x_start;
-    // if( dx_stride == 0 )
-    //     return;
-
-    // // Calculate step for HSL16 color interpolation
-    // int dcolor = color_end - color_start;
-    // int step_color_ish15;
-    // if( dx_stride > 0 )
-    //     step_color_ish15 = (dcolor) / (dx_stride);
-    // else
-    //     step_color_ish15 = 0;
-    // int current_color_ish15 = color_start;
-
-    // if( x_start < 0 )
-    // {
-    //     current_color_ish15 -= step_color_ish15 * x_start;
-    //     x_start = 0;
-    // }
-    // if( x_start > x_end )
-    //     return;
-    // if( x_end >= stride_width )
-    //     x_end = stride_width - 1;
-
-    // int length = (x_end - x_start) >> 2;
-
-    // int offset = x_start + y * stride_width;
-    // while( --length >= 0 )
-    // {
-    //     int hsl16_color = current_color_ish15 >> 8;
-
-    //     assert(hsl16_color >= 0 && hsl16_color < 65536);
-    //     int rgb_color = g_hsl16_to_rgb_table[hsl16_color];
-
-    //     int r = (rgb_color >> 16) & 0xFF;
-    //     int g = (rgb_color >> 8) & 0xFF;
-    //     int b = rgb_color & 0xFF;
-    //     int a = 0xFF; // Alpha value
-
-    //     int color = (a << 24) | (r << 16) | (g << 8) | b;
-
-    //     pixel_buffer[offset++] = color;
-    //     pixel_buffer[offset++] = color;
-    //     pixel_buffer[offset++] = color;
-    //     pixel_buffer[offset++] = color;
-
-    //     current_color_ish15 += step_color_ish15;
-    // }
-
-    // return;
-    // int c = 0;
-    // for( int x = x_start; x <= x_end; ++x )
-    // {
-    //     if( x < 0 )
-    //         continue;
-    //     if( x >= stride_width )
-    //         continue;
-
-    //     // Get interpolated HSL16 color and convert to RGB
-    //     int hsl16_color = current_color_ish15 >> 8;
-
-    //     assert(hsl16_color >= 0 && hsl16_color < 65536);
-    //     int rgb_color = g_hsl16_to_rgb_table[hsl16_color];
-
-    //     // Extract RGB components
-    //     int r = (rgb_color >> 16) & 0xFF;
-    //     int g = (rgb_color >> 8) & 0xFF;
-    //     int b = rgb_color & 0xFF;
-    //     int a = 0xFF; // Alpha value
-
-    //     int color = (a << 24) | (r << 16) | (g << 8) | b;
-
-    //     assert(x >= 0 && x < stride_width);
-    //     pixel_buffer[y * stride_width + x] = color;
-
-    //     // OSRS does 4 at a time for hsl colors...
-    //     if( ++c % 4 == 0 )
-    //         current_color_ish15 += step_color_ish15;
-    // }
 }
 
 void
@@ -705,7 +626,7 @@ raster_gouraud(
 
     int edge_color_AC_ish15 = color0_hsl16 << 15;
     int edge_color_AB_ish15 = color0_hsl16 << 15;
-    int edge_color_BC_ish15 = color0_hsl16 << 15;
+    int edge_color_BC_ish15 = color1_hsl16 << 15;
 
     int i = y0;
     // if( i < 0 )

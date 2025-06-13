@@ -584,21 +584,21 @@ raster_osrs_single_gouraud(
     // color_b = 14102;
     // color_c = 14100;
 
-    drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
+    // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
 
-    // raster_gouraud(
-    //     pixel_buffer,
-    //     screen_width,
-    //     screen_height,
-    //     x1,
-    //     x2,
-    //     x3,
-    //     y1,
-    //     y2,
-    //     y3,
-    //     color_a,
-    //     color_b,
-    //     color_c);
+    raster_gouraud(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        color_a,
+        color_b,
+        color_c);
 }
 
 void
