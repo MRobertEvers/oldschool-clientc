@@ -248,3 +248,9 @@ palette_hsl24_to_hsl16(int hue, int saturation, int lightness)
 
     return ((hue / 4) << 10) + ((saturation / 32) << 7) + ((lightness / 2));
 }
+
+int
+palette_pack_hsl24(int hue, int saturation, int lightness)
+{
+    return (hue << 16) | (saturation << 8) | lightness;
+}

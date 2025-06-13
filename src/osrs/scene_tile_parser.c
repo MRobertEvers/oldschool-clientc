@@ -3,6 +3,8 @@
 #include "palette.h"
 #include "scene_tile.h"
 
+#define SMOOTH_UNDERLAYS 0
+
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
@@ -346,7 +348,7 @@ adjust_overlay_light(int hsl, int light)
 static int
 mix_hsl(int hsl_a, int hsl_b)
 {
-    // return (hsl_a + hsl_b) >> 1;
+    return (hsl_a + hsl_b) >> 1;
     if( hsl_a == INVALID_HSL_COLOR || hsl_b == INVALID_HSL_COLOR )
         return INVALID_HSL_COLOR;
 
@@ -423,20 +425,20 @@ decode_tile(
 
     for( int i = 0; i < vertex_count; i++ )
     {
-        int vertex_index = vertex_indices[i];
-        if( (vertex_index & 1) == 0 && vertex_index <= 8 )
+        int vertex_type = vertex_indices[i];
+        if( (vertex_type & 1) == 0 && vertex_type <= 8 )
         {
-            vertex_index = ((vertex_index - rotation - rotation - 1) & 7) + 1;
+            vertex_type = ((vertex_type - rotation - rotation - 1) & 7) + 1;
         }
 
-        if( vertex_index > 8 && vertex_index <= 12 )
+        if( vertex_type > 8 && vertex_type <= 12 )
         {
-            vertex_index = ((vertex_index - 9 - rotation) & 3) + 9;
+            vertex_type = ((vertex_type - 9 - rotation) & 3) + 9;
         }
 
-        if( vertex_index > 12 && vertex_index <= 16 )
+        if( vertex_type > 12 && vertex_type <= 16 )
         {
-            vertex_index = ((vertex_index - 13 - rotation) & 3) + 13;
+            vertex_type = ((vertex_type - 13 - rotation) & 3) + 13;
         }
 
         int vert_x = 0;
@@ -445,7 +447,7 @@ decode_tile(
         int vert_underlay_color_hsl = blended_underlay_hsl_sw;
         int vert_overlay_color_hsl = overlay_hsl;
 
-        if( vertex_index == 1 )
+        if( vertex_type == 1 )
         {
             vert_x = tile_x;
             vert_z = tile_y;
@@ -453,10 +455,8 @@ decode_tile(
 
             vert_underlay_color_hsl = blended_underlay_hsl_sw;
             vert_overlay_color_hsl = overlay_hsl_sw;
-            // vert_underlay_color_hsl = blended_underlay_hsl_sw;
-            // vert_overlay_color_hsl = overlay_hsl;
         }
-        else if( vertex_index == 2 )
+        else if( vertex_type == 2 )
         {
             vert_x = tile_x + TILE_SIZE / 2;
             vert_z = tile_y;
@@ -464,10 +464,9 @@ decode_tile(
             // vert_y = height_sw;
 
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_sw);
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_sw);
             vert_overlay_color_hsl = (overlay_hsl_se + overlay_hsl_sw) >> 1;
         }
-        else if( vertex_index == 3 )
+        else if( vertex_type == 3 )
         {
             vert_x = tile_x + TILE_SIZE;
             vert_z = tile_y;
@@ -476,17 +475,16 @@ decode_tile(
             vert_underlay_color_hsl = blended_underlay_hsl_se;
             vert_overlay_color_hsl = overlay_hsl_se;
         }
-        else if( vertex_index == 4 )
+        else if( vertex_type == 4 )
         {
             vert_x = tile_x + TILE_SIZE;
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_ne + height_se) >> 1;
-            // vert_y = height_sw;
 
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_ne);
             vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_se) >> 1;
         }
-        else if( vertex_index == 5 )
+        else if( vertex_type == 5 )
         {
             vert_x = tile_x + TILE_SIZE;
             vert_z = tile_y + TILE_SIZE;
@@ -495,7 +493,7 @@ decode_tile(
             vert_underlay_color_hsl = blended_underlay_hsl_ne;
             vert_overlay_color_hsl = overlay_hsl_ne;
         }
-        else if( vertex_index == 6 )
+        else if( vertex_type == 6 )
         {
             vert_x = tile_x + TILE_SIZE / 2;
             vert_z = tile_y + TILE_SIZE;
@@ -505,7 +503,7 @@ decode_tile(
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_ne, blended_underlay_hsl_nw);
             vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_nw) >> 1;
         }
-        else if( vertex_index == 7 )
+        else if( vertex_type == 7 )
         {
             vert_x = tile_x;
             vert_z = tile_y + TILE_SIZE;
@@ -514,7 +512,7 @@ decode_tile(
             vert_underlay_color_hsl = blended_underlay_hsl_nw;
             vert_overlay_color_hsl = overlay_hsl_nw;
         }
-        else if( vertex_index == 8 )
+        else if( vertex_type == 8 )
         {
             vert_x = tile_x;
             vert_z = tile_y + TILE_SIZE / 2;
@@ -524,7 +522,7 @@ decode_tile(
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_nw, blended_underlay_hsl_sw);
             vert_overlay_color_hsl = (overlay_hsl_nw + overlay_hsl_sw) >> 1;
         }
-        else if( vertex_index == 9 )
+        else if( vertex_type == 9 )
         {
             vert_x = tile_x + TILE_SIZE / 2;
             vert_z = tile_y + TILE_SIZE / 4;
@@ -533,7 +531,7 @@ decode_tile(
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_sw, blended_underlay_hsl_se);
             vert_overlay_color_hsl = (overlay_hsl_sw + overlay_hsl_se) >> 1;
         }
-        else if( vertex_index == 10 )
+        else if( vertex_type == 10 )
         {
             vert_x = tile_x + TILE_SIZE * 3 / 4;
             vert_z = tile_y + TILE_SIZE / 2;
@@ -542,7 +540,7 @@ decode_tile(
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_ne);
             vert_overlay_color_hsl = (overlay_hsl_se + overlay_hsl_ne) >> 1;
         }
-        else if( vertex_index == 11 )
+        else if( vertex_type == 11 )
         {
             vert_x = tile_x + TILE_SIZE / 2;
             vert_z = tile_y + TILE_SIZE * 3 / 4;
@@ -552,7 +550,7 @@ decode_tile(
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_ne, blended_underlay_hsl_nw);
             vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_nw) >> 1;
         }
-        else if( vertex_index == 12 )
+        else if( vertex_type == 12 )
         {
             vert_x = tile_x + TILE_SIZE / 4;
             vert_z = tile_y + TILE_SIZE / 2;
@@ -561,7 +559,7 @@ decode_tile(
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_nw, blended_underlay_hsl_sw);
             vert_overlay_color_hsl = (overlay_hsl_nw + overlay_hsl_sw) >> 1;
         }
-        else if( vertex_index == 13 )
+        else if( vertex_type == 13 )
         {
             vert_x = tile_x + TILE_SIZE / 4;
             vert_z = tile_y + TILE_SIZE / 4;
@@ -570,7 +568,7 @@ decode_tile(
             vert_underlay_color_hsl = blended_underlay_hsl_sw;
             vert_overlay_color_hsl = overlay_hsl_sw;
         }
-        else if( vertex_index == 14 )
+        else if( vertex_type == 14 )
         {
             vert_x = tile_x + TILE_SIZE * 3 / 4;
             vert_z = tile_y + TILE_SIZE / 4;
@@ -579,7 +577,7 @@ decode_tile(
             vert_underlay_color_hsl = blended_underlay_hsl_se;
             vert_overlay_color_hsl = overlay_hsl_se;
         }
-        else if( vertex_index == 15 )
+        else if( vertex_type == 15 )
         {
             vert_x = tile_x + TILE_SIZE * 3 / 4;
             vert_z = tile_y + TILE_SIZE * 3 / 4;
@@ -1061,25 +1059,31 @@ scene_tiles_new_from_map_terrain(
                     int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
                     assert(underlay_index != -1);
 
-                    if( x == 5 && y == 2 )
-                    {
-                        printf("underlay_index: %d\n", underlay_index);
-                        printf(
-                            "blended_underlays[COLOR_COORD(x, y)]: %d\n",
-                            blended_underlays[COLOR_COORD(x, y)]);
-                    }
-
                     underlay = &underlays[underlay_index];
                     underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];
                     underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
                     underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
                     underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
 
-                    if( underlay_hsl_se == -1 )
+                    /**
+                     * This is confusing.
+                     *
+                     * When this is false, the underlays are rendered correctly.
+                     * When this is true, they are not.
+                     *
+                     * I checked the underlay rendering with the actual osrs client,
+                     * and the underlays render correct when SMOOTH_UNDERLAYS is false.
+                     *
+                     * See
+                     * ![my_renderer](res/underlay_blending/underlay_my_renderer_no_smooth_blending.png)
+                     * and ![osrs_client](res/underlay_blending/underlay_osrs.png)
+                     *
+                     */
+                    if( underlay_hsl_se == -1 || !SMOOTH_UNDERLAYS )
                         underlay_hsl_se = underlay_hsl_sw;
-                    if( underlay_hsl_ne == -1 )
+                    if( underlay_hsl_ne == -1 || !SMOOTH_UNDERLAYS )
                         underlay_hsl_ne = underlay_hsl_sw;
-                    if( underlay_hsl_nw == -1 )
+                    if( underlay_hsl_nw == -1 || !SMOOTH_UNDERLAYS )
                         underlay_hsl_nw = underlay_hsl_sw;
                 }
 

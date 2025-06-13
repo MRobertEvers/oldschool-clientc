@@ -28,5 +28,5 @@ struct HSL
 struct HSL palette_rgb_to_hsl24(int rgb);
 
 int palette_hsl24_to_hsl16(int hue, int saturation, int lightness);
-
+int palette_pack_hsl24(int hue, int saturation, int lightness);
 #endif

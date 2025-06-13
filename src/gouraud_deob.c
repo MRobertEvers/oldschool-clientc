@@ -583,47 +583,47 @@ void
 drawGouraudTriangle(
     int* pixels, int y1, int y2, int y3, int x1, int x2, int x3, int hsl1, int hsl2, int hsl3)
 {
-    int var9 = x2 - x1;
-    int var10 = y2 - y1;
-    int var11 = x3 - x1;
-    int var12 = y3 - y1;
-    int var13 = hsl2 - hsl1;
-    int var14 = hsl3 - hsl1;
-    int var15;
+    int dx_AB = x2 - x1;
+    int dy_AB = y2 - y1;
+    int dx_AC = x3 - x1;
+    int dy_AC = y3 - y1;
+    int d_hsl_AB = hsl2 - hsl1;
+    int d_hsl_AC = hsl3 - hsl1;
+    int dxdy_BC;
     if( y3 != y2 )
     {
-        var15 = (x3 - x2 << 14) / (y3 - y2);
+        dxdy_BC = (x3 - x2 << 14) / (y3 - y2);
     }
     else
     {
-        var15 = 0;
+        dxdy_BC = 0;
     }
 
-    int var16;
+    int dxdy_AB;
     if( y1 != y2 )
     {
-        var16 = (var9 << 14) / var10;
+        dxdy_AB = (dx_AB << 14) / dy_AB;
     }
     else
     {
-        var16 = 0;
+        dxdy_AB = 0;
     }
 
-    int var17;
+    int dxdy_AC;
     if( y1 != y3 )
     {
-        var17 = (var11 << 14) / var12;
+        dxdy_AC = (dx_AC << 14) / dy_AC;
     }
     else
     {
-        var17 = 0;
+        dxdy_AC = 0;
     }
 
-    int var18 = var9 * var12 - var11 * var10;
+    int var18 = dx_AB * dy_AC - dx_AC * dy_AB;
     if( var18 != 0 )
     {
-        int var19 = (var13 * var12 - var14 * var10 << 8) / var18;
-        int var20 = (var14 * var9 - var13 * var11 << 8) / var18;
+        int var19 = (d_hsl_AB * dy_AC - d_hsl_AC * dy_AB << 8) / var18;
+        int var20 = (d_hsl_AC * dx_AB - d_hsl_AB * dx_AC << 8) / var18;
         if( y1 <= y2 && y1 <= y3 )
         {
             if( y1 < BOTTOM_Y )
@@ -644,8 +644,8 @@ drawGouraudTriangle(
                     x3 = x1 <<= 14;
                     if( y1 < 0 )
                     {
-                        x3 -= y1 * var17;
-                        x1 -= y1 * var16;
+                        x3 -= y1 * dxdy_AC;
+                        x1 -= y1 * dxdy_AB;
                         hsl1 -= y1 * var20;
                         y1 = 0;
                     }
@@ -653,11 +653,11 @@ drawGouraudTriangle(
                     x2 <<= 14;
                     if( y2 < 0 )
                     {
-                        x2 -= var15 * y2;
+                        x2 -= dxdy_BC * y2;
                         y2 = 0;
                     }
 
-                    if( (y1 == y2 || var17 >= var16) && (y1 != y2 || var17 <= var15) )
+                    if( (y1 == y2 || dxdy_AC >= dxdy_AB) && (y1 != y2 || dxdy_AC <= dxdy_BC) )
                     {
                         y3 -= y2;
                         y2 -= y1;
@@ -678,16 +678,16 @@ drawGouraudTriangle(
 
                                     drawGouraudScanline(
                                         pixels, y1, 0, 0, x2 >> 14, x3 >> 14, hsl1, var19);
-                                    x3 += var17;
-                                    x2 += var15;
+                                    x3 += dxdy_AC;
+                                    x2 += dxdy_BC;
                                     hsl1 += var20;
                                     y1 += WIDTH;
                                 }
                             }
 
                             drawGouraudScanline(pixels, y1, 0, 0, x1 >> 14, x3 >> 14, hsl1, var19);
-                            x3 += var17;
-                            x1 += var16;
+                            x3 += dxdy_AC;
+                            x1 += dxdy_AB;
                             hsl1 += var20;
                             y1 += WIDTH;
                         }
@@ -713,16 +713,16 @@ drawGouraudTriangle(
 
                                     drawGouraudScanline(
                                         pixels, y1, 0, 0, x3 >> 14, x2 >> 14, hsl1, var19);
-                                    x3 += var17;
-                                    x2 += var15;
+                                    x3 += dxdy_AC;
+                                    x2 += dxdy_BC;
                                     hsl1 += var20;
                                     y1 += WIDTH;
                                 }
                             }
 
                             drawGouraudScanline(pixels, y1, 0, 0, x3 >> 14, x1 >> 14, hsl1, var19);
-                            x3 += var17;
-                            x1 += var16;
+                            x3 += dxdy_AC;
+                            x1 += dxdy_AB;
                             hsl1 += var20;
                             y1 += WIDTH;
                         }
@@ -733,8 +733,8 @@ drawGouraudTriangle(
                     x2 = x1 <<= 14;
                     if( y1 < 0 )
                     {
-                        x2 -= y1 * var17;
-                        x1 -= y1 * var16;
+                        x2 -= y1 * dxdy_AC;
+                        x1 -= y1 * dxdy_AB;
                         hsl1 -= y1 * var20;
                         y1 = 0;
                     }
@@ -742,11 +742,11 @@ drawGouraudTriangle(
                     x3 <<= 14;
                     if( y3 < 0 )
                     {
-                        x3 -= var15 * y3;
+                        x3 -= dxdy_BC * y3;
                         y3 = 0;
                     }
 
-                    if( y1 != y3 && var17 < var16 || y1 == y3 && var15 > var16 )
+                    if( y1 != y3 && dxdy_AC < dxdy_AB || y1 == y3 && dxdy_BC > dxdy_AB )
                     {
                         y2 -= y3;
                         y3 -= y1;
@@ -767,16 +767,16 @@ drawGouraudTriangle(
 
                                     drawGouraudScanline(
                                         pixels, y1, 0, 0, x3 >> 14, x1 >> 14, hsl1, var19);
-                                    x3 += var15;
-                                    x1 += var16;
+                                    x3 += dxdy_BC;
+                                    x1 += dxdy_AB;
                                     hsl1 += var20;
                                     y1 += WIDTH;
                                 }
                             }
 
                             drawGouraudScanline(pixels, y1, 0, 0, x2 >> 14, x1 >> 14, hsl1, var19);
-                            x2 += var17;
-                            x1 += var16;
+                            x2 += dxdy_AC;
+                            x1 += dxdy_AB;
                             hsl1 += var20;
                             y1 += WIDTH;
                         }
@@ -802,16 +802,16 @@ drawGouraudTriangle(
 
                                     drawGouraudScanline(
                                         pixels, y1, 0, 0, x1 >> 14, x3 >> 14, hsl1, var19);
-                                    x3 += var15;
-                                    x1 += var16;
+                                    x3 += dxdy_BC;
+                                    x1 += dxdy_AB;
                                     hsl1 += var20;
                                     y1 += WIDTH;
                                 }
                             }
 
                             drawGouraudScanline(pixels, y1, 0, 0, x1 >> 14, x2 >> 14, hsl1, var19);
-                            x2 += var17;
-                            x1 += var16;
+                            x2 += dxdy_AC;
+                            x1 += dxdy_AB;
                             hsl1 += var20;
                             y1 += WIDTH;
                         }
@@ -839,8 +839,8 @@ drawGouraudTriangle(
                     x1 = x2 <<= 14;
                     if( y2 < 0 )
                     {
-                        x1 -= var16 * y2;
-                        x2 -= var15 * y2;
+                        x1 -= dxdy_AB * y2;
+                        x2 -= dxdy_BC * y2;
                         hsl2 -= var20 * y2;
                         y2 = 0;
                     }
@@ -848,11 +848,11 @@ drawGouraudTriangle(
                     x3 <<= 14;
                     if( y3 < 0 )
                     {
-                        x3 -= var17 * y3;
+                        x3 -= dxdy_AC * y3;
                         y3 = 0;
                     }
 
-                    if( (y3 == y2 || var16 >= var15) && (y3 != y2 || var16 <= var17) )
+                    if( (y3 == y2 || dxdy_AB >= dxdy_BC) && (y3 != y2 || dxdy_AB <= dxdy_AC) )
                     {
                         y1 -= y3;
                         y3 -= y2;
@@ -873,16 +873,16 @@ drawGouraudTriangle(
 
                                     drawGouraudScanline(
                                         pixels, y2, 0, 0, x3 >> 14, x1 >> 14, hsl2, var19);
-                                    x1 += var16;
-                                    x3 += var17;
+                                    x1 += dxdy_AB;
+                                    x3 += dxdy_AC;
                                     hsl2 += var20;
                                     y2 += WIDTH;
                                 }
                             }
 
                             drawGouraudScanline(pixels, y2, 0, 0, x2 >> 14, x1 >> 14, hsl2, var19);
-                            x1 += var16;
-                            x2 += var15;
+                            x1 += dxdy_AB;
+                            x2 += dxdy_BC;
                             hsl2 += var20;
                             y2 += WIDTH;
                         }
@@ -908,16 +908,16 @@ drawGouraudTriangle(
 
                                     drawGouraudScanline(
                                         pixels, y2, 0, 0, x1 >> 14, x3 >> 14, hsl2, var19);
-                                    x1 += var16;
-                                    x3 += var17;
+                                    x1 += dxdy_AB;
+                                    x3 += dxdy_AC;
                                     hsl2 += var20;
                                     y2 += WIDTH;
                                 }
                             }
 
                             drawGouraudScanline(pixels, y2, 0, 0, x1 >> 14, x2 >> 14, hsl2, var19);
-                            x1 += var16;
-                            x2 += var15;
+                            x1 += dxdy_AB;
+                            x2 += dxdy_BC;
                             hsl2 += var20;
                             y2 += WIDTH;
                         }
@@ -928,8 +928,8 @@ drawGouraudTriangle(
                     x3 = x2 <<= 14;
                     if( y2 < 0 )
                     {
-                        x3 -= var16 * y2;
-                        x2 -= var15 * y2;
+                        x3 -= dxdy_AB * y2;
+                        x2 -= dxdy_BC * y2;
                         hsl2 -= var20 * y2;
                         y2 = 0;
                     }
@@ -937,11 +937,11 @@ drawGouraudTriangle(
                     x1 <<= 14;
                     if( y1 < 0 )
                     {
-                        x1 -= y1 * var17;
+                        x1 -= y1 * dxdy_AC;
                         y1 = 0;
                     }
 
-                    if( var16 < var15 )
+                    if( dxdy_AB < dxdy_BC )
                     {
                         y3 -= y1;
                         y1 -= y2;
@@ -962,16 +962,16 @@ drawGouraudTriangle(
 
                                     drawGouraudScanline(
                                         pixels, y2, 0, 0, x1 >> 14, x2 >> 14, hsl2, var19);
-                                    x1 += var17;
-                                    x2 += var15;
+                                    x1 += dxdy_AC;
+                                    x2 += dxdy_BC;
                                     hsl2 += var20;
                                     y2 += WIDTH;
                                 }
                             }
 
                             drawGouraudScanline(pixels, y2, 0, 0, x3 >> 14, x2 >> 14, hsl2, var19);
-                            x3 += var16;
-                            x2 += var15;
+                            x3 += dxdy_AB;
+                            x2 += dxdy_BC;
                             hsl2 += var20;
                             y2 += WIDTH;
                         }
@@ -997,16 +997,16 @@ drawGouraudTriangle(
 
                                     drawGouraudScanline(
                                         pixels, y2, 0, 0, x2 >> 14, x1 >> 14, hsl2, var19);
-                                    x1 += var17;
-                                    x2 += var15;
+                                    x1 += dxdy_AC;
+                                    x2 += dxdy_BC;
                                     hsl2 += var20;
                                     y2 += WIDTH;
                                 }
                             }
 
                             drawGouraudScanline(pixels, y2, 0, 0, x2 >> 14, x3 >> 14, hsl2, var19);
-                            x3 += var16;
-                            x2 += var15;
+                            x3 += dxdy_AB;
+                            x2 += dxdy_BC;
                             hsl2 += var20;
                             y2 += WIDTH;
                         }
@@ -1032,8 +1032,8 @@ drawGouraudTriangle(
                 x2 = x3 <<= 14;
                 if( y3 < 0 )
                 {
-                    x2 -= var15 * y3;
-                    x3 -= var17 * y3;
+                    x2 -= dxdy_BC * y3;
+                    x3 -= dxdy_AC * y3;
                     hsl3 -= var20 * y3;
                     y3 = 0;
                 }
@@ -1041,11 +1041,11 @@ drawGouraudTriangle(
                 x1 <<= 14;
                 if( y1 < 0 )
                 {
-                    x1 -= y1 * var16;
+                    x1 -= y1 * dxdy_AB;
                     y1 = 0;
                 }
 
-                if( var15 < var17 )
+                if( dxdy_BC < dxdy_AC )
                 {
                     y2 -= y1;
                     y1 -= y3;
@@ -1066,16 +1066,16 @@ drawGouraudTriangle(
 
                                 drawGouraudScanline(
                                     pixels, y3, 0, 0, x2 >> 14, x1 >> 14, hsl3, var19);
-                                x2 += var15;
-                                x1 += var16;
+                                x2 += dxdy_BC;
+                                x1 += dxdy_AB;
                                 hsl3 += var20;
                                 y3 += WIDTH;
                             }
                         }
 
                         drawGouraudScanline(pixels, y3, 0, 0, x2 >> 14, x3 >> 14, hsl3, var19);
-                        x2 += var15;
-                        x3 += var17;
+                        x2 += dxdy_BC;
+                        x3 += dxdy_AC;
                         hsl3 += var20;
                         y3 += WIDTH;
                     }
@@ -1101,16 +1101,16 @@ drawGouraudTriangle(
 
                                 drawGouraudScanline(
                                     pixels, y3, 0, 0, x1 >> 14, x2 >> 14, hsl3, var19);
-                                x2 += var15;
-                                x1 += var16;
+                                x2 += dxdy_BC;
+                                x1 += dxdy_AB;
                                 hsl3 += var20;
                                 y3 += WIDTH;
                             }
                         }
 
                         drawGouraudScanline(pixels, y3, 0, 0, x3 >> 14, x2 >> 14, hsl3, var19);
-                        x2 += var15;
-                        x3 += var17;
+                        x2 += dxdy_BC;
+                        x3 += dxdy_AC;
                         hsl3 += var20;
                         y3 += WIDTH;
                     }
@@ -1121,8 +1121,8 @@ drawGouraudTriangle(
                 x1 = x3 <<= 14;
                 if( y3 < 0 )
                 {
-                    x1 -= var15 * y3;
-                    x3 -= var17 * y3;
+                    x1 -= dxdy_BC * y3;
+                    x3 -= dxdy_AC * y3;
                     hsl3 -= var20 * y3;
                     y3 = 0;
                 }
@@ -1130,11 +1130,11 @@ drawGouraudTriangle(
                 x2 <<= 14;
                 if( y2 < 0 )
                 {
-                    x2 -= var16 * y2;
+                    x2 -= dxdy_AB * y2;
                     y2 = 0;
                 }
 
-                if( var15 < var17 )
+                if( dxdy_BC < dxdy_AC )
                 {
                     y1 -= y2;
                     y2 -= y3;
@@ -1155,16 +1155,16 @@ drawGouraudTriangle(
 
                                 drawGouraudScanline(
                                     pixels, y3, 0, 0, x2 >> 14, x3 >> 14, hsl3, var19);
-                                x2 += var16;
-                                x3 += var17;
+                                x2 += dxdy_AB;
+                                x3 += dxdy_AC;
                                 hsl3 += var20;
                                 y3 += WIDTH;
                             }
                         }
 
                         drawGouraudScanline(pixels, y3, 0, 0, x1 >> 14, x3 >> 14, hsl3, var19);
-                        x1 += var15;
-                        x3 += var17;
+                        x1 += dxdy_BC;
+                        x3 += dxdy_AC;
                         hsl3 += var20;
                         y3 += WIDTH;
                     }
@@ -1190,16 +1190,16 @@ drawGouraudTriangle(
 
                                 drawGouraudScanline(
                                     pixels, y3, 0, 0, x3 >> 14, x2 >> 14, hsl3, var19);
-                                x2 += var16;
-                                x3 += var17;
+                                x2 += dxdy_AB;
+                                x3 += dxdy_AC;
                                 hsl3 += var20;
                                 y3 += WIDTH;
                             }
                         }
 
                         drawGouraudScanline(pixels, y3, 0, 0, x3 >> 14, x1 >> 14, hsl3, var19);
-                        x1 += var15;
-                        x3 += var17;
+                        x1 += dxdy_BC;
+                        x3 += dxdy_AC;
                         hsl3 += var20;
                         y3 += WIDTH;
                     }
@@ -1208,10 +1208,20 @@ drawGouraudTriangle(
         }
     }
 }
+// drawGouraudScanline(int* pixels, int y, int x1, int x2, int x3, int hsl1, int hsl2, int hsl3)
 
 void
 drawGouraudScanline(int* var0, int var1, int var2, int var3, int var4, int var5, int var6, int var7)
 {
+    if( var4 < 0 || var5 < 0 )
+    {
+        return;
+    }
+
+    if( var4 > WIDTH || var5 > WIDTH )
+    {
+        return;
+    }
     // if( textureOutOfDrawingBounds )
     // {
     //     if( var5 > lastX )

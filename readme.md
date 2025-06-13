@@ -291,3 +291,39 @@ With vertices and colors and what not.
 ### Software Renderer RGB.
 
 https://rune-server.org/threads/basis-for-a-software-based-3d-renderer.535618/page-2#post5034974
+
+### Underlay Rendering
+
+![my_renderer](res/underlay_blending/underlay_my_renderer_no_smooth_blending.png)
+and ![osrs_client](res/underlay_blending/underlay_osrs.png)
+
+This was based on some bad code from rs-map-viewer. The official deob only uses the "basecolor" or the "SW" color as it's named here.
+
+```
+ underlay = &underlays[underlay_index];
+                    underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];
+                    underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
+                    underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
+                    underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
+
+                    /**
+                     * This is confusing.
+                     *
+                     * When this is false, the underlays are rendered correctly.
+                     * When this is true, they are not.
+                     *
+                     * I checked the underlay rendering with the actual osrs client,
+                     * and the underlays render correct when SMOOTH_UNDERLAYS is false.
+                     *
+                     * See
+                     * ![my_renderer](res/underlay_blending/underlay_my_renderer_no_smooth_blending.png)
+                     * and ![osrs_client](res/underlay_blending/underlay_osrs.png)
+                     *
+                     */
+                    if( underlay_hsl_se == -1 || !SMOOTH_UNDERLAYS )
+                        underlay_hsl_se = underlay_hsl_sw;
+                    if( underlay_hsl_ne == -1 || !SMOOTH_UNDERLAYS )
+                        underlay_hsl_ne = underlay_hsl_sw;
+                    if( underlay_hsl_nw == -1 || !SMOOTH_UNDERLAYS )
+                        underlay_hsl_nw = underlay_hsl_sw;
+```

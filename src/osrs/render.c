@@ -986,8 +986,12 @@ render_scene_tiles(
         {
             for( int x = 0; x < MAP_TERRAIN_X; x++ )
             {
-                if( x > 10 || y > 10 )
-                    continue;
+                // if( x > 10 || y > 10 )
+                //     continue;
+
+                // if( x != 8 || y != 7 )
+                //     continue;
+
                 int i = MAP_TILE_COORD(x, y, z);
                 struct SceneTile* tile = &tiles[i];
 
