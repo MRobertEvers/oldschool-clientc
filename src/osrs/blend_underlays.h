@@ -7,6 +7,13 @@
 
 #define COLOR_COORD(x, y) ((x) * MAP_TERRAIN_Y + (y))
 
+int* blend_underlays_runelite(
+    struct MapTerrain* map_terrain,
+    struct Underlay* underlays,
+    int* underlay_ids,
+    int underlays_count,
+    int level);
+
 int* blend_underlays(
     struct MapTerrain* map_terrain,
     struct Underlay* underlays,

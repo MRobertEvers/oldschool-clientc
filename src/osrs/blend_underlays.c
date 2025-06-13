@@ -242,10 +242,10 @@ blend_underlays(
 
                     struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
 
-                    chroma[yi + BLEND_RADIUS] += hsl.chroma * 256 / hsl.luminance;
-                    sats[yi + BLEND_RADIUS] += hsl.sat;
-                    light[yi + BLEND_RADIUS] += hsl.light;
-                    luminance[yi + BLEND_RADIUS] += hsl.luminance;
+                    chroma[yi] += hsl.chroma * 256 / hsl.luminance;
+                    sats[yi] += hsl.sat;
+                    light[yi] += hsl.light;
+                    luminance[yi] += hsl.luminance;
 
                     counts[yi]++;
                 }
@@ -264,10 +264,10 @@ blend_underlays(
                     struct Underlay* underlay = &underlays[idx];
                     struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
 
-                    chroma[yi + BLEND_RADIUS] -= hsl.chroma * 256 / hsl.luminance;
-                    sats[yi + BLEND_RADIUS] -= hsl.sat;
-                    light[yi + BLEND_RADIUS] -= hsl.light;
-                    luminance[yi + BLEND_RADIUS] -= hsl.luminance;
+                    chroma[yi] -= hsl.chroma * 256 / hsl.luminance;
+                    sats[yi] -= hsl.sat;
+                    light[yi] -= hsl.light;
+                    luminance[yi] -= hsl.luminance;
 
                     counts[yi]--;
                 }
@@ -291,22 +291,22 @@ blend_underlays(
             int y_north = yi + BLEND_RADIUS;
             if( y_north >= 0 && y_north < size_y )
             {
-                running_chroma += chroma[y_north + BLEND_RADIUS];
-                running_sat += sats[y_north + BLEND_RADIUS];
-                running_light += light[y_north + BLEND_RADIUS];
-                running_luminance += luminance[y_north + BLEND_RADIUS];
-                running_number += counts[y_north + BLEND_RADIUS];
+                running_chroma += chroma[y_north];
+                running_sat += sats[y_north];
+                running_light += light[y_north];
+                running_luminance += luminance[y_north];
+                running_number += counts[y_north];
             }
 
             // Check south boundary
             int y_south = yi - BLEND_RADIUS;
             if( y_south >= 0 && y_south < size_y )
             {
-                running_chroma -= chroma[yi];
-                running_sat -= sats[yi];
-                running_light -= light[yi];
-                running_luminance -= luminance[yi];
-                running_number -= counts[yi];
+                running_chroma -= chroma[y_south];
+                running_sat -= sats[y_south];
+                running_light -= light[y_south];
+                running_luminance -= luminance[y_south];
+                running_number -= counts[y_south];
             }
 
             if( yi < 0 || yi >= size_y )

@@ -349,33 +349,34 @@ static int
 mix_hsl(int hsl_a, int hsl_b)
 {
     return (hsl_a + hsl_b) >> 1;
-    if( hsl_a == INVALID_HSL_COLOR || hsl_b == INVALID_HSL_COLOR )
-        return INVALID_HSL_COLOR;
+    // if( hsl_a == INVALID_HSL_COLOR || hsl_b == INVALID_HSL_COLOR )
+    //     return INVALID_HSL_COLOR;
 
-    if( hsl_a == INVALID_HSL_COLOR )
-        return hsl_b;
-    else if( hsl_b == INVALID_HSL_COLOR )
-        return hsl_a;
+    // if( hsl_a == INVALID_HSL_COLOR )
+    //     return hsl_b;
+    // else if( hsl_b == INVALID_HSL_COLOR )
+    //     return hsl_a;
 
-    int hue = (hsl_a >> 10) & 0x3f;
-    int saturation = (hsl_a >> 7) & 0x7;
-    int lightness = hsl_a & 0x7f;
+    // int hue = (hsl_a >> 10) & 0x3f;
+    // int saturation = (hsl_a >> 7) & 0x7;
+    // int lightness = hsl_a & 0x7f;
 
-    int hue_b = (hsl_b >> 10) & 0x3f;
-    int saturation_b = (hsl_b >> 7) & 0x7;
-    int lightness_b = hsl_b & 0x7f;
+    // int hue_b = (hsl_b >> 10) & 0x3f;
+    // int saturation_b = (hsl_b >> 7) & 0x7;
+    // int lightness_b = hsl_b & 0x7f;
 
-    hue += hue_b;
-    saturation += saturation_b;
-    lightness += lightness_b;
+    // hue += hue_b;
+    // saturation += saturation_b;
+    // lightness += lightness_b;
 
-    hue >>= 1;
-    saturation >>= 1;
-    lightness >>= 1;
+    // hue >>= 1;
+    // saturation >>= 1;
+    // lightness >>= 1;
 
-    return (hue << 10) + (saturation << 7) + lightness;
+    // return (hue << 10) + (saturation << 7) + lightness;
 }
 
+// /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/SceneTileModel.java
 static bool
 decode_tile(
     struct SceneTile* tile,
@@ -393,11 +394,8 @@ decode_tile(
     int light_se,
     int light_ne,
     int light_nw,
-    int blended_underlay_hsl_sw,
-    int blended_underlay_hsl_se,
-    int blended_underlay_hsl_ne,
-    int blended_underlay_hsl_nw,
-    int overlay_hsl)
+    int underlay_hsl16,
+    int overlay_hsl16)
 {
     // memset(tile, 0, sizeof(struct SceneTile));
     int tile_x = tile_coord_x * TILE_SIZE;
@@ -413,15 +411,15 @@ decode_tile(
     int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
     int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
 
-    blended_underlay_hsl_sw = adjust_underlay_light(blended_underlay_hsl_sw, light_sw);
-    blended_underlay_hsl_se = adjust_underlay_light(blended_underlay_hsl_se, light_se);
-    blended_underlay_hsl_ne = adjust_underlay_light(blended_underlay_hsl_ne, light_ne);
-    blended_underlay_hsl_nw = adjust_underlay_light(blended_underlay_hsl_nw, light_nw);
+    int underlay_hsl_sw = adjust_underlay_light(underlay_hsl16, light_sw);
+    int underlay_hsl_se = adjust_underlay_light(underlay_hsl16, light_se);
+    int underlay_hsl_ne = adjust_underlay_light(underlay_hsl16, light_ne);
+    int underlay_hsl_nw = adjust_underlay_light(underlay_hsl16, light_nw);
 
-    int overlay_hsl_sw = adjust_overlay_light(overlay_hsl, light_sw);
-    int overlay_hsl_se = adjust_overlay_light(overlay_hsl, light_se);
-    int overlay_hsl_ne = adjust_overlay_light(overlay_hsl, light_ne);
-    int overlay_hsl_nw = adjust_overlay_light(overlay_hsl, light_nw);
+    int overlay_hsl_sw = adjust_overlay_light(overlay_hsl16, light_sw);
+    int overlay_hsl_se = adjust_overlay_light(overlay_hsl16, light_se);
+    int overlay_hsl_ne = adjust_overlay_light(overlay_hsl16, light_ne);
+    int overlay_hsl_nw = adjust_overlay_light(overlay_hsl16, light_nw);
 
     for( int i = 0; i < vertex_count; i++ )
     {
@@ -444,8 +442,8 @@ decode_tile(
         int vert_x = 0;
         int vert_z = 0;
         int vert_y = 0;
-        int vert_underlay_color_hsl = blended_underlay_hsl_sw;
-        int vert_overlay_color_hsl = overlay_hsl;
+        int vert_underlay_color_hsl = underlay_hsl_sw;
+        int vert_overlay_color_hsl = overlay_hsl_sw;
 
         if( vertex_type == 1 )
         {
@@ -453,7 +451,7 @@ decode_tile(
             vert_z = tile_y;
             vert_y = height_sw;
 
-            vert_underlay_color_hsl = blended_underlay_hsl_sw;
+            vert_underlay_color_hsl = underlay_hsl_sw;
             vert_overlay_color_hsl = overlay_hsl_sw;
         }
         else if( vertex_type == 2 )
@@ -463,7 +461,7 @@ decode_tile(
             vert_y = (height_se + height_sw) >> 1;
             // vert_y = height_sw;
 
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_sw);
+            vert_underlay_color_hsl = mix_hsl(underlay_hsl_se, underlay_hsl_sw);
             vert_overlay_color_hsl = (overlay_hsl_se + overlay_hsl_sw) >> 1;
         }
         else if( vertex_type == 3 )
@@ -472,7 +470,7 @@ decode_tile(
             vert_z = tile_y;
             vert_y = height_se;
 
-            vert_underlay_color_hsl = blended_underlay_hsl_se;
+            vert_underlay_color_hsl = underlay_hsl_se;
             vert_overlay_color_hsl = overlay_hsl_se;
         }
         else if( vertex_type == 4 )
@@ -481,7 +479,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_ne + height_se) >> 1;
 
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_ne);
+            vert_underlay_color_hsl = mix_hsl(underlay_hsl_se, underlay_hsl_ne);
             vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_se) >> 1;
         }
         else if( vertex_type == 5 )
@@ -490,7 +488,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE;
             vert_y = height_ne;
 
-            vert_underlay_color_hsl = blended_underlay_hsl_ne;
+            vert_underlay_color_hsl = underlay_hsl_ne;
             vert_overlay_color_hsl = overlay_hsl_ne;
         }
         else if( vertex_type == 6 )
@@ -500,7 +498,7 @@ decode_tile(
             vert_y = (height_ne + height_nw) >> 1;
             // vert_y = height_sw;
 
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_ne, blended_underlay_hsl_nw);
+            vert_underlay_color_hsl = mix_hsl(underlay_hsl_ne, underlay_hsl_nw);
             vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_nw) >> 1;
         }
         else if( vertex_type == 7 )
@@ -509,7 +507,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE;
             vert_y = height_nw;
 
-            vert_underlay_color_hsl = blended_underlay_hsl_nw;
+            vert_underlay_color_hsl = underlay_hsl_nw;
             vert_overlay_color_hsl = overlay_hsl_nw;
         }
         else if( vertex_type == 8 )
@@ -519,7 +517,7 @@ decode_tile(
             vert_y = (height_nw + height_sw) >> 1;
             // vert_y = height_sw;
 
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_nw, blended_underlay_hsl_sw);
+            vert_underlay_color_hsl = mix_hsl(underlay_hsl_nw, underlay_hsl_sw);
             vert_overlay_color_hsl = (overlay_hsl_nw + overlay_hsl_sw) >> 1;
         }
         else if( vertex_type == 9 )
@@ -528,7 +526,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE / 4;
             vert_y = (height_sw + height_se) >> 1;
 
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_sw, blended_underlay_hsl_se);
+            vert_underlay_color_hsl = mix_hsl(underlay_hsl_sw, underlay_hsl_se);
             vert_overlay_color_hsl = (overlay_hsl_sw + overlay_hsl_se) >> 1;
         }
         else if( vertex_type == 10 )
@@ -537,7 +535,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_se + height_ne) >> 1;
 
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_ne);
+            vert_underlay_color_hsl = mix_hsl(underlay_hsl_se, underlay_hsl_ne);
             vert_overlay_color_hsl = (overlay_hsl_se + overlay_hsl_ne) >> 1;
         }
         else if( vertex_type == 11 )
@@ -547,7 +545,7 @@ decode_tile(
 
             vert_y = (height_ne + height_nw) >> 1;
 
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_ne, blended_underlay_hsl_nw);
+            vert_underlay_color_hsl = mix_hsl(underlay_hsl_ne, underlay_hsl_nw);
             vert_overlay_color_hsl = (overlay_hsl_ne + overlay_hsl_nw) >> 1;
         }
         else if( vertex_type == 12 )
@@ -556,7 +554,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE / 2;
             vert_y = (height_nw + height_sw) >> 1;
 
-            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_nw, blended_underlay_hsl_sw);
+            vert_underlay_color_hsl = mix_hsl(underlay_hsl_nw, underlay_hsl_sw);
             vert_overlay_color_hsl = (overlay_hsl_nw + overlay_hsl_sw) >> 1;
         }
         else if( vertex_type == 13 )
@@ -565,7 +563,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE / 4;
             vert_y = height_sw;
 
-            vert_underlay_color_hsl = blended_underlay_hsl_sw;
+            vert_underlay_color_hsl = underlay_hsl_sw;
             vert_overlay_color_hsl = overlay_hsl_sw;
         }
         else if( vertex_type == 14 )
@@ -574,7 +572,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE / 4;
             vert_y = height_se;
 
-            vert_underlay_color_hsl = blended_underlay_hsl_se;
+            vert_underlay_color_hsl = underlay_hsl_se;
             vert_overlay_color_hsl = overlay_hsl_se;
         }
         else if( vertex_type == 15 )
@@ -583,7 +581,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE * 3 / 4;
             vert_y = height_ne;
 
-            vert_underlay_color_hsl = blended_underlay_hsl_ne;
+            vert_underlay_color_hsl = underlay_hsl_ne;
             vert_overlay_color_hsl = overlay_hsl_ne;
         }
         else
@@ -592,7 +590,7 @@ decode_tile(
             vert_z = tile_y + TILE_SIZE * 3 / 4;
             vert_y = height_nw;
 
-            vert_underlay_color_hsl = blended_underlay_hsl_nw;
+            vert_underlay_color_hsl = underlay_hsl_nw;
             vert_overlay_color_hsl = overlay_hsl_nw;
         }
 
@@ -687,25 +685,6 @@ decode_tile(
         face_colors_hsl_c[i] = color_c;
 
         // TODO: Skip texture rendering right now
-
-        if( color_a == INVALID_HSL_COLOR )
-        {
-            face_colors_hsl_a[i] = 0;
-            valid_faces[i] = 0;
-            continue;
-        }
-        if( color_b == INVALID_HSL_COLOR )
-        {
-            face_colors_hsl_b[i] = 0;
-            valid_faces[i] = 0;
-            continue;
-        }
-        if( color_c == INVALID_HSL_COLOR )
-        {
-            face_colors_hsl_c[i] = 0;
-            valid_faces[i] = 0;
-            continue;
-        }
 
         if( color_a == INVALID_HSL_COLOR && texture_id == -1 )
         {
@@ -988,6 +967,8 @@ calculate_lights(struct MapTerrain* map_terrain, int level)
     return lights;
 }
 
+// /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/Scene.java
+// /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/class481.java
 struct SceneTile*
 scene_tiles_new_from_map_terrain(
     struct MapTerrain* map_terrain,
@@ -1046,12 +1027,7 @@ scene_tiles_new_from_map_terrain(
                 int light_ne = lights[MAP_TILE_COORD(x + 1, y + 1, 0)];
                 int light_nw = lights[MAP_TILE_COORD(x, y + 1, 0)];
 
-                // Just get the underlay color for now.
-
-                int underlay_hsl_sw = -1;
-                int underlay_hsl_se = -1;
-                int underlay_hsl_ne = -1;
-                int underlay_hsl_nw = -1;
+                int underlay_hsl = -1;
                 int overlay_hsl = 0;
 
                 if( underlay_id != -1 )
@@ -1060,10 +1036,7 @@ scene_tiles_new_from_map_terrain(
                     assert(underlay_index != -1);
 
                     underlay = &underlays[underlay_index];
-                    underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];
-                    underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
-                    underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
-                    underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
+                    underlay_hsl = blended_underlays[COLOR_COORD(x, y)];
 
                     /**
                      * This is confusing.
@@ -1078,13 +1051,20 @@ scene_tiles_new_from_map_terrain(
                      * ![my_renderer](res/underlay_blending/underlay_my_renderer_no_smooth_blending.png)
                      * and ![osrs_client](res/underlay_blending/underlay_osrs.png)
                      *
+                     * This works for rsmap viewer because rsmap viewer blends rgb in opengl, not
+                     * just lightness.
+                     *
+                     * The real DeOb actually just uses lightness
                      */
-                    if( underlay_hsl_se == -1 || !SMOOTH_UNDERLAYS )
-                        underlay_hsl_se = underlay_hsl_sw;
-                    if( underlay_hsl_ne == -1 || !SMOOTH_UNDERLAYS )
-                        underlay_hsl_ne = underlay_hsl_sw;
-                    if( underlay_hsl_nw == -1 || !SMOOTH_UNDERLAYS )
-                        underlay_hsl_nw = underlay_hsl_sw;
+                    // underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
+                    // underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
+                    // underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
+                    // if( underlay_hsl_se == -1 || !SMOOTH_UNDERLAYS )
+                    //     underlay_hsl_se = underlay_hsl_sw;
+                    // if( underlay_hsl_ne == -1 || !SMOOTH_UNDERLAYS )
+                    //     underlay_hsl_ne = underlay_hsl_sw;
+                    // if( underlay_hsl_nw == -1 || !SMOOTH_UNDERLAYS )
+                    //     underlay_hsl_nw = underlay_hsl_sw;
                 }
 
                 if( overlay_id != -1 )
@@ -1120,11 +1100,7 @@ scene_tiles_new_from_map_terrain(
                     light_se,
                     light_ne,
                     light_nw,
-                    underlay_hsl_sw,
-                    underlay_hsl_se,
-                    underlay_hsl_ne,
-                    underlay_hsl_nw,
-                    // Overlay color.
+                    underlay_hsl,
                     overlay_hsl);
 
                 assert(success);

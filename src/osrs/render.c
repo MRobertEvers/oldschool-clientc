@@ -992,6 +992,9 @@ render_scene_tiles(
                 // if( x != 8 || y != 7 )
                 //     continue;
 
+                // if( y < 60 )
+                //     continue;
+
                 int i = MAP_TILE_COORD(x, y, z);
                 struct SceneTile* tile = &tiles[i];
 
@@ -1023,7 +1026,7 @@ render_scene_tiles(
                     if( tile->valid_faces[face] == 0 )
                         continue;
 
-                    if( tile->face_texture_ids == NULL || true )
+                    if( tile->face_texture_ids == NULL )
                     {
                         project_vertices_terrain(
                             screen_vertices_x,
@@ -1069,6 +1072,8 @@ render_scene_tiles(
                     }
                     else
                     {
+                        // TODO: Get average texture color.
+                        break;
                         project_vertices_terrain_textured(
                             screen_vertices_x,
                             screen_vertices_y,
