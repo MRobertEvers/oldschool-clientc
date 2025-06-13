@@ -536,6 +536,7 @@ raster_osrs(
 void
 raster_osrs_single_gouraud(
     struct Pixel* pixel_buffer,
+    int* z_buffer,
     int face,
     int* face_indices_a,
     int* face_indices_b,
@@ -578,8 +579,9 @@ raster_osrs_single_gouraud(
 
     // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
 
-    raster_gouraud(
+    raster_gouraud_zbuf(
         pixel_buffer,
+        z_buffer,
         screen_width,
         screen_height,
         x1,
@@ -588,6 +590,9 @@ raster_osrs_single_gouraud(
         y1,
         y2,
         y3,
+        z1,
+        z2,
+        z3,
         color_a,
         color_b,
         color_c);
@@ -971,6 +976,10 @@ render_scene_tiles(
     int* ortho_vertices_y = (int*)malloc(20 * sizeof(int));
     int* ortho_vertices_z = (int*)malloc(20 * sizeof(int));
 
+    int* z_buffer = (int*)malloc(width * height * sizeof(int));
+    for( int i = 0; i < width * height; i++ )
+        z_buffer[i] = INT_MAX;
+
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
         // y = 5, and x = 40 is the left corner of the church.
@@ -1046,6 +1055,7 @@ render_scene_tiles(
 
                         raster_osrs_single_gouraud(
                             pixel_buffer,
+                            z_buffer,
                             face,
                             tile->faces_a,
                             tile->faces_b,

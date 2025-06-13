@@ -40,6 +40,13 @@ void raster_gouraud_zbuf(
     int color1,
     int color2);
 
+/**
+ * Attention! The colors must all be the same hue and saturation.
+ *
+ * The colors must ONLY be lightness delta.
+ *
+ * Use the RGB interpolation for more complex color vertices.
+ */
 void raster_gouraud(
     int* pixel_buffer,
     int screen_width,
