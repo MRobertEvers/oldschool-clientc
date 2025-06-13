@@ -19,7 +19,10 @@ struct HSL
     int hue;
     int sat;
     int light;
-    int mul;
+
+    int luminance;
+
+    int chroma;
 };
 
 struct HSL palette_rgb_to_hsl24(int rgb);

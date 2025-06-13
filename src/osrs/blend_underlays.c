@@ -3,6 +3,7 @@
 #include "palette.h"
 #include "tables/maps.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -37,16 +38,18 @@ blend_underlays(
         colors[i] = -1;
 
     // Allocate arrays for HSL calculations
-    int* hues = calloc(max_size, sizeof(int));
     int* sats = calloc(max_size, sizeof(int));
     int* light = calloc(max_size, sizeof(int));
-    int* mul = calloc(max_size, sizeof(int));
-    int* num = calloc(max_size, sizeof(int));
+    int* luminance = calloc(max_size, sizeof(int));
+    int* chroma = calloc(max_size, sizeof(int));
+    int* counts = calloc(max_size, sizeof(int));
 
     int blend_start_x = -BLEND_RADIUS;
     int blend_start_y = -BLEND_RADIUS;
     int blend_end_x = size_x + BLEND_RADIUS;
     int blend_end_y = size_y + BLEND_RADIUS;
+
+    int underlay_id;
 
     // Process each column
     for( int xi = blend_start_x; xi < blend_end_x; xi++ )
@@ -54,12 +57,16 @@ blend_underlays(
         // Process each row in the column
         for( int yi = 0; yi < size_y; yi++ )
         {
+            if( xi == 4 && yi == 6 )
+            {
+                printf("xi: %d, yi: %d\n", xi, yi);
+            }
+
             // Check east boundary
             int x_east = xi + BLEND_RADIUS;
             if( x_east >= 0 && x_east < size_x )
             {
-                int underlay_id =
-                    map_terrain->tiles_xyz[MAP_TILE_COORD(x_east, yi, level)].underlay_id;
+                underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(x_east, yi, level)].underlay_id;
                 if( underlay_id > 0 )
                 {
                     int idx = get_index(underlay_ids, underlays_count, underlay_id - 1);
@@ -68,15 +75,23 @@ blend_underlays(
                         struct Underlay* underlay = &underlays[idx];
 
                         struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
-                        int hue = hsl.hue;
-                        int sat = hsl.sat;
-                        int lightness = hsl.light;
+                        printf(
+                            "underlay(%d): %d, hsl: %d, %d, %d\n",
+                            idx,
+                            underlay->rgb_color,
+                            hsl.hue,
+                            hsl.sat,
+                            hsl.light);
 
-                        hues[yi] += hue;
-                        sats[yi] += sat;
-                        light[yi] += lightness;
-                        mul[yi] += hsl.mul;
-                        num[yi]++;
+                        chroma[yi] += hsl.chroma;
+                        sats[yi] += hsl.sat;
+                        light[yi] += hsl.light;
+                        luminance[yi] += hsl.luminance;
+                        counts[yi]++;
+
+                        int hsl_int = palette_hsl24_to_hsl16(hsl.hue, hsl.sat, hsl.light);
+                        if( xi == 1 && yi == 2 )
+                            printf("hsl_int: %d\n", hsl_int);
                     }
                 }
             }
@@ -85,8 +100,7 @@ blend_underlays(
             int x_west = xi - BLEND_RADIUS;
             if( x_west >= 0 && x_west < size_x )
             {
-                int underlay_id =
-                    map_terrain->tiles_xyz[MAP_TILE_COORD(x_west, yi, level)].underlay_id;
+                underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(x_west, yi, level)].underlay_id;
                 if( underlay_id > 0 )
                 {
                     int idx = get_index(underlay_ids, underlays_count, underlay_id - 1);
@@ -95,26 +109,34 @@ blend_underlays(
                         struct Underlay* underlay = &underlays[idx];
                         struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
 
-                        hues[yi] -= hsl.hue;
+                        printf(
+                            "underlay(%d): %d, hsl: %d, %d, %d\n",
+                            idx,
+                            underlay->rgb_color,
+                            hsl.hue,
+                            hsl.sat,
+                            hsl.light);
+
+                        chroma[yi] -= hsl.chroma;
                         sats[yi] -= hsl.sat;
                         light[yi] -= hsl.light;
-                        mul[yi] -= hsl.mul;
-                        num[yi]--;
+                        luminance[yi] -= hsl.luminance;
+
+                        counts[yi]--;
                     }
                 }
             }
         }
 
-        if( xi < 0 || xi >= size_x )
-        {
+        if( xi < 1 || xi >= size_x - 1 )
             continue;
-        }
 
         int running_hues = 0;
         int running_sat = 0;
         int running_light = 0;
-        int running_multiplier = 0;
+        int running_luminance = 0;
         int running_number = 0;
+        int running_chroma = 0;
 
         // Process each row
         for( int yi = blend_start_y; yi < blend_end_y; yi++ )
@@ -123,37 +145,42 @@ blend_underlays(
             int y_north = yi + BLEND_RADIUS;
             if( y_north >= 0 && y_north < size_y )
             {
-                running_hues += hues[y_north];
+                running_chroma += chroma[y_north];
                 running_sat += sats[y_north];
                 running_light += light[y_north];
-                running_multiplier += mul[y_north];
-                running_number += num[y_north];
+                running_luminance += luminance[y_north];
+                running_number += counts[y_north];
             }
 
             // Check south boundary
             int y_south = yi - BLEND_RADIUS;
             if( y_south >= 0 && y_south < size_y )
             {
-                running_hues -= hues[y_south];
+                running_chroma -= chroma[y_south];
                 running_sat -= sats[y_south];
                 running_light -= light[y_south];
-                running_multiplier -= mul[y_south];
-                running_number -= num[y_south];
+                running_luminance -= luminance[y_south];
+                running_number -= counts[y_south];
             }
 
-            if( yi < 0 || yi >= size_y )
-            {
+            if( yi < 1 || yi >= size_y - 1 )
                 continue;
-            }
 
-            int underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(xi, yi, level)].underlay_id;
+            underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(xi, yi, level)].underlay_id;
             if( underlay_id > 0 )
             {
-                int avg_hue = running_hues / running_number;
-                int avg_sat = running_sat / running_number;
-                int avg_light = running_light / running_number;
+                int avg_hue = (running_chroma * 256 / running_luminance) & 0xFF;
+                int avg_sat = (running_sat / running_number) & 0xFF;
+                int avg_light = (running_light / running_number) & 0xFF;
+
+                if( avg_light > 256 )
+                    avg_light = 256;
+                if( avg_light < 0 )
+                    avg_light = 0;
 
                 int hsl = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
+                printf("Tile(%d, %d): hsl(%d, %d, %d)\n", xi, yi, avg_hue, avg_sat, avg_light);
+
                 colors[COLOR_COORD(xi, yi)] = hsl;
             }
         }
@@ -161,11 +188,11 @@ blend_underlays(
 
     // Free allocated memory
 
-    free(hues);
     free(sats);
     free(light);
-    free(mul);
-    free(num);
+    free(luminance);
+    free(chroma);
+    free(counts);
 
     return colors;
 }

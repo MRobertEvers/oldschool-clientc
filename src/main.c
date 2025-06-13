@@ -515,7 +515,9 @@ project_vertices(
         camera_pitch,
         camera_roll,
         camera_fov,
-        NEAR_PLANE_Z);
+        NEAR_PLANE_Z,
+        screen_width,
+        screen_height);
 
     if( projected_triangle.clipped )
     {
@@ -551,7 +553,9 @@ project_vertices(
             camera_pitch,
             camera_roll,
             camera_fov,
-            NEAR_PLANE_Z);
+            NEAR_PLANE_Z,
+            screen_width,
+            screen_height);
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step

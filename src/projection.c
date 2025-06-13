@@ -113,7 +113,9 @@ project_perspective(
     int y,
     int z,
     int fov, // FOV in units of (2π/2048) radians
-    int near_clip)
+    int near_clip,
+    int screen_width,
+    int screen_height)
 {
     struct ProjectedTriangle projected_triangle = { 0 };
 
@@ -157,8 +159,8 @@ project_perspective(
     int screen_y = ((y * fov_scale_ish16) >> 16);
 
     // Set the projected triangle
-    projected_triangle.x = screen_x;
-    projected_triangle.y = screen_y;
+    projected_triangle.x = screen_x + screen_width / 2;
+    projected_triangle.y = screen_y + screen_height / 2;
     projected_triangle.z = z;
     projected_triangle.clipped = 0;
 
@@ -186,7 +188,9 @@ project(
     int camera_pitch,
     int camera_roll,
     int fov, // FOV in units of (2π/2048) radians
-    int near_clip)
+    int near_clip,
+    int screen_width,
+    int screen_height)
 {
     struct ProjectedTriangle projected_triangle;
 
@@ -205,7 +209,13 @@ project(
         camera_roll);
 
     projected_triangle = project_perspective(
-        projected_triangle.x, projected_triangle.y, projected_triangle.z, fov, near_clip);
+        projected_triangle.x,
+        projected_triangle.y,
+        projected_triangle.z,
+        fov,
+        near_clip,
+        screen_width,
+        screen_height);
 
     return projected_triangle;
 }

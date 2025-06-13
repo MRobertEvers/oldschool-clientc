@@ -2,6 +2,7 @@
 
 #include "anim.h"
 #include "gouraud.h"
+#include "gouraud_deob.h"
 #include "lighting.h"
 #include "projection.h"
 #include "scene_tile.h"
@@ -123,7 +124,9 @@ project_vertices(
         camera_pitch,
         camera_roll,
         camera_fov,
-        near_plane_z);
+        near_plane_z,
+        screen_width,
+        screen_height);
 
     // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
     // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
@@ -159,7 +162,9 @@ project_vertices(
             camera_pitch,
             camera_roll,
             camera_fov,
-            near_plane_z);
+            near_plane_z,
+            screen_width,
+            screen_height);
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step
@@ -200,7 +205,9 @@ project_vertices_terrain(
     int camera_pitch,
     int camera_roll,
     int camera_fov,
-    int near_plane_z)
+    int near_plane_z,
+    int screen_width,
+    int screen_height)
 {
     struct ProjectedTriangle projected_triangle;
 
@@ -224,7 +231,9 @@ project_vertices_terrain(
             camera_pitch,
             camera_roll,
             camera_fov,
-            near_plane_z);
+            near_plane_z,
+            screen_width,
+            screen_height);
 
         if( projected_triangle.clipped )
         {
@@ -278,7 +287,9 @@ project_vertices_terrain_textured(
     int camera_pitch,
     int camera_roll,
     int camera_fov,
-    int near_plane_z)
+    int near_plane_z,
+    int screen_width,
+    int screen_height)
 {
     struct ProjectedTriangle projected_triangle;
 
@@ -313,7 +324,9 @@ project_vertices_terrain_textured(
             orthographic_vertices_y[i],
             orthographic_vertices_z[i],
             camera_fov,
-            near_plane_z);
+            near_plane_z,
+            screen_width,
+            screen_height);
 
         if( projected_triangle.clipped )
         {
@@ -563,23 +576,29 @@ raster_osrs_single_gouraud(
     assert(color_b >= 0 && color_b < 65536);
     assert(color_c >= 0 && color_c < 65536);
 
-    color_a = g_hsl16_to_rgb_table[color_a];
-    color_b = g_hsl16_to_rgb_table[color_b];
-    color_c = g_hsl16_to_rgb_table[color_c];
+    // color_a = g_hsl16_to_rgb_table[color_a];
+    // color_b = g_hsl16_to_rgb_table[color_b];
+    // color_c = g_hsl16_to_rgb_table[color_c];
 
-    raster_gouraud3(
-        pixel_buffer,
-        screen_width,
-        screen_height,
-        x1,
-        x2,
-        x3,
-        y1,
-        y2,
-        y3,
-        color_a,
-        color_b,
-        color_c);
+    // color_a = 14102;
+    // color_b = 14102;
+    // color_c = 14100;
+
+    drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
+
+    // raster_gouraud(
+    //     pixel_buffer,
+    //     screen_width,
+    //     screen_height,
+    //     x1,
+    //     x2,
+    //     x3,
+    //     y1,
+    //     y2,
+    //     y3,
+    //     color_a,
+    //     color_b,
+    //     color_c);
 }
 
 void
@@ -967,9 +986,8 @@ render_scene_tiles(
         {
             for( int x = 0; x < MAP_TERRAIN_X; x++ )
             {
-                // if( x != 5 || y != 0 )
-                //     continue;
-
+                if( x > 10 || y > 10 )
+                    continue;
                 int i = MAP_TILE_COORD(x, y, z);
                 struct SceneTile* tile = &tiles[i];
 
@@ -1023,7 +1041,9 @@ render_scene_tiles(
                             camera_pitch,
                             camera_roll,
                             fov,
-                            near_plane_z);
+                            near_plane_z,
+                            width,
+                            height);
 
                         raster_osrs_single_gouraud(
                             pixel_buffer,
@@ -1068,7 +1088,9 @@ render_scene_tiles(
                             camera_pitch,
                             camera_roll,
                             fov,
-                            near_plane_z);
+                            near_plane_z,
+                            width,
+                            height);
 
                         raster_osrs_single_texture(
                             pixel_buffer,

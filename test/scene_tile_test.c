@@ -139,9 +139,15 @@ pix3d_set_brightness(int* palette, double brightness)
     }
 }
 
+#include <stdio.h>
+
 void
 init_hsl16_to_rgb_table()
 {
+    // FILE* file = fopen("../cache/palette.bin", "rb");
+    // assert(file);
+    // fread(g_hsl16_to_rgb_table, sizeof(int), 65536, file);
+    // fclose(file);
     pix3d_set_brightness(g_hsl16_to_rgb_table, 0.8);
 }
 
@@ -283,13 +289,13 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         0xFF000000);
 
     // Draw debug text for camera position and rotation
-    printf(
-        "Camera: x=%d y=%d z=%d pitch=%d yaw=%d\n",
-        game->camera_x,
-        game->camera_y,
-        game->camera_z,
-        game->camera_pitch,
-        game->camera_yaw);
+    // printf(
+    //     "Camera: x=%d y=%d z=%d pitch=%d yaw=%d\n",
+    //     game->camera_x,
+    //     game->camera_y,
+    //     game->camera_z,
+    //     game->camera_pitch,
+    //     game->camera_yaw);
 
     // Copy the pixels into the texture
     int* pix_write = NULL;

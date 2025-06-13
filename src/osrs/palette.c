@@ -151,9 +151,9 @@ palette_rgb_to_hsl16(int rgb)
 struct HSL
 palette_rgb_to_hsl24(int rgb)
 {
-    double r = (double)((rgb >> 16) & 255) / 256.0;
-    double g = (double)((rgb >> 8) & 255) / 256.0;
-    double b = (double)(rgb & 255) / 256.0;
+    double r = (double)((rgb >> 16) & 255) / (double)256.0;
+    double g = (double)((rgb >> 8) & 255) / (double)256.0;
+    double b = (double)(rgb & 255) / (double)256.0;
 
     double min = r;
     if( g < min )
@@ -213,20 +213,21 @@ palette_rgb_to_hsl24(int rgb)
     else if( light_int > 255 )
         light_int = 255;
 
-    int mul_int;
+    int luminance;
     if( lightness > 0.5 )
-        mul_int = (int)(saturation * (1.0 - lightness) * 2.0 * 256.0);
+        luminance = (int)(saturation * (1.0 - lightness) * (double)512.0);
     else
-        mul_int = (int)(saturation * lightness * 2.0 * 256.0);
+        luminance = (int)(saturation * lightness * (double)512.0);
 
-    if( mul_int < 1 )
-        mul_int = 1;
+    if( luminance < 1 )
+        luminance = 1;
 
     struct HSL hsl;
     hsl.hue = hue_int;
     hsl.sat = sat_int;
     hsl.light = light_int;
-    hsl.mul = mul_int;
+    hsl.luminance = luminance;
+    hsl.chroma = (int)(hue * ((double)luminance));
     return hsl;
 }
 
@@ -234,16 +235,16 @@ int
 palette_hsl24_to_hsl16(int hue, int saturation, int lightness)
 {
     if( lightness > 179 )
-        saturation = (saturation / 2);
+        saturation >>= 1;
 
     if( lightness > 192 )
-        saturation = (saturation / 2);
+        saturation >>= 1;
 
     if( lightness > 217 )
-        saturation = (saturation / 2);
+        saturation >>= 1;
 
     if( lightness > 243 )
-        saturation = (saturation / 2);
+        saturation >>= 1;
 
-    return ((saturation / 32) << 7) + ((hue / 4) << 10) + ((lightness / 2));
+    return ((hue / 4) << 10) + ((saturation / 32) << 7) + ((lightness / 2));
 }

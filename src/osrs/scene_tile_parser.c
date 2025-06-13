@@ -346,6 +346,7 @@ adjust_overlay_light(int hsl, int light)
 static int
 mix_hsl(int hsl_a, int hsl_b)
 {
+    // return (hsl_a + hsl_b) >> 1;
     if( hsl_a == INVALID_HSL_COLOR || hsl_b == INVALID_HSL_COLOR )
         return INVALID_HSL_COLOR;
 
@@ -462,6 +463,7 @@ decode_tile(
             vert_y = (height_se + height_sw) >> 1;
             // vert_y = height_sw;
 
+            vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_sw);
             vert_underlay_color_hsl = mix_hsl(blended_underlay_hsl_se, blended_underlay_hsl_sw);
             vert_overlay_color_hsl = (overlay_hsl_se + overlay_hsl_sw) >> 1;
         }
@@ -689,11 +691,23 @@ decode_tile(
         // TODO: Skip texture rendering right now
 
         if( color_a == INVALID_HSL_COLOR )
+        {
             face_colors_hsl_a[i] = 0;
+            valid_faces[i] = 0;
+            continue;
+        }
         if( color_b == INVALID_HSL_COLOR )
+        {
             face_colors_hsl_b[i] = 0;
+            valid_faces[i] = 0;
+            continue;
+        }
         if( color_c == INVALID_HSL_COLOR )
+        {
             face_colors_hsl_c[i] = 0;
+            valid_faces[i] = 0;
+            continue;
+        }
 
         if( color_a == INVALID_HSL_COLOR && texture_id == -1 )
         {
@@ -1046,6 +1060,14 @@ scene_tiles_new_from_map_terrain(
                 {
                     int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
                     assert(underlay_index != -1);
+
+                    if( x == 5 && y == 2 )
+                    {
+                        printf("underlay_index: %d\n", underlay_index);
+                        printf(
+                            "blended_underlays[COLOR_COORD(x, y)]: %d\n",
+                            blended_underlays[COLOR_COORD(x, y)]);
+                    }
 
                     underlay = &underlays[underlay_index];
                     underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];

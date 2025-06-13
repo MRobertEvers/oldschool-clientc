@@ -287,3 +287,7 @@ Ex.
 
 In `src/rs/scene/SceneBuilder.ts`.`addTileModels`, the MapTiles are decoded to Map Models.
 With vertices and colors and what not.
+
+### Software Renderer RGB.
+
+https://rune-server.org/threads/basis-for-a-software-based-3d-renderer.535618/page-2#post5034974

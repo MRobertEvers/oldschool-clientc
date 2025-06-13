@@ -50,9 +50,9 @@ void raster_gouraud(
     int y0,
     int y1,
     int y2,
-    int color0,
-    int color1,
-    int color2);
+    int color0_hsl16,
+    int color1_hsl16,
+    int color2_hsl16);
 
 void raster_gouraud2(
     int* pixel_buffer,
@@ -81,4 +81,19 @@ void raster_gouraud3(
     int color0,
     int color1,
     int color2);
+
+void gouraudTriangle(
+    int* pixels,
+    int xA,
+    int xB,
+    int xC,
+    int yA,
+    int yB,
+    int yC,
+    int colorA,
+    int colorB,
+    int colorC);
+
+void gouraudRaster(int x0, int x1, int color0, int color1, int* dst, int offset, int length);
+
 #endif

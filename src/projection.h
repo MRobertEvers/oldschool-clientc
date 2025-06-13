@@ -33,7 +33,9 @@ struct ProjectedTriangle project_perspective(
     int z,
     // FOV in units of (2π/2048) radians
     int fov_r2pi2048,
-    int near_clip);
+    int near_clip,
+    int screen_width,
+    int screen_height);
 
 /**
  * Treats the camera as if it is at the origin (0, 0, 0)
@@ -55,6 +57,8 @@ struct ProjectedTriangle project(
     int camera_roll_r2pi2048,
     // FOV in units of (2π/2048) radians
     int fov_r2pi2048,
-    int near_clip);
+    int near_clip,
+    int screen_width,
+    int screen_height);
 
 #endif
