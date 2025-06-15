@@ -8,6 +8,21 @@ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make VERBOSE=1
 ```
 
+### Setup
+
+Required dependencies
+
+- SDL2
+- CMake
+
+#### Mac
+
+Install SDL2.
+
+```
+brew install sdl2
+```
+
 ### Rendering Notes
 
 ```
@@ -297,7 +312,9 @@ https://rune-server.org/threads/basis-for-a-software-based-3d-renderer.535618/pa
 ![my_renderer](res/underlay_blending/underlay_my_renderer_no_smooth_blending.png)
 and ![osrs_client](res/underlay_blending/underlay_osrs.png)
 
-This was based on some bad code from rs-map-viewer. The official deob only uses the "basecolor" or the "SW" color as it's named here.
+This was based on some bad code from rs-map-viewer. The official deob only uses the "basecolor" or the "SW" color as it's named here, and then that basecolor is lit from 4 directions.
+
+The RS Map Viewer uses RGB blending.
 
 ```
  underlay = &underlays[underlay_index];
