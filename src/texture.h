@@ -86,4 +86,44 @@ void raster_texture(
     int* texels,
     int texture_width);
 
+void textureRaster(
+    int xA,
+    int xB,
+    int* dst,
+    int offset,
+    int* texels,
+    int curU,
+    int curV,
+    int u,
+    int v,
+    int w,
+    int uStride,
+    int vStride,
+    int wStride,
+    int shadeA,
+    int shadeB);
+
+void textureTriangle(
+    int xA,
+    int xB,
+    int xC,
+    int yA,
+    int yB,
+    int yC,
+    int shadeA,
+    int shadeB,
+    int shadeC,
+    int originX,
+    int originY,
+    int originZ,
+    int txB,
+    int txC,
+    int tyB,
+    int tyC,
+    int tzB,
+    int tzC,
+    int* pixel_buffer,
+    int* texels,
+    int texture_width);
+
 #endif

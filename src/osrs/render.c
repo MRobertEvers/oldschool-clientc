@@ -324,9 +324,7 @@ project_vertices_terrain_textured(
             orthographic_vertices_y[i],
             orthographic_vertices_z[i],
             camera_fov,
-            near_plane_z,
-            screen_width,
-            screen_height);
+            near_plane_z);
 
         if( projected_triangle.clipped )
         {
@@ -598,7 +596,7 @@ raster_osrs_single_gouraud(
         color_c);
 }
 
-void
+bool
 raster_osrs_single_texture(
     struct Pixel* pixel_buffer,
     int width,
@@ -631,30 +629,86 @@ raster_osrs_single_texture(
 {
     int index = face;
 
-    int x1 = screen_vertex_x[face_indices_a[index]] + offset_x;
-    int y1 = screen_vertex_y[face_indices_a[index]] + offset_y;
-    int z1 = screen_vertex_z[face_indices_a[index]];
-    int x2 = screen_vertex_x[face_indices_b[index]] + offset_x;
-    int y2 = screen_vertex_y[face_indices_b[index]] + offset_y;
-    int z2 = screen_vertex_z[face_indices_b[index]];
-    int x3 = screen_vertex_x[face_indices_c[index]] + offset_x;
-    int y3 = screen_vertex_y[face_indices_c[index]] + offset_y;
-    int z3 = screen_vertex_z[face_indices_c[index]];
+    int x0 = screen_vertex_x[0];
+    int y0 = screen_vertex_y[0];
+    int z0 = screen_vertex_z[0];
+    int x1 = screen_vertex_x[1];
+    int y1 = screen_vertex_y[1];
+    int z1 = screen_vertex_z[1];
+    int x2 = screen_vertex_x[2];
+    int y2 = screen_vertex_y[2];
+    int z2 = screen_vertex_z[2];
+    int x3 = screen_vertex_x[3];
+    int y3 = screen_vertex_y[3];
+    int z3 = screen_vertex_z[3];
 
-    int ortho_x1 = orthographic_vertex_x[face_indices_a[index]];
-    int ortho_y1 = orthographic_vertex_y[face_indices_a[index]];
-    int ortho_z1 = orthographic_vertex_z[face_indices_a[index]];
-    int ortho_x2 = orthographic_vertex_x[face_indices_b[index]];
-    int ortho_y2 = orthographic_vertex_y[face_indices_b[index]];
-    int ortho_z2 = orthographic_vertex_z[face_indices_b[index]];
-    int ortho_x3 = orthographic_vertex_x[face_indices_c[index]];
-    int ortho_y3 = orthographic_vertex_y[face_indices_c[index]];
-    int ortho_z3 = orthographic_vertex_z[face_indices_c[index]];
+    // int x1 = screen_vertex_x[face_indices_a[index]] + offset_x;
+    // int y1 = screen_vertex_y[face_indices_a[index]] + offset_y;
+    // int z1 = screen_vertex_z[face_indices_a[index]];
+    // int x2 = screen_vertex_x[face_indices_b[index]] + offset_x;
+    // int y2 = screen_vertex_y[face_indices_b[index]] + offset_y;
+    // int z2 = screen_vertex_z[face_indices_b[index]];
+    // int x3 = screen_vertex_x[face_indices_c[index]] + offset_x;
+    // int y3 = screen_vertex_y[face_indices_c[index]] + offset_y;
+    // int z3 = screen_vertex_z[face_indices_c[index]];
+    // sw
+    int ortho_x0 = orthographic_vertex_x[0];
+    int ortho_y0 = orthographic_vertex_y[0];
+    int ortho_z0 = orthographic_vertex_z[0];
+    // se
+    int ortho_x1 = orthographic_vertex_x[1];
+    int ortho_y1 = orthographic_vertex_y[1];
+    int ortho_z1 = orthographic_vertex_z[1];
+    // ne
+    int ortho_x2 = orthographic_vertex_x[2];
+    int ortho_y2 = orthographic_vertex_y[2];
+    int ortho_z2 = orthographic_vertex_z[2];
+    // nw
+    int ortho_x3 = orthographic_vertex_x[3];
+    int ortho_y3 = orthographic_vertex_y[3];
+    int ortho_z3 = orthographic_vertex_z[3];
+
+    ortho_z0 = 1;
+    ortho_z1 = 1;
+    ortho_z2 = 1;
+    ortho_z3 = 1;
+
+    ortho_x0 = 0;
+    ortho_x1 = 128;
+    ortho_x2 = 128;
+    ortho_x3 = 0;
+
+    ortho_y0 = 128;
+    ortho_y1 = 128;
+    ortho_y2 = 0;
+    ortho_y3 = 0;
+
+    x0 = ortho_x0;
+    y0 = ortho_y0;
+    z0 = ortho_z0;
+    x1 = ortho_x1;
+    y1 = ortho_y1;
+    z1 = ortho_z1;
+    x2 = ortho_x2;
+    y2 = ortho_y2;
+    x3 = ortho_x3;
+    y3 = ortho_y3;
+    z3 = ortho_z3;
+
+    // int ortho_x1 = orthographic_vertex_x[face_indices_a[index]];
+    // int ortho_y1 = orthographic_vertex_y[face_indices_a[index]];
+    // int ortho_z1 = orthographic_vertex_z[face_indices_a[index]];
+    // int ortho_x2 = orthographic_vertex_x[face_indices_b[index]];
+    // int ortho_y2 = orthographic_vertex_y[face_indices_b[index]];
+    // int ortho_z2 = orthographic_vertex_z[face_indices_b[index]];
+    // int ortho_x3 = orthographic_vertex_x[face_indices_c[index]];
+    // int ortho_y3 = orthographic_vertex_y[face_indices_c[index]];
+    // int ortho_z3 = orthographic_vertex_z[face_indices_c[index]];
 
     // Skip triangle if any vertex was clipped
     // TODO: Perhaps use a separate buffer to track this.
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
-        return;
+        return false;
 
     int u0 = face_texture_u_a[index];
     int v0 = face_texture_v_a[index];
@@ -665,7 +719,7 @@ raster_osrs_single_texture(
 
     int texture_id = face_texture_ids[index];
     if( texture_id == -1 )
-        return;
+        return false;
 
     struct TextureDefinition* texture_definition = NULL;
     for( int i = 0; i < texture_count; i++ )
@@ -678,35 +732,35 @@ raster_osrs_single_texture(
     }
 
     if( !texture_definition )
-        return;
+        return false;
 
     int* texels = texture_pixels_new_from_definition(
         texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1);
     if( !texels )
-        return;
+        return false;
 
     raster_texture(
         pixel_buffer,
         width,
         height,
-        x1,
-        x2,
         x3,
-        y1,
-        y2,
+        x1,
+        x0,
         y3,
-        z1,
-        z2,
+        y1,
+        y0,
         z3,
-        ortho_x1,
-        ortho_x2,
+        z1,
+        z0,
         ortho_x3,
-        ortho_y1,
-        ortho_y2,
+        ortho_x2,
+        ortho_x0,
         ortho_y3,
-        ortho_z1,
-        ortho_z2,
+        ortho_y2,
+        ortho_y0,
         ortho_z3,
+        ortho_z2,
+        ortho_z0,
         u0 * 127,
         u1 * 127,
         u2 * 127,
@@ -717,6 +771,8 @@ raster_osrs_single_texture(
         128);
 
     free(texels);
+
+    return true;
 }
 
 static int tmp_depth_face_count[1500] = { 0 };
@@ -1020,6 +1076,7 @@ render_scene_tiles(
 
                     if( tile->face_texture_ids == NULL )
                     {
+                        continue;
                         project_vertices_terrain(
                             screen_vertices_x,
                             screen_vertices_y,
@@ -1058,15 +1115,21 @@ render_scene_tiles(
                             tile->face_color_hsl_a,
                             tile->face_color_hsl_b,
                             tile->face_color_hsl_c,
-                            0,
-                            0,
+                            width / 2,
+                            height / 2,
                             width,
                             height);
                     }
                     else
                     {
-                        // TODO: Get average texture color.
-                        break;
+                        // Tile vertexes are wrapped ccw.
+                        int testx[] = { 40, 40 + 128, 40 + 128, 40 };
+                        int testz[] = { 40, 40, 40 + 128, 40 + 128 };
+                        int testy[] = { 20, 20, 20, 20 };
+
+                        // finish bathroom and floor in basement
+                        // two tables against the wall put in garage.
+                        // add 0404
                         project_vertices_terrain_textured(
                             screen_vertices_x,
                             screen_vertices_y,
@@ -1074,10 +1137,14 @@ render_scene_tiles(
                             ortho_vertices_x,
                             ortho_vertices_y,
                             ortho_vertices_z,
-                            tile->vertex_count,
-                            tile->vertex_x,
-                            tile->vertex_y,
-                            tile->vertex_z,
+                            4,
+                            // tile->vertex_count,
+                            testx,
+                            testy,
+                            testz,
+                            // tile->vertex_x,
+                            // tile->vertex_y,
+                            // tile->vertex_z,
                             0,
                             0,
                             0,
@@ -1094,7 +1161,7 @@ render_scene_tiles(
                             width,
                             height);
 
-                        raster_osrs_single_texture(
+                        bool success = raster_osrs_single_texture(
                             pixel_buffer,
                             width,
                             height,
@@ -1121,13 +1188,17 @@ render_scene_tiles(
                             sprite_packs,
                             sprite_ids,
                             sprite_count,
-                            0,
-                            0);
+                            width / 2,
+                            height / 2);
+                        if( success )
+                            goto done;
                     }
                 }
             }
         }
     }
+
+done:
     free(screen_vertices_x);
     free(screen_vertices_y);
     free(screen_vertices_z);
