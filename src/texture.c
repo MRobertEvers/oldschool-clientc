@@ -457,9 +457,9 @@ raster_texture(
     // Compute the partial derivatives of the uv coordinates with respect to the x and y coordinates
     // of the screen.
 
-    int AC_dx_dy_ish16 = ((screen_x0 - screen_x2) << 16) / (screen_y2 - screen_y0);
-    int AB_dx_dy_ish16 = ((screen_x0 - screen_x1) << 16) / (screen_y1 - screen_y0);
-    int BC_dx_dy_ish16 = ((screen_x1 - screen_x2) << 16) / (screen_y2 - screen_y1);
+    int AC_dx_dy_ish16 = ((screen_x2 - screen_x0) << 16) / (screen_y2 - screen_y0);
+    int AB_dx_dy_ish16 = ((screen_x1 - screen_x0) << 16) / (screen_y1 - screen_y0);
+    int BC_dx_dy_ish16 = ((screen_x2 - screen_x1) << 16) / (screen_y2 - screen_y1);
 
     int total_height = screen_y2 - screen_y0;
     if( total_height == 0 )
@@ -470,11 +470,19 @@ raster_texture(
     int cw = 0;
 
     int x_start_ish16 = screen_x0 << 16;
-    int x_end_ish16 = screen_x1 << 16;
+    int x_end_ish16 = screen_x0 << 16;
     int y_start = screen_y0;
     int y_end = screen_y1;
 
-    for( int y = y_start; y < y_end; y++ )
+    if( screen_y0 < 0 )
+    {
+        x_start_ish16 -= AC_dx_dy_ish16 * screen_y0;
+        x_end_ish16 -= AB_dx_dy_ish16 * screen_y0;
+        screen_y0 = 0;
+    }
+
+    int y = y_start;
+    for( ; y < y_end; y++ )
     {
         if( y < 0 || y >= screen_height )
             continue;
@@ -498,11 +506,6 @@ raster_texture(
 
             assert(cw != 0);
 
-            double u_d = (double)au / cw;
-            double v_d = (double)bv / cw;
-
-            printf("u_d: %f, v_d: %f\n", u_d, v_d);
-
             int u = -(au * texture_width) / cw;
             int v = -(bv * texture_width) / cw;
 
@@ -519,30 +522,54 @@ raster_texture(
         x_end_ish16 += AB_dx_dy_ish16;
     }
 
-    // x_start_ish16 = screen_x1 << 16;
-    // x_end_ish16 = screen_x2 << 16;
-    // y_start_ish16 = screen_y1 << 16;
-    // y_end_ish16 = screen_y2 << 16;
+    if( screen_y1 < 0 )
+    {
+        x_end_ish16 -= BC_dx_dy_ish16 * screen_y1;
+        screen_y1 = 0;
+    }
 
-    // for( int y = y_start_ish16; y < y_end_ish16; y++ )
-    // {
-    //     if( x_start_ish16 >> 16 > x_end_ish16 >> 16 )
-    //         return;
+    y = screen_y1;
+    y_end = screen_y2;
 
-    //     if( y < 0 || (y >> 16) >= screen_height )
-    //         continue;
+    for( ; y < y_end; y++ )
+    {
+        if( y < 0 || y >= screen_height )
+            continue;
 
-    //     for( int x = x_start_ish16; x < x_end_ish16; x++ )
-    //     {
-    //         if( x < 0 || (x >> 16) >= screen_width )
-    //             continue;
+        int x_start = x_start_ish16 >> 16;
+        int x_end = x_end_ish16 >> 16;
 
-    //         int offset = y * screen_width + x;
-    //     }
+        if( x_start > x_end )
+        {
+            SWAP(x_start, x_end);
+        }
 
-    //     x_start_ish16 += AC_dx_dy_ish16;
-    //     x_end_ish16 += BC_dx_dy_ish16;
-    // }
+        for( int x = x_start; x < x_end; x++ )
+        {
+            if( x < 0 || x >= screen_width )
+                continue;
+
+            au = vOVPlane_normal_zhat + vOVPlane_normal_xhat * (x) + vOVPlane_normal_yhat * (y);
+            bv = vUOPlane_normal_zhat + vUOPlane_normal_xhat * (x) + vUOPlane_normal_yhat * (y);
+            cw = vUVPlane_normal_zhat + vUVPlane_normal_xhat * (x) + vUVPlane_normal_yhat * (y);
+
+            assert(cw != 0);
+
+            int u = -(au * texture_width) / cw;
+            int v = -(bv * texture_width) / cw;
+
+            assert(u >= 0 && u < texture_width);
+            assert(v >= 0 && v < texture_width);
+            int texel = texels[u + v * texture_width];
+
+            int offset = y * screen_width + x;
+            assert(offset >= 0 && offset < screen_width * screen_height);
+            pixel_buffer[offset] = texel;
+        }
+
+        x_start_ish16 += AC_dx_dy_ish16;
+        x_end_ish16 += BC_dx_dy_ish16;
+    }
 }
 
 void

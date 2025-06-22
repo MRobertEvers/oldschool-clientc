@@ -684,7 +684,7 @@ raster_osrs_single_texture(
     ortho_y3 = 0;
 
     x0 = ortho_x0;
-    y0 = ortho_y0;
+    y0 = ortho_y0 / 2;
     z0 = ortho_z0;
     x1 = ortho_x1;
     y1 = ortho_y1;
