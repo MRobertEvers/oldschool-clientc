@@ -442,6 +442,8 @@ raster_texture(
     int vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
     int vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
 
+    // TODO: The derivation leaves this as the VU plane,
+    // so this needs to be flipped.
     int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
     int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
     int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
@@ -557,8 +559,6 @@ raster_texture(
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
     }
 
-    return;
-
     if( screen_y1 < 0 )
     {
         edge_x_AC_ish16 -= step_edge_x_AC_ish16 * screen_y1;
@@ -593,14 +593,19 @@ raster_texture(
             cw = vUVPlane_normal_zhat * UNIT_SCALE + vUVPlane_normal_xhat * (x - 400) +
                  vUVPlane_normal_yhat * (y - 300);
 
-            cw = 1;
             assert(cw != 0);
 
-            u = -(au * texture_width) / cw;
-            v = -(bv * texture_width) / cw;
+            u = (au * texture_width) / (-cw);
+            v = (bv * texture_width) / (-cw);
 
-            u = 0;
-            v = 0;
+            if( u < 0 )
+                u = 0;
+            if( u >= texture_width )
+                u = texture_width - 1;
+            if( v < 0 )
+                v = 0;
+            if( v >= texture_width )
+                v = texture_width - 1;
 
             assert(u >= 0 && u < texture_width);
             assert(v >= 0 && v < texture_width);
