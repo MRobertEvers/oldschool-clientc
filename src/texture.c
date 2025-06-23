@@ -64,14 +64,8 @@ raster_texture_scanline(
         int u = (au * texture_width) / (-cw);
         int v = (bv * texture_width) / (-cw);
 
-        if( u < 0 )
-            u = 0;
-        if( u >= texture_width )
-            u = texture_width - 1;
-        if( v < 0 )
-            v = 0;
-        if( v >= texture_width )
-            v = texture_width - 1;
+        u &= texture_width - 1;
+        v &= texture_width - 1;
 
         pixel_buffer[offset] = texels[u + v * texture_width];
 
@@ -106,12 +100,6 @@ raster_texture_step(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
-    int u0,
-    int u1,
-    int u2,
-    int v0,
-    int v1,
-    int v2,
     int* texels,
     int texture_width)
 {
@@ -307,12 +295,6 @@ raster_texture(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
-    int u0,
-    int u1,
-    int u2,
-    int v0,
-    int v1,
-    int v2,
     int* texels,
     int texture_width)
 {

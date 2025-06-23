@@ -77,12 +77,6 @@ void raster_texture(
     int orthographic_z0,
     int orthographic_z1,
     int orthographic_z2,
-    int u0,
-    int u1,
-    int u2,
-    int v0,
-    int v1,
-    int v2,
     int* texels,
     int texture_width);
 
@@ -108,12 +102,6 @@ void raster_texture_step(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
-    int u0,
-    int u1,
-    int u2,
-    int v0,
-    int v1,
-    int v2,
     int* texels,
     int texture_width);
 
