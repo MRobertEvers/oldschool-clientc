@@ -629,17 +629,17 @@ raster_osrs_single_texture(
 {
     int index = face;
 
-    int x0 = screen_vertex_x[0];
-    int y0 = screen_vertex_y[0];
+    int x0 = screen_vertex_x[0] + offset_x;
+    int y0 = screen_vertex_y[0] + offset_y;
     int z0 = screen_vertex_z[0];
-    int x1 = screen_vertex_x[1];
-    int y1 = screen_vertex_y[1];
+    int x1 = screen_vertex_x[1] + offset_x;
+    int y1 = screen_vertex_y[1] + offset_y;
     int z1 = screen_vertex_z[1];
-    int x2 = screen_vertex_x[2];
-    int y2 = screen_vertex_y[2];
+    int x2 = screen_vertex_x[2] + offset_x;
+    int y2 = screen_vertex_y[2] + offset_y;
     int z2 = screen_vertex_z[2];
-    int x3 = screen_vertex_x[3];
-    int y3 = screen_vertex_y[3];
+    int x3 = screen_vertex_x[3] + offset_x;
+    int y3 = screen_vertex_y[3] + offset_y;
     int z3 = screen_vertex_z[3];
 
     // int x1 = screen_vertex_x[face_indices_a[index]] + offset_x;
@@ -651,7 +651,7 @@ raster_osrs_single_texture(
     // int x3 = screen_vertex_x[face_indices_c[index]] + offset_x;
     // int y3 = screen_vertex_y[face_indices_c[index]] + offset_y;
     // int z3 = screen_vertex_z[face_indices_c[index]];
-    // sw
+    // // sw
     int ortho_x0 = orthographic_vertex_x[0];
     int ortho_y0 = orthographic_vertex_y[0];
     int ortho_z0 = orthographic_vertex_z[0];
@@ -667,33 +667,6 @@ raster_osrs_single_texture(
     int ortho_x3 = orthographic_vertex_x[3];
     int ortho_y3 = orthographic_vertex_y[3];
     int ortho_z3 = orthographic_vertex_z[3];
-
-    ortho_z0 = 1;
-    ortho_z1 = 1;
-    ortho_z2 = 1;
-    ortho_z3 = 1;
-
-    ortho_x0 = 0;
-    ortho_x1 = 128;
-    ortho_x2 = 128;
-    ortho_x3 = 0;
-
-    ortho_y0 = 128;
-    ortho_y1 = 128;
-    ortho_y2 = 0;
-    ortho_y3 = 0;
-
-    x0 = ortho_x0;
-    y0 = ortho_y0 / 2;
-    z0 = ortho_z0;
-    x1 = ortho_x1;
-    y1 = ortho_y1;
-    z1 = ortho_z1;
-    x2 = ortho_x2;
-    y2 = ortho_y2;
-    x3 = ortho_x3;
-    y3 = ortho_y3;
-    z3 = ortho_z3;
 
     // int ortho_x1 = orthographic_vertex_x[face_indices_a[index]];
     // int ortho_y1 = orthographic_vertex_y[face_indices_a[index]];
@@ -744,23 +717,23 @@ raster_osrs_single_texture(
         width,
         height,
         x3,
-        x1,
+        x2,
         x0,
         y3,
-        y1,
+        y2,
         y0,
         z3,
-        z1,
+        z2,
         z0,
-        ortho_x3,
-        ortho_x2,
         ortho_x0,
-        ortho_y3,
-        ortho_y2,
+        ortho_x1,
+        ortho_x3,
         ortho_y0,
-        ortho_z3,
-        ortho_z2,
+        ortho_y1,
+        ortho_y3,
         ortho_z0,
+        ortho_z1,
+        ortho_z3,
         u0 * 127,
         u1 * 127,
         u2 * 127,
@@ -1076,7 +1049,6 @@ render_scene_tiles(
 
                     if( tile->face_texture_ids == NULL )
                     {
-                        continue;
                         project_vertices_terrain(
                             screen_vertices_x,
                             screen_vertices_y,
@@ -1137,14 +1109,10 @@ render_scene_tiles(
                             ortho_vertices_x,
                             ortho_vertices_y,
                             ortho_vertices_z,
-                            4,
-                            // tile->vertex_count,
-                            testx,
-                            testy,
-                            testz,
-                            // tile->vertex_x,
-                            // tile->vertex_y,
-                            // tile->vertex_z,
+                            tile->vertex_count,
+                            tile->vertex_x,
+                            tile->vertex_y,
+                            tile->vertex_z,
                             0,
                             0,
                             0,
@@ -1190,8 +1158,6 @@ render_scene_tiles(
                             sprite_count,
                             width / 2,
                             height / 2);
-                        if( success )
-                            goto done;
                     }
                 }
             }

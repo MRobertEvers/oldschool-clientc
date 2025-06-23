@@ -430,6 +430,8 @@ raster_texture(
         SWAP(screen_z1, screen_z2);
     }
 
+    const int UNIT_SCALE = 512;
+
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
     int vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
     int vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
@@ -450,67 +452,100 @@ raster_texture(
 
     int vUOPlane_normal_xhat = vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
     int vUOPlane_normal_yhat = vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
+
     int vUOPlane_normal_zhat = vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
 
     // These two vectors now point in the direction or U or V.
     // TODO: Need to make sure this is the right order.
     // Compute the partial derivatives of the uv coordinates with respect to the x and y coordinates
     // of the screen.
-
-    int AC_dx_dy_ish16 = ((screen_x2 - screen_x0) << 16) / (screen_y2 - screen_y0);
-    int AB_dx_dy_ish16 = ((screen_x1 - screen_x0) << 16) / (screen_y1 - screen_y0);
-    int BC_dx_dy_ish16 = ((screen_x2 - screen_x1) << 16) / (screen_y2 - screen_y1);
-
     int total_height = screen_y2 - screen_y0;
     if( total_height == 0 )
         return;
+
+    int dy_AC = screen_y2 - screen_y0;
+    int dy_AB = screen_y1 - screen_y0;
+    int dy_BC = screen_y2 - screen_y1;
+
+    int dx_AC = screen_x2 - screen_x0;
+    int dx_AB = screen_x1 - screen_x0;
+    int dx_BC = screen_x2 - screen_x1;
+
+    int step_edge_x_AC_ish16 = 0;
+    int step_edge_x_AB_ish16 = 0;
+    int step_edge_x_BC_ish16 = 0;
+
+    if( dy_AC > 0 )
+        step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
+    if( dy_AB > 0 )
+        step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
+    if( dy_BC > 0 )
+        step_edge_x_BC_ish16 = (dx_BC << 16) / dy_BC;
 
     int au = 0;
     int bv = 0;
     int cw = 0;
 
-    int x_start_ish16 = screen_x0 << 16;
-    int x_end_ish16 = screen_x0 << 16;
-    int y_start = screen_y0;
-    int y_end = screen_y1;
+    int edge_x_AC_ish16 = screen_x0 << 16;
+    int edge_x_AB_ish16 = screen_x0 << 16;
+    int edge_x_BC_ish16 = screen_x1 << 16;
 
     if( screen_y0 < 0 )
     {
-        x_start_ish16 -= AC_dx_dy_ish16 * screen_y0;
-        x_end_ish16 -= AB_dx_dy_ish16 * screen_y0;
+        edge_x_AC_ish16 -= step_edge_x_AC_ish16 * screen_y0;
+        edge_x_AB_ish16 -= step_edge_x_AB_ish16 * screen_y0;
         screen_y0 = 0;
     }
 
-    int y = y_start;
-    for( ; y < y_end; y++ )
+    if( screen_y0 > screen_y1 )
+        return;
+
+    int x_start, x_end, x, u, v;
+
+    int y = screen_y0;
+    for( ; y < screen_y1 && y < screen_height; y++ )
     {
         if( y < 0 || y >= screen_height )
             continue;
 
-        int x_start = x_start_ish16 >> 16;
-        int x_end = x_end_ish16 >> 16;
+        x_start = edge_x_AC_ish16 >> 16;
+        x_end = edge_x_AB_ish16 >> 16;
 
         if( x_start > x_end )
         {
             SWAP(x_start, x_end);
         }
 
-        for( int x = x_start; x < x_end; x++ )
+        for( x = x_start; x < x_end; x++ )
         {
             if( x < 0 || x >= screen_width )
                 continue;
 
-            au = vOVPlane_normal_zhat + vOVPlane_normal_xhat * (x) + vOVPlane_normal_yhat * (y);
-            bv = vUOPlane_normal_zhat + vUOPlane_normal_xhat * (x) + vUOPlane_normal_yhat * (y);
-            cw = vUVPlane_normal_zhat + vUVPlane_normal_xhat * (x) + vUVPlane_normal_yhat * (y);
+            au = vOVPlane_normal_zhat * UNIT_SCALE + vOVPlane_normal_xhat * (x - 400) +
+                 vOVPlane_normal_yhat * (y - 300);
+            bv = vUOPlane_normal_zhat * UNIT_SCALE + vUOPlane_normal_xhat * (x - 400) +
+                 vUOPlane_normal_yhat * (y - 300);
+            cw = vUVPlane_normal_zhat * UNIT_SCALE + vUVPlane_normal_xhat * (x - 400) +
+                 vUVPlane_normal_yhat * (y - 300);
 
             assert(cw != 0);
 
-            int u = -(au * texture_width) / cw;
-            int v = -(bv * texture_width) / cw;
+            u = (au * texture_width) / (-cw);
+            v = (bv * texture_width) / (-cw);
 
-            assert(u >= 0 && u < texture_width);
-            assert(v >= 0 && v < texture_width);
+            if( u < 0 )
+                u = 0;
+            if( u >= texture_width )
+                u = texture_width - 1;
+            if( v < 0 )
+                v = 0;
+            if( v >= texture_width )
+                v = texture_width - 1;
+
+            assert(u >= 0);
+            assert(u < texture_width);
+            assert(v >= 0);
+            assert(v < texture_width);
             int texel = texels[u + v * texture_width];
 
             int offset = y * screen_width + x;
@@ -518,45 +553,54 @@ raster_texture(
             pixel_buffer[offset] = texel;
         }
 
-        x_start_ish16 += AC_dx_dy_ish16;
-        x_end_ish16 += AB_dx_dy_ish16;
+        edge_x_AC_ish16 += step_edge_x_AC_ish16;
+        edge_x_AB_ish16 += step_edge_x_AB_ish16;
     }
+
+    return;
 
     if( screen_y1 < 0 )
     {
-        x_end_ish16 -= BC_dx_dy_ish16 * screen_y1;
+        edge_x_AC_ish16 -= step_edge_x_AC_ish16 * screen_y1;
+        edge_x_BC_ish16 -= step_edge_x_BC_ish16 * screen_y1;
         screen_y1 = 0;
     }
 
     y = screen_y1;
-    y_end = screen_y2;
 
-    for( ; y < y_end; y++ )
+    for( ; y < screen_y2 && y < screen_height; y++ )
     {
         if( y < 0 || y >= screen_height )
             continue;
 
-        int x_start = x_start_ish16 >> 16;
-        int x_end = x_end_ish16 >> 16;
+        x_start = edge_x_AC_ish16 >> 16;
+        x_end = edge_x_BC_ish16 >> 16;
 
         if( x_start > x_end )
         {
             SWAP(x_start, x_end);
         }
 
-        for( int x = x_start; x < x_end; x++ )
+        for( x = x_start; x < x_end; x++ )
         {
             if( x < 0 || x >= screen_width )
                 continue;
 
-            au = vOVPlane_normal_zhat + vOVPlane_normal_xhat * (x) + vOVPlane_normal_yhat * (y);
-            bv = vUOPlane_normal_zhat + vUOPlane_normal_xhat * (x) + vUOPlane_normal_yhat * (y);
-            cw = vUVPlane_normal_zhat + vUVPlane_normal_xhat * (x) + vUVPlane_normal_yhat * (y);
+            au = vOVPlane_normal_zhat * UNIT_SCALE + vOVPlane_normal_xhat * (x - 400) +
+                 vOVPlane_normal_yhat * (y - 300);
+            bv = vUOPlane_normal_zhat * UNIT_SCALE + vUOPlane_normal_xhat * (x - 400) +
+                 vUOPlane_normal_yhat * (y - 300);
+            cw = vUVPlane_normal_zhat * UNIT_SCALE + vUVPlane_normal_xhat * (x - 400) +
+                 vUVPlane_normal_yhat * (y - 300);
 
+            cw = 1;
             assert(cw != 0);
 
-            int u = -(au * texture_width) / cw;
-            int v = -(bv * texture_width) / cw;
+            u = -(au * texture_width) / cw;
+            v = -(bv * texture_width) / cw;
+
+            u = 0;
+            v = 0;
 
             assert(u >= 0 && u < texture_width);
             assert(v >= 0 && v < texture_width);
@@ -567,8 +611,8 @@ raster_texture(
             pixel_buffer[offset] = texel;
         }
 
-        x_start_ish16 += AC_dx_dy_ish16;
-        x_end_ish16 += BC_dx_dy_ish16;
+        edge_x_AC_ish16 += step_edge_x_AC_ish16;
+        edge_x_BC_ish16 += step_edge_x_BC_ish16;
     }
 }
 
