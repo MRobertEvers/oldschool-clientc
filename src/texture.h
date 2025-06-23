@@ -86,6 +86,37 @@ void raster_texture(
     int* texels,
     int texture_width);
 
+void raster_texture_step(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int screen_x0,
+    int screen_x1,
+    int screen_x2,
+    int screen_y0,
+    int screen_y1,
+    int screen_y2,
+    int screen_z0,
+    int screen_z1,
+    int screen_z2,
+    int orthographic_uvorigin_x0,
+    int orthographic_uend_x1,
+    int orthographic_vend_x2,
+    int orthographic_uvorigin_y0,
+    int orthographic_uend_y1,
+    int orthographic_vend_y2,
+    int orthographic_uvorigin_z0,
+    int orthographic_uend_z1,
+    int orthographic_vend_z2,
+    int u0,
+    int u1,
+    int u2,
+    int v0,
+    int v1,
+    int v2,
+    int* texels,
+    int texture_width);
+
 void textureRaster(
     int xA,
     int xB,

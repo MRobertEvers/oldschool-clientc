@@ -712,7 +712,7 @@ raster_osrs_single_texture(
     if( !texels )
         return false;
 
-    raster_texture(
+    raster_texture_step(
         pixel_buffer,
         width,
         height,
