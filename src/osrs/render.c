@@ -1059,9 +1059,6 @@ render_scene_tiles(
                     else
                     {
                         // Tile vertexes are wrapped ccw.
-                        int testx[] = { 40, 40 + 128, 40 + 128, 40 };
-                        int testz[] = { 40, 40, 40 + 128, 40 + 128 };
-                        int testy[] = { 20, 20, 20, 20 };
 
                         // finish bathroom and floor in basement
                         // two tables against the wall put in garage.
@@ -1132,4 +1129,9 @@ done:
     free(screen_vertices_x);
     free(screen_vertices_y);
     free(screen_vertices_z);
+
+    free(ortho_vertices_x);
+    free(ortho_vertices_y);
+    free(ortho_vertices_z);
+    free(z_buffer);
 }

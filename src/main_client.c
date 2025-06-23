@@ -602,7 +602,8 @@ game_init(struct Game* game)
     // game->map_terrain = map_terrain_new_from_cache(game->cache, game->map_x, game->map_y);
     // game->map_locs = map_locs_new_from_cache(game->cache, game->map_x, game->map_y);
 
-    game->tiles = parse_tiles_data("../docs/tiles_data.bin", &game->tile_count);
+    // game->tiles = parse_tiles_data("../docs/tiles_data.bin", &game->tile_count);
+    game->tiles = NULL;
 
     game->tick = 0;
 

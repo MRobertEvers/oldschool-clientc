@@ -45,13 +45,6 @@ add_executable(main_client
     src/osrs/xtea_config.c
 )
 
-add_executable(tiles_test
-    test/tiles_test.c
-    src/osrs/blend_underlays.c
-    src/osrs/scene_tile_parser.c
-    src/osrs/palette.c
-)
-
 add_executable(scene_tile_test
     test/scene_tile_test.c
     src/osrs/tables/texture_pixels.c
@@ -167,7 +160,6 @@ target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRAR
 target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
-target_link_libraries(tiles_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 
 cmake_minimum_required(VERSION 3.10)

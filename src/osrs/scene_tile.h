@@ -16,9 +16,6 @@ struct SceneTile
     int* faces_c;
     int* valid_faces;
 
-    // deprecated
-    int* face_color_hsl;
-
     int* face_texture_ids;
     int* face_texture_u_a;
     int* face_texture_v_a;
@@ -31,8 +28,6 @@ struct SceneTile
     int* face_color_hsl_b;
     int* face_color_hsl_c;
 };
-
-struct SceneTile* parse_tiles_data(const char* filename, int* tile_count);
 
 struct Overlay;
 struct Underlay;
