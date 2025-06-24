@@ -103,7 +103,7 @@ side leaving
 
 So this is almost impossible to read, so we will now switch to matrix notation.
 Let [A, B] represent the dot product of two vectors and A x B be the cross 
-product.
+product, k 
 
 Notice that we can represent our system of linear equations as a matrix problem
 
@@ -199,3 +199,6 @@ Let A be the numerator of a, B be the numerator of b and W be the denominator.
     W`    = [{i`, j`, d}, ON x OM]
 
 Thus, this gives the magic 9 numbers.
+
+    u = A`/W` * K
+    v = B`/W` * K
