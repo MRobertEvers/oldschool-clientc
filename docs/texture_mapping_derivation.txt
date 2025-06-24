@@ -1,0 +1,201 @@
+Mapping textures derivation.
+
+Define the following variables:
+
+    i, j are screen coordinates
+    x, y, z are scene coordinates
+    u, v are texture coordinates
+
+    Capital letters are vectors.
+    The vector AB represents the vector AB = B - A.
+
+
+Suppose we have O, M, N s.t.
+
+    (u, v) -> (x, y, z)
+    (0, 0) -> (xO, yO, zO)
+    (K, 0) -> (xM, yM, zM)
+    (0, K) -> (xN, yN, zN)
+
+That is, the vector OM, and ON point in the direction of u, v 
+respectively.
+
+We want to find a mapping P: (i, j) -> (u, v)
+
+During perspective projection of your coordinates, the mapping from scene
+coordinates to screen coordinates is given by:
+
+    i = (d * x) / z + width / 2
+    j = (d * y) / z + height / 2
+
+For simplicity of calculation define i` and j` so we don't have to worry about
+translation
+
+    i` = i - width / 2 = (d * x) / z
+    j` = j - height / 2 = (d * y) / z
+
+We can boil this problem down to finding what multiples of OM and ON gives
+the point on the face plane. 
+
+    P = O + a * OM + b * ON
+
+    xP = xO + a * xOM + b * xON
+    yP = yO + a * yOM + b * yON
+    zP = zO + a * zOM + b * zON
+
+    Substituing i`, j` for xP and yP
+
+    x = z * i` / d
+    y = z * j` / d
+
+    zP * i` / d = xO + a * xOM + b * xON
+    zP * j` / d = yO + a * yOM + b * yON
+    zP          = zO + a * zOM + b * zON
+
+    Rearrange so that constants are on the left and we avoid division
+
+    -d * xO = (a * d * xOM) + (b * d * xON) - (zP * i`)
+    -d * yO = (a * d * yOM) + (b * d * yON) - (zP * j`)
+    -d * zO = (a * d * zOM) + (b * d * zON) - (zP * d)
+
+With some insight, we can maintain some symmetry by also multiplying
+the zP equation by d. This will make the math easier later.
+
+We now have a system of three equations, and three unknowns, a, b, zP.
+
+(Note: The choice of combinations to eliminate variables is taken from 
+insight from Cramer's Rule.)
+
+    Solving for a.
+
+    (-d * x0) * (d * yON * d - -j` * d * zON) + 
+    -1 * (-d * y0) * (d * xON * d - -i` * d * zON) + 
+    (-d * z0) * (d * xON * -j` - -i` * d * yON)
+
+    = 
+    
+    (a * d * xOM) * (d * yON * d - -j` * d * zON) 
+        + (b * d * xON) * (d * yON * d - -j` * d * zON) 
+        - (zP * i`) * (d * yON * d - -j` * d * zON) +
+    (a * d * yOM) * -1 * (d * xON * d - -i` * d * zON) 
+        + (b * d * yON) * -1 * (d * xON * d - -i` * d * zON)
+        - (zP * j`) * -1 * (d * xON * d - -i` * d * zON) 
+    (a * d * zOM) * (d * xON * -j` - -i` * d * yON) 
+        + (b * d * zON) * (d * xON * -j` - -i` * d * yON) 
+        - (zP * d) * (d * xON * -j` - -i` * d * yON)
+
+Now you will notice that all the terms of b and zP cancel out on the right
+side leaving
+
+    = a * (d * xOM) * (d * yON * d - -j` * d * zON)
+      a * (d * yOM) * -1 * (d * xON * d - -i` * d * zON)
+      a * (d * zOM) * (d * xON * -j` - -i` * d * yON) 
+    
+
+    Solving for a
+        (-d * x0) * (d * yON * d - -j` * d * zON) + 
+        -1 * (-d * y0) * (d * xON * d - -i` * d * zON) + 
+        (-d * z0) * (d * xON * -j` - -i` * d * yON)
+    a =  --------------------------------
+        (d * xOM) * (d * yON * d - -j` * d * zON) +
+        -1 * (d * yOM) * (d * xON * d - -i` * d * zON) + 
+        (d * zOM) * (d * xON * -j` - -i` * d * yON) 
+
+So this is almost impossible to read, so we will now switch to matrix notation.
+Let [A, B] represent the dot product of two vectors and A x B be the cross 
+product.
+
+Notice that we can represent our system of linear equations as a matrix problem
+
+    Starting back with.
+
+    -d * xO = (a * d * xOM) + (b * d * xON) - (zP * i`)
+    -d * yO = (a * d * yOM) + (b * d * yON) - (zP * j`)
+    -d * zO = (a * d * zOM) + (b * d * zON) - (zP * d)
+
+    [-d * xO]     [d * xOM    d * xON    -i`]            a
+    [-d * yO]   = [d * yOM    d * yON    -j`]     *      b       
+    [-d * zO]     [d * zOM    d * zON    -d ]            zP
+
+    By Cramers rule (which we saw in effect above, how it cancels out the terms)
+                [-d * xO    d * xON    -i`]
+            det [-d * yO    d * yON    -j`]
+                [-d * zO    d * zON    -d ]
+    a   =   ----------------------------------
+                [d * xOM    d * xON    -i`]
+            det [d * yOM    d * yON    -j`]
+                [d * zOM    d * zON    -d ]
+
+                [d * xOM    -d * xO    -i`]
+            det [d * yOM    -d * yO    -j`]
+                [d * zOM    -d * zO    -d ]
+    b   =   ----------------------------------
+                [d * xOM    d * xON    -i`]
+            det [d * yOM    d * yON    -j`]
+                [d * zOM    d * zON    -d ]
+
+    zP can be similarly calculated but we do not care about that
+    because we only need a and b.
+
+
+Let A be the numerator of a, B be the numerator of b and W be the denominator.
+
+                [-d * xO    d * xON    -i`]
+    A   =   det [-d * yO    d * yON    -j`]
+                [-d * zO    d * zON    -d ]
+
+                [d * xOM    -d * xO    -i`]
+    B   =   det [d * yOM    -d * yO    -j`]
+                [d * zOM    -d * zO    -d ]
+
+                [d * xOM    d * xON    -i`]
+    W   =   det [d * yOM    d * yON    -j`]
+                [d * zOM    d * zON    -d ]
+
+    s.t.
+
+    a = A / W
+    b = B / W
+
+    Now notice that
+
+    A    =  [(-d * O), (d * ON) x {-i`, -j`, -d}]
+    B    =  [(d * OM), (-d * O) x {-i`, -j`, -d}]
+    W    =  [(d * OM), (d * ON) x {-i`, -j`, -d}]
+
+    We can do some rearranging to bring the vector {-i`, -j`, -d} outside
+    the cross product.
+
+    A    =  [{-i`, -j`, -d}, (-d * O) x (d * ON)]
+    B    =  [{-i`, -j`, -d}, (d * OM) x (-d * O)]
+    W    =  [{-i`, -j`, -d}, (d * OM) x (d * ON)]
+
+    Now notice that we are ultimately dividing by W, so 
+    we can cancel some common factors
+
+    A    = d^2 * [{-i`, -j`, -d}, (-1 * O) x (ON)]
+    B    = d^2 * [{-i`, -j`, -d}, (OM) x (-1 * O)]
+    W    = d^2 * [{-i`, -j`, -d}, (OM) x (ON)]
+
+    Drop the d^2
+
+    A`    = [{-i`, -j`, -d}, (-1 * O) x (ON)]
+    B`    = [{-i`, -j`, -d}, (OM) x (-1 * O)]
+    W`    = [{-i`, -j`, -d}, (OM) x (ON)]
+
+    So that we still have the property
+
+    a = A`/W`
+    b = B`/W`
+
+    Now we can clean up some more negatives.
+
+    A`    = [{i`, j`, d}, ON x (-1 * O)]
+    B`    = [{i`, j`, d}, (-1 * O) x OM]
+    W`    = [{i`, j`, d}, ON x OM]
+
+    A`    = [{i`, j`, d}, O x ON]
+    B`    = [{i`, j`, d}, OM x O]
+    W`    = [{i`, j`, d}, ON x OM]
+
+Thus, this gives the magic 9 numbers.
