@@ -618,12 +618,7 @@ raster_osrs_single_texture(
     int* face_texture_v_b,
     int* face_texture_u_c,
     int* face_texture_v_c,
-    struct TextureDefinition* textures,
-    int* texture_ids,
-    int texture_count,
-    struct SpritePack* sprite_packs,
-    int* sprite_ids,
-    int sprite_count,
+    struct SceneTextures* textures,
     int offset_x,
     int offset_y)
 {
@@ -664,21 +659,11 @@ raster_osrs_single_texture(
     if( texture_id == -1 )
         return false;
 
-    struct TextureDefinition* texture_definition = NULL;
-    for( int i = 0; i < texture_count; i++ )
-    {
-        if( texture_ids[i] == texture_id )
-        {
-            texture_definition = &textures[i];
-            break;
-        }
-    }
-
-    if( !texture_definition )
+    int texel_offset = textures->texel_id_to_offset_lut[texture_id];
+    if( texel_offset == -1 )
         return false;
 
-    int* texels = texture_pixels_new_from_definition(
-        texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1);
+    int* texels = textures->texels[texel_offset];
     if( !texels )
         return false;
 
@@ -706,8 +691,6 @@ raster_osrs_single_texture(
         ortho_z3,
         texels,
         128);
-
-    free(texels);
 
     return true;
 }
@@ -953,12 +936,7 @@ render_scene_tiles(
     int fov,
     struct SceneTile* tiles,
     int tile_count,
-    struct SpritePack* sprite_packs,
-    int* sprite_ids,
-    int sprite_count,
-    struct TextureDefinition* textures,
-    int* texture_ids,
-    int texture_count)
+    struct SceneTextures* textures)
 {
     int* screen_vertices_x = (int*)malloc(20 * sizeof(int));
     int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
@@ -1112,11 +1090,6 @@ render_scene_tiles(
                             tile->face_texture_u_c,
                             tile->face_texture_v_c,
                             textures,
-                            texture_ids,
-                            texture_count,
-                            sprite_packs,
-                            sprite_ids,
-                            sprite_count,
                             width / 2,
                             height / 2);
                     }
@@ -1134,4 +1107,101 @@ done:
     free(ortho_vertices_y);
     free(ortho_vertices_z);
     free(z_buffer);
+}
+
+struct SceneTextures*
+scene_textures_new_from_tiles(
+    struct SceneTile* tiles,
+    int tile_count,
+    struct SpritePack* sprite_packs,
+    int* sprite_ids,
+    int sprite_count,
+    struct TextureDefinition* textures,
+    int* texture_ids,
+    int texture_count)
+{
+    struct SceneTextures* scene_textures =
+        (struct SceneTextures*)malloc(sizeof(struct SceneTextures));
+    memset(scene_textures, 0, sizeof(struct SceneTextures));
+
+    scene_textures->texel_id_to_offset_lut = (int*)malloc(tile_count * sizeof(int));
+    memset(scene_textures->texel_id_to_offset_lut, 0, tile_count * sizeof(int));
+
+    // TODO: Use a hashmap.
+    int max_texture_id = 0;
+    for( int i = 0; i < tile_count; i++ )
+    {
+        struct SceneTile* tile = &tiles[i];
+
+        for( int face = 0; face < tile->face_count; face++ )
+        {
+            if( tile->valid_faces[face] == 0 || tile->face_texture_ids == NULL )
+                continue;
+
+            int texture_id = tile->face_texture_ids[face];
+            if( texture_id > max_texture_id )
+                max_texture_id = texture_id;
+        }
+    }
+
+    scene_textures->texel_id_to_offset_lut = (int*)malloc((max_texture_id + 1) * sizeof(int));
+    memset(scene_textures->texel_id_to_offset_lut, 0, (max_texture_id + 1) * sizeof(int));
+    scene_textures->texels = (int**)malloc((max_texture_id + 1) * sizeof(int*));
+    memset(scene_textures->texels, 0, (max_texture_id + 1) * sizeof(int*));
+
+    for( int i = 0; i < max_texture_id + 1; i++ )
+        scene_textures->texel_id_to_offset_lut[i] = -1;
+
+    for( int i = 0; i < tile_count; i++ )
+    {
+        struct SceneTile* tile = &tiles[i];
+
+        for( int face = 0; face < tile->face_count; face++ )
+        {
+            if( tile->valid_faces[face] == 0 || tile->face_texture_ids == NULL )
+                continue;
+
+            int texture_id = tile->face_texture_ids[face];
+            if( texture_id == -1 )
+                continue;
+
+            struct TextureDefinition* texture_definition = NULL;
+            for( int i = 0; i < texture_count; i++ )
+            {
+                if( texture_ids[i] == texture_id )
+                {
+                    texture_definition = &textures[i];
+                    break;
+                }
+            }
+
+            if( !texture_definition )
+                continue;
+
+            if( scene_textures->texel_id_to_offset_lut[texture_id] == -1 )
+            {
+                int* texels = texture_pixels_new_from_definition(
+                    texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1);
+                if( !texels )
+                    continue;
+
+                scene_textures->texel_id_to_offset_lut[texture_id] = scene_textures->texel_count;
+                scene_textures->texels[scene_textures->texel_count++] = texels;
+            }
+        }
+    }
+
+    return scene_textures;
+}
+
+void
+scene_textures_free(struct SceneTextures* textures)
+{
+    for( int i = 0; i < textures->texel_count; i++ )
+    {
+        free(textures->texels[i]);
+    }
+    free(textures->texels);
+    free(textures->texel_id_to_offset_lut);
+    free(textures);
 }

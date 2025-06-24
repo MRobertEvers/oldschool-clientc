@@ -28,6 +28,9 @@ raster_texture_scanline(
     int* texels,
     int texture_width)
 {
+    if( screen_x0 == screen_x1 )
+        return;
+
     if( screen_x0 > screen_x1 )
     {
         SWAP(screen_x0, screen_x1);
@@ -193,15 +196,18 @@ raster_texture_step(
         screen_y0 = 0;
     }
 
-    if( screen_y0 > screen_y1 )
-        return;
-
     if( screen_y1 < 0 )
     {
-        edge_x_AC_ish16 -= step_edge_x_AC_ish16 * screen_y1;
         edge_x_BC_ish16 -= step_edge_x_BC_ish16 * screen_y1;
+
         screen_y1 = 0;
     }
+
+    if( screen_y1 > screen_height )
+        screen_y1 = screen_height;
+
+    if( screen_y0 > screen_y1 )
+        return;
 
     au = vOVPlane_normal_zhat * UNIT_SCALE;
     bv = vUOPlane_normal_zhat * UNIT_SCALE;
@@ -242,6 +248,21 @@ raster_texture_step(
         offset += screen_width;
     }
 
+    if( screen_y2 > screen_height )
+        screen_y2 = screen_height;
+
+    if( screen_y1 > screen_y2 )
+        return;
+
+    dy = screen_y1 - (screen_height >> 1);
+    au = vOVPlane_normal_zhat * UNIT_SCALE;
+    bv = vUOPlane_normal_zhat * UNIT_SCALE;
+    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au += vOVPlane_normal_yhat * dy;
+    bv += vUOPlane_normal_yhat * dy;
+    cw += vUVPlane_normal_yhat * dy;
+
+    offset = screen_y1 * screen_width;
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {

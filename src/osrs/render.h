@@ -33,6 +33,26 @@ struct SceneTile;
 struct SpritePack;
 struct TextureDefinition;
 
+struct SceneTextures
+{
+    int** texels;
+    int texel_count;
+
+    int* texel_id_to_offset_lut;
+};
+
+struct SceneTextures* scene_textures_new_from_tiles(
+    struct SceneTile* tiles,
+    int tile_count,
+    struct SpritePack* sprite_packs,
+    int* sprite_ids,
+    int sprite_count,
+    struct TextureDefinition* textures,
+    int* texture_ids,
+    int texture_count);
+
+void scene_textures_free(struct SceneTextures* textures);
+
 void render_scene_tiles(
     int* pixel_buffer,
     int width,
@@ -47,11 +67,6 @@ void render_scene_tiles(
     int fov,
     struct SceneTile* tiles,
     int tile_count,
-    struct SpritePack* sprite_packs,
-    int* sprite_ids,
-    int sprite_count,
-    struct TextureDefinition* textures,
-    int* texture_ids,
-    int texture_count);
+    struct SceneTextures* textures);
 
 #endif

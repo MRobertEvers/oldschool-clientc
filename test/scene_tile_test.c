@@ -189,6 +189,8 @@ struct Game
     struct SceneTile* tiles;
     int tile_count;
 
+    struct SceneTextures* scene_textures;
+
     struct TextureDefinition* textures;
     int* texture_ids;
     int texture_count;
@@ -270,12 +272,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_fov,
         game->tiles,
         game->tile_count,
-        game->sprite_packs,
-        game->sprite_ids,
-        game->sprite_count,
-        game->textures,
-        game->texture_ids,
-        game->texture_count);
+        game->scene_textures);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,
@@ -574,6 +571,16 @@ main()
     struct SceneTile* tiles = scene_tiles_new_from_map_terrain(
         map_terrain, overlays, overlay_ids, overlay_count, underlays, underlay_ids, underlay_count);
 
+    struct SceneTextures* textures = scene_textures_new_from_tiles(
+        tiles,
+        MAP_TILE_COUNT,
+        sprite_packs,
+        sprite_ids,
+        sprite_count,
+        texture_definitions,
+        texture_ids,
+        texture_definitions_count);
+
     // Initialize SDL
     struct PlatformSDL2 platform = { 0 };
     if( !platform_sdl2_init(&platform) )
@@ -592,6 +599,7 @@ main()
     game.camera_fov = 512; // Default FOV
     game.tiles = tiles;
     game.tile_count = MAP_TILE_COUNT;
+    game.scene_textures = textures;
 
     game.sprite_packs = sprite_packs;
     game.sprite_ids = sprite_ids;
