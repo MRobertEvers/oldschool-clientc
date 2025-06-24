@@ -43,11 +43,11 @@ raster_texture_scanline(
     if( screen_x0 < 0 )
         screen_x0 = 0;
 
-    if( screen_x0 > screen_x1 )
-        return;
-
     if( screen_x1 >= screen_width )
         screen_x1 = screen_width - 1;
+
+    if( screen_x0 > screen_x1 )
+        return;
 
     adjust = screen_x0 - (screen_width >> 1);
     au += step_au_dx * adjust;
@@ -55,7 +55,17 @@ raster_texture_scanline(
     cw += step_cw_dx * adjust;
 
     steps = screen_x1 - screen_x0;
+
+    assert(screen_x0 < screen_width);
+    assert(screen_x1 < screen_width);
+
+    assert(screen_x0 <= screen_x1);
+    assert(screen_x0 >= 0);
+    assert(screen_x1 >= 0);
+
     offset += screen_x0;
+
+    assert(screen_x0 + steps < screen_width);
 
     while( steps-- > 0 )
     {
@@ -64,6 +74,14 @@ raster_texture_scanline(
 
         u &= texture_width - 1;
         v &= texture_width - 1;
+        // if( u < 0 )
+        //     u = 0;
+        // if( v < 0 )
+        //     v = 0;
+        // if( u >= texture_width )
+        //     u = texture_width - 1;
+        // if( v >= texture_width )
+        //     v = texture_width - 1;
 
         pixel_buffer[offset] = texels[u + v * texture_width];
 
@@ -122,6 +140,30 @@ raster_texture_step(
         SWAP(screen_z1, screen_z2);
     }
 
+    int total_height = screen_y2 - screen_y0;
+    if( total_height == 0 )
+        return;
+
+    if( screen_y0 >= screen_height )
+        return;
+
+    // TODO: Remove this check for callers that cull correctly.
+    if( total_height >= screen_height )
+    {
+        // This can happen if vertices extremely close to the camera plane, but outside the FOV
+        // are projected. Those vertices need to be culled.
+        return;
+    }
+
+    // TODO: Remove this check for callers that cull correctly.
+    if( (screen_x0 < 0 || screen_x1 < 0 || screen_x2 < 0) &&
+        (screen_x0 > screen_width || screen_x1 > screen_width || screen_x2 > screen_width) )
+    {
+        // This can happen if vertices extremely close to the camera plane, but outside the FOV
+        // are projected. Those vertices need to be culled.
+        return;
+    }
+
     const int UNIT_SCALE = 512;
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
@@ -153,9 +195,6 @@ raster_texture_step(
     // TODO: Need to make sure this is the right order.
     // Compute the partial derivatives of the uv coordinates with respect to the x and y coordinates
     // of the screen.
-    int total_height = screen_y2 - screen_y0;
-    if( total_height == 0 )
-        return;
 
     int dy_AC = screen_y2 - screen_y0;
     int dy_AB = screen_y1 - screen_y0;
@@ -198,9 +237,6 @@ raster_texture_step(
         screen_y1 = 0;
     }
 
-    if( screen_y1 > screen_height )
-        screen_y1 = screen_height;
-
     if( screen_y0 > screen_y1 )
         return;
 
@@ -215,6 +251,8 @@ raster_texture_step(
 
     int steps = screen_y1 - screen_y0;
     int offset = screen_y0 * screen_width;
+
+    assert(screen_y0 < screen_height);
     while( steps-- > 0 )
     {
         raster_texture_scanline(
@@ -256,6 +294,11 @@ raster_texture_step(
     au += vOVPlane_normal_yhat * dy;
     bv += vUOPlane_normal_yhat * dy;
     cw += vUVPlane_normal_yhat * dy;
+
+    assert(screen_y1 >= 0);
+    assert(screen_y1 <= screen_height);
+    assert(screen_y2 >= 0);
+    assert(screen_y2 <= screen_height);
 
     offset = screen_y1 * screen_width;
     steps = screen_y2 - screen_y1;
