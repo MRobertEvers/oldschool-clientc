@@ -989,7 +989,9 @@ render_scene_tiles(
                     if( tile->valid_faces[face] == 0 )
                         continue;
 
-                    if( tile->face_texture_ids == NULL )
+                    int texture_id = tile->face_texture_ids ? tile->face_texture_ids[face] : -1;
+
+                    if( texture_id == -1 )
                     {
                         project_vertices_terrain(
                             screen_vertices_x,

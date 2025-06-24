@@ -41,12 +41,7 @@ raster_texture_scanline(
     int offset = pixel_offset;
 
     if( screen_x0 < 0 )
-    {
-        au -= step_au_dx * screen_x0;
-        bv -= step_bv_dx * screen_x0;
-        cw -= step_cw_dx * screen_x0;
         screen_x0 = 0;
-    }
 
     if( screen_x0 > screen_x1 )
         return;

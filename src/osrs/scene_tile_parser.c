@@ -536,22 +536,13 @@ decode_tile(
 
         // TODO: Skip texture rendering right now
 
-        if( color_a == INVALID_HSL_COLOR && texture_id == -1 )
+        if( color_a == INVALID_HSL_COLOR && face_texture_id == -1 )
         {
             valid_faces[i] = 0;
             continue;
         }
         else
             valid_faces[i] = 1;
-
-        //  const u0 = (this.vertexX[a] - tileX) / TILE_SIZE;
-        // const v0 = (this.vertexZ[a] - tileY) / TILE_SIZE;
-
-        // const u1 = (this.vertexX[b] - tileX) / TILE_SIZE;
-        // const v1 = (this.vertexZ[b] - tileY) / TILE_SIZE;
-
-        // const u2 = (this.vertexX[c] - tileX) / TILE_SIZE;
-        // const v2 = (this.vertexZ[c] - tileY) / TILE_SIZE;
 
         int u0 = (vertex_x[a] - tile_x) / TILE_SIZE;
         int v0 = (vertex_z[a] - tile_y) / TILE_SIZE;
