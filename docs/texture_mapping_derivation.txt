@@ -59,7 +59,8 @@ the point on the face plane.
     -d * zO = (a * d * zOM) + (b * d * zON) - (zP * d)
 
 With some insight, we can maintain some symmetry by also multiplying
-the zP equation by d. This will make the math easier later.
+the zP equation by d. This will make the math easier later. (it will allow us
+to drop a d^2 coefficient later.)
 
 We now have a system of three equations, and three unknowns, a, b, zP.
 
