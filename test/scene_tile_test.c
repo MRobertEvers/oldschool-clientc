@@ -3,6 +3,7 @@
 #include "osrs/render.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
+#include "osrs/tables/config_locs.h"
 #include "osrs/tables/configs.h"
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/texture_pixels.h"
@@ -198,6 +199,8 @@ struct Game
     struct SpritePack* sprite_packs;
     int* sprite_ids;
     int sprite_count;
+
+    struct MapLocs* map_locs;
 };
 
 struct PlatformSDL2
@@ -418,6 +421,10 @@ main()
         return 1;
     }
 
+    /**
+     * Config/Underlay
+     */
+
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_UNDERLAY);
     if( !archive )
     {
@@ -447,6 +454,10 @@ main()
     filelist_free(filelist);
     cache_archive_free(archive);
 
+    /**
+     * Config/Overlay
+     */
+
     archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_OVERLAY);
     if( !archive )
     {
@@ -474,6 +485,10 @@ main()
 
     filelist_free(filelist);
     cache_archive_free(archive);
+
+    /**
+     * Textures
+     */
 
     archive = cache_archive_new_load(cache, CACHE_TEXTURES, 0);
     if( !archive )
@@ -503,6 +518,11 @@ main()
 
     filelist_free(filelist);
     cache_archive_free(archive);
+
+    /**
+     * Sprites
+     */
+
     int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
     struct SpritePack* sprite_packs =
         (struct SpritePack*)malloc(sprite_count * sizeof(struct SpritePack));
@@ -555,6 +575,10 @@ main()
         cache_archive_free(archive);
     }
 
+    /**
+     * Decode textures from sprites
+     */
+
     struct TextureDefinition* texture_definition = &texture_definitions[0];
     int* pixels = texture_pixels_new_from_definition(
         texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1.0);
@@ -567,6 +591,58 @@ main()
         printf("Failed to load map terrain\n");
         return 1;
     }
+
+    struct MapLocs* map_locs = map_locs_new_from_cache(cache, 50, 50);
+    if( !map_locs )
+    {
+        printf("Failed to load map locs\n");
+        return 1;
+    }
+
+    assert(map_locs->locs != NULL);
+
+    /**
+     * Config/Locs
+     */
+
+    int* locs_to_decode = (int*)malloc(map_locs->locs_count * sizeof(int));
+    for( int i = 0; i < map_locs->locs_count; i++ )
+    {
+        locs_to_decode[i] = map_locs->locs[i].id;
+    }
+
+    archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_LOCS);
+    if( !archive )
+    {
+        printf("Failed to load locs archive\n");
+        return 1;
+    }
+
+    filelist = filelist_new_from_cache_archive(archive);
+
+    // int locs_count = filelist->file_count;
+    int locs_count = map_locs->locs_count;
+    int* locs_ids = (int*)malloc(locs_count * sizeof(int));
+    struct Loc* locs = (struct Loc*)malloc(locs_count * sizeof(struct Loc));
+    memset(locs, 0, locs_count * sizeof(struct Loc));
+    for( int i = 0; i < locs_count; i++ )
+    {
+        int loc_id = locs_to_decode[i];
+        struct Loc* loc = &locs[i];
+
+        struct ArchiveReference* cfg = cache->tables[CACHE_CONFIGS]->archives;
+
+        decode_loc(loc, filelist->files[loc_id], filelist->file_sizes[loc_id]);
+        int file_id = cfg[cache->tables[CACHE_CONFIGS]->ids[CONFIG_LOCS]].children.files[loc_id].id;
+        locs_ids[i] = file_id;
+    }
+
+    filelist_free(filelist);
+    cache_archive_free(archive);
+
+    /**
+     * Prepare Scene
+     */
 
     struct SceneTile* tiles = scene_tiles_new_from_map_terrain(
         map_terrain, overlays, overlay_ids, overlay_count, underlays, underlay_ids, underlay_count);

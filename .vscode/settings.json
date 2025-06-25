@@ -44,6 +44,7 @@
         "__config": "c",
         "cerrno": "c",
         "textures.h": "c",
-        "texture_pixels.h": "c"
+        "texture_pixels.h": "c",
+        "typeinfo": "c"
     }
 }
