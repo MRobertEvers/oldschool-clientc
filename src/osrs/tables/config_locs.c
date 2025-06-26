@@ -63,11 +63,14 @@ decode_loc(struct Loc* loc, char* data, int data_size)
 
             loc->types = (int*)malloc(count * sizeof(int));
             loc->models = (int**)malloc(count * sizeof(int*));
+            loc->lengths = (int*)malloc(count * sizeof(int));
+            memset(loc->lengths, 0, count * sizeof(int));
             for( int i = 0; i < count; i++ )
             {
                 loc->types[i] = rsbuf_g1(&buffer);
                 loc->models[i] = (int*)malloc(1 * sizeof(int));
                 loc->models[i][0] = rsbuf_g2(&buffer);
+                loc->lengths[i] = 1;
             }
             break;
         }
@@ -86,6 +89,8 @@ decode_loc(struct Loc* loc, char* data, int data_size)
             loc->types = NULL;
             loc->models = (int**)malloc(1 * sizeof(int*));
             loc->models[0] = (int*)malloc(count * sizeof(int));
+            loc->lengths = (int*)malloc(1 * sizeof(int));
+            loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
             {
                 loc->models[0][i] = rsbuf_g2(&buffer);

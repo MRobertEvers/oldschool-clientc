@@ -52,9 +52,9 @@ add_executable(scene_tile_test
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
     src/osrs/scene_tile_parser.c
+    src/osrs/scene_loc.c
     src/osrs/palette.c
     src/osrs/cache.c
-    src/osrs/scene_tile_parser.c
     src/osrs/tables/model.c
     src/buffer.c
     src/osrs/archive_decompress.c

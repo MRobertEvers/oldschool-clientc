@@ -510,9 +510,18 @@ raster_osrs(
             int color_b = colors_b[index];
             int color_c = colors_c[index];
 
-            color_a = g_hsl16_to_rgb_table[color_a];
-            color_b = g_hsl16_to_rgb_table[color_b];
-            color_c = g_hsl16_to_rgb_table[color_c];
+            if( color_a > 65535 )
+            {
+                color_a = 0xF123;
+            }
+            if( color_b > 65535 )
+            {
+                color_b = 0xF123;
+            }
+            if( color_c > 65535 )
+            {
+                color_c = 0xF123;
+            }
 
             raster_gouraud(
                 pixel_buffer,
@@ -862,8 +871,8 @@ render_model_frame(
         face_colors_a_hsl16,
         face_colors_b_hsl16,
         face_colors_c_hsl16,
-        0,
-        0,
+        width / 2,
+        height / 2,
         width,
         height);
 
@@ -1206,4 +1215,62 @@ scene_textures_free(struct SceneTextures* textures)
     free(textures->texels);
     free(textures->texel_id_to_offset_lut);
     free(textures);
+}
+
+#include "scene_loc.h"
+#include "tables/maps.h"
+
+void
+render_scene_locs(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_yaw,
+    int camera_pitch,
+    int camera_roll,
+    int fov,
+    struct SceneLocs* locs,
+    struct SceneTextures* textures)
+{
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        struct SceneLoc* loc = &locs->locs[i];
+
+        for( int j = 0; j < loc->model_count; j++ )
+        {
+            struct Model* model = loc->models[j];
+            if( !model )
+                continue;
+
+            // world_y is scene_z
+            // world_z is scene_y
+            int x = loc->world_x + scene_x;
+            int y = loc->world_z + scene_z;
+            int z = loc->world_y + scene_y;
+
+            render_model_frame(
+                pixel_buffer,
+                width,
+                height,
+                near_plane_z,
+                0,
+                0,
+                0,
+                x,
+                y,
+                z,
+                camera_yaw,
+                camera_pitch,
+                camera_roll,
+                fov,
+                model,
+                NULL,
+                NULL,
+                NULL);
+        }
+    }
 }

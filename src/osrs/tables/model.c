@@ -871,8 +871,8 @@ model_new_decode(const unsigned char* inputData, int inputLength)
 
         if( lastByte == 0xFD && secondLastByte == 0xFF )
         { // -3, -1
-            // return decodeType3(inputData, inputLength);
             return NULL;
+            // return decodeType3(inputData, inputLength);
         }
         else if( lastByte == 0xFE && secondLastByte == 0xFF )
         { // -2, -1

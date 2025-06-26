@@ -45,6 +45,10 @@
         "cerrno": "c",
         "textures.h": "c",
         "texture_pixels.h": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "config_locs.h": "c",
+        "configs.h": "c",
+        "scene_loc.h": "c",
+        "maps.h": "c"
     }
 }

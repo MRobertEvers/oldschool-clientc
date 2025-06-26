@@ -1,6 +1,7 @@
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/render.h"
+#include "osrs/scene_loc.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
 #include "osrs/tables/config_locs.h"
@@ -201,6 +202,9 @@ struct Game
     int sprite_count;
 
     struct MapLocs* map_locs;
+
+    struct SceneLocs* scene_locs;
+    struct SceneTextures* loc_textures;
 };
 
 struct PlatformSDL2
@@ -275,6 +279,21 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_fov,
         game->tiles,
         game->tile_count,
+        game->scene_textures);
+
+    render_scene_locs(
+        pixel_buffer,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        50,
+        game->camera_x,
+        game->camera_y,
+        game->camera_z,
+        game->camera_pitch,
+        game->camera_yaw,
+        game->camera_roll,
+        game->camera_fov,
+        game->scene_locs,
         game->scene_textures);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
@@ -633,6 +652,16 @@ main()
         struct ArchiveReference* cfg = cache->tables[CACHE_CONFIGS]->archives;
 
         decode_loc(loc, filelist->files[loc_id], filelist->file_sizes[loc_id]);
+
+        if( loc->offset_x != 0 )
+        {
+            printf("Offset x: %d\n", loc->offset_x);
+        }
+        if( loc->offset_y != 0 )
+        {
+            printf("Offset y: %d\n", loc->offset_y);
+        }
+
         int file_id = cfg[cache->tables[CACHE_CONFIGS]->ids[CONFIG_LOCS]].children.files[loc_id].id;
         locs_ids[i] = file_id;
     }
@@ -656,6 +685,8 @@ main()
         texture_definitions,
         texture_ids,
         texture_definitions_count);
+
+    struct SceneLocs* scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache);
 
     // Initialize SDL
     struct PlatformSDL2 platform = { 0 };
@@ -683,6 +714,7 @@ main()
     game.textures = texture_definitions;
     game.texture_ids = texture_ids;
     game.texture_count = texture_definitions_count;
+    game.scene_locs = scene_locs;
 
     int w_pressed = 0;
     int a_pressed = 0;

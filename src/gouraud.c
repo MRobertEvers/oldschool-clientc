@@ -590,6 +590,7 @@ draw_scanline_gouraud(
     while( --steps >= 0 )
     {
         int color_hsl16 = color_hsl16_ish8 >> 8;
+        assert(color_hsl16 >= 0 && color_hsl16 < 65536);
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
         pixel_buffer[offset++] = rgb_color;
     }
