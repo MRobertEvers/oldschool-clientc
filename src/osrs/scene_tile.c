@@ -1012,9 +1012,9 @@ scene_tiles_new_from_map_terrain(
                 int rotation = overlay_id == -1 ? 0 : map->rotation;
                 int texture_id = overlay_id == -1 ? -1 : overlay->texture;
 
-                scene_tile->region_x = x;
-                scene_tile->region_y = y;
-                scene_tile->region_z = z;
+                scene_tile->chunk_pos_x = x;
+                scene_tile->chunk_pos_y = y;
+                scene_tile->chunk_pos_level = z;
 
                 bool success = decode_tile(
                     scene_tile,

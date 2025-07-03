@@ -38,13 +38,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         goto error;
     }
 
-    scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache);
-    if( !scene_locs )
-    {
-        printf("Failed to load scene locs\n");
-        goto error;
-    }
-
+    // TODO: This has to happen before locs,
+    // because this calls a fixup on the terrain data.
+    // That should be done separately.
     scene_tiles = scene_tiles_new_from_map_terrain_cache(map_terrain, cache);
     if( !scene_tiles )
     {
@@ -52,11 +48,18 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         goto error;
     }
 
+    scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache);
+    if( !scene_locs )
+    {
+        printf("Failed to load scene locs\n");
+        goto error;
+    }
+
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
     {
         struct SceneTile* scene_tile = &scene_tiles[i];
         struct GridTile* grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
-            scene_tile->region_x, scene_tile->region_y, scene_tile->region_z)];
+            scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
         grid_tile->tile = *scene_tile;
     }
 
@@ -64,12 +67,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     {
         struct SceneLoc* scene_loc = &scene_locs->locs[i];
 
-        int region_x = scene_loc->world_x / TILE_SIZE;
-        int region_y = scene_loc->world_y / TILE_SIZE;
-        int region_z = scene_loc->world_z / MAP_UNITS_LEVEL_HEIGHT;
+        int coord_x = scene_loc->chunk_pos_x;
+        int coord_y = scene_loc->chunk_pos_y;
+        int coord_z = scene_loc->chunk_pos_level;
 
-        struct GridTile* grid_tile =
-            &scene->grid_tiles[MAP_TILE_COORD(region_x, region_y, region_z)];
+        struct GridTile* grid_tile = &scene->grid_tiles[MAP_TILE_COORD(coord_x, coord_y, coord_z)];
 
         grid_tile->locs[grid_tile->locs_length++] = *scene_loc;
     }

@@ -373,9 +373,9 @@ map_locs_new_from_decode(char* data, int data_size)
             map_locs->locs[loc_idx].id = id;
             map_locs->locs[loc_idx].type = type;
             map_locs->locs[loc_idx].orientation = orientation;
-            map_locs->locs[loc_idx].pos_x = local_x;
-            map_locs->locs[loc_idx].pos_y = local_y;
-            map_locs->locs[loc_idx].pos_z = height;
+            map_locs->locs[loc_idx].chunk_pos_x = local_x;
+            map_locs->locs[loc_idx].chunk_pos_y = local_y;
+            map_locs->locs[loc_idx].chunk_pos_level = height;
 
             loc_idx++;
         }

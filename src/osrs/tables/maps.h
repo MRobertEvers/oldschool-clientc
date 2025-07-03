@@ -17,9 +17,9 @@ struct MapLoc
     int id;
     int type;
     int orientation;
-    int pos_x;
-    int pos_y;
-    int pos_z;
+    int chunk_pos_x;
+    int chunk_pos_y;
+    int chunk_pos_level;
 };
 
 struct MapLocs

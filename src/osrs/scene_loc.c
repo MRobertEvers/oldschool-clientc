@@ -132,9 +132,9 @@ scene_locs_new_from_map_locs(
     for( int i = 0; i < map_locs->locs_count; i++ )
     {
         struct MapLoc* map_loc = &map_locs->locs[i];
-        int x = map_loc->pos_x;
-        int y = map_loc->pos_y;
-        int z = map_loc->pos_z;
+        int x = map_loc->chunk_pos_x;
+        int y = map_loc->chunk_pos_y;
+        int z = map_loc->chunk_pos_level;
 
         int loc_id = map_loc->id;
 
@@ -151,9 +151,13 @@ scene_locs_new_from_map_locs(
 
         int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
 
-        scene_locs->locs[i].world_x = map_loc->pos_x * TILE_SIZE;
-        scene_locs->locs[i].world_y = map_loc->pos_y * TILE_SIZE;
-        scene_locs->locs[i].world_z = height_center;
+        scene_locs->locs[i].region_x = x * TILE_SIZE;
+        scene_locs->locs[i].region_y = y * TILE_SIZE;
+        scene_locs->locs[i].region_z = height_center;
+
+        scene_locs->locs[i].chunk_pos_x = x;
+        scene_locs->locs[i].chunk_pos_y = y;
+        scene_locs->locs[i].chunk_pos_level = z;
     }
 
 done:

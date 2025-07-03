@@ -68,9 +68,9 @@ main()
             loc->id,
             loc->type,
             loc->orientation,
-            loc->pos_x,
-            loc->pos_y,
-            loc->pos_z);
+            loc->chunk_pos_x,
+            loc->chunk_pos_y,
+            loc->chunk_pos_level);
     }
 
     map_locs_free(map_locs);

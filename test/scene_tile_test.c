@@ -722,8 +722,8 @@ main()
     // Initialize game state
     struct Game game = { 0 };
     game.camera_x = 3242;
-    game.camera_y = -26;
-    game.camera_z = 3202;
+    game.camera_y = 3202;
+    game.camera_z = -26;
     game.camera_pitch = 105;
     game.camera_yaw = 284;
     game.camera_fov = 512; // Default FOV

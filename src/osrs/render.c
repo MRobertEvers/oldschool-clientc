@@ -91,14 +91,14 @@ project_vertices(
     int* vertex_x,
     int* vertex_y,
     int* vertex_z,
-    int model_yaw,
     int model_pitch,
+    int model_yaw,
     int model_roll,
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_yaw,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll,
     int camera_fov,
     int screen_width,
@@ -115,14 +115,14 @@ project_vertices(
         0,
         0,
         0,
-        model_yaw,
         model_pitch,
+        model_yaw,
         model_roll,
         scene_x,
         scene_y,
         scene_z,
-        camera_yaw,
         camera_pitch,
+        camera_yaw,
         camera_roll,
         camera_fov,
         near_plane_z,
@@ -153,14 +153,14 @@ project_vertices(
             vertex_x[i],
             vertex_y[i],
             vertex_z[i],
-            model_yaw,
             model_pitch,
+            model_yaw,
             model_roll,
             scene_x,
             scene_y,
             scene_z,
-            camera_yaw,
             camera_pitch,
+            camera_yaw,
             camera_roll,
             camera_fov,
             near_plane_z,
@@ -196,14 +196,14 @@ project_vertices_terrain(
     int* vertex_x,
     int* vertex_y,
     int* vertex_z,
-    int model_yaw,
     int model_pitch,
+    int model_yaw,
     int model_roll,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    int camera_yaw,
+    int camera_x,
+    int camera_y,
+    int camera_z,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll,
     int camera_fov,
     int near_plane_z,
@@ -222,14 +222,14 @@ project_vertices_terrain(
             vertex_x[i],
             vertex_y[i],
             vertex_z[i],
-            model_yaw,
             model_pitch,
+            model_yaw,
             model_roll,
-            scene_x,
-            scene_y,
-            scene_z,
-            camera_yaw,
+            camera_x,
+            camera_z,
+            camera_y,
             camera_pitch,
+            camera_yaw,
             camera_roll,
             camera_fov,
             near_plane_z,
@@ -278,14 +278,14 @@ project_vertices_terrain_textured(
     int* vertex_x,
     int* vertex_y,
     int* vertex_z,
-    int model_yaw,
     int model_pitch,
+    int model_yaw,
     int model_roll,
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_yaw,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll,
     int camera_fov,
     int near_plane_z,
@@ -304,14 +304,14 @@ project_vertices_terrain_textured(
             vertex_x[i],
             vertex_y[i],
             vertex_z[i],
-            model_yaw,
             model_pitch,
+            model_yaw,
             model_roll,
             scene_x,
             scene_y,
             scene_z,
-            camera_yaw,
             camera_pitch,
+            camera_yaw,
             camera_roll);
 
         assert(projected_triangle.clipped == 0);
@@ -717,12 +717,12 @@ render_model_frame(
     int width,
     int height,
     int near_plane_z,
-    int model_yaw,
     int model_pitch,
+    int model_yaw,
     int model_roll,
-    int scene_x,
-    int scene_y,
-    int scene_z,
+    int camera_x,
+    int camera_y,
+    int camera_z,
     int camera_pitch,
     int camera_yaw,
     int camera_roll,
@@ -824,14 +824,14 @@ render_model_frame(
         vertices_x,
         vertices_y,
         vertices_z,
-        model_yaw,
         model_pitch,
+        model_yaw,
         model_roll,
-        scene_x,
-        scene_y,
-        scene_z,
-        camera_yaw,
+        camera_x,
+        camera_z,
+        camera_y,
         camera_pitch,
+        camera_yaw,
         camera_roll,
         fov,
         width,
@@ -947,9 +947,9 @@ render_scene_tile(
     int grid_x,
     int grid_y,
     int grid_z,
-    int scene_x,
-    int scene_y,
-    int scene_z,
+    int camera_x,
+    int camera_y,
+    int camera_z,
     int camera_pitch,
     int camera_yaw,
     int camera_roll,
@@ -967,9 +967,9 @@ render_scene_tile(
     int tile_center_y = grid_y * TILE_SIZE + TILE_SIZE / 2;
     int tile_center_z = grid_z * 240;
 
-    int dx = tile_center_x + scene_x;
-    int dy = tile_center_y + scene_y;
-    int dz = tile_center_z + scene_z;
+    // int dx = tile_center_x + scene_x;
+    // int dy = tile_center_y + scene_y;
+    // int dz = tile_center_z + scene_z;
 
     // Simple squared distance - avoid sqrt for performance
     // int dist_sq = dx * dx;
@@ -1000,13 +1000,11 @@ render_scene_tile(
                 0,
                 0,
                 0,
-                scene_x,
-                // world_y is scene_z
-                scene_z,
-                // world_z is scene_y
-                scene_y,
-                camera_yaw,
+                camera_x,
+                camera_y,
+                camera_z,
                 camera_pitch,
+                camera_yaw,
                 camera_roll,
                 fov,
                 near_plane_z,
@@ -1053,13 +1051,11 @@ render_scene_tile(
                 0,
                 0,
                 0,
-                scene_x,
-                // world_y is scene_z
-                scene_z,
-                // world_z is scene_y
-                scene_y,
-                camera_yaw,
+                camera_x,
+                camera_y,
+                camera_z,
                 camera_pitch,
+                camera_yaw,
                 camera_roll,
                 fov,
                 near_plane_z,
@@ -1278,33 +1274,25 @@ render_scene_loc(
     int width,
     int height,
     int near_plane_z,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    int camera_yaw,
+    int camera_x,
+    int camera_y,
+    int camera_z,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll,
     int fov,
     struct SceneLoc* loc,
     struct SceneTextures* textures_nullable)
 {
-    // world_y is scene_z
-    // world_z is scene_y
-    int x = loc->world_x + scene_x;
-    int y = loc->world_z + scene_z;
-    int z = loc->world_y + scene_y;
+    int x = camera_x + loc->region_x;
+    int y = camera_y + loc->region_y;
+    int z = camera_z + loc->region_z;
 
     for( int j = 0; j < loc->model_count; j++ )
     {
         struct Model* model = loc->models[j];
         if( !model )
             continue;
-
-        // world_y is scene_z
-        // world_z is scene_y
-        int x = loc->world_x + scene_x;
-        int y = loc->world_z + scene_z;
-        int z = loc->world_y + scene_y;
 
         render_model_frame(
             pixel_buffer,
@@ -1317,8 +1305,8 @@ render_scene_loc(
             x,
             y,
             z,
-            camera_yaw,
             camera_pitch,
+            camera_yaw,
             camera_roll,
             fov,
             model,
@@ -1337,8 +1325,8 @@ render_scene_locs(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_yaw,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll,
     int fov,
     struct SceneLocs* locs,
@@ -1355,8 +1343,8 @@ render_scene_locs(
             scene_x,
             scene_y,
             scene_z,
-            camera_yaw,
             camera_pitch,
+            camera_yaw,
             camera_roll,
             fov,
             loc,
@@ -1371,9 +1359,9 @@ render_scene(
     int width,
     int height,
     int near_plane_z,
-    int scene_x,
-    int scene_y,
-    int scene_z,
+    int camera_x,
+    int camera_y,
+    int camera_z,
     int camera_pitch,
     int camera_yaw,
     int camera_roll,
@@ -1447,8 +1435,8 @@ render_scene(
     int dx = radius;
     int z = 0;
 
-    int camera_tile_x = -scene_x / TILE_SIZE;
-    int camera_tile_y = -scene_y / TILE_SIZE;
+    int camera_tile_x = -camera_x / TILE_SIZE;
+    int camera_tile_y = -camera_y / TILE_SIZE;
 
     for( int dy = -radius; dy <= 0; dy++ )
     {
@@ -1482,15 +1470,34 @@ render_scene(
                             left_tile_x,
                             top_tile_y,
                             z,
-                            scene_x,
-                            scene_y,
-                            scene_z,
+                            camera_x,
+                            camera_y,
+                            camera_z,
                             camera_pitch,
                             camera_yaw,
                             camera_roll,
                             fov,
                             tile,
                             NULL);
+
+                    for( int i = 0; i < grid_tile->locs_length; i++ )
+                    {
+                        loc = &grid_tile->locs[i];
+                        render_scene_loc(
+                            pixel_buffer,
+                            width,
+                            height,
+                            near_plane_z,
+                            camera_x,
+                            camera_y,
+                            camera_z,
+                            camera_pitch,
+                            camera_yaw,
+                            camera_roll,
+                            fov,
+                            loc,
+                            NULL);
+                    }
                 }
 
                 if( right_tile_x >= 0 && right_tile_x < MAP_TERRAIN_X )
@@ -1513,15 +1520,34 @@ render_scene(
                             right_tile_x,
                             top_tile_y,
                             z,
-                            scene_x,
-                            scene_y,
-                            scene_z,
+                            camera_x,
+                            camera_y,
+                            camera_z,
                             camera_pitch,
                             camera_yaw,
                             camera_roll,
                             fov,
                             tile,
                             NULL);
+
+                    for( int i = 0; i < grid_tile->locs_length; i++ )
+                    {
+                        loc = &grid_tile->locs[i];
+                        render_scene_loc(
+                            pixel_buffer,
+                            width,
+                            height,
+                            near_plane_z,
+                            camera_x,
+                            camera_y,
+                            camera_z,
+                            camera_pitch,
+                            camera_yaw,
+                            camera_roll,
+                            fov,
+                            loc,
+                            NULL);
+                    }
                 }
             }
 
@@ -1547,15 +1573,34 @@ render_scene(
                             left_tile_x,
                             bottom_tile_y,
                             z,
-                            scene_x,
-                            scene_y,
-                            scene_z,
+                            camera_x,
+                            camera_y,
+                            camera_z,
                             camera_pitch,
                             camera_yaw,
                             camera_roll,
                             fov,
                             tile,
                             NULL);
+
+                    for( int i = 0; i < grid_tile->locs_length; i++ )
+                    {
+                        loc = &grid_tile->locs[i];
+                        render_scene_loc(
+                            pixel_buffer,
+                            width,
+                            height,
+                            near_plane_z,
+                            camera_x,
+                            camera_y,
+                            camera_z,
+                            camera_pitch,
+                            camera_yaw,
+                            camera_roll,
+                            fov,
+                            loc,
+                            NULL);
+                    }
                 }
 
                 if( right_tile_x >= 0 && right_tile_x < MAP_TERRAIN_X )
@@ -1578,81 +1623,36 @@ render_scene(
                             right_tile_x,
                             bottom_tile_y,
                             z,
-                            scene_x,
-                            scene_y,
-                            scene_z,
+                            camera_x,
+                            camera_y,
+                            camera_z,
                             camera_pitch,
                             camera_yaw,
                             camera_roll,
                             fov,
                             tile,
                             NULL);
+
+                    for( int i = 0; i < grid_tile->locs_length; i++ )
+                    {
+                        loc = &grid_tile->locs[i];
+                        render_scene_loc(
+                            pixel_buffer,
+                            width,
+                            height,
+                            near_plane_z,
+                            camera_x,
+                            camera_y,
+                            camera_z,
+                            camera_pitch,
+                            camera_yaw,
+                            camera_roll,
+                            fov,
+                            loc,
+                            NULL);
+                    }
                 }
             }
         }
     }
-
-    return;
-    while( dx-- > 0 )
-    {
-        int left_tile_x = -dx;
-        int right_tile_x = dx;
-
-        int dy = radius;
-        while( dy-- > 0 )
-        {
-            int top_tile_y = -dy;
-            int bottom_tile_y = dy;
-
-            if( top_tile_y >= 0 && top_tile_y < MAP_TERRAIN_Y && left_tile_x >= 0 &&
-                left_tile_x < MAP_TERRAIN_X )
-            {
-                grid_tile = &scene->grid_tiles[MAP_TILE_COORD(left_tile_x, top_tile_y, 0)];
-                tile = &grid_tile->tile;
-                if( tile )
-                    render_scene_tile(
-                        screen_vertices_x,
-                        screen_vertices_y,
-                        screen_vertices_z,
-                        ortho_vertices_x,
-                        ortho_vertices_y,
-                        ortho_vertices_z,
-                        pixel_buffer,
-                        z_buffer,
-                        width,
-                        height,
-                        near_plane_z,
-                        left_tile_x,
-                        top_tile_y,
-                        z,
-                        scene_x,
-                        scene_y,
-                        scene_z,
-                        camera_pitch,
-                        camera_yaw,
-                        camera_roll,
-                        fov,
-                        tile,
-                        NULL);
-
-                loc = &grid_tile->locs[0];
-                if( grid_tile->locs_length > 0 )
-                    render_scene_loc(
-                        pixel_buffer,
-                        width,
-                        height,
-                        near_plane_z,
-                        scene_x,
-                        scene_y,
-                        scene_z,
-                        camera_yaw,
-                        camera_pitch,
-                        camera_roll,
-                        fov,
-                        loc,
-                        NULL);
-            }
-        }
-    }
-    // }
 }

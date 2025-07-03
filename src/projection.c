@@ -12,20 +12,24 @@ extern int g_tan_table[2048];
  *
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  *
+ * z points away from the screen.
+ * x points to the right.
+ * y points down
+ *
  */
 struct ProjectedTriangle
 project_orthographic(
     int x,
     int y,
     int z,
-    int yaw,
     int pitch,
+    int yaw,
     int roll,
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_yaw,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll)
 {
     struct ProjectedTriangle projected_triangle = { 0 };
@@ -37,18 +41,18 @@ project_orthographic(
     assert(pitch >= 0 && pitch < 2048);
     assert(roll >= 0 && roll < 2048);
 
-    int cos_camera_yaw = g_cos_table[camera_yaw];
-    int sin_camera_yaw = g_sin_table[camera_yaw];
     int cos_camera_pitch = g_cos_table[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
     int cos_camera_roll = g_cos_table[camera_roll];
     int sin_camera_roll = g_sin_table[camera_roll];
 
     // Apply model rotation
-    int sin_yaw = g_sin_table[yaw];
-    int cos_yaw = g_cos_table[yaw];
     int sin_pitch = g_sin_table[pitch];
     int cos_pitch = g_cos_table[pitch];
+    int sin_yaw = g_sin_table[yaw];
+    int cos_yaw = g_cos_table[yaw];
     int sin_roll = g_sin_table[roll];
     int cos_roll = g_cos_table[roll];
 
@@ -176,14 +180,14 @@ project(
     int x,
     int y,
     int z,
-    int yaw,
     int pitch,
+    int yaw,
     int roll,
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_yaw,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll,
     int fov, // FOV in units of (2π/2048) radians
     int near_clip,
@@ -196,14 +200,14 @@ project(
         x,
         y,
         z,
-        yaw,
         pitch,
+        yaw,
         roll,
         scene_x,
         scene_y,
         scene_z,
-        camera_yaw,
         camera_pitch,
+        camera_yaw,
         camera_roll);
 
     projected_triangle = project_perspective(

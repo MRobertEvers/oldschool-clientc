@@ -28,9 +28,9 @@ struct SceneTile
     int* face_color_hsl_b;
     int* face_color_hsl_c;
 
-    int region_x;
-    int region_y;
-    int region_z;
+    int chunk_pos_x;
+    int chunk_pos_y;
+    int chunk_pos_level;
 };
 
 struct Overlay;
