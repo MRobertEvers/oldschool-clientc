@@ -5,6 +5,7 @@
 #include "gouraud_deob.h"
 #include "lighting.h"
 #include "projection.h"
+#include "scene.h"
 #include "scene_tile.h"
 #include "tables/maps.h"
 #include "tables/model.h"
@@ -586,9 +587,9 @@ raster_osrs_single_gouraud(
 
     // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
 
-    raster_gouraud_zbuf(
+    raster_gouraud(
         pixel_buffer,
-        z_buffer,
+        // z_buffer,
         screen_width,
         screen_height,
         x1,
@@ -597,9 +598,9 @@ raster_osrs_single_gouraud(
         y1,
         y2,
         y3,
-        z1,
-        z2,
-        z3,
+        // z1,
+        // z2,
+        // z3,
         color_a,
         color_b,
         color_c);
@@ -930,6 +931,169 @@ static int tile_shape_face_counts[15] = {
 
 #define TILE_SIZE 128
 
+static void
+render_scene_tile(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* ortho_vertices_x,
+    int* ortho_vertices_y,
+    int* ortho_vertices_z,
+    int* pixel_buffer,
+    int* z_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int grid_x,
+    int grid_y,
+    int grid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    struct SceneTile* tile,
+    struct SceneTextures* textures_nullable)
+{
+    if( tile->vertex_count == 0 || tile->face_color_hsl_a == NULL )
+        return;
+
+    // TODO: A faster culling
+    // if the tile is far enough away, skip it.
+    // Calculate distance from camera to tile center
+    int tile_center_x = grid_x * TILE_SIZE + TILE_SIZE / 2;
+    int tile_center_y = grid_y * TILE_SIZE + TILE_SIZE / 2;
+    int tile_center_z = grid_z * 240;
+
+    int dx = tile_center_x + scene_x;
+    int dy = tile_center_y + scene_y;
+    int dz = tile_center_z + scene_z;
+
+    // Simple squared distance - avoid sqrt for performance
+    // int dist_sq = dx * dx;
+    // if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
+    //     return;
+
+    // dist_sq = dy * dy;
+    // if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
+    //     return;
+
+    for( int face = 0; face < tile->face_count; face++ )
+    {
+        if( tile->valid_faces[face] == 0 )
+            continue;
+
+        int texture_id = tile->face_texture_ids ? tile->face_texture_ids[face] : -1;
+
+        if( texture_id == -1 || textures_nullable == NULL )
+        {
+            project_vertices_terrain(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                tile->vertex_count,
+                tile->vertex_x,
+                tile->vertex_y,
+                tile->vertex_z,
+                0,
+                0,
+                0,
+                scene_x,
+                // world_y is scene_z
+                scene_z,
+                // world_z is scene_y
+                scene_y,
+                camera_yaw,
+                camera_pitch,
+                camera_roll,
+                fov,
+                near_plane_z,
+                width,
+                height);
+
+            raster_osrs_single_gouraud(
+                pixel_buffer,
+                z_buffer,
+                face,
+                tile->faces_a,
+                tile->faces_b,
+                tile->faces_c,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                // TODO: Remove legacy face_color_hsl.
+                tile->face_color_hsl_a,
+                tile->face_color_hsl_b,
+                tile->face_color_hsl_c,
+                width / 2,
+                height / 2,
+                width,
+                height);
+        }
+        else
+        {
+            // Tile vertexes are wrapped ccw.
+
+            // finish bathroom and floor in basement
+            // two tables against the wall put in garage.
+            // add 0404
+            project_vertices_terrain_textured(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                ortho_vertices_x,
+                ortho_vertices_y,
+                ortho_vertices_z,
+                tile->vertex_count,
+                tile->vertex_x,
+                tile->vertex_y,
+                tile->vertex_z,
+                0,
+                0,
+                0,
+                scene_x,
+                // world_y is scene_z
+                scene_z,
+                // world_z is scene_y
+                scene_y,
+                camera_yaw,
+                camera_pitch,
+                camera_roll,
+                fov,
+                near_plane_z,
+                width,
+                height);
+
+            bool success = raster_osrs_single_texture(
+                pixel_buffer,
+                width,
+                height,
+                face,
+                tile->faces_a,
+                tile->faces_b,
+                tile->faces_c,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                ortho_vertices_x,
+                ortho_vertices_y,
+                ortho_vertices_z,
+                tile->face_texture_ids,
+                tile->face_texture_u_a,
+                tile->face_texture_v_a,
+                tile->face_texture_u_b,
+                tile->face_texture_v_b,
+                tile->face_texture_u_c,
+                tile->face_texture_v_c,
+                textures_nullable,
+                width / 2,
+                height / 2);
+        }
+    }
+}
+
 void
 render_scene_tiles(
     int* pixel_buffer,
@@ -969,142 +1133,30 @@ render_scene_tiles(
             {
                 int i = MAP_TILE_COORD(x, y, z);
                 struct SceneTile* tile = &tiles[i];
-
-                if( tile->vertex_count == 0 || tile->face_color_hsl_a == NULL )
-                    continue;
-
-                // TODO: A faster culling
-                // if the tile is far enough away, skip it.
-                // Calculate distance from camera to tile center
-                int tile_center_x = x * TILE_SIZE + TILE_SIZE / 2;
-                int tile_center_y = y * TILE_SIZE + TILE_SIZE / 2;
-                int tile_center_z = z * 240;
-
-                int dx = tile_center_x + scene_x;
-                int dy = tile_center_y + scene_y;
-                int dz = tile_center_z + scene_z;
-
-                // Simple squared distance - avoid sqrt for performance
-                int dist_sq = dx * dx;
-                if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
-                    continue;
-
-                dist_sq = dy * dy;
-                if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
-                    continue;
-
-                for( int face = 0; face < tile->face_count; face++ )
-                {
-                    if( tile->valid_faces[face] == 0 )
-                        continue;
-
-                    int texture_id = tile->face_texture_ids ? tile->face_texture_ids[face] : -1;
-
-                    if( texture_id == -1 )
-                    {
-                        project_vertices_terrain(
-                            screen_vertices_x,
-                            screen_vertices_y,
-                            screen_vertices_z,
-                            tile->vertex_count,
-                            tile->vertex_x,
-                            tile->vertex_y,
-                            tile->vertex_z,
-                            0,
-                            0,
-                            0,
-                            scene_x,
-                            // world_y is scene_z
-                            scene_z,
-                            // world_z is scene_y
-                            scene_y,
-                            camera_yaw,
-                            camera_pitch,
-                            camera_roll,
-                            fov,
-                            near_plane_z,
-                            width,
-                            height);
-
-                        raster_osrs_single_gouraud(
-                            pixel_buffer,
-                            z_buffer,
-                            face,
-                            tile->faces_a,
-                            tile->faces_b,
-                            tile->faces_c,
-                            screen_vertices_x,
-                            screen_vertices_y,
-                            screen_vertices_z,
-                            // TODO: Remove legacy face_color_hsl.
-                            tile->face_color_hsl_a,
-                            tile->face_color_hsl_b,
-                            tile->face_color_hsl_c,
-                            width / 2,
-                            height / 2,
-                            width,
-                            height);
-                    }
-                    else
-                    {
-                        // Tile vertexes are wrapped ccw.
-
-                        // finish bathroom and floor in basement
-                        // two tables against the wall put in garage.
-                        // add 0404
-                        project_vertices_terrain_textured(
-                            screen_vertices_x,
-                            screen_vertices_y,
-                            screen_vertices_z,
-                            ortho_vertices_x,
-                            ortho_vertices_y,
-                            ortho_vertices_z,
-                            tile->vertex_count,
-                            tile->vertex_x,
-                            tile->vertex_y,
-                            tile->vertex_z,
-                            0,
-                            0,
-                            0,
-                            scene_x,
-                            // world_y is scene_z
-                            scene_z,
-                            // world_z is scene_y
-                            scene_y,
-                            camera_yaw,
-                            camera_pitch,
-                            camera_roll,
-                            fov,
-                            near_plane_z,
-                            width,
-                            height);
-
-                        bool success = raster_osrs_single_texture(
-                            pixel_buffer,
-                            width,
-                            height,
-                            face,
-                            tile->faces_a,
-                            tile->faces_b,
-                            tile->faces_c,
-                            screen_vertices_x,
-                            screen_vertices_y,
-                            screen_vertices_z,
-                            ortho_vertices_x,
-                            ortho_vertices_y,
-                            ortho_vertices_z,
-                            tile->face_texture_ids,
-                            tile->face_texture_u_a,
-                            tile->face_texture_v_a,
-                            tile->face_texture_u_b,
-                            tile->face_texture_v_b,
-                            tile->face_texture_u_c,
-                            tile->face_texture_v_c,
-                            textures,
-                            width / 2,
-                            height / 2);
-                    }
-                }
+                render_scene_tile(
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z,
+                    ortho_vertices_x,
+                    ortho_vertices_y,
+                    ortho_vertices_z,
+                    pixel_buffer,
+                    z_buffer,
+                    width,
+                    height,
+                    near_plane_z,
+                    x,
+                    y,
+                    z,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    camera_pitch,
+                    camera_yaw,
+                    camera_roll,
+                    fov,
+                    tile,
+                    textures);
             }
         }
     }
@@ -1220,6 +1272,62 @@ scene_textures_free(struct SceneTextures* textures)
 #include "scene_loc.h"
 #include "tables/maps.h"
 
+static void
+render_scene_loc(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_yaw,
+    int camera_pitch,
+    int camera_roll,
+    int fov,
+    struct SceneLoc* loc,
+    struct SceneTextures* textures_nullable)
+{
+    // world_y is scene_z
+    // world_z is scene_y
+    int x = loc->world_x + scene_x;
+    int y = loc->world_z + scene_z;
+    int z = loc->world_y + scene_y;
+
+    for( int j = 0; j < loc->model_count; j++ )
+    {
+        struct Model* model = loc->models[j];
+        if( !model )
+            continue;
+
+        // world_y is scene_z
+        // world_z is scene_y
+        int x = loc->world_x + scene_x;
+        int y = loc->world_z + scene_z;
+        int z = loc->world_y + scene_y;
+
+        render_model_frame(
+            pixel_buffer,
+            width,
+            height,
+            near_plane_z,
+            0,
+            0,
+            0,
+            x,
+            y,
+            z,
+            camera_yaw,
+            camera_pitch,
+            camera_roll,
+            fov,
+            model,
+            NULL,
+            NULL,
+            NULL);
+    }
+}
+
 void
 render_scene_locs(
     int* pixel_buffer,
@@ -1239,38 +1347,312 @@ render_scene_locs(
     for( int i = 0; i < locs->locs_count; i++ )
     {
         struct SceneLoc* loc = &locs->locs[i];
+        render_scene_loc(
+            pixel_buffer,
+            width,
+            height,
+            near_plane_z,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_yaw,
+            camera_pitch,
+            camera_roll,
+            fov,
+            loc,
+            textures);
+    }
+}
 
-        for( int j = 0; j < loc->model_count; j++ )
+struct Scene;
+void
+render_scene(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    struct Scene* scene)
+{
+    // Painters algorithm.
+    // Find the position of the camera in the scene.
+
+    int* screen_vertices_x = (int*)malloc(20 * sizeof(int));
+    int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
+    int* screen_vertices_z = (int*)malloc(20 * sizeof(int));
+
+    // These are the vertices prior to perspective correction.
+    int* ortho_vertices_x = (int*)malloc(20 * sizeof(int));
+    int* ortho_vertices_y = (int*)malloc(20 * sizeof(int));
+    int* ortho_vertices_z = (int*)malloc(20 * sizeof(int));
+
+    int* z_buffer = (int*)malloc(width * height * sizeof(int));
+    for( int i = 0; i < width * height; i++ )
+        z_buffer[i] = INT_MAX;
+
+    struct GridTile* grid_tile = NULL;
+
+    struct SceneLoc* loc = NULL;
+    struct SceneTile* tile = NULL;
+
+    // for( int z = 0; z < MAP_TERRAIN_Z; z++ )
+    // {
+    //     for( int y = 0; y < MAP_TERRAIN_Y; y++ )
+    //     {
+    //         for( int x = 0; x < MAP_TERRAIN_X; x++ )
+    //         {
+    //             int i = MAP_TILE_COORD(x, y, z);
+    //             grid_tile = &scene->grid_tiles[i];
+    //             tile = &grid_tile->tile;
+    //             if( tile && tile->face_count > 0 )
+    //                 render_scene_tile(
+    //                     screen_vertices_x,
+    //                     screen_vertices_y,
+    //                     screen_vertices_z,
+    //                     ortho_vertices_x,
+    //                     ortho_vertices_y,
+    //                     ortho_vertices_z,
+    //                     pixel_buffer,
+    //                     z_buffer,
+    //                     width,
+    //                     height,
+    //                     near_plane_z,
+    //                     x,
+    //                     y,
+    //                     z,
+    //                     scene_x,
+    //                     scene_y,
+    //                     scene_z,
+    //                     camera_pitch,
+    //                     camera_yaw,
+    //                     camera_roll,
+    //                     fov,
+    //                     tile,
+    //                     NULL);
+    //         }
+    //     }
+    // }
+
+    // return;
+
+    int radius = 50;
+    // for( int z = 0; z < MAP_TERRAIN_Z; z++ )
+    // {
+    int dx = radius;
+    int z = 0;
+
+    int camera_tile_x = -scene_x / TILE_SIZE;
+    int camera_tile_y = -scene_y / TILE_SIZE;
+
+    for( int dy = -radius; dy <= 0; dy++ )
+    {
+        int top_tile_y = camera_tile_y - dy;
+        int bottom_tile_y = camera_tile_y + dy;
+
+        for( int dx = -radius; dx <= 0; dx++ )
         {
-            struct Model* model = loc->models[j];
-            if( !model )
-                continue;
+            int left_tile_x = camera_tile_x - dx;
+            int right_tile_x = camera_tile_x + dx;
 
-            // world_y is scene_z
-            // world_z is scene_y
-            int x = loc->world_x + scene_x;
-            int y = loc->world_z + scene_z;
-            int z = loc->world_y + scene_y;
+            if( top_tile_y >= 0 && top_tile_y < MAP_TERRAIN_Y )
+            {
+                if( left_tile_x >= 0 && left_tile_x < MAP_TERRAIN_X )
+                {
+                    grid_tile = &scene->grid_tiles[MAP_TILE_COORD(left_tile_x, top_tile_y, 0)];
+                    tile = &grid_tile->tile;
+                    if( tile )
+                        render_scene_tile(
+                            screen_vertices_x,
+                            screen_vertices_y,
+                            screen_vertices_z,
+                            ortho_vertices_x,
+                            ortho_vertices_y,
+                            ortho_vertices_z,
+                            pixel_buffer,
+                            z_buffer,
+                            width,
+                            height,
+                            near_plane_z,
+                            left_tile_x,
+                            top_tile_y,
+                            z,
+                            scene_x,
+                            scene_y,
+                            scene_z,
+                            camera_pitch,
+                            camera_yaw,
+                            camera_roll,
+                            fov,
+                            tile,
+                            NULL);
+                }
 
-            render_model_frame(
-                pixel_buffer,
-                width,
-                height,
-                near_plane_z,
-                0,
-                0,
-                0,
-                x,
-                y,
-                z,
-                camera_yaw,
-                camera_pitch,
-                camera_roll,
-                fov,
-                model,
-                NULL,
-                NULL,
-                NULL);
+                if( right_tile_x >= 0 && right_tile_x < MAP_TERRAIN_X )
+                {
+                    grid_tile = &scene->grid_tiles[MAP_TILE_COORD(right_tile_x, top_tile_y, 0)];
+                    tile = &grid_tile->tile;
+                    if( tile )
+                        render_scene_tile(
+                            screen_vertices_x,
+                            screen_vertices_y,
+                            screen_vertices_z,
+                            ortho_vertices_x,
+                            ortho_vertices_y,
+                            ortho_vertices_z,
+                            pixel_buffer,
+                            z_buffer,
+                            width,
+                            height,
+                            near_plane_z,
+                            right_tile_x,
+                            top_tile_y,
+                            z,
+                            scene_x,
+                            scene_y,
+                            scene_z,
+                            camera_pitch,
+                            camera_yaw,
+                            camera_roll,
+                            fov,
+                            tile,
+                            NULL);
+                }
+            }
+
+            if( bottom_tile_y >= 0 && bottom_tile_y < MAP_TERRAIN_Y )
+            {
+                if( left_tile_x >= 0 && left_tile_x < MAP_TERRAIN_X )
+                {
+                    grid_tile = &scene->grid_tiles[MAP_TILE_COORD(left_tile_x, bottom_tile_y, 0)];
+                    tile = &grid_tile->tile;
+                    if( tile )
+                        render_scene_tile(
+                            screen_vertices_x,
+                            screen_vertices_y,
+                            screen_vertices_z,
+                            ortho_vertices_x,
+                            ortho_vertices_y,
+                            ortho_vertices_z,
+                            pixel_buffer,
+                            z_buffer,
+                            width,
+                            height,
+                            near_plane_z,
+                            left_tile_x,
+                            bottom_tile_y,
+                            z,
+                            scene_x,
+                            scene_y,
+                            scene_z,
+                            camera_pitch,
+                            camera_yaw,
+                            camera_roll,
+                            fov,
+                            tile,
+                            NULL);
+                }
+
+                if( right_tile_x >= 0 && right_tile_x < MAP_TERRAIN_X )
+                {
+                    grid_tile = &scene->grid_tiles[MAP_TILE_COORD(right_tile_x, bottom_tile_y, 0)];
+                    tile = &grid_tile->tile;
+                    if( tile )
+                        render_scene_tile(
+                            screen_vertices_x,
+                            screen_vertices_y,
+                            screen_vertices_z,
+                            ortho_vertices_x,
+                            ortho_vertices_y,
+                            ortho_vertices_z,
+                            pixel_buffer,
+                            z_buffer,
+                            width,
+                            height,
+                            near_plane_z,
+                            right_tile_x,
+                            bottom_tile_y,
+                            z,
+                            scene_x,
+                            scene_y,
+                            scene_z,
+                            camera_pitch,
+                            camera_yaw,
+                            camera_roll,
+                            fov,
+                            tile,
+                            NULL);
+                }
+            }
         }
     }
+
+    return;
+    while( dx-- > 0 )
+    {
+        int left_tile_x = -dx;
+        int right_tile_x = dx;
+
+        int dy = radius;
+        while( dy-- > 0 )
+        {
+            int top_tile_y = -dy;
+            int bottom_tile_y = dy;
+
+            if( top_tile_y >= 0 && top_tile_y < MAP_TERRAIN_Y && left_tile_x >= 0 &&
+                left_tile_x < MAP_TERRAIN_X )
+            {
+                grid_tile = &scene->grid_tiles[MAP_TILE_COORD(left_tile_x, top_tile_y, 0)];
+                tile = &grid_tile->tile;
+                if( tile )
+                    render_scene_tile(
+                        screen_vertices_x,
+                        screen_vertices_y,
+                        screen_vertices_z,
+                        ortho_vertices_x,
+                        ortho_vertices_y,
+                        ortho_vertices_z,
+                        pixel_buffer,
+                        z_buffer,
+                        width,
+                        height,
+                        near_plane_z,
+                        left_tile_x,
+                        top_tile_y,
+                        z,
+                        scene_x,
+                        scene_y,
+                        scene_z,
+                        camera_pitch,
+                        camera_yaw,
+                        camera_roll,
+                        fov,
+                        tile,
+                        NULL);
+
+                loc = &grid_tile->locs[0];
+                if( grid_tile->locs_length > 0 )
+                    render_scene_loc(
+                        pixel_buffer,
+                        width,
+                        height,
+                        near_plane_z,
+                        scene_x,
+                        scene_y,
+                        scene_z,
+                        camera_yaw,
+                        camera_pitch,
+                        camera_roll,
+                        fov,
+                        loc,
+                        NULL);
+            }
+        }
+    }
+    // }
 }

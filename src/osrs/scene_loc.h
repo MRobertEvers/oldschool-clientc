@@ -10,6 +10,7 @@ struct SceneLoc
     struct Model** models;
     int model_count;
 
+    // TODO: Rename to region_x
     int world_x;
     int world_y;
     int world_z;

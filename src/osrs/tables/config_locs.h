@@ -55,6 +55,9 @@ struct LocParam
 
 struct Loc
 {
+    // Added after loading.
+    int _file_id;
+
     int* types;
     int** models;
     int* lengths;

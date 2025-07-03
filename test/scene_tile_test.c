@@ -1,6 +1,7 @@
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/render.h"
+#include "osrs/scene.h"
 #include "osrs/scene_loc.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
@@ -205,6 +206,8 @@ struct Game
 
     struct SceneLocs* scene_locs;
     struct SceneTextures* loc_textures;
+
+    struct Scene* scene;
 };
 
 struct PlatformSDL2
@@ -265,23 +268,38 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     int* pixel_buffer = platform->pixel_buffer;
     memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
-    render_scene_tiles(
-        pixel_buffer,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
-        50,
-        game->camera_x,
-        game->camera_y,
-        game->camera_z,
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_roll,
-        game->camera_fov,
-        game->tiles,
-        game->tile_count,
-        game->scene_textures);
+    // render_scene_tiles(
+    //     pixel_buffer,
+    //     SCREEN_WIDTH,
+    //     SCREEN_HEIGHT,
+    //     50,
+    //     game->camera_x,
+    //     game->camera_y,
+    //     game->camera_z,
+    //     game->camera_pitch,
+    //     game->camera_yaw,
+    //     game->camera_roll,
+    //     game->camera_fov,
+    //     game->tiles,
+    //     game->tile_count,
+    //     game->scene_textures);
 
-    render_scene_locs(
+    // render_scene_locs(
+    //     pixel_buffer,
+    //     SCREEN_WIDTH,
+    //     SCREEN_HEIGHT,
+    //     50,
+    //     game->camera_x,
+    //     game->camera_y,
+    //     game->camera_z,
+    //     game->camera_pitch,
+    //     game->camera_yaw,
+    //     game->camera_roll,
+    //     game->camera_fov,
+    //     game->scene_locs,
+    //     game->scene_textures);
+
+    render_scene(
         pixel_buffer,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
@@ -293,8 +311,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_yaw,
         game->camera_roll,
         game->camera_fov,
-        game->scene_locs,
-        game->scene_textures);
+        game->scene);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,
@@ -440,70 +457,73 @@ main()
         return 1;
     }
 
+    struct CacheArchive* archive = NULL;
+    struct FileList* filelist = NULL;
+
     /**
      * Config/Underlay
      */
 
-    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_UNDERLAY);
-    if( !archive )
-    {
-        printf("Failed to load underlay archive\n");
-        return 1;
-    }
+    // archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_UNDERLAY);
+    // if( !archive )
+    // {
+    //     printf("Failed to load underlay archive\n");
+    //     return 1;
+    // }
 
-    struct FileList* filelist = filelist_new_from_cache_archive(archive);
+    // filelist = filelist_new_from_cache_archive(archive);
 
-    int underlay_count = filelist->file_count;
-    int* underlay_ids = (int*)malloc(underlay_count * sizeof(int));
-    struct Underlay* underlays = (struct Underlay*)malloc(underlay_count * sizeof(struct Underlay));
-    for( int i = 0; i < underlay_count; i++ )
-    {
-        struct Underlay* underlay = &underlays[i];
+    // int underlay_count = filelist->file_count;
+    // int* underlay_ids = (int*)malloc(underlay_count * sizeof(int));
+    // struct Underlay* underlays = (struct Underlay*)malloc(underlay_count * sizeof(struct
+    // Underlay)); for( int i = 0; i < underlay_count; i++ )
+    // {
+    //     struct Underlay* underlay = &underlays[i];
 
-        struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
+    //     struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 
-        config_floortype_underlay_decode_inplace(
-            underlay, filelist->files[i], filelist->file_sizes[i]);
+    //     config_floortype_underlay_decode_inplace(
+    //         underlay, filelist->files[i], filelist->file_sizes[i]);
 
-        int file_id =
-            archives[cache->tables[CACHE_CONFIGS]->ids[CONFIG_UNDERLAY]].children.files[i].id;
-        underlay_ids[i] = file_id;
-    }
+    //     int file_id =
+    //         archives[cache->tables[CACHE_CONFIGS]->ids[CONFIG_UNDERLAY]].children.files[i].id;
+    //     underlay_ids[i] = file_id;
+    // }
 
-    filelist_free(filelist);
-    cache_archive_free(archive);
+    // filelist_free(filelist);
+    // cache_archive_free(archive);
 
-    /**
-     * Config/Overlay
-     */
+    // /**
+    //  * Config/Overlay
+    //  */
 
-    archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_OVERLAY);
-    if( !archive )
-    {
-        printf("Failed to load overlay archive\n");
-        return 1;
-    }
+    // archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_OVERLAY);
+    // if( !archive )
+    // {
+    //     printf("Failed to load overlay archive\n");
+    //     return 1;
+    // }
 
-    filelist = filelist_new_from_cache_archive(archive);
+    // filelist = filelist_new_from_cache_archive(archive);
 
-    int overlay_count = filelist->file_count;
-    int* overlay_ids = (int*)malloc(overlay_count * sizeof(int));
-    struct Overlay* overlays = (struct Overlay*)malloc(overlay_count * sizeof(struct Overlay));
-    for( int i = 0; i < overlay_count; i++ )
-    {
-        struct Overlay* overlay = &overlays[i];
+    // int overlay_count = filelist->file_count;
+    // int* overlay_ids = (int*)malloc(overlay_count * sizeof(int));
+    // struct Overlay* overlays = (struct Overlay*)malloc(overlay_count * sizeof(struct Overlay));
+    // for( int i = 0; i < overlay_count; i++ )
+    // {
+    //     struct Overlay* overlay = &overlays[i];
 
-        struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
+    //     struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 
-        config_floortype_overlay_decode_inplace(
-            overlay, filelist->files[i], filelist->file_sizes[i]);
-        int file_id =
-            archives[cache->tables[CACHE_CONFIGS]->ids[CONFIG_OVERLAY]].children.files[i].id;
-        overlay_ids[i] = file_id;
-    }
+    //     config_floortype_overlay_decode_inplace(
+    //         overlay, filelist->files[i], filelist->file_sizes[i]);
+    //     int file_id =
+    //         archives[cache->tables[CACHE_CONFIGS]->ids[CONFIG_OVERLAY]].children.files[i].id;
+    //     overlay_ids[i] = file_id;
+    // }
 
-    filelist_free(filelist);
-    cache_archive_free(archive);
+    // filelist_free(filelist);
+    // cache_archive_free(archive);
 
     /**
      * Textures
@@ -673,20 +693,23 @@ main()
      * Prepare Scene
      */
 
-    struct SceneTile* tiles = scene_tiles_new_from_map_terrain(
-        map_terrain, overlays, overlay_ids, overlay_count, underlays, underlay_ids, underlay_count);
+    // struct SceneTile* tiles = scene_tiles_new_from_map_terrain(
+    //     map_terrain, overlays, overlay_ids, overlay_count, underlays, underlay_ids,
+    //     underlay_count);
 
-    struct SceneTextures* textures = scene_textures_new_from_tiles(
-        tiles,
-        MAP_TILE_COUNT,
-        sprite_packs,
-        sprite_ids,
-        sprite_count,
-        texture_definitions,
-        texture_ids,
-        texture_definitions_count);
+    // struct SceneTextures* textures = scene_textures_new_from_tiles(
+    //     tiles,
+    //     MAP_TILE_COUNT,
+    //     sprite_packs,
+    //     sprite_ids,
+    //     sprite_count,
+    //     texture_definitions,
+    //     texture_ids,
+    //     texture_definitions_count);
 
     struct SceneLocs* scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache);
+
+    struct Scene* scene = scene_new_from_map(cache, 50, 50);
 
     // Initialize SDL
     struct PlatformSDL2 platform = { 0 };
@@ -704,9 +727,9 @@ main()
     game.camera_pitch = 105;
     game.camera_yaw = 284;
     game.camera_fov = 512; // Default FOV
-    game.tiles = tiles;
+    // game.tiles = tiles;
     game.tile_count = MAP_TILE_COUNT;
-    game.scene_textures = textures;
+    // game.scene_textures = textures;
 
     game.sprite_packs = sprite_packs;
     game.sprite_ids = sprite_ids;
@@ -715,6 +738,8 @@ main()
     game.texture_ids = texture_ids;
     game.texture_count = texture_definitions_count;
     game.scene_locs = scene_locs;
+
+    game.scene = scene;
 
     int w_pressed = 0;
     int a_pressed = 0;
@@ -898,10 +923,10 @@ main()
     SDL_Quit();
 
     // Free game resources
-    free_tiles(tiles, game.tile_count);
-    free(overlay_ids);
-    free(underlays);
-    free(overlays);
+    // free_tiles(tiles, game.tile_count);
+    // free(overlay_ids);
+    // free(underlays);
+    // free(overlays);
     cache_free(cache);
 
     return 0;

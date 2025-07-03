@@ -27,11 +27,19 @@ struct SceneTile
     int* face_color_hsl_a;
     int* face_color_hsl_b;
     int* face_color_hsl_c;
+
+    int region_x;
+    int region_y;
+    int region_z;
 };
 
 struct Overlay;
 struct Underlay;
 struct MapTerrain;
+struct Cache;
+
+struct SceneTile*
+scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Cache* cache);
 
 struct SceneTile* scene_tiles_new_from_map_terrain(
     struct MapTerrain* map_terrain,

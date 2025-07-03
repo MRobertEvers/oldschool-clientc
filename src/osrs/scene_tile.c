@@ -1,7 +1,11 @@
-#include "blend_underlays.h"
-#include "osrs/tables/config_floortype.h"
-#include "palette.h"
 #include "scene_tile.h"
+
+#include "blend_underlays.h"
+#include "cache.h"
+#include "filelist.h"
+#include "palette.h"
+#include "tables/config_floortype.h"
+#include "tables/configs.h"
 
 #define SMOOTH_UNDERLAYS 0
 
@@ -808,6 +812,89 @@ calculate_lights(struct MapTerrain* map_terrain, int level)
     return lights;
 }
 
+struct SceneTile*
+scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Cache* cache)
+{
+    struct FileList* filelist = NULL;
+    struct CacheArchive* archive = NULL;
+    struct SceneTile* tiles = NULL;
+
+    /**
+     * Config/Underlay
+     */
+
+    archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_UNDERLAY);
+    if( !archive )
+    {
+        printf("Failed to load underlay archive\n");
+        return NULL;
+    }
+
+    filelist = filelist_new_from_cache_archive(archive);
+
+    int underlay_count = filelist->file_count;
+    int* underlay_ids = (int*)malloc(underlay_count * sizeof(int));
+    struct Underlay* underlays = (struct Underlay*)malloc(underlay_count * sizeof(struct Underlay));
+    for( int i = 0; i < underlay_count; i++ )
+    {
+        struct Underlay* underlay = &underlays[i];
+
+        struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
+
+        config_floortype_underlay_decode_inplace(
+            underlay, filelist->files[i], filelist->file_sizes[i]);
+
+        int file_id =
+            archives[cache->tables[CACHE_CONFIGS]->ids[CONFIG_UNDERLAY]].children.files[i].id;
+        underlay_ids[i] = file_id;
+    }
+
+    filelist_free(filelist);
+    cache_archive_free(archive);
+
+    /**
+     * Config/Overlay
+     */
+
+    archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_OVERLAY);
+    if( !archive )
+    {
+        printf("Failed to load overlay archive\n");
+        return NULL;
+    }
+
+    filelist = filelist_new_from_cache_archive(archive);
+
+    int overlay_count = filelist->file_count;
+    int* overlay_ids = (int*)malloc(overlay_count * sizeof(int));
+    struct Overlay* overlays = (struct Overlay*)malloc(overlay_count * sizeof(struct Overlay));
+    for( int i = 0; i < overlay_count; i++ )
+    {
+        struct Overlay* overlay = &overlays[i];
+
+        struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
+
+        config_floortype_overlay_decode_inplace(
+            overlay, filelist->files[i], filelist->file_sizes[i]);
+        int file_id =
+            archives[cache->tables[CACHE_CONFIGS]->ids[CONFIG_OVERLAY]].children.files[i].id;
+        overlay_ids[i] = file_id;
+    }
+
+    filelist_free(filelist);
+    cache_archive_free(archive);
+
+    tiles = scene_tiles_new_from_map_terrain(
+        map_terrain, overlays, overlay_ids, overlay_count, underlays, underlay_ids, underlay_count);
+
+    free(underlay_ids);
+    free(underlays);
+    free(overlay_ids);
+    free(overlays);
+
+    return tiles;
+}
+
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/Scene.java
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/class481.java
 struct SceneTile*
@@ -924,6 +1011,10 @@ scene_tiles_new_from_map_terrain(
                 int shape = overlay_id == -1 ? 0 : (map->shape + 1);
                 int rotation = overlay_id == -1 ? 0 : map->rotation;
                 int texture_id = overlay_id == -1 ? -1 : overlay->texture;
+
+                scene_tile->region_x = x;
+                scene_tile->region_y = y;
+                scene_tile->region_z = z;
 
                 bool success = decode_tile(
                     scene_tile,

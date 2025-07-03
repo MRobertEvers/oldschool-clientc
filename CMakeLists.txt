@@ -20,7 +20,7 @@ add_executable(main_client
     src/osrs/blend_underlays.c
     src/osrs/palette.c
     src/osrs/cache.c
-    src/osrs/scene_tile_parser.c
+    src/osrs/scene_tile.c
     src/osrs/tables/model.c
     src/buffer.c
     src/osrs/archive_decompress.c
@@ -51,7 +51,7 @@ add_executable(scene_tile_test
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
-    src/osrs/scene_tile_parser.c
+    src/osrs/scene_tile.c
     src/osrs/scene_loc.c
     src/osrs/palette.c
     src/osrs/cache.c
@@ -59,6 +59,7 @@ add_executable(scene_tile_test
     src/buffer.c
     src/osrs/archive_decompress.c
     src/osrs/reference_table.c
+    src/osrs/scene.c
     src/osrs/tables/config_npctype.c
     src/osrs/tables/config_sequence.c
     src/osrs/tables/config_floortype.c

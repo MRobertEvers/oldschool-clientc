@@ -86,4 +86,19 @@ void render_scene_locs(
     struct SceneLocs* locs,
     struct SceneTextures* textures);
 
+struct Scene;
+void render_scene(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_yaw,
+    int camera_pitch,
+    int camera_roll,
+    int fov,
+    struct Scene* scene);
+
 #endif
