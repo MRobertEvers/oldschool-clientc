@@ -158,6 +158,9 @@ scene_locs_new_from_map_locs(
         scene_locs->locs[i].chunk_pos_x = x;
         scene_locs->locs[i].chunk_pos_y = y;
         scene_locs->locs[i].chunk_pos_level = z;
+
+        scene_locs->locs[i].size_x = loc.size_x;
+        scene_locs->locs[i].size_y = loc.size_y;
     }
 
 done:

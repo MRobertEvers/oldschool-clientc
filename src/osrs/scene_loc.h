@@ -17,6 +17,9 @@ struct SceneLoc
     int chunk_pos_x;
     int chunk_pos_y;
     int chunk_pos_level;
+
+    int size_x;
+    int size_y;
 };
 
 struct SceneLocs

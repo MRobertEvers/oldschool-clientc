@@ -1352,6 +1352,38 @@ render_scene_locs(
     }
 }
 
+enum SpanFlag
+{
+    SPAN_FLAG_SOUTH = 1 << 0,
+    SPAN_FLAG_NORTH = 1 << 1,
+    SPAN_FLAG_EAST = 1 << 2,
+    SPAN_FLAG_WEST = 1 << 3,
+};
+
+struct SceneElement
+{
+    struct GridTile* tile;
+    int ground_drawn;
+    int locs_drawn;
+
+    int span_flags;
+};
+
+enum SceneOpType
+{
+    SCENE_OP_TYPE_DRAW_GROUND,
+    SCENE_OP_TYPE_DRAW_LOC,
+};
+
+struct SceneOp
+{
+    enum SceneOpType op;
+
+    int x;
+    int z;
+    int level;
+};
+
 struct Scene;
 void
 render_scene(
@@ -1389,270 +1421,151 @@ render_scene(
     struct SceneLoc* loc = NULL;
     struct SceneTile* tile = NULL;
 
-    // for( int z = 0; z < MAP_TERRAIN_Z; z++ )
-    // {
-    //     for( int y = 0; y < MAP_TERRAIN_Y; y++ )
-    //     {
-    //         for( int x = 0; x < MAP_TERRAIN_X; x++ )
-    //         {
-    //             int i = MAP_TILE_COORD(x, y, z);
-    //             grid_tile = &scene->grid_tiles[i];
-    //             tile = &grid_tile->tile;
-    //             if( tile && tile->face_count > 0 )
-    //                 render_scene_tile(
-    //                     screen_vertices_x,
-    //                     screen_vertices_y,
-    //                     screen_vertices_z,
-    //                     ortho_vertices_x,
-    //                     ortho_vertices_y,
-    //                     ortho_vertices_z,
-    //                     pixel_buffer,
-    //                     z_buffer,
-    //                     width,
-    //                     height,
-    //                     near_plane_z,
-    //                     x,
-    //                     y,
-    //                     z,
-    //                     scene_x,
-    //                     scene_y,
-    //                     scene_z,
-    //                     camera_pitch,
-    //                     camera_yaw,
-    //                     camera_roll,
-    //                     fov,
-    //                     tile,
-    //                     NULL);
-    //         }
-    //     }
-    // }
+    int op_count = 0;
+    struct SceneOp* ops = (struct SceneOp*)malloc(4096 * sizeof(struct SceneOp));
 
-    // return;
-
+    // Generate painter's algorithm coordinate list - farthest to nearest
     int radius = 50;
-    // for( int z = 0; z < MAP_TERRAIN_Z; z++ )
-    // {
-    int dx = radius;
-    int z = 0;
+    int max_coords = (radius * 2 + 1) * (radius * 2 + 1);
+    int* coord_list_x = (int*)malloc(max_coords * sizeof(int));
+    int* coord_list_y = (int*)malloc(max_coords * sizeof(int));
+    int coord_list_length = 0;
 
     int camera_tile_x = -camera_x / TILE_SIZE;
     int camera_tile_y = -camera_y / TILE_SIZE;
+    int z = 0;
 
-    for( int dy = -radius; dy <= 0; dy++ )
+    // // Generate coordinates in order from farthest to nearest
+    // // This creates a spiral pattern starting from the corners and moving inward
+    for( int ring = radius; ring >= 0; ring-- )
     {
-        int top_tile_y = camera_tile_y - dy;
-        int bottom_tile_y = camera_tile_y + dy;
-
-        for( int dx = -radius; dx <= 0; dx++ )
+        // Top edge of current ring (left to right)
+        for( int x = -ring; x <= ring; x++ )
         {
-            int left_tile_x = camera_tile_x - dx;
-            int right_tile_x = camera_tile_x + dx;
+            int tile_x = camera_tile_x + x;
+            int tile_y = camera_tile_y - ring;
 
-            if( top_tile_y >= 0 && top_tile_y < MAP_TERRAIN_Y )
+            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
             {
-                if( left_tile_x >= 0 && left_tile_x < MAP_TERRAIN_X )
-                {
-                    grid_tile = &scene->grid_tiles[MAP_TILE_COORD(left_tile_x, top_tile_y, 0)];
-                    tile = &grid_tile->tile;
-                    if( tile )
-                        render_scene_tile(
-                            screen_vertices_x,
-                            screen_vertices_y,
-                            screen_vertices_z,
-                            ortho_vertices_x,
-                            ortho_vertices_y,
-                            ortho_vertices_z,
-                            pixel_buffer,
-                            z_buffer,
-                            width,
-                            height,
-                            near_plane_z,
-                            left_tile_x,
-                            top_tile_y,
-                            z,
-                            camera_x,
-                            camera_y,
-                            camera_z,
-                            camera_pitch,
-                            camera_yaw,
-                            camera_roll,
-                            fov,
-                            tile,
-                            NULL);
-
-                    for( int i = 0; i < grid_tile->locs_length; i++ )
-                    {
-                        loc = &grid_tile->locs[i];
-                        render_scene_loc(
-                            pixel_buffer,
-                            width,
-                            height,
-                            near_plane_z,
-                            camera_x,
-                            camera_y,
-                            camera_z,
-                            camera_pitch,
-                            camera_yaw,
-                            camera_roll,
-                            fov,
-                            loc,
-                            NULL);
-                    }
-                }
-
-                if( right_tile_x >= 0 && right_tile_x < MAP_TERRAIN_X )
-                {
-                    grid_tile = &scene->grid_tiles[MAP_TILE_COORD(right_tile_x, top_tile_y, 0)];
-                    tile = &grid_tile->tile;
-                    if( tile )
-                        render_scene_tile(
-                            screen_vertices_x,
-                            screen_vertices_y,
-                            screen_vertices_z,
-                            ortho_vertices_x,
-                            ortho_vertices_y,
-                            ortho_vertices_z,
-                            pixel_buffer,
-                            z_buffer,
-                            width,
-                            height,
-                            near_plane_z,
-                            right_tile_x,
-                            top_tile_y,
-                            z,
-                            camera_x,
-                            camera_y,
-                            camera_z,
-                            camera_pitch,
-                            camera_yaw,
-                            camera_roll,
-                            fov,
-                            tile,
-                            NULL);
-
-                    for( int i = 0; i < grid_tile->locs_length; i++ )
-                    {
-                        loc = &grid_tile->locs[i];
-                        render_scene_loc(
-                            pixel_buffer,
-                            width,
-                            height,
-                            near_plane_z,
-                            camera_x,
-                            camera_y,
-                            camera_z,
-                            camera_pitch,
-                            camera_yaw,
-                            camera_roll,
-                            fov,
-                            loc,
-                            NULL);
-                    }
-                }
+                coord_list_x[coord_list_length] = tile_x;
+                coord_list_y[coord_list_length] = tile_y;
+                coord_list_length++;
             }
+        }
 
-            if( bottom_tile_y >= 0 && bottom_tile_y < MAP_TERRAIN_Y )
+        // Right edge of current ring (top to bottom, excluding corners)
+        for( int y = -ring + 1; y <= ring - 1; y++ )
+        {
+            int tile_x = camera_tile_x + ring;
+            int tile_y = camera_tile_y + y;
+
+            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
             {
-                if( left_tile_x >= 0 && left_tile_x < MAP_TERRAIN_X )
-                {
-                    grid_tile = &scene->grid_tiles[MAP_TILE_COORD(left_tile_x, bottom_tile_y, 0)];
-                    tile = &grid_tile->tile;
-                    if( tile )
-                        render_scene_tile(
-                            screen_vertices_x,
-                            screen_vertices_y,
-                            screen_vertices_z,
-                            ortho_vertices_x,
-                            ortho_vertices_y,
-                            ortho_vertices_z,
-                            pixel_buffer,
-                            z_buffer,
-                            width,
-                            height,
-                            near_plane_z,
-                            left_tile_x,
-                            bottom_tile_y,
-                            z,
-                            camera_x,
-                            camera_y,
-                            camera_z,
-                            camera_pitch,
-                            camera_yaw,
-                            camera_roll,
-                            fov,
-                            tile,
-                            NULL);
-
-                    for( int i = 0; i < grid_tile->locs_length; i++ )
-                    {
-                        loc = &grid_tile->locs[i];
-                        render_scene_loc(
-                            pixel_buffer,
-                            width,
-                            height,
-                            near_plane_z,
-                            camera_x,
-                            camera_y,
-                            camera_z,
-                            camera_pitch,
-                            camera_yaw,
-                            camera_roll,
-                            fov,
-                            loc,
-                            NULL);
-                    }
-                }
-
-                if( right_tile_x >= 0 && right_tile_x < MAP_TERRAIN_X )
-                {
-                    grid_tile = &scene->grid_tiles[MAP_TILE_COORD(right_tile_x, bottom_tile_y, 0)];
-                    tile = &grid_tile->tile;
-                    if( tile )
-                        render_scene_tile(
-                            screen_vertices_x,
-                            screen_vertices_y,
-                            screen_vertices_z,
-                            ortho_vertices_x,
-                            ortho_vertices_y,
-                            ortho_vertices_z,
-                            pixel_buffer,
-                            z_buffer,
-                            width,
-                            height,
-                            near_plane_z,
-                            right_tile_x,
-                            bottom_tile_y,
-                            z,
-                            camera_x,
-                            camera_y,
-                            camera_z,
-                            camera_pitch,
-                            camera_yaw,
-                            camera_roll,
-                            fov,
-                            tile,
-                            NULL);
-
-                    for( int i = 0; i < grid_tile->locs_length; i++ )
-                    {
-                        loc = &grid_tile->locs[i];
-                        render_scene_loc(
-                            pixel_buffer,
-                            width,
-                            height,
-                            near_plane_z,
-                            camera_x,
-                            camera_y,
-                            camera_z,
-                            camera_pitch,
-                            camera_yaw,
-                            camera_roll,
-                            fov,
-                            loc,
-                            NULL);
-                    }
-                }
+                coord_list_x[coord_list_length] = tile_x;
+                coord_list_y[coord_list_length] = tile_y;
+                coord_list_length++;
             }
+        }
+
+        // Bottom edge of current ring (right to left, excluding corners)
+        for( int x = ring; x >= -ring; x-- )
+        {
+            int tile_x = camera_tile_x + x;
+            int tile_y = camera_tile_y + ring;
+
+            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
+            {
+                coord_list_x[coord_list_length] = tile_x;
+                coord_list_y[coord_list_length] = tile_y;
+                coord_list_length++;
+            }
+        }
+
+        // Left edge of current ring (bottom to top, excluding corners)
+        for( int y = ring - 1; y >= -ring + 1; y-- )
+        {
+            int tile_x = camera_tile_x - ring;
+            int tile_y = camera_tile_y + y;
+
+            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
+            {
+                coord_list_x[coord_list_length] = tile_x;
+                coord_list_y[coord_list_length] = tile_y;
+                coord_list_length++;
+            }
+        }
+    }
+
+    // Render tiles in painter's algorithm order (farthest to nearest)
+    for( int i = 0; i < coord_list_length; i++ )
+    {
+        int tile_x = coord_list_x[i];
+        int tile_y = coord_list_y[i];
+
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(tile_x, tile_y, z)];
+        tile = &grid_tile->tile;
+
+        if( tile )
+        {
+            render_scene_tile(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                ortho_vertices_x,
+                ortho_vertices_y,
+                ortho_vertices_z,
+                pixel_buffer,
+                z_buffer,
+                width,
+                height,
+                near_plane_z,
+                tile_x,
+                tile_y,
+                z,
+                camera_x,
+                camera_y,
+                camera_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll,
+                fov,
+                tile,
+                NULL);
+        }
+
+        // Render locations on this tile
+        for( int j = 0; j < grid_tile->locs_length; j++ )
+        {
+            loc = &grid_tile->locs[j];
+            render_scene_loc(
+                pixel_buffer,
+                width,
+                height,
+                near_plane_z,
+                camera_x,
+                camera_y,
+                camera_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll,
+                fov,
+                loc,
+                NULL);
+        }
+    }
+
+    free(coord_list_x);
+    free(coord_list_y);
+
+    for( int i = 0; i < op_count; i++ )
+    {
+        struct SceneOp* op = &ops[i];
+        switch( op->op )
+        {
+        case SCENE_OP_TYPE_DRAW_GROUND:
+            break;
+        case SCENE_OP_TYPE_DRAW_LOC:
+            break;
         }
     }
 }
