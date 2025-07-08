@@ -1352,21 +1352,10 @@ render_scene_locs(
     }
 }
 
-enum SpanFlag
-{
-    SPAN_FLAG_SOUTH = 1 << 0,
-    SPAN_FLAG_NORTH = 1 << 1,
-    SPAN_FLAG_EAST = 1 << 2,
-    SPAN_FLAG_WEST = 1 << 3,
-};
-
 struct SceneElement
 {
-    struct GridTile* tile;
-    int ground_drawn;
-    int locs_drawn;
-
-    int span_flags;
+    bool ground_drawn;
+    bool locs_drawn;
 };
 
 enum SceneOpType
@@ -1383,6 +1372,53 @@ struct SceneOp
     int z;
     int level;
 };
+
+struct IntQueue
+{
+    int* data;
+    int length;
+    int capacity;
+
+    int head;
+    int tail;
+};
+
+void
+int_queue_init(struct IntQueue* queue, int capacity)
+{
+    queue->data = (int*)malloc(capacity * sizeof(int));
+    queue->length = 0;
+    queue->capacity = capacity;
+}
+
+void
+int_queue_push_wrap(struct IntQueue* queue, int value)
+{
+    int next_tail = (queue->tail + 1) % queue->capacity;
+    assert(next_tail != queue->head);
+
+    queue->data[queue->tail] = value;
+    queue->tail = next_tail;
+    queue->length++;
+}
+
+int
+int_queue_pop(struct IntQueue* queue)
+{
+    assert((queue->head) != queue->tail);
+
+    int value = queue->data[queue->head];
+    queue->head = (queue->head + 1) % queue->capacity;
+    queue->length--;
+
+    return value;
+}
+
+void
+int_queue_free(struct IntQueue* queue)
+{
+    free(queue->data);
+}
 
 struct Scene;
 void
@@ -1423,6 +1459,10 @@ render_scene(
 
     int op_count = 0;
     struct SceneOp* ops = (struct SceneOp*)malloc(4096 * sizeof(struct SceneOp));
+    memset(ops, 0, 4096 * sizeof(struct SceneOp));
+    struct SceneElement* elements =
+        (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
+    memset(elements, 0, scene->grid_tiles_length * sizeof(struct SceneElement));
 
     // Generate painter's algorithm coordinate list - farthest to nearest
     int radius = 50;
@@ -1434,6 +1474,9 @@ render_scene(
     int camera_tile_x = -camera_x / TILE_SIZE;
     int camera_tile_y = -camera_y / TILE_SIZE;
     int z = 0;
+
+    struct IntQueue queue = { 0 };
+    int_queue_init(&queue, scene->grid_tiles_length);
 
     // // Generate coordinates in order from farthest to nearest
     // // This creates a spiral pattern starting from the corners and moving inward
@@ -1496,17 +1539,201 @@ render_scene(
         }
     }
 
+    struct SceneElement* element = NULL;
+    struct SceneElement* other = NULL;
     // Render tiles in painter's algorithm order (farthest to nearest)
     for( int i = 0; i < coord_list_length; i++ )
     {
-        int tile_x = coord_list_x[i];
-        int tile_y = coord_list_y[i];
+        int_queue_push_wrap(&queue, MAP_TILE_COORD(coord_list_x[i], coord_list_y[i], z));
 
-        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(tile_x, tile_y, z)];
+        while( queue.length > 0 )
+        {
+            int tile_coord = int_queue_pop(&queue);
+
+            grid_tile = &scene->grid_tiles[tile_coord];
+            tile = &grid_tile->tile;
+
+            if( !tile )
+                continue;
+
+            int tile_x = tile->chunk_pos_x;
+            int tile_y = tile->chunk_pos_y;
+            // int tile_z = tile->chunk_pos_level;
+
+            element = &elements[tile_coord];
+
+            if( !element->ground_drawn )
+            {
+                element->ground_drawn = true;
+                ops[op_count++] = (struct SceneOp){
+                    .op = SCENE_OP_TYPE_DRAW_GROUND,
+                    .x = tile_x,
+                    .z = tile_y,
+                    .level = z,
+                };
+            }
+
+            if( !element->locs_drawn && grid_tile->locs_length > 0 )
+            {
+                if( grid_tile->spans & SPAN_FLAG_WEST && (tile_x - 1) >= 0 )
+                {
+                    other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
+                    if( !other->ground_drawn )
+                    {
+                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x - 1, tile_y, z));
+                        goto defer_draw_ground;
+                    }
+                }
+                if( grid_tile->spans & SPAN_FLAG_EAST && (tile_x + 1) < MAP_TERRAIN_X )
+                {
+                    other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, z)];
+                    if( !other->ground_drawn )
+                    {
+                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x + 1, tile_y, z));
+                        goto defer_draw_ground;
+                    }
+                }
+                if( grid_tile->spans & SPAN_FLAG_SOUTH && (tile_y - 1) >= 0 )
+                {
+                    other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
+                    if( !other->ground_drawn )
+                    {
+                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y - 1, z));
+                        goto defer_draw_ground;
+                    }
+                }
+                if( grid_tile->spans & SPAN_FLAG_NORTH && (tile_y + 1) < MAP_TERRAIN_Y )
+                {
+                    other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, z)];
+                    if( !other->ground_drawn )
+                    {
+                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y + 1, z));
+                        goto defer_draw_ground;
+                    }
+                }
+
+                for( int j = 0; j < grid_tile->locs_length; j++ )
+                {
+                    ops[op_count++] = (struct SceneOp){
+                        .op = SCENE_OP_TYPE_DRAW_LOC,
+                        .x = tile_x,
+                        .z = tile_y,
+                        .level = z,
+                    };
+                }
+                element->locs_drawn = true;
+                goto drawn_locs;
+
+            defer_draw_ground:;
+                // int_queue_push_wrap(&queue, tile_coord);
+
+            drawn_locs:;
+            }
+        }
+
+    done:;
+
+        //     if( tile )
+        //     {
+        //         if( !element->ground_drawn )
+        //         {
+        //             if( grid_tile->spans & SPAN_FLAG_WEST && (tile_x - 1) >= 0 )
+        //             {
+        //                 int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x - 1, tile_y, z));
+        //                 goto defer_draw_ground;
+        //             }
+        //             if( grid_tile->spans & SPAN_FLAG_EAST && (tile_x + 1) < MAP_TERRAIN_X )
+        //             {
+        //                 int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x + 1, tile_y, z));
+        //                 goto defer_draw_ground;
+        //             }
+        //             if( grid_tile->spans & SPAN_FLAG_SOUTH && (tile_y - 1) >= 0 )
+        //             {
+        //                 int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y - 1, z));
+        //                 goto defer_draw_ground;
+        //             }
+        //             if( grid_tile->spans & SPAN_FLAG_NORTH && (tile_y + 1) < MAP_TERRAIN_Y )
+        //             {
+        //                 int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y + 1, z));
+        //                 goto defer_draw_ground;
+        //             }
+
+        //             element->ground_drawn = true;
+        //             ops[op_count++] = (struct SceneOp){
+        //                 .op = SCENE_OP_TYPE_DRAW_GROUND,
+        //                 .x = tile_x,
+        //                 .z = z,
+        //                 .level = z,
+        //             };
+
+        //         defer_draw_ground:;
+        //         }
+
+        //         // render_scene_tile(
+        //         //     screen_vertices_x,
+        //         //     screen_vertices_y,
+        //         //     screen_vertices_z,
+        //         //     ortho_vertices_x,
+        //         //     ortho_vertices_y,
+        //         //     ortho_vertices_z,
+        //         //     pixel_buffer,
+        //         //     z_buffer,
+        //         //     width,
+        //         //     height,
+        //         //     near_plane_z,
+        //         //     tile_x,
+        //         //     tile_y,
+        //         //     z,
+        //         //     camera_x,
+        //         //     camera_y,
+        //         //     camera_z,
+        //         //     camera_pitch,
+        //         //     camera_yaw,
+        //         //     camera_roll,
+        //         //     fov,
+        //         //     tile,
+        //         //     NULL);
+        //     }
+
+        //     // Render locations on this tile
+        //     for( int j = 0; j < grid_tile->locs_length; j++ )
+        //     {
+        //         loc = &grid_tile->locs[j];
+        //         // render_scene_loc(
+        //         //     pixel_buffer,
+        //         //     width,
+        //         //     height,
+        //         //     near_plane_z,
+        //         //     camera_x,
+        //         //     camera_y,
+        //         //     camera_z,
+        //         //     camera_pitch,
+        //         //     camera_yaw,
+        //         //     camera_roll,
+        //         //     fov,
+        //         //     loc,
+        //         //     NULL);
+        //     }
+        // }
+    }
+
+    for( int i = 0; i < op_count; i++ )
+    {
+        struct SceneOp* op = &ops[i];
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
         tile = &grid_tile->tile;
 
-        if( tile )
+        switch( op->op )
         {
+        case SCENE_OP_TYPE_DRAW_GROUND:
+        {
+            if( !tile )
+                break;
+
+            int tile_x = tile->chunk_pos_x;
+            int tile_y = tile->chunk_pos_y;
+            int tile_z = tile->chunk_pos_level;
+
             render_scene_tile(
                 screen_vertices_x,
                 screen_vertices_y,
@@ -1521,7 +1748,7 @@ render_scene(
                 near_plane_z,
                 tile_x,
                 tile_y,
-                z,
+                tile_z,
                 camera_x,
                 camera_y,
                 camera_z,
@@ -1532,40 +1759,35 @@ render_scene(
                 tile,
                 NULL);
         }
-
-        // Render locations on this tile
-        for( int j = 0; j < grid_tile->locs_length; j++ )
+        break;
+        case SCENE_OP_TYPE_DRAW_LOC:
         {
-            loc = &grid_tile->locs[j];
-            render_scene_loc(
-                pixel_buffer,
-                width,
-                height,
-                near_plane_z,
-                camera_x,
-                camera_y,
-                camera_z,
-                camera_pitch,
-                camera_yaw,
-                camera_roll,
-                fov,
-                loc,
-                NULL);
+            for( int j = 0; j < grid_tile->locs_length; j++ )
+            {
+                loc = &grid_tile->locs[j];
+                render_scene_loc(
+                    pixel_buffer,
+                    width,
+                    height,
+                    near_plane_z,
+                    camera_x,
+                    camera_y,
+                    camera_z,
+                    camera_pitch,
+                    camera_yaw,
+                    camera_roll,
+                    fov,
+                    loc,
+                    NULL);
+            }
+        }
+        break;
         }
     }
 
     free(coord_list_x);
     free(coord_list_y);
-
-    for( int i = 0; i < op_count; i++ )
-    {
-        struct SceneOp* op = &ops[i];
-        switch( op->op )
-        {
-        case SCENE_OP_TYPE_DRAW_GROUND:
-            break;
-        case SCENE_OP_TYPE_DRAW_LOC:
-            break;
-        }
-    }
+    free(ops);
+    free(elements);
+    int_queue_free(&queue);
 }

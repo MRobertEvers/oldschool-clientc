@@ -16,6 +16,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct MapTerrain* map_terrain = NULL;
     struct MapLocs* map_locs = NULL;
     struct SceneTile* scene_tiles = NULL;
+    struct GridTile* grid_tile = NULL;
 
     struct Scene* scene = malloc(sizeof(struct Scene));
     memset(scene, 0, sizeof(struct Scene));
@@ -58,7 +59,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
     {
         struct SceneTile* scene_tile = &scene_tiles[i];
-        struct GridTile* grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
             scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
         grid_tile->tile = *scene_tile;
     }
@@ -67,13 +68,60 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     {
         struct SceneLoc* scene_loc = &scene_locs->locs[i];
 
-        int coord_x = scene_loc->chunk_pos_x;
-        int coord_y = scene_loc->chunk_pos_y;
-        int coord_z = scene_loc->chunk_pos_level;
+        int tile_coord_x = scene_loc->chunk_pos_x;
+        int tile_coord_y = scene_loc->chunk_pos_y;
+        int tile_coord_z = scene_loc->chunk_pos_level;
 
-        struct GridTile* grid_tile = &scene->grid_tiles[MAP_TILE_COORD(coord_x, coord_y, coord_z)];
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(tile_coord_x, tile_coord_y, tile_coord_z)];
 
-        grid_tile->locs[grid_tile->locs_length++] = *scene_loc;
+        int tile_loc_index = grid_tile->locs_length;
+        grid_tile->locs[tile_loc_index] = *scene_loc;
+
+        // Subtract 1 because all locs are at least 1 tile wide.
+        int min_tile_x = tile_coord_x;
+        int min_tile_y = tile_coord_y;
+
+        // The max tile is not actually included in the span
+        int max_tile_exclusive_x = tile_coord_x + scene_loc->size_x - 1;
+        int max_tile_exclusive_y = tile_coord_y + scene_loc->size_y - 1;
+
+        for( int x = min_tile_x; x <= max_tile_exclusive_x; x++ )
+        {
+            for( int y = min_tile_y; y <= max_tile_exclusive_y; y++ )
+            {
+                int span_flags = 0;
+                if( x > tile_coord_x )
+                {
+                    // Block until the west tile underlay is drawn.
+                    span_flags |= SPAN_FLAG_WEST;
+                }
+
+                if( x < max_tile_exclusive_x )
+                {
+                    // Block until the east tile underlay is drawn.
+                    span_flags |= SPAN_FLAG_EAST;
+                }
+
+                if( y > tile_coord_y )
+                {
+                    // Block until the south tile underlay is drawn.
+                    span_flags |= SPAN_FLAG_SOUTH;
+                }
+
+                if( y < max_tile_exclusive_y )
+                {
+                    // Block until the north tile underlay is drawn.
+                    span_flags |= SPAN_FLAG_NORTH;
+                }
+
+                struct GridTile* other = &scene->grid_tiles[MAP_TILE_COORD(x, y, tile_coord_z)];
+
+                other->loc_spans[tile_loc_index] = span_flags;
+                other->spans |= span_flags;
+            }
+        }
+
+        grid_tile->locs_length++;
     }
 
     free(scene_tiles);
