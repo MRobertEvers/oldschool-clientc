@@ -7,6 +7,15 @@ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 # For compiler invocations
 make VERBOSE=1
 ```
+'
+
+### Building - Linux
+
+For linux, install bzip
+
+```
+sudo apt-get update && sudo apt-get install -y libbz2-dev
+```
 
 ### Setup
 
