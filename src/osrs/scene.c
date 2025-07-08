@@ -56,6 +56,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         goto error;
     }
 
+    scene->locs = scene_locs;
+
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
     {
         struct SceneTile* scene_tile = &scene_tiles[i];
@@ -74,8 +76,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(tile_coord_x, tile_coord_y, tile_coord_z)];
 
-        int tile_loc_index = grid_tile->locs_length;
-        grid_tile->locs[tile_loc_index] = *scene_loc;
+        grid_tile->locs[grid_tile->locs_length++] = i;
 
         // Subtract 1 because all locs are at least 1 tile wide.
         int min_tile_x = tile_coord_x;
@@ -115,17 +116,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 }
 
                 struct GridTile* other = &scene->grid_tiles[MAP_TILE_COORD(x, y, tile_coord_z)];
-
-                other->loc_spans[tile_loc_index] = span_flags;
                 other->spans |= span_flags;
+                other->locs[other->locs_length++] = i;
             }
         }
-
-        grid_tile->locs_length++;
     }
 
     free(scene_tiles);
-    free(scene_locs);
 
     map_terrain_free(map_terrain);
     map_locs_free(map_locs);

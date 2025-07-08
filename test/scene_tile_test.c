@@ -208,6 +208,11 @@ struct Game
     struct SceneTextures* loc_textures;
 
     struct Scene* scene;
+
+    struct SceneOp* ops;
+    int op_count;
+
+    int max_render_ops;
 };
 
 struct PlatformSDL2
@@ -266,7 +271,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_Texture* texture = platform->texture;
     SDL_Renderer* renderer = platform->renderer;
     int* pixel_buffer = platform->pixel_buffer;
-    memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    // memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
     // render_scene_tiles(
     //     pixel_buffer,
@@ -299,7 +304,12 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     //     game->scene_locs,
     //     game->scene_textures);
 
-    render_scene(
+    game->max_render_ops += 10;
+    render_scene_ops(
+        game->ops,
+        game->op_count,
+        0,
+        game->max_render_ops,
         pixel_buffer,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
@@ -721,11 +731,12 @@ main()
 
     // Initialize game state
     struct Game game = { 0 };
-    game.camera_x = 3242;
-    game.camera_y = 3202;
-    game.camera_z = -26;
-    game.camera_pitch = 105;
-    game.camera_yaw = 284;
+    game.camera_x = -2576;
+    game.camera_y = -3015;
+    game.camera_z = 7974;
+    game.camera_pitch = 405;
+    game.camera_yaw = 274;
+    game.camera_roll = 0;
     game.camera_fov = 512; // Default FOV
     // game.tiles = tiles;
     game.tile_count = MAP_TILE_COUNT;
@@ -750,6 +761,7 @@ main()
     int down_pressed = 0;
     int left_pressed = 0;
     int right_pressed = 0;
+    int space_pressed = 0;
 
     int f_pressed = 0;
     int r_pressed = 0;
@@ -814,6 +826,9 @@ main()
                 case SDLK_k:
                     game.camera_fov -= 1;
                     break;
+                case SDLK_SPACE:
+                    space_pressed = 1;
+                    break;
                 }
             }
             else if( event.type == SDL_KEYUP )
@@ -850,62 +865,91 @@ main()
                 case SDLK_RIGHT:
                     right_pressed = 0;
                     break;
+                case SDLK_SPACE:
+                    space_pressed = 0;
+                    break;
                 }
             }
         }
 
+        int camera_moved = 0;
         if( w_pressed )
         {
             game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
             game.camera_y -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+            camera_moved = 1;
         }
 
         if( a_pressed )
         {
             game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
             game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+            camera_moved = 1;
         }
 
         if( s_pressed )
         {
             game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
             game.camera_y += (g_cos_table[game.camera_yaw] * speed) >> 16;
+            camera_moved = 1;
         }
 
         if( d_pressed )
         {
             game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
             game.camera_y += (g_sin_table[game.camera_yaw] * speed) >> 16;
+            camera_moved = 1;
         }
 
         if( up_pressed )
         {
             game.camera_pitch = (game.camera_pitch + 10) % 2048;
+            camera_moved = 1;
         }
 
         if( left_pressed )
         {
             game.camera_yaw = (game.camera_yaw - 10 + 2048) % 2048;
+            camera_moved = 1;
         }
 
         if( right_pressed )
         {
             game.camera_yaw = (game.camera_yaw + 10) % 2048;
+            camera_moved = 1;
         }
 
         if( down_pressed )
         {
             game.camera_pitch = (game.camera_pitch - 10 + 2048) % 2048;
+            camera_moved = 1;
         }
 
         if( f_pressed )
         {
             game.camera_z -= speed;
+            camera_moved = 1;
         }
 
         if( r_pressed )
         {
             game.camera_z += speed;
+            camera_moved = 1;
+        }
+
+        if( camera_moved )
+        {
+            memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+        }
+
+        if( space_pressed )
+        {
+            if( game.ops )
+                free(game.ops);
+            game.ops = render_scene_compute_ops(
+                game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
+            memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+            game.max_render_ops = 0;
         }
 
         // Render frame

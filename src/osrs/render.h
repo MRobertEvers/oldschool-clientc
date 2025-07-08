@@ -86,7 +86,66 @@ void render_scene_locs(
     struct SceneLocs* locs,
     struct SceneTextures* textures);
 
+enum ElementStep
+{
+    E_STEP_GROUND,
+    E_STEP_WAIT_ADJACENT_GROUND,
+    E_STEP_LOCS,
+    E_STEP_DONE,
+};
+
+struct SceneElement
+{
+    enum ElementStep step;
+
+    int remaining_locs;
+};
+
+enum SceneOpType
+{
+    SCENE_OP_TYPE_DRAW_GROUND,
+    SCENE_OP_TYPE_DRAW_LOC,
+};
+
+struct SceneOp
+{
+    enum SceneOpType op;
+
+    int x;
+    int z;
+    int level;
+
+    union
+    {
+        struct
+        {
+            int loc_index;
+        } _loc;
+    };
+};
 struct Scene;
+
+struct SceneOp*
+render_scene_compute_ops(int scene_x, int scene_y, int scene_z, struct Scene* scene, int* len);
+
+void render_scene_ops(
+    struct SceneOp* ops,
+    int op_count,
+    int offset,
+    int number_to_render,
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    struct Scene* scene);
+
 void render_scene(
     int* pixel_buffer,
     int width,
@@ -95,8 +154,8 @@ void render_scene(
     int scene_x,
     int scene_y,
     int scene_z,
-    int camera_yaw,
     int camera_pitch,
+    int camera_yaw,
     int camera_roll,
     int fov,
     struct Scene* scene);
