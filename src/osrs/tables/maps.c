@@ -330,6 +330,7 @@ map_locs_new_from_decode(char* data, int data_size)
         int pos_offset;
         while( (pos_offset = rsbuf_read_unsigned_short_smart(&buffer)) != 0 )
         {
+            rsbuf_g1(&buffer);
             position += pos_offset - 1;
             count++;
             pos++; // Skip attributes byte

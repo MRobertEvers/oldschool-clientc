@@ -544,7 +544,6 @@ raster_osrs(
 void
 raster_osrs_single_gouraud(
     struct Pixel* pixel_buffer,
-    int* z_buffer,
     int face,
     int* face_indices_a,
     int* face_indices_b,
@@ -940,7 +939,6 @@ render_scene_tile(
     int* ortho_vertices_y,
     int* ortho_vertices_z,
     int* pixel_buffer,
-    int* z_buffer,
     int width,
     int height,
     int near_plane_z,
@@ -1013,7 +1011,6 @@ render_scene_tile(
 
             raster_osrs_single_gouraud(
                 pixel_buffer,
-                z_buffer,
                 face,
                 tile->faces_a,
                 tile->faces_b,
@@ -1137,7 +1134,6 @@ render_scene_tiles(
                     ortho_vertices_y,
                     ortho_vertices_z,
                     pixel_buffer,
-                    z_buffer,
                     width,
                     height,
                     near_plane_z,
@@ -1165,7 +1161,6 @@ done:
     free(ortho_vertices_x);
     free(ortho_vertices_y);
     free(ortho_vertices_z);
-    free(z_buffer);
 }
 
 struct SceneTextures*
@@ -1448,18 +1443,15 @@ render_scene(
     int* ortho_vertices_y = (int*)malloc(20 * sizeof(int));
     int* ortho_vertices_z = (int*)malloc(20 * sizeof(int));
 
-    int* z_buffer = (int*)malloc(width * height * sizeof(int));
-    for( int i = 0; i < width * height; i++ )
-        z_buffer[i] = INT_MAX;
-
     struct GridTile* grid_tile = NULL;
 
     struct SceneLoc* loc = NULL;
     struct SceneTile* tile = NULL;
 
     int op_count = 0;
-    struct SceneOp* ops = (struct SceneOp*)malloc(4096 * sizeof(struct SceneOp));
-    memset(ops, 0, 4096 * sizeof(struct SceneOp));
+    int op_capacity = scene->grid_tiles_length * 11;
+    struct SceneOp* ops = (struct SceneOp*)malloc(op_capacity * sizeof(struct SceneOp));
+    memset(ops, 0, op_capacity * sizeof(struct SceneOp));
     struct SceneElement* elements =
         (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
     memset(elements, 0, scene->grid_tiles_length * sizeof(struct SceneElement));
@@ -1742,7 +1734,6 @@ render_scene(
                 ortho_vertices_y,
                 ortho_vertices_z,
                 pixel_buffer,
-                z_buffer,
                 width,
                 height,
                 near_plane_z,
