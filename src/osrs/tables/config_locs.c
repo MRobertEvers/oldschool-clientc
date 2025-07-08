@@ -67,9 +67,9 @@ decode_loc(struct Loc* loc, char* data, int data_size)
             memset(loc->lengths, 0, count * sizeof(int));
             for( int i = 0; i < count; i++ )
             {
-                loc->types[i] = rsbuf_g1(&buffer);
                 loc->models[i] = (int*)malloc(1 * sizeof(int));
                 loc->models[i][0] = rsbuf_g2(&buffer);
+                loc->types[i] = rsbuf_g1(&buffer);
                 loc->lengths[i] = 1;
             }
             break;
@@ -125,7 +125,7 @@ decode_loc(struct Loc* loc, char* data, int data_size)
             break;
         case 24:
         {
-            int seq_id = rsbuf_read_big_smart(&buffer);
+            int seq_id = rsbuf_g2(&buffer);
             if( seq_id == 65535 )
             {
                 seq_id = -1;
@@ -145,9 +145,6 @@ decode_loc(struct Loc* loc, char* data, int data_size)
             break;
         case 29:
             loc->ambient = rsbuf_g1b(&buffer);
-            break;
-        case 39:
-            loc->contrast = rsbuf_g1b(&buffer) * 25;
             break;
         case 30:
         case 31:
@@ -173,6 +170,9 @@ decode_loc(struct Loc* loc, char* data, int data_size)
             }
             break;
         }
+        case 39:
+            loc->contrast = rsbuf_g1b(&buffer) * 25;
+            break;
         case 40:
         {
             int count = rsbuf_g1(&buffer);

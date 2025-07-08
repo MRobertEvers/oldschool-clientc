@@ -27,6 +27,8 @@ load_loc_model(struct SceneLoc* scene_loc, struct Loc* loc, struct Cache* cache)
         {
             int model_id = loc->models[0][i];
 
+            printf("Loading model %d\n", model_id);
+
             model = model_new_from_cache(cache, model_id);
             scene_loc->models[i] = model;
         }
@@ -73,8 +75,6 @@ scene_locs_new_from_map_locs(
 
         int loc_id = map_loc->id;
 
-        archive_reference = cache->tables[CACHE_CONFIGS]->archives;
-
         decode_loc(&loc, filelist->files[loc_id], filelist->file_sizes[loc_id]);
 
         load_loc_model(&scene_locs->locs[i], &loc, cache);
@@ -96,6 +96,11 @@ scene_locs_new_from_map_locs(
 
         scene_locs->locs[i].size_x = loc.size_x;
         scene_locs->locs[i].size_y = loc.size_y;
+
+        scene_locs->locs[i].orientation = map_loc->orientation;
+        scene_locs->locs[i].offset_x = loc.offset_x;
+        scene_locs->locs[i].offset_y = loc.offset_y;
+        scene_locs->locs[i].mirrored = loc.rotated;
     }
 
 done:

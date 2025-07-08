@@ -24,6 +24,8 @@ struct Model
     int* textured_p_coordinate;
     int* textured_m_coordinate;
     int* textured_n_coordinate;
+
+    int rotated;
 };
 
 struct ModelBones

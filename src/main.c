@@ -644,13 +644,13 @@ bucket_sort_by_average_depth(
             }
             else
             {
-                printf(
-                    "Out of bounds %d, (%d, %d, %d) - %d\n",
-                    depth_average,
-                    za,
-                    zb,
-                    zc,
-                    model_min_depth);
+                // printf(
+                //     "Out of bounds %d, (%d, %d, %d) - %d\n",
+                //     depth_average,
+                //     za,
+                //     zb,
+                //     zc,
+                //     model_min_depth);
             }
         }
     }

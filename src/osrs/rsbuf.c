@@ -154,24 +154,12 @@ rsbuf_read_string(struct RSBuffer* buffer)
 int
 rsbuf_read_unsigned_int_smart_short_compat(struct RSBuffer* buffer)
 {
-    // int var1 = 0;
-
-    // int var2;
-    // for (var2 = this.readUnsignedShortSmart(); var2 == 32767; var2 =
-    // this.readUnsignedShortSmart())
-    // {
-    // 	var1 += 32767;
-    // }
-
-    // var1 += var2;
-    // return var1;
-
     int var1 = 0;
-    int var2;
-    for( var2 = rsbuf_read_unsigned_short_smart(buffer); var2 == 32767;
-         var2 = rsbuf_read_unsigned_short_smart(buffer) )
+    int var2 = rsbuf_read_unsigned_short_smart(buffer);
+    while( var2 == 32767 )
     {
         var1 += 32767;
+        var2 = rsbuf_read_unsigned_short_smart(buffer);
     }
     var1 += var2;
     return var1;
@@ -181,5 +169,5 @@ int
 rsbuf_read_unsigned_short_smart(struct RSBuffer* buffer)
 {
     int peek = buffer->data[buffer->position] & 0xFF;
-    return peek < 128 ? rsbuf_g1(buffer) : rsbuf_g2(buffer) - 0x8000;
+    return peek < 128 ? rsbuf_g1(buffer) : (rsbuf_g2(buffer) - 0x8000);
 }

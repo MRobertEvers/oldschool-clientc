@@ -14,12 +14,21 @@ struct SceneLoc
     int region_y;
     int region_z;
 
+    int orientation;
+    int offset_x;
+    int offset_y;
+    int offset_height;
+    int mirrored;
+
     int chunk_pos_x;
     int chunk_pos_y;
     int chunk_pos_level;
 
     int size_x;
     int size_y;
+
+    // TODO: Remove this
+    bool __drawn;
 };
 
 struct SceneLocs

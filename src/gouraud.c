@@ -758,15 +758,9 @@ raster_gouraud(
         y0 = 0;
     }
 
-    if( y0 > y1 )
-        return;
-
     if( y1 < 0 )
     {
-        edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y1;
         edge_x_BC_ish16 -= step_edge_x_BC_ish16 * y1;
-
-        edge_color_AB_ish15 -= step_edge_color_AB_ish15 * y1;
         edge_color_BC_ish15 -= step_edge_color_BC_ish15 * y1;
 
         y1 = 0;
@@ -797,6 +791,10 @@ raster_gouraud(
         edge_color_AB_ish15 += step_edge_color_AB_ish15;
     }
 
+    if( y1 > y2 )
+        return;
+
+    i = y1;
     for( ; i < y2 && i < screen_height; ++i )
     {
         int x_start_current = edge_x_AC_ish16 >> 16;

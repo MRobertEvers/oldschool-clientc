@@ -426,13 +426,13 @@ bucket_sort_by_average_depth(
             }
             else
             {
-                printf(
-                    "Out of bounds %d, (%d, %d, %d) - %d\n",
-                    depth_average,
-                    za,
-                    zb,
-                    zc,
-                    model_min_depth);
+                // printf(
+                //     "Out of bounds %d, (%d, %d, %d) - %d\n",
+                //     depth_average,
+                //     za,
+                //     zb,
+                //     zc,
+                //     model_min_depth);
             }
         }
     }
@@ -1263,6 +1263,23 @@ scene_textures_free(struct SceneTextures* textures)
 #include "scene_loc.h"
 #include "tables/maps.h"
 
+void
+model_rotate_y180(
+    int* vertices_z, int* face_indices_a, int* face_indices_c, int vertex_count, int face_count)
+{
+    for( int v = 0; v < vertex_count; v++ )
+    {
+        vertices_z[v] = -vertices_z[v];
+    }
+
+    for( int f = 0; f < face_count; f++ )
+    {
+        int temp = face_indices_a[f];
+        face_indices_a[f] = face_indices_c[f];
+        face_indices_c[f] = temp;
+    }
+}
+
 static void
 render_scene_loc(
     int* pixel_buffer,
@@ -1283,11 +1300,40 @@ render_scene_loc(
     int y = camera_y + loc->region_y;
     int z = camera_z + loc->region_z;
 
+    if( loc->offset_x != 0 || loc->offset_y != 0 )
+    {
+        // printf("Offset x: %d, y: %d\n", loc->offset_x, loc->offset_y);
+        int i = 0;
+    }
+
+    int yaw = loc->orientation * 512;
+
+    int size_x = loc->size_x;
+    int size_y = loc->size_y;
+    if( loc->orientation == 1 || loc->orientation == 3 )
+    {
+        size_x = loc->size_y;
+        size_y = loc->size_x;
+    }
+
+    x += size_x * 64;
+    y += size_y * 64;
+
+    x += loc->offset_x;
+    y += loc->offset_y;
+    z += loc->offset_height;
+
     for( int j = 0; j < loc->model_count; j++ )
     {
         struct Model* model = loc->models[j];
         if( !model )
             continue;
+
+        if( loc->mirrored )
+        {
+            yaw += 1024;
+            yaw %= 2048;
+        }
 
         render_model_frame(
             pixel_buffer,
@@ -1295,7 +1341,7 @@ render_scene_loc(
             height,
             near_plane_z,
             0,
-            0,
+            yaw,
             0,
             x,
             y,
@@ -1405,6 +1451,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     struct SceneLoc* loc = NULL;
     struct SceneTile* tile = NULL;
 
+    for( int i = 0; i < scene->locs->locs_count; i++ )
+    {
+        scene->locs->locs[i].__drawn = false;
+    }
+
     int op_count = 0;
 
     int op_capacity = scene->grid_tiles_length * 11;
@@ -1422,7 +1473,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     }
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 50;
+    int radius = 10;
     int max_coords = (radius * 2 + 1) * (radius * 2 + 1);
     int* coord_list_x = (int*)malloc(max_coords * sizeof(int));
     int* coord_list_y = (int*)malloc(max_coords * sizeof(int));
@@ -1590,6 +1641,9 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 for( int j = 0; j < grid_tile->locs_length; j++ )
                 {
                     int loc_index = grid_tile->locs[j];
+                    if( scene->locs->locs[loc_index].__drawn )
+                        continue;
+
                     loc = &scene->locs->locs[loc_index];
 
                     int min_tile_x = loc->chunk_pos_x;
@@ -1624,14 +1678,16 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 for( int j = 0; j < g_loc_buffer_length; j++ )
                 {
                     int loc_index = g_loc_buffer[j];
+                    scene->locs->locs[loc_index].__drawn = true;
+                    loc = &scene->locs->locs[loc_index];
 
-                    // ops[op_count++] = (struct SceneOp){
-                    //     .op = SCENE_OP_TYPE_DRAW_LOC,
-                    //     .x = tile_x,
-                    //     .z = tile_y,
-                    //     .level = z,
-                    //     ._loc = { .loc_index = loc_index },
-                    // };
+                    ops[op_count++] = (struct SceneOp){
+                        .op = SCENE_OP_TYPE_DRAW_LOC,
+                        .x = loc->chunk_pos_x,
+                        .z = loc->chunk_pos_y,
+                        .level = loc->chunk_pos_level,
+                        ._loc = { .loc_index = loc_index },
+                    };
 
                     element->remaining_locs--;
                 }

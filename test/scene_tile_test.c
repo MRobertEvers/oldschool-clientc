@@ -304,7 +304,22 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     //     game->scene_locs,
     //     game->scene_textures);
 
-    game->max_render_ops += 10;
+    memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    int render_ops = game->max_render_ops;
+    if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
+    {
+        if( game->ops )
+            free(game->ops);
+        game->ops = render_scene_compute_ops(
+            game->camera_x, game->camera_y, game->camera_z, game->scene, &game->op_count);
+        game->max_render_ops = game->op_count;
+        render_ops = game->op_count;
+    }
+    else
+    {
+        game->max_render_ops += 10;
+    }
+
     render_scene_ops(
         game->ops,
         game->op_count,
@@ -628,76 +643,77 @@ main()
      * Decode textures from sprites
      */
 
-    struct TextureDefinition* texture_definition = &texture_definitions[0];
-    int* pixels = texture_pixels_new_from_definition(
-        texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1.0);
-    write_bmp_file("texture.bmp", pixels, 128, 128);
-    free(pixels);
+    // struct TextureDefinition* texture_definition = &texture_definitions[0];
+    // int* pixels = texture_pixels_new_from_definition(
+    //     texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1.0);
+    // write_bmp_file("texture.bmp", pixels, 128, 128);
+    // free(pixels);
 
-    struct MapTerrain* map_terrain = map_terrain_new_from_cache(cache, 50, 50);
-    if( !map_terrain )
-    {
-        printf("Failed to load map terrain\n");
-        return 1;
-    }
+    // struct MapTerrain* map_terrain = map_terrain_new_from_cache(cache, 50, 50);
+    // if( !map_terrain )
+    // {
+    //     printf("Failed to load map terrain\n");
+    //     return 1;
+    // }
 
-    struct MapLocs* map_locs = map_locs_new_from_cache(cache, 50, 50);
-    if( !map_locs )
-    {
-        printf("Failed to load map locs\n");
-        return 1;
-    }
+    // struct MapLocs* map_locs = map_locs_new_from_cache(cache, 50, 50);
+    // if( !map_locs )
+    // {
+    //     printf("Failed to load map locs\n");
+    //     return 1;
+    // }
 
-    assert(map_locs->locs != NULL);
+    // assert(map_locs->locs != NULL);
 
     /**
      * Config/Locs
      */
 
-    int* locs_to_decode = (int*)malloc(map_locs->locs_count * sizeof(int));
-    for( int i = 0; i < map_locs->locs_count; i++ )
-    {
-        locs_to_decode[i] = map_locs->locs[i].id;
-    }
+    // int* locs_to_decode = (int*)malloc(map_locs->locs_count * sizeof(int));
+    // for( int i = 0; i < map_locs->locs_count; i++ )
+    // {
+    //     locs_to_decode[i] = map_locs->locs[i].id;
+    // }
 
-    archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_LOCS);
-    if( !archive )
-    {
-        printf("Failed to load locs archive\n");
-        return 1;
-    }
+    // archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_LOCS);
+    // if( !archive )
+    // {
+    //     printf("Failed to load locs archive\n");
+    //     return 1;
+    // }
 
-    filelist = filelist_new_from_cache_archive(archive);
+    // filelist = filelist_new_from_cache_archive(archive);
 
-    // int locs_count = filelist->file_count;
-    int locs_count = map_locs->locs_count;
-    int* locs_ids = (int*)malloc(locs_count * sizeof(int));
-    struct Loc* locs = (struct Loc*)malloc(locs_count * sizeof(struct Loc));
-    memset(locs, 0, locs_count * sizeof(struct Loc));
-    for( int i = 0; i < locs_count; i++ )
-    {
-        int loc_id = locs_to_decode[i];
-        struct Loc* loc = &locs[i];
+    // // int locs_count = filelist->file_count;
+    // int locs_count = map_locs->locs_count;
+    // int* locs_ids = (int*)malloc(locs_count * sizeof(int));
+    // struct Loc* locs = (struct Loc*)malloc(locs_count * sizeof(struct Loc));
+    // memset(locs, 0, locs_count * sizeof(struct Loc));
+    // for( int i = 0; i < locs_count; i++ )
+    // {
+    //     int loc_id = locs_to_decode[i];
+    //     struct Loc* loc = &locs[i];
 
-        struct ArchiveReference* cfg = cache->tables[CACHE_CONFIGS]->archives;
+    //     struct ArchiveReference* cfg = cache->tables[CACHE_CONFIGS]->archives;
 
-        decode_loc(loc, filelist->files[loc_id], filelist->file_sizes[loc_id]);
+    //     decode_loc(loc, filelist->files[loc_id], filelist->file_sizes[loc_id]);
 
-        if( loc->offset_x != 0 )
-        {
-            printf("Offset x: %d\n", loc->offset_x);
-        }
-        if( loc->offset_y != 0 )
-        {
-            printf("Offset y: %d\n", loc->offset_y);
-        }
+    //     if( loc->offset_x != 0 )
+    //     {
+    //         printf("Offset x: %d\n", loc->offset_x);
+    //     }
+    //     if( loc->offset_y != 0 )
+    //     {
+    //         printf("Offset y: %d\n", loc->offset_y);
+    //     }
 
-        int file_id = cfg[cache->tables[CACHE_CONFIGS]->ids[CONFIG_LOCS]].children.files[loc_id].id;
-        locs_ids[i] = file_id;
-    }
+    //     int file_id =
+    //     cfg[cache->tables[CACHE_CONFIGS]->ids[CONFIG_LOCS]].children.files[loc_id].id;
+    //     locs_ids[i] = file_id;
+    // }
 
-    filelist_free(filelist);
-    cache_archive_free(archive);
+    // filelist_free(filelist);
+    // cache_archive_free(archive);
 
     /**
      * Prepare Scene
@@ -717,7 +733,7 @@ main()
     //     texture_ids,
     //     texture_definitions_count);
 
-    struct SceneLocs* scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache);
+    // struct SceneLocs* scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache);
 
     struct Scene* scene = scene_new_from_map(cache, 50, 50);
 
@@ -733,7 +749,7 @@ main()
     struct Game game = { 0 };
     game.camera_x = -2576;
     game.camera_y = -3015;
-    game.camera_z = 7974;
+    game.camera_z = 2000;
     game.camera_pitch = 405;
     game.camera_yaw = 274;
     game.camera_roll = 0;
@@ -748,7 +764,7 @@ main()
     game.textures = texture_definitions;
     game.texture_ids = texture_ids;
     game.texture_count = texture_definitions_count;
-    game.scene_locs = scene_locs;
+    game.scene_locs = NULL;
 
     game.scene = scene;
 
@@ -949,14 +965,14 @@ main()
             game.ops = render_scene_compute_ops(
                 game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
             memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
-            game.max_render_ops = 0;
+            game.max_render_ops = 1;
         }
 
         // Render frame
         game_render_sdl2(&game, &platform);
 
         // Cap at 30 FPS
-        SDL_Delay(1000 / 30);
+        SDL_Delay(1000 / 100);
     }
 
     // Cleanup
