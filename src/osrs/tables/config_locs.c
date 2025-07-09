@@ -30,10 +30,115 @@ config_locs_free(struct Loc* loc)
     free_loc(loc);
 }
 
+static void
+init_loc(struct Loc* loc)
+{
+    memset(loc, 0, sizeof(struct Loc));
+    //   this.lowDetail = false;
+    //     this.name = "null";
+    //     this.sizeX = 1;
+    //     this.sizeY = 1;
+    //     this.clipType = 2;
+    //     this.blocksProjectile = true;
+    //     this.isInteractive = -1;
+    //     this.contouredGround = -1;
+    //     this.mergeNormals = false;
+    //     this.modelClipped = false;
+    //     this.seqId = -1;
+    //     this.decorDisplacement = LocType.DEFAULT_DECOR_DISPLACEMENT;
+    //     this.ambient = 0;
+    //     this.contrast = 0;
+    //     this.actions = new Array(5);
+    //     this.mapFunctionId = -1;
+    //     this.mapSceneId = -1;
+    //     this.flipMapSceneSprite = false;
+    //     this.isRotated = false;
+    //     this.clipped = true;
+    //     this.modelSizeX = 128;
+    //     this.modelSizeHeight = 128;
+    //     this.modelSizeY = 128;
+    //     this.offsetX = 0;
+    //     this.offsetHeight = 0;
+    //     this.offsetY = 0;
+    //     this.obstructsGround = false;
+    //     this.isHollow = false;
+    //     this.supportItems = -1;
+    //     this.transformVarbit = -1;
+    //     this.transformVarp = -1;
+    //     this.ambientSoundId = -1;
+    //     this.ambientSoundDistance = 0;
+    //     this.ambientSoundChangeTicksMin = 0;
+    //     this.ambientSoundChangeTicksMax = 0;
+    //     this.ambientSoundRetain = 0;
+    //     this.seqRandomStart = true;
+
+    //     this.contourGroundType = 0;
+    //     this.contourGroundParam = -1;
+
+    loc->name = NULL;
+    loc->size_x = 1;
+    loc->size_y = 1;
+    loc->clip_type = 2;
+    loc->blocks_projectiles = 1;
+    loc->is_interactive = -1;
+    loc->contoured_ground = -1;
+    loc->merge_normals = 0;
+    loc->model_clipped = 0;
+    loc->seq_id = -1;
+    loc->ambient = 0;
+    loc->contrast = 0;
+    loc->map_function_id = -1;
+    loc->map_scene_id = -1;
+    loc->clipped = 1;
+    loc->model_size_x = 128;
+    loc->model_size_height = 128;
+    loc->model_size_y = 128;
+    loc->offset_x = 0;
+    loc->offset_height = 0;
+    loc->offset_y = 0;
+    loc->obstructs_ground = 0;
+    loc->is_hollow = 0;
+    loc->support_items = -1;
+    loc->transform_varbit = -1;
+    loc->transform_varp = -1;
+    loc->ambient_sound_id = -1;
+    loc->ambient_sound_distance = 0;
+    loc->ambient_sound_ticks_min = 0;
+    loc->ambient_sound_ticks_max = 0;
+    loc->ambient_sound_retain = 0;
+    loc->seq_random_start = 1;
+    loc->contour_ground_type = 0;
+    loc->contour_ground_param = -1;
+    loc->recolor_count = 0;
+    loc->recolors_from = NULL;
+    loc->recolors_to = NULL;
+    loc->retexture_count = 0;
+    loc->retextures_from = NULL;
+    loc->retextures_to = NULL;
+    loc->transform_count = 0;
+    loc->transforms = NULL;
+    loc->ambient_sound_id_count = 0;
+    loc->ambient_sound_ids = NULL;
+    loc->random_seq_id_count = 0;
+    loc->random_seq_ids = NULL;
+    loc->random_seq_delays = NULL;
+    loc->campaign_id_count = 0;
+    loc->campaign_ids = NULL;
+    loc->param_keys = NULL;
+    loc->param_values = NULL;
+
+    loc->rotated = 0;
+    loc->campaign_ids = NULL;
+    loc->param_keys = NULL;
+    loc->param_values = NULL;
+}
+
 void
 decode_loc(struct Loc* loc, char* data, int data_size)
 {
     struct RSBuffer buffer = { .data = (uint8_t*)data, .size = data_size, .position = 0 };
+
+    init_loc(loc);
 
     while( true )
     {
@@ -93,7 +198,12 @@ decode_loc(struct Loc* loc, char* data, int data_size)
             loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
             {
-                loc->models[0][i] = rsbuf_g2(&buffer);
+                int model_id = rsbuf_g2(&buffer);
+                if( model_id == 34824 )
+                {
+                    int lll = 0;
+                }
+                loc->models[0][i] = model_id;
             }
             break;
         }
@@ -301,6 +411,7 @@ decode_loc(struct Loc* loc, char* data, int data_size)
             loc->ambient_sound_id = rsbuf_g2(&buffer);
             loc->ambient_sound_distance = rsbuf_g1(&buffer);
             // TODO: Check cache info for ambient_sound_retain
+            loc->ambient_sound_retain = rsbuf_g1(&buffer);
             break;
         }
         case 79:
@@ -309,7 +420,7 @@ decode_loc(struct Loc* loc, char* data, int data_size)
             loc->ambient_sound_ticks_max = rsbuf_g2(&buffer);
             loc->ambient_sound_distance = rsbuf_g1(&buffer);
             // TODO: Check cache info for ambient_sound_retain
-
+            loc->ambient_sound_retain = rsbuf_g1(&buffer);
             int count = rsbuf_g1(&buffer);
             loc->ambient_sound_id_count = count;
             if( count > 0 )

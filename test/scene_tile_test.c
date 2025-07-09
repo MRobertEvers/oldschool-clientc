@@ -213,6 +213,10 @@ struct Game
     int op_count;
 
     int max_render_ops;
+
+    int show_loc_enabled;
+    int show_loc_x;
+    int show_loc_y;
 };
 
 struct PlatformSDL2
@@ -319,6 +323,31 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     {
         game->max_render_ops += 10;
     }
+
+    if( game->show_loc_enabled )
+        for( int i = 0; i < game->op_count; i++ )
+        {
+            struct SceneOp* op = &game->ops[i];
+            if( op->op == SCENE_OP_TYPE_DRAW_LOC )
+            {
+                if( op->x != game->show_loc_x || op->z != game->show_loc_y )
+                {
+                    op->op = SCENE_OP_TYPE_NONE;
+                }
+                else
+                {
+                    // printf("Draw loc: %d\n", op->_loc.loc_index);
+                }
+            }
+            else if( op->op == SCENE_OP_TYPE_DRAW_GROUND )
+            {
+                if( op->x == game->show_loc_x && op->z == game->show_loc_y )
+                {
+                    op->_ground.override_color = true;
+                    op->_ground.color_hsl16 = 0x1280;
+                }
+            }
+        }
 
     render_scene_ops(
         game->ops,
@@ -751,7 +780,7 @@ main()
     game.camera_y = -3015;
     game.camera_z = 2000;
     game.camera_pitch = 405;
-    game.camera_yaw = 274;
+    game.camera_yaw = 1536;
     game.camera_roll = 0;
     game.camera_fov = 512; // Default FOV
     // game.tiles = tiles;
@@ -768,6 +797,9 @@ main()
 
     game.scene = scene;
 
+    game.show_loc_x = 63;
+    game.show_loc_y = 63;
+
     int w_pressed = 0;
     int a_pressed = 0;
     int s_pressed = 0;
@@ -781,6 +813,13 @@ main()
 
     int f_pressed = 0;
     int r_pressed = 0;
+
+    int m_pressed = 0;
+    int n_pressed = 0;
+    int i_pressed = 0;
+    int k_pressed = 0;
+    int l_pressed = 0;
+    int j_pressed = 0;
 
     bool quit = false;
     int speed = 200;
@@ -836,14 +875,35 @@ main()
                 case SDLK_e:
                     game.camera_roll = (game.camera_roll + 10) % 2048;
                     break;
-                case SDLK_i:
-                    game.camera_fov += 1;
+                case SDLK_SEMICOLON:
+                    game.show_loc_enabled = !game.show_loc_enabled;
                     break;
-                case SDLK_k:
-                    game.camera_fov -= 1;
-                    break;
+                // case SDLK_i:
+                //     game.camera_fov += 1;
+                //     break;
+                // case SDLK_k:
+                //     game.camera_fov -= 1;
+                //     break;
                 case SDLK_SPACE:
                     space_pressed = 1;
+                    break;
+                case SDLK_m:
+                    m_pressed = 1;
+                    break;
+                case SDLK_n:
+                    n_pressed = 1;
+                    break;
+                case SDLK_i:
+                    i_pressed = 1;
+                    break;
+                case SDLK_k:
+                    k_pressed = 1;
+                    break;
+                case SDLK_l:
+                    l_pressed = 1;
+                    break;
+                case SDLK_j:
+                    j_pressed = 1;
                     break;
                 }
             }
@@ -883,6 +943,24 @@ main()
                     break;
                 case SDLK_SPACE:
                     space_pressed = 0;
+                    break;
+                case SDLK_m:
+                    m_pressed = 0;
+                    break;
+                case SDLK_n:
+                    n_pressed = 0;
+                    break;
+                case SDLK_i:
+                    i_pressed = 0;
+                    break;
+                case SDLK_k:
+                    k_pressed = 0;
+                    break;
+                case SDLK_l:
+                    l_pressed = 0;
+                    break;
+                case SDLK_j:
+                    j_pressed = 0;
                     break;
                 }
             }
@@ -953,6 +1031,27 @@ main()
             camera_moved = 1;
         }
 
+        if( i_pressed )
+        {
+            game.show_loc_y += 1;
+            printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
+        }
+        if( k_pressed )
+        {
+            game.show_loc_y -= 1;
+            printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
+        }
+        if( l_pressed )
+        {
+            game.show_loc_x += 1;
+            printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
+        }
+        if( j_pressed )
+        {
+            game.show_loc_x -= 1;
+            printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
+        }
+
         if( camera_moved )
         {
             memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
@@ -972,7 +1071,7 @@ main()
         game_render_sdl2(&game, &platform);
 
         // Cap at 30 FPS
-        SDL_Delay(1000 / 100);
+        SDL_Delay(1000 / 30);
     }
 
     // Cleanup

@@ -5,8 +5,12 @@
 #include "tables/maps.h"
 #include "tables/model.h"
 
+// Todo remove
+#include "tables/config_locs.h"
+
 struct SceneLoc
 {
+    int* model_ids;
     struct Model** models;
     int model_count;
 
@@ -29,6 +33,7 @@ struct SceneLoc
 
     // TODO: Remove this
     bool __drawn;
+    struct Loc __loc;
 };
 
 struct SceneLocs

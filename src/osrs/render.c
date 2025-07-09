@@ -21,6 +21,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+char*
+element_step_str(enum ElementStep step)
+{
+    switch( step )
+    {
+    case E_STEP_GROUND:
+        return "GROUND";
+    case E_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED:
+        return "VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED";
+    case E_STEP_WAIT_ADJACENT_GROUND:
+        return "WAIT_ADJACENT_GROUND";
+    case E_STEP_LOCS:
+        return "LOCS";
+    case E_STEP_NOTIFY_ADJACENT_TILES:
+        return "NOTIFY_ADJACENT_TILES";
+    case E_STEP_DONE:
+        return "DONE";
+    default:
+        return "UNKNOWN";
+    }
+}
+
 extern int g_sin_table[2048];
 extern int g_cos_table[2048];
 extern int g_tan_table[2048];
@@ -953,7 +975,8 @@ render_scene_tile(
     int camera_roll,
     int fov,
     struct SceneTile* tile,
-    struct SceneTextures* textures_nullable)
+    struct SceneTextures* textures_nullable,
+    int* color_override_hsl16_nullable)
 {
     if( tile->vertex_count == 0 || tile->face_color_hsl_a == NULL )
         return;
@@ -1009,6 +1032,13 @@ render_scene_tile(
                 width,
                 height);
 
+            int* colors_a = color_override_hsl16_nullable ? color_override_hsl16_nullable
+                                                          : tile->face_color_hsl_a;
+            int* colors_b = color_override_hsl16_nullable ? color_override_hsl16_nullable
+                                                          : tile->face_color_hsl_b;
+            int* colors_c = color_override_hsl16_nullable ? color_override_hsl16_nullable
+                                                          : tile->face_color_hsl_c;
+
             raster_osrs_single_gouraud(
                 pixel_buffer,
                 face,
@@ -1019,9 +1049,9 @@ render_scene_tile(
                 screen_vertices_y,
                 screen_vertices_z,
                 // TODO: Remove legacy face_color_hsl.
-                tile->face_color_hsl_a,
-                tile->face_color_hsl_b,
-                tile->face_color_hsl_c,
+                colors_a,
+                colors_b,
+                colors_c,
                 width / 2,
                 height / 2,
                 width,
@@ -1148,7 +1178,8 @@ render_scene_tiles(
                     camera_roll,
                     fov,
                     tile,
-                    textures);
+                    textures,
+                    NULL);
             }
         }
     }
@@ -1300,24 +1331,31 @@ render_scene_loc(
     int y = camera_y + loc->region_y;
     int z = camera_z + loc->region_z;
 
-    if( loc->offset_x != 0 || loc->offset_y != 0 )
+    int yaw = 0;
+
+    if( loc->mirrored && loc->orientation > 3 )
     {
-        // printf("Offset x: %d, y: %d\n", loc->offset_x, loc->offset_y);
-        int i = 0;
+        yaw += 1024;
     }
 
-    int yaw = loc->orientation * 512;
+    int rotation = loc->orientation;
+    while( rotation-- )
+    {
+        yaw += 1536;
+    }
+    yaw %= 2048;
 
+    // This is done in the map->loc => scene_loc decoder.
     int size_x = loc->size_x;
     int size_y = loc->size_y;
-    if( loc->orientation == 1 || loc->orientation == 3 )
-    {
-        size_x = loc->size_y;
-        size_y = loc->size_x;
-    }
+    // if( loc->orientation == 1 || loc->orientation == 3 )
+    // {
+    //     size_x = loc->size_y;
+    //     size_y = loc->size_x;
+    // }
 
-    x += size_x * 64;
-    y += size_y * 64;
+    x += (size_x) * 64;
+    y += (size_y) * 64;
 
     x += loc->offset_x;
     y += loc->offset_y;
@@ -1328,12 +1366,6 @@ render_scene_loc(
         struct Model* model = loc->models[j];
         if( !model )
             continue;
-
-        if( loc->mirrored )
-        {
-            yaw += 1024;
-            yaw %= 2048;
-        }
 
         render_model_frame(
             pixel_buffer,
@@ -1449,7 +1481,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     struct GridTile* grid_tile = NULL;
 
     struct SceneLoc* loc = NULL;
-    struct SceneTile* tile = NULL;
+    // struct SceneTile* tile = NULL;
 
     for( int i = 0; i < scene->locs->locs_count; i++ )
     {
@@ -1468,13 +1500,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     for( int i = 0; i < scene->grid_tiles_length; i++ )
     {
         struct SceneElement* element = &elements[i];
-        element->step = E_STEP_GROUND;
+        element->step = E_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED;
         element->remaining_locs = scene->grid_tiles[i].locs_length;
     }
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 10;
-    int max_coords = (radius * 2 + 1) * (radius * 2 + 1);
+    int radius = 30;
+    int max_coords = ((radius + 1) * (radius + 1) * 4);
     int* coord_list_x = (int*)malloc(max_coords * sizeof(int));
     int* coord_list_y = (int*)malloc(max_coords * sizeof(int));
     int coord_list_length = 0;
@@ -1483,92 +1515,215 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     int camera_tile_y = -camera_y / TILE_SIZE;
     int z = 0;
 
+    int max_draw_x = camera_tile_x + radius;
+    int max_draw_y = camera_tile_y + radius;
+    if( max_draw_x > MAP_TERRAIN_X )
+        max_draw_x = MAP_TERRAIN_X;
+    if( max_draw_y > MAP_TERRAIN_Y )
+        max_draw_y = MAP_TERRAIN_Y;
+    int min_draw_x = camera_tile_x - radius;
+    int min_draw_y = camera_tile_y - radius;
+    if( min_draw_x < 0 )
+        min_draw_x = 0;
+    if( min_draw_y < 0 )
+        min_draw_y = 0;
+
     struct IntQueue queue = { 0 };
     int_queue_init(&queue, scene->grid_tiles_length);
 
     // // Generate coordinates in order from farthest to nearest
     // // This creates a spiral pattern starting from the corners and moving inward
-    for( int ring = radius; ring >= 0; ring-- )
+    // Top edge of current ring (left to right)
+    for( int x = -radius; x <= 0; x++ )
     {
-        // Top edge of current ring (left to right)
-        for( int x = -ring; x <= ring; x++ )
-        {
-            int tile_x = camera_tile_x + x;
-            int tile_y = camera_tile_y - ring;
-
-            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
-            {
-                coord_list_x[coord_list_length] = tile_x;
-                coord_list_y[coord_list_length] = tile_y;
-                coord_list_length++;
-            }
-        }
+        int east_tile_x = camera_tile_x - x;
+        int west_tile_x = camera_tile_x + x;
 
         // Right edge of current ring (top to bottom, excluding corners)
-        for( int y = -ring + 1; y <= ring - 1; y++ )
+        for( int y = -radius; y <= 0; y++ )
         {
-            int tile_x = camera_tile_x + ring;
-            int tile_y = camera_tile_y + y;
+            int south_tile_y = camera_tile_y + y;
+            int north_tile_y = camera_tile_y - y;
 
-            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
+            if( east_tile_x < max_draw_x && east_tile_x >= min_draw_x )
             {
-                coord_list_x[coord_list_length] = tile_x;
-                coord_list_y[coord_list_length] = tile_y;
-                coord_list_length++;
+                if( north_tile_y < max_draw_y && north_tile_y >= min_draw_y )
+                {
+                    assert(east_tile_x >= 0);
+                    assert(east_tile_x < MAP_TERRAIN_X);
+                    assert(north_tile_y >= 0);
+                    assert(north_tile_y < MAP_TERRAIN_Y);
+
+                    coord_list_x[coord_list_length] = east_tile_x;
+                    coord_list_y[coord_list_length] = north_tile_y;
+                    coord_list_length++;
+                }
+                if( south_tile_y < max_draw_y && south_tile_y >= min_draw_y )
+                {
+                    coord_list_x[coord_list_length] = east_tile_x;
+                    coord_list_y[coord_list_length] = south_tile_y;
+                    coord_list_length++;
+                }
+            }
+            if( west_tile_x >= min_draw_x && west_tile_x < max_draw_x )
+            {
+                if( north_tile_y < max_draw_y && north_tile_y >= min_draw_y )
+                {
+                    coord_list_x[coord_list_length] = west_tile_x;
+                    coord_list_y[coord_list_length] = north_tile_y;
+                    coord_list_length++;
+                }
+                if( south_tile_y < max_draw_y && south_tile_y >= min_draw_y )
+                {
+                    coord_list_x[coord_list_length] = west_tile_x;
+                    coord_list_y[coord_list_length] = south_tile_y;
+                    coord_list_length++;
+                }
             }
         }
 
-        // Bottom edge of current ring (right to left, excluding corners)
-        for( int x = ring; x >= -ring; x-- )
-        {
-            int tile_x = camera_tile_x + x;
-            int tile_y = camera_tile_y + ring;
-
-            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
-            {
-                coord_list_x[coord_list_length] = tile_x;
-                coord_list_y[coord_list_length] = tile_y;
-                coord_list_length++;
-            }
-        }
-
-        // Left edge of current ring (bottom to top, excluding corners)
-        for( int y = ring - 1; y >= -ring + 1; y-- )
-        {
-            int tile_x = camera_tile_x - ring;
-            int tile_y = camera_tile_y + y;
-
-            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
-            {
-                coord_list_x[coord_list_length] = tile_x;
-                coord_list_y[coord_list_length] = tile_y;
-                coord_list_length++;
-            }
-        }
+        assert(coord_list_length < max_coords);
     }
 
     struct SceneElement* element = NULL;
     struct SceneElement* other = NULL;
+
+    min_draw_x = 1;
+    min_draw_y = 1;
+
+    coord_list_length = 4;
+    coord_list_x[0] = camera_tile_x - radius;
+    coord_list_y[0] = camera_tile_y - radius;
+
+    coord_list_x[1] = camera_tile_x - radius;
+    coord_list_y[1] = camera_tile_y + radius;
+
+    coord_list_x[2] = camera_tile_x + radius;
+    coord_list_y[2] = camera_tile_y - radius;
+
+    coord_list_x[3] = camera_tile_x + radius;
+    coord_list_y[3] = camera_tile_y + radius;
+
+    if( coord_list_x[0] < min_draw_x )
+        coord_list_x[0] = min_draw_x;
+    if( coord_list_y[0] < min_draw_y )
+        coord_list_y[0] = min_draw_y;
+
+    if( coord_list_x[1] < min_draw_x )
+        coord_list_x[1] = min_draw_x;
+    if( coord_list_y[1] > max_draw_y - 1 )
+        coord_list_y[1] = max_draw_y - 1;
+
+    if( coord_list_x[2] > max_draw_x - 1 )
+        coord_list_x[2] = max_draw_x - 1;
+    if( coord_list_y[2] < min_draw_y )
+        coord_list_y[2] = min_draw_y;
+
+    if( coord_list_x[3] > max_draw_x - 1 )
+        coord_list_x[3] = max_draw_x - 1;
+    if( coord_list_y[3] > max_draw_y - 1 )
+        coord_list_y[3] = max_draw_y - 1;
+
     // Render tiles in painter's algorithm order (farthest to nearest)
     for( int i = 0; i < coord_list_length; i++ )
     {
-        int_queue_push_wrap(&queue, MAP_TILE_COORD(coord_list_x[i], coord_list_y[i], z));
+        int _coord_x = coord_list_x[i];
+        int _coord_y = coord_list_y[i];
+        int _coord_z = z;
+
+        assert(_coord_x >= min_draw_x);
+        assert(_coord_x < max_draw_x);
+        assert(_coord_y >= min_draw_y);
+        assert(_coord_y < max_draw_y);
+
+        int _coord_idx = MAP_TILE_COORD(_coord_x, _coord_y, _coord_z);
+        int_queue_push_wrap(&queue, _coord_idx);
 
         while( queue.length > 0 )
         {
             int tile_coord = int_queue_pop(&queue);
 
             grid_tile = &scene->grid_tiles[tile_coord];
-            tile = &grid_tile->tile;
 
-            if( !tile )
-                continue;
+            int tile_x = grid_tile->x;
+            int tile_y = grid_tile->z;
 
-            int tile_x = tile->chunk_pos_x;
-            int tile_y = tile->chunk_pos_y;
-            // int tile_z = tile->chunk_pos_level;
+            if( tile_x == 7 && tile_y == 55 )
+            {
+                int lll = 0;
+            }
+
+            // printf("Tile %d, %d Coord %d\n", tile_x, tile_y, tile_coord);
+            // printf("Min %d, %d\n", min_draw_x, min_draw_y);
+            // printf("Max %d, %d\n", max_draw_x, max_draw_y);
+
+            assert(tile_x >= min_draw_x);
+            assert(tile_x < max_draw_x);
+            assert(tile_y >= min_draw_y);
+            assert(tile_y < max_draw_y);
 
             element = &elements[tile_coord];
+
+            /**
+             * If this is a loc revisit, then we need to verify adjacent tiles are done.
+             *
+             */
+
+            if( element->step == E_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED )
+            {
+                if( tile_x >= camera_tile_x && tile_x < max_draw_x )
+                {
+                    if( tile_x + 1 < max_draw_x - 1 )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, z)];
+
+                        // If we are not spanned by the tile, then we need to verify it is done.
+                        if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_EAST) == 0 )
+                        {
+                            goto done;
+                        }
+                    }
+                }
+
+                if( tile_x <= camera_tile_x && tile_x >= min_draw_x )
+                {
+                    if( tile_x - 1 >= min_draw_x )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
+                        if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_WEST) == 0 )
+                        {
+                            goto done;
+                        }
+                    }
+                }
+
+                if( tile_y >= camera_tile_y && tile_y < max_draw_y )
+                {
+                    if( tile_y + 1 < max_draw_y - 1 )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, z)];
+                        if( other->step != E_STEP_DONE &&
+                            (grid_tile->spans & SPAN_FLAG_NORTH) == 0 )
+                        {
+                            goto done;
+                        }
+                    }
+                }
+                if( tile_y <= camera_tile_y && tile_y >= min_draw_y )
+                {
+                    if( tile_y - 1 >= min_draw_y )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
+                        if( other->step != E_STEP_DONE &&
+                            (grid_tile->spans & SPAN_FLAG_SOUTH) == 0 )
+                        {
+                            goto done;
+                        }
+                    }
+                }
+
+                element->step = E_STEP_GROUND;
+            }
 
             if( element->step == E_STEP_GROUND )
             {
@@ -1580,62 +1735,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     .z = tile_y,
                     .level = z,
                 };
-
-                // Attempt to draw any tiles that are waiting for us
-                if( grid_tile->spans != 0 )
-                {
-                    if( (grid_tile->spans & SPAN_FLAG_WEST) != 0 && tile_x < camera_tile_x )
-                    {
-                        if( tile_x - 1 >= 0 )
-                        {
-                            other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
-                            if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
-                            {
-                                int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x - 1, tile_y, z));
-                            }
-                        }
-                    }
-                    if( (grid_tile->spans & SPAN_FLAG_EAST) != 0 && tile_x > camera_tile_x )
-                    {
-                        if( tile_x + 1 < MAP_TERRAIN_X )
-                        {
-                            other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, z)];
-                            if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
-                            {
-                                int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x + 1, tile_y, z));
-                            }
-                        }
-                    }
-                    if( (grid_tile->spans & SPAN_FLAG_SOUTH) != 0 && tile_y > camera_tile_y )
-                    {
-                        if( tile_y - 1 >= 0 )
-                        {
-                            other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
-                            if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
-                            {
-                                int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y - 1, z));
-                            }
-                        }
-                    }
-                    if( (grid_tile->spans & SPAN_FLAG_NORTH) != 0 && tile_y < camera_tile_y )
-                    {
-                        if( tile_y + 1 < MAP_TERRAIN_Y )
-                        {
-                            other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, z)];
-                            if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
-                            {
-                                int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y + 1, z));
-                            }
-                        }
-                    }
-                }
             }
 
+            g_loc_buffer_length = 0;
+            memset(g_loc_buffer, 0, sizeof(g_loc_buffer));
             if( element->step == E_STEP_WAIT_ADJACENT_GROUND )
             {
                 element->step = E_STEP_LOCS;
-
-                g_loc_buffer_length = 0;
 
                 // Check if all locs are drawable.
                 for( int j = 0; j < grid_tile->locs_length; j++ )
@@ -1651,7 +1757,15 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     int max_tile_x = min_tile_x + loc->size_x - 1;
                     int max_tile_y = min_tile_y + loc->size_y - 1;
 
-                    bool loc_drawable = true;
+                    if( max_tile_x > max_draw_x - 1 )
+                        max_tile_x = max_draw_x - 1;
+                    if( max_tile_y > max_draw_y - 1 )
+                        max_tile_y = max_draw_y - 1;
+                    if( min_tile_x < min_draw_x )
+                        min_tile_x = min_draw_x;
+                    if( min_tile_y < min_draw_y )
+                        min_tile_y = min_draw_y;
+
                     for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x; other_tile_x++ )
                     {
                         for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
@@ -1660,7 +1774,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                             other = &elements[MAP_TILE_COORD(other_tile_x, other_tile_y, z)];
                             if( other->step <= E_STEP_GROUND )
                             {
-                                loc_drawable = false;
                                 goto step_locs;
                             }
                         }
@@ -1689,13 +1802,155 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                         ._loc = { .loc_index = loc_index },
                     };
 
-                    element->remaining_locs--;
+                    int min_tile_x = loc->chunk_pos_x;
+                    int min_tile_y = loc->chunk_pos_y;
+                    int max_tile_x = min_tile_x + loc->size_x - 1;
+                    int max_tile_y = min_tile_y + loc->size_y - 1;
+
+                    if( max_tile_x > max_draw_x - 1 )
+                        max_tile_x = max_draw_x - 1;
+                    if( max_tile_y > max_draw_y - 1 )
+                        max_tile_y = max_draw_y - 1;
+                    if( min_tile_x < min_draw_x )
+                        min_tile_x = min_draw_x;
+                    if( min_tile_y < min_draw_y )
+                        min_tile_y = min_draw_y;
+
+                    for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x; other_tile_x++ )
+                    {
+                        for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
+                             other_tile_y++ )
+                        {
+                            other = &elements[MAP_TILE_COORD(other_tile_x, other_tile_y, z)];
+                            other->remaining_locs--;
+                            assert(other->remaining_locs >= 0);
+                            if( other_tile_x != tile_x || other_tile_y != tile_y )
+                                int_queue_push_wrap(
+                                    &queue, MAP_TILE_COORD(other_tile_x, other_tile_y, z));
+                        }
+                    }
                 }
 
                 if( element->remaining_locs == 0 )
-                    element->step = E_STEP_DONE;
+                    element->step = E_STEP_NOTIFY_ADJACENT_TILES;
                 else
-                    element->step = E_STEP_WAIT_ADJACENT_GROUND;
+                    element->step = E_STEP_NOTIFY_SPANNED_TILES;
+                element->step = E_STEP_NOTIFY_ADJACENT_TILES;
+            }
+
+            if( element->step == E_STEP_NOTIFY_SPANNED_TILES )
+            {
+                if( tile_x < camera_tile_x )
+                {
+                    if( tile_x + 1 < max_draw_x )
+                    {
+                        int idx = MAP_TILE_COORD(tile_x + 1, tile_y, z);
+                        other = &elements[idx];
+
+                        if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_EAST) != 0 )
+                        {
+                            int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x + 1, tile_y, z));
+                        }
+                    }
+                }
+                if( tile_x > camera_tile_x )
+                {
+                    if( tile_x - 1 >= min_draw_x )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
+                        if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_WEST) != 0 )
+                        {
+                            int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x - 1, tile_y, z));
+                        }
+                    }
+                }
+
+                if( tile_y < camera_tile_y )
+                {
+                    if( tile_y + 1 < max_draw_y )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, z)];
+                        if( other->step != E_STEP_DONE &&
+                            (grid_tile->spans & SPAN_FLAG_NORTH) != 0 )
+                        {
+                            int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y + 1, z));
+                        }
+                    }
+                }
+
+                if( tile_y > camera_tile_y )
+                {
+                    if( tile_y - 1 >= min_draw_y )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
+                        if( other->step != E_STEP_DONE &&
+                            (grid_tile->spans & SPAN_FLAG_SOUTH) != 0 )
+                        {
+                            int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y - 1, z));
+                        }
+                    }
+                }
+
+                element->step = E_STEP_WAIT_ADJACENT_GROUND;
+            }
+
+            // Move towards camera if farther away tiles are done.
+            if( element->step == E_STEP_NOTIFY_ADJACENT_TILES )
+            {
+                if( tile_x < camera_tile_x )
+                {
+                    if( tile_x + 1 < max_draw_x )
+                    {
+                        int idx = MAP_TILE_COORD(tile_x + 1, tile_y, z);
+                        other = &elements[idx];
+
+                        if( other->step != E_STEP_DONE )
+                        {
+                            int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x + 1, tile_y, z));
+                        }
+                    }
+                }
+                if( tile_x > camera_tile_x )
+                {
+                    if( tile_x - 1 >= min_draw_x )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
+                        if( other->step != E_STEP_DONE )
+                        {
+                            int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x - 1, tile_y, z));
+                        }
+                    }
+                }
+
+                if( tile_y < camera_tile_y )
+                {
+                    if( tile_y + 1 < max_draw_y )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, z)];
+                        if( other->step != E_STEP_DONE )
+                        {
+                            int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y + 1, z));
+                        }
+                    }
+                }
+
+                if( tile_y > camera_tile_y )
+                {
+                    if( tile_y - 1 >= min_draw_y )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
+                        if( other->step != E_STEP_DONE )
+                        {
+                            int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y - 1, z));
+                        }
+                    }
+                }
+
+                element->step = E_STEP_DONE;
+            }
+
+            if( element->step == E_STEP_DONE )
+            {
             }
 
         done:;
@@ -1771,12 +2026,22 @@ render_scene_ops(
         case SCENE_OP_TYPE_DRAW_GROUND:
         {
             tile = &grid_tile->tile;
-            if( !tile )
+            if( !tile->valid_faces )
                 break;
 
             int tile_x = tile->chunk_pos_x;
             int tile_y = tile->chunk_pos_y;
             int tile_z = tile->chunk_pos_level;
+
+            int* color_override_hsl16_nullable = NULL;
+            if( op->_ground.override_color )
+            {
+                color_override_hsl16_nullable = (int*)malloc(sizeof(int) * tile->face_count);
+                for( int j = 0; j < tile->face_count; j++ )
+                {
+                    color_override_hsl16_nullable[j] = op->_ground.color_hsl16;
+                }
+            }
 
             render_scene_tile(
                 screen_vertices_x,
@@ -1800,12 +2065,18 @@ render_scene_ops(
                 camera_roll,
                 fov,
                 tile,
-                NULL);
+                NULL,
+                color_override_hsl16_nullable);
         }
         break;
         case SCENE_OP_TYPE_DRAW_LOC:
         {
             loc = &scene->locs->locs[op->_loc.loc_index];
+            if( loc->chunk_pos_x == 9 && loc->chunk_pos_y == 20 )
+            {
+                // printf("Draw loc: %d\n", loc);
+                int i = 0;
+            }
             render_scene_loc(
                 pixel_buffer,
                 width,
@@ -1833,347 +2104,353 @@ render_scene_ops(
     // free(ortho_vertices_z);
 }
 
-struct Scene;
-void
-render_scene(
-    int* pixel_buffer,
-    int width,
-    int height,
-    int near_plane_z,
-    int camera_x,
-    int camera_y,
-    int camera_z,
-    int camera_pitch,
-    int camera_yaw,
-    int camera_roll,
-    int fov,
-    struct Scene* scene)
-{
-    memset(pixel_buffer, 0, width * height * sizeof(int));
-    // Painters algorithm.
-    // Find the position of the camera in the scene.
+// struct Scene;
+// void
+// render_scene(
+//     int* pixel_buffer,
+//     int width,
+//     int height,
+//     int near_plane_z,
+//     int camera_x,
+//     int camera_y,
+//     int camera_z,
+//     int camera_pitch,
+//     int camera_yaw,
+//     int camera_roll,
+//     int fov,
+//     struct Scene* scene)
+// {
+//     memset(pixel_buffer, 0, width * height * sizeof(int));
+//     // Painters algorithm.
+//     // Find the position of the camera in the scene.
 
-    int* screen_vertices_x = (int*)malloc(20 * sizeof(int));
-    int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
-    int* screen_vertices_z = (int*)malloc(20 * sizeof(int));
+//     int* screen_vertices_x = (int*)malloc(20 * sizeof(int));
+//     int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
+//     int* screen_vertices_z = (int*)malloc(20 * sizeof(int));
 
-    // These are the vertices prior to perspective correction.
-    int* ortho_vertices_x = (int*)malloc(20 * sizeof(int));
-    int* ortho_vertices_y = (int*)malloc(20 * sizeof(int));
-    int* ortho_vertices_z = (int*)malloc(20 * sizeof(int));
+//     // These are the vertices prior to perspective correction.
+//     int* ortho_vertices_x = (int*)malloc(20 * sizeof(int));
+//     int* ortho_vertices_y = (int*)malloc(20 * sizeof(int));
+//     int* ortho_vertices_z = (int*)malloc(20 * sizeof(int));
 
-    struct GridTile* grid_tile = NULL;
+//     struct GridTile* grid_tile = NULL;
 
-    struct SceneLoc* loc = NULL;
-    struct SceneTile* tile = NULL;
+//     struct SceneLoc* loc = NULL;
+//     struct SceneTile* tile = NULL;
 
-    int op_count = 0;
-    int op_capacity = scene->grid_tiles_length * 11;
-    struct SceneOp* ops = (struct SceneOp*)malloc(op_capacity * sizeof(struct SceneOp));
-    memset(ops, 0, op_capacity * sizeof(struct SceneOp));
-    struct SceneElement* elements =
-        (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
-    memset(elements, 0, scene->grid_tiles_length * sizeof(struct SceneElement));
+//     int op_count = 0;
+//     int op_capacity = scene->grid_tiles_length * 11;
+//     struct SceneOp* ops = (struct SceneOp*)malloc(op_capacity * sizeof(struct SceneOp));
+//     memset(ops, 0, op_capacity * sizeof(struct SceneOp));
+//     struct SceneElement* elements =
+//         (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
+//     memset(elements, 0, scene->grid_tiles_length * sizeof(struct SceneElement));
 
-    for( int i = 0; i < scene->grid_tiles_length; i++ )
-    {
-        struct SceneElement* element = &elements[i];
-        element->step = E_STEP_GROUND;
-        element->remaining_locs = scene->grid_tiles[i].locs_length;
-    }
+//     for( int i = 0; i < scene->grid_tiles_length; i++ )
+//     {
+//         struct SceneElement* element = &elements[i];
+//         element->step = E_STEP_GROUND;
+//         element->remaining_locs = scene->grid_tiles[i].locs_length;
+//     }
 
-    // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 50;
-    int max_coords = (radius * 2 + 1) * (radius * 2 + 1);
-    int* coord_list_x = (int*)malloc(max_coords * sizeof(int));
-    int* coord_list_y = (int*)malloc(max_coords * sizeof(int));
-    int coord_list_length = 0;
+//     // Generate painter's algorithm coordinate list - farthest to nearest
+//     int radius = 50;
+//     int max_coords = (radius * 2 + 1) * (radius * 2 + 1);
+//     int* coord_list_x = (int*)malloc(max_coords * sizeof(int));
+//     int* coord_list_y = (int*)malloc(max_coords * sizeof(int));
+//     int coord_list_length = 0;
 
-    int camera_tile_x = -camera_x / TILE_SIZE;
-    int camera_tile_y = -camera_y / TILE_SIZE;
-    int z = 0;
+//     int camera_tile_x = -camera_x / TILE_SIZE;
+//     int camera_tile_y = -camera_y / TILE_SIZE;
+//     int z = 0;
 
-    struct IntQueue queue = { 0 };
-    int_queue_init(&queue, scene->grid_tiles_length);
+//     struct IntQueue queue = { 0 };
+//     int_queue_init(&queue, scene->grid_tiles_length);
 
-    // // Generate coordinates in order from farthest to nearest
-    // // This creates a spiral pattern starting from the corners and moving inward
-    for( int ring = radius; ring >= 0; ring-- )
-    {
-        // Top edge of current ring (left to right)
-        for( int x = -ring; x <= ring; x++ )
-        {
-            int tile_x = camera_tile_x + x;
-            int tile_y = camera_tile_y - ring;
+//     // // Generate coordinates in order from farthest to nearest
+//     // // This creates a spiral pattern starting from the corners and moving inward
+//     for( int ring = radius; ring >= 0; ring-- )
+//     {
+//         // Top edge of current ring (left to right)
+//         for( int x = -ring; x <= ring; x++ )
+//         {
+//             int tile_x = camera_tile_x + x;
+//             int tile_y = camera_tile_y - ring;
 
-            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
-            {
-                coord_list_x[coord_list_length] = tile_x;
-                coord_list_y[coord_list_length] = tile_y;
-                coord_list_length++;
-            }
-        }
+//             if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
+//             {
+//                 coord_list_x[coord_list_length] = tile_x;
+//                 coord_list_y[coord_list_length] = tile_y;
+//                 coord_list_length++;
+//             }
+//         }
 
-        // Right edge of current ring (top to bottom, excluding corners)
-        for( int y = -ring + 1; y <= ring - 1; y++ )
-        {
-            int tile_x = camera_tile_x + ring;
-            int tile_y = camera_tile_y + y;
+//         // Right edge of current ring (top to bottom, excluding corners)
+//         for( int y = -ring + 1; y <= ring - 1; y++ )
+//         {
+//             int tile_x = camera_tile_x + ring;
+//             int tile_y = camera_tile_y + y;
 
-            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
-            {
-                coord_list_x[coord_list_length] = tile_x;
-                coord_list_y[coord_list_length] = tile_y;
-                coord_list_length++;
-            }
-        }
+//             if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
+//             {
+//                 coord_list_x[coord_list_length] = tile_x;
+//                 coord_list_y[coord_list_length] = tile_y;
+//                 coord_list_length++;
+//             }
+//         }
 
-        // Bottom edge of current ring (right to left, excluding corners)
-        for( int x = ring; x >= -ring; x-- )
-        {
-            int tile_x = camera_tile_x + x;
-            int tile_y = camera_tile_y + ring;
+//         // Bottom edge of current ring (right to left, excluding corners)
+//         for( int x = ring; x >= -ring; x-- )
+//         {
+//             int tile_x = camera_tile_x + x;
+//             int tile_y = camera_tile_y + ring;
 
-            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
-            {
-                coord_list_x[coord_list_length] = tile_x;
-                coord_list_y[coord_list_length] = tile_y;
-                coord_list_length++;
-            }
-        }
+//             if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
+//             {
+//                 coord_list_x[coord_list_length] = tile_x;
+//                 coord_list_y[coord_list_length] = tile_y;
+//                 coord_list_length++;
+//             }
+//         }
 
-        // Left edge of current ring (bottom to top, excluding corners)
-        for( int y = ring - 1; y >= -ring + 1; y-- )
-        {
-            int tile_x = camera_tile_x - ring;
-            int tile_y = camera_tile_y + y;
+//         // Left edge of current ring (bottom to top, excluding corners)
+//         for( int y = ring - 1; y >= -ring + 1; y-- )
+//         {
+//             int tile_x = camera_tile_x - ring;
+//             int tile_y = camera_tile_y + y;
 
-            if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
-            {
-                coord_list_x[coord_list_length] = tile_x;
-                coord_list_y[coord_list_length] = tile_y;
-                coord_list_length++;
-            }
-        }
-    }
+//             if( tile_x >= 0 && tile_x < MAP_TERRAIN_X && tile_y >= 0 && tile_y < MAP_TERRAIN_Y )
+//             {
+//                 coord_list_x[coord_list_length] = tile_x;
+//                 coord_list_y[coord_list_length] = tile_y;
+//                 coord_list_length++;
+//             }
+//         }
+//     }
 
-    struct SceneElement* element = NULL;
-    struct SceneElement* other = NULL;
-    // Render tiles in painter's algorithm order (farthest to nearest)
-    for( int i = 0; i < coord_list_length; i++ )
-    {
-        int_queue_push_wrap(&queue, MAP_TILE_COORD(coord_list_x[i], coord_list_y[i], z));
+//     struct SceneElement* element = NULL;
+//     struct SceneElement* other = NULL;
+//     // Render tiles in painter's algorithm order (farthest to nearest)
+//     for( int i = 0; i < coord_list_length; i++ )
+//     {
+//         int_queue_push_wrap(&queue, MAP_TILE_COORD(coord_list_x[i], coord_list_y[i], z));
 
-        while( queue.length > 0 )
-        {
-            int tile_coord = int_queue_pop(&queue);
+//         while( queue.length > 0 )
+//         {
+//             int tile_coord = int_queue_pop(&queue);
 
-            grid_tile = &scene->grid_tiles[tile_coord];
-            tile = &grid_tile->tile;
+//             grid_tile = &scene->grid_tiles[tile_coord];
+//             tile = &grid_tile->tile;
 
-            if( !tile )
-                continue;
+//             if( !tile )
+//                 continue;
 
-            int tile_x = tile->chunk_pos_x;
-            int tile_y = tile->chunk_pos_y;
-            // int tile_z = tile->chunk_pos_level;
+//             int tile_x = tile->chunk_pos_x;
+//             int tile_y = tile->chunk_pos_y;
+//             // int tile_z = tile->chunk_pos_level;
 
-            element = &elements[tile_coord];
+//             element = &elements[tile_coord];
 
-            if( element->step == E_STEP_GROUND )
-            {
-                element->step = E_STEP_WAIT_ADJACENT_GROUND;
+//             if( element->step == E_STEP_GROUND )
+//             {
+//                 element->step = E_STEP_WAIT_ADJACENT_GROUND;
 
-                ops[op_count++] = (struct SceneOp){
-                    .op = SCENE_OP_TYPE_DRAW_GROUND,
-                    .x = tile_x,
-                    .z = tile_y,
-                    .level = z,
-                };
+//                 ops[op_count++] = (struct SceneOp){
+//                     .op = SCENE_OP_TYPE_DRAW_GROUND,
+//                     .x = tile_x,
+//                     .z = tile_y,
+//                     .level = z,
+//                 };
 
-                // Attempt to draw any tiles that are waiting for us
-                if( grid_tile->spans != 0 )
-                {
-                    if( (grid_tile->spans & SPAN_FLAG_WEST) != 0 && tile_x < camera_tile_x )
-                    {
-                        if( tile_x - 1 >= 0 )
-                        {
-                            other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
-                            if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
-                            {
-                                int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x - 1, tile_y, z));
-                            }
-                        }
-                    }
-                    if( (grid_tile->spans & SPAN_FLAG_EAST) != 0 && tile_x > camera_tile_x )
-                    {
-                        if( tile_x + 1 < MAP_TERRAIN_X )
-                        {
-                            other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, z)];
-                            if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
-                            {
-                                int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x + 1, tile_y, z));
-                            }
-                        }
-                    }
-                    if( (grid_tile->spans & SPAN_FLAG_SOUTH) != 0 && tile_y > camera_tile_y )
-                    {
-                        if( tile_y - 1 >= 0 )
-                        {
-                            other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
-                            if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
-                            {
-                                int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y - 1, z));
-                            }
-                        }
-                    }
-                    if( (grid_tile->spans & SPAN_FLAG_NORTH) != 0 && tile_y < camera_tile_y )
-                    {
-                        if( tile_y + 1 < MAP_TERRAIN_Y )
-                        {
-                            other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, z)];
-                            if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
-                            {
-                                int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y + 1, z));
-                            }
-                        }
-                    }
-                }
-            }
+//                 // Attempt to draw any tiles that are waiting for us
+//                 if( grid_tile->spans != 0 )
+//                 {
+//                     if( (grid_tile->spans & SPAN_FLAG_WEST) != 0 && tile_x < camera_tile_x )
+//                     {
+//                         if( tile_x - 1 >= 0 )
+//                         {
+//                             other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
+//                             if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
+//                             {
+//                                 int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x - 1, tile_y,
+//                                 z));
+//                             }
+//                         }
+//                     }
+//                     if( (grid_tile->spans & SPAN_FLAG_EAST) != 0 && tile_x > camera_tile_x )
+//                     {
+//                         if( tile_x + 1 < MAP_TERRAIN_X )
+//                         {
+//                             other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, z)];
+//                             if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
+//                             {
+//                                 int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x + 1, tile_y,
+//                                 z));
+//                             }
+//                         }
+//                     }
+//                     if( (grid_tile->spans & SPAN_FLAG_SOUTH) != 0 && tile_y > camera_tile_y )
+//                     {
+//                         if( tile_y - 1 >= 0 )
+//                         {
+//                             other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
+//                             if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
+//                             {
+//                                 int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y - 1,
+//                                 z));
+//                             }
+//                         }
+//                     }
+//                     if( (grid_tile->spans & SPAN_FLAG_NORTH) != 0 && tile_y < camera_tile_y )
+//                     {
+//                         if( tile_y + 1 < MAP_TERRAIN_Y )
+//                         {
+//                             other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, z)];
+//                             if( other->step == E_STEP_WAIT_ADJACENT_GROUND )
+//                             {
+//                                 int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y + 1,
+//                                 z));
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
 
-            if( element->step == E_STEP_WAIT_ADJACENT_GROUND )
-            {
-                element->step = E_STEP_LOCS;
+//             if( element->step == E_STEP_WAIT_ADJACENT_GROUND )
+//             {
+//                 element->step = E_STEP_LOCS;
 
-                g_loc_buffer_length = 0;
+//                 g_loc_buffer_length = 0;
 
-                // Check if all locs are drawable.
-                for( int j = 0; j < grid_tile->locs_length; j++ )
-                {
-                    int loc_index = grid_tile->locs[j];
-                    loc = &scene->locs->locs[loc_index];
+//                 // Check if all locs are drawable.
+//                 for( int j = 0; j < grid_tile->locs_length; j++ )
+//                 {
+//                     int loc_index = grid_tile->locs[j];
+//                     loc = &scene->locs->locs[loc_index];
 
-                    int min_tile_x = loc->chunk_pos_x;
-                    int min_tile_y = loc->chunk_pos_y;
-                    int max_tile_x = min_tile_x + loc->size_x - 1;
-                    int max_tile_y = min_tile_y + loc->size_y - 1;
+//                     int min_tile_x = loc->chunk_pos_x;
+//                     int min_tile_y = loc->chunk_pos_y;
+//                     int max_tile_x = min_tile_x + loc->size_x - 1;
+//                     int max_tile_y = min_tile_y + loc->size_y - 1;
 
-                    bool loc_drawable = true;
-                    for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x; other_tile_x++ )
-                    {
-                        for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
-                             other_tile_y++ )
-                        {
-                            other = &elements[MAP_TILE_COORD(other_tile_x, other_tile_y, z)];
-                            if( other->step <= E_STEP_GROUND )
-                            {
-                                loc_drawable = false;
-                                goto step_locs;
-                            }
-                        }
-                    }
+//                     bool loc_drawable = true;
+//                     for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x;
+//                     other_tile_x++ )
+//                     {
+//                         for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
+//                              other_tile_y++ )
+//                         {
+//                             other = &elements[MAP_TILE_COORD(other_tile_x, other_tile_y, z)];
+//                             if( other->step <= E_STEP_GROUND )
+//                             {
+//                                 loc_drawable = false;
+//                                 goto step_locs;
+//                             }
+//                         }
+//                     }
 
-                    g_loc_buffer[g_loc_buffer_length++] = loc_index;
+//                     g_loc_buffer[g_loc_buffer_length++] = loc_index;
 
-                step_locs:;
-                }
-            }
+//                 step_locs:;
+//                 }
+//             }
 
-            if( element->step == E_STEP_LOCS )
-            {
-                // TODO: Draw farthest first.
-                for( int j = 0; j < g_loc_buffer_length; j++ )
-                {
-                    int loc_index = g_loc_buffer[j];
+//             if( element->step == E_STEP_LOCS )
+//             {
+//                 // TODO: Draw farthest first.
+//                 for( int j = 0; j < g_loc_buffer_length; j++ )
+//                 {
+//                     int loc_index = g_loc_buffer[j];
 
-                    ops[op_count++] = (struct SceneOp){
-                        .op = SCENE_OP_TYPE_DRAW_LOC,
-                        .x = tile_x,
-                        .z = tile_y,
-                        .level = z,
-                        ._loc = { .loc_index = loc_index },
-                    };
+//                     ops[op_count++] = (struct SceneOp){
+//                         .op = SCENE_OP_TYPE_DRAW_LOC,
+//                         .x = tile_x,
+//                         .z = tile_y,
+//                         .level = z,
+//                         ._loc = { .loc_index = loc_index },
+//                     };
 
-                    element->remaining_locs--;
-                }
+//                     element->remaining_locs--;
+//                 }
 
-                if( element->remaining_locs == 0 )
-                    element->step = E_STEP_DONE;
-                else
-                    element->step = E_STEP_WAIT_ADJACENT_GROUND;
-            }
+//                 if( element->remaining_locs == 0 )
+//                     element->step = E_STEP_DONE;
+//                 else
+//                     element->step = E_STEP_WAIT_ADJACENT_GROUND;
+//             }
 
-        done:;
-        }
-    }
+//         done:;
+//         }
+//     }
 
-    for( int i = 0; i < op_count; i++ )
-    {
-        struct SceneOp* op = &ops[i];
-        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
+//     for( int i = 0; i < op_count; i++ )
+//     {
+//         struct SceneOp* op = &ops[i];
+//         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
 
-        switch( op->op )
-        {
-        case SCENE_OP_TYPE_DRAW_GROUND:
-        {
-            tile = &grid_tile->tile;
-            if( !tile )
-                break;
+//         switch( op->op )
+//         {
+//         case SCENE_OP_TYPE_DRAW_GROUND:
+//         {
+//             tile = &grid_tile->tile;
+//             if( !tile )
+//                 break;
 
-            int tile_x = tile->chunk_pos_x;
-            int tile_y = tile->chunk_pos_y;
-            int tile_z = tile->chunk_pos_level;
+//             int tile_x = tile->chunk_pos_x;
+//             int tile_y = tile->chunk_pos_y;
+//             int tile_z = tile->chunk_pos_level;
 
-            render_scene_tile(
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                ortho_vertices_x,
-                ortho_vertices_y,
-                ortho_vertices_z,
-                pixel_buffer,
-                width,
-                height,
-                near_plane_z,
-                tile_x,
-                tile_y,
-                tile_z,
-                camera_x,
-                camera_y,
-                camera_z,
-                camera_pitch,
-                camera_yaw,
-                camera_roll,
-                fov,
-                tile,
-                NULL);
-        }
-        break;
-        case SCENE_OP_TYPE_DRAW_LOC:
-        {
-            loc = &scene->locs->locs[op->_loc.loc_index];
-            render_scene_loc(
-                pixel_buffer,
-                width,
-                height,
-                near_plane_z,
-                camera_x,
-                camera_y,
-                camera_z,
-                camera_pitch,
-                camera_yaw,
-                camera_roll,
-                fov,
-                loc,
-                NULL);
-        }
-        break;
-        }
-    }
+//             render_scene_tile(
+//                 screen_vertices_x,
+//                 screen_vertices_y,
+//                 screen_vertices_z,
+//                 ortho_vertices_x,
+//                 ortho_vertices_y,
+//                 ortho_vertices_z,
+//                 pixel_buffer,
+//                 width,
+//                 height,
+//                 near_plane_z,
+//                 tile_x,
+//                 tile_y,
+//                 tile_z,
+//                 camera_x,
+//                 camera_y,
+//                 camera_z,
+//                 camera_pitch,
+//                 camera_yaw,
+//                 camera_roll,
+//                 fov,
+//                 tile,
+//                 NULL,
+//                 NULL);
+//         }
+//         break;
+//         case SCENE_OP_TYPE_DRAW_LOC:
+//         {
+//             loc = &scene->locs->locs[op->_loc.loc_index];
+//             render_scene_loc(
+//                 pixel_buffer,
+//                 width,
+//                 height,
+//                 near_plane_z,
+//                 camera_x,
+//                 camera_y,
+//                 camera_z,
+//                 camera_pitch,
+//                 camera_yaw,
+//                 camera_roll,
+//                 fov,
+//                 loc,
+//                 NULL);
+//         }
+//         break;
+//         }
+//     }
 
-    free(coord_list_x);
-    free(coord_list_y);
-    free(ops);
-    free(elements);
-    int_queue_free(&queue);
-}
+//     free(coord_list_x);
+//     free(coord_list_y);
+//     free(ops);
+//     free(elements);
+//     int_queue_free(&queue);
+// }

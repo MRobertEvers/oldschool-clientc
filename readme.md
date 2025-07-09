@@ -7,6 +7,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 # For compiler invocations
 make VERBOSE=1
 ```
+
 '
 
 ### Building - Linux
@@ -353,3 +354,79 @@ The RS Map Viewer uses RGB blending.
                     if( underlay_hsl_nw == -1 || !SMOOTH_UNDERLAYS )
                         underlay_hsl_nw = underlay_hsl_sw;
 ```
+
+### Lumbridge table
+
+{
+id: 596,
+cacheInfo: {
+name: "osrs-231_2025-07-02",
+game: "oldschool",
+environment: "live",
+revision: 231,
+timestamp: "2025-07-02T10:45:05.871289Z",
+size: 141253676,
+},
+cacheType: "dat2",
+lowDetail: false,
+models: [
+[
+1276,
+],
+],
+types: undefined,
+name: "Table",
+desc: undefined,
+recolorFrom: undefined,
+recolorTo: undefined,
+retextureFrom: undefined,
+retextureTo: undefined,
+sizeX: 4,
+sizeY: 1,
+clipType: 2,
+blocksProjectile: false,
+isInteractive: 1,
+contouredGround: -1,
+contourGroundType: 0,
+contourGroundParam: -1,
+mergeNormals: false,
+modelClipped: false,
+seqId: -1,
+decorDisplacement: 16,
+ambient: 0,
+contrast: 0,
+actions: [
+
+],
+mapFunctionId: -1,
+mapSceneId: -1,
+flipMapSceneSprite: false,
+isRotated: false,
+clipped: true,
+modelSizeX: 128,
+modelSizeHeight: 128,
+modelSizeY: 128,
+offsetX: 0,
+offsetHeight: 0,
+offsetY: 0,
+obstructsGround: false,
+isHollow: false,
+supportItems: 1,
+transforms: undefined,
+transformVarbit: -1,
+transformVarp: -1,
+ambientSoundId: -1,
+ambientSoundDistance: 0,
+ambientSoundChangeTicksMin: 0,
+ambientSoundChangeTicksMax: 0,
+ambientSoundRetain: 0,
+ambientSoundIds: undefined,
+seqRandomStart: true,
+randomSeqIds: undefined,
+randomSeqDelays: undefined,
+params: undefined,
+}
+
+### Loc 16438
+
+new Int8Array([19, 0, 79, 0, -6, 1, -12, 20, 0, 5, 8, -120, 8, -119, 8, 25, 8, 26, 8, 27, 78, 8, -120, 20, 0, 1, 1, 4, 81, 22, 0])

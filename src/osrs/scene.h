@@ -38,6 +38,10 @@ struct GridTile
 
     struct SceneTextures* textures;
     int textures_length;
+
+    int x;
+    int z;
+    int level;
 };
 
 struct Scene

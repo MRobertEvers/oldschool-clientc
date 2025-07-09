@@ -21,16 +21,26 @@ load_loc_model(struct SceneLoc* scene_loc, struct Loc* loc, struct Cache* cache)
 
         scene_loc->models = malloc(sizeof(struct Model) * count);
         memset(scene_loc->models, 0, sizeof(struct Model) * count);
+        scene_loc->model_ids = malloc(sizeof(int) * count);
+        memset(scene_loc->model_ids, 0, sizeof(int) * count);
         scene_loc->model_count = count;
 
         for( int i = 0; i < count; i++ )
         {
+            assert(loc->models);
+            assert(loc->models[0]);
             int model_id = loc->models[0][i];
+
+            if( model_id == 34824 )
+            {
+                int lll = 0;
+            }
 
             printf("Loading model %d\n", model_id);
 
             model = model_new_from_cache(cache, model_id);
             scene_loc->models[i] = model;
+            scene_loc->model_ids[i] = model_id;
         }
     }
     else
@@ -75,14 +85,29 @@ scene_locs_new_from_map_locs(
 
         int loc_id = map_loc->id;
 
+        if( loc_id == 16438 )
+        {
+            int lll = 0;
+        }
+
         decode_loc(&loc, filelist->files[loc_id], filelist->file_sizes[loc_id]);
+        scene_locs->locs[i].__loc = loc;
+        scene_locs->locs[i].__loc._file_id = loc_id;
 
         load_loc_model(&scene_locs->locs[i], &loc, cache);
 
         int height_sw = terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)].height;
-        int height_se = terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, z)].height;
-        int height_ne = terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y + 1, z)].height;
-        int height_nw = terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, z)].height;
+        int height_se = height_sw;
+        if( x + 1 < MAP_TERRAIN_X )
+            height_se = terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, z)].height;
+
+        int height_ne = height_se;
+        if( y + 1 < MAP_TERRAIN_Y && x + 1 < MAP_TERRAIN_X )
+            height_ne = terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y + 1, z)].height;
+
+        int height_nw = height_ne;
+        if( y + 1 < MAP_TERRAIN_Y )
+            height_nw = terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, z)].height;
 
         int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
 
@@ -96,6 +121,11 @@ scene_locs_new_from_map_locs(
 
         scene_locs->locs[i].size_x = loc.size_x;
         scene_locs->locs[i].size_y = loc.size_y;
+        if( map_loc->orientation == 1 || map_loc->orientation == 3 )
+        {
+            scene_locs->locs[i].size_x = loc.size_y;
+            scene_locs->locs[i].size_y = loc.size_x;
+        }
 
         scene_locs->locs[i].orientation = map_loc->orientation;
         scene_locs->locs[i].offset_x = loc.offset_x;

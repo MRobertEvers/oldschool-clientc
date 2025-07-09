@@ -1,6 +1,8 @@
 #ifndef MAPS_H
 #define MAPS_H
 
+#include <assert.h>
+
 #define MAP_TERRAIN_X 64
 #define MAP_TERRAIN_Y 64
 #define MAP_TERRAIN_Z 4
@@ -10,7 +12,21 @@
 #define MAP_UNITS_LEVEL_HEIGHT 240
 #define MAP_UNITS_TILE_HEIGHT_BASIS 8
 
-#define MAP_TILE_COORD(x, y, z) (y + (x) * MAP_TERRAIN_X + (z) * MAP_TERRAIN_X * MAP_TERRAIN_Y)
+static int
+map_tile_coord_to_chunk_coord(int x, int y, int z)
+{
+    assert(x >= 0);
+    assert(y >= 0);
+    assert(z >= 0);
+    assert(x < MAP_TERRAIN_X);
+    assert(y < MAP_TERRAIN_Y);
+    assert(z < MAP_TERRAIN_Z);
+
+    return y + (x)*MAP_TERRAIN_X + (z)*MAP_TERRAIN_X * MAP_TERRAIN_Y;
+}
+
+// #define MAP_TILE_COORD(x, y, z) (y + (x) * MAP_TERRAIN_X + (z) * MAP_TERRAIN_X * MAP_TERRAIN_Y)
+#define MAP_TILE_COORD(x, y, z) (map_tile_coord_to_chunk_coord(x, y, z))
 
 struct MapLoc
 {

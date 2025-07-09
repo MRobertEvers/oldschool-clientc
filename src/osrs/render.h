@@ -88,11 +88,18 @@ void render_scene_locs(
 
 enum ElementStep
 {
+    // Do not draw ground until adjacent tiles are done,
+    // unless we are spanned by that tile.
+    E_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED,
     E_STEP_GROUND,
     E_STEP_WAIT_ADJACENT_GROUND,
     E_STEP_LOCS,
+    E_STEP_NOTIFY_ADJACENT_TILES,
+    E_STEP_NOTIFY_SPANNED_TILES,
     E_STEP_DONE,
 };
+
+char* element_step_str(enum ElementStep step);
 
 struct SceneElement
 {
@@ -103,6 +110,7 @@ struct SceneElement
 
 enum SceneOpType
 {
+    SCENE_OP_TYPE_NONE,
     SCENE_OP_TYPE_DRAW_GROUND,
     SCENE_OP_TYPE_DRAW_LOC,
 };
@@ -121,6 +129,12 @@ struct SceneOp
         {
             int loc_index;
         } _loc;
+
+        struct
+        {
+            int override_color;
+            int color_hsl16;
+        } _ground;
     };
 };
 struct Scene;
