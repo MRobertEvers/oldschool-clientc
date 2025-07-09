@@ -31,13 +31,6 @@ load_loc_model(struct SceneLoc* scene_loc, struct Loc* loc, struct Cache* cache)
             assert(loc->models[0]);
             int model_id = loc->models[0][i];
 
-            if( model_id == 34824 )
-            {
-                int lll = 0;
-            }
-
-            printf("Loading model %d\n", model_id);
-
             model = model_new_from_cache(cache, model_id);
             scene_loc->models[i] = model;
             scene_loc->model_ids[i] = model_id;
