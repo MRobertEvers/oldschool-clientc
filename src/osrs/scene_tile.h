@@ -33,7 +33,7 @@ struct SceneTile
     int chunk_pos_level;
 };
 
-struct Overlay;
+struct CacheOverlay;
 struct Underlay;
 struct MapTerrain;
 struct Cache;
@@ -43,7 +43,7 @@ scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Ca
 
 struct SceneTile* scene_tiles_new_from_map_terrain(
     struct MapTerrain* map_terrain,
-    struct Overlay* overlays,
+    struct CacheOverlay* overlays,
     int* overlay_ids,
     int overlays_count,
     struct Underlay* underlays,

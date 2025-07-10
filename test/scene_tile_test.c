@@ -562,10 +562,10 @@ main()
 
     // int overlay_count = filelist->file_count;
     // int* overlay_ids = (int*)malloc(overlay_count * sizeof(int));
-    // struct Overlay* overlays = (struct Overlay*)malloc(overlay_count * sizeof(struct Overlay));
-    // for( int i = 0; i < overlay_count; i++ )
+    // struct CacheOverlay* overlays = (struct CacheOverlay*)malloc(overlay_count * sizeof(struct
+    // CacheOverlay)); for( int i = 0; i < overlay_count; i++ )
     // {
-    //     struct Overlay* overlay = &overlays[i];
+    //     struct CacheOverlay* overlay = &overlays[i];
 
     //     struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 

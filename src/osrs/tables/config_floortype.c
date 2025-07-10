@@ -9,7 +9,7 @@
 #include <string.h>
 
 // void
-// config_floortype_overlay_init(struct Overlay* overlay)
+// config_floortype_overlay_init(struct CacheOverlay* overlay)
 // {
 //     // this.primaryRgb = 0;
 //     // this.textureId = -1;
@@ -56,7 +56,7 @@
 //     underlay->block_shadow = true;
 // }
 
-struct Overlay*
+struct CacheOverlay*
 config_floortype_overlay_new_decode(char* data, int data_size)
 {
     struct RSBuffer buffer = {
@@ -65,7 +65,7 @@ config_floortype_overlay_new_decode(char* data, int data_size)
         .position = 0,
     };
 
-    struct Overlay* overlay = (struct Overlay*)malloc(sizeof(struct Overlay));
+    struct CacheOverlay* overlay = (struct CacheOverlay*)malloc(sizeof(struct CacheOverlay));
     if( !overlay )
     {
         fprintf(stderr, "Failed to allocate memory for overlay\n");
@@ -78,9 +78,9 @@ config_floortype_overlay_new_decode(char* data, int data_size)
 }
 
 void
-config_floortype_overlay_decode_inplace(struct Overlay* overlay, char* data, int data_size)
+config_floortype_overlay_decode_inplace(struct CacheOverlay* overlay, char* data, int data_size)
 {
-    memset(overlay, 0, sizeof(struct Overlay));
+    memset(overlay, 0, sizeof(struct CacheOverlay));
 
     overlay->texture = -1;
     overlay->hide_underlay = true;
@@ -125,7 +125,7 @@ config_floortype_overlay_decode_inplace(struct Overlay* overlay, char* data, int
 }
 
 void
-config_floortype_overlay_free(struct Overlay* overlay)
+config_floortype_overlay_free(struct CacheOverlay* overlay)
 {
     if( !overlay )
         return;

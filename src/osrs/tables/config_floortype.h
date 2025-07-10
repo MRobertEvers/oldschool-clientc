@@ -9,7 +9,7 @@ struct Underlay
     int rgb_color;
 };
 
-struct Overlay
+struct CacheOverlay
 {
     int rgb_color;
     int texture;
@@ -17,13 +17,13 @@ struct Overlay
     bool hide_underlay;
 };
 
-// void config_floortype_overlay_init(struct Overlay* overlay);
+// void config_floortype_overlay_init(struct CacheOverlay* overlay);
 // void config_floortype_underlay_init(struct Underlay* underlay);
 
-struct Overlay* config_floortype_overlay_new_decode(char* buffer, int buffer_size);
-void
-config_floortype_overlay_decode_inplace(struct Overlay* overlay, char* buffer, int buffer_size);
-void config_floortype_overlay_free(struct Overlay* overlay);
+struct CacheOverlay* config_floortype_overlay_new_decode(char* buffer, int buffer_size);
+void config_floortype_overlay_decode_inplace(
+    struct CacheOverlay* overlay, char* buffer, int buffer_size);
+void config_floortype_overlay_free(struct CacheOverlay* overlay);
 
 struct Underlay* config_floortype_underlay_new_decode(char* buffer, int buffer_size);
 void

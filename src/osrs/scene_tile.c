@@ -867,10 +867,11 @@ scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Ca
 
     int overlay_count = filelist->file_count;
     int* overlay_ids = (int*)malloc(overlay_count * sizeof(int));
-    struct Overlay* overlays = (struct Overlay*)malloc(overlay_count * sizeof(struct Overlay));
+    struct CacheOverlay* overlays =
+        (struct CacheOverlay*)malloc(overlay_count * sizeof(struct CacheOverlay));
     for( int i = 0; i < overlay_count; i++ )
     {
-        struct Overlay* overlay = &overlays[i];
+        struct CacheOverlay* overlay = &overlays[i];
 
         struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 
@@ -900,7 +901,7 @@ scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Ca
 struct SceneTile*
 scene_tiles_new_from_map_terrain(
     struct MapTerrain* map_terrain,
-    struct Overlay* overlays,
+    struct CacheOverlay* overlays,
     int* overlay_ids,
     int overlays_count,
     struct Underlay* underlays,
@@ -908,7 +909,7 @@ scene_tiles_new_from_map_terrain(
     int underlays_count)
 {
     struct Underlay* underlay = NULL;
-    struct Overlay* overlay = NULL;
+    struct CacheOverlay* overlay = NULL;
     printf("MAP_TILE_COUNT: %d\n", MAP_TILE_COUNT);
     struct SceneTile* tiles = (struct SceneTile*)malloc(MAP_TILE_COUNT * sizeof(struct SceneTile));
 

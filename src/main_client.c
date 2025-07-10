@@ -212,7 +212,7 @@ struct Game
     int tile_count;
     struct SceneTile* tiles;
 
-    struct Overlay* overlays;
+    struct CacheOverlay* overlays;
     int* overlay_ids;
     int overlays_count;
     struct Underlay* underlays;
