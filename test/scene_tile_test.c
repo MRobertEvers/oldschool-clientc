@@ -529,10 +529,10 @@ main()
 
     // int underlay_count = filelist->file_count;
     // int* underlay_ids = (int*)malloc(underlay_count * sizeof(int));
-    // struct CacheUnderlay* underlays = (struct CacheUnderlay*)malloc(underlay_count *
+    // struct CacheConfigUnderlay* underlays = (struct CacheConfigUnderlay*)malloc(underlay_count *
     // sizeof(struct Underlay)); for( int i = 0; i < underlay_count; i++ )
     // {
-    //     struct CacheUnderlay* underlay = &underlays[i];
+    //     struct CacheConfigUnderlay* underlay = &underlays[i];
 
     //     struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 
@@ -562,10 +562,10 @@ main()
 
     // int overlay_count = filelist->file_count;
     // int* overlay_ids = (int*)malloc(overlay_count * sizeof(int));
-    // struct CacheOverlay* overlays = (struct CacheOverlay*)malloc(overlay_count * sizeof(struct
-    // CacheOverlay)); for( int i = 0; i < overlay_count; i++ )
+    // struct CacheConfigOverlay* overlays = (struct CacheConfigOverlay*)malloc(overlay_count *
+    // sizeof(struct CacheOverlay)); for( int i = 0; i < overlay_count; i++ )
     // {
-    //     struct CacheOverlay* overlay = &overlays[i];
+    //     struct CacheConfigOverlay* overlay = &overlays[i];
 
     //     struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 

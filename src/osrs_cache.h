@@ -8,7 +8,7 @@ struct Model* load_models();
 
 struct Model* cache_load_model(int model_id);
 
-struct NPCType* cache_load_config_npctype(int npc_type_id);
+struct CacheConfigNPCType* cache_load_config_npctype(int npc_type_id);
 
 /**
  * Describes a file within an archive.

@@ -231,13 +231,13 @@
 #define REV_226_SEQ_ARCHIVE_REV 1268
 
 static void
-add_frame_sound(struct FrameSoundMap* map, int frame, struct FrameSound sound)
+add_frame_sound(struct CacheConfigFrameSoundMap* map, int frame, struct CacheConfigFrameSound sound)
 {
     if( map->count >= map->capacity )
     {
         int new_capacity = map->capacity == 0 ? 4 : map->capacity * 2;
         map->frames = realloc(map->frames, new_capacity * sizeof(int));
-        map->sounds = realloc(map->sounds, new_capacity * sizeof(struct FrameSound));
+        map->sounds = realloc(map->sounds, new_capacity * sizeof(struct CacheConfigFrameSound));
         map->capacity = new_capacity;
     }
     map->frames[map->count] = frame;
@@ -246,7 +246,7 @@ add_frame_sound(struct FrameSoundMap* map, int frame, struct FrameSound sound)
 }
 
 static void
-decode_pre_220_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
+decode_pre_220_frame_sound(struct CacheConfigFrameSound* sound, struct Buffer* buffer)
 {
     // Old format: 24-bit int with packed fields
     int bits = read_24(buffer);
@@ -258,7 +258,7 @@ decode_pre_220_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
 }
 
 static void
-decode_220_226_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
+decode_220_226_frame_sound(struct CacheConfigFrameSound* sound, struct Buffer* buffer)
 {
     // New format: separate fields
     sound->id = read_16(buffer);
@@ -269,7 +269,7 @@ decode_220_226_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
 }
 
 static void
-decode_226_plus_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
+decode_226_plus_frame_sound(struct CacheConfigFrameSound* sound, struct Buffer* buffer)
 {
     // New format: frame sounds with weights
     sound->id = read_16(buffer);
@@ -280,12 +280,12 @@ decode_226_plus_frame_sound(struct FrameSound* sound, struct Buffer* buffer)
 }
 
 static void
-handle_frame_sounds_pre_220(struct SequenceDefinition* def, struct Buffer* buffer)
+handle_frame_sounds_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
 {
     int var3 = read_8(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
     {
-        struct FrameSound sound = { 0 };
+        struct CacheConfigFrameSound sound = { 0 };
         decode_pre_220_frame_sound(&sound, buffer);
         if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
         {
@@ -295,12 +295,12 @@ handle_frame_sounds_pre_220(struct SequenceDefinition* def, struct Buffer* buffe
 }
 
 static void
-handle_frame_sounds_220_226(struct SequenceDefinition* def, struct Buffer* buffer)
+handle_frame_sounds_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
 {
     int var3 = read_8(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
     {
-        struct FrameSound sound = { 0 };
+        struct CacheConfigFrameSound sound = { 0 };
         decode_220_226_frame_sound(&sound, buffer);
         if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
         {
@@ -310,13 +310,13 @@ handle_frame_sounds_220_226(struct SequenceDefinition* def, struct Buffer* buffe
 }
 
 static void
-handle_frame_sounds_226_plus(struct SequenceDefinition* def, struct Buffer* buffer)
+handle_frame_sounds_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
 {
     int var3 = read_16(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
     {
         int frame = read_16(buffer);
-        struct FrameSound sound = { 0 };
+        struct CacheConfigFrameSound sound = { 0 };
         decode_226_plus_frame_sound(&sound, buffer);
         if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
         {
@@ -326,7 +326,7 @@ handle_frame_sounds_226_plus(struct SequenceDefinition* def, struct Buffer* buff
 }
 
 static void
-decode_sequence_pre_220(struct SequenceDefinition* def, struct Buffer* buffer)
+decode_sequence_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -455,7 +455,7 @@ decode_sequence_pre_220(struct SequenceDefinition* def, struct Buffer* buffer)
 }
 
 static void
-decode_sequence_220_226(struct SequenceDefinition* def, struct Buffer* buffer)
+decode_sequence_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -584,7 +584,7 @@ decode_sequence_220_226(struct SequenceDefinition* def, struct Buffer* buffer)
 }
 
 static void
-decode_sequence_226_plus(struct SequenceDefinition* def, struct Buffer* buffer)
+decode_sequence_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -709,11 +709,11 @@ decode_sequence_226_plus(struct SequenceDefinition* def, struct Buffer* buffer)
     }
 }
 
-struct SequenceDefinition*
+struct CacheConfigSequence*
 config_sequence_new_decode(int revision, char* data, int data_size)
 {
-    struct SequenceDefinition* def = malloc(sizeof(struct SequenceDefinition));
-    memset(def, 0, sizeof(struct SequenceDefinition));
+    struct CacheConfigSequence* def = malloc(sizeof(struct CacheConfigSequence));
+    memset(def, 0, sizeof(struct CacheConfigSequence));
 
     struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
 
@@ -723,7 +723,7 @@ config_sequence_new_decode(int revision, char* data, int data_size)
 }
 
 void
-config_sequence_free(struct SequenceDefinition* def)
+config_sequence_free(struct CacheConfigSequence* def)
 {
     if( def->frame_ids )
     {
@@ -762,7 +762,7 @@ config_sequence_free(struct SequenceDefinition* def)
 }
 
 void
-decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buffer)
+decode_sequence(struct CacheConfigSequence* def, int revision, struct Buffer* buffer)
 {
     if( revision <= REV_220_SEQ_ARCHIVE_REV )
     {
@@ -779,7 +779,7 @@ decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buf
 }
 
 void
-print_sequence(struct SequenceDefinition* def)
+print_sequence(struct CacheConfigSequence* def)
 {
     printf("Sequence %d:\n", def->id);
     printf("Frame count: %d\n", def->frame_count);
@@ -842,7 +842,7 @@ print_sequence(struct SequenceDefinition* def)
 }
 
 void
-free_sequence(struct SequenceDefinition* def)
+free_sequence(struct CacheConfigSequence* def)
 {
     if( def->frame_ids )
     {

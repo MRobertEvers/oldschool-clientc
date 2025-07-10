@@ -4,12 +4,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct CacheUnderlay
+struct CacheConfigUnderlay
 {
     int rgb_color;
 };
 
-struct CacheOverlay
+struct CacheConfigOverlay
 {
     int rgb_color;
     int texture;
@@ -17,18 +17,18 @@ struct CacheOverlay
     bool hide_underlay;
 };
 
-// void config_floortype_overlay_init(struct CacheOverlay* overlay);
-// void config_floortype_underlay_init(struct CacheUnderlay* underlay);
+// void config_floortype_overlay_init(struct CacheConfigOverlay* overlay);
+// void config_floortype_underlay_init(struct CacheConfigUnderlay* underlay);
 
-struct CacheOverlay* config_floortype_overlay_new_decode(char* buffer, int buffer_size);
+struct CacheConfigOverlay* config_floortype_overlay_new_decode(char* buffer, int buffer_size);
 void config_floortype_overlay_decode_inplace(
-    struct CacheOverlay* overlay, char* buffer, int buffer_size);
-void config_floortype_overlay_free(struct CacheOverlay* overlay);
+    struct CacheConfigOverlay* overlay, char* buffer, int buffer_size);
+void config_floortype_overlay_free(struct CacheConfigOverlay* overlay);
 
-struct CacheUnderlay* config_floortype_underlay_new_decode(char* buffer, int buffer_size);
+struct CacheConfigUnderlay* config_floortype_underlay_new_decode(char* buffer, int buffer_size);
 void config_floortype_underlay_decode_inplace(
-    struct CacheUnderlay* underlay, char* buffer, int buffer_size);
+    struct CacheConfigUnderlay* underlay, char* buffer, int buffer_size);
 
-void config_floortype_underlay_free(struct CacheUnderlay* underlay);
+void config_floortype_underlay_free(struct CacheConfigUnderlay* underlay);
 
 #endif

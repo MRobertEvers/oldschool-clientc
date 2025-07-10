@@ -995,7 +995,7 @@ load_models()
         struct Buffer buffer = { .data = packed_archive->entries[i],
                                  .data_size = packed_archive->entry_sizes[i],
                                  .position = 0 };
-        struct NPCType npc = { 0 };
+        struct CacheConfigNPCType npc = { 0 };
         decode_npc_type(&npc, npc_config_table_revision, &buffer);
 
         // Print TzTok-Jad
@@ -1065,13 +1065,13 @@ load_models()
     // ArchiveFiles files = archive.getFiles(archiveData);
     packed_archive = decode_archive(&archive_buffer, sequence_config_table_size);
 
-    struct SequenceDefinition sequence_2650 = { 0 };
+    struct CacheConfigSequence sequence_2650 = { 0 };
     for( int i = 0; i < packed_archive->entry_count; i++ )
     {
         struct Buffer buffer = { .data = packed_archive->entries[i],
                                  .data_size = packed_archive->entry_sizes[i],
                                  .position = 0 };
-        struct SequenceDefinition sequence = { 0 };
+        struct CacheConfigSequence sequence = { 0 };
         sequence.id = i;
         decode_sequence(&sequence, sequence_config_table_revision, &buffer);
         if( sequence.id == 2650 )
@@ -1266,7 +1266,7 @@ cache_load_model(int model_id)
 static const int CONFIGS_IDX = 2;
 static const int CONFIG_TABLE_NPC_FILE_ID = 9;
 
-struct NPCType*
+struct CacheConfigNPCType*
 cache_load_config_npctype(int npc_type_id)
 {
     char* dat2_data;
@@ -1344,7 +1344,7 @@ cache_load_config_npctype(int npc_type_id)
 
     struct Archive* packed_archive = decode_archive(&config_archive_buffer, npc_config_table_size);
 
-    struct NPCType* out = malloc(sizeof(struct NPCType));
+    struct CacheConfigNPCType* out = malloc(sizeof(struct CacheConfigNPCType));
     struct Buffer buffer = { .data = packed_archive->entries[npc_type_id],
                              .data_size = packed_archive->entry_sizes[npc_type_id],
                              .position = 0 };

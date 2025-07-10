@@ -35,7 +35,7 @@ get_index(int* ids, int count, int id)
 int*
 blend_underlays_runelite(
     struct MapTerrain* map_terrain,
-    struct CacheUnderlay* underlays,
+    struct CacheConfigUnderlay* underlays,
     int* underlay_ids,
     int underlays_count,
     int level)
@@ -85,7 +85,7 @@ blend_underlays_runelite(
                     int idx = get_index(underlay_ids, underlays_count, underlay_id - 1);
                     assert(idx != -1);
 
-                    struct CacheUnderlay* underlay = &underlays[idx];
+                    struct CacheConfigUnderlay* underlay = &underlays[idx];
 
                     struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
 
@@ -108,7 +108,7 @@ blend_underlays_runelite(
                     int idx = get_index(underlay_ids, underlays_count, underlay_id - 1);
                     assert(idx != -1);
 
-                    struct CacheUnderlay* underlay = &underlays[idx];
+                    struct CacheConfigUnderlay* underlay = &underlays[idx];
                     struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
 
                     chroma[yi + BLEND_RADIUS] -= hsl.chroma;
@@ -188,7 +188,7 @@ blend_underlays_runelite(
 int*
 blend_underlays(
     struct MapTerrain* map_terrain,
-    struct CacheUnderlay* underlays,
+    struct CacheConfigUnderlay* underlays,
     int* underlay_ids,
     int underlays_count,
     int level)
@@ -238,7 +238,7 @@ blend_underlays(
                     int idx = get_index(underlay_ids, underlays_count, underlay_id - 1);
                     assert(idx != -1);
 
-                    struct CacheUnderlay* underlay = &underlays[idx];
+                    struct CacheConfigUnderlay* underlay = &underlays[idx];
 
                     struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
 
@@ -261,7 +261,7 @@ blend_underlays(
                     int idx = get_index(underlay_ids, underlays_count, underlay_id - 1);
                     assert(idx != -1);
 
-                    struct CacheUnderlay* underlay = &underlays[idx];
+                    struct CacheConfigUnderlay* underlay = &underlays[idx];
                     struct HSL hsl = palette_rgb_to_hsl24(underlay->rgb_color);
 
                     chroma[yi] -= hsl.chroma * 256 / hsl.luminance;

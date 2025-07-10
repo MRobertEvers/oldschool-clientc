@@ -834,11 +834,11 @@ scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Ca
 
     int underlay_count = filelist->file_count;
     int* underlay_ids = (int*)malloc(underlay_count * sizeof(int));
-    struct CacheUnderlay* underlays =
-        (struct CacheUnderlay*)malloc(underlay_count * sizeof(struct CacheUnderlay));
+    struct CacheConfigUnderlay* underlays =
+        (struct CacheConfigUnderlay*)malloc(underlay_count * sizeof(struct CacheConfigUnderlay));
     for( int i = 0; i < underlay_count; i++ )
     {
-        struct CacheUnderlay* underlay = &underlays[i];
+        struct CacheConfigUnderlay* underlay = &underlays[i];
 
         struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 
@@ -868,11 +868,11 @@ scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Ca
 
     int overlay_count = filelist->file_count;
     int* overlay_ids = (int*)malloc(overlay_count * sizeof(int));
-    struct CacheOverlay* overlays =
-        (struct CacheOverlay*)malloc(overlay_count * sizeof(struct CacheOverlay));
+    struct CacheConfigOverlay* overlays =
+        (struct CacheConfigOverlay*)malloc(overlay_count * sizeof(struct CacheConfigOverlay));
     for( int i = 0; i < overlay_count; i++ )
     {
-        struct CacheOverlay* overlay = &overlays[i];
+        struct CacheConfigOverlay* overlay = &overlays[i];
 
         struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 
@@ -902,15 +902,15 @@ scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Ca
 struct SceneTile*
 scene_tiles_new_from_map_terrain(
     struct MapTerrain* map_terrain,
-    struct CacheOverlay* overlays,
+    struct CacheConfigOverlay* overlays,
     int* overlay_ids,
     int overlays_count,
-    struct CacheUnderlay* underlays,
+    struct CacheConfigUnderlay* underlays,
     int* underlay_ids,
     int underlays_count)
 {
-    struct CacheUnderlay* underlay = NULL;
-    struct CacheOverlay* overlay = NULL;
+    struct CacheConfigUnderlay* underlay = NULL;
+    struct CacheConfigOverlay* overlay = NULL;
     printf("MAP_TILE_COUNT: %d\n", MAP_TILE_COUNT);
     struct SceneTile* tiles = (struct SceneTile*)malloc(MAP_TILE_COUNT * sizeof(struct SceneTile));
 

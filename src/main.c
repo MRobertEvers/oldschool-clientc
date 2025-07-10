@@ -830,7 +830,7 @@ main(int argc, char* argv[])
     static const int TZTOK_JAD_MODEL_ID = 9319;
     static const int TZTOK_JAD_NPCTYPE_ID = 3127;
     struct Model* model = load_from_cache(TZTOK_JAD_MODEL_ID);
-    struct NPCType* npc_type = cache_load_config_npctype(TZTOK_JAD_NPCTYPE_ID);
+    struct CacheConfigNPCType* npc_type = cache_load_config_npctype(TZTOK_JAD_NPCTYPE_ID);
     if( model == NULL || model->vertex_count == 0 || npc_type == NULL )
     {
         printf("Failed to load model\n");

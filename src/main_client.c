@@ -198,7 +198,7 @@ struct Game
     int frame_id;
     int subframe_id;
 
-    struct SequenceDefinition* sequence;
+    struct CacheConfigSequence* sequence;
     struct FramemapDefinition* framemap;
     struct FrameDefinition** frames;
     int frame_count;
@@ -212,10 +212,10 @@ struct Game
     int tile_count;
     struct SceneTile* tiles;
 
-    struct CacheOverlay* overlays;
+    struct CacheConfigOverlay* overlays;
     int* overlay_ids;
     int overlays_count;
-    struct CacheUnderlay* underlays;
+    struct CacheConfigUnderlay* underlays;
     int* underlay_ids;
     int underlays_count;
 
@@ -536,7 +536,7 @@ game_init(struct Game* game)
 
     struct FileList* filelist = filelist_new_from_cache_archive(archive);
 
-    struct NPCType* npc = config_npctype_new_decode(
+    struct CacheConfigNPCType* npc = config_npctype_new_decode(
         archive->revision, filelist->files[file_index], filelist->file_sizes[file_index]);
 
     game->model_id = npc->models[0];
@@ -558,7 +558,7 @@ game_init(struct Game* game)
     struct CacheArchive* sequence_archive =
         cache_archive_new_load(game->cache, CACHE_CONFIGS, CONFIG_SEQUENCE);
     struct FileList* sequence_filelist = filelist_new_from_cache_archive(sequence_archive);
-    struct SequenceDefinition* sequence = config_sequence_new_decode(
+    struct CacheConfigSequence* sequence = config_sequence_new_decode(
         sequence_archive->revision,
         sequence_filelist->files[file_index],
         sequence_filelist->file_sizes[file_index]);

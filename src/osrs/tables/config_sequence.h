@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 
-struct FrameSound
+struct CacheConfigFrameSound
 {
     int id;
     int loops;
@@ -14,15 +14,15 @@ struct FrameSound
     int weight; // Only used in rev226+
 };
 
-struct FrameSoundMap
+struct CacheConfigFrameSoundMap
 {
-    int* frames;               // Frame indices
-    struct FrameSound* sounds; // Sound data
+    int* frames;                          // Frame indices
+    struct CacheConfigFrameSound* sounds; // Sound data
     int count;
     int capacity;
 };
 
-struct SequenceDefinition
+struct CacheConfigSequence
 {
     int id;
     int* frame_ids;
@@ -44,25 +44,25 @@ struct SequenceDefinition
     int* chat_frame_ids;
     bool* anim_maya_masks;
     char* debug_name;
-    struct FrameSoundMap frame_sounds; // Map of frame index to sound data
+    struct CacheConfigFrameSoundMap frame_sounds; // Map of frame index to sound data
 };
 
-struct SequenceDefinition* config_sequence_new_decode(int revision, char* buffer, int buffer_size);
-void config_sequence_free(struct SequenceDefinition* sequence);
+struct CacheConfigSequence* config_sequence_new_decode(int revision, char* buffer, int buffer_size);
+void config_sequence_free(struct CacheConfigSequence* sequence);
 
 /**
  * @deprecated
  */
-void decode_sequence(struct SequenceDefinition* def, int revision, struct Buffer* buffer);
+void decode_sequence(struct CacheConfigSequence* def, int revision, struct Buffer* buffer);
 
 /**
  * @deprecated
  */
-void print_sequence(struct SequenceDefinition* def);
+void print_sequence(struct CacheConfigSequence* def);
 
 /**
  * @deprecated
  */
-void free_sequence(struct SequenceDefinition* def);
+void free_sequence(struct CacheConfigSequence* def);
 
 #endif // SEQUENCE_H

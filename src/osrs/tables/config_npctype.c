@@ -9,10 +9,10 @@
 
 #define REV_210_NPC_ARCHIVE_REV 1493
 
-struct NPCType*
+struct CacheConfigNPCType*
 config_npctype_new_decode(int revision, char* data, int data_size)
 {
-    struct NPCType* npc = malloc(sizeof(struct NPCType));
+    struct CacheConfigNPCType* npc = malloc(sizeof(struct CacheConfigNPCType));
     if( !npc )
     {
         printf("config_npctype_new_decode: Failed to allocate memory for NPCType\n");
@@ -27,7 +27,7 @@ config_npctype_new_decode(int revision, char* data, int data_size)
 }
 
 void
-config_npctype_free(struct NPCType* npc)
+config_npctype_free(struct CacheConfigNPCType* npc)
 {
     if( !npc )
         return;
@@ -73,7 +73,7 @@ config_npctype_free(struct NPCType* npc)
  * @param buffer
  */
 void
-decode_npc_type(struct NPCType* npc, int revision, struct Buffer* buffer)
+decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buffer)
 {
     if( !npc || !buffer || !buffer->data )
     {
@@ -696,7 +696,7 @@ decode_npc_type(struct NPCType* npc, int revision, struct Buffer* buffer)
 }
 
 void
-print_npc_type(const struct NPCType* npc)
+print_npc_type(const struct CacheConfigNPCType* npc)
 {
     printf("NPC Type Information:\n");
     printf("====================\n");

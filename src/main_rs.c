@@ -25,10 +25,10 @@ main(int argc, char* argv[])
     struct FileList* config_npctype_filelist =
         filelist_new_from_cache_archive(config_archive_npctype);
 
-    struct NPCType* npc_tztok_jad = NULL;
+    struct CacheConfigNPCType* npc_tztok_jad = NULL;
     for( int i = 0; i < config_npctype_filelist->file_count; i++ )
     {
-        struct NPCType* npc = config_npctype_new_decode(
+        struct CacheConfigNPCType* npc = config_npctype_new_decode(
             config_archive_npctype->revision,
             config_npctype_filelist->files[i],
             config_npctype_filelist->file_sizes[i]);
@@ -75,7 +75,7 @@ main(int argc, char* argv[])
 
     int sequence_id = npc_tztok_jad->standing_animation;
 
-    struct SequenceDefinition* sequence_tztok_jad_standing = config_sequence_new_decode(
+    struct CacheConfigSequence* sequence_tztok_jad_standing = config_sequence_new_decode(
         config_archive_sequence->revision,
         config_sequence_filelist->files[sequence_id],
         config_sequence_filelist->file_sizes[sequence_id]);

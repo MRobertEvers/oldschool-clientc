@@ -14,7 +14,7 @@ struct EntityModel
 
     struct FrameDefinition** frames_nullable;
     struct FramemapDefinition* framemap_nullable;
-    struct SequenceDefinition* sequence_nullable;
+    struct CacheConfigSequence* sequence_nullable;
 
     int frame_tick;
 };
