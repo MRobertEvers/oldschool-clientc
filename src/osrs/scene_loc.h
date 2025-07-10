@@ -33,7 +33,7 @@ struct SceneLoc
 
     // TODO: Remove this
     bool __drawn;
-    struct Loc __loc;
+    struct CacheConfigLocation __loc;
 };
 
 struct SceneLocs

@@ -8,16 +8,16 @@
 #include <string.h>
 #include <strings.h>
 
-struct Loc*
+struct CacheConfigLocation*
 config_locs_new_decode(char* buffer, int buffer_size)
 {
-    struct Loc* loc = malloc(sizeof(struct Loc));
+    struct CacheConfigLocation* loc = malloc(sizeof(struct CacheConfigLocation));
     if( !loc )
     {
         printf("config_locs_new_decode: Failed to allocate loc\n");
         return NULL;
     }
-    memset(loc, 0, sizeof(struct Loc));
+    memset(loc, 0, sizeof(struct CacheConfigLocation));
 
     decode_loc(loc, buffer, buffer_size);
 
@@ -25,15 +25,15 @@ config_locs_new_decode(char* buffer, int buffer_size)
 }
 
 void
-config_locs_free(struct Loc* loc)
+config_locs_free(struct CacheConfigLocation* loc)
 {
     free_loc(loc);
 }
 
 static void
-init_loc(struct Loc* loc)
+init_loc(struct CacheConfigLocation* loc)
 {
-    memset(loc, 0, sizeof(struct Loc));
+    memset(loc, 0, sizeof(struct CacheConfigLocation));
     //   this.lowDetail = false;
     //     this.name = "null";
     //     this.sizeX = 1;
@@ -134,7 +134,7 @@ init_loc(struct Loc* loc)
 }
 
 void
-decode_loc(struct Loc* loc, char* data, int data_size)
+decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
 {
     struct RSBuffer buffer = { .data = (uint8_t*)data, .size = data_size, .position = 0 };
 
@@ -586,7 +586,7 @@ decode_loc(struct Loc* loc, char* data, int data_size)
 }
 
 void
-free_loc(struct Loc* loc)
+free_loc(struct CacheConfigLocation* loc)
 {
     for( int i = 0; i < 5; i++ )
         free(loc->actions[i]);
@@ -620,7 +620,7 @@ free_loc(struct Loc* loc)
 }
 
 void
-print_loc(struct Loc* loc)
+print_loc(struct CacheConfigLocation* loc)
 {
     printf("Loc: %s\n", loc->name ? loc->name : "NULL");
     if( loc->desc )

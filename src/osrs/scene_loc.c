@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 void
-load_loc_model(struct SceneLoc* scene_loc, struct Loc* loc, struct Cache* cache)
+load_loc_model(struct SceneLoc* scene_loc, struct CacheConfigLocation* loc, struct Cache* cache)
 {
     struct Model* model = NULL;
     if( !loc->models )
@@ -52,7 +52,7 @@ scene_locs_new_from_map_locs(
     struct ArchiveReference* archive_reference = NULL;
     struct CacheArchive* archive = NULL;
     struct FileList* filelist = NULL;
-    struct Loc loc = { 0 };
+    struct CacheConfigLocation loc = { 0 };
 
     struct SceneLocs* scene_locs = malloc(sizeof(struct SceneLocs));
 

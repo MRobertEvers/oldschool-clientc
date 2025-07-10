@@ -716,12 +716,12 @@ main()
     // // int locs_count = filelist->file_count;
     // int locs_count = map_locs->locs_count;
     // int* locs_ids = (int*)malloc(locs_count * sizeof(int));
-    // struct Loc* locs = (struct Loc*)malloc(locs_count * sizeof(struct Loc));
-    // memset(locs, 0, locs_count * sizeof(struct Loc));
-    // for( int i = 0; i < locs_count; i++ )
+    // struct CacheConfigLocation* locs = (struct CacheConfigLocation*)malloc(locs_count *
+    // sizeof(struct CacheConfigLocation)); memset(locs, 0, locs_count * sizeof(struct
+    // CacheConfigLocation)); for( int i = 0; i < locs_count; i++ )
     // {
     //     int loc_id = locs_to_decode[i];
-    //     struct Loc* loc = &locs[i];
+    //     struct CacheConfigLocation* loc = &locs[i];
 
     //     struct ArchiveReference* cfg = cache->tables[CACHE_CONFIGS]->archives;
 

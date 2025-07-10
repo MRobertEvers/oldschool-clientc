@@ -43,7 +43,7 @@ enum LocParamType
     LOC_PARAM_TYPE_STRING = 1,
 };
 
-struct LocParam
+struct CacheConfigLocationParam
 {
     int type;
     union
@@ -53,7 +53,7 @@ struct LocParam
     };
 };
 
-struct Loc
+struct CacheConfigLocation
 {
     // Added after loading.
     int _file_id;
@@ -139,13 +139,13 @@ struct Loc
 
     int param_count;
     int* param_keys;
-    struct LocParam* param_values;
+    struct CacheConfigLocationParam* param_values;
 };
 
-struct Loc* config_locs_new_decode(char* buffer, int buffer_size);
-void config_locs_free(struct Loc* loc);
+struct CacheConfigLocation* config_locs_new_decode(char* buffer, int buffer_size);
+void config_locs_free(struct CacheConfigLocation* loc);
 
-void decode_loc(struct Loc* loc, char* buffer, int buffer_size);
-void free_loc(struct Loc* loc);
+void decode_loc(struct CacheConfigLocation* loc, char* buffer, int buffer_size);
+void free_loc(struct CacheConfigLocation* loc);
 
 #endif
