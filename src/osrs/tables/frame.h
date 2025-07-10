@@ -18,7 +18,7 @@ extended even further. https://gist.github.com/555196afa946955d37d4525a162712ea
 Oh and this is also a more up to date version of what the OP provided, as of right now it's the
 current OSRS's cache dump.
  */
-struct FrameDefinition
+struct CacheFrame
 {
     int id;
     // This is the rigging for the frame.
@@ -32,14 +32,13 @@ struct FrameDefinition
 };
 
 struct Cache;
-struct FrameDefinition*
-frame_new_from_cache(struct Cache* cache, int frame_id, struct FramemapDefinition* framemap);
+struct CacheFrame*
+frame_new_from_cache(struct Cache* cache, int frame_id, struct CacheFramemap* framemap);
 
-struct FrameDefinition*
-frame_new_decode2(int frame_id, struct FramemapDefinition* framemap, char* data, int data_size);
+struct CacheFrame*
+frame_new_decode2(int frame_id, struct CacheFramemap* framemap, char* data, int data_size);
 
-struct FrameDefinition*
-frame_new_decode(int id, struct FramemapDefinition* framemap, struct Buffer* buffer);
-void frame_free(struct FrameDefinition* frame);
+struct CacheFrame* frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer);
+void frame_free(struct CacheFrame* frame);
 
 #endif // FRAME_H

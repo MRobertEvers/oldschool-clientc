@@ -54,14 +54,15 @@ main(int argc, char* argv[])
         return 1;
     }
 
-    struct Model* model = model_new_from_cache(cache, npc_tztok_jad->models[0]);
+    struct CacheModel* model = model_new_from_cache(cache, npc_tztok_jad->models[0]);
     if( !model )
     {
         printf("Failed to load model\n");
         return 1;
     }
 
-    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+    struct CacheModelBones* bones =
+        modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
     if( !bones )
     {
         printf("Failed to load bones\n");
@@ -101,10 +102,10 @@ main(int argc, char* argv[])
         int frame_data_size = frame_filelist->file_sizes[i];
         int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
 
-        struct FramemapDefinition* framemap =
+        struct CacheFramemap* framemap =
             framemap_new_decode2(framemap_id, frame_data, frame_data_size);
 
-        struct FrameDefinition* frame =
+        struct CacheFrame* frame =
             frame_new_decode2(frame_archive_id, framemap, frame_data, frame_data_size);
 
         printf("Frame %d: %d + %d\n", i, frame->id, frame->framemap_id);

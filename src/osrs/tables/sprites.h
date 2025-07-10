@@ -6,7 +6,7 @@
 #define FLAG_VERTICAL 1
 #define FLAG_ALPHA 2
 
-struct Sprite
+struct CacheSprite
 {
     int id;
     int file_id;
@@ -23,20 +23,20 @@ struct Sprite
     uint8_t* pixel_alphas;
 };
 
-struct SpritePack
+struct CacheSpritePack
 {
     int count;
-    struct Sprite* sprites;
+    struct CacheSprite* sprites;
 
     int palette_length;
     int* palette;
 };
 
 struct Cache;
-struct SpritePack* sprite_pack_new_decode(const unsigned char* data, int length);
-void sprite_pack_free(struct SpritePack* pack);
+struct CacheSpritePack* sprite_pack_new_decode(const unsigned char* data, int length);
+void sprite_pack_free(struct CacheSpritePack* pack);
 
-int* sprite_get_pixels(struct Sprite* sprite, int* palette, int brightness);
-int* sprite_texture_get_pixels(struct Sprite* sprite, int* palette, int size, int brightness);
+int* sprite_get_pixels(struct CacheSprite* sprite, int* palette, int brightness);
+int* sprite_texture_get_pixels(struct CacheSprite* sprite, int* palette, int size, int brightness);
 
 #endif

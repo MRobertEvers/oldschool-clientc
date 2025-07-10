@@ -1,7 +1,7 @@
 #ifndef MODEL_H
 #define MODEL_H
 
-struct Model
+struct CacheModel
 {
     int vertex_count;
     int* vertices_x;
@@ -28,7 +28,7 @@ struct Model
     int rotated;
 };
 
-struct ModelBones
+struct CacheModelBones
 {
     int bones_count;
     // Array of arrays vertices... AKA arrays of bones.
@@ -36,15 +36,16 @@ struct ModelBones
     int* bones_sizes;
 };
 
-struct ModelBones* modelbones_new_decode(int* packed_bone_groups, int packed_bone_groups_count);
+struct CacheModelBones*
+modelbones_new_decode(int* packed_bone_groups, int packed_bone_groups_count);
 
 struct Cache;
-struct Model* model_new_from_cache(struct Cache* cache, int model_id);
-struct Model* model_new_decode(const unsigned char* inputData, int inputLength);
+struct CacheModel* model_new_from_cache(struct Cache* cache, int model_id);
+struct CacheModel* model_new_decode(const unsigned char* inputData, int inputLength);
 
-void modelbones_free(struct ModelBones* modelbones);
-void model_free(struct Model* model);
+void modelbones_free(struct CacheModelBones* modelbones);
+void model_free(struct CacheModel* model);
 
-void write_model_separate(const struct Model* model, const char* filename);
+void write_model_separate(const struct CacheModel* model, const char* filename);
 
 #endif

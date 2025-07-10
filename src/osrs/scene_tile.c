@@ -686,7 +686,8 @@ generateHeight(int x, int y)
  * src/rs/scene/SceneBuilder.ts decodeTerrainTile
  */
 static void
-fix_terrain_tile(struct MapTerrain* map_terrain, int world_scene_origin_x, int world_scene_origin_y)
+fix_terrain_tile(
+    struct CacheMapTerrain* map_terrain, int world_scene_origin_x, int world_scene_origin_y)
 {
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
@@ -694,7 +695,7 @@ fix_terrain_tile(struct MapTerrain* map_terrain, int world_scene_origin_x, int w
         {
             for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
             {
-                struct MapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+                struct CacheMapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
 
                 if( map->height == 0 )
                 {
@@ -738,7 +739,7 @@ fix_terrain_tile(struct MapTerrain* map_terrain, int world_scene_origin_x, int w
 #define HEIGHT_SCALE 65536
 
 static int*
-calculate_lights(struct MapTerrain* map_terrain, int level)
+calculate_lights(struct CacheMapTerrain* map_terrain, int level)
 {
     int* lights = (int*)malloc(MAP_TERRAIN_X * MAP_TERRAIN_Y * sizeof(int));
     memset(lights, 0, MAP_TERRAIN_X * MAP_TERRAIN_Y * sizeof(int));
@@ -813,7 +814,7 @@ calculate_lights(struct MapTerrain* map_terrain, int level)
 }
 
 struct SceneTile*
-scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Cache* cache)
+scene_tiles_new_from_map_terrain_cache(struct CacheMapTerrain* map_terrain, struct Cache* cache)
 {
     struct FileList* filelist = NULL;
     struct CacheArchive* archive = NULL;
@@ -901,7 +902,7 @@ scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Ca
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/class481.java
 struct SceneTile*
 scene_tiles_new_from_map_terrain(
-    struct MapTerrain* map_terrain,
+    struct CacheMapTerrain* map_terrain,
     struct CacheConfigOverlay* overlays,
     int* overlay_ids,
     int overlays_count,
@@ -937,7 +938,7 @@ scene_tiles_new_from_map_terrain(
         {
             for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
             {
-                struct MapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+                struct CacheMapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
 
                 struct SceneTile* scene_tile = &tiles[MAP_TILE_COORD(x, y, z)];
                 int underlay_id = map->underlay_id - 1;

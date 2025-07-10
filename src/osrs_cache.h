@@ -4,9 +4,9 @@
 #include "osrs/tables/config_npctype.h"
 #include "osrs/tables/model.h"
 
-struct Model* load_models();
+struct CacheModel* load_models();
 
-struct Model* cache_load_model(int model_id);
+struct CacheModel* cache_load_model(int model_id);
 
 struct CacheConfigNPCType* cache_load_config_npctype(int npc_type_id);
 

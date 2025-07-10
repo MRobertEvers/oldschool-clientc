@@ -22,9 +22,9 @@ brighten_rgb(int rgb, double brightness)
 
 int*
 texture_pixels_new_from_definition(
-    struct TextureDefinition* def,
+    struct CacheTexture* def,
     int size,
-    struct SpritePack* sprite_packs,
+    struct CacheSpritePack* sprite_packs,
     int* pack_ids,
     int pack_count,
     double brightness)
@@ -40,7 +40,7 @@ texture_pixels_new_from_definition(
 
         int* palette = NULL;
         int palette_length = 0;
-        struct Sprite* sprite = NULL;
+        struct CacheSprite* sprite = NULL;
         uint8_t* palette_pixels = NULL;
         for( int i = 0; i < pack_count; i++ )
         {

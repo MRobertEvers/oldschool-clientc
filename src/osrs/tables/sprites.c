@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct SpriteDefinition*
+struct CacheSpriteDefinition*
 sprite_definition_new_from_cache(struct Cache* cache, int id)
 {
     return NULL;
@@ -159,17 +159,17 @@ sprite_definition_new_from_cache(struct Cache* cache, int id)
 
 // 		return sprites;
 
-struct SpritePack*
+struct CacheSpritePack*
 sprite_pack_new_decode(const unsigned char* data, int length)
 {
     if( !data || length < 7 )
         return NULL;
 
-    struct SpritePack* pack = (struct SpritePack*)malloc(sizeof(struct SpritePack));
+    struct CacheSpritePack* pack = (struct CacheSpritePack*)malloc(sizeof(struct CacheSpritePack));
     if( !pack )
         return NULL;
 
-    memset(pack, 0, sizeof(struct SpritePack));
+    memset(pack, 0, sizeof(struct CacheSpritePack));
 
     struct RSBuffer buffer;
     rsbuf_init(&buffer, data, length);
@@ -185,15 +185,16 @@ sprite_pack_new_decode(const unsigned char* data, int length)
     int max_height = rsbuf_g2(&buffer);
     int palette_length = rsbuf_g1(&buffer) + 1;
 
-    struct Sprite* sprites = (struct Sprite*)malloc(sprite_count * sizeof(struct Sprite));
+    struct CacheSprite* sprites =
+        (struct CacheSprite*)malloc(sprite_count * sizeof(struct CacheSprite));
     if( !sprites )
         return NULL;
     pack->sprites = sprites;
 
     for( int i = 0; i < sprite_count; i++ )
     {
-        struct Sprite* sprite = &sprites[i];
-        memset(sprite, 0, sizeof(struct Sprite));
+        struct CacheSprite* sprite = &sprites[i];
+        memset(sprite, 0, sizeof(struct CacheSprite));
         sprite->frame = i;
         sprite->max_width = max_width;
         sprite->max_height = max_height;
@@ -201,27 +202,27 @@ sprite_pack_new_decode(const unsigned char* data, int length)
 
     for( int i = 0; i < sprite_count; i++ )
     {
-        struct Sprite* sprite = &sprites[i];
+        struct CacheSprite* sprite = &sprites[i];
         int offset_x = rsbuf_g2(&buffer);
         sprite->offset_x = offset_x;
     }
     for( int i = 0; i < sprite_count; i++ )
     {
-        struct Sprite* sprite = &sprites[i];
+        struct CacheSprite* sprite = &sprites[i];
         int offset_y = rsbuf_g2(&buffer);
         sprite->offset_y = offset_y;
     }
 
     for( int i = 0; i < sprite_count; i++ )
     {
-        struct Sprite* sprite = &sprites[i];
+        struct CacheSprite* sprite = &sprites[i];
         int width = rsbuf_g2(&buffer);
         sprite->width = width;
     }
 
     for( int i = 0; i < sprite_count; i++ )
     {
-        struct Sprite* sprite = &sprites[i];
+        struct CacheSprite* sprite = &sprites[i];
         int height = rsbuf_g2(&buffer);
         sprite->height = height;
     }
@@ -250,7 +251,7 @@ sprite_pack_new_decode(const unsigned char* data, int length)
 
     for( int i = 0; i < sprite_count; i++ )
     {
-        struct Sprite* sprite = &sprites[i];
+        struct CacheSprite* sprite = &sprites[i];
         int dimension = sprite->width * sprite->height;
         uint8_t* pixel_idx = (uint8_t*)malloc(dimension * sizeof(uint8_t));
         if( !pixel_idx )
@@ -332,7 +333,7 @@ sprite_pack_new_decode(const unsigned char* data, int length)
 }
 
 void
-sprite_pack_free(struct SpritePack* pack)
+sprite_pack_free(struct CacheSpritePack* pack)
 {
     if( !pack )
     {
@@ -373,7 +374,7 @@ brighten_rgb(int rgb, double brightness)
 }
 
 int*
-sprite_get_pixels(struct Sprite* sprite, int* palette, int brightness)
+sprite_get_pixels(struct CacheSprite* sprite, int* palette, int brightness)
 {
     int* pixels = (int*)malloc(sprite->width * sprite->height * sizeof(int));
     if( !pixels )

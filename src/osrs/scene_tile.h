@@ -35,14 +35,14 @@ struct SceneTile
 
 struct CacheConfigOverlay;
 struct CacheConfigUnderlay;
-struct MapTerrain;
+struct CacheMapTerrain;
 struct Cache;
 
 struct SceneTile*
-scene_tiles_new_from_map_terrain_cache(struct MapTerrain* map_terrain, struct Cache* cache);
+scene_tiles_new_from_map_terrain_cache(struct CacheMapTerrain* map_terrain, struct Cache* cache);
 
 struct SceneTile* scene_tiles_new_from_map_terrain(
-    struct MapTerrain* map_terrain,
+    struct CacheMapTerrain* map_terrain,
     struct CacheConfigOverlay* overlays,
     int* overlay_ids,
     int overlays_count,

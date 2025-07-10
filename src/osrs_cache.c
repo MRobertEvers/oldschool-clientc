@@ -789,9 +789,9 @@ decode_reference_table(struct Buffer* buffer)
  * Additionally, the config
  *
  *
- * @return struct Model*
+ * @return struct CacheModel*
  */
-struct Model*
+struct CacheModel*
 load_models()
 {
     char* dat2_data;
@@ -895,7 +895,7 @@ load_models()
     decompress_dat2archive(&archive);
 
     // THe model table does not use "PackedArchives", or "Files".
-    struct Model* model = model_new_decode(archive.data, archive.data_size);
+    struct CacheModel* model = model_new_decode(archive.data, archive.data_size);
 
     // write_model_separate(model, "model2");
 
@@ -1145,8 +1145,7 @@ load_models()
                                           .position = 0 };
 
         // Decode the framemap
-        struct FramemapDefinition* framemap =
-            framemap_new_decode(framemap_archive_id, &framemap_buffer);
+        struct CacheFramemap* framemap = framemap_new_decode(framemap_archive_id, &framemap_buffer);
 
         // Write framemap buffer to file
         char framemap_filename[256];
@@ -1173,8 +1172,7 @@ load_models()
                                        .position = 0 };
 
         // Decode the frame
-        struct FrameDefinition* frame =
-            frame_new_decode(index_in_sequence, &framemap, &frame_buffer);
+        struct CacheFrame* frame = frame_new_decode(index_in_sequence, &framemap, &frame_buffer);
 
         // Write frame buffer to file
         char frame_filename[256];
@@ -1211,7 +1209,7 @@ load_models()
 
 static const int MODEL_IDX = 7;
 
-struct Model*
+struct CacheModel*
 cache_load_model(int model_id)
 {
     int model_index_size;
@@ -1255,7 +1253,7 @@ cache_load_model(int model_id)
     decompress_dat2archive(&archive);
 
     // THe model table does not use "PackedArchives", or "Files".
-    struct Model* model = model_new_decode(archive.data, archive.data_size);
+    struct CacheModel* model = model_new_decode(archive.data, archive.data_size);
 
     free(model_index_data);
     free(dat2_data);

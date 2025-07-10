@@ -190,8 +190,8 @@ animate(
 
 int
 anim_frame_apply(
-    struct FrameDefinition* frame,
-    struct FramemapDefinition* framemap,
+    struct CacheFrame* frame,
+    struct CacheFramemap* framemap,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,

@@ -6,35 +6,33 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct TextureDefinition*
+struct CacheTexture*
 texture_definition_new_from_cache(struct Cache* cache, int id)
 {
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_TEXTURES, id);
     if( !archive )
         return NULL;
 
-    struct TextureDefinition* def =
-        texture_definition_new_decode(archive->data, archive->data_size);
+    struct CacheTexture* def = texture_definition_new_decode(archive->data, archive->data_size);
 
     cache_archive_free(archive);
 
     return def;
 }
 
-struct TextureDefinition*
+struct CacheTexture*
 texture_definition_new_decode(const unsigned char* data, int length)
 {
-    struct TextureDefinition* def = malloc(sizeof(struct TextureDefinition));
-    memset(def, 0, sizeof(struct TextureDefinition));
+    struct CacheTexture* def = malloc(sizeof(struct CacheTexture));
+    memset(def, 0, sizeof(struct CacheTexture));
     if( !def )
         return NULL;
 
     return texture_definition_decode_inplace(def, data, length);
 }
 
-struct TextureDefinition*
-texture_definition_decode_inplace(
-    struct TextureDefinition* def, const unsigned char* data, int length)
+struct CacheTexture*
+texture_definition_decode_inplace(struct CacheTexture* def, const unsigned char* data, int length)
 {
     struct RSBuffer buffer;
     rsbuf_init(&buffer, data, length);

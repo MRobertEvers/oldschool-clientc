@@ -28,7 +28,7 @@ map_tile_coord_to_chunk_coord(int x, int y, int z)
 // #define MAP_TILE_COORD(x, y, z) (y + (x) * MAP_TERRAIN_X + (z) * MAP_TERRAIN_X * MAP_TERRAIN_Y)
 #define MAP_TILE_COORD(x, y, z) (map_tile_coord_to_chunk_coord(x, y, z))
 
-struct MapLoc
+struct CacheMapLoc
 {
     int id;
     int type;
@@ -38,13 +38,13 @@ struct MapLoc
     int chunk_pos_level;
 };
 
-struct MapLocs
+struct CacheMapLocs
 {
-    struct MapLoc* locs;
+    struct CacheMapLoc* locs;
     int locs_count;
 };
 
-struct MapTile
+struct CacheMapTile
 {
     int height;
     int attr_opcode;
@@ -55,23 +55,23 @@ struct MapTile
     int underlay_id;
 };
 
-struct MapTerrain
+struct CacheMapTerrain
 {
     int map_x;
     int map_y;
-    struct MapTile tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];
+    struct CacheMapTile tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];
 };
 
 #define MAP_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z))
 
 struct Cache;
-struct MapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
-struct MapTerrain* map_terrain_new_from_decode(char* data, int data_size);
+struct CacheMapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
+struct CacheMapTerrain* map_terrain_new_from_decode(char* data, int data_size);
 
-struct MapLocs* map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
-struct MapLocs* map_locs_new_from_decode(char* data, int data_size);
+struct CacheMapLocs* map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
+struct CacheMapLocs* map_locs_new_from_decode(char* data, int data_size);
 
-void map_terrain_free(struct MapTerrain* map_terrain);
-void map_locs_free(struct MapLocs* map_locs);
+void map_terrain_free(struct CacheMapTerrain* map_terrain);
+void map_locs_free(struct CacheMapLocs* map_locs);
 
 #endif

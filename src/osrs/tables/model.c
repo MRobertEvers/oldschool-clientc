@@ -48,10 +48,10 @@ read_short_smart(const unsigned char* buffer, int* offset)
     }
 }
 
-struct ModelBones*
+struct CacheModelBones*
 modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
 {
-    struct ModelBones* bones = (struct ModelBones*)malloc(sizeof(struct ModelBones));
+    struct CacheModelBones* bones = (struct CacheModelBones*)malloc(sizeof(struct CacheModelBones));
     if( !bones )
         return NULL;
 
@@ -126,10 +126,10 @@ modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
     return bones;
 }
 
-struct Model*
+struct CacheModel*
 decodeOldFormat(const unsigned char* inputData, int inputLength)
 {
-    struct Model* model = (struct Model*)malloc(sizeof(struct Model));
+    struct CacheModel* model = (struct CacheModel*)malloc(sizeof(struct CacheModel));
     if( !model )
         return NULL;
 
@@ -370,10 +370,10 @@ decodeOldFormat(const unsigned char* inputData, int inputLength)
     return model;
 }
 
-struct Model*
+struct CacheModel*
 decodeType1(const unsigned char* inputData, int inputLength)
 {
-    struct Model* model = (struct Model*)malloc(sizeof(struct Model));
+    struct CacheModel* model = (struct CacheModel*)malloc(sizeof(struct CacheModel));
     if( !model )
         return NULL;
 
@@ -584,10 +584,10 @@ decodeType1(const unsigned char* inputData, int inputLength)
     return model;
 }
 
-struct Model*
+struct CacheModel*
 decodeType2(const unsigned char* inputData, int inputLength)
 {
-    struct Model* model = (struct Model*)malloc(sizeof(struct Model));
+    struct CacheModel* model = (struct CacheModel*)malloc(sizeof(struct CacheModel));
     if( !model )
         return NULL;
 
@@ -843,7 +843,7 @@ decodeType2(const unsigned char* inputData, int inputLength)
     return model;
 }
 
-struct Model*
+struct CacheModel*
 model_new_from_cache(struct Cache* cache, int model_id)
 {
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_MODELS, model_id);
@@ -853,14 +853,14 @@ model_new_from_cache(struct Cache* cache, int model_id)
         return NULL;
     }
 
-    struct Model* model = model_new_decode(archive->data, archive->data_size);
+    struct CacheModel* model = model_new_decode(archive->data, archive->data_size);
 
     cache_archive_free(archive);
 
     return model;
 }
 
-struct Model*
+struct CacheModel*
 model_new_decode(const unsigned char* inputData, int inputLength)
 {
     // Check the last two bytes to determine model type
@@ -891,7 +891,7 @@ model_new_decode(const unsigned char* inputData, int inputLength)
 #include <stdio.h>
 
 void
-write_model_separate(const struct Model* model, const char* filename)
+write_model_separate(const struct CacheModel* model, const char* filename)
 {
     char name_buffer[256];
     FILE* file = NULL;
@@ -962,7 +962,7 @@ write_model_separate(const struct Model* model, const char* filename)
 }
 
 void
-modelbones_free(struct ModelBones* modelbones)
+modelbones_free(struct CacheModelBones* modelbones)
 {
     for( int i = 0; i < modelbones->bones_count; i++ )
         free(modelbones->bones[i]);
@@ -973,7 +973,7 @@ modelbones_free(struct ModelBones* modelbones)
 }
 
 void
-model_free(struct Model* model)
+model_free(struct CacheModel* model)
 {
     if( !model )
         return;

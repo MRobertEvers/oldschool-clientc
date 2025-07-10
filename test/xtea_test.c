@@ -23,7 +23,7 @@ main()
 
     int map_x = 50;
     int map_y = 49;
-    struct MapTerrain* map_terrain = map_terrain_new_from_cache(cache, map_x, map_y);
+    struct CacheMapTerrain* map_terrain = map_terrain_new_from_cache(cache, map_x, map_y);
     if( !map_terrain )
     {
         printf("Failed to load map terrain\n");
@@ -36,7 +36,7 @@ main()
     //     {
     //         for( int y = 0; y < MAP_TERRAIN_Y; y++ )
     //         {
-    //             struct MapTile* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+    //             struct CacheMapTile* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
     //             printf(
     //                 "Tile %d, %d, %d: %d, %d, %d, %d, %d, %d\n",
     //                 x,
@@ -53,7 +53,7 @@ main()
     //     }
     // }
 
-    struct MapLocs* map_locs = map_locs_new_from_cache(cache, map_x, map_y);
+    struct CacheMapLocs* map_locs = map_locs_new_from_cache(cache, map_x, map_y);
     if( !map_locs )
     {
         printf("Failed to load map locs\n");
@@ -62,7 +62,7 @@ main()
 
     for( int i = 0; i < map_locs->locs_count; i++ )
     {
-        struct MapLoc* loc = &map_locs->locs[i];
+        struct CacheMapLoc* loc = &map_locs->locs[i];
         printf(
             "Loc %d: %d, %d, %d, %d, %d\n",
             loc->id,

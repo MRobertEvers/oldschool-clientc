@@ -194,15 +194,15 @@ struct Game
 
     struct SceneTextures* scene_textures;
 
-    struct TextureDefinition* textures;
+    struct CacheTexture* textures;
     int* texture_ids;
     int texture_count;
 
-    struct SpritePack* sprite_packs;
+    struct CacheSpritePack* sprite_packs;
     int* sprite_ids;
     int sprite_count;
 
-    struct MapLocs* map_locs;
+    struct CacheMapLocs* map_locs;
 
     struct SceneLocs* scene_locs;
     struct SceneTextures* loc_textures;
@@ -593,12 +593,12 @@ main()
     filelist = filelist_new_from_cache_archive(archive);
 
     int texture_definitions_count = filelist->file_count;
-    struct TextureDefinition* texture_definitions = (struct TextureDefinition*)malloc(
-        texture_definitions_count * sizeof(struct TextureDefinition));
+    struct CacheTexture* texture_definitions =
+        (struct CacheTexture*)malloc(texture_definitions_count * sizeof(struct CacheTexture));
     int* texture_ids = (int*)malloc(texture_definitions_count * sizeof(int));
     for( int i = 0; i < texture_definitions_count; i++ )
     {
-        struct TextureDefinition* texture_definition = &texture_definitions[i];
+        struct CacheTexture* texture_definition = &texture_definitions[i];
 
         struct ArchiveReference* archives = cache->tables[CACHE_TEXTURES]->archives;
 
@@ -617,8 +617,8 @@ main()
      */
 
     int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
-    struct SpritePack* sprite_packs =
-        (struct SpritePack*)malloc(sprite_count * sizeof(struct SpritePack));
+    struct CacheSpritePack* sprite_packs =
+        (struct CacheSpritePack*)malloc(sprite_count * sizeof(struct CacheSpritePack));
     int* sprite_ids = (int*)malloc(sprite_count * sizeof(int));
 
     for( int sprite_index = 0; sprite_index < sprite_count; sprite_index++ )
@@ -632,7 +632,8 @@ main()
 
         struct ArchiveReference* archives = cache->tables[CACHE_SPRITES]->archives;
 
-        struct SpritePack* sprite_pack = sprite_pack_new_decode(archive->data, archive->data_size);
+        struct CacheSpritePack* sprite_pack =
+            sprite_pack_new_decode(archive->data, archive->data_size);
         if( !sprite_pack )
         {
             printf("Failed to load sprites pack\n");
@@ -672,20 +673,20 @@ main()
      * Decode textures from sprites
      */
 
-    // struct TextureDefinition* texture_definition = &texture_definitions[0];
+    // struct CacheTexture* texture_definition = &texture_definitions[0];
     // int* pixels = texture_pixels_new_from_definition(
     //     texture_definition, 128, sprite_packs, sprite_ids, sprite_count, 1.0);
     // write_bmp_file("texture.bmp", pixels, 128, 128);
     // free(pixels);
 
-    // struct MapTerrain* map_terrain = map_terrain_new_from_cache(cache, 50, 50);
+    // struct CacheMapTerrain* map_terrain = map_terrain_new_from_cache(cache, 50, 50);
     // if( !map_terrain )
     // {
     //     printf("Failed to load map terrain\n");
     //     return 1;
     // }
 
-    // struct MapLocs* map_locs = map_locs_new_from_cache(cache, 50, 50);
+    // struct CacheMapLocs* map_locs = map_locs_new_from_cache(cache, 50, 50);
     // if( !map_locs )
     // {
     //     printf("Failed to load map locs\n");

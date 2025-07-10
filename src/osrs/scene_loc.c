@@ -11,7 +11,7 @@
 void
 load_loc_model(struct SceneLoc* scene_loc, struct CacheConfigLocation* loc, struct Cache* cache)
 {
-    struct Model* model = NULL;
+    struct CacheModel* model = NULL;
     if( !loc->models )
         return;
 
@@ -19,8 +19,8 @@ load_loc_model(struct SceneLoc* scene_loc, struct CacheConfigLocation* loc, stru
     {
         int count = loc->lengths[0];
 
-        scene_loc->models = malloc(sizeof(struct Model) * count);
-        memset(scene_loc->models, 0, sizeof(struct Model) * count);
+        scene_loc->models = malloc(sizeof(struct CacheModel) * count);
+        memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
         scene_loc->model_ids = malloc(sizeof(int) * count);
         memset(scene_loc->model_ids, 0, sizeof(int) * count);
         scene_loc->model_count = count;
@@ -47,7 +47,7 @@ load_loc_model(struct SceneLoc* scene_loc, struct CacheConfigLocation* loc, stru
 
 struct SceneLocs*
 scene_locs_new_from_map_locs(
-    struct MapTerrain* terrain, struct MapLocs* map_locs, struct Cache* cache)
+    struct CacheMapTerrain* terrain, struct CacheMapLocs* map_locs, struct Cache* cache)
 {
     struct ArchiveReference* archive_reference = NULL;
     struct CacheArchive* archive = NULL;
@@ -71,7 +71,7 @@ scene_locs_new_from_map_locs(
 
     for( int i = 0; i < map_locs->locs_count; i++ )
     {
-        struct MapLoc* map_loc = &map_locs->locs[i];
+        struct CacheMapLoc* map_loc = &map_locs->locs[i];
         int x = map_loc->chunk_pos_x;
         int y = map_loc->chunk_pos_y;
         int z = map_loc->chunk_pos_level;

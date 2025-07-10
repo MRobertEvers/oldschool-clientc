@@ -396,7 +396,7 @@ raster_triangle(
 }
 
 static struct Triangle3D*
-create_triangles_from_model(struct Model* model)
+create_triangles_from_model(struct CacheModel* model)
 {
     struct Triangle3D* triangles =
         (struct Triangle3D*)malloc(model->face_count * sizeof(struct Triangle3D));
@@ -797,7 +797,7 @@ raster_zbuf(
     }
 }
 
-static struct Model*
+static struct CacheModel*
 load_from_cache(int model_id)
 {
     return cache_load_model(model_id);
@@ -829,7 +829,7 @@ main(int argc, char* argv[])
 
     static const int TZTOK_JAD_MODEL_ID = 9319;
     static const int TZTOK_JAD_NPCTYPE_ID = 3127;
-    struct Model* model = load_from_cache(TZTOK_JAD_MODEL_ID);
+    struct CacheModel* model = load_from_cache(TZTOK_JAD_MODEL_ID);
     struct CacheConfigNPCType* npc_type = cache_load_config_npctype(TZTOK_JAD_NPCTYPE_ID);
     if( model == NULL || model->vertex_count == 0 || npc_type == NULL )
     {
@@ -842,7 +842,8 @@ main(int argc, char* argv[])
         printf("TzTok-Jad\n");
     }
 
-    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+    struct CacheModelBones* bones =
+        modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
 
     int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
     int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
@@ -1118,10 +1119,10 @@ main(int argc, char* argv[])
                                                    .data_size = frame_size,
                                                    .position = 0 };
 
-                    struct FramemapDefinition* framemap =
+                    struct CacheFramemap* framemap =
                         framemap_new_decode(current_frame, &framemap_buffer);
 
-                    struct FrameDefinition* frame =
+                    struct CacheFrame* frame =
                         frame_new_decode(current_frame, framemap, &frame_buffer);
 
                     memcpy(

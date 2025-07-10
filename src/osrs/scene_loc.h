@@ -11,7 +11,7 @@
 struct SceneLoc
 {
     int* model_ids;
-    struct Model** models;
+    struct CacheModel** models;
     int model_count;
 
     int region_x;
@@ -43,6 +43,6 @@ struct SceneLocs
 };
 
 struct SceneLocs* scene_locs_new_from_map_locs(
-    struct MapTerrain* terrain, struct MapLocs* map_locs, struct Cache* cache);
+    struct CacheMapTerrain* terrain, struct CacheMapLocs* map_locs, struct Cache* cache);
 
 #endif

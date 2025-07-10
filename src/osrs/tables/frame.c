@@ -23,8 +23,8 @@ read_short_smart(struct Buffer* buffer)
     }
 }
 
-struct FrameDefinition*
-frame_new_from_cache(struct Cache* cache, int frame_id, struct FramemapDefinition* framemap)
+struct CacheFrame*
+frame_new_from_cache(struct Cache* cache, int frame_id, struct CacheFramemap* framemap)
 {
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_id);
     if( !archive )
@@ -33,7 +33,7 @@ frame_new_from_cache(struct Cache* cache, int frame_id, struct FramemapDefinitio
         return NULL;
     }
 
-    struct FrameDefinition* frame =
+    struct CacheFrame* frame =
         frame_new_decode2(frame_id, framemap, archive->data, archive->data_size);
 
     cache_archive_free(archive);
@@ -41,19 +41,19 @@ frame_new_from_cache(struct Cache* cache, int frame_id, struct FramemapDefinitio
     return frame;
 }
 
-struct FrameDefinition*
-frame_new_decode2(int id, struct FramemapDefinition* framemap, char* data, int data_size)
+struct CacheFrame*
+frame_new_decode2(int id, struct CacheFramemap* framemap, char* data, int data_size)
 {
     struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
     return frame_new_decode(id, framemap, &buffer);
 }
 
-struct FrameDefinition*
-frame_new_decode(int id, struct FramemapDefinition* framemap, struct Buffer* buffer)
+struct CacheFrame*
+frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer)
 {
     // Initialize the frame definition
-    struct FrameDefinition* def = malloc(sizeof(struct FrameDefinition));
-    memset(def, 0, sizeof(struct FrameDefinition));
+    struct CacheFrame* def = malloc(sizeof(struct CacheFrame));
+    memset(def, 0, sizeof(struct CacheFrame));
 
     def->id = id;
     def->framemap_id = framemap->id;
@@ -186,7 +186,7 @@ frame_new_decode(int id, struct FramemapDefinition* framemap, struct Buffer* buf
 }
 
 void
-frame_free(struct FrameDefinition* def)
+frame_free(struct CacheFrame* def)
 {
     if( def->index_frame_ids )
     {

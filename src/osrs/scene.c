@@ -13,8 +13,8 @@ struct Scene*
 scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 {
     struct SceneLocs* scene_locs = NULL;
-    struct MapTerrain* map_terrain = NULL;
-    struct MapLocs* map_locs = NULL;
+    struct CacheMapTerrain* map_terrain = NULL;
+    struct CacheMapLocs* map_locs = NULL;
     struct SceneTile* scene_tiles = NULL;
     struct GridTile* grid_tile = NULL;
 

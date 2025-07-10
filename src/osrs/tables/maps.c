@@ -126,11 +126,11 @@ dat2_map_npc_id(struct Cache* cache, int map_x, int map_y)
 // 			}
 // 		}
 // 	}
-struct MapTerrain*
+struct CacheMapTerrain*
 map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
 {
     struct CacheArchive* archive = NULL;
-    struct MapTerrain* map_terrain = NULL;
+    struct CacheMapTerrain* map_terrain = NULL;
     int archive_id = dat2_map_terrain_id(cache, map_x, map_y);
 
     if( archive_id == -1 )
@@ -163,11 +163,11 @@ error:
     return NULL;
 }
 
-struct MapTerrain*
+struct CacheMapTerrain*
 map_terrain_new_from_decode(char* data, int data_size)
 {
-    struct MapTerrain* map_terrain = malloc(sizeof(struct MapTerrain));
-    memset(map_terrain, 0, sizeof(struct MapTerrain));
+    struct CacheMapTerrain* map_terrain = malloc(sizeof(struct CacheMapTerrain));
+    memset(map_terrain, 0, sizeof(struct CacheMapTerrain));
 
     struct Buffer buffer = { .data = data, .position = 0, .data_size = data_size };
 
@@ -177,7 +177,7 @@ map_terrain_new_from_decode(char* data, int data_size)
         {
             for( int y = 0; y < MAP_TERRAIN_Y; y++ )
             {
-                struct MapTile* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+                struct CacheMapTile* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
 
                 while( true )
                 {
@@ -216,17 +216,17 @@ map_terrain_new_from_decode(char* data, int data_size)
 }
 
 void
-map_terrain_free(struct MapTerrain* map_terrain)
+map_terrain_free(struct CacheMapTerrain* map_terrain)
 {
     if( map_terrain )
         free(map_terrain);
 }
 
-struct MapLocs*
+struct CacheMapLocs*
 map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y)
 {
     int archive_id = dat2_map_loc_id(cache, map_x, map_y);
-    struct MapLocs* map_locs = NULL;
+    struct CacheMapLocs* map_locs = NULL;
     struct CacheArchive* archive = NULL;
     uint32_t* xtea_key = cache_archive_xtea_key(cache, CACHE_MAPS, archive_id);
 
@@ -306,10 +306,10 @@ error:
 // 	}
 // }
 
-struct MapLocs*
+struct CacheMapLocs*
 map_locs_new_from_decode(char* data, int data_size)
 {
-    struct MapLocs* map_locs = malloc(sizeof(struct MapLocs));
+    struct CacheMapLocs* map_locs = malloc(sizeof(struct CacheMapLocs));
     if( !map_locs )
         return NULL;
 
@@ -337,7 +337,7 @@ map_locs_new_from_decode(char* data, int data_size)
         }
     }
 
-    map_locs->locs = malloc(sizeof(struct MapLoc) * count);
+    map_locs->locs = malloc(sizeof(struct CacheMapLoc) * count);
     if( !map_locs->locs )
     {
         free(map_locs);
@@ -386,7 +386,7 @@ map_locs_new_from_decode(char* data, int data_size)
 }
 
 void
-map_locs_free(struct MapLocs* map_locs)
+map_locs_free(struct CacheMapLocs* map_locs)
 {
     if( map_locs )
     {

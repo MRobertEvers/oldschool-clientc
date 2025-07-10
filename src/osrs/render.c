@@ -748,8 +748,8 @@ render_model_frame(
     int camera_yaw,
     int camera_roll,
     int fov,
-    struct Model* model,
-    struct ModelBones* bones_nullable,
+    struct CacheModel* model,
+    struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable)
 {
@@ -1198,10 +1198,10 @@ struct SceneTextures*
 scene_textures_new_from_tiles(
     struct SceneTile* tiles,
     int tile_count,
-    struct SpritePack* sprite_packs,
+    struct CacheSpritePack* sprite_packs,
     int* sprite_ids,
     int sprite_count,
-    struct TextureDefinition* textures,
+    struct CacheTexture* textures,
     int* texture_ids,
     int texture_count)
 {
@@ -1250,7 +1250,7 @@ scene_textures_new_from_tiles(
             if( texture_id == -1 )
                 continue;
 
-            struct TextureDefinition* texture_definition = NULL;
+            struct CacheTexture* texture_definition = NULL;
             for( int i = 0; i < texture_count; i++ )
             {
                 if( texture_ids[i] == texture_id )
@@ -1363,7 +1363,7 @@ render_scene_loc(
 
     for( int j = 0; j < loc->model_count; j++ )
     {
-        struct Model* model = loc->models[j];
+        struct CacheModel* model = loc->models[j];
         if( !model )
             continue;
 

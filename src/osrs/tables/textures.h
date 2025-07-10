@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 
-struct TextureDefinition
+struct CacheTexture
 {
     int average_hsl;
     bool opaque;
@@ -19,11 +19,10 @@ struct TextureDefinition
 };
 
 struct Cache;
-struct TextureDefinition* texture_definition_new_from_cache(struct Cache* cache, int id);
+struct CacheTexture* texture_definition_new_from_cache(struct Cache* cache, int id);
 
-struct TextureDefinition*
-texture_definition_new_decode(const unsigned char* inputData, int inputLength);
-struct TextureDefinition* texture_definition_decode_inplace(
-    struct TextureDefinition*, const unsigned char* inputData, int inputLength);
+struct CacheTexture* texture_definition_new_decode(const unsigned char* inputData, int inputLength);
+struct CacheTexture* texture_definition_decode_inplace(
+    struct CacheTexture*, const unsigned char* inputData, int inputLength);
 
 #endif

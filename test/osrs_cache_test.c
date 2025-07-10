@@ -3,6 +3,6 @@
 int
 main()
 {
-    struct Model* models = load_models();
+    struct CacheModel* models = load_models();
     return 0;
 }

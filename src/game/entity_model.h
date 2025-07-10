@@ -9,11 +9,11 @@
 
 struct EntityModel
 {
-    struct Model* model;
-    struct ModelBones* bones_nullable;
+    struct CacheModel* model;
+    struct CacheModelBones* bones_nullable;
 
-    struct FrameDefinition** frames_nullable;
-    struct FramemapDefinition* framemap_nullable;
+    struct CacheFrame** frames_nullable;
+    struct CacheFramemap* framemap_nullable;
     struct CacheConfigSequence* sequence_nullable;
 
     int frame_tick;

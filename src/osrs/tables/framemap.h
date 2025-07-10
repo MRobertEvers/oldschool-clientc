@@ -42,7 +42,7 @@
  *  OP_ROTATE_HIP := (type: ROTATE, labels: [...<hip_labels>...]),
  * ]
  */
-struct FramemapDefinition
+struct CacheFramemap
 {
     int id;
     int* types;
@@ -52,7 +52,7 @@ struct FramemapDefinition
 };
 
 struct Cache;
-struct FramemapDefinition* framemap_new_from_cache(struct Cache* cache, int framemap_id);
+struct CacheFramemap* framemap_new_from_cache(struct Cache* cache, int framemap_id);
 
 /**
  * Frame archives store the framemap id in the first 2 bytes.
@@ -63,8 +63,8 @@ struct FramemapDefinition* framemap_new_from_cache(struct Cache* cache, int fram
  */
 int framemap_id_from_frame_archive(char* data, int data_size);
 
-struct FramemapDefinition* framemap_new_decode(int id, struct Buffer* buffer);
-struct FramemapDefinition* framemap_new_decode2(int id, char* data, int data_size);
-void framemap_free(struct FramemapDefinition* framemap);
+struct CacheFramemap* framemap_new_decode(int id, struct Buffer* buffer);
+struct CacheFramemap* framemap_new_decode2(int id, char* data, int data_size);
+void framemap_free(struct CacheFramemap* framemap);
 
 #endif // FRAMEMAP_H

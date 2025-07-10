@@ -34,7 +34,7 @@ get_index(int* ids, int count, int id)
  */
 int*
 blend_underlays_runelite(
-    struct MapTerrain* map_terrain,
+    struct CacheMapTerrain* map_terrain,
     struct CacheConfigUnderlay* underlays,
     int* underlay_ids,
     int underlays_count,
@@ -187,7 +187,7 @@ blend_underlays_runelite(
 
 int*
 blend_underlays(
-    struct MapTerrain* map_terrain,
+    struct CacheMapTerrain* map_terrain,
     struct CacheConfigUnderlay* underlays,
     int* underlay_ids,
     int underlays_count,

@@ -5,9 +5,9 @@
 #include "textures.h"
 
 int* texture_pixels_new_from_definition(
-    struct TextureDefinition* def,
+    struct CacheTexture* def,
     int size,
-    struct SpritePack* sprite_packs,
+    struct CacheSpritePack* sprite_packs,
     int* pack_ids,
     int pack_count,
     double brightness);

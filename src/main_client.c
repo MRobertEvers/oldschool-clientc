@@ -199,15 +199,15 @@ struct Game
     int subframe_id;
 
     struct CacheConfigSequence* sequence;
-    struct FramemapDefinition* framemap;
-    struct FrameDefinition** frames;
+    struct CacheFramemap* framemap;
+    struct CacheFrame** frames;
     int frame_count;
     int frame_tick;
 
     int map_x;
     int map_y;
-    struct MapTerrain* map_terrain;
-    struct MapLocs* map_locs;
+    struct CacheMapTerrain* map_terrain;
+    struct CacheMapLocs* map_locs;
 
     int tile_count;
     struct SceneTile* tiles;
@@ -573,10 +573,10 @@ game_init(struct Game* game)
 
     int framemap_id =
         (animation_archive->data[0] & 0xFF) << 8 | (animation_archive->data[1] & 0xFF);
-    struct FramemapDefinition* framemap = framemap_new_from_cache(game->cache, framemap_id);
+    struct CacheFramemap* framemap = framemap_new_from_cache(game->cache, framemap_id);
 
     struct FileList* animation_filelist = filelist_new_from_cache_archive(animation_archive);
-    game->frames = malloc(sequence->frame_count * sizeof(struct FrameDefinition*));
+    game->frames = malloc(sequence->frame_count * sizeof(struct CacheFrame*));
     for( int i = 0; i < sequence->frame_count; i++ )
     {
         game->frames[i] = frame_new_decode2(
@@ -723,9 +723,10 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     int* pixel_buffer = platform->pixel_buffer;
     memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
-    struct Model* model = model_new_from_cache(game->cache, game->model_id);
+    struct CacheModel* model = model_new_from_cache(game->cache, game->model_id);
 
-    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+    struct CacheModelBones* bones =
+        modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
 
     render_model_frame(
         pixel_buffer,

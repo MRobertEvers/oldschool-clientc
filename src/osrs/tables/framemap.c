@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct FramemapDefinition*
+struct CacheFramemap*
 framemap_new_from_cache(struct Cache* cache, int framemap_id)
 {
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_SKELETONS, framemap_id);
@@ -16,7 +16,7 @@ framemap_new_from_cache(struct Cache* cache, int framemap_id)
         return NULL;
     }
 
-    struct FramemapDefinition* framemap =
+    struct CacheFramemap* framemap =
         framemap_new_decode2(framemap_id, archive->data, archive->data_size);
 
     cache_archive_free(archive);
@@ -31,18 +31,18 @@ framemap_id_from_frame_archive(char* data, int data_size)
     return framemap_id;
 }
 
-struct FramemapDefinition*
+struct CacheFramemap*
 framemap_new_decode2(int id, char* data, int data_size)
 {
     struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
     return framemap_new_decode(id, &buffer);
 }
 
-struct FramemapDefinition*
+struct CacheFramemap*
 framemap_new_decode(int id, struct Buffer* buffer)
 {
-    struct FramemapDefinition* def = malloc(sizeof(struct FramemapDefinition));
-    memset(def, 0, sizeof(struct FramemapDefinition));
+    struct CacheFramemap* def = malloc(sizeof(struct CacheFramemap));
+    memset(def, 0, sizeof(struct CacheFramemap));
 
     // Initialize the framemap definition
     def->id = id;
@@ -81,7 +81,7 @@ framemap_new_decode(int id, struct Buffer* buffer)
 }
 
 void
-framemap_free(struct FramemapDefinition* def)
+framemap_free(struct CacheFramemap* def)
 {
     if( def->types )
         free(def->types);

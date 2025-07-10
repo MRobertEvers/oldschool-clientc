@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-struct Model;
-struct ModelBones;
+struct CacheModel;
+struct CacheModelBones;
 struct Frame;
 struct Framemap;
 
@@ -23,15 +23,15 @@ void render_model_frame(
     int camera_pitch,
     int camera_roll,
     int fov,
-    struct Model* model,
-    struct ModelBones* bones_nullable,
+    struct CacheModel* model,
+    struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable);
 
 struct SceneTile;
 
-struct SpritePack;
-struct TextureDefinition;
+struct CacheSpritePack;
+struct CacheTexture;
 
 struct SceneTextures
 {
@@ -44,10 +44,10 @@ struct SceneTextures
 struct SceneTextures* scene_textures_new_from_tiles(
     struct SceneTile* tiles,
     int tile_count,
-    struct SpritePack* sprite_packs,
+    struct CacheSpritePack* sprite_packs,
     int* sprite_ids,
     int sprite_count,
-    struct TextureDefinition* textures,
+    struct CacheTexture* textures,
     int* texture_ids,
     int texture_count);
 
@@ -69,7 +69,7 @@ void render_scene_tiles(
     int tile_count,
     struct SceneTextures* textures);
 
-struct MapTerrain;
+struct CacheMapTerrain;
 struct SceneLocs;
 void render_scene_locs(
     int* pixel_buffer,
