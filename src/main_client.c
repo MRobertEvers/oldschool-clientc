@@ -215,7 +215,7 @@ struct Game
     struct CacheOverlay* overlays;
     int* overlay_ids;
     int overlays_count;
-    struct Underlay* underlays;
+    struct CacheUnderlay* underlays;
     int* underlay_ids;
     int underlays_count;
 

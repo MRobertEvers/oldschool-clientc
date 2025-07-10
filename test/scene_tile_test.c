@@ -529,10 +529,10 @@ main()
 
     // int underlay_count = filelist->file_count;
     // int* underlay_ids = (int*)malloc(underlay_count * sizeof(int));
-    // struct Underlay* underlays = (struct Underlay*)malloc(underlay_count * sizeof(struct
-    // Underlay)); for( int i = 0; i < underlay_count; i++ )
+    // struct CacheUnderlay* underlays = (struct CacheUnderlay*)malloc(underlay_count *
+    // sizeof(struct Underlay)); for( int i = 0; i < underlay_count; i++ )
     // {
-    //     struct Underlay* underlay = &underlays[i];
+    //     struct CacheUnderlay* underlay = &underlays[i];
 
     //     struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
 

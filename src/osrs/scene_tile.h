@@ -34,7 +34,7 @@ struct SceneTile
 };
 
 struct CacheOverlay;
-struct Underlay;
+struct CacheUnderlay;
 struct MapTerrain;
 struct Cache;
 
@@ -46,7 +46,7 @@ struct SceneTile* scene_tiles_new_from_map_terrain(
     struct CacheOverlay* overlays,
     int* overlay_ids,
     int overlays_count,
-    struct Underlay* underlays,
+    struct CacheUnderlay* underlays,
     int* underlay_ids,
     int underlays_count);
 
