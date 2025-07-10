@@ -3,6 +3,9 @@
 
 struct CacheModel
 {
+    // TODO: Should this be included or carried with.
+    int _id;
+
     int vertex_count;
     int* vertices_x;
     int* vertices_y;

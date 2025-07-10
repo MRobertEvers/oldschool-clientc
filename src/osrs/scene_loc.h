@@ -2,6 +2,8 @@
 #define SCENE_LOC_H
 
 #include "cache.h"
+#include "scene_cache.h"
+#include "tables/config_locs.h"
 #include "tables/maps.h"
 #include "tables/model.h"
 
@@ -43,6 +45,9 @@ struct SceneLocs
 };
 
 struct SceneLocs* scene_locs_new_from_map_locs(
-    struct CacheMapTerrain* terrain, struct CacheMapLocs* map_locs, struct Cache* cache);
+    struct CacheMapTerrain* terrain,
+    struct CacheMapLocs* map_locs,
+    struct Cache* cache,
+    struct ModelCache* model_cache);
 
 #endif

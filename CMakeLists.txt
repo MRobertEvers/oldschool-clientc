@@ -79,6 +79,9 @@ add_executable(scene_tile_test
     src/osrs/xtea.c
     src/osrs/archive.c
     src/osrs/xtea_config.c
+    src/osrs/scene_cache.c
+
+    src/datastruct/ht.c
 )
 
 target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})

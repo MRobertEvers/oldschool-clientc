@@ -50,6 +50,7 @@
         "configs.h": "c",
         "scene_loc.h": "c",
         "maps.h": "c",
-        "config_floortype.h": "c"
+        "config_floortype.h": "c",
+        "ht.h": "c"
     }
 }

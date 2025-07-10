@@ -9,7 +9,11 @@
 #include <stdlib.h>
 
 void
-load_loc_model(struct SceneLoc* scene_loc, struct CacheConfigLocation* loc, struct Cache* cache)
+load_loc_model(
+    struct SceneLoc* scene_loc,
+    struct CacheConfigLocation* loc,
+    struct Cache* cache,
+    struct ModelCache* model_cache)
 {
     struct CacheModel* model = NULL;
     if( !loc->models )
@@ -31,7 +35,7 @@ load_loc_model(struct SceneLoc* scene_loc, struct CacheConfigLocation* loc, stru
             assert(loc->models[0]);
             int model_id = loc->models[0][i];
 
-            model = model_new_from_cache(cache, model_id);
+            model = model_cache_checkout(model_cache, cache, model_id);
             scene_loc->models[i] = model;
             scene_loc->model_ids[i] = model_id;
         }
@@ -47,7 +51,10 @@ load_loc_model(struct SceneLoc* scene_loc, struct CacheConfigLocation* loc, stru
 
 struct SceneLocs*
 scene_locs_new_from_map_locs(
-    struct CacheMapTerrain* terrain, struct CacheMapLocs* map_locs, struct Cache* cache)
+    struct CacheMapTerrain* terrain,
+    struct CacheMapLocs* map_locs,
+    struct Cache* cache,
+    struct ModelCache* model_cache)
 {
     struct ArchiveReference* archive_reference = NULL;
     struct CacheArchive* archive = NULL;
@@ -78,16 +85,11 @@ scene_locs_new_from_map_locs(
 
         int loc_id = map_loc->id;
 
-        if( loc_id == 16438 )
-        {
-            int lll = 0;
-        }
-
         decode_loc(&loc, filelist->files[loc_id], filelist->file_sizes[loc_id]);
         scene_locs->locs[i].__loc = loc;
         scene_locs->locs[i].__loc._file_id = loc_id;
 
-        load_loc_model(&scene_locs->locs[i], &loc, cache);
+        load_loc_model(&scene_locs->locs[i], &loc, cache, model_cache);
 
         int height_sw = terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)].height;
         int height_se = height_sw;

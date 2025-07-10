@@ -17,12 +17,15 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct CacheMapLocs* map_locs = NULL;
     struct SceneTile* scene_tiles = NULL;
     struct GridTile* grid_tile = NULL;
+    struct ModelCache* model_cache = model_cache_new();
 
     struct Scene* scene = malloc(sizeof(struct Scene));
     memset(scene, 0, sizeof(struct Scene));
+
     scene->grid_tiles = malloc(sizeof(struct GridTile) * MAP_TILE_COUNT);
     memset(scene->grid_tiles, 0, sizeof(struct GridTile) * MAP_TILE_COUNT);
     scene->grid_tiles_length = MAP_TILE_COUNT;
+    scene->_model_cache = model_cache;
 
     map_terrain = map_terrain_new_from_cache(cache, chunk_x, chunk_y);
     if( !map_terrain )
@@ -49,7 +52,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         goto error;
     }
 
-    scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache);
+    scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache, model_cache);
     if( !scene_locs )
     {
         printf("Failed to load scene locs\n");
@@ -149,4 +152,12 @@ error:
     // scene_locs_free(scene_locs);
     // scene_free(scene);
     return NULL;
+}
+
+void
+scene_free(struct Scene* scene)
+{
+    model_cache_free(scene->_model_cache);
+    free(scene->grid_tiles);
+    free(scene);
 }

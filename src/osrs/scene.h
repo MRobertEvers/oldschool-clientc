@@ -2,6 +2,7 @@
 #define SCENE_H
 
 #include "cache.h"
+#include "scene_cache.h"
 #include "scene_loc.h"
 #include "scene_tile.h"
 
@@ -50,8 +51,11 @@ struct Scene
 
     struct GridTile* grid_tiles;
     int grid_tiles_length;
+
+    struct ModelCache* _model_cache;
 };
 
 struct Scene* scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y);
+void scene_free(struct Scene* scene);
 
 #endif
