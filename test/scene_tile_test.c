@@ -824,8 +824,16 @@ main()
     bool quit = false;
     int speed = 200;
     SDL_Event event;
+
+    // Frame timing variables
+    Uint32 last_frame_time = SDL_GetTicks();
+    const int target_fps = 30;
+    const int target_frame_time = 1000 / target_fps;
+
     while( !quit )
     {
+        Uint32 frame_start_time = SDL_GetTicks();
+
         while( SDL_PollEvent(&event) )
         {
             if( event.type == SDL_QUIT )
@@ -1070,8 +1078,16 @@ main()
         // Render frame
         game_render_sdl2(&game, &platform);
 
-        // Cap at 30 FPS
-        SDL_Delay(1000 / 30);
+        // Calculate frame time and sleep appropriately
+        Uint32 frame_end_time = SDL_GetTicks();
+        Uint32 frame_time = frame_end_time - frame_start_time;
+
+        if( frame_time < target_frame_time )
+        {
+            SDL_Delay(target_frame_time - frame_time);
+        }
+
+        last_frame_time = frame_end_time;
     }
 
     // Cleanup
