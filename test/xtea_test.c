@@ -66,7 +66,7 @@ main()
         printf(
             "Loc %d: %d, %d, %d, %d, %d\n",
             loc->id,
-            loc->type,
+            loc->shape_select,
             loc->orientation,
             loc->chunk_pos_x,
             loc->chunk_pos_y,

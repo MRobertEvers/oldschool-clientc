@@ -1,3 +1,7 @@
+# RuneScratch
+
+Rewrite of the osrs renderer.
+
 ## Building
 
 ```
@@ -31,6 +35,255 @@ Install SDL2.
 
 ```
 brew install sdl2
+```
+
+### Scene Building Plan - Software 3D
+
+Cache Terrain -> World -> Scene
+
+Scene is used by the renderer.
+
+Loading the world.
+
+1. Load the Chunk Scenery (locs).
+   a. For each tile, organize the following (in render order);
+   Walls, decor etc. have additional information about where in the tile they are.
+   That will inform the renderer the order to draw.
+   - Bridge Tile
+   - Tile Underlay/Overlay
+   - Ground Decor
+   - Walls (don't know far/near yet)
+   - Wall Decor
+2. The scene is produced from a world.
+
+- Load the base model used for each model used.
+- Load textures
+- Copy models, then for each, apply
+  - Animations
+  - Rotations
+  - etc.
+- Painters algo
+
+### Scene Rendering - Painter's Algo
+
+Painters algorithm
+
+- 1.  Draw Bridge Underlay (the water, not the surface)
+- 2.  Draw Bridge Wall (the arches holding the bridge up)
+- 3.  Draw bridge locs
+- 4.  Draw tile underlay
+- 5.  Draw far wall
+- 6.  Draw far wall decor (i.e. facing the camera)
+- 7.  Draw ground decor
+- 8.  Draw ground items on ground
+- 9.  Draw locs
+- 10. Draw ground items on table
+- 11. Draw near decor (i.e. facing away from the camera on the near wall)
+- 12. Draw the near wall.
+
+TODO: Compute near wall/far wall near decor/far decor
+
+```
+Picture a grid laid out with the eye at the center. (ignore direction)
++----------------------+
+|                      |
+|                      |
+|                      |
+|                      |
+|         <=>  eye     |
+|                      |
+|                      |
+|                      |
++----------------------+
+
+We can draw the tiles from farthest to closes by coming diagonally inward from the corners.
+It is easy to see that the corners are the farthest from the eye, so start there.
+
+  x := drawn tile
+
+  +----------------------+                  +----------------------+
+  | x x              x x |                  | x x x          x x x |
+  | x                  x |                  | x x              x x |
+  |                      |                  | x                  x |
+  |                      |                  |                      |
+  |         <=>  eye     |       ==>        |         <=>  eye     |
+  |                      |                  | x                  x |
+  | x                  x |                  | x x              x x |
+  | x x              x x |                  | x x x          x x x |
+  +----------------------+                  +----------------------+
+
+
+In pseudo-code, start from the northeast, northwest, southwest and southeast corners
+
+
+  ne_tile = (X, Y)
+  nw_tile = (0, Y)
+  sw_tile = (0, 0)
+  se_tile = (X, 0)
+
+  tile_queue = (ne_tile, nw_tile, sw_tile, se_tile)
+
+  while tile_queue not empty:
+    tile = tile_queue.pop()
+
+    draw_tile(tile)
+
+    // If the tile is north east of the eye, queue south tile and west tile.
+    // (towards the eye.)
+    if tile is ne of eye:
+      south_tile = (tile.x, tile.y - 1)
+      west_tile = (tile.x - 1, tile.y)
+
+    if tile is nw of eye:
+      south_tile = (tile.x, tile.y - 1)
+      east_tile = (tile.x + 1, tile.y)
+
+    if tile is sw of eye:
+      north_tile = (tile.x, tile.y + 1)
+      east_tile = (tile.x + 1, tile.y)
+
+    if tile is se of eye:
+      north_tile = (tile.x, tile.y + 1)
+      west_tile = (tile.x - 1, tile.y)
+
+Now notice that there may be some overlap. e.g. in the northwest corner a tile
+at (1, Y) south and (0, Y - 1) east will both queue the tile at (1, Y - 1).
+
+Simply ignore this for now because this will come up later.
+
+In this algorithm tiles farther away must be drawn completely before
+closer tiles can start to draw. What this means in the northwest corner for
+example, is if the north tile or west tile is still not drawn completely,
+then we can't draw this tile. In pseudocode
+
+  if tile is nw of eye:
+    north_tile = (tile.x, tile.y + 1)
+    west_tile = (tile.x - 1, tile.y)
+
+    if north_tile is not drawn:
+      skip
+
+    if west_tile is not drawn:
+      skip
+
+This check will be important when scenery "locs" that span multiple tiles
+come into play.
+
+Consider a grid with locs L, M, N
+
+  x := drawn tile
+  L, M, N := Loc on tile
+
+  <- West          East ->
+  +----------------------+
+  | x x M M M        x x |
+  | x   L        N N   x |
+  |                      |
+  |                      |
+  |         <=>  eye     |
+  |                      |
+  | x                  x |
+  | x x              x x |
+  +----------------------+
+
+Let's focus our attention on the two locs
+
+  <- West          East ->
+  +----------------------+
+  | x x M M M        x x |
+  | x   L        N N   x |
+
+If we're snaking diaganally inward, then this is the draw order
+
+  ^1/2/3 := A tile that should be drawn, if simply snaking inward.
+
+  <- West            East ->
+  +------------------------+
+  | x x ^1 M M    x  x x x |
+  | x x ^2        N ^3 x x |
+  | x x                x x |
+
+  ^1 can't be drawn because the loc on that tile will be drawn, then the two
+     underlays to the east would draw above the loc. Not what we want.
+  ^2 can't be drawn because ^1 isn't drawn. The loc, L, on ^2 would draw behind
+     M if M doesn't draw until all tiles under M are drawn. Not what we want.
+  ^3 can't be fully drawn because the loc would be drawn below the tile to the west.
+     This is the same case as ^1
+
+So there are two cases that give us trouble.
+
+1. Multi-tile locs can't be drawn until all the underlays under that loc are
+   drawn, ^1, and ^3
+2. Tiles cannot be drawn until tiles farther away are completely drawn.
+
+What this means; have to break the drawing of tiles into multiple steps.
+
+1. Draw the underlay
+2. Draw the locs
+
+Emphasizing, no drawing can start until farther tiles are completely drawn, but
+we need to continue to draw underlays so that locs can be drawn.
+
+So we amend our conditions.
+
+Drawing of the underlay can start if both the farther tiles are either:
+
+1. Completely drawn
+2. Waiting on this underlay
+
+In psuedo code (and only for northwest of eye):
+
+  if tile is nw of eye:
+    north_tile = (tile.x, tile.y + 1)
+    west_tile = (tile.x - 1, tile.y)
+
+    north_drawn_or_waiting = false
+    if north_tile is done
+        or north_tile is waiting on underlay:
+      north_drawn_or_waiting = true
+
+    west_drawn_or_waiting = false
+    if west_tile is done
+        or west_tile is waiting on underlay:
+      west_drawn_or_waiting true
+
+    if north_drawn_or_waiting
+        and west_drawn_or_waiting:
+      // Continue drawing tile
+    else:
+      skip
+
+    draw_underlay(tile)
+    tile.step = "draw_locs"
+
+    if north_drawn and west_drawn:
+      // Continue drawing tile
+    else
+      skip
+
+    draw_locs(tile)
+    tile.step = "done"
+
+Now, running the algorithm to completion
+
+  <- West            East ->
+  +------------------------+
+  | x x xM xM xM  x  x x x |
+  | x x oL  o  o xN xN x x |
+  | x x  o  o  o  o  o x x |
+  | x x  o  o  o  o  o x x |
+  | x x  x  x<=> eye x x x |
+  | x x x x x x x x  x x x |
+  | x x x x x x x x  x x x |
+  | x x x x x x x x  x x x |
+  +------------------------+
+
+The tiles between the eye and the loc are no longer drawn because they we
+blocked until M and N were drawn since M and N weren't ready when they were
+queued to be drawn.
+
+This can be fixed by check the adjacent tiles to each loc once a loc is drawn.
+Queue up each of the tiles adjacent to the loc and the algorithm will continue.
 ```
 
 ### Rendering Notes
