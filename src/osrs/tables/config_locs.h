@@ -58,9 +58,15 @@ struct CacheConfigLocation
     // Added after loading.
     int _file_id;
 
-    int* types;
+    /**
+     * Sometimes multiple models are specified in a single loc config,
+     * and the shape_select field of the map loc selects which one to use.
+     * E.g. Walls will have multiple angles.
+     */
+    int* shapes;
     int** models;
     int* lengths;
+    int lengths_count;
 
     char* name;
     char* desc;

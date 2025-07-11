@@ -31,7 +31,14 @@ map_tile_coord_to_chunk_coord(int x, int y, int z)
 struct CacheMapLoc
 {
     int id;
-    int type;
+    /**
+     * Some locs have multiple models associated with them.
+     * (See op code 1), if that is the case, this field selects which model to use.
+     *
+     * For example, locs with walls usually have many models associated with them, e.g. diagonal,
+     * horizontal etc. and the shape_select field selects which one to use.
+     */
+    int shape_select;
     int orientation;
     int chunk_pos_x;
     int chunk_pos_y;

@@ -28,7 +28,7 @@ model_cache_new()
         &model_cache->table,
         (struct HashTableInit){
             .element_size = sizeof(struct Item),
-            .capacity_hint = 1000,
+            .capacity_hint = 2000,
             .key_size = sizeof(int),
         });
 
@@ -137,12 +137,7 @@ ht_cache_remove(struct ModelCache* model_cache, int model_id)
 struct CacheModel*
 model_cache_checkout(struct ModelCache* model_cache, struct Cache* cache, int model_id)
 {
-    // return model_new_from_cache(cache, model_id);
-    if( model_id == 11546 )
-    {
-        int lll = 0;
-    }
-
+    struct CacheModel* model = NULL;
     struct Item* item = ht_cache_lookup(model_cache, model_id);
     if( item )
     {
@@ -150,7 +145,7 @@ model_cache_checkout(struct ModelCache* model_cache, struct Cache* cache, int mo
         return item->model;
     }
 
-    struct CacheModel* model = model_new_from_cache(cache, model_id);
+    model = model_new_from_cache(cache, model_id);
     if( !model )
         return NULL;
 

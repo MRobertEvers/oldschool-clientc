@@ -10,7 +10,7 @@
  * full table, looking up an non-present key will not cause O(n) behavior.
  *
  */
-#define MAXIMUM_PROBE_LENGTH 4
+#define MAXIMUM_PROBE_LENGTH 8
 
 static int
 memncmp(const void* a, int lena, const void* b, int lenb)
@@ -267,7 +267,9 @@ ht_lookuph(struct HashTable* ht, struct Hash* hash)
 {
     struct HashTableIter iter = { 0 };
     iter._hash = *hash;
-    iter._slot = _murmur3_32_hashof(hash) % (ht->capacity);
+
+    uint32_t hash_value = _murmur3_32_hashof(hash);
+    iter._slot = hash_value % (ht->capacity);
 
     struct EntryHeader* entry = ht_slot(ht, iter._slot);
     iter.key = ht_slotkey(ht, iter._slot);

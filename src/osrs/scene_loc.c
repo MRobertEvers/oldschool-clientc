@@ -13,13 +13,14 @@ load_loc_model(
     struct SceneLoc* scene_loc,
     struct CacheConfigLocation* loc,
     struct Cache* cache,
-    struct ModelCache* model_cache)
+    struct ModelCache* model_cache,
+    int shape_select)
 {
     struct CacheModel* model = NULL;
     if( !loc->models )
         return;
 
-    if( !loc->types )
+    if( !loc->shapes )
     {
         int count = loc->lengths[0];
 
@@ -42,8 +43,32 @@ load_loc_model(
     }
     else
     {
-        // TODO:
-        return;
+        int count = loc->lengths_count;
+
+        scene_loc->models = malloc(sizeof(struct CacheModel) * count);
+        memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
+        scene_loc->model_ids = malloc(sizeof(int) * count);
+        memset(scene_loc->model_ids, 0, sizeof(int) * count);
+        scene_loc->model_count = count;
+
+        for( int i = 0; i < count; i++ )
+        {
+            int count_inner = loc->lengths[i];
+
+            int loc_type = loc->shapes[i];
+            if( loc_type == shape_select )
+            {
+                for( int j = 0; j < count_inner; j++ )
+                {
+                    int model_id = loc->models[i][j];
+
+                    model = model_cache_checkout(model_cache, cache, model_id);
+                    scene_loc->models[i] = model;
+                    scene_loc->model_ids[i] = model_id;
+                    scene_loc->model_count++;
+                }
+            }
+        }
     }
 }
 
@@ -89,7 +114,7 @@ scene_locs_new_from_map_locs(
         scene_locs->locs[i].__loc = loc;
         scene_locs->locs[i].__loc._file_id = loc_id;
 
-        load_loc_model(&scene_locs->locs[i], &loc, cache, model_cache);
+        load_loc_model(&scene_locs->locs[i], &loc, cache, model_cache, map_loc->shape_select);
 
         int height_sw = terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)].height;
         int height_se = height_sw;

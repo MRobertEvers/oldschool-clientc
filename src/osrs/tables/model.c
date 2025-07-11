@@ -846,6 +846,7 @@ decodeType2(const unsigned char* inputData, int inputLength)
 struct CacheModel*
 model_new_from_cache(struct Cache* cache, int model_id)
 {
+    struct CacheModel* model = NULL;
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_MODELS, model_id);
     if( !archive )
     {
@@ -853,9 +854,11 @@ model_new_from_cache(struct Cache* cache, int model_id)
         return NULL;
     }
 
-    struct CacheModel* model = model_new_decode(archive->data, archive->data_size);
+    model = model_new_decode(archive->data, archive->data_size);
 
     cache_archive_free(archive);
+    if( model )
+        model->_id = model_id;
 
     return model;
 }
@@ -871,6 +874,7 @@ model_new_decode(const unsigned char* inputData, int inputLength)
 
         if( lastByte == 0xFD && secondLastByte == 0xFF )
         { // -3, -1
+            printf("TODO: decode type 3\n");
             return NULL;
             // return decodeType3(inputData, inputLength);
         }

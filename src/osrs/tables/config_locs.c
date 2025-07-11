@@ -162,19 +162,25 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
         {
         case 1:
         {
+            /**
+             * This opcode defines several models associated with a single map loc.
+             *
+             * The map loc will specify which shape to use in it.
+             */
             int count = rsbuf_g1(&buffer);
             if( count == 0 )
                 break;
 
-            loc->types = (int*)malloc(count * sizeof(int));
+            loc->shapes = (int*)malloc(count * sizeof(int));
             loc->models = (int**)malloc(count * sizeof(int*));
             loc->lengths = (int*)malloc(count * sizeof(int));
             memset(loc->lengths, 0, count * sizeof(int));
+            loc->lengths_count = count;
             for( int i = 0; i < count; i++ )
             {
                 loc->models[i] = (int*)malloc(1 * sizeof(int));
                 loc->models[i][0] = rsbuf_g2(&buffer);
-                loc->types[i] = rsbuf_g1(&buffer);
+                loc->shapes[i] = rsbuf_g1(&buffer);
                 loc->lengths[i] = 1;
             }
             break;
@@ -187,11 +193,16 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             break;
         case 5:
         {
+            /**
+             * This is a single model loc.
+             * Generally, always just draw the models.
+             * shape_select is not used here.
+             */
             int count = rsbuf_g1(&buffer);
             if( count == 0 )
                 break;
 
-            loc->types = NULL;
+            loc->shapes = NULL;
             loc->models = (int**)malloc(1 * sizeof(int*));
             loc->models[0] = (int*)malloc(count * sizeof(int));
             loc->lengths = (int*)malloc(1 * sizeof(int));
@@ -199,10 +210,6 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             for( int i = 0; i < count; i++ )
             {
                 int model_id = rsbuf_g2(&buffer);
-                if( model_id == 34824 )
-                {
-                    int lll = 0;
-                }
                 loc->models[0][i] = model_id;
             }
             break;
@@ -594,7 +601,7 @@ free_loc(struct CacheConfigLocation* loc)
     free(loc->desc);
 
     // Free allocated arrays
-    free(loc->types);
+    free(loc->shapes);
     if( loc->models )
     {
         for( int i = 0; i < loc->recolor_count; i++ )

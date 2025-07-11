@@ -368,11 +368,11 @@ map_locs_new_from_decode(char* data, int data_size)
             int height = (position >> 12) & 0x3;
 
             int attributes = rsbuf_g1(&buffer);
-            int type = attributes >> 2;
+            int shape_select = attributes >> 2;
             int orientation = attributes & 0x3;
 
             map_locs->locs[loc_idx].id = id;
-            map_locs->locs[loc_idx].type = type;
+            map_locs->locs[loc_idx].shape_select = shape_select;
             map_locs->locs[loc_idx].orientation = orientation;
             map_locs->locs[loc_idx].chunk_pos_x = local_x;
             map_locs->locs[loc_idx].chunk_pos_y = local_y;

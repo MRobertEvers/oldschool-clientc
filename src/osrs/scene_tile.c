@@ -686,7 +686,7 @@ generateHeight(int x, int y)
  * src/rs/scene/SceneBuilder.ts decodeTerrainTile
  */
 static void
-fix_terrain_tile(
+fixup_terrain_tile(
     struct CacheMapTerrain* map_terrain, int world_scene_origin_x, int world_scene_origin_y)
 {
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
@@ -915,7 +915,8 @@ scene_tiles_new_from_map_terrain(
     printf("MAP_TILE_COUNT: %d\n", MAP_TILE_COUNT);
     struct SceneTile* tiles = (struct SceneTile*)malloc(MAP_TILE_COUNT * sizeof(struct SceneTile));
 
-    fix_terrain_tile(map_terrain, 50 * MAP_CHUNK_SIZE, 50 * MAP_CHUNK_SIZE);
+    // TODO: Move this to the loader.
+    fixup_terrain_tile(map_terrain, 50 * MAP_CHUNK_SIZE, 50 * MAP_CHUNK_SIZE);
 
     if( !tiles )
     {

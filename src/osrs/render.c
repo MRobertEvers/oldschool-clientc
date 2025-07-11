@@ -1475,6 +1475,21 @@ int_queue_free(struct IntQueue* queue)
 static int g_loc_buffer[100];
 static int g_loc_buffer_length = 0;
 
+/**
+ * 1. Draw Bridge Underlay (the water, not the surface)
+ * 2. Draw Bridge Wall (the arches holding the bridge up)
+ * 3. Draw bridge locs
+ * 4. Draw tile underlay
+ * 5. Draw far wall
+ * 6. Draw far wall decor (i.e. facing the camera)
+ * 7. Draw ground decor
+ * 8. Draw ground items on ground
+ * 9. Draw locs
+ * 10. Draw ground items on table
+ * 11. Draw near decor (i.e. facing away from the camera on the near wall)
+ * 12. Draw the near wall.
+ *
+ */
 struct SceneOp*
 render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene* scene, int* len)
 {
@@ -1529,58 +1544,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
     struct IntQueue queue = { 0 };
     int_queue_init(&queue, scene->grid_tiles_length);
-
-    // // Generate coordinates in order from farthest to nearest
-    // // This creates a spiral pattern starting from the corners and moving inward
-    // // Top edge of current ring (left to right)
-    // for( int x = -radius; x <= 0; x++ )
-    // {
-    //     int east_tile_x = camera_tile_x - x;
-    //     int west_tile_x = camera_tile_x + x;
-
-    //     // Right edge of current ring (top to bottom, excluding corners)
-    //     for( int y = -radius; y <= 0; y++ )
-    //     {
-    //         int south_tile_y = camera_tile_y + y;
-    //         int north_tile_y = camera_tile_y - y;
-
-    //         if( east_tile_x < max_draw_x && east_tile_x >= min_draw_x )
-    //         {
-    //             if( north_tile_y < max_draw_y && north_tile_y >= min_draw_y )
-    //             {
-    //                 assert(east_tile_x >= 0);
-    //                 assert(east_tile_x < MAP_TERRAIN_X);
-    //                 assert(north_tile_y >= 0);
-    //                 assert(north_tile_y < MAP_TERRAIN_Y);
-
-    //                 coord_list_x[coord_list_length] = east_tile_x;
-    //                 coord_list_y[coord_list_length] = north_tile_y;
-    //                 coord_list_length++;
-    //             }
-    //             if( south_tile_y < max_draw_y && south_tile_y >= min_draw_y )
-    //             {
-    //                 coord_list_x[coord_list_length] = east_tile_x;
-    //                 coord_list_y[coord_list_length] = south_tile_y;
-    //                 coord_list_length++;
-    //             }
-    //         }
-    //         if( west_tile_x >= min_draw_x && west_tile_x < max_draw_x )
-    //         {
-    //             if( north_tile_y < max_draw_y && north_tile_y >= min_draw_y )
-    //             {
-    //                 coord_list_x[coord_list_length] = west_tile_x;
-    //                 coord_list_y[coord_list_length] = north_tile_y;
-    //                 coord_list_length++;
-    //             }
-    //             if( south_tile_y < max_draw_y && south_tile_y >= min_draw_y )
-    //             {
-    //                 coord_list_x[coord_list_length] = west_tile_x;
-    //                 coord_list_y[coord_list_length] = south_tile_y;
-    //                 coord_list_length++;
-    //             }
-    //         }
-    //     }
-    // }
 
     struct SceneElement* element = NULL;
     struct SceneElement* other = NULL;
@@ -2038,11 +2001,7 @@ render_scene_ops(
         case SCENE_OP_TYPE_DRAW_LOC:
         {
             loc = &scene->locs->locs[op->_loc.loc_index];
-            if( loc->chunk_pos_x == 9 && loc->chunk_pos_y == 20 )
-            {
-                // printf("Draw loc: %d\n", loc);
-                int i = 0;
-            }
+
             render_scene_loc(
                 pixel_buffer,
                 width,

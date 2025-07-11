@@ -44,6 +44,15 @@ struct SceneLocs
     int locs_count;
 };
 
+/**
+ * Convert the cache map and loc configs into a scene loc that can be rendered.
+ *
+ * @param terrain
+ * @param map_locs
+ * @param cache
+ * @param model_cache
+ * @return struct SceneLocs*
+ */
 struct SceneLocs* scene_locs_new_from_map_locs(
     struct CacheMapTerrain* terrain,
     struct CacheMapLocs* map_locs,
