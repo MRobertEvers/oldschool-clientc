@@ -176,14 +176,14 @@ Consider a grid with locs L, M, N
 
   <- West          East ->
   +----------------------+
-  | x x M M M        x x |
-  | x   L        N N   x |
+  |     M M M            |
+  |     L        N N     |
   |                      |
   |                      |
   |         <=>  eye     |
   |                      |
-  | x                  x |
-  | x x              x x |
+  |                      |
+  |                      |
   +----------------------+
 
 Let's focus our attention on the two locs
@@ -296,7 +296,7 @@ Queue up each of the tiles adjacent to the loc and the algorithm will continue.
   <- West            East ->
   +------------------------+
   | x x  M M M !  x  x x x |
-  | x x  ! ! !  ! N  N x x |
+  | x x  ! ! ! !  N  N x x |
   | x x           !  ! x x |
 
   <- West            East ->
