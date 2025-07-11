@@ -280,10 +280,42 @@ Now, running the algorithm to completion
 
 The tiles between the eye and the loc are no longer drawn because they we
 blocked until M and N were drawn since M and N weren't ready when they were
-queued to be drawn.
+queued to be drawn. Those tiles weren't ever checked again.
 
 This can be fixed by check the adjacent tiles to each loc once a loc is drawn.
 Queue up each of the tiles adjacent to the loc and the algorithm will continue.
+
+  ! := A tile to check after M or N is drawn.
+
+  <- West            East ->
+  +------------------------+
+  | x x  M M M    x  x x x |
+  | x x           N  N x x |
+  | x x                x x |
+
+  <- West            East ->
+  +------------------------+
+  | x x  M M M !  x  x x x |
+  | x x  ! ! !  ! N  N x x |
+  | x x           !  ! x x |
+
+  <- West            East ->
+  +------------------------+
+  | x x  M M M x  x  x x x |
+  | x x  L        N  N x x |
+  | x x              x x x |
+
+  <- West            East ->
+  +------------------------+
+  | x x  M M M x  x  x x x |
+  | x x  L x   x  N  N x x |
+  | x x  x        x  x x x |
+
+  <- West            East ->
+  +------------------------+
+  | x x  M M M x  x  x x x |
+  | x x  L x x x  N  N x x |
+  | x x  x x x x  x  x x x |
 ```
 
 ### Rendering Notes
