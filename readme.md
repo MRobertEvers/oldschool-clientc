@@ -46,7 +46,7 @@ Scene is used by the renderer.
 Loading the world.
 
 1. Load the Chunk Scenery (locs).
-   a. For each tile, organize the following (in render order);
+   a. For each tile, organize the following (in render order); (Loaded from the ChunkMaps)
    Walls, decor etc. have additional information about where in the tile they are.
    That will inform the renderer the order to draw.
    - Bridge Tile

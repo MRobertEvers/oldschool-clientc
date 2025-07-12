@@ -43,7 +43,7 @@ load_loc_model(
     }
     else
     {
-        int count = loc->lengths_count;
+        int count = loc->shapes_and_model_count;
 
         scene_loc->models = malloc(sizeof(struct CacheModel) * count);
         memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
@@ -108,13 +108,132 @@ scene_locs_new_from_map_locs(
         int y = map_loc->chunk_pos_y;
         int z = map_loc->chunk_pos_level;
 
-        int loc_id = map_loc->id;
+        int loc_id = map_loc->loc_id;
+
+        struct SceneLoc* scene_loc = &scene_locs->locs[i];
 
         decode_loc(&loc, filelist->files[loc_id], filelist->file_sizes[loc_id]);
         scene_locs->locs[i].__loc = loc;
         scene_locs->locs[i].__loc._file_id = loc_id;
 
         load_loc_model(&scene_locs->locs[i], &loc, cache, model_cache, map_loc->shape_select);
+
+        switch( map_loc->shape_select )
+        {
+        case LOC_SHAPE_WALL:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_TRI_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_RECT_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_DECORATION_INSIDE:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_DECORATION_OUTSIDE:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_OUTSIDE:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_INSIDE:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_DOUBLE:
+        {
+        }
+        break;
+        case LOC_SHAPE_WALL_DIAGONAL:
+        {
+        }
+        break;
+        case LOC_SHAPE_NORMAL:
+        case LOC_SHAPE_NORMAL_DIAGIONAL:
+        {
+            // struct Loc* shape = (struct Loc*)malloc(sizeof(struct Loc));
+            // memset(shape, 0x00, sizeof(struct Loc));
+
+            // shape->model_id_count = select_loc_models(shape->model_id, 5, &loc,
+            // LOC_SHAPE_NORMAL);
+
+            // shape->offset_x = loc.offset_x;
+            // shape->offset_y = loc.offset_y;
+            // shape->offset_z = loc.offset_height;
+
+            // shape->orientation = map->orientation;
+
+            // shape->size_x = loc.size_x;
+            // shape->size_y = loc.size_y;
+            // if( map->orientation == 1 || map->orientation == 3 )
+            // {
+            //     shape->size_x = loc.size_y;
+            //     shape->size_y = loc.size_x;
+            // }
+
+            // if( map->shape_select == LOC_SHAPE_NORMAL_DIAGIONAL )
+            // {
+            //     shape->yaw_r2pi2048 = 256;
+            // }
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_FLAT:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
+        {
+        }
+        break;
+        case LOC_SHAPE_FLOOR_DECORATION:
+        {
+        }
+        break;
+        }
 
         int height_sw = terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)].height;
         int height_se = height_sw;
@@ -147,6 +266,7 @@ scene_locs_new_from_map_locs(
             scene_locs->locs[i].size_y = loc.size_x;
         }
 
+        scene_locs->locs[i].shape = map_loc->shape_select;
         scene_locs->locs[i].orientation = map_loc->orientation;
         scene_locs->locs[i].offset_x = loc.offset_x;
         scene_locs->locs[i].offset_y = loc.offset_y;

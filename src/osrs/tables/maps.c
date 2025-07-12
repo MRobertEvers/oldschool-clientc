@@ -177,7 +177,7 @@ map_terrain_new_from_decode(char* data, int data_size)
         {
             for( int y = 0; y < MAP_TERRAIN_Y; y++ )
             {
-                struct CacheMapTile* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+                struct CacheMapFloor* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
 
                 while( true )
                 {
@@ -371,7 +371,7 @@ map_locs_new_from_decode(char* data, int data_size)
             int shape_select = attributes >> 2;
             int orientation = attributes & 0x3;
 
-            map_locs->locs[loc_idx].id = id;
+            map_locs->locs[loc_idx].loc_id = id;
             map_locs->locs[loc_idx].shape_select = shape_select;
             map_locs->locs[loc_idx].orientation = orientation;
             map_locs->locs[loc_idx].chunk_pos_x = local_x;

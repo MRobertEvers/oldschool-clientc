@@ -16,6 +16,8 @@ struct SceneLoc
     struct CacheModel** models;
     int model_count;
 
+    int shape;
+
     int region_x;
     int region_y;
     int region_z;

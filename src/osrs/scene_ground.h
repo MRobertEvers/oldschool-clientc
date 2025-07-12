@@ -1,12 +1,7 @@
-#ifndef SCENE_H
-#define SCENE_H
+#ifndef SCENE_GROUND_H
+#define SCENE_GROUND_H
 
-#include "cache.h"
-#include "scene_cache.h"
-#include "scene_loc.h"
 #include "scene_tile.h"
-
-const int ROTATION_WALL_TYPE[] = { 1, 2, 4, 8 };
 
 /**
  * Tells the renderer to defer drawing locs until
@@ -21,40 +16,36 @@ enum SpanFlag
     SPAN_FLAG_SOUTH = 1 << 3,
 };
 
-struct NormalScenery
+/**
+ *  underlay: TileUnderlay | null = null;
+ *  overlay: TileOverlay | null = null;
+ *  wall: Wall | null = null;
+ *  wallDecoration: Decor | null = null;
+ *  groundDecoration: GroundDecor | null = null;
+ *  objStack: ObjStack | null = null;
+ *  bridge: Ground | null = null;
+ *  locCount: number = 0;
+ *  locSpans: number = 0;
+ *  drawLevel: number = 0;
+ *  groundVisible: boolean = false;
+ *  update: boolean = false;
+ *  containsLocs: boolean = false;
+ *  checkLocSpans: number = 0;
+ *  blockLocSpans: number = 0;
+ *  inverseBlockLocSpans: number = 0;
+ *  backWallTypes: number = 0;
+ *
+ */
+struct SceneGround
 {
-    // TODO:
-    int model;
-
-    // Additional yaw from the orientation.
-    int yaw_r2pi2048;
-
-    int span_x;
-    int span_z;
-
-    int offset_x;
-    int offset_z;
-};
-
-struct Floor
-{};
-
-struct Wall
-{
-    // Used to mask which side of the tile that the wall is on.
-    int rotatation_type;
-
-    // TODO:
-    int model;
-};
-
-struct GridTile
-{
-    // These are only used for normal locs
+    // The index of the loc in the scene's locs array.
     int locs[20];
     int locs_length;
 
-    struct Wall* wall;
+    // The index of the loc in the scene's locs array.
+    int wall;
+    int wall_decor;
+    int ground_decor;
 
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.
@@ -86,18 +77,5 @@ struct GridTile
     int z;
     int level;
 };
-
-struct Scene
-{
-    struct SceneLocs* locs;
-
-    struct GridTile* grid_tiles;
-    int grid_tiles_length;
-
-    struct ModelCache* _model_cache;
-};
-
-struct Scene* scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y);
-void scene_free(struct Scene* scene);
 
 #endif

@@ -30,7 +30,7 @@ map_tile_coord_to_chunk_coord(int x, int y, int z)
 
 struct CacheMapLoc
 {
-    int id;
+    int loc_id;
     /**
      * Some locs have multiple models associated with them.
      * (See op code 1), if that is the case, this field selects which model to use.
@@ -51,7 +51,7 @@ struct CacheMapLocs
     int locs_count;
 };
 
-struct CacheMapTile
+struct CacheMapFloor
 {
     int height;
     int attr_opcode;
@@ -66,7 +66,7 @@ struct CacheMapTerrain
 {
     int map_x;
     int map_y;
-    struct CacheMapTile tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];
+    struct CacheMapFloor tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];
 };
 
 #define MAP_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z))

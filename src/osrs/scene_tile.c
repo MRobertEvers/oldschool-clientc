@@ -695,7 +695,7 @@ fixup_terrain_tile(
         {
             for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
             {
-                struct CacheMapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+                struct CacheMapFloor* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
 
                 if( map->height == 0 )
                 {
@@ -939,7 +939,7 @@ scene_tiles_new_from_map_terrain(
         {
             for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
             {
-                struct CacheMapTile* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+                struct CacheMapFloor* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
 
                 struct SceneTile* scene_tile = &tiles[MAP_TILE_COORD(x, y, z)];
                 int underlay_id = map->underlay_id - 1;

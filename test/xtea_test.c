@@ -36,7 +36,7 @@ main()
     //     {
     //         for( int y = 0; y < MAP_TERRAIN_Y; y++ )
     //         {
-    //             struct CacheMapTile* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+    //             struct CacheMapFloor* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
     //             printf(
     //                 "Tile %d, %d, %d: %d, %d, %d, %d, %d, %d\n",
     //                 x,
@@ -65,7 +65,7 @@ main()
         struct CacheMapLoc* loc = &map_locs->locs[i];
         printf(
             "Loc %d: %d, %d, %d, %d, %d\n",
-            loc->id,
+            loc->loc_id,
             loc->shape_select,
             loc->orientation,
             loc->chunk_pos_x,

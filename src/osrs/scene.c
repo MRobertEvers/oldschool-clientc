@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #define TILE_SIZE 128
+
 struct Scene*
 scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 {
@@ -93,7 +94,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(tile_coord_x, tile_coord_y, tile_coord_z)];
 
-        // Subtract 1 because all locs are at least 1 tile wide.
         int min_tile_x = tile_coord_x;
         int min_tile_y = tile_coord_y;
 
