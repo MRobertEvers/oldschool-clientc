@@ -6,8 +6,6 @@
 #include "scene_loc.h"
 #include "scene_tile.h"
 
-const int ROTATION_WALL_TYPE[] = { 1, 2, 4, 8 };
-
 /**
  * Tells the renderer to defer drawing locs until
  * the underlay is drawn for tiles in the direction
