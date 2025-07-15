@@ -1,4 +1,4 @@
-#include "scene_tile.h"
+#include "scene2_floor.h"
 
 #include "blend_underlays.h"
 #include "cache.h"
@@ -6,7 +6,6 @@
 #include "palette.h"
 #include "tables/config_floortype.h"
 #include "tables/configs.h"
-#include "tables/floor_height_fixup.h"
 
 #define SMOOTH_UNDERLAYS 0
 
@@ -17,23 +16,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-void
-free_tiles(struct SceneTile* tiles, int tile_count)
-{
-    if( !tiles )
-        return;
+// static void
+// free_tiles(struct Scene2Floor* floor, int tile_count)
+// {
+//     if( !floor )
+//         return;
 
-    for( int i = 0; i < tile_count; i++ )
-    {
-        free(tiles[i].vertex_x);
-        free(tiles[i].vertex_y);
-        free(tiles[i].vertex_z);
-        free(tiles[i].faces_a);
-        free(tiles[i].faces_b);
-        free(tiles[i].faces_c);
-    }
-    free(tiles);
-}
+//     for( int i = 0; i < tile_count; i++ )
+//     {
+//         free(floor[i].vertex_x);
+//         free(floor[i].vertex_y);
+//         free(floor[i].vertex_z);
+//         free(floor[i].faces_a);
+//         free(floor[i].faces_b);
+//         free(floor[i].faces_c);
+//     }
+//     free(floor);
+// }
 
 // TODO: Lookup table for overlay ids and underlay ids.
 
@@ -234,7 +233,7 @@ mix_hsl(int hsl_a, int hsl_b)
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/SceneTileModel.java
 static bool
 decode_tile(
-    struct SceneTile* tile,
+    struct Scene2Floor* tile,
     int shape,
     int rotation,
     int texture_id,
@@ -701,12 +700,18 @@ calculate_lights(struct CacheMapTerrain* map_terrain, int level)
     return lights;
 }
 
-struct SceneTile*
-scene_tiles_new_from_map_terrain_cache(struct CacheMapTerrain* map_terrain, struct Cache* cache)
+// /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/Scene.java
+// /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/class481.java
+struct Scene2Floor*
+scene2_floor_new_from_map_terrain(struct Floor* map_terrain, struct Cache* cache)
 {
     struct FileList* filelist = NULL;
     struct CacheArchive* archive = NULL;
-    struct SceneTile* tiles = NULL;
+
+    struct CacheConfigUnderlay* underlay = NULL;
+    struct CacheConfigOverlay* overlay = NULL;
+    struct Scene2Floor* floor = malloc(sizeof(struct Scene2Floor) * MAP_TILE_COUNT);
+    memset(floor, 0x00, sizeof(struct Scene2Floor) * MAP_TILE_COUNT);
 
     /**
      * Config/Underlay
@@ -775,61 +780,19 @@ scene_tiles_new_from_map_terrain_cache(struct CacheMapTerrain* map_terrain, stru
     filelist_free(filelist);
     cache_archive_free(archive);
 
-    tiles = scene_tiles_new_from_map_terrain(
-        map_terrain, overlays, overlay_ids, overlay_count, underlays, underlay_ids, underlay_count);
-
-    free(underlay_ids);
-    free(underlays);
-    free(overlay_ids);
-    free(overlays);
-
-    return tiles;
-}
-
-// /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/Scene.java
-// /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/class481.java
-struct SceneTile*
-scene_tiles_new_from_map_terrain(
-    struct CacheMapTerrain* map_terrain,
-    struct CacheConfigOverlay* overlays,
-    int* overlay_ids,
-    int overlays_count,
-    struct CacheConfigUnderlay* underlays,
-    int* underlay_ids,
-    int underlays_count)
-{
-    struct CacheConfigUnderlay* underlay = NULL;
-    struct CacheConfigOverlay* overlay = NULL;
-    printf("MAP_TILE_COUNT: %d\n", MAP_TILE_COUNT);
-    struct SceneTile* tiles = (struct SceneTile*)malloc(MAP_TILE_COUNT * sizeof(struct SceneTile));
-
-    // TODO: Move this to the loader.
-    fixup_terrain_tile(map_terrain, 50 * MAP_CHUNK_SIZE, 50 * MAP_CHUNK_SIZE);
-
-    if( !tiles )
-    {
-        fprintf(stderr, "Failed to allocate memory for tiles\n");
-        return NULL;
-    }
-
-    // Blend underlays and calculate lights
-
-    for( int i = 0; i < MAP_TILE_COUNT; i++ )
-        memset(&tiles[i], 0, sizeof(struct SceneTile));
-
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
         int* blended_underlays =
-            blend_underlays(map_terrain, underlays, underlay_ids, underlays_count, z);
+            blend_underlays(map_terrain, underlays, underlay_ids, underlay_count, z);
         int* lights = calculate_lights(map_terrain, z);
 
         for( int y = 0; y < MAP_TERRAIN_Y - 1; y++ )
         {
             for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
             {
-                struct CacheMapFloor* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+                struct Floor* map = &map_terrain[MAP_TILE_COORD(x, y, z)];
 
-                struct SceneTile* scene_tile = &tiles[MAP_TILE_COORD(x, y, z)];
+                struct SceneTile* scene_tile = &floor[MAP_TILE_COORD(x, y, z)];
                 int underlay_id = map->underlay_id - 1;
 
                 int overlay_id = map->overlay_id - 1;
@@ -837,10 +800,10 @@ scene_tiles_new_from_map_terrain(
                 if( underlay_id == -1 && overlay_id == -1 )
                     continue;
 
-                int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)].height;
-                int height_se = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y, z)].height;
-                int height_ne = map_terrain->tiles_xyz[MAP_TILE_COORD(x + 1, y + 1, z)].height;
-                int height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y + 1, z)].height;
+                int height_sw = map_terrain[MAP_TILE_COORD(x, y, z)].height;
+                int height_se = map_terrain[MAP_TILE_COORD(x + 1, y, z)].height;
+                int height_ne = map_terrain[MAP_TILE_COORD(x + 1, y + 1, z)].height;
+                int height_nw = map_terrain[MAP_TILE_COORD(x, y + 1, z)].height;
 
                 int light_sw = lights[MAP_TILE_COORD(x, y, 0)];
                 int light_se = lights[MAP_TILE_COORD(x + 1, y, 0)];
@@ -852,7 +815,7 @@ scene_tiles_new_from_map_terrain(
 
                 if( underlay_id != -1 )
                 {
-                    int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
+                    int underlay_index = get_index(underlay_ids, underlay_count, underlay_id);
                     assert(underlay_index != -1);
 
                     underlay = &underlays[underlay_index];
@@ -889,7 +852,7 @@ scene_tiles_new_from_map_terrain(
 
                 if( overlay_id != -1 )
                 {
-                    int overlay_index = get_index(overlay_ids, overlays_count, overlay_id);
+                    int overlay_index = get_index(overlay_ids, overlay_count, overlay_id);
                     assert(overlay_index != -1);
 
                     overlay = &overlays[overlay_index];
@@ -903,10 +866,6 @@ scene_tiles_new_from_map_terrain(
                 int shape = overlay_id == -1 ? 0 : (map->shape + 1);
                 int rotation = overlay_id == -1 ? 0 : map->rotation;
                 int texture_id = overlay_id == -1 ? -1 : overlay->texture;
-
-                scene_tile->chunk_pos_x = x;
-                scene_tile->chunk_pos_y = y;
-                scene_tile->chunk_pos_level = z;
 
                 bool success = decode_tile(
                     scene_tile,
@@ -935,5 +894,10 @@ scene_tiles_new_from_map_terrain(
         free(lights);
     }
 
-    return tiles;
+    free(underlay_ids);
+    free(underlays);
+    free(overlay_ids);
+    free(overlays);
+
+    return floor;
 }

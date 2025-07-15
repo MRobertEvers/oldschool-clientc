@@ -175,7 +175,7 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             loc->models = (int**)malloc(count * sizeof(int*));
             loc->lengths = (int*)malloc(count * sizeof(int));
             memset(loc->lengths, 0, count * sizeof(int));
-            loc->lengths_count = count;
+            loc->shapes_and_model_count = count;
             for( int i = 0; i < count; i++ )
             {
                 loc->models[i] = (int*)malloc(1 * sizeof(int));

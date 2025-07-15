@@ -3,7 +3,7 @@
 #include "osrs/xtea_config.h"
 
 #include <stdio.h>
-
+int g_cos_table[2048];
 int
 main()
 {
@@ -23,7 +23,8 @@ main()
 
     int map_x = 50;
     int map_y = 49;
-    struct CacheMapTerrain* map_terrain = map_terrain_new_from_cache(cache, map_x, map_y);
+    struct CacheMapTerrain* map_terrain =
+        map_terrain_new_from_cache(cache, map_x, map_y, DECODE_FIXUP);
     if( !map_terrain )
     {
         printf("Failed to load map terrain\n");

@@ -28,7 +28,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     scene->grid_tiles_length = MAP_TILE_COUNT;
     scene->_model_cache = model_cache;
 
-    map_terrain = map_terrain_new_from_cache(cache, chunk_x, chunk_y);
+    map_terrain = map_terrain_new_from_cache(cache, chunk_x, chunk_y, DECODE_FIXUP);
     if( !map_terrain )
     {
         printf("Failed to load map terrain\n");

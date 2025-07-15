@@ -27,6 +27,7 @@ struct WorldModel
     int yaw_orientation; // 0-3
 };
 
+// A wall might have two models. E.g. if it's an L shap.
 struct Wall
 {
     int _loc_id;
@@ -42,7 +43,7 @@ struct WallDecor
     int _loc_id;
     int orientation;
 
-    int model_id;
+    int wmodel;
     int wall_type;
 
     int offset_x;
@@ -54,7 +55,7 @@ struct GroundDecor
     int _loc_id;
     int orientation;
 
-    int model_id;
+    int wmodel;
 };
 
 struct NormalScenery
@@ -87,11 +88,16 @@ struct WorldTile
     int z;
     int level;
 
-    struct Floor* floor;
-    // A wall might have two models. E.g. if it's an L shap.
-    struct Wall* wall;
+    // Index in the World Bridge array.
+    int bridge;
 
-    struct Bridge* bridge;
+    // Index in the World Floor array.
+    int floor;
+
+    int wall;
+
+    int wall_decor;
+    int ground_decor;
 
     // Only used for world3d_add_loc/world3d_add_loc2
     // which is only called for
@@ -99,21 +105,34 @@ struct WorldTile
     // shape >= ROOF_STRAIGHT
     // shape == WALL_DIAGONAL
     //
-    struct NormalScenery* normals[WORLD_NORMAL_MAX_COUNT];
-    int normals_length;
+    // rs-map-viewer getLocModelData
+    // type === LocModelType.NORMAL || type === LocModelType.NORMAL_DIAGIONAL
+    int scenery[WORLD_NORMAL_MAX_COUNT];
+    int scenery_length;
+};
 
-    // bridge underlay or
-    // bridge overlay
-    // bridge wall
-    // bridge locs
+enum ElementKind
+{
+    ELEMENT_KIND_NONE,
+    ELEMENT_KIND_GROUND,
+    ELEMENT_KIND_LOC,
+    ELEMENT_KIND_WALL,
+    ELEMENT_KIND_WALL_DECOR,
+    ELEMENT_KIND_GROUND_DECOR,
+    ELEMENT_KIND_NORMAL,
+};
 
-    // Underlay or
-    // Overlay
-    // Wall (don't know if far or near yet.)
-    // Wall decoration
-    // ground decoration
+struct WorldElement
+{
+    enum ElementKind kind;
 
-    // objs
+    union
+    {
+        struct Wall _wall;
+        struct WallDecor _wall_decor;
+        struct GroundDecor _ground_decor;
+        struct NormalScenery _normal;
+    };
 };
 
 struct World
@@ -124,8 +143,16 @@ struct World
     struct WorldTile* tiles;
     int tile_count;
 
+    struct WorldElement* elements;
+    int element_count;
+    int element_capacity;
+
     int x_width;
     int z_width;
+
+    struct Floor* floors;
+    int floor_count;
+    int floor_capacity;
 
     struct WorldModel* world_models;
     int world_model_count;

@@ -5,6 +5,7 @@
 #include "osrs/archive_decompress.h"
 #include "osrs/cache.h"
 #include "osrs/rsbuf.h"
+#include "osrs/tables/floor_height_fixup.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -127,7 +128,8 @@ dat2_map_npc_id(struct Cache* cache, int map_x, int map_y)
 // 		}
 // 	}
 struct CacheMapTerrain*
-map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
+map_terrain_new_from_cache(
+    struct Cache* cache, int map_x, int map_y, enum CacheMapTerrainDecodeType decode_type)
 {
     struct CacheArchive* archive = NULL;
     struct CacheMapTerrain* map_terrain = NULL;
@@ -152,6 +154,9 @@ map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
         printf("Failed to load map terrain %d, %d\n", map_x, map_y);
         return NULL;
     }
+
+    if( decode_type == DECODE_FIXUP )
+        fixup_terrain_tile(map_terrain, map_x * MAP_CHUNK_SIZE, map_y * MAP_CHUNK_SIZE);
 
     cache_archive_free(archive);
 

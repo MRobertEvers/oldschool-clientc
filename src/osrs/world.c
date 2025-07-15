@@ -7,6 +7,7 @@
 #include "tables/maps.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 const int ROTATION_WALL_TYPE[] = { 1, 2, 4, 8 };
@@ -90,19 +91,45 @@ world_model_emplace(struct World* world)
     return world->world_model_count++;
 }
 
+static int
+world_element_emplace(struct World* world, enum ElementKind kind)
+{
+    if( world->element_count >= world->element_capacity )
+    {
+        world->element_capacity *= 2;
+        world->elements =
+            realloc(world->elements, sizeof(struct WorldElement) * world->element_capacity);
+    }
+
+    world->elements[world->element_count].kind = kind;
+
+    return world->element_count++;
+}
+
+static struct WorldElement*
+world_element_back(struct World* world)
+{
+    assert(world->element_count > 0);
+    return &world->elements[world->element_count - 1];
+}
+
+static void
+init_tile(struct WorldTile* tile)
+{
+    memset(tile, 0x00, sizeof(struct WorldTile));
+
+    tile->bridge = -1;
+    tile->floor = -1;
+    tile->wall = -1;
+    tile->wall_decor = -1;
+    tile->ground_decor = -1;
+    tile->scenery_length = 0;
+}
+
 struct World*
 world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
 {
     struct World* world = NULL;
-    world = malloc(sizeof(struct World));
-    memset(world, 0x00, sizeof(struct World));
-
-    world->tiles = malloc(sizeof(struct WorldTile) * MAP_TILE_COUNT);
-    memset(world->tiles, 0x00, sizeof(struct WorldTile) * MAP_TILE_COUNT);
-
-    world->world_models = malloc(sizeof(struct WorldModel) * 128);
-    memset(world->world_models, 0x00, sizeof(struct WorldModel) * 128);
-
     struct ArchiveReference* archive_reference = NULL;
     struct CacheArchive* archive = NULL;
     struct FileList* filelist = NULL;
@@ -112,6 +139,8 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
     struct WorldModel* world_model = NULL;
     struct CacheMapTerrain* map_terrain = NULL;
     struct CacheMapFloor* map_floor = NULL;
+    struct WorldElement* world_element = NULL;
+    int element_idx = 0;
 
     struct Wall* wall = NULL;
     struct NormalScenery* scenery = NULL;
@@ -119,35 +148,26 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
 
     struct CacheConfigLocation loc = { 0 };
 
-    world = calloc(1, sizeof(struct World));
-    if( !world )
-    {
-        printf("Failed to allocate world\n");
-        goto error;
-    }
+    world = malloc(sizeof(struct World));
+    memset(world, 0x00, sizeof(struct World));
+
+    world->tiles = malloc(sizeof(struct WorldTile) * MAP_TILE_COUNT);
+    memset(world->tiles, 0x00, sizeof(struct WorldTile) * MAP_TILE_COUNT);
+
+    world->world_models = malloc(sizeof(struct WorldModel) * 128);
+    memset(world->world_models, 0x00, sizeof(struct WorldModel) * 128);
+
+    world->floors = malloc(sizeof(struct Floor) * MAP_TILE_COUNT);
+    memset(world->floors, 0x00, sizeof(struct Floor) * MAP_TILE_COUNT);
 
     world->x_width = MAP_TERRAIN_X;
     world->z_width = MAP_TERRAIN_Y;
-
-    for( int level = 0; level < MAP_TERRAIN_Z; level++ )
-    {
-        for( int x = 0; x < MAP_TERRAIN_X; x++ )
-        {
-            for( int y = 0; y < MAP_TERRAIN_Y; y++ )
-            {
-                tile = &world->tiles[MAP_TILE_COORD(x, y, level)];
-                tile->x = x;
-                tile->z = y;
-                tile->level = level;
-            }
-        }
-    }
 
     /**
      * Load Map Floors
      *
      */
-    map_terrain = map_terrain_new_from_cache(cache, chunk_x, chunk_y);
+    map_terrain = map_terrain_new_from_cache(cache, chunk_x, chunk_y, DECODE_FIXUP);
     if( !map_terrain )
     {
         printf("Failed to load map terrain\n");
@@ -156,12 +176,9 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
 
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
     {
-        tile = &world->tiles[i];
+        floor = &world->floors[i];
 
         map_floor = &map_terrain->tiles_xyz[i];
-
-        floor = (struct Floor*)malloc(sizeof(struct Floor));
-        memset(floor, 0x00, sizeof(struct Floor));
 
         floor->height = map_floor->height;
         floor->attr_opcode = map_floor->attr_opcode;
@@ -170,11 +187,26 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
         floor->shape = map_floor->shape;
         floor->rotation = map_floor->rotation;
         floor->underlay_id = map_floor->underlay_id;
-
-        tile->floor = floor;
     }
 
     map_terrain_free(map_terrain);
+
+    for( int level = 0; level < MAP_TERRAIN_Z; level++ )
+    {
+        for( int x = 0; x < MAP_TERRAIN_X; x++ )
+        {
+            for( int y = 0; y < MAP_TERRAIN_Y; y++ )
+            {
+                tile = &world->tiles[MAP_TILE_COORD(x, y, level)];
+                init_tile(tile);
+                tile->x = x;
+                tile->z = y;
+                tile->level = level;
+
+                tile->floor = MAP_TILE_COORD(x, y, level);
+            }
+        }
+    }
 
     /**
      * Load Map Scenery
@@ -220,8 +252,8 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
         {
         case LOC_SHAPE_WALL:
         {
-            wall = (struct Wall*)malloc(sizeof(struct Wall));
-            memset(wall, 0x00, sizeof(struct Wall));
+            element_idx = world_element_emplace(world, ELEMENT_KIND_WALL);
+            wall = &world_element_back(world)->_wall;
 
             int world_model_id = world_model_emplace(world);
             select_loc_models(world_model_back(world), &loc, LOC_SHAPE_WALL, map->orientation, 0);
@@ -229,7 +261,7 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
             wall->wmodel = world_model_id;
             wall->wall_type = ROTATION_WALL_TYPE[map->orientation];
 
-            tile->wall = wall;
+            tile->wall = element_idx;
         }
         break;
         case LOC_SHAPE_WALL_TRI_CORNER:
@@ -271,8 +303,8 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_NORMAL:
         case LOC_SHAPE_NORMAL_DIAGIONAL:
         {
-            scenery = (struct NormalScenery*)malloc(sizeof(struct NormalScenery));
-            memset(scenery, 0x00, sizeof(struct NormalScenery));
+            element_idx = world_element_emplace(world, ELEMENT_KIND_NORMAL);
+            scenery = &world_element_back(world)->_normal;
 
             int yaw = 0;
             if( map->shape_select == LOC_SHAPE_NORMAL_DIAGIONAL )
@@ -291,8 +323,7 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
                 scenery->span_z = loc.size_x;
             }
 
-            assert(tile->normals_length < WORLD_NORMAL_MAX_COUNT);
-            tile->normals[tile->normals_length++] = scenery;
+            tile->scenery[tile->scenery_length++] = element_idx;
         }
         break;
         case LOC_SHAPE_ROOF_SLOPED:

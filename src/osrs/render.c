@@ -563,7 +563,7 @@ raster_osrs(
     }
 }
 
-void
+static void
 raster_osrs_single_gouraud(
     struct Pixel* pixel_buffer,
     int face,
@@ -627,7 +627,7 @@ raster_osrs_single_gouraud(
         color_c);
 }
 
-bool
+static bool
 raster_osrs_single_texture(
     struct Pixel* pixel_buffer,
     int width,
@@ -1435,7 +1435,7 @@ struct IntQueue
     int tail;
 };
 
-void
+static void
 int_queue_init(struct IntQueue* queue, int capacity)
 {
     queue->data = (int*)malloc(capacity * sizeof(int));
@@ -1443,7 +1443,7 @@ int_queue_init(struct IntQueue* queue, int capacity)
     queue->capacity = capacity;
 }
 
-void
+static void
 int_queue_push_wrap(struct IntQueue* queue, int value)
 {
     int next_tail = (queue->tail + 1) % queue->capacity;
@@ -1454,7 +1454,7 @@ int_queue_push_wrap(struct IntQueue* queue, int value)
     queue->length++;
 }
 
-int
+static int
 int_queue_pop(struct IntQueue* queue)
 {
     assert((queue->head) != queue->tail);
@@ -1466,7 +1466,7 @@ int_queue_pop(struct IntQueue* queue)
     return value;
 }
 
-void
+static void
 int_queue_free(struct IntQueue* queue)
 {
     free(queue->data);

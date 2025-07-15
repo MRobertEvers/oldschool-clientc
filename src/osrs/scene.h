@@ -6,8 +6,6 @@
 #include "scene_loc.h"
 #include "scene_tile.h"
 
-const int ROTATION_WALL_TYPE[] = { 1, 2, 4, 8 };
-
 /**
  * Tells the renderer to defer drawing locs until
  * the underlay is drawn for tiles in the direction
@@ -19,33 +17,6 @@ enum SpanFlag
     SPAN_FLAG_NORTH = 1 << 1,
     SPAN_FLAG_EAST = 1 << 2,
     SPAN_FLAG_SOUTH = 1 << 3,
-};
-
-struct NormalScenery
-{
-    // TODO:
-    int model;
-
-    // Additional yaw from the orientation.
-    int yaw_r2pi2048;
-
-    int span_x;
-    int span_z;
-
-    int offset_x;
-    int offset_z;
-};
-
-struct Floor
-{};
-
-struct Wall
-{
-    // Used to mask which side of the tile that the wall is on.
-    int rotatation_type;
-
-    // TODO:
-    int model;
 };
 
 struct GridTile

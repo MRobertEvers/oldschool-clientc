@@ -51,6 +51,9 @@
         "scene_loc.h": "c",
         "maps.h": "c",
         "config_floortype.h": "c",
-        "ht.h": "c"
+        "ht.h": "c",
+        "floor_height_fixup.h": "c",
+        "scene2_floor.h": "c",
+        "render_scene2.h": "c"
     }
 }

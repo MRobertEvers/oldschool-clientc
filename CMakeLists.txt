@@ -14,7 +14,9 @@ include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZL
 add_executable(main_client
     src/main_client.c
     src/texture.c
+
     src/osrs/tables/texture_pixels.c
+    src/osrs/tables/floor_height_fixup.c
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
@@ -60,6 +62,7 @@ add_executable(scene_tile_test
     src/osrs/archive_decompress.c
     src/osrs/reference_table.c
     src/osrs/scene.c
+    src/osrs/tables/floor_height_fixup.c
     src/osrs/tables/config_npctype.c
     src/osrs/tables/config_sequence.c
     src/osrs/tables/config_floortype.c
@@ -84,6 +87,50 @@ add_executable(scene_tile_test
     src/datastruct/ht.c
 )
 
+add_executable(scene_tile_test2
+    test/scene_tile_test2.c
+    src/osrs/tables/texture_pixels.c
+    src/osrs/tables/textures.c
+    src/osrs/tables/sprites.c
+    src/osrs/blend_underlays.c
+    src/osrs/scene_tile.c
+    src/osrs/scene_loc.c
+    src/osrs/palette.c
+    src/osrs/cache.c
+    src/osrs/tables/model.c
+    src/buffer.c
+    src/osrs/archive_decompress.c
+    src/osrs/reference_table.c
+    src/osrs/scene.c
+    src/osrs/tables/floor_height_fixup.c
+    src/osrs/tables/config_npctype.c
+    src/osrs/tables/config_sequence.c
+    src/osrs/tables/config_floortype.c
+    src/osrs/tables/config_locs.c
+    src/osrs/tables/framemap.c
+    src/osrs/tables/frame.c
+    src/osrs/tables/maps.c
+    src/osrs/filelist.c
+    src/osrs/render.c
+    src/osrs/rsbuf.c
+    src/gouraud.c
+    src/gouraud_deob.c
+    src/osrs/render_scene2.c
+    src/osrs/scene2_floor.c
+    src/osrs/scene2.c
+    src/osrs/world.c
+    src/lighting.c
+    src/projection.c
+    src/texture.c
+    src/osrs/anim.c
+    src/osrs/xtea.c
+    src/osrs/archive.c
+    src/osrs/xtea_config.c
+    src/osrs/scene_cache.c
+
+    src/datastruct/ht.c
+)
+
 target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 
 add_executable(xtea_test
@@ -92,6 +139,7 @@ add_executable(xtea_test
     src/osrs/tables/maps.c
     src/osrs/cache.c
     src/osrs/archive_decompress.c
+    src/osrs/tables/floor_height_fixup.c
     src/osrs/xtea.c
     src/osrs/xtea_config.c
     src/osrs/archive.c
@@ -172,6 +220,7 @@ target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} 
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
 target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
 target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+target_link_libraries(scene_tile_test2 ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
 
 cmake_minimum_required(VERSION 3.10)
 project(metal_renderer)

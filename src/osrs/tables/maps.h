@@ -71,8 +71,15 @@ struct CacheMapTerrain
 
 #define MAP_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z))
 
+enum CacheMapTerrainDecodeType
+{
+    DECODE_RAW,
+    DECODE_FIXUP
+};
+
 struct Cache;
-struct CacheMapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
+struct CacheMapTerrain* map_terrain_new_from_cache(
+    struct Cache* cache, int map_x, int map_y, enum CacheMapTerrainDecodeType decode_type);
 struct CacheMapTerrain* map_terrain_new_from_decode(char* data, int data_size);
 
 struct CacheMapLocs* map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
