@@ -1,6 +1,10 @@
 #ifndef CONFIG_LOCS_H
 #define CONFIG_LOCS_H
 
+#include "osrs/cache.h"
+#include "osrs/filelist.h"
+#include "osrs/tables/configs.h"
+
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -153,5 +157,18 @@ void config_locs_free(struct CacheConfigLocation* loc);
 
 void decode_loc(struct CacheConfigLocation* loc, char* buffer, int buffer_size);
 void free_loc(struct CacheConfigLocation* loc);
+
+struct CacheConfigLocationTable
+{
+    struct CacheConfigLocation value;
+
+    struct FileList* file_list;
+    struct CacheArchive* archive;
+};
+
+struct CacheConfigLocationTable* config_locs_table_new(struct Cache* cache);
+void config_locs_table_free(struct CacheConfigLocationTable* table);
+
+struct CacheConfigLocation* config_locs_table_get(struct CacheConfigLocationTable* table, int id);
 
 #endif

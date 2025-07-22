@@ -138,6 +138,9 @@ struct CacheModel*
 model_cache_checkout(struct ModelCache* model_cache, struct Cache* cache, int model_id)
 {
     struct CacheModel* model = NULL;
+    model = model_new_from_cache(cache, model_id);
+
+    return model;
     struct Item* item = ht_cache_lookup(model_cache, model_id);
     if( item )
     {
@@ -145,7 +148,6 @@ model_cache_checkout(struct ModelCache* model_cache, struct Cache* cache, int mo
         return item->model;
     }
 
-    model = model_new_from_cache(cache, model_id);
     if( !model )
         return NULL;
 

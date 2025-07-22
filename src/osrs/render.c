@@ -1388,6 +1388,83 @@ render_scene_loc(
             NULL);
     }
 }
+static void
+render_scene_model(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    struct SceneModel* model,
+    struct SceneTextures* textures_nullable)
+{
+    int x = camera_x + model->region_x;
+    int y = camera_y + model->region_y;
+    int z = camera_z + model->region_z;
+
+    int yaw = 0;
+
+    if( model->mirrored && model->orientation > 3 )
+    {
+        yaw += 1024;
+    }
+
+    int rotation = model->orientation;
+    while( rotation-- )
+    {
+        yaw += 1536;
+    }
+    yaw %= 2048;
+
+    // This is done in the map->loc => scene_loc decoder.
+    int size_x = model->size_x;
+    int size_y = model->size_y;
+    // if( loc->orientation == 1 || loc->orientation == 3 )
+    // {
+    //     size_x = loc->size_y;
+    //     size_y = loc->size_x;
+    // }
+
+    x += (size_x) * 64;
+    y += (size_y) * 64;
+
+    x += model->offset_x;
+    y += model->offset_y;
+    z += model->offset_height;
+
+    for( int j = 0; j < model->model_count; j++ )
+    {
+        struct CacheModel* drawable = model->models[j];
+        if( !drawable )
+            continue;
+
+        render_model_frame(
+            pixel_buffer,
+            width,
+            height,
+            near_plane_z,
+            0,
+            yaw,
+            0,
+            x,
+            y,
+            z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll,
+            fov,
+            drawable,
+            NULL,
+            NULL,
+            NULL);
+    }
+}
 
 void
 render_scene_locs(
@@ -1495,12 +1572,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 {
     struct GridTile* grid_tile = NULL;
 
-    struct SceneLoc* loc = NULL;
-    // struct SceneTile* tile = NULL;
+    struct Loc* loc = NULL;
 
-    for( int i = 0; i < scene->locs->locs_count; i++ )
+    for( int i = 0; i < scene->locs_length; i++ )
     {
-        scene->locs->locs[i].__drawn = false;
+        scene->locs[i].__drawn = false;
     }
 
     int op_count = 0;
@@ -1679,10 +1755,10 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 for( int j = 0; j < grid_tile->locs_length; j++ )
                 {
                     int loc_index = grid_tile->locs[j];
-                    if( scene->locs->locs[loc_index].__drawn )
+                    if( scene->locs[loc_index].__drawn )
                         continue;
 
-                    loc = &scene->locs->locs[loc_index];
+                    loc = &scene->locs[loc_index];
 
                     int min_tile_x = loc->chunk_pos_x;
                     int min_tile_y = loc->chunk_pos_y;
@@ -1723,8 +1799,8 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 for( int j = 0; j < g_loc_buffer_length; j++ )
                 {
                     int loc_index = g_loc_buffer[j];
-                    scene->locs->locs[loc_index].__drawn = true;
-                    loc = &scene->locs->locs[loc_index];
+                    scene->locs[loc_index].__drawn = true;
+                    loc = &scene->locs[loc_index];
 
                     ops[op_count++] = (struct SceneOp){
                         .op = SCENE_OP_TYPE_DRAW_LOC,
@@ -1938,7 +2014,8 @@ render_scene_ops(
     int* ortho_vertices_z = g_ortho_vertices_z;
 
     struct GridTile* grid_tile = NULL;
-    struct SceneLoc* loc = NULL;
+    struct Loc* loc = NULL;
+    struct SceneModel* model = NULL;
     struct SceneTile* tile = NULL;
 
     for( int k = 0; k < number_to_render; k++ )
@@ -2000,9 +2077,13 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DRAW_LOC:
         {
-            loc = &scene->locs->locs[op->_loc.loc_index];
+            loc = &scene->locs[op->_loc.loc_index];
 
-            render_scene_loc(
+            assert(loc->_scenery.model >= 0);
+            assert(loc->_scenery.model < scene->models_length);
+            model = &scene->models[loc->_scenery.model];
+
+            render_scene_model(
                 pixel_buffer,
                 width,
                 height,
@@ -2014,7 +2095,7 @@ render_scene_ops(
                 camera_yaw,
                 camera_roll,
                 fov,
-                loc,
+                model,
                 NULL);
         }
         break;

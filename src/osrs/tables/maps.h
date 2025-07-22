@@ -1,6 +1,9 @@
 #ifndef MAPS_H
 #define MAPS_H
 
+#include "osrs/cache.h"
+#include "osrs/rsbuf.h"
+
 #include <assert.h>
 
 #define MAP_TERRAIN_X 64
@@ -71,7 +74,6 @@ struct CacheMapTerrain
 
 #define MAP_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z))
 
-struct Cache;
 struct CacheMapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
 struct CacheMapTerrain* map_terrain_new_from_decode(char* data, int data_size);
 
@@ -80,5 +82,23 @@ struct CacheMapLocs* map_locs_new_from_decode(char* data, int data_size);
 
 void map_terrain_free(struct CacheMapTerrain* map_terrain);
 void map_locs_free(struct CacheMapLocs* map_locs);
+
+struct CacheMapLocsIter
+{
+    int is_populated;
+    struct CacheMapLoc value;
+
+    struct CacheArchive* _archive;
+    struct RSBuffer _buffer;
+
+    int _pos;
+    int _id;
+    int _state;
+};
+
+struct CacheMapLocsIter* map_locs_iter_new(struct Cache* cache, int map_x, int map_y);
+void map_locs_iter_free(struct CacheMapLocsIter* iter);
+
+struct CacheMapLoc* map_locs_iter_next(struct CacheMapLocsIter* iter);
 
 #endif

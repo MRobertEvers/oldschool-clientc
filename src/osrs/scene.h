@@ -19,31 +19,34 @@ enum SpanFlag
     SPAN_FLAG_SOUTH = 1 << 3,
 };
 
-struct NormalScenery
+struct SceneModel
 {
-    // TODO:
-    int model;
+    int* model_ids;
+    struct CacheModel** models;
+    int model_count;
 
-    // Additional yaw from the orientation.
-    int yaw_r2pi2048;
+    int shape;
 
-    int span_x;
-    int span_z;
+    int region_x;
+    int region_y;
+    int region_z;
 
+    int orientation;
     int offset_x;
-    int offset_z;
-};
+    int offset_y;
+    int offset_height;
+    int mirrored;
 
-struct Floor
-{};
+    int chunk_pos_x;
+    int chunk_pos_y;
+    int chunk_pos_level;
 
-struct Wall
-{
-    // Used to mask which side of the tile that the wall is on.
-    int rotatation_type;
+    int size_x;
+    int size_y;
 
-    // TODO:
-    int model;
+    // TODO: Remove this
+    bool __drawn;
+    struct CacheConfigLocation __loc;
 };
 
 struct GridTile
@@ -52,7 +55,7 @@ struct GridTile
     int locs[20];
     int locs_length;
 
-    struct Wall* wall;
+    int wall;
 
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.
@@ -85,12 +88,54 @@ struct GridTile
     int level;
 };
 
+enum LocType
+{
+    LOC_TYPE_INVALID,
+    LOC_TYPE_SCENERY,
+};
+
+struct NormalScenery
+{
+    int model;
+};
+
+struct Wall
+{
+    int model;
+};
+
+struct Loc
+{
+    enum LocType type;
+
+    int __drawn;
+
+    int size_x;
+    int size_y;
+
+    int chunk_pos_x;
+    int chunk_pos_y;
+    int chunk_pos_level;
+
+    union
+    {
+        struct NormalScenery _scenery;
+        struct Wall _wall;
+    };
+};
+
 struct Scene
 {
-    struct SceneLocs* locs;
-
     struct GridTile* grid_tiles;
     int grid_tiles_length;
+
+    struct Loc* locs;
+    int locs_length;
+    int locs_capacity;
+
+    struct SceneModel* models;
+    int models_length;
+    int models_capacity;
 
     struct ModelCache* _model_cache;
 };

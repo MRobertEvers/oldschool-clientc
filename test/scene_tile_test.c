@@ -1063,12 +1063,12 @@ main()
                 game.scene->grid_tiles[MAP_TILE_COORD(game.show_loc_x, game.show_loc_y, 0)].locs[0];
             if( loc_id != 0 )
             {
-                struct SceneLoc* loc = &game.scene->locs->locs[loc_id];
-                printf(
-                    "Loc: %s, %d, %d\n",
-                    loc->__loc.name,
-                    loc->__loc._file_id,
-                    loc->model_ids ? loc->model_ids[0] : -1);
+                // struct SceneLoc* loc = &game.scene->locs->locs[loc_id];
+                // printf(
+                //     "Loc: %s, %d, %d\n",
+                //     loc->__loc.name,
+                //     loc->__loc._file_id,
+                //     loc->model_ids ? loc->model_ids[0] : -1);
             }
         }
 

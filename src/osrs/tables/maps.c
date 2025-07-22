@@ -394,3 +394,114 @@ map_locs_free(struct CacheMapLocs* map_locs)
         free(map_locs);
     }
 }
+
+struct CacheMapLocsIter*
+map_locs_iter_new(struct Cache* cache, int map_x, int map_y)
+{
+    int* xtea_key = NULL;
+    struct CacheMapLocsIter* iter = malloc(sizeof(struct CacheMapLocsIter));
+    if( !iter )
+        return NULL;
+
+    memset(iter, 0, sizeof(struct CacheMapLocsIter));
+    iter->_id = -1;
+
+    int archive_id = dat2_map_loc_id(cache, map_x, map_y);
+    xtea_key = cache_archive_xtea_key(cache, CACHE_MAPS, archive_id);
+    if( !xtea_key )
+    {
+        printf("Failed to load xtea key for map %d, %d\n", map_x, map_y);
+        goto error;
+    }
+
+    iter->_archive = cache_archive_new_load_decrypted(cache, CACHE_MAPS, archive_id, xtea_key);
+    if( !iter->_archive )
+    {
+        printf("Failed to load map %d, %d\n", map_x, map_y);
+        goto error;
+    }
+
+    rsbuf_init(&iter->_buffer, iter->_archive->data, iter->_archive->data_size);
+
+    return iter;
+
+error:
+    map_locs_iter_free(iter);
+    return NULL;
+}
+
+void
+map_locs_iter_free(struct CacheMapLocsIter* iter)
+{
+    if( iter )
+    {
+        cache_archive_free(iter->_archive);
+        free(iter);
+    }
+}
+
+struct CacheMapLoc*
+map_locs_iter_next(struct CacheMapLocsIter* iter)
+{
+    struct RSBuffer* buffer = &iter->_buffer;
+
+    iter->is_populated = false;
+
+    if( buffer->position >= buffer->size )
+        return NULL;
+
+    while( iter->_state != 2 )
+    {
+        switch( iter->_state )
+        {
+        case 0:
+        {
+            int id_offset = rsbuf_read_unsigned_int_smart_short_compat(buffer);
+            if( id_offset == 0 )
+            {
+                iter->_state = 2;
+                return NULL;
+            }
+
+            iter->_id += id_offset;
+            iter->_state = 1;
+            iter->_pos = 0;
+            break;
+        }
+        case 1:
+        {
+            int pos_offset = rsbuf_read_unsigned_short_smart(buffer);
+            if( pos_offset == 0 )
+            {
+                iter->_state = 0;
+                break;
+            }
+
+            iter->_pos += pos_offset - 1;
+            int position = 0;
+            position = iter->_pos;
+
+            int local_y = position & 0x3F;
+            int local_x = (position >> 6) & 0x3F;
+            int height = (position >> 12) & 0x3;
+
+            int attributes = rsbuf_g1(buffer);
+            int shape_select = attributes >> 2;
+            int orientation = attributes & 0x3;
+
+            iter->value.loc_id = iter->_id;
+            iter->value.shape_select = shape_select;
+            iter->value.orientation = orientation;
+            iter->value.chunk_pos_x = local_x;
+            iter->value.chunk_pos_y = local_y;
+            iter->value.chunk_pos_level = height;
+
+            iter->is_populated = true;
+            return &iter->value;
+        }
+        break;
+        }
+    }
+
+    return NULL;
+}

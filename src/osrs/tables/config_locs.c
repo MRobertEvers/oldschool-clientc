@@ -641,3 +641,58 @@ print_loc(struct CacheConfigLocation* loc)
             printf("Action %d: %s\n", i, loc->actions[i]);
     }
 }
+
+struct CacheConfigLocationTable*
+config_locs_table_new(struct Cache* cache)
+{
+    struct CacheConfigLocationTable* table = malloc(sizeof(struct CacheConfigLocationTable));
+    if( !table )
+    {
+        printf("config_locs_table_new: Failed to allocate table\n");
+        return NULL;
+    }
+    memset(table, 0, sizeof(struct CacheConfigLocationTable));
+
+    table->archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_LOCS);
+    if( !table->archive )
+    {
+        printf("config_locs_table_new: Failed to load archive\n");
+        goto error;
+    }
+
+    table->file_list = filelist_new_from_cache_archive(table->archive);
+    if( !table->file_list )
+    {
+        printf("config_locs_table_new: Failed to load file list\n");
+        goto error;
+    }
+
+    return table;
+
+error:
+    config_locs_table_free(table);
+    return NULL;
+}
+
+void
+config_locs_table_free(struct CacheConfigLocationTable* table)
+{
+    if( table->file_list )
+        filelist_free(table->file_list);
+    if( table->archive )
+        cache_archive_free(table->archive);
+    free(table);
+}
+
+struct CacheConfigLocation*
+config_locs_table_get(struct CacheConfigLocationTable* table, int id)
+{
+    if( id < 0 || id > table->file_list->file_count )
+    {
+        printf("config_locs_table_get: Invalid id %d\n", id);
+        return NULL;
+    }
+
+    decode_loc(&table->value, table->file_list->files[id], table->file_list->file_sizes[id]);
+    return &table->value;
+}
