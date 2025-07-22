@@ -790,10 +790,10 @@ render_model_frame(
     memset(vertex_normals, 0, model->vertex_count * sizeof(struct VertexNormal));
 
     memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
-    memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
+    // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
     memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
     memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
-    memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
+    // memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
 
     // int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
     // int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
@@ -929,7 +929,7 @@ render_model_frame(
     // free(face_colors_a_hsl16);
     // free(face_colors_b_hsl16);
     // free(face_colors_c_hsl16);
-    // free(vertex_normals);
+    free(vertex_normals);
     // free(screen_vertices_x);
     // free(screen_vertices_y);
     // free(screen_vertices_z);

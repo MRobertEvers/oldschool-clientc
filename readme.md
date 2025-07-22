@@ -541,7 +541,7 @@ return;
 ## Profiling
 
 ```
-sudo ../profile.d -c ./main_client > out.stacks
+sudo ../profile.d -c ./scene_tile_test > out.stacks
 
 sudo ../profile.d -c ./main_client > out.stacks
 ```
@@ -552,6 +552,8 @@ Which you can get from here:
 https://github.com/brendangregg/FlameGraph
 
 ```
+# /Users/matthewevers/Documents/git_repos/FlameGraph/jmaps
+
 ./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded
 ./flamegraph.pl out.folded > flamegraph.svg
 open flamegraph.svg
