@@ -324,30 +324,30 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->max_render_ops += 10;
     }
 
-    if( game->show_loc_enabled )
-        for( int i = 0; i < game->op_count; i++ )
-        {
-            struct SceneOp* op = &game->ops[i];
-            if( op->op == SCENE_OP_TYPE_DRAW_LOC )
-            {
-                if( op->x != game->show_loc_x || op->z != game->show_loc_y )
-                {
-                    op->op = SCENE_OP_TYPE_NONE;
-                }
-                else
-                {
-                    // printf("Draw loc: %d\n", op->_loc.loc_index);
-                }
-            }
-            else if( op->op == SCENE_OP_TYPE_DRAW_GROUND )
-            {
-                if( op->x == game->show_loc_x && op->z == game->show_loc_y )
-                {
-                    op->_ground.override_color = true;
-                    op->_ground.color_hsl16 = 0x1280;
-                }
-            }
-        }
+    // if( game->show_loc_enabled )
+    //     for( int i = 0; i < game->op_count; i++ )
+    //     {
+    //         struct SceneOp* op = &game->ops[i];
+    //         if( op->op == SCENE_OP_TYPE_DRAW_LOC )
+    //         {
+    //             if( op->x != game->show_loc_x || op->z != game->show_loc_y )
+    //             {
+    //                 op->op = SCENE_OP_TYPE_NONE;
+    //             }
+    //             else
+    //             {
+    //                 // printf("Draw loc: %d\n", op->_loc.loc_index);
+    //             }
+    //         }
+    //         else if( op->op == SCENE_OP_TYPE_DRAW_GROUND )
+    //         {
+    //             if( op->x == game->show_loc_x && op->z == game->show_loc_y )
+    //             {
+    //                 op->_ground.override_color = true;
+    //                 op->_ground.color_hsl16 = 0x1280;
+    //             }
+    //         }
+    //     }
 
     render_scene_ops(
         game->ops,

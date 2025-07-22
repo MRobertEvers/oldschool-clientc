@@ -182,9 +182,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct GridTile* grid_tile = NULL;
     struct ModelCache* model_cache = model_cache_new();
     struct CacheConfigLocationTable* config_locs_table = NULL;
-    struct CacheMapLoc* loc = NULL;
+    struct CacheMapLoc* map = NULL;
+    struct Loc* loc = NULL;
     struct CacheMapLocsIter* iter = NULL;
     struct CacheConfigLocation* loc_config = NULL;
+    struct SceneModel* model = NULL;
 
     struct Scene* scene = malloc(sizeof(struct Scene));
     memset(scene, 0, sizeof(struct Scene));
@@ -248,6 +250,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 grid_tile->x = x;
                 grid_tile->z = y;
                 grid_tile->level = level;
+
+                grid_tile->wall = -1;
+                grid_tile->spans = 0;
             }
         }
     }
@@ -274,28 +279,28 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         goto error;
     }
 
-    while( (loc = map_locs_iter_next(iter)) )
+    while( (map = map_locs_iter_next(iter)) )
     {
-        int tile_x = loc->chunk_pos_x;
-        int tile_y = loc->chunk_pos_y;
-        int tile_z = loc->chunk_pos_level;
+        int tile_x = map->chunk_pos_x;
+        int tile_y = map->chunk_pos_y;
+        int tile_z = map->chunk_pos_level;
 
-        loc_config = config_locs_table_get(config_locs_table, loc->loc_id);
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(tile_x, tile_y, tile_z)];
+
+        loc_config = config_locs_table_get(config_locs_table, map->loc_id);
         assert(loc_config);
 
-        switch( loc->shape_select )
+        switch( map->shape_select )
         {
         case LOC_SHAPE_WALL:
-        {
-        }
-        break;
-        case LOC_SHAPE_NORMAL:
-        case LOC_SHAPE_NORMAL_DIAGIONAL:
+        case LOC_SHAPE_WALL_TRI_CORNER:
+        case LOC_SHAPE_WALL_CORNER:
+        case LOC_SHAPE_WALL_RECT_CORNER:
         {
             // Load model
             int model_index = vec_model_push(scene);
-            struct SceneModel* model = vec_model_back(scene);
-            load_loc_model(model, loc_config, cache, model_cache, loc->shape_select);
+            model = vec_model_back(scene);
+            load_loc_model(model, loc_config, cache, model_cache, map->shape_select);
 
             int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y, tile_z)].height;
             int height_se = height_sw;
@@ -319,14 +324,14 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             model->region_y = tile_y * TILE_SIZE;
             model->region_z = height_center;
 
-            model->orientation = loc->orientation;
+            model->orientation = map->orientation;
             model->offset_x = loc_config->offset_x;
             model->offset_y = loc_config->offset_y;
             model->offset_height = loc_config->offset_height;
 
             int size_x = loc_config->size_x;
             int size_y = loc_config->size_y;
-            if( loc->orientation == 1 || loc->orientation == 3 )
+            if( map->orientation == 1 || map->orientation == 3 )
             {
                 int temp = size_x;
                 size_x = size_y;
@@ -340,7 +345,71 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Add the loc
 
             int loc_index = vec_loc_push(scene);
-            struct Loc* loc = vec_loc_back(scene);
+            loc = vec_loc_back(scene);
+            loc->size_x = size_x;
+            loc->size_y = size_y;
+            loc->chunk_pos_x = tile_x;
+            loc->chunk_pos_y = tile_y;
+            loc->chunk_pos_level = tile_z;
+            loc->type = LOC_TYPE_WALL;
+
+            loc->_wall.model = model_index;
+
+            grid_tile->wall = loc_index;
+        }
+        break;
+        case LOC_SHAPE_NORMAL:
+        case LOC_SHAPE_NORMAL_DIAGIONAL:
+        {
+            // Load model
+            int model_index = vec_model_push(scene);
+            model = vec_model_back(scene);
+            load_loc_model(model, loc_config, cache, model_cache, map->shape_select);
+
+            int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y, tile_z)].height;
+            int height_se = height_sw;
+            if( tile_x + 1 < MAP_TERRAIN_X )
+                height_se =
+                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)].height;
+
+            int height_ne = height_se;
+            if( tile_y + 1 < MAP_TERRAIN_Y && tile_x + 1 < MAP_TERRAIN_X )
+                height_ne =
+                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)].height;
+
+            int height_nw = height_ne;
+            if( tile_y + 1 < MAP_TERRAIN_Y )
+                height_nw =
+                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)].height;
+
+            int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
+
+            model->region_x = tile_x * TILE_SIZE;
+            model->region_y = tile_y * TILE_SIZE;
+            model->region_z = height_center;
+
+            model->orientation = map->orientation;
+            model->offset_x = loc_config->offset_x;
+            model->offset_y = loc_config->offset_y;
+            model->offset_height = loc_config->offset_height;
+
+            int size_x = loc_config->size_x;
+            int size_y = loc_config->size_y;
+            if( map->orientation == 1 || map->orientation == 3 )
+            {
+                int temp = size_x;
+                size_x = size_y;
+                size_y = temp;
+            }
+
+            model->size_x = size_x;
+            model->size_y = size_y;
+            model->mirrored = loc_config->rotated;
+
+            // Add the loc
+
+            int loc_index = vec_loc_push(scene);
+            loc = vec_loc_back(scene);
             loc->size_x = size_x;
             loc->size_y = size_y;
             loc->chunk_pos_x = tile_x;

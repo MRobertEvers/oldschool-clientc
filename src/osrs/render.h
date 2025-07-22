@@ -130,7 +130,7 @@ struct SceneOp
             int loc_index;
         } _loc;
 
-        struct
+            struct
         {
             int override_color;
             int color_hsl16;

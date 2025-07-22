@@ -92,6 +92,7 @@ enum LocType
 {
     LOC_TYPE_INVALID,
     LOC_TYPE_SCENERY,
+    LOC_TYPE_WALL,
 };
 
 struct NormalScenery

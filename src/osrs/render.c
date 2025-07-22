@@ -1438,7 +1438,7 @@ render_scene_model(
     y += model->offset_y;
     z += model->offset_height;
 
-    for( int j = 0; j < model->model_count; j++ )
+    for( int j = 0; j < 1 && model->model_count; j++ )
     {
         struct CacheModel* drawable = model->models[j];
         if( !drawable )
@@ -1671,6 +1671,18 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             assert(tile_y < max_draw_y);
 
             element = &elements[tile_coord];
+
+            if( grid_tile->wall != -1 )
+            {
+                loc = &scene->locs[grid_tile->wall];
+                ops[op_count++] = (struct SceneOp){
+                    .op = SCENE_OP_TYPE_DRAW_LOC,
+                    .x = loc->chunk_pos_x,
+                    .z = loc->chunk_pos_y,
+                    .level = loc->chunk_pos_level,
+                    ._loc = { .loc_index = grid_tile->wall },
+                };
+            }
 
             /**
              * If this is a loc revisit, then we need to verify adjacent tiles are done.
@@ -2077,11 +2089,26 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DRAW_LOC:
         {
-            loc = &scene->locs[op->_loc.loc_index];
+            int model_index = -1;
+            int loc_index = op->_loc.loc_index;
+            loc = &scene->locs[loc_index];
 
-            assert(loc->_scenery.model >= 0);
-            assert(loc->_scenery.model < scene->models_length);
-            model = &scene->models[loc->_scenery.model];
+            switch( loc->type )
+            {
+            case LOC_TYPE_SCENERY:
+                model_index = loc->_scenery.model;
+                break;
+            case LOC_TYPE_WALL:
+                model_index = loc->_wall.model;
+                break;
+            }
+
+            assert(model_index >= 0);
+            assert(model_index < scene->models_length);
+
+            model = &scene->models[model_index];
+
+            assert(model != NULL);
 
             render_scene_model(
                 pixel_buffer,
