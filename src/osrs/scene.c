@@ -285,6 +285,10 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         switch( loc->shape_select )
         {
+        case LOC_SHAPE_WALL:
+        {
+        }
+        break;
         case LOC_SHAPE_NORMAL:
         case LOC_SHAPE_NORMAL_DIAGIONAL:
         {
