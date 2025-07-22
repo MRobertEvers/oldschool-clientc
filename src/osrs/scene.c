@@ -172,6 +172,9 @@ vec_model_back(struct Scene* scene)
     return &scene->models[scene->models_length - 1];
 }
 
+const int ROTATION_WALL_TYPE[] = { 1, 2, 4, 8 };
+const int ROTATION_WALL_CORNER_TYPE[] = { 16, 32, 64, 128 };
+
 struct Scene*
 scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 {
@@ -287,6 +290,22 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(tile_x, tile_y, tile_z)];
 
+        int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y, tile_z)].height;
+        int height_se = height_sw;
+        if( tile_x + 1 < MAP_TERRAIN_X )
+            height_se = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)].height;
+
+        int height_ne = height_se;
+        if( tile_y + 1 < MAP_TERRAIN_Y && tile_x + 1 < MAP_TERRAIN_X )
+            height_ne =
+                map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)].height;
+
+        int height_nw = height_ne;
+        if( tile_y + 1 < MAP_TERRAIN_Y )
+            height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)].height;
+
+        int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
+
         loc_config = config_locs_table_get(config_locs_table, map->loc_id);
         assert(loc_config);
 
@@ -302,58 +321,47 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             model = vec_model_back(scene);
             load_loc_model(model, loc_config, cache, model_cache, map->shape_select);
 
-            int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y, tile_z)].height;
-            int height_se = height_sw;
-            if( tile_x + 1 < MAP_TERRAIN_X )
-                height_se =
-                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)].height;
-
-            int height_ne = height_se;
-            if( tile_y + 1 < MAP_TERRAIN_Y && tile_x + 1 < MAP_TERRAIN_X )
-                height_ne =
-                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)].height;
-
-            int height_nw = height_ne;
-            if( tile_y + 1 < MAP_TERRAIN_Y )
-                height_nw =
-                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)].height;
-
-            int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
-
             model->region_x = tile_x * TILE_SIZE;
             model->region_y = tile_y * TILE_SIZE;
             model->region_z = height_center;
 
             model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
+            // model->offset_x = loc_config->offset_x;
+            // model->offset_y = loc_config->offset_y;
             model->offset_height = loc_config->offset_height;
 
-            int size_x = loc_config->size_x;
-            int size_y = loc_config->size_y;
-            if( map->orientation == 1 || map->orientation == 3 )
-            {
-                int temp = size_x;
-                size_x = size_y;
-                size_y = temp;
-            }
-
-            model->size_x = size_x;
-            model->size_y = size_y;
+            model->size_x = 1;
+            model->size_y = 1;
             model->mirrored = loc_config->rotated;
 
             // Add the loc
 
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
-            loc->size_x = size_x;
-            loc->size_y = size_y;
+            loc->size_x = 1;
+            loc->size_y = 1;
             loc->chunk_pos_x = tile_x;
             loc->chunk_pos_y = tile_y;
             loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL;
 
             loc->_wall.model = model_index;
+
+            switch( map->orientation )
+            {
+            case 0:
+                loc->_wall.side = WALL_SIDE_EAST;
+                break;
+            case 1:
+                loc->_wall.side = WALL_SIDE_NORTH;
+                break;
+            case 2:
+                loc->_wall.side = WALL_SIDE_WEST;
+                break;
+            case 3:
+                loc->_wall.side = WALL_SIDE_SOUTH;
+                break;
+            }
 
             grid_tile->wall = loc_index;
         }
@@ -365,24 +373,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
             load_loc_model(model, loc_config, cache, model_cache, map->shape_select);
-
-            int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y, tile_z)].height;
-            int height_se = height_sw;
-            if( tile_x + 1 < MAP_TERRAIN_X )
-                height_se =
-                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)].height;
-
-            int height_ne = height_se;
-            if( tile_y + 1 < MAP_TERRAIN_Y && tile_x + 1 < MAP_TERRAIN_X )
-                height_ne =
-                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)].height;
-
-            int height_nw = height_ne;
-            if( tile_y + 1 < MAP_TERRAIN_Y )
-                height_nw =
-                    map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)].height;
-
-            int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
 
             model->region_x = tile_x * TILE_SIZE;
             model->region_y = tile_y * TILE_SIZE;

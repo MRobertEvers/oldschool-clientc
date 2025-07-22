@@ -100,9 +100,19 @@ struct NormalScenery
     int model;
 };
 
+enum WallSide
+{
+    WALL_SIDE_WEST = 1 << 0,
+    WALL_SIDE_NORTH = 1 << 1,
+    WALL_SIDE_EAST = 1 << 2,
+    WALL_SIDE_SOUTH = 1 << 3,
+};
+
 struct Wall
 {
     int model;
+
+    enum WallSide side;
 };
 
 struct Loc

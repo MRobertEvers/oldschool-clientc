@@ -96,6 +96,7 @@ enum ElementStep
     E_STEP_LOCS,
     E_STEP_NOTIFY_ADJACENT_TILES,
     E_STEP_NOTIFY_SPANNED_TILES,
+    E_STEP_NEAR_WALL,
     E_STEP_DONE,
 };
 
@@ -130,7 +131,7 @@ struct SceneOp
             int loc_index;
         } _loc;
 
-            struct
+        struct
         {
             int override_color;
             int color_hsl16;

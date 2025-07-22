@@ -1697,18 +1697,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
             element = &elements[tile_coord];
 
-            if( grid_tile->wall != -1 )
-            {
-                loc = &scene->locs[grid_tile->wall];
-                ops[op_count++] = (struct SceneOp){
-                    .op = SCENE_OP_TYPE_DRAW_LOC,
-                    .x = loc->chunk_pos_x,
-                    .z = loc->chunk_pos_y,
-                    .level = loc->chunk_pos_level,
-                    ._loc = { .loc_index = grid_tile->wall },
-                };
-            }
-
             /**
              * If this is a loc revisit, then we need to verify adjacent tiles are done.
              *
@@ -1780,6 +1768,44 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     .z = tile_y,
                     .level = z,
                 };
+
+                if( grid_tile->wall != -1 )
+                {
+                    loc = &scene->locs[grid_tile->wall];
+
+                    if( loc->_wall.side & WALL_SIDE_NORTH )
+                    {
+                        if( loc->chunk_pos_y <= camera_tile_y )
+                            goto skip_wall;
+                    }
+
+                    if( loc->_wall.side & WALL_SIDE_SOUTH )
+                    {
+                        if( loc->chunk_pos_y >= camera_tile_y )
+                            goto skip_wall;
+                    }
+
+                    if( loc->_wall.side & WALL_SIDE_EAST )
+                    {
+                        if( loc->chunk_pos_x >= camera_tile_x )
+                            goto skip_wall;
+                    }
+
+                    if( loc->_wall.side & WALL_SIDE_WEST )
+                    {
+                        if( loc->chunk_pos_x <= camera_tile_x )
+                            goto skip_wall;
+                    }
+
+                    ops[op_count++] = (struct SceneOp){
+                        .op = SCENE_OP_TYPE_DRAW_LOC,
+                        .x = loc->chunk_pos_x,
+                        .z = loc->chunk_pos_y,
+                        .level = loc->chunk_pos_level,
+                        ._loc = { .loc_index = grid_tile->wall },
+                    };
+                skip_wall:;
+                }
             }
 
             g_loc_buffer_length = 0;
@@ -1988,6 +2014,49 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                             int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y - 1, z));
                         }
                     }
+                }
+
+                element->step = E_STEP_NEAR_WALL;
+            }
+
+            if( element->step == E_STEP_NEAR_WALL )
+            {
+                if( grid_tile->wall != -1 )
+                {
+                    loc = &scene->locs[grid_tile->wall];
+
+                    if( loc->_wall.side & WALL_SIDE_NORTH )
+                    {
+                        if( loc->chunk_pos_y > camera_tile_y )
+                            goto skip_near_wall;
+                    }
+
+                    if( loc->_wall.side & WALL_SIDE_SOUTH )
+                    {
+                        if( loc->chunk_pos_y < camera_tile_y )
+                            goto skip_near_wall;
+                    }
+
+                    if( loc->_wall.side & WALL_SIDE_EAST )
+                    {
+                        if( loc->chunk_pos_x < camera_tile_x )
+                            goto skip_near_wall;
+                    }
+
+                    if( loc->_wall.side & WALL_SIDE_WEST )
+                    {
+                        if( loc->chunk_pos_x > camera_tile_x )
+                            goto skip_near_wall;
+                    }
+
+                    ops[op_count++] = (struct SceneOp){
+                        .op = SCENE_OP_TYPE_DRAW_LOC,
+                        .x = loc->chunk_pos_x,
+                        .z = loc->chunk_pos_y,
+                        .level = loc->chunk_pos_level,
+                        ._loc = { .loc_index = grid_tile->wall },
+                    };
+                skip_near_wall:;
                 }
 
                 element->step = E_STEP_DONE;
