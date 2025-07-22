@@ -732,6 +732,16 @@ static int tmp_priority_face_count[12] = { 0 };
 static int tmp_priority_depth_sum[12] = { 0 };
 static int tmp_priority_faces[12 * 2000] = { 0 };
 
+static int tmp_screen_vertices_x[4096] = { 0 };
+static int tmp_screen_vertices_y[4096] = { 0 };
+static int tmp_screen_vertices_z[4096] = { 0 };
+
+static int tmp_face_colors_a_hsl16[4096] = { 0 };
+static int tmp_face_colors_b_hsl16[4096] = { 0 };
+static int tmp_face_colors_c_hsl16[4096] = { 0 };
+
+static int tmp_vertex_normals[4096] = { 0 };
+
 void
 render_model_frame(
     int* pixel_buffer,
@@ -753,19 +763,27 @@ render_model_frame(
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable)
 {
-    int* vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
-    memcpy(vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
-    int* vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
-    memcpy(vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
-    int* vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
-    memcpy(vertices_z, model->vertices_z, model->vertex_count * sizeof(int));
+    // int* vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
+    // memcpy(vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
+    // int* vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
+    // memcpy(vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
+    // int* vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
+    // memcpy(vertices_z, model->vertices_z, model->vertex_count * sizeof(int));
 
-    int* face_colors_a_hsl16 = (int*)malloc(model->face_count * sizeof(int));
-    memcpy(face_colors_a_hsl16, model->face_colors, model->face_count * sizeof(int));
-    int* face_colors_b_hsl16 = (int*)malloc(model->face_count * sizeof(int));
-    memcpy(face_colors_b_hsl16, model->face_colors, model->face_count * sizeof(int));
-    int* face_colors_c_hsl16 = (int*)malloc(model->face_count * sizeof(int));
-    memcpy(face_colors_c_hsl16, model->face_colors, model->face_count * sizeof(int));
+    int* vertices_x = model->vertices_x;
+    int* vertices_y = model->vertices_y;
+    int* vertices_z = model->vertices_z;
+
+    // int* face_colors_a_hsl16 = (int*)malloc(model->face_count * sizeof(int));
+    // memcpy(face_colors_a_hsl16, model->face_colors, model->face_count * sizeof(int));
+    // int* face_colors_b_hsl16 = (int*)malloc(model->face_count * sizeof(int));
+    // memcpy(face_colors_b_hsl16, model->face_colors, model->face_count * sizeof(int));
+    // int* face_colors_c_hsl16 = (int*)malloc(model->face_count * sizeof(int));
+    // memcpy(face_colors_c_hsl16, model->face_colors, model->face_count * sizeof(int));
+
+    // int* face_colors_a_hsl16 = model->face_colors;
+    // int* face_colors_b_hsl16 = model->face_colors;
+    // int* face_colors_c_hsl16 = model->face_colors;
 
     struct VertexNormal* vertex_normals =
         (struct VertexNormal*)malloc(model->vertex_count * sizeof(struct VertexNormal));
@@ -777,9 +795,16 @@ render_model_frame(
     memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
     memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
 
-    int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
-    int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
-    int* screen_vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
+    // int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
+    // int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
+    // int* screen_vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
+    int* face_colors_a_hsl16 = tmp_face_colors_a_hsl16;
+    int* face_colors_b_hsl16 = tmp_face_colors_b_hsl16;
+    int* face_colors_c_hsl16 = tmp_face_colors_c_hsl16;
+
+    int* screen_vertices_x = tmp_screen_vertices_x;
+    int* screen_vertices_y = tmp_screen_vertices_y;
+    int* screen_vertices_z = tmp_screen_vertices_z;
 
     struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
         model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
@@ -898,16 +923,16 @@ render_model_frame(
         width,
         height);
 
-    free(vertices_x);
-    free(vertices_y);
-    free(vertices_z);
-    free(face_colors_a_hsl16);
-    free(face_colors_b_hsl16);
-    free(face_colors_c_hsl16);
-    free(vertex_normals);
-    free(screen_vertices_x);
-    free(screen_vertices_y);
-    free(screen_vertices_z);
+    // free(vertices_x);
+    // free(vertices_y);
+    // free(vertices_z);
+    // free(face_colors_a_hsl16);
+    // free(face_colors_b_hsl16);
+    // free(face_colors_c_hsl16);
+    // free(vertex_normals);
+    // free(screen_vertices_x);
+    // free(screen_vertices_y);
+    // free(screen_vertices_z);
 }
 
 static int tile_shape_vertex_indices[15][6] = {
