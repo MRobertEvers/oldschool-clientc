@@ -107,6 +107,8 @@ struct SceneElement
     enum ElementStep step;
 
     int remaining_locs;
+
+    int near_wall_flags;
 };
 
 enum SceneOpType
@@ -114,6 +116,7 @@ enum SceneOpType
     SCENE_OP_TYPE_NONE,
     SCENE_OP_TYPE_DRAW_GROUND,
     SCENE_OP_TYPE_DRAW_LOC,
+    SCENE_OP_TYPE_DRAW_WALL,
 };
 
 struct SceneOp
@@ -136,6 +139,12 @@ struct SceneOp
             int override_color;
             int color_hsl16;
         } _ground;
+
+        struct
+        {
+            int loc_index;
+            int is_wall_a;
+        } _wall;
     };
 };
 struct Scene;

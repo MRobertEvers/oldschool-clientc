@@ -71,20 +71,23 @@ compute_normal_scenery_spans(
 }
 
 static void
-load_loc_model(
+load_loc_models(
     struct SceneModel* scene_loc,
-    struct CacheConfigLocation* loc,
+    int* shapes,
+    int** models,
+    int* lengths,
+    int shapes_and_model_count,
     struct Cache* cache,
     struct ModelCache* model_cache,
     int shape_select)
 {
     struct CacheModel* model = NULL;
-    if( !loc->models )
+    if( !models )
         return;
 
-    if( !loc->shapes )
+    if( !shapes )
     {
-        int count = loc->lengths[0];
+        int count = lengths[0];
 
         scene_loc->models = malloc(sizeof(struct CacheModel) * count);
         memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
@@ -94,9 +97,9 @@ load_loc_model(
 
         for( int i = 0; i < count; i++ )
         {
-            assert(loc->models);
-            assert(loc->models[0]);
-            int model_id = loc->models[0][i];
+            assert(models);
+            assert(models[0]);
+            int model_id = models[0][i];
 
             model = model_cache_checkout(model_cache, cache, model_id);
             scene_loc->models[i] = model;
@@ -105,7 +108,7 @@ load_loc_model(
     }
     else
     {
-        int count = loc->shapes_and_model_count;
+        int count = shapes_and_model_count;
 
         scene_loc->models = malloc(sizeof(struct CacheModel) * count);
         memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
@@ -115,14 +118,14 @@ load_loc_model(
 
         for( int i = 0; i < count; i++ )
         {
-            int count_inner = loc->lengths[i];
+            int count_inner = lengths[i];
 
-            int loc_type = loc->shapes[i];
+            int loc_type = shapes[i];
             if( loc_type == shape_select )
             {
                 for( int j = 0; j < count_inner; j++ )
                 {
-                    int model_id = loc->models[i][j];
+                    int model_id = models[i][j];
 
                     model = model_cache_checkout(model_cache, cache, model_id);
                     scene_loc->models[i] = model;
@@ -142,6 +145,8 @@ vec_loc_push(struct Scene* scene)
         scene->locs_capacity *= 2;
         scene->locs = realloc(scene->locs, sizeof(struct Loc) * scene->locs_capacity);
     }
+
+    memset(scene->locs + scene->locs_length, 0, sizeof(struct Loc));
 
     return scene->locs_length++;
 }
@@ -172,8 +177,15 @@ vec_model_back(struct Scene* scene)
     return &scene->models[scene->models_length - 1];
 }
 
-const int ROTATION_WALL_TYPE[] = { 1, 2, 4, 8 };
-const int ROTATION_WALL_CORNER_TYPE[] = { 16, 32, 64, 128 };
+const int ROTATION_WALL_TYPE[] = {
+    WALL_SIDE_WEST, WALL_SIDE_NORTH, WALL_SIDE_EAST, WALL_SIDE_SOUTH
+};
+const int ROTATION_WALL_CORNER_TYPE[] = {
+    WALL_SIDE_EAST | WALL_SIDE_NORTH,
+    WALL_SIDE_NORTH | WALL_SIDE_WEST,
+    WALL_SIDE_WEST | WALL_SIDE_SOUTH,
+    WALL_SIDE_SOUTH | WALL_SIDE_EAST,
+};
 
 struct Scene*
 scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
@@ -312,22 +324,27 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         switch( map->shape_select )
         {
         case LOC_SHAPE_WALL:
-        case LOC_SHAPE_WALL_TRI_CORNER:
-        case LOC_SHAPE_WALL_CORNER:
-        case LOC_SHAPE_WALL_RECT_CORNER:
         {
             // Load model
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_model(model, loc_config, cache, model_cache, map->shape_select);
+            load_loc_models(
+                model,
+                loc_config->shapes,
+                loc_config->models,
+                loc_config->lengths,
+                loc_config->shapes_and_model_count,
+                cache,
+                model_cache,
+                map->shape_select);
 
             model->region_x = tile_x * TILE_SIZE;
             model->region_y = tile_y * TILE_SIZE;
             model->region_z = height_center;
 
             model->orientation = map->orientation;
-            // model->offset_x = loc_config->offset_x;
-            // model->offset_y = loc_config->offset_y;
+            model->offset_x = loc_config->offset_x;
+            model->offset_y = loc_config->offset_y;
             model->offset_height = loc_config->offset_height;
 
             model->size_x = 1;
@@ -335,9 +352,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             model->mirrored = loc_config->rotated;
 
             // Add the loc
-
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+
             loc->size_x = 1;
             loc->size_y = 1;
             loc->chunk_pos_x = tile_x;
@@ -345,24 +362,163 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL;
 
-            loc->_wall.model = model_index;
+            loc->_wall.model_a = model_index;
+            assert(map->orientation >= 0);
+            assert(map->orientation < 4);
+            loc->_wall.side_a = ROTATION_WALL_TYPE[map->orientation];
+
+            // switch( map->orientation )
+            // {
+            // case 0:
+            //     loc->_wall.side_a = WALL_SIDE_WEST;
+            //     break;
+            // case 1:
+            //     loc->_wall.side_a = WALL_SIDE_NORTH;
+            //     break;
+            // case 2:
+            //     loc->_wall.side_a = WALL_SIDE_EAST;
+            //     break;
+            // case 3:
+            //     loc->_wall.side_a = WALL_SIDE_SOUTH;
+            //     break;
+            // }
+            grid_tile->wall = loc_index;
+        }
+        break;
+        case LOC_SHAPE_WALL_CORNER:
+        {
+            int next_orientation = (map->orientation + 1) & 0x3;
+
+            // Load model
+            int model_a_index = vec_model_push(scene);
+            model = vec_model_back(scene);
+            load_loc_models(
+                model,
+                loc_config->shapes,
+                loc_config->models,
+                loc_config->lengths,
+                loc_config->shapes_and_model_count,
+                cache,
+                model_cache,
+                LOC_SHAPE_WALL_CORNER);
+
+            model->region_x = tile_x * TILE_SIZE;
+            model->region_y = tile_y * TILE_SIZE;
+            model->region_z = height_center;
+
+            // Add 4 to turn it around.
+            model->orientation = map->orientation + 4;
+            model->offset_x = loc_config->offset_x;
+            model->offset_y = loc_config->offset_y;
+            model->offset_height = loc_config->offset_height;
+
+            model->size_x = 1;
+            model->size_y = 1;
+            model->mirrored = loc_config->rotated;
+
+            int model_b_index = vec_model_push(scene);
+            model = vec_model_back(scene);
+            load_loc_models(
+                model,
+                loc_config->shapes,
+                loc_config->models,
+                loc_config->lengths,
+                loc_config->shapes_and_model_count,
+                cache,
+                model_cache,
+                LOC_SHAPE_WALL_CORNER);
+
+            model->region_x = tile_x * TILE_SIZE;
+            model->region_y = tile_y * TILE_SIZE;
+            model->region_z = height_center;
+
+            model->orientation = next_orientation;
+            model->offset_x = loc_config->offset_x;
+            model->offset_y = loc_config->offset_y;
+            model->offset_height = loc_config->offset_height;
+
+            model->size_x = 1;
+            model->size_y = 1;
+            model->mirrored = loc_config->rotated;
+
+            // Add the loc
+            int loc_index = vec_loc_push(scene);
+            loc = vec_loc_back(scene);
+
+            loc->size_x = 1;
+            loc->size_y = 1;
+            loc->chunk_pos_x = tile_x;
+            loc->chunk_pos_y = tile_y;
+            loc->chunk_pos_level = tile_z;
+            loc->type = LOC_TYPE_WALL;
+
+            loc->_wall.model_a = model_a_index;
+            loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[map->orientation];
+
+            loc->_wall.model_b = model_b_index;
+            loc->_wall.side_b = ROTATION_WALL_CORNER_TYPE[next_orientation];
+
+            grid_tile->wall = loc_index;
+        }
+        break;
+        case LOC_SHAPE_WALL_RECT_CORNER:
+        {
+            int model_index = vec_model_push(scene);
+            model = vec_model_back(scene);
+            load_loc_models(
+                model,
+                loc_config->shapes,
+                loc_config->models,
+                loc_config->lengths,
+                loc_config->shapes_and_model_count,
+                cache,
+                model_cache,
+                map->shape_select);
+
+            model->region_x = tile_x * TILE_SIZE;
+            model->region_y = tile_y * TILE_SIZE;
+            model->region_z = height_center;
+
+            model->orientation = map->orientation;
+            model->offset_x = loc_config->offset_x;
+            model->offset_y = loc_config->offset_y;
+            model->offset_height = loc_config->offset_height;
+
+            model->size_x = 1;
+            model->size_y = 1;
+            model->mirrored = loc_config->rotated;
+
+            // Add the loc
+            int loc_index = vec_loc_push(scene);
+            loc = vec_loc_back(scene);
+
+            loc->size_x = 1;
+            loc->size_y = 1;
+            loc->chunk_pos_x = tile_x;
+            loc->chunk_pos_y = tile_y;
+            loc->chunk_pos_level = tile_z;
+            loc->type = LOC_TYPE_WALL;
+
+            loc->_wall.model_a = model_index;
+            assert(map->orientation >= 0);
+            assert(map->orientation < 4);
+            // loc->_wall.side_a = ROTATION_WALL_TYPE[map->orientation];
 
             switch( map->orientation )
             {
             case 0:
-                loc->_wall.side = WALL_SIDE_EAST;
+                loc->_wall.side_a = WALL_CORNER_NORTHWEST;
                 break;
             case 1:
-                loc->_wall.side = WALL_SIDE_NORTH;
+                loc->_wall.side_a = WALL_CORNER_NORTHEAST;
                 break;
             case 2:
-                loc->_wall.side = WALL_SIDE_WEST;
+                loc->_wall.side_a = WALL_CORNER_SOUTHEAST;
                 break;
             case 3:
-                loc->_wall.side = WALL_SIDE_SOUTH;
+                loc->_wall.side_a = WALL_CORNER_SOUTHWEST;
                 break;
             }
-
             grid_tile->wall = loc_index;
         }
         break;

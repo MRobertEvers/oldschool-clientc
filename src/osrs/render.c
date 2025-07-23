@@ -1577,6 +1577,30 @@ int_queue_free(struct IntQueue* queue)
 static int g_loc_buffer[100];
 static int g_loc_buffer_length = 0;
 
+static inline int
+near_wall_flags(int camera_tile_x, int camera_tile_y, int loc_x, int loc_y)
+{
+    int flags = WALL_CORNER_NORTHWEST | WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST |
+                WALL_CORNER_SOUTHWEST;
+
+    int camera_is_north = loc_y < camera_tile_y;
+    int camera_is_east = loc_x < camera_tile_x;
+
+    if( camera_is_north )
+        flags |= WALL_SIDE_NORTH | WALL_CORNER_NORTHWEST | WALL_CORNER_NORTHEAST;
+
+    if( !camera_is_north )
+        flags |= WALL_SIDE_SOUTH | WALL_CORNER_SOUTHEAST | WALL_CORNER_SOUTHWEST;
+
+    if( camera_is_east )
+        flags |= WALL_SIDE_EAST | WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST;
+
+    if( !camera_is_east )
+        flags |= WALL_SIDE_WEST | WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST;
+
+    return flags;
+}
+
 /**
  * 1. Draw Bridge Underlay (the water, not the surface)
  * 2. Draw Bridge Wall (the arches holding the bridge up)
@@ -1611,13 +1635,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     memset(ops, 0, op_capacity * sizeof(struct SceneOp));
     struct SceneElement* elements =
         (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
-    memset(elements, 0, scene->grid_tiles_length * sizeof(struct SceneElement));
 
     for( int i = 0; i < scene->grid_tiles_length; i++ )
     {
         struct SceneElement* element = &elements[i];
         element->step = E_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED;
         element->remaining_locs = scene->grid_tiles[i].locs_length;
+        element->near_wall_flags = 0;
     }
 
     // Generate painter's algorithm coordinate list - farthest to nearest
@@ -1773,38 +1797,33 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 {
                     loc = &scene->locs[grid_tile->wall];
 
-                    if( loc->_wall.side & WALL_SIDE_NORTH )
+                    int near_walls = near_wall_flags(
+                        camera_tile_x, camera_tile_y, loc->chunk_pos_x, loc->chunk_pos_y);
+                    element->near_wall_flags |= near_walls;
+                    int far_walls = near_walls;
+
+                    if( (loc->_wall.side_a & (WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST |
+                                              WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST)) != 0 )
                     {
-                        if( loc->chunk_pos_y <= camera_tile_y )
-                            goto skip_wall;
+                        int iii = 0;
                     }
 
-                    if( loc->_wall.side & WALL_SIDE_SOUTH )
-                    {
-                        if( loc->chunk_pos_y >= camera_tile_y )
-                            goto skip_wall;
-                    }
-
-                    if( loc->_wall.side & WALL_SIDE_EAST )
-                    {
-                        if( loc->chunk_pos_x >= camera_tile_x )
-                            goto skip_wall;
-                    }
-
-                    if( loc->_wall.side & WALL_SIDE_WEST )
-                    {
-                        if( loc->chunk_pos_x <= camera_tile_x )
-                            goto skip_wall;
-                    }
-
-                    ops[op_count++] = (struct SceneOp){
-                        .op = SCENE_OP_TYPE_DRAW_LOC,
-                        .x = loc->chunk_pos_x,
-                        .z = loc->chunk_pos_y,
-                        .level = loc->chunk_pos_level,
-                        ._loc = { .loc_index = grid_tile->wall },
-                    };
-                skip_wall:;
+                    if( (loc->_wall.side_a & far_walls) != 0 )
+                        ops[op_count++] = (struct SceneOp){
+                            .op = SCENE_OP_TYPE_DRAW_WALL,
+                            .x = loc->chunk_pos_x,
+                            .z = loc->chunk_pos_y,
+                            .level = loc->chunk_pos_level,
+                            ._wall = { .loc_index = grid_tile->wall, .is_wall_a = true },
+                        };
+                    if( (loc->_wall.side_b & far_walls) != 0 )
+                        ops[op_count++] = (struct SceneOp){
+                            .op = SCENE_OP_TYPE_DRAW_WALL,
+                            .x = loc->chunk_pos_x,
+                            .z = loc->chunk_pos_y,
+                            .level = loc->chunk_pos_level,
+                            ._wall = { .loc_index = grid_tile->wall, .is_wall_a = false },
+                        };
                 }
             }
 
@@ -2023,40 +2042,26 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             {
                 if( grid_tile->wall != -1 )
                 {
+                    int near_walls = element->near_wall_flags;
+
                     loc = &scene->locs[grid_tile->wall];
 
-                    if( loc->_wall.side & WALL_SIDE_NORTH )
-                    {
-                        if( loc->chunk_pos_y > camera_tile_y )
-                            goto skip_near_wall;
-                    }
-
-                    if( loc->_wall.side & WALL_SIDE_SOUTH )
-                    {
-                        if( loc->chunk_pos_y < camera_tile_y )
-                            goto skip_near_wall;
-                    }
-
-                    if( loc->_wall.side & WALL_SIDE_EAST )
-                    {
-                        if( loc->chunk_pos_x < camera_tile_x )
-                            goto skip_near_wall;
-                    }
-
-                    if( loc->_wall.side & WALL_SIDE_WEST )
-                    {
-                        if( loc->chunk_pos_x > camera_tile_x )
-                            goto skip_near_wall;
-                    }
-
-                    ops[op_count++] = (struct SceneOp){
-                        .op = SCENE_OP_TYPE_DRAW_LOC,
-                        .x = loc->chunk_pos_x,
-                        .z = loc->chunk_pos_y,
-                        .level = loc->chunk_pos_level,
-                        ._loc = { .loc_index = grid_tile->wall },
-                    };
-                skip_near_wall:;
+                    if( (loc->_wall.side_a & near_walls) != 0 )
+                        ops[op_count++] = (struct SceneOp){
+                            .op = SCENE_OP_TYPE_DRAW_WALL,
+                            .x = loc->chunk_pos_x,
+                            .z = loc->chunk_pos_y,
+                            .level = loc->chunk_pos_level,
+                            ._wall = { .loc_index = grid_tile->wall, .is_wall_a = true },
+                        };
+                    if( (loc->_wall.side_b & near_walls) != 0 )
+                        ops[op_count++] = (struct SceneOp){
+                            .op = SCENE_OP_TYPE_DRAW_WALL,
+                            .x = loc->chunk_pos_x,
+                            .z = loc->chunk_pos_y,
+                            .level = loc->chunk_pos_level,
+                            ._wall = { .loc_index = grid_tile->wall, .is_wall_a = false },
+                        };
                 }
 
                 element->step = E_STEP_DONE;
@@ -2187,15 +2192,45 @@ render_scene_ops(
             int loc_index = op->_loc.loc_index;
             loc = &scene->locs[loc_index];
 
-            switch( loc->type )
-            {
-            case LOC_TYPE_SCENERY:
-                model_index = loc->_scenery.model;
+            model_index = loc->_scenery.model;
+
+            assert(model_index >= 0);
+            assert(model_index < scene->models_length);
+
+            model = &scene->models[model_index];
+
+            assert(model != NULL);
+
+            render_scene_model(
+                pixel_buffer,
+                width,
+                height,
+                near_plane_z,
+                camera_x,
+                camera_y,
+                camera_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll,
+                fov,
+                model,
+                NULL);
+        }
+        break;
+        case SCENE_OP_TYPE_DRAW_WALL:
+        {
+            int model_index = -1;
+            int loc_index = op->_wall.loc_index;
+            loc = &scene->locs[loc_index];
+
+            if( op->_wall.is_wall_a )
+                model_index = loc->_wall.model_a;
+            else
+                model_index = loc->_wall.model_b;
+
+            if( (loc->_wall.side_a & (WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST |
+                                      WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST)) == 0 )
                 break;
-            case LOC_TYPE_WALL:
-                model_index = loc->_wall.model;
-                break;
-            }
 
             assert(model_index >= 0);
             assert(model_index < scene->models_length);

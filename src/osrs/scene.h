@@ -102,17 +102,23 @@ struct NormalScenery
 
 enum WallSide
 {
-    WALL_SIDE_WEST = 1 << 0,
-    WALL_SIDE_NORTH = 1 << 1,
-    WALL_SIDE_EAST = 1 << 2,
-    WALL_SIDE_SOUTH = 1 << 3,
+    WALL_SIDE_EAST = 1 << 0,        // 1
+    WALL_SIDE_NORTH = 1 << 1,       // 2
+    WALL_SIDE_WEST = 1 << 2,        // 4
+    WALL_SIDE_SOUTH = 1 << 3,       // 8
+    WALL_CORNER_NORTHEAST = 1 << 4, // 16
+    WALL_CORNER_NORTHWEST = 1 << 5, // 32
+    WALL_CORNER_SOUTHWEST = 1 << 6, // 64
+    WALL_CORNER_SOUTHEAST = 1 << 7, // 128
 };
 
 struct Wall
 {
-    int model;
+    int model_a;
+    int model_b;
 
-    enum WallSide side;
+    enum WallSide side_a;
+    enum WallSide side_b;
 };
 
 struct Loc
