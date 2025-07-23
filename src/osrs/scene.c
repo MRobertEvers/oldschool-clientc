@@ -528,7 +528,15 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_model(model, loc_config, cache, model_cache, map->shape_select);
+            load_loc_models(
+                model,
+                loc_config->shapes,
+                loc_config->models,
+                loc_config->lengths,
+                loc_config->shapes_and_model_count,
+                cache,
+                model_cache,
+                map->shape_select);
 
             model->region_x = tile_x * TILE_SIZE;
             model->region_y = tile_y * TILE_SIZE;
