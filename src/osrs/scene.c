@@ -93,17 +93,19 @@ load_loc_models(
         memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
         scene_loc->model_ids = malloc(sizeof(int) * count);
         memset(scene_loc->model_ids, 0, sizeof(int) * count);
-        scene_loc->model_count = count;
 
         for( int i = 0; i < count; i++ )
         {
             assert(models);
             assert(models[0]);
             int model_id = models[0][i];
+            assert(model_id);
 
             model = model_cache_checkout(model_cache, cache, model_id);
-            scene_loc->models[i] = model;
-            scene_loc->model_ids[i] = model_id;
+            assert(model);
+            scene_loc->models[scene_loc->model_count] = model;
+            scene_loc->model_ids[scene_loc->model_count] = model_id;
+            scene_loc->model_count++;
         }
     }
     else
@@ -114,8 +116,8 @@ load_loc_models(
         memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
         scene_loc->model_ids = malloc(sizeof(int) * count);
         memset(scene_loc->model_ids, 0, sizeof(int) * count);
-        scene_loc->model_count = count;
 
+        bool found = false;
         for( int i = 0; i < count; i++ )
         {
             int count_inner = lengths[i];
@@ -126,14 +128,18 @@ load_loc_models(
                 for( int j = 0; j < count_inner; j++ )
                 {
                     int model_id = models[i][j];
+                    assert(model_id);
 
                     model = model_cache_checkout(model_cache, cache, model_id);
-                    scene_loc->models[i] = model;
-                    scene_loc->model_ids[i] = model_id;
+                    assert(model);
+                    scene_loc->models[scene_loc->model_count] = model;
+                    scene_loc->model_ids[scene_loc->model_count] = model_id;
                     scene_loc->model_count++;
+                    found = true;
                 }
             }
         }
+        assert(found);
     }
 }
 
@@ -463,6 +469,10 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         break;
         case LOC_SHAPE_WALL_RECT_CORNER:
         {
+            if( tile_x == 29 && tile_y == 61 )
+            {
+                int iiiiii = 0;
+            }
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
             load_loc_models(
@@ -519,6 +529,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc->_wall.side_a = WALL_CORNER_SOUTHWEST;
                 break;
             }
+
+            assert(model->model_ids[0] != 0);
             grid_tile->wall = loc_index;
         }
         break;
