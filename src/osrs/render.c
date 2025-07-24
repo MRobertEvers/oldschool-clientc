@@ -1580,8 +1580,7 @@ static int g_loc_buffer_length = 0;
 static inline int
 near_wall_flags(int camera_tile_x, int camera_tile_y, int loc_x, int loc_y)
 {
-    int flags = WALL_CORNER_NORTHWEST | WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST |
-                WALL_CORNER_SOUTHWEST;
+    int flags = 0;
 
     int camera_is_north = loc_y < camera_tile_y;
     int camera_is_east = loc_x < camera_tile_x;
@@ -1800,13 +1799,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     int near_walls = near_wall_flags(
                         camera_tile_x, camera_tile_y, loc->chunk_pos_x, loc->chunk_pos_y);
                     element->near_wall_flags |= near_walls;
-                    int far_walls = near_walls;
-
-                    if( (loc->_wall.side_a & (WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST |
-                                              WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST)) != 0 )
-                    {
-                        int iii = 0;
-                    }
+                    int far_walls = ~near_walls;
 
                     if( (loc->_wall.side_a & far_walls) != 0 )
                         ops[op_count++] = (struct SceneOp){
@@ -2227,10 +2220,6 @@ render_scene_ops(
                 model_index = loc->_wall.model_a;
             else
                 model_index = loc->_wall.model_b;
-
-            if( (loc->_wall.side_a & (WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST |
-                                      WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST)) == 0 )
-                break;
 
             assert(model_index >= 0);
             assert(model_index < scene->models_length);

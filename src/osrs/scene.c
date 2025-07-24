@@ -469,10 +469,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         break;
         case LOC_SHAPE_WALL_RECT_CORNER:
         {
-            if( tile_x == 29 && tile_y == 61 )
-            {
-                int iiiiii = 0;
-            }
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
             load_loc_models(
