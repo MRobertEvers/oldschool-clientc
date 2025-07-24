@@ -2,6 +2,7 @@
 
 #include "osrs/cache.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -510,6 +511,7 @@ decodeType1(const unsigned char* inputData, int inputLength)
 
         if( hasPackedVertexGroups == 1 )
         {
+            // Packed vertex groups
             read_byte(
                 inputData,
                 &offsetOfPackedVertexGroups); // Skip this data as it's not in our model struct
@@ -530,7 +532,9 @@ decodeType1(const unsigned char* inputData, int inputLength)
 
         if( hasFaceRenderTypes == 1 )
         {
-            model->face_infos[i] = read_byte(inputData, &renderTypesOffset);
+            int face_type = read_byte(inputData, &renderTypesOffset);
+            assert(face_type <= 3);
+            model->face_infos[i] = face_type;
         }
 
         if( faceRenderPriority == 255 )
@@ -546,6 +550,16 @@ decodeType1(const unsigned char* inputData, int inputLength)
         {
             model->face_alphas[i] = read_byte(inputData, &transparenciesOffset);
         }
+
+        // if (var16 == 1)
+        // {
+        // 	def.faceTextures[var49] = (short) (var7.readUnsignedShort() - 1);
+        // }
+
+        // if (def.textureCoords != null && def.faceTextures[var49] != -1)
+        // {
+        // 	def.textureCoords[var49] = (byte) (var8.readUnsignedByte() - 1);
+        // }
 
         if( hasPackedTransparencyVertexGroups == 1 )
         {
@@ -829,12 +843,21 @@ decodeType2(const unsigned char* inputData, int inputLength)
 
     // Read texture indices
     offset = offsetOfTextureIndices;
+    if( textureCount > 0 )
+    {
+        model->textured_p_coordinate = (int*)malloc(textureCount * sizeof(int));
+        memset(model->textured_p_coordinate, 0, textureCount * sizeof(int));
+        model->textured_m_coordinate = (int*)malloc(textureCount * sizeof(int));
+        memset(model->textured_m_coordinate, 0, textureCount * sizeof(int));
+        model->textured_n_coordinate = (int*)malloc(textureCount * sizeof(int));
+        memset(model->textured_n_coordinate, 0, textureCount * sizeof(int));
+    }
+
     for( int i = 0; i < textureCount; i++ )
     {
-        // Skip texture data as it's not in our model struct
-        read_unsigned_short(inputData, &offset);
-        read_unsigned_short(inputData, &offset);
-        read_unsigned_short(inputData, &offset);
+        model->textured_p_coordinate[i] = read_unsigned_short(inputData, &offset);
+        model->textured_m_coordinate[i] = read_unsigned_short(inputData, &offset);
+        model->textured_n_coordinate[i] = read_unsigned_short(inputData, &offset);
     }
 
     // Set model priority
@@ -1201,7 +1224,7 @@ decodeType3(const unsigned char* inputData, int inputLength)
     int hasFaceRenderTypes = read_byte(inputData, &offset);
     int faceRenderPriority = read_byte(inputData, &offset);
     int hasFaceTransparencies = read_byte(inputData, &offset);
-    int hasPackedTransparencyVertexGroups = read_byte(inputData, &offset);
+    int hasFaceTextures = read_byte(inputData, &offset);
     int unknown = read_byte(inputData, &offset);
     int hasPackedVertexGroups = read_byte(inputData, &offset);
     int hasMayaGroups = read_byte(inputData, &offset);
@@ -1257,7 +1280,7 @@ decodeType3(const unsigned char* inputData, int inputLength)
     }
 
     int offsetOfPackedTransparencyVertexGroups = dataOffset;
-    if( hasPackedTransparencyVertexGroups == 1 )
+    if( hasFaceTextures == 1 )
     {
         dataOffset += faceCount;
     }
@@ -1325,13 +1348,18 @@ decodeType3(const unsigned char* inputData, int inputLength)
     model->face_priorities = (int*)malloc(faceCount * sizeof(int));
     model->face_alphas = (int*)malloc(faceCount * sizeof(int));
     model->face_infos = (int*)malloc(faceCount * sizeof(int));
+    model->face_textures = (int*)malloc(faceCount * sizeof(int));
+    model->face_texture_coords = (int*)malloc(faceCount * sizeof(int));
 
     // Allocate memory for texture coordinates if needed
     if( texTriangleCount > 0 )
     {
         model->textured_p_coordinate = (int*)malloc(texTriangleCount * sizeof(int));
+        memset(model->textured_p_coordinate, 0, texTriangleCount * sizeof(int));
         model->textured_m_coordinate = (int*)malloc(texTriangleCount * sizeof(int));
+        memset(model->textured_m_coordinate, 0, texTriangleCount * sizeof(int));
         model->textured_n_coordinate = (int*)malloc(texTriangleCount * sizeof(int));
+        memset(model->textured_n_coordinate, 0, texTriangleCount * sizeof(int));
     }
 
     // Read vertex data
@@ -1402,7 +1430,9 @@ decodeType3(const unsigned char* inputData, int inputLength)
 
         if( hasFaceRenderTypes == 1 )
         {
-            model->face_infos[i] = read_byte(inputData, &renderTypesOffset);
+            int face_type = read_byte(inputData, &renderTypesOffset);
+            assert(face_type <= 3);
+            model->face_infos[i] = face_type;
         }
 
         if( faceRenderPriority == 255 )
@@ -1419,15 +1449,16 @@ decodeType3(const unsigned char* inputData, int inputLength)
             model->face_alphas[i] = read_byte(inputData, &transparenciesOffset);
         }
 
-        if( hasPackedTransparencyVertexGroups == 1 )
+        if( hasFaceTextures == 1 )
         {
-            read_byte(inputData, &transparencyGroupsOffset); // Skip transparency group data
+            // read_byte(inputData, &transparencyGroupsOffset);
         }
 
         // Skip face textures and texture coordinates (not supported in current struct)
-        if( hasPackedVertexGroups == 1 )
+        if( hasFaceTextures == 1 )
         {
-            read_unsigned_short(inputData, &texturesOffset); // Skip texture data
+            model->face_alphas[i] =
+                read_unsigned_short(inputData, &texturesOffset); // Skip texture data
         }
     }
 

@@ -24,9 +24,12 @@ struct CacheModel
     int* face_colors;
     int model_priority;
     int textured_face_count;
+    // Used in type 2 >
     int* textured_p_coordinate;
     int* textured_m_coordinate;
     int* textured_n_coordinate;
+    int* face_textures;
+    int* face_texture_coords;
 
     int rotated;
 };

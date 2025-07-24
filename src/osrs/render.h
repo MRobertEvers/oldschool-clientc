@@ -7,6 +7,7 @@ struct CacheModel;
 struct CacheModelBones;
 struct Frame;
 struct Framemap;
+struct TexturesCache;
 
 void render_model_frame(
     int* pixel_buffer,
@@ -26,7 +27,8 @@ void render_model_frame(
     struct CacheModel* model,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
-    struct Framemap* framemap_nullable);
+    struct Framemap* framemap_nullable,
+    struct TexturesCache* textures_cache);
 
 struct SceneTile;
 

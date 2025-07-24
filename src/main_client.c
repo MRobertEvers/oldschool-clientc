@@ -746,7 +746,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         model,
         bones,
         game->frames[game->frame_id],
-        game->framemap);
+        game->framemap,
+        NULL);
 
     model_free(model);
     modelbones_free(bones);

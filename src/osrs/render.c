@@ -1,6 +1,7 @@
 #include "osrs/render.h"
 
 #include "anim.h"
+#include "flat.h"
 #include "gouraud.h"
 #include "gouraud_deob.h"
 #include "lighting.h"
@@ -188,6 +189,118 @@ project_vertices(
             near_plane_z,
             screen_width,
             screen_height);
+
+        // If vertex is too close to camera, set it to a large negative value
+        // This will cause it to be clipped in the rasterization step
+        if( projected_triangle.clipped )
+        {
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = -5000;
+            screen_vertices_z[i] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[i] = projected_triangle.x;
+            screen_vertices_y[i] = projected_triangle.y;
+            screen_vertices_z[i] = projected_triangle.z - model_origin_z_projection;
+        }
+    }
+}
+
+static void
+project_vertices_textured(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int num_vertices,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int camera_fov,
+    int screen_width,
+    int screen_height,
+    int near_plane_z)
+{
+    struct ProjectedTriangle projected_triangle;
+
+    assert(camera_pitch >= 0 && camera_pitch < 2048);
+    assert(camera_yaw >= 0 && camera_yaw < 2048);
+    assert(camera_roll >= 0 && camera_roll < 2048);
+
+    projected_triangle = project(
+        0,
+        0,
+        0,
+        model_pitch,
+        model_yaw,
+        model_roll,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch,
+        camera_yaw,
+        camera_roll,
+        camera_fov,
+        near_plane_z,
+        screen_width,
+        screen_height);
+
+    // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+    // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
+    // // So the depth is the z projection distance from the origin of the model.
+    // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
+
+    int model_origin_z_projection = projected_triangle.z;
+
+    if( projected_triangle.clipped )
+    {
+        for( int i = 0; i < num_vertices; i++ )
+        {
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = -5000;
+            screen_vertices_z[i] = -5000;
+        }
+        return;
+    }
+
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        projected_triangle = project_orthographic(
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_pitch,
+            model_yaw,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll);
+
+        orthographic_vertices_x[i] = projected_triangle.x;
+        orthographic_vertices_y[i] = projected_triangle.y;
+        orthographic_vertices_z[i] = projected_triangle.z;
+
+        projected_triangle = project_perspective(
+            orthographic_vertices_x[i],
+            orthographic_vertices_y[i],
+            orthographic_vertices_z[i],
+            camera_fov,
+            near_plane_z);
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step
@@ -565,6 +678,188 @@ raster_osrs(
     }
 }
 
+enum FaceType
+{
+    FACE_TYPE_GOURAUD,
+    FACE_TYPE_FLAT,
+    FACE_TYPE_TEXTURED,
+    FACE_TYPE_TEXTURED_FLAT_SHADE,
+};
+
+int g_empty_texture_texels[128 * 128] = { 0 };
+
+void
+raster_osrs_typed(
+    struct Pixel* pixel_buffer,
+    int* priority_faces,
+    int* priority_face_counts,
+    int* face_infos,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* orthographic_vertex_x_nullable,
+    int* orthographic_vertex_y_nullable,
+    int* orthographic_vertex_z_nullable,
+    int* face_p_coordinate_nullable,
+    int* face_m_coordinate_nullable,
+    int* face_n_coordinate_nullable,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int offset_x,
+    int offset_y,
+    int screen_width,
+    int screen_height,
+    struct TexturesCache* textures_cache)
+{
+    int tp_face = -1;
+    int tm_face = -1;
+    int tn_face = -1;
+
+    int tp_x = -1;
+    int tp_y = -1;
+    int tp_z = -1;
+    int tm_x = -1;
+    int tm_y = -1;
+    int tm_z = -1;
+    int tn_x = -1;
+    int tn_y = -1;
+    int tn_z = -1;
+
+    for( int prio = 0; prio < 12; prio++ )
+    {
+        int* triangle_indexes = &priority_faces[prio * 2000];
+        int triangle_count = priority_face_counts[prio];
+
+        for( int i = 0; i < triangle_count; i++ )
+        {
+            int index = triangle_indexes[i];
+
+            int x1 = vertex_x[face_indices_a[index]] + offset_x;
+            int y1 = vertex_y[face_indices_a[index]] + offset_y;
+            int z1 = vertex_z[face_indices_a[index]];
+            int x2 = vertex_x[face_indices_b[index]] + offset_x;
+            int y2 = vertex_y[face_indices_b[index]] + offset_y;
+            int z2 = vertex_z[face_indices_b[index]];
+            int x3 = vertex_x[face_indices_c[index]] + offset_x;
+            int y3 = vertex_y[face_indices_c[index]] + offset_y;
+            int z3 = vertex_z[face_indices_c[index]];
+
+            // Skip triangle if any vertex was clipped
+            if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
+                continue;
+
+            int color_a = colors_a[index];
+            int color_b = colors_b[index];
+            int color_c = colors_c[index];
+
+            enum FaceType type = face_infos ? face_infos[index] : FACE_TYPE_GOURAUD;
+
+            switch( type )
+            {
+            case FACE_TYPE_GOURAUD:
+                raster_gouraud(
+                    pixel_buffer,
+                    screen_width,
+                    screen_height,
+                    x1,
+                    x2,
+                    x3,
+                    y1,
+                    y2,
+                    y3,
+                    color_a,
+                    color_b,
+                    color_c);
+                break;
+            case FACE_TYPE_FLAT:
+                raster_flat(
+                    pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a);
+                break;
+            case FACE_TYPE_TEXTURED:
+                assert(face_p_coordinate_nullable != NULL);
+                assert(face_m_coordinate_nullable != NULL);
+                assert(face_n_coordinate_nullable != NULL);
+                assert(orthographic_vertex_x_nullable != NULL);
+                assert(orthographic_vertex_y_nullable != NULL);
+                assert(orthographic_vertex_z_nullable != NULL);
+
+                tp_face = face_p_coordinate_nullable[index];
+                tm_face = face_m_coordinate_nullable[index];
+                tn_face = face_n_coordinate_nullable[index];
+
+                tp_x = orthographic_vertex_x_nullable[tp_face];
+                tp_y = orthographic_vertex_y_nullable[tp_face];
+                tp_z = orthographic_vertex_z_nullable[tp_face];
+
+                tm_x = orthographic_vertex_x_nullable[tm_face];
+                tm_y = orthographic_vertex_y_nullable[tm_face];
+                tm_z = orthographic_vertex_z_nullable[tm_face];
+
+                tn_x = orthographic_vertex_x_nullable[tn_face];
+                tn_y = orthographic_vertex_y_nullable[tn_face];
+                tn_z = orthographic_vertex_z_nullable[tn_face];
+
+                raster_texture_step(
+                    pixel_buffer,
+                    screen_width,
+                    screen_height,
+                    x1,
+                    x2,
+                    x3,
+                    y1,
+                    y2,
+                    y3,
+                    z1,
+                    z2,
+                    z3,
+                    tp_x,
+                    tp_y,
+                    tp_z,
+                    tm_x,
+                    tm_y,
+                    tm_z,
+                    tn_x,
+                    tn_y,
+                    tn_z,
+                    g_empty_texture_texels,
+                    128);
+                break;
+            case FACE_TYPE_TEXTURED_FLAT_SHADE:
+                break;
+                raster_texture_step(
+                    pixel_buffer,
+                    screen_width,
+                    screen_height,
+                    x1,
+                    x2,
+                    x3,
+                    y1,
+                    y2,
+                    y3,
+                    z1,
+                    z2,
+                    z3,
+                    tp_x,
+                    tp_y,
+                    tp_z,
+                    tm_x,
+                    tm_y,
+                    tm_z,
+                    tn_x,
+                    tn_y,
+                    tn_z,
+                    g_empty_texture_texels,
+                    128);
+                break;
+            }
+        }
+    }
+}
+
 void
 raster_osrs_single_gouraud(
     struct Pixel* pixel_buffer,
@@ -741,6 +1036,10 @@ static int tmp_screen_vertices_x[4096] = { 0 };
 static int tmp_screen_vertices_y[4096] = { 0 };
 static int tmp_screen_vertices_z[4096] = { 0 };
 
+static int tmp_orthographic_vertices_x[4096] = { 0 };
+static int tmp_orthographic_vertices_y[4096] = { 0 };
+static int tmp_orthographic_vertices_z[4096] = { 0 };
+
 static int tmp_face_colors_a_hsl16[4096] = { 0 };
 static int tmp_face_colors_b_hsl16[4096] = { 0 };
 static int tmp_face_colors_c_hsl16[4096] = { 0 };
@@ -766,7 +1065,8 @@ render_model_frame(
     struct CacheModel* model,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
-    struct Framemap* framemap_nullable)
+    struct Framemap* framemap_nullable,
+    struct TexturesCache* textures_cache)
 {
     // int* vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
     // memcpy(vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
@@ -810,6 +1110,10 @@ render_model_frame(
     int* screen_vertices_x = tmp_screen_vertices_x;
     int* screen_vertices_y = tmp_screen_vertices_y;
     int* screen_vertices_z = tmp_screen_vertices_z;
+
+    int* orthographic_vertices_x = tmp_orthographic_vertices_x;
+    int* orthographic_vertices_y = tmp_orthographic_vertices_y;
+    int* orthographic_vertices_z = tmp_orthographic_vertices_z;
 
     struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
         model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
@@ -867,10 +1171,35 @@ render_model_frame(
         lightsrc_y,
         lightsrc_z);
 
-    project_vertices(
+    // project_vertices(
+    //     screen_vertices_x,
+    //     screen_vertices_y,
+    //     screen_vertices_z,
+    //     model->vertex_count,
+    //     vertices_x,
+    //     vertices_y,
+    //     vertices_z,
+    //     model_pitch,
+    //     model_yaw,
+    //     model_roll,
+    //     camera_x,
+    //     camera_z,
+    //     camera_y,
+    //     camera_pitch,
+    //     camera_yaw,
+    //     camera_roll,
+    //     fov,
+    //     width,
+    //     height,
+    //     near_plane_z);
+
+    project_vertices_textured(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
+        orthographic_vertices_x,
+        orthographic_vertices_y,
+        orthographic_vertices_z,
         model->vertex_count,
         vertices_x,
         vertices_y,
@@ -888,6 +1217,31 @@ render_model_frame(
         width,
         height,
         near_plane_z);
+
+    // project_vertices_terrain_textured(
+    //     screen_vertices_x,
+    //     screen_vertices_y,
+    //     screen_vertices_z,
+    //     orthographic_vertices_x,
+    //     orthographic_vertices_y,
+    //     orthographic_vertices_z,
+    //     model->vertex_count,
+    //     vertices_x,
+    //     vertices_y,
+    //     vertices_z,
+    //     model_pitch,
+    //     model_yaw,
+    //     model_roll,
+    //     camera_x,
+    //     camera_y,
+    //     camera_z,
+    //     camera_pitch,
+    //     camera_yaw,
+    //     camera_roll,
+    //     fov,
+    //     near_plane_z,
+    //     width,
+    //     height);
 
     bucket_sort_by_average_depth(
         tmp_depth_faces,
@@ -910,23 +1264,31 @@ render_model_frame(
         model->face_priorities,
         model_min_depth * 2);
 
-    raster_osrs(
+    raster_osrs_typed(
         pixel_buffer,
         tmp_priority_faces,
         tmp_priority_face_count,
+        model->face_infos,
         model->face_indices_a,
         model->face_indices_b,
         model->face_indices_c,
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
+        orthographic_vertices_x,
+        orthographic_vertices_y,
+        orthographic_vertices_z,
+        model->textured_p_coordinate,
+        model->textured_m_coordinate,
+        model->textured_n_coordinate,
         face_colors_a_hsl16,
         face_colors_b_hsl16,
         face_colors_c_hsl16,
         width / 2,
         height / 2,
         width,
-        height);
+        height,
+        textures_cache);
 
     // free(vertices_x);
     // free(vertices_y);
@@ -1351,7 +1713,7 @@ render_scene_loc(
     int camera_roll,
     int fov,
     struct SceneLoc* loc,
-    struct SceneTextures* textures_nullable)
+    struct TexturesCache* textures_cache)
 {
     int x = camera_x + loc->region_x;
     int y = camera_y + loc->region_y;
@@ -1411,7 +1773,8 @@ render_scene_loc(
             model,
             NULL,
             NULL,
-            NULL);
+            NULL,
+            textures_cache);
     }
 }
 static void
@@ -1428,7 +1791,7 @@ render_scene_model(
     int camera_roll,
     int fov,
     struct SceneModel* model,
-    struct SceneTextures* textures_nullable)
+    struct TexturesCache* textures_cache)
 {
     int x = camera_x + model->region_x;
     int y = camera_y + model->region_y;
@@ -1488,7 +1851,8 @@ render_scene_model(
             drawable,
             NULL,
             NULL,
-            NULL);
+            NULL,
+            textures_cache);
     }
 }
 
@@ -2209,7 +2573,7 @@ render_scene_ops(
                 camera_roll,
                 fov,
                 model,
-                NULL);
+                textures_cache);
         }
         break;
         case SCENE_OP_TYPE_DRAW_WALL:
@@ -2243,7 +2607,7 @@ render_scene_ops(
                 camera_roll,
                 fov,
                 model,
-                NULL);
+                textures_cache);
         }
         break;
         }

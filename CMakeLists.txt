@@ -34,6 +34,7 @@ add_executable(main_client
     src/osrs/filelist.c
     src/osrs/render.c
     src/osrs/rsbuf.c
+    src/flat.c
     src/gouraud.c
     src/gouraud_deob.c
     src/lighting.c
@@ -74,6 +75,7 @@ add_executable(scene_tile_test
     src/osrs/rsbuf.c
     src/gouraud.c
     src/gouraud_deob.c
+    src/flat.c
     src/lighting.c
     src/projection.c
     src/texture.c
@@ -122,6 +124,7 @@ add_executable(main_rs
 add_executable(rs
     src/main.c
     src/projection.c
+    src/flat.c
     src/gouraud.c
     src/gouraud_deob.c
     src/texture.c
