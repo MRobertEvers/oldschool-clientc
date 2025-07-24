@@ -4,6 +4,8 @@
 #include "datastruct/ht.h"
 
 #include <assert.h>
+#include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -174,3 +176,277 @@ model_cache_checkin(struct ModelCache* model_cache, struct CacheModel* model)
         model_free(model);
     }
 }
+
+struct TexturesCache
+{
+    struct Cache* cache;
+
+    struct HashTable table;
+};
+
+struct TexItem
+{
+    int id;
+    int ref_count;
+    struct Texture* texture;
+};
+
+static int
+httex_cache_keyslot(struct TexturesCache* textures_cache, int key)
+{
+    struct Hash hash = { 0 };
+    ht_hash_init(&hash);
+    ht_hash_update(&hash, &key, sizeof(key));
+    ht_hash_end(&hash);
+
+    struct HashTableIter iter = ht_lookuph(&textures_cache->table, &hash);
+    do
+    {
+        if( iter.tombstone )
+            continue;
+
+        if( iter.empty )
+            return -1;
+
+        if( *(int*)iter.key == key )
+            return iter._slot;
+
+    } while( ht_nexth(&textures_cache->table, &iter) );
+
+    return -1;
+}
+
+static struct TexItem*
+httex_cache_lookup(struct TexturesCache* textures_cache, int model_id)
+{
+    struct Hash hash = { 0 };
+    ht_hash_init(&hash);
+    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_end(&hash);
+
+    struct HashTableIter iter = ht_lookuph(&textures_cache->table, &hash);
+    do
+    {
+        if( iter.empty )
+            return NULL;
+
+        if( *(int*)iter.key == model_id )
+            return (struct TexItem*)iter.value;
+
+    } while( ht_nexth(&textures_cache->table, &iter) );
+
+    return NULL;
+}
+
+static struct TexItem*
+httex_cache_emplace(struct TexturesCache* textures_cache, int model_id)
+{
+    struct Hash hash = { 0 };
+    ht_hash_init(&hash);
+    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_end(&hash);
+
+    struct HashTableIter iter = ht_lookuph(&textures_cache->table, &hash);
+    do
+    {
+        // 1402 and 25133
+        if( iter.empty )
+            return ht_emplaceh(&textures_cache->table, &iter, &model_id);
+
+        struct TexItem* item = (struct TexItem*)iter.value;
+        if( item->id == model_id )
+            return item;
+    } while( ht_nexth(&textures_cache->table, &iter) );
+
+    return NULL;
+}
+
+static struct TexItem*
+httex_cache_remove(struct TexturesCache* textures_cache, int model_id)
+{
+    struct Hash hash = { 0 };
+    ht_hash_init(&hash);
+    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_end(&hash);
+
+    struct HashTableIter iter = ht_lookuph(&textures_cache->table, &hash);
+    do
+    {
+        if( iter.empty )
+            return NULL;
+
+        struct TexItem* item = (struct TexItem*)iter.value;
+        if( item->id == model_id )
+            return ht_removeh(&textures_cache->table, &iter, &model_id);
+    } while( ht_nexth(&textures_cache->table, &iter) );
+
+    return NULL;
+}
+
+struct TexturesCache*
+textures_cache_new(struct Cache* cache)
+{
+    struct TexturesCache* textures_cache =
+        (struct TexturesCache*)malloc(sizeof(struct TexturesCache));
+    memset(textures_cache, 0, sizeof(struct TexturesCache));
+
+    textures_cache->cache = cache;
+
+    ht_init(
+        &textures_cache->table,
+        (struct HashTableInit){
+            .element_size = sizeof(struct TexItem),
+            .capacity_hint = 2000,
+            .key_size = sizeof(int),
+        });
+
+    return textures_cache;
+}
+
+static int
+brighten_rgb(int rgb, double brightness)
+{
+    double r = (rgb >> 16) / 256.0;
+    double g = ((rgb >> 8) & 255) / 256.0;
+    double b = (rgb & 255) / 256.0;
+    r = pow(r, brightness);
+    g = pow(g, brightness);
+    b = pow(b, brightness);
+    int new_r = (int)(r * 256.0);
+    int new_g = (int)(g * 256.0);
+    int new_b = (int)(b * 256.0);
+    return (new_r << 16) | (new_g << 8) | new_b;
+}
+
+struct Texture*
+textures_cache_checkout(
+    struct TexturesCache* textures_cache,
+    struct Cache* cache,
+    int texture_id,
+    int size,
+    double brightness)
+{
+    struct TexItem* item = httex_cache_lookup(textures_cache, texture_id);
+    if( item )
+        return item->texture;
+
+    cache = textures_cache->cache;
+    struct CacheSpritePack* sprite_pack = NULL;
+    struct Texture* texture = NULL;
+    uint8_t* palette_pixels = NULL;
+    int* palette = NULL;
+    int palette_length = 0;
+    struct CacheTexture* texture_definition = NULL;
+    int* pixels = (int*)malloc(size * size * sizeof(int));
+    if( !pixels )
+        return NULL;
+
+    texture_definition = texture_definition_new_from_cache(cache, texture_id);
+    if( !texture_definition )
+        return NULL;
+
+    struct CacheSpritePack** sprite_packs = (struct CacheSpritePack**)malloc(
+        texture_definition->sprite_ids_count * sizeof(struct CacheSpritePack*));
+    memset(sprite_packs, 0, texture_definition->sprite_ids_count * sizeof(struct CacheSpritePack*));
+
+    for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
+    {
+        int sprite_id = texture_definition->sprite_ids[i];
+        sprite_pack = sprite_pack_new_from_cache(cache, sprite_id);
+        assert(sprite_pack);
+        if( !sprite_pack )
+            continue;
+
+        sprite_packs[i] = sprite_pack;
+    }
+
+    for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
+    {
+        sprite_pack = sprite_packs[i];
+        assert(sprite_pack->count > 0);
+
+        palette = sprite_pack->palette;
+        palette_length = sprite_pack->palette_length;
+        struct CacheSprite* sprite = &sprite_pack->sprites[0];
+
+        palette_pixels = sprite->palette_pixels;
+
+        int* adjusted_palette = (int*)malloc(palette_length * sizeof(int));
+        if( !adjusted_palette )
+            return NULL;
+
+        for( int pi = 0; pi < palette_length; pi++ )
+        {
+            int alpha = 0xff;
+            if( palette[pi] == 0 )
+                alpha = 0;
+            adjusted_palette[pi] = (alpha << 24) | brighten_rgb(palette[pi], brightness);
+        }
+
+        int index = 0;
+        if( i > 0 && texture_definition->sprite_types )
+            index = texture_definition->sprite_types[i - 1];
+
+        if( index == 0 )
+        {
+            if( size == sprite->width )
+            {
+                for( int pixel_index = 0; pixel_index < sprite->width * sprite->height;
+                     pixel_index++ )
+                {
+                    int palette_index = palette_pixels[pixel_index];
+                    pixels[pixel_index] = adjusted_palette[palette_index];
+                }
+            }
+            else if( sprite->width == 64 && size == 128 )
+            {
+                int pixel_index = 0;
+                for( int y = 0; y < size; y++ )
+                {
+                    for( int x = 0; x < size; x++ )
+                    {
+                        int palette_index = palette_pixels[pixel_index];
+                        pixels[pixel_index] = adjusted_palette[palette_index];
+                    }
+                }
+            }
+            else
+            {
+                if( size != 64 && sprite->width != 128 )
+                {
+                    printf("Invalid size for sprite\n");
+                    return NULL;
+                }
+            }
+        }
+
+        free(adjusted_palette);
+    }
+
+    for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
+    {
+        sprite_pack = sprite_packs[i];
+        assert(sprite_pack);
+        sprite_pack_free(sprite_pack);
+    }
+    free(sprite_packs);
+
+    free(texture_definition);
+
+    texture = (struct Texture*)malloc(sizeof(struct Texture));
+    texture->texels = pixels;
+    texture->width = size;
+    texture->height = size;
+
+    item = httex_cache_emplace(textures_cache, texture_id);
+    assert(item != NULL);
+    item->texture = texture;
+    item->ref_count = 1;
+    item->id = texture_id;
+
+    return texture;
+}
+
+void
+textures_cache_checkin(struct TexturesCache* textures_cache, struct Texture* texture)
+{}

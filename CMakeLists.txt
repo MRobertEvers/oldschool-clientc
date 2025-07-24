@@ -43,6 +43,8 @@ add_executable(main_client
     src/osrs/xtea.c
     src/osrs/archive.c
     src/osrs/xtea_config.c
+    src/osrs/scene_cache.c
+    src/datastruct/ht.c
 )
 
 add_executable(scene_tile_test

@@ -217,6 +217,8 @@ struct Game
     int show_loc_enabled;
     int show_loc_x;
     int show_loc_y;
+
+    struct TexturesCache* textures_cache;
 };
 
 struct PlatformSDL2
@@ -365,7 +367,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_yaw,
         game->camera_roll,
         game->camera_fov,
-        game->scene);
+        game->scene,
+        game->textures_cache);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,
@@ -595,6 +598,7 @@ main()
     int texture_definitions_count = filelist->file_count;
     struct CacheTexture* texture_definitions =
         (struct CacheTexture*)malloc(texture_definitions_count * sizeof(struct CacheTexture));
+    memset(texture_definitions, 0, texture_definitions_count * sizeof(struct CacheTexture));
     int* texture_ids = (int*)malloc(texture_definitions_count * sizeof(int));
     for( int i = 0; i < texture_definitions_count; i++ )
     {
@@ -797,6 +801,8 @@ main()
     game.scene_locs = NULL;
 
     game.scene = scene;
+
+    game.textures_cache = textures_cache_new(cache);
 
     game.show_loc_x = 63;
     game.show_loc_y = 63;

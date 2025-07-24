@@ -248,6 +248,7 @@ project_vertices_terrain(
             model_yaw,
             model_roll,
             camera_x,
+            // Camera z is the y axis in OSRS
             camera_z,
             camera_y,
             camera_pitch,
@@ -330,8 +331,9 @@ project_vertices_terrain_textured(
             model_yaw,
             model_roll,
             scene_x,
-            scene_y,
+            // Camera z is the y axis in OSRS
             scene_z,
+            scene_y,
             camera_pitch,
             camera_yaw,
             camera_roll);
@@ -649,20 +651,20 @@ raster_osrs_single_texture(
     int* face_texture_v_b,
     int* face_texture_u_c,
     int* face_texture_v_c,
-    struct SceneTextures* textures,
+    struct TexturesCache* textures_cache,
     int offset_x,
     int offset_y)
 {
     int index = face;
 
-    int x1 = screen_vertex_x[face_indices_a[index]] + offset_x;
-    int y1 = screen_vertex_y[face_indices_a[index]] + offset_y;
+    int x1 = screen_vertex_x[face_indices_a[index]];
+    int y1 = screen_vertex_y[face_indices_a[index]];
     int z1 = screen_vertex_z[face_indices_a[index]];
-    int x2 = screen_vertex_x[face_indices_b[index]] + offset_x;
-    int y2 = screen_vertex_y[face_indices_b[index]] + offset_y;
+    int x2 = screen_vertex_x[face_indices_b[index]];
+    int y2 = screen_vertex_y[face_indices_b[index]];
     int z2 = screen_vertex_z[face_indices_b[index]];
-    int x3 = screen_vertex_x[face_indices_c[index]] + offset_x;
-    int y3 = screen_vertex_y[face_indices_c[index]] + offset_y;
+    int x3 = screen_vertex_x[face_indices_c[index]];
+    int y3 = screen_vertex_y[face_indices_c[index]];
     int z3 = screen_vertex_z[face_indices_c[index]];
     // // sw
     int ortho_x0 = orthographic_vertex_x[0];
@@ -686,16 +688,19 @@ raster_osrs_single_texture(
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
         return false;
 
+    x1 += offset_x;
+    y1 += offset_y;
+    x2 += offset_x;
+    y2 += offset_y;
+    x3 += offset_x;
+    y3 += offset_y;
+
     int texture_id = face_texture_ids[index];
     if( texture_id == -1 )
         return false;
 
-    int texel_offset = textures->texel_id_to_offset_lut[texture_id];
-    if( texel_offset == -1 )
-        return false;
-
-    int* texels = textures->texels[texel_offset];
-    if( !texels )
+    struct Texture* texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
+    if( !texture )
         return false;
 
     raster_texture_step(
@@ -720,7 +725,7 @@ raster_osrs_single_texture(
         ortho_z0,
         ortho_z1,
         ortho_z3,
-        texels,
+        texture->texels,
         128);
 
     return true;
@@ -1000,7 +1005,7 @@ render_scene_tile(
     int camera_roll,
     int fov,
     struct SceneTile* tile,
-    struct SceneTextures* textures_nullable,
+    struct TexturesCache* textures_cache,
     int* color_override_hsl16_nullable)
 {
     if( tile->vertex_count == 0 || tile->face_color_hsl_a == NULL )
@@ -1033,7 +1038,7 @@ render_scene_tile(
 
         int texture_id = tile->face_texture_ids ? tile->face_texture_ids[face] : -1;
 
-        if( texture_id == -1 || textures_nullable == NULL )
+        if( texture_id == -1 || textures_cache == NULL )
         {
             project_vertices_terrain(
                 screen_vertices_x,
@@ -1085,10 +1090,6 @@ render_scene_tile(
         else
         {
             // Tile vertexes are wrapped ccw.
-
-            // finish bathroom and floor in basement
-            // two tables against the wall put in garage.
-            // add 0404
             project_vertices_terrain_textured(
                 screen_vertices_x,
                 screen_vertices_y,
@@ -1135,7 +1136,7 @@ render_scene_tile(
                 tile->face_texture_v_b,
                 tile->face_texture_u_c,
                 tile->face_texture_v_c,
-                textures_nullable,
+                textures_cache,
                 width / 2,
                 height / 2);
         }
@@ -2099,7 +2100,8 @@ render_scene_ops(
     int camera_yaw,
     int camera_roll,
     int fov,
-    struct Scene* scene)
+    struct Scene* scene,
+    struct TexturesCache* textures_cache)
 {
     // int* screen_vertices_x = (int*)malloc(20 * sizeof(int));
     // int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
@@ -2175,7 +2177,7 @@ render_scene_ops(
                 camera_roll,
                 fov,
                 tile,
-                NULL,
+                textures_cache,
                 color_override_hsl16_nullable);
         }
         break;

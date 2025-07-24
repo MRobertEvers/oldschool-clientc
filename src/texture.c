@@ -83,6 +83,9 @@ raster_texture_scanline(
         // if( v >= texture_width )
         //     v = texture_width - 1;
 
+        assert(u >= 0 && u < texture_width);
+        assert(v >= 0 && v < texture_width);
+
         pixel_buffer[offset] = texels[u + v * texture_width];
 
         au += step_au_dx;

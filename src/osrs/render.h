@@ -152,6 +152,7 @@ struct Scene;
 struct SceneOp*
 render_scene_compute_ops(int scene_x, int scene_y, int scene_z, struct Scene* scene, int* len);
 
+struct TexturesCache;
 void render_scene_ops(
     struct SceneOp* ops,
     int op_count,
@@ -168,6 +169,7 @@ void render_scene_ops(
     int camera_yaw,
     int camera_roll,
     int fov,
-    struct Scene* scene);
+    struct Scene* scene,
+    struct TexturesCache* textures_cache);
 
 #endif

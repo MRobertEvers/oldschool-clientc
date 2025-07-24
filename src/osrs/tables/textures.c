@@ -1,21 +1,39 @@
 #include "textures.h"
 
 #include "../cache.h"
+#include "../filelist.h"
 #include "../rsbuf.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 struct CacheTexture*
 texture_definition_new_from_cache(struct Cache* cache, int id)
 {
-    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_TEXTURES, id);
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_TEXTURES, 0);
     if( !archive )
         return NULL;
 
-    struct CacheTexture* def = texture_definition_new_decode(archive->data, archive->data_size);
+    struct FileList* filelist = filelist_new_from_cache_archive(archive);
+    if( !filelist )
+        return NULL;
+
+    struct ArchiveReference* reference = &cache->tables[CACHE_TEXTURES]->archives[0];
+    if( !reference )
+        return NULL;
+
+    struct CacheTexture* def = NULL;
+    def = texture_definition_new_decode(filelist->files[id], filelist->file_sizes[id]);
+
+    assert(def->sprite_ids);
+    assert(reference->children.files[id].id == id);
+
+    filelist_free(filelist);
 
     cache_archive_free(archive);
+
+    assert(def);
 
     return def;
 }

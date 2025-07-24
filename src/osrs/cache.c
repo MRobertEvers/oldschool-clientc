@@ -394,6 +394,8 @@ cache_archive_new_load_decrypted(
     // The reference tables were loaded when the cache was created.
     struct ReferenceTable* table = cache->tables[table_id];
 
+    assert(archive_id < table->archive_count);
+
     int archive_slot = -1;
     for( int i = 0; i < table->id_count; ++i )
     {

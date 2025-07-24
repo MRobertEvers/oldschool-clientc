@@ -1,6 +1,8 @@
 #ifndef SPRITES_H
 #define SPRITES_H
 
+#include "../cache.h"
+
 #include <stdint.h>
 
 #define FLAG_VERTICAL 1
@@ -33,6 +35,7 @@ struct CacheSpritePack
 };
 
 struct Cache;
+struct CacheSpritePack* sprite_pack_new_from_cache(struct Cache* cache, int id);
 struct CacheSpritePack* sprite_pack_new_decode(const unsigned char* data, int length);
 void sprite_pack_free(struct CacheSpritePack* pack);
 

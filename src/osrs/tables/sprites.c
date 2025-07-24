@@ -160,6 +160,19 @@ sprite_definition_new_from_cache(struct Cache* cache, int id)
 // 		return sprites;
 
 struct CacheSpritePack*
+sprite_pack_new_from_cache(struct Cache* cache, int id)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_SPRITES, id);
+    if( !archive )
+        return NULL;
+
+    struct CacheSpritePack* pack = sprite_pack_new_decode(archive->data, archive->data_size);
+    cache_archive_free(archive);
+
+    return pack;
+}
+
+struct CacheSpritePack*
 sprite_pack_new_decode(const unsigned char* data, int length)
 {
     if( !data || length < 7 )
