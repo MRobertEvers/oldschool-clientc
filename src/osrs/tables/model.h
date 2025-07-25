@@ -5,6 +5,7 @@ struct CacheModel
 {
     // TODO: Should this be included or carried with.
     int _id;
+    int _model_type;
 
     int vertex_count;
     int* vertices_x;
@@ -30,6 +31,8 @@ struct CacheModel
     int* textured_n_coordinate;
     int* face_textures;
     int* face_texture_coords;
+    // Texture render types for type 3 models
+    unsigned char* textureRenderTypes;
 
     int rotated;
 };

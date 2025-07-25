@@ -166,14 +166,15 @@ sprite_pack_new_from_cache(struct Cache* cache, int id)
     if( !archive )
         return NULL;
 
-    struct CacheSpritePack* pack = sprite_pack_new_decode(archive->data, archive->data_size);
+    struct CacheSpritePack* pack =
+        sprite_pack_new_decode(archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
     cache_archive_free(archive);
 
     return pack;
 }
 
 struct CacheSpritePack*
-sprite_pack_new_decode(const unsigned char* data, int length)
+sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFlags flags)
 {
     if( !data || length < 7 )
         return NULL;
@@ -194,8 +195,8 @@ sprite_pack_new_decode(const unsigned char* data, int length)
 
     buffer.position = length - 7 - sprite_count * 8;
 
-    int max_width = rsbuf_g2(&buffer);
-    int max_height = rsbuf_g2(&buffer);
+    int memory_width = rsbuf_g2(&buffer);
+    int memory_height = rsbuf_g2(&buffer);
     int palette_length = rsbuf_g1(&buffer) + 1;
 
     struct CacheSprite* sprites =
@@ -209,8 +210,8 @@ sprite_pack_new_decode(const unsigned char* data, int length)
         struct CacheSprite* sprite = &sprites[i];
         memset(sprite, 0, sizeof(struct CacheSprite));
         sprite->frame = i;
-        sprite->max_width = max_width;
-        sprite->max_height = max_height;
+        sprite->width = memory_width;
+        sprite->height = memory_height;
     }
 
     for( int i = 0; i < sprite_count; i++ )
@@ -230,14 +231,14 @@ sprite_pack_new_decode(const unsigned char* data, int length)
     {
         struct CacheSprite* sprite = &sprites[i];
         int width = rsbuf_g2(&buffer);
-        sprite->width = width;
+        sprite->crop_width = width;
     }
 
     for( int i = 0; i < sprite_count; i++ )
     {
         struct CacheSprite* sprite = &sprites[i];
         int height = rsbuf_g2(&buffer);
-        sprite->height = height;
+        sprite->crop_height = height;
     }
 
     // same as above + 3 bytes for each palette entry, except for the first one (which is
@@ -265,7 +266,10 @@ sprite_pack_new_decode(const unsigned char* data, int length)
     for( int i = 0; i < sprite_count; i++ )
     {
         struct CacheSprite* sprite = &sprites[i];
-        int dimension = sprite->width * sprite->height;
+        // for sprites that are not normal size (128x128),
+        // rs-map-viewer calls IndexedSprite.normalize,
+        // which fills the sprite out to 128x128
+        int dimension = sprite->crop_width * sprite->crop_height;
         uint8_t* pixel_idx = (uint8_t*)malloc(dimension * sizeof(uint8_t));
         if( !pixel_idx )
             return NULL;
@@ -277,6 +281,8 @@ sprite_pack_new_decode(const unsigned char* data, int length)
         memset(pixel_alpha, 0, dimension * sizeof(uint8_t));
 
         int flags = rsbuf_g1(&buffer);
+        // rs-map-viewer calls this readPixelsDimension
+        //        const readPixelsDimension = buffer.readUnsignedByte();
         if( (flags & FLAG_VERTICAL) == 0 )
         {
             for( int j = 0; j < dimension; j++ )
@@ -286,11 +292,11 @@ sprite_pack_new_decode(const unsigned char* data, int length)
         }
         else
         {
-            for( int j = 0; j < sprite->width; j++ )
+            for( int j = 0; j < sprite->crop_width; j++ )
             {
-                for( int k = 0; k < sprite->height; k++ )
+                for( int k = 0; k < sprite->crop_height; k++ )
                 {
-                    pixel_idx[sprite->width * k + j] = rsbuf_g1(&buffer);
+                    pixel_idx[sprite->crop_width * k + j] = rsbuf_g1(&buffer);
                 }
             }
         }
@@ -340,6 +346,40 @@ sprite_pack_new_decode(const unsigned char* data, int length)
         // }
 
         // sprite->pixels = pixels;
+    }
+
+    // See rs-map-viewer IndexedSprite.normalize
+    if( flags & SPRITELOAD_FLAG_NORMALIZE )
+    {
+        for( int i = 0; i < sprite_count; i++ )
+        {
+            struct CacheSprite* sprite = &sprites[i];
+            if( sprite->width != sprite->crop_width || sprite->height != sprite->crop_height )
+            {
+                int dimension = sprite->width * sprite->height;
+                uint8_t* pixel_idx = (uint8_t*)malloc(dimension * sizeof(uint8_t));
+                if( !pixel_idx )
+                    return NULL;
+                memset(pixel_idx, 0, dimension * sizeof(uint8_t));
+
+                int index = 0;
+                for( int x = 0; x < sprite->crop_width; x++ )
+                {
+                    for( int y = 0; y < sprite->crop_height; y++ )
+                    {
+                        int y_idx = sprite->crop_width * y + sprite->offset_y;
+                        int x_idx = x + sprite->offset_x;
+                        pixel_idx[y_idx + x_idx] = sprite->palette_pixels[index++];
+                    }
+                }
+                free(sprite->palette_pixels);
+                sprite->palette_pixels = pixel_idx;
+                sprite->crop_width = sprite->width;
+                sprite->crop_height = sprite->height;
+                sprite->offset_x = 0;
+                sprite->offset_y = 0;
+            }
+        }
     }
 
     return pack;

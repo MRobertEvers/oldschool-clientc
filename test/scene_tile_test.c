@@ -636,8 +636,13 @@ main()
 
         struct ArchiveReference* archives = cache->tables[CACHE_SPRITES]->archives;
 
+        if( sprite_index == 455 )
+        {
+            int iiii = 0;
+        }
+
         struct CacheSpritePack* sprite_pack =
-            sprite_pack_new_decode(archive->data, archive->data_size);
+            sprite_pack_new_decode(archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
         if( !sprite_pack )
         {
             printf("Failed to load sprites pack\n");
@@ -648,7 +653,7 @@ main()
         // DO NOT FREE
         // sprite_pack_free(sprite_pack);
 
-        if( sprite_index == 448 )
+        if( sprite_index == 455 )
         {
             int* pixels = sprite_get_pixels(&sprite_pack->sprites[0], sprite_pack->palette, 1);
 
@@ -657,7 +662,7 @@ main()
 
             // Replace the existing BMP writing code with:
             write_bmp_file(
-                "sprite_448.bmp",
+                "sprite_455.bmp",
                 pixels,
                 sprite_pack->sprites[0].width,
                 sprite_pack->sprites[0].height);

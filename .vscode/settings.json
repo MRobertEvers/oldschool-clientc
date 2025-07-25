@@ -51,6 +51,8 @@
         "scene_loc.h": "c",
         "maps.h": "c",
         "config_floortype.h": "c",
-        "ht.h": "c"
+        "ht.h": "c",
+        "queue": "c",
+        "stack": "c"
     }
 }

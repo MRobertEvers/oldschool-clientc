@@ -150,6 +150,11 @@ model_cache_checkout(struct ModelCache* model_cache, struct Cache* cache, int mo
         return item->model;
     }
 
+    if( model_id == 1263 )
+    {
+        int iiii = 0;
+    }
+
     model = model_new_from_cache(cache, model_id);
     if( !model )
         return NULL;
@@ -344,6 +349,11 @@ textures_cache_checkout(
     texture_definition = texture_definition_new_from_cache(cache, texture_id);
     if( !texture_definition )
         return NULL;
+
+    if( texture_id == 8 )
+    {
+        int iiii = 0;
+    }
 
     struct CacheSpritePack** sprite_packs = (struct CacheSpritePack**)malloc(
         texture_definition->sprite_ids_count * sizeof(struct CacheSpritePack*));
