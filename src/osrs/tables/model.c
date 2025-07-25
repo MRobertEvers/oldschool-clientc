@@ -2429,6 +2429,11 @@ model_free(struct CacheModel* model)
         free(model->textured_m_coordinate);
     if( model->textured_n_coordinate )
         free(model->textured_n_coordinate);
-
+    if( model->face_texture_coords )
+        free(model->face_texture_coords);
+    if( model->textureRenderTypes )
+        free(model->textureRenderTypes);
+    if( model->face_textures )
+        free(model->face_textures);
     free(model);
 }

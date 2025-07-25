@@ -40,6 +40,18 @@ model_cache_new()
 void
 model_cache_free(struct ModelCache* model_cache)
 {
+    struct HashTableIter iter;
+    for( int i = 0; i < model_cache->table.capacity; i++ )
+    {
+        iter = ht_atsloth(&model_cache->table, i);
+        if( iter.at_end )
+            break;
+        if( !iter.empty )
+        {
+            struct Item* item = (struct Item*)iter.value;
+            model_free(item->model);
+        }
+    }
     ht_cleanup(&model_cache->table);
     free(model_cache);
 }

@@ -674,6 +674,14 @@ scene_free(struct Scene* scene)
 {
     model_cache_free(scene->_model_cache);
     free_tiles(scene->scene_tiles, scene->scene_tiles_length);
+
+    for( int i = 0; i < scene->models_length; i++ )
+    {
+        struct SceneModel* model = &scene->models[i];
+        free(model->model_ids);
+        free(model->models);
+    }
+
     free(scene->models);
     free(scene->locs);
     free(scene->grid_tiles);

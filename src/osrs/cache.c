@@ -74,7 +74,7 @@ read_dat2(
     if( sector <= 0L || data_size / SECTOR_SIZE < (long)sector )
     {
         printf("bad read, dat length %d, requested sector %d", data_size, sector);
-        return -1;
+        goto error;
     }
 
     int out_len = 0;
@@ -86,7 +86,7 @@ read_dat2(
         if( sector == 0 )
         {
             printf("Unexpected end of file\n");
-            return -1;
+            goto error;
         }
         data_buffer.position = sector * SECTOR_SIZE;
 
@@ -102,7 +102,7 @@ read_dat2(
             if( bytes_read < header_size + data_block_size )
             {
                 printf("short read when reading file data for %d/%d\n", archive_id, current_index);
-                return -1;
+                goto error;
             }
 
             read_buffer_len = bytes_read;
@@ -125,7 +125,7 @@ read_dat2(
             if( bytes_read < header_size + data_block_size )
             {
                 printf("short read when reading file data for %d/%d\n", archive_id, current_index);
-                return -1;
+                goto error;
             }
 
             read_buffer_len = bytes_read;
@@ -147,13 +147,13 @@ read_dat2(
                 current_part,
                 idx_file_id,
                 current_index);
-            return -1;
+            goto error;
         }
 
         if( next_sector < 0 || data_size / SECTOR_SIZE < (long)next_sector )
         {
             printf("invalid next sector");
-            return -1;
+            goto error;
         }
 
         memcpy(out + out_len, read_buffer + header_size, data_block_size);
@@ -169,6 +169,10 @@ read_dat2(
     archive->archive_id = archive_id;
 
     return 0;
+
+error:
+    free(out);
+    return -1;
 }
 
 bool

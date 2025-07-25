@@ -202,6 +202,8 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             if( count == 0 )
                 break;
 
+            loc->shapes_and_model_count = 1;
+
             loc->shapes = NULL;
             loc->models = (int**)malloc(1 * sizeof(int*));
             loc->models[0] = (int*)malloc(count * sizeof(int));
@@ -610,6 +612,8 @@ free_loc(struct CacheConfigLocation* loc)
         }
         free(loc->models);
     }
+
+    free(loc->lengths);
 
     free(loc->recolors_from);
     free(loc->recolors_to);
