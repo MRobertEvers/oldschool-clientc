@@ -167,7 +167,7 @@ read_dat2(
     archive->data = out;
     archive->data_size = out_len;
     archive->archive_id = archive_id;
-
+    assert(archive->data == out);
     return 0;
 
 error:

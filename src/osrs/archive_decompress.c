@@ -48,6 +48,8 @@ archive_decrypt_decompress(struct Dat2Archive* archive, int32_t* xtea_key_nullab
         if( bytes_read < size )
             return false;
 
+        free(archive->data);
+
         archive->data = data;
         archive->data_size = bytes_read;
         break;
