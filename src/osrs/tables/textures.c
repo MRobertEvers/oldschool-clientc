@@ -23,11 +23,22 @@ texture_definition_new_from_cache(struct Cache* cache, int id)
     if( !reference )
         return NULL;
 
+    /**
+     * Texture definition ids are mostly contiguous but id=54 is missing.
+     * So files[54].id = 55.
+     *
+     * This is a quick workaround
+     */
+    int file_index = id;
+    if( file_index >= 54 )
+        file_index--;
+
     struct CacheTexture* def = NULL;
-    def = texture_definition_new_decode(filelist->files[id], filelist->file_sizes[id]);
+    def = texture_definition_new_decode(
+        filelist->files[file_index], filelist->file_sizes[file_index]);
 
     assert(def->sprite_ids);
-    assert(reference->children.files[id].id == id);
+    assert(reference->children.files[file_index].id == id);
 
     filelist_free(filelist);
 

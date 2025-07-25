@@ -1215,6 +1215,7 @@ main(int argc, char* argv[])
 
         calculate_vertex_normals(
             vertex_normals,
+            model->vertex_count,
             model->face_indices_a,
             model->face_indices_b,
             model->face_indices_c,

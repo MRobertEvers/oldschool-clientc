@@ -1293,48 +1293,49 @@ decodeType2(const unsigned char* var1, int var1_length)
     int var39 = 0; // previous Z
 
     // Read vertex data
-    for( int var40 = 0; var40 < var9; ++var40 )
+    int var40, var41, var42, var43, var44;
+    for( int i = 0; i < var9; ++i )
     {
-        int var41 = read_byte(var1, &var4_offset); // vertex flags
-        int var42 = 0;                             // delta X
+        var41 = read_byte(var1, &var4_offset); // vertex flags
+        var42 = 0;                             // delta X
         if( (var41 & 1) != 0 )
         {
             var42 = read_short_smart(var1, &var5_offset);
         }
 
-        int var43 = 0; // delta Y
+        var43 = 0; // delta Y
         if( (var41 & 2) != 0 )
         {
             var43 = read_short_smart(var1, &var6_offset);
         }
 
-        int var44 = 0; // delta Z
+        var44 = 0; // delta Z
         if( (var41 & 4) != 0 )
         {
             var44 = read_short_smart(var1, &var7_offset);
         }
 
-        def->vertices_x[var40] = var37 + var42;
-        def->vertices_y[var40] = var38 + var43;
-        def->vertices_z[var40] = var39 + var44;
-        var37 = def->vertices_x[var40];
-        var38 = def->vertices_y[var40];
-        var39 = def->vertices_z[var40];
+        def->vertices_x[i] = var37 + var42;
+        def->vertices_y[i] = var38 + var43;
+        def->vertices_z[i] = var39 + var44;
+        var37 = def->vertices_x[i];
+        var38 = def->vertices_y[i];
+        var39 = def->vertices_z[i];
 
         if( var16 == 1 )
         {
-            def->vertex_bone_map[var40] = read_byte(var1, &var8_offset);
+            def->vertex_bone_map[i] = read_byte(var1, &var8_offset);
         }
     }
 
     // Read animaya groups if present
     if( var17 == 1 )
     {
-        for( int var40 = 0; var40 < var9; ++var40 )
+        for( int i = 0; i < var9; ++i )
         {
-            int var41 = read_byte(var1, &var8_offset);
+            var41 = read_byte(var1, &var8_offset);
             // Skip animaya groups and scales as they're not in our struct
-            for( int var42 = 0; var42 < var41; ++var42 )
+            for( int j = 0; j < var41; ++j )
             {
                 read_byte(var1, &var8_offset); // animaya group
                 read_byte(var1, &var8_offset); // animaya scale
@@ -1350,48 +1351,48 @@ decodeType2(const unsigned char* var1, int var1_length)
     var8_offset = var27;
 
     // Read face data
-    for( int var40 = 0; var40 < var10; ++var40 )
+    for( int i = 0; i < var10; ++i )
     {
-        def->face_colors[var40] = (int)read_unsigned_short(var1, &var4_offset);
+        def->face_colors[i] = (int)read_unsigned_short(var1, &var4_offset);
 
         if( var12 == 1 )
         {
-            int var41 = read_byte(var1, &var5_offset);
+            var41 = read_byte(var1, &var5_offset);
             if( (var41 & 1) == 1 )
             {
-                def->face_infos[var40] = 1;
+                def->face_infos[i] = 1;
                 var2 = 1;
             }
             else
             {
-                def->face_infos[var40] = 0;
+                def->face_infos[i] = 0;
             }
 
             if( (var41 & 2) == 2 )
             {
-                def->face_texture_coords[var40] = (int)(var41 >> 2);
-                def->face_textures[var40] = def->face_colors[var40];
-                def->face_colors[var40] = 127;
-                if( def->face_textures[var40] != -1 )
+                def->face_texture_coords[i] = (int)(var41 >> 2);
+                def->face_textures[i] = def->face_colors[i];
+                def->face_colors[i] = 127;
+                if( def->face_textures[i] != -1 )
                 {
                     var3 = 1;
                 }
             }
             else
             {
-                def->face_texture_coords[var40] = -1;
-                def->face_textures[var40] = -1;
+                def->face_texture_coords[i] = -1;
+                def->face_textures[i] = -1;
             }
         }
 
         if( var13 == 255 )
         {
-            def->face_priorities[var40] = (int)read_byte(var1, &var6_offset);
+            def->face_priorities[i] = (int)read_byte(var1, &var6_offset);
         }
 
         if( var14 == 1 )
         {
-            def->face_alphas[var40] = (int)read_byte(var1, &var7_offset);
+            def->face_alphas[i] = (int)read_byte(var1, &var7_offset);
         }
 
         if( var15 == 1 )
@@ -1403,10 +1404,10 @@ decodeType2(const unsigned char* var1, int var1_length)
     // Set up stream offsets for face indices
     var4_offset = var31;
     var5_offset = var25;
-    int var40 = 0; // previous index 1
-    int var41 = 0; // previous index 2
-    int var42 = 0; // previous index 3
-    int var43 = 0; // previous index 3 copy
+    var40 = 0;
+    var41 = 0;
+    var42 = 0;
+    var43 = 0;
 
     // Read face indices
     for( int var44 = 0; var44 < var10; ++var44 )
@@ -2042,6 +2043,7 @@ decodeType3(const unsigned char* var1, int var1_length)
     }
 
     // Set up stream offsets for reading vertex data
+    var2_offset = texTriangleCount;
     var3_offset = var39;
     var4_offset = var40;
     var5_offset = var41;
@@ -2056,7 +2058,7 @@ decodeType3(const unsigned char* var1, int var1_length)
     // Read vertex data
     for( var51 = 0; var51 < vertexCount; ++var51 )
     {
-        var52 = read_byte(var1, &var3_offset);
+        var52 = read_byte(var1, &var2_offset);
         var53 = 0;
         if( (var52 & 1) != 0 )
         {
@@ -2254,9 +2256,9 @@ model_new_from_cache(struct Cache* cache, int model_id)
         return NULL;
     }
 
-    if( model_id == 637 )
+    if( model_id == 1610 )
     {
-        int iiii = 0;
+        int i = 0;
     }
 
     model = model_new_decode(archive->data, archive->data_size);

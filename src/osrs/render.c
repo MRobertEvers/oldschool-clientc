@@ -689,11 +689,10 @@ enum FaceType
 
 int g_empty_texture_texels[128 * 128] = { 0 };
 
-void
-raster_osrs_typed(
+static void
+model_draw_face(
     struct Pixel* pixel_buffer,
-    int* priority_faces,
-    int* priority_face_counts,
+    int face_index,
     int* face_infos,
     int* face_indices_a,
     int* face_indices_b,
@@ -735,6 +734,242 @@ raster_osrs_typed(
     int texture_id = -1;
     int texture_face = -1;
 
+    int index = face_index;
+
+    int x1 = vertex_x[face_indices_a[index]] + offset_x;
+    int y1 = vertex_y[face_indices_a[index]] + offset_y;
+    int z1 = vertex_z[face_indices_a[index]];
+    int x2 = vertex_x[face_indices_b[index]] + offset_x;
+    int y2 = vertex_y[face_indices_b[index]] + offset_y;
+    int z2 = vertex_z[face_indices_b[index]];
+    int x3 = vertex_x[face_indices_c[index]] + offset_x;
+    int y3 = vertex_y[face_indices_c[index]] + offset_y;
+    int z3 = vertex_z[face_indices_c[index]];
+
+    // Skip triangle if any vertex was clipped
+    if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
+        return;
+
+    int color_a = colors_a[index];
+    int color_b = colors_b[index];
+    int color_c = colors_c[index];
+
+    if( face_infos && face_infos[index] > 3 )
+    {
+        int iiii = 0;
+    }
+
+    enum FaceType type = face_infos ? (face_infos[index] & 0x3) : FACE_TYPE_GOURAUD;
+    assert(type >= 0 && type <= 3);
+
+    int* texels = g_empty_texture_texels;
+    if( face_textures && face_textures[index] != -1 )
+    {
+        texture_id = face_textures[index];
+        struct Texture* texture =
+            textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
+        assert(texture != NULL);
+        texels = texture->texels;
+
+        if( color_c == -1 )
+            goto textured_flat;
+        else
+            goto textured;
+    }
+    else
+    {
+        if( color_c == -1 )
+        {
+            type = FACE_TYPE_FLAT;
+        }
+        else
+        {
+            type = FACE_TYPE_GOURAUD;
+        }
+        switch( type )
+        {
+        case FACE_TYPE_GOURAUD:
+            raster_gouraud(
+                pixel_buffer,
+                screen_width,
+                screen_height,
+                x1,
+                x2,
+                x3,
+                y1,
+                y2,
+                y3,
+                color_a,
+                color_b,
+                color_c);
+            break;
+        case FACE_TYPE_FLAT:
+            raster_flat(pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a);
+            break;
+        case FACE_TYPE_TEXTURED:
+        textured:;
+            if( !face_p_coordinate_nullable )
+                break;
+
+            assert(face_p_coordinate_nullable != NULL);
+            assert(face_m_coordinate_nullable != NULL);
+            assert(face_n_coordinate_nullable != NULL);
+            assert(orthographic_vertex_x_nullable != NULL);
+            assert(orthographic_vertex_y_nullable != NULL);
+            assert(orthographic_vertex_z_nullable != NULL);
+
+            if( face_texture_coords && face_texture_coords[index] != -1 )
+            {
+                texture_face = face_texture_coords[index];
+                tp_face = face_p_coordinate_nullable[texture_face];
+                tm_face = face_m_coordinate_nullable[texture_face];
+                tn_face = face_n_coordinate_nullable[texture_face];
+            }
+            else
+            {
+                texture_face = index;
+                tp_face = orthographic_vertex_x_nullable[texture_face];
+                tm_face = orthographic_vertex_y_nullable[texture_face];
+                tn_face = orthographic_vertex_z_nullable[texture_face];
+            }
+            // texture_id = face_textures[index];
+            // texture_face = face_infos[index] >> 2;
+            // texture_face = face_texture_coords[index];
+
+            tp_x = orthographic_vertex_x_nullable[tp_face];
+            tp_y = orthographic_vertex_y_nullable[tp_face];
+            tp_z = orthographic_vertex_z_nullable[tp_face];
+
+            tm_x = orthographic_vertex_x_nullable[tm_face];
+            tm_y = orthographic_vertex_y_nullable[tm_face];
+            tm_z = orthographic_vertex_z_nullable[tm_face];
+
+            tn_x = orthographic_vertex_x_nullable[tn_face];
+            tn_y = orthographic_vertex_y_nullable[tn_face];
+            tn_z = orthographic_vertex_z_nullable[tn_face];
+
+            raster_texture_step(
+                pixel_buffer,
+                screen_width,
+                screen_height,
+                x1,
+                x2,
+                x3,
+                y1,
+                y2,
+                y3,
+                z1,
+                z2,
+                z3,
+                tp_x,
+                tm_x,
+                tn_x,
+                tp_y,
+                tm_y,
+                tn_y,
+                tp_z,
+                tm_z,
+                tn_z,
+                texels,
+                128,
+                false);
+            break;
+        case FACE_TYPE_TEXTURED_FLAT_SHADE:
+        textured_flat:;
+            if( !face_p_coordinate_nullable )
+                break;
+
+            // if( !face_textures )
+            //     break;
+
+            assert(face_p_coordinate_nullable != NULL);
+            assert(face_m_coordinate_nullable != NULL);
+            assert(face_n_coordinate_nullable != NULL);
+            assert(orthographic_vertex_x_nullable != NULL);
+            assert(orthographic_vertex_y_nullable != NULL);
+            assert(orthographic_vertex_z_nullable != NULL);
+
+            // texture_id = face_textures[index];
+
+            // texture_face = face_texture_coords[index];
+            texture_face = face_infos[index] >> 2;
+
+            tp_face = face_p_coordinate_nullable[texture_face];
+            tm_face = face_m_coordinate_nullable[texture_face];
+            tn_face = face_n_coordinate_nullable[texture_face];
+
+            tp_x = orthographic_vertex_x_nullable[tp_face];
+            tp_y = orthographic_vertex_y_nullable[tp_face];
+            tp_z = orthographic_vertex_z_nullable[tp_face];
+
+            tm_x = orthographic_vertex_x_nullable[tm_face];
+            tm_y = orthographic_vertex_y_nullable[tm_face];
+            tm_z = orthographic_vertex_z_nullable[tm_face];
+
+            tn_x = orthographic_vertex_x_nullable[tn_face];
+            tn_y = orthographic_vertex_y_nullable[tn_face];
+            tn_z = orthographic_vertex_z_nullable[tn_face];
+
+            raster_texture_step(
+                pixel_buffer,
+                screen_width,
+                screen_height,
+                x1,
+                x2,
+                x3,
+                y1,
+                y2,
+                y3,
+                z1,
+                z2,
+                z3,
+                tp_x,
+                tp_y,
+                tp_z,
+                tm_x,
+                tm_y,
+                tm_z,
+                tn_x,
+                tn_y,
+                tn_z,
+                g_empty_texture_texels,
+                128,
+                false);
+            break;
+        }
+    }
+}
+
+void
+raster_osrs_typed(
+    struct Pixel* pixel_buffer,
+    int* priority_faces,
+    int* priority_face_counts,
+    int* face_infos,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* orthographic_vertex_x_nullable,
+    int* orthographic_vertex_y_nullable,
+    int* orthographic_vertex_z_nullable,
+    int* face_textures,
+    int* face_texture_coords,
+    int* face_p_coordinate_nullable,
+    int* face_m_coordinate_nullable,
+    int* face_n_coordinate_nullable,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int offset_x,
+    int offset_y,
+    int screen_width,
+    int screen_height,
+    struct TexturesCache* textures_cache)
+{
+    int face_index = 0;
     for( int prio = 0; prio < 12; prio++ )
     {
         int* triangle_indexes = &priority_faces[prio * 2000];
@@ -742,204 +977,33 @@ raster_osrs_typed(
 
         for( int i = 0; i < triangle_count; i++ )
         {
-            int index = triangle_indexes[i];
-
-            int x1 = vertex_x[face_indices_a[index]] + offset_x;
-            int y1 = vertex_y[face_indices_a[index]] + offset_y;
-            int z1 = vertex_z[face_indices_a[index]];
-            int x2 = vertex_x[face_indices_b[index]] + offset_x;
-            int y2 = vertex_y[face_indices_b[index]] + offset_y;
-            int z2 = vertex_z[face_indices_b[index]];
-            int x3 = vertex_x[face_indices_c[index]] + offset_x;
-            int y3 = vertex_y[face_indices_c[index]] + offset_y;
-            int z3 = vertex_z[face_indices_c[index]];
-
-            // Skip triangle if any vertex was clipped
-            if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
-                continue;
-
-            int color_a = colors_a[index];
-            int color_b = colors_b[index];
-            int color_c = colors_c[index];
-
-            if( face_infos && face_infos[index] > 3 )
-            {
-                int iiii = 0;
-            }
-
-            enum FaceType type = face_infos ? (face_infos[index] & 0x3) : FACE_TYPE_GOURAUD;
-            assert(type >= 0 && type <= 3);
-
-            int* texels = g_empty_texture_texels;
-
-            if( face_textures && face_textures[index] != -1 )
-            {
-                texture_id = face_textures[index];
-                struct Texture* texture =
-                    textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
-                assert(texture != NULL);
-                texels = texture->texels;
-
-                if( color_c == -1 )
-                    goto textured_flat;
-                else
-                    goto textured;
-            }
-            else if( face_infos )
-            {
-                switch( type )
-                {
-                case FACE_TYPE_GOURAUD:
-                    raster_gouraud(
-                        pixel_buffer,
-                        screen_width,
-                        screen_height,
-                        x1,
-                        x2,
-                        x3,
-                        y1,
-                        y2,
-                        y3,
-                        color_a,
-                        color_b,
-                        color_c);
-                    break;
-                case FACE_TYPE_FLAT:
-                    raster_flat(
-                        pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a);
-                    break;
-                case FACE_TYPE_TEXTURED:
-                textured:;
-                    if( !face_p_coordinate_nullable )
-                        break;
-
-                    assert(face_p_coordinate_nullable != NULL);
-                    assert(face_m_coordinate_nullable != NULL);
-                    assert(face_n_coordinate_nullable != NULL);
-                    assert(orthographic_vertex_x_nullable != NULL);
-                    assert(orthographic_vertex_y_nullable != NULL);
-                    assert(orthographic_vertex_z_nullable != NULL);
-
-                    if( face_texture_coords && face_texture_coords[index] != -1 )
-                    {
-                        texture_face = face_texture_coords[index];
-                        tp_face = face_p_coordinate_nullable[texture_face];
-                        tm_face = face_m_coordinate_nullable[texture_face];
-                        tn_face = face_n_coordinate_nullable[texture_face];
-                    }
-                    else
-                    {
-                        texture_face = index;
-                        tp_face = orthographic_vertex_x_nullable[texture_face];
-                        tm_face = orthographic_vertex_y_nullable[texture_face];
-                        tn_face = orthographic_vertex_z_nullable[texture_face];
-                    }
-                    // texture_id = face_textures[index];
-                    // texture_face = face_infos[index] >> 2;
-                    // texture_face = face_texture_coords[index];
-
-                    tp_x = orthographic_vertex_x_nullable[tp_face];
-                    tp_y = orthographic_vertex_y_nullable[tp_face];
-                    tp_z = orthographic_vertex_z_nullable[tp_face];
-
-                    tm_x = orthographic_vertex_x_nullable[tm_face];
-                    tm_y = orthographic_vertex_y_nullable[tm_face];
-                    tm_z = orthographic_vertex_z_nullable[tm_face];
-
-                    tn_x = orthographic_vertex_x_nullable[tn_face];
-                    tn_y = orthographic_vertex_y_nullable[tn_face];
-                    tn_z = orthographic_vertex_z_nullable[tn_face];
-
-                    raster_texture_step(
-                        pixel_buffer,
-                        screen_width,
-                        screen_height,
-                        x1,
-                        x2,
-                        x3,
-                        y1,
-                        y2,
-                        y3,
-                        z1,
-                        z2,
-                        z3,
-                        tp_x,
-                        tm_x,
-                        tn_x,
-                        tp_y,
-                        tm_y,
-                        tn_y,
-                        tp_z,
-                        tm_z,
-                        tn_z,
-                        texels,
-                        128,
-                        false);
-                    break;
-                case FACE_TYPE_TEXTURED_FLAT_SHADE:
-                textured_flat:;
-                    if( !face_p_coordinate_nullable )
-                        break;
-
-                    // if( !face_textures )
-                    //     break;
-
-                    assert(face_p_coordinate_nullable != NULL);
-                    assert(face_m_coordinate_nullable != NULL);
-                    assert(face_n_coordinate_nullable != NULL);
-                    assert(orthographic_vertex_x_nullable != NULL);
-                    assert(orthographic_vertex_y_nullable != NULL);
-                    assert(orthographic_vertex_z_nullable != NULL);
-
-                    // texture_id = face_textures[index];
-
-                    // texture_face = face_texture_coords[index];
-                    texture_face = face_infos[index] >> 2;
-
-                    tp_face = face_p_coordinate_nullable[texture_face];
-                    tm_face = face_m_coordinate_nullable[texture_face];
-                    tn_face = face_n_coordinate_nullable[texture_face];
-
-                    tp_x = orthographic_vertex_x_nullable[tp_face];
-                    tp_y = orthographic_vertex_y_nullable[tp_face];
-                    tp_z = orthographic_vertex_z_nullable[tp_face];
-
-                    tm_x = orthographic_vertex_x_nullable[tm_face];
-                    tm_y = orthographic_vertex_y_nullable[tm_face];
-                    tm_z = orthographic_vertex_z_nullable[tm_face];
-
-                    tn_x = orthographic_vertex_x_nullable[tn_face];
-                    tn_y = orthographic_vertex_y_nullable[tn_face];
-                    tn_z = orthographic_vertex_z_nullable[tn_face];
-
-                    raster_texture_step(
-                        pixel_buffer,
-                        screen_width,
-                        screen_height,
-                        x1,
-                        x2,
-                        x3,
-                        y1,
-                        y2,
-                        y3,
-                        z1,
-                        z2,
-                        z3,
-                        tp_x,
-                        tp_y,
-                        tp_z,
-                        tm_x,
-                        tm_y,
-                        tm_z,
-                        tn_x,
-                        tn_y,
-                        tn_z,
-                        g_empty_texture_texels,
-                        128,
-                        false);
-                    break;
-                }
-            }
+            face_index = triangle_indexes[i];
+            model_draw_face(
+                pixel_buffer,
+                face_index,
+                face_infos,
+                face_indices_a,
+                face_indices_b,
+                face_indices_c,
+                vertex_x,
+                vertex_y,
+                vertex_z,
+                orthographic_vertex_x_nullable,
+                orthographic_vertex_y_nullable,
+                orthographic_vertex_z_nullable,
+                face_textures,
+                face_texture_coords,
+                face_p_coordinate_nullable,
+                face_m_coordinate_nullable,
+                face_n_coordinate_nullable,
+                colors_a,
+                colors_b,
+                colors_c,
+                offset_x,
+                offset_y,
+                screen_width,
+                screen_height,
+                textures_cache);
         }
     }
 }
@@ -1220,6 +1284,7 @@ render_model_frame(
 
     calculate_vertex_normals(
         vertex_normals,
+        model->vertex_count,
         model->face_indices_a,
         model->face_indices_b,
         model->face_indices_c,
@@ -1303,6 +1368,41 @@ render_model_frame(
         height,
         near_plane_z);
 
+    if( !model->face_priorities )
+    {
+        for( int i = 0; i < model->face_count; i++ )
+        {
+            model_draw_face(
+                pixel_buffer,
+                i,
+                model->face_infos,
+                model->face_indices_a,
+                model->face_indices_b,
+                model->face_indices_c,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                orthographic_vertices_x,
+                orthographic_vertices_y,
+                orthographic_vertices_z,
+                model->face_textures,
+                model->face_texture_coords,
+                model->textured_p_coordinate,
+                model->textured_m_coordinate,
+                model->textured_n_coordinate,
+                face_colors_a_hsl16,
+                face_colors_b_hsl16,
+                face_colors_c_hsl16,
+                0,
+                0,
+                width,
+                height,
+                textures_cache);
+        }
+
+        goto done;
+    }
+
     // project_vertices_terrain_textured(
     //     screen_vertices_x,
     //     screen_vertices_y,
@@ -1351,11 +1451,6 @@ render_model_frame(
 
     // 637 is willow?
 
-    if( model->_id == 637 )
-    {
-        int iiii = 0;
-    }
-
     raster_osrs_typed(
         pixel_buffer,
         tmp_priority_faces,
@@ -1384,12 +1479,13 @@ render_model_frame(
         height,
         textures_cache);
 
-    // free(vertices_x);
-    // free(vertices_y);
-    // free(vertices_z);
-    // free(face_colors_a_hsl16);
-    // free(face_colors_b_hsl16);
-    // free(face_colors_c_hsl16);
+// free(vertices_x);
+// free(vertices_y);
+// free(vertices_z);
+// free(face_colors_a_hsl16);
+// free(face_colors_b_hsl16);
+// free(face_colors_c_hsl16);
+done:
     free(vertex_normals);
     // free(screen_vertices_x);
     // free(screen_vertices_y);

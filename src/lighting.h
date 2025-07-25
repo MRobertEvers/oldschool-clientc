@@ -11,6 +11,7 @@ struct VertexNormal
 
 void calculate_vertex_normals(
     struct VertexNormal* vertex_normals,
+    int vertex_count,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,

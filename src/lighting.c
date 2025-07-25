@@ -1,10 +1,12 @@
 #include "lighting.h"
 
+#include <assert.h>
 #include <math.h>
 
 void
 calculate_vertex_normals(
     struct VertexNormal* vertex_normals,
+    int vertex_count,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
@@ -18,6 +20,9 @@ calculate_vertex_normals(
         int a = face_indices_a[i];
         int b = face_indices_b[i];
         int c = face_indices_c[i];
+        assert(a < vertex_count);
+        assert(b < vertex_count);
+        assert(c < vertex_count);
 
         int xa = vertex_x[a];
         int xb = vertex_x[b];
