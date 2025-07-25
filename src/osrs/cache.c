@@ -256,6 +256,8 @@ cache_free(struct Cache* cache)
         if( cache->tables[i] )
             reference_table_free(cache->tables[i]);
     }
+    free(cache->_dat2);
+
     free(cache);
 }
 
