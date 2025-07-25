@@ -1462,9 +1462,12 @@ decodeType2(const unsigned char* var1, int var1_length)
     for( int var44 = 0; var44 < var11; ++var44 )
     {
         def->textureRenderTypes[var44] = 0;
-        def->textured_p_coordinate[var44] = (int)read_unsigned_short(var1, &var4_offset);
-        def->textured_m_coordinate[var44] = (int)read_unsigned_short(var1, &var4_offset);
-        def->textured_n_coordinate[var44] = (int)read_unsigned_short(var1, &var4_offset);
+        int p_coordinate = (int)read_unsigned_short(var1, &var4_offset);
+        int m_coordinate = (int)read_unsigned_short(var1, &var4_offset);
+        int n_coordinate = (int)read_unsigned_short(var1, &var4_offset);
+        def->textured_p_coordinate[var44] = p_coordinate;
+        def->textured_m_coordinate[var44] = m_coordinate;
+        def->textured_n_coordinate[var44] = n_coordinate;
     }
 
     // Validate texture coordinates
@@ -2256,7 +2259,7 @@ model_new_from_cache(struct Cache* cache, int model_id)
         return NULL;
     }
 
-    if( model_id == 1610 )
+    if( model_id == 1565 )
     {
         int i = 0;
     }

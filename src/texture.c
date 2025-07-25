@@ -68,7 +68,7 @@ raster_texture_scanline(
 
     assert(screen_x0 + steps < screen_width);
 
-    while( --steps > 0 )
+    while( steps-- > 0 )
     {
         if( cw == 0 )
             continue;
@@ -250,8 +250,8 @@ raster_texture_step(
     if( screen_y0 > screen_y1 )
         return;
 
-    if( screen_y1 > screen_height )
-        screen_y1 = screen_height;
+    if( screen_y1 >= screen_height )
+        screen_y1 = screen_height - 1;
 
     au = vOVPlane_normal_zhat * UNIT_SCALE;
     bv = vUOPlane_normal_zhat * UNIT_SCALE;
@@ -266,7 +266,7 @@ raster_texture_step(
     int offset = screen_y0 * screen_width;
 
     assert(screen_y0 < screen_height);
-    while( --steps > 0 )
+    while( steps-- > 0 )
     {
         raster_texture_scanline(
             pixel_buffer,
@@ -295,8 +295,8 @@ raster_texture_step(
         offset += screen_width;
     }
 
-    if( screen_y2 > screen_height )
-        screen_y2 = screen_height;
+    if( screen_y2 >= screen_height )
+        screen_y2 = screen_height - 1;
 
     if( screen_y1 > screen_y2 )
         return;
@@ -316,7 +316,7 @@ raster_texture_step(
 
     offset = screen_y1 * screen_width;
     steps = screen_y2 - screen_y1;
-    while( --steps > 0 )
+    while( steps-- > 0 )
     {
         raster_texture_scanline(
             pixel_buffer,

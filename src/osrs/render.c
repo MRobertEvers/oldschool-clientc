@@ -705,6 +705,7 @@ model_draw_face(
     int* orthographic_vertex_z_nullable,
     int* face_textures,
     int* face_texture_coords,
+    int face_texture_coords_length,
     int* face_p_coordinate_nullable,
     int* face_m_coordinate_nullable,
     int* face_n_coordinate_nullable,
@@ -821,6 +822,8 @@ model_draw_face(
             if( face_texture_coords && face_texture_coords[index] != -1 )
             {
                 texture_face = face_texture_coords[index];
+                assert(texture_face < face_texture_coords_length);
+                assert(texture_face > -1);
                 tp_face = face_p_coordinate_nullable[texture_face];
                 tm_face = face_m_coordinate_nullable[texture_face];
                 tn_face = face_n_coordinate_nullable[texture_face];
@@ -828,13 +831,17 @@ model_draw_face(
             else
             {
                 texture_face = index;
-                tp_face = orthographic_vertex_x_nullable[texture_face];
-                tm_face = orthographic_vertex_y_nullable[texture_face];
-                tn_face = orthographic_vertex_z_nullable[texture_face];
+                tp_face = face_indices_a[texture_face];
+                tm_face = face_indices_b[texture_face];
+                tn_face = face_indices_c[texture_face];
             }
             // texture_id = face_textures[index];
             // texture_face = face_infos[index] >> 2;
             // texture_face = face_texture_coords[index];
+
+            assert(tp_face > -1);
+            assert(tm_face > -1);
+            assert(tn_face > -1);
 
             tp_x = orthographic_vertex_x_nullable[tp_face];
             tp_y = orthographic_vertex_y_nullable[tp_face];
@@ -876,6 +883,7 @@ model_draw_face(
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
+            break;
             if( !face_p_coordinate_nullable )
                 break;
 
@@ -957,6 +965,7 @@ raster_osrs_typed(
     int* orthographic_vertex_z_nullable,
     int* face_textures,
     int* face_texture_coords,
+    int face_texture_coords_length,
     int* face_p_coordinate_nullable,
     int* face_m_coordinate_nullable,
     int* face_n_coordinate_nullable,
@@ -993,6 +1002,7 @@ raster_osrs_typed(
                 orthographic_vertex_z_nullable,
                 face_textures,
                 face_texture_coords,
+                face_texture_coords_length,
                 face_p_coordinate_nullable,
                 face_m_coordinate_nullable,
                 face_n_coordinate_nullable,
@@ -1387,6 +1397,7 @@ render_model_frame(
                 orthographic_vertices_z,
                 model->face_textures,
                 model->face_texture_coords,
+                model->textured_face_count,
                 model->textured_p_coordinate,
                 model->textured_m_coordinate,
                 model->textured_n_coordinate,
@@ -1467,6 +1478,7 @@ render_model_frame(
         orthographic_vertices_z,
         model->face_textures,
         model->face_texture_coords,
+        model->textured_face_count,
         model->textured_p_coordinate,
         model->textured_m_coordinate,
         model->textured_n_coordinate,
