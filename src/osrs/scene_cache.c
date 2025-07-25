@@ -308,6 +308,33 @@ textures_cache_new(struct Cache* cache)
     return textures_cache;
 }
 
+static void
+free_texture(struct Texture* texture)
+{
+    free(texture->texels);
+    free(texture);
+}
+
+void
+textures_cache_free(struct TexturesCache* textures_cache)
+{
+    struct HashTableIter iter;
+    for( int i = 0; i < textures_cache->table.capacity; i++ )
+    {
+        iter = ht_atsloth(&textures_cache->table, i);
+        if( iter.at_end )
+            break;
+        if( !iter.empty )
+        {
+            struct TexItem* item = (struct TexItem*)iter.value;
+            free_texture(item->texture);
+        }
+    }
+
+    ht_cleanup(&textures_cache->table);
+    free(textures_cache);
+}
+
 static int
 brighten_rgb(int rgb, double brightness)
 {
@@ -442,9 +469,10 @@ textures_cache_checkout(
     }
     free(sprite_packs);
 
-    free(texture_definition);
+    texture_definition_free(texture_definition);
 
     texture = (struct Texture*)malloc(sizeof(struct Texture));
+    assert(texture);
     texture->texels = pixels;
     texture->width = size;
     texture->height = size;

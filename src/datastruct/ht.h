@@ -51,6 +51,7 @@ struct HashTableIter
     int _step;
 };
 struct HashTableIter ht_lookuph(struct HashTable* ht, struct Hash* hash);
+struct HashTableIter ht_atsloth(struct HashTable* ht, int slot);
 int ht_nexth(struct HashTable* ht, struct HashTableIter* iter);
 void* ht_emplaceh(struct HashTable* ht, struct HashTableIter* iter, void const* key);
 void* ht_removeh(struct HashTable* ht, struct HashTableIter* iter, void const* key);

@@ -160,7 +160,7 @@ void free_loc(struct CacheConfigLocation* loc);
 
 struct CacheConfigLocationTable
 {
-    struct CacheConfigLocation value;
+    struct CacheConfigLocation* value;
 
     struct FileList* file_list;
     struct CacheArchive* archive;

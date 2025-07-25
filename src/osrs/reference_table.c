@@ -214,6 +214,13 @@ reference_table_free(struct ReferenceTable* table)
 {
     if( table->ids )
         free(table->ids);
+
+    for( int i = 0; i < table->archive_count; i++ )
+    {
+        if( table->archives[i].children.files )
+            free(table->archives[i].children.files);
+    }
+
     if( table->archives )
         free(table->archives);
     free(table);

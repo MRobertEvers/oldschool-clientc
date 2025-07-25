@@ -656,6 +656,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     free(scene_tiles);
 
     map_terrain_free(map_terrain);
+
+    config_locs_table_free(config_locs_table);
     // map_locs_free(map_locs);
 
     return scene;
@@ -670,6 +672,8 @@ void
 scene_free(struct Scene* scene)
 {
     model_cache_free(scene->_model_cache);
+    free(scene->models);
+    free(scene->locs);
     free(scene->grid_tiles);
     free(scene);
 }

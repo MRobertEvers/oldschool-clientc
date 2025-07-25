@@ -49,6 +49,15 @@ texture_definition_new_from_cache(struct Cache* cache, int id)
     return def;
 }
 
+void
+texture_definition_free(struct CacheTexture* texture_definition)
+{
+    free(texture_definition->sprite_ids);
+    free(texture_definition->sprite_types);
+    free(texture_definition->transforms);
+    free(texture_definition);
+}
+
 struct CacheTexture*
 texture_definition_new_decode(const unsigned char* data, int length)
 {

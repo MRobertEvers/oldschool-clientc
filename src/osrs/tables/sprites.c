@@ -385,6 +385,13 @@ sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFl
     return pack;
 }
 
+static void
+sprite_free(struct CacheSprite* sprite)
+{
+    free(sprite->palette_pixels);
+    free(sprite->pixel_alphas);
+}
+
 void
 sprite_pack_free(struct CacheSpritePack* pack)
 {
@@ -394,6 +401,11 @@ sprite_pack_free(struct CacheSpritePack* pack)
     }
 
     free(pack->palette);
+    for( int i = 0; i < pack->count; i++ )
+    {
+        struct CacheSprite* sprite = &pack->sprites[i];
+        sprite_free(sprite);
+    }
     free(pack->sprites);
     free(pack);
 }

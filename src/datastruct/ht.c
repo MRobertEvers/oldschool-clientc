@@ -178,6 +178,7 @@ alloc_buffer(int element_size, int key_size, int capacity_hint)
 {
     int size = slotsize(element_size, key_size);
     void* buffer = malloc(size * capacity_hint);
+    memset(buffer, 0, size * capacity_hint);
 
     return buffer;
 }
@@ -262,6 +263,21 @@ ht_cleanup(struct HashTable* ht)
     ht->capacity = 0;
 }
 
+static void
+iter_init_slot(struct HashTableIter* iter, struct HashTable* ht, uint32_t slot)
+{
+    iter->_slot = slot;
+
+    struct EntryHeader* entry = ht_slot(ht, slot);
+    iter->key = ht_slotkey(ht, slot);
+    iter->value = ht_slotvalue(ht, slot);
+
+    iter->empty = entry->kind == SEEmpty || entry->kind == SETombstone;
+    iter->tombstone = entry->kind == SETombstone;
+    iter->at_end = 0;
+    iter->_step = 1;
+}
+
 struct HashTableIter
 ht_lookuph(struct HashTable* ht, struct Hash* hash)
 {
@@ -269,16 +285,24 @@ ht_lookuph(struct HashTable* ht, struct Hash* hash)
     iter._hash = *hash;
 
     uint32_t hash_value = _murmur3_32_hashof(hash);
-    iter._slot = hash_value % (ht->capacity);
 
-    struct EntryHeader* entry = ht_slot(ht, iter._slot);
-    iter.key = ht_slotkey(ht, iter._slot);
-    iter.value = ht_slotvalue(ht, iter._slot);
+    iter_init_slot(&iter, ht, hash_value % (ht->capacity));
 
-    iter.empty = entry->kind == SEEmpty || entry->kind == SETombstone;
-    iter.tombstone = entry->kind == SETombstone;
-    iter.at_end = 0;
-    iter._step = 1;
+    return iter;
+}
+
+struct HashTableIter
+ht_atsloth(struct HashTable* ht, int slot)
+{
+    struct HashTableIter iter = { 0 };
+
+    if( slot < 0 || slot >= ht->capacity )
+    {
+        iter.at_end = 1;
+        return iter;
+    }
+
+    iter_init_slot(&iter, ht, slot);
 
     return iter;
 }

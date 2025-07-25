@@ -717,3 +717,12 @@ params: undefined,
 ### Loc 16438
 
 new Int8Array([19, 0, 79, 0, -6, 1, -12, 20, 0, 5, 8, -120, 8, -119, 8, 25, 8, 26, 8, 27, 78, 8, -120, 20, 0, 1, 1, 4, 81, 22, 0])
+
+
+### Valgrind
+
+On linux
+
+```
+valgrind --leak-check=full ./scene_tile_test
+```

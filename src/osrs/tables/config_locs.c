@@ -604,7 +604,7 @@ free_loc(struct CacheConfigLocation* loc)
     free(loc->shapes);
     if( loc->models )
     {
-        for( int i = 0; i < loc->recolor_count; i++ )
+        for( int i = 0; i < loc->shapes_and_model_count; i++ )
         {
             free(loc->models[i]);
         }
@@ -677,6 +677,7 @@ error:
 void
 config_locs_table_free(struct CacheConfigLocationTable* table)
 {
+    free_loc(table->value);
     if( table->file_list )
         filelist_free(table->file_list);
     if( table->archive )
@@ -693,6 +694,15 @@ config_locs_table_get(struct CacheConfigLocationTable* table, int id)
         return NULL;
     }
 
-    decode_loc(&table->value, table->file_list->files[id], table->file_list->file_sizes[id]);
-    return &table->value;
+    if( table->value )
+    {
+        free_loc(table->value);
+        table->value = NULL;
+    }
+
+    table->value = malloc(sizeof(struct CacheConfigLocation));
+    memset(table->value, 0, sizeof(struct CacheConfigLocation));
+
+    decode_loc(table->value, table->file_list->files[id], table->file_list->file_sizes[id]);
+    return table->value;
 }
