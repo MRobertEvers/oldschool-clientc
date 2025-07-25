@@ -35,7 +35,8 @@ void draw_scanline_texture(
     int v_start,
     int v_end,
     int* texels,
-    int texture_width);
+    int texture_width,
+    int texture_opaque);
 
 void raster_texture_zbuf(
     int* pixel_buffer,
@@ -78,7 +79,8 @@ void raster_texture(
     int orthographic_z1,
     int orthographic_z2,
     int* texels,
-    int texture_width);
+    int texture_width,
+    int texture_opaque);
 
 void raster_texture_step(
     int* pixel_buffer,
@@ -103,7 +105,8 @@ void raster_texture_step(
     int orthographic_uend_z1,
     int orthographic_vend_z2,
     int* texels,
-    int texture_width);
+    int texture_width,
+    int texture_opaque);
 
 void textureRaster(
     int xA,

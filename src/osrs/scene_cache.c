@@ -341,6 +341,7 @@ textures_cache_checkout(
     uint8_t* palette_pixels = NULL;
     int* palette = NULL;
     int palette_length = 0;
+    bool opaque = true;
     struct CacheTexture* texture_definition = NULL;
     int* pixels = (int*)malloc(size * size * sizeof(int));
     if( !pixels )
@@ -447,6 +448,7 @@ textures_cache_checkout(
     texture->texels = pixels;
     texture->width = size;
     texture->height = size;
+    texture->opaque = false;
 
     item = httex_cache_emplace(textures_cache, texture_id);
     assert(item != NULL);

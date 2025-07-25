@@ -26,7 +26,8 @@ raster_texture_scanline(
     int step_bv_dx,
     int step_cw_dx,
     int* texels,
-    int texture_width)
+    int texture_width,
+    int texture_opaque)
 {
     if( screen_x0 == screen_x1 )
         return;
@@ -86,7 +87,9 @@ raster_texture_scanline(
         assert(u >= 0 && u < texture_width);
         assert(v >= 0 && v < texture_width);
 
-        pixel_buffer[offset] = texels[u + v * texture_width];
+        int texel = texels[u + v * texture_width];
+        if( texture_opaque || texel != 0 )
+            pixel_buffer[offset] = texel;
 
         au += step_au_dx;
         bv += step_bv_dx;
@@ -120,7 +123,8 @@ raster_texture_step(
     int orthographic_uend_z1,
     int orthographic_vend_z2,
     int* texels,
-    int texture_width)
+    int texture_width,
+    int texture_opaque)
 {
     if( screen_y2 < screen_y0 )
     {
@@ -272,7 +276,8 @@ raster_texture_step(
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
             texels,
-            texture_width);
+            texture_width,
+            texture_opaque);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -321,7 +326,8 @@ raster_texture_step(
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
             texels,
-            texture_width);
+            texture_width,
+            texture_opaque);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -358,7 +364,8 @@ raster_texture(
     int orthographic_uend_z1,
     int orthographic_vend_z2,
     int* texels,
-    int texture_width)
+    int texture_width,
+    int texture_opaque)
 {
     if( screen_y2 < screen_y0 )
     {

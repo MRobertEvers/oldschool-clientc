@@ -5,6 +5,8 @@
 #include "tables/sprites.h"
 #include "tables/textures.h"
 
+#include <stdbool.h>
+
 struct ModelCache;
 
 struct ModelCache* model_cache_new();
@@ -20,6 +22,8 @@ struct Texture
     int* texels;
     int width;
     int height;
+
+    bool opaque;
 };
 
 struct TexturesCache* textures_cache_new(struct Cache* cache);

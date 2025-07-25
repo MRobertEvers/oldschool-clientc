@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -872,7 +873,8 @@ raster_osrs_typed(
                         tm_z,
                         tn_z,
                         texels,
-                        128);
+                        128,
+                        false);
                     break;
                 case FACE_TYPE_TEXTURED_FLAT_SHADE:
                 textured_flat:;
@@ -933,7 +935,8 @@ raster_osrs_typed(
                         tn_y,
                         tn_z,
                         g_empty_texture_texels,
-                        128);
+                        128,
+                        false);
                     break;
                 }
             }
@@ -1102,7 +1105,8 @@ raster_osrs_single_texture(
         ortho_z1,
         ortho_z3,
         texture->texels,
-        128);
+        128,
+        texture->opaque);
 
     return true;
 }
