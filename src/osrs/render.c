@@ -2692,7 +2692,7 @@ render_scene_ops(
         case SCENE_OP_TYPE_DRAW_GROUND:
         {
             tile = grid_tile->tile;
-            if( !tile->valid_faces )
+            if( !tile || !tile->valid_faces )
                 break;
 
             int tile_x = tile->chunk_pos_x;

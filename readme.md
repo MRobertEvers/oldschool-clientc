@@ -725,4 +725,6 @@ On linux
 
 ```
 valgrind --leak-check=full ./scene_tile_test
+
+valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
 ```
