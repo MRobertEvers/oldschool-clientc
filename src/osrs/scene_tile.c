@@ -30,6 +30,16 @@ free_tiles(struct SceneTile* tiles, int tile_count)
         free(tiles[i].faces_a);
         free(tiles[i].faces_b);
         free(tiles[i].faces_c);
+        free(tiles[i].face_texture_ids);
+        free(tiles[i].face_texture_u_a);
+        free(tiles[i].face_texture_v_a);
+        free(tiles[i].face_texture_u_b);
+        free(tiles[i].face_texture_v_b);
+        free(tiles[i].face_texture_u_c);
+        free(tiles[i].face_texture_v_c);
+        free(tiles[i].face_color_hsl_a);
+        free(tiles[i].face_color_hsl_b);
+        free(tiles[i].face_color_hsl_c);
     }
     free(tiles);
 }

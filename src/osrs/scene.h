@@ -78,7 +78,7 @@ struct GridTile
     // The spans are used to determine which tiles are waiting for us to draw.
     int spans;
 
-    struct SceneTile tile;
+    struct SceneTile* tile;
 
     struct SceneTextures* textures;
     int textures_length;
@@ -153,6 +153,9 @@ struct Scene
     struct SceneModel* models;
     int models_length;
     int models_capacity;
+
+    struct SceneTile* scene_tiles;
+    int scene_tiles_length;
 
     struct ModelCache* _model_cache;
 };

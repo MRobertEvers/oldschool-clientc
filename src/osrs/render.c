@@ -2691,7 +2691,7 @@ render_scene_ops(
         {
         case SCENE_OP_TYPE_DRAW_GROUND:
         {
-            tile = &grid_tile->tile;
+            tile = grid_tile->tile;
             if( !tile->valid_faces )
                 break;
 

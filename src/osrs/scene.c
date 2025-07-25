@@ -252,6 +252,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         goto error;
     }
 
+    scene->scene_tiles = scene_tiles;
+    scene->scene_tiles_length = MAP_TILE_COUNT;
+
     // scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache, model_cache);
     // if( !scene_locs )
     // {
@@ -283,7 +286,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         struct SceneTile* scene_tile = &scene_tiles[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
             scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
-        grid_tile->tile = *scene_tile;
+        grid_tile->tile = scene_tile;
     }
 
     config_locs_table = config_locs_table_new(cache);
@@ -653,8 +656,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     }
     map_locs_iter_free(iter);
 
-    free(scene_tiles);
-
     map_terrain_free(map_terrain);
 
     config_locs_table_free(config_locs_table);
@@ -672,6 +673,7 @@ void
 scene_free(struct Scene* scene)
 {
     model_cache_free(scene->_model_cache);
+    free_tiles(scene->scene_tiles, scene->scene_tiles_length);
     free(scene->models);
     free(scene->locs);
     free(scene->grid_tiles);
