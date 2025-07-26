@@ -56,6 +56,7 @@ struct GridTile
     int locs_length;
 
     int wall;
+    int ground_decor;
 
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.
@@ -93,6 +94,7 @@ enum LocType
     LOC_TYPE_INVALID,
     LOC_TYPE_SCENERY,
     LOC_TYPE_WALL,
+    LOC_TYPE_GROUND_DECOR,
 };
 
 struct NormalScenery
@@ -121,6 +123,11 @@ struct Wall
     enum WallSide side_b;
 };
 
+struct GroundDecor
+{
+    int model;
+};
+
 struct Loc
 {
     enum LocType type;
@@ -138,6 +145,7 @@ struct Loc
     {
         struct NormalScenery _scenery;
         struct Wall _wall;
+        struct GroundDecor _ground_decor;
     };
 };
 

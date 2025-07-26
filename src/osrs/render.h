@@ -119,6 +119,7 @@ enum SceneOpType
     SCENE_OP_TYPE_DRAW_GROUND,
     SCENE_OP_TYPE_DRAW_LOC,
     SCENE_OP_TYPE_DRAW_WALL,
+    SCENE_OP_TYPE_DRAW_GROUND_DECOR,
 };
 
 struct SceneOp
@@ -147,6 +148,11 @@ struct SceneOp
             int loc_index;
             int is_wall_a;
         } _wall;
+
+        struct
+        {
+            int loc_index;
+        } _ground_decor;
     };
 };
 struct Scene;

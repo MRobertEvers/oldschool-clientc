@@ -1456,8 +1456,8 @@ render_model_frame(
                 face_colors_a_hsl16,
                 face_colors_b_hsl16,
                 face_colors_c_hsl16,
-                0,
-                0,
+                width / 2,
+                height / 2,
                 width,
                 height,
                 textures_cache);
@@ -2453,6 +2453,19 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                             ._wall = { .loc_index = grid_tile->wall, .is_wall_a = false },
                         };
                 }
+
+                if( grid_tile->ground_decor != -1 )
+                {
+                    loc = &scene->locs[grid_tile->ground_decor];
+
+                    ops[op_count++] = (struct SceneOp){
+                        .op = SCENE_OP_TYPE_DRAW_GROUND_DECOR,
+                        .x = loc->chunk_pos_x,
+                        .z = loc->chunk_pos_y,
+                        .level = loc->chunk_pos_level,
+                        ._ground_decor = { .loc_index = grid_tile->ground_decor },
+                    };
+                }
             }
 
             g_loc_buffer_length = 0;
@@ -2866,6 +2879,35 @@ render_scene_ops(
             model = &scene->models[model_index];
 
             assert(model != NULL);
+
+            render_scene_model(
+                pixel_buffer,
+                width,
+                height,
+                near_plane_z,
+                camera_x,
+                camera_y,
+                camera_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll,
+                fov,
+                model,
+                textures_cache);
+        }
+        break;
+        case SCENE_OP_TYPE_DRAW_GROUND_DECOR:
+        {
+            int model_index = -1;
+            int loc_index = op->_ground_decor.loc_index;
+            loc = &scene->locs[loc_index];
+
+            model_index = loc->_ground_decor.model;
+
+            assert(model_index >= 0);
+            assert(model_index < scene->models_length);
+
+            model = &scene->models[model_index];
 
             render_scene_model(
                 pixel_buffer,
