@@ -2304,9 +2304,9 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     int max_draw_x = camera_tile_x + radius;
     int max_draw_y = camera_tile_y + radius;
     if( max_draw_x >= MAP_TERRAIN_X )
-        max_draw_x = MAP_TERRAIN_X - 1;
+        max_draw_x = MAP_TERRAIN_X;
     if( max_draw_y >= MAP_TERRAIN_Y )
-        max_draw_y = MAP_TERRAIN_Y - 1;
+        max_draw_y = MAP_TERRAIN_Y;
     if( max_draw_x < 0 )
         max_draw_x = 0;
     if( max_draw_y < 0 )
@@ -2319,9 +2319,9 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     if( min_draw_y < 0 )
         min_draw_y = 0;
     if( min_draw_x > MAP_TERRAIN_X )
-        min_draw_x = MAP_TERRAIN_X - 1;
+        min_draw_x = MAP_TERRAIN_X;
     if( min_draw_y > MAP_TERRAIN_Y )
-        min_draw_y = MAP_TERRAIN_Y - 1;
+        min_draw_y = MAP_TERRAIN_Y;
 
     if( min_draw_x >= max_draw_x )
         return ops;
@@ -2405,7 +2405,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
                 if( tile_x <= camera_tile_x && tile_x > min_draw_x )
                 {
-                    if( tile_x - 1 > min_draw_x )
+                    if( tile_x - 1 >= min_draw_x )
                     {
                         other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
                         if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_WEST) == 0 )
@@ -2429,7 +2429,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 }
                 if( tile_y <= camera_tile_y && tile_y > min_draw_y )
                 {
-                    if( tile_y - 1 > min_draw_y )
+                    if( tile_y - 1 >= min_draw_y )
                     {
                         other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
                         if( other->step != E_STEP_DONE &&

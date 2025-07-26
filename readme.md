@@ -37,6 +37,12 @@ Install SDL2.
 brew install sdl2
 ```
 
+### TODOS
+
+1. Fix the need to `long long` in the texture renderer.
+2. Add model caching for transformed models.
+3. Transparency
+
 ### Scene Building Plan - Software 3D
 
 Cache Terrain -> World -> Scene
@@ -717,7 +723,6 @@ params: undefined,
 ### Loc 16438
 
 new Int8Array([19, 0, 79, 0, -6, 1, -12, 20, 0, 5, 8, -120, 8, -119, 8, 25, 8, 26, 8, 27, 78, 8, -120, 20, 0, 1, 1, 4, 81, 22, 0])
-
 
 ### Valgrind
 

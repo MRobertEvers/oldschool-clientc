@@ -864,7 +864,7 @@ main()
 
     // Frame timing variables
     Uint32 last_frame_time = SDL_GetTicks();
-    const int target_fps = 15;
+    const int target_fps = 30;
     const int target_frame_time = 1000 / target_fps;
 
     while( !quit )
