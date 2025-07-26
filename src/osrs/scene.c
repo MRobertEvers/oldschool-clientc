@@ -822,7 +822,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         break;
         default:
         {
-            printf("Unknown loc shape: %d\n", map->shape_select);
+            // printf("Unknown loc shape: %d\n", map->shape_select);
         }
         }
     }
