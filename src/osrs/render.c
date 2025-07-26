@@ -2279,12 +2279,21 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
         max_draw_x = MAP_TERRAIN_X;
     if( max_draw_y > MAP_TERRAIN_Y )
         max_draw_y = MAP_TERRAIN_Y;
+    if( max_draw_x < 0 )
+        max_draw_x = 0;
+    if( max_draw_y < 0 )
+        max_draw_y = 0;
+
     int min_draw_x = camera_tile_x - radius;
     int min_draw_y = camera_tile_y - radius;
     if( min_draw_x < 0 )
         min_draw_x = 0;
     if( min_draw_y < 0 )
         min_draw_y = 0;
+    if( min_draw_x > MAP_TERRAIN_X )
+        min_draw_x = MAP_TERRAIN_X;
+    if( min_draw_y > MAP_TERRAIN_Y )
+        min_draw_y = MAP_TERRAIN_Y;
 
     struct IntQueue queue = { 0 };
     int_queue_init(&queue, scene->grid_tiles_length);
