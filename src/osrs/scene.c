@@ -187,10 +187,10 @@ const int ROTATION_WALL_TYPE[] = {
     WALL_SIDE_WEST, WALL_SIDE_NORTH, WALL_SIDE_EAST, WALL_SIDE_SOUTH
 };
 const int ROTATION_WALL_CORNER_TYPE[] = {
-    WALL_SIDE_EAST | WALL_SIDE_NORTH,
-    WALL_SIDE_NORTH | WALL_SIDE_WEST,
-    WALL_SIDE_WEST | WALL_SIDE_SOUTH,
-    WALL_SIDE_SOUTH | WALL_SIDE_EAST,
+    WALL_CORNER_NORTHEAST,
+    WALL_CORNER_NORTHWEST,
+    WALL_CORNER_SOUTHWEST,
+    WALL_CORNER_SOUTHEAST,
 };
 
 const int WALL_DECORATION_ROTATION_FORWARD_X[] = { 1, 0, -1, 0 };
@@ -498,10 +498,10 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->type = LOC_TYPE_WALL;
 
             loc->_wall.model_a = model_a_index;
-            loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[map->orientation];
+            loc->_wall.side_a = ROTATION_WALL_TYPE[map->orientation];
 
             loc->_wall.model_b = model_b_index;
-            loc->_wall.side_b = ROTATION_WALL_CORNER_TYPE[next_orientation];
+            loc->_wall.side_b = ROTATION_WALL_TYPE[next_orientation];
 
             grid_tile->wall = loc_index;
         }
@@ -547,23 +547,23 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->_wall.model_a = model_index;
             assert(map->orientation >= 0);
             assert(map->orientation < 4);
-            // loc->_wall.side_a = ROTATION_WALL_TYPE[map->orientation];
+            loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[map->orientation];
 
-            switch( map->orientation )
-            {
-            case 0:
-                loc->_wall.side_a = WALL_CORNER_NORTHWEST;
-                break;
-            case 1:
-                loc->_wall.side_a = WALL_CORNER_NORTHEAST;
-                break;
-            case 2:
-                loc->_wall.side_a = WALL_CORNER_SOUTHEAST;
-                break;
-            case 3:
-                loc->_wall.side_a = WALL_CORNER_SOUTHWEST;
-                break;
-            }
+            // switch( map->orientation )
+            // {
+            // case 0:
+            //     loc->_wall.side_a = WALL_CORNER_NORTHWEST;
+            //     break;
+            // case 1:
+            //     loc->_wall.side_a = WALL_CORNER_NORTHEAST;
+            //     break;
+            // case 2:
+            //     loc->_wall.side_a = WALL_CORNER_SOUTHEAST;
+            //     break;
+            // case 3:
+            //     loc->_wall.side_a = WALL_CORNER_SOUTHWEST;
+            //     break;
+            // }
 
             assert(model->model_ids[0] != 0);
             grid_tile->wall = loc_index;
