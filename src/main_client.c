@@ -743,6 +743,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_yaw,
         game->camera_roll,
         game->camera_fov,
+        0,
         model,
         bones,
         game->frames[game->frame_id],

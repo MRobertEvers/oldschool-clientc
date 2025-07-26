@@ -24,6 +24,7 @@ void render_model_frame(
     int camera_pitch,
     int camera_roll,
     int fov,
+    int mirrored,
     struct CacheModel* model,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,

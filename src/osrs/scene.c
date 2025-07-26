@@ -452,14 +452,14 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             model->region_z = height_center;
 
             // Add 4 to turn it around.
-            model->orientation = map->orientation + 4;
+            model->orientation = map->orientation;
             model->offset_x = loc_config->offset_x;
             model->offset_y = loc_config->offset_y;
             model->offset_height = loc_config->offset_height;
 
             model->size_x = 1;
             model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            model->mirrored = true;
 
             int model_b_index = vec_model_push(scene);
             model = vec_model_back(scene);

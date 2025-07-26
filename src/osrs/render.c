@@ -1272,22 +1272,45 @@ render_model_frame(
     int camera_yaw,
     int camera_roll,
     int fov,
+    int transform,
     struct CacheModel* model,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable,
     struct TexturesCache* textures_cache)
 {
-    // int* vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
-    // memcpy(vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
-    // int* vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
-    // memcpy(vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
-    // int* vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
-    // memcpy(vertices_z, model->vertices_z, model->vertex_count * sizeof(int));
+    int* vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
+    memcpy(vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
+    int* vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
+    memcpy(vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
+    int* vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
+    memcpy(vertices_z, model->vertices_z, model->vertex_count * sizeof(int));
 
-    int* vertices_x = model->vertices_x;
-    int* vertices_y = model->vertices_y;
-    int* vertices_z = model->vertices_z;
+    int* face_indices_a = (int*)malloc(model->face_count * sizeof(int));
+    memcpy(face_indices_a, model->face_indices_a, model->face_count * sizeof(int));
+    int* face_indices_b = (int*)malloc(model->face_count * sizeof(int));
+    memcpy(face_indices_b, model->face_indices_b, model->face_count * sizeof(int));
+    int* face_indices_c = (int*)malloc(model->face_count * sizeof(int));
+    memcpy(face_indices_c, model->face_indices_c, model->face_count * sizeof(int));
+
+    if( transform )
+    {
+        for( int v = 0; v < model->vertex_count; v++ )
+        {
+            vertices_z[v] = -vertices_z[v];
+        }
+
+        for( int f = 0; f < model->face_count; f++ )
+        {
+            int temp = face_indices_a[f];
+            face_indices_a[f] = face_indices_c[f];
+            face_indices_c[f] = temp;
+        }
+    }
+
+    // int* vertices_x = model->vertices_x;
+    // int* vertices_y = model->vertices_y;
+    // int* vertices_z = model->vertices_z;
 
     // int* face_colors_a_hsl16 = (int*)malloc(model->face_count * sizeof(int));
     // memcpy(face_colors_a_hsl16, model->face_colors, model->face_count * sizeof(int));
@@ -1300,6 +1323,7 @@ render_model_frame(
     // int* face_colors_b_hsl16 = model->face_colors;
     // int* face_colors_c_hsl16 = model->face_colors;
 
+    // TODO: don't allocate this every frame.
     struct VertexNormal* vertex_normals =
         (struct VertexNormal*)malloc(model->vertex_count * sizeof(struct VertexNormal));
     memset(vertex_normals, 0, model->vertex_count * sizeof(struct VertexNormal));
@@ -1346,9 +1370,9 @@ render_model_frame(
     calculate_vertex_normals(
         vertex_normals,
         model->vertex_count,
-        model->face_indices_a,
-        model->face_indices_b,
-        model->face_indices_c,
+        face_indices_a,
+        face_indices_b,
+        face_indices_c,
         vertices_x,
         vertices_y,
         vertices_z,
@@ -1368,9 +1392,9 @@ render_model_frame(
         face_colors_b_hsl16,
         face_colors_c_hsl16,
         vertex_normals,
-        model->face_indices_a,
-        model->face_indices_b,
-        model->face_indices_c,
+        face_indices_a,
+        face_indices_b,
+        face_indices_c,
         model->face_count,
         vertices_x,
         vertices_y,
@@ -1437,9 +1461,9 @@ render_model_frame(
                 pixel_buffer,
                 i,
                 model->face_infos,
-                model->face_indices_a,
-                model->face_indices_b,
-                model->face_indices_c,
+                face_indices_a,
+                face_indices_b,
+                face_indices_c,
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -1499,9 +1523,9 @@ render_model_frame(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
-        model->face_indices_a,
-        model->face_indices_b,
-        model->face_indices_c);
+        face_indices_a,
+        face_indices_b,
+        face_indices_c);
 
     parition_faces_by_priority(
         tmp_priority_faces,
@@ -1519,9 +1543,9 @@ render_model_frame(
         tmp_priority_faces,
         tmp_priority_face_count,
         model->face_infos,
-        model->face_indices_a,
-        model->face_indices_b,
-        model->face_indices_c,
+        face_indices_a,
+        face_indices_b,
+        face_indices_c,
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -1544,12 +1568,13 @@ render_model_frame(
         height,
         textures_cache);
 
-// free(vertices_x);
-// free(vertices_y);
-// free(vertices_z);
-// free(face_colors_a_hsl16);
-// free(face_colors_b_hsl16);
-// free(face_colors_c_hsl16);
+    free(vertices_x);
+    free(vertices_y);
+    free(vertices_z);
+    free(face_indices_a);
+    free(face_indices_b);
+    free(face_indices_c);
+
 done:
     free(vertex_normals);
     // free(screen_vertices_x);
@@ -2025,6 +2050,7 @@ render_scene_loc(
             camera_yaw,
             camera_roll,
             fov,
+            loc->mirrored,
             model,
             NULL,
             NULL,
@@ -2103,6 +2129,7 @@ render_scene_model(
             camera_yaw,
             camera_roll,
             fov,
+            model->mirrored,
             drawable,
             NULL,
             NULL,
