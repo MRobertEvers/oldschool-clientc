@@ -703,6 +703,7 @@ model_draw_face(
     int* orthographic_vertex_x_nullable,
     int* orthographic_vertex_y_nullable,
     int* orthographic_vertex_z_nullable,
+    int num_vertices,
     int* face_textures,
     int* face_texture_coords,
     int face_texture_coords_length,
@@ -737,20 +738,29 @@ model_draw_face(
 
     int index = face_index;
 
-    int x1 = vertex_x[face_indices_a[index]] + offset_x;
-    int y1 = vertex_y[face_indices_a[index]] + offset_y;
+    int x1 = vertex_x[face_indices_a[index]];
+    int y1 = vertex_y[face_indices_a[index]];
     int z1 = vertex_z[face_indices_a[index]];
-    int x2 = vertex_x[face_indices_b[index]] + offset_x;
-    int y2 = vertex_y[face_indices_b[index]] + offset_y;
+    int x2 = vertex_x[face_indices_b[index]];
+    int y2 = vertex_y[face_indices_b[index]];
     int z2 = vertex_z[face_indices_b[index]];
-    int x3 = vertex_x[face_indices_c[index]] + offset_x;
-    int y3 = vertex_y[face_indices_c[index]] + offset_y;
+    int x3 = vertex_x[face_indices_c[index]];
+    int y3 = vertex_y[face_indices_c[index]];
     int z3 = vertex_z[face_indices_c[index]];
 
     // Skip triangle if any vertex was clipped
     if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
         return;
 
+    x1 += offset_x;
+    y1 += offset_y;
+    x2 += offset_x;
+    y2 += offset_y;
+    x3 += offset_x;
+    y3 += offset_y;
+
+    assert(offset_y == (screen_height >> 1));
+    assert(offset_x == (screen_width >> 1));
     int color_a = colors_a[index];
     int color_b = colors_b[index];
     int color_c = colors_c[index];
@@ -822,8 +832,7 @@ model_draw_face(
             if( face_texture_coords && face_texture_coords[index] != -1 )
             {
                 texture_face = face_texture_coords[index];
-                assert(texture_face < face_texture_coords_length);
-                assert(texture_face > -1);
+
                 tp_face = face_p_coordinate_nullable[texture_face];
                 tm_face = face_m_coordinate_nullable[texture_face];
                 tn_face = face_n_coordinate_nullable[texture_face];
@@ -843,6 +852,10 @@ model_draw_face(
             assert(tm_face > -1);
             assert(tn_face > -1);
 
+            assert(tp_face < num_vertices);
+            assert(tm_face < num_vertices);
+            assert(tn_face < num_vertices);
+
             tp_x = orthographic_vertex_x_nullable[tp_face];
             tp_y = orthographic_vertex_y_nullable[tp_face];
             tp_z = orthographic_vertex_z_nullable[tp_face];
@@ -854,6 +867,41 @@ model_draw_face(
             tn_x = orthographic_vertex_x_nullable[tn_face];
             tn_y = orthographic_vertex_y_nullable[tn_face];
             tn_z = orthographic_vertex_z_nullable[tn_face];
+
+            // struct ProjectedTriangle projected_triangle =
+            //     project_perspective(tp_x, tp_y, tp_z, 512, 0);
+
+            // x1 = vertex_x[tp_face];
+            // y1 = vertex_y[tp_face];
+            // z1 = vertex_z[tp_face];
+            // x2 = vertex_x[tm_face];
+            // y2 = vertex_y[tm_face];
+            // z2 = vertex_z[tm_face];
+            // x3 = vertex_x[tn_face];
+            // y3 = vertex_y[tn_face];
+            // z3 = vertex_z[tn_face];
+
+            // // Skip triangle if any vertex was clipped
+            // if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
+            //     return;
+
+            // x1 += offset_x;
+            // y1 += offset_y;
+            // x2 += offset_x;
+            // y2 += offset_y;
+            // x3 += offset_x;
+            // y3 += offset_y;
+
+            // printf("\n");
+            // printf("Face %d\n", face_index);
+
+            // printf("P = %d, M = %d, N = %d\n", tp_face, tm_face, tn_face);
+            // printf("x1 = %d, y1 = %d, z1 = %d\n", x1, y1, z1);
+            // printf("x2 = %d, y2 = %d, z2 = %d\n", x2, y2, z2);
+            // printf("x3 = %d, y3 = %d, z3 = %d\n", x3, y3, z3);
+            // printf("tP = %d, %d, %d\n", tp_x, tp_y, tp_z);
+            // printf("tM = %d, %d, %d\n", tm_x, tm_y, tm_z);
+            // printf("tN = %d, %d, %d\n", tn_x, tn_y, tn_z);
 
             raster_texture_step(
                 pixel_buffer,
@@ -963,6 +1011,7 @@ raster_osrs_typed(
     int* orthographic_vertex_x_nullable,
     int* orthographic_vertex_y_nullable,
     int* orthographic_vertex_z_nullable,
+    int num_vertices,
     int* face_textures,
     int* face_texture_coords,
     int face_texture_coords_length,
@@ -987,6 +1036,7 @@ raster_osrs_typed(
         for( int i = 0; i < triangle_count; i++ )
         {
             face_index = triangle_indexes[i];
+
             model_draw_face(
                 pixel_buffer,
                 face_index,
@@ -1000,6 +1050,7 @@ raster_osrs_typed(
                 orthographic_vertex_x_nullable,
                 orthographic_vertex_y_nullable,
                 orthographic_vertex_z_nullable,
+                num_vertices,
                 face_textures,
                 face_texture_coords,
                 face_texture_coords_length,
@@ -1395,6 +1446,7 @@ render_model_frame(
                 orthographic_vertices_x,
                 orthographic_vertices_y,
                 orthographic_vertices_z,
+                model->vertex_count,
                 model->face_textures,
                 model->face_texture_coords,
                 model->textured_face_count,
@@ -1476,6 +1528,7 @@ render_model_frame(
         orthographic_vertices_x,
         orthographic_vertices_y,
         orthographic_vertices_z,
+        model->vertex_count,
         model->face_textures,
         model->face_texture_coords,
         model->textured_face_count,
@@ -2698,6 +2751,9 @@ render_scene_ops(
 
         struct SceneOp* op = &ops[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
+
+        // if( op->x != 6 || op->z != 11 )
+        //     continue;
 
         switch( op->op )
         {

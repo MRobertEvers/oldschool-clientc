@@ -1,6 +1,8 @@
 #ifndef PROJECTION_H
 #define PROJECTION_H
 
+#define UNIT_SCALE (512)
+
 struct ProjectedTriangle
 {
     int x;

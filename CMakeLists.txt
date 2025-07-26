@@ -4,7 +4,9 @@ project(RSClient
 )
 
 # set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
+# set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
 set(PROFILING_FLAGS)
+
 
 find_package(SDL2 REQUIRED)
 find_package(BZip2 REQUIRED)
@@ -253,6 +255,7 @@ if(APPLE)
     add_dependencies(metal_renderer metal_shaders)
 
     target_compile_options(main_client PRIVATE ${PROFILING_FLAGS})
+    target_compile_options(scene_tile_test PRIVATE ${PROFILING_FLAGS})
 else()
     # On non-macOS platforms, create an empty executable
     add_executable(metal_renderer src/dummy.c)

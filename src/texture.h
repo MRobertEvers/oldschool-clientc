@@ -21,22 +21,22 @@ void draw_scanline_texture_zbuf(
     int color_start,
     int color_end);
 
-void draw_scanline_texture(
-    int* pixel_buffer,
-    int screen_width,
-    int screen_height,
-    int y,
-    int screen_x_start,
-    int screen_x_end,
-    int z_start,
-    int z_end,
-    int u_start,
-    int u_end,
-    int v_start,
-    int v_end,
-    int* texels,
-    int texture_width,
-    int texture_opaque);
+// void draw_scanline_texture(
+//     int* pixel_buffer,
+//     int screen_width,
+//     int screen_height,
+//     int y,
+//     int screen_x_start,
+//     int screen_x_end,
+//     int z_start,
+//     int z_end,
+//     int u_start,
+//     int u_end,
+//     int v_start,
+//     int v_end,
+//     int* texels,
+//     int texture_width,
+//     int texture_opaque);
 
 void raster_texture_zbuf(
     int* pixel_buffer,

@@ -121,8 +121,6 @@ project_perspective(
 {
     struct ProjectedTriangle projected_triangle = { 0 };
 
-    const int UNIT_SCALE = 512;
-
     // Perspective projection with FOV
 
     // z is the distance from the camera.
@@ -154,11 +152,11 @@ project_perspective(
     int cot_fov_half = g_tan_table[1536 - fov_half];
 
     // Apply FOV scaling to x and y coordinates
-    int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
+    long long fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
 
     // Project to screen space with FOV
-    int screen_x = ((x * fov_scale_ish16) >> 16);
-    int screen_y = ((y * fov_scale_ish16) >> 16);
+    long long screen_x = ((x * fov_scale_ish16) >> 16);
+    long long screen_y = ((y * fov_scale_ish16) >> 16);
 
     // Set the projected triangle
     projected_triangle.x = screen_x;
