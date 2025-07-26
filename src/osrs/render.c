@@ -2427,14 +2427,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     .level = z,
                 };
 
+                int near_walls = near_wall_flags(camera_tile_x, camera_tile_y, tile_x, tile_y);
+                int far_walls = ~near_walls;
+                element->near_wall_flags |= near_walls;
+
                 if( grid_tile->wall != -1 )
                 {
                     loc = &scene->locs[grid_tile->wall];
-
-                    int near_walls = near_wall_flags(
-                        camera_tile_x, camera_tile_y, loc->chunk_pos_x, loc->chunk_pos_y);
-                    element->near_wall_flags |= near_walls;
-                    int far_walls = ~near_walls;
 
                     if( (loc->_wall.side_a & far_walls) != 0 )
                         ops[op_count++] = (struct SceneOp){
@@ -2465,6 +2464,21 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                         .level = loc->chunk_pos_level,
                         ._ground_decor = { .loc_index = grid_tile->ground_decor },
                     };
+                }
+
+                if( grid_tile->wall_decor != -1 )
+                {
+                    loc = &scene->locs[grid_tile->wall_decor];
+                    if( (loc->_wall_decor.side & far_walls) != 0 )
+                    {
+                        ops[op_count++] = (struct SceneOp){
+                            .op = SCENE_OP_TYPE_DRAW_WALL_DECOR,
+                            .x = loc->chunk_pos_x,
+                            .z = loc->chunk_pos_y,
+                            .level = loc->chunk_pos_level,
+                            ._wall_decor = { .loc_index = grid_tile->wall_decor },
+                        };
+                    }
                 }
             }
 
@@ -2681,6 +2695,21 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
             if( element->step == E_STEP_NEAR_WALL )
             {
+                if( grid_tile->wall_decor != -1 )
+                {
+                    loc = &scene->locs[grid_tile->wall_decor];
+                    if( (loc->_wall_decor.side & element->near_wall_flags) != 0 )
+                    {
+                        ops[op_count++] = (struct SceneOp){
+                            .op = SCENE_OP_TYPE_DRAW_WALL_DECOR,
+                            .x = loc->chunk_pos_x,
+                            .z = loc->chunk_pos_y,
+                            .level = loc->chunk_pos_level,
+                            ._wall_decor = { .loc_index = grid_tile->wall_decor },
+                        };
+                    }
+                }
+
                 if( grid_tile->wall != -1 )
                 {
                     int near_walls = element->near_wall_flags;
@@ -2903,6 +2932,35 @@ render_scene_ops(
             loc = &scene->locs[loc_index];
 
             model_index = loc->_ground_decor.model;
+
+            assert(model_index >= 0);
+            assert(model_index < scene->models_length);
+
+            model = &scene->models[model_index];
+
+            render_scene_model(
+                pixel_buffer,
+                width,
+                height,
+                near_plane_z,
+                camera_x,
+                camera_y,
+                camera_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll,
+                fov,
+                model,
+                textures_cache);
+        }
+        break;
+        case SCENE_OP_TYPE_DRAW_WALL_DECOR:
+        {
+            int model_index = -1;
+            int loc_index = op->_wall_decor.loc_index;
+            loc = &scene->locs[loc_index];
+
+            model_index = loc->_wall_decor.model;
 
             assert(model_index >= 0);
             assert(model_index < scene->models_length);

@@ -56,6 +56,7 @@ struct GridTile
     int locs_length;
 
     int wall;
+    int wall_decor;
     int ground_decor;
 
     // Contains directions for which tiles are waiting for us to draw.
@@ -95,6 +96,7 @@ enum LocType
     LOC_TYPE_SCENERY,
     LOC_TYPE_WALL,
     LOC_TYPE_GROUND_DECOR,
+    LOC_TYPE_WALL_DECOR,
 };
 
 struct NormalScenery
@@ -104,14 +106,18 @@ struct NormalScenery
 
 enum WallSide
 {
-    WALL_SIDE_EAST = 1 << 0,        // 1
-    WALL_SIDE_NORTH = 1 << 1,       // 2
-    WALL_SIDE_WEST = 1 << 2,        // 4
-    WALL_SIDE_SOUTH = 1 << 3,       // 8
-    WALL_CORNER_NORTHEAST = 1 << 4, // 16
-    WALL_CORNER_NORTHWEST = 1 << 5, // 32
-    WALL_CORNER_SOUTHWEST = 1 << 6, // 64
-    WALL_CORNER_SOUTHEAST = 1 << 7, // 128
+    WALL_SIDE_EAST = 1 << 0,          // 1
+    WALL_SIDE_NORTH = 1 << 1,         // 2
+    WALL_SIDE_WEST = 1 << 2,          // 4
+    WALL_SIDE_SOUTH = 1 << 3,         // 8
+    WALL_CORNER_NORTHEAST = 1 << 4,   // 16
+    WALL_CORNER_NORTHWEST = 1 << 5,   // 32
+    WALL_CORNER_SOUTHWEST = 1 << 6,   // 64
+    WALL_CORNER_SOUTHEAST = 1 << 7,   // 128
+    WALL_SIDE_EAST_OFFSET = 1 << 8,   // 256
+    WALL_SIDE_NORTH_OFFSET = 1 << 9,  // 512
+    WALL_SIDE_WEST_OFFSET = 1 << 10,  // 1024
+    WALL_SIDE_SOUTH_OFFSET = 1 << 11, // 2048
 };
 
 struct Wall
@@ -126,6 +132,13 @@ struct Wall
 struct GroundDecor
 {
     int model;
+};
+
+struct WallDecor
+{
+    int model;
+
+    enum WallSide side;
 };
 
 struct Loc
@@ -146,6 +159,7 @@ struct Loc
         struct NormalScenery _scenery;
         struct Wall _wall;
         struct GroundDecor _ground_decor;
+        struct WallDecor _wall_decor;
     };
 };
 
