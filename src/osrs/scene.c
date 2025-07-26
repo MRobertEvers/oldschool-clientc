@@ -394,6 +394,53 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             grid_tile->wall = loc_index;
         }
         break;
+        case LOC_SHAPE_WALL_TRI_CORNER:
+        {
+            int model_index = vec_model_push(scene);
+            model = vec_model_back(scene);
+            load_loc_models(
+                model,
+                loc_config->shapes,
+                loc_config->models,
+                loc_config->lengths,
+                loc_config->shapes_and_model_count,
+                cache,
+                model_cache,
+                map->shape_select);
+
+            model->region_x = tile_x * TILE_SIZE;
+            model->region_y = tile_y * TILE_SIZE;
+            model->region_z = height_center;
+
+            model->orientation = map->orientation;
+            model->offset_x = loc_config->offset_x;
+            model->offset_y = loc_config->offset_y;
+            model->offset_height = loc_config->offset_height;
+
+            model->size_x = 1;
+            model->size_y = 1;
+            model->mirrored = loc_config->rotated;
+
+            // Add the loc
+            int loc_index = vec_loc_push(scene);
+            loc = vec_loc_back(scene);
+
+            loc->size_x = 1;
+            loc->size_y = 1;
+            loc->chunk_pos_x = tile_x;
+            loc->chunk_pos_y = tile_y;
+            loc->chunk_pos_level = tile_z;
+            loc->type = LOC_TYPE_WALL;
+
+            loc->_wall.model_a = model_index;
+            assert(map->orientation >= 0);
+            assert(map->orientation < 4);
+            loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[map->orientation];
+
+            assert(model->model_ids[0] != 0);
+            grid_tile->wall = loc_index;
+        }
+        break;
         case LOC_SHAPE_WALL_CORNER:
         {
             int next_orientation = (map->orientation + 1) & 0x3;
