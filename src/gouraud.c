@@ -553,19 +553,24 @@ draw_scanline_gouraud(
 
     int step_color_hsl16_ish8 = 0;
     if( dx_stride > 3 )
+    {
         step_color_hsl16_ish8 = dcolor_hsl16_ish8 / dx_stride;
+    }
 
-    if( x_end > stride_width )
-        x_end = stride_width;
-
+    if( x_end >= stride_width )
+    {
+        x_end = stride_width - 1;
+    }
     if( x_start < 0 )
     {
         color_start_hsl16_ish8 -= step_color_hsl16_ish8 * x_start;
         x_start = 0;
     }
 
-    if( x_start > x_end )
+    if( x_start >= x_end )
         return;
+
+    assert(!(x_start == 0 && x_end == stride_width - 1));
 
     // Steps by 4.
     int offset = x_start + y * stride_width;

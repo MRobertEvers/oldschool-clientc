@@ -48,9 +48,11 @@ raster_texture_scanline(
         screen_x0 = 0;
 
     if( screen_x1 >= screen_width )
+    {
         screen_x1 = screen_width - 1;
+    }
 
-    if( screen_x0 > screen_x1 )
+    if( screen_x0 >= screen_x1 )
         return;
 
     adjust = screen_x0 - (screen_width >> 1);
@@ -102,13 +104,15 @@ raster_texture_scanline(
             v = texture_width - 1;
         }
 
+        // Expects the texture width to be a power of two.
+        u &= texture_width - 1;
+        v &= texture_width - 1;
+
         assert(u >= 0);
         assert(v >= 0);
         assert(u < texture_width);
         assert(v < texture_width);
 
-        // u &= texture_width - 1;
-        // v &= texture_width - 1;
         // if( u < 0 )
         //     u = 0;
         // if( v < 0 )
