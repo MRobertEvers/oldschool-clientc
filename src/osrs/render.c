@@ -2252,6 +2252,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     int op_capacity = scene->grid_tiles_length * 11;
     struct SceneOp* ops = (struct SceneOp*)malloc(op_capacity * sizeof(struct SceneOp));
     memset(ops, 0, op_capacity * sizeof(struct SceneOp));
+    *len = 0;
     struct SceneElement* elements =
         (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
 
@@ -2275,10 +2276,10 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
     int max_draw_x = camera_tile_x + radius;
     int max_draw_y = camera_tile_y + radius;
-    if( max_draw_x > MAP_TERRAIN_X )
-        max_draw_x = MAP_TERRAIN_X;
-    if( max_draw_y > MAP_TERRAIN_Y )
-        max_draw_y = MAP_TERRAIN_Y;
+    if( max_draw_x >= MAP_TERRAIN_X )
+        max_draw_x = MAP_TERRAIN_X - 1;
+    if( max_draw_y >= MAP_TERRAIN_Y )
+        max_draw_y = MAP_TERRAIN_Y - 1;
     if( max_draw_x < 0 )
         max_draw_x = 0;
     if( max_draw_y < 0 )
@@ -2291,9 +2292,14 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     if( min_draw_y < 0 )
         min_draw_y = 0;
     if( min_draw_x > MAP_TERRAIN_X )
-        min_draw_x = MAP_TERRAIN_X;
+        min_draw_x = MAP_TERRAIN_X - 1;
     if( min_draw_y > MAP_TERRAIN_Y )
-        min_draw_y = MAP_TERRAIN_Y;
+        min_draw_y = MAP_TERRAIN_Y - 1;
+
+    if( min_draw_x >= max_draw_x )
+        return ops;
+    if( min_draw_y >= max_draw_y )
+        return ops;
 
     struct IntQueue queue = { 0 };
     int_queue_init(&queue, scene->grid_tiles_length);
