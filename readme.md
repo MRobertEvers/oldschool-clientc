@@ -42,6 +42,8 @@ brew install sdl2
 1. Fix the need to `long long` in the texture renderer.
 2. Add model caching for transformed models.
 3. Transparency
+4. Wall corner sides not working right.
+5. Loc offsets not computed correctly.
 
 ### Scene Building Plan - Software 3D
 
