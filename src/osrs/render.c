@@ -2292,7 +2292,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     }
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 15;
+    int radius = 30;
     int coord_list_x[4];
     int coord_list_y[4];
     int coord_list_length = 0;
@@ -2396,9 +2396,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                         other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, z)];
 
                         // If we are not spanned by the tile, then we need to verify it is done.
-                        if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_EAST) == 0 )
+                        if( other->step != E_STEP_DONE )
                         {
-                            goto done;
+                            if( (grid_tile->spans & SPAN_FLAG_EAST) == 0 ||
+                                other->step != E_STEP_WAIT_ADJACENT_GROUND )
+                            {
+                                goto done;
+                            }
                         }
                     }
                 }
@@ -2408,9 +2412,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     if( tile_x - 1 >= min_draw_x )
                     {
                         other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, z)];
-                        if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_WEST) == 0 )
+                        if( other->step != E_STEP_DONE )
                         {
-                            goto done;
+                            if( (grid_tile->spans & SPAN_FLAG_WEST) == 0 ||
+                                other->step != E_STEP_WAIT_ADJACENT_GROUND )
+                            {
+                                goto done;
+                            }
                         }
                     }
                 }
@@ -2420,10 +2428,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     if( tile_y + 1 < max_draw_y )
                     {
                         other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, z)];
-                        if( other->step != E_STEP_DONE &&
-                            (grid_tile->spans & SPAN_FLAG_NORTH) == 0 )
+                        if( other->step != E_STEP_DONE )
                         {
-                            goto done;
+                            if( (grid_tile->spans & SPAN_FLAG_NORTH) == 0 ||
+                                other->step != E_STEP_WAIT_ADJACENT_GROUND )
+                            {
+                                goto done;
+                            }
                         }
                     }
                 }
@@ -2432,10 +2443,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     if( tile_y - 1 >= min_draw_y )
                     {
                         other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, z)];
-                        if( other->step != E_STEP_DONE &&
-                            (grid_tile->spans & SPAN_FLAG_SOUTH) == 0 )
+                        if( other->step != E_STEP_DONE )
                         {
-                            goto done;
+                            if( (grid_tile->spans & SPAN_FLAG_SOUTH) == 0 ||
+                                other->step != E_STEP_WAIT_ADJACENT_GROUND )
+                            {
+                                goto done;
+                            }
                         }
                     }
                 }
