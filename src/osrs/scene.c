@@ -46,8 +46,8 @@ init_loc_1x1(struct Loc* loc, int tile_x, int tile_y, int tile_z)
     loc->chunk_pos_level = tile_z;
 }
 
-static const int WALL_DECORATION_ROTATION_FORWARD_X[] = { 1, 0, -1, 0 };
-static const int WALL_DECORATION_ROTATION_FORWARD_Z[] = { 0, -1, 0, 1 };
+static const int WALL_DECOR_ROTATION_FORWARD_X[] = { 1, 0, -1, 0 };
+static const int WALL_DECOR_ROTATION_FORWARD_Z[] = { 0, -1, 0, 1 };
 
 /**
  * This is a configured offset for a loc, then there may be additional
@@ -62,8 +62,8 @@ static const int WALL_DECORATION_ROTATION_FORWARD_Z[] = { 0, -1, 0, 1 };
 static void
 calculate_wall_decor_offset(struct SceneModel* decor, int orientation, int offset)
 {
-    int offset_x = offset * WALL_DECORATION_ROTATION_FORWARD_X[orientation];
-    int offset_y = offset * WALL_DECORATION_ROTATION_FORWARD_Z[orientation];
+    int offset_x = offset * WALL_DECOR_ROTATION_FORWARD_X[orientation];
+    int offset_y = offset * WALL_DECOR_ROTATION_FORWARD_Z[orientation];
 
     decor->offset_x = offset_x;
     decor->offset_y = offset_y;
@@ -510,7 +510,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                true);
 
             int model_b_index = vec_model_push(scene);
             model = vec_model_back(scene);
@@ -529,7 +529,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 tile_x,
                 tile_y,
                 height_center,
-                map->orientation,
+                next_orientation,
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
@@ -623,7 +623,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             grid_tile->wall = loc_index;
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_NOOFFSET:
+        case LOC_SHAPE_WALL_DECOR_NOOFFSET:
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
@@ -635,7 +635,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->shapes_and_model_count,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_DECORATION_NOOFFSET);
+                LOC_SHAPE_WALL_DECOR_NOOFFSET);
 
             init_scene_model_1x1(
                 model,
@@ -661,7 +661,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             grid_tile->wall_decor = loc_index;
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_OFFSET:
+        case LOC_SHAPE_WALL_DECOR_OFFSET:
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
@@ -673,7 +673,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->shapes_and_model_count,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_DECORATION_NOOFFSET);
+                LOC_SHAPE_WALL_DECOR_NOOFFSET);
 
             init_scene_model_1x1(
                 model,
@@ -769,8 +769,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             grid_tile->wall = loc_index;
         }
         break;
-        case LOC_SHAPE_NORMAL:
-        case LOC_SHAPE_NORMAL_DIAGIONAL:
+        case LOC_SHAPE_SCENERY:
+        case LOC_SHAPE_SCENERY_DIAGIONAL:
         {
             // Load model
             int model_index = vec_model_push(scene);

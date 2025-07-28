@@ -245,23 +245,23 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_NOOFFSET:
+        case LOC_SHAPE_WALL_DECOR_NOOFFSET:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_OFFSET:
+        case LOC_SHAPE_WALL_DECOR_OFFSET:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_OUTSIDE:
+        case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_INSIDE:
+        case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_DOUBLE:
+        case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
         {
         }
         break;
@@ -269,19 +269,19 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
         {
         }
         break;
-        case LOC_SHAPE_NORMAL:
-        case LOC_SHAPE_NORMAL_DIAGIONAL:
+        case LOC_SHAPE_SCENERY:
+        case LOC_SHAPE_SCENERY_DIAGIONAL:
         {
             scenery = (struct NormalScenery*)malloc(sizeof(struct NormalScenery));
             memset(scenery, 0x00, sizeof(struct NormalScenery));
 
             int yaw = 0;
-            if( map->shape_select == LOC_SHAPE_NORMAL_DIAGIONAL )
+            if( map->shape_select == LOC_SHAPE_SCENERY_DIAGIONAL )
                 yaw = 256;
 
             int world_model_id = world_model_emplace(world);
             select_loc_models(
-                world_model_back(world), &loc, LOC_SHAPE_NORMAL, map->orientation, yaw);
+                world_model_back(world), &loc, LOC_SHAPE_SCENERY, map->orientation, yaw);
 
             scenery->wmodel = world_model_id;
             scenery->span_x = loc.size_x;

@@ -136,23 +136,23 @@ scene_locs_new_from_map_locs(
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_NOOFFSET:
+        case LOC_SHAPE_WALL_DECOR_NOOFFSET:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_OFFSET:
+        case LOC_SHAPE_WALL_DECOR_OFFSET:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_OUTSIDE:
+        case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_INSIDE:
+        case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_DIAGONAL_DOUBLE:
+        case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
         {
         }
         break;
@@ -160,8 +160,8 @@ scene_locs_new_from_map_locs(
         {
         }
         break;
-        case LOC_SHAPE_NORMAL:
-        case LOC_SHAPE_NORMAL_DIAGIONAL:
+        case LOC_SHAPE_SCENERY:
+        case LOC_SHAPE_SCENERY_DIAGIONAL:
         {
             // struct Loc* shape = (struct Loc*)malloc(sizeof(struct Loc));
             // memset(shape, 0x00, sizeof(struct Loc));
