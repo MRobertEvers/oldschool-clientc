@@ -35,6 +35,11 @@ struct SceneModel
     int offset_x;
     int offset_y;
     int offset_height;
+
+    int base_offset_x;
+    int base_offset_y;
+    int base_offset_height;
+
     int mirrored;
 
     int chunk_pos_x;
@@ -127,6 +132,8 @@ struct Wall
 
     enum WallSide side_a;
     enum WallSide side_b;
+
+    int wall_width;
 };
 
 struct GroundDecor
@@ -139,6 +146,9 @@ struct WallDecor
     int model;
 
     enum WallSide side;
+
+    // This is used to calculate the offset of the decor model.
+    int wall_width;
 };
 
 struct Loc

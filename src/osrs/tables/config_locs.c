@@ -90,6 +90,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->map_function_id = -1;
     loc->map_scene_id = -1;
     loc->clipped = 1;
+    loc->wall_width = 16;
     loc->model_size_x = 128;
     loc->model_size_height = 128;
     loc->model_size_y = 128;
@@ -259,8 +260,7 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             loc->clip_type = 1;
             break;
         case 28:
-            // decorDisplacement - skip for now
-            rsbuf_g1(&buffer);
+            loc->wall_width = rsbuf_g1(&buffer);
             break;
         case 29:
             loc->ambient = rsbuf_g1b(&buffer);

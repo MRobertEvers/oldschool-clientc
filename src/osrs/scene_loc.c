@@ -120,7 +120,7 @@ scene_locs_new_from_map_locs(
 
         switch( map_loc->shape_select )
         {
-        case LOC_SHAPE_WALL:
+        case LOC_SHAPE_WALL_SINGLE_SIDE:
         {
         }
         break;
@@ -128,7 +128,7 @@ scene_locs_new_from_map_locs(
         {
         }
         break;
-        case LOC_SHAPE_WALL_CORNER:
+        case LOC_SHAPE_WALL_TWO_SIDES:
         {
         }
         break;
@@ -136,11 +136,11 @@ scene_locs_new_from_map_locs(
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_INSIDE:
+        case LOC_SHAPE_WALL_DECORATION_NOOFFSET:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_OUTSIDE:
+        case LOC_SHAPE_WALL_DECORATION_OFFSET:
         {
         }
         break;

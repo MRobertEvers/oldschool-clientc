@@ -10,12 +10,64 @@
 #include <string.h>
 #define TILE_SIZE 128
 
+static void
+init_scene_model_1x1(
+    struct SceneModel* model,
+    int tile_x,
+    int tile_y,
+    int height_center,
+    int orientation,
+    int base_offset_x,
+    int base_offset_y,
+    int base_offset_height,
+    int mirrored)
+{
+    model->region_x = tile_x * TILE_SIZE;
+    model->region_y = tile_y * TILE_SIZE;
+    model->region_z = height_center;
+
+    model->orientation = orientation;
+    model->base_offset_x = base_offset_x;
+    model->base_offset_y = base_offset_y;
+    model->base_offset_height = base_offset_height;
+
+    model->size_x = 1;
+    model->size_y = 1;
+    model->mirrored = mirrored;
+}
+
+static void
+init_loc_1x1(struct Loc* loc, int tile_x, int tile_y, int tile_z)
+{
+    loc->size_x = 1;
+    loc->size_y = 1;
+    loc->chunk_pos_x = tile_x;
+    loc->chunk_pos_y = tile_y;
+    loc->chunk_pos_level = tile_z;
+}
+
+static const int WALL_DECORATION_ROTATION_FORWARD_X[] = { 1, 0, -1, 0 };
+static const int WALL_DECORATION_ROTATION_FORWARD_Z[] = { 0, -1, 0, 1 };
+
 /**
- * Add Loc To Grid
- * Load Model
+ * This is a configured offset for a loc, then there may be additional
+ * offsets applied by other locs on the tile.
+ *
+ * For example, walls will offset the decor locs.
+ *
+ * @param decor
+ * @param orientation
+ * @param offset
  */
-// static void
-// add_loc()
+static void
+calculate_wall_decor_offset(struct SceneModel* decor, int orientation, int offset)
+{
+    int offset_x = offset * WALL_DECORATION_ROTATION_FORWARD_X[orientation];
+    int offset_y = offset * WALL_DECORATION_ROTATION_FORWARD_Z[orientation];
+
+    decor->offset_x = offset_x;
+    decor->offset_y = offset_y;
+}
 
 static void
 compute_normal_scenery_spans(
@@ -193,9 +245,6 @@ const int ROTATION_WALL_CORNER_TYPE[] = {
     WALL_CORNER_SOUTHWEST,
 };
 
-const int WALL_DECORATION_ROTATION_FORWARD_X[] = { 1, 0, -1, 0 };
-const int WALL_DECORATION_ROTATION_FORWARD_Z[] = { 0, -1, 0, 1 };
-
 struct Scene*
 scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 {
@@ -208,9 +257,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct CacheConfigLocationTable* config_locs_table = NULL;
     struct CacheMapLoc* map = NULL;
     struct Loc* loc = NULL;
+    struct Loc* other_loc = NULL;
+    struct SceneModel* model = NULL;
+    struct SceneModel* other_model = NULL;
     struct CacheMapLocsIter* iter = NULL;
     struct CacheConfigLocation* loc_config = NULL;
-    struct SceneModel* model = NULL;
 
     struct Scene* scene = malloc(sizeof(struct Scene));
     memset(scene, 0, sizeof(struct Scene));
@@ -337,7 +388,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         switch( map->shape_select )
         {
-        case LOC_SHAPE_WALL:
+        case LOC_SHAPE_WALL_SINGLE_SIDE:
         {
             // Load model
             int model_index = vec_model_push(scene);
@@ -352,34 +403,43 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 map->shape_select);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
-
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
 
-            loc->size_x = 1;
-            loc->size_y = 1;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL;
 
             loc->_wall.model_a = model_index;
             assert(map->orientation >= 0);
             assert(map->orientation < 4);
             loc->_wall.side_a = ROTATION_WALL_TYPE[map->orientation];
+
+            int wall_width = loc_config->wall_width;
+            loc->_wall.wall_width = wall_width;
+
+            // If wall_decor was loaded first, we need to update the offset.
+            if( grid_tile->wall_decor != -1 )
+            {
+                other_loc = &scene->locs[grid_tile->wall_decor];
+                assert(other_loc->type == LOC_TYPE_WALL_DECOR);
+
+                other_model = &scene->models[other_loc->_wall_decor.model];
+                assert(other_model);
+
+                calculate_wall_decor_offset(other_model, map->orientation, wall_width);
+            }
 
             grid_tile->wall = loc_index;
         }
@@ -398,28 +458,22 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 map->shape_select);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
-
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
 
-            loc->size_x = 1;
-            loc->size_y = 1;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL;
 
             loc->_wall.model_a = model_index;
@@ -430,7 +484,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             grid_tile->wall = loc_index;
         }
         break;
-        case LOC_SHAPE_WALL_CORNER:
+        case LOC_SHAPE_WALL_TWO_SIDES:
         {
             int next_orientation = (map->orientation + 1) & 0x3;
 
@@ -445,21 +499,18 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->shapes_and_model_count,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_CORNER);
+                LOC_SHAPE_WALL_TWO_SIDES);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            // Add 4 to turn it around.
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
-
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = true;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             int model_b_index = vec_model_push(scene);
             model = vec_model_back(scene);
@@ -471,30 +522,24 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->shapes_and_model_count,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_CORNER);
+                LOC_SHAPE_WALL_TWO_SIDES);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            model->orientation = next_orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
-
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
 
-            loc->size_x = 1;
-            loc->size_y = 1;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL;
 
             loc->_wall.model_a = model_a_index;
@@ -502,6 +547,21 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
             loc->_wall.model_b = model_b_index;
             loc->_wall.side_b = ROTATION_WALL_TYPE[next_orientation];
+
+            int wall_width = loc_config->wall_width;
+            loc->_wall.wall_width = wall_width;
+
+            // If wall_decor was loaded first, we need to update the offset.
+            if( grid_tile->wall_decor != -1 )
+            {
+                other_loc = &scene->locs[grid_tile->wall_decor];
+                assert(other_loc->type == LOC_TYPE_WALL_DECOR);
+
+                other_model = &scene->models[other_loc->_wall_decor.model];
+                assert(other_model);
+
+                calculate_wall_decor_offset(other_model, map->orientation, wall_width);
+            }
 
             grid_tile->wall = loc_index;
         }
@@ -520,28 +580,22 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 map->shape_select);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
-
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
 
-            loc->size_x = 1;
-            loc->size_y = 1;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL;
 
             loc->_wall.model_a = model_index;
@@ -569,7 +623,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             grid_tile->wall = loc_index;
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_INSIDE:
+        case LOC_SHAPE_WALL_DECORATION_NOOFFSET:
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
@@ -581,30 +635,24 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->shapes_and_model_count,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_DECORATION_INSIDE);
+                LOC_SHAPE_WALL_DECORATION_NOOFFSET);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
-
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
 
-            loc->size_x = 1;
-            loc->size_y = 1;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL_DECOR;
 
             loc->_wall_decor.model = model_index;
@@ -613,7 +661,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             grid_tile->wall_decor = loc_index;
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_OUTSIDE:
+        case LOC_SHAPE_WALL_DECORATION_OFFSET:
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
@@ -625,30 +673,37 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->shapes_and_model_count,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_DECORATION_INSIDE);
+                LOC_SHAPE_WALL_DECORATION_NOOFFSET);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x + 16;
-            model->offset_y = loc_config->offset_y + 16;
-            model->offset_height = loc_config->offset_height;
+            // Default offset is 16.
+            int offset = 16;
+            // The wall was loaded first, get the offset and use it.
+            if( grid_tile->wall != -1 )
+            {
+                other_loc = &scene->locs[grid_tile->wall];
+                assert(other_loc->type == LOC_TYPE_WALL);
+                if( other_loc->_wall.wall_width )
+                    offset = other_loc->_wall.wall_width;
+            }
 
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            calculate_wall_decor_offset(model, map->orientation, offset);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
 
-            loc->size_x = 1;
-            loc->size_y = 1;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL_DECOR;
 
             loc->_wall_decor.model = model_index;
@@ -671,28 +726,22 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 map->shape_select);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
-
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
 
-            loc->size_x = 1;
-            loc->size_y = 1;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_WALL;
 
             loc->_wall.model_a = model_index;
@@ -736,14 +785,16 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 map->shape_select);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             int size_x = loc_config->size_x;
             int size_y = loc_config->size_y;
@@ -756,17 +807,15 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
             model->size_x = size_x;
             model->size_y = size_y;
-            model->mirrored = loc_config->rotated;
 
             // Add the loc
 
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
+
             loc->size_x = size_x;
             loc->size_y = size_y;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_SCENERY;
 
             loc->_scenery.model = model_index;
@@ -791,28 +840,22 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 map->shape_select);
 
-            model->region_x = tile_x * TILE_SIZE;
-            model->region_y = tile_y * TILE_SIZE;
-            model->region_z = height_center;
-
-            model->orientation = map->orientation;
-            model->offset_x = loc_config->offset_x;
-            model->offset_y = loc_config->offset_y;
-            model->offset_height = loc_config->offset_height;
-
-            model->size_x = 1;
-            model->size_y = 1;
-            model->mirrored = loc_config->rotated;
+            init_scene_model_1x1(
+                model,
+                tile_x,
+                tile_y,
+                height_center,
+                map->orientation,
+                loc_config->offset_x,
+                loc_config->offset_y,
+                loc_config->offset_height,
+                loc_config->rotated);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
             loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
 
-            loc->size_x = 1;
-            loc->size_y = 1;
-            loc->chunk_pos_x = tile_x;
-            loc->chunk_pos_y = tile_y;
-            loc->chunk_pos_level = tile_z;
             loc->type = LOC_TYPE_GROUND_DECOR;
 
             loc->_ground_decor.model = model_index;

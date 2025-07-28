@@ -2104,6 +2104,10 @@ render_scene_model(
     x += (size_x) * 64;
     y += (size_y) * 64;
 
+    x += model->base_offset_x;
+    y += model->base_offset_y;
+    z += model->base_offset_height;
+
     x += model->offset_x;
     y += model->offset_y;
     z += model->offset_height;

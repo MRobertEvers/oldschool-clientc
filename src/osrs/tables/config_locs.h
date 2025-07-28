@@ -11,13 +11,13 @@
 
 enum LocShape
 {
-    LOC_SHAPE_WALL = 0,
+    LOC_SHAPE_WALL_SINGLE_SIDE = 0,
     LOC_SHAPE_WALL_TRI_CORNER = 1,
-    LOC_SHAPE_WALL_CORNER = 2,
+    LOC_SHAPE_WALL_TWO_SIDES = 2,
     LOC_SHAPE_WALL_RECT_CORNER = 3,
 
-    LOC_SHAPE_WALL_DECORATION_INSIDE = 4,
-    LOC_SHAPE_WALL_DECORATION_OUTSIDE = 5,
+    LOC_SHAPE_WALL_DECORATION_NOOFFSET = 4,
+    LOC_SHAPE_WALL_DECORATION_OFFSET = 5,
     LOC_SHAPE_WALL_DECORATION_DIAGONAL_OUTSIDE = 6,
     LOC_SHAPE_WALL_DECORATION_DIAGONAL_INSIDE = 7,
     LOC_SHAPE_WALL_DECORATION_DIAGONAL_DOUBLE = 8,
@@ -80,6 +80,10 @@ struct CacheConfigLocation
 
     int clip_type;
     int blocks_projectiles;
+
+    // Both x and z.
+    // LostCity/2004Scape/Pazaz-Gang call this wallwidth.
+    int wall_width;
 
     int is_interactive;
     int contoured_ground;

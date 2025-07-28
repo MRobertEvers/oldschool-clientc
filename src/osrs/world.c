@@ -218,13 +218,14 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
 
         switch( map->shape_select )
         {
-        case LOC_SHAPE_WALL:
+        case LOC_SHAPE_WALL_SINGLE_SIDE:
         {
             wall = (struct Wall*)malloc(sizeof(struct Wall));
             memset(wall, 0x00, sizeof(struct Wall));
 
             int world_model_id = world_model_emplace(world);
-            select_loc_models(world_model_back(world), &loc, LOC_SHAPE_WALL, map->orientation, 0);
+            select_loc_models(
+                world_model_back(world), &loc, LOC_SHAPE_WALL_SINGLE_SIDE, map->orientation, 0);
 
             wall->wmodel = world_model_id;
             wall->wall_type = ROTATION_WALL_TYPE[map->orientation];
@@ -236,7 +237,7 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
         {
         }
         break;
-        case LOC_SHAPE_WALL_CORNER:
+        case LOC_SHAPE_WALL_TWO_SIDES:
         {
         }
         break;
@@ -244,11 +245,11 @@ world_new_from_cache(struct Cache* cache, int chunk_x, int chunk_y)
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_INSIDE:
+        case LOC_SHAPE_WALL_DECORATION_NOOFFSET:
         {
         }
         break;
-        case LOC_SHAPE_WALL_DECORATION_OUTSIDE:
+        case LOC_SHAPE_WALL_DECORATION_OFFSET:
         {
         }
         break;
