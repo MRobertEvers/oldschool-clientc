@@ -80,6 +80,7 @@ add_executable(scene_tile_test
     src/projection.c
     src/texture.c
     src/osrs/anim.c
+    src/osrs/game_model.c
     src/osrs/xtea.c
     src/osrs/archive.c
     src/osrs/xtea_config.c

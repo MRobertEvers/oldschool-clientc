@@ -2442,7 +2442,7 @@ model_new_copy(struct CacheModel* model)
 }
 
 static int
-copy_vertices(struct CacheModel* model, struct CacheModel* other, int face)
+copy_vertex(struct CacheModel* model, struct CacheModel* other, int face)
 {
     int new_vertex_count = -1;
     int vert_x = other->vertices_x[face];
@@ -2479,6 +2479,9 @@ model_new_merge(struct CacheModel** models, int model_count)
 {
     struct CacheModel* model = (struct CacheModel*)malloc(sizeof(struct CacheModel));
     memset(model, 0, sizeof(struct CacheModel));
+
+    model->_model_type = -1;
+    model->_id = -1;
 
     int vertex_count = 0;
     int face_count = 0;
@@ -2566,9 +2569,9 @@ model_new_merge(struct CacheModel** models, int model_count)
     if( has_face_render_textures )
         textureRenderTypes = (unsigned char*)malloc(textured_face_count * sizeof(unsigned char));
 
-    model->vertex_count = vertex_count;
-    model->face_count = face_count;
-    model->textured_face_count = textured_face_count;
+    // model->vertex_count = vertex_count;
+    // model->face_count = face_count;
+    // model->textured_face_count = textured_face_count;
 
     model->vertices_x = vertices_x;
     model->vertices_y = vertices_y;
@@ -2595,49 +2598,80 @@ model_new_merge(struct CacheModel** models, int model_count)
     {
         for( int j = 0; j < models[i]->face_count; j++ )
         {
-            // if( face_alphas && models[i]->face_alphas )
-            //     model->face_alphas[model->face_count] = models[i]->face_alphas[j];
+            if( face_alphas && models[i]->face_alphas )
+                model->face_alphas[model->face_count] = models[i]->face_alphas[j];
 
-            // if( face_infos && models[i]->face_infos )
-            //     model->face_infos[model->face_count] = models[i]->face_infos[j];
+            if( face_infos && models[i]->face_infos )
+                model->face_infos[model->face_count] = models[i]->face_infos[j];
 
-            // if( face_priorities && models[i]->face_priorities )
-            //     model->face_priorities[model->face_count] = models[i]->face_priorities[j];
+            if( face_priorities && models[i]->face_priorities )
+                model->face_priorities[model->face_count] = models[i]->face_priorities[j];
 
-            // if( face_colors && models[i]->face_colors )
-            //     model->face_colors[model->face_count] = models[i]->face_colors[j];
+            if( face_colors && models[i]->face_colors )
+                model->face_colors[model->face_count] = models[i]->face_colors[j];
 
-            int index_a = copy_vertices(model, models[i], models[i]->face_indices_a[j]);
-            int index_b = copy_vertices(model, models[i], models[i]->face_indices_b[j]);
-            int index_c = copy_vertices(model, models[i], models[i]->face_indices_c[j]);
+            int index_a = copy_vertex(model, models[i], models[i]->face_indices_a[j]);
+            int index_b = copy_vertex(model, models[i], models[i]->face_indices_b[j]);
+            int index_c = copy_vertex(model, models[i], models[i]->face_indices_c[j]);
 
-            // model->face_indices_a[model->face_count] = index_a;
-            // model->face_indices_b[model->face_count] = index_b;
-            // model->face_indices_c[model->face_count] = index_c;
+            model->face_indices_a[model->face_count] = index_a;
+            model->face_indices_b[model->face_count] = index_b;
+            model->face_indices_c[model->face_count] = index_c;
+
+            if( has_face_render_textures )
+            {
+                if( models[i]->face_texture_coords )
+                {
+                    model->face_texture_coords[model->face_count] =
+                        models[i]->face_texture_coords[j];
+                }
+                else
+                {
+                    model->face_texture_coords[model->face_count] = -1;
+                }
+
+                if( models[i]->face_textures )
+                {
+                    model->face_textures[model->face_count] = models[i]->face_textures[j];
+                }
+                else
+                {
+                    model->face_textures[model->face_count] = -1;
+                }
+            }
 
             model->face_count++;
         }
 
-        // for( int j = 0; j < models[i]->textured_face_count; j++ )
-        // {
-        //     if( textured_p_coordinate )
-        //         model->textured_p_coordinate[model->textured_face_count] =
-        //             models[i]->textured_p_coordinate[j];
+        for( int j = 0; j < models[i]->textured_face_count; j++ )
+        {
+            int vertex_index_p = 0;
+            int vertex_index_m = 0;
+            int vertex_index_n = 0;
 
-        //     if( textured_m_coordinate )
-        //         model->textured_m_coordinate[model->textured_face_count] =
-        //             models[i]->textured_m_coordinate[j];
+            if( textured_p_coordinate && models[i]->textured_p_coordinate )
+                vertex_index_p = copy_vertex(model, models[i], models[i]->textured_p_coordinate[j]);
 
-        //     if( textured_n_coordinate )
-        //         model->textured_n_coordinate[model->textured_face_count] =
-        //             models[i]->textured_n_coordinate[j];
+            if( textured_m_coordinate && models[i]->textured_m_coordinate )
+                vertex_index_m = copy_vertex(model, models[i], models[i]->textured_m_coordinate[j]);
 
-        //     model->face_textures[model->textured_face_count] = models[i]->face_textures[j];
-        //     model->face_texture_coords[model->textured_face_count] =
-        //         models[i]->face_texture_coords[j];
+            if( textured_n_coordinate && models[i]->textured_n_coordinate )
+                vertex_index_n = copy_vertex(model, models[i], models[i]->textured_n_coordinate[j]);
 
-        //     model->textured_face_count++;
-        // }
+            assert(vertex_index_p > -1);
+            assert(vertex_index_m > -1);
+            assert(vertex_index_n > -1);
+
+            model->textured_p_coordinate[model->textured_face_count] = vertex_index_p;
+            model->textured_m_coordinate[model->textured_face_count] = vertex_index_m;
+            model->textured_n_coordinate[model->textured_face_count] = vertex_index_n;
+
+            model->face_textures[model->textured_face_count] = models[i]->face_textures[j];
+            model->face_texture_coords[model->textured_face_count] =
+                models[i]->face_texture_coords[j];
+
+            model->textured_face_count++;
+        }
     }
 
     return model;
