@@ -2139,6 +2139,7 @@ struct SceneOp*
 render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene* scene, int* len)
 {
     struct GridTile* grid_tile = NULL;
+    struct GridTile* bridge_underpass_tile = NULL;
 
     struct Loc* loc = NULL;
 
@@ -2243,6 +2244,10 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
             int tile_x = grid_tile->x;
             int tile_y = grid_tile->z;
+            int tile_level = grid_tile->level;
+
+            if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 )
+                continue;
 
             // printf("Tile %d, %d Coord %d\n", tile_x, tile_y, tile_coord);
             // printf("Min %d, %d\n", min_draw_x, min_draw_y);
@@ -2334,16 +2339,53 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             {
                 element->step = E_STEP_WAIT_ADJACENT_GROUND;
 
+                int near_walls = near_wall_flags(camera_tile_x, camera_tile_y, tile_x, tile_y);
+                int far_walls = ~near_walls;
+                element->near_wall_flags |= near_walls;
+
+                if( grid_tile->bridge_tile != -1 )
+                {
+                    bridge_underpass_tile = &scene->grid_tiles[grid_tile->bridge_tile];
+                    ops[op_count++] = (struct SceneOp){
+                        .op = SCENE_OP_TYPE_DRAW_GROUND,
+                        .x = tile_x,
+                        .z = tile_y,
+                        .level = bridge_underpass_tile->level,
+                    };
+
+                    if( bridge_underpass_tile->wall != -1 )
+                    {
+                        loc = &scene->locs[bridge_underpass_tile->wall];
+                        ops[op_count++] = (struct SceneOp){
+                            .op = SCENE_OP_TYPE_DRAW_WALL,
+                            .x = loc->chunk_pos_x,
+                            .z = loc->chunk_pos_y,
+                            .level = loc->chunk_pos_level,
+                            ._wall = { .loc_index = bridge_underpass_tile->wall,
+                                      .is_wall_a = true },
+                        };
+                    }
+
+                    for( int i = 0; i < bridge_underpass_tile->locs_length; i++ )
+                    {
+                        int loc_index = bridge_underpass_tile->locs[i];
+                        loc = &scene->locs[loc_index];
+                        ops[op_count++] = (struct SceneOp){
+                            .op = SCENE_OP_TYPE_DRAW_GROUND_DECOR,
+                            .x = loc->chunk_pos_x,
+                            .z = loc->chunk_pos_y,
+                            .level = loc->chunk_pos_level,
+                            ._ground_decor = { .loc_index = loc_index },
+                        };
+                    }
+                }
+
                 ops[op_count++] = (struct SceneOp){
                     .op = SCENE_OP_TYPE_DRAW_GROUND,
                     .x = tile_x,
                     .z = tile_y,
                     .level = z,
                 };
-
-                int near_walls = near_wall_flags(camera_tile_x, camera_tile_y, tile_x, tile_y);
-                int far_walls = ~near_walls;
-                element->near_wall_flags |= near_walls;
 
                 if( grid_tile->wall != -1 )
                 {

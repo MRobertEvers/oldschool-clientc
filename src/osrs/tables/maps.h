@@ -54,6 +54,12 @@ struct CacheMapLocs
     int locs_count;
 };
 
+enum FloorFlags
+{
+    FLOFLAG_SOLID_UNKNWON = 0 << 1,
+    FLOFLAG_BRIDGE = 1 << 1
+};
+
 struct CacheMapFloor
 {
     int height;

@@ -43,6 +43,14 @@ struct SceneModel
     bool __drawn;
 };
 
+enum GridTileFlags
+{
+    /**
+     * The bridge tile is actually a bridge drawn on a different level.
+     */
+    GRID_TILE_FLAG_BRIDGE = 1 << 0,
+};
+
 struct GridTile
 {
     // These are only used for normal locs
@@ -52,6 +60,8 @@ struct GridTile
     int wall;
     int wall_decor;
     int ground_decor;
+
+    int bridge_tile;
 
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.
@@ -76,12 +86,11 @@ struct GridTile
 
     struct SceneTile* tile;
 
-    struct SceneTextures* textures;
-    int textures_length;
-
     int x;
     int z;
     int level;
+
+    int flags;
 };
 
 enum LocType

@@ -397,6 +397,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 grid_tile->wall = -1;
                 grid_tile->ground_decor = -1;
                 grid_tile->wall_decor = -1;
+                grid_tile->bridge_tile = -1;
                 grid_tile->spans = 0;
             }
         }
@@ -849,6 +850,56 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         }
         }
     }
+
+    // Adjust bridges.
+    /**
+     * Bridges are adjusted from an upper level.
+     *
+     * The "bridge_tile" is actually the tiles below the bridge.
+     * The bridge itself is taken from the level above.
+     *
+     * E.g.
+     *
+     * Level 0: Tile := (Water and Bridge Walls), Bridge := Nothing
+     * Level 1: Tile := (Bridge Walking Surface and Walls)
+     * Level 2: Nothing
+     * Level 3: Nothing
+     *
+     * After this adjustment,
+     *
+     * Level 0: Tile := (Previous Level 1), Bridge := (Previous Level 0)
+     * Level 1: Nothing
+     * Level 2: Nothing
+     * Level 3: Nothing.
+     */
+    struct CacheMapFloor* floor = NULL;
+    struct GridTile bridge_tile = { 0 };
+    for( int x = 0; x < MAP_TERRAIN_X; x++ )
+    {
+        for( int y = 0; y < MAP_TERRAIN_Y; y++ )
+        {
+            floor = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, 1)];
+            if( (floor->settings & FLOFLAG_BRIDGE) != 0 )
+            {
+                bridge_tile = scene->grid_tiles[MAP_TILE_COORD(x, y, 0)];
+                for( int level = 0; level < MAP_TERRAIN_Z - 1; level++ )
+                {
+                    scene->grid_tiles[MAP_TILE_COORD(x, y, level)] =
+                        scene->grid_tiles[MAP_TILE_COORD(x, y, level + 1)];
+
+                    scene->grid_tiles[MAP_TILE_COORD(x, y, level)].level--;
+                }
+
+                // Use the newly unused tile on level 3 as the bridge slot.
+                scene->grid_tiles[MAP_TILE_COORD(x, y, 0)].bridge_tile = MAP_TILE_COORD(x, y, 3);
+
+                bridge_tile.level = 3;
+                bridge_tile.flags |= GRID_TILE_FLAG_BRIDGE;
+                scene->grid_tiles[MAP_TILE_COORD(x, y, 3)] = bridge_tile;
+            }
+        }
+    }
+
     map_locs_iter_free(iter);
 
     map_terrain_free(map_terrain);
