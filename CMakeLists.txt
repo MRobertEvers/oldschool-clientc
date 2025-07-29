@@ -7,7 +7,6 @@ project(RSClient
 # set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
 set(PROFILING_FLAGS)
 
-
 find_package(SDL2 REQUIRED)
 find_package(BZip2 REQUIRED)
 find_package(ZLIB REQUIRED)
@@ -57,7 +56,6 @@ add_executable(scene_tile_test
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
     src/osrs/scene_tile.c
-    src/osrs/scene_loc.c
     src/osrs/palette.c
     src/osrs/cache.c
     src/osrs/tables/model.c

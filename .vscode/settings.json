@@ -53,6 +53,7 @@
         "config_floortype.h": "c",
         "ht.h": "c",
         "queue": "c",
-        "stack": "c"
+        "stack": "c",
+        "scene.h": "c"
     }
 }

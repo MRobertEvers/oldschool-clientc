@@ -370,7 +370,8 @@ textures_cache_checkout(
     int size,
     double brightness)
 {
-    struct TexItem* item = httex_cache_lookup(textures_cache, texture_id);
+    struct TexItem* item = NULL;
+    item = httex_cache_lookup(textures_cache, texture_id);
     if( item )
         return item->texture;
 
@@ -389,11 +390,6 @@ textures_cache_checkout(
     texture_definition = texture_definition_new_from_cache(cache, texture_id);
     if( !texture_definition )
         return NULL;
-
-    if( texture_id == 8 )
-    {
-        int iiii = 0;
-    }
 
     struct CacheSpritePack** sprite_packs = (struct CacheSpritePack**)malloc(
         texture_definition->sprite_ids_count * sizeof(struct CacheSpritePack*));

@@ -719,6 +719,7 @@ model_draw_face(
     int screen_height,
     struct TexturesCache* textures_cache)
 {
+    struct Texture* texture = NULL;
     int tp_face = -1;
     int tm_face = -1;
     int tn_face = -1;
@@ -777,8 +778,7 @@ model_draw_face(
     if( face_textures && face_textures[index] != -1 )
     {
         texture_id = face_textures[index];
-        struct Texture* texture =
-            textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
+        texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
         assert(texture != NULL);
         texels = texture->texels;
 
@@ -931,7 +931,7 @@ model_draw_face(
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
-            break;
+            assert(false);
             if( !face_p_coordinate_nullable )
                 break;
 
@@ -1159,6 +1159,7 @@ raster_osrs_single_texture(
     int offset_x,
     int offset_y)
 {
+    struct Texture* texture = NULL;
     int index = face;
 
     int x1 = screen_vertex_x[face_indices_a[index]];
@@ -1203,7 +1204,7 @@ raster_osrs_single_texture(
     if( texture_id == -1 )
         return false;
 
-    struct Texture* texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
+    texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
     if( !texture )
         return false;
 
@@ -1959,7 +1960,6 @@ scene_textures_free(struct SceneTextures* textures)
     free(textures);
 }
 
-#include "scene_loc.h"
 #include "tables/maps.h"
 
 void
@@ -1979,85 +1979,6 @@ model_rotate_y180(
     }
 }
 
-static void
-render_scene_loc(
-    int* pixel_buffer,
-    int width,
-    int height,
-    int near_plane_z,
-    int camera_x,
-    int camera_y,
-    int camera_z,
-    int camera_pitch,
-    int camera_yaw,
-    int camera_roll,
-    int fov,
-    struct SceneLoc* loc,
-    struct TexturesCache* textures_cache)
-{
-    int x = camera_x + loc->region_x;
-    int y = camera_y + loc->region_y;
-    int z = camera_z + loc->region_z;
-
-    int yaw = 0;
-
-    if( loc->mirrored && loc->orientation > 3 )
-    {
-        yaw += 1024;
-    }
-
-    int rotation = loc->orientation;
-    while( rotation-- )
-    {
-        yaw += 1536;
-    }
-    yaw %= 2048;
-
-    // This is done in the map->loc => scene_loc decoder.
-    int size_x = loc->size_x;
-    int size_y = loc->size_y;
-    // if( loc->orientation == 1 || loc->orientation == 3 )
-    // {
-    //     size_x = loc->size_y;
-    //     size_y = loc->size_x;
-    // }
-
-    x += (size_x) * 64;
-    y += (size_y) * 64;
-
-    x += loc->offset_x;
-    y += loc->offset_y;
-    z += loc->offset_height;
-
-    for( int j = 0; j < loc->model_count; j++ )
-    {
-        struct CacheModel* model = loc->models[j];
-        if( !model )
-            continue;
-
-        render_model_frame(
-            pixel_buffer,
-            width,
-            height,
-            near_plane_z,
-            0,
-            yaw,
-            0,
-            x,
-            y,
-            z,
-            camera_pitch,
-            camera_yaw,
-            camera_roll,
-            fov,
-            loc->mirrored,
-            model,
-            NULL,
-            NULL,
-            NULL,
-            textures_cache);
-    }
-}
 static void
 render_scene_model(
     int* pixel_buffer,
@@ -2139,42 +2060,6 @@ render_scene_model(
             NULL,
             NULL,
             textures_cache);
-    }
-}
-
-void
-render_scene_locs(
-    int* pixel_buffer,
-    int width,
-    int height,
-    int near_plane_z,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    int camera_pitch,
-    int camera_yaw,
-    int camera_roll,
-    int fov,
-    struct SceneLocs* locs,
-    struct SceneTextures* textures)
-{
-    for( int i = 0; i < locs->locs_count; i++ )
-    {
-        struct SceneLoc* loc = &locs->locs[i];
-        render_scene_loc(
-            pixel_buffer,
-            width,
-            height,
-            near_plane_z,
-            scene_x,
-            scene_y,
-            scene_z,
-            camera_pitch,
-            camera_yaw,
-            camera_roll,
-            fov,
-            loc,
-            textures);
     }
 }
 

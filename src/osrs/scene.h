@@ -3,7 +3,6 @@
 
 #include "cache.h"
 #include "scene_cache.h"
-#include "scene_loc.h"
 #include "scene_tile.h"
 
 /**
@@ -51,7 +50,6 @@ struct SceneModel
 
     // TODO: Remove this
     bool __drawn;
-    struct CacheConfigLocation __loc;
 };
 
 struct GridTile

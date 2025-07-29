@@ -40,10 +40,10 @@ brew install sdl2
 ### TODOS
 
 1. Fix the need to `long long` in the texture renderer.
-2. Add model caching for transformed models.
-3. Transparency
-4. Wall corner sides not working right.
-5. Loc offsets not computed correctly.
+2. Add model caching for transformed models; recolours, hilskew, textures, etc.
+3. Transparency/Alpha Blending
+4. Model Transforms; Hillskew, mirrored, scaled, recolor, retexture
+5. Cache lighting
 
 ### Scene Building Plan - Software 3D
 
