@@ -91,9 +91,9 @@ init_loc(struct CacheConfigLocation* loc)
     loc->map_scene_id = -1;
     loc->clipped = 1;
     loc->wall_width = 16;
-    loc->model_size_x = 128;
-    loc->model_size_height = 128;
-    loc->model_size_y = 128;
+    loc->resize_x = 128;
+    loc->resize_z = 128;
+    loc->resize_y = 128;
     loc->offset_x = 0;
     loc->offset_height = 0;
     loc->offset_y = 0;
@@ -341,13 +341,13 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             loc->clipped = 0;
             break;
         case 65:
-            loc->model_size_x = rsbuf_g2(&buffer);
+            loc->resize_x = rsbuf_g2(&buffer);
             break;
         case 66:
-            loc->model_size_height = rsbuf_g2(&buffer);
+            loc->resize_z = rsbuf_g2(&buffer);
             break;
         case 67:
-            loc->model_size_y = rsbuf_g2(&buffer);
+            loc->resize_y = rsbuf_g2(&buffer);
             break;
         case 68:
             loc->map_scene_id = rsbuf_g2(&buffer);

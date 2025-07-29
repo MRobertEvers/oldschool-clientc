@@ -2314,6 +2314,335 @@ model_new_decode(const unsigned char* inputData, int inputLength)
     return model;
 }
 
+struct CacheModel*
+model_new_copy(struct CacheModel* model)
+{
+    struct CacheModel* copy = (struct CacheModel*)malloc(sizeof(struct CacheModel));
+    memset(copy, 0, sizeof(struct CacheModel));
+
+    copy->_id = model->_id;
+    copy->_model_type = model->_model_type;
+
+    copy->vertex_count = model->vertex_count;
+    copy->vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
+    copy->vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
+    copy->vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
+
+    memcpy(copy->vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
+    memcpy(copy->vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
+    memcpy(copy->vertices_z, model->vertices_z, model->vertex_count * sizeof(int));
+
+    if( model->vertex_bone_map )
+    {
+        copy->vertex_bone_map = (int*)malloc(model->vertex_count * sizeof(int));
+        memcpy(copy->vertex_bone_map, model->vertex_bone_map, model->vertex_count * sizeof(int));
+    }
+
+    copy->face_count = model->face_count;
+    if( model->face_indices_a )
+    {
+        copy->face_indices_a = (int*)malloc(model->face_count * sizeof(int));
+
+        memcpy(copy->face_indices_a, model->face_indices_a, model->face_count * sizeof(int));
+    }
+
+    if( model->face_indices_b )
+    {
+        copy->face_indices_b = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(copy->face_indices_b, model->face_indices_b, model->face_count * sizeof(int));
+    }
+
+    if( model->face_indices_c )
+    {
+        copy->face_indices_c = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(copy->face_indices_c, model->face_indices_c, model->face_count * sizeof(int));
+    }
+
+    if( model->face_alphas )
+    {
+        copy->face_alphas = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(copy->face_alphas, model->face_alphas, model->face_count * sizeof(int));
+    }
+
+    if( model->face_infos )
+    {
+        copy->face_infos = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(copy->face_infos, model->face_infos, model->face_count * sizeof(int));
+    }
+
+    if( model->face_priorities )
+    {
+        copy->face_priorities = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(copy->face_priorities, model->face_priorities, model->face_count * sizeof(int));
+    }
+
+    if( model->face_colors )
+    {
+        copy->face_colors = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(copy->face_colors, model->face_colors, model->face_count * sizeof(int));
+    }
+
+    copy->model_priority = model->model_priority;
+    copy->textured_face_count = model->textured_face_count;
+
+    if( model->textured_p_coordinate )
+    {
+        copy->textured_p_coordinate = (int*)malloc(model->textured_face_count * sizeof(int));
+        memcpy(
+            copy->textured_p_coordinate,
+            model->textured_p_coordinate,
+            model->textured_face_count * sizeof(int));
+    }
+
+    if( model->textured_m_coordinate )
+    {
+        copy->textured_m_coordinate = (int*)malloc(model->textured_face_count * sizeof(int));
+        memcpy(
+            copy->textured_m_coordinate,
+            model->textured_m_coordinate,
+            model->textured_face_count * sizeof(int));
+    }
+
+    if( model->textured_n_coordinate )
+    {
+        copy->textured_n_coordinate = (int*)malloc(model->textured_face_count * sizeof(int));
+
+        memcpy(
+            copy->textured_n_coordinate,
+            model->textured_n_coordinate,
+            model->textured_face_count * sizeof(int));
+    }
+
+    if( model->face_textures )
+    {
+        copy->face_textures = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(copy->face_textures, model->face_textures, model->face_count * sizeof(int));
+    }
+
+    if( model->face_texture_coords )
+    {
+        copy->face_texture_coords = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(
+            copy->face_texture_coords, model->face_texture_coords, model->face_count * sizeof(int));
+    }
+
+    if( model->textureRenderTypes )
+    {
+        copy->textureRenderTypes =
+            (unsigned char*)malloc(model->textured_face_count * sizeof(unsigned char));
+        memcpy(
+            copy->textureRenderTypes,
+            model->textureRenderTypes,
+            model->textured_face_count * sizeof(unsigned char));
+    }
+
+    copy->rotated = model->rotated;
+
+    return copy;
+}
+
+static int
+copy_vertices(struct CacheModel* model, struct CacheModel* other, int face)
+{
+    int new_vertex_count = -1;
+    int vert_x = other->vertices_x[face];
+    int vert_y = other->vertices_y[face];
+    int vert_z = other->vertices_z[face];
+
+    for( int i = 0; i < model->vertex_count; i++ )
+    {
+        if( vert_x == model->vertices_x[i] && vert_y == model->vertices_y[i] &&
+            vert_z == model->vertices_z[i] )
+        {
+            new_vertex_count = i;
+            break;
+        }
+    }
+
+    if( new_vertex_count == -1 )
+    {
+        new_vertex_count = model->vertex_count;
+        model->vertices_x[new_vertex_count] = vert_x;
+        model->vertices_y[new_vertex_count] = vert_y;
+        model->vertices_z[new_vertex_count] = vert_z;
+
+        // TODO: Vertex skins
+
+        new_vertex_count = model->vertex_count++;
+    }
+
+    return new_vertex_count;
+}
+
+struct CacheModel*
+model_new_merge(struct CacheModel** models, int model_count)
+{
+    struct CacheModel* model = (struct CacheModel*)malloc(sizeof(struct CacheModel));
+    memset(model, 0, sizeof(struct CacheModel));
+
+    int vertex_count = 0;
+    int face_count = 0;
+    int textured_face_count = 0;
+
+    bool has_face_render_prios = false;
+    bool has_face_render_infos = false;
+    bool has_face_render_colors = false;
+    bool has_face_render_alphas = false;
+    bool has_face_render_textures = false;
+
+    for( int i = 0; i < model_count; i++ )
+    {
+        vertex_count += models[i]->vertex_count;
+        face_count += models[i]->face_count;
+        textured_face_count += models[i]->textured_face_count;
+
+        if( models[i]->face_priorities )
+            has_face_render_prios = true;
+
+        if( models[i]->face_infos )
+            has_face_render_infos = true;
+
+        if( models[i]->face_colors )
+            has_face_render_colors = true;
+
+        if( models[i]->face_alphas )
+            has_face_render_alphas = true;
+
+        if( models[i]->face_textures )
+            has_face_render_textures = true;
+    }
+
+    int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
+    int* vertices_y = (int*)malloc(vertex_count * sizeof(int));
+    int* vertices_z = (int*)malloc(vertex_count * sizeof(int));
+    memset(vertices_x, 0, vertex_count * sizeof(int));
+    memset(vertices_y, 0, vertex_count * sizeof(int));
+    memset(vertices_z, 0, vertex_count * sizeof(int));
+
+    int* face_indices_a = (int*)malloc(face_count * sizeof(int));
+    int* face_indices_b = (int*)malloc(face_count * sizeof(int));
+    int* face_indices_c = (int*)malloc(face_count * sizeof(int));
+    memset(face_indices_a, 0, face_count * sizeof(int));
+    memset(face_indices_b, 0, face_count * sizeof(int));
+    memset(face_indices_c, 0, face_count * sizeof(int));
+
+    int* face_alphas = NULL;
+    if( has_face_render_alphas )
+        face_alphas = (int*)malloc(face_count * sizeof(int));
+
+    int* face_infos = NULL;
+    if( has_face_render_infos )
+        face_infos = (int*)malloc(face_count * sizeof(int));
+
+    int* face_priorities = NULL;
+    if( has_face_render_prios )
+        face_priorities = (int*)malloc(face_count * sizeof(int));
+
+    int* face_colors = NULL;
+    if( has_face_render_colors )
+        face_colors = (int*)malloc(face_count * sizeof(int));
+
+    int* textured_p_coordinate = NULL;
+    if( has_face_render_textures )
+        textured_p_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+
+    int* textured_m_coordinate = NULL;
+    if( has_face_render_textures )
+        textured_m_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+
+    int* textured_n_coordinate = NULL;
+    if( has_face_render_textures )
+        textured_n_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+
+    int* face_textures = NULL;
+    int* face_texture_coords = NULL;
+    if( has_face_render_textures )
+    {
+        face_textures = (int*)malloc(face_count * sizeof(int));
+        face_texture_coords = (int*)malloc(face_count * sizeof(int));
+    }
+
+    unsigned char* textureRenderTypes = NULL;
+    if( has_face_render_textures )
+        textureRenderTypes = (unsigned char*)malloc(textured_face_count * sizeof(unsigned char));
+
+    model->vertex_count = vertex_count;
+    model->face_count = face_count;
+    model->textured_face_count = textured_face_count;
+
+    model->vertices_x = vertices_x;
+    model->vertices_y = vertices_y;
+    model->vertices_z = vertices_z;
+
+    model->face_indices_a = face_indices_a;
+    model->face_indices_b = face_indices_b;
+    model->face_indices_c = face_indices_c;
+
+    model->face_alphas = face_alphas;
+    model->face_infos = face_infos;
+    model->face_priorities = face_priorities;
+
+    model->face_colors = face_colors;
+
+    model->textured_p_coordinate = textured_p_coordinate;
+    model->textured_m_coordinate = textured_m_coordinate;
+    model->textured_n_coordinate = textured_n_coordinate;
+
+    model->face_textures = face_textures;
+    model->face_texture_coords = face_texture_coords;
+
+    for( int i = 0; i < model_count; i++ )
+    {
+        for( int j = 0; j < models[i]->face_count; j++ )
+        {
+            // if( face_alphas && models[i]->face_alphas )
+            //     model->face_alphas[model->face_count] = models[i]->face_alphas[j];
+
+            // if( face_infos && models[i]->face_infos )
+            //     model->face_infos[model->face_count] = models[i]->face_infos[j];
+
+            // if( face_priorities && models[i]->face_priorities )
+            //     model->face_priorities[model->face_count] = models[i]->face_priorities[j];
+
+            // if( face_colors && models[i]->face_colors )
+            //     model->face_colors[model->face_count] = models[i]->face_colors[j];
+
+            int index_a = copy_vertices(model, models[i], models[i]->face_indices_a[j]);
+            int index_b = copy_vertices(model, models[i], models[i]->face_indices_b[j]);
+            int index_c = copy_vertices(model, models[i], models[i]->face_indices_c[j]);
+
+            // model->face_indices_a[model->face_count] = index_a;
+            // model->face_indices_b[model->face_count] = index_b;
+            // model->face_indices_c[model->face_count] = index_c;
+
+            model->face_count++;
+        }
+
+        // for( int j = 0; j < models[i]->textured_face_count; j++ )
+        // {
+        //     if( textured_p_coordinate )
+        //         model->textured_p_coordinate[model->textured_face_count] =
+        //             models[i]->textured_p_coordinate[j];
+
+        //     if( textured_m_coordinate )
+        //         model->textured_m_coordinate[model->textured_face_count] =
+        //             models[i]->textured_m_coordinate[j];
+
+        //     if( textured_n_coordinate )
+        //         model->textured_n_coordinate[model->textured_face_count] =
+        //             models[i]->textured_n_coordinate[j];
+
+        //     model->face_textures[model->textured_face_count] = models[i]->face_textures[j];
+        //     model->face_texture_coords[model->textured_face_count] =
+        //         models[i]->face_texture_coords[j];
+
+        //     model->textured_face_count++;
+        // }
+    }
+
+    return model;
+}
+
 #include <stdio.h>
 
 void

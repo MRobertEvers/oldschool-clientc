@@ -1,6 +1,7 @@
 #include "scene.h"
 
 #include "filelist.h"
+#include "game_model.h"
 #include "tables/config_locs.h"
 #include "tables/configs.h"
 #include "tables/maps.h"
@@ -122,8 +123,45 @@ compute_normal_scenery_spans(
     }
 }
 
+static struct CacheModel*
+loc_apply_transforms(
+    struct CacheConfigLocation* loc,
+    struct CacheModel* base_model,
+    int sw_height,
+    int se_height,
+    int ne_height,
+    int nw_height)
+{
+    struct CacheModel* model = model_new_copy(base_model);
+
+    for( int i = 0; i < loc->recolor_count; i++ )
+    {
+        model_transform_recolor(model, loc->recolors_from[i], loc->recolors_to[i]);
+    }
+
+    for( int i = 0; i < loc->retexture_count; i++ )
+    {
+        model_transform_retexture(model, loc->retextures_from[i], loc->retextures_to[i]);
+    }
+
+    bool scaled = loc->resize_x != 128 || loc->resize_y != 128 || loc->resize_z != 128;
+    bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_height != 0;
+    bool hillskewed = loc->contoured_ground;
+
+    if( scaled )
+        model_transform_scale(model, loc->resize_x, loc->resize_y, loc->resize_z);
+
+    if( translated )
+        model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_height);
+
+    if( hillskewed )
+        model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
+
+    return model;
+}
+
 static void
-load_loc_models(
+loc_load_models(
     struct SceneModel* scene_loc,
     int* shapes,
     int** models,
@@ -192,6 +230,13 @@ load_loc_models(
             }
         }
         assert(found);
+    }
+
+    if( scene_loc->model_count > 1 )
+    {
+        model = model_new_merge(scene_loc->models, scene_loc->model_count);
+        scene_loc->models[0] = model;
+        scene_loc->model_count = 1;
     }
 }
 
@@ -393,7 +438,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -448,7 +493,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -491,7 +536,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_a_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -514,7 +559,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
             int model_b_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -570,7 +615,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -627,7 +672,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -665,7 +710,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -716,7 +761,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -775,7 +820,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,
@@ -830,7 +875,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            load_loc_models(
+            loc_load_models(
                 model,
                 loc_config->shapes,
                 loc_config->models,

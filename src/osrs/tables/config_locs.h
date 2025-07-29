@@ -114,9 +114,9 @@ struct CacheConfigLocation
     int rotated;
     int clipped;
 
-    int model_size_x;
-    int model_size_y;
-    int model_size_height;
+    int resize_x;
+    int resize_y;
+    int resize_z;
 
     int map_scene_id;
     int offset_x;
