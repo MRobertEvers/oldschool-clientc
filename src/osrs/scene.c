@@ -447,6 +447,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 cache,
                 model_cache,
                 map->shape_select);
+            if( model->model_count == 1 )
+                loc_apply_transforms(
+                    model->models[0], loc_config, height_sw, height_se, height_ne, height_nw);
 
             init_scene_model_1x1(
                 model,
