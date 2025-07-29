@@ -19,7 +19,6 @@ void model_cache_checkin(struct ModelCache* model_cache, struct CacheModel* mode
 
 struct Texture
 {
-    char lol[80];
     int* texels;
     int width;
     int height;
