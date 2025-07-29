@@ -1,11 +1,19 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+enum CacheModelFlags
+{
+    CMODEL_FLAG_SHARED = 1 << 0,
+    CMODEL_FLAG_MERGED = 1 << 1,
+    CMODEL_FLAG_TRANSFORMED = 1 << 2
+};
+
 struct CacheModel
 {
     // TODO: Should this be included or carried with.
     int _id;
     int _model_type;
+    int _flags;
 
     int vertex_count;
     int* vertices_x;

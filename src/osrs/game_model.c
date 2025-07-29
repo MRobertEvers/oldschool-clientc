@@ -86,6 +86,20 @@ model_transform_scale(struct CacheModel* model, int x, int y, int z)
 }
 
 void
+model_transform_orient(struct CacheModel* model, int orientation)
+{
+    while( orientation-- > 0 )
+    {
+        for( int v = 0; v < model->vertex_count; v++ )
+        {
+            int tmp = model->vertices_x[v];
+            model->vertices_x[v] = model->vertices_z[v];
+            model->vertices_z[v] = -tmp;
+        }
+    }
+}
+
+void
 model_transform_translate(struct CacheModel* model, int x, int y, int z)
 {
     int* vertices_x_alias = model->vertices_x;

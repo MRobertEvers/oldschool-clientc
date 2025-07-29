@@ -24,7 +24,7 @@ void model_transform_retexture(struct CacheModel* model, int texture_src, int te
 
 void model_transform_scale(struct CacheModel* model, int x, int y, int z);
 
-// void model_transform_rotate(struct CacheModel* model, int yaw, int pitch, int roll);
+void model_transform_orient(struct CacheModel* model, int orientation);
 
 void model_transform_translate(struct CacheModel* model, int x, int y, int z);
 

@@ -1294,20 +1294,20 @@ render_model_frame(
     int* face_indices_c = (int*)malloc(model->face_count * sizeof(int));
     memcpy(face_indices_c, model->face_indices_c, model->face_count * sizeof(int));
 
-    if( transform )
-    {
-        for( int v = 0; v < model->vertex_count; v++ )
-        {
-            vertices_z[v] = -vertices_z[v];
-        }
+    // if( transform )
+    // {
+    //     for( int v = 0; v < model->vertex_count; v++ )
+    //     {
+    //         vertices_z[v] = -vertices_z[v];
+    //     }
 
-        for( int f = 0; f < model->face_count; f++ )
-        {
-            int temp = face_indices_a[f];
-            face_indices_a[f] = face_indices_c[f];
-            face_indices_c[f] = temp;
-        }
-    }
+    //     for( int f = 0; f < model->face_count; f++ )
+    //     {
+    //         int temp = face_indices_a[f];
+    //         face_indices_a[f] = face_indices_c[f];
+    //         face_indices_c[f] = temp;
+    //     }
+    // }
 
     // int* vertices_x = model->vertices_x;
     // int* vertices_y = model->vertices_y;
@@ -2001,16 +2001,16 @@ render_scene_model(
 
     int yaw = 0;
 
-    if( model->mirrored && model->orientation > 3 )
-    {
-        yaw += 1024;
-    }
+    // if( model->mirrored )
+    // {
+    //     yaw += 1024;
+    // }
 
-    int rotation = model->orientation;
-    while( rotation-- )
-    {
-        yaw += 1536;
-    }
+    // int rotation = model->orientation;
+    // while( rotation-- )
+    // {
+    //     yaw += 1536;
+    // }
     yaw %= 2048;
 
     // This is done in the map->loc => scene_loc decoder.
@@ -2028,10 +2028,6 @@ render_scene_model(
     x += model->base_offset_x;
     y += model->base_offset_y;
     z += model->base_offset_height;
-
-    x += model->offset_x;
-    y += model->offset_y;
-    z += model->offset_height;
 
     for( int j = 0; j < 1 && model->model_count; j++ )
     {

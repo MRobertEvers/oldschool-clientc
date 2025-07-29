@@ -171,6 +171,8 @@ model_cache_checkout(struct ModelCache* model_cache, struct Cache* cache, int mo
     if( !model )
         return NULL;
 
+    model->_flags |= CMODEL_FLAG_SHARED;
+
     item = ht_cache_emplace(model_cache, model_id);
     assert(item != NULL);
     item->model = model;

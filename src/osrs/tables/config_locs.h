@@ -111,7 +111,7 @@ struct CacheConfigLocation
     int retexture_count;
 
     int map_function_id;
-    int rotated;
+    int mirrored;
     int clipped;
 
     int resize_x;

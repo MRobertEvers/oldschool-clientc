@@ -2302,14 +2302,14 @@ model_new_decode(const unsigned char* inputData, int inputLength)
             assert(model != NULL);
             model->_model_type = 1;
         }
-
-        return model;
+    }
+    else
+    {
+        model = decodeOldFormat(inputData, inputLength);
+        model->_model_type = 0;
     }
 
-    // If no type matches, use old format
-    model = decodeOldFormat(inputData, inputLength);
     assert(model != NULL);
-    model->_model_type = 0;
 
     return model;
 }
@@ -2322,6 +2322,7 @@ model_new_copy(struct CacheModel* model)
 
     copy->_id = model->_id;
     copy->_model_type = model->_model_type;
+    copy->_flags = 0;
 
     copy->vertex_count = model->vertex_count;
     copy->vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
@@ -2482,6 +2483,7 @@ model_new_merge(struct CacheModel** models, int model_count)
 
     model->_model_type = -1;
     model->_id = -1;
+    model->_flags = CMODEL_FLAG_MERGED;
 
     int vertex_count = 0;
     int face_count = 0;
@@ -2495,6 +2497,8 @@ model_new_merge(struct CacheModel** models, int model_count)
 
     for( int i = 0; i < model_count; i++ )
     {
+        model->_flags |= models[i]->_flags;
+
         vertex_count += models[i]->vertex_count;
         face_count += models[i]->face_count;
         textured_face_count += models[i]->textured_face_count;
@@ -2673,6 +2677,8 @@ model_new_merge(struct CacheModel** models, int model_count)
             model->textured_face_count++;
         }
     }
+
+    model->_flags &= ~CMODEL_FLAG_SHARED;
 
     return model;
 }

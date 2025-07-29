@@ -123,16 +123,18 @@ compute_normal_scenery_spans(
     }
 }
 
-static struct CacheModel*
+static void
 loc_apply_transforms(
     struct CacheConfigLocation* loc,
-    struct CacheModel* base_model,
+    struct CacheModel* model,
+    int orientation,
     int sw_height,
     int se_height,
     int ne_height,
     int nw_height)
 {
-    struct CacheModel* model = model_new_copy(base_model);
+    // This should never be called on a shared model.
+    assert((model->_flags & CMODEL_FLAG_SHARED) == 0);
 
     for( int i = 0; i < loc->recolor_count; i++ )
     {
@@ -144,9 +146,18 @@ loc_apply_transforms(
         model_transform_retexture(model, loc->retextures_from[i], loc->retextures_to[i]);
     }
 
+    bool mirrored = (loc->mirrored ^ (orientation > 3)) != 0;
+    bool oriented = orientation != 0;
     bool scaled = loc->resize_x != 128 || loc->resize_y != 128 || loc->resize_z != 128;
     bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_height != 0;
-    bool hillskewed = loc->contoured_ground;
+    // TODO: handle the other contoured ground types.
+    bool hillskewed = loc->contour_ground_type == 1;
+
+    if( mirrored )
+        model_transform_mirror(model);
+
+    if( oriented )
+        model_transform_orient(model, orientation);
 
     if( scaled )
         model_transform_scale(model, loc->resize_x, loc->resize_y, loc->resize_z);
@@ -156,21 +167,26 @@ loc_apply_transforms(
 
     if( hillskewed )
         model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
-
-    return model;
 }
 
 static void
-loc_load_models(
+loc_load_model(
     struct SceneModel* scene_loc,
-    int* shapes,
-    int** models,
-    int* lengths,
-    int shapes_and_model_count,
+    struct CacheConfigLocation* loc_config,
     struct Cache* cache,
     struct ModelCache* model_cache,
-    int shape_select)
+    int shape_select,
+    int orientation,
+    int sw_height,
+    int se_height,
+    int ne_height,
+    int nw_height)
 {
+    int* shapes = loc_config->shapes;
+    int** models = loc_config->models;
+    int* lengths = loc_config->lengths;
+    int shapes_and_model_count = loc_config->shapes_and_model_count;
+
     struct CacheModel* model = NULL;
     if( !models )
         return;
@@ -238,6 +254,14 @@ loc_load_models(
         scene_loc->models[0] = model;
         scene_loc->model_count = 1;
     }
+    else
+    {
+        model = model_new_copy(scene_loc->models[0]);
+        scene_loc->models[0] = model;
+    }
+
+    loc_apply_transforms(
+        loc_config, scene_loc->models[0], orientation, sw_height, se_height, ne_height, nw_height);
 }
 
 static int
@@ -417,12 +441,12 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         if( tile_x + 1 < MAP_TERRAIN_X )
             height_se = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)].height;
 
-        int height_ne = height_se;
+        int height_ne = height_sw;
         if( tile_y + 1 < MAP_TERRAIN_Y && tile_x + 1 < MAP_TERRAIN_X )
             height_ne =
                 map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)].height;
 
-        int height_nw = height_ne;
+        int height_nw = height_sw;
         if( tile_y + 1 < MAP_TERRAIN_Y )
             height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)].height;
 
@@ -438,18 +462,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                map->shape_select);
-            if( model->model_count == 1 )
-                model->models[0] = loc_apply_transforms(
-                    loc_config, model->models[0], height_sw, height_se, height_ne, height_nw);
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -460,7 +483,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -496,15 +519,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                map->shape_select);
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -515,7 +540,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -539,22 +564,24 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_a_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_TWO_SIDES);
+                LOC_SHAPE_WALL_TWO_SIDES,
+                map->orientation + 4,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
                 tile_x,
                 tile_y,
                 height_center,
-                map->orientation,
+                map->orientation + 4,
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
@@ -562,15 +589,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
             int model_b_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_TWO_SIDES);
+                LOC_SHAPE_WALL_TWO_SIDES,
+                next_orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -581,7 +610,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -618,15 +647,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                map->shape_select);
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -637,7 +668,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -675,15 +706,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_DECOR_NOOFFSET);
+                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -694,7 +727,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -713,15 +746,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                LOC_SHAPE_WALL_DECOR_NOOFFSET);
+                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -732,7 +767,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             // Default offset is 16.
             int offset = 16;
@@ -764,15 +799,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                map->shape_select);
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -783,7 +820,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -823,18 +860,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                map->shape_select);
-            if( model->model_count == 1 )
-                model->models[0] = loc_apply_transforms(
-                    loc_config, model->models[0], height_sw, height_se, height_ne, height_nw);
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -845,7 +881,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             int size_x = loc_config->size_x;
             int size_y = loc_config->size_y;
@@ -881,15 +917,17 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Load model
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
-            loc_load_models(
+            loc_load_model(
                 model,
-                loc_config->shapes,
-                loc_config->models,
-                loc_config->lengths,
-                loc_config->shapes_and_model_count,
+                loc_config,
                 cache,
                 model_cache,
-                map->shape_select);
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(
                 model,
@@ -900,7 +938,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config->offset_x,
                 loc_config->offset_y,
                 loc_config->offset_height,
-                loc_config->rotated);
+                loc_config->mirrored);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);

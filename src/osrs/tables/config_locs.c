@@ -128,7 +128,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->param_keys = NULL;
     loc->param_values = NULL;
 
-    loc->rotated = 0;
+    loc->mirrored = 0;
     loc->campaign_ids = NULL;
     loc->param_keys = NULL;
     loc->param_values = NULL;
@@ -335,7 +335,7 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             rsbuf_g2(&buffer); // Skip unsigned short
             break;
         case 62:
-            loc->rotated = 1;
+            loc->mirrored = 1;
             break;
         case 64:
             loc->clipped = 0;
