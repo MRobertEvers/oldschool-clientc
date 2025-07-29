@@ -24,29 +24,20 @@ struct SceneModel
     struct CacheModel** models;
     int model_count;
 
-    int shape;
-
     int region_x;
     int region_y;
     int region_z;
 
-    int orientation;
     int offset_x;
     int offset_y;
     int offset_height;
 
-    int base_offset_x;
-    int base_offset_y;
-    int base_offset_height;
+    int _size_x;
+    int _size_y;
 
-    int mirrored;
-
-    int chunk_pos_x;
-    int chunk_pos_y;
-    int chunk_pos_level;
-
-    int size_x;
-    int size_y;
+    int _chunk_pos_x;
+    int _chunk_pos_y;
+    int _chunk_pos_level;
 
     // TODO: Remove this
     bool __drawn;

@@ -12,29 +12,21 @@
 #define TILE_SIZE 128
 
 static void
-init_scene_model_1x1(
-    struct SceneModel* model,
-    int tile_x,
-    int tile_y,
-    int height_center,
-    int orientation,
-    int base_offset_x,
-    int base_offset_y,
-    int base_offset_height,
-    int mirrored)
+init_scene_model_wxh(
+    struct SceneModel* model, int tile_x, int tile_y, int height_center, int size_x, int size_y)
 {
-    model->region_x = tile_x * TILE_SIZE;
-    model->region_y = tile_y * TILE_SIZE;
+    model->region_x = tile_x * TILE_SIZE + size_x * 64;
+    model->region_y = tile_y * TILE_SIZE + size_y * 64;
     model->region_z = height_center;
 
-    model->orientation = orientation;
-    model->base_offset_x = base_offset_x;
-    model->base_offset_y = base_offset_y;
-    model->base_offset_height = base_offset_height;
+    model->_size_x = size_x;
+    model->_size_y = size_y;
+}
 
-    model->size_x = 1;
-    model->size_y = 1;
-    model->mirrored = mirrored;
+static void
+init_scene_model_1x1(struct SceneModel* model, int tile_x, int tile_y, int height_center)
+{
+    init_scene_model_wxh(model, tile_x, tile_y, height_center, 1, 1);
 }
 
 static void
@@ -123,6 +115,10 @@ compute_normal_scenery_spans(
     }
 }
 
+/**
+ * Transforms must be applied here so that hillskew is correctly applied.
+ * (As opposed to passing in rendering offsets/other params.)
+ */
 static void
 loc_apply_transforms(
     struct CacheConfigLocation* loc,
@@ -474,16 +470,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -501,7 +488,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->_wall.wall_width = wall_width;
 
             // If wall_decor was loaded first, we need to update the offset.
-            if( grid_tile->wall_decor != -1 )
+            // Decor models are default offset by 16, so we only need to update the offset
+            // if the wall width is not 16.
+            if( grid_tile->wall_decor != -1 && wall_width != 16 )
             {
                 other_loc = &scene->locs[grid_tile->wall_decor];
                 assert(other_loc->type == LOC_TYPE_WALL_DECOR);
@@ -531,16 +520,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -576,16 +556,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation + 4,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                true);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             int model_b_index = vec_model_push(scene);
             model = vec_model_back(scene);
@@ -601,16 +572,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                next_orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -629,7 +591,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->_wall.wall_width = wall_width;
 
             // If wall_decor was loaded first, we need to update the offset.
-            if( grid_tile->wall_decor != -1 )
+            // Decor models are default offset by 16, so we only need to update the offset
+            // if the wall width is not 16.
+            if( grid_tile->wall_decor != -1 && wall_width != 16 )
             {
                 other_loc = &scene->locs[grid_tile->wall_decor];
                 assert(other_loc->type == LOC_TYPE_WALL_DECOR);
@@ -659,16 +623,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -681,22 +636,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             assert(map->orientation >= 0);
             assert(map->orientation < 4);
             loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[map->orientation];
-
-            // switch( map->orientation )
-            // {
-            // case 0:
-            //     loc->_wall.side_a = WALL_CORNER_NORTHWEST;
-            //     break;
-            // case 1:
-            //     loc->_wall.side_a = WALL_CORNER_NORTHEAST;
-            //     break;
-            // case 2:
-            //     loc->_wall.side_a = WALL_CORNER_SOUTHEAST;
-            //     break;
-            // case 3:
-            //     loc->_wall.side_a = WALL_CORNER_SOUTHWEST;
-            //     break;
-            // }
 
             assert(model->model_ids[0] != 0);
             grid_tile->wall = loc_index;
@@ -718,16 +657,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -758,16 +688,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             // Default offset is 16.
             int offset = 16;
@@ -811,16 +732,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -872,17 +784,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
-
             int size_x = loc_config->size_x;
             int size_y = loc_config->size_y;
             if( map->orientation == 1 || map->orientation == 3 )
@@ -892,8 +793,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 size_y = temp;
             }
 
-            model->size_x = size_x;
-            model->size_y = size_y;
+            init_scene_model_wxh(model, tile_x, tile_y, height_center, size_x, size_y);
 
             // Add the loc
 
@@ -929,16 +829,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(
-                model,
-                tile_x,
-                tile_y,
-                height_center,
-                map->orientation,
-                loc_config->offset_x,
-                loc_config->offset_y,
-                loc_config->offset_height,
-                loc_config->mirrored);
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);

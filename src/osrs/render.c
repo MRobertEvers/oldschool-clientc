@@ -2013,21 +2013,9 @@ render_scene_model(
     // }
     yaw %= 2048;
 
-    // This is done in the map->loc => scene_loc decoder.
-    int size_x = model->size_x;
-    int size_y = model->size_y;
-    // if( loc->orientation == 1 || loc->orientation == 3 )
-    // {
-    //     size_x = loc->size_y;
-    //     size_y = loc->size_x;
-    // }
-
-    x += (size_x) * 64;
-    y += (size_y) * 64;
-
-    x += model->base_offset_x;
-    y += model->base_offset_y;
-    z += model->base_offset_height;
+    x += model->offset_x;
+    y += model->offset_y;
+    z += model->offset_height;
 
     for( int j = 0; j < 1 && model->model_count; j++ )
     {
@@ -2050,7 +2038,7 @@ render_scene_model(
             camera_yaw,
             camera_roll,
             fov,
-            model->mirrored,
+            false,
             drawable,
             NULL,
             NULL,
