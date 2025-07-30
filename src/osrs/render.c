@@ -996,6 +996,38 @@ model_draw_face(
     }
 }
 
+static void
+raster_osrs_noprio(
+    struct Pixel* pixel_buffer,
+    int* faces,
+    int* priority_face_counts,
+    int* face_infos,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* orthographic_vertex_x_nullable,
+    int* orthographic_vertex_y_nullable,
+    int* orthographic_vertex_z_nullable,
+    int num_vertices,
+    int* face_textures,
+    int* face_texture_coords,
+    int face_texture_coords_length,
+    int* face_p_coordinate_nullable,
+    int* face_m_coordinate_nullable,
+    int* face_n_coordinate_nullable,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int offset_x,
+    int offset_y,
+    int screen_width,
+    int screen_height,
+    struct TexturesCache* textures_cache)
+{}
+
 void
 raster_osrs_typed(
     struct Pixel* pixel_buffer,
@@ -1454,40 +1486,60 @@ render_model_frame(
         height,
         near_plane_z);
 
+    bucket_sort_by_average_depth(
+        tmp_depth_faces,
+        tmp_depth_face_count,
+        model_min_depth,
+        model->face_count,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        face_indices_a,
+        face_indices_b,
+        face_indices_c);
+
     if( !model->face_priorities )
     {
-        for( int i = 0; i < model->face_count; i++ )
+        for( int depth = model_min_depth * 2; depth < 1500 && depth >= 0; depth-- )
         {
-            model_draw_face(
-                pixel_buffer,
-                i,
-                model->face_infos,
-                face_indices_a,
-                face_indices_b,
-                face_indices_c,
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                orthographic_vertices_x,
-                orthographic_vertices_y,
-                orthographic_vertices_z,
-                model->vertex_count,
-                model->face_textures,
-                model->face_texture_coords,
-                model->textured_face_count,
-                model->textured_p_coordinate,
-                model->textured_m_coordinate,
-                model->textured_n_coordinate,
-                face_colors_a_hsl16,
-                face_colors_b_hsl16,
-                face_colors_c_hsl16,
-                width / 2,
-                height / 2,
-                width,
-                height,
-                textures_cache);
-        }
+            int bucket_count = tmp_depth_face_count[depth];
+            if( bucket_count == 0 )
+                continue;
 
+            int* faces = &tmp_depth_faces[depth * 512];
+            for( int j = 0; j < bucket_count; j++ )
+            {
+                int face = faces[j];
+                model_draw_face(
+                    pixel_buffer,
+                    face,
+                    model->face_infos,
+                    face_indices_a,
+                    face_indices_b,
+                    face_indices_c,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    model->vertex_count,
+                    model->face_textures,
+                    model->face_texture_coords,
+                    model->textured_face_count,
+                    model->textured_p_coordinate,
+                    model->textured_m_coordinate,
+                    model->textured_n_coordinate,
+                    face_colors_a_hsl16,
+                    face_colors_b_hsl16,
+                    face_colors_c_hsl16,
+                    width / 2,
+                    height / 2,
+                    width,
+                    height,
+                    textures_cache);
+            }
+        }
         goto done;
     }
 
@@ -1515,18 +1567,6 @@ render_model_frame(
     //     near_plane_z,
     //     width,
     //     height);
-
-    bucket_sort_by_average_depth(
-        tmp_depth_faces,
-        tmp_depth_face_count,
-        model_min_depth,
-        model->face_count,
-        screen_vertices_x,
-        screen_vertices_y,
-        screen_vertices_z,
-        face_indices_a,
-        face_indices_b,
-        face_indices_c);
 
     parition_faces_by_priority(
         tmp_priority_faces,
@@ -2246,7 +2286,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             int tile_level = grid_tile->level;
 
             if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 )
+            {
+                element = &elements[tile_coord];
+                element->step = E_STEP_DONE;
                 continue;
+            }
 
             // printf("Tile %d, %d Coord %d\n", tile_x, tile_y, tile_coord);
             // printf("Min %d, %d\n", min_draw_x, min_draw_y);
@@ -2804,6 +2848,8 @@ render_scene_ops(
 
         struct SceneOp* op = &ops[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
+        // if( op->x != 30 || op->z != 3 || op->level != 2 )
+        //     continue;
 
         // if( op->x != 6 || op->z != 11 )
         //     continue;

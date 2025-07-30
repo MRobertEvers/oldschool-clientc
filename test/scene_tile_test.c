@@ -345,7 +345,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     }
     else
     {
-        game->max_render_ops += 1;
+        game->max_render_ops += 2;
     }
 
     // if( game->show_loc_enabled )
