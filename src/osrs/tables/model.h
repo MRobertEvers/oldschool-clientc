@@ -8,6 +8,80 @@ enum CacheModelFlags
     CMODEL_FLAG_TRANSFORMED = 1 << 2
 };
 
+enum LightingFlags
+{
+    LF_LIGHTING_VERTEX_BLEND = 1 << 0,
+    LF_LIGHTING_VERTEX_FLAT = 1 << 1,
+    LF_TEXTURED_LIGHTING_UNKNOWN = 1 << 2,
+    LF_LIGHTING_SKIP_FACE = 1 << 3,
+};
+
+/**
+ * face_infos seems to be doing a lot of things.
+ * rs-map-viewer calls this faceRenderTypes
+ *
+ * In 2004Scape, face_infos is used in the following ways:
+ * 1. During Rendering:
+ *   - 0x00 or NULL: GOURAUD
+ *   - 0x01: FLAT
+ *   - 0x02: TEXTURED (PNM implied - the PNM face is stored in the top bits (skipping the first
+ * two))
+ *   - 0x03: TEXTURED_FLAT_SHADED (PNM implied)
+ *
+ * 2. During Lighting:
+ *   - NULL: Vertex Lighting (lightness blend) "Blended"
+ *   - 0x00, 0x02: Vertex Lighting with (127 - lightness) "Clamped"
+ *
+ * In RSMapViewer, faceRenderTypes is used
+ * 1. Calculating normals
+ *    - 0x00 or NULL: Calculate vertex normals
+ *    - 0x01: Calculate face normals
+ * 2. Lighting with texture, no alpha, or alpha >= 0
+ *    - 0x00 or NULL: Vertex Lighting (lightness blend) "Blended"
+ *    - 0x01: Face Lighting "Blended"
+ *    - 0x02: No Lighting hidden face.
+ *    - 0x03: Pretty sure this is draw texture no alpha    model.faceColors1[i] = 128;
+ * model.faceColors3[i] = -1; HSL=128 is black.
+ *
+ * 3. Lighting with texture, alpha < 0
+ *    - Does not matter.
+ *      alpha == -1: No Lighting hidden face.
+ *      alpha == -2: Unsure. Flat lighting?
+ * 4. Lighting without texture, no alpha, or alpha >= 0
+ *    - 0x00 or NULL: Vertex Lighting  "Clamped" (127 - lightness)
+ *    - 0x01: Face Lighting "Clamped" (127 - lightness)
+ *    - 0x02 or 0x03: No Lighting hidden face.
+ * 5. Lighting without texture, alpha < 0
+ *    - Does not matter.
+ *      alpha == -1: No Lighting hidden face.
+ *      alpha == -2: No Lighting hidden face.
+ *
+ *
+ * PNM Mapping
+ *
+ *  faceCoords && != -1: PNM = PNM Face
+ *  else: PNM = Model Face
+ *
+ * Face Drawing
+ *
+ * If faceColorC == -2 (Hidden Face)
+ * If faceColorC == -1 (Flat Color Blend) (only use faceColorsA)
+ * else Color Blend (faceColorsA, faceColorsB, faceColorsC)
+ *
+ * Face Draw Type:
+ *   faceTextures && != -1: Textured
+ *   faceColorC == -1: Flat triangle
+ *   Gouraud
+ *
+ */
+enum FaceRenderKind
+{
+    FACE_GOURAUD = 0,
+    FACE_FLAT = 1,
+    FACE_TEXTURED = 2,
+    FACE_TEXTURE_FLAT_SHADED = 3
+};
+
 struct CacheModel
 {
     // TODO: Should this be included or carried with.

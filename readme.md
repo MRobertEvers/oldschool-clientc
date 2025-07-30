@@ -738,5 +738,22 @@ valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
 
 ## White triangles on textured
 
+These are PNM faces and should not be drawn. Generally denoted by faceColorC = -2
+
 Desk at op->x =29 z = 3
 1148
+
+## Flat Texture Shade VS Blend
+
+```
+if (this.faceColorC[face] == -1) {
+  // Flat shade
+  Pix3D.textureTriangle(vertexScreenY[a], vertexScreenY[b], vertexScreenY[c], vertexScreenX[a], vertexScreenX[b], vertexScreenX[c], this.faceColorA[face], this.faceColorA[face], this.faceColorA[face], vertexViewSpaceX[var6], vertexViewSpaceX[var7], vertexViewSpaceX[var8], vertexViewSpaceY[var6], vertexViewSpaceY[var7], vertexViewSpaceY[var8], vertexViewSpaceZ[var6], vertexViewSpaceZ[var7], vertexViewSpaceZ[var8], this.faceTextures[face]);
+} else {
+  // Blend shade
+  Pix3D.textureTriangle(vertexScreenY[a], vertexScreenY[b], vertexScreenY[c], vertexScreenX[a], vertexScreenX[b], vertexScreenX[c], this.faceColorA[face], this.faceColorB[face], this.faceColorC[face], vertexViewSpaceX[var6], vertexViewSpaceX[var7], vertexViewSpaceX[var8], vertexViewSpaceY[var6], vertexViewSpaceY[var7], vertexViewSpaceY[var8], vertexViewSpaceZ[var6], vertexViewSpaceZ[var7], vertexViewSpaceZ[var8], this.faceTextures[face]);
+}
+```
+
+[flat_shade](./res/texture_flat_shade_hslc-1.png)
+[blend_shade](./res/texture_blend_shade.png)

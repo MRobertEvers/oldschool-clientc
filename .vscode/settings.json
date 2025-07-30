@@ -54,6 +54,7 @@
         "ht.h": "c",
         "queue": "c",
         "stack": "c",
-        "scene.h": "c"
+        "scene.h": "c",
+        "assert.h": "c"
     }
 }

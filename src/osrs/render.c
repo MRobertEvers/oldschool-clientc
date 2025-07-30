@@ -774,9 +774,22 @@ model_draw_face(
     int color_b = colors_b[index];
     int color_c = colors_c[index];
 
-    if( face_infos && face_infos[index] > 3 )
+    // Faces with color_c == -2 are not drawn. As far as I can tell, these faces are used for
+    // texture PNM coordinates that do not coincide with a visible face.
+    // /Users/matthewevers/Documents/git_repos/OS1/src/main/java/jagex3/dash3d/ModelUnlit.java
+    // OS1 skips faces with -2.
+    if( color_c == -2 )
     {
-        int iiii = 0;
+        // TODO: How to organize this.
+        // See here
+        // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/rs/model/ModelData.ts
+        // .light
+
+        // and
+        // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
+        // getModelFaces
+        return;
+        // color_c = 0;
     }
 
     enum FaceType type = face_infos ? (face_infos[index] & 0x3) : FACE_TYPE_GOURAUD;
@@ -797,19 +810,7 @@ model_draw_face(
     }
     else
     {
-        if( color_c == -2 )
-        {
-            // TODO: How to organize this.
-            // See here
-            // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/rs/model/ModelData.ts
-            // .light
-
-            // and
-            // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
-            // getModelFaces
-            return;
-        }
-        else if( color_c == -1 )
+        if( color_c == -1 )
         {
             type = FACE_TYPE_FLAT;
         }
@@ -838,13 +839,11 @@ model_draw_face(
                 color_c);
             break;
         case FACE_TYPE_FLAT:
+
             raster_flat(pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a);
             break;
         case FACE_TYPE_TEXTURED:
         textured:;
-            if( !face_p_coordinate_nullable )
-                break;
-
             assert(face_p_coordinate_nullable != NULL);
             assert(face_m_coordinate_nullable != NULL);
             assert(face_n_coordinate_nullable != NULL);
@@ -954,13 +953,6 @@ model_draw_face(
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
-            assert(false);
-            if( !face_p_coordinate_nullable )
-                break;
-
-            // if( !face_textures )
-            //     break;
-
             assert(face_p_coordinate_nullable != NULL);
             assert(face_m_coordinate_nullable != NULL);
             assert(face_n_coordinate_nullable != NULL);
@@ -968,14 +960,29 @@ model_draw_face(
             assert(orthographic_vertex_y_nullable != NULL);
             assert(orthographic_vertex_z_nullable != NULL);
 
-            // texture_id = face_textures[index];
+            if( face_texture_coords && face_texture_coords[index] != -1 )
+            {
+                texture_face = face_texture_coords[index];
 
-            // texture_face = face_texture_coords[index];
-            texture_face = face_infos[index] >> 2;
+                tp_face = face_p_coordinate_nullable[texture_face];
+                tm_face = face_m_coordinate_nullable[texture_face];
+                tn_face = face_n_coordinate_nullable[texture_face];
+            }
+            else
+            {
+                texture_face = index;
+                tp_face = face_indices_a[texture_face];
+                tm_face = face_indices_b[texture_face];
+                tn_face = face_indices_c[texture_face];
+            }
 
-            tp_face = face_p_coordinate_nullable[texture_face];
-            tm_face = face_m_coordinate_nullable[texture_face];
-            tn_face = face_n_coordinate_nullable[texture_face];
+            assert(tp_face > -1);
+            assert(tm_face > -1);
+            assert(tn_face > -1);
+
+            assert(tp_face < num_vertices);
+            assert(tm_face < num_vertices);
+            assert(tn_face < num_vertices);
 
             tp_x = orthographic_vertex_x_nullable[tp_face];
             tp_y = orthographic_vertex_y_nullable[tp_face];

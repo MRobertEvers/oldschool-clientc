@@ -146,10 +146,7 @@ pix3d_set_brightness(int* palette, double brightness)
 void
 init_hsl16_to_rgb_table()
 {
-    // FILE* file = fopen("../cache/palette.bin", "rb");
-    // assert(file);
-    // fread(g_hsl16_to_rgb_table, sizeof(int), 65536, file);
-    // fclose(file);
+    // 0 and 128 are both black.
     pix3d_set_brightness(g_hsl16_to_rgb_table, 0.8);
 }
 

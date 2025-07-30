@@ -817,6 +817,42 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 scene->grid_tiles, tile_x, tile_y, tile_z, size_x, size_y, loc_index);
         }
         break;
+        case LOC_SHAPE_ROOF_SLOPED:
+        case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+        case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+        case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+        case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+        case LOC_SHAPE_ROOF_FLAT:
+        case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+        {
+            int model_index = vec_model_push(scene);
+            model = vec_model_back(scene);
+            loc_load_model(
+                model,
+                loc_config,
+                cache,
+                model_cache,
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
+
+            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+
+            // Add the loc
+            int loc_index = vec_loc_push(scene);
+            loc = vec_loc_back(scene);
+            init_loc_1x1(loc, tile_x, tile_y, tile_z);
+
+            loc->type = LOC_TYPE_SCENERY;
+
+            loc->_scenery.model = model_index;
+
+            grid_tile->locs[grid_tile->locs_length++] = loc_index;
+        }
+        break;
         case LOC_SHAPE_FLOOR_DECORATION:
         {
             // Load model

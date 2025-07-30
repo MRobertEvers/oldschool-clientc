@@ -130,6 +130,10 @@ apply_lighting(
         // and
         // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
         // getModelFaces
+
+        // and
+        // /Users/matthewevers/Documents/git_repos/OS1/src/main/java/jagex3/dash3d/ModelUnlit.java
+        // .draw:1018
         if( face_infos )
         {
             int face_info = face_infos[i];
