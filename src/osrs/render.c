@@ -820,7 +820,6 @@ model_draw_face(
         switch( type )
         {
         case FACE_TYPE_GOURAUD:
-            break;
             assert(face_a < num_vertices);
             assert(face_b < num_vertices);
             assert(face_c < num_vertices);
@@ -2893,7 +2892,6 @@ render_scene_ops(
         {
         case SCENE_OP_TYPE_DRAW_GROUND:
         {
-            break;
             tile = grid_tile->tile;
             if( !tile || !tile->valid_faces )
                 break;

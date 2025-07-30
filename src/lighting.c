@@ -120,12 +120,25 @@ apply_lighting(
         // See modelData.light in rs-map-viewer.
         // Then, hsl = -2 means to skip drawing the face.
         // TODO: How to organize this?
-        int face_info = face_infos[i];
-        int face_type = face_info & 0x3;
-        if( face_type == 2 )
+        // For textured models, -2 is used as a "skip face" color.
+
+        // TODO: How to organize this.
+        // See here
+        // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/rs/model/ModelData.ts
+        // .light
+
+        // and
+        // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
+        // getModelFaces
+        if( face_infos )
         {
-            face_colors_c_hsl16[i] = -2;
-            continue;
+            int face_info = face_infos[i];
+            int face_type = face_info & 0x3;
+            if( face_type == 2 )
+            {
+                face_colors_c_hsl16[i] = -2;
+                continue;
+            }
         }
 
         int color_flat_hsl16 = face_colors_hsl16[i];
