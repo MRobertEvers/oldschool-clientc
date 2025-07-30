@@ -735,3 +735,8 @@ valgrind --leak-check=full ./scene_tile_test
 
 valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
 ```
+
+## White triangles on textured
+
+Desk at op->x =29 z = 3
+1148

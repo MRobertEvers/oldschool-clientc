@@ -1246,6 +1246,7 @@ main(int argc, char* argv[])
             animated_vertices_y,
             animated_vertices_z,
             model->face_colors,
+            model->face_infos,
             light_ambient,
             attenuation,
             lightsrc_x,

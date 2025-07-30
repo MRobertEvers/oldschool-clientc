@@ -107,6 +107,7 @@ apply_lighting(
     int* vertex_y,
     int* vertex_z,
     int* face_colors_hsl16, // The flat color.
+    int* face_infos,
     int light_ambient,
     int light_attenuation,
     int lightsrc_x,
@@ -116,6 +117,17 @@ apply_lighting(
     int lightness;
     for( int i = 0; i < num_faces; i++ )
     {
+        // See modelData.light in rs-map-viewer.
+        // Then, hsl = -2 means to skip drawing the face.
+        // TODO: How to organize this?
+        int face_info = face_infos[i];
+        int face_type = face_info & 0x3;
+        if( face_type == 2 )
+        {
+            face_colors_c_hsl16[i] = -2;
+            continue;
+        }
+
         int color_flat_hsl16 = face_colors_hsl16[i];
         int a = face_indices_a[i];
         int b = face_indices_b[i];

@@ -810,12 +810,21 @@ main()
 
     // Initialize game state
     struct Game game = { 0 };
-    game.camera_x = -2576;
-    game.camera_y = -3015;
-    game.camera_z = 2000;
-    game.camera_pitch = 405;
-    game.camera_yaw = 1536;
+
+    game.camera_yaw = 866;
+    game.camera_pitch = 335;
     game.camera_roll = 0;
+    game.camera_fov = 512;
+    game.camera_x = -3542;
+    game.camera_y = -873;
+    game.camera_z = 800;
+
+    // game.camera_x = -2576;
+    // game.camera_y = -3015;
+    // game.camera_z = 2000;
+    // game.camera_pitch = 405;
+    // game.camera_yaw = 1536;
+    // game.camera_roll = 0;
     game.camera_fov = 512; // Default FOV
     // game.tiles = tiles;
     game.tile_count = MAP_TILE_COUNT;

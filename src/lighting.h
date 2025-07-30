@@ -33,6 +33,7 @@ void apply_lighting(
     int* vertex_y,
     int* vertex_z,
     int* face_colors_hsl16, // The flat color.
+    int* face_infos,
     int light_ambient,
     int light_attenuation,
     int lightsrc_x,

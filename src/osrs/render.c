@@ -697,6 +697,7 @@ model_draw_face(
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
+    int num_faces,
     int* vertex_x,
     int* vertex_y,
     int* vertex_z,
@@ -710,6 +711,7 @@ model_draw_face(
     int* face_p_coordinate_nullable,
     int* face_m_coordinate_nullable,
     int* face_n_coordinate_nullable,
+    int num_textured_faces,
     int* colors_a,
     int* colors_b,
     int* colors_c,
@@ -739,15 +741,21 @@ model_draw_face(
 
     int index = face_index;
 
-    int x1 = vertex_x[face_indices_a[index]];
-    int y1 = vertex_y[face_indices_a[index]];
-    int z1 = vertex_z[face_indices_a[index]];
-    int x2 = vertex_x[face_indices_b[index]];
-    int y2 = vertex_y[face_indices_b[index]];
-    int z2 = vertex_z[face_indices_b[index]];
-    int x3 = vertex_x[face_indices_c[index]];
-    int y3 = vertex_y[face_indices_c[index]];
-    int z3 = vertex_z[face_indices_c[index]];
+    assert(index < num_faces);
+
+    int face_a = face_indices_a[index];
+    int face_b = face_indices_b[index];
+    int face_c = face_indices_c[index];
+
+    int x1 = vertex_x[face_a];
+    int y1 = vertex_y[face_a];
+    int z1 = vertex_z[face_a];
+    int x2 = vertex_x[face_b];
+    int y2 = vertex_y[face_b];
+    int z2 = vertex_z[face_b];
+    int x3 = vertex_x[face_c];
+    int y3 = vertex_y[face_c];
+    int z3 = vertex_z[face_c];
 
     // Skip triangle if any vertex was clipped
     if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
@@ -789,7 +797,19 @@ model_draw_face(
     }
     else
     {
-        if( color_c == -1 )
+        if( color_c == -2 )
+        {
+            // TODO: How to organize this.
+            // See here
+            // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/rs/model/ModelData.ts
+            // .light
+
+            // and
+            // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
+            // getModelFaces
+            return;
+        }
+        else if( color_c == -1 )
         {
             type = FACE_TYPE_FLAT;
         }
@@ -800,6 +820,10 @@ model_draw_face(
         switch( type )
         {
         case FACE_TYPE_GOURAUD:
+            break;
+            assert(face_a < num_vertices);
+            assert(face_b < num_vertices);
+            assert(face_c < num_vertices);
             raster_gouraud(
                 pixel_buffer,
                 screen_width,
@@ -1037,6 +1061,7 @@ raster_osrs_typed(
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
+    int num_faces,
     int* vertex_x,
     int* vertex_y,
     int* vertex_z,
@@ -1050,6 +1075,7 @@ raster_osrs_typed(
     int* face_p_coordinate_nullable,
     int* face_m_coordinate_nullable,
     int* face_n_coordinate_nullable,
+    int num_textured_faces,
     int* colors_a,
     int* colors_b,
     int* colors_c,
@@ -1068,6 +1094,7 @@ raster_osrs_typed(
         for( int i = 0; i < triangle_count; i++ )
         {
             face_index = triangle_indexes[i];
+            // Face 12
 
             model_draw_face(
                 pixel_buffer,
@@ -1076,6 +1103,7 @@ raster_osrs_typed(
                 face_indices_a,
                 face_indices_b,
                 face_indices_c,
+                num_faces,
                 vertex_x,
                 vertex_y,
                 vertex_z,
@@ -1089,6 +1117,7 @@ raster_osrs_typed(
                 face_p_coordinate_nullable,
                 face_m_coordinate_nullable,
                 face_n_coordinate_nullable,
+                num_textured_faces,
                 colors_a,
                 colors_b,
                 colors_c,
@@ -1433,6 +1462,7 @@ render_model_frame(
         vertices_y,
         vertices_z,
         model->face_colors,
+        model->face_infos,
         light_ambient,
         attenuation,
         lightsrc_x,
@@ -1517,6 +1547,7 @@ render_model_frame(
                     face_indices_a,
                     face_indices_b,
                     face_indices_c,
+                    model->face_count,
                     screen_vertices_x,
                     screen_vertices_y,
                     screen_vertices_z,
@@ -1530,6 +1561,7 @@ render_model_frame(
                     model->textured_p_coordinate,
                     model->textured_m_coordinate,
                     model->textured_n_coordinate,
+                    model->textured_face_count,
                     face_colors_a_hsl16,
                     face_colors_b_hsl16,
                     face_colors_c_hsl16,
@@ -1587,6 +1619,7 @@ render_model_frame(
         face_indices_a,
         face_indices_b,
         face_indices_c,
+        model->face_count,
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -1600,6 +1633,7 @@ render_model_frame(
         model->textured_p_coordinate,
         model->textured_m_coordinate,
         model->textured_n_coordinate,
+        model->textured_face_count,
         face_colors_a_hsl16,
         face_colors_b_hsl16,
         face_colors_c_hsl16,
@@ -2848,9 +2882,10 @@ render_scene_ops(
 
         struct SceneOp* op = &ops[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
-        // if( op->x != 30 || op->z != 3 || op->level != 2 )
+        // if( op->x != 29 || op->z != 3 || op->level != 0 )
         //     continue;
 
+        // || op->level != 2
         // if( op->x != 6 || op->z != 11 )
         //     continue;
 
@@ -2858,6 +2893,7 @@ render_scene_ops(
         {
         case SCENE_OP_TYPE_DRAW_GROUND:
         {
+            break;
             tile = grid_tile->tile;
             if( !tile || !tile->valid_faces )
                 break;
