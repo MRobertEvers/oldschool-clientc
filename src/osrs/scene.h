@@ -109,18 +109,14 @@ struct NormalScenery
 
 enum WallSide
 {
-    WALL_SIDE_EAST = 1 << 0,          // 1
-    WALL_SIDE_NORTH = 1 << 1,         // 2
-    WALL_SIDE_WEST = 1 << 2,          // 4
-    WALL_SIDE_SOUTH = 1 << 3,         // 8
-    WALL_CORNER_NORTHEAST = 1 << 4,   // 16
-    WALL_CORNER_NORTHWEST = 1 << 5,   // 32
-    WALL_CORNER_SOUTHWEST = 1 << 6,   // 64
-    WALL_CORNER_SOUTHEAST = 1 << 7,   // 128
-    WALL_SIDE_EAST_OFFSET = 1 << 8,   // 256
-    WALL_SIDE_NORTH_OFFSET = 1 << 9,  // 512
-    WALL_SIDE_WEST_OFFSET = 1 << 10,  // 1024
-    WALL_SIDE_SOUTH_OFFSET = 1 << 11, // 2048
+    WALL_SIDE_WEST = 1 << 0,        // 1
+    WALL_SIDE_NORTH = 1 << 1,       // 2
+    WALL_SIDE_EAST = 1 << 2,        // 4
+    WALL_SIDE_SOUTH = 1 << 3,       // 8
+    WALL_CORNER_NORTHWEST = 1 << 4, // 16
+    WALL_CORNER_NORTHEAST = 1 << 5, // 32
+    WALL_CORNER_SOUTHEAST = 1 << 6, // 64
+    WALL_CORNER_SOUTHWEST = 1 << 7, // 128
 };
 
 struct Wall
@@ -139,14 +135,27 @@ struct GroundDecor
     int model;
 };
 
+enum ThroughWallFlags
+{
+    THROUGHWALL = 0x100,
+    // In OS1 and later, this is removed; only present in 2004scape.
+    // THROUGHWALL_OUTSIDE = 0x200,
+};
 struct WallDecor
 {
-    int model;
+    int model_a;
+    int model_b;
 
+    // For throughwall, this specifies which side is the "outside".
     enum WallSide side;
 
-    // This is used to calculate the offset of the decor model.
-    int wall_width;
+    // In the 2004scape 0x100 is used to indicate an interior decor,
+    // and 0x200 to indicate an exterior decor. 0x300 means draw both with same model.
+    // In OS1 and deobs, this is removed and 0x100 represents both for throughwall always.
+    // Both models are drawn before and after locs.
+    // In this case, "side" represents the side of the wall that model_a is facing.
+    // model_b faces the opposite side.
+    int through_wall_flags;
 };
 
 struct Loc

@@ -52,6 +52,10 @@ model_transform_recolor(struct CacheModel* model, int color_src, int color_dst)
 {
     int* face_colors_alias = model->face_colors;
 
+    // This check is present in the deob. Some locs specify recolors on models without face_colors.
+    if( !face_colors_alias )
+        return;
+
     for( int f = 0; f < model->face_count; f++ )
     {
         if( face_colors_alias[f] == color_src )
@@ -69,6 +73,11 @@ void
 model_transform_retexture(struct CacheModel* model, int texture_src, int texture_dst)
 {
     int* face_textures_alias = model->face_textures;
+
+    // This check is present in the deob. Some locs specify retextures on models without
+    // face_textures.
+    if( !face_textures_alias )
+        return;
 
     for( int f = 0; f < model->face_count; f++ )
     {

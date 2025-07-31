@@ -808,7 +808,7 @@ main()
     // Initialize game state
     struct Game game = { 0 };
 
-    game.camera_yaw = 866;
+    game.camera_yaw = 866 + 800;
     game.camera_pitch = 335;
     game.camera_roll = 0;
     game.camera_fov = 512;

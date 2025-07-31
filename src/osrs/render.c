@@ -2065,6 +2065,7 @@ render_scene_model(
     int width,
     int height,
     int near_plane_z,
+    int yaw,
     int camera_x,
     int camera_y,
     int camera_z,
@@ -2078,8 +2079,6 @@ render_scene_model(
     int x = camera_x + model->region_x;
     int y = camera_y + model->region_y;
     int z = camera_z + model->region_z;
-
-    int yaw = 0;
 
     // if( model->mirrored )
     // {
@@ -2198,6 +2197,55 @@ near_wall_flags(int camera_tile_x, int camera_tile_y, int loc_x, int loc_y)
         flags |= WALL_SIDE_WEST | WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST;
 
     return flags;
+}
+
+static int
+reverse_wall_side(int side)
+{
+    switch( side )
+    {
+    case WALL_SIDE_WEST:
+        return WALL_SIDE_EAST;
+    case WALL_SIDE_EAST:
+        return WALL_SIDE_WEST;
+    case WALL_SIDE_NORTH:
+        return WALL_SIDE_SOUTH;
+    case WALL_SIDE_SOUTH:
+        return WALL_SIDE_NORTH;
+    case WALL_CORNER_NORTHWEST:
+        return WALL_CORNER_SOUTHEAST;
+    case WALL_CORNER_NORTHEAST:
+        return WALL_CORNER_SOUTHWEST;
+    case WALL_CORNER_SOUTHEAST:
+        return WALL_CORNER_NORTHWEST;
+    case WALL_CORNER_SOUTHWEST:
+        return WALL_CORNER_NORTHEAST;
+    default:
+        assert(false);
+        return 0;
+    }
+}
+
+static int
+wallside_rotation_quadrant(enum WallSide side)
+{
+    // Assumes model is facing west.
+    // Rotating counter-clockwise.
+    switch( side )
+    {
+    case WALL_CORNER_NORTHEAST:
+        return 3;
+    case WALL_CORNER_NORTHWEST:
+        return 2;
+    case WALL_CORNER_SOUTHWEST:
+        return 1;
+    case WALL_CORNER_SOUTHEAST:
+        return 0;
+    default:
+        printf("side %d\n", side);
+        assert(false);
+        return 0;
+    }
 }
 
 /**
@@ -2517,7 +2565,53 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 if( grid_tile->wall_decor != -1 )
                 {
                     loc = &scene->locs[grid_tile->wall_decor];
-                    if( (loc->_wall_decor.side & far_walls) != 0 )
+                    if( loc->_wall_decor.through_wall_flags != 0 )
+                    {
+                        int x_diff = loc->chunk_pos_x - camera_tile_x;
+                        int y_diff = loc->chunk_pos_y - camera_tile_y;
+
+                        // TODO: Document what this is doing.
+                        int x_near = x_diff;
+                        if( loc->_wall_decor.side == WALL_CORNER_NORTHEAST ||
+                            loc->_wall_decor.side == WALL_CORNER_SOUTHEAST )
+                            x_near = -x_diff;
+
+                        int y_near = y_diff;
+                        if( loc->_wall_decor.side == WALL_CORNER_SOUTHEAST ||
+                            loc->_wall_decor.side == WALL_CORNER_SOUTHWEST )
+                            y_near = -y_diff;
+
+                        if( y_near >= x_near )
+                        {
+                            // Draw model a
+                            ops[op_count++] = (struct SceneOp){
+                                .op = SCENE_OP_TYPE_DRAW_WALL_DECOR,
+                                .x = loc->chunk_pos_x,
+                                .z = loc->chunk_pos_y,
+                                .level = loc->chunk_pos_level,
+                                ._wall_decor = { .loc_index = grid_tile->wall_decor,
+                                                .is_wall_a = true,
+                                                .__rotation = loc->_wall_decor.side,
+                                                .angle = 768 },
+                            };
+                        }
+
+                        else if( loc->_wall_decor.model_b != -1 )
+                        {
+                            // Draw model b
+                            ops[op_count++] = (struct SceneOp){
+                                .op = SCENE_OP_TYPE_DRAW_WALL_DECOR,
+                                .x = loc->chunk_pos_x,
+                                .z = loc->chunk_pos_y,
+                                .level = loc->chunk_pos_level,
+                                ._wall_decor = { .loc_index = grid_tile->wall_decor,
+                                                .is_wall_a = false,
+                                                .__rotation = loc->_wall_decor.side,
+                                                .angle = 768 },
+                            };
+                        }
+                    }
+                    else if( (loc->_wall_decor.side & far_walls) != 0 )
                     {
                         ops[op_count++] = (struct SceneOp){
                             .op = SCENE_OP_TYPE_DRAW_WALL_DECOR,
@@ -2636,16 +2730,17 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             // returns to E_STEP_WAIT_ADJACENT_GROUND.
             if( element->step == E_STEP_NOTIFY_SPANNED_TILES )
             {
-                if( tile_level < MAP_TERRAIN_Z - 1 )
-                {
-                    int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
-                    other = &elements[idx];
+                // if( tile_level < MAP_TERRAIN_Z - 1 )
+                // {
+                //     int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
+                //     other = &elements[idx];
 
-                    if( other->step != E_STEP_DONE )
-                    {
-                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level + 1));
-                    }
-                }
+                //     if( other->step != E_STEP_DONE )
+                //     {
+                //         int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level +
+                //         1));
+                //     }
+                // }
 
                 if( tile_x < camera_tile_x )
                 {
@@ -2706,16 +2801,17 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             // Move towards camera if farther away tiles are done.
             if( element->step == E_STEP_NOTIFY_ADJACENT_TILES )
             {
-                if( tile_level < MAP_TERRAIN_Z - 1 )
-                {
-                    int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
-                    other = &elements[idx];
+                // if( tile_level < MAP_TERRAIN_Z - 1 )
+                // {
+                //     int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
+                //     other = &elements[idx];
 
-                    if( other->step != E_STEP_DONE )
-                    {
-                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level + 1));
-                    }
-                }
+                //     if( other->step != E_STEP_DONE )
+                //     {
+                //         int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level +
+                //         1));
+                //     }
+                // }
 
                 if( tile_x < camera_tile_x )
                 {
@@ -2778,7 +2874,55 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 if( grid_tile->wall_decor != -1 )
                 {
                     loc = &scene->locs[grid_tile->wall_decor];
-                    if( (loc->_wall_decor.side & element->near_wall_flags) != 0 )
+
+                    if( loc->_wall_decor.through_wall_flags != 0 )
+                    {
+                        int x_diff = loc->chunk_pos_x - camera_tile_x;
+                        int y_diff = loc->chunk_pos_y - camera_tile_y;
+
+                        // TODO: Document what this is doing.
+                        int x_near = x_diff;
+                        if( loc->_wall_decor.side == WALL_CORNER_NORTHEAST ||
+                            loc->_wall_decor.side == WALL_CORNER_SOUTHEAST )
+                            x_near = -x_diff;
+
+                        int y_near = y_diff;
+                        if( loc->_wall_decor.side == WALL_CORNER_SOUTHEAST ||
+                            loc->_wall_decor.side == WALL_CORNER_SOUTHWEST )
+                            y_near = -y_diff;
+
+                        // The deobs and official clients calculate the nearest quadrant.
+                        // Notice a line goes from SW to NE with y = x.
+                        if( y_near < x_near )
+                        {
+                            // Draw model a
+                            ops[op_count++] = (struct SceneOp){
+                                .op = SCENE_OP_TYPE_DRAW_WALL_DECOR,
+                                .x = loc->chunk_pos_x,
+                                .z = loc->chunk_pos_y,
+                                .level = loc->chunk_pos_level,
+                                ._wall_decor = { .loc_index = grid_tile->wall_decor,
+                                                .is_wall_a = true,
+                                                .__rotation = loc->_wall_decor.side,
+                                                .angle = 768 },
+                            };
+                        }
+                        else if( loc->_wall_decor.model_b != -1 )
+                        {
+                            // Draw model b
+                            ops[op_count++] = (struct SceneOp){
+                                .op = SCENE_OP_TYPE_DRAW_WALL_DECOR,
+                                .x = loc->chunk_pos_x,
+                                .z = loc->chunk_pos_y,
+                                .level = loc->chunk_pos_level,
+                                ._wall_decor = { .loc_index = grid_tile->wall_decor,
+                                                .is_wall_a = false,
+                                                .__rotation = loc->_wall_decor.side,
+                                                .angle = 768 },
+                            };
+                        }
+                    }
+                    else if( (loc->_wall_decor.side & element->near_wall_flags) != 0 )
                     {
                         ops[op_count++] = (struct SceneOp){
                             .op = SCENE_OP_TYPE_DRAW_WALL_DECOR,
@@ -2891,6 +3035,22 @@ render_scene_ops(
         // if( op->x != 29 || op->z != 3 || op->level != 0 )
         //     continue;
 
+        // int target_x = 33;
+        // int target_z = 55;
+
+        // int radius = 5;
+        // if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
+        //     radius * radius )
+        //     continue;
+
+        // if( op->x >= 22 && op->x <= 25 && op->z >= 3 && op->z <= 10 )
+        // {
+        // }
+        // else
+        // {
+        //     continue;
+        // };
+
         // || op->level != 2
         // if( op->x != 6 || op->z != 11 )
         //     continue;
@@ -2963,6 +3123,7 @@ render_scene_ops(
                 width,
                 height,
                 near_plane_z,
+                0,
                 camera_x,
                 camera_y,
                 camera_z,
@@ -2979,6 +3140,8 @@ render_scene_ops(
             int model_index = -1;
             int loc_index = op->_wall.loc_index;
             loc = &scene->locs[loc_index];
+
+            assert(loc->type == LOC_TYPE_WALL);
 
             if( op->_wall.is_wall_a )
                 model_index = loc->_wall.model_a;
@@ -2997,6 +3160,7 @@ render_scene_ops(
                 width,
                 height,
                 near_plane_z,
+                0,
                 camera_x,
                 camera_y,
                 camera_z,
@@ -3026,6 +3190,7 @@ render_scene_ops(
                 width,
                 height,
                 near_plane_z,
+                0,
                 camera_x,
                 camera_y,
                 camera_z,
@@ -3043,7 +3208,15 @@ render_scene_ops(
             int loc_index = op->_wall_decor.loc_index;
             loc = &scene->locs[loc_index];
 
-            model_index = loc->_wall_decor.model;
+            if( loc->_wall_decor.through_wall_flags == 0 || op->_wall_decor.is_wall_a )
+            {
+                model_index = loc->_wall_decor.model_a;
+            }
+            else
+            {
+                assert(loc->_wall_decor.model_b != -1);
+                model_index = loc->_wall_decor.model_b;
+            }
 
             assert(model_index >= 0);
             assert(model_index < scene->models_length);
@@ -3055,6 +3228,7 @@ render_scene_ops(
                 width,
                 height,
                 near_plane_z,
+                op->_wall_decor.angle,
                 camera_x,
                 camera_y,
                 camera_z,

@@ -159,6 +159,9 @@ struct SceneOp
         struct
         {
             int loc_index;
+            int angle;
+            int is_wall_a;
+            int __rotation;
         } _wall_decor;
     };
 };
