@@ -667,17 +667,28 @@ textureTriangle(
     int horizontalY = tyC - originY;
     int horizontalZ = tzC - originZ;
 
-    int u = ((horizontalX * originY) - (horizontalY * originX)) << 14;
-    int uStride = ((horizontalY * originZ) - (horizontalZ * originY)) << 8;
-    int uStepVertical = ((horizontalZ * originX) - (horizontalX * originZ)) << 5;
+    int zshift = 14;
+    int xshift = 8;
+    int yshift = 5;
 
-    int v = ((verticalX * originY) - (verticalY * originX)) << 14;
-    int vStride = ((verticalY * originZ) - (verticalZ * originY)) << 8;
-    int vStepVertical = ((verticalZ * originX) - (verticalX * originZ)) << 5;
+    // Shift up by 14, the top 7 bits are the texture coord.
+    // 9 of the bit shift come from the (d * z) that all model vertexes are multiplied by.
+    // So really this is upshifted by 5.
+    // Since the zhat component is really
+    // U = dudz * SCALE << 5 + (dudx << 5 * x) + (dudy << 5 * y)
+    // Since SCALE is << 9, then the upshift is really by 5.
+    // the xshift of 8, is pre-multiplied by 8 (<< 3 and << 5).
+    int u = ((horizontalX * originY) - (horizontalY * originX)) << zshift;
+    int uStride = ((horizontalY * originZ) - (horizontalZ * originY)) << (xshift);
+    int uStepVertical = ((horizontalZ * originX) - (horizontalX * originZ)) << yshift;
 
-    int w = ((verticalY * horizontalX) - (verticalX * horizontalY)) << 14;
-    int wStride = ((verticalZ * horizontalY) - (verticalY * horizontalZ)) << 8;
-    int wStepVertical = ((verticalX * horizontalZ) - (verticalZ * horizontalX)) << 5;
+    int v = ((verticalX * originY) - (verticalY * originX)) << zshift;
+    int vStride = ((verticalY * originZ) - (verticalZ * originY)) << xshift;
+    int vStepVertical = ((verticalZ * originX) - (verticalX * originZ)) << yshift;
+
+    int w = ((verticalY * horizontalX) - (verticalX * horizontalY)) << zshift;
+    int wStride = ((verticalZ * horizontalY) - (verticalY * horizontalZ)) << xshift;
+    int wStepVertical = ((verticalX * horizontalZ) - (verticalZ * horizontalX)) << yshift;
 
     int dxAB = xB - xA;
     int dyAB = yB - yA;
@@ -1685,9 +1696,11 @@ textureRaster(
         return;
     }
 
+    int opaque = 0;
     int shadeStrides;
     int strides;
-    if( true )
+    // Alpha true
+    if( xB != xA )
     {
         shadeStrides = (shadeB - shadeA) / (xB - xA);
 
@@ -1729,6 +1742,7 @@ textureRaster(
 
     offset += xA;
 
+    // if lowdetail
     if( false )
     {
         int nextU = 0;
@@ -1964,6 +1978,8 @@ textureRaster(
         int nextV = 0;
         int dx = xA - (SCREEN_WIDTH / 2);
 
+        // This should really be (dx >> 3)
+        // Since we are making dx>>3 strides (linear interpolate between every 8 pixels)
         u = u + (uStride >> 3) * dx;
         v = v + (vStride >> 3) * dx;
         w = w + (wStride >> 3) * dx;
@@ -1983,6 +1999,9 @@ textureRaster(
             }
         }
 
+        // It appears that the uStrides are pre-multiplied by eight (shifted up by << 8 rather than
+        // << 5)
+        //
         u = u + uStride;
         v = v + vStride;
         w = w + wStride;
@@ -1996,6 +2015,8 @@ textureRaster(
             {
                 nextU = 0x7;
             }
+            // 0x3f80 top 7 bits of a 14 bit number.
+            // 16256
             else if( nextU > 0x3f80 )
             {
                 nextU = 0x3f80;
@@ -2007,7 +2028,7 @@ textureRaster(
         curU += shadeA & 0x600000;
         int shadeShift = shadeA >> 23;
 
-        if( true )
+        if( opaque )
         {
             while( strides-- > 0 )
             {
