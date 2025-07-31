@@ -360,7 +360,11 @@ sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFl
                 uint8_t* pixel_idx = (uint8_t*)malloc(dimension * sizeof(uint8_t));
                 if( !pixel_idx )
                     return NULL;
+                uint8_t* pixel_alphas = (uint8_t*)malloc(dimension * sizeof(uint8_t));
+                if( !pixel_alphas )
+                    return NULL;
                 memset(pixel_idx, 0, dimension * sizeof(uint8_t));
+                memset(pixel_alphas, 0, dimension * sizeof(uint8_t));
 
                 int index = 0;
                 for( int y = 0; y < sprite->crop_height; y++ )
@@ -369,11 +373,15 @@ sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFl
                     {
                         int y_idx = sprite->width * y + sprite->offset_y;
                         int x_idx = x + sprite->offset_x;
-                        pixel_idx[y_idx + x_idx] = sprite->palette_pixels[index++];
+                        pixel_idx[y_idx + x_idx] = sprite->palette_pixels[index];
+                        pixel_alphas[y_idx + x_idx] = sprite->pixel_alphas[index];
+                        index++;
                     }
                 }
                 free(sprite->palette_pixels);
+                free(sprite->pixel_alphas);
                 sprite->palette_pixels = pixel_idx;
+                sprite->pixel_alphas = pixel_alphas;
                 sprite->crop_width = sprite->width;
                 sprite->crop_height = sprite->height;
                 sprite->offset_x = 0;
