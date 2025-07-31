@@ -788,7 +788,7 @@ model_draw_face(
         // and
         // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
         // getModelFaces
-        return;
+        // return;
         // color_c = 0;
     }
 
@@ -925,6 +925,13 @@ model_draw_face(
             // printf("tM = %d, %d, %d\n", tm_x, tm_y, tm_z);
             // printf("tN = %d, %d, %d\n", tn_x, tn_y, tn_z);
 
+            int tex_x1 = vertex_x[tp_face] + offset_x;
+            int tex_y1 = vertex_y[tp_face] + offset_y;
+            int tex_x2 = vertex_x[tm_face] + offset_x;
+            int tex_y2 = vertex_y[tm_face] + offset_y;
+            int tex_x3 = vertex_x[tn_face] + offset_x;
+            int tex_y3 = vertex_y[tn_face] + offset_y;
+
             raster_texture_step(
                 pixel_buffer,
                 screen_width,
@@ -950,6 +957,20 @@ model_draw_face(
                 texels,
                 128,
                 false);
+
+            // This will draw a white triangle over the projected texture pnm coords.
+
+            // raster_flat(
+            //     pixel_buffer,
+            //     screen_width,
+            //     screen_height,
+            //     tex_x1,
+            //     tex_x2,
+            //     tex_x3,
+            //     tex_y1,
+            //     tex_y2,
+            //     tex_y3,
+            //     color_a);
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
@@ -3035,13 +3056,14 @@ render_scene_ops(
         // if( op->x != 29 || op->z != 3 || op->level != 0 )
         //     continue;
 
-        // int target_x = 33;
-        // int target_z = 55;
+        // Oak tree on 19, 5
+        int target_x = 19;
+        int target_z = 5;
 
-        // int radius = 5;
-        // if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
-        //     radius * radius )
-        //     continue;
+        int radius = 1;
+        if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
+            radius * radius )
+            continue;
 
         // if( op->x >= 22 && op->x <= 25 && op->z >= 3 && op->z <= 10 )
         // {
@@ -3116,7 +3138,14 @@ render_scene_ops(
 
             model = &scene->models[model_index];
 
+            // 1571 is an oak tree
+
             assert(model != NULL);
+
+            if( model->model_ids[0] == 1571 )
+            {
+                printf("Drawing oak tree at %d, %d, %d\n", op->x, op->z, op->level);
+            }
 
             render_scene_model(
                 pixel_buffer,

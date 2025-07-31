@@ -607,97 +607,108 @@ main()
      * Textures
      */
 
-    // archive = cache_archive_new_load(cache, CACHE_TEXTURES, 0);
-    // if( !archive )
-    // {
-    //     printf("Failed to load textures archive\n");
-    //     return 1;
-    // }
+    archive = cache_archive_new_load(cache, CACHE_TEXTURES, 0);
+    if( !archive )
+    {
+        printf("Failed to load textures archive\n");
+        return 1;
+    }
 
-    // filelist = filelist_new_from_cache_archive(archive);
+    filelist = filelist_new_from_cache_archive(archive);
 
-    // int texture_definitions_count = filelist->file_count;
-    // struct CacheTexture* texture_definitions =
-    //     (struct CacheTexture*)malloc(texture_definitions_count * sizeof(struct CacheTexture));
-    // memset(texture_definitions, 0, texture_definitions_count * sizeof(struct CacheTexture));
-    // int* texture_ids = (int*)malloc(texture_definitions_count * sizeof(int));
-    // for( int i = 0; i < texture_definitions_count; i++ )
-    // {
-    //     struct CacheTexture* texture_definition = &texture_definitions[i];
+    int texture_definitions_count = filelist->file_count;
+    struct CacheTexture* texture_definitions =
+        (struct CacheTexture*)malloc(texture_definitions_count * sizeof(struct CacheTexture));
+    memset(texture_definitions, 0, texture_definitions_count * sizeof(struct CacheTexture));
+    int* texture_ids = (int*)malloc(texture_definitions_count * sizeof(int));
+    for( int i = 0; i < texture_definitions_count; i++ )
+    {
+        struct CacheTexture* texture_definition = &texture_definitions[i];
 
-    //     struct ArchiveReference* archives = cache->tables[CACHE_TEXTURES]->archives;
+        struct ArchiveReference* archives = cache->tables[CACHE_TEXTURES]->archives;
 
-    //     texture_definition = texture_definition_decode_inplace(
-    //         texture_definition, filelist->files[i], filelist->file_sizes[i]);
-    //     assert(texture_definition != NULL);
-    //     int file_id = archives[cache->tables[CACHE_TEXTURES]->ids[0]].children.files[i].id;
-    //     texture_ids[i] = file_id;
-    // }
+        texture_definition = texture_definition_decode_inplace(
+            texture_definition, filelist->files[i], filelist->file_sizes[i]);
+        assert(texture_definition != NULL);
+        int file_id = archives[cache->tables[CACHE_TEXTURES]->ids[0]].children.files[i].id;
+        texture_ids[i] = file_id;
 
-    // filelist_free(filelist);
-    // cache_archive_free(archive);
+        if( file_id == 60 )
+        {
+            // 1648
+            printf("heightmap\n");
+        }
+        if( file_id == 8 )
+        {
+            // sprite 455
+            printf("grass\n");
+        }
+    }
+
+    filelist_free(filelist);
+    cache_archive_free(archive);
 
     // /**
     //  * Sprites
     //  */
 
-    // int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
-    // struct CacheSpritePack* sprite_packs =
-    //     (struct CacheSpritePack*)malloc(sprite_count * sizeof(struct CacheSpritePack));
-    // int* sprite_ids = (int*)malloc(sprite_count * sizeof(int));
+    int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
+    struct CacheSpritePack* sprite_packs =
+        (struct CacheSpritePack*)malloc(sprite_count * sizeof(struct CacheSpritePack));
+    int* sprite_ids = (int*)malloc(sprite_count * sizeof(int));
 
-    // for( int sprite_index = 0; sprite_index < sprite_count; sprite_index++ )
-    // {
-    //     archive = cache_archive_new_load(cache, CACHE_SPRITES, sprite_index);
-    //     if( !archive )
-    //     {
-    //         printf("Failed to load sprites archive\n");
-    //         return 1;
-    //     }
+    for( int sprite_index = 0; sprite_index < sprite_count; sprite_index++ )
+    {
+        archive = cache_archive_new_load(cache, CACHE_SPRITES, sprite_index);
+        if( !archive )
+        {
+            printf("Failed to load sprites archive\n");
+            return 1;
+        }
 
-    //     struct ArchiveReference* archives = cache->tables[CACHE_SPRITES]->archives;
+        struct ArchiveReference* archives = cache->tables[CACHE_SPRITES]->archives;
 
-    //     if( sprite_index == 455 )
-    //     {
-    //         int iiii = 0;
-    //     }
+        if( sprite_index == 455 )
+        {
+            int iiii = 0;
+        }
 
-    //     struct CacheSpritePack* sprite_pack =
-    //         sprite_pack_new_decode(archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
-    //     if( !sprite_pack )
-    //     {
-    //         printf("Failed to load sprites pack\n");
-    //         return 1;
-    //     }
+        struct CacheSpritePack* sprite_pack =
+            sprite_pack_new_decode(archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
+        if( !sprite_pack )
+        {
+            printf("Failed to load sprites pack\n");
+            return 1;
+        }
 
-    //     sprite_packs[sprite_index] = *sprite_pack;
-    //     // DO NOT FREE
-    //     // sprite_pack_free(sprite_pack);
+        sprite_packs[sprite_index] = *sprite_pack;
+        // DO NOT FREE
+        // sprite_pack_free(sprite_pack);
 
-    //     if( sprite_index == 455 )
-    //     {
-    //         int* pixels = sprite_get_pixels(&sprite_pack->sprites[0], sprite_pack->palette, 1);
+        if( sprite_index == 455 || sprite_index == 1648 )
+        {
+            int* pixels = sprite_get_pixels(&sprite_pack->sprites[0], sprite_pack->palette, 1);
 
-    //         if( !pixels )
-    //             return 1;
+            if( !pixels )
+                return 1;
 
-    //         // Replace the existing BMP writing code with:
-    //         write_bmp_file(
-    //             "sprite_455.bmp",
-    //             pixels,
-    //             sprite_pack->sprites[0].width,
-    //             sprite_pack->sprites[0].height);
-    //         free(pixels);
-    //     }
+            char filename[100];
+            sprintf(filename, "sprite_%d.bmp", sprite_index);
 
-    //     // return 0;
+            // Replace the existing BMP writing code with:
+            write_bmp_file(
+                filename, pixels, sprite_pack->sprites[0].width, sprite_pack->sprites[0].height);
+            free(pixels);
+        }
 
-    //     int file_id = archives[cache->tables[CACHE_SPRITES]->ids[sprite_index]].index;
+        // return 0;
 
-    //     sprite_ids[sprite_index] = file_id;
+        int file_id = archives[cache->tables[CACHE_SPRITES]->ids[sprite_index]].index;
 
-    //     cache_archive_free(archive);
-    // }
+        sprite_ids[sprite_index] = file_id;
+
+        cache_archive_free(archive);
+    }
 
     /**
      * Decode textures from sprites
@@ -793,7 +804,8 @@ main()
     //     texture_ids,
     //     texture_definitions_count);
 
-    // struct SceneLocs* scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache);
+    // struct SceneLocs* scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs,
+    // cache);
 
     struct Scene* scene = scene_new_from_map(cache, 50, 50);
 

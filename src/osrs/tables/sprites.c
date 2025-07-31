@@ -363,11 +363,11 @@ sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFl
                 memset(pixel_idx, 0, dimension * sizeof(uint8_t));
 
                 int index = 0;
-                for( int x = 0; x < sprite->crop_width; x++ )
+                for( int y = 0; y < sprite->crop_height; y++ )
                 {
-                    for( int y = 0; y < sprite->crop_height; y++ )
+                    for( int x = 0; x < sprite->crop_width; x++ )
                     {
-                        int y_idx = sprite->crop_width * y + sprite->offset_y;
+                        int y_idx = sprite->width * y + sprite->offset_y;
                         int x_idx = x + sprite->offset_x;
                         pixel_idx[y_idx + x_idx] = sprite->palette_pixels[index++];
                     }
