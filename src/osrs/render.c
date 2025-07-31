@@ -788,7 +788,7 @@ model_draw_face(
         // and
         // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
         // getModelFaces
-        // return;
+        return;
         // color_c = 0;
     }
 
@@ -3057,13 +3057,13 @@ render_scene_ops(
         //     continue;
 
         // Oak tree on 19, 5
-        int target_x = 19;
-        int target_z = 5;
+        // int target_x = 19;
+        // int target_z = 5;
 
-        int radius = 1;
-        if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
-            radius * radius )
-            continue;
+        // int radius = 1;
+        // if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
+        //     radius * radius )
+        //     continue;
 
         // if( op->x >= 22 && op->x <= 25 && op->z >= 3 && op->z <= 10 )
         // {
@@ -3141,11 +3141,6 @@ render_scene_ops(
             // 1571 is an oak tree
 
             assert(model != NULL);
-
-            if( model->model_ids[0] == 1571 )
-            {
-                printf("Drawing oak tree at %d, %d, %d\n", op->x, op->z, op->level);
-            }
 
             render_scene_model(
                 pixel_buffer,
