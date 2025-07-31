@@ -1780,13 +1780,20 @@ render_scene_tile(
     // TODO: A faster culling
     // if the tile is far enough away, skip it.
     // Calculate distance from camera to tile center
-    int tile_center_x = grid_x * TILE_SIZE + TILE_SIZE / 2;
-    int tile_center_y = grid_y * TILE_SIZE + TILE_SIZE / 2;
-    int tile_center_z = grid_z * 240;
+    // int tile_center_x = (grid_x - 1) * TILE_SIZE;
+    // int tile_center_z = (grid_y - 1) * TILE_SIZE;
+    // int tile_center_y = -(grid_z - 1) * 240;
 
-    // int dx = tile_center_x + scene_x;
-    // int dy = tile_center_y + scene_y;
-    // int dz = tile_center_z + scene_z;
+    // // int dx = tile_center_x + scene_x;
+    // // int dy = tile_center_y + scene_y;
+    // // int dz = tile_center_z + scene_z;
+
+    // for( int i = 0; i < tile->vertex_count; i++ )
+    // {
+    //     tile->vertex_x[i] += tile_center_x;
+    //     tile->vertex_y[i] += tile_center_y;
+    //     tile->vertex_z[i] += tile_center_z;
+    // }
 
     // Simple squared distance - avoid sqrt for performance
     // int dist_sq = dx * dx;
@@ -1907,6 +1914,13 @@ render_scene_tile(
                 height / 2);
         }
     }
+
+    // for( int i = 0; i < tile->vertex_count; i++ )
+    // {
+    //     tile->vertex_x[i] -= tile_center_x;
+    //     tile->vertex_y[i] -= tile_center_y;
+    //     tile->vertex_z[i] -= tile_center_z;
+    // }
 }
 
 void
@@ -2484,9 +2498,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             int tile_y = grid_tile->z;
             int tile_level = grid_tile->level;
 
-            // if( tile_level < camera_tile_z )
-            //     continue;
-
             if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 )
             {
                 element = &elements[tile_coord];
@@ -2844,17 +2855,16 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             // returns to E_STEP_WAIT_ADJACENT_GROUND.
             if( element->step == E_STEP_NOTIFY_SPANNED_TILES )
             {
-                // if( tile_level < MAP_TERRAIN_Z - 1 )
-                // {
-                //     int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
-                //     other = &elements[idx];
+                if( tile_level < MAP_TERRAIN_Z - 1 )
+                {
+                    int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
+                    other = &elements[idx];
 
-                //     if( other->step != E_STEP_DONE )
-                //     {
-                //         int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level +
-                //         1));
-                //     }
-                // }
+                    if( other->step != E_STEP_DONE )
+                    {
+                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level + 1));
+                    }
+                }
 
                 if( tile_x < camera_tile_x )
                 {
@@ -2922,7 +2932,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
                     if( other->step != E_STEP_DONE )
                     {
-                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level + 1));
+                        int_queue_push_wrap(&queue, idx);
                     }
                 }
 
@@ -3148,6 +3158,9 @@ render_scene_ops(
 
         struct SceneOp* op = &ops[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
+
+        if( op->level != 1 && op->level != 2 )
+            continue;
         // if( op->x != 29 || op->z != 3 || op->level != 0 )
         //     continue;
 
@@ -3179,6 +3192,36 @@ render_scene_ops(
             tile = grid_tile->tile;
             if( !tile || !tile->valid_faces )
                 break;
+            // if( !tile || !tile->valid_faces )
+            // {
+            //     tile = scene->grid_tiles[MAP_TILE_COORD(1, 1, 0)].tile;
+
+            //     render_scene_tile(
+            //         screen_vertices_x,
+            //         screen_vertices_y,
+            //         screen_vertices_z,
+            //         ortho_vertices_x,
+            //         ortho_vertices_y,
+            //         ortho_vertices_z,
+            //         pixel_buffer,
+            //         width,
+            //         height,
+            //         near_plane_z,
+            //         op->x,
+            //         op->z,
+            //         op->level,
+            //         camera_x,
+            //         camera_y,
+            //         camera_z,
+            //         camera_pitch,
+            //         camera_yaw,
+            //         camera_roll,
+            //         fov,
+            //         tile,
+            //         textures_cache,
+            //         NULL);
+            //     break;
+            // }
 
             int tile_x = tile->chunk_pos_x;
             int tile_y = tile->chunk_pos_y;
