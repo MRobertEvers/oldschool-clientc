@@ -123,7 +123,7 @@ add_executable(model_viewer
     src/imgui/imgui_widgets.cpp
     src/imgui/imgui_demo.cpp
     src/imgui/imgui_impl_sdl2.cpp
-    src/imgui/imgui_impl_opengl3.cpp
+    src/imgui/imgui_impl_sdlrenderer2.cpp
 )
 
 # Set C++ standard for model viewer
@@ -205,7 +205,7 @@ target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} 
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
 target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
 target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${OPENGL_LIBRARY} ${EXTRA_LIBS})
+target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
 
 cmake_minimum_required(VERSION 3.10)
 project(metal_renderer)
