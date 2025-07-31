@@ -2304,7 +2304,6 @@ wallside_rotation_quadrant(enum WallSide side)
  * 10. Draw ground items on table
  * 11. Draw near decor (i.e. facing away from the camera on the near wall)
  * 12. Draw the near wall.
- *
  */
 struct SceneOp*
 render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene* scene, int* len)
@@ -2338,12 +2337,20 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
     // Generate painter's algorithm coordinate list - farthest to nearest
     int radius = 30;
-    int coord_list_x[4];
-    int coord_list_y[4];
+    // int coord_list_x[4];
+    // int coord_list_y[4];
+    int max_coords = ((radius + 1) * (radius + 1) * (radius + 1));
+    int* coord_list_x = (int*)malloc(max_coords * sizeof(int));
+    int* coord_list_y = (int*)malloc(max_coords * sizeof(int));
+    int* coord_list_z = (int*)malloc(max_coords * sizeof(int));
+    memset(coord_list_x, 0, max_coords * sizeof(int));
+    memset(coord_list_y, 0, max_coords * sizeof(int));
+    memset(coord_list_z, 0, max_coords * sizeof(int));
     int coord_list_length = 0;
 
     int camera_tile_x = -camera_x / TILE_SIZE;
     int camera_tile_y = -camera_y / TILE_SIZE;
+    int camera_tile_z = camera_z / 240;
 
     int max_draw_x = camera_tile_x + radius;
     int max_draw_y = camera_tile_y + radius;
@@ -2378,25 +2385,86 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     struct SceneElement* element = NULL;
     struct SceneElement* other = NULL;
 
-    coord_list_length = 4;
-    coord_list_x[0] = min_draw_x;
-    coord_list_y[0] = min_draw_y;
+    // coord_list_length = 4;
+    // coord_list_x[0] = min_draw_x;
+    // coord_list_y[0] = min_draw_y;
 
-    coord_list_x[1] = min_draw_x;
-    coord_list_y[1] = max_draw_y - 1;
+    // coord_list_x[1] = min_draw_x;
+    // coord_list_y[1] = max_draw_y - 1;
 
-    coord_list_x[2] = max_draw_x - 1;
-    coord_list_y[2] = min_draw_y;
+    // coord_list_x[2] = max_draw_x - 1;
+    // coord_list_y[2] = min_draw_y;
 
-    coord_list_x[3] = max_draw_x - 1;
-    coord_list_y[3] = max_draw_y - 1;
+    // coord_list_x[3] = max_draw_x - 1;
+    // coord_list_y[3] = max_draw_y - 1;
+
+    // // Generate coordinates in order from farthest to nearest
+    // // This creates a spiral pattern starting from the corners and moving inward
+    // Top edge of current ring (left to right)
+    for( int z = 0; z < MAP_TERRAIN_Z; z++ )
+    {
+        for( int x = -radius; x <= 0; x++ )
+        {
+            int east_tile_x = camera_tile_x - x;
+            int west_tile_x = camera_tile_x + x;
+
+            // Right edge of current ring (top to bottom, excluding corners)
+            for( int y = -radius; y <= 0; y++ )
+            {
+                int south_tile_y = camera_tile_y + y;
+                int north_tile_y = camera_tile_y - y;
+
+                if( east_tile_x < max_draw_x && east_tile_x >= min_draw_x )
+                {
+                    if( north_tile_y < max_draw_y && north_tile_y >= min_draw_y )
+                    {
+                        assert(east_tile_x >= 0);
+                        assert(east_tile_x < MAP_TERRAIN_X);
+                        assert(north_tile_y >= 0);
+                        assert(north_tile_y < MAP_TERRAIN_Y);
+
+                        coord_list_x[coord_list_length] = east_tile_x;
+                        coord_list_y[coord_list_length] = north_tile_y;
+                        coord_list_z[coord_list_length] = z;
+                        coord_list_length++;
+                    }
+                    if( south_tile_y < max_draw_y && south_tile_y >= min_draw_y )
+                    {
+                        coord_list_x[coord_list_length] = east_tile_x;
+                        coord_list_y[coord_list_length] = south_tile_y;
+                        coord_list_z[coord_list_length] = z;
+                        coord_list_length++;
+                    }
+                }
+                if( west_tile_x >= min_draw_x && west_tile_x < max_draw_x )
+                {
+                    if( north_tile_y < max_draw_y && north_tile_y >= min_draw_y )
+                    {
+                        coord_list_x[coord_list_length] = west_tile_x;
+                        coord_list_y[coord_list_length] = north_tile_y;
+                        coord_list_z[coord_list_length] = z;
+                        coord_list_length++;
+                    }
+                    if( south_tile_y < max_draw_y && south_tile_y >= min_draw_y )
+                    {
+                        coord_list_x[coord_list_length] = west_tile_x;
+                        coord_list_y[coord_list_length] = south_tile_y;
+                        coord_list_z[coord_list_length] = z;
+                        coord_list_length++;
+                    }
+                }
+            }
+
+            // assert(coord_list_length < 4);
+        }
+    }
 
     // Render tiles in painter's algorithm order (farthest to nearest)
     for( int i = 0; i < coord_list_length; i++ )
     {
         int _coord_x = coord_list_x[i];
         int _coord_y = coord_list_y[i];
-        int _coord_z = 0;
+        int _coord_z = coord_list_z[i];
 
         assert(_coord_x >= min_draw_x);
         assert(_coord_x < max_draw_x);
@@ -2415,6 +2483,9 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             int tile_x = grid_tile->x;
             int tile_y = grid_tile->z;
             int tile_level = grid_tile->level;
+
+            // if( tile_level < camera_tile_z )
+            //     continue;
 
             if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 )
             {
@@ -2844,17 +2915,16 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             // Move towards camera if farther away tiles are done.
             if( element->step == E_STEP_NOTIFY_ADJACENT_TILES )
             {
-                // if( tile_level < MAP_TERRAIN_Z - 1 )
-                // {
-                //     int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
-                //     other = &elements[idx];
+                if( tile_level < MAP_TERRAIN_Z - 1 )
+                {
+                    int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
+                    other = &elements[idx];
 
-                //     if( other->step != E_STEP_DONE )
-                //     {
-                //         int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level +
-                //         1));
-                //     }
-                // }
+                    if( other->step != E_STEP_DONE )
+                    {
+                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level + 1));
+                    }
+                }
 
                 if( tile_x < camera_tile_x )
                 {
@@ -3012,6 +3082,9 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
         }
     }
 
+    free(coord_list_x);
+    free(coord_list_y);
+    free(coord_list_z);
     free(elements);
     int_queue_free(&queue);
 
@@ -3079,13 +3152,13 @@ render_scene_ops(
         //     continue;
 
         // Oak tree on 19, 5
-        int target_x = 19;
-        int target_z = 5;
+        // int target_x = 19;
+        // int target_z = 5;
 
-        int radius = 1;
-        if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
-            radius * radius )
-            continue;
+        // int radius = 1;
+        // if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
+        //     radius * radius )
+        //     continue;
 
         // if( op->x >= 22 && op->x <= 25 && op->z >= 3 && op->z <= 10 )
         // {
@@ -3103,7 +3176,6 @@ render_scene_ops(
         {
         case SCENE_OP_TYPE_DRAW_GROUND:
         {
-            break;
             tile = grid_tile->tile;
             if( !tile || !tile->valid_faces )
                 break;
@@ -3162,57 +3234,56 @@ render_scene_ops(
             model = &scene->models[model_index];
 
             // 1571 is an oak tree
-            if( model->model_ids && model->model_ids[0] == 1571 )
-            {
-                printf("Drawing oak tree at %d, %d, %d\n", op->x, op->z, op->level);
+            // if( model->model_ids && model->model_ids[0] == 1571 )
+            // {
+            //     printf("Drawing oak tree at %d, %d, %d\n", op->x, op->z, op->level);
 
-                model->region_x = 0;
-                model->region_y = 768;
-                model->region_z = 200;
-                render_scene_model(
-                    pixel_buffer,
-                    width,
-                    height,
-                    near_plane_z,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    camera_yaw,
-                    0,
-                    fov,
-                    model,
-                    textures_cache);
-                continue;
-            }
-            else
-            {
-                continue;
-            }
+            //     model->region_x = 0;
+            //     model->region_y = 768;
+            //     model->region_z = 200;
+            //     render_scene_model(
+            //         pixel_buffer,
+            //         width,
+            //         height,
+            //         near_plane_z,
+            //         0,
+            //         0,
+            //         0,
+            //         0,
+            //         0,
+            //         camera_yaw,
+            //         0,
+            //         fov,
+            //         model,
+            //         textures_cache);
+            //     continue;
+            // }
+            // else
+            // {
+            //     continue;
+            // }
 
             assert(model != NULL);
 
-            // render_scene_model(
-            //     pixel_buffer,
-            //     width,
-            //     height,
-            //     near_plane_z,
-            //     0,
-            //     camera_x,
-            //     camera_y,
-            //     camera_z,
-            //     camera_pitch,
-            //     camera_yaw,
-            //     camera_roll,
-            //     fov,
-            //     model,
-            //     textures_cache);
+            render_scene_model(
+                pixel_buffer,
+                width,
+                height,
+                near_plane_z,
+                0,
+                camera_x,
+                camera_y,
+                camera_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll,
+                fov,
+                model,
+                textures_cache);
         }
         break;
         case SCENE_OP_TYPE_DRAW_WALL:
         {
-            break;
             int model_index = -1;
             int loc_index = op->_wall.loc_index;
             loc = &scene->locs[loc_index];
@@ -3250,7 +3321,6 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DRAW_GROUND_DECOR:
         {
-            break;
             int model_index = -1;
             int loc_index = op->_ground_decor.loc_index;
             loc = &scene->locs[loc_index];
@@ -3281,7 +3351,6 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DRAW_WALL_DECOR:
         {
-            break;
             int model_index = -1;
             int loc_index = op->_wall_decor.loc_index;
             loc = &scene->locs[loc_index];

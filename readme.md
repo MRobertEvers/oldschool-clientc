@@ -40,10 +40,9 @@ brew install sdl2
 ### TODOS
 
 1. Fix the need to `long long` in the texture renderer.
-2. Add model caching for transformed models; recolours, hilskew, textures, etc.
-3. Transparency/Alpha Blending
-4. Model Transforms; Hillskew, mirrored, scaled, recolor, retexture
-5. Cache lighting
+2. Transparency/Alpha Blending
+3. Cache lighting
+4. Fix diagonal wall decor.
 
 ### Scene Building Plan - Software 3D
 

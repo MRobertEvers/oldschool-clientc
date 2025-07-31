@@ -79,7 +79,7 @@ raster_texture_scanline(
 
     while( steps-- > 0 )
     {
-        if( cw == 0 )
+        if( (-cw) >> texture_shift == 0 )
             continue;
 
         // Instead of multiplying au,bv by texture width, shift the divisor down.
@@ -87,6 +87,8 @@ raster_texture_scanline(
         int v = (bv) / ((-cw) >> texture_shift);
 
         // This will wrap at the texture width.
+        // The osrs rasterizer tiles textures implicitly by ignoring overflow when
+        // stepping.
         u &= texture_width - 1;
         v &= texture_width - 1;
 

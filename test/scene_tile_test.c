@@ -342,7 +342,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     }
     else
     {
-        game->max_render_ops += 2;
+        game->max_render_ops += 10;
     }
 
     // if( game->show_loc_enabled )
@@ -824,12 +824,9 @@ main()
     game.camera_pitch = 0;
     game.camera_roll = 0;
     game.camera_fov = 512;
-    // game.camera_x = -3542;
-    // game.camera_y = -873;
-    // game.camera_z = 800;
-    game.camera_x = 0;
-    game.camera_y = 0;
-    game.camera_z = 0;
+    game.camera_x = -3542;
+    game.camera_y = -873;
+    game.camera_z = 800;
 
     // game.camera_x = -2576;
     // game.camera_y = -3015;

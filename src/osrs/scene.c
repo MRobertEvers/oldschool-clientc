@@ -1009,8 +1009,10 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
         case LOC_SHAPE_ROOF_FLAT:
         case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+        case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+        case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+        case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
         {
-            break;
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
             loc_load_model(
@@ -1072,7 +1074,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         break;
         default:
         {
-            // printf("Unknown loc shape: %d\n", map->shape_select);
+            printf("Unknown loc shape: %d\n", map->shape_select);
         }
         }
     }
