@@ -766,7 +766,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         break;
         case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
         {
-            break;
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
             loc_load_model(
@@ -783,10 +782,14 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
             init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
-            // int offset = 8;
-            // calculate_wall_decor_offset(
-            //     model, map->orientation, offset, true // diagonal
-            // );
+            // TODO: Get this from the wall offset??
+            // This needs to be taken from the wall offset.
+            // Lumbridge walls are 16 thick.
+            // Walls in al kharid are 8 thick.
+            int offset = -45;
+            calculate_wall_decor_offset(
+                model, map->orientation, offset, true // diagonal
+            );
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -797,14 +800,16 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             init_wall_decor_default(&loc->_wall_decor);
 
             loc->_wall_decor.model_a = model_index;
-            loc->_wall_decor.side = WALL_SIDE_EAST;
+            assert(map->orientation >= 0);
+            assert(map->orientation < 4);
+            loc->_wall_decor.side = ROTATION_WALL_CORNER_TYPE[map->orientation];
+            loc->_wall_decor.through_wall_flags = THROUGHWALL;
 
             grid_tile->wall_decor = loc_index;
         }
         break;
         case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
         {
-            break;
             int model_index = vec_model_push(scene);
             model = vec_model_back(scene);
             loc_load_model(
@@ -835,7 +840,10 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             init_wall_decor_default(&loc->_wall_decor);
 
             loc->_wall_decor.model_a = model_index;
-            loc->_wall_decor.side = WALL_SIDE_EAST;
+            assert(map->orientation >= 0);
+            assert(map->orientation < 4);
+            loc->_wall_decor.side = ROTATION_WALL_CORNER_TYPE[map->orientation];
+            loc->_wall_decor.through_wall_flags = THROUGHWALL;
 
             grid_tile->wall_decor = loc_index;
         }
