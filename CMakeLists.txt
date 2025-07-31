@@ -10,7 +10,16 @@ set(PROFILING_FLAGS)
 find_package(SDL2 REQUIRED)
 find_package(BZip2 REQUIRED)
 find_package(ZLIB REQUIRED)
-include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
+
+# Find OpenGL
+if(APPLE)
+    find_library(OPENGL_LIBRARY OpenGL)
+    find_library(GLUT_LIBRARY GLUT)
+else()
+    find_package(OpenGL REQUIRED)
+endif()
+
+include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
 
 add_executable(main_client
     src/main_client.c
@@ -105,6 +114,24 @@ add_executable(xtea_test
     src/osrs/rsbuf.c
 )
 
+# Model viewer with ImGui
+add_executable(model_viewer
+    test/model_viewer.cpp
+    src/imgui/imgui.cpp
+    src/imgui/imgui_draw.cpp
+    src/imgui/imgui_tables.cpp
+    src/imgui/imgui_widgets.cpp
+    src/imgui/imgui_demo.cpp
+    src/imgui/imgui_impl_sdl2.cpp
+    src/imgui/imgui_impl_opengl3.cpp
+)
+
+# Set C++ standard for model viewer
+set_target_properties(model_viewer PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
 add_executable(main_rs
     src/main_rs.c
     src/osrs/cache.c
@@ -178,6 +205,7 @@ target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} 
 target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
 target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
 target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${OPENGL_LIBRARY} ${EXTRA_LIBS})
 
 cmake_minimum_required(VERSION 3.10)
 project(metal_renderer)
