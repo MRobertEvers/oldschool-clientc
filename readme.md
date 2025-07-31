@@ -757,3 +757,13 @@ if (this.faceColorC[face] == -1) {
 
 [flat_shade](./res/texture_flat_shade_hslc-1.png)
 [blend_shade](./res/texture_blend_shade.png)
+
+## Texture Tiling
+
+Runescape tiles textures automatically.
+
+The left image is the texture renderer exactly from the deob.
+The middle image is my texture renderer with tiling.
+The right image is my texture redner with overflow highlights.
+
+[tiling_proof](./res/measurement_texture_tiling.png)

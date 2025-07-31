@@ -78,8 +78,11 @@ raster_texture_scanline(
         if( cw == 0 )
             continue;
 
-        int u = (au * (texture_width - 1)) / (-cw);
-        int v = (bv * (texture_width - 1)) / (-cw);
+        int u = (au) / ((-cw) >> 7);
+        int v = (bv) / ((-cw) >> 7);
+
+        // u %= texture_width;
+        // v %= texture_width;
 
         // The osrs rasterizer clamps the u and v coordinates to the texture width.
         int c = -1;
@@ -667,17 +670,28 @@ textureTriangle(
     int horizontalY = tyC - originY;
     int horizontalZ = tzC - originZ;
 
-    int zshift = 14;
-    int xshift = 8;
-    int yshift = 5;
+    int shift_offset = 0;
+    int zshift = 14 - shift_offset;
+    int xshift = 8 - shift_offset;
+    int yshift = 5 - shift_offset;
 
     // Shift up by 14, the top 7 bits are the texture coord.
     // 9 of the bit shift come from the (d * z) that all model vertexes are multiplied by.
     // So really this is upshifted by 5.
     // Since the zhat component is really
-    // U = dudz * SCALE << 5 + (dudx << 5 * x) + (dudy << 5 * y)
+    // U = (dudz << 5) * SCALE  + (dudx << 5 * x) + (dudy << 5 * y)
     // Since SCALE is << 9, then the upshift is really by 5.
     // the xshift of 8, is pre-multiplied by 8 (<< 3 and << 5).
+
+    // For U and V, we want the top 7 bits to represent the texture coordinate.
+    // Since we are only shifting up by 5, shifting down by 7, or masking the top 7 bits,
+    // will give the result divided by 4.
+    // Perhaps pnm coords are 4 times longer than textures?
+    // so a U of 4 is actuall u 1?
+
+    // Another trick used in later deobs is shifting the U value up by 18 (which is already assumed
+    // to be shifted up by 7) so that the top 7 bits and anything else is truncated.
+
     int u = ((horizontalX * originY) - (horizontalY * originX)) << zshift;
     int uStride = ((horizontalY * originZ) - (horizontalZ * originY)) << (xshift);
     int uStepVertical = ((horizontalZ * originX) - (horizontalX * originZ)) << yshift;
@@ -1984,6 +1998,9 @@ textureRaster(
         v = v + (vStride >> 3) * dx;
         w = w + (wStride >> 3) * dx;
 
+        // The math gives u, 0-1, but we need 0 - 128. So the result should auto be upshifted by 7
+        // And we want the top 7 bits of each to be the texture coord.
+        // is this (7 for the texture size) + (7 the top 7 bits)
         int curW = w >> 14;
         if( curW != 0 )
         {
