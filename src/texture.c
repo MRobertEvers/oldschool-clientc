@@ -73,16 +73,22 @@ raster_texture_scanline(
 
     assert(screen_x0 + steps < screen_width);
 
+    // If texture width is 128 or 64.
+    assert(texture_width == 128 || texture_width == 64);
+    int texture_shift = (texture_width & 0x80) ? 7 : 6;
+
     while( steps-- > 0 )
     {
         if( cw == 0 )
             continue;
 
-        int u = (au) / ((-cw) >> 7);
-        int v = (bv) / ((-cw) >> 7);
+        // Instead of multiplying au,bv by texture width, shift the divisor down.
+        int u = (au) / ((-cw) >> texture_shift);
+        int v = (bv) / ((-cw) >> texture_shift);
 
-        // u %= texture_width;
-        // v %= texture_width;
+        // This will wrap at the texture width.
+        u &= texture_width - 1;
+        v &= texture_width - 1;
 
         // The osrs rasterizer clamps the u and v coordinates to the texture width.
         int c = -1;
@@ -106,10 +112,6 @@ raster_texture_scanline(
             c = 0x00FFFF;
             v = texture_width - 1;
         }
-
-        // Expects the texture width to be a power of two.
-        u &= texture_width - 1;
-        v &= texture_width - 1;
 
         assert(u >= 0);
         assert(v >= 0);
