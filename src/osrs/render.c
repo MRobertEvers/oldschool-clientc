@@ -932,31 +932,53 @@ model_draw_face(
             int tex_x3 = vertex_x[tn_face] + offset_x;
             int tex_y3 = vertex_y[tn_face] + offset_y;
 
-            raster_texture_step(
-                pixel_buffer,
-                screen_width,
-                screen_height,
+            textureTriangle(
                 x1,
                 x2,
                 x3,
                 y1,
                 y2,
                 y3,
-                z1,
-                z2,
-                z3,
+                0,
+                0,
+                0,
                 tp_x,
+                tp_y,
+                tp_z,
                 tm_x,
                 tn_x,
-                tp_y,
                 tm_y,
                 tn_y,
-                tp_z,
                 tm_z,
                 tn_z,
+                pixel_buffer,
                 texels,
-                128,
-                false);
+                128);
+            // raster_texture_step(
+            //     pixel_buffer,
+            //     screen_width,
+            //     screen_height,
+            //     x1,
+            //     x2,
+            //     x3,
+            //     y1,
+            //     y2,
+            //     y3,
+            //     z1,
+            //     z2,
+            //     z3,
+            //     tp_x,
+            //     tm_x,
+            //     tn_x,
+            //     tp_y,
+            //     tm_y,
+            //     tn_y,
+            //     tp_z,
+            //     tm_z,
+            //     tn_z,
+            //     texels,
+            //     128,
+            //     false);
 
             // This will draw a white triangle over the projected texture pnm coords.
 
@@ -3057,13 +3079,13 @@ render_scene_ops(
         //     continue;
 
         // Oak tree on 19, 5
-        // int target_x = 19;
-        // int target_z = 5;
+        int target_x = 19;
+        int target_z = 5;
 
-        // int radius = 1;
-        // if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
-        //     radius * radius )
-        //     continue;
+        int radius = 1;
+        if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z) >
+            radius * radius )
+            continue;
 
         // if( op->x >= 22 && op->x <= 25 && op->z >= 3 && op->z <= 10 )
         // {
@@ -3081,6 +3103,7 @@ render_scene_ops(
         {
         case SCENE_OP_TYPE_DRAW_GROUND:
         {
+            break;
             tile = grid_tile->tile;
             if( !tile || !tile->valid_faces )
                 break;
@@ -3139,28 +3162,57 @@ render_scene_ops(
             model = &scene->models[model_index];
 
             // 1571 is an oak tree
+            if( model->model_ids && model->model_ids[0] == 1571 )
+            {
+                printf("Drawing oak tree at %d, %d, %d\n", op->x, op->z, op->level);
+
+                model->region_x = 0;
+                model->region_y = 768;
+                model->region_z = 200;
+                render_scene_model(
+                    pixel_buffer,
+                    width,
+                    height,
+                    near_plane_z,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    camera_yaw,
+                    0,
+                    fov,
+                    model,
+                    textures_cache);
+                continue;
+            }
+            else
+            {
+                continue;
+            }
 
             assert(model != NULL);
 
-            render_scene_model(
-                pixel_buffer,
-                width,
-                height,
-                near_plane_z,
-                0,
-                camera_x,
-                camera_y,
-                camera_z,
-                camera_pitch,
-                camera_yaw,
-                camera_roll,
-                fov,
-                model,
-                textures_cache);
+            // render_scene_model(
+            //     pixel_buffer,
+            //     width,
+            //     height,
+            //     near_plane_z,
+            //     0,
+            //     camera_x,
+            //     camera_y,
+            //     camera_z,
+            //     camera_pitch,
+            //     camera_yaw,
+            //     camera_roll,
+            //     fov,
+            //     model,
+            //     textures_cache);
         }
         break;
         case SCENE_OP_TYPE_DRAW_WALL:
         {
+            break;
             int model_index = -1;
             int loc_index = op->_wall.loc_index;
             loc = &scene->locs[loc_index];
@@ -3198,6 +3250,7 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DRAW_GROUND_DECOR:
         {
+            break;
             int model_index = -1;
             int loc_index = op->_ground_decor.loc_index;
             loc = &scene->locs[loc_index];
@@ -3228,6 +3281,7 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DRAW_WALL_DECOR:
         {
+            break;
             int model_index = -1;
             int loc_index = op->_wall_decor.loc_index;
             loc = &scene->locs[loc_index];

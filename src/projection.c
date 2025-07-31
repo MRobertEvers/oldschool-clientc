@@ -1,6 +1,7 @@
 #include "projection.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <string.h>
 
 extern int g_cos_table[2048];
@@ -157,6 +158,11 @@ project_perspective(
     // Project to screen space with FOV
     long long screen_x = ((x * fov_scale_ish16) >> 16);
     long long screen_y = ((y * fov_scale_ish16) >> 16);
+
+    assert(screen_x < INT_MAX);
+    assert(screen_y < INT_MAX);
+    assert(screen_x > INT_MIN);
+    assert(screen_y > INT_MIN);
 
     // Set the projected triangle
     projected_triangle.x = screen_x;

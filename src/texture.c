@@ -78,31 +78,31 @@ raster_texture_scanline(
         if( cw == 0 )
             continue;
 
-        int u = (au * (texture_width)) / (-cw);
-        int v = (bv * (texture_width)) / (-cw);
+        int u = (au * (texture_width - 1)) / (-cw);
+        int v = (bv * (texture_width - 1)) / (-cw);
 
         // The osrs rasterizer clamps the u and v coordinates to the texture width.
         int c = -1;
-        // if( u < 0 )
-        // {
-        //     u = 0;
-        //     c = 0xFF0000;
-        // }
-        // if( v < 0 )
-        // {
-        //     v = 0;
-        //     c = 0x00FF00;
-        // }
-        // if( u >= texture_width )
-        // {
-        //     c = 0xFF00FF;
-        //     u = texture_width - 1;
-        // }
-        // if( v >= texture_width )
-        // {
-        //     c = 0x00FFFF;
-        //     v = texture_width - 1;
-        // }
+        if( u < 0 )
+        {
+            u = 0;
+            c = 0xFF0000;
+        }
+        if( v < 0 )
+        {
+            v = 0;
+            c = 0x00FF00;
+        }
+        if( u >= texture_width )
+        {
+            c = 0xFF00FF;
+            u = texture_width - 1;
+        }
+        if( v >= texture_width )
+        {
+            c = 0x00FFFF;
+            v = texture_width - 1;
+        }
 
         // Expects the texture width to be a power of two.
         u &= texture_width - 1;
