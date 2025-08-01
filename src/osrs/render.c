@@ -5,6 +5,7 @@
 #include "gouraud.h"
 #include "gouraud_deob.h"
 #include "lighting.h"
+#include "palette.h"
 #include "projection.h"
 #include "scene.h"
 #include "scene_tile.h"
@@ -1771,7 +1772,7 @@ render_scene_tile(
     int camera_roll,
     int fov,
     struct SceneTile* tile,
-    struct TexturesCache* textures_cache,
+    struct TexturesCache* textures_cache_nullable,
     int* color_override_hsl16_nullable)
 {
     if( tile->vertex_count == 0 || tile->face_color_hsl_a == NULL )
@@ -1811,7 +1812,7 @@ render_scene_tile(
 
         int texture_id = tile->face_texture_ids ? tile->face_texture_ids[face] : -1;
 
-        if( texture_id == -1 || textures_cache == NULL )
+        if( texture_id == -1 || textures_cache_nullable == NULL )
         {
             project_vertices_terrain(
                 screen_vertices_x,
@@ -1909,7 +1910,7 @@ render_scene_tile(
                 tile->face_texture_v_b,
                 tile->face_texture_u_c,
                 tile->face_texture_v_c,
-                textures_cache,
+                textures_cache_nullable,
                 width / 2,
                 height / 2);
         }
@@ -2882,40 +2883,52 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     // }
 
                     // int_queue_free(&queue_far);
-                    // int min_gen = INT32_MIN;
+                    // if( loc->size_x > 1 || loc->size_y > 1 )
+                    // {
+                    //     int iiiii = 0;
+                    //     printf("Sized %d\n", loc->size_x * loc->size_y);
+                    // }
+
+                    // int min_gen = INT32_MAX;
+                    // int prev_min = INT32_MIN;
                     // int cur_x = 0;
                     // int cur_y = 0;
                     // bool found = false;
-                    // while( true )
-                    // {
-                    //     for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x;
-                    //          other_tile_x++ )
-                    //     {
-                    //         for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
-                    //              other_tile_y++ )
-                    //         {
-                    //             other = &elements[MAP_TILE_COORD(
-                    //                 other_tile_x, other_tile_y, tile_level)];
 
-                    //             if( other->generation > min_gen )
-                    //             {
-                    //                 min_gen = other->generation;
-                    //                 cur_x = other_tile_x;
-                    //                 cur_y = other_tile_y;
-                    //                 found = true;
-                    //             }
+                    // min_gen = INT32_MAX;
+                    // found = false;
+                    // for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x;
+                    // other_tile_x++ )
+                    // {
+                    //     for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
+                    //          other_tile_y++ )
+                    //     {
+                    //         other =
+                    //             &elements[MAP_TILE_COORD(other_tile_x, other_tile_y,
+                    //             tile_level)];
+
+                    //         if( other->generation < min_gen && other->generation > prev_min )
+                    //         {
+                    //             min_gen = other->generation;
+                    //             cur_x = other_tile_x;
+                    //             cur_y = other_tile_y;
+                    //             found = true;
                     //         }
                     //     }
-
-                    //     if( !found )
-                    //         break;
-
-                    //     element = &elements[MAP_TILE_COORD(cur_x, cur_y, tile_level)];
-                    //     element->remaining_locs--;
-                    //     assert(element->remaining_locs >= 0);
-                    //     int_queue_push_wrap(&queue, MAP_TILE_COORD(cur_x, cur_y, tile_level));
                     // }
 
+                    // prev_min = min_gen;
+
+                    // if( !found )
+                    //     break;
+
+                    // element = &elements[MAP_TILE_COORD(cur_x, cur_y, tile_level)];
+                    // printf("Generation: %d\n", element->generation);
+                    // element->remaining_locs--;
+                    // assert(element->remaining_locs >= 0);
+                    // int_queue_push_wrap(&queue, MAP_TILE_COORD(cur_x, cur_y, tile_level));
+
+                    // printf("break;\n");
                     for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x; other_tile_x++ )
                     {
                         for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
@@ -3180,34 +3193,34 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
         }
     }
 
-    for( int z = 0; z < MAP_TERRAIN_Z; z++ )
-    {
-        for( int x = 0; x < MAP_TERRAIN_X; x++ )
-        {
-            for( int y = 0; y < MAP_TERRAIN_Y; y++ )
-            {
-                if( x < min_draw_x || x >= max_draw_x || y < min_draw_y || y >= max_draw_y )
-                    continue;
+    // for( int z = 0; z < MAP_TERRAIN_Z; z++ )
+    // {
+    //     for( int x = 0; x < MAP_TERRAIN_X; x++ )
+    //     {
+    //         for( int y = 0; y < MAP_TERRAIN_Y; y++ )
+    //         {
+    //             if( x < min_draw_x || x >= max_draw_x || y < min_draw_y || y >= max_draw_y )
+    //                 continue;
 
-                int idx = MAP_TILE_COORD(x, y, z);
-                struct GridTile* grid_tile = &scene->grid_tiles[idx];
-                struct SceneElement* element = &elements[idx];
-                if( element->step != E_STEP_DONE )
-                {
-                    printf("Element %d, %d, %d not done\n", x, y, z);
-                }
-                if( element->remaining_locs != 0 )
-                {
-                    printf(
-                        "Element %d, %d, %d has %d remaining locs\n",
-                        x,
-                        y,
-                        z,
-                        element->remaining_locs);
-                }
-            }
-        }
-    }
+    //             int idx = MAP_TILE_COORD(x, y, z);
+    //             struct GridTile* grid_tile = &scene->grid_tiles[idx];
+    //             struct SceneElement* element = &elements[idx];
+    //             if( element->step != E_STEP_DONE )
+    //             {
+    //                 printf("Element %d, %d, %d not done\n", x, y, z);
+    //             }
+    //             if( element->remaining_locs != 0 )
+    //             {
+    //                 printf(
+    //                     "Element %d, %d, %d has %d remaining locs\n",
+    //                     x,
+    //                     y,
+    //                     z,
+    //                     element->remaining_locs);
+    //             }
+    //         }
+    //     }
+    // }
 
     free(coord_list_x);
     free(coord_list_y);
@@ -3219,12 +3232,122 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     return ops;
 }
 
+static int g_white_hsl16 = 0x00FFFFFF;
+
+static struct SceneTile g_dbg_tile = { 0 };
+static int g_dbg_tile_vertex_count = 4;
+static int g_dbg_tile_face_count = 2;
+static int g_dbg_tile_valid_faces[4] = { 1, 1 };
+static int g_dbg_tile_faces_a[4] = { 0, 3 };
+static int g_dbg_tile_faces_b[4] = { 1, 1 };
+static int g_dbg_tile_faces_c[4] = { 3, 2 };
+static int g_dbg_tile_vertex_x_init[20] = { 0, TILE_SIZE, TILE_SIZE, 0 };
+static int g_dbg_tile_vertex_y_init[20] = { 0, 0, TILE_SIZE, TILE_SIZE };
+static int g_dbg_tile_vertex_z_init[20] = { 0, 0, 0, 0 };
+static int g_dbg_tile_colors[4] = { 0x00FFFFFF, 0x00FFFFFF, 0x00FFFFFF, 0x00FFFFFF };
+
+static int g_dbg_tile_vertex_x[20] = { 0, TILE_SIZE, TILE_SIZE, 0 };
+static int g_dbg_tile_vertex_y[20] = { 0, 0, TILE_SIZE, TILE_SIZE };
+static int g_dbg_tile_vertex_z[20] = { 0, 0, 0, 0 };
+
 static int g_screen_vertices_x[20];
 static int g_screen_vertices_y[20];
 static int g_screen_vertices_z[20];
 static int g_ortho_vertices_x[20];
 static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
+
+static void
+dbg_tile(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int grid_x,
+    int grid_y,
+    int grid_z,
+    int color_rgb,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov)
+{
+    memcpy(g_dbg_tile_vertex_x, g_dbg_tile_vertex_x_init, sizeof(g_dbg_tile_vertex_x));
+    memcpy(g_dbg_tile_vertex_y, g_dbg_tile_vertex_y_init, sizeof(g_dbg_tile_vertex_y));
+    memcpy(g_dbg_tile_vertex_z, g_dbg_tile_vertex_z_init, sizeof(g_dbg_tile_vertex_z));
+
+    int tile_center_x = (grid_x)*TILE_SIZE;
+    int tile_center_y = (grid_y)*TILE_SIZE;
+    int tile_center_z = -(grid_z) * 240;
+
+    g_dbg_tile = (struct SceneTile){
+        .vertex_count = g_dbg_tile_vertex_count,
+        .vertex_x = g_dbg_tile_vertex_x,
+        .vertex_y = g_dbg_tile_vertex_z,
+        .vertex_z = g_dbg_tile_vertex_y,
+        .face_count = g_dbg_tile_face_count,
+        .faces_a = g_dbg_tile_faces_a,
+        .faces_b = g_dbg_tile_faces_b,
+        .faces_c = g_dbg_tile_faces_c,
+        .valid_faces = g_dbg_tile_valid_faces,
+        .face_texture_ids = NULL,
+        .face_color_hsl_a = g_dbg_tile_colors,
+        .face_color_hsl_b = g_dbg_tile_colors,
+        .face_color_hsl_c = g_dbg_tile_colors,
+    };
+
+    for( int i = 0; i < 4; i++ )
+    {
+        g_dbg_tile_colors[i] = palette_rgb_to_hsl16(color_rgb);
+    }
+
+    // int dx = tile_center_x + scene_x;
+    // int dy = tile_center_y + scene_y;
+    // int dz = tile_center_z + scene_z;
+
+    struct SceneTile* tile = &g_dbg_tile;
+    int* screen_vertices_x = g_screen_vertices_x;
+    int* screen_vertices_y = g_screen_vertices_y;
+    int* screen_vertices_z = g_screen_vertices_z;
+    int* ortho_vertices_x = g_ortho_vertices_x;
+    int* ortho_vertices_y = g_ortho_vertices_y;
+    int* ortho_vertices_z = g_ortho_vertices_z;
+
+    for( int i = 0; i < 4; i++ )
+    {
+        tile->vertex_x[i] += tile_center_x;
+        tile->vertex_z[i] += tile_center_y;
+        tile->vertex_y[i] += tile_center_z;
+    }
+
+    render_scene_tile(
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        ortho_vertices_x,
+        ortho_vertices_y,
+        ortho_vertices_z,
+        pixel_buffer,
+        width,
+        height,
+        near_plane_z,
+        0,
+        0,
+        0,
+        camera_x,
+        camera_y,
+        camera_z,
+        camera_pitch,
+        camera_yaw,
+        camera_roll,
+        fov,
+        tile,
+        NULL,
+        g_dbg_tile_colors);
+}
 
 void
 render_scene_ops(
@@ -3357,13 +3480,7 @@ render_scene_ops(
                 }
             }
 
-            render_scene_tile(
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                ortho_vertices_x,
-                ortho_vertices_y,
-                ortho_vertices_z,
+            dbg_tile(
                 pixel_buffer,
                 width,
                 height,
@@ -3371,16 +3488,38 @@ render_scene_ops(
                 tile_x,
                 tile_y,
                 tile_z,
+                0x00FFFFFF,
                 camera_x,
                 camera_y,
                 camera_z,
                 camera_pitch,
                 camera_yaw,
                 camera_roll,
-                fov,
-                tile,
-                textures_cache,
-                color_override_hsl16_nullable);
+                fov);
+            // render_scene_tile(
+            //     screen_vertices_x,
+            //     screen_vertices_y,
+            //     screen_vertices_z,
+            //     ortho_vertices_x,
+            //     ortho_vertices_y,
+            //     ortho_vertices_z,
+            //     pixel_buffer,
+            //     width,
+            //     height,
+            //     near_plane_z,
+            //     tile_x,
+            //     tile_y,
+            //     tile_z,
+            //     camera_x,
+            //     camera_y,
+            //     camera_z,
+            //     camera_pitch,
+            //     camera_yaw,
+            //     camera_roll,
+            //     fov,
+            //     tile,
+            //     textures_cache,
+            //     color_override_hsl16_nullable);
         }
         break;
         case SCENE_OP_TYPE_DRAW_LOC:
