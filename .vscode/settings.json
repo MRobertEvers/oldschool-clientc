@@ -55,6 +55,16 @@
         "queue": "c",
         "stack": "c",
         "scene.h": "c",
-        "assert.h": "c"
+        "assert.h": "c",
+        "__bit_reference": "c",
+        "__hash_table": "c",
+        "__tree": "c",
+        "algorithm": "c",
+        "bitset": "c",
+        "deque": "c",
+        "limits": "c",
+        "ratio": "c",
+        "streambuf": "c",
+        "complex": "c"
     }
 }

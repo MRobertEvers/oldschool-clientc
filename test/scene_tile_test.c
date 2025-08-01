@@ -209,6 +209,7 @@ struct Game
     int op_count;
 
     int max_render_ops;
+    int manual_render_ops;
 
     int show_loc_enabled;
     int show_loc_x;
@@ -331,19 +332,20 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     int render_ops = game->max_render_ops;
-    if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
-    {
-        if( game->ops )
-            free(game->ops);
-        game->ops = render_scene_compute_ops(
-            game->camera_x, game->camera_y, game->camera_z, game->scene, &game->op_count);
-        game->max_render_ops = game->op_count;
-        render_ops = game->op_count;
-    }
-    else
-    {
-        game->max_render_ops += 10;
-    }
+    if( !game->manual_render_ops )
+        if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
+        {
+            if( game->ops )
+                free(game->ops);
+            game->ops = render_scene_compute_ops(
+                game->camera_x, game->camera_y, game->camera_z, game->scene, &game->op_count);
+            game->max_render_ops = game->op_count;
+            render_ops = game->op_count;
+        }
+        else
+        {
+            game->max_render_ops += 10;
+        }
 
     // if( game->show_loc_enabled )
     //     for( int i = 0; i < game->op_count; i++ )
@@ -875,6 +877,9 @@ main()
     int l_pressed = 0;
     int j_pressed = 0;
 
+    int comma_pressed = 0;
+    int period_pressed = 0;
+
     bool quit = false;
     int speed = 200;
     SDL_Event event;
@@ -967,6 +972,12 @@ main()
                 case SDLK_j:
                     j_pressed = 1;
                     break;
+                case SDLK_PERIOD:
+                    period_pressed = 1;
+                    break;
+                case SDLK_COMMA:
+                    comma_pressed = 1;
+                    break;
                 }
             }
             else if( event.type == SDL_KEYUP )
@@ -1023,6 +1034,12 @@ main()
                     break;
                 case SDLK_j:
                     j_pressed = 0;
+                    break;
+                case SDLK_PERIOD:
+                    period_pressed = 0;
+                    break;
+                case SDLK_COMMA:
+                    comma_pressed = 0;
                     break;
                 }
             }
@@ -1138,6 +1155,22 @@ main()
                 game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
             memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
             game.max_render_ops = 1;
+            game.manual_render_ops = 0;
+        }
+
+        if( comma_pressed )
+        {
+            game.manual_render_ops = 1;
+            game.max_render_ops -= 1;
+            if( game.max_render_ops < 0 )
+                game.max_render_ops = 0;
+        }
+        if( period_pressed )
+        {
+            game.manual_render_ops = 1;
+            game.max_render_ops += 1;
+            if( game.max_render_ops > game.op_count )
+                game.max_render_ops = game.op_count;
         }
 
         // Render frame

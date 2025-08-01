@@ -110,6 +110,7 @@ struct SceneElement
     enum ElementStep step;
 
     int remaining_locs;
+    int generation;
 
     int near_wall_flags;
 };
