@@ -12,7 +12,15 @@ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make VERBOSE=1
 ```
 
-'
+### Building - Emscripten
+
+```
+emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Debug
+
+cd build.em
+
+emmake make
+```
 
 ### Building - Linux
 
@@ -766,3 +774,9 @@ The middle image is my texture renderer with tiling.
 The right image is my texture redner with overflow highlights.
 
 [tiling_proof](./res/measurement_texture_tiling.png)
+
+## Server
+
+```
+python3 -m http.server -d public 8080
+```

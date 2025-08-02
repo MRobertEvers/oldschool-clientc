@@ -24,6 +24,7 @@ typedef struct
     float position_x;
     float position_y;
     float position_z;
+    char model_name[256];
     bool show_wireframe;
     bool show_axes;
     float clear_color[4];
@@ -33,6 +34,7 @@ static ModelViewerState g_state = {
     .rotation_x = 0.0f,
     .rotation_y = 0.0f,
     .rotation_z = 0.0f,
+    .model_name = "Cube",
     .scale = 100.0f,
     .position_x = 0.0f,
     .position_y = 0.0f,
@@ -357,7 +359,7 @@ render_imgui()
 
     // Main control window
     ImGui::Begin("Model Viewer Controls");
-
+    // React Compo
     ImGui::Text("Transform Controls");
     ImGui::Separator();
 
@@ -373,6 +375,7 @@ render_imgui()
 
     ImGui::Separator();
     ImGui::Text("Display Options");
+    ImGui::InputText("Model Name", g_state.model_name, IM_ARRAYSIZE(g_state.model_name));
 
     ImGui::Checkbox("Show Wireframe", &g_state.show_wireframe);
     ImGui::Checkbox("Show Axes", &g_state.show_axes);

@@ -17,7 +17,7 @@
 #include <string.h>
 #include <zlib.h>
 
-#define CACHE_PATH "../cache"
+// CACHE_PATH is now defined by CMake build system
 
 #define INDEX_255_ENTRY_SIZE 6
 #define SECTOR_SIZE 520

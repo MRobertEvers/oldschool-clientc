@@ -111,6 +111,7 @@ struct SceneElement
 
     int remaining_locs;
     int generation;
+    int q_count;
 
     int near_wall_flags;
 };
@@ -118,6 +119,7 @@ struct SceneElement
 enum SceneOpType
 {
     SCENE_OP_TYPE_NONE,
+    SCENE_OP_TYPE_DBG_TILE,
     SCENE_OP_TYPE_DRAW_GROUND,
     SCENE_OP_TYPE_DRAW_LOC,
     SCENE_OP_TYPE_DRAW_WALL,
@@ -164,6 +166,12 @@ struct SceneOp
             int is_wall_a;
             int __rotation;
         } _wall_decor;
+        struct
+        {
+            enum ElementStep step;
+            int q_count;
+            int loc_count;
+        } _dbg;
     };
 };
 struct Scene;

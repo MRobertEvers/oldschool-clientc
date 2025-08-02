@@ -502,7 +502,7 @@ game_init(struct Game* game)
         return 1;
     }
 
-    game->cache = cache_new_from_directory("../cache");
+    game->cache = cache_new_from_directory(CACHE_PATH);
     if( !game->cache )
         return false;
 

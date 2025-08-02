@@ -7,9 +7,22 @@ project(RSClient
 # set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
 set(PROFILING_FLAGS)
 
-find_package(SDL2 REQUIRED)
-find_package(BZip2 REQUIRED)
-find_package(ZLIB REQUIRED)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set(USE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1 -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] -s NO_EXIT_RUNTIME=1")
+    set(PRELOAD_FLAGS "--preload-file ../cache@/cache")
+    set(DATA_FILE_PATH "build/scene_tile_test_browser.data")
+    add_compile_definitions(CACHE_PATH="/cache")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${USE_FLAGS}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${USE_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} ${PRELOAD_FLAGS}")
+    set(CMAKE_EXECUTABLE_SUFFIX .html)
+else()
+    find_package(SDL2 REQUIRED)
+    find_package(Freetype REQUIRED)
+    find_package(BZip2 REQUIRED)
+    find_package(ZLIB REQUIRED)
+    add_compile_definitions(CACHE_PATH="../cache")
+endif()
 
 # Find OpenGL
 if(APPLE)
@@ -19,7 +32,11 @@ else()
     find_package(OpenGL REQUIRED)
 endif()
 
-include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    include_directories(RSClient src src/imgui)
+else()
+    include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
+endif()
 
 add_executable(main_client
     src/main_client.c
@@ -98,7 +115,52 @@ add_executable(scene_tile_test
     src/datastruct/ht.c
 )
 
-target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    add_executable(scene_tile_test_browser
+        test/scene_tile_test_browser.c
+        src/osrs/tables/texture_pixels.c
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+        src/osrs/scene_tile.c
+        src/osrs/palette.c
+        src/osrs/cache.c
+        src/osrs/tables/model.c
+        src/buffer.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/scene.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/framemap.c
+        src/osrs/tables/frame.c
+        src/osrs/tables/maps.c
+        src/osrs/filelist.c
+        src/osrs/render.c
+        src/osrs/rsbuf.c
+        src/gouraud.c
+        src/gouraud_deob.c
+        src/flat.c
+        src/lighting.c
+        src/projection.c
+        src/texture.c
+        src/osrs/anim.c
+        src/osrs/game_model.c
+        src/osrs/xtea.c
+        src/osrs/archive.c
+        src/osrs/xtea_config.c
+        src/osrs/scene_cache.c
+        src/datastruct/ht.c
+    )
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    target_link_libraries(scene_tile_test)
+else()
+    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
+endif()
 
 add_executable(xtea_test
     test/xtea_test.c
@@ -199,13 +261,34 @@ else()
     set(EXTRA_LIBS)
 endif()
 
-target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    target_link_libraries(main_client ${EXTRA_LIBS})
+    target_link_libraries(main_rs ${EXTRA_LIBS})
+    target_link_libraries(rs ${EXTRA_LIBS})
+    target_link_libraries(osrs_cache_test ${EXTRA_LIBS})
+    target_link_libraries(xtea_test ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test_browser ${EXTRA_LIBS})
+    target_link_libraries(model_viewer ${EXTRA_LIBS})
+
+    # Add preload flags to all targets
+    set_target_properties(main_client PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+    set_target_properties(main_rs PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+    set_target_properties(rs PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+    set_target_properties(osrs_cache_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+    set_target_properties(xtea_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+    set_target_properties(scene_tile_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+    set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+    set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+else()
+    target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
+endif()
 
 cmake_minimum_required(VERSION 3.10)
 project(metal_renderer)

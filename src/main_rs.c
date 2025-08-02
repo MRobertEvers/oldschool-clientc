@@ -13,7 +13,7 @@
 int
 main(int argc, char* argv[])
 {
-    struct Cache* cache = cache_new_from_directory("../cache");
+    struct Cache* cache = cache_new_from_directory(CACHE_PATH);
     if( !cache )
     {
         printf("Failed to load cache\n");

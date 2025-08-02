@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>3D Raster - Cache Preload Test</title>
+    <script>
+      // Define functions globally so they can be called from HTML onclick
+      function renderFrame() {
+        if (!Module || !Module._render_frame) {
+          console.log('Module not ready yet...');
+          return;
+        }
+        
+        console.log('Rendering frame...');
+        Module._render_frame();
+        
+        // Get pixel buffer
+        const pixelBufferPtr = Module._get_pixel_buffer();
+        const width = Module._get_screen_width();
+        const height = Module._get_screen_height();
+        
+        console.log(`Rendering ${width}x${height} frame`);
+        
+        // Get canvas context
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(width, height);
+        
+        // Copy pixels from WASM memory to canvas
+        for (let i = 0; i < width * height; i++) {
+          const pixel = Module.HEAPU32[pixelBufferPtr / 4 + i];
+          
+          // Convert ARGB to RGBA
+          const r = (pixel >> 16) & 0xFF;
+          const g = (pixel >> 8) & 0xFF;
+          const b = pixel & 0xFF;
+          const a = 255;
+          
+          const idx = i * 4;
+          imageData.data[idx] = r;
+          imageData.data[idx + 1] = g;
+          imageData.data[idx + 2] = b;
+          imageData.data[idx + 3] = a;
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        console.log('Frame rendered successfully!');
+      }
+      
+      function moveCamera() {
+        if (!Module || !Module._set_camera_position) {
+          console.log('Module not ready yet...');
+          return;
+        }
+        
+        // Move camera to a different position
+        Module._set_camera_position(-3000, -500, 1000);
+        Module._set_camera_rotation(200, 512, 0);
+        renderFrame();
+      }
+      
+      function resetCamera() {
+        if (!Module || !Module._set_camera_position) {
+          console.log('Module not ready yet...');
+          return;
+        }
+        
+        // Reset to original position
+        Module._set_camera_position(-3542, -873, 800);
+        Module._set_camera_rotation(0, 0, 0);
+        renderFrame();
+      }
+    </script>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        background-color: #e8f5e8;
+        border: 1px solid #4caf50;
+        color: #2e7d32;
+      }
+      .info {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        background-color: #f5f5f5;
+        border: 1px solid #ddd;
+        color: #333;
+      }
+      .info ul {
+        margin: 5px 0;
+        padding-left: 20px;
+      }
+      canvas {
+        border: 1px solid #ccc;
+        margin: 10px 0;
+        display: block;
+        max-width: 100%;
+      }
+      .controls {
+        margin: 10px 0;
+        text-align: center;
+      }
+      .controls button {
+        background-color: #4CAF50;
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .controls button:hover {
+        background-color: #45a049;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>3D Raster - Cache Preload Test</h1>
+      <div class="status" id="status">
+        <strong>Status:</strong> ⏳ Loading WASM module...
+      </div>
+      <div class="info">
+        <p><strong>Features:</strong></p>
+        <ul>
+          <li>✅ All cache files (171MB total)</li>
+          <li>✅ Full 3D rendering engine</li>
+          <li>✅ Interactive camera controls</li>
+          <li>✅ Real-time canvas rendering</li>
+        </ul>
+        <p><em>Click the buttons below to interact with the 3D scene!</em></p>
+      </div>
+      <canvas id="canvas" width="800" height="600"></canvas>
+      <div class="controls">
+        <button onclick="renderFrame()">Render Frame</button>
+        <button onclick="moveCamera()">Move Camera</button>
+        <button onclick="resetCamera()">Reset Camera</button>
+      </div>
+    </div>
+    <script>
+      // Define Module configuration before loading the WASM script
+      var Module = {
+        onRuntimeInitialized: function() {
+          console.log('WASM module loaded successfully!');
+          document.getElementById('status').innerHTML = '<strong>Status:</strong> ✅ WASM loaded! Ready to render.';
+          
+          // Render initial frame
+          renderFrame();
+        }
+      };
+    </script>
+    <script type="text/javascript" src="./build/scene_tile_test_browser.js"></script>
+  </body>
+</html>

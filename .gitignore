@@ -4,3 +4,5 @@ cache/
 runelite
 all_tiles.json
 symbols.txt
+build*/
+public/cache/
