@@ -2465,9 +2465,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             element->q_count--;
 
             if( element->q_count > 0 )
-            {
                 continue;
-            }
 
             if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 )
             {
@@ -2896,10 +2894,33 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     if( min_tile_y < min_draw_y )
                         min_tile_y = min_draw_y;
 
-                    for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x; other_tile_x++ )
+                    int step_x = tile_x <= camera_tile_x ? 1 : -1;
+                    int step_y = tile_y <= camera_tile_y ? 1 : -1;
+
+                    int start_x = min_tile_x;
+                    int start_y = min_tile_y;
+                    int end_x = max_tile_x;
+                    int end_y = max_tile_y;
+
+                    if( step_x < 0 )
                     {
-                        for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
-                             other_tile_y++ )
+                        int tmp = start_x;
+                        start_x = end_x;
+                        end_x = tmp;
+                    }
+
+                    if( step_y < 0 )
+                    {
+                        int tmp = start_y;
+                        start_y = end_y;
+                        end_y = tmp;
+                    }
+
+                    for( int other_tile_x = start_x; other_tile_x != end_x + step_x;
+                         other_tile_x += step_x )
+                    {
+                        for( int other_tile_y = start_y; other_tile_y != end_y + step_y;
+                             other_tile_y += step_y )
                         {
                             int idx = MAP_TILE_COORD(other_tile_x, other_tile_y, tile_level);
                             other = &elements[idx];
@@ -2926,55 +2947,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             // Move towards camera if farther away tiles are done.
             if( element->step == E_STEP_NOTIFY_ADJACENT_TILES )
             {
-                if( tile_x >= camera_tile_x && tile_x < max_draw_x )
-                {
-                    if( tile_x + 1 < max_draw_x )
-                    {
-                        other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, tile_level)];
-
-                        // If we are not spanned by the tile, then we need to verify it is done.
-                        if( other->step != E_STEP_DONE )
-                        {
-                            goto done;
-                        }
-                    }
-                }
-
-                if( tile_x <= camera_tile_x && tile_x > min_draw_x )
-                {
-                    if( tile_x - 1 >= min_draw_x )
-                    {
-                        other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, tile_level)];
-                        if( other->step != E_STEP_DONE )
-                        {
-                            goto done;
-                        }
-                    }
-                }
-
-                if( tile_y >= camera_tile_y && tile_y < max_draw_y )
-                {
-                    if( tile_y + 1 < max_draw_y )
-                    {
-                        other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, tile_level)];
-                        if( other->step != E_STEP_DONE )
-                        {
-                            goto done;
-                        }
-                    }
-                }
-                if( tile_y <= camera_tile_y && tile_y > min_draw_y )
-                {
-                    if( tile_y - 1 >= min_draw_y )
-                    {
-                        other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, tile_level)];
-                        if( other->step != E_STEP_DONE )
-                        {
-                            goto done;
-                        }
-                    }
-                }
-
                 if( tile_level < MAP_TERRAIN_Z - 1 )
                 {
                     int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
@@ -3677,7 +3649,7 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DBG_TILE:
         {
-            // break;
+            break;
             int tile_x = op->x;
             int tile_y = op->z;
             int tile_z = op->level;
