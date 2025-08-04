@@ -523,6 +523,16 @@ draw_scanline_gouraud_lerp(
 
 extern int g_hsl16_to_rgb_table[65536];
 
+static inline int
+alpha_blend(int alpha, int base, int other)
+{
+    int alpha_inv = 0xFF - alpha;
+    return ((((base & 0xFF00FF) * alpha_inv) >> 8) & 0xFF00FF) +
+           ((((other & 0xFF00FF) * alpha) >> 8) & 0xFF00FF) +
+           ((((other & 0xFF00) * alpha) >> 8) & 0xFF00) +
+           ((((base & 0xFF00) * alpha_inv) >> 8) & 0xFF00);
+}
+
 void
 draw_scanline_gouraud(
     int* pixel_buffer,
@@ -531,7 +541,8 @@ draw_scanline_gouraud(
     int x_start,
     int x_end,
     int color_start_hsl16_ish8,
-    int color_end_hsl16_ish8)
+    int color_end_hsl16_ish8,
+    int alpha)
 {
     if( x_start == x_end )
         return;
@@ -577,16 +588,34 @@ draw_scanline_gouraud(
     int steps = (x_end - x_start) >> 2;
     step_color_hsl16_ish8 <<= 2;
 
+    int alpha_inv = 0xFF - alpha;
+
     int color_hsl16_ish8 = color_start_hsl16_ish8;
     while( --steps >= 0 )
     {
         int color_hsl16 = color_hsl16_ish8 >> 8;
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
 
-        pixel_buffer[offset++] = rgb_color;
-        pixel_buffer[offset++] = rgb_color;
-        pixel_buffer[offset++] = rgb_color;
-        pixel_buffer[offset++] = rgb_color;
+        int rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+
+        // pixel_buffer[offset++] = rgb_color;
+        // pixel_buffer[offset++] = rgb_color;
+        // pixel_buffer[offset++] = rgb_color;
+        // pixel_buffer[offset++] = rgb_color;
 
         color_hsl16_ish8 += step_color_hsl16_ish8;
     }
@@ -597,7 +626,11 @@ draw_scanline_gouraud(
         int color_hsl16 = color_hsl16_ish8 >> 8;
         assert(color_hsl16 >= 0 && color_hsl16 < 65536);
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
-        pixel_buffer[offset++] = rgb_color;
+
+        int rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+        // pixel_buffer[offset++] = rgb_color;
     }
 }
 
@@ -614,8 +647,11 @@ raster_gouraud(
     int y2,
     int color0_hsl16,
     int color1_hsl16,
-    int color2_hsl16)
+    int color2_hsl16,
+    int alpha)
 {
+    assert(alpha >= 0 && alpha <= 0xFF);
+
     // Sort vertices by y
     // where y0 is the bottom vertex and y2 is the top vertex (or bottom of the screen)
     if( y0 > y1 )
@@ -788,7 +824,8 @@ raster_gouraud(
             x_start_current,
             x_end_current,
             color_start_current,
-            color_end_current);
+            color_end_current,
+            alpha);
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
 
@@ -816,7 +853,8 @@ raster_gouraud(
             x_start_current,
             x_end_current,
             color_start_current,
-            color_end_current);
+            color_end_current,
+            alpha);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;

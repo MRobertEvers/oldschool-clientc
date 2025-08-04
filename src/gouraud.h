@@ -20,7 +20,8 @@ void draw_scanline_gouraud(
     int x_start,
     int x_end,
     int color_start,
-    int color_end);
+    int color_end,
+    int alpha);
 
 void raster_gouraud_zbuf(
     int* pixel_buffer,
@@ -59,7 +60,8 @@ void raster_gouraud(
     int y2,
     int color0_hsl16,
     int color1_hsl16,
-    int color2_hsl16);
+    int color2_hsl16,
+    int alpha);
 
 void raster_gouraud_lerp(
     int* pixel_buffer,

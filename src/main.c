@@ -392,7 +392,8 @@ raster_triangle(
         triangle.p3.y,
         colors.color1,
         colors.color2,
-        colors.color3);
+        colors.color3,
+        0xFF);
 }
 
 static struct Triangle3D*

@@ -2535,11 +2535,16 @@ model_new_merge(struct CacheModel** models, int model_count)
 
     int* face_alphas = NULL;
     if( has_face_render_alphas )
+    {
         face_alphas = (int*)malloc(face_count * sizeof(int));
+    }
 
     int* face_infos = NULL;
     if( has_face_render_infos )
+    {
         face_infos = (int*)malloc(face_count * sizeof(int));
+        memset(face_infos, 0, face_count * sizeof(int));
+    }
 
     int* face_priorities = NULL;
     if( has_face_render_prios )
@@ -2613,6 +2618,9 @@ model_new_merge(struct CacheModel** models, int model_count)
 
             if( face_colors && models[i]->face_colors )
                 model->face_colors[model->face_count] = models[i]->face_colors[j];
+
+            if( face_alphas && models[i]->face_alphas )
+                model->face_alphas[model->face_count] = models[i]->face_alphas[j];
 
             int index_a = copy_vertex(model, models[i], models[i]->face_indices_a[j]);
             int index_b = copy_vertex(model, models[i], models[i]->face_indices_b[j]);

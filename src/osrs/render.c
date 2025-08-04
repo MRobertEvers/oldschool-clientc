@@ -618,6 +618,7 @@ raster_osrs(
     int* colors_a,
     int* colors_b,
     int* colors_c,
+    int* face_alphas,
     int offset_x,
     int offset_y,
     int screen_width,
@@ -663,6 +664,8 @@ raster_osrs(
                 color_c = 0xF123;
             }
 
+            int alpha = face_alphas[index];
+
             raster_gouraud(
                 pixel_buffer,
                 screen_width,
@@ -675,7 +678,8 @@ raster_osrs(
                 y3,
                 color_a,
                 color_b,
-                color_c);
+                color_c,
+                alpha);
         }
     }
 }
@@ -716,6 +720,7 @@ model_draw_face(
     int* colors_a,
     int* colors_b,
     int* colors_c,
+    int* face_alphas_nullable,
     int offset_x,
     int offset_y,
     int screen_width,
@@ -774,6 +779,7 @@ model_draw_face(
     int color_a = colors_a[index];
     int color_b = colors_b[index];
     int color_c = colors_c[index];
+    int alpha = face_alphas_nullable ? face_alphas_nullable[index] : 0xFF;
 
     // Faces with color_c == -2 are not drawn. As far as I can tell, these faces are used for
     // texture PNM coordinates that do not coincide with a visible face.
@@ -837,7 +843,8 @@ model_draw_face(
                 y3,
                 color_a,
                 color_b,
-                color_c);
+                color_c,
+                alpha);
             break;
         case FACE_TYPE_FLAT:
 
@@ -1129,6 +1136,7 @@ raster_osrs_typed(
     int* colors_a,
     int* colors_b,
     int* colors_c,
+    int* face_alphas_nullable,
     int offset_x,
     int offset_y,
     int screen_width,
@@ -1171,6 +1179,7 @@ raster_osrs_typed(
                 colors_a,
                 colors_b,
                 colors_c,
+                face_alphas_nullable,
                 offset_x,
                 offset_y,
                 screen_width,
@@ -1193,6 +1202,7 @@ raster_osrs_single_gouraud(
     int* colors_a,
     int* colors_b,
     int* colors_c,
+    int* face_alphas_nullable,
     int offset_x,
     int offset_y,
     int screen_width,
@@ -1218,7 +1228,7 @@ raster_osrs_single_gouraud(
     int color_a = colors_a[index];
     int color_b = colors_b[index];
     int color_c = colors_c[index];
-
+    int alpha = face_alphas_nullable ? face_alphas_nullable[index] : 0xFF;
     assert(color_a >= 0 && color_a < 65536);
     assert(color_b >= 0 && color_b < 65536);
     assert(color_c >= 0 && color_c < 65536);
@@ -1241,7 +1251,8 @@ raster_osrs_single_gouraud(
         // z3,
         color_a,
         color_b,
-        color_c);
+        color_c,
+        alpha);
 }
 
 bool
@@ -1615,6 +1626,7 @@ render_model_frame(
                     face_colors_a_hsl16,
                     face_colors_b_hsl16,
                     face_colors_c_hsl16,
+                    model->face_alphas,
                     width / 2,
                     height / 2,
                     width,
@@ -1659,7 +1671,10 @@ render_model_frame(
         model->face_priorities,
         model_min_depth * 2);
 
-    // 637 is willow?
+    if( model->face_alphas )
+    {
+        int ii = 0;
+    }
 
     raster_osrs_typed(
         pixel_buffer,
@@ -1687,6 +1702,7 @@ render_model_frame(
         face_colors_a_hsl16,
         face_colors_b_hsl16,
         face_colors_c_hsl16,
+        model->face_alphas,
         width / 2,
         height / 2,
         width,
@@ -1856,6 +1872,7 @@ render_scene_tile(
                 colors_a,
                 colors_b,
                 colors_c,
+                NULL,
                 width / 2,
                 height / 2,
                 width,
@@ -3293,44 +3310,12 @@ render_scene_ops(
 
     for( int k = 0; k < number_to_render; k++ )
     {
-        if( k == number_to_render - 1 )
-        {
-            int iii = 0;
-        }
-
         int i = offset + k;
         if( i >= op_count )
             break;
 
         struct SceneOp* op = &ops[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
-
-        // if( op->level != 1 && op->level != 2 )
-        //     continue;
-        // if( op->x != 29 || op->z != 3 || op->level != 0 )
-        //     continue;
-
-        // Oak tree on 19, 5
-        // int target_x = 19;
-        // int target_z = 5;
-
-        // int radius = 1;
-        // if( (op->x - target_x) * (op->x - target_x) + (op->z - target_z) * (op->z - target_z)
-        // >
-        //     radius * radius )
-        //     continue;
-
-        // if( op->x >= 22 && op->x <= 25 && op->z >= 3 && op->z <= 10 )
-        // {
-        // }
-        // else
-        // {
-        //     continue;
-        // };
-
-        // || op->level != 2
-        // if( op->x != 6 || op->z != 11 )
-        //     continue;
 
         switch( op->op )
         {
@@ -3339,36 +3324,6 @@ render_scene_ops(
             tile = grid_tile->tile;
             if( !tile || !tile->valid_faces )
                 break;
-            // if( !tile || !tile->valid_faces )
-            // {
-            //     tile = scene->grid_tiles[MAP_TILE_COORD(1, 1, 0)].tile;
-
-            //     render_scene_tile(
-            //         screen_vertices_x,
-            //         screen_vertices_y,
-            //         screen_vertices_z,
-            //         ortho_vertices_x,
-            //         ortho_vertices_y,
-            //         ortho_vertices_z,
-            //         pixel_buffer,
-            //         width,
-            //         height,
-            //         near_plane_z,
-            //         op->x,
-            //         op->z,
-            //         op->level,
-            //         camera_x,
-            //         camera_y,
-            //         camera_z,
-            //         camera_pitch,
-            //         camera_yaw,
-            //         camera_roll,
-            //         fov,
-            //         tile,
-            //         textures_cache,
-            //         NULL);
-            //     break;
-            // }
 
             int tile_x = tile->chunk_pos_x;
             int tile_y = tile->chunk_pos_y;
@@ -3384,22 +3339,6 @@ render_scene_ops(
                 }
             }
 
-            // dbg_tile(
-            //     pixel_buffer,
-            //     width,
-            //     height,
-            //     near_plane_z,
-            //     tile_x,
-            //     tile_y,
-            //     tile_z,
-            //     0x00FFFFFF,
-            //     camera_x,
-            //     camera_y,
-            //     camera_z,
-            //     camera_pitch,
-            //     camera_yaw,
-            //     camera_roll,
-            //     fov);
             render_scene_tile(
                 screen_vertices_x,
                 screen_vertices_y,
@@ -3434,49 +3373,10 @@ render_scene_ops(
 
             model_index = loc->_scenery.model;
 
-            // if( loc->size_x > 1 || loc->size_y > 1 )
-            // {
-            //     printf("Sized %d\n", loc->size_x * loc->size_y);
-            // }
-            // else
-            // {
-            //     break;
-            // }
-
             assert(model_index >= 0);
             assert(model_index < scene->models_length);
 
             model = &scene->models[model_index];
-
-            // 1571 is an oak tree
-            // if( model->model_ids && model->model_ids[0] == 1571 )
-            // {
-            //     printf("Drawing oak tree at %d, %d, %d\n", op->x, op->z, op->level);
-
-            //     model->region_x = 0;
-            //     model->region_y = 768;
-            //     model->region_z = 200;
-            //     render_scene_model(
-            //         pixel_buffer,
-            //         width,
-            //         height,
-            //         near_plane_z,
-            //         0,
-            //         0,
-            //         0,
-            //         0,
-            //         0,
-            //         camera_yaw,
-            //         0,
-            //         fov,
-            //         model,
-            //         textures_cache);
-            //     continue;
-            // }
-            // else
-            // {
-            //     continue;
-            // }
 
             assert(model != NULL);
 
