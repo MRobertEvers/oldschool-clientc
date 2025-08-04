@@ -167,9 +167,7 @@ struct SceneOp
         } _wall_decor;
         struct
         {
-            enum ElementStep step;
-            int q_count;
-            int loc_count;
+            int color;
         } _dbg;
     };
 };

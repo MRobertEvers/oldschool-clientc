@@ -2718,14 +2718,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     }
                 }
 
-                ops[op_count++] = (struct SceneOp){
-                    .op = SCENE_OP_TYPE_DBG_TILE,
-                    .x = tile_x,
-                    .z = tile_y,
-                    .level = tile_level,
-                    ._dbg = { .step = E_STEP_GROUND, .q_count = element->q_count },
-                };
-
                 if( tile_x < camera_tile_x )
                 {
                     if( tile_x + 1 < max_draw_x )
@@ -3123,14 +3115,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 }
 
                 element->step = E_STEP_DONE;
-
-                ops[op_count++] = (struct SceneOp){
-                    .op = SCENE_OP_TYPE_DBG_TILE,
-                    .x = tile_x,
-                    .z = tile_y,
-                    .level = tile_level,
-                    ._dbg = { .step = E_STEP_DONE, .q_count = element->q_count },
-                };
             }
 
             if( element->step == E_STEP_DONE )
@@ -3140,35 +3124,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
         done:;
         }
     }
-
-    // for( int z = 0; z < MAP_TERRAIN_Z; z++ )
-    // {
-    //     for( int x = 0; x < MAP_TERRAIN_X; x++ )
-    //     {
-    //         for( int y = 0; y < MAP_TERRAIN_Y; y++ )
-    //         {
-    //             if( x < min_draw_x || x >= max_draw_x || y < min_draw_y || y >= max_draw_y )
-    //                 continue;
-
-    //             int idx = MAP_TILE_COORD(x, y, z);
-    //             struct GridTile* grid_tile = &scene->grid_tiles[idx];
-    //             struct SceneElement* element = &elements[idx];
-    //             if( element->step != E_STEP_DONE )
-    //             {
-    //                 printf("Element %d, %d, %d not done\n", x, y, z);
-    //             }
-    //             if( element->remaining_locs != 0 )
-    //             {
-    //                 printf(
-    //                     "Element %d, %d, %d has %d remaining locs\n",
-    //                     x,
-    //                     y,
-    //                     z,
-    //                     element->remaining_locs);
-    //             }
-    //         }
-    //     }
-    // }
 
     free(elements);
     int_queue_free(&queue);
@@ -3649,29 +3604,11 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DBG_TILE:
         {
-            break;
             int tile_x = op->x;
             int tile_y = op->z;
             int tile_z = op->level;
 
-            int red_adjust = (op->_dbg.q_count + 1) * 0x00220000;
-
-            int color_rgb = 0x99FFFFFF;
-            switch( op->_dbg.step )
-            {
-            case E_STEP_GROUND:
-                color_rgb = 0xFF00DDDD + red_adjust;
-                break;
-            case E_STEP_NOTIFY_ADJACENT_TILES:
-                color_rgb = 0xFF111111;
-                break;
-            case E_STEP_LOCS:
-                color_rgb = 0xFF00FF00 + red_adjust;
-                break;
-            case E_STEP_DONE:
-                color_rgb = 0xFFFFFFFF - (tile_z * 0x00111111);
-                break;
-            }
+            int color_rgb = op->_dbg.color;
 
             dbg_tile(
                 pixel_buffer,
