@@ -216,6 +216,8 @@ struct Game
     int show_loc_y;
 
     struct TexturesCache* textures_cache;
+
+    int show_debug_tiles;
 };
 
 void
@@ -821,6 +823,8 @@ main()
 
     // Initialize game state
     struct Game game = { 0 };
+
+    game.show_debug_tiles = 1;
 
     game.camera_yaw = 0;
     game.camera_pitch = 0;

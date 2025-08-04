@@ -2764,9 +2764,69 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     .level = tile_level,
                     ._dbg = { .step = E_STEP_GROUND, .q_count = element->q_count },
                 };
+
+                if( tile_x < camera_tile_x )
+                {
+                    if( tile_x + 1 < max_draw_x )
+                    {
+                        int idx = MAP_TILE_COORD(tile_x + 1, tile_y, tile_level);
+                        other = &elements[idx];
+
+                        if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_EAST) != 0 )
+                        {
+                            other->q_count++;
+                            int_queue_push_wrap(
+                                &queue, MAP_TILE_COORD(tile_x + 1, tile_y, tile_level));
+                        }
+                    }
+                }
+                if( tile_x > camera_tile_x )
+                {
+                    if( tile_x - 1 >= min_draw_x )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, tile_level)];
+                        if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_WEST) != 0 )
+                        {
+                            other->q_count++;
+                            int_queue_push_wrap(
+                                &queue, MAP_TILE_COORD(tile_x - 1, tile_y, tile_level));
+                        }
+                    }
+                }
+
+                if( tile_y < camera_tile_y )
+                {
+                    if( tile_y + 1 < max_draw_y )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, tile_level)];
+                        if( other->step != E_STEP_DONE &&
+                            (grid_tile->spans & SPAN_FLAG_NORTH) != 0 )
+                        {
+                            other->q_count++;
+                            int_queue_push_wrap(
+                                &queue, MAP_TILE_COORD(tile_x, tile_y + 1, tile_level));
+                        }
+                    }
+                }
+
+                if( tile_y > camera_tile_y )
+                {
+                    if( tile_y - 1 >= min_draw_y )
+                    {
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, tile_level)];
+                        if( other->step != E_STEP_DONE &&
+                            (grid_tile->spans & SPAN_FLAG_SOUTH) != 0 )
+                        {
+                            other->q_count++;
+                            int_queue_push_wrap(
+                                &queue, MAP_TILE_COORD(tile_x, tile_y - 1, tile_level));
+                        }
+                    }
+                }
             }
 
             g_loc_buffer_length = 0;
+            bool contains_locs = false;
             memset(g_loc_buffer, 0, sizeof(g_loc_buffer));
             if( element->step == E_STEP_WAIT_ADJACENT_GROUND )
             {
@@ -2804,6 +2864,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 &elements[MAP_TILE_COORD(other_tile_x, other_tile_y, tile_level)];
                             if( other->step <= E_STEP_GROUND )
                             {
+                                contains_locs = true;
                                 goto step_locs;
                             }
                         }
@@ -2848,158 +2909,22 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     if( min_tile_y < min_draw_y )
                         min_tile_y = min_draw_y;
 
-                    // int far_x = tile_x < camera_tile_x ? min_tile_x : max_tile_x;
-                    // int far_y = tile_y < camera_tile_y ? min_tile_y : max_tile_y;
-                    // int near_x = tile_x < camera_tile_x ? max_tile_x : min_tile_x;
-                    // int near_y = tile_y < camera_tile_y ? max_tile_y : min_tile_y;
-
-                    // int curr_x = far_x;
-                    // int curr_y = far_y;
-
-                    // int upward_x = far_x > near_x;
-                    // int upward_y = far_y > near_y;
-
-                    // struct IntQueue queue_far = { 0 };
-                    // int_queue_init(&queue_far, 81);
-
-                    // int_queue_push_wrap(&queue_far, (curr_x) + (curr_y << 16));
-
-                    // while( queue_far.length > 0 )
-                    // {
-                    //     int idx = int_queue_pop(&queue_far);
-
-                    //     int xx = idx & 0xFFFF;
-                    //     int yy = idx >> 16;
-
-                    //     int tile_idx = MAP_TILE_COORD(xx, yy, tile_level);
-                    //     int_queue_push_wrap(&queue, tile_idx);
-                    //     // other = &elements[tile_idx];
-                    //     // other->remaining_locs--;
-
-                    //     if( xx < max_tile_x && !upward_x )
-                    //     {
-                    //         int_queue_push_wrap(&queue_far, (xx + 1) + (yy << 16));
-                    //     }
-                    //     if( xx > min_tile_x && upward_x )
-                    //     {
-                    //         int_queue_push_wrap(&queue_far, (xx - 1) + (yy << 16));
-                    //     }
-                    //     if( yy < max_tile_y && !upward_y )
-                    //     {
-                    //         int_queue_push_wrap(&queue_far, (xx) + ((yy + 1) << 16));
-                    //     }
-                    //     if( yy > min_tile_y && upward_y )
-                    //     {
-                    //         int_queue_push_wrap(&queue_far, (xx) + ((yy - 1) << 16));
-                    //     }
-                    // }
-
-                    // int_queue_free(&queue_far);
-                    // if( loc->size_x > 1 || loc->size_y > 1 )
-                    // {
-                    //     int iiiii = 0;
-                    //     printf("Sized %d\n", loc->size_x * loc->size_y);
-                    // }
-
-                    int min_gen = INT32_MAX;
-                    int prev_min = INT32_MIN;
-                    int cur_x = 0;
-                    int cur_y = 0;
-                    bool found = false;
-                    // while( true )
+                    for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x; other_tile_x++ )
                     {
-                        min_gen = INT32_MAX;
-                        found = false;
-                        for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x;
-                             other_tile_x++ )
+                        for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
+                             other_tile_y++ )
                         {
-                            for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
-                                 other_tile_y++ )
-                            {
-                                other = &elements[MAP_TILE_COORD(
-                                    other_tile_x, other_tile_y, tile_level)];
-
-                                other->remaining_locs--;
-                                assert(other->remaining_locs >= 0);
-
-                                if( other->generation < min_gen && other->generation > prev_min )
-                                {
-                                    min_gen = other->generation;
-                                    cur_x = other_tile_x;
-                                    cur_y = other_tile_y;
-                                    found = true;
-                                }
-                            }
+                            other =
+                                &elements[MAP_TILE_COORD(other_tile_x, other_tile_y, tile_level)];
+                            if( other_tile_x != tile_x || other_tile_y != tile_y )
+                                int_queue_push_wrap(
+                                    &queue, MAP_TILE_COORD(other_tile_x, other_tile_y, tile_level));
                         }
-
-                        prev_min = min_gen;
-
-                        assert(found);
-                        // if( !found )
-                        //     break;
-
-                        element = &elements[MAP_TILE_COORD(cur_x, cur_y, tile_level)];
-                        printf("Generation: %d\n", element->generation);
-                        // element->remaining_locs--;
-                        // assert(element->remaining_locs >= 0);
-                        element->q_count++;
-                        int_queue_push_wrap(&queue, MAP_TILE_COORD(cur_x, cur_y, tile_level));
-
-                        ops[op_count++] = (struct SceneOp){
-                            .op = SCENE_OP_TYPE_DBG_TILE,
-                            .x = cur_x,
-                            .z = cur_y,
-                            .level = tile_level,
-                            ._dbg = { .step = E_STEP_NOTIFY_ADJACENT_TILES,
-                                     .q_count = element->q_count,
-                                     .loc_count = element->remaining_locs },
-                        };
                     }
-
-                    // ops[op_count++] = (struct SceneOp){
-                    //     .op = SCENE_OP_TYPE_DBG_TILE,
-                    //     .x = tile_x,
-                    //     .z = tile_y,
-                    //     .level = tile_level,
-                    //     ._dbg = { .step = E_STEP_LOCS },
-                    // };
-                    // goto done;
-
-                    // printf("break;\n");
-                    // for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x;
-                    // other_tile_x++ )
-                    // {
-                    //     for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
-                    //          other_tile_y++ )
-                    //     {
-                    //         other =
-                    //             &elements[MAP_TILE_COORD(other_tile_x, other_tile_y,
-                    //             tile_level)];
-                    //         other->remaining_locs--;
-                    //         assert(other->remaining_locs >= 0);
-                    //         if( other_tile_x != tile_x || other_tile_y != tile_y )
-                    //             int_queue_push_wrap(
-                    //                 &queue, MAP_TILE_COORD(other_tile_x, other_tile_y,
-                    //                 tile_level));
-                    //     }
-                    // }
                 }
 
-                if( element->remaining_locs == 0 && g_loc_buffer_length == 0 )
+                if( !contains_locs )
                     element->step = E_STEP_NOTIFY_ADJACENT_TILES;
-                else if( g_loc_buffer_length == 0 )
-                {
-                    ops[op_count++] = (struct SceneOp){
-                        .op = SCENE_OP_TYPE_DBG_TILE,
-                        .x = tile_x,
-                        .z = tile_y,
-                        .level = tile_level,
-                        ._dbg = { .step = E_STEP_LOCS,
-                                 .q_count = element->q_count,
-                                 .loc_count = g_loc_buffer_length },
-                    };
-                    element->step = E_STEP_NOTIFY_SPANNED_TILES;
-                }
                 else
                 {
                     element->step = E_STEP_WAIT_ADJACENT_GROUND;
@@ -3152,18 +3077,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                             int_queue_push_wrap(
                                 &queue, MAP_TILE_COORD(tile_x, tile_y - 1, tile_level));
                         }
-                    }
-                }
-
-                if( tile_level < MAP_TERRAIN_Z - 1 )
-                {
-                    int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
-                    other = &elements[idx];
-
-                    if( other->step != E_STEP_DONE )
-                    {
-                        other->q_count++;
-                        int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level + 1));
                     }
                 }
 
@@ -3478,7 +3391,9 @@ render_scene_ops(
     for( int k = 0; k < number_to_render; k++ )
     {
         if( k == number_to_render - 1 )
-            printf("Rendering op %d\n", k);
+        {
+            int iii = 0;
+        }
 
         int i = offset + k;
         if( i >= op_count )
