@@ -2354,15 +2354,9 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
     // Generate painter's algorithm coordinate list - farthest to nearest
     int radius = 30;
-    // int coord_list_x[4];
-    // int coord_list_y[4];
-    int max_coords = ((radius + 1) * (radius + 1) * (radius + 1));
-    int* coord_list_x = (int*)malloc(max_coords * sizeof(int));
-    int* coord_list_y = (int*)malloc(max_coords * sizeof(int));
-    int* coord_list_z = (int*)malloc(max_coords * sizeof(int));
-    memset(coord_list_x, 0, max_coords * sizeof(int));
-    memset(coord_list_y, 0, max_coords * sizeof(int));
-    memset(coord_list_z, 0, max_coords * sizeof(int));
+    int coord_list_x[4];
+    int coord_list_y[4];
+
     int coord_list_length = 0;
 
     int camera_tile_x = -camera_x / TILE_SIZE;
@@ -2415,80 +2409,18 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     coord_list_x[3] = max_draw_x - 1;
     coord_list_y[3] = max_draw_y - 1;
 
-    // // // Generate coordinates in order from farthest to nearest
-    // // // This creates a spiral pattern starting from the corners and moving inward
-    // // Top edge of current ring (left to right)
-    // for( int z = 0; z < MAP_TERRAIN_Z; z++ )
-    // {
-    //     for( int x = -radius; x <= 0; x++ )
-    //     {
-    //         int east_tile_x = camera_tile_x - x;
-    //         int west_tile_x = camera_tile_x + x;
-
-    //         // Right edge of current ring (top to bottom, excluding corners)
-    //         for( int y = -radius; y <= 0; y++ )
-    //         {
-    //             int south_tile_y = camera_tile_y + y;
-    //             int north_tile_y = camera_tile_y - y;
-
-    //             if( east_tile_x < max_draw_x && east_tile_x >= min_draw_x )
-    //             {
-    //                 if( north_tile_y < max_draw_y && north_tile_y >= min_draw_y )
-    //                 {
-    //                     assert(east_tile_x >= 0);
-    //                     assert(east_tile_x < MAP_TERRAIN_X);
-    //                     assert(north_tile_y >= 0);
-    //                     assert(north_tile_y < MAP_TERRAIN_Y);
-
-    //                     coord_list_x[coord_list_length] = east_tile_x;
-    //                     coord_list_y[coord_list_length] = north_tile_y;
-    //                     coord_list_z[coord_list_length] = z;
-    //                     coord_list_length++;
-    //                 }
-    //                 if( south_tile_y < max_draw_y && south_tile_y >= min_draw_y )
-    //                 {
-    //                     coord_list_x[coord_list_length] = east_tile_x;
-    //                     coord_list_y[coord_list_length] = south_tile_y;
-    //                     coord_list_z[coord_list_length] = z;
-    //                     coord_list_length++;
-    //                 }
-    //             }
-    //             if( west_tile_x >= min_draw_x && west_tile_x < max_draw_x )
-    //             {
-    //                 if( north_tile_y < max_draw_y && north_tile_y >= min_draw_y )
-    //                 {
-    //                     coord_list_x[coord_list_length] = west_tile_x;
-    //                     coord_list_y[coord_list_length] = north_tile_y;
-    //                     coord_list_z[coord_list_length] = z;
-    //                     coord_list_length++;
-    //                 }
-    //                 if( south_tile_y < max_draw_y && south_tile_y >= min_draw_y )
-    //                 {
-    //                     coord_list_x[coord_list_length] = west_tile_x;
-    //                     coord_list_y[coord_list_length] = south_tile_y;
-    //                     coord_list_z[coord_list_length] = z;
-    //                     coord_list_length++;
-    //                 }
-    //             }
-    //         }
-
-    //         // assert(coord_list_length < 4);
-    //     }
-    // }
-
     // Render tiles in painter's algorithm order (farthest to nearest)
     for( int i = 0; i < coord_list_length; i++ )
     {
         int _coord_x = coord_list_x[i];
         int _coord_y = coord_list_y[i];
-        int _coord_z = coord_list_z[i];
 
         assert(_coord_x >= min_draw_x);
         assert(_coord_x < max_draw_x);
         assert(_coord_y >= min_draw_y);
         assert(_coord_y < max_draw_y);
 
-        int _coord_idx = MAP_TILE_COORD(_coord_x, _coord_y, _coord_z);
+        int _coord_idx = MAP_TILE_COORD(_coord_x, _coord_y, 0);
         int_queue_push_wrap(&queue, _coord_idx);
 
         int gen = 0;
@@ -2929,89 +2861,60 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 {
                     element->step = E_STEP_WAIT_ADJACENT_GROUND;
                 }
-                // element->step = E_STEP_WAIT_ADJACENT_GROUND;
             }
 
-            // TODO: this is the same as E_STEP_NOTIFY_ADJACENT_TILES, but it
-            // returns to E_STEP_WAIT_ADJACENT_GROUND.
-            if( element->step == E_STEP_NOTIFY_SPANNED_TILES )
+            // Move towards camera if farther away tiles are done.
+            if( element->step == E_STEP_NOTIFY_ADJACENT_TILES )
             {
-                // if( tile_level < MAP_TERRAIN_Z - 1 )
-                // {
-                //     int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
-                //     other = &elements[idx];
-
-                //     if( other->step != E_STEP_DONE )
-                //     {
-                //         other->q_count++;
-                //         int_queue_push_wrap(&queue, MAP_TILE_COORD(tile_x, tile_y, tile_level
-                //         + 1));
-                //     }
-                // }
-
-                if( tile_x < camera_tile_x )
+                if( tile_x >= camera_tile_x && tile_x < max_draw_x )
                 {
                     if( tile_x + 1 < max_draw_x )
                     {
-                        int idx = MAP_TILE_COORD(tile_x + 1, tile_y, tile_level);
-                        other = &elements[idx];
+                        other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, tile_level)];
 
+                        // If we are not spanned by the tile, then we need to verify it is done.
                         if( other->step != E_STEP_DONE )
                         {
-                            other->q_count++;
-                            int_queue_push_wrap(
-                                &queue, MAP_TILE_COORD(tile_x + 1, tile_y, tile_level));
+                            goto done;
                         }
                     }
                 }
-                if( tile_x > camera_tile_x )
+
+                if( tile_x <= camera_tile_x && tile_x > min_draw_x )
                 {
                     if( tile_x - 1 >= min_draw_x )
                     {
                         other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, tile_level)];
                         if( other->step != E_STEP_DONE )
                         {
-                            other->q_count++;
-                            int_queue_push_wrap(
-                                &queue, MAP_TILE_COORD(tile_x - 1, tile_y, tile_level));
+                            goto done;
                         }
                     }
                 }
 
-                if( tile_y < camera_tile_y )
+                if( tile_y >= camera_tile_y && tile_y < max_draw_y )
                 {
                     if( tile_y + 1 < max_draw_y )
                     {
                         other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, tile_level)];
                         if( other->step != E_STEP_DONE )
                         {
-                            other->q_count++;
-                            int_queue_push_wrap(
-                                &queue, MAP_TILE_COORD(tile_x, tile_y + 1, tile_level));
+                            goto done;
                         }
                     }
                 }
-
-                if( tile_y > camera_tile_y )
+                if( tile_y <= camera_tile_y && tile_y > min_draw_y )
                 {
                     if( tile_y - 1 >= min_draw_y )
                     {
                         other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, tile_level)];
                         if( other->step != E_STEP_DONE )
                         {
-                            other->q_count++;
-                            int_queue_push_wrap(
-                                &queue, MAP_TILE_COORD(tile_x, tile_y - 1, tile_level));
+                            goto done;
                         }
                     }
                 }
 
-                element->step = E_STEP_WAIT_ADJACENT_GROUND;
-            }
-
-            // Move towards camera if farther away tiles are done.
-            if( element->step == E_STEP_NOTIFY_ADJACENT_TILES )
-            {
                 if( tile_level < MAP_TERRAIN_Z - 1 )
                 {
                     int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
@@ -3220,9 +3123,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     //     }
     // }
 
-    free(coord_list_x);
-    free(coord_list_y);
-    free(coord_list_z);
     free(elements);
     int_queue_free(&queue);
 
@@ -3701,6 +3601,7 @@ render_scene_ops(
         break;
         case SCENE_OP_TYPE_DBG_TILE:
         {
+            break;
             int tile_x = op->x;
             int tile_y = op->z;
             int tile_z = op->level;
