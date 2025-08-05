@@ -799,6 +799,12 @@ model_draw_face(
         // color_c = 0;
     }
 
+    // TODO: See above comments. alpha overrides colors.
+    if( face_alphas_nullable && face_alphas_nullable[index] < 0 )
+    {
+        return;
+    }
+
     enum FaceType type = face_infos ? (face_infos[index] & 0x3) : FACE_TYPE_GOURAUD;
     assert(type >= 0 && type <= 3);
 

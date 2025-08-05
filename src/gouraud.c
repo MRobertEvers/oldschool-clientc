@@ -523,6 +523,18 @@ draw_scanline_gouraud_lerp(
 
 extern int g_hsl16_to_rgb_table[65536];
 
+/**
+ * This is a cute way to alpha blend two colors.
+ *
+ * Since alpha is 0-0xFF, then alpha * 0xFF < 0x10000,
+ * so we can multiply the r,b components (0xFF00FF) and the result of the multiplcation
+ * for r,b will be 0xRRRRBBBB, so we can shift and mask.
+ *
+ * @param alpha
+ * @param base
+ * @param other
+ * @return int
+ */
 static inline int
 alpha_blend(int alpha, int base, int other)
 {
@@ -630,7 +642,6 @@ draw_scanline_gouraud(
         int rgb_blend = pixel_buffer[offset];
         rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
         pixel_buffer[offset++] = rgb_blend;
-        // pixel_buffer[offset++] = rgb_color;
     }
 }
 
@@ -651,6 +662,9 @@ raster_gouraud(
     int alpha)
 {
     assert(alpha >= 0 && alpha <= 0xFF);
+    // TODO: Document this.
+    if( alpha == 0 )
+        alpha = 0xFF;
 
     // Sort vertices by y
     // where y0 is the bottom vertex and y2 is the top vertex (or bottom of the screen)
