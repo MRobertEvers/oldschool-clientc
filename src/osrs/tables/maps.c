@@ -46,7 +46,6 @@ fixup_terrain(
             for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
             {
                 struct CacheMapFloor* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
-
                 if( map->height == 0 )
                 {
                     if( z == 0 )
@@ -73,8 +72,8 @@ fixup_terrain(
                     }
                     else
                     {
-                        map->height = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z - 1)].height -
-                                      map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
+                        int lower = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z - 1)].height;
+                        map->height = lower - map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
                     }
                 }
             }

@@ -88,6 +88,8 @@ struct GridTile
 
     int x;
     int z;
+    // This is the RENDER level.
+    // Not necessarily the same as the level in the grid array..
     int level;
 
     int flags;

@@ -987,7 +987,7 @@ model_draw_face(
             //     pixel_buffer,
             //     texels,
             //     128);
-            raster_texture_step(
+            raster_texture_step_blend(
                 pixel_buffer,
                 screen_width,
                 screen_height,
@@ -1009,6 +1009,9 @@ model_draw_face(
                 tp_z,
                 tm_z,
                 tn_z,
+                color_a,
+                color_b,
+                color_c,
                 texels,
                 128,
                 false);
@@ -1540,11 +1543,12 @@ render_model_frame(
         vertices_z,
         model->face_count);
 
+    // see model_calculate_normals in client3
     int light_ambient = 64;
-    int light_attenuation = 850;
-    int lightsrc_x = -30;
+    int light_attenuation = 768;
+    int lightsrc_x = -50;
     int lightsrc_y = -50;
-    int lightsrc_z = -30;
+    int lightsrc_z = -10;
     int light_magnitude =
         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
     int attenuation = light_attenuation * light_magnitude >> 8;
@@ -1564,7 +1568,7 @@ render_model_frame(
         model->face_colors,
         model->face_infos,
         light_ambient,
-        attenuation,
+        attenuation + attenuation / 2,
         lightsrc_x,
         lightsrc_y,
         lightsrc_z);
@@ -2644,6 +2648,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                         .op = SCENE_OP_TYPE_DRAW_GROUND,
                         .x = tile_x,
                         .z = tile_y,
+
                         .level = bridge_underpass_tile->level,
                     };
 
@@ -2665,7 +2670,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                         int loc_index = bridge_underpass_tile->locs[i];
                         loc = &scene->locs[loc_index];
                         ops[op_count++] = (struct SceneOp){
-                            .op = SCENE_OP_TYPE_DRAW_GROUND_DECOR,
+                            .op = SCENE_OP_TYPE_DRAW_LOC,
                             .x = loc->chunk_pos_x,
                             .z = loc->chunk_pos_y,
                             .level = loc->chunk_pos_level,

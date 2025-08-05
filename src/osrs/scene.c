@@ -1186,7 +1186,25 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     map_locs_iter_free(iter);
 
+    // This must happen after loading of locs because locs influence the lightness.
+    scene_tiles = scene_tiles_new_from_map_terrain_cache(map_terrain, shade_map, cache);
+    if( !scene_tiles )
+    {
+        printf("Failed to load scene tiles\n");
+        goto error;
+    }
+
+    for( int i = 0; i < MAP_TILE_COUNT; i++ )
+    {
+        struct SceneTile* scene_tile = &scene_tiles[i];
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
+            scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
+        grid_tile->tile = scene_tile;
+    }
+
     // Adjust bridges.
+    // This MUST occurr after the above.
+    // TODO: Remove this once tiles are no longer pointers.
     /**
      * Bridges are adjusted from an upper level.
      *
@@ -1233,22 +1251,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 scene->grid_tiles[MAP_TILE_COORD(x, y, 3)] = bridge_tile;
             }
         }
-    }
-
-    // This must happen after loading of locs because locs influence the lightness.
-    scene_tiles = scene_tiles_new_from_map_terrain_cache(map_terrain, shade_map, cache);
-    if( !scene_tiles )
-    {
-        printf("Failed to load scene tiles\n");
-        goto error;
-    }
-
-    for( int i = 0; i < MAP_TILE_COUNT; i++ )
-    {
-        struct SceneTile* scene_tile = &scene_tiles[i];
-        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
-            scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
-        grid_tile->tile = scene_tile;
     }
 
     map_terrain_free(map_terrain);

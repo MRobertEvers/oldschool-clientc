@@ -50,9 +50,14 @@ brew install sdl2
 1. Fix the need to `long long` in the texture renderer.
 2. Texture color blending + lerp8
 3. Gouraud raster exact + stepped4 + alpha/no-alpha
-4. Flat raster alpha
-5. lighting
-6. Clean up diagonal wall decor. (Janky weird hardcoded offset.)
+4. lighting for models.
+5. Clean up diagonal wall decor. (Janky weird hardcoded offset.)
+6. Consolodate sprite pixel loading.
+7. Consolodate pixel blending
+8. Consolodate face modes. (the whole colorc == -2 thing)
+9. Animations
+10. Scene manager (manage lifetimes of models etc, )
+11. Fix painters for bridge.
 
 Software rester
 
