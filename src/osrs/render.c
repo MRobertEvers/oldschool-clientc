@@ -1280,7 +1280,7 @@ raster_osrs_single_gouraud(
         alpha);
 }
 
-bool
+static bool
 raster_osrs_single_texture(
     struct Pixel* pixel_buffer,
     int width,
@@ -1302,6 +1302,9 @@ raster_osrs_single_texture(
     int* face_texture_v_b,
     int* face_texture_u_c,
     int* face_texture_v_c,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
     struct TexturesCache* textures_cache,
     int offset_x,
     int offset_y)
@@ -1335,6 +1338,14 @@ raster_osrs_single_texture(
     int ortho_y3 = orthographic_vertex_y[3];
     int ortho_z3 = orthographic_vertex_z[3];
 
+    int shade_a = colors_a[index];
+    int shade_b = colors_b[index];
+    int shade_c = colors_c[index];
+
+    assert(shade_a >= 0 && shade_a < 0xFF);
+    assert(shade_b >= 0 && shade_b < 0xFF);
+    assert(shade_c >= 0 && shade_c < 0xFF);
+
     // Skip triangle if any vertex was clipped
     // TODO: Perhaps use a separate buffer to track this.
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
@@ -1355,7 +1366,7 @@ raster_osrs_single_texture(
     if( !texture )
         return false;
 
-    raster_texture_step(
+    raster_texture_step_blend(
         pixel_buffer,
         width,
         height,
@@ -1377,6 +1388,9 @@ raster_osrs_single_texture(
         ortho_z0,
         ortho_z1,
         ortho_z3,
+        shade_a,
+        shade_b,
+        shade_c,
         texture->texels,
         128,
         texture->opaque);
@@ -1952,6 +1966,9 @@ render_scene_tile(
                 tile->face_texture_v_b,
                 tile->face_texture_u_c,
                 tile->face_texture_v_c,
+                tile->face_color_hsl_a,
+                tile->face_color_hsl_b,
+                tile->face_color_hsl_c,
                 textures_cache_nullable,
                 width / 2,
                 height / 2);

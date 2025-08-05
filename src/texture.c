@@ -1,6 +1,7 @@
 #include "texture.h"
 
 #include "projection.h"
+#include "shade.h"
 
 #include <assert.h>
 #include <math.h>
@@ -144,6 +145,121 @@ raster_texture_scanline(
         au += step_au_dx;
         bv += step_bv_dx;
         cw += step_cw_dx;
+
+        offset += 1;
+        assert(offset >= 0 && offset < screen_width * screen_height);
+    }
+}
+
+static void
+raster_texture_scanline_blend(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int screen_x0,
+    int screen_x1,
+    int pixel_offset,
+    long long au,
+    long long bv,
+    long long cw,
+    int step_au_dx,
+    int step_bv_dx,
+    int step_cw_dx,
+    int shade8bit_ish8,
+    int step_shade8bit_dx_ish8,
+    int* texels,
+    long long texture_width,
+    long long texture_opaque)
+{
+    if( screen_x0 == screen_x1 )
+        return;
+
+    if( screen_x0 > screen_x1 )
+    {
+        SWAP(screen_x0, screen_x1);
+    }
+
+    long long steps, adjust;
+
+    long long offset = pixel_offset;
+
+    if( screen_x0 < 0 )
+        screen_x0 = 0;
+
+    if( screen_x1 >= screen_width )
+    {
+        screen_x1 = screen_width - 1;
+    }
+
+    if( screen_x0 >= screen_x1 )
+        return;
+
+    adjust = screen_x0 - (screen_width >> 1);
+    au += step_au_dx * adjust;
+    bv += step_bv_dx * adjust;
+    cw += step_cw_dx * adjust;
+
+    shade8bit_ish8 += step_shade8bit_dx_ish8 * screen_x0;
+
+    steps = screen_x1 - screen_x0;
+
+    assert(screen_x0 < screen_width);
+    assert(screen_x1 < screen_width);
+
+    assert(screen_x0 <= screen_x1);
+    assert(screen_x0 >= 0);
+    assert(screen_x1 >= 0);
+
+    offset += screen_x0;
+
+    assert(screen_x0 + steps < screen_width);
+
+    // If texture width is 128 or 64.
+    assert(texture_width == 128 || texture_width == 64);
+    int texture_shift = (texture_width & 0x80) ? 7 : 6;
+
+    while( steps-- > 0 )
+    {
+        if( (-cw) >> texture_shift == 0 )
+            continue;
+
+        // Instead of multiplying au,bv by texture width, shift the divisor down.
+        int u = (au) / ((-cw) >> texture_shift);
+        int v = (bv) / ((-cw) >> texture_shift);
+
+        // This will wrap at the texture width.
+        // The osrs rasterizer tiles textures implicitly by ignoring overflow when
+        // stepping.
+        u &= texture_width - 1;
+        v &= texture_width - 1;
+
+        assert(u >= 0);
+        assert(v >= 0);
+        assert(u < texture_width);
+        assert(v < texture_width);
+
+        // if( u < 0 )
+        //     u = 0;
+        // if( v < 0 )
+        //     v = 0;
+        // if( u >= texture_width )
+        //     u = texture_width - 1;
+        // if( v >= texture_width )
+        //     v = texture_width - 1;
+
+        assert(u >= 0 && u < texture_width);
+        assert(v >= 0 && v < texture_width);
+
+        int texel = texels[u + v * texture_width];
+        if( texture_opaque || texel != 0 )
+        {
+            pixel_buffer[offset] = shade_blend(texel, shade8bit_ish8 >> 8);
+        }
+
+        au += step_au_dx;
+        bv += step_bv_dx;
+        cw += step_cw_dx;
+        shade8bit_ish8 += step_shade8bit_dx_ish8;
 
         offset += 1;
         assert(offset >= 0 && offset < screen_width * screen_height);
@@ -648,9 +764,9 @@ raster_texture_step_blend(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
-    int color_a,
-    int color_b,
-    int color_c,
+    int shade7bit_a,
+    int shade7bit_b,
+    int shade7bit_c,
     int* texels,
     int texture_width,
     int texture_opaque)
@@ -660,7 +776,7 @@ raster_texture_step_blend(
         SWAP(screen_y0, screen_y2);
         SWAP(screen_x0, screen_x2);
         SWAP(screen_z0, screen_z2);
-        SWAP(color_a, color_c);
+        SWAP(shade7bit_a, shade7bit_c);
     }
 
     if( screen_y1 < screen_y0 )
@@ -668,7 +784,7 @@ raster_texture_step_blend(
         SWAP(screen_y0, screen_y1);
         SWAP(screen_x0, screen_x1);
         SWAP(screen_z0, screen_z1);
-        SWAP(color_a, color_b);
+        SWAP(shade7bit_a, shade7bit_b);
     }
 
     if( screen_y2 < screen_y1 )
@@ -676,7 +792,7 @@ raster_texture_step_blend(
         SWAP(screen_y1, screen_y2);
         SWAP(screen_x1, screen_x2);
         SWAP(screen_z1, screen_z2);
-        SWAP(color_b, color_c);
+        SWAP(shade7bit_b, shade7bit_c);
     }
 
     int total_height = screen_y2 - screen_y0;
@@ -747,6 +863,9 @@ raster_texture_step_blend(
     long long dx_AB = screen_x1 - screen_x0;
     long long dx_BC = screen_x2 - screen_x1;
 
+    int dblend7bit_ab = shade7bit_b - shade7bit_a;
+    int dblend7bit_ac = shade7bit_c - shade7bit_a;
+
     long long step_edge_x_AC_ish16 = 0;
     long long step_edge_x_AB_ish16 = 0;
     long long step_edge_x_BC_ish16 = 0;
@@ -757,6 +876,21 @@ raster_texture_step_blend(
         step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
     if( dy_BC > 0 )
         step_edge_x_BC_ish16 = (dx_BC << 16) / dy_BC;
+
+    // Do the same computation for the blend color.
+    int sarea_abc = dx_AC * dy_AB - dx_AB * dy_AC;
+    if( sarea_abc == 0 )
+        return;
+
+    // Same idea here for color. Solve the system of equations.
+
+    // Shades are provided 0-127, shift up by 1, then up by 8 to get 0-255.
+    // Again, kramer's rule.
+    int shade8bit_yhat_ish8 = ((dx_AC * dblend7bit_ab - dx_AB * dblend7bit_ac) << 9) / sarea_abc;
+    int shade8bit_xhat_ish8 = ((dy_AB * dblend7bit_ac - dy_AC * dblend7bit_ab) << 9) / sarea_abc;
+
+    int shade8bit_edge_ish8 =
+        (shade7bit_a << 9) - shade8bit_xhat_ish8 * screen_x0 + shade8bit_xhat_ish8;
 
     long long au = 0;
     long long bv = 0;
@@ -770,6 +904,7 @@ raster_texture_step_blend(
     {
         edge_x_AC_ish16 -= step_edge_x_AC_ish16 * screen_y0;
         edge_x_AB_ish16 -= step_edge_x_AB_ish16 * screen_y0;
+        shade8bit_edge_ish8 -= shade8bit_yhat_ish8 * screen_y0;
         screen_y0 = 0;
     }
 
@@ -805,7 +940,7 @@ raster_texture_step_blend(
         long long x_start = edge_x_AC_ish16 >> 16;
         long long x_end = edge_x_AB_ish16 >> 16;
 
-        raster_texture_scanline(
+        raster_texture_scanline_blend(
             pixel_buffer,
             screen_width,
             screen_height,
@@ -818,6 +953,8 @@ raster_texture_step_blend(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
+            shade8bit_edge_ish8,
+            shade8bit_xhat_ish8,
             texels,
             texture_width,
             texture_opaque);
@@ -828,6 +965,8 @@ raster_texture_step_blend(
         au += vOVPlane_normal_yhat;
         bv += vUOPlane_normal_yhat;
         cw += vUVPlane_normal_yhat;
+
+        shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
         offset += screen_width;
     }
@@ -855,8 +994,7 @@ raster_texture_step_blend(
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
-        // break;
-        raster_texture_scanline(
+        raster_texture_scanline_blend(
             pixel_buffer,
             screen_width,
             screen_height,
@@ -869,6 +1007,8 @@ raster_texture_step_blend(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
+            shade8bit_edge_ish8,
+            shade8bit_xhat_ish8,
             texels,
             texture_width,
             texture_opaque);
@@ -879,6 +1019,8 @@ raster_texture_step_blend(
         au += vOVPlane_normal_yhat;
         bv += vUOPlane_normal_yhat;
         cw += vUVPlane_normal_yhat;
+
+        shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
         offset += screen_width;
     }

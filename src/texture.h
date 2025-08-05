@@ -130,9 +130,11 @@ void raster_texture_step_blend(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
-    int color_a,
-    int color_b,
-    int color_c,
+    // These are shade values 0-127. (from the 7bit hsl)
+    // Essentially << 1, RGB * shade8bit >> 8
+    int shade7bit_a,
+    int shade7bit_b,
+    int shade7bit_c,
     int* texels,
     int texture_width,
     int texture_opaque);
