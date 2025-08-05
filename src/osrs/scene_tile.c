@@ -632,8 +632,9 @@ error:
 #define LIGHT_DIR_X -50
 #define LIGHT_DIR_Y -10
 #define LIGHT_DIR_Z -50
-#define LIGHT_INTENSITY_BASE 96
-#define LIGHT_INTENSITY_FACTOR 768
+#define LIGHT_AMBIENT 96
+// Over 256, so 768 / 256 = 3, the lightness is divided by 3.
+#define LIGHT_ATTENUATION 768
 #define HEIGHT_SCALE 65536
 
 static int*
@@ -644,7 +645,7 @@ calculate_lights(struct CacheMapTerrain* map_terrain, int level)
 
     int magnitude =
         sqrt(LIGHT_DIR_X * LIGHT_DIR_X + LIGHT_DIR_Y * LIGHT_DIR_Y + LIGHT_DIR_Z * LIGHT_DIR_Z);
-    int intensity = (magnitude * LIGHT_INTENSITY_FACTOR) >> 8;
+    int intensity = (magnitude * LIGHT_ATTENUATION) >> 8;
 
     for( int y = 1; y < MAP_TERRAIN_Y - 1; y++ )
     {
@@ -702,7 +703,7 @@ calculate_lights(struct CacheMapTerrain* map_terrain, int level)
             int dot = normalized_tile_normal_x * LIGHT_DIR_X +
                       normalized_tile_normal_y * LIGHT_DIR_Y +
                       normalized_tile_normal_z * LIGHT_DIR_Z;
-            int sunlight = (dot / intensity + LIGHT_INTENSITY_BASE) | 0;
+            int sunlight = (dot / intensity + LIGHT_AMBIENT);
 
             lights[MAP_TILE_COORD(x, y, 0)] = sunlight;
         }
@@ -715,6 +716,7 @@ static void
 apply_shade(
     int* lightmap,
     int* shade_map,
+    int level,
     int xboundmin,
     int xboundmax,
     int yboundmin,
@@ -744,17 +746,17 @@ apply_shade(
             shade_south = 0;
 
             if( x > xboundmin + 1 )
-                shade_west = shade_map[MAP_TILE_COORD(x - 1, y, 0)];
+                shade_west = shade_map[MAP_TILE_COORD(x - 1, y, level)];
             if( x < xboundmax - 1 )
-                shade_east = shade_map[MAP_TILE_COORD(x + 1, y, 0)];
+                shade_east = shade_map[MAP_TILE_COORD(x + 1, y, level)];
             if( y < yboundmax - 1 )
-                shade_north = shade_map[MAP_TILE_COORD(x, y + 1, 0)];
+                shade_north = shade_map[MAP_TILE_COORD(x, y + 1, level)];
             if( y > yboundmin + 1 )
-                shade_south = shade_map[MAP_TILE_COORD(x, y - 1, 0)];
+                shade_south = shade_map[MAP_TILE_COORD(x, y - 1, level)];
 
-            int shade_center = shade_map[MAP_TILE_COORD(x, y, 0)];
+            int shade_center = shade_map[MAP_TILE_COORD(x, y, level)];
 
-            int shade = shade_center;
+            int shade = shade_center >> 1;
             shade += shade_west >> 2;
             shade += shade_east >> 3;
             shade += shade_north >> 3;
@@ -899,6 +901,7 @@ scene_tiles_new_from_map_terrain(
             apply_shade(
                 lights,
                 shade_map_nullable,
+                z,
                 0,
                 MAP_TERRAIN_X,
                 0,
