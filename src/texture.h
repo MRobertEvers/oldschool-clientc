@@ -130,6 +130,9 @@ void raster_texture_step_blend(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
+    int color_a,
+    int color_b,
+    int color_c,
     int* texels,
     int texture_width,
     int texture_opaque);

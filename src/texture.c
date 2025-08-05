@@ -626,6 +626,265 @@ raster_texture_step(
 }
 
 void
+raster_texture_step_blend(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int screen_x0,
+    int screen_x1,
+    int screen_x2,
+    int screen_y0,
+    int screen_y1,
+    int screen_y2,
+    int screen_z0,
+    int screen_z1,
+    int screen_z2,
+    int orthographic_uvorigin_x0,
+    int orthographic_uend_x1,
+    int orthographic_vend_x2,
+    int orthographic_uvorigin_y0,
+    int orthographic_uend_y1,
+    int orthographic_vend_y2,
+    int orthographic_uvorigin_z0,
+    int orthographic_uend_z1,
+    int orthographic_vend_z2,
+    int color_a,
+    int color_b,
+    int color_c,
+    int* texels,
+    int texture_width,
+    int texture_opaque)
+{
+    if( screen_y2 < screen_y0 )
+    {
+        SWAP(screen_y0, screen_y2);
+        SWAP(screen_x0, screen_x2);
+        SWAP(screen_z0, screen_z2);
+        SWAP(color_a, color_c);
+    }
+
+    if( screen_y1 < screen_y0 )
+    {
+        SWAP(screen_y0, screen_y1);
+        SWAP(screen_x0, screen_x1);
+        SWAP(screen_z0, screen_z1);
+        SWAP(color_a, color_b);
+    }
+
+    if( screen_y2 < screen_y1 )
+    {
+        SWAP(screen_y1, screen_y2);
+        SWAP(screen_x1, screen_x2);
+        SWAP(screen_z1, screen_z2);
+        SWAP(color_b, color_c);
+    }
+
+    int total_height = screen_y2 - screen_y0;
+    if( total_height == 0 )
+        return;
+
+    if( screen_y0 >= screen_height )
+        return;
+
+    // TODO: Remove this check for callers that cull correctly.
+    if( total_height >= screen_height )
+    {
+        // This can happen if vertices extremely close to the camera plane, but outside the FOV
+        // are projected. Those vertices need to be culled.
+        return;
+    }
+
+    // TODO: Remove this check for callers that cull correctly.
+    if( (screen_x0 < 0 || screen_x1 < 0 || screen_x2 < 0) &&
+        (screen_x0 > screen_width || screen_x1 > screen_width || screen_x2 > screen_width) )
+    {
+        // This can happen if vertices extremely close to the camera plane, but outside the FOV
+        // are projected. Those vertices need to be culled.
+        return;
+    }
+
+    // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
+    long long vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
+    long long vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
+    long long vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
+
+    // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
+    long long vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
+    long long vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
+    long long vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
+
+    // TODO: The derivation leaves this as the VU plane,
+    // so this needs to be flipped.
+    long long vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
+    long long vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
+    long long vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+
+    long long vOVPlane_normal_xhat =
+        orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
+    long long vOVPlane_normal_yhat =
+        orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
+    long long vOVPlane_normal_zhat =
+        orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
+
+    long long vUOPlane_normal_xhat =
+        vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
+    long long vUOPlane_normal_yhat =
+        vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
+
+    long long vUOPlane_normal_zhat =
+        vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
+
+    // These two vectors now polong long in the direction or U or V.
+    // TODO: Need to make sure this is the right order.
+    // Compute the partial derivatives of the uv coordinates with respect to the x and y coordinates
+    // of the screen.
+
+    long long dy_AC = screen_y2 - screen_y0;
+    long long dy_AB = screen_y1 - screen_y0;
+    long long dy_BC = screen_y2 - screen_y1;
+
+    long long dx_AC = screen_x2 - screen_x0;
+    long long dx_AB = screen_x1 - screen_x0;
+    long long dx_BC = screen_x2 - screen_x1;
+
+    long long step_edge_x_AC_ish16 = 0;
+    long long step_edge_x_AB_ish16 = 0;
+    long long step_edge_x_BC_ish16 = 0;
+
+    if( dy_AC > 0 )
+        step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
+    if( dy_AB > 0 )
+        step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
+    if( dy_BC > 0 )
+        step_edge_x_BC_ish16 = (dx_BC << 16) / dy_BC;
+
+    long long au = 0;
+    long long bv = 0;
+    long long cw = 0;
+
+    long long edge_x_AC_ish16 = screen_x0 << 16;
+    long long edge_x_AB_ish16 = screen_x0 << 16;
+    long long edge_x_BC_ish16 = screen_x1 << 16;
+
+    if( screen_y0 < 0 )
+    {
+        edge_x_AC_ish16 -= step_edge_x_AC_ish16 * screen_y0;
+        edge_x_AB_ish16 -= step_edge_x_AB_ish16 * screen_y0;
+        screen_y0 = 0;
+    }
+
+    if( screen_y1 < 0 )
+    {
+        edge_x_BC_ish16 -= step_edge_x_BC_ish16 * screen_y1;
+
+        screen_y1 = 0;
+    }
+
+    if( screen_y0 > screen_y1 )
+        return;
+
+    if( screen_y1 >= screen_height )
+        screen_y1 = screen_height - 1;
+
+    au = vOVPlane_normal_zhat * UNIT_SCALE;
+    bv = vUOPlane_normal_zhat * UNIT_SCALE;
+    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+
+    long long dy = screen_y0 - (screen_height >> 1);
+    au += vOVPlane_normal_yhat * (dy);
+    bv += vUOPlane_normal_yhat * (dy);
+    cw += vUVPlane_normal_yhat * (dy);
+
+    long long steps = screen_y1 - screen_y0;
+    long long offset = screen_y0 * screen_width;
+
+    assert(screen_y0 < screen_height);
+
+    while( steps-- > 0 )
+    {
+        long long x_start = edge_x_AC_ish16 >> 16;
+        long long x_end = edge_x_AB_ish16 >> 16;
+
+        raster_texture_scanline(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            x_start,
+            x_end,
+            offset,
+            au,
+            bv,
+            cw,
+            vOVPlane_normal_xhat,
+            vUOPlane_normal_xhat,
+            vUVPlane_normal_xhat,
+            texels,
+            texture_width,
+            texture_opaque);
+
+        edge_x_AC_ish16 += step_edge_x_AC_ish16;
+        edge_x_AB_ish16 += step_edge_x_AB_ish16;
+
+        au += vOVPlane_normal_yhat;
+        bv += vUOPlane_normal_yhat;
+        cw += vUVPlane_normal_yhat;
+
+        offset += screen_width;
+    }
+
+    if( screen_y2 >= screen_height )
+        screen_y2 = screen_height - 1;
+
+    if( screen_y1 > screen_y2 )
+        return;
+
+    dy = screen_y1 - (screen_height >> 1);
+    au = vOVPlane_normal_zhat * UNIT_SCALE;
+    bv = vUOPlane_normal_zhat * UNIT_SCALE;
+    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au += vOVPlane_normal_yhat * dy;
+    bv += vUOPlane_normal_yhat * dy;
+    cw += vUVPlane_normal_yhat * dy;
+
+    assert(screen_y1 >= 0);
+    assert(screen_y1 <= screen_height);
+    assert(screen_y2 >= 0);
+    assert(screen_y2 <= screen_height);
+
+    offset = screen_y1 * screen_width;
+    steps = screen_y2 - screen_y1;
+    while( steps-- > 0 )
+    {
+        // break;
+        raster_texture_scanline(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            edge_x_AC_ish16 >> 16,
+            edge_x_BC_ish16 >> 16,
+            offset,
+            au,
+            bv,
+            cw,
+            vOVPlane_normal_xhat,
+            vUOPlane_normal_xhat,
+            vUVPlane_normal_xhat,
+            texels,
+            texture_width,
+            texture_opaque);
+
+        edge_x_AC_ish16 += step_edge_x_AC_ish16;
+        edge_x_BC_ish16 += step_edge_x_BC_ish16;
+
+        au += vOVPlane_normal_yhat;
+        bv += vUOPlane_normal_yhat;
+        cw += vUVPlane_normal_yhat;
+
+        offset += screen_width;
+    }
+}
+
+void
 raster_texture(
     int* pixel_buffer,
     int screen_width,
