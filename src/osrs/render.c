@@ -853,8 +853,27 @@ model_draw_face(
                 alpha);
             break;
         case FACE_TYPE_FLAT:
+            if( alpha == 0xFF )
+            {
+                raster_flat(
+                    pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a);
+            }
+            else
+            {
+                raster_flat_alpha_step4(
+                    pixel_buffer,
+                    screen_width,
+                    screen_height,
+                    x1,
+                    x2,
+                    x3,
+                    y1,
+                    y2,
+                    y3,
+                    color_a,
+                    alpha);
+            }
 
-            raster_flat(pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a);
             break;
         case FACE_TYPE_TEXTURED:
         textured:;

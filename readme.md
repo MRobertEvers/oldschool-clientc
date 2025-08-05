@@ -48,9 +48,13 @@ brew install sdl2
 ### TODOS
 
 1. Fix the need to `long long` in the texture renderer.
-2. Transparency/Alpha Blending
-3. Cache lighting
-4. Fix diagonal wall decor.
+2. Texture color blending + lerp8
+3. Gouraud raster exact + stepped4 + alpha/no-alpha
+4. Flat raster alpha
+5. lighting
+6. Clean up diagonal wall decor. (Janky weird hardcoded offset.)
+
+Software rester
 
 ### Scene Building Plan - Software 3D
 
@@ -780,3 +784,13 @@ The right image is my texture redner with overflow highlights.
 ```
 python3 -m http.server -d public 8080
 ```
+
+### Axis of rendering
+
+zbuf
+alpha
+textured opaque
+textured transparent (i.e. == 0 is masked out)
+flat
+gouraud
+lerp8

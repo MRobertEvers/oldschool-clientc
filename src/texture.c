@@ -713,6 +713,10 @@ textureTriangle(
     int dxAC = xC - xA;
     int dyAC = yC - yA;
 
+    /**
+     * I'm not sure how this works, but later versions use barycentric coordinates
+     * to interpolate colors.
+     */
     int xStepAB = 0;
     int shadeStepAB = 0;
     if( yB != yA )
