@@ -134,6 +134,11 @@ apply_lighting(
         // and
         // /Users/matthewevers/Documents/git_repos/OS1/src/main/java/jagex3/dash3d/ModelUnlit.java
         // .draw:1018
+
+        // and
+        // OS1
+        // 	public final ModelUnlit calculateNormals(int arg0, int arg1, int arg2, int arg3, int
+        // arg4) {
         if( face_infos )
         {
             int face_info = face_infos[i];

@@ -138,6 +138,7 @@ enum BlendMode
     FLAT_BLACK = 3,
 };
 
+// src/main/java/jagex3/dash3d/ModelLit.java
 enum LightingMode
 model_face_lighting_mode(struct CacheModel* model, int face)
 {

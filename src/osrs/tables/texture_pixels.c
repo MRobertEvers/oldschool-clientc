@@ -6,14 +6,14 @@
 #include <string.h>
 
 static int
-brighten_rgb(int rgb, double brightness)
+set_gamma(int rgb, double gamma)
 {
     double r = (rgb >> 16) / 256.0;
     double g = ((rgb >> 8) & 255) / 256.0;
     double b = (rgb & 255) / 256.0;
-    r = pow(r, brightness);
-    g = pow(g, brightness);
-    b = pow(b, brightness);
+    r = pow(r, gamma);
+    g = pow(g, gamma);
+    b = pow(b, gamma);
     int new_r = (int)(r * 256.0);
     int new_g = (int)(g * 256.0);
     int new_b = (int)(b * 256.0);
@@ -71,7 +71,7 @@ texture_pixels_new_from_definition(
             int alpha = 0xff;
             if( palette[pi] == 0 )
                 alpha = 0;
-            adjusted_palette[pi] = (alpha << 24) | brighten_rgb(palette[pi], brightness);
+            adjusted_palette[pi] = (alpha << 24) | set_gamma(palette[pi], brightness);
         }
 
         int index = 0;

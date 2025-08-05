@@ -812,7 +812,7 @@ model_draw_face(
     if( face_textures && face_textures[index] != -1 )
     {
         texture_id = face_textures[index];
-        texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
+        texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1);
         assert(texture != NULL);
         texels = texture->texels;
 
@@ -1362,7 +1362,7 @@ raster_osrs_single_texture(
     if( texture_id == -1 )
         return false;
 
-    texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1.4);
+    texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1);
     if( !texture )
         return false;
 

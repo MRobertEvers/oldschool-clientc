@@ -883,12 +883,14 @@ raster_texture_step_blend(
         return;
 
     // Same idea here for color. Solve the system of equations.
+    // Barycentric coordinates.
 
     // Shades are provided 0-127, shift up by 1, then up by 8 to get 0-255.
     // Again, kramer's rule.
     int shade8bit_yhat_ish8 = ((dx_AC * dblend7bit_ab - dx_AB * dblend7bit_ac) << 9) / sarea_abc;
     int shade8bit_xhat_ish8 = ((dy_AB * dblend7bit_ac - dy_AC * dblend7bit_ab) << 9) / sarea_abc;
 
+    // TODO: Why add 1 xhat?
     int shade8bit_edge_ish8 =
         (shade7bit_a << 9) - shade8bit_xhat_ish8 * screen_x0 + shade8bit_xhat_ish8;
 

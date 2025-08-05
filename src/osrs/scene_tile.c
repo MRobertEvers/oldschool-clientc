@@ -119,7 +119,7 @@ get_index(int* ids, int count, int id)
 #define INVALID_HSL_COLOR 12345678
 
 static int
-adjust_underlay_light(int hsl, int light)
+multiply_lightness(int hsl, int light)
 {
     if( hsl == -1 )
         return INVALID_HSL_COLOR;
@@ -157,7 +157,7 @@ adjust_underlay_light(int hsl, int light)
 // }
 
 static int
-adjust_overlay_light(int hsl, int light)
+adjust_lightness(int hsl, int light)
 {
     if( hsl == -2 )
         return INVALID_HSL_COLOR;
@@ -276,15 +276,17 @@ decode_tile(
     int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
     int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
 
-    int underlay_hsl_sw = adjust_underlay_light(underlay_hsl16, light_sw);
-    int underlay_hsl_se = adjust_underlay_light(underlay_hsl16, light_se);
-    int underlay_hsl_ne = adjust_underlay_light(underlay_hsl16, light_ne);
-    int underlay_hsl_nw = adjust_underlay_light(underlay_hsl16, light_nw);
+    // Assumes the overlay hsl is simply lightness.
+    int underlay_hsl_sw = multiply_lightness(underlay_hsl16, light_sw);
+    int underlay_hsl_se = multiply_lightness(underlay_hsl16, light_se);
+    int underlay_hsl_ne = multiply_lightness(underlay_hsl16, light_ne);
+    int underlay_hsl_nw = multiply_lightness(underlay_hsl16, light_nw);
 
-    int overlay_hsl_sw = adjust_overlay_light(overlay_hsl16, light_sw);
-    int overlay_hsl_se = adjust_overlay_light(overlay_hsl16, light_se);
-    int overlay_hsl_ne = adjust_overlay_light(overlay_hsl16, light_ne);
-    int overlay_hsl_nw = adjust_overlay_light(overlay_hsl16, light_nw);
+    // Assumes the overlay hsl is simply lightness.
+    int overlay_hsl_sw = adjust_lightness(overlay_hsl16, light_sw);
+    int overlay_hsl_se = adjust_lightness(overlay_hsl16, light_se);
+    int overlay_hsl_ne = adjust_lightness(overlay_hsl16, light_ne);
+    int overlay_hsl_nw = adjust_lightness(overlay_hsl16, light_nw);
 
     for( int i = 0; i < vertex_count; i++ )
     {
@@ -985,7 +987,8 @@ scene_tiles_new_from_map_terrain(
                     if( overlay->texture != -1 )
                         overlay_hsl = -1;
                     else
-                        overlay_hsl = palette_rgb_to_hsl16(overlay->rgb_color);
+                        overlay_hsl =
+                            adjust_lightness(palette_rgb_to_hsl16(overlay->rgb_color), 96);
                 }
 
                 int shape = overlay_id == -1 ? 0 : (map->shape + 1);
