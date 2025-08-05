@@ -1,6 +1,7 @@
 #include "maps.h"
 
 #include "buffer.h"
+#include "noise.h"
 #include "osrs/archive.h"
 #include "osrs/archive_decompress.h"
 #include "osrs/cache.h"
@@ -9,6 +10,77 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static int
+generate_height(int x, int y)
+{
+    int n = perlin_noise(x + 45365, y + 91923, 4) - 128 +
+            ((perlin_noise(x + 10294, y + 37821, 2) - 128) >> 1) +
+            ((perlin_noise(x, y, 1) - 128) >> 2);
+    n = (int)(0.3 * n) + 35;
+    if( n < 10 )
+    {
+        n = 10;
+    }
+    else if( n > 60 )
+    {
+        n = 60;
+    }
+    return n;
+}
+
+/**
+ * Normally, some of this calculation is done in the map terrain loader.
+ *
+ * The deob meteor client and rs map viewer do this calculation there.
+ * src/rs/scene/SceneBuilder.ts decodeTerrainTile
+ */
+static void
+fixup_terrain(
+    struct CacheMapTerrain* map_terrain, int world_scene_origin_x, int world_scene_origin_y)
+{
+    for( int z = 0; z < MAP_TERRAIN_Z; z++ )
+    {
+        for( int y = 0; y < MAP_TERRAIN_Y - 1; y++ )
+        {
+            for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
+            {
+                struct CacheMapFloor* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+
+                if( map->height == 0 )
+                {
+                    if( z == 0 )
+                    {
+                        int worldX = world_scene_origin_x + (-58) + 932731;
+                        int worldY = world_scene_origin_y + (-58) + 556238;
+                        map->height =
+                            -generate_height(worldX, worldY) * MAP_UNITS_TILE_HEIGHT_BASIS;
+                    }
+                    else
+                    {
+                        int lower = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z - 1)].height;
+                        map->height = lower - MAP_UNITS_LEVEL_HEIGHT;
+                    }
+                }
+                else
+                {
+                    if( map->height == 1 )
+                        map->height = 0;
+
+                    if( z == 0 )
+                    {
+                        map->height = -map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
+                    }
+                    else
+                    {
+                        map->height = map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z - 1)].height -
+                                      map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
+                    }
+                }
+            }
+        }
+    }
+}
 
 static int
 dat_map_square_id(int map_x, int map_y)
@@ -152,6 +224,8 @@ map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
         printf("Failed to load map terrain %d, %d\n", map_x, map_y);
         return NULL;
     }
+
+    fixup_terrain(map_terrain, map_x, map_y);
 
     cache_archive_free(archive);
 

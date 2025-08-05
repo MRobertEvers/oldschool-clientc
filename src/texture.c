@@ -14,7 +14,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-void
+static void
 raster_texture_scanline(
     int* pixel_buffer,
     int screen_width,
@@ -147,6 +147,228 @@ raster_texture_scanline(
 
         offset += 1;
         assert(offset >= 0 && offset < screen_width * screen_height);
+    }
+}
+
+static void
+raster_texture_scanline_lerp8(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int screen_x0,
+    int screen_x1,
+    int pixel_offset,
+    long long au,
+    long long bv,
+    long long cw,
+    int step_au_dx,
+    int step_bv_dx,
+    int step_cw_dx,
+    int* texels,
+    long long texture_width,
+    long long texture_opaque)
+{
+    if( screen_x0 == screen_x1 )
+        return;
+
+    if( screen_x0 > screen_x1 )
+    {
+        SWAP(screen_x0, screen_x1);
+    }
+
+    long long steps, adjust;
+
+    long long offset = pixel_offset;
+
+    if( screen_x0 < 0 )
+        screen_x0 = 0;
+
+    if( screen_x1 >= screen_width )
+    {
+        screen_x1 = screen_width - 1;
+    }
+
+    if( screen_x0 >= screen_x1 )
+        return;
+
+    adjust = screen_x0 - (screen_width >> 1);
+    au += step_au_dx * adjust;
+    bv += step_bv_dx * adjust;
+    cw += step_cw_dx * adjust;
+
+    steps = screen_x1 - screen_x0;
+
+    assert(screen_x0 < screen_width);
+    assert(screen_x1 < screen_width);
+
+    assert(screen_x0 <= screen_x1);
+    assert(screen_x0 >= 0);
+    assert(screen_x1 >= 0);
+
+    offset += screen_x0;
+
+    assert(screen_x0 + steps < screen_width);
+
+    // If texture width is 128 or 64.
+    assert(texture_width == 128 || texture_width == 64);
+    int texture_shift = (texture_width & 0x80) ? 7 : 6;
+
+    long long lerp8_steps = steps >> 3;
+    long long lerp8_last_steps = steps & 0x7;
+    long long curr_u;
+    long long curr_v;
+
+    long long u = au;
+    long long v = bv;
+    long long w = cw;
+
+    long long curr_w_dsh7 = w >> 7;
+    if( curr_w_dsh7 != 0 )
+    {
+        curr_u = u / (-curr_w_dsh7);
+        curr_v = v / (-curr_w_dsh7);
+
+        if( curr_u < 0 )
+            curr_u = 0;
+        else if( curr_u >= texture_width )
+            curr_u = texture_width - 1;
+
+        if( curr_v < 0 )
+            curr_v = 0;
+        else if( curr_v >= texture_width )
+            curr_v = texture_width - 1;
+    }
+
+    long long next_u;
+    long long next_v;
+
+    u = u + (step_au_dx << 3);
+    v = v + (step_bv_dx << 3);
+    w = w + (step_cw_dx << 3);
+
+    curr_w_dsh7 = w >> 7;
+    if( curr_w_dsh7 != 0 )
+    {
+        next_u = u / (-curr_w_dsh7);
+        next_v = v / (-curr_w_dsh7);
+
+        if( next_u < 0x7 )
+            next_u = 0x7;
+        else if( next_u >= texture_width )
+            next_u = texture_width - 1;
+
+        if( next_v < 0x7 )
+            next_v = 0x7;
+        else if( next_v >= texture_width )
+            next_v = texture_width - 1;
+    }
+
+    int step_u = (next_u - curr_u) >> 3;
+    int step_v = (next_v - curr_v) >> 3;
+
+    do
+    {
+        if( lerp8_steps == 0 )
+            break;
+
+        for( int i = 0; i < 8; i++ )
+        {
+            int texel = texels[curr_u + curr_v * texture_width];
+            if( texture_opaque || texel != 0 )
+                pixel_buffer[offset++] = texel;
+
+            curr_u += step_u;
+            curr_v += step_v;
+
+            assert(curr_u >= 0 && curr_u < texture_width);
+            assert(curr_v >= 0 && curr_v < texture_width);
+        }
+
+        curr_u = next_u;
+        curr_v = next_v;
+
+        u = u + (step_au_dx << 3);
+        v = v + (step_bv_dx << 3);
+        w = w + (step_cw_dx << 3);
+
+        curr_w_dsh7 = w >> 7;
+        if( curr_w_dsh7 != 0 )
+        {
+            next_u = u / (-curr_w_dsh7);
+            next_v = v / (-curr_w_dsh7);
+
+            if( next_u < 0x7 )
+                next_u = 0x7;
+            else if( next_u >= texture_width )
+                next_u = texture_width - 1;
+
+            if( next_v < 0x7 )
+                next_v = 0x7;
+            else if( next_v >= texture_width )
+                next_v = texture_width - 1;
+        }
+
+        step_u = (next_u - curr_u) >> 3;
+        step_v = (next_v - curr_v) >> 3;
+
+        // if( (-cw) >> texture_shift == 0 )
+        //     continue;
+
+        // // Instead of multiplying au,bv by texture width, shift the divisor down.
+        // int u = (au) / ((-cw) >> texture_shift);
+        // int v = (bv) / ((-cw) >> texture_shift);
+
+        // // This will wrap at the texture width.
+        // // The osrs rasterizer tiles textures implicitly by ignoring overflow when
+        // // stepping.
+        // u &= texture_width - 1;
+        // v &= texture_width - 1;
+
+        // // The osrs rasterizer clamps the u and v coordinates to the texture width.
+        // int c = -1;
+
+        // assert(u >= 0);
+        // assert(v >= 0);
+        // assert(u < texture_width);
+        // assert(v < texture_width);
+
+        // // if( u < 0 )
+        // //     u = 0;
+        // // if( v < 0 )
+        // //     v = 0;
+        // // if( u >= texture_width )
+        // //     u = texture_width - 1;
+        // // if( v >= texture_width )
+        // //     v = texture_width - 1;
+
+        // assert(u >= 0 && u < texture_width);
+        // assert(v >= 0 && v < texture_width);
+
+        // int texel = texels[u + v * texture_width];
+        // if( texture_opaque || texel != 0 )
+        // {
+        //     if( c != -1 )
+        //         pixel_buffer[offset] = c;
+        //     else
+        //         pixel_buffer[offset] = texel;
+        // }
+
+        // au += step_au_dx;
+        // bv += step_bv_dx;
+        // cw += step_cw_dx;
+
+        // offset += 1;
+        // assert(offset >= 0 && offset < screen_width * screen_height);
+    } while( lerp8_steps-- > 0 );
+
+    while( lerp8_last_steps-- > 0 )
+    {
+        int texel = texels[curr_u + curr_v * texture_width];
+        if( texture_opaque || texel != 0 )
+            pixel_buffer[offset++] = texel;
+
+        curr_u += step_u;
+        curr_v += step_v;
     }
 }
 

@@ -10,6 +10,10 @@
 #include <stdio.h>
 #include <string.h>
 
+int g_sin_table[2048];
+int g_cos_table[2048];
+int g_tan_table[2048];
+
 int
 main(int argc, char* argv[])
 {

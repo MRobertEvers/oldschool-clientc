@@ -38,11 +38,12 @@ struct CacheConfigUnderlay;
 struct CacheMapTerrain;
 struct Cache;
 
-struct SceneTile*
-scene_tiles_new_from_map_terrain_cache(struct CacheMapTerrain* map_terrain, struct Cache* cache);
+struct SceneTile* scene_tiles_new_from_map_terrain_cache(
+    struct CacheMapTerrain* map_terrain, int* shade_map_nullable, struct Cache* cache);
 
 struct SceneTile* scene_tiles_new_from_map_terrain(
     struct CacheMapTerrain* map_terrain,
+    int* shade_map_nullable,
     struct CacheConfigOverlay* overlays,
     int* overlay_ids,
     int overlays_count,

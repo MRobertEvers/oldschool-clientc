@@ -197,6 +197,9 @@ struct Scene
     int scene_tiles_length;
 
     struct ModelCache* _model_cache;
+
+    int* _shade_map;
+    int _shade_map_length;
 };
 
 struct Scene* scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y);

@@ -73,6 +73,7 @@ struct CacheMapFloor
 
 struct CacheMapTerrain
 {
+    bool _is_fixedup;
     int map_x;
     int map_y;
     struct CacheMapFloor tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];

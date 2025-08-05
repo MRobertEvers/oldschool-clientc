@@ -3,6 +3,7 @@
 #include "osrs/rsbuf.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -89,7 +90,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->contrast = 0;
     loc->map_function_id = -1;
     loc->map_scene_id = -1;
-    loc->clipped = 1;
+    loc->shadowed = true;
     loc->wall_width = 16;
     loc->resize_x = 128;
     loc->resize_z = 128;
@@ -338,7 +339,7 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             loc->mirrored = 1;
             break;
         case 64:
-            loc->clipped = 0;
+            loc->shadowed = 0;
             break;
         case 65:
             loc->resize_x = rsbuf_g2(&buffer);

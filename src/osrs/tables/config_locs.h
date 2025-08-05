@@ -112,7 +112,7 @@ struct CacheConfigLocation
 
     int map_function_id;
     int mirrored;
-    int clipped;
+    int shadowed;
 
     int resize_x;
     int resize_y;

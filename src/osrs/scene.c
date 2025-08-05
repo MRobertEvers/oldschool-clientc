@@ -375,6 +375,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     scene->locs_length = 0;
     scene->locs_capacity = 1024;
 
+    int* shade_map = malloc(sizeof(int) * MAP_TILE_COUNT);
+    memset(shade_map, 0, sizeof(int) * MAP_TILE_COUNT);
+    scene->_shade_map = shade_map;
+    scene->_shade_map_length = MAP_TILE_COUNT;
+
     map_terrain = map_terrain_new_from_cache(cache, chunk_x, chunk_y);
     if( !map_terrain )
     {
@@ -382,35 +387,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         goto error;
     }
 
-    // map_locs = map_locs_new_from_cache(cache, chunk_x, chunk_y);
-    // if( !map_locs )
-
-    // {
-    //     printf("Failed to load map locs\n");
-    //     goto error;
-    // }
-
-    // TODO: This has to happen before locs,
-    // because this calls a fixup on the terrain data.
-    // That should be done separately.
-    scene_tiles = scene_tiles_new_from_map_terrain_cache(map_terrain, cache);
-    if( !scene_tiles )
-    {
-        printf("Failed to load scene tiles\n");
-        goto error;
-    }
-
     scene->scene_tiles = scene_tiles;
     scene->scene_tiles_length = MAP_TILE_COUNT;
-
-    // scene_locs = scene_locs_new_from_map_locs(map_terrain, map_locs, cache, model_cache);
-    // if( !scene_locs )
-    // {
-    //     printf("Failed to load scene locs\n");
-    //     goto error;
-    // }
-
-    // scene->locs = scene_locs;
 
     for( int level = 0; level < MAP_TERRAIN_Z; level++ )
     {
@@ -430,14 +408,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 grid_tile->spans = 0;
             }
         }
-    }
-
-    for( int i = 0; i < MAP_TILE_COUNT; i++ )
-    {
-        struct SceneTile* scene_tile = &scene_tiles[i];
-        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
-            scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
-        grid_tile->tile = scene_tile;
     }
 
     config_locs_table = config_locs_table_new(cache);
@@ -513,7 +483,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->_wall.model_a = model_index;
             assert(map->orientation >= 0);
             assert(map->orientation < 4);
-            loc->_wall.side_a = ROTATION_WALL_TYPE[map->orientation];
+
+            int orientation = map->orientation;
+            loc->_wall.side_a = ROTATION_WALL_TYPE[orientation];
 
             int wall_width = loc_config->wall_width;
             loc->_wall.wall_width = wall_width;
@@ -538,6 +510,47 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             }
 
             grid_tile->wall = loc_index;
+
+            if( loc_config->shadowed )
+            {
+                switch( orientation )
+                {
+                case 0:
+                {
+                    shade_map[MAP_TILE_COORD(tile_x, tile_y, tile_z)] = 50;
+                    if( tile_y < MAP_TERRAIN_Y - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)] = 50;
+                }
+                break;
+                case 1:
+                {
+                    if( tile_y < MAP_TERRAIN_Y - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)] = 50;
+                    if( tile_x < MAP_TERRAIN_X - 1 && tile_y < MAP_TERRAIN_Y - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)] = 50;
+                }
+                break;
+                case 2:
+                {
+                    if( tile_x < MAP_TERRAIN_X - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)] = 50;
+                    if( tile_x < MAP_TERRAIN_X - 1 && tile_y < MAP_TERRAIN_Y - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)] = 50;
+                }
+                break;
+                case 3:
+                {
+                    shade_map[MAP_TILE_COORD(tile_x, tile_y, tile_z)] = 50;
+                    if( tile_x < MAP_TERRAIN_X - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)] = 50;
+                }
+                break;
+                default:
+                {
+                    assert(false && "Invalid orientation");
+                }
+                }
+            }
         }
         break;
         case LOC_SHAPE_WALL_TRI_CORNER:
@@ -572,6 +585,41 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[map->orientation];
 
             grid_tile->wall = loc_index;
+
+            if( loc_config->shadowed )
+            {
+                switch( map->orientation )
+                {
+                case 0:
+                {
+                    // TODO: Fix bounds
+                    if( tile_y < MAP_TERRAIN_Y - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)] = 50;
+                }
+                break;
+                case 1:
+                {
+                    if( tile_x < MAP_TERRAIN_X - 1 && tile_y < MAP_TERRAIN_Y - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)] = 50;
+                }
+                break;
+                case 2:
+                {
+                    if( tile_x < MAP_TERRAIN_X - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)] = 50;
+                }
+                break;
+                case 3:
+                {
+                    shade_map[MAP_TILE_COORD(tile_x, tile_y, tile_z)] = 50;
+                }
+                break;
+                default:
+                {
+                    assert(false && "Invalid orientation");
+                }
+                }
+            }
         }
         break;
         case LOC_SHAPE_WALL_TWO_SIDES:
@@ -679,10 +727,47 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->_wall.model_a = model_index;
             assert(map->orientation >= 0);
             assert(map->orientation < 4);
-            loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[map->orientation];
+
+            int orientation = map->orientation;
+            loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[orientation];
 
             assert(model->model_ids[0] != 0);
             grid_tile->wall = loc_index;
+
+            if( loc_config->shadowed )
+            {
+                switch( orientation )
+                {
+                case 0:
+                {
+                    // TODO: Fix bounds
+                    if( tile_y < MAP_TERRAIN_Y - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)] = 50;
+                }
+                break;
+                case 1:
+                {
+                    if( tile_x < MAP_TERRAIN_X - 1 && tile_y < MAP_TERRAIN_Y - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)] = 50;
+                }
+                break;
+                case 2:
+                {
+                    if( tile_x < MAP_TERRAIN_X - 1 )
+                        shade_map[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)] = 50;
+                }
+                break;
+                case 3:
+                {
+                    shade_map[MAP_TILE_COORD(tile_x, tile_y, tile_z)] = 50;
+                }
+                break;
+                default:
+                {
+                    assert(false && "Invalid orientation");
+                }
+                }
+            }
         }
         break;
         case LOC_SHAPE_WALL_DECOR_NOOFFSET:
@@ -1000,6 +1085,26 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Compute spans
             compute_normal_scenery_spans(
                 scene->grid_tiles, tile_x, tile_y, tile_z, size_x, size_y, loc_index);
+
+            if( loc_config->shadowed )
+            {
+                for( int x = 0; x < size_x; x++ )
+                {
+                    for( int y = 0; y < size_y; y++ )
+                    {
+                        int shade = size_x * size_y;
+
+                        if( shade > 30 )
+                            shade = 30;
+
+                        int shade_x = x + tile_x;
+                        int shade_y = y + tile_y;
+
+                        if( shade_x < MAP_TERRAIN_X && shade_y < MAP_TERRAIN_Y )
+                            shade_map[MAP_TILE_COORD(shade_x, shade_y, tile_z)] = shade;
+                    }
+                }
+            }
         }
         break;
         case LOC_SHAPE_ROOF_SLOPED:
@@ -1079,6 +1184,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         }
     }
 
+    map_locs_iter_free(iter);
+
     // Adjust bridges.
     /**
      * Bridges are adjusted from an upper level.
@@ -1128,7 +1235,21 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         }
     }
 
-    map_locs_iter_free(iter);
+    // This must happen after loading of locs because locs influence the lightness.
+    scene_tiles = scene_tiles_new_from_map_terrain_cache(map_terrain, shade_map, cache);
+    if( !scene_tiles )
+    {
+        printf("Failed to load scene tiles\n");
+        goto error;
+    }
+
+    for( int i = 0; i < MAP_TILE_COUNT; i++ )
+    {
+        struct SceneTile* scene_tile = &scene_tiles[i];
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
+            scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
+        grid_tile->tile = scene_tile;
+    }
 
     map_terrain_free(map_terrain);
 

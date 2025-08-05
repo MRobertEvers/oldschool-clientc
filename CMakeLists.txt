@@ -73,6 +73,7 @@ add_executable(main_client
     src/osrs/xtea_config.c
     src/osrs/scene_cache.c
     src/datastruct/ht.c
+    src/osrs/tables/noise.c
 )
 
 add_executable(scene_tile_test
@@ -111,7 +112,7 @@ add_executable(scene_tile_test
     src/osrs/archive.c
     src/osrs/xtea_config.c
     src/osrs/scene_cache.c
-
+    src/osrs/tables/noise.c
     src/datastruct/ht.c
 )
 
@@ -153,6 +154,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/xtea_config.c
         src/osrs/scene_cache.c
         src/datastruct/ht.c
+        src/osrs/tables/noise.c
     )
 endif()
 
@@ -161,20 +163,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 endif()
-
-add_executable(xtea_test
-    test/xtea_test.c
-    src/osrs/xtea_config.c
-    src/osrs/tables/maps.c
-    src/osrs/cache.c
-    src/osrs/archive_decompress.c
-    src/osrs/xtea.c
-    src/osrs/xtea_config.c
-    src/osrs/archive.c
-    src/osrs/reference_table.c
-    src/buffer.c
-    src/osrs/rsbuf.c
-)
 
 # Model viewer with ImGui
 add_executable(model_viewer
@@ -209,6 +197,7 @@ add_executable(main_rs
     src/osrs/xtea.c
     src/osrs/archive.c
     src/osrs/xtea_config.c
+    src/osrs/tables/noise.c
 )
 
 add_executable(rs
@@ -235,6 +224,7 @@ add_executable(rs
     src/osrs/xtea.c
     src/osrs/archive.c
     src/osrs/xtea_config.c
+    src/osrs/tables/noise.c
 )
 
 add_executable(osrs_cache_test
@@ -266,7 +256,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(main_rs ${EXTRA_LIBS})
     target_link_libraries(rs ${EXTRA_LIBS})
     target_link_libraries(osrs_cache_test ${EXTRA_LIBS})
-    target_link_libraries(xtea_test ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test_browser ${EXTRA_LIBS})
     target_link_libraries(model_viewer ${EXTRA_LIBS})
@@ -276,7 +265,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(main_rs PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(rs PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(osrs_cache_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(xtea_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(scene_tile_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
@@ -285,7 +273,6 @@ else()
     target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-    target_link_libraries(xtea_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
 endif()
