@@ -307,7 +307,7 @@ apply_lighting(
 
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-                                        (light_attenuation * n->face_count);
+                                        (light_attenuation + (light_attenuation >> 1));
 
                 face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
                 face_colors_c_hsl16[i] = -1;
@@ -355,7 +355,7 @@ apply_lighting(
 
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-                                        (light_attenuation * n->face_count);
+                                        (light_attenuation + (light_attenuation >> 1));
 
                 face_colors_a_hsl16[i] = lightness_clamped(lightness);
                 face_colors_c_hsl16[i] = -1;

@@ -830,7 +830,8 @@ model_draw_face(
     if( face_textures && face_textures[index] != -1 )
     {
         texture_id = face_textures[index];
-        texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1);
+        // gamma 0.8 is the default in os1
+        texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 0.8);
         assert(texture != NULL);
         texels = texture->texels;
 
@@ -1386,7 +1387,7 @@ raster_osrs_single_texture(
     if( texture_id == -1 )
         return false;
 
-    texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 1);
+    texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 0.8);
     if( !texture )
         return false;
 
@@ -1460,6 +1461,8 @@ render_model_frame(
     int fov,
     int model_light_ambient,
     int model_light_contrast,
+    struct LightingNormal* lighting_vertex_normals,
+    struct LightingNormal* lighting_face_normals,
     struct CacheModel* model,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
@@ -1572,8 +1575,8 @@ render_model_frame(
     int light_ambient = 64;
     int light_attenuation = 768;
     int lightsrc_x = -50;
-    int lightsrc_y = -50;
-    int lightsrc_z = -10;
+    int lightsrc_y = -10;
+    int lightsrc_z = -50;
 
     light_ambient += model_light_ambient;
     // 2004Scape multiplies contrast by 5.
@@ -1582,7 +1585,7 @@ render_model_frame(
 
     int light_magnitude =
         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    int attenuation = light_attenuation * light_magnitude >> 8;
+    int attenuation = (light_attenuation * light_magnitude) >> 8;
 
     apply_lighting(
         face_colors_a_hsl16,
@@ -1747,11 +1750,6 @@ render_model_frame(
         model->face_count,
         model->face_priorities,
         model_min_depth * 2);
-
-    if( model->face_alphas )
-    {
-        int ii = 0;
-    }
 
     raster_osrs_typed(
         pixel_buffer,
@@ -2274,6 +2272,8 @@ render_scene_model(
             fov,
             model->light_ambient,
             model->light_contrast,
+            model->lighting_vertex_normals,
+            model->lighting_face_normals,
             drawable,
             NULL,
             NULL,

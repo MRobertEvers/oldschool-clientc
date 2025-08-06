@@ -60,7 +60,7 @@ struct CacheConfigLocationParam
 struct CacheConfigLocation
 {
     // Added after loading.
-    int _file_id;
+    int _id;
 
     /**
      * Sometimes multiple models are specified in a single loc config,
@@ -90,7 +90,8 @@ struct CacheConfigLocation
     int contour_ground_type;
     int contour_ground_param;
 
-    int merge_normals;
+    // This is merge_normals in rs map viewer
+    int shared_lighting;
 
     int model_clipped;
 
