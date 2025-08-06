@@ -692,6 +692,24 @@ enum FaceType
     FACE_TYPE_TEXTURED_FLAT_SHADE,
 };
 
+/**
+ * Communicates how to take the face color and create colors_a, colors_b, colors_c.
+ *
+ * If a FACE is textured, the colors_a, colors_b, colors_c are lightness values 0-127
+ */
+// Face infos contain this
+enum FaceBlend
+{
+    FACE_BLEND_GRADIENT = 0,
+    FACE_BLEND_FLAT = 1,
+
+    // Alpha -1 or face_info == 2
+    FACE_BLEND_HIDDEN = 2,
+
+    // Alpha -2 - as far as I can tell face_info is never 3
+    FACE_BLEND_BLACK = 3,
+};
+
 int g_empty_texture_texels[128 * 128] = { 0 };
 
 static void
@@ -1075,7 +1093,7 @@ model_draw_face(
             tn_y = orthographic_vertex_y_nullable[tn_face];
             tn_z = orthographic_vertex_z_nullable[tn_face];
 
-            raster_texture_step(
+            raster_texture_step_blend(
                 pixel_buffer,
                 screen_width,
                 screen_height,
@@ -1097,6 +1115,9 @@ model_draw_face(
                 tn_x,
                 tn_y,
                 tn_z,
+                color_a,
+                color_a,
+                color_a,
                 g_empty_texture_texels,
                 128,
                 false);
@@ -1437,7 +1458,8 @@ render_model_frame(
     int camera_yaw,
     int camera_roll,
     int fov,
-    int transform,
+    int model_light_ambient,
+    int model_light_contrast,
     struct CacheModel* model,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
@@ -1489,9 +1511,11 @@ render_model_frame(
     // int* face_colors_c_hsl16 = model->face_colors;
 
     // TODO: don't allocate this every frame.
-    struct VertexNormal* vertex_normals =
-        (struct VertexNormal*)malloc(model->vertex_count * sizeof(struct VertexNormal));
-    memset(vertex_normals, 0, model->vertex_count * sizeof(struct VertexNormal));
+    struct VertexNormal* vertex_normals = (struct VertexNormal*)malloc(
+        (model->vertex_count + model->face_count) * sizeof(struct VertexNormal));
+    memset(
+        vertex_normals, 0, (model->vertex_count + model->face_count) * sizeof(struct VertexNormal));
+    struct VertexNormal* aliased_face_normals = &vertex_normals[model->vertex_count];
 
     memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
     // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
@@ -1534,6 +1558,7 @@ render_model_frame(
 
     calculate_vertex_normals(
         vertex_normals,
+        aliased_face_normals,
         model->vertex_count,
         face_indices_a,
         face_indices_b,
@@ -1549,6 +1574,12 @@ render_model_frame(
     int lightsrc_x = -50;
     int lightsrc_y = -50;
     int lightsrc_z = -10;
+
+    light_ambient += model_light_ambient;
+    // 2004Scape multiplies contrast by 5.
+    // Later versions do not.
+    light_attenuation += model_light_contrast;
+
     int light_magnitude =
         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
     int attenuation = light_attenuation * light_magnitude >> 8;
@@ -1558,6 +1589,7 @@ render_model_frame(
         face_colors_b_hsl16,
         face_colors_c_hsl16,
         vertex_normals,
+        aliased_face_normals,
         face_indices_a,
         face_indices_b,
         face_indices_c,
@@ -1566,9 +1598,11 @@ render_model_frame(
         vertices_y,
         vertices_z,
         model->face_colors,
+        model->face_alphas,
+        model->face_textures,
         model->face_infos,
         light_ambient,
-        attenuation + attenuation / 2,
+        attenuation,
         lightsrc_x,
         lightsrc_y,
         lightsrc_z);
@@ -2238,7 +2272,8 @@ render_scene_model(
             camera_yaw,
             camera_roll,
             fov,
-            false,
+            model->light_ambient,
+            model->light_contrast,
             drawable,
             NULL,
             NULL,

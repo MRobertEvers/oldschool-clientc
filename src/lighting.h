@@ -11,6 +11,7 @@ struct VertexNormal
 
 void calculate_vertex_normals(
     struct VertexNormal* vertex_normals,
+    struct VertexNormal* face_normals,
     int vertex_count,
     int* face_indices_a,
     int* face_indices_b,
@@ -25,6 +26,7 @@ void apply_lighting(
     int* face_colors_b_hsl16,
     int* face_colors_c_hsl16,
     struct VertexNormal* vertex_normals,
+    struct VertexNormal* face_normals,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
@@ -33,6 +35,8 @@ void apply_lighting(
     int* vertex_y,
     int* vertex_z,
     int* face_colors_hsl16, // The flat color.
+    int* face_alphas,
+    int* face_textures,
     int* face_infos,
     int light_ambient,
     int light_attenuation,

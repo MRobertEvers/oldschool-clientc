@@ -1214,16 +1214,16 @@ main(int argc, char* argv[])
             // 1499);
             model_min_depth * 2);
 
-        calculate_vertex_normals(
-            vertex_normals,
-            model->vertex_count,
-            model->face_indices_a,
-            model->face_indices_b,
-            model->face_indices_c,
-            animated_vertices_x,
-            animated_vertices_y,
-            animated_vertices_z,
-            model->face_count);
+        // calculate_vertex_normals(
+        //     vertex_normals,
+        //     model->vertex_count,
+        //     model->face_indices_a,
+        //     model->face_indices_b,
+        //     model->face_indices_c,
+        //     animated_vertices_x,
+        //     animated_vertices_y,
+        //     animated_vertices_z,
+        //     model->face_count);
 
         int light_ambient = 64;
         int light_attenuation = 850;
@@ -1234,25 +1234,25 @@ main(int argc, char* argv[])
             (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
         int attenuation = light_attenuation * light_magnitude >> 8;
 
-        apply_lighting(
-            face_colors_a_hsl16,
-            face_colors_b_hsl16,
-            face_colors_c_hsl16,
-            vertex_normals,
-            model->face_indices_a,
-            model->face_indices_b,
-            model->face_indices_c,
-            model->face_count,
-            animated_vertices_x,
-            animated_vertices_y,
-            animated_vertices_z,
-            model->face_colors,
-            model->face_infos,
-            light_ambient,
-            attenuation,
-            lightsrc_x,
-            lightsrc_y,
-            lightsrc_z);
+        // apply_lighting(
+        //     face_colors_a_hsl16,
+        //     face_colors_b_hsl16,
+        //     face_colors_c_hsl16,
+        //     vertex_normals,
+        //     model->face_indices_a,
+        //     model->face_indices_b,
+        //     model->face_indices_c,
+        //     model->face_count,
+        //     animated_vertices_x,
+        //     animated_vertices_y,
+        //     animated_vertices_z,
+        //     model->face_colors,
+        //     model->face_infos,
+        //     light_ambient,
+        //     attenuation,
+        //     lightsrc_x,
+        //     lightsrc_y,
+        //     lightsrc_z);
 
         raster_osrs(
             pixel_buffer,

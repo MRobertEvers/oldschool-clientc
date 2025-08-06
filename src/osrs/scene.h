@@ -24,6 +24,9 @@ struct SceneModel
     struct CacheModel** models;
     int model_count;
 
+    int light_ambient;
+    int light_contrast;
+
     int region_x;
     int region_y;
     int region_z;

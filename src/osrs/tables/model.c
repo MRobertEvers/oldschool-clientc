@@ -2311,6 +2311,15 @@ model_new_decode(const unsigned char* inputData, int inputLength)
 
     assert(model != NULL);
 
+    // if( model->face_infos )
+    // {
+    //     for( int i = 0; i < model->face_count; i++ )
+    //     {
+    //         int face_info = model->face_infos[i];
+    //         assert(face_info == 0 || face_info == 1 || face_info == 2);
+    //     }
+    // }
+
     return model;
 }
 

@@ -2,10 +2,69 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdlib.h>
+
+static struct VertexNormal
+calc_face_normal(
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int face)
+{
+    struct VertexNormal normal = { 0 };
+
+    int a = face_indices_a[face];
+    int b = face_indices_b[face];
+    int c = face_indices_c[face];
+
+    int xa = vertex_x[a];
+    int xb = vertex_x[b];
+    int xc = vertex_x[c];
+
+    int ya = vertex_y[a];
+    int yb = vertex_y[b];
+    int yc = vertex_y[c];
+
+    int za = vertex_z[a];
+    int zb = vertex_z[b];
+    int zc = vertex_z[c];
+
+    int dx_ab = xb - xa;
+    int dy_ab = yb - ya;
+    int dz_ab = zb - za;
+
+    int dx_ac = xc - xa;
+    int dy_ac = yc - ya;
+    int dz_ac = zc - za;
+
+    // Cross Product of vectors AB and AC
+    int normal_x = dy_ab * dz_ac - dy_ac * dz_ab;
+    int normal_y = dz_ab * dx_ac - dz_ac * dx_ab;
+    // int normal_z = dx_ab * dy_ac - dx_ac * dy_ab;
+
+    int nz;
+    for( nz = dx_ab * dy_ac - dx_ac * dy_ab; normal_x > 8192 || normal_y > 8192 || nz > 8192 ||
+                                             normal_x < -8192 || normal_y < -8192 || nz < -8192;
+         nz >>= 0x1 )
+    {
+        normal_x >>= 0x1;
+        normal_y >>= 0x1;
+    }
+
+    normal.x = normal_x;
+    normal.y = normal_y;
+    normal.z = nz;
+
+    return normal;
+}
 
 void
 calculate_vertex_normals(
     struct VertexNormal* vertex_normals,
+    struct VertexNormal* face_normals,
     int vertex_count,
     int* face_indices_a,
     int* face_indices_b,
@@ -47,7 +106,18 @@ calculate_vertex_normals(
         // Cross Product of vectors AB and AC
         int normal_x = dy_ab * dz_ac - dy_ac * dz_ab;
         int normal_y = dz_ab * dx_ac - dz_ac * dx_ab;
-        int normal_z = dx_ab * dy_ac - dx_ac * dy_ab;
+        // int normal_z = dx_ab * dy_ac - dx_ac * dy_ab;
+
+        int nz;
+        for( nz = dx_ab * dy_ac - dx_ac * dy_ab; normal_x > 8192 || normal_y > 8192 || nz > 8192 ||
+                                                 normal_x < -8192 || normal_y < -8192 || nz < -8192;
+             nz >>= 0x1 )
+        {
+            normal_x >>= 0x1;
+            normal_y >>= 0x1;
+        }
+
+        int normal_z = nz;
 
         int magnitude = sqrt(normal_x * normal_x + normal_y * normal_y + normal_z * normal_z);
         if( magnitude <= 0 )
@@ -73,6 +143,11 @@ calculate_vertex_normals(
         vertex_normals[c].y += normal_y;
         vertex_normals[c].z += normal_z;
         vertex_normals[c].face_count++;
+
+        face_normals[i].x = normal_x;
+        face_normals[i].y = normal_y;
+        face_normals[i].z = normal_z;
+        face_normals[i].face_count = 1;
     }
 }
 
@@ -93,12 +168,43 @@ lighting_multiply_hsl16(int hsl, int scalar)
     return (hsl & 0xff80) + scalar;
 }
 
+static int
+lighting_multiply_hsl16_unlit(int hsl, int scalar, int face_info)
+{
+    // face info 2 means unlit.
+    if( (face_info & 0x2) == 2 )
+    {
+        if( scalar < 0 )
+        {
+            scalar = 0;
+        }
+        else if( scalar > 127 )
+        {
+            scalar = 127;
+        }
+        return 127 - scalar;
+    }
+
+    return lighting_multiply_hsl16(hsl, scalar);
+}
+
+static int
+lightness_clamped(int lightness)
+{
+    if( lightness < 2 )
+        return 2;
+    if( lightness > 126 )
+        return 126;
+    return lightness;
+}
+
 void
 apply_lighting(
     int* face_colors_a_hsl16,
     int* face_colors_b_hsl16,
     int* face_colors_c_hsl16,
     struct VertexNormal* vertex_normals,
+    struct VertexNormal* face_normals,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
@@ -107,6 +213,8 @@ apply_lighting(
     int* vertex_y,
     int* vertex_z,
     int* face_colors_hsl16, // The flat color.
+    int* face_alphas,
+    int* face_textures,
     int* face_infos,
     int light_ambient,
     int light_attenuation,
@@ -139,40 +247,219 @@ apply_lighting(
         // OS1
         // 	public final ModelUnlit calculateNormals(int arg0, int arg1, int arg2, int arg3, int
         // arg4) {
-        if( face_infos )
-        {
-            int face_info = face_infos[i];
-            int face_type = face_info & 0x3;
-            if( face_type == 2 )
-            {
-                face_colors_c_hsl16[i] = -2;
-                continue;
-            }
-        }
+
+        int type = 0;
+        if( !face_infos )
+            type = 0;
+        else
+            type = face_infos[i] & 0x3;
+
+        int alpha = 0;
+        if( face_alphas )
+            alpha = face_alphas[i];
+
+        int textureid = -1;
+        if( face_textures )
+            textureid = face_textures[i];
+
+        if( alpha == -2 )
+            type = 3;
+
+        if( alpha == -1 )
+            type = 2;
 
         int color_flat_hsl16 = face_colors_hsl16[i];
         int a = face_indices_a[i];
         int b = face_indices_b[i];
         int c = face_indices_c[i];
 
-        struct VertexNormal* n = &vertex_normals[a];
+        struct VertexNormal* n = NULL;
 
-        // dot product of normal and light vector
-        lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+        if( textureid == -1 )
+        {
+            if( type == 0 )
+            {
+                n = &vertex_normals[a];
+                //     // dot product of normal and light vector
+                lightness =
+                    light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-        face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
 
-        n = &vertex_normals[b];
-        lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+                n = &vertex_normals[b];
+                lightness =
+                    light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-        face_colors_b_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                face_colors_b_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
 
-        n = &vertex_normals[c];
-        lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+                n = &vertex_normals[c];
+                lightness =
+                    light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-        face_colors_c_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                face_colors_c_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+            }
+            else if( type == 1 )
+            {
+                n = &face_normals[i];
+
+                lightness =
+                    light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+                                        (light_attenuation * n->face_count);
+
+                face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                face_colors_c_hsl16[i] = -1;
+            }
+            else if( type == 2 )
+            {
+                face_colors_c_hsl16[i] = -2;
+            }
+            else if( type == 3 )
+            {
+                // 128 is black in the pallette.
+                face_colors_a_hsl16[i] = 128;
+                face_colors_c_hsl16[i] = -2;
+            }
+        }
+        else
+        {
+            if( type == 0 )
+            {
+                n = &vertex_normals[a];
+                //     // dot product of normal and light vector
+                lightness =
+                    light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+                                        (light_attenuation * n->face_count);
+
+                face_colors_a_hsl16[i] = lightness_clamped(lightness);
+
+                n = &vertex_normals[b];
+                lightness =
+                    light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+                                        (light_attenuation * n->face_count);
+
+                face_colors_b_hsl16[i] = lightness_clamped(lightness);
+
+                n = &vertex_normals[c];
+                lightness =
+                    light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+                                        (light_attenuation * n->face_count);
+
+                face_colors_c_hsl16[i] = lightness_clamped(lightness);
+            }
+            else if( type == 1 )
+            {
+                n = &face_normals[i];
+
+                lightness =
+                    light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+                                        (light_attenuation * n->face_count);
+
+                face_colors_a_hsl16[i] = lightness_clamped(lightness);
+                face_colors_c_hsl16[i] = -1;
+            }
+            else if( type == 2 )
+            {
+                face_colors_c_hsl16[i] = -2;
+            }
+            else if( type == 3 )
+            {
+                face_colors_c_hsl16[i] = -2;
+            }
+        }
+
+        // if( face_infos )
+        // {
+        //     int face_info = face_infos[i];
+        //     if( face_info == 1 )
+        //     {
+        //         int ilkjlk = 0;
+        //     }
+
+        //     int face_type = face_info & 0x3;
+        //     if( face_type == 2 )
+        //     {
+        //         face_colors_c_hsl16[i] = -2;
+        //         continue;
+        //     }
+        // }
+
+        // int color_flat_hsl16 = face_colors_hsl16[i];
+        // int a = face_indices_a[i];
+        // int b = face_indices_b[i];
+        // int c = face_indices_c[i];
+
+        // struct VertexNormal* n = &vertex_normals[a];
+
+        // // if( !face_infos )
+        // // {
+        // //     // dot product of normal and light vector
+        // lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+        //                                 (light_attenuation * n->face_count);
+
+        // face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+
+        // n = &vertex_normals[b];
+        // lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+        //                                 (light_attenuation * n->face_count);
+
+        // face_colors_b_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+
+        // n = &vertex_normals[c];
+        // lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+        //                                 (light_attenuation * n->face_count);
+
+        // face_colors_c_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+        // // }
+        // // else if( face_infos[i] == 0 )
+        // struct VertexNormal normal = calc_face_normal(
+        //     vertex_x, vertex_y, vertex_z, face_indices_a, face_indices_b, face_indices_c, i);
+        // n = &normal;
+        // {
+        //     // dot product of normal and light vector
+        //     // lightness =
+        //     //     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+        //     //                         (light_attenuation * n->face_count);
+
+        //     // // face_colors_a_hsl16[i] =
+        //     // //     lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, face_infos[i]);
+        //     // face_colors_a_hsl16[i] = lightness_clamped(lightness);
+        //     // face_colors_b_hsl16[i] = lightness_clamped(lightness);
+        //     // face_colors_c_hsl16[i] = lightness_clamped(lightness);
+
+        //     // n = &vertex_normals[b];
+        //     // lightness =
+        //     //     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+        //     //                         (light_attenuation * n->face_count);
+
+        //     // // face_colors_b_hsl16[i] =
+        //     // //     lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, face_infos[i]);
+        //     // face_colors_b_hsl16[i] = lightness_clamped(lightness);
+
+        //     // n = &vertex_normals[c];
+        //     // lightness =
+        //     //     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+        //     //                         (light_attenuation * n->face_count);
+
+        //     // // face_colors_c_hsl16[i] =
+        //     // //     lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, face_infos[i]);
+        //     // face_colors_c_hsl16[i] = lightness_clamped(lightness);
+        // }
+        // // else if( face_infos[i] == 1 )
+        // // {
+        // //     lightness =
+        // //         light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
+        // //                             (light_attenuation * n->face_count);
+
+        // //     face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+
+        // //     face_colors_c_hsl16[i] = -1;
+        // // }
+        // // else
+        // // {
+        // //     face_colors_c_hsl16[i] = -2;
+        // // }
     }
 }

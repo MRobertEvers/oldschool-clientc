@@ -297,6 +297,9 @@ loc_load_model(
 
     loc_apply_transforms(
         loc_config, scene_loc->models[0], orientation, sw_height, se_height, ne_height, nw_height);
+
+    scene_loc->light_ambient = loc_config->ambient;
+    scene_loc->light_contrast = loc_config->contrast;
 }
 
 static int
@@ -329,6 +332,9 @@ vec_model_push(struct Scene* scene)
     }
 
     memset(scene->models + scene->models_length, 0, sizeof(struct SceneModel));
+
+    scene->models[scene->models_length].light_ambient = -1;
+    scene->models[scene->models_length].light_contrast = -1;
 
     return scene->models_length++;
 }
@@ -1203,8 +1209,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     }
 
     // Adjust bridges.
-    // This MUST occurr after the above.
-    // TODO: Remove this once tiles are no longer pointers.
+    // This MUST occur after the tiles are assigned to the grid tiles.
     /**
      * Bridges are adjusted from an upper level.
      *

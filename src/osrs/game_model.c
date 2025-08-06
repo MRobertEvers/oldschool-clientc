@@ -223,83 +223,83 @@ model_face_draw_mode(struct CacheModel* model, int face)
     }
 }
 
-void
-model_apply_lighting(
-    struct CacheModel* model,
-    int face,
-    int* face_colors_a_hsl16,
-    int* face_colors_b_hsl16,
-    int* face_colors_c_hsl16)
-{
-    struct VertexNormal* vertex_normals = NULL;
+// void
+// model_apply_lighting(
+//     struct CacheModel* model,
+//     int face,
+//     int* face_colors_a_hsl16,
+//     int* face_colors_b_hsl16,
+//     int* face_colors_c_hsl16)
+// {
+//     struct VertexNormal* vertex_normals = NULL;
 
-    int light_ambient = 64;
-    int light_attenuation = 850;
-    int lightsrc_x = -30;
-    int lightsrc_y = -50;
-    int lightsrc_z = -30;
-    int light_magnitude =
-        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    int attenuation = light_attenuation * light_magnitude >> 8;
+//     int light_ambient = 64;
+//     int light_attenuation = 850;
+//     int lightsrc_x = -30;
+//     int lightsrc_y = -50;
+//     int lightsrc_z = -30;
+//     int light_magnitude =
+//         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+//     int attenuation = light_attenuation * light_magnitude >> 8;
 
-    enum LightingMode lighting_mode = 0;
-    for( int face = 0; face < model->face_count; face++ )
-    {
-        lighting_mode = model_face_lighting_mode(model, face);
+//     enum LightingMode lighting_mode = 0;
+//     for( int face = 0; face < model->face_count; face++ )
+//     {
+//         lighting_mode = model_face_lighting_mode(model, face);
 
-        switch( lighting_mode )
-        {
-        case LM_TEXTURED_VERTEX:
-        {
-            vertex_normals =
-                (struct VertexNormal*)malloc(model->vertex_count * sizeof(struct VertexNormal));
-            memset(vertex_normals, 0, model->vertex_count * sizeof(struct VertexNormal));
+//         switch( lighting_mode )
+//         {
+//         case LM_TEXTURED_VERTEX:
+//         {
+//             vertex_normals =
+//                 (struct VertexNormal*)malloc(model->vertex_count * sizeof(struct VertexNormal));
+//             memset(vertex_normals, 0, model->vertex_count * sizeof(struct VertexNormal));
 
-            calculate_vertex_normals(
-                vertex_normals,
-                model->vertex_count,
-                model->face_indices_a,
-                model->face_indices_b,
-                model->face_indices_c,
-                model->vertices_x,
-                model->vertices_y,
-                model->vertices_z,
-                model->face_count);
+//             calculate_vertex_normals(
+//                 vertex_normals,
+//                 model->vertex_count,
+//                 model->face_indices_a,
+//                 model->face_indices_b,
+//                 model->face_indices_c,
+//                 model->vertices_x,
+//                 model->vertices_y,
+//                 model->vertices_z,
+//                 model->face_count);
 
-            apply_lighting(
-                face_colors_a_hsl16,
-                face_colors_b_hsl16,
-                face_colors_c_hsl16,
-                vertex_normals,
-                model->face_indices_a,
-                model->face_indices_b,
-                model->face_indices_c,
-                model->face_count,
-                model->vertices_x,
-                model->vertices_y,
-                model->vertices_z,
-                model->face_colors,
-                model->face_infos,
-                light_ambient,
-                attenuation,
-                lightsrc_x,
-                lightsrc_y,
-                lightsrc_z);
+//             apply_lighting(
+//                 face_colors_a_hsl16,
+//                 face_colors_b_hsl16,
+//                 face_colors_c_hsl16,
+//                 vertex_normals,
+//                 model->face_indices_a,
+//                 model->face_indices_b,
+//                 model->face_indices_c,
+//                 model->face_count,
+//                 model->vertices_x,
+//                 model->vertices_y,
+//                 model->vertices_z,
+//                 model->face_colors,
+//                 model->face_infos,
+//                 light_ambient,
+//                 attenuation,
+//                 lightsrc_x,
+//                 lightsrc_y,
+//                 lightsrc_z);
 
-            free(vertex_normals);
-        }
-        break;
-        case LM_TEXTURED_FACE:
-            // TODO:
-            break;
-        case LM_TEXTURED_FLAT_BLACK:
-            break;
-        case LM_VERTEX:
-            break;
-        case LM_FACE:
-            break;
-        case LM_HIDDEN_FACE:
-            break;
-        }
-    }
-}
+//             free(vertex_normals);
+//         }
+//         break;
+//         case LM_TEXTURED_FACE:
+//             // TODO:
+//             break;
+//         case LM_TEXTURED_FLAT_BLACK:
+//             break;
+//         case LM_VERTEX:
+//             break;
+//         case LM_FACE:
+//             break;
+//         case LM_HIDDEN_FACE:
+//             break;
+//         }
+//     }
+// }
