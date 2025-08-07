@@ -89,6 +89,8 @@ struct CacheModel
     int _model_type;
     int _flags;
 
+    int _ids[10];
+
     int vertex_count;
     int* vertices_x;
     int* vertices_y;

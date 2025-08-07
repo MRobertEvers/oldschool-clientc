@@ -83,7 +83,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->blocks_projectiles = 1;
     loc->is_interactive = -1;
     loc->contoured_ground = -1;
-    loc->shared_lighting = 0;
+    loc->sharelight = 0;
     loc->model_clipped = 0;
     loc->seq_id = -1;
     loc->ambient = 0;
@@ -239,7 +239,7 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             loc->contour_ground_type = 1;
             break;
         case 22:
-            loc->shared_lighting = 1;
+            loc->sharelight = 1;
             break;
         case 23:
             loc->model_clipped = 1;

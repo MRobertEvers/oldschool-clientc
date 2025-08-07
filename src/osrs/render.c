@@ -1514,11 +1514,6 @@ render_model_frame(
     // int* face_colors_c_hsl16 = model->face_colors;
 
     // TODO: don't allocate this every frame.
-    struct VertexNormal* vertex_normals = (struct VertexNormal*)malloc(
-        (model->vertex_count + model->face_count) * sizeof(struct VertexNormal));
-    memset(
-        vertex_normals, 0, (model->vertex_count + model->face_count) * sizeof(struct VertexNormal));
-    struct VertexNormal* aliased_face_normals = &vertex_normals[model->vertex_count];
 
     memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
     // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
@@ -1558,19 +1553,6 @@ render_model_frame(
             bones_nullable->bones,
             bones_nullable->bones_sizes);
     }
-
-    calculate_vertex_normals(
-        vertex_normals,
-        aliased_face_normals,
-        model->vertex_count,
-        face_indices_a,
-        face_indices_b,
-        face_indices_c,
-        vertices_x,
-        vertices_y,
-        vertices_z,
-        model->face_count);
-
     // see model_calculate_normals in client3
     int light_ambient = 64;
     int light_attenuation = 768;
@@ -1591,8 +1573,8 @@ render_model_frame(
         face_colors_a_hsl16,
         face_colors_b_hsl16,
         face_colors_c_hsl16,
-        vertex_normals,
-        aliased_face_normals,
+        lighting_vertex_normals,
+        lighting_face_normals,
         face_indices_a,
         face_indices_b,
         face_indices_c,
@@ -1792,7 +1774,6 @@ render_model_frame(
     free(face_indices_c);
 
 done:
-    free(vertex_normals);
     // free(screen_vertices_x);
     // free(screen_vertices_y);
     // free(screen_vertices_z);
@@ -2249,37 +2230,33 @@ render_scene_model(
     y += model->offset_y;
     z += model->offset_height;
 
-    for( int j = 0; j < 1 && model->model_count; j++ )
-    {
-        struct CacheModel* drawable = model->models[j];
-        if( !drawable )
-            continue;
+    if( model->model == NULL )
+        return;
 
-        render_model_frame(
-            pixel_buffer,
-            width,
-            height,
-            near_plane_z,
-            0,
-            yaw,
-            0,
-            x,
-            y,
-            z,
-            camera_pitch,
-            camera_yaw,
-            camera_roll,
-            fov,
-            model->light_ambient,
-            model->light_contrast,
-            model->lighting_vertex_normals,
-            model->lighting_face_normals,
-            drawable,
-            NULL,
-            NULL,
-            NULL,
-            textures_cache);
-    }
+    render_model_frame(
+        pixel_buffer,
+        width,
+        height,
+        near_plane_z,
+        0,
+        yaw,
+        0,
+        x,
+        y,
+        z,
+        camera_pitch,
+        camera_yaw,
+        camera_roll,
+        fov,
+        model->light_ambient,
+        model->light_contrast,
+        model->normals->lighting_vertex_normals,
+        model->normals->lighting_face_normals,
+        model->model,
+        NULL,
+        NULL,
+        NULL,
+        textures_cache);
 }
 
 struct IntQueue

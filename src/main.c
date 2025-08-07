@@ -850,8 +850,8 @@ main(int argc, char* argv[])
     int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
     int* screen_vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
 
-    struct VertexNormal* vertex_normals =
-        (struct VertexNormal*)malloc(model->vertex_count * sizeof(struct VertexNormal));
+    // struct VertexNormal* vertex_normals =
+    //     (struct VertexNormal*)malloc(model->vertex_count * sizeof(struct VertexNormal));
 
     int* face_colors_a_hsl16 = (int*)malloc(model->face_count * sizeof(int));
     int* face_colors_b_hsl16 = (int*)malloc(model->face_count * sizeof(int));

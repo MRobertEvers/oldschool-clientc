@@ -798,3 +798,16 @@ textured transparent (i.e. == 0 is masked out)
 flat
 gouraud
 lerp8
+
+### Model Loading
+
+Model_copy_x from client3 exists to create copies of the data that is later
+transformed in later steps. In this code, each model owns it's own copies always (for now)
+so we do not have to worry. "sharelight" is an optimization to indicate that we need a copy
+for this particular model.
+
+1. Load from cache ("base")
+2. Copy from cache and transform ("transformed base")
+3. Copy from tranformed, animate and light.
+
+The deob uses a "flyweight" type of structure.

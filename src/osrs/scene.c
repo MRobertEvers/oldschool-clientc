@@ -218,45 +218,48 @@ loc_load_model(
     int nw_height)
 {
     int* shapes = loc_config->shapes;
-    int** models = loc_config->models;
+    int** model_id_sets = loc_config->models;
     int* lengths = loc_config->lengths;
     int shapes_and_model_count = loc_config->shapes_and_model_count;
 
+    struct CacheModel** models = NULL;
+    int model_count = 0;
+    int* model_ids = NULL;
+
     struct CacheModel* model = NULL;
-    if( !models )
+
+    if( !model_id_sets )
         return;
 
     if( !shapes )
     {
         int count = lengths[0];
 
-        scene_loc->models = malloc(sizeof(struct CacheModel) * count);
-        memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
-        scene_loc->model_ids = malloc(sizeof(int) * count);
-        memset(scene_loc->model_ids, 0, sizeof(int) * count);
+        models = malloc(sizeof(struct CacheModel) * count);
+        memset(models, 0, sizeof(struct CacheModel) * count);
+        model_ids = malloc(sizeof(int) * count);
+        memset(model_ids, 0, sizeof(int) * count);
 
         for( int i = 0; i < count; i++ )
         {
-            assert(models);
-            assert(models[0]);
-            int model_id = models[0][i];
+            int model_id = model_id_sets[0][i];
             assert(model_id);
 
             model = model_cache_checkout(model_cache, cache, model_id);
             assert(model);
-            scene_loc->models[scene_loc->model_count] = model;
-            scene_loc->model_ids[scene_loc->model_count] = model_id;
-            scene_loc->model_count++;
+            models[model_count] = model;
+            model_ids[model_count] = model_id;
+            model_count++;
         }
     }
     else
     {
         int count = shapes_and_model_count;
 
-        scene_loc->models = malloc(sizeof(struct CacheModel) * count);
-        memset(scene_loc->models, 0, sizeof(struct CacheModel) * count);
-        scene_loc->model_ids = malloc(sizeof(int) * count);
-        memset(scene_loc->model_ids, 0, sizeof(int) * count);
+        models = malloc(sizeof(struct CacheModel*) * count);
+        memset(models, 0, sizeof(struct CacheModel*) * count);
+        model_ids = malloc(sizeof(int) * count);
+        memset(model_ids, 0, sizeof(int) * count);
 
         bool found = false;
         for( int i = 0; i < count; i++ )
@@ -266,16 +269,17 @@ loc_load_model(
             int loc_type = shapes[i];
             if( loc_type == shape_select )
             {
+                assert(count_inner <= count);
                 for( int j = 0; j < count_inner; j++ )
                 {
-                    int model_id = models[i][j];
+                    int model_id = model_id_sets[i][j];
                     assert(model_id);
 
                     model = model_cache_checkout(model_cache, cache, model_id);
                     assert(model);
-                    scene_loc->models[scene_loc->model_count] = model;
-                    scene_loc->model_ids[scene_loc->model_count] = model_id;
-                    scene_loc->model_count++;
+                    models[model_count] = model;
+                    model_ids[model_count] = model_id;
+                    model_count++;
                     found = true;
                 }
             }
@@ -283,23 +287,28 @@ loc_load_model(
         assert(found);
     }
 
-    if( scene_loc->model_count > 1 )
+    assert(model_count > 0);
+
+    if( model_count > 1 )
     {
-        model = model_new_merge(scene_loc->models, scene_loc->model_count);
-        scene_loc->models[0] = model;
-        scene_loc->model_count = 1;
+        model = model_new_merge(models, model_count);
     }
     else
     {
-        model = model_new_copy(scene_loc->models[0]);
-        scene_loc->models[0] = model;
+        model = model_new_copy(models[0]);
     }
 
     loc_apply_transforms(
-        loc_config, scene_loc->models[0], orientation, sw_height, se_height, ne_height, nw_height);
+        loc_config, model, orientation, sw_height, se_height, ne_height, nw_height);
+
+    scene_loc->model = model;
+    scene_loc->model_id = model_ids[0];
 
     scene_loc->light_ambient = loc_config->ambient;
     scene_loc->light_contrast = loc_config->contrast;
+
+    free(models);
+    free(model_ids);
 }
 
 static int
@@ -406,12 +415,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 grid_tile->x = x;
                 grid_tile->z = y;
                 grid_tile->level = level;
+                grid_tile->spans = 0;
+                grid_tile->sharelight = 0;
 
                 grid_tile->wall = -1;
                 grid_tile->ground_decor = -1;
                 grid_tile->wall_decor = -1;
                 grid_tile->bridge_tile = -1;
-                grid_tile->spans = 0;
             }
         }
     }
@@ -456,6 +466,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         loc_config = config_locs_table_get(config_locs_table, map->loc_id);
         assert(loc_config);
+
+        // grid_tile->sharelight = loc_config->sharelight;
 
         switch( map->shape_select )
         {
@@ -737,7 +749,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             int orientation = map->orientation;
             loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[orientation];
 
-            assert(model->model_ids[0] != 0);
+            assert(model->model_id != 0);
             grid_tile->wall = loc_index;
 
             if( loc_config->shadowed )
@@ -1258,6 +1270,55 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         }
     }
 
+    // Here:
+    // Build model lighting
+    // 1. Assign and share normals for SceneModels
+    // 2. Scene merge normals of abutting locs.
+    // 3. Compute lighting
+
+    for( int i = 0; i < scene->models_length; i++ )
+    {
+        struct SceneModel* model = &scene->models[i];
+
+        if( model->model == NULL )
+            continue;
+
+        struct CacheModel* cache_model = model->model;
+
+        struct ModelNormals* normals = malloc(sizeof(struct ModelNormals));
+        memset(normals, 0, sizeof(struct ModelNormals));
+
+        normals->lighting_vertex_normals =
+            malloc(sizeof(struct LightingNormal) * cache_model->vertex_count);
+        memset(
+            normals->lighting_vertex_normals,
+            0,
+            sizeof(struct LightingNormal) * cache_model->vertex_count);
+        normals->lighting_face_normals =
+            malloc(sizeof(struct LightingNormal) * cache_model->face_count);
+        memset(
+            normals->lighting_face_normals,
+            0,
+            sizeof(struct LightingNormal) * cache_model->face_count);
+
+        normals->lighting_vertex_normals_count = cache_model->vertex_count;
+        normals->lighting_face_normals_count = cache_model->face_count;
+
+        calculate_vertex_normals(
+            normals->lighting_vertex_normals,
+            normals->lighting_face_normals,
+            cache_model->vertex_count,
+            cache_model->face_indices_a,
+            cache_model->face_indices_b,
+            cache_model->face_indices_c,
+            cache_model->vertices_x,
+            cache_model->vertices_y,
+            cache_model->vertices_z,
+            cache_model->face_count);
+
+        model->normals = normals;
+    }
+
     map_terrain_free(map_terrain);
 
     config_locs_table_free(config_locs_table);
@@ -1280,8 +1341,7 @@ scene_free(struct Scene* scene)
     for( int i = 0; i < scene->models_length; i++ )
     {
         struct SceneModel* model = &scene->models[i];
-        free(model->model_ids);
-        free(model->models);
+        model_free(model->model);
     }
 
     free(scene->models);

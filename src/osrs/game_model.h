@@ -28,17 +28,17 @@ void model_transform_orient(struct CacheModel* model, int orientation);
 
 void model_transform_translate(struct CacheModel* model, int x, int y, int z);
 
-enum LightingMode
-{
-    LM_TEXTURED_VERTEX,
-    LM_TEXTURED_FACE,
-    LM_TEXTURED_FLAT_BLACK,
-    LM_VERTEX,
-    LM_FACE,
-    LM_HIDDEN_FACE,
-};
+// enum LightingMode
+// {
+//     LM_TEXTURED_VERTEX,
+//     LM_TEXTURED_FACE,
+//     LM_TEXTURED_FLAT_BLACK,
+//     LM_VERTEX,
+//     LM_FACE,
+//     LM_HIDDEN_FACE,
+// };
 
-enum LightingMode model_face_lighting_mode(struct CacheModel* model, int face);
+// enum LightingMode model_face_lighting_mode(struct CacheModel* model, int face);
 
 enum FaceDrawMode
 {

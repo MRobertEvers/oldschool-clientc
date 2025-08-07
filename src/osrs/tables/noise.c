@@ -59,25 +59,32 @@ cosine_interpolate(int x, int y, int fraction, int freq)
 // This also appears to be "fade" random number generator.
 //
 //
-// Fade function as defined by Ken
+// fade function as defined by Ken
 // Perlin.  This eases coordinate values
 // so that they will ease towards integral values.  This ends up smoothing
 // the final output.
 //
 //
-// The fade function is, also sometimes called the "ease" function
+// The fadexy function is, also sometimes called the "ease" function
 // n^3*15731 + n*789221 + 1376312589
 static inline int
-fade(int x, int y)
+fade(int n)
 {
-    int n = y * 57 + x;
     n = (n << 13) ^ n;
-    int n2 = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
-    return (n2 >> 19) & 0xff;
+    return (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
 }
 
 /**
- * Averages the results of the fade random number generator on
+ * Fades x,y and returns a value between 0 and 255.
+ */
+static inline int
+fadexy(int x, int y)
+{
+    return (fade(y * 57 + x) >> 19) & 0xff;
+}
+
+/**
+ * Averages the results of the fadexy random number generator on
  * corners, sides, center values of x,y.
  *
  * @param x
@@ -85,11 +92,12 @@ fade(int x, int y)
  * @return int
  */
 static int
-smooth_fade(int x, int y)
+smooth_fadexy(int x, int y)
 {
-    int corners = fade(x - 1, y - 1) + fade(x + 1, y - 1) + fade(x - 1, y + 1) + fade(x + 1, y + 1);
-    int sides = fade(x - 1, y) + fade(x + 1, y) + fade(x, y - 1) + fade(x, y + 1);
-    int center = fade(x, y);
+    int corners =
+        fadexy(x - 1, y - 1) + fadexy(x + 1, y - 1) + fadexy(x - 1, y + 1) + fadexy(x + 1, y + 1);
+    int sides = fadexy(x - 1, y) + fadexy(x + 1, y) + fadexy(x, y - 1) + fadexy(x, y + 1);
+    int center = fadexy(x, y);
     return (corners * 1 / 16) + (sides * 4 / 16) + (center * 1 / 16);
 }
 
@@ -105,10 +113,10 @@ perlin_noise(int x, int y, int freq)
     int frac_x = x & (freq - 1);
     int period_y = y / freq;
     int frac_y = y & (freq - 1);
-    int v1 = smooth_fade(period_x, period_y);
-    int v2 = smooth_fade(period_x + 1, period_y);
-    int v3 = smooth_fade(period_x, period_y + 1);
-    int v4 = smooth_fade(period_x + 1, period_y + 1);
+    int v1 = smooth_fadexy(period_x, period_y);
+    int v2 = smooth_fadexy(period_x + 1, period_y);
+    int v3 = smooth_fadexy(period_x, period_y + 1);
+    int v4 = smooth_fadexy(period_x + 1, period_y + 1);
     int i1 = cosine_interpolate(v1, v2, frac_x, freq);
     int i2 = cosine_interpolate(v3, v4, frac_x, freq);
     return cosine_interpolate(i1, i2, frac_y, freq);

@@ -728,28 +728,28 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     struct CacheModelBones* bones =
         modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
 
-    render_model_frame(
-        pixel_buffer,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
-        10,
-        game->model_yaw,
-        game->model_pitch,
-        game->model_roll,
-        game->camera_x,
-        game->camera_y,
-        game->camera_z,
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_roll,
-        game->camera_fov,
-        0,
-        0,
-        model,
-        bones,
-        game->frames[game->frame_id],
-        game->framemap,
-        NULL);
+    // render_model_frame(
+    //     pixel_buffer,
+    //     SCREEN_WIDTH,
+    //     SCREEN_HEIGHT,
+    //     10,
+    //     game->model_yaw,
+    //     game->model_pitch,
+    //     game->model_roll,
+    //     game->camera_x,
+    //     game->camera_y,
+    //     game->camera_z,
+    //     game->camera_pitch,
+    //     game->camera_yaw,
+    //     game->camera_roll,
+    //     game->camera_fov,
+    //     0,
+    //     0,
+    //     model,
+    //     bones,
+    //     game->frames[game->frame_id],
+    //     game->framemap,
+    //     NULL);
 
     model_free(model);
     modelbones_free(bones);

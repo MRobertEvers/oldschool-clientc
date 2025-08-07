@@ -2331,7 +2331,6 @@ model_new_copy(struct CacheModel* model)
 
     copy->_id = model->_id;
     copy->_model_type = model->_model_type;
-    copy->_flags = 0;
 
     copy->vertex_count = model->vertex_count;
     copy->vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
@@ -2492,7 +2491,6 @@ model_new_merge(struct CacheModel** models, int model_count)
 
     model->_model_type = -1;
     model->_id = -1;
-    model->_flags = CMODEL_FLAG_MERGED;
 
     int vertex_count = 0;
     int face_count = 0;
@@ -2507,6 +2505,7 @@ model_new_merge(struct CacheModel** models, int model_count)
     for( int i = 0; i < model_count; i++ )
     {
         model->_flags |= models[i]->_flags;
+        model->_ids[i] = models[i]->_id;
 
         vertex_count += models[i]->vertex_count;
         face_count += models[i]->face_count;

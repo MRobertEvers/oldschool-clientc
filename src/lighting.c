@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-static struct VertexNormal
+static struct LightingNormal
 calc_face_normal(
     int* vertex_x,
     int* vertex_y,
@@ -14,7 +14,7 @@ calc_face_normal(
     int* face_indices_c,
     int face)
 {
-    struct VertexNormal normal = { 0 };
+    struct LightingNormal normal = { 0 };
 
     int a = face_indices_a[face];
     int b = face_indices_b[face];
@@ -63,8 +63,8 @@ calc_face_normal(
 
 void
 calculate_vertex_normals(
-    struct VertexNormal* vertex_normals,
-    struct VertexNormal* face_normals,
+    struct LightingNormal* vertex_normals,
+    struct LightingNormal* face_normals,
     int vertex_count,
     int* face_indices_a,
     int* face_indices_b,
@@ -203,8 +203,8 @@ apply_lighting(
     int* face_colors_a_hsl16,
     int* face_colors_b_hsl16,
     int* face_colors_c_hsl16,
-    struct VertexNormal* vertex_normals,
-    struct VertexNormal* face_normals,
+    struct LightingNormal* vertex_normals,
+    struct LightingNormal* face_normals,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
@@ -273,7 +273,7 @@ apply_lighting(
         int b = face_indices_b[i];
         int c = face_indices_c[i];
 
-        struct VertexNormal* n = NULL;
+        struct LightingNormal* n = NULL;
 
         if( textureid == -1 )
         {

@@ -46,6 +46,8 @@ fixup_terrain(
             for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
             {
                 struct CacheMapFloor* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, z)];
+                // If the height is unset, then the terrain is procedurally generated with
+                // generate_height.
                 if( map->height == 0 )
                 {
                     if( z == 0 )

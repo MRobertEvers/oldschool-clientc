@@ -1,6 +1,8 @@
 #ifndef OSRS_RENDER_H
 #define OSRS_RENDER_H
 
+#include "lighting.h"
+
 #include <stdint.h>
 
 struct CacheModel;
@@ -26,6 +28,8 @@ void render_model_frame(
     int fov,
     int light_ambient,
     int light_contrast,
+    struct LightingNormal* lighting_vertex_normals,
+    struct LightingNormal* lighting_face_normals,
     struct CacheModel* model,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,

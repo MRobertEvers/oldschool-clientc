@@ -2,6 +2,7 @@
 #define SCENE_H
 
 #include "cache.h"
+#include "lighting.h"
 #include "scene_cache.h"
 #include "scene_tile.h"
 
@@ -18,53 +19,81 @@ enum SpanFlag
     SPAN_FLAG_SOUTH = 1 << 3,
 };
 
-struct LightingNormal
+enum LightingMode
 {
-    int x;
-    int y;
-    int z;
-    int face_count;
+    LIGHTING_BLEND,
+    LIGHTING_FLAT,
 };
 
-struct SceneModel
+struct ModelLighting
 {
-    int* model_ids;
-    struct CacheModel** models;
-    int model_count;
+    enum LightingMode mode;
 
-    /**
-     * Shared lighting normals are used for roofs and
-     * other locs that represent a single surface.
-     *
-     * See sharelight.\
-     *
-     * Sharelight "shares" lighting info between all models of
-     * a particular "bitset", the bitset is calculated based on
-     * the loc rotation, index, etc.
-     *
-     * When sharelight is true, normals of abutting locs that
-     * share vertexes
-     * are merged into a single normal.
-     *
-     * Consider two roof locs that are next to each other.
-     * They are aligned such that the inner edges have coinciding vertexes.
-     * Sharelight will take the coinciding vertexes and add the normals together.
-     *
-     * AB AB
-     * CD CD
-     *
-     * Normal 1 points Up and to the Right,
-     * Normal 2 points Up and to the Left.
-     *
-     * They will be merged into a single normal that points upward only.
-     *
-     * This removes the influence of the face on the sides of the roof models.
-     */
+    int* face_colors_hsl_a;
+
+    // null if mode is LIGHTING_FLAT
+    int* face_colors_hsl_b;
+
+    // null if mode is LIGHTING_FLAT
+    int* face_colors_hsl_c;
+};
+
+/**
+ * Shared lighting normals are used for roofs and
+ * other locs that represent a single surface.
+ *
+ * See sharelight.\
+ *
+ * Sharelight "shares" lighting info between all models of
+ * a particular "bitset", the bitset is calculated based on
+ * the loc rotation, index, etc.
+ *
+ * When sharelight is true, normals of abutting locs that
+ * share vertexes
+ * are merged into a single normal.
+ *
+ * Consider two roof locs that are next to each other.
+ * They are aligned such that the inner edges have coinciding vertexes.
+ * Sharelight will take the coinciding vertexes and add the normals together.
+ *
+ * AB AB
+ * CD CD
+ *
+ * Normal 1 points Up and to the Right,
+ * Normal 2 points Up and to the Left.
+ *
+ * They will be merged into a single normal that points upward only.
+ *
+ * This removes the influence of the face on the sides of the roof models.
+ *
+ * world3d_merge_locnormals looks at adjacent locs and merges normals if
+ * vertexes coincide.
+ *
+ *
+ * Sharelight forces locs to use the same lighting normals, so their lighting
+ * will be the same. When the normals are mutated or merged, they will all be
+ * affected.
+ */
+
+// Each model needs it's own normals, and then sharelight models
+// will have shared normals.
+struct ModelNormals
+{
     struct LightingNormal* lighting_vertex_normals;
     int lighting_vertex_normals_count;
 
     struct LightingNormal* lighting_face_normals;
     int lighting_face_normals_count;
+};
+
+struct SceneModel
+{
+    int model_id;
+    struct CacheModel* model;
+
+    struct ModelNormals* normals;
+    struct ModelNormals* aliasedptr_lighting_normals;
+    struct ModelLighting* lighting;
 
     int light_ambient;
     int light_contrast;
@@ -131,10 +160,10 @@ struct GridTile
 
     struct SceneTile* tile;
 
+    int sharelight;
+
     int x;
     int z;
-    // This is the RENDER level.
-    // Not necessarily the same as the level in the grid array..
     int level;
 
     int flags;
@@ -217,6 +246,9 @@ struct Loc
     int chunk_pos_x;
     int chunk_pos_y;
     int chunk_pos_level;
+
+    // See sharelight.
+    int sharelight;
 
     union
     {

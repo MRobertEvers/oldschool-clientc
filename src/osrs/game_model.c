@@ -138,73 +138,73 @@ enum BlendMode
     FLAT_BLACK = 3,
 };
 
-// src/main/java/jagex3/dash3d/ModelLit.java
-enum LightingMode
-model_face_lighting_mode(struct CacheModel* model, int face)
-{
-    if( model->_id == 2080 )
-    {
-        int iii = 0;
-    }
+// // src/main/java/jagex3/dash3d/ModelLit.java
+// enum LightingMode
+// model_face_lighting_mode(struct CacheModel* model, int face)
+// {
+//     if( model->_id == 2080 )
+//     {
+//         int iii = 0;
+//     }
 
-    int alpha = 0;
-    if( model->face_alphas )
-        alpha = model->face_alphas[face];
+//     int alpha = 0;
+//     if( model->face_alphas )
+//         alpha = model->face_alphas[face];
 
-    enum BlendMode blend = BLEND_VERTEX;
-    switch( alpha )
-    {
-    case -2:
-        blend = FLAT_BLACK;
-        break;
-    case -1:
-        blend = HIDDEN_FACE;
-        break;
-    default:
-    {
-        if( model->face_infos )
-            blend = model->face_infos[face] & 0x3;
-        break;
-    }
-    }
+//     enum BlendMode blend = BLEND_VERTEX;
+//     switch( alpha )
+//     {
+//     case -2:
+//         blend = FLAT_BLACK;
+//         break;
+//     case -1:
+//         blend = HIDDEN_FACE;
+//         break;
+//     default:
+//     {
+//         if( model->face_infos )
+//             blend = model->face_infos[face] & 0x3;
+//         break;
+//     }
+//     }
 
-    int texture_id = model->face_textures ? model->face_textures[face] : -1;
+//     int texture_id = model->face_textures ? model->face_textures[face] : -1;
 
-    if( texture_id == -1 )
-    {
-        switch( blend )
-        {
-        case BLEND_VERTEX:
-            return LM_TEXTURED_VERTEX;
-        case BLEND_FACE:
-            return LM_TEXTURED_FACE;
-        case FLAT_BLACK:
-            return LM_TEXTURED_FLAT_BLACK;
-        case HIDDEN_FACE:
-            /**
-             * For textures, these are usually PNM face coordinates.
-             *
-             */
-            return LM_HIDDEN_FACE;
-        }
-    }
-    else
-    {
-        switch( blend )
-        {
-        case BLEND_VERTEX:
-            return LM_VERTEX;
-        case BLEND_FACE:
-            return LM_FACE;
-        case FLAT_BLACK:
-        case HIDDEN_FACE:
-            return LM_HIDDEN_FACE;
-        }
-    }
+//     if( texture_id == -1 )
+//     {
+//         switch( blend )
+//         {
+//         case BLEND_VERTEX:
+//             return LM_TEXTURED_VERTEX;
+//         case BLEND_FACE:
+//             return LM_TEXTURED_FACE;
+//         case FLAT_BLACK:
+//             return LM_TEXTURED_FLAT_BLACK;
+//         case HIDDEN_FACE:
+//             /**
+//              * For textures, these are usually PNM face coordinates.
+//              *
+//              */
+//             return LM_HIDDEN_FACE;
+//         }
+//     }
+//     else
+//     {
+//         switch( blend )
+//         {
+//         case BLEND_VERTEX:
+//             return LM_VERTEX;
+//         case BLEND_FACE:
+//             return LM_FACE;
+//         case FLAT_BLACK:
+//         case HIDDEN_FACE:
+//             return LM_HIDDEN_FACE;
+//         }
+//     }
 
-    assert(0);
-    return LM_HIDDEN_FACE;
-}
+//     assert(0);
+//     return LM_HIDDEN_FACE;
+// }
 
 enum FaceDrawMode
 model_face_draw_mode(struct CacheModel* model, int face)

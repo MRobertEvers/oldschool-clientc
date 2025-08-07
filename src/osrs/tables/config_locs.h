@@ -91,7 +91,7 @@ struct CacheConfigLocation
     int contour_ground_param;
 
     // This is merge_normals in rs map viewer
-    int shared_lighting;
+    int sharelight;
 
     int model_clipped;
 

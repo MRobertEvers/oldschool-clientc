@@ -1,7 +1,7 @@
 #ifndef LIGHTING_H
 #define LIGHTING_H
 
-struct VertexNormal
+struct LightingNormal
 {
     int x;
     int y;
@@ -10,8 +10,8 @@ struct VertexNormal
 };
 
 void calculate_vertex_normals(
-    struct VertexNormal* vertex_normals,
-    struct VertexNormal* face_normals,
+    struct LightingNormal* vertex_normals,
+    struct LightingNormal* face_normals,
     int vertex_count,
     int* face_indices_a,
     int* face_indices_b,
@@ -25,8 +25,8 @@ void apply_lighting(
     int* face_colors_a_hsl16,
     int* face_colors_b_hsl16,
     int* face_colors_c_hsl16,
-    struct VertexNormal* vertex_normals,
-    struct VertexNormal* face_normals,
+    struct LightingNormal* vertex_normals,
+    struct LightingNormal* face_normals,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
