@@ -942,70 +942,6 @@ model_draw_face(
             tn_y = orthographic_vertex_y_nullable[tn_face];
             tn_z = orthographic_vertex_z_nullable[tn_face];
 
-            // struct ProjectedTriangle projected_triangle =
-            //     project_perspective(tp_x, tp_y, tp_z, 512, 0);
-
-            // x1 = vertex_x[tp_face];
-            // y1 = vertex_y[tp_face];
-            // z1 = vertex_z[tp_face];
-            // x2 = vertex_x[tm_face];
-            // y2 = vertex_y[tm_face];
-            // z2 = vertex_z[tm_face];
-            // x3 = vertex_x[tn_face];
-            // y3 = vertex_y[tn_face];
-            // z3 = vertex_z[tn_face];
-
-            // // Skip triangle if any vertex was clipped
-            // if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
-            //     return;
-
-            // x1 += offset_x;
-            // y1 += offset_y;
-            // x2 += offset_x;
-            // y2 += offset_y;
-            // x3 += offset_x;
-            // y3 += offset_y;
-
-            // printf("\n");
-            // printf("Face %d\n", face_index);
-
-            // printf("P = %d, M = %d, N = %d\n", tp_face, tm_face, tn_face);
-            // printf("x1 = %d, y1 = %d, z1 = %d\n", x1, y1, z1);
-            // printf("x2 = %d, y2 = %d, z2 = %d\n", x2, y2, z2);
-            // printf("x3 = %d, y3 = %d, z3 = %d\n", x3, y3, z3);
-            // printf("tP = %d, %d, %d\n", tp_x, tp_y, tp_z);
-            // printf("tM = %d, %d, %d\n", tm_x, tm_y, tm_z);
-            // printf("tN = %d, %d, %d\n", tn_x, tn_y, tn_z);
-
-            int tex_x1 = vertex_x[tp_face] + offset_x;
-            int tex_y1 = vertex_y[tp_face] + offset_y;
-            int tex_x2 = vertex_x[tm_face] + offset_x;
-            int tex_y2 = vertex_y[tm_face] + offset_y;
-            int tex_x3 = vertex_x[tn_face] + offset_x;
-            int tex_y3 = vertex_y[tn_face] + offset_y;
-
-            // textureTriangle(
-            //     x1,
-            //     x2,
-            //     x3,
-            //     y1,
-            //     y2,
-            //     y3,
-            //     0,
-            //     0,
-            //     0,
-            //     tp_x,
-            //     tp_y,
-            //     tp_z,
-            //     tm_x,
-            //     tn_x,
-            //     tm_y,
-            //     tn_y,
-            //     tm_z,
-            //     tn_z,
-            //     pixel_buffer,
-            //     texels,
-            //     128);
             raster_texture_step_blend(
                 pixel_buffer,
                 screen_width,
@@ -1073,6 +1009,9 @@ model_draw_face(
                 tm_face = face_indices_b[texture_face];
                 tn_face = face_indices_c[texture_face];
             }
+            // texture_id = face_textures[index];
+            // texture_face = face_infos[index] >> 2;
+            // texture_face = face_texture_coords[index];
 
             assert(tp_face > -1);
             assert(tm_face > -1);
@@ -1108,18 +1047,18 @@ model_draw_face(
                 z2,
                 z3,
                 tp_x,
-                tp_y,
-                tp_z,
                 tm_x,
-                tm_y,
-                tm_z,
                 tn_x,
+                tp_y,
+                tm_y,
                 tn_y,
+                tp_z,
+                tm_z,
                 tn_z,
                 color_a,
                 color_a,
                 color_a,
-                g_empty_texture_texels,
+                texels,
                 128,
                 false);
             break;
