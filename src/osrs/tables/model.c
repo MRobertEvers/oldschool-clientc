@@ -8,8 +8,14 @@
 #include <string.h>
 
 // Helper function to read a byte from the buffer
+static char
+read_byte(const char* buffer, int* offset)
+{
+    return buffer[(*offset)++] & 0xFF;
+}
+
 static unsigned char
-read_byte(const unsigned char* buffer, int* offset)
+read_unsigned_byte(const unsigned char* buffer, int* offset)
 {
     return buffer[(*offset)++] & 0xFF;
 }
@@ -163,12 +169,12 @@ decodeOldFormat(const unsigned char* inputData, int inputLength)
     int offset = inputLength - 18;
     int vertexCount = read_unsigned_short(inputData, &offset);
     int faceCount = read_unsigned_short(inputData, &offset);
-    int textureCount = read_byte(inputData, &offset);
-    int isTextured = read_byte(inputData, &offset);
-    int faceRenderPriority = read_byte(inputData, &offset);
-    int hasFaceTransparencies = read_byte(inputData, &offset);
-    int hasPackedTransparencyVertexGroups = read_byte(inputData, &offset);
-    int hasPackedVertexGroups = read_byte(inputData, &offset);
+    int textureCount = read_unsigned_byte(inputData, &offset);
+    int isTextured = read_unsigned_byte(inputData, &offset);
+    int faceRenderPriority = read_unsigned_byte(inputData, &offset);
+    int hasFaceTransparencies = read_unsigned_byte(inputData, &offset);
+    int hasPackedTransparencyVertexGroups = read_unsigned_byte(inputData, &offset);
+    int hasPackedVertexGroups = read_unsigned_byte(inputData, &offset);
     int vertexXDataByteCount = read_unsigned_short(inputData, &offset);
     int vertexYDataByteCount = read_unsigned_short(inputData, &offset);
     int vertexZDataByteCount = read_unsigned_short(inputData, &offset);
@@ -254,7 +260,7 @@ decodeOldFormat(const unsigned char* inputData, int inputLength)
 
     for( int i = 0; i < vertexCount; i++ )
     {
-        int vertexFlags = read_byte(inputData, &offset);
+        int vertexFlags = read_unsigned_byte(inputData, &offset);
         int deltaX = 0;
         int deltaY = 0;
         int deltaZ = 0;
@@ -293,7 +299,7 @@ decodeOldFormat(const unsigned char* inputData, int inputLength)
 
         if( isTextured == 1 )
         {
-            int faceTextureFlags = read_byte(inputData, &textureFlagsOffset);
+            int faceTextureFlags = read_unsigned_byte(inputData, &textureFlagsOffset);
             if( faceTextureFlags & 1 )
             {
                 model->face_infos[i] = 1;
@@ -332,7 +338,7 @@ decodeOldFormat(const unsigned char* inputData, int inputLength)
 
         if( hasPackedTransparencyVertexGroups == 1 )
         {
-            read_byte(
+            read_unsigned_byte(
                 inputData,
                 &transparencyGroupsOffset); // Skip this data as it's not in our model struct
         }
@@ -348,7 +354,7 @@ decodeOldFormat(const unsigned char* inputData, int inputLength)
 
     for( int i = 0; i < faceCount; i++ )
     {
-        int compressionType = read_byte(inputData, &compressionTypesOffset);
+        int compressionType = read_unsigned_byte(inputData, &compressionTypesOffset);
 
         if( compressionType == 1 )
         {
@@ -763,13 +769,13 @@ decodeType1(const unsigned char* var1, int var1_length)
     // Read header information
     int var9 = read_unsigned_short(var1, &var2_offset);  // vertexCount
     int var10 = read_unsigned_short(var1, &var2_offset); // faceCount
-    int var11 = read_byte(var1, &var2_offset);           // textureCount
-    int var12 = read_byte(var1, &var2_offset);           // hasFaceRenderTypes
-    int var13 = read_byte(var1, &var2_offset);           // faceRenderPriority
-    int var14 = read_byte(var1, &var2_offset);           // hasFaceTransparencies
-    int var15 = read_byte(var1, &var2_offset);           // hasPackedTransparencyVertexGroups
-    int var16 = read_byte(var1, &var2_offset);           // hasFaceTextures
-    int var17 = read_byte(var1, &var2_offset);           // hasPackedVertexGroups
+    int var11 = read_unsigned_byte(var1, &var2_offset);  // textureCount
+    int var12 = read_unsigned_byte(var1, &var2_offset);  // hasFaceRenderTypes
+    int var13 = read_unsigned_byte(var1, &var2_offset);  // faceRenderPriority
+    int var14 = read_unsigned_byte(var1, &var2_offset);  // hasFaceTransparencies
+    int var15 = read_unsigned_byte(var1, &var2_offset);  // hasPackedTransparencyVertexGroups
+    int var16 = read_unsigned_byte(var1, &var2_offset);  // hasFaceTextures
+    int var17 = read_unsigned_byte(var1, &var2_offset);  // hasPackedVertexGroups
     int var18 = read_unsigned_short(var1, &var2_offset); // vertexXDataByteCount
     int var19 = read_unsigned_short(var1, &var2_offset); // vertexYDataByteCount
     int var20 = read_unsigned_short(var1, &var2_offset); // vertexZDataByteCount
@@ -957,7 +963,7 @@ decodeType1(const unsigned char* var1, int var1_length)
     // Read vertex data
     for( var49 = 0; var49 < var9; ++var49 )
     {
-        var50 = read_byte(var1, &var3_offset); // vertexFlags
+        var50 = read_unsigned_byte(var1, &var3_offset); // vertexFlags
         var51 = 0;
         if( (var50 & 1) != 0 )
         {
@@ -985,7 +991,7 @@ decodeType1(const unsigned char* var1, int var1_length)
 
         if( var17 == 1 )
         {
-            def->vertex_bone_map[var49] = read_byte(var1, &var6_offset);
+            def->vertex_bone_map[var49] = read_unsigned_byte(var1, &var6_offset);
         }
     }
 
@@ -1021,7 +1027,7 @@ decodeType1(const unsigned char* var1, int var1_length)
         if( var15 == 1 )
         {
             // Skip packed transparency vertex groups
-            read_byte(var1, &var7_offset);
+            read_unsigned_byte(var1, &var7_offset);
         }
 
         if( var16 == 1 )
@@ -1031,7 +1037,7 @@ decodeType1(const unsigned char* var1, int var1_length)
 
         if( def->face_texture_coords != NULL && def->face_textures[var49] != -1 )
         {
-            def->face_texture_coords[var49] = (int)(read_byte(var1, &var9_offset) - 1);
+            def->face_texture_coords[var49] = (int)(read_unsigned_byte(var1, &var9_offset) - 1);
         }
     }
 
@@ -1047,7 +1053,7 @@ decodeType1(const unsigned char* var1, int var1_length)
     // Read face indices
     for( var53 = 0; var53 < var10; ++var53 )
     {
-        var54 = read_byte(var1, &var4_offset); // compressionType
+        var54 = read_unsigned_byte(var1, &var4_offset); // compressionType
 
         if( var54 == 1 )
         {
@@ -1151,13 +1157,13 @@ decodeType2(const unsigned char* var1, int var1_length)
     // Read header information
     int var9 = read_unsigned_short(var1, &var4_offset);  // vertexCount
     int var10 = read_unsigned_short(var1, &var4_offset); // faceCount
-    int var11 = read_byte(var1, &var4_offset);           // numTextureFaces
-    int var12 = read_byte(var1, &var4_offset);           // hasFaceRenderTypes
-    int var13 = read_byte(var1, &var4_offset);           // faceRenderPriority
-    int var14 = read_byte(var1, &var4_offset);           // hasFaceTransparencies
-    int var15 = read_byte(var1, &var4_offset);           // hasPackedTransparencyVertexGroups
-    int var16 = read_byte(var1, &var4_offset);           // hasPackedVertexGroups
-    int var17 = read_byte(var1, &var4_offset);           // hasAnimayaGroups
+    int var11 = read_unsigned_byte(var1, &var4_offset);  // numTextureFaces
+    int var12 = read_unsigned_byte(var1, &var4_offset);  // hasFaceRenderTypes
+    int var13 = read_unsigned_byte(var1, &var4_offset);  // faceRenderPriority
+    int var14 = read_unsigned_byte(var1, &var4_offset);  // hasFaceTransparencies
+    int var15 = read_unsigned_byte(var1, &var4_offset);  // hasPackedTransparencyVertexGroups
+    int var16 = read_unsigned_byte(var1, &var4_offset);  // hasPackedVertexGroups
+    int var17 = read_unsigned_byte(var1, &var4_offset);  // hasAnimayaGroups
     int var18 = read_unsigned_short(var1, &var4_offset); // vertexXDataByteCount
     int var19 = read_unsigned_short(var1, &var4_offset); // vertexYDataByteCount
     int var20 = read_unsigned_short(var1, &var4_offset); // vertexZDataByteCount
@@ -1296,8 +1302,8 @@ decodeType2(const unsigned char* var1, int var1_length)
     int var40, var41, var42, var43, var44;
     for( int i = 0; i < var9; ++i )
     {
-        var41 = read_byte(var1, &var4_offset); // vertex flags
-        var42 = 0;                             // delta X
+        var41 = read_unsigned_byte(var1, &var4_offset); // vertex flags
+        var42 = 0;                                      // delta X
         if( (var41 & 1) != 0 )
         {
             var42 = read_short_smart(var1, &var5_offset);
@@ -1324,7 +1330,7 @@ decodeType2(const unsigned char* var1, int var1_length)
 
         if( var16 == 1 )
         {
-            def->vertex_bone_map[i] = read_byte(var1, &var8_offset);
+            def->vertex_bone_map[i] = read_unsigned_byte(var1, &var8_offset);
         }
     }
 
@@ -1333,12 +1339,12 @@ decodeType2(const unsigned char* var1, int var1_length)
     {
         for( int i = 0; i < var9; ++i )
         {
-            var41 = read_byte(var1, &var8_offset);
+            var41 = read_unsigned_byte(var1, &var8_offset);
             // Skip animaya groups and scales as they're not in our struct
             for( int j = 0; j < var41; ++j )
             {
-                read_byte(var1, &var8_offset); // animaya group
-                read_byte(var1, &var8_offset); // animaya scale
+                read_unsigned_byte(var1, &var8_offset); // animaya group
+                read_unsigned_byte(var1, &var8_offset); // animaya scale
             }
         }
     }
@@ -1357,7 +1363,7 @@ decodeType2(const unsigned char* var1, int var1_length)
 
         if( var12 == 1 )
         {
-            var41 = read_byte(var1, &var5_offset);
+            var41 = read_unsigned_byte(var1, &var5_offset);
             if( (var41 & 1) == 1 )
             {
                 def->face_infos[i] = 1;
@@ -1397,7 +1403,7 @@ decodeType2(const unsigned char* var1, int var1_length)
 
         if( var15 == 1 )
         {
-            read_byte(var1, &var8_offset); // Skip packed transparency vertex groups
+            read_unsigned_byte(var1, &var8_offset); // Skip packed transparency vertex groups
         }
     }
 
@@ -1412,7 +1418,7 @@ decodeType2(const unsigned char* var1, int var1_length)
     // Read face indices
     for( int var44 = 0; var44 < var10; ++var44 )
     {
-        int var45 = read_byte(var1, &var5_offset);
+        int var45 = read_unsigned_byte(var1, &var5_offset);
         if( var45 == 1 )
         {
             var40 = read_short_smart(var1, &var4_offset) + var43;
@@ -1861,14 +1867,14 @@ decodeType3(const unsigned char* var1, int var1_length)
     // Read header information
     int vertexCount = read_unsigned_short(var1, &var2_offset);
     int faceCount = read_unsigned_short(var1, &var2_offset);
-    int texTriangleCount = read_byte(var1, &var2_offset);
-    int hasFaceInfos = read_byte(var1, &var2_offset);
-    int hasFacePriorities = read_byte(var1, &var2_offset);
-    int hasFaceAlphas = read_byte(var1, &var2_offset);
-    int hasPackedTransparencyVertexGroups = read_byte(var1, &var2_offset);
-    int hasFaceTextures = read_byte(var1, &var2_offset);
-    int hasPackedVertexGroups = read_byte(var1, &var2_offset);
-    int var18 = read_byte(var1, &var2_offset);
+    int texTriangleCount = read_unsigned_byte(var1, &var2_offset);
+    int hasFaceInfos = read_unsigned_byte(var1, &var2_offset);
+    int hasFacePriorities = read_unsigned_byte(var1, &var2_offset);
+    int hasFaceAlphas = read_unsigned_byte(var1, &var2_offset);
+    int hasPackedTransparencyVertexGroups = read_unsigned_byte(var1, &var2_offset);
+    int hasFaceTextures = read_unsigned_byte(var1, &var2_offset);
+    int hasPackedVertexGroups = read_unsigned_byte(var1, &var2_offset);
+    int var18 = read_unsigned_byte(var1, &var2_offset);
     int var19 = read_unsigned_short(var1, &var2_offset);
     int var20 = read_unsigned_short(var1, &var2_offset);
     int var21 = read_unsigned_short(var1, &var2_offset);
@@ -2061,7 +2067,7 @@ decodeType3(const unsigned char* var1, int var1_length)
     // Read vertex data
     for( var51 = 0; var51 < vertexCount; ++var51 )
     {
-        var52 = read_byte(var1, &var2_offset);
+        var52 = read_unsigned_byte(var1, &var2_offset);
         var53 = 0;
         if( (var52 & 1) != 0 )
         {
@@ -2089,7 +2095,7 @@ decodeType3(const unsigned char* var1, int var1_length)
 
         if( hasPackedVertexGroups == 1 )
         {
-            def->vertex_bone_map[var51] = read_byte(var1, &var6_offset);
+            def->vertex_bone_map[var51] = read_unsigned_byte(var1, &var6_offset);
         }
     }
 
@@ -2098,12 +2104,12 @@ decodeType3(const unsigned char* var1, int var1_length)
     {
         for( var51 = 0; var51 < vertexCount; ++var51 )
         {
-            var52 = read_byte(var1, &var6_offset);
+            var52 = read_unsigned_byte(var1, &var6_offset);
             // Note: We don't have animaya groups in our struct, so we'll skip the data
             for( var53 = 0; var53 < var52; ++var53 )
             {
-                read_byte(var1, &var6_offset); // animayaGroups
-                read_byte(var1, &var6_offset); // animayaScales
+                read_unsigned_byte(var1, &var6_offset); // animayaGroups
+                read_unsigned_byte(var1, &var6_offset); // animayaScales
             }
         }
     }
@@ -2142,7 +2148,7 @@ decodeType3(const unsigned char* var1, int var1_length)
         if( hasPackedTransparencyVertexGroups == 1 )
         {
             // Note: This field is not in our struct, so we'll skip it
-            read_byte(var1, &var6_offset);
+            read_unsigned_byte(var1, &var6_offset);
         }
 
         if( hasFaceTextures == 1 )
@@ -2152,7 +2158,7 @@ decodeType3(const unsigned char* var1, int var1_length)
 
         if( def->face_texture_coords != NULL && def->face_textures[var51] != -1 )
         {
-            def->face_texture_coords[var51] = (int)(read_byte(var1, &var8_offset) - 1);
+            def->face_texture_coords[var51] = (int)(read_unsigned_byte(var1, &var8_offset) - 1);
         }
     }
 
@@ -2169,7 +2175,7 @@ decodeType3(const unsigned char* var1, int var1_length)
     // Read face indices
     for( var55 = 0; var55 < faceCount; ++var55 )
     {
-        var56 = read_byte(var1, &var3_offset);
+        var56 = read_unsigned_byte(var1, &var3_offset);
         if( var56 == 1 )
         {
             var51 = read_short_smart(var1, &var2_offset) + var54;
@@ -2236,7 +2242,7 @@ decodeType3(const unsigned char* var1, int var1_length)
 
     // Read final data section
     var2_offset = var28;
-    var55 = read_byte(var1, &var2_offset);
+    var55 = read_unsigned_byte(var1, &var2_offset);
     if( var55 != 0 )
     {
         read_unsigned_short(var1, &var2_offset);

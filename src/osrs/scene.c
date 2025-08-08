@@ -1379,7 +1379,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 {
                     for( int y = 0; y < size_y; y++ )
                     {
-                        int shade = size_x * size_y;
+                        int shade = size_x * size_y * 11;
 
                         if( shade > 30 )
                             shade = 30;
