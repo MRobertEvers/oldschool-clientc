@@ -361,7 +361,7 @@ raster_texture_scanline_blend_lerp8(
             continue;
 
         curr_u = (au) / ((-cw) >> texture_shift);
-        // curr_u = clamp(curr_u, 0, texture_width - 1);
+        curr_u = clamp(curr_u, 0, texture_width - 1);
         curr_v = (bv) / ((-cw) >> texture_shift);
         // curr_v = clamp(curr_v, 0, texture_width - 1);
 
@@ -373,7 +373,7 @@ raster_texture_scanline_blend_lerp8(
             continue;
 
         next_u = (au) / ((-cw) >> texture_shift);
-        // next_u = clamp(next_u, 0x0, texture_width - 1);
+        next_u = clamp(next_u, 0x0, texture_width - 1);
 
         next_v = (bv) / ((-cw) >> texture_shift);
         // next_v = clamp(next_v, 0x0, texture_width - 1);
@@ -411,7 +411,7 @@ raster_texture_scanline_blend_lerp8(
         return;
 
     curr_u = (au) / ((-cw) >> texture_shift);
-    // curr_u = clamp(curr_u, 0, texture_width - 1);
+    curr_u = clamp(curr_u, 0, texture_width - 1);
     curr_v = (bv) / ((-cw) >> texture_shift);
     // curr_v = clamp(curr_v, 0, texture_width - 1);
 
@@ -423,7 +423,7 @@ raster_texture_scanline_blend_lerp8(
         return;
 
     next_u = (au) / ((-cw) >> texture_shift);
-    // next_u = clamp(next_u, 0x0, texture_width - 1);
+    next_u = clamp(next_u, 0x0, texture_width - 1);
 
     next_v = (bv) / ((-cw) >> texture_shift);
     // next_v = clamp(next_v, 0x0, texture_width - 1);
