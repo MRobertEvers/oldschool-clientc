@@ -306,6 +306,9 @@ loc_load_model(
 
     scene_loc->light_ambient = loc_config->ambient;
     scene_loc->light_contrast = loc_config->contrast;
+    scene_loc->sharelight = loc_config->sharelight;
+
+    scene_loc->__loc_id = loc_config->_id;
 
     free(models);
     free(model_ids);
@@ -354,6 +357,200 @@ vec_model_back(struct Scene* scene)
     return &scene->models[scene->models_length - 1];
 }
 
+static struct SceneModel*
+tile_loc_model_nullable(struct SceneModel* models, struct Loc* loc)
+{
+    if( loc->type == LOC_TYPE_SCENERY )
+    {
+        assert(loc->_scenery.model >= 0);
+        return &models[loc->_scenery.model];
+    }
+
+    return NULL;
+}
+
+static struct SceneModel*
+tile_wall_model_nullable(struct SceneModel* models, struct Loc* loc, int a)
+{
+    if( loc->type == LOC_TYPE_WALL )
+    {
+        if( a )
+            return &models[loc->_wall.model_a];
+        else if( loc->_wall.model_b >= 0 )
+            return &models[loc->_wall.model_b];
+        else
+            return NULL;
+    }
+
+    return NULL;
+}
+
+static void
+merge_normals(
+    struct CacheModel* model,
+    struct LightingNormal* vertex_normals,
+    struct LightingNormal* lighting_vertex_normals,
+    struct CacheModel* other_model,
+    struct LightingNormal* other_vertex_normals,
+    struct LightingNormal* other_lighting_vertex_normals,
+    int check_offset_x,
+    int check_offset_y,
+    int check_offset_z,
+    int tile_x,
+    int tile_y,
+    int tile_level,
+    int other_tile_x,
+    int other_tile_y,
+    int other_tile_level)
+{
+    struct LightingNormal* model_a_normal = NULL;
+    struct LightingNormal* model_b_normal = NULL;
+    struct LightingNormal* model_a_lighting_normal = NULL;
+    struct LightingNormal* model_b_lighting_normal = NULL;
+    int x, y, z;
+    int other_x, other_y, other_z;
+
+    for( int vertex = 0; vertex < model->vertex_count; vertex++ )
+    {
+        x = model->vertices_x[vertex] - check_offset_x;
+        y = model->vertices_y[vertex] - check_offset_y;
+        z = model->vertices_z[vertex] - check_offset_z;
+
+        model_a_normal = &vertex_normals[vertex];
+        model_a_lighting_normal = &lighting_vertex_normals[vertex];
+
+        for( int other_vertex = 0; other_vertex < other_model->vertex_count; other_vertex++ )
+        {
+            other_x = other_model->vertices_x[other_vertex];
+            other_y = other_model->vertices_y[other_vertex];
+            other_z = other_model->vertices_z[other_vertex];
+
+            model_b_normal = &other_vertex_normals[other_vertex];
+            model_b_lighting_normal = &other_lighting_vertex_normals[other_vertex];
+
+            if( x == other_x && y == other_y && z == other_z && model_b_normal->face_count > 0 &&
+                model_a_normal->face_count > 0 )
+            {
+                printf(
+                    "merging normals (%d, %d, %d) and (%d, %d, %d)\n",
+                    tile_x,
+                    tile_y,
+                    tile_level,
+                    other_tile_x,
+                    other_tile_y,
+                    other_tile_level);
+                model_a_lighting_normal->x += model_b_normal->x;
+                model_a_lighting_normal->y += model_b_normal->y;
+                model_a_lighting_normal->z += model_b_normal->z;
+                model_a_lighting_normal->face_count += model_b_normal->face_count;
+                model_a_lighting_normal->merged++;
+
+                model_b_lighting_normal->x += model_a_normal->x;
+                model_b_lighting_normal->y += model_a_normal->y;
+                model_b_lighting_normal->z += model_a_normal->z;
+                model_b_lighting_normal->face_count += model_a_normal->face_count;
+                model_b_lighting_normal->merged++;
+            }
+        }
+    }
+}
+
+struct IterGrid
+{
+    int x;
+    int y;
+    int level;
+
+    int max_x;
+    int min_x;
+    int max_y;
+    int min_y;
+    int max_level;
+    int min_level;
+};
+
+static struct IterGrid
+iter_grid_init2(int x, int max_x, int y, int max_y, int level, int max_level)
+{
+    struct IterGrid iter_grid;
+    iter_grid.x = x;
+    iter_grid.y = y;
+    iter_grid.level = level;
+    iter_grid.max_x = max_x;
+    iter_grid.min_x = x;
+    iter_grid.max_y = max_y;
+    iter_grid.min_y = y;
+    iter_grid.max_level = max_level;
+    iter_grid.min_level = level;
+    return iter_grid;
+}
+
+static struct IterGrid
+iter_grid_init(int x, int y, int z)
+{
+    return iter_grid_init2(x, MAP_TERRAIN_X, y, MAP_TERRAIN_Y, z, MAP_TERRAIN_Z);
+}
+
+static void
+iter_grid_next(struct IterGrid* iter_grid)
+{
+    iter_grid->x++;
+    if( iter_grid->x >= iter_grid->max_x )
+    {
+        iter_grid->x = iter_grid->min_x;
+        iter_grid->y++;
+    }
+
+    if( iter_grid->y >= iter_grid->max_y )
+    {
+        iter_grid->y = iter_grid->min_y;
+        iter_grid->level++;
+    }
+}
+
+static bool
+iter_grid_done(struct IterGrid* iter_grid)
+{
+    return iter_grid->level >= iter_grid->max_level;
+}
+
+static int
+gather_adjacent_tiles(
+    int* out,
+    int out_size,
+    struct GridTile* grid,
+    int tile_x,
+    int tile_y,
+    int tile_level,
+    int tile_size_x,
+    int tile_size_y)
+{
+    int min_tile_x = tile_x;
+    int max_tile_x = tile_x + tile_size_x;
+    int min_tile_y = tile_y - 1;
+    int max_tile_y = tile_y + tile_size_y;
+
+    int count = 0;
+    for( int level = tile_level; level <= tile_level + 1; level++ )
+    {
+        for( int x = min_tile_x; x <= max_tile_x; x++ )
+        {
+            for( int y = min_tile_y; y <= max_tile_y; y++ )
+            {
+                if( (x == tile_x && y == tile_y && level == tile_level) )
+                    continue;
+                if( x < 0 || y < 0 || x >= MAP_TERRAIN_X || y >= MAP_TERRAIN_Y || level < 0 ||
+                    level >= MAP_TERRAIN_Z )
+                    continue;
+
+                out[count++] = MAP_TILE_COORD(x, y, level);
+            }
+        }
+    }
+
+    return count;
+}
+
 struct Scene*
 scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 {
@@ -362,6 +559,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct CacheMapLocs* map_locs = NULL;
     struct SceneTile* scene_tiles = NULL;
     struct GridTile* grid_tile = NULL;
+    struct GridTile* adjacent_tile = NULL;
     struct ModelCache* model_cache = model_cache_new();
     struct CacheConfigLocationTable* config_locs_table = NULL;
     struct CacheMapLoc* map = NULL;
@@ -442,6 +640,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     while( (map = map_locs_iter_next(iter)) )
     {
+        model = NULL;
+        other_model = NULL;
+
         int tile_x = map->chunk_pos_x;
         int tile_y = map->chunk_pos_y;
         int tile_z = map->chunk_pos_level;
@@ -1317,6 +1518,199 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             cache_model->face_count);
 
         model->normals = normals;
+
+        if( model->sharelight )
+        {
+            struct ModelNormals* aliased_normals = malloc(sizeof(struct ModelNormals));
+            memset(aliased_normals, 0, sizeof(struct ModelNormals));
+
+            aliased_normals->lighting_vertex_normals =
+                malloc(sizeof(struct LightingNormal) * cache_model->vertex_count);
+            memcpy(
+                aliased_normals->lighting_vertex_normals,
+                normals->lighting_vertex_normals,
+                sizeof(struct LightingNormal) * cache_model->vertex_count);
+
+            aliased_normals->lighting_face_normals =
+                malloc(sizeof(struct LightingNormal) * cache_model->face_count);
+            memcpy(
+                aliased_normals->lighting_face_normals,
+                normals->lighting_face_normals,
+                sizeof(struct LightingNormal) * cache_model->face_count);
+
+            model->aliased_lighting_normals = aliased_normals;
+        }
+    }
+
+    struct IterGrid iter_grid = iter_grid_init(0, 0, 0);
+    struct IterGrid iter_adjacent = { 0 };
+    int adjacent_tiles[40] = { 0 };
+
+    while( !iter_grid_done(&iter_grid) )
+    {
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(iter_grid.x, iter_grid.y, iter_grid.level)];
+
+        if( iter_grid.x == 41 && iter_grid.y == 11 )
+        {
+            int lkdjf = 0;
+        }
+        for( int i = 0; i < grid_tile->locs_length; i++ )
+        {
+            loc = &scene->locs[grid_tile->locs[i]];
+
+            model = tile_loc_model_nullable(scene->models, loc);
+            if( model == NULL || !model->sharelight )
+                continue;
+
+            int adjacent_tiles_count = gather_adjacent_tiles(
+                adjacent_tiles,
+                sizeof(adjacent_tiles) / sizeof(adjacent_tiles[0]),
+                scene->grid_tiles,
+                iter_grid.x,
+                iter_grid.y,
+                iter_grid.level,
+                loc->size_x,
+                loc->size_y);
+
+            for( int j = 0; j < adjacent_tiles_count; j++ )
+            {
+                adjacent_tile = &scene->grid_tiles[adjacent_tiles[j]];
+
+                if( adjacent_tile->wall != -1 )
+                {
+                    other_loc = &scene->locs[adjacent_tile->wall];
+                    other_model = tile_wall_model_nullable(scene->models, other_loc, 1);
+                    if( other_model && other_model->sharelight )
+                    {
+                        int other_min_tile_x = other_loc->chunk_pos_x;
+                        int other_min_tile_y = other_loc->chunk_pos_y;
+
+                        int check_offset_x =
+                            (other_min_tile_x - iter_grid.x) * 128 + (1 - loc->size_x) * 64;
+                        int check_offset_y =
+                            (other_min_tile_y - iter_grid.y) * 128 + (1 - loc->size_y) * 64;
+                        int check_offset_level =
+                            (map_terrain
+                                 ->tiles_xyz[MAP_TILE_COORD(
+                                     other_loc->chunk_pos_x,
+                                     other_loc->chunk_pos_y,
+                                     other_loc->chunk_pos_level)]
+                                 .height -
+                             map_terrain
+                                 ->tiles_xyz[MAP_TILE_COORD(
+                                     iter_grid.x, iter_grid.y, iter_grid.level)]
+                                 .height);
+                        merge_normals(
+                            model->model,
+                            model->normals->lighting_vertex_normals,
+                            model->aliased_lighting_normals->lighting_vertex_normals,
+                            other_model->model,
+                            other_model->normals->lighting_vertex_normals,
+                            other_model->aliased_lighting_normals->lighting_vertex_normals,
+                            check_offset_x,
+                            check_offset_level,
+                            check_offset_y,
+                            iter_grid.x,
+                            iter_grid.y,
+                            iter_grid.level,
+                            other_loc->chunk_pos_x,
+                            other_loc->chunk_pos_y,
+                            iter_grid.level);
+                    }
+
+                    other_model = tile_wall_model_nullable(scene->models, other_loc, 0);
+                    if( other_model && other_model->sharelight )
+                    {
+                        int other_min_tile_x = other_loc->chunk_pos_x;
+                        int other_min_tile_y = other_loc->chunk_pos_y;
+
+                        int check_offset_x =
+                            (other_min_tile_x - iter_grid.x) * 128 + (1 - loc->size_x) * 64;
+                        int check_offset_y =
+                            (other_min_tile_y - iter_grid.y) * 128 + (1 - loc->size_y) * 64;
+                        int check_offset_level =
+                            (map_terrain
+                                 ->tiles_xyz[MAP_TILE_COORD(
+                                     other_loc->chunk_pos_x,
+                                     other_loc->chunk_pos_y,
+                                     other_loc->chunk_pos_level)]
+                                 .height -
+                             map_terrain
+                                 ->tiles_xyz[MAP_TILE_COORD(
+                                     iter_grid.x, iter_grid.y, iter_grid.level)]
+                                 .height);
+                        merge_normals(
+                            model->model,
+                            model->normals->lighting_vertex_normals,
+                            model->aliased_lighting_normals->lighting_vertex_normals,
+                            other_model->model,
+                            other_model->normals->lighting_vertex_normals,
+                            other_model->aliased_lighting_normals->lighting_vertex_normals,
+                            check_offset_x,
+                            check_offset_level,
+                            check_offset_y,
+                            iter_grid.x,
+                            iter_grid.y,
+                            iter_grid.level,
+                            other_loc->chunk_pos_x,
+                            other_loc->chunk_pos_y,
+                            iter_grid.level);
+                    }
+                }
+                for( int k = 0; k < adjacent_tile->locs_length; k++ )
+                {
+                    other_loc = &scene->locs[adjacent_tile->locs[k]];
+
+                    if( loc->chunk_pos_x == other_loc->chunk_pos_x &&
+                        loc->chunk_pos_y == other_loc->chunk_pos_y )
+                        continue;
+
+                    other_model = tile_loc_model_nullable(scene->models, other_loc);
+                    if( other_model && other_model->sharelight )
+                    {
+                        int other_min_tile_x = other_loc->chunk_pos_x;
+                        int other_min_tile_y = other_loc->chunk_pos_y;
+                        int other_max_tile_x = other_min_tile_x + other_loc->size_x - 1;
+                        int other_max_tile_y = other_min_tile_y + other_loc->size_y - 1;
+
+                        int check_offset_x = (other_min_tile_x - iter_grid.x) * 128 +
+                                             (other_loc->size_x - loc->size_x) * 64;
+                        int check_offset_y = (other_min_tile_y - iter_grid.y) * 128 +
+                                             (other_loc->size_y - loc->size_y) * 64;
+
+                        int check_offset_level =
+                            (map_terrain
+                                 ->tiles_xyz[MAP_TILE_COORD(
+                                     other_loc->chunk_pos_x,
+                                     other_loc->chunk_pos_y,
+                                     other_loc->chunk_pos_level)]
+                                 .height -
+                             map_terrain
+                                 ->tiles_xyz[MAP_TILE_COORD(
+                                     iter_grid.x, iter_grid.y, iter_grid.level)]
+                                 .height);
+                        merge_normals(
+                            model->model,
+                            model->normals->lighting_vertex_normals,
+                            model->aliased_lighting_normals->lighting_vertex_normals,
+                            other_model->model,
+                            other_model->normals->lighting_vertex_normals,
+                            other_model->aliased_lighting_normals->lighting_vertex_normals,
+                            check_offset_x,
+                            check_offset_level,
+                            check_offset_y,
+                            iter_grid.x,
+                            iter_grid.y,
+                            iter_grid.level,
+                            other_loc->chunk_pos_x,
+                            other_loc->chunk_pos_y,
+                            iter_grid.level);
+                    }
+                }
+            }
+        }
+
+        iter_grid_next(&iter_grid);
     }
 
     map_terrain_free(map_terrain);

@@ -7,6 +7,7 @@ struct LightingNormal
     int y;
     int z;
     int face_count;
+    int merged;
 };
 
 void calculate_vertex_normals(

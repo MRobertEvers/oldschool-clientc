@@ -2250,7 +2250,8 @@ render_scene_model(
         fov,
         model->light_ambient,
         model->light_contrast,
-        model->normals->lighting_vertex_normals,
+        model->aliased_lighting_normals ? model->aliased_lighting_normals->lighting_vertex_normals
+                                        : model->normals->lighting_vertex_normals,
         model->normals->lighting_face_normals,
         model->model,
         NULL,
@@ -3326,6 +3327,12 @@ dbg_tile(
         g_dbg_tile_colors);
 }
 
+static bool
+within_rect(int x, int y, int rect_x, int rect_y, int rect_width, int rect_height)
+{
+    return x >= rect_x && x < rect_x + rect_width && y >= rect_y && y < rect_y + rect_height;
+}
+
 void
 render_scene_ops(
     struct SceneOp* ops,
@@ -3375,6 +3382,9 @@ render_scene_ops(
 
         struct SceneOp* op = &ops[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
+
+        if( !within_rect(op->x, op->z, 30, 0, 20, 20) )
+            continue;
 
         switch( op->op )
         {

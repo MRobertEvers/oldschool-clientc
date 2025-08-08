@@ -91,8 +91,12 @@ struct SceneModel
     int model_id;
     struct CacheModel* model;
 
+    bool sharelight;
+    // "original" normals.
     struct ModelNormals* normals;
-    struct ModelNormals* aliasedptr_lighting_normals;
+    // Populated if sharelight is true.
+    struct ModelNormals* aliased_lighting_normals;
+
     struct ModelLighting* lighting;
 
     int light_ambient;
@@ -115,6 +119,8 @@ struct SceneModel
 
     // TODO: Remove this
     bool __drawn;
+
+    int __loc_id;
 };
 
 enum GridTileFlags
@@ -246,9 +252,6 @@ struct Loc
     int chunk_pos_x;
     int chunk_pos_y;
     int chunk_pos_level;
-
-    // See sharelight.
-    int sharelight;
 
     union
     {

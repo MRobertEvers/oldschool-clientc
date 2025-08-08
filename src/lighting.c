@@ -328,6 +328,7 @@ apply_lighting(
             if( type == 0 )
             {
                 n = &vertex_normals[a];
+
                 //     // dot product of normal and light vector
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
