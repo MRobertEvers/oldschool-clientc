@@ -2,13 +2,17 @@
 
 #include "filelist.h"
 #include "game_model.h"
+#include "lighting.h"
 #include "tables/config_locs.h"
 #include "tables/configs.h"
 #include "tables/maps.h"
 
+#include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #define TILE_SIZE 128
 
 static void
@@ -1681,6 +1685,61 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         }
 
         iter_grid_next(&iter_grid);
+    }
+
+    for( int i = 0; i < scene->models_length; i++ )
+    {
+        struct SceneModel* model = &scene->models[i];
+        if( model->model == NULL )
+            continue;
+
+        struct ModelLighting* lighting = malloc(sizeof(struct ModelLighting));
+        memset(lighting, 0, sizeof(struct ModelLighting));
+        lighting->face_colors_hsl_a = malloc(sizeof(int) * model->model->face_count);
+        memset(lighting->face_colors_hsl_a, 0, sizeof(int) * model->model->face_count);
+        lighting->face_colors_hsl_b = malloc(sizeof(int) * model->model->face_count);
+        memset(lighting->face_colors_hsl_b, 0, sizeof(int) * model->model->face_count);
+        lighting->face_colors_hsl_c = malloc(sizeof(int) * model->model->face_count);
+        memset(lighting->face_colors_hsl_c, 0, sizeof(int) * model->model->face_count);
+
+        model->lighting = lighting;
+
+        int light_ambient = 64;
+        int light_attenuation = 768;
+        int lightsrc_x = -50;
+        int lightsrc_y = -10;
+        int lightsrc_z = -50;
+
+        light_ambient += model->light_ambient;
+        // 2004Scape multiplies contrast by 5.
+        // Later versions do not.
+        light_attenuation += model->light_contrast;
+
+        int light_magnitude =
+            (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+        int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+        apply_lighting(
+            lighting->face_colors_hsl_a,
+            lighting->face_colors_hsl_b,
+            lighting->face_colors_hsl_c,
+            model->aliased_lighting_normals
+                ? model->aliased_lighting_normals->lighting_vertex_normals
+                : model->normals->lighting_vertex_normals,
+            model->normals->lighting_face_normals,
+            model->model->face_indices_a,
+            model->model->face_indices_b,
+            model->model->face_indices_c,
+            model->model->face_count,
+            model->model->face_colors,
+            model->model->face_alphas,
+            model->model->face_textures,
+            model->model->face_infos,
+            light_ambient,
+            attenuation,
+            lightsrc_x,
+            lightsrc_y,
+            lightsrc_z);
     }
 
     map_terrain_free(map_terrain);

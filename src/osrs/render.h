@@ -10,6 +10,27 @@ struct CacheModelBones;
 struct Frame;
 struct Framemap;
 struct TexturesCache;
+struct ModelLighting;
+
+struct ModelRenderIter
+{
+    int is_prio;
+
+    int no_prio_depth;
+    int no_prio_face_index;
+
+    int prio_prio;
+    int prio_face_index;
+
+    struct CacheModel* model;
+    struct ModelLighting* lighting;
+
+    int value_face;
+};
+
+struct ModelRenderIter* model_render_iter_new(struct CacheModel* model);
+
+void model_render_iter_next(struct ModelRenderIter* iter);
 
 void render_model_frame(
     int* pixel_buffer,
@@ -26,11 +47,8 @@ void render_model_frame(
     int camera_pitch,
     int camera_roll,
     int fov,
-    int light_ambient,
-    int light_contrast,
-    struct LightingNormal* lighting_vertex_normals,
-    struct LightingNormal* lighting_face_normals,
     struct CacheModel* model,
+    struct ModelLighting* lighting,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable,

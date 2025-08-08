@@ -1066,38 +1066,6 @@ model_draw_face(
     }
 }
 
-static void
-raster_osrs_noprio(
-    struct Pixel* pixel_buffer,
-    int* faces,
-    int* priority_face_counts,
-    int* face_infos,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    int* orthographic_vertex_x_nullable,
-    int* orthographic_vertex_y_nullable,
-    int* orthographic_vertex_z_nullable,
-    int num_vertices,
-    int* face_textures,
-    int* face_texture_coords,
-    int face_texture_coords_length,
-    int* face_p_coordinate_nullable,
-    int* face_m_coordinate_nullable,
-    int* face_n_coordinate_nullable,
-    int* colors_a,
-    int* colors_b,
-    int* colors_c,
-    int offset_x,
-    int offset_y,
-    int screen_width,
-    int screen_height,
-    struct TexturesCache* textures_cache)
-{}
-
 void
 raster_osrs_typed(
     struct Pixel* pixel_buffer,
@@ -1382,6 +1350,21 @@ static int tmp_face_colors_c_hsl16[4096] = { 0 };
 
 static int tmp_vertex_normals[4096] = { 0 };
 
+struct ModelRenderIter*
+model_render_iter_new(struct CacheModel* model)
+{
+    struct ModelRenderIter* iter = (struct ModelRenderIter*)malloc(sizeof(struct ModelRenderIter));
+    memset(iter, 0, sizeof(struct ModelRenderIter));
+
+    iter->model = model;
+    iter->is_prio = model->face_priorities != NULL;
+    return iter;
+}
+
+void
+model_render_iter_next(struct ModelRenderIter* iter)
+{}
+
 void
 render_model_frame(
     int* pixel_buffer,
@@ -1398,29 +1381,34 @@ render_model_frame(
     int camera_yaw,
     int camera_roll,
     int fov,
-    int model_light_ambient,
-    int model_light_contrast,
-    struct LightingNormal* lighting_vertex_normals,
-    struct LightingNormal* lighting_face_normals,
     struct CacheModel* model,
+    struct ModelLighting* lighting,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable,
     struct TexturesCache* textures_cache)
 {
-    int* vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
-    memcpy(vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
-    int* vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
-    memcpy(vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
-    int* vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
-    memcpy(vertices_z, model->vertices_z, model->vertex_count * sizeof(int));
+    int* vertices_x = model->vertices_x;
+    int* vertices_y = model->vertices_y;
+    int* vertices_z = model->vertices_z;
 
-    int* face_indices_a = (int*)malloc(model->face_count * sizeof(int));
-    memcpy(face_indices_a, model->face_indices_a, model->face_count * sizeof(int));
-    int* face_indices_b = (int*)malloc(model->face_count * sizeof(int));
-    memcpy(face_indices_b, model->face_indices_b, model->face_count * sizeof(int));
-    int* face_indices_c = (int*)malloc(model->face_count * sizeof(int));
-    memcpy(face_indices_c, model->face_indices_c, model->face_count * sizeof(int));
+    int* face_indices_a = model->face_indices_a;
+    int* face_indices_b = model->face_indices_b;
+    int* face_indices_c = model->face_indices_c;
+
+    // int* vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
+    // memcpy(vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
+    // int* vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
+    // memcpy(vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
+    // int* vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
+    // memcpy(vertices_z, model->vertices_z, model->vertex_count * sizeof(int));
+
+    // int* face_indices_a = (int*)malloc(model->face_count * sizeof(int));
+    // memcpy(face_indices_a, model->face_indices_a, model->face_count * sizeof(int));
+    // int* face_indices_b = (int*)malloc(model->face_count * sizeof(int));
+    // memcpy(face_indices_b, model->face_indices_b, model->face_count * sizeof(int));
+    // int* face_indices_c = (int*)malloc(model->face_count * sizeof(int));
+    // memcpy(face_indices_c, model->face_indices_c, model->face_count * sizeof(int));
 
     // if( transform )
     // {
@@ -1463,9 +1451,9 @@ render_model_frame(
     // int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
     // int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
     // int* screen_vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
-    int* face_colors_a_hsl16 = tmp_face_colors_a_hsl16;
-    int* face_colors_b_hsl16 = tmp_face_colors_b_hsl16;
-    int* face_colors_c_hsl16 = tmp_face_colors_c_hsl16;
+    // int* face_colors_a_hsl16 = tmp_face_colors_a_hsl16;
+    // int* face_colors_b_hsl16 = tmp_face_colors_b_hsl16;
+    // int* face_colors_c_hsl16 = tmp_face_colors_c_hsl16;
 
     int* screen_vertices_x = tmp_screen_vertices_x;
     int* screen_vertices_y = tmp_screen_vertices_y;
@@ -1480,6 +1468,7 @@ render_model_frame(
 
     int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
 
+    // TODO: Move this before lighting.
     if( frame_nullable && framemap_nullable && bones_nullable )
     {
         anim_frame_apply(
@@ -1492,49 +1481,6 @@ render_model_frame(
             bones_nullable->bones,
             bones_nullable->bones_sizes);
     }
-    // see model_calculate_normals in client3
-    int light_ambient = 64;
-    int light_attenuation = 768;
-    int lightsrc_x = -50;
-    int lightsrc_y = -10;
-    int lightsrc_z = -50;
-
-    light_ambient += model_light_ambient;
-    // 2004Scape multiplies contrast by 5.
-    // Later versions do not.
-    light_attenuation += model_light_contrast;
-
-    int light_magnitude =
-        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    int attenuation = (light_attenuation * light_magnitude) >> 8;
-
-    if( model->_id == 40693 )
-    {
-        int iiii = 0;
-    }
-
-    apply_lighting(
-        face_colors_a_hsl16,
-        face_colors_b_hsl16,
-        face_colors_c_hsl16,
-        lighting_vertex_normals,
-        lighting_face_normals,
-        face_indices_a,
-        face_indices_b,
-        face_indices_c,
-        model->face_count,
-        vertices_x,
-        vertices_y,
-        vertices_z,
-        model->face_colors,
-        model->face_alphas,
-        model->face_textures,
-        model->face_infos,
-        light_ambient,
-        attenuation,
-        lightsrc_x,
-        lightsrc_y,
-        lightsrc_z);
 
     // project_vertices(
     //     screen_vertices_x,
@@ -1629,9 +1575,9 @@ render_model_frame(
                     model->textured_m_coordinate,
                     model->textured_n_coordinate,
                     model->textured_face_count,
-                    face_colors_a_hsl16,
-                    face_colors_b_hsl16,
-                    face_colors_c_hsl16,
+                    lighting->face_colors_hsl_a,
+                    lighting->face_colors_hsl_b,
+                    lighting->face_colors_hsl_c,
                     model->face_alphas,
                     width / 2,
                     height / 2,
@@ -1700,9 +1646,9 @@ render_model_frame(
         model->textured_m_coordinate,
         model->textured_n_coordinate,
         model->textured_face_count,
-        face_colors_a_hsl16,
-        face_colors_b_hsl16,
-        face_colors_c_hsl16,
+        lighting->face_colors_hsl_a,
+        lighting->face_colors_hsl_b,
+        lighting->face_colors_hsl_c,
         model->face_alphas,
         width / 2,
         height / 2,
@@ -1710,12 +1656,12 @@ render_model_frame(
         height,
         textures_cache);
 
-    free(vertices_x);
-    free(vertices_y);
-    free(vertices_z);
-    free(face_indices_a);
-    free(face_indices_b);
-    free(face_indices_c);
+    // free(vertices_x);
+    // free(vertices_y);
+    // free(vertices_z);
+    // free(face_indices_a);
+    // free(face_indices_b);
+    // free(face_indices_c);
 
 done:
     // free(screen_vertices_x);
@@ -2192,12 +2138,8 @@ render_scene_model(
         camera_yaw,
         camera_roll,
         fov,
-        model->light_ambient,
-        model->light_contrast,
-        model->aliased_lighting_normals ? model->aliased_lighting_normals->lighting_vertex_normals
-                                        : model->normals->lighting_vertex_normals,
-        model->normals->lighting_face_normals,
         model->model,
+        model->lighting,
         NULL,
         NULL,
         NULL,

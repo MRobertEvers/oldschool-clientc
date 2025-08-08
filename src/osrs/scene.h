@@ -19,16 +19,8 @@ enum SpanFlag
     SPAN_FLAG_SOUTH = 1 << 3,
 };
 
-enum LightingMode
-{
-    LIGHTING_BLEND,
-    LIGHTING_FLAT,
-};
-
 struct ModelLighting
 {
-    enum LightingMode mode;
-
     int* face_colors_hsl_a;
 
     // null if mode is LIGHTING_FLAT

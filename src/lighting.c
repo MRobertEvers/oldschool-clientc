@@ -209,9 +209,6 @@ apply_lighting(
     int* face_indices_b,
     int* face_indices_c,
     int num_faces,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
     int* face_colors_hsl16, // The flat color.
     int* face_alphas,
     int* face_textures,
@@ -370,97 +367,5 @@ apply_lighting(
                 face_colors_c_hsl16[i] = -2;
             }
         }
-
-        // if( face_infos )
-        // {
-        //     int face_info = face_infos[i];
-        //     if( face_info == 1 )
-        //     {
-        //         int ilkjlk = 0;
-        //     }
-
-        //     int face_type = face_info & 0x3;
-        //     if( face_type == 2 )
-        //     {
-        //         face_colors_c_hsl16[i] = -2;
-        //         continue;
-        //     }
-        // }
-
-        // int color_flat_hsl16 = face_colors_hsl16[i];
-        // int a = face_indices_a[i];
-        // int b = face_indices_b[i];
-        // int c = face_indices_c[i];
-
-        // struct VertexNormal* n = &vertex_normals[a];
-
-        // // if( !face_infos )
-        // // {
-        // //     // dot product of normal and light vector
-        // lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-        //                                 (light_attenuation * n->face_count);
-
-        // face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
-
-        // n = &vertex_normals[b];
-        // lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-        //                                 (light_attenuation * n->face_count);
-
-        // face_colors_b_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
-
-        // n = &vertex_normals[c];
-        // lightness = light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-        //                                 (light_attenuation * n->face_count);
-
-        // face_colors_c_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
-        // // }
-        // // else if( face_infos[i] == 0 )
-        // struct VertexNormal normal = calc_face_normal(
-        //     vertex_x, vertex_y, vertex_z, face_indices_a, face_indices_b, face_indices_c, i);
-        // n = &normal;
-        // {
-        //     // dot product of normal and light vector
-        //     // lightness =
-        //     //     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-        //     //                         (light_attenuation * n->face_count);
-
-        //     // // face_colors_a_hsl16[i] =
-        //     // //     lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, face_infos[i]);
-        //     // face_colors_a_hsl16[i] = lightness_clamped(lightness);
-        //     // face_colors_b_hsl16[i] = lightness_clamped(lightness);
-        //     // face_colors_c_hsl16[i] = lightness_clamped(lightness);
-
-        //     // n = &vertex_normals[b];
-        //     // lightness =
-        //     //     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-        //     //                         (light_attenuation * n->face_count);
-
-        //     // // face_colors_b_hsl16[i] =
-        //     // //     lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, face_infos[i]);
-        //     // face_colors_b_hsl16[i] = lightness_clamped(lightness);
-
-        //     // n = &vertex_normals[c];
-        //     // lightness =
-        //     //     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-        //     //                         (light_attenuation * n->face_count);
-
-        //     // // face_colors_c_hsl16[i] =
-        //     // //     lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, face_infos[i]);
-        //     // face_colors_c_hsl16[i] = lightness_clamped(lightness);
-        // }
-        // // else if( face_infos[i] == 1 )
-        // // {
-        // //     lightness =
-        // //         light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
-        // //                             (light_attenuation * n->face_count);
-
-        // //     face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
-
-        // //     face_colors_c_hsl16[i] = -1;
-        // // }
-        // // else
-        // // {
-        // //     face_colors_c_hsl16[i] = -2;
-        // // }
     }
 }

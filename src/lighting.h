@@ -32,9 +32,6 @@ void apply_lighting(
     int* face_indices_b,
     int* face_indices_c,
     int num_faces,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
     int* face_colors_hsl16, // The flat color.
     int* face_alphas,
     int* face_textures,
