@@ -431,14 +431,14 @@ merge_normals(
             if( x == other_x && y == other_y && z == other_z && model_b_normal->face_count > 0 &&
                 model_a_normal->face_count > 0 )
             {
-                printf(
-                    "merging normals (%d, %d, %d) and (%d, %d, %d)\n",
-                    tile_x,
-                    tile_y,
-                    tile_level,
-                    other_tile_x,
-                    other_tile_y,
-                    other_tile_level);
+                // printf(
+                //     "merging normals (%d, %d, %d) and (%d, %d, %d)\n",
+                //     tile_x,
+                //     tile_y,
+                //     tile_level,
+                //     other_tile_x,
+                //     other_tile_y,
+                //     other_tile_level);
                 model_a_lighting_normal->x += model_b_normal->x;
                 model_a_lighting_normal->y += model_b_normal->y;
                 model_a_lighting_normal->z += model_b_normal->z;
@@ -531,7 +531,7 @@ gather_adjacent_tiles(
     int max_tile_y = tile_y + tile_size_y;
 
     int count = 0;
-    for( int level = tile_level; level <= tile_level + 1; level++ )
+    for( int level = 0; level <= tile_level + 1; level++ )
     {
         for( int x = min_tile_x; x <= max_tile_x; x++ )
         {
@@ -1670,25 +1670,14 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                     {
                         int other_min_tile_x = other_loc->chunk_pos_x;
                         int other_min_tile_y = other_loc->chunk_pos_y;
-                        int other_max_tile_x = other_min_tile_x + other_loc->size_x - 1;
-                        int other_max_tile_y = other_min_tile_y + other_loc->size_y - 1;
 
                         int check_offset_x = (other_min_tile_x - iter_grid.x) * 128 +
                                              (other_loc->size_x - loc->size_x) * 64;
                         int check_offset_y = (other_min_tile_y - iter_grid.y) * 128 +
                                              (other_loc->size_y - loc->size_y) * 64;
 
-                        int check_offset_level =
-                            (map_terrain
-                                 ->tiles_xyz[MAP_TILE_COORD(
-                                     other_loc->chunk_pos_x,
-                                     other_loc->chunk_pos_y,
-                                     other_loc->chunk_pos_level)]
-                                 .height -
-                             map_terrain
-                                 ->tiles_xyz[MAP_TILE_COORD(
-                                     iter_grid.x, iter_grid.y, iter_grid.level)]
-                                 .height);
+                        int check_offset_level = other_model->region_z - model->region_z;
+
                         merge_normals(
                             model->model,
                             model->normals->lighting_vertex_normals,

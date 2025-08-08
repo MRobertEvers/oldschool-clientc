@@ -3383,8 +3383,8 @@ render_scene_ops(
         struct SceneOp* op = &ops[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
 
-        if( !within_rect(op->x, op->z, 30, 0, 20, 20) )
-            continue;
+        // if( !within_rect(op->x, op->z, 30, 0, 20, 20) )
+        //     continue;
 
         switch( op->op )
         {
