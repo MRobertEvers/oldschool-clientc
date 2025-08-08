@@ -198,6 +198,9 @@ struct Game
     int camera_y;
     int camera_z;
 
+    int mouse_x;
+    int mouse_y;
+
     struct SceneTile* tiles;
     int tile_count;
 
@@ -262,9 +265,6 @@ struct PlatformSDL2
     SDL_Renderer* renderer;
     SDL_Texture* texture;
     int* pixel_buffer;
-
-    SDL_Window* debug_window;
-    SDL_Renderer* debug_renderer;
 };
 
 static bool
@@ -294,32 +294,6 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    // Create GUI window
-    platform->debug_window = SDL_CreateWindow(
-        "Model Viewer Controls",
-        SDL_WINDOWPOS_CENTERED + SCREEN_WIDTH / 2 + 50,
-        SDL_WINDOWPOS_CENTERED,
-        GUI_WINDOW_WIDTH,
-        GUI_WINDOW_HEIGHT,
-        SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-
-    if( !platform->debug_window )
-    {
-        printf("Error creating GUI window: %s\n", SDL_GetError());
-        return -1;
-    }
-
-    // Create GUI renderer
-    platform->debug_renderer =
-        SDL_CreateRenderer(platform->debug_window, -1, SDL_RENDERER_SOFTWARE);
-    if( !platform->debug_renderer )
-    {
-        printf("Error creating GUI renderer: %s\n", SDL_GetError());
-        return -1;
-    }
-
-    SDL_RenderSetLogicalSize(platform->debug_renderer, GUI_WINDOW_WIDTH, GUI_WINDOW_HEIGHT);
-
     // Create texture
     SDL_Texture* texture = SDL_CreateTexture(
         renderer,
@@ -336,14 +310,15 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    // Don't enable keyboard navigation by default so game gets input priority
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     // Setup ImGui style
     ImGui::StyleColorsDark();
 
     // Setup Platform/Renderer backends for GUI window
-    ImGui_ImplSDL2_InitForSDLRenderer(platform->debug_window, platform->debug_renderer);
-    ImGui_ImplSDLRenderer2_Init(platform->debug_renderer);
+    ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer);
+    ImGui_ImplSDLRenderer2_Init(platform->renderer);
 
     return true;
 }
@@ -351,68 +326,67 @@ static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
     // Clear the GUI renderer background
-    SDL_SetRenderDrawColor(platform->debug_renderer, 0, 0, 0, 255);
-    SDL_RenderClear(platform->debug_renderer);
+    SDL_SetRenderDrawColor(platform->renderer, 0, 0, 0, 255);
 
     ImGui_ImplSDLRenderer2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    // Main control window
-    ImGui::Begin("Model Viewer Controls");
-    // React Compo
-    ImGui::Text("Transform Controls");
-    ImGui::Separator();
-
-    // ImGui::SliderFloat("Rotation X", &g_state.rotation_x, 0.0f, 360.0f);
-    // ImGui::SliderFloat("Rotation Y", &g_state.rotation_y, 0.0f, 360.0f);
-    // ImGui::SliderFloat("Rotation Z", &g_state.rotation_z, 0.0f, 360.0f);
-
-    // ImGui::SliderFloat("Scale", &g_state.scale, 0.1f, 100.0f);
-
-    // ImGui::SliderFloat("Position X", &g_state.position_x, -10.0f, 10.0f);
-    // ImGui::SliderFloat("Position Y", &g_state.position_y, -10.0f, 10.0f);
-    // ImGui::SliderFloat("Position Z", &g_state.position_z, -20.0f, 5.0f);
-
-    ImGui::Separator();
-    ImGui::Text("Display Options");
-    // ImGui::InputText("Model Name", g_state.model_name, IM_ARRAYSIZE(g_state.model_name));
-
-    // ImGui::Checkbox("Show Wireframe", &g_state.show_wireframe);
-    // ImGui::Checkbox("Show Axes", &g_state.show_axes);
-
-    ImGui::Separator();
-    ImGui::Text("Background Color");
-    // ImGui::ColorEdit4("Clear Color", g_state.clear_color);
-
-    ImGui::Separator();
-    if( ImGui::Button("Reset Transform") )
+    // On first frame, ensure game has input focus
+    static bool first_frame = true;
+    if( first_frame )
     {
-        // g_state.rotation_x = 0.0f;
-        // g_state.rotation_y = 0.0f;
-        // g_state.rotation_z = 0.0f;
-        // g_state.scale = 100.0f;
-        // g_state.position_x = 0.0f;
-        // g_state.position_y = 0.0f;
-        // g_state.position_z = -5.0f;
+        ImGui::SetWindowFocus(nullptr); // Clear any window focus
+        first_frame = false;
     }
-
-    ImGui::End();
 
     // Info window
     ImGui::SetNextWindowPos(ImVec2(10, 400), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(380, 150), ImGuiCond_FirstUseEver);
     ImGui::Begin("Info");
-    ImGui::Text("Software Rendered Model Viewer with ImGui");
-    ImGui::Text("Use the controls to manipulate the cube");
     ImGui::Text(
         "Application average %.3f ms/frame (%.1f FPS)",
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
+    ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+
+    // Camera position with copy button
+    char camera_pos_text[256];
+    snprintf(
+        camera_pos_text,
+        sizeof(camera_pos_text),
+        "Camera (x, y, z): %d, %d, %d : %d, %d",
+        game->camera_x,
+        game->camera_y,
+        game->camera_z,
+        game->camera_x / 128,
+        game->camera_y / 128);
+    ImGui::Text("%s", camera_pos_text);
+    ImGui::SameLine();
+    if( ImGui::SmallButton("Copy##pos") )
+    {
+        ImGui::SetClipboardText(camera_pos_text);
+    }
+
+    // Camera rotation with copy button
+    char camera_rot_text[256];
+    snprintf(
+        camera_rot_text,
+        sizeof(camera_rot_text),
+        "Camera (pitch, yaw, roll): %d, %d, %d",
+        game->camera_pitch,
+        game->camera_yaw,
+        game->camera_roll);
+    ImGui::Text("%s", camera_rot_text);
+    ImGui::SameLine();
+    if( ImGui::SmallButton("Copy##rot") )
+    {
+        ImGui::SetClipboardText(camera_rot_text);
+    }
     ImGui::End();
 
     ImGui::Render();
-    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->debug_renderer);
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->renderer);
 }
 
 static void
@@ -556,11 +530,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     // Unlock the texture so that it may be used elsewhere
     SDL_UnlockTexture(texture);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
-    SDL_RenderPresent(renderer);
 
     SDL_FreeSurface(surface);
-
-    SDL_RenderPresent(platform->debug_renderer);
 }
 
 void
@@ -1023,17 +994,23 @@ main()
 
         while( SDL_PollEvent(&event) )
         {
-            if( event.window.windowID == SDL_GetWindowID(platform.debug_window) )
-            {
-                ImGui_ImplSDL2_ProcessEvent(&event);
-                continue;
-            }
+            ImGui_ImplSDL2_ProcessEvent(&event);
+
+            // Check if ImGui wants to capture keyboard/mouse input
+            ImGuiIO& io = ImGui::GetIO();
+            bool imgui_wants_keyboard = io.WantCaptureKeyboard;
+            bool imgui_wants_mouse = io.WantCaptureMouse;
 
             if( event.type == SDL_QUIT )
             {
                 quit = true;
             }
-            else if( event.type == SDL_KEYDOWN )
+            else if( event.type == SDL_MOUSEMOTION && !imgui_wants_mouse )
+            {
+                game.mouse_x = event.motion.x;
+                game.mouse_y = event.motion.y;
+            }
+            else if( event.type == SDL_KEYDOWN && !imgui_wants_keyboard )
             {
                 switch( event.key.keysym.sym )
                 {
@@ -1114,7 +1091,7 @@ main()
                     break;
                 }
             }
-            else if( event.type == SDL_KEYUP )
+            else if( event.type == SDL_KEYUP && !imgui_wants_keyboard )
             {
                 switch( event.key.keysym.sym )
                 {
@@ -1307,9 +1284,12 @@ main()
                 game.max_render_ops = game.op_count;
         }
 
+        SDL_RenderClear(platform.renderer);
         // Render frame
         game_render_sdl2(&game, &platform);
         game_render_imgui(&game, &platform);
+
+        SDL_RenderPresent(platform.renderer);
 
         // Calculate frame time and sleep appropriately
         Uint32 frame_end_time = SDL_GetTicks();
@@ -1327,8 +1307,6 @@ main()
     SDL_DestroyTexture(platform.texture);
     SDL_DestroyRenderer(platform.renderer);
     SDL_DestroyWindow(platform.window);
-    SDL_DestroyWindow(platform.debug_window);
-    SDL_DestroyRenderer(platform.debug_renderer);
     free(platform.pixel_buffer);
     SDL_Quit();
 

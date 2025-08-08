@@ -811,3 +811,27 @@ for this particular model.
 3. Copy from tranformed, animate and light.
 
 The deob uses a "flyweight" type of structure.
+
+### OSRS Textures
+
+Textures are clamped on the U coordinate and tiled on the V coordinate.
+See tree textures are "sideways" with transparency on the right.
+
+This is why the deob rastering code only clamps U.
+
+### Debug Information Tracking
+
+Highlight model
+Loc data
+
+- model list
+- everything else
+
+### Flexible software render
+
+Paint Command
+metadata_key
+model
+
+For each model face.
+Need osrs weird data?
