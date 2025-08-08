@@ -122,7 +122,7 @@ struct CacheConfigLocation
     int map_scene_id;
     int offset_x;
     int offset_y;
-    int offset_height;
+    int offset_z;
 
     int obstructs_ground;
     int is_hollow;

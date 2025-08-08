@@ -96,7 +96,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->resize_z = 128;
     loc->resize_y = 128;
     loc->offset_x = 0;
-    loc->offset_height = 0;
+    loc->offset_z = 0;
     loc->offset_y = 0;
     loc->obstructs_ground = 0;
     loc->is_hollow = 0;
@@ -360,10 +360,10 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             loc->offset_x = rsbuf_g2b(&buffer);
             break;
         case 71:
-            loc->offset_height = rsbuf_g2b(&buffer);
+            loc->offset_y = rsbuf_g2b(&buffer);
             break;
         case 72:
-            loc->offset_y = rsbuf_g2b(&buffer);
+            loc->offset_z = rsbuf_g2b(&buffer);
             break;
         case 73:
             loc->obstructs_ground = 1;

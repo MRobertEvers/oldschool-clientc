@@ -187,7 +187,7 @@ loc_apply_transforms(
     bool mirrored = (loc->mirrored ^ (orientation > 3)) != 0;
     bool oriented = orientation != 0;
     bool scaled = loc->resize_x != 128 || loc->resize_y != 128 || loc->resize_z != 128;
-    bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_height != 0;
+    bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_z != 0;
     // TODO: handle the other contoured ground types.
     bool hillskewed = loc->contour_ground_type == 1;
 
@@ -201,7 +201,7 @@ loc_apply_transforms(
         model_transform_scale(model, loc->resize_x, loc->resize_y, loc->resize_z);
 
     if( translated )
-        model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_height);
+        model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_z);
 
     if( hillskewed )
         model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
