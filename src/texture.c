@@ -343,10 +343,10 @@ raster_texture_scanline_blend_lerp8(
     assert(texture_width == 128 || texture_width == 64);
     int texture_shift = (texture_width & 0x80) ? 7 : 6;
 
-    int curr_u = 0;
-    int curr_v = 0;
-    int next_u = 0;
-    int next_v = 0;
+    long long curr_u = 0;
+    long long curr_v = 0;
+    long long next_u = 0;
+    long long next_v = 0;
 
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
@@ -373,10 +373,10 @@ raster_texture_scanline_blend_lerp8(
             continue;
 
         next_u = (au) / ((-cw) >> texture_shift);
-        next_u = clamp(next_u, 0x7, texture_width - 1);
+        next_u = clamp(next_u, 0x0, texture_width - 1);
 
         next_v = (bv) / ((-cw) >> texture_shift);
-        next_v = clamp(next_v, 0x7, texture_width - 1);
+        next_v = clamp(next_v, 0x0, texture_width - 1);
 
         int step_u = (next_u - curr_u);
         int step_v = (next_v - curr_v);
@@ -397,6 +397,7 @@ raster_texture_scanline_blend_lerp8(
         shade8bit_ish8 += lerp8_shade_step;
 
     } while( lerp8_steps-- > 0 );
+
     if( lerp8_last_steps == 0 )
         return;
 
@@ -416,16 +417,16 @@ raster_texture_scanline_blend_lerp8(
         return;
 
     next_u = (au) / ((-cw) >> texture_shift);
-    next_u = clamp(next_u, 0x7, texture_width - 1);
+    next_u = clamp(next_u, 0x0, texture_width - 1);
 
     next_v = (bv) / ((-cw) >> texture_shift);
-    next_v = clamp(next_v, 0x7, texture_width - 1);
+    next_v = clamp(next_v, 0x0, texture_width - 1);
 
-    int u_scan = curr_u << 3;
-    int v_scan = curr_v << 3;
+    long long u_scan = curr_u << 3;
+    long long v_scan = curr_v << 3;
 
-    int step_u = (next_u - curr_u);
-    int step_v = (next_v - curr_v);
+    long long step_u = (next_u - curr_u);
+    long long step_v = (next_v - curr_v);
 
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
