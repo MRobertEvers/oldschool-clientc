@@ -1398,7 +1398,7 @@ decodeType2(const unsigned char* var1, int var1_length)
 
         if( var14 == 1 )
         {
-            def->face_alphas[i] = (int)read_byte(var1, &var7_offset);
+            def->face_alphas[i] = read_unsigned_byte(var1, &var7_offset);
         }
 
         if( var15 == 1 )
