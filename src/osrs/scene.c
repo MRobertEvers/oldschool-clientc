@@ -184,7 +184,7 @@ loc_apply_transforms(
         model_transform_retexture(model, loc->retextures_from[i], loc->retextures_to[i]);
     }
 
-    bool mirrored = (loc->mirrored ^ (orientation > 3)) != 0;
+    bool mirrored = (loc->mirrored != (orientation > 3));
     bool oriented = orientation != 0;
     bool scaled = loc->resize_x != 128 || loc->resize_y != 128 || loc->resize_z != 128;
     bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_z != 0;

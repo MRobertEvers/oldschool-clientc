@@ -104,6 +104,7 @@ model_transform_scale(struct CacheModel* model, int x, int y, int z)
 void
 model_transform_orient(struct CacheModel* model, int orientation)
 {
+    orientation &= 3;
     while( orientation-- > 0 )
     {
         for( int v = 0; v < model->vertex_count; v++ )
