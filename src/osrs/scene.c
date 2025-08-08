@@ -412,13 +412,7 @@ merge_normals(
     struct LightingNormal* other_lighting_vertex_normals,
     int check_offset_x,
     int check_offset_y,
-    int check_offset_z,
-    int tile_x,
-    int tile_y,
-    int tile_level,
-    int other_tile_x,
-    int other_tile_y,
-    int other_tile_level)
+    int check_offset_z)
 {
     struct LightingNormal* model_a_normal = NULL;
     struct LightingNormal* model_b_normal = NULL;
@@ -448,14 +442,6 @@ merge_normals(
             if( x == other_x && y == other_y && z == other_z && model_b_normal->face_count > 0 &&
                 model_a_normal->face_count > 0 )
             {
-                // printf(
-                //     "merging normals (%d, %d, %d) and (%d, %d, %d)\n",
-                //     tile_x,
-                //     tile_y,
-                //     tile_level,
-                //     other_tile_x,
-                //     other_tile_y,
-                //     other_tile_level);
                 model_a_lighting_normal->x += model_b_normal->x;
                 model_a_lighting_normal->y += model_b_normal->y;
                 model_a_lighting_normal->z += model_b_normal->z;
@@ -748,6 +734,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         loc_config = config_locs_table_get(config_locs_table, map->loc_id);
         assert(loc_config);
+
+        if( loc_config->_id == 1872 )
+        {
+            int iii = 0;
+        }
 
         // grid_tile->sharelight = loc_config->sharelight;
 
@@ -1203,7 +1194,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 cache,
                 model_cache,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
-                map->orientation + 4,
+                map->orientation,
                 height_sw,
                 height_se,
                 height_ne,
@@ -1211,10 +1202,10 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
             init_scene_model_1x1(model, tile_x, tile_y, height_center);
 
-            // int offset = 8;
-            // calculate_wall_decor_offset(
-            //     model, map->orientation, offset, true // diagonal
-            // );
+            int offset = -45;
+            calculate_wall_decor_offset(
+                model, map->orientation, offset, true // diagonal
+            );
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1692,13 +1683,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                         other_model->aliased_lighting_normals->lighting_vertex_normals,
                         check_offset_x,
                         check_offset_level,
-                        check_offset_y,
-                        iter_grid.x,
-                        iter_grid.y,
-                        iter_grid.level,
-                        other_model->region_x,
-                        other_model->region_y,
-                        other_model->region_z);
+                        check_offset_y);
                 }
             }
         }
@@ -1706,169 +1691,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         iter_grid_next(&iter_grid);
     }
 
-    // while( !iter_grid_done(&iter_grid) )
-    // {
-    //     grid_tile = &scene->grid_tiles[MAP_TILE_COORD(iter_grid.x, iter_grid.y,
-    //     iter_grid.level)];
-
-    //     for( int i = 0; i < grid_tile->locs_length; i++ )
-    //     {
-    //         loc = &scene->locs[grid_tile->locs[i]];
-
-    //         model = tile_loc_model_nullable(scene->models, loc);
-    //         if( model == NULL || !model->sharelight )
-    //             continue;
-
-    //         int adjacent_tiles_count = gather_adjacent_tiles(
-    //             adjacent_tiles,
-    //             sizeof(adjacent_tiles) / sizeof(adjacent_tiles[0]),
-    //             scene->grid_tiles,
-    //             iter_grid.x,
-    //             iter_grid.y,
-    //             iter_grid.level,
-    //             loc->size_x,
-    //             loc->size_y);
-
-    //         for( int j = 0; j < adjacent_tiles_count; j++ )
-    //         {
-    //             adjacent_tile = &scene->grid_tiles[adjacent_tiles[j]];
-
-    //             if( adjacent_tile->wall != -1 )
-    //             {
-    //                 other_loc = &scene->locs[adjacent_tile->wall];
-    //                 other_model = tile_wall_model_nullable(scene->models, other_loc, 1);
-    //                 if( other_model && other_model->sharelight )
-    //                 {
-    //                     int other_min_tile_x = other_loc->chunk_pos_x;
-    //                     int other_min_tile_y = other_loc->chunk_pos_y;
-
-    //                     int check_offset_x =
-    //                         (other_min_tile_x - iter_grid.x) * 128 + (1 - loc->size_x) * 64;
-    //                     int check_offset_y =
-    //                         (other_min_tile_y - iter_grid.y) * 128 + (1 - loc->size_y) * 64;
-    //                     int check_offset_level =
-    //                         (map_terrain
-    //                              ->tiles_xyz[MAP_TILE_COORD(
-    //                                  other_loc->chunk_pos_x,
-    //                                  other_loc->chunk_pos_y,
-    //                                  other_loc->chunk_pos_level)]
-    //                              .height -
-    //                          map_terrain
-    //                              ->tiles_xyz[MAP_TILE_COORD(
-    //                                  iter_grid.x, iter_grid.y, iter_grid.level)]
-    //                              .height);
-    //                     merge_normals(
-    //                         model->model,
-    //                         model->normals->lighting_vertex_normals,
-    //                         model->aliased_lighting_normals->lighting_vertex_normals,
-    //                         other_model->model,
-    //                         other_model->normals->lighting_vertex_normals,
-    //                         other_model->aliased_lighting_normals->lighting_vertex_normals,
-    //                         check_offset_x,
-    //                         check_offset_level,
-    //                         check_offset_y,
-    //                         iter_grid.x,
-    //                         iter_grid.y,
-    //                         iter_grid.level,
-    //                         other_loc->chunk_pos_x,
-    //                         other_loc->chunk_pos_y,
-    //                         iter_grid.level);
-    //                 }
-
-    //                 other_model = tile_wall_model_nullable(scene->models, other_loc, 0);
-    //                 if( other_model && other_model->sharelight )
-    //                 {
-    //                     int other_min_tile_x = other_loc->chunk_pos_x;
-    //                     int other_min_tile_y = other_loc->chunk_pos_y;
-
-    //                     int check_offset_x =
-    //                         (other_min_tile_x - iter_grid.x) * 128 + (1 - loc->size_x) * 64;
-    //                     int check_offset_y =
-    //                         (other_min_tile_y - iter_grid.y) * 128 + (1 - loc->size_y) * 64;
-    //                     int check_offset_level =
-    //                         (map_terrain
-    //                              ->tiles_xyz[MAP_TILE_COORD(
-    //                                  other_loc->chunk_pos_x,
-    //                                  other_loc->chunk_pos_y,
-    //                                  other_loc->chunk_pos_level)]
-    //                              .height -
-    //                          map_terrain
-    //                              ->tiles_xyz[MAP_TILE_COORD(
-    //                                  iter_grid.x, iter_grid.y, iter_grid.level)]
-    //                              .height);
-    //                     merge_normals(
-    //                         model->model,
-    //                         model->normals->lighting_vertex_normals,
-    //                         model->aliased_lighting_normals->lighting_vertex_normals,
-    //                         other_model->model,
-    //                         other_model->normals->lighting_vertex_normals,
-    //                         other_model->aliased_lighting_normals->lighting_vertex_normals,
-    //                         check_offset_x,
-    //                         check_offset_level,
-    //                         check_offset_y,
-    //                         iter_grid.x,
-    //                         iter_grid.y,
-    //                         iter_grid.level,
-    //                         other_loc->chunk_pos_x,
-    //                         other_loc->chunk_pos_y,
-    //                         iter_grid.level);
-    //                 }
-    //             }
-    //             for( int k = 0; k < adjacent_tile->locs_length; k++ )
-    //             {
-    //                 other_loc = &scene->locs[adjacent_tile->locs[k]];
-
-    //                 if( loc->chunk_pos_x == other_loc->chunk_pos_x &&
-    //                     loc->chunk_pos_y == other_loc->chunk_pos_y )
-    //                     continue;
-
-    //                 other_model = tile_loc_model_nullable(scene->models, other_loc);
-    //                 if( other_model && other_model->sharelight )
-    //                 {
-    //                     int other_min_tile_x = other_loc->chunk_pos_x;
-    //                     int other_min_tile_y = other_loc->chunk_pos_y;
-
-    //                     int check_offset_x = (other_min_tile_x - iter_grid.x) * 128 +
-    //                                          (other_loc->size_x - loc->size_x) * 64;
-    //                     int check_offset_y = (other_min_tile_y - iter_grid.y) * 128 +
-    //                                          (other_loc->size_y - loc->size_y) * 64;
-
-    //                     int check_offset_level = other_model->region_z - model->region_z;
-
-    //                     merge_normals(
-    //                         model->model,
-    //                         model->normals->lighting_vertex_normals,
-    //                         model->aliased_lighting_normals->lighting_vertex_normals,
-    //                         other_model->model,
-    //                         other_model->normals->lighting_vertex_normals,
-    //                         other_model->aliased_lighting_normals->lighting_vertex_normals,
-    //                         check_offset_x,
-    //                         check_offset_level,
-    //                         check_offset_y,
-    //                         iter_grid.x,
-    //                         iter_grid.y,
-    //                         iter_grid.level,
-    //                         other_loc->chunk_pos_x,
-    //                         other_loc->chunk_pos_y,
-    //                         iter_grid.level);
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     iter_grid_next(&iter_grid);
-    // }
-
     map_terrain_free(map_terrain);
 
     config_locs_table_free(config_locs_table);
-    // map_locs_free(map_locs);
 
     return scene;
 
 error:
-    // scene_locs_free(scene_locs);
-    // scene_free(scene);
     return NULL;
 }
 
