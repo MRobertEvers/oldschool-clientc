@@ -1,3 +1,4 @@
+extern "C" {
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/render.h"
@@ -10,6 +11,7 @@
 #include "osrs/tables/texture_pixels.h"
 #include "osrs/tables/textures.h"
 #include "osrs/xtea_config.h"
+}
 
 #include <SDL.h>
 #include <assert.h>
@@ -20,6 +22,17 @@
 
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 600
+
+// ImGui headers
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_sdlrenderer2.h"
+
+#define SCREEN_WIDTH 1024
+#define SCREEN_HEIGHT 768
+#define GUI_WINDOW_WIDTH 400
+#define GUI_WINDOW_HEIGHT 600
 
 int g_sin_table[2048];
 int g_cos_table[2048];
@@ -249,6 +262,9 @@ struct PlatformSDL2
     SDL_Renderer* renderer;
     SDL_Texture* texture;
     int* pixel_buffer;
+
+    SDL_Window* debug_window;
+    SDL_Renderer* debug_renderer;
 };
 
 static bool
@@ -278,6 +294,32 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
+    // Create GUI window
+    platform->debug_window = SDL_CreateWindow(
+        "Model Viewer Controls",
+        SDL_WINDOWPOS_CENTERED + SCREEN_WIDTH / 2 + 50,
+        SDL_WINDOWPOS_CENTERED,
+        GUI_WINDOW_WIDTH,
+        GUI_WINDOW_HEIGHT,
+        SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+
+    if( !platform->debug_window )
+    {
+        printf("Error creating GUI window: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    // Create GUI renderer
+    platform->debug_renderer =
+        SDL_CreateRenderer(platform->debug_window, -1, SDL_RENDERER_SOFTWARE);
+    if( !platform->debug_renderer )
+    {
+        printf("Error creating GUI renderer: %s\n", SDL_GetError());
+        return -1;
+    }
+
+    SDL_RenderSetLogicalSize(platform->debug_renderer, GUI_WINDOW_WIDTH, GUI_WINDOW_HEIGHT);
+
     // Create texture
     SDL_Texture* texture = SDL_CreateTexture(
         renderer,
@@ -290,7 +332,87 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     platform->pixel_buffer = (int*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
+    // Initialize ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    // Setup ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends for GUI window
+    ImGui_ImplSDL2_InitForSDLRenderer(platform->debug_window, platform->debug_renderer);
+    ImGui_ImplSDLRenderer2_Init(platform->debug_renderer);
+
     return true;
+}
+static void
+game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
+{
+    // Clear the GUI renderer background
+    SDL_SetRenderDrawColor(platform->debug_renderer, 0, 0, 0, 255);
+    SDL_RenderClear(platform->debug_renderer);
+
+    ImGui_ImplSDLRenderer2_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    // Main control window
+    ImGui::Begin("Model Viewer Controls");
+    // React Compo
+    ImGui::Text("Transform Controls");
+    ImGui::Separator();
+
+    // ImGui::SliderFloat("Rotation X", &g_state.rotation_x, 0.0f, 360.0f);
+    // ImGui::SliderFloat("Rotation Y", &g_state.rotation_y, 0.0f, 360.0f);
+    // ImGui::SliderFloat("Rotation Z", &g_state.rotation_z, 0.0f, 360.0f);
+
+    // ImGui::SliderFloat("Scale", &g_state.scale, 0.1f, 100.0f);
+
+    // ImGui::SliderFloat("Position X", &g_state.position_x, -10.0f, 10.0f);
+    // ImGui::SliderFloat("Position Y", &g_state.position_y, -10.0f, 10.0f);
+    // ImGui::SliderFloat("Position Z", &g_state.position_z, -20.0f, 5.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Display Options");
+    // ImGui::InputText("Model Name", g_state.model_name, IM_ARRAYSIZE(g_state.model_name));
+
+    // ImGui::Checkbox("Show Wireframe", &g_state.show_wireframe);
+    // ImGui::Checkbox("Show Axes", &g_state.show_axes);
+
+    ImGui::Separator();
+    ImGui::Text("Background Color");
+    // ImGui::ColorEdit4("Clear Color", g_state.clear_color);
+
+    ImGui::Separator();
+    if( ImGui::Button("Reset Transform") )
+    {
+        // g_state.rotation_x = 0.0f;
+        // g_state.rotation_y = 0.0f;
+        // g_state.rotation_z = 0.0f;
+        // g_state.scale = 100.0f;
+        // g_state.position_x = 0.0f;
+        // g_state.position_y = 0.0f;
+        // g_state.position_z = -5.0f;
+    }
+
+    ImGui::End();
+
+    // Info window
+    ImGui::SetNextWindowPos(ImVec2(10, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(380, 150), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Info");
+    ImGui::Text("Software Rendered Model Viewer with ImGui");
+    ImGui::Text("Use the controls to manipulate the cube");
+    ImGui::Text(
+        "Application average %.3f ms/frame (%.1f FPS)",
+        1000.0f / ImGui::GetIO().Framerate,
+        ImGui::GetIO().Framerate);
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->debug_renderer);
 }
 
 static void
@@ -437,6 +559,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_RenderPresent(renderer);
 
     SDL_FreeSurface(surface);
+
+    SDL_RenderPresent(platform->debug_renderer);
 }
 
 void
@@ -632,7 +756,7 @@ main()
         struct ArchiveReference* archives = cache->tables[CACHE_TEXTURES]->archives;
 
         texture_definition = texture_definition_decode_inplace(
-            texture_definition, filelist->files[i], filelist->file_sizes[i]);
+            texture_definition, (const unsigned char*)filelist->files[i], filelist->file_sizes[i]);
         assert(texture_definition != NULL);
         int file_id = archives[cache->tables[CACHE_TEXTURES]->ids[0]].children.files[i].id;
         texture_ids[i] = file_id;
@@ -677,8 +801,8 @@ main()
             int iiii = 0;
         }
 
-        struct CacheSpritePack* sprite_pack =
-            sprite_pack_new_decode(archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
+        struct CacheSpritePack* sprite_pack = sprite_pack_new_decode(
+            (const unsigned char*)archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
         if( !sprite_pack )
         {
             printf("Failed to load sprites pack\n");
@@ -899,6 +1023,12 @@ main()
 
         while( SDL_PollEvent(&event) )
         {
+            if( event.window.windowID == SDL_GetWindowID(platform.debug_window) )
+            {
+                ImGui_ImplSDL2_ProcessEvent(&event);
+                continue;
+            }
+
             if( event.type == SDL_QUIT )
             {
                 quit = true;
@@ -1179,6 +1309,7 @@ main()
 
         // Render frame
         game_render_sdl2(&game, &platform);
+        game_render_imgui(&game, &platform);
 
         // Calculate frame time and sleep appropriately
         Uint32 frame_end_time = SDL_GetTicks();
@@ -1196,6 +1327,8 @@ main()
     SDL_DestroyTexture(platform.texture);
     SDL_DestroyRenderer(platform.renderer);
     SDL_DestroyWindow(platform.window);
+    SDL_DestroyWindow(platform.debug_window);
+    SDL_DestroyRenderer(platform.debug_renderer);
     free(platform.pixel_buffer);
     SDL_Quit();
 

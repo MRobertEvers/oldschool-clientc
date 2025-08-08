@@ -77,7 +77,7 @@ add_executable(main_client
 )
 
 add_executable(scene_tile_test
-    test/scene_tile_test.c
+    test/scene_tile_test.cpp
     src/osrs/tables/texture_pixels.c
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
@@ -114,6 +114,14 @@ add_executable(scene_tile_test
     src/osrs/scene_cache.c
     src/osrs/tables/noise.c
     src/datastruct/ht.c
+
+    src/imgui/imgui.cpp
+    src/imgui/imgui_draw.cpp
+    src/imgui/imgui_tables.cpp
+    src/imgui/imgui_widgets.cpp
+    src/imgui/imgui_demo.cpp
+    src/imgui/imgui_impl_sdl2.cpp
+    src/imgui/imgui_impl_sdlrenderer2.cpp
 )
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -178,6 +186,11 @@ add_executable(model_viewer
 
 # Set C++ standard for model viewer
 set_target_properties(model_viewer PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+set_target_properties(scene_tile_test PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )

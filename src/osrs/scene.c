@@ -735,13 +735,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         loc_config = config_locs_table_get(config_locs_table, map->loc_id);
         assert(loc_config);
 
-        if( loc_config->_id == 1872 )
-        {
-            int iii = 0;
-        }
-
-        // grid_tile->sharelight = loc_config->sharelight;
-
         switch( map->shape_select )
         {
         case LOC_SHAPE_WALL_SINGLE_SIDE:
@@ -1611,7 +1604,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     }
 
     struct IterGrid iter_grid = iter_grid_init(0, 0, 0);
-    struct IterGrid iter_adjacent = { 0 };
     int adjacent_tiles[40] = { 0 };
     struct SceneModel* sharelight_models[40] = { 0 };
     struct SceneModel* adjacent_sharelight_models[40] = { 0 };
