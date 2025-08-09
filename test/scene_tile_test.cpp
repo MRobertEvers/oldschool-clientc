@@ -16,6 +16,7 @@ extern "C" {
 #include <SDL.h>
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -198,8 +199,16 @@ struct Game
     int camera_y;
     int camera_z;
 
+    int hover_model;
+
     int mouse_x;
     int mouse_y;
+
+    uint64_t start_time;
+    uint64_t end_time;
+
+    uint64_t frame_count;
+    uint64_t frame_time_sum;
 
     struct SceneTile* tiles;
     int tile_count;
@@ -368,7 +377,16 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
         "Application average %.3f ms/frame (%.1f FPS)",
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
+    Uint64 frequency = SDL_GetPerformanceFrequency();
+    ImGui::Text(
+        "Render Time: %.3f ms/frame",
+        (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
+    ImGui::Text(
+        "Average Render Time: %.3f ms/frame",
+        (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency);
     ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+
+    ImGui::Text("Hover model: %d", game->hover_model);
 
     // Camera position with copy button
     char camera_pos_text[256];
@@ -485,6 +503,10 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_Texture* texture = platform->texture;
     SDL_Renderer* renderer = platform->renderer;
     int* pixel_buffer = platform->pixel_buffer;
+
+    // Get the frequency (ticks per second)
+    Uint64 frequency = SDL_GetPerformanceFrequency();
+
     // memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
     // render_scene_tiles(
@@ -560,11 +582,18 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     //         }
     //     }
 
-    struct IterRenderSceneOps* iter =
-        iter_render_scene_ops_new(game->scene, game->ops, game->op_count);
-    while( iter_render_scene_ops_next(iter) )
+    // Measure performance
+    // ... code to measure ...
+
+    Uint64 start_ticks = SDL_GetPerformanceCounter();
+    struct IterRenderSceneOps iter;
+    struct IterRenderModel iter_model;
+
+    iter_render_scene_ops_init(&iter, game->scene, game->ops, game->op_count);
+
+    while( iter_render_scene_ops_next(&iter) )
     {
-        if( iter->value.tile_nullable_ )
+        if( iter.value.tile_nullable_ )
         {
             render_scene_tile(
                 g_screen_vertices_x,
@@ -586,18 +615,19 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 game->camera_yaw,
                 game->camera_roll,
                 game->camera_fov,
-                iter->value.tile_nullable_,
+                iter.value.tile_nullable_,
                 game->textures_cache,
                 NULL);
         }
 
-        if( iter->value.model_nullable_ )
+        if( iter.value.model_nullable_ )
         {
-            if( !iter->value.model_nullable_->model )
+            if( !iter.value.model_nullable_->model )
                 continue;
 
-            struct IterRenderModel* iter_model = iter_render_model_new(
-                iter->value.model_nullable_,
+            iter_render_model_init(
+                &iter_model,
+                iter.value.model_nullable_,
                 0,
                 game->camera_x,
                 game->camera_y,
@@ -610,36 +640,73 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 SCREEN_HEIGHT,
                 100);
 
-            while( iter_render_model_next(iter_model) )
+            while( iter_render_model_next(&iter_model) )
             {
-                int face = iter_model->value_face;
+                int face = iter_model.value_face;
 
+                // Get face vertex indices
+                int face_a = iter.value.model_nullable_->model->face_indices_a[face];
+                int face_b = iter.value.model_nullable_->model->face_indices_b[face];
+                int face_c = iter.value.model_nullable_->model->face_indices_c[face];
+
+                // Get screen coordinates of the triangle vertices
+                int x1 = iter_model.screen_vertices_x[face_a] + SCREEN_WIDTH / 2;
+                int y1 = iter_model.screen_vertices_y[face_a] + SCREEN_HEIGHT / 2;
+                int x2 = iter_model.screen_vertices_x[face_b] + SCREEN_WIDTH / 2;
+                int y2 = iter_model.screen_vertices_y[face_b] + SCREEN_HEIGHT / 2;
+                int x3 = iter_model.screen_vertices_x[face_c] + SCREEN_WIDTH / 2;
+                int y3 = iter_model.screen_vertices_y[face_c] + SCREEN_HEIGHT / 2;
+
+                // Check if mouse is inside the triangle using barycentric coordinates
+                bool mouse_in_triangle = false;
+                if( x1 != -5000 && x2 != -5000 && x3 != -5000 )
+                { // Skip clipped triangles
+                    int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+                    if( denominator != 0 )
+                    {
+                        float a =
+                            ((y2 - y3) * (game->mouse_x - x3) + (x3 - x2) * (game->mouse_y - y3)) /
+                            (float)denominator;
+                        float b =
+                            ((y3 - y1) * (game->mouse_x - x3) + (x1 - x3) * (game->mouse_y - y3)) /
+                            (float)denominator;
+                        float c = 1 - a - b;
+                        mouse_in_triangle = (a >= 0 && b >= 0 && c >= 0);
+                    }
+                }
+
+                if( mouse_in_triangle )
+                {
+                    game->hover_model = iter_model.model->model_id;
+                }
+
+                // Only draw the face if mouse is inside the triangle
                 model_draw_face(
                     pixel_buffer,
                     face,
-                    iter->value.model_nullable_->model->face_infos,
-                    iter->value.model_nullable_->model->face_indices_a,
-                    iter->value.model_nullable_->model->face_indices_b,
-                    iter->value.model_nullable_->model->face_indices_c,
-                    iter->value.model_nullable_->model->face_count,
-                    iter_model->screen_vertices_x,
-                    iter_model->screen_vertices_y,
-                    iter_model->screen_vertices_z,
-                    iter_model->ortho_vertices_x,
-                    iter_model->ortho_vertices_y,
-                    iter_model->ortho_vertices_z,
-                    iter->value.model_nullable_->model->vertex_count,
-                    iter->value.model_nullable_->model->face_textures,
-                    iter->value.model_nullable_->model->face_texture_coords,
-                    iter->value.model_nullable_->model->textured_face_count,
-                    iter->value.model_nullable_->model->textured_p_coordinate,
-                    iter->value.model_nullable_->model->textured_m_coordinate,
-                    iter->value.model_nullable_->model->textured_n_coordinate,
-                    iter->value.model_nullable_->model->textured_face_count,
-                    iter->value.model_nullable_->lighting->face_colors_hsl_a,
-                    iter->value.model_nullable_->lighting->face_colors_hsl_b,
-                    iter->value.model_nullable_->lighting->face_colors_hsl_c,
-                    iter->value.model_nullable_->model->face_alphas,
+                    iter.value.model_nullable_->model->face_infos,
+                    iter.value.model_nullable_->model->face_indices_a,
+                    iter.value.model_nullable_->model->face_indices_b,
+                    iter.value.model_nullable_->model->face_indices_c,
+                    iter.value.model_nullable_->model->face_count,
+                    iter_model.screen_vertices_x,
+                    iter_model.screen_vertices_y,
+                    iter_model.screen_vertices_z,
+                    iter_model.ortho_vertices_x,
+                    iter_model.ortho_vertices_y,
+                    iter_model.ortho_vertices_z,
+                    iter.value.model_nullable_->model->vertex_count,
+                    iter.value.model_nullable_->model->face_textures,
+                    iter.value.model_nullable_->model->face_texture_coords,
+                    iter.value.model_nullable_->model->textured_face_count,
+                    iter.value.model_nullable_->model->textured_p_coordinate,
+                    iter.value.model_nullable_->model->textured_m_coordinate,
+                    iter.value.model_nullable_->model->textured_n_coordinate,
+                    iter.value.model_nullable_->model->textured_face_count,
+                    iter.value.model_nullable_->lighting->face_colors_hsl_a,
+                    iter.value.model_nullable_->lighting->face_colors_hsl_b,
+                    iter.value.model_nullable_->lighting->face_colors_hsl_c,
+                    iter.value.model_nullable_->model->face_alphas,
                     SCREEN_WIDTH / 2,
                     SCREEN_HEIGHT / 2,
                     SCREEN_WIDTH,
@@ -647,14 +714,11 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                     game->textures_cache);
             }
 
-            iter_render_model_free(iter_model);
-
             // render_scene_model(
             //     pixel_buffer,
             //     SCREEN_WIDTH,
             //     SCREEN_HEIGHT,
             //     // Had to use 100 here because of the scale, near plane z was resulting in
-            //     triangles
             //     // extremely close to the camera.
             //     100,
             //     0,
@@ -665,11 +729,17 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             //     game->camera_yaw,
             //     game->camera_roll,
             //     game->camera_fov,
-            //     iter->value.model_nullable_,
+            //     iter.value.model_nullable_,
             //     game->textures_cache);
         }
     }
-    iter_render_scene_ops_free(iter);
+
+    Uint64 end_ticks = SDL_GetPerformanceCounter();
+    game->start_time = start_ticks;
+    game->end_time = end_ticks;
+
+    game->frame_count++;
+    game->frame_time_sum += end_ticks - start_ticks;
 
     // render_scene_ops(
     //     game->ops,
@@ -863,8 +933,9 @@ main()
 
     // int underlay_count = filelist->file_count;
     // int* underlay_ids = (int*)malloc(underlay_count * sizeof(int));
-    // struct CacheConfigUnderlay* underlays = (struct CacheConfigUnderlay*)malloc(underlay_count *
-    // sizeof(struct Underlay)); for( int i = 0; i < underlay_count; i++ )
+    // struct CacheConfigUnderlay* underlays = (struct
+    // CacheConfigUnderlay*)malloc(underlay_count * sizeof(struct Underlay)); for( int i = 0; i
+    // < underlay_count; i++ )
     // {
     //     struct CacheConfigUnderlay* underlay = &underlays[i];
 

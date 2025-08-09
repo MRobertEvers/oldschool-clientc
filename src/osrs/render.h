@@ -275,12 +275,10 @@ struct IterRenderSceneOps
     int _op_count;
 };
 
-struct IterRenderSceneOps*
-iter_render_scene_ops_new(struct Scene* scene, struct SceneOp* ops, int op_count);
+void iter_render_scene_ops_init(
+    struct IterRenderSceneOps* iter, struct Scene* scene, struct SceneOp* ops, int op_count);
 
 bool iter_render_scene_ops_next(struct IterRenderSceneOps* iter);
-
-void iter_render_scene_ops_free(struct IterRenderSceneOps* iter);
 
 struct IterRenderModel
 {
@@ -307,7 +305,8 @@ struct IterRenderModel
     int* ortho_vertices_z;
 };
 
-struct IterRenderModel* iter_render_model_new(
+void iter_render_model_init(
+    struct IterRenderModel* iter,
     struct SceneModel* scene_model,
     int yaw,
     int camera_x,
@@ -322,7 +321,5 @@ struct IterRenderModel* iter_render_model_new(
     int near_plane_z);
 
 bool iter_render_model_next(struct IterRenderModel* iter);
-
-void iter_render_model_free(struct IterRenderModel* iter);
 
 #endif

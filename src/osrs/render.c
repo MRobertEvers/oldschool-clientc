@@ -3360,17 +3360,16 @@ render_scene_ops(
     }
 }
 
-struct IterRenderSceneOps*
-iter_render_scene_ops_new(struct Scene* scene, struct SceneOp* ops, int op_count)
+void
+iter_render_scene_ops_init(
+    struct IterRenderSceneOps* iter, struct Scene* scene, struct SceneOp* ops, int op_count)
 {
-    struct IterRenderSceneOps* iter =
-        (struct IterRenderSceneOps*)malloc(sizeof(struct IterRenderSceneOps));
+    memset(iter, 0, sizeof(struct IterRenderSceneOps));
     iter->has_value = false;
     iter->scene = scene;
     iter->_ops = ops;
     iter->_op_count = op_count;
     iter->_current_op = 0;
-    return iter;
 }
 
 bool
@@ -3542,8 +3541,9 @@ iter_render_scene_ops_free(struct IterRenderSceneOps* iter)
     free(iter);
 }
 
-struct IterRenderModel*
-iter_render_model_new(
+void
+iter_render_model_init(
+    struct IterRenderModel* iter,
     struct SceneModel* scene_model,
     int yaw,
     int camera_x,
@@ -3557,7 +3557,7 @@ iter_render_model_new(
     int height,
     int near_plane_z)
 {
-    struct IterRenderModel* iter = (struct IterRenderModel*)malloc(sizeof(struct IterRenderModel));
+    memset(iter, 0, sizeof(struct IterRenderModel));
     iter->model = scene_model;
 
     iter->screen_vertices_x = tmp_screen_vertices_x;
@@ -3672,8 +3672,6 @@ iter_render_model_new(
             model->face_priorities,
             model_min_depth * 2);
     }
-
-    return iter;
 }
 
 bool
@@ -3732,10 +3730,4 @@ iter_render_model_next(struct IterRenderModel* iter)
     }
 
     return false;
-}
-
-void
-iter_render_model_free(struct IterRenderModel* iter)
-{
-    free(iter);
 }
