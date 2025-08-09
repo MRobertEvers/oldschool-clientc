@@ -1711,7 +1711,7 @@ static int tile_shape_face_counts[15] = {
 
 #define TILE_SIZE 128
 
-static void
+void
 render_scene_tile(
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -1723,9 +1723,6 @@ render_scene_tile(
     int width,
     int height,
     int near_plane_z,
-    int grid_x,
-    int grid_y,
-    int grid_z,
     int camera_x,
     int camera_y,
     int camera_z,
@@ -1739,33 +1736,6 @@ render_scene_tile(
 {
     if( tile->vertex_count == 0 || tile->face_color_hsl_a == NULL )
         return;
-
-    // TODO: A faster culling
-    // if the tile is far enough away, skip it.
-    // Calculate distance from camera to tile center
-    // int tile_center_x = (grid_x - 1) * TILE_SIZE;
-    // int tile_center_z = (grid_y - 1) * TILE_SIZE;
-    // int tile_center_y = -(grid_z - 1) * 240;
-
-    // // int dx = tile_center_x + scene_x;
-    // // int dy = tile_center_y + scene_y;
-    // // int dz = tile_center_z + scene_z;
-
-    // for( int i = 0; i < tile->vertex_count; i++ )
-    // {
-    //     tile->vertex_x[i] += tile_center_x;
-    //     tile->vertex_y[i] += tile_center_y;
-    //     tile->vertex_z[i] += tile_center_z;
-    // }
-
-    // Simple squared distance - avoid sqrt for performance
-    // int dist_sq = dx * dx;
-    // if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
-    //     return;
-
-    // dist_sq = dy * dy;
-    // if( dist_sq > TILE_SIZE * TILE_SIZE * 10000 )
-    //     return;
 
     for( int face = 0; face < tile->face_count; face++ )
     {
@@ -1881,13 +1851,6 @@ render_scene_tile(
                 height / 2);
         }
     }
-
-    // for( int i = 0; i < tile->vertex_count; i++ )
-    // {
-    //     tile->vertex_x[i] -= tile_center_x;
-    //     tile->vertex_y[i] -= tile_center_y;
-    //     tile->vertex_z[i] -= tile_center_z;
-    // }
 }
 
 void
@@ -1940,9 +1903,6 @@ render_scene_tiles(
                     width,
                     height,
                     near_plane_z,
-                    x,
-                    y,
-                    z,
                     scene_x,
                     scene_y,
                     scene_z,
@@ -3198,9 +3158,6 @@ dbg_tile(
         width,
         height,
         near_plane_z,
-        0,
-        0,
-        0,
         camera_x,
         camera_y,
         camera_z,
@@ -3239,15 +3196,6 @@ render_scene_ops(
     struct Scene* scene,
     struct TexturesCache* textures_cache)
 {
-    // int* screen_vertices_x = (int*)malloc(20 * sizeof(int));
-    // int* screen_vertices_y = (int*)malloc(20 * sizeof(int));
-    // int* screen_vertices_z = (int*)malloc(20 * sizeof(int));
-
-    // // These are the vertices prior to perspective correction.
-    // int* ortho_vertices_x = (int*)malloc(20 * sizeof(int));
-    // int* ortho_vertices_y = (int*)malloc(20 * sizeof(int));
-    // int* ortho_vertices_z = (int*)malloc(20 * sizeof(int));
-
     int* screen_vertices_x = g_screen_vertices_x;
     int* screen_vertices_y = g_screen_vertices_y;
     int* screen_vertices_z = g_screen_vertices_z;
@@ -3280,10 +3228,6 @@ render_scene_ops(
             if( !tile || !tile->valid_faces )
                 break;
 
-            int tile_x = tile->chunk_pos_x;
-            int tile_y = tile->chunk_pos_y;
-            int tile_z = tile->chunk_pos_level;
-
             int* color_override_hsl16_nullable = NULL;
             if( op->_ground.override_color )
             {
@@ -3305,9 +3249,6 @@ render_scene_ops(
                 width,
                 height,
                 near_plane_z,
-                tile_x,
-                tile_y,
-                tile_z,
                 camera_x,
                 camera_y,
                 camera_z,
@@ -3484,12 +3425,194 @@ render_scene_ops(
         }
         break;
         }
-
-        // free(screen_vertices_x);
-        // free(screen_vertices_y);
-        // free(screen_vertices_z);
-        // free(ortho_vertices_x);
-        // free(ortho_vertices_y);
-        // free(ortho_vertices_z);
     }
+}
+
+struct IterRenderSceneOps*
+iter_render_scene_ops_new(struct Scene* scene, struct SceneOp* ops, int op_count)
+{
+    struct IterRenderSceneOps* iter =
+        (struct IterRenderSceneOps*)malloc(sizeof(struct IterRenderSceneOps));
+    iter->has_value = false;
+    iter->scene = scene;
+    iter->_ops = ops;
+    iter->_op_count = op_count;
+    iter->_current_op = 0;
+    return iter;
+}
+
+bool
+iter_render_scene_ops_next(struct IterRenderSceneOps* iter)
+{
+    int* screen_vertices_x = g_screen_vertices_x;
+    int* screen_vertices_y = g_screen_vertices_y;
+    int* screen_vertices_z = g_screen_vertices_z;
+    int* ortho_vertices_x = g_ortho_vertices_x;
+    int* ortho_vertices_y = g_ortho_vertices_y;
+    int* ortho_vertices_z = g_ortho_vertices_z;
+
+    struct GridTile* grid_tile = NULL;
+    struct Loc* loc = NULL;
+    struct SceneModel* model = NULL;
+    struct SceneTile* tile = NULL;
+
+next:
+    memset(&iter->value, 0, sizeof(iter->value));
+
+    int i = iter->_current_op;
+    if( i >= iter->_op_count )
+        return false;
+
+    iter->_current_op++;
+
+    struct SceneOp* op = &iter->_ops[i];
+    grid_tile = &iter->scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
+
+    // if( !within_rect(op->x, op->z, 30, 0, 20, 20) )
+    //     continue;
+
+    switch( op->op )
+    {
+    case SCENE_OP_TYPE_DRAW_GROUND:
+    {
+        tile = grid_tile->tile;
+        if( !tile || !tile->valid_faces )
+            goto next;
+
+        int tile_x = tile->chunk_pos_x;
+        int tile_y = tile->chunk_pos_y;
+        int tile_z = tile->chunk_pos_level;
+
+        int* color_override_hsl16_nullable = NULL;
+        if( op->_ground.override_color )
+        {
+            color_override_hsl16_nullable = (int*)malloc(sizeof(int) * tile->face_count);
+            for( int j = 0; j < tile->face_count; j++ )
+            {
+                color_override_hsl16_nullable[j] = op->_ground.color_hsl16;
+            }
+        }
+
+        iter->value.tile_nullable_ = tile;
+        iter->value.x = op->x;
+        iter->value.z = op->z;
+        iter->value.level = op->level;
+        iter->has_value = true;
+    }
+    break;
+    case SCENE_OP_TYPE_DRAW_LOC:
+    {
+        int model_index = -1;
+        int loc_index = op->_loc.loc_index;
+        loc = &iter->scene->locs[loc_index];
+
+        model_index = loc->_scenery.model;
+
+        assert(model_index >= 0);
+        assert(model_index < iter->scene->models_length);
+
+        model = &iter->scene->models[model_index];
+
+        assert(model != NULL);
+
+        iter->value.model_nullable_ = model;
+        iter->value.x = op->x;
+        iter->value.z = op->z;
+        iter->value.level = op->level;
+        iter->has_value = true;
+    }
+    break;
+    case SCENE_OP_TYPE_DRAW_WALL:
+    {
+        int model_index = -1;
+        int loc_index = op->_wall.loc_index;
+        loc = &iter->scene->locs[loc_index];
+
+        assert(loc->type == LOC_TYPE_WALL);
+
+        if( op->_wall.is_wall_a )
+            model_index = loc->_wall.model_a;
+        else
+            model_index = loc->_wall.model_b;
+
+        assert(model_index >= 0);
+        assert(model_index < iter->scene->models_length);
+
+        model = &iter->scene->models[model_index];
+
+        assert(model != NULL);
+
+        iter->value.model_nullable_ = model;
+        iter->value.x = op->x;
+        iter->value.z = op->z;
+        iter->value.level = op->level;
+        iter->has_value = true;
+    }
+    break;
+    case SCENE_OP_TYPE_DRAW_GROUND_DECOR:
+    {
+        int model_index = -1;
+        int loc_index = op->_ground_decor.loc_index;
+        loc = &iter->scene->locs[loc_index];
+
+        model_index = loc->_ground_decor.model;
+
+        assert(model_index >= 0);
+        assert(model_index < iter->scene->models_length);
+
+        model = &iter->scene->models[model_index];
+
+        iter->value.model_nullable_ = model;
+        iter->value.x = op->x;
+        iter->value.z = op->z;
+        iter->value.level = op->level;
+        iter->has_value = true;
+    }
+    break;
+    case SCENE_OP_TYPE_DRAW_WALL_DECOR:
+    {
+        int model_index = -1;
+        int loc_index = op->_wall_decor.loc_index;
+        loc = &iter->scene->locs[loc_index];
+
+        if( loc->_wall_decor.through_wall_flags == 0 || op->_wall_decor.is_wall_a )
+        {
+            model_index = loc->_wall_decor.model_a;
+        }
+        else
+        {
+            assert(loc->_wall_decor.model_b != -1);
+            model_index = loc->_wall_decor.model_b;
+        }
+
+        assert(model_index >= 0);
+        assert(model_index < iter->scene->models_length);
+
+        model = &iter->scene->models[model_index];
+
+        iter->value.model_nullable_ = model;
+        iter->value.x = op->x;
+        iter->value.z = op->z;
+        iter->value.level = op->level;
+        iter->has_value = true;
+    }
+    break;
+    case SCENE_OP_TYPE_DBG_TILE:
+    {
+        int tile_x = op->x;
+        int tile_y = op->z;
+        int tile_z = op->level;
+
+        int color_rgb = op->_dbg.color;
+    }
+    break;
+    }
+
+    return iter->has_value;
+}
+
+void
+iter_render_scene_ops_free(struct IterRenderSceneOps* iter)
+{
+    free(iter);
 }

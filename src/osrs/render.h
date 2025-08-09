@@ -3,6 +3,7 @@
 
 #include "lighting.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct CacheModel;
@@ -78,6 +79,28 @@ struct SceneTextures* scene_textures_new_from_tiles(
     int texture_count);
 
 void scene_textures_free(struct SceneTextures* textures);
+
+void render_scene_tile(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* ortho_vertices_x,
+    int* ortho_vertices_y,
+    int* ortho_vertices_z,
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    struct SceneTile* tile,
+    struct TexturesCache* textures_cache_nullable,
+    int* color_override_hsl16_nullable);
 
 void render_scene_tiles(
     int* pixel_buffer,
@@ -218,5 +241,33 @@ void render_scene_ops(
     int fov,
     struct Scene* scene,
     struct TexturesCache* textures_cache);
+
+struct IterRenderSceneOps
+{
+    bool has_value;
+
+    struct
+    {
+        int x;
+        int z;
+        int level;
+
+        struct SceneModel* model_nullable_;
+        struct SceneTile* tile_nullable_;
+    } value;
+
+    struct Scene* scene;
+
+    struct SceneOp* _ops;
+    int _current_op;
+    int _op_count;
+};
+
+struct IterRenderSceneOps*
+iter_render_scene_ops_new(struct Scene* scene, struct SceneOp* ops, int op_count);
+
+bool iter_render_scene_ops_next(struct IterRenderSceneOps* iter);
+
+void iter_render_scene_ops_free(struct IterRenderSceneOps* iter);
 
 #endif

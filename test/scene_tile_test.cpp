@@ -297,9 +297,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     // Create renderer
     platform->renderer = SDL_CreateRenderer(
-        platform->window,
-        -1,
-        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        platform->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
     if( !platform->renderer )
     {
@@ -332,7 +330,8 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     // Get initial window size
     SDL_GetWindowSize(platform->window, &platform->window_width, &platform->window_height);
-    SDL_GetRendererOutputSize(platform->renderer, &platform->drawable_width, &platform->drawable_height);
+    SDL_GetRendererOutputSize(
+        platform->renderer, &platform->drawable_width, &platform->drawable_height);
 
     // Initialize ImGui
     IMGUI_CHECKVERSION();
@@ -363,7 +362,7 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     // Info window
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(300, 150), ImGuiCond_FirstUseEver);
-    
+
     ImGui::Begin("Info");
     ImGui::Text(
         "Application average %.3f ms/frame (%.1f FPS)",
@@ -409,6 +408,76 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     ImGui::Render();
     ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->renderer);
 }
+
+static void
+render_scene_model(
+    int* pixel_buffer,
+    int width,
+    int height,
+    int near_plane_z,
+    int yaw,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    struct SceneModel* model,
+    struct TexturesCache* textures_cache)
+{
+    int x = camera_x + model->region_x;
+    int y = camera_y + model->region_y;
+    int z = camera_z + model->region_z;
+
+    // if( model->mirrored )
+    // {
+    //     yaw += 1024;
+    // }
+
+    // int rotation = model->orientation;
+    // while( rotation-- )
+    // {
+    //     yaw += 1536;
+    // }
+    yaw %= 2048;
+
+    x += model->offset_x;
+    y += model->offset_y;
+    z += model->offset_height;
+
+    if( model->model == NULL )
+        return;
+
+    render_model_frame(
+        pixel_buffer,
+        width,
+        height,
+        near_plane_z,
+        0,
+        yaw,
+        0,
+        x,
+        y,
+        z,
+        camera_pitch,
+        camera_yaw,
+        camera_roll,
+        fov,
+        model->model,
+        model->lighting,
+        NULL,
+        NULL,
+        NULL,
+        textures_cache);
+}
+
+static int g_screen_vertices_x[20];
+static int g_screen_vertices_y[20];
+static int g_screen_vertices_z[20];
+static int g_ortho_vertices_x[20];
+static int g_ortho_vertices_y[20];
+static int g_ortho_vertices_z[20];
 
 static void
 game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
@@ -491,26 +560,80 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     //         }
     //     }
 
-    render_scene_ops(
-        game->ops,
-        game->op_count,
-        0,
-        game->max_render_ops,
-        pixel_buffer,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
-        // Had to use 100 here because of the scale, near plane z was resulting in triangles
-        // extremely close to the camera.
-        100,
-        game->camera_x,
-        game->camera_y,
-        game->camera_z,
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_roll,
-        game->camera_fov,
-        game->scene,
-        game->textures_cache);
+    struct IterRenderSceneOps* iter =
+        iter_render_scene_ops_new(game->scene, game->ops, game->op_count);
+    while( iter_render_scene_ops_next(iter) )
+    {
+        if( iter->value.tile_nullable_ )
+        {
+            render_scene_tile(
+                g_screen_vertices_x,
+                g_screen_vertices_y,
+                g_screen_vertices_z,
+                g_ortho_vertices_x,
+                g_ortho_vertices_y,
+                g_ortho_vertices_z,
+                pixel_buffer,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+                // Had to use 100 here because of the scale, near plane z was resulting in triangles
+                // extremely close to the camera.
+                100,
+                game->camera_x,
+                game->camera_y,
+                game->camera_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                game->camera_roll,
+                game->camera_fov,
+                iter->value.tile_nullable_,
+                game->textures_cache,
+                NULL);
+        }
+
+        if( iter->value.model_nullable_ )
+        {
+            render_scene_model(
+                pixel_buffer,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+                // Had to use 100 here because of the scale, near plane z was resulting in triangles
+                // extremely close to the camera.
+                100,
+                0,
+                game->camera_x,
+                game->camera_y,
+                game->camera_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                game->camera_roll,
+                game->camera_fov,
+                iter->value.model_nullable_,
+                game->textures_cache);
+        }
+    }
+    iter_render_scene_ops_free(iter);
+
+    // render_scene_ops(
+    //     game->ops,
+    //     game->op_count,
+    //     0,
+    //     game->max_render_ops,
+    //     pixel_buffer,
+    //     SCREEN_WIDTH,
+    //     SCREEN_HEIGHT,
+    //     // Had to use 100 here because of the scale, near plane z was resulting in triangles
+    //     // extremely close to the camera.
+    //     100,
+    //     game->camera_x,
+    //     game->camera_y,
+    //     game->camera_z,
+    //     game->camera_pitch,
+    //     game->camera_yaw,
+    //     game->camera_roll,
+    //     game->camera_fov,
+    //     game->scene,
+    //     game->textures_cache);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,
@@ -550,14 +673,14 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     // Unlock the texture so that it may be used elsewhere
     SDL_UnlockTexture(texture);
-    
+
     // Calculate destination rectangle to scale the texture to the current drawable size
     SDL_Rect dst_rect;
     dst_rect.x = 0;
     dst_rect.y = 0;
     dst_rect.w = platform->drawable_width;
     dst_rect.h = platform->drawable_height;
-    
+
     // Use bilinear scaling when copying texture to renderer
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); // Enable bilinear filtering
     SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
@@ -1040,8 +1163,10 @@ main()
             {
                 if( event.window.event == SDL_WINDOWEVENT_RESIZED )
                 {
-                    SDL_GetWindowSize(platform.window, &platform.window_width, &platform.window_height);
-                    SDL_GetRendererOutputSize(platform.renderer, &platform.drawable_width, &platform.drawable_height);
+                    SDL_GetWindowSize(
+                        platform.window, &platform.window_width, &platform.window_height);
+                    SDL_GetRendererOutputSize(
+                        platform.renderer, &platform.drawable_width, &platform.drawable_height);
                 }
             }
             else if( event.type == SDL_MOUSEMOTION && !imgui_wants_mouse )
