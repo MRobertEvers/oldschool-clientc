@@ -13,25 +13,37 @@ struct Framemap;
 struct TexturesCache;
 struct ModelLighting;
 
-struct ModelRenderIter
-{
-    int is_prio;
-
-    int no_prio_depth;
-    int no_prio_face_index;
-
-    int prio_prio;
-    int prio_face_index;
-
-    struct CacheModel* model;
-    struct ModelLighting* lighting;
-
-    int value_face;
-};
-
-struct ModelRenderIter* model_render_iter_new(struct CacheModel* model);
-
-void model_render_iter_next(struct ModelRenderIter* iter);
+void model_draw_face(
+    int* pixel_buffer,
+    int face_index,
+    int* face_infos,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int num_faces,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* orthographic_vertex_x_nullable,
+    int* orthographic_vertex_y_nullable,
+    int* orthographic_vertex_z_nullable,
+    int num_vertices,
+    int* face_textures,
+    int* face_texture_coords,
+    int face_texture_coords_length,
+    int* face_p_coordinate_nullable,
+    int* face_m_coordinate_nullable,
+    int* face_n_coordinate_nullable,
+    int num_textured_faces,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int* face_alphas_nullable,
+    int offset_x,
+    int offset_y,
+    int screen_width,
+    int screen_height,
+    struct TexturesCache* textures_cache);
 
 void render_model_frame(
     int* pixel_buffer,
@@ -269,5 +281,48 @@ iter_render_scene_ops_new(struct Scene* scene, struct SceneOp* ops, int op_count
 bool iter_render_scene_ops_next(struct IterRenderSceneOps* iter);
 
 void iter_render_scene_ops_free(struct IterRenderSceneOps* iter);
+
+struct IterRenderModel
+{
+    struct SceneModel* model;
+
+    int current_face;
+
+    int is_prio;
+
+    int noprio_depth;
+    int noprio_face_index;
+
+    int prio_prio;
+    int prio_face_index;
+
+    int value_face;
+
+    int* screen_vertices_x;
+    int* screen_vertices_y;
+    int* screen_vertices_z;
+
+    int* ortho_vertices_x;
+    int* ortho_vertices_y;
+    int* ortho_vertices_z;
+};
+
+struct IterRenderModel* iter_render_model_new(
+    struct SceneModel* scene_model,
+    int yaw,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    int width,
+    int height,
+    int near_plane_z);
+
+bool iter_render_model_next(struct IterRenderModel* iter);
+
+void iter_render_model_free(struct IterRenderModel* iter);
 
 #endif

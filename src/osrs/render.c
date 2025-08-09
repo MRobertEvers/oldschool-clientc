@@ -712,9 +712,9 @@ enum FaceBlend
 
 int g_empty_texture_texels[128 * 128] = { 0 };
 
-static void
+void
 model_draw_face(
-    struct Pixel* pixel_buffer,
+    int* pixel_buffer,
     int face_index,
     int* face_infos,
     int* face_indices_a,
@@ -1350,21 +1350,6 @@ static int tmp_face_colors_c_hsl16[4096] = { 0 };
 
 static int tmp_vertex_normals[4096] = { 0 };
 
-struct ModelRenderIter*
-model_render_iter_new(struct CacheModel* model)
-{
-    struct ModelRenderIter* iter = (struct ModelRenderIter*)malloc(sizeof(struct ModelRenderIter));
-    memset(iter, 0, sizeof(struct ModelRenderIter));
-
-    iter->model = model;
-    iter->is_prio = model->face_priorities != NULL;
-    return iter;
-}
-
-void
-model_render_iter_next(struct ModelRenderIter* iter)
-{}
-
 void
 render_model_frame(
     int* pixel_buffer,
@@ -1396,64 +1381,11 @@ render_model_frame(
     int* face_indices_b = model->face_indices_b;
     int* face_indices_c = model->face_indices_c;
 
-    // int* vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
-    // memcpy(vertices_x, model->vertices_x, model->vertex_count * sizeof(int));
-    // int* vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
-    // memcpy(vertices_y, model->vertices_y, model->vertex_count * sizeof(int));
-    // int* vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
-    // memcpy(vertices_z, model->vertices_z, model->vertex_count * sizeof(int));
-
-    // int* face_indices_a = (int*)malloc(model->face_count * sizeof(int));
-    // memcpy(face_indices_a, model->face_indices_a, model->face_count * sizeof(int));
-    // int* face_indices_b = (int*)malloc(model->face_count * sizeof(int));
-    // memcpy(face_indices_b, model->face_indices_b, model->face_count * sizeof(int));
-    // int* face_indices_c = (int*)malloc(model->face_count * sizeof(int));
-    // memcpy(face_indices_c, model->face_indices_c, model->face_count * sizeof(int));
-
-    // if( transform )
-    // {
-    //     for( int v = 0; v < model->vertex_count; v++ )
-    //     {
-    //         vertices_z[v] = -vertices_z[v];
-    //     }
-
-    //     for( int f = 0; f < model->face_count; f++ )
-    //     {
-    //         int temp = face_indices_a[f];
-    //         face_indices_a[f] = face_indices_c[f];
-    //         face_indices_c[f] = temp;
-    //     }
-    // }
-
-    // int* vertices_x = model->vertices_x;
-    // int* vertices_y = model->vertices_y;
-    // int* vertices_z = model->vertices_z;
-
-    // int* face_colors_a_hsl16 = (int*)malloc(model->face_count * sizeof(int));
-    // memcpy(face_colors_a_hsl16, model->face_colors, model->face_count * sizeof(int));
-    // int* face_colors_b_hsl16 = (int*)malloc(model->face_count * sizeof(int));
-    // memcpy(face_colors_b_hsl16, model->face_colors, model->face_count * sizeof(int));
-    // int* face_colors_c_hsl16 = (int*)malloc(model->face_count * sizeof(int));
-    // memcpy(face_colors_c_hsl16, model->face_colors, model->face_count * sizeof(int));
-
-    // int* face_colors_a_hsl16 = model->face_colors;
-    // int* face_colors_b_hsl16 = model->face_colors;
-    // int* face_colors_c_hsl16 = model->face_colors;
-
-    // TODO: don't allocate this every frame.
-
     memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
     // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
     memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
     memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
     // memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
-
-    // int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
-    // int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
-    // int* screen_vertices_z = (int*)malloc(model->vertex_count * sizeof(int));
-    // int* face_colors_a_hsl16 = tmp_face_colors_a_hsl16;
-    // int* face_colors_b_hsl16 = tmp_face_colors_b_hsl16;
-    // int* face_colors_c_hsl16 = tmp_face_colors_c_hsl16;
 
     int* screen_vertices_x = tmp_screen_vertices_x;
     int* screen_vertices_y = tmp_screen_vertices_y;
@@ -3444,13 +3376,6 @@ iter_render_scene_ops_new(struct Scene* scene, struct SceneOp* ops, int op_count
 bool
 iter_render_scene_ops_next(struct IterRenderSceneOps* iter)
 {
-    int* screen_vertices_x = g_screen_vertices_x;
-    int* screen_vertices_y = g_screen_vertices_y;
-    int* screen_vertices_z = g_screen_vertices_z;
-    int* ortho_vertices_x = g_ortho_vertices_x;
-    int* ortho_vertices_y = g_ortho_vertices_y;
-    int* ortho_vertices_z = g_ortho_vertices_z;
-
     struct GridTile* grid_tile = NULL;
     struct Loc* loc = NULL;
     struct SceneModel* model = NULL;
@@ -3613,6 +3538,204 @@ next:
 
 void
 iter_render_scene_ops_free(struct IterRenderSceneOps* iter)
+{
+    free(iter);
+}
+
+struct IterRenderModel*
+iter_render_model_new(
+    struct SceneModel* scene_model,
+    int yaw,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    int width,
+    int height,
+    int near_plane_z)
+{
+    struct IterRenderModel* iter = (struct IterRenderModel*)malloc(sizeof(struct IterRenderModel));
+    iter->model = scene_model;
+
+    iter->screen_vertices_x = tmp_screen_vertices_x;
+    iter->screen_vertices_y = tmp_screen_vertices_y;
+    iter->screen_vertices_z = tmp_screen_vertices_z;
+    iter->ortho_vertices_x = tmp_orthographic_vertices_x;
+    iter->ortho_vertices_y = tmp_orthographic_vertices_y;
+    iter->ortho_vertices_z = tmp_orthographic_vertices_z;
+
+    struct CacheModel* model = scene_model->model;
+    iter->current_face = 0;
+
+    int* vertices_x = model->vertices_x;
+    int* vertices_y = model->vertices_y;
+    int* vertices_z = model->vertices_z;
+
+    int* face_indices_a = model->face_indices_a;
+    int* face_indices_b = model->face_indices_b;
+    int* face_indices_c = model->face_indices_c;
+
+    memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
+    // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
+    memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
+    memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
+    // memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
+
+    int* screen_vertices_x = tmp_screen_vertices_x;
+    int* screen_vertices_y = tmp_screen_vertices_y;
+    int* screen_vertices_z = tmp_screen_vertices_z;
+
+    int* orthographic_vertices_x = tmp_orthographic_vertices_x;
+    int* orthographic_vertices_y = tmp_orthographic_vertices_y;
+    int* orthographic_vertices_z = tmp_orthographic_vertices_z;
+
+    struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
+        model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
+
+    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
+
+    int x = camera_x + scene_model->region_x;
+    int y = camera_y + scene_model->region_y;
+    int z = camera_z + scene_model->region_z;
+
+    // if( model->mirrored )
+    // {
+    //     yaw += 1024;
+    // }
+
+    // int rotation = model->orientation;
+    // while( rotation-- )
+    // {
+    //     yaw += 1536;
+    // }
+    yaw %= 2048;
+
+    x += scene_model->offset_x;
+    y += scene_model->offset_y;
+    z += scene_model->offset_height;
+
+    project_vertices_textured(
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        orthographic_vertices_x,
+        orthographic_vertices_y,
+        orthographic_vertices_z,
+        model->vertex_count,
+        vertices_x,
+        vertices_y,
+        vertices_z,
+        0,
+        yaw,
+        0,
+        x,
+        z,
+        y,
+        camera_pitch,
+        camera_yaw,
+        camera_roll,
+        fov,
+        width,
+        height,
+        near_plane_z);
+
+    bucket_sort_by_average_depth(
+        tmp_depth_faces,
+        tmp_depth_face_count,
+        model_min_depth,
+        model->face_count,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        face_indices_a,
+        face_indices_b,
+        face_indices_c);
+
+    if( !model->face_priorities )
+    {
+        iter->is_prio = 0;
+        iter->noprio_depth = model_min_depth * 2;
+        iter->noprio_face_index = 0;
+    }
+    else
+    {
+        iter->is_prio = 1;
+        parition_faces_by_priority(
+            tmp_priority_faces,
+            tmp_priority_face_count,
+            tmp_depth_faces,
+            tmp_depth_face_count,
+            model->face_count,
+            model->face_priorities,
+            model_min_depth * 2);
+    }
+
+    return iter;
+}
+
+bool
+iter_render_model_next(struct IterRenderModel* iter)
+{
+    if( iter->current_face >= iter->model->model->face_count )
+        return false;
+
+    if( !iter->is_prio )
+    {
+    retry_depth:
+        if( iter->noprio_depth >= 0 )
+        {
+            int bucket_count = tmp_depth_face_count[iter->noprio_depth];
+
+            if( iter->noprio_face_index >= bucket_count )
+            {
+                iter->noprio_face_index = 0;
+                iter->noprio_depth--;
+                goto retry_depth;
+            }
+
+            int* faces = &tmp_depth_faces[iter->noprio_depth * 512];
+
+            int face_index = faces[iter->noprio_face_index];
+
+            iter->value_face = face_index;
+            iter->noprio_face_index++;
+
+            return true;
+        }
+    }
+    else
+    {
+    retry_prio:
+        if( iter->prio_prio < 12 )
+        {
+            int bucket_count = tmp_priority_face_count[iter->prio_prio];
+
+            if( iter->prio_face_index >= bucket_count )
+            {
+                iter->prio_face_index = 0;
+                iter->prio_prio++;
+                goto retry_prio;
+            }
+
+            int* faces = &tmp_priority_faces[iter->prio_prio * 2000];
+
+            int face_index = faces[iter->prio_face_index];
+
+            iter->value_face = face_index;
+            iter->prio_face_index++;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void
+iter_render_model_free(struct IterRenderModel* iter)
 {
     free(iter);
 }

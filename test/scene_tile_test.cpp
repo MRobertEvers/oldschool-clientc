@@ -593,13 +593,11 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
         if( iter->value.model_nullable_ )
         {
-            render_scene_model(
-                pixel_buffer,
-                SCREEN_WIDTH,
-                SCREEN_HEIGHT,
-                // Had to use 100 here because of the scale, near plane z was resulting in triangles
-                // extremely close to the camera.
-                100,
+            if( !iter->value.model_nullable_->model )
+                continue;
+
+            struct IterRenderModel* iter_model = iter_render_model_new(
+                iter->value.model_nullable_,
                 0,
                 game->camera_x,
                 game->camera_y,
@@ -608,8 +606,67 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 game->camera_yaw,
                 game->camera_roll,
                 game->camera_fov,
-                iter->value.model_nullable_,
-                game->textures_cache);
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+                100);
+
+            while( iter_render_model_next(iter_model) )
+            {
+                int face = iter_model->value_face;
+
+                model_draw_face(
+                    pixel_buffer,
+                    face,
+                    iter->value.model_nullable_->model->face_infos,
+                    iter->value.model_nullable_->model->face_indices_a,
+                    iter->value.model_nullable_->model->face_indices_b,
+                    iter->value.model_nullable_->model->face_indices_c,
+                    iter->value.model_nullable_->model->face_count,
+                    iter_model->screen_vertices_x,
+                    iter_model->screen_vertices_y,
+                    iter_model->screen_vertices_z,
+                    iter_model->ortho_vertices_x,
+                    iter_model->ortho_vertices_y,
+                    iter_model->ortho_vertices_z,
+                    iter->value.model_nullable_->model->vertex_count,
+                    iter->value.model_nullable_->model->face_textures,
+                    iter->value.model_nullable_->model->face_texture_coords,
+                    iter->value.model_nullable_->model->textured_face_count,
+                    iter->value.model_nullable_->model->textured_p_coordinate,
+                    iter->value.model_nullable_->model->textured_m_coordinate,
+                    iter->value.model_nullable_->model->textured_n_coordinate,
+                    iter->value.model_nullable_->model->textured_face_count,
+                    iter->value.model_nullable_->lighting->face_colors_hsl_a,
+                    iter->value.model_nullable_->lighting->face_colors_hsl_b,
+                    iter->value.model_nullable_->lighting->face_colors_hsl_c,
+                    iter->value.model_nullable_->model->face_alphas,
+                    SCREEN_WIDTH / 2,
+                    SCREEN_HEIGHT / 2,
+                    SCREEN_WIDTH,
+                    SCREEN_HEIGHT,
+                    game->textures_cache);
+            }
+
+            iter_render_model_free(iter_model);
+
+            // render_scene_model(
+            //     pixel_buffer,
+            //     SCREEN_WIDTH,
+            //     SCREEN_HEIGHT,
+            //     // Had to use 100 here because of the scale, near plane z was resulting in
+            //     triangles
+            //     // extremely close to the camera.
+            //     100,
+            //     0,
+            //     game->camera_x,
+            //     game->camera_y,
+            //     game->camera_z,
+            //     game->camera_pitch,
+            //     game->camera_yaw,
+            //     game->camera_roll,
+            //     game->camera_fov,
+            //     iter->value.model_nullable_,
+            //     game->textures_cache);
         }
     }
     iter_render_scene_ops_free(iter);
