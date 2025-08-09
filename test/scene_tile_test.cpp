@@ -265,84 +265,105 @@ struct PlatformSDL2
     SDL_Renderer* renderer;
     SDL_Texture* texture;
     int* pixel_buffer;
+    int window_width;
+    int window_height;
+    int drawable_width;
+    int drawable_height;
 };
 
 static bool
 platform_sdl2_init(struct PlatformSDL2* platform)
 {
-    int init = SDL_INIT_VIDEO;
-
-    int res = SDL_Init(init);
-    if( res < 0 )
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
 
-    SDL_Window* window = SDL_CreateWindow(
+    // Create window at the target resolution
+    platform->window = SDL_CreateWindow(
         "Scene Tile Test",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        SDL_WINDOW_ALLOW_HIGHDPI);
-    platform->window = window;
+        SDL_WINDOW_RESIZABLE);
 
-    SDL_Renderer* renderer =
-        SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    platform->renderer = renderer;
+    if( !platform->window )
+    {
+        printf("Window creation failed: %s\n", SDL_GetError());
+        return false;
+    }
 
-    SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
+    // Create renderer
+    platform->renderer = SDL_CreateRenderer(
+        platform->window,
+        -1,
+        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
-    // Create texture
-    SDL_Texture* texture = SDL_CreateTexture(
-        renderer,
+    if( !platform->renderer )
+    {
+        printf("Renderer creation failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    // Create texture for game rendering
+    platform->texture = SDL_CreateTexture(
+        platform->renderer,
         SDL_PIXELFORMAT_XRGB8888,
         SDL_TEXTUREACCESS_STREAMING,
         SCREEN_WIDTH,
         SCREEN_HEIGHT);
-    platform->texture = texture;
 
+    if( !platform->texture )
+    {
+        printf("Texture creation failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    // Allocate pixel buffer
     platform->pixel_buffer = (int*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    if( !platform->pixel_buffer )
+    {
+        printf("Failed to allocate pixel buffer\n");
+        return false;
+    }
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+
+    // Get initial window size
+    SDL_GetWindowSize(platform->window, &platform->window_width, &platform->window_height);
+    SDL_GetRendererOutputSize(platform->renderer, &platform->drawable_width, &platform->drawable_height);
 
     // Initialize ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    // Don't enable keyboard navigation by default so game gets input priority
-    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-
-    // Setup ImGui style
     ImGui::StyleColorsDark();
 
-    // Setup Platform/Renderer backends for GUI window
-    ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer);
-    ImGui_ImplSDLRenderer2_Init(platform->renderer);
+    // Setup Platform/Renderer backends
+    if( !ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer) )
+    {
+        printf("ImGui SDL2 init failed\n");
+        return false;
+    }
+    if( !ImGui_ImplSDLRenderer2_Init(platform->renderer) )
+    {
+        printf("ImGui Renderer init failed\n");
+        return false;
+    }
 
     return true;
 }
 static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
-    // Clear the GUI renderer background
-    SDL_SetRenderDrawColor(platform->renderer, 0, 0, 0, 255);
-
     ImGui_ImplSDLRenderer2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    // On first frame, ensure game has input focus
-    static bool first_frame = true;
-    if( first_frame )
-    {
-        ImGui::SetWindowFocus(nullptr); // Clear any window focus
-        first_frame = false;
-    }
-
     // Info window
-    ImGui::SetNextWindowPos(ImVec2(10, 400), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(380, 150), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 150), ImGuiCond_FirstUseEver);
+    
     ImGui::Begin("Info");
     ImGui::Text(
         "Application average %.3f ms/frame (%.1f FPS)",
@@ -529,7 +550,17 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     // Unlock the texture so that it may be used elsewhere
     SDL_UnlockTexture(texture);
-    SDL_RenderCopy(renderer, texture, NULL, NULL);
+    
+    // Calculate destination rectangle to scale the texture to the current drawable size
+    SDL_Rect dst_rect;
+    dst_rect.x = 0;
+    dst_rect.y = 0;
+    dst_rect.w = platform->drawable_width;
+    dst_rect.h = platform->drawable_height;
+    
+    // Use bilinear scaling when copying texture to renderer
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); // Enable bilinear filtering
+    SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
 
     SDL_FreeSurface(surface);
 }
@@ -1004,6 +1035,14 @@ main()
             if( event.type == SDL_QUIT )
             {
                 quit = true;
+            }
+            else if( event.type == SDL_WINDOWEVENT )
+            {
+                if( event.window.event == SDL_WINDOWEVENT_RESIZED )
+                {
+                    SDL_GetWindowSize(platform.window, &platform.window_width, &platform.window_height);
+                    SDL_GetRendererOutputSize(platform.renderer, &platform.drawable_width, &platform.drawable_height);
+                }
             }
             else if( event.type == SDL_MOUSEMOTION && !imgui_wants_mouse )
             {
