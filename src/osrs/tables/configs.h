@@ -3,6 +3,7 @@
 
 enum CONFIG_ENTRY
 {
+    // From Runelite
     // UNDERLAY(1),
     // 	IDENTKIT(3),
     // 	OVERLAY(4),
@@ -28,10 +29,13 @@ enum CONFIG_ENTRY
     CONFIG_IDENTKIT = 3,
     CONFIG_OVERLAY = 4,
     CONFIG_INV = 5,
+    // Runelite calls this "object", CONFIG_OBJECT
+    // This is really closer to "scenery"
     CONFIG_LOCS = 6,
     CONFIG_ENUM = 8,
     CONFIG_NPC = 9,
-    CONFIG_ITEM = 10,
+    // Runelite calls this "item", CONFIG_ITEM
+    CONFIG_OBJECT = 10,
     CONFIG_PARAMS = 11,
     CONFIG_SEQUENCE = 12,
     CONFIG_SPOTANIM = 13,

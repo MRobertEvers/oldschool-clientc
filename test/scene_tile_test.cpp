@@ -189,6 +189,7 @@ init_tan_table()
         g_tan_table[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
 }
 
+// 4151 is abyssal whip
 struct Game
 {
     int camera_yaw;

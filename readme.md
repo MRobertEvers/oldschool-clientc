@@ -49,15 +49,15 @@ brew install sdl2
 ### TODOS
 
 1. Fix the need to `long long` in the texture renderer.
-2. Texture color blending + lerp8
-3. Gouraud raster exact + stepped4 + alpha/no-alpha
-4. lighting for models - sharelight, mergedlocs, wergedwalls, mergedgrounddecor "world3d_build_models"
-5. Clean up diagonal wall decor. (Janky weird hardcoded offset.)
-6. Consolodate sprite pixel loading.
-7. Consolodate pixel blending
-8. Consolodate face modes. (the whole colorc == -2 thing)
-9. Animations
-10. Scene manager (manage lifetimes of models etc, )
+2. Gouraud raster exact + stepped4 + alpha/no-alpha
+3. lighting for models - mergedgrounddecor
+4. Clean up diagonal wall decor. (Janky weird hardcoded offset.)
+5. Consolodate sprite pixel loading.
+6. Consolodate pixel blending
+7. Consolodate face modes. (the whole colorc == -2 thing)
+8. Animations
+9. Scene manager (manage lifetimes of models etc, )
+10. Varbits and VarP transforms. e.g. Lumbridge castle bank not showing.
 
 Software rester
 
@@ -820,6 +820,8 @@ See tree textures are "sideways" with transparency on the right.
 
 This is why the deob rastering code only clamps U.
 
+[tiled_texture](./res/sprite_455.bmp)
+
 ### Debug Information Tracking
 
 Highlight model
@@ -836,3 +838,9 @@ model
 
 For each model face.
 Need osrs weird data?
+
+### Varbits and VarPs
+
+Some locs are actually specified by varbits and varps.
+For example, the bank booth at the top of lumbridge castle,
+the loc second from the right is specified via a transform.

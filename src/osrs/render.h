@@ -181,6 +181,7 @@ enum SceneOpType
     SCENE_OP_TYPE_DRAW_LOC,
     SCENE_OP_TYPE_DRAW_WALL,
     SCENE_OP_TYPE_DRAW_GROUND_DECOR,
+    SCENE_OP_TYPE_DRAW_GROUND_OBJECT,
     SCENE_OP_TYPE_DRAW_WALL_DECOR,
 };
 
@@ -223,6 +224,12 @@ struct SceneOp
             int is_wall_a;
             int __rotation;
         } _wall_decor;
+
+        struct
+        {
+            int num; // 0, 1, 2
+        } _ground_object;
+
         struct
         {
             int color;

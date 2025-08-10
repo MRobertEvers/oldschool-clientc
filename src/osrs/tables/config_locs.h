@@ -72,6 +72,7 @@ struct CacheConfigLocation
     int* lengths;
     int shapes_and_model_count;
 
+    // Null terminated strings
     char* name;
     char* desc;
 

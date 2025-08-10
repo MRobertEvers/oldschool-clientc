@@ -4,6 +4,7 @@
 #include "game_model.h"
 #include "lighting.h"
 #include "tables/config_locs.h"
+#include "tables/config_object.h"
 #include "tables/configs.h"
 #include "tables/maps.h"
 
@@ -633,6 +634,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct GridTile* adjacent_tile = NULL;
     struct ModelCache* model_cache = model_cache_new();
     struct CacheConfigLocationTable* config_locs_table = NULL;
+    struct CacheConfigObjectTable* config_object_table = NULL;
     struct CacheMapLoc* map = NULL;
     struct Loc* loc = NULL;
     struct Loc* other_loc = NULL;
@@ -691,6 +693,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 grid_tile->ground_decor = -1;
                 grid_tile->wall_decor = -1;
                 grid_tile->bridge_tile = -1;
+                grid_tile->ground_object_bottom = -1;
+                grid_tile->ground_object_middle = -1;
+                grid_tile->ground_object_top = -1;
             }
         }
     }
@@ -702,12 +707,21 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         goto error;
     }
 
+    config_object_table = config_object_table_new(cache);
+    if( !config_object_table )
+    {
+        printf("Failed to load config object table\n");
+        goto error;
+    }
+
     iter = map_locs_iter_new(cache, chunk_x, chunk_y);
     if( !iter )
     {
         printf("Failed to load map locs iter\n");
         goto error;
     }
+
+    int p1x1_height_center = 0;
 
     while( (map = map_locs_iter_next(iter)) )
     {
@@ -735,6 +749,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)].height;
 
         int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
+
+        if( tile_x == 1 && tile_y == 1 && tile_z == 0 )
+        {
+            p1x1_height_center = height_center;
+        }
 
         loc_config = config_locs_table_get(config_locs_table, map->loc_id);
         assert(loc_config);
@@ -1469,6 +1488,50 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     }
 
     map_locs_iter_free(iter);
+
+    // TODO: Remove
+    {
+        int const abyssal_whip = 4151;
+        struct CacheConfigObject* object =
+            config_object_table_get(config_object_table, abyssal_whip);
+        if( object )
+        {
+            printf("Abyssal whip: %d\n", object->male_model_0);
+        }
+
+        int loc_index = vec_loc_push(scene);
+        loc = vec_loc_back(scene);
+        init_loc_1x1(loc, 1, 1, 0);
+
+        int model_index = vec_model_push(scene);
+        model = vec_model_back(scene);
+
+        struct CacheModel* abyssal_model =
+            model_cache_checkout(model_cache, cache, object->inventory_model_id);
+        if( !abyssal_model )
+        {
+            printf("Failed to checkout model for abyssal whip\n");
+            goto error;
+        }
+
+        abyssal_model = model_new_copy(abyssal_model);
+        model->model = abyssal_model;
+        model->model_id = abyssal_model->_id;
+
+        model->region_x = 128 + 64;
+        model->region_y = 128 + 64;
+        model->region_z = p1x1_height_center;
+
+        model->light_ambient = object->ambient;
+        model->light_contrast = object->contrast;
+
+        loc->type = LOC_TYPE_GROUND_OBJECT;
+        loc->_ground_object.model = model_index;
+
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(1, 1, 0)];
+        grid_tile->ground_object_bottom = loc_index;
+    }
+    // TODO: End Remove
 
     // This must happen after loading of locs because locs influence the lightness.
     scene_tiles = scene_tiles_new_from_map_terrain_cache(map_terrain, shade_map, cache);

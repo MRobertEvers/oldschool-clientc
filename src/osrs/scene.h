@@ -135,6 +135,10 @@ struct GridTile
 
     int bridge_tile;
 
+    int ground_object_bottom;
+    int ground_object_middle;
+    int ground_object_top;
+
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.
     // E.g. If a table is 3x1, then the spans for each tile will be:
@@ -174,9 +178,15 @@ enum LocType
     LOC_TYPE_WALL,
     LOC_TYPE_GROUND_DECOR,
     LOC_TYPE_WALL_DECOR,
+    LOC_TYPE_GROUND_OBJECT,
 };
 
 struct NormalScenery
+{
+    int model;
+};
+
+struct GroundObject
 {
     int model;
 };
@@ -251,6 +261,7 @@ struct Loc
         struct Wall _wall;
         struct GroundDecor _ground_decor;
         struct WallDecor _wall_decor;
+        struct GroundObject _ground_object;
     };
 };
 

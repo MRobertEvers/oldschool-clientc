@@ -2518,6 +2518,18 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     };
                 }
 
+                if( grid_tile->ground_object_bottom != -1 )
+                {
+                    loc = &scene->locs[grid_tile->ground_object_bottom];
+                    ops[op_count++] = (struct SceneOp){
+                        .op = SCENE_OP_TYPE_DRAW_GROUND_OBJECT,
+                        .x = loc->chunk_pos_x,
+                        .z = loc->chunk_pos_y,
+                        .level = loc->chunk_pos_level,
+                        ._ground_object = { .num = 0 },
+                    };
+                }
+
                 if( grid_tile->wall_decor != -1 )
                 {
                     loc = &scene->locs[grid_tile->wall_decor];
@@ -3298,6 +3310,52 @@ render_scene_ops(
                 textures_cache);
         }
         break;
+        case SCENE_OP_TYPE_DRAW_GROUND_OBJECT:
+        {
+            int model_index = -1;
+            int num = op->_ground_object.num;
+            int loc_index = 0;
+            switch( num )
+            {
+            case 0:
+                loc_index = grid_tile->ground_object_bottom;
+                break;
+            case 1:
+                loc_index = grid_tile->ground_object_middle;
+                break;
+            case 2:
+                loc_index = grid_tile->ground_object_top;
+                break;
+            default:
+                assert(false);
+                break;
+            }
+            loc = &scene->locs[loc_index];
+
+            model_index = loc->_ground_object.model;
+
+            assert(model_index >= 0);
+            assert(model_index < scene->models_length);
+
+            model = &scene->models[model_index];
+
+            render_scene_model(
+                pixel_buffer,
+                width,
+                height,
+                near_plane_z,
+                0,
+                camera_x,
+                camera_y,
+                camera_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll,
+                fov,
+                model,
+                textures_cache);
+        }
+        break;
         case SCENE_OP_TYPE_DRAW_WALL_DECOR:
         {
             int model_index = -1;
@@ -3519,6 +3577,42 @@ next:
             assert(loc->_wall_decor.model_b != -1);
             model_index = loc->_wall_decor.model_b;
         }
+
+        assert(model_index >= 0);
+        assert(model_index < iter->scene->models_length);
+
+        model = &iter->scene->models[model_index];
+
+        iter->value.model_nullable_ = model;
+        iter->value.x = op->x;
+        iter->value.z = op->z;
+        iter->value.level = op->level;
+        iter->has_value = true;
+    }
+    break;
+    case SCENE_OP_TYPE_DRAW_GROUND_OBJECT:
+    {
+        int model_index = -1;
+        int num = op->_ground_object.num;
+        int loc_index = 0;
+        switch( num )
+        {
+        case 0:
+            loc_index = grid_tile->ground_object_bottom;
+            break;
+        case 1:
+            loc_index = grid_tile->ground_object_middle;
+            break;
+        case 2:
+            loc_index = grid_tile->ground_object_top;
+            break;
+        default:
+            assert(false);
+            break;
+        }
+        loc = &iter->scene->locs[loc_index];
+
+        model_index = loc->_ground_object.model;
 
         assert(model_index >= 0);
         assert(model_index < iter->scene->models_length);

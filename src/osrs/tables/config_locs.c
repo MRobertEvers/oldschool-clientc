@@ -147,7 +147,7 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
         if( buffer.position >= buffer.size )
         {
             printf(
-                "decode_npc_type: Buffer position %d exceeded data size %d\n",
+                "decode_loc: Buffer position %d exceeded data size %d\n",
                 buffer.position,
                 buffer.size);
             return;

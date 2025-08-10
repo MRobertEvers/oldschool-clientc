@@ -65,6 +65,10 @@
         "limits": "c",
         "ratio": "c",
         "streambuf": "c",
-        "complex": "c"
+        "complex": "c",
+        "__split_buffer": "c",
+        "initializer_list": "c",
+        "unordered_map": "c",
+        "ios": "c"
     }
 }
