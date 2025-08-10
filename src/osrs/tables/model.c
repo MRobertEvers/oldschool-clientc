@@ -2551,7 +2551,7 @@ model_new_merge(struct CacheModel** models, int model_count)
     if( has_face_render_alphas )
     {
         face_alphas = (int*)malloc(face_count * sizeof(int));
-        memset(face_alphas, 0xFF, face_count * sizeof(int));
+        memset(face_alphas, 0, face_count * sizeof(int));
     }
 
     int* face_infos = NULL;
