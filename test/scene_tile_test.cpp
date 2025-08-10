@@ -191,6 +191,107 @@ init_tan_table()
         g_tan_table[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
 }
 
+// Glow effect parameters structure
+struct GlowParams
+{
+    int num_layers;      // Number of glow layers
+    int glow_radius;     // Glow radius in pixels
+    int base_intensity;  // Base intensity per layer
+    int distance_factor; // Distance falloff factor
+    int glow_color_r;    // Red component of glow color
+    int glow_color_g;    // Green component of glow color
+    int glow_color_b;    // Blue component of glow color
+};
+
+int g_glow_buffer[SCREEN_WIDTH * SCREEN_HEIGHT] = { 0 };
+// Apply glow effect to rendered models
+static void
+apply_glow_effect(
+    int* pixel_buffer, int* source_buffer, int width, int height, const struct GlowParams* params)
+{
+    // Create glow buffer
+    // int* glow_buffer = (int*)calloc(width * height, sizeof(int));
+    memset(g_glow_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+
+    // Apply multiple glow layers
+    for( int pass = 0; pass < params->num_layers; pass++ )
+    {
+        for( int y = params->glow_radius; y < height - params->glow_radius; y++ )
+        {
+            for( int x = params->glow_radius; x < width - params->glow_radius; x++ )
+            {
+                int pixel = source_buffer[y * width + x];
+                if( pixel != 0 )
+                {
+                    // Calculate glow intensity for this layer
+                    int glow_intensity = (params->num_layers - pass) * params->base_intensity;
+
+                    // Apply glow to surrounding area
+                    for( int dy = -params->glow_radius; dy <= params->glow_radius; dy++ )
+                    {
+                        for( int dx = -params->glow_radius; dx <= params->glow_radius; dx++ )
+                        {
+                            if( dx == 0 && dy == 0 )
+                                continue; // Skip center pixel
+
+                            int nx = x + dx;
+                            int ny = y + dy;
+                            if( nx >= 0 && nx < width && ny >= 0 && ny < height )
+                            {
+                                int neighbor_idx = ny * width + nx;
+                                if( source_buffer[neighbor_idx] == 0 ) // Only glow empty pixels
+                                {
+                                    // Calculate distance-based intensity falloff
+                                    int distance = abs(dx) + abs(dy); // Manhattan distance
+                                    int max_distance = params->glow_radius * 2;
+                                    int distance_factor =
+                                        (max_distance - distance) * params->distance_factor;
+
+                                    if( distance_factor > 0 )
+                                    {
+                                        // Create glow color with specified RGB components
+                                        int glow_color =
+                                            (params->glow_color_r * glow_intensity / 255) << 16 |
+                                            (params->glow_color_g * glow_intensity / 255) << 8 |
+                                            (params->glow_color_b * glow_intensity / 255);
+
+                                        int final_glow = glow_color | distance_factor;
+                                        g_glow_buffer[neighbor_idx] |= final_glow;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Apply glow to final pixel buffer
+    for( int y = 0; y < height; y++ )
+    {
+        for( int x = 0; x < width; x++ )
+        {
+            int idx = y * width + x;
+            int pixel = source_buffer[idx];
+            int glow = g_glow_buffer[idx];
+
+            if( pixel != 0 )
+            {
+                // Copy the source pixel
+                pixel_buffer[idx] = pixel;
+            }
+            else if( glow != 0 )
+            {
+                // Apply glow effect
+                pixel_buffer[idx] = glow;
+            }
+        }
+    }
+
+    // free(glow_buffer);
+}
+
 // 4151 is abyssal whip
 struct Game
 {
@@ -776,31 +877,44 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             last_model_hit_model,
             game->textures_cache);
 
-        // Outline pixels in white
-        for( int y = 1; y < SCREEN_HEIGHT - 1; y++ )
-        {
-            for( int x = 1; x < SCREEN_WIDTH - 1; x++ )
-            {
-                int pixel = g_blit_buffer[y * SCREEN_WIDTH + x];
-                if( pixel != 0 )
-                {
-                    // Check if any neighboring pixel is empty (0)
-                    if( g_blit_buffer[(y - 1) * SCREEN_WIDTH + x] == 0 ||
-                        g_blit_buffer[(y + 1) * SCREEN_WIDTH + x] == 0 ||
-                        g_blit_buffer[y * SCREEN_WIDTH + (x - 1)] == 0 ||
-                        g_blit_buffer[y * SCREEN_WIDTH + (x + 1)] == 0 )
-                    {
-                        // Set outline pixel to white
-                        pixel_buffer[y * SCREEN_WIDTH + x] = 0xFFFFFFFF;
-                    }
-                    else
-                    {
-                        // Copy non-outline pixel to main buffer
-                        pixel_buffer[y * SCREEN_WIDTH + x] = pixel;
-                    }
-                }
-            }
-        }
+        // // Outline pixels in white
+        // for( int y = 1; y < SCREEN_HEIGHT - 1; y++ )
+        // {
+        //     for( int x = 1; x < SCREEN_WIDTH - 1; x++ )
+        //     {
+        //         int pixel = g_blit_buffer[y * SCREEN_WIDTH + x];
+        //         if( pixel != 0 )
+        //         {
+        //             // Check if any neighboring pixel is empty (0)
+        //             if( g_blit_buffer[(y - 1) * SCREEN_WIDTH + x] == 0 ||
+        //                 g_blit_buffer[(y + 1) * SCREEN_WIDTH + x] == 0 ||
+        //                 g_blit_buffer[y * SCREEN_WIDTH + (x - 1)] == 0 ||
+        //                 g_blit_buffer[y * SCREEN_WIDTH + (x + 1)] == 0 )
+        //             {
+        //                 // Set outline pixel to white
+        //                 pixel_buffer[y * SCREEN_WIDTH + x] = 0xFFFFFFFF;
+        //             }
+        //             else
+        //             {
+        //                 // Copy non-outline pixel to main buffer
+        //                 pixel_buffer[y * SCREEN_WIDTH + x] = pixel;
+        //             }
+        //         }
+        //     }
+        // }
+
+        // Create glow effect around rendered models using parameterized function
+        struct GlowParams glow_params = {
+            .num_layers = 6,         // 6 glow layers for depth
+            .glow_radius = 2,        // 2 pixel radius (5x5 area)
+            .base_intensity = 0x15,  // Base intensity per layer
+            .distance_factor = 0x10, // Distance falloff factor
+            .glow_color_r = 255,     // White glow (full red)
+            .glow_color_g = 255,     // White glow (full green)
+            .glow_color_b = 255      // White glow (full blue)
+        };
+
+        apply_glow_effect(pixel_buffer, g_blit_buffer, SCREEN_WIDTH, SCREEN_HEIGHT, &glow_params);
     }
 
     Uint64 end_ticks = SDL_GetPerformanceCounter();
