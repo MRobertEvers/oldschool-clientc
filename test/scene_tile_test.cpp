@@ -39,6 +39,8 @@ int g_sin_table[2048];
 int g_cos_table[2048];
 int g_tan_table[2048];
 
+int g_blit_buffer[SCREEN_WIDTH * SCREEN_HEIGHT] = { 0 };
+
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
 //             for hue, 3 for saturation and 7 for lightness, bitpacked and
 //             represented as a short.
@@ -597,6 +599,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     iter_render_scene_ops_init(&iter, game->scene, game->ops, game->op_count, render_ops);
 
+    int last_model_hit = -1;
+    struct SceneModel* last_model_hit_model = NULL;
     while( iter_render_scene_ops_next(&iter) )
     {
         if( iter.value.tile_nullable_ )
@@ -687,6 +691,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                     game->hover_loc_x = iter_model.model->_chunk_pos_x;
                     game->hover_loc_y = iter_model.model->_chunk_pos_y;
                     game->hover_loc_level = iter_model.model->_chunk_pos_level;
+
+                    last_model_hit_model = iter.value.model_nullable_;
                 }
 
                 // Only draw the face if mouse is inside the triangle
@@ -740,6 +746,60 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             //     game->camera_fov,
             //     iter.value.model_nullable_,
             //     game->textures_cache);
+        }
+    }
+
+    if( last_model_hit_model )
+    {
+        memset(g_blit_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+
+        int model_id = last_model_hit_model->model_id;
+        int model_x = last_model_hit_model->_chunk_pos_x;
+        int model_y = last_model_hit_model->_chunk_pos_y;
+        int model_z = last_model_hit_model->_chunk_pos_level;
+
+        render_scene_model(
+            g_blit_buffer,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
+            // Had to use 100 here because of the scale, near plane z was resulting in
+            // extremely close to the camera.
+            100,
+            0,
+            game->camera_x,
+            game->camera_y,
+            game->camera_z,
+            game->camera_pitch,
+            game->camera_yaw,
+            game->camera_roll,
+            game->camera_fov,
+            last_model_hit_model,
+            game->textures_cache);
+
+        // Outline pixels in white
+        for( int y = 1; y < SCREEN_HEIGHT - 1; y++ )
+        {
+            for( int x = 1; x < SCREEN_WIDTH - 1; x++ )
+            {
+                int pixel = g_blit_buffer[y * SCREEN_WIDTH + x];
+                if( pixel != 0 )
+                {
+                    // Check if any neighboring pixel is empty (0)
+                    if( g_blit_buffer[(y - 1) * SCREEN_WIDTH + x] == 0 ||
+                        g_blit_buffer[(y + 1) * SCREEN_WIDTH + x] == 0 ||
+                        g_blit_buffer[y * SCREEN_WIDTH + (x - 1)] == 0 ||
+                        g_blit_buffer[y * SCREEN_WIDTH + (x + 1)] == 0 )
+                    {
+                        // Set outline pixel to white
+                        pixel_buffer[y * SCREEN_WIDTH + x] = 0xFFFFFFFF;
+                    }
+                    else
+                    {
+                        // Copy non-outline pixel to main buffer
+                        pixel_buffer[y * SCREEN_WIDTH + x] = pixel;
+                    }
+                }
+            }
         }
     }
 
