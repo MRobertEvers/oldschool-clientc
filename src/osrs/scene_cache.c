@@ -435,6 +435,11 @@ textures_cache_checkout(
         if( i > 0 && texture_definition->sprite_types )
             index = texture_definition->sprite_types[i - 1];
 
+        if( texture_id == 7 )
+        {
+            int iii = 0;
+        }
+
         if( index == 0 )
         {
             if( size == sprite->width )
@@ -449,12 +454,14 @@ textures_cache_checkout(
             else if( sprite->width == 64 && size == 128 )
             {
                 int pixel_index = 0;
-                for( int y = 0; y < size; y++ )
+                for( int x = 0; x < size; x++ )
                 {
-                    for( int x = 0; x < size; x++ )
+                    for( int y = 0; y < size; y++ )
                     {
-                        int palette_index = palette_pixels[pixel_index];
+                        int palette_index = palette_pixels[((x >> 1) << 6) + (y >> 1)];
+
                         pixels[pixel_index] = adjusted_palette[palette_index];
+                        pixel_index++;
                     }
                 }
             }

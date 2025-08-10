@@ -1398,7 +1398,7 @@ decodeType2(const unsigned char* var1, int var1_length)
 
         if( var14 == 1 )
         {
-            def->face_alphas[i] = read_unsigned_byte(var1, &var7_offset);
+            def->face_alphas[i] = read_byte(var1, &var7_offset);
         }
 
         if( var15 == 1 )
@@ -2265,7 +2265,7 @@ model_new_from_cache(struct Cache* cache, int model_id)
         return NULL;
     }
 
-    if( model_id == 1571 )
+    if( model_id == 5271 )
     {
         int i = 0;
     }

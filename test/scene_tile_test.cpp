@@ -200,6 +200,9 @@ struct Game
     int camera_z;
 
     int hover_model;
+    int hover_loc_x;
+    int hover_loc_y;
+    int hover_loc_level;
 
     int mouse_x;
     int mouse_y;
@@ -387,6 +390,8 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
 
     ImGui::Text("Hover model: %d", game->hover_model);
+    ImGui::Text(
+        "Hover loc: %d, %d, %d", game->hover_loc_x, game->hover_loc_y, game->hover_loc_level);
 
     // Camera position with copy button
     char camera_pos_text[256];
@@ -589,7 +594,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     struct IterRenderSceneOps iter;
     struct IterRenderModel iter_model;
 
-    iter_render_scene_ops_init(&iter, game->scene, game->ops, game->op_count);
+    iter_render_scene_ops_init(&iter, game->scene, game->ops, game->op_count, render_ops);
 
     while( iter_render_scene_ops_next(&iter) )
     {
@@ -678,6 +683,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 if( mouse_in_triangle )
                 {
                     game->hover_model = iter_model.model->model_id;
+                    game->hover_loc_x = iter_model.model->_chunk_pos_x;
+                    game->hover_loc_y = iter_model.model->_chunk_pos_y;
+                    game->hover_loc_level = iter_model.model->_chunk_pos_level;
                 }
 
                 // Only draw the face if mouse is inside the triangle
@@ -1024,6 +1032,11 @@ main()
             // sprite 455
             printf("grass\n");
         }
+        if( file_id == 7 )
+        {
+            // sprite 1648
+            printf("bank booth\n");
+        }
     }
 
     filelist_free(filelist);
@@ -1066,7 +1079,7 @@ main()
         // DO NOT FREE
         // sprite_pack_free(sprite_pack);
 
-        if( sprite_index == 455 || sprite_index == 1648 )
+        if( sprite_index == 455 || sprite_index == 1648 || sprite_index == 454 )
         {
             int* pixels = sprite_get_pixels(&sprite_pack->sprites[0], sprite_pack->palette, 1);
 

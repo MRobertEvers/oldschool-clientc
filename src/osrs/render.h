@@ -273,10 +273,15 @@ struct IterRenderSceneOps
     struct SceneOp* _ops;
     int _current_op;
     int _op_count;
+    int _op_max;
 };
 
 void iter_render_scene_ops_init(
-    struct IterRenderSceneOps* iter, struct Scene* scene, struct SceneOp* ops, int op_count);
+    struct IterRenderSceneOps* iter,
+    struct Scene* scene,
+    struct SceneOp* ops,
+    int op_count,
+    int op_max);
 
 bool iter_render_scene_ops_next(struct IterRenderSceneOps* iter);
 

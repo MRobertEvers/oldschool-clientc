@@ -797,7 +797,7 @@ model_draw_face(
     int color_a = colors_a[index];
     int color_b = colors_b[index];
     int color_c = colors_c[index];
-    int alpha = face_alphas_nullable ? face_alphas_nullable[index] : 0xFF;
+    int alpha = face_alphas_nullable ? (face_alphas_nullable[index]) : 0xFF;
 
     // Faces with color_c == -2 are not drawn. As far as I can tell, these faces are used for
     // texture PNM coordinates that do not coincide with a visible face.
@@ -818,10 +818,10 @@ model_draw_face(
     }
 
     // TODO: See above comments. alpha overrides colors.
-    if( face_alphas_nullable && face_alphas_nullable[index] < 0 )
-    {
-        return;
-    }
+    // if( face_alphas_nullable && face_alphas_nullable[index] < 0 )
+    // {
+    //     return;
+    // }
 
     enum FaceType type = face_infos ? (face_infos[index] & 0x3) : FACE_TYPE_GOURAUD;
     assert(type >= 0 && type <= 3);
@@ -842,6 +842,12 @@ model_draw_face(
     }
     else
     {
+        // Alpha is a signed byte, but for non-textured
+        // faces, we treat it as unsigned.
+        // -1 and -2 are reserved. See lighting code.
+        if( face_alphas_nullable )
+            alpha = 0xFF - (alpha & 0xff);
+
         if( color_c == -1 )
         {
             type = FACE_TYPE_FLAT;
@@ -3362,7 +3368,11 @@ render_scene_ops(
 
 void
 iter_render_scene_ops_init(
-    struct IterRenderSceneOps* iter, struct Scene* scene, struct SceneOp* ops, int op_count)
+    struct IterRenderSceneOps* iter,
+    struct Scene* scene,
+    struct SceneOp* ops,
+    int op_count,
+    int op_max)
 {
     memset(iter, 0, sizeof(struct IterRenderSceneOps));
     iter->has_value = false;
@@ -3370,6 +3380,7 @@ iter_render_scene_ops_init(
     iter->_ops = ops;
     iter->_op_count = op_count;
     iter->_current_op = 0;
+    iter->_op_max = op_max;
 }
 
 bool
@@ -3384,7 +3395,7 @@ next:
     memset(&iter->value, 0, sizeof(iter->value));
 
     int i = iter->_current_op;
-    if( i >= iter->_op_count )
+    if( i >= iter->_op_count || i >= iter->_op_max )
         return false;
 
     iter->_current_op++;
