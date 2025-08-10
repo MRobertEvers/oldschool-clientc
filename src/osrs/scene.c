@@ -1498,10 +1498,12 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             printf("Abyssal whip: %d\n", object->male_model_0);
         }
+        int abyssal_tile_x = 1;
+        int abyssal_tile_y = 1;
 
         int loc_index = vec_loc_push(scene);
         loc = vec_loc_back(scene);
-        init_loc_1x1(loc, 1, 1, 0);
+        init_loc_1x1(loc, abyssal_tile_x, abyssal_tile_y, 0);
 
         int model_index = vec_model_push(scene);
         model = vec_model_back(scene);
@@ -1517,10 +1519,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         abyssal_model = model_new_copy(abyssal_model);
         model->model = abyssal_model;
         model->model_id = abyssal_model->_id;
-
-        model->region_x = 128 + 64;
-        model->region_y = 128 + 64;
-        model->region_z = p1x1_height_center;
+        init_scene_model_1x1(model, abyssal_tile_x, abyssal_tile_y, p1x1_height_center);
 
         model->light_ambient = object->ambient;
         model->light_contrast = object->contrast;
@@ -1528,7 +1527,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         loc->type = LOC_TYPE_GROUND_OBJECT;
         loc->_ground_object.model = model_index;
 
-        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(1, 1, 0)];
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(abyssal_tile_x, abyssal_tile_y, 0)];
         grid_tile->ground_object_bottom = loc_index;
     }
     // TODO: End Remove
