@@ -1791,46 +1791,6 @@ done:
     // free(screen_vertices_z);
 }
 
-static int tile_shape_vertex_indices[15][6] = {
-    { 1, 3, 5, 7 },
-    { 1, 3, 5, 7 },
-    { 1, 3, 5, 7 },
-    { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 2, 6 },
-    { 1, 3, 5, 7, 2, 8 },
-    { 1, 3, 5, 7, 2, 8 },
-    { 1, 3, 5, 7, 11, 12 },
-    { 1, 3, 5, 7, 11, 12 },
-    { 1, 3, 5, 7, 13, 14 },
-};
-
-static int tile_shape_vertex_indices_lengths[15] = {
-    4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6,
-};
-
-static int tile_shape_faces[15][30] = {
-    { 0, 1, 2, 3, 0, 0, 1, 3 },
-    { 1, 1, 2, 3, 1, 0, 1, 3 },
-    { 0, 1, 2, 3, 1, 0, 1, 3 },
-    { 0, 0, 1, 2, 0, 0, 2, 4, 1, 0, 4, 3 },
-    { 0, 0, 1, 4, 0, 0, 4, 3, 1, 1, 2, 4 },
-    { 0, 0, 4, 3, 1, 0, 1, 2, 1, 0, 2, 4 },
-    { 0, 1, 2, 4, 1, 0, 1, 4, 1, 0, 4, 3 },
-    { 0, 4, 1, 2, 0, 4, 2, 5, 1, 0, 4, 5, 1, 0, 5, 3 },
-    { 0, 4, 1, 2, 0, 4, 2, 3, 0, 4, 3, 5, 1, 0, 4, 5 },
-    { 0, 0, 4, 5, 1, 4, 1, 2, 1, 4, 2, 3, 1, 4, 3, 5 },
-    { 0, 0, 1, 5, 0, 1, 4, 5, 0, 1, 2, 4, 1, 0, 5, 3, 1, 5, 4, 3, 1, 4, 2, 3 },
-    { 1, 0, 1, 5, 1, 1, 4, 5, 1, 1, 2, 4, 0, 0, 5, 3, 0, 5, 4, 3, 0, 4, 2, 3 },
-    { 1, 0, 5, 4, 1, 0, 1, 5, 0, 0, 4, 3, 0, 4, 5, 3, 0, 5, 2, 3, 0, 1, 2, 5 },
-};
-
-static int tile_shape_face_counts[15] = {
-    8, 8, 8, 12, 12, 12, 12, 16, 16, 16, 24, 24, 24, 24, 24,
-};
-
 #define TILE_SIZE 128
 
 void
@@ -2148,23 +2108,6 @@ scene_textures_free(struct SceneTextures* textures)
 
 #include "tables/maps.h"
 
-void
-model_rotate_y180(
-    int* vertices_z, int* face_indices_a, int* face_indices_c, int vertex_count, int face_count)
-{
-    for( int v = 0; v < vertex_count; v++ )
-    {
-        vertices_z[v] = -vertices_z[v];
-    }
-
-    for( int f = 0; f < face_count; f++ )
-    {
-        int temp = face_indices_a[f];
-        face_indices_a[f] = face_indices_c[f];
-        face_indices_c[f] = temp;
-    }
-}
-
 static void
 render_scene_model(
     int* pixel_buffer,
@@ -2310,55 +2253,6 @@ near_wall_flags(int camera_tile_x, int camera_tile_y, int loc_x, int loc_y)
         flags |= WALL_SIDE_WEST | WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST;
 
     return flags;
-}
-
-static int
-reverse_wall_side(int side)
-{
-    switch( side )
-    {
-    case WALL_SIDE_WEST:
-        return WALL_SIDE_EAST;
-    case WALL_SIDE_EAST:
-        return WALL_SIDE_WEST;
-    case WALL_SIDE_NORTH:
-        return WALL_SIDE_SOUTH;
-    case WALL_SIDE_SOUTH:
-        return WALL_SIDE_NORTH;
-    case WALL_CORNER_NORTHWEST:
-        return WALL_CORNER_SOUTHEAST;
-    case WALL_CORNER_NORTHEAST:
-        return WALL_CORNER_SOUTHWEST;
-    case WALL_CORNER_SOUTHEAST:
-        return WALL_CORNER_NORTHWEST;
-    case WALL_CORNER_SOUTHWEST:
-        return WALL_CORNER_NORTHEAST;
-    default:
-        assert(false);
-        return 0;
-    }
-}
-
-static int
-wallside_rotation_quadrant(enum WallSide side)
-{
-    // Assumes model is facing west.
-    // Rotating counter-clockwise.
-    switch( side )
-    {
-    case WALL_CORNER_NORTHEAST:
-        return 3;
-    case WALL_CORNER_NORTHWEST:
-        return 2;
-    case WALL_CORNER_SOUTHWEST:
-        return 1;
-    case WALL_CORNER_SOUTHEAST:
-        return 0;
-    default:
-        printf("side %d\n", side);
-        assert(false);
-        return 0;
-    }
 }
 
 /**
