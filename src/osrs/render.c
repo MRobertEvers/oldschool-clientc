@@ -3946,8 +3946,20 @@ iter_render_model_init(
     if( !model->face_priorities )
     {
         iter->is_prio = 0;
-        iter->noprio_depth = model_min_depth * 2;
-        iter->noprio_face_index = 0;
+
+        for( int depth = model_min_depth * 2; depth < 1500 && depth >= 0; depth-- )
+        {
+            int bucket_count = tmp_depth_face_count[depth];
+            if( bucket_count == 0 )
+                continue;
+
+            int* faces = &tmp_depth_faces[depth * 512];
+            for( int j = 0; j < bucket_count; j++ )
+            {
+                int face = faces[j];
+                tmp_face_order[iter->valid_faces++] = face;
+            }
+        }
     }
     else
     {
@@ -3960,63 +3972,30 @@ iter_render_model_init(
             model->face_count,
             model->face_priorities,
             model_min_depth * 2);
+
+        int valid_faces = sort_face_draw_order(
+            tmp_face_order,
+            tmp_depth_faces,
+            tmp_depth_face_count,
+            tmp_priority_faces,
+            tmp_priority_face_count,
+            model->face_count,
+            model->face_priorities,
+            model_min_depth * 2);
+
+        iter->valid_faces = valid_faces;
     }
 }
 
 bool
 iter_render_model_next(struct IterRenderModel* iter)
 {
-    if( iter->current_face >= iter->model->model->face_count )
+    if( iter->current_face >= iter->valid_faces )
         return false;
 
-    if( !iter->is_prio )
-    {
-    retry_depth:
-        if( iter->noprio_depth >= 0 )
-        {
-            int bucket_count = tmp_depth_face_count[iter->noprio_depth];
+    int face = tmp_face_order[iter->current_face];
+    iter->current_face++;
+    iter->value_face = face;
 
-            if( iter->noprio_face_index >= bucket_count )
-            {
-                iter->noprio_face_index = 0;
-                iter->noprio_depth--;
-                goto retry_depth;
-            }
-
-            int* faces = &tmp_depth_faces[iter->noprio_depth * 512];
-
-            int face_index = faces[iter->noprio_face_index];
-
-            iter->value_face = face_index;
-            iter->noprio_face_index++;
-
-            return true;
-        }
-    }
-    else
-    {
-    retry_prio:
-        if( iter->prio_prio < 12 )
-        {
-            int bucket_count = tmp_priority_face_count[iter->prio_prio];
-
-            if( iter->prio_face_index >= bucket_count )
-            {
-                iter->prio_face_index = 0;
-                iter->prio_prio++;
-                goto retry_prio;
-            }
-
-            int* faces = &tmp_priority_faces[iter->prio_prio * 2000];
-
-            int face_index = faces[iter->prio_face_index];
-
-            iter->value_face = face_index;
-            iter->prio_face_index++;
-
-            return true;
-        }
-    }
-
-    return false;
+    return true;
 }

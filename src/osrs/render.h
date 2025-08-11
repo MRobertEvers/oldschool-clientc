@@ -298,11 +298,9 @@ struct IterRenderModel
 
     int is_prio;
 
-    int noprio_depth;
-    int noprio_face_index;
+    int valid_faces;
 
-    int prio_prio;
-    int prio_face_index;
+    int face_index;
 
     int value_face;
 
