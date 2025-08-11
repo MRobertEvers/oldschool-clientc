@@ -1,6 +1,11 @@
 #include "config_idk.h"
 
-#include "rsbuf.h"
+#include "../rsbuf.h"
+#include "configs.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 struct CacheConfigIdk*
 config_idk_new_decode(char* buffer, int buffer_size)
@@ -91,4 +96,67 @@ config_idk_decode_inplace(struct CacheConfigIdk* idk, char* buffer, int buffer_s
         }
         }
     }
+}
+
+struct CacheConfigIdkTable*
+config_idk_table_new(struct Cache* cache)
+{
+    struct CacheConfigIdkTable* table = malloc(sizeof(struct CacheConfigIdkTable));
+    if( !table )
+    {
+        printf("config_object_table_new: Failed to allocate table\n");
+        return NULL;
+    }
+    memset(table, 0, sizeof(struct CacheConfigIdkTable));
+
+    table->archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_IDENTKIT);
+    if( !table->archive )
+    {
+        printf("config_idk_table_new: Failed to load archive\n");
+        goto error;
+    }
+
+    table->file_list = filelist_new_from_cache_archive(table->archive);
+    if( !table->file_list )
+    {
+        printf("config_idk_table_new: Failed to load file list\n");
+        goto error;
+    }
+
+    return table;
+error:
+    free(table);
+    return NULL;
+}
+
+void
+config_idk_table_free(struct CacheConfigIdkTable* table)
+{
+    free(table);
+}
+
+struct CacheConfigIdk*
+config_idk_table_get(struct CacheConfigIdkTable* table, int id)
+{
+    if( id < 0 || id > table->file_list->file_count )
+    {
+        printf("config_idk_table_get: Invalid id %d\n", id);
+        return NULL;
+    }
+
+    if( table->value )
+    {
+        config_idk_free(table->value);
+        table->value = NULL;
+    }
+
+    table->value = malloc(sizeof(struct CacheConfigIdk));
+    memset(table->value, 0, sizeof(struct CacheConfigIdk));
+
+    config_idk_decode_inplace(
+        table->value, table->file_list->files[id], table->file_list->file_sizes[id]);
+
+    table->value->_id = id;
+
+    return table->value;
 }

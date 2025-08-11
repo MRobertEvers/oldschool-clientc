@@ -3,6 +3,7 @@
 #include "filelist.h"
 #include "game_model.h"
 #include "lighting.h"
+#include "tables/config_idk.h"
 #include "tables/config_locs.h"
 #include "tables/config_object.h"
 #include "tables/configs.h"
@@ -635,6 +636,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct ModelCache* model_cache = model_cache_new();
     struct CacheConfigLocationTable* config_locs_table = NULL;
     struct CacheConfigObjectTable* config_object_table = NULL;
+    struct CacheConfigIdkTable* config_idk_table = NULL;
     struct CacheMapLoc* map = NULL;
     struct Loc* loc = NULL;
     struct Loc* other_loc = NULL;
@@ -1489,6 +1491,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     map_locs_iter_free(iter);
 
+    config_idk_table = config_idk_table_new(cache);
+    if( !config_idk_table )
+    {
+        printf("Failed to load config idk table\n");
+        goto error;
+    }
+
     // TODO: Remove
     {
         int const abyssal_whip = 4151;
@@ -1529,6 +1538,50 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(abyssal_tile_x, abyssal_tile_y, 0)];
         grid_tile->ground_object_bottom = loc_index;
+    }
+
+    // TODO: Remove
+    {
+        // 4,274  6,282 292 256 289 298 266
+        int idk_ids[12] = { 0, 0, 0, 0, 274, 0, 282, 292, 256, 289, 298, 266 };
+        int parts__models_ids[10] = { 0 };
+        int parts__models_count = 0;
+
+        for( int i = 0; i < 12; i++ )
+        {
+            int idk_id = idk_ids[i];
+            if( idk_id >= 256 && idk_id < 512 )
+            {
+                idk_id -= 256;
+            }
+            else
+                continue;
+            struct CacheConfigIdk* idk = config_idk_table_get(config_idk_table, idk_id);
+            if( idk )
+            {
+                assert(idk->model_ids_count == 1);
+                parts__models_ids[parts__models_count++] = idk->model_ids[0];
+            }
+        }
+
+        struct CacheModel* models[12] = { 0 };
+        for( int i = 0; i < parts__models_count; i++ )
+        {
+            struct CacheModel* model =
+                model_cache_checkout(model_cache, cache, parts__models_ids[i]);
+            if( model )
+            {
+                models[i] = model;
+            }
+            else
+            {
+                assert(false);
+            }
+        }
+
+        struct CacheModel* merged_model = model_new_merge(models, parts__models_count);
+
+        model->model = merged_model;
     }
     // TODO: End Remove
 

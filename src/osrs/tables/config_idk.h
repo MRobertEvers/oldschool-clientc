@@ -2,6 +2,8 @@
 #define CONFIG_IDK_H
 
 #include "cache.h"
+#include "osrs/filelist.h"
+#include "osrs/tables/configs.h"
 
 #include <stdbool.h>
 
@@ -30,5 +32,18 @@ struct CacheConfigIdk* config_idk_new_decode(char* buffer, int buffer_size);
 void config_idk_free(struct CacheConfigIdk* idk);
 
 void config_idk_decode_inplace(struct CacheConfigIdk* idk, char* buffer, int buffer_size);
+
+struct CacheConfigIdkTable
+{
+    struct CacheConfigIdk* value;
+
+    struct FileList* file_list;
+    struct CacheArchive* archive;
+};
+
+struct CacheConfigIdkTable* config_idk_table_new(struct Cache* cache);
+void config_idk_table_free(struct CacheConfigIdkTable* table);
+
+struct CacheConfigIdk* config_idk_table_get(struct CacheConfigIdkTable* table, int id);
 
 #endif

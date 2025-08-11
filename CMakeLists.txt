@@ -103,6 +103,7 @@ add_executable(scene_tile_test
     src/osrs/tables/config_floortype.c
     src/osrs/tables/config_locs.c
     src/osrs/tables/config_object.c
+    src/osrs/tables/config_idk.c
     src/osrs/tables/framemap.c
     src/osrs/tables/frame.c
     src/osrs/tables/maps.c
