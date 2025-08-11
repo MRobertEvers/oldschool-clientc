@@ -587,6 +587,14 @@ parition_faces_by_priority(
     int* face_priorities,
     int depth_upper_bound)
 {
+    /**
+     * TODO: Priority 11 and 12 are flexible priorities.
+     *
+     * Some examples are "arms", "capes", etc. For example, we want arms
+     * to be drawn "above" the body, but if the arm is on the far side,
+     * then it should be drawn "below" the body.
+     *
+     */
     for( int depth = depth_upper_bound; depth >= 0 && depth < 1500; depth-- )
     {
         int face_count = face_depth_bucket_counts[depth];
@@ -602,6 +610,147 @@ parition_faces_by_priority(
             face_priority_buckets[prio * 2000 + priority_face_count] = face_idx;
         }
     }
+}
+
+/**
+ * Priorities 0-10 faces are always drawn in their relative order.
+ *
+ * Priorities 11, 12 are also always drawn in their relative order,
+ * however, the faces are inserted in the 0-10 ordering based on
+ * average depth of the nearby priorities. The faces of 11 and 12
+ * are distributed among these priorities, for example, some of the
+ * prio 11 faces may be inserted before prio 0, and some may be inserted
+ * before prio 3. I.e. Priority 11 and 12 faces are not always inserted
+ * at the same prio.
+ *
+ * For priorities 11 and twelve, we need a reverse mapping of face => depth,
+ * face_depth_buckets maps depth[depth_i][n] => face_y.
+ *
+ * Possible insertion points before: 0, 3, 5, or after all other prios.
+ */
+static int
+sort_face_draw_order(
+    int* face_draw_order,
+    int* priority_depths,
+    int* face_depth_buckets,
+    int* face_depth_bucket_counts,
+    int* face_priority_buckets,
+    int* face_priority_bucket_counts,
+    int* flex_prio11_face_to_depth,
+    int* flex_prio12_face_to_depth,
+    int num_faces,
+    int* face_priorities,
+    int depth_upper_bound)
+{
+    int counts[12] = { 0 };
+    for( int depth = depth_upper_bound; depth >= 0 && depth < 1500; depth-- )
+    {
+        int face_count = face_depth_bucket_counts[depth];
+        if( face_count == 0 )
+            continue;
+
+        int* faces = &face_depth_buckets[depth * 512];
+        for( int i = 0; i < face_count; i++ )
+        {
+            int face_idx = faces[i];
+            int prio = face_priorities[face_idx];
+
+            int face_count = counts[prio];
+
+            if( prio < 10 )
+            {
+                priority_depths[prio] += depth;
+            }
+            else if( prio == 10 )
+            {
+                // Hack so we don't have to st
+                flex_prio11_face_to_depth[face_count] = depth | (face_idx << 16);
+            }
+            else if( prio == 11 )
+            {
+                flex_prio12_face_to_depth[face_count] = depth | (face_idx << 16);
+            }
+
+            counts[prio]++;
+        }
+    }
+
+    int average_depth1_2 = 0;
+    int count1_2 = counts[1] + counts[2];
+    if( count1_2 > 0 )
+        average_depth1_2 = (priority_depths[1] + priority_depths[2]) / count1_2;
+    int average_depth3_4 = 0;
+    int count3_4 = counts[3] + counts[4];
+    if( count3_4 > 0 )
+        average_depth3_4 = (priority_depths[3] + priority_depths[4]) / count3_4;
+    int average_depth6_8 = 0;
+    int count6_8 = counts[6] + counts[8];
+    if( count6_8 > 0 )
+        average_depth6_8 = (priority_depths[6] + priority_depths[8]) / count6_8;
+
+    // Concat the flexible faces
+    for( int i = 0; i < counts[11]; i++ )
+    {
+        flex_prio11_face_to_depth[counts[10] + i] = flex_prio12_face_to_depth[i];
+    }
+    counts[10] += counts[11];
+
+    int flexible_face_index = 0;
+    int order_index = 0;
+
+    // Insert flexible faces before 0
+    while( flexible_face_index < counts[10] &&
+           (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
+    {
+        face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 0; prio < 3; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] &&
+           (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth3_4 )
+    {
+        face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 3; prio < 5; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] &&
+           (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth6_8 )
+    {
+        face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 5; prio < 10; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] )
+    {
+        face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    return order_index;
 }
 
 void
@@ -1341,6 +1490,9 @@ static int tmp_depth_faces[1500 * 512] = { 0 };
 static int tmp_priority_face_count[12] = { 0 };
 static int tmp_priority_depth_sum[12] = { 0 };
 static int tmp_priority_faces[12 * 2000] = { 0 };
+static int tmp_flex_prio11_face_to_depth[1024] = { 0 };
+static int tmp_flex_prio12_face_to_depth[512] = { 0 };
+static int tmp_face_order[1024] = { 0 };
 
 static int tmp_screen_vertices_x[4096] = { 0 };
 static int tmp_screen_vertices_y[4096] = { 0 };
@@ -1561,38 +1713,88 @@ render_model_frame(
         model->face_priorities,
         model_min_depth * 2);
 
-    raster_osrs_typed(
-        pixel_buffer,
+    int valid_faces = sort_face_draw_order(
+        tmp_face_order,
+        tmp_priority_depth_sum,
+        tmp_depth_faces,
+        tmp_depth_face_count,
         tmp_priority_faces,
         tmp_priority_face_count,
-        model->face_infos,
-        face_indices_a,
-        face_indices_b,
-        face_indices_c,
+        tmp_flex_prio11_face_to_depth,
+        tmp_flex_prio12_face_to_depth,
         model->face_count,
-        screen_vertices_x,
-        screen_vertices_y,
-        screen_vertices_z,
-        orthographic_vertices_x,
-        orthographic_vertices_y,
-        orthographic_vertices_z,
-        model->vertex_count,
-        model->face_textures,
-        model->face_texture_coords,
-        model->textured_face_count,
-        model->textured_p_coordinate,
-        model->textured_m_coordinate,
-        model->textured_n_coordinate,
-        model->textured_face_count,
-        lighting->face_colors_hsl_a,
-        lighting->face_colors_hsl_b,
-        lighting->face_colors_hsl_c,
-        model->face_alphas,
-        width / 2,
-        height / 2,
-        width,
-        height,
-        textures_cache);
+        model->face_priorities,
+        model_min_depth * 2);
+
+    for( int i = 0; i < valid_faces; i++ )
+    {
+        int face_index = tmp_face_order[i];
+
+        model_draw_face(
+            pixel_buffer,
+            face_index,
+            model->face_infos,
+            face_indices_a,
+            face_indices_b,
+            face_indices_c,
+            model->face_count,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            model->vertex_count,
+            model->face_textures,
+            model->face_texture_coords,
+            model->textured_face_count,
+            model->textured_p_coordinate,
+            model->textured_m_coordinate,
+            model->textured_n_coordinate,
+            model->textured_face_count,
+            lighting->face_colors_hsl_a,
+            lighting->face_colors_hsl_b,
+            lighting->face_colors_hsl_c,
+            model->face_alphas,
+            width / 2,
+            height / 2,
+            width,
+            height,
+            textures_cache);
+    }
+
+    // raster_osrs_typed(
+    //     pixel_buffer,
+    //     tmp_priority_faces,
+    //     tmp_priority_face_count,
+    //     model->face_infos,
+    //     face_indices_a,
+    //     face_indices_b,
+    //     face_indices_c,
+    //     model->face_count,
+    //     screen_vertices_x,
+    //     screen_vertices_y,
+    //     screen_vertices_z,
+    //     orthographic_vertices_x,
+    //     orthographic_vertices_y,
+    //     orthographic_vertices_z,
+    //     model->vertex_count,
+    //     model->face_textures,
+    //     model->face_texture_coords,
+    //     model->textured_face_count,
+    //     model->textured_p_coordinate,
+    //     model->textured_m_coordinate,
+    //     model->textured_n_coordinate,
+    //     model->textured_face_count,
+    //     lighting->face_colors_hsl_a,
+    //     lighting->face_colors_hsl_b,
+    //     lighting->face_colors_hsl_c,
+    //     model->face_alphas,
+    //     width / 2,
+    //     height / 2,
+    //     width,
+    //     height,
+    //     textures_cache);
 
     // free(vertices_x);
     // free(vertices_y);

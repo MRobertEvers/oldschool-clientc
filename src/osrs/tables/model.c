@@ -2517,7 +2517,7 @@ model_new_merge(struct CacheModel** models, int model_count)
         face_count += models[i]->face_count;
         textured_face_count += models[i]->textured_face_count;
 
-        if( models[i]->face_priorities )
+        if( models[i]->face_priorities || models[i]->model_priority )
             has_face_render_prios = true;
 
         if( models[i]->face_infos )
@@ -2563,7 +2563,10 @@ model_new_merge(struct CacheModel** models, int model_count)
 
     int* face_priorities = NULL;
     if( has_face_render_prios )
+    {
         face_priorities = (int*)malloc(face_count * sizeof(int));
+        memset(face_priorities, 0, face_count * sizeof(int));
+    }
 
     int* face_colors = NULL;
     if( has_face_render_colors )
@@ -2628,8 +2631,13 @@ model_new_merge(struct CacheModel** models, int model_count)
             if( face_infos && models[i]->face_infos )
                 model->face_infos[model->face_count] = models[i]->face_infos[j];
 
-            if( face_priorities && models[i]->face_priorities )
-                model->face_priorities[model->face_count] = models[i]->face_priorities[j];
+            if( face_priorities )
+            {
+                if( models[i]->face_priorities )
+                    model->face_priorities[model->face_count] = models[i]->face_priorities[j];
+                else if( models[i]->model_priority )
+                    model->face_priorities[model->face_count] = models[i]->model_priority;
+            }
 
             if( face_colors && models[i]->face_colors )
                 model->face_colors[model->face_count] = models[i]->face_colors[j];

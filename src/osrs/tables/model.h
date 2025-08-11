@@ -107,6 +107,10 @@ struct CacheModel
     int* face_infos;
     int* face_priorities;
     int* face_colors;
+    // If model priority is set, this is important for merged_models,
+    // such as characters. For example, "arms" will have a model priority of 10,
+    // but do not have face_priorities. When a model with model_priority is merged,
+    // all of its faces will have the model_priority.
     int model_priority;
     int textured_face_count;
     // Used in type 2 >
