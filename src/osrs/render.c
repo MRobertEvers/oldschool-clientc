@@ -698,7 +698,8 @@ sort_face_draw_order(
     int flexible_face_index = 0;
     int order_index = 0;
 
-    // Insert flexible faces before 0
+    // Insert flexible faces before 0 if the flex faces are farther away than the average prio 1-2
+    // faces.
     while( flexible_face_index < counts[10] &&
            (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
     {
@@ -714,6 +715,8 @@ sort_face_draw_order(
         }
     }
 
+    // Insert flexible faces before 3 if the flex faces are farther away than the average prio 3-4
+    // faces.
     while( flexible_face_index < counts[10] &&
            (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth3_4 )
     {
@@ -729,6 +732,8 @@ sort_face_draw_order(
         }
     }
 
+    // Insert flexible faces before 6 if the flex faces are farther away than the average prio 6 and
+    // 8 faces.
     while( flexible_face_index < counts[10] &&
            (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth6_8 )
     {
@@ -744,6 +749,7 @@ sort_face_draw_order(
         }
     }
 
+    // Draw any remaining flexible faces.
     while( flexible_face_index < counts[10] )
     {
         face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
