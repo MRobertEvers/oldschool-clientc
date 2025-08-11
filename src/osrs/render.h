@@ -294,13 +294,9 @@ struct IterRenderModel
 {
     struct SceneModel* model;
 
-    int current_face;
-
-    int is_prio;
+    int index;
 
     int valid_faces;
-
-    int face_index;
 
     int value_face;
 

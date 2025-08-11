@@ -3857,7 +3857,7 @@ iter_render_model_init(
     iter->ortho_vertices_z = tmp_orthographic_vertices_z;
 
     struct CacheModel* model = scene_model->model;
-    iter->current_face = 0;
+    iter->index = 0;
 
     int* vertices_x = model->vertices_x;
     int* vertices_y = model->vertices_y;
@@ -3945,8 +3945,6 @@ iter_render_model_init(
 
     if( !model->face_priorities )
     {
-        iter->is_prio = 0;
-
         for( int depth = model_min_depth * 2; depth < 1500 && depth >= 0; depth-- )
         {
             int bucket_count = tmp_depth_face_count[depth];
@@ -3963,7 +3961,6 @@ iter_render_model_init(
     }
     else
     {
-        iter->is_prio = 1;
         parition_faces_by_priority(
             tmp_priority_faces,
             tmp_priority_face_count,
@@ -3990,11 +3987,11 @@ iter_render_model_init(
 bool
 iter_render_model_next(struct IterRenderModel* iter)
 {
-    if( iter->current_face >= iter->valid_faces )
+    if( iter->index >= iter->valid_faces )
         return false;
 
-    int face = tmp_face_order[iter->current_face];
-    iter->current_face++;
+    int face = tmp_face_order[iter->index];
+    iter->index++;
     iter->value_face = face;
 
     return true;
