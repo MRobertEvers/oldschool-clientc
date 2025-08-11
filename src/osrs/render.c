@@ -24,27 +24,28 @@
 #include <stdlib.h>
 #include <string.h>
 
-char*
-element_step_str(enum ElementStep step)
-{
-    switch( step )
-    {
-    case E_STEP_GROUND:
-        return "GROUND";
-    case E_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED:
-        return "VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED";
-    case E_STEP_WAIT_ADJACENT_GROUND:
-        return "WAIT_ADJACENT_GROUND";
-    case E_STEP_LOCS:
-        return "LOCS";
-    case E_STEP_NOTIFY_ADJACENT_TILES:
-        return "NOTIFY_ADJACENT_TILES";
-    case E_STEP_DONE:
-        return "DONE";
-    default:
-        return "UNKNOWN";
-    }
-}
+static int tmp_depth_face_count[1500] = { 0 };
+static int tmp_depth_faces[1500 * 512] = { 0 };
+static int tmp_priority_face_count[12] = { 0 };
+static int tmp_priority_depth_sum[12] = { 0 };
+static int tmp_priority_faces[12 * 2000] = { 0 };
+static int tmp_flex_prio11_face_to_depth[1024] = { 0 };
+static int tmp_flex_prio12_face_to_depth[512] = { 0 };
+static int tmp_face_order[1024] = { 0 };
+
+static int tmp_screen_vertices_x[4096] = { 0 };
+static int tmp_screen_vertices_y[4096] = { 0 };
+static int tmp_screen_vertices_z[4096] = { 0 };
+
+static int tmp_orthographic_vertices_x[4096] = { 0 };
+static int tmp_orthographic_vertices_y[4096] = { 0 };
+static int tmp_orthographic_vertices_z[4096] = { 0 };
+
+static int tmp_face_colors_a_hsl16[4096] = { 0 };
+static int tmp_face_colors_b_hsl16[4096] = { 0 };
+static int tmp_face_colors_c_hsl16[4096] = { 0 };
+
+static int tmp_vertex_normals[4096] = { 0 };
 
 extern int g_sin_table[2048];
 extern int g_cos_table[2048];
@@ -631,17 +632,18 @@ parition_faces_by_priority(
 static int
 sort_face_draw_order(
     int* face_draw_order,
-    int* priority_depths,
     int* face_depth_buckets,
     int* face_depth_bucket_counts,
     int* face_priority_buckets,
     int* face_priority_bucket_counts,
-    int* flex_prio11_face_to_depth,
-    int* flex_prio12_face_to_depth,
     int num_faces,
     int* face_priorities,
     int depth_upper_bound)
 {
+    int* priority_depths = tmp_priority_depth_sum;
+    int* flex_prio11_face_to_depth = tmp_flex_prio11_face_to_depth;
+    int* flex_prio12_face_to_depth = tmp_flex_prio12_face_to_depth;
+
     int counts[12] = { 0 };
     for( int depth = depth_upper_bound; depth >= 0 && depth < 1500; depth-- )
     {
@@ -1491,29 +1493,6 @@ raster_osrs_single_texture(
     return true;
 }
 
-static int tmp_depth_face_count[1500] = { 0 };
-static int tmp_depth_faces[1500 * 512] = { 0 };
-static int tmp_priority_face_count[12] = { 0 };
-static int tmp_priority_depth_sum[12] = { 0 };
-static int tmp_priority_faces[12 * 2000] = { 0 };
-static int tmp_flex_prio11_face_to_depth[1024] = { 0 };
-static int tmp_flex_prio12_face_to_depth[512] = { 0 };
-static int tmp_face_order[1024] = { 0 };
-
-static int tmp_screen_vertices_x[4096] = { 0 };
-static int tmp_screen_vertices_y[4096] = { 0 };
-static int tmp_screen_vertices_z[4096] = { 0 };
-
-static int tmp_orthographic_vertices_x[4096] = { 0 };
-static int tmp_orthographic_vertices_y[4096] = { 0 };
-static int tmp_orthographic_vertices_z[4096] = { 0 };
-
-static int tmp_face_colors_a_hsl16[4096] = { 0 };
-static int tmp_face_colors_b_hsl16[4096] = { 0 };
-static int tmp_face_colors_c_hsl16[4096] = { 0 };
-
-static int tmp_vertex_normals[4096] = { 0 };
-
 void
 render_model_frame(
     int* pixel_buffer,
@@ -1721,13 +1700,10 @@ render_model_frame(
 
     int valid_faces = sort_face_draw_order(
         tmp_face_order,
-        tmp_priority_depth_sum,
         tmp_depth_faces,
         tmp_depth_face_count,
         tmp_priority_faces,
         tmp_priority_face_count,
-        tmp_flex_prio11_face_to_depth,
-        tmp_flex_prio12_face_to_depth,
         model->face_count,
         model->face_priorities,
         model_min_depth * 2);

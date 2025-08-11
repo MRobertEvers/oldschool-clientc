@@ -160,8 +160,6 @@ enum ElementStep
     E_STEP_DONE,
 };
 
-char* element_step_str(enum ElementStep step);
-
 struct SceneElement
 {
     enum ElementStep step;
