@@ -3655,6 +3655,7 @@ next:
         iter->value.x = op->x;
         iter->value.z = op->z;
         iter->value.level = op->level;
+        iter->value.yaw = op->_wall_decor.angle;
         iter->has_value = true;
     }
     break;

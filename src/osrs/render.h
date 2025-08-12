@@ -269,6 +269,8 @@ struct IterRenderSceneOps
         int z;
         int level;
 
+        int yaw;
+
         struct SceneModel* model_nullable_;
         struct SceneTile* tile_nullable_;
     } value;

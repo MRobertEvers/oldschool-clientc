@@ -696,7 +696,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             iter_render_model_init(
                 &iter_model,
                 iter.value.model_nullable_,
-                0,
+                // TODO: For wall decor, this should probably be set on the model->yaw rather than on the op.
+                iter.value.yaw,
                 game->camera_x,
                 game->camera_y,
                 game->camera_z,
