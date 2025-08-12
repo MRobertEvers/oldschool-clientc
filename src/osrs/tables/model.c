@@ -901,7 +901,7 @@ decodeType1(const unsigned char* var1, int var1_length)
     if( var15 == 1 )
     {
         // Note: We don't have this field in our struct, so we'll skip it
-        // def->face_bone_map = (int*)malloc(var10 * sizeof(int));
+        def->face_bone_map = (int*)malloc(var10 * sizeof(int));
     }
 
     // Allocate face textures if needed
@@ -1005,7 +1005,8 @@ decodeType1(const unsigned char* var1, int var1_length)
 
         if( var15 == 1 )
         {
-            // def->face_bone_map[var49] = (int)read_unsigned_byte(var1, &var7_offset);
+            // read_unsigned_byte(var1, &var7_offset);
+            def->face_bone_map[var49] = (int)read_unsigned_byte(var1, &var7_offset);
         }
 
         if( var16 == 1 )
@@ -1254,7 +1255,7 @@ decodeType2(const unsigned char* var1, int var1_length)
     if( var15 == 1 )
     {
         // Note: This field is not in our struct, so we'll skip it
-        // def->face_bone_map = (int*)malloc(var10 * sizeof(int));
+        def->face_bone_map = (int*)malloc(var10 * sizeof(int));
     }
 
     // Allocate animaya groups if needed
@@ -1382,8 +1383,8 @@ decodeType2(const unsigned char* var1, int var1_length)
 
         if( var15 == 1 )
         {
-            read_unsigned_byte(var1, &var8_offset);
-            // def->face_bone_map[i] = read_unsigned_byte(var1, &var8_offset);
+            // read_unsigned_byte(var1, &var8_offset);
+            def->face_bone_map[i] = read_unsigned_byte(var1, &var8_offset);
         }
     }
 
