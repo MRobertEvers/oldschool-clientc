@@ -112,7 +112,7 @@ main(int argc, char* argv[])
         struct CacheFrame* frame =
             frame_new_decode2(frame_archive_id, framemap, frame_data, frame_data_size);
 
-        printf("Frame %d: %d + %d\n", i, frame->id, frame->framemap_id);
+        printf("Frame %d: %d + %d\n", i, frame->_id, frame->framemap_id);
     }
 
     modelbones_free(bones);

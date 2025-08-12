@@ -320,7 +320,10 @@ loc_load_model(
     scene_loc->__loc_id = loc_config->_id;
 
     if( model->vertex_bone_map )
-        scene_loc->bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+        scene_loc->vertex_bones =
+            modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+    if( model->face_bone_map )
+        scene_loc->face_bones = modelbones_new_decode(model->face_bone_map, model->face_count);
 
     if( loc_config->seq_id != -1 )
     {

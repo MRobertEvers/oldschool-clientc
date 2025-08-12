@@ -18,9 +18,12 @@ int anim_frame_apply(
     int* vertices_y,
     int* vertices_z,
     int* face_alphas,
-    // These are the bones of the model. They are defined with the model.
-    int bones_count,
-    int** bones,
-    int* bones_sizes);
+    // These are the vertex bones of the model. They are defined with the model.
+    int vertex_bones_count,
+    int** vertex_bones,
+    int* vertex_bones_sizes,
+    int face_bones_count,
+    int** face_bones,
+    int* face_bones_sizes);
 
 #endif

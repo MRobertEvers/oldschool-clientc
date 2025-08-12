@@ -725,8 +725,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     struct CacheModel* model = model_new_from_cache(game->cache, game->model_id);
 
-    struct CacheModelBones* bones =
-        modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
 
     // render_model_frame(
     //     pixel_buffer,

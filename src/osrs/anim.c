@@ -21,9 +21,12 @@ animate(
     int arg_x,
     int arg_y,
     int arg_z,
-    int bones_count,
-    int** bones,
-    int* bones_sizes,
+    int vertex_bones_count,
+    int** vertex_bones,
+    int* vertex_bones_sizes,
+    int face_bones_count,
+    int** face_bones,
+    int* face_bones_sizes,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
@@ -54,11 +57,11 @@ animate(
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];
-            if( bone_index >= bones_count )
+            if( bone_index >= vertex_bones_count )
                 continue;
 
-            int* bone = bones[bone_index];
-            int bone_length = bones_sizes[bone_index];
+            int* bone = vertex_bones[bone_index];
+            int bone_length = vertex_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; j++ )
             {
@@ -90,11 +93,11 @@ animate(
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];
-            if( bone_index >= bones_count )
+            if( bone_index >= vertex_bones_count )
                 continue;
 
-            int* bone = bones[bone_index];
-            int bone_length = bones_sizes[bone_index];
+            int* bone = vertex_bones[bone_index];
+            int bone_length = vertex_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; ++j )
             {
@@ -112,11 +115,11 @@ animate(
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];
-            if( bone_index >= bones_count )
+            if( bone_index >= vertex_bones_count )
                 continue;
 
-            int* bone = bones[bone_index];
-            int bone_length = bones_sizes[bone_index];
+            int* bone = vertex_bones[bone_index];
+            int bone_length = vertex_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; ++j )
             {
@@ -179,11 +182,11 @@ animate(
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];
-            if( bone_index >= bones_count )
+            if( bone_index >= vertex_bones_count )
                 continue;
 
-            int* bone = bones[bone_index];
-            int bone_length = bones_sizes[bone_index];
+            int* bone = vertex_bones[bone_index];
+            int bone_length = vertex_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; ++j )
             {
@@ -204,30 +207,31 @@ animate(
     // TODO: This actually uses face_labels rather than vertex_labels.
     case 5:
     {
-        // if( !face_alphas )
-        //     return;
+        return;
+        if( !face_alphas || !face_bones )
+            return;
 
-        // for( int i = 0; i < bone_group_length; i++ )
-        // {
-        //     int bone_index = bone_group[i];
-        //     if( bone_index >= bones_count )
-        //         continue;
+        for( int i = 0; i < bone_group_length; i++ )
+        {
+            int bone_index = bone_group[i];
+            if( bone_index >= face_bones_count )
+                continue;
 
-        //     int* bone = bones[bone_index];
-        //     int bone_length = bones_sizes[bone_index];
+            int* bone = face_bones[bone_index];
+            int bone_length = face_bones_sizes[bone_index];
 
-        //     for( int j = 0; j < bone_length; ++j )
-        //     {
-        //         int face_index = bone[j];
+            for( int j = 0; j < bone_length; ++j )
+            {
+                int face_index = bone[j];
 
-        //         face_alphas[face_index] += arg_x * 8;
-        //         if( face_alphas[face_index] < 0 )
-        //             face_alphas[face_index] = 0;
+                face_alphas[face_index] += arg_x * 8;
+                if( face_alphas[face_index] < 0 )
+                    face_alphas[face_index] = 0;
 
-        //         if( face_alphas[face_index] > 255 )
-        //             face_alphas[face_index] = 255;
-        //     }
-        // }
+                if( face_alphas[face_index] > 255 )
+                    face_alphas[face_index] = 255;
+            }
+        }
     }
     break;
     }
@@ -242,9 +246,12 @@ anim_frame_apply(
     int* vertices_z,
     int* face_alphas,
     // These are the bones of the model. They are defined with the model.
-    int bones_count,
-    int** bones,
-    int* bones_sizes)
+    int vertex_bones_count,
+    int** vertex_bones,
+    int* vertex_bones_sizes,
+    int face_bones_count,
+    int** face_bones,
+    int* face_bones_sizes)
 {
     struct Transformation transformation = { 0 };
     for( int i = 0; i < frame->translator_count; i++ )
@@ -268,9 +275,12 @@ anim_frame_apply(
             x,
             y,
             z,
-            bones_count,
-            bones,
-            bones_sizes,
+            vertex_bones_count,
+            vertex_bones,
+            vertex_bones_sizes,
+            face_bones_count,
+            face_bones,
+            face_bones_sizes,
             vertices_x,
             vertices_y,
             vertices_z,

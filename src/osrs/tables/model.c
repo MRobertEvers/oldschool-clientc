@@ -65,11 +65,11 @@ read_int(const unsigned char* buffer, int* offset)
 }
 
 // computeAnimationTables
-// model_create_label_references
-struct CacheModelBones*
+//
+struct ModelBones*
 modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
 {
-    struct CacheModelBones* bones = (struct CacheModelBones*)malloc(sizeof(struct CacheModelBones));
+    struct ModelBones* bones = (struct ModelBones*)malloc(sizeof(struct ModelBones));
     if( !bones )
         return NULL;
 
@@ -897,10 +897,11 @@ decodeType1(const unsigned char* var1, int var1_length)
         def->face_alphas = (int*)malloc(var10 * sizeof(int));
     }
 
-    // Allocate packed transparency vertex groups if needed
+    // Allocate packed transparency  groups if needed
     if( var15 == 1 )
     {
         // Note: We don't have this field in our struct, so we'll skip it
+        // def->face_bone_map = (int*)malloc(var10 * sizeof(int));
     }
 
     // Allocate face textures if needed
@@ -1004,8 +1005,7 @@ decodeType1(const unsigned char* var1, int var1_length)
 
         if( var15 == 1 )
         {
-            // Skip packed transparency vertex groups
-            read_unsigned_byte(var1, &var7_offset);
+            // def->face_bone_map[var49] = (int)read_unsigned_byte(var1, &var7_offset);
         }
 
         if( var16 == 1 )
@@ -1254,6 +1254,7 @@ decodeType2(const unsigned char* var1, int var1_length)
     if( var15 == 1 )
     {
         // Note: This field is not in our struct, so we'll skip it
+        // def->face_bone_map = (int*)malloc(var10 * sizeof(int));
     }
 
     // Allocate animaya groups if needed
@@ -1381,7 +1382,8 @@ decodeType2(const unsigned char* var1, int var1_length)
 
         if( var15 == 1 )
         {
-            read_unsigned_byte(var1, &var8_offset); // Skip packed transparency vertex groups
+            read_unsigned_byte(var1, &var8_offset);
+            // def->face_bone_map[i] = read_unsigned_byte(var1, &var8_offset);
         }
     }
 
@@ -1970,6 +1972,7 @@ decodeType3(const unsigned char* var1, int var1_length)
     if( hasPackedVertexGroups == 1 )
     {
         def->vertex_bone_map = (int*)malloc(vertexCount * sizeof(int));
+        // memset(def->vertex_bone_map, 0, vertexCount * sizeof(int));
     }
 
     // Allocate face render types if needed
@@ -1997,7 +2000,8 @@ decodeType3(const unsigned char* var1, int var1_length)
     // Allocate packed transparency vertex groups if needed
     if( hasPackedTransparencyVertexGroups == 1 )
     {
-        // Note: This field is not in our struct, so we'll skip it
+        def->face_bone_map = (int*)malloc(faceCount * sizeof(int));
+        memset(def->face_bone_map, 0, faceCount * sizeof(int));
     }
 
     // Allocate face textures if needed
@@ -2125,8 +2129,8 @@ decodeType3(const unsigned char* var1, int var1_length)
 
         if( hasPackedTransparencyVertexGroups == 1 )
         {
-            // Note: This field is not in our struct, so we'll skip it
-            read_unsigned_byte(var1, &var6_offset);
+            // read_unsigned_byte(var1, &var6_offset);
+            def->face_bone_map[var51] = read_unsigned_byte(var1, &var6_offset);
         }
 
         if( hasFaceTextures == 1 )
@@ -2486,6 +2490,7 @@ model_new_merge(struct CacheModel** models, int model_count)
     bool has_face_render_alphas = false;
     bool has_face_render_textures = false;
     bool has_vertex_bones = false;
+    bool has_face_bones = false;
 
     for( int i = 0; i < model_count; i++ )
     {
@@ -2513,6 +2518,9 @@ model_new_merge(struct CacheModel** models, int model_count)
 
         if( models[i]->vertex_bone_map )
             has_vertex_bones = true;
+
+        // if( models[i]->face_bone_map )
+        //     has_face_bones = true;
     }
 
     int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
@@ -2573,6 +2581,13 @@ model_new_merge(struct CacheModel** models, int model_count)
         memset(vertex_bone_map, 0, vertex_count * sizeof(int));
     }
 
+    int* face_bone_map = NULL;
+    if( has_face_bones )
+    {
+        face_bone_map = (int*)malloc(face_count * sizeof(int));
+        memset(face_bone_map, 0, face_count * sizeof(int));
+    }
+
     int* face_textures = NULL;
     int* face_texture_coords = NULL;
     if( has_face_render_textures )
@@ -2611,6 +2626,7 @@ model_new_merge(struct CacheModel** models, int model_count)
     model->face_texture_coords = face_texture_coords;
 
     model->vertex_bone_map = vertex_bone_map;
+    model->face_bone_map = face_bone_map;
 
     for( int i = 0; i < model_count; i++ )
     {
@@ -2635,6 +2651,14 @@ model_new_merge(struct CacheModel** models, int model_count)
 
             if( face_alphas && models[i]->face_alphas )
                 model->face_alphas[model->face_count] = models[i]->face_alphas[j];
+
+            // if( face_bone_map )
+            // {
+            //     if( models[i]->face_bone_map )
+            //         model->face_bone_map[model->face_count] = models[i]->face_bone_map[j];
+            //     else
+            //         model->face_bone_map[model->face_count] = -1;
+            // }
 
             if( vertex_bone_map )
             {
@@ -2787,7 +2811,7 @@ write_model_separate(const struct CacheModel* model, const char* filename)
 }
 
 void
-modelbones_free(struct CacheModelBones* modelbones)
+modelbones_free(struct ModelBones* modelbones)
 {
     for( int i = 0; i < modelbones->bones_count; i++ )
         free(modelbones->bones[i]);
@@ -2802,6 +2826,9 @@ model_free(struct CacheModel* model)
 {
     if( !model )
         return;
+
+    if( model->face_bone_map )
+        free(model->face_bone_map);
 
     if( model->vertices_x )
         free(model->vertices_x);

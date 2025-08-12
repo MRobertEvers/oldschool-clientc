@@ -843,8 +843,7 @@ main(int argc, char* argv[])
         printf("TzTok-Jad\n");
     }
 
-    struct CacheModelBones* bones =
-        modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+    struct ModelBones* bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
 
     int* screen_vertices_x = (int*)malloc(model->vertex_count * sizeof(int));
     int* screen_vertices_y = (int*)malloc(model->vertex_count * sizeof(int));
@@ -1140,9 +1139,13 @@ main(int argc, char* argv[])
                         animated_vertices_x,
                         animated_vertices_y,
                         animated_vertices_z,
+                        model->face_alphas,
                         bones->bones_count,
                         bones->bones,
-                        bones->bones_sizes);
+                        bones->bones_sizes,
+                        NULL,
+                        NULL,
+                        NULL);
 
                     // Cleanup
                     frame_free(frame);
