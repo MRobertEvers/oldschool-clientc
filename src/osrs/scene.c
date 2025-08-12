@@ -319,6 +319,71 @@ loc_load_model(
 
     scene_loc->__loc_id = loc_config->_id;
 
+    if( model->vertex_bone_map )
+        scene_loc->bones = modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+
+    if( loc_config->seq_id != -1 )
+    {
+        scene_loc->original_vertices_x = malloc(sizeof(int) * model->vertex_count);
+        scene_loc->original_vertices_y = malloc(sizeof(int) * model->vertex_count);
+        scene_loc->original_vertices_z = malloc(sizeof(int) * model->vertex_count);
+
+        memcpy(
+            scene_loc->original_vertices_x, model->vertices_x, sizeof(int) * model->vertex_count);
+        memcpy(
+            scene_loc->original_vertices_y, model->vertices_y, sizeof(int) * model->vertex_count);
+        memcpy(
+            scene_loc->original_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
+
+        struct CacheConfigSequenceTable* table = config_sequence_table_new(cache);
+        assert(table);
+        struct CacheConfigSequence* sequence = config_sequence_table_get(table, loc_config->seq_id);
+        scene_loc->sequence = sequence;
+
+        scene_loc->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
+        memset(scene_loc->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+
+        int frame_id = sequence->frame_ids[0];
+        int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+        // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
+        //     first 2 bytes are the sequence ID,
+        //     the second 2 bytes are the frame archive ID
+
+        struct CacheArchive* frame_archive =
+            cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
+        struct FileList* frame_filelist = filelist_new_from_cache_archive(frame_archive);
+
+        for( int i = 0; i < sequence->frame_count; i++ )
+        {
+            assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
+            // assert(i < frame_filelist->file_count);
+
+            int frame_id = sequence->frame_ids[i];
+            int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+            int frame_file_id = frame_id & 0xFFFF;
+
+            assert(frame_file_id > 0);
+            assert(frame_file_id - 1 < frame_filelist->file_count);
+
+            char* frame_data = frame_filelist->files[frame_file_id - 1];
+            int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
+            int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
+
+            struct CacheFramemap* framemap = framemap_new_from_cache(cache, framemap_id);
+
+            struct CacheFrame* frame =
+                frame_new_decode2(frame_id, framemap, frame_data, frame_data_size);
+
+            scene_loc->framemap = framemap;
+            scene_loc->frames[i] = frame;
+            scene_loc->frame_count++;
+        }
+
+        cache_archive_free(frame_archive);
+        filelist_free(frame_filelist);
+        // config_sequence_table_free(table);
+    }
+
     free(models);
     free(model_ids);
 }

@@ -644,6 +644,45 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             if( !iter.value.model_nullable_->model )
                 continue;
 
+            // Advance animations
+            struct CacheConfigSequence* sequence = iter.value.model_nullable_->sequence;
+            if( sequence )
+            {
+                iter.value.model_nullable_->anim_frame_count += 1;
+                if( iter.value.model_nullable_->anim_frame_count >=
+                    sequence->frame_lengths[iter.value.model_nullable_->anim_frame_step] )
+                {
+                    iter.value.model_nullable_->anim_frame_count = 0;
+                    iter.value.model_nullable_->anim_frame_step += 1;
+                    if( iter.value.model_nullable_->anim_frame_step >= sequence->frame_count )
+                    {
+                        iter.value.model_nullable_->anim_frame_step = 0;
+                    }
+                }
+                memcpy(
+                    iter.value.model_nullable_->model->vertices_x,
+                    iter.value.model_nullable_->original_vertices_x,
+                    sizeof(int) * iter.value.model_nullable_->model->vertex_count);
+                memcpy(
+                    iter.value.model_nullable_->model->vertices_y,
+                    iter.value.model_nullable_->original_vertices_y,
+                    sizeof(int) * iter.value.model_nullable_->model->vertex_count);
+                memcpy(
+                    iter.value.model_nullable_->model->vertices_z,
+                    iter.value.model_nullable_->original_vertices_z,
+                    sizeof(int) * iter.value.model_nullable_->model->vertex_count);
+
+                anim_frame_apply(
+                    iter.value.model_nullable_->frames[iter.value.model_nullable_->anim_frame_step],
+                    iter.value.model_nullable_->framemap,
+                    iter.value.model_nullable_->model->vertices_x,
+                    iter.value.model_nullable_->model->vertices_y,
+                    iter.value.model_nullable_->model->vertices_z,
+                    iter.value.model_nullable_->bones->bones_count,
+                    iter.value.model_nullable_->bones->bones,
+                    iter.value.model_nullable_->bones->bones_sizes);
+            }
+
             iter_render_model_init(
                 &iter_model,
                 iter.value.model_nullable_,

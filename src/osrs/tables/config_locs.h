@@ -96,6 +96,7 @@ struct CacheConfigLocation
 
     int model_clipped;
 
+    // Animation
     int seq_id;
 
     int ambient;

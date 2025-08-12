@@ -69,6 +69,10 @@
         "__split_buffer": "c",
         "initializer_list": "c",
         "unordered_map": "c",
-        "ios": "c"
+        "ios": "c",
+        "scene_tile.h": "c",
+        "lighting.h": "c",
+        "scene_cache.h": "c",
+        "filelist.h": "c"
     }
 }

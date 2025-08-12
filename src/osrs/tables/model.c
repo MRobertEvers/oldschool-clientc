@@ -2507,6 +2507,7 @@ model_new_merge(struct CacheModel** models, int model_count)
     bool has_face_render_colors = false;
     bool has_face_render_alphas = false;
     bool has_face_render_textures = false;
+    bool has_vertex_bones = false;
 
     for( int i = 0; i < model_count; i++ )
     {
@@ -2531,6 +2532,9 @@ model_new_merge(struct CacheModel** models, int model_count)
 
         if( models[i]->face_textures )
             has_face_render_textures = true;
+
+        if( models[i]->vertex_bone_map )
+            has_vertex_bones = true;
     }
 
     int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
@@ -2584,6 +2588,13 @@ model_new_merge(struct CacheModel** models, int model_count)
     if( has_face_render_textures )
         textured_n_coordinate = (int*)malloc(textured_face_count * sizeof(int));
 
+    int* vertex_bone_map = NULL;
+    if( has_vertex_bones )
+    {
+        vertex_bone_map = (int*)malloc(vertex_count * sizeof(int));
+        memset(vertex_bone_map, 0, vertex_count * sizeof(int));
+    }
+
     int* face_textures = NULL;
     int* face_texture_coords = NULL;
     if( has_face_render_textures )
@@ -2621,6 +2632,8 @@ model_new_merge(struct CacheModel** models, int model_count)
     model->face_textures = face_textures;
     model->face_texture_coords = face_texture_coords;
 
+    model->vertex_bone_map = vertex_bone_map;
+
     for( int i = 0; i < model_count; i++ )
     {
         for( int j = 0; j < models[i]->face_count; j++ )
@@ -2644,6 +2657,9 @@ model_new_merge(struct CacheModel** models, int model_count)
 
             if( face_alphas && models[i]->face_alphas )
                 model->face_alphas[model->face_count] = models[i]->face_alphas[j];
+
+            if( vertex_bone_map && models[i]->vertex_bone_map )
+                model->vertex_bone_map[model->face_count] = models[i]->vertex_bone_map[j];
 
             int index_a = copy_vertex(model, models[i], models[i]->face_indices_a[j]);
             int index_b = copy_vertex(model, models[i], models[i]->face_indices_b[j]);

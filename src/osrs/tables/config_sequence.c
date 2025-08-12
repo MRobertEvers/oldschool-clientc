@@ -1,5 +1,6 @@
 #include "config_sequence.h"
 
+#include "configs.h"
 #include "osrs/cache.h"
 
 #include <stdio.h>
@@ -762,6 +763,14 @@ config_sequence_free(struct CacheConfigSequence* def)
 }
 
 void
+config_sequence_decode_inplace(
+    struct CacheConfigSequence* sequence, int revision, char* data, int buffer_size)
+{
+    struct Buffer buffer = { .data = data, .data_size = buffer_size, .position = 0 };
+    decode_sequence(sequence, revision, &buffer);
+}
+
+void
 decode_sequence(struct CacheConfigSequence* def, int revision, struct Buffer* buffer)
 {
     if( revision <= REV_220_SEQ_ARCHIVE_REV )
@@ -876,4 +885,72 @@ free_sequence(struct CacheConfigSequence* def)
     {
         free(def->frame_sounds.sounds);
     }
+}
+
+struct CacheConfigSequenceTable*
+config_sequence_table_new(struct Cache* cache)
+{
+    struct CacheConfigSequenceTable* table = malloc(sizeof(struct CacheConfigSequenceTable));
+    if( !table )
+    {
+        printf("config_sequence_table_new: Failed to allocate table\n");
+        return NULL;
+    }
+    memset(table, 0, sizeof(struct CacheConfigSequenceTable));
+
+    table->archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_SEQUENCE);
+    if( !table->archive )
+    {
+        printf("config_sequence_table_new: Failed to load archive\n");
+        goto error;
+    }
+
+    table->file_list = filelist_new_from_cache_archive(table->archive);
+    if( !table->file_list )
+    {
+        printf("config_sequence_table_new: Failed to load file list\n");
+        goto error;
+    }
+
+    return table;
+error:
+    free(table);
+    return NULL;
+}
+
+void
+config_sequence_table_free(struct CacheConfigSequenceTable* table)
+{
+    filelist_free(table->file_list);
+    cache_archive_free(table->archive);
+    free(table);
+}
+
+struct CacheConfigSequence*
+config_sequence_table_get(struct CacheConfigSequenceTable* table, int id)
+{
+    if( id < 0 || id > table->file_list->file_count )
+    {
+        printf("config_sequence_table_get: Invalid id %d\n", id);
+        return NULL;
+    }
+
+    if( table->value )
+    {
+        config_sequence_free(table->value);
+        table->value = NULL;
+    }
+
+    table->value = malloc(sizeof(struct CacheConfigSequence));
+    memset(table->value, 0, sizeof(struct CacheConfigSequence));
+
+    config_sequence_decode_inplace(
+        table->value,
+        table->archive->revision,
+        table->file_list->files[id],
+        table->file_list->file_sizes[id]);
+
+    table->value->id = id;
+
+    return table->value;
 }

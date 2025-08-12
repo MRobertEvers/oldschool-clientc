@@ -3,6 +3,8 @@
 
 #include "cache.h"
 #include "lighting.h"
+#include "osrs/anim.h"
+#include "osrs/tables/config_sequence.h"
 #include "scene_cache.h"
 #include "scene_tile.h"
 
@@ -83,6 +85,10 @@ struct SceneModel
     int model_id;
     struct CacheModel* model;
 
+    int* original_vertices_x;
+    int* original_vertices_y;
+    int* original_vertices_z;
+
     bool sharelight;
     // "original" normals.
     struct ModelNormals* normals;
@@ -90,6 +96,16 @@ struct SceneModel
     struct ModelNormals* aliased_lighting_normals;
 
     struct ModelLighting* lighting;
+
+    struct CacheModelBones* bones;
+    struct CacheFrame** frames;
+    int frame_count;
+
+    struct CacheFramemap* framemap;
+    struct CacheConfigSequence* sequence;
+
+    int anim_frame_count;
+    int anim_frame_step;
 
     int light_ambient;
     int light_contrast;

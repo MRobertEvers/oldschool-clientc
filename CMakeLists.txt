@@ -205,69 +205,6 @@ set_target_properties(scene_tile_test PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-add_executable(main_rs
-    src/main_rs.c
-    src/osrs/cache.c
-    src/osrs/tables/model.c
-    src/buffer.c
-    src/osrs/archive_decompress.c
-    src/osrs/reference_table.c
-    src/osrs/tables/config_npctype.c
-    src/osrs/tables/config_sequence.c
-    src/osrs/tables/framemap.c
-    src/osrs/tables/frame.c
-    src/osrs/filelist.c
-    src/osrs/xtea.c
-    src/osrs/archive.c
-    src/osrs/xtea_config.c
-    src/osrs/tables/noise.c
-)
-
-add_executable(rs
-    src/main.c
-    src/projection.c
-    src/flat.c
-    src/gouraud.c
-    src/gouraud_deob.c
-    src/texture.c
-    src/lighting.c
-    src/buffer.c
-    src/osrs/tables/framemap.c
-    src/osrs/tables/frame.c
-    src/osrs/anim.c
-    src/osrs/tables/config_npctype.c
-    src/osrs/tables/config_sequence.c
-    src/osrs/tables/model.c
-
-    src/osrs_cache.c
-    src/osrs/cache.c
-    src/osrs/tables/model.c
-    src/osrs/archive_decompress.c
-    src/osrs/reference_table.c
-    src/osrs/xtea.c
-    src/osrs/archive.c
-    src/osrs/xtea_config.c
-    src/osrs/tables/noise.c
-)
-
-add_executable(osrs_cache_test
-    test/osrs_cache_test.c
-    src/osrs_cache.c
-    src/buffer.c
-    src/osrs/xtea.c
-    src/osrs/tables/config_sequence.c
-    src/osrs/tables/frame.c
-    src/osrs/tables/framemap.c
-    src/osrs/tables/config_npctype.c
-    src/osrs/tables/model.c
-    src/osrs/cache.c
-    src/osrs/tables/model.c
-    src/osrs/archive_decompress.c
-    src/osrs/reference_table.c
-    src/osrs/archive.c
-    src/osrs/xtea_config.c
-)
-
 if(UNIX AND NOT APPLE)
     set(EXTRA_LIBS m)
 else()
@@ -276,26 +213,17 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(main_client ${EXTRA_LIBS})
-    target_link_libraries(main_rs ${EXTRA_LIBS})
-    target_link_libraries(rs ${EXTRA_LIBS})
-    target_link_libraries(osrs_cache_test ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test_browser ${EXTRA_LIBS})
     target_link_libraries(model_viewer ${EXTRA_LIBS})
 
     # Add preload flags to all targets
     set_target_properties(main_client PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(main_rs PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(rs PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(osrs_cache_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(scene_tile_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
 else()
     target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-    target_link_libraries(main_rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-    target_link_libraries(rs ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-    target_link_libraries(osrs_cache_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
 endif()

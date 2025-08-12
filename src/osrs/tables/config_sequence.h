@@ -2,6 +2,7 @@
 #define SEQUENCE_H
 
 #include "buffer.h"
+#include "osrs/filelist.h"
 
 #include <stdbool.h>
 
@@ -50,6 +51,9 @@ struct CacheConfigSequence
 struct CacheConfigSequence* config_sequence_new_decode(int revision, char* buffer, int buffer_size);
 void config_sequence_free(struct CacheConfigSequence* sequence);
 
+void config_sequence_decode_inplace(
+    struct CacheConfigSequence* sequence, int revision, char* buffer, int buffer_size);
+
 /**
  * @deprecated
  */
@@ -64,5 +68,19 @@ void print_sequence(struct CacheConfigSequence* def);
  * @deprecated
  */
 void free_sequence(struct CacheConfigSequence* def);
+
+struct CacheConfigSequenceTable
+{
+    struct CacheConfigSequence* value;
+
+    struct FileList* file_list;
+    struct CacheArchive* archive;
+};
+
+struct CacheConfigSequenceTable* config_sequence_table_new(struct Cache* cache);
+void config_sequence_table_free(struct CacheConfigSequenceTable* table);
+
+struct CacheConfigSequence*
+config_sequence_table_get(struct CacheConfigSequenceTable* table, int id);
 
 #endif // SEQUENCE_H
