@@ -55,7 +55,7 @@ frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer)
     struct CacheFrame* def = malloc(sizeof(struct CacheFrame));
     memset(def, 0, sizeof(struct CacheFrame));
 
-    def->id = id;
+    def->_id = id;
     def->framemap_id = framemap->id;
     def->showing = false;
 

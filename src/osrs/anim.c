@@ -26,10 +26,24 @@ animate(
     int* bones_sizes,
     int* vertices_x,
     int* vertices_y,
-    int* vertices_z)
+    int* vertices_z,
+    int* face_alphas)
 {
+    // src/rs/model/seq/SeqTransformType.ts
+    // export enum SeqTransformType {
+    //     ORIGIN = 0,
+    //     TRANSLATE = 1,
+    //     ROTATE = 2,
+    //     SCALE = 3,
+    //     ALPHA = 5,
+    //     TYPE_6 = 6,
+    //     LIGHT = 7,
+    //     TYPE_10 = 10,
+    // }
+
     switch( type )
     {
+        // ORIGIN
     case 0:
     {
         int avg_x = 0;
@@ -70,6 +84,7 @@ animate(
         }
         break;
     }
+    // TRANSLATE
     case 1:
     {
         for( int i = 0; i < bone_group_length; i++ )
@@ -91,6 +106,7 @@ animate(
         }
         break;
     }
+    // ROTATE
     case 2:
     {
         for( int i = 0; i < bone_group_length; i++ )
@@ -182,9 +198,35 @@ animate(
         }
         break;
     }
+    // TODO: This actually uses face_labels rather than vertex_labels.
     case 5:
-        // TODO: Alpha
-        break;
+    {
+        // if( !face_alphas )
+        //     return;
+
+        // for( int i = 0; i < bone_group_length; i++ )
+        // {
+        //     int bone_index = bone_group[i];
+        //     if( bone_index >= bones_count )
+        //         continue;
+
+        //     int* bone = bones[bone_index];
+        //     int bone_length = bones_sizes[bone_index];
+
+        //     for( int j = 0; j < bone_length; ++j )
+        //     {
+        //         int face_index = bone[j];
+
+        //         face_alphas[face_index] += arg_x * 8;
+        //         if( face_alphas[face_index] < 0 )
+        //             face_alphas[face_index] = 0;
+
+        //         if( face_alphas[face_index] > 255 )
+        //             face_alphas[face_index] = 255;
+        //     }
+        // }
+    }
+    break;
     }
 }
 
@@ -195,6 +237,7 @@ anim_frame_apply(
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
+    int* face_alphas,
     // These are the bones of the model. They are defined with the model.
     int bones_count,
     int** bones,
@@ -227,6 +270,7 @@ anim_frame_apply(
             bones_sizes,
             vertices_x,
             vertices_y,
-            vertices_z);
+            vertices_z,
+            face_alphas);
     }
 }

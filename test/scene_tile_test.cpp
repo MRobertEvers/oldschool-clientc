@@ -671,6 +671,11 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                     iter.value.model_nullable_->model->vertices_z,
                     iter.value.model_nullable_->original_vertices_z,
                     sizeof(int) * iter.value.model_nullable_->model->vertex_count);
+                if( iter.value.model_nullable_->model->face_alphas )
+                    memcpy(
+                        iter.value.model_nullable_->model->face_alphas,
+                        iter.value.model_nullable_->original_face_alphas,
+                        sizeof(int) * iter.value.model_nullable_->model->face_count);
 
                 anim_frame_apply(
                     iter.value.model_nullable_->frames[iter.value.model_nullable_->anim_frame_step],
@@ -678,6 +683,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                     iter.value.model_nullable_->model->vertices_x,
                     iter.value.model_nullable_->model->vertices_y,
                     iter.value.model_nullable_->model->vertices_z,
+                    iter.value.model_nullable_->model->face_alphas,
                     iter.value.model_nullable_->bones->bones_count,
                     iter.value.model_nullable_->bones->bones,
                     iter.value.model_nullable_->bones->bones_sizes);

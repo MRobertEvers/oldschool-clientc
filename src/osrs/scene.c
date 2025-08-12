@@ -335,6 +335,15 @@ loc_load_model(
         memcpy(
             scene_loc->original_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
 
+        if( model->face_alphas )
+        {
+            scene_loc->original_face_alphas = malloc(sizeof(int) * model->face_count);
+            memcpy(
+                scene_loc->original_face_alphas,
+                model->face_alphas,
+                sizeof(int) * model->face_count);
+        }
+
         struct CacheConfigSequenceTable* table = config_sequence_table_new(cache);
         assert(table);
         struct CacheConfigSequence* sequence = config_sequence_table_get(table, loc_config->seq_id);

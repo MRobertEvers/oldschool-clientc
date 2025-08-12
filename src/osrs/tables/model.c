@@ -64,40 +64,14 @@ read_int(const unsigned char* buffer, int* offset)
     return value;
 }
 
+// computeAnimationTables
+// model_create_label_references
 struct CacheModelBones*
 modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
 {
     struct CacheModelBones* bones = (struct CacheModelBones*)malloc(sizeof(struct CacheModelBones));
     if( !bones )
         return NULL;
-
-    // int[] groupCounts = new int[256];
-    // int numGroups = 0;
-    // int var3, var4;
-
-    // for( var3 = 0; var3 < this.vertexCount; ++var3 )
-    // {
-    //     var4 = this.packedVertexGroups[var3];
-    //     ++groupCounts[var4];
-    //     if( var4 > numGroups )
-    //     {
-    //         numGroups = var4;
-    //     }
-    // }
-
-    // this.vertexGroups = new int[numGroups + 1][];
-
-    // for( var3 = 0; var3 <= numGroups; ++var3 )
-    // {
-    //     this.vertexGroups[var3] = new int[groupCounts[var3]];
-    //     groupCounts[var3] = 0;
-    // }
-
-    // for( var3 = 0; var3 < this.vertexCount; this.vertexGroups[var4][groupCounts[var4]++] = var3++
-    // )
-    // {
-    //     var4 = this.packedVertexGroups[var3];
-    // }
 
     // Initialize group counts array
     int bone_counts[256] = { 0 };
@@ -107,9 +81,12 @@ modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
     for( int i = 0; i < vertex_bone_map_count; i++ )
     {
         int bone = vertex_bone_map[i];
-        bone_counts[bone]++;
-        if( bone > num_bones )
-            num_bones = bone;
+        if( bone >= 0 )
+        {
+            bone_counts[bone]++;
+            if( bone > num_bones )
+                num_bones = bone;
+        }
     }
 
     // Allocate arrays
@@ -136,7 +113,8 @@ modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
     for( int i = 0; i < vertex_bone_map_count; i++ )
     {
         int bone = vertex_bone_map[i];
-        bones->bones[bone][bones->bones_sizes[bone]++] = i;
+        if( bone >= 0 )
+            bones->bones[bone][bones->bones_sizes[bone]++] = i;
     }
 
     return bones;
@@ -2658,8 +2636,13 @@ model_new_merge(struct CacheModel** models, int model_count)
             if( face_alphas && models[i]->face_alphas )
                 model->face_alphas[model->face_count] = models[i]->face_alphas[j];
 
-            if( vertex_bone_map && models[i]->vertex_bone_map )
-                model->vertex_bone_map[model->face_count] = models[i]->vertex_bone_map[j];
+            if( vertex_bone_map )
+            {
+                if( models[i]->vertex_bone_map )
+                    model->vertex_bone_map[model->face_count] = models[i]->vertex_bone_map[j];
+                else
+                    model->vertex_bone_map[model->face_count] = -1;
+            }
 
             int index_a = copy_vertex(model, models[i], models[i]->face_indices_a[j]);
             int index_b = copy_vertex(model, models[i], models[i]->face_indices_b[j]);

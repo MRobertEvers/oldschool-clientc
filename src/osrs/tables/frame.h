@@ -20,7 +20,7 @@ current OSRS's cache dump.
  */
 struct CacheFrame
 {
-    int id;
+    int _id;
     // This is the rigging for the frame.
     int framemap_id;
     int translator_count;

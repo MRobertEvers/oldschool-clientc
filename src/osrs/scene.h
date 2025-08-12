@@ -88,6 +88,7 @@ struct SceneModel
     int* original_vertices_x;
     int* original_vertices_y;
     int* original_vertices_z;
+    int* original_face_alphas;
 
     bool sharelight;
     // "original" normals.

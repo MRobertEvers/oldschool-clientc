@@ -1544,18 +1544,6 @@ render_model_frame(
     int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
 
     // TODO: Move this before lighting.
-    if( frame_nullable && framemap_nullable && bones_nullable )
-    {
-        anim_frame_apply(
-            frame_nullable,
-            framemap_nullable,
-            vertices_x,
-            vertices_y,
-            vertices_z,
-            bones_nullable->bones_count,
-            bones_nullable->bones,
-            bones_nullable->bones_sizes);
-    }
 
     // project_vertices(
     //     screen_vertices_x,
