@@ -207,7 +207,6 @@ animate(
     // TODO: This actually uses face_labels rather than vertex_labels.
     case 5:
     {
-        return;
         if( !face_alphas || !face_bones )
             return;
 

@@ -2335,6 +2335,11 @@ model_new_copy(struct CacheModel* model)
         copy->vertex_bone_map = (int*)malloc(model->vertex_count * sizeof(int));
         memcpy(copy->vertex_bone_map, model->vertex_bone_map, model->vertex_count * sizeof(int));
     }
+    if( model->face_bone_map )
+    {
+        copy->face_bone_map = (int*)malloc(model->face_count * sizeof(int));
+        memcpy(copy->face_bone_map, model->face_bone_map, model->face_count * sizeof(int));
+    }
 
     copy->face_count = model->face_count;
     if( model->face_indices_a )
@@ -2520,8 +2525,8 @@ model_new_merge(struct CacheModel** models, int model_count)
         if( models[i]->vertex_bone_map )
             has_vertex_bones = true;
 
-        // if( models[i]->face_bone_map )
-        //     has_face_bones = true;
+        if( models[i]->face_bone_map )
+            has_face_bones = true;
     }
 
     int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
@@ -2653,13 +2658,13 @@ model_new_merge(struct CacheModel** models, int model_count)
             if( face_alphas && models[i]->face_alphas )
                 model->face_alphas[model->face_count] = models[i]->face_alphas[j];
 
-            // if( face_bone_map )
-            // {
-            //     if( models[i]->face_bone_map )
-            //         model->face_bone_map[model->face_count] = models[i]->face_bone_map[j];
-            //     else
-            //         model->face_bone_map[model->face_count] = -1;
-            // }
+            if( face_bone_map )
+            {
+                if( models[i]->face_bone_map )
+                    model->face_bone_map[model->face_count] = models[i]->face_bone_map[j];
+                else
+                    model->face_bone_map[model->face_count] = -1;
+            }
 
             if( vertex_bone_map )
             {
