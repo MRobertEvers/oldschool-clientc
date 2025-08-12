@@ -122,6 +122,8 @@ struct SceneModel
     int offset_y;
     int offset_height;
 
+    int yaw;
+
     int _size_x;
     int _size_y;
 

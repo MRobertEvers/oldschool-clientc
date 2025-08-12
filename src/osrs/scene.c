@@ -307,6 +307,21 @@ loc_load_model(
         model = model_new_copy(models[0]);
     }
 
+    // Sequences don't account for rotations, so models must be rotated AFTER the animation is
+    // applied.
+    if( loc_config->seq_id != -1 )
+    {
+        // TODO: account for transforms.
+        // Also, I believe this is the only overridden transform.
+        //         const isEntity =
+        // seqId !== -1 ||
+        // locType.transforms !== undefined ||
+        // locLoadType === LocLoadType.NO_MODELS;
+        scene_loc->yaw = 512 * orientation;
+        scene_loc->yaw %= 2048;
+        orientation = 0;
+    }
+
     loc_apply_transforms(
         loc_config, model, orientation, sw_height, se_height, ne_height, nw_height);
 
@@ -327,6 +342,10 @@ loc_load_model(
 
     if( loc_config->seq_id != -1 )
     {
+        if( model->_id == 3453 )
+        {
+            int iii = 0;
+        }
         scene_loc->original_vertices_x = malloc(sizeof(int) * model->vertex_count);
         scene_loc->original_vertices_y = malloc(sizeof(int) * model->vertex_count);
         scene_loc->original_vertices_z = malloc(sizeof(int) * model->vertex_count);
@@ -1451,6 +1470,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             }
 
             init_scene_model_wxh(model, tile_x, tile_y, height_center, size_x, size_y);
+            if( map->shape_select == LOC_SHAPE_SCENERY_DIAGIONAL )
+                model->yaw += 256;
 
             // Add the loc
 

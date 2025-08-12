@@ -2122,6 +2122,8 @@ render_scene_model(
     //     yaw += 1024;
     // }
 
+    yaw += model->yaw;
+
     // int rotation = model->orientation;
     // while( rotation-- )
     // {
@@ -3782,7 +3784,11 @@ iter_render_model_init(
     // {
     //     yaw += 1536;
     // }
-    yaw %= 2048;
+    if( scene_model->model->_id == 3453 )
+    {
+        yaw += scene_model->yaw;
+        yaw %= 2048;
+    }
 
     x += scene_model->offset_x;
     y += scene_model->offset_y;

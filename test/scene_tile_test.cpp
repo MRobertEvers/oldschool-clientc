@@ -829,7 +829,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             // Had to use 100 here because of the scale, near plane z was resulting in
             // extremely close to the camera.
             100,
-            0,
+            last_model_hit_model->yaw,
             game->camera_x,
             game->camera_y,
             game->camera_z,
