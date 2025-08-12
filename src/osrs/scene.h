@@ -98,6 +98,7 @@ struct SceneModel
 
     struct ModelLighting* lighting;
 
+    // TODO: Need vertex bones and face bones.
     struct CacheModelBones* bones;
     struct CacheFrame** frames;
     int frame_count;

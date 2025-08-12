@@ -98,10 +98,10 @@ animate(
 
             for( int j = 0; j < bone_length; ++j )
             {
-                int face_index = bone[j];
-                vertices_x[face_index] += arg_x;
-                vertices_y[face_index] += arg_y;
-                vertices_z[face_index] += arg_z;
+                int vertex_index = bone[j];
+                vertices_x[vertex_index] += arg_x;
+                vertices_y[vertex_index] += arg_y;
+                vertices_z[vertex_index] += arg_z;
             }
         }
         break;
@@ -120,10 +120,10 @@ animate(
 
             for( int j = 0; j < bone_length; ++j )
             {
-                int face_index = bone[j];
-                vertices_x[face_index] -= transformation->origin_x;
-                vertices_y[face_index] -= transformation->origin_y;
-                vertices_z[face_index] -= transformation->origin_z;
+                int vertex_index = bone[j];
+                vertices_x[vertex_index] -= transformation->origin_x;
+                vertices_y[vertex_index] -= transformation->origin_y;
+                vertices_z[vertex_index] -= transformation->origin_z;
                 int pitch = (arg_x & 255) * 8;
                 int yaw = (arg_y & 255) * 8;
                 int roll = (arg_z & 255) * 8;
@@ -133,24 +133,25 @@ animate(
                     int sin_roll = g_sin_table[roll];
                     int cos_roll = g_cos_table[roll];
                     var17 =
-                        sin_roll * vertices_y[face_index] + cos_roll * vertices_x[face_index] >> 16;
-                    vertices_y[face_index] =
-                        (cos_roll * vertices_y[face_index] - sin_roll * vertices_x[face_index]) >>
+                        sin_roll * vertices_y[vertex_index] + cos_roll * vertices_x[vertex_index] >>
                         16;
-                    vertices_x[face_index] = var17;
+                    vertices_y[vertex_index] = (cos_roll * vertices_y[vertex_index] -
+                                                sin_roll * vertices_x[vertex_index]) >>
+                                               16;
+                    vertices_x[vertex_index] = var17;
                 }
 
                 if( pitch != 0 )
                 {
                     int sin_pitch = g_sin_table[pitch];
                     int cos_pitch = g_cos_table[pitch];
-                    var17 =
-                        (cos_pitch * vertices_y[face_index] - sin_pitch * vertices_z[face_index]) >>
-                        16;
-                    vertices_z[face_index] =
-                        (sin_pitch * vertices_y[face_index] + cos_pitch * vertices_z[face_index]) >>
-                        16;
-                    vertices_y[face_index] = var17;
+                    var17 = (cos_pitch * vertices_y[vertex_index] -
+                             sin_pitch * vertices_z[vertex_index]) >>
+                            16;
+                    vertices_z[vertex_index] = (sin_pitch * vertices_y[vertex_index] +
+                                                cos_pitch * vertices_z[vertex_index]) >>
+                                               16;
+                    vertices_y[vertex_index] = var17;
                 }
 
                 if( yaw != 0 )
@@ -158,15 +159,17 @@ animate(
                     int sin_yaw = g_sin_table[yaw];
                     int cos_yaw = g_cos_table[yaw];
                     var17 =
-                        (sin_yaw * vertices_z[face_index] + cos_yaw * vertices_x[face_index]) >> 16;
-                    vertices_z[face_index] =
-                        (cos_yaw * vertices_z[face_index] - sin_yaw * vertices_x[face_index]) >> 16;
-                    vertices_x[face_index] = var17;
+                        (sin_yaw * vertices_z[vertex_index] + cos_yaw * vertices_x[vertex_index]) >>
+                        16;
+                    vertices_z[vertex_index] =
+                        (cos_yaw * vertices_z[vertex_index] - sin_yaw * vertices_x[vertex_index]) >>
+                        16;
+                    vertices_x[vertex_index] = var17;
                 }
 
-                vertices_x[face_index] += transformation->origin_x;
-                vertices_y[face_index] += transformation->origin_y;
-                vertices_z[face_index] += transformation->origin_z;
+                vertices_x[vertex_index] += transformation->origin_x;
+                vertices_y[vertex_index] += transformation->origin_y;
+                vertices_z[vertex_index] += transformation->origin_z;
             }
         }
         break;
@@ -184,16 +187,16 @@ animate(
 
             for( int j = 0; j < bone_length; ++j )
             {
-                int face_index = bone[j];
-                vertices_x[face_index] -= transformation->origin_x;
-                vertices_y[face_index] -= transformation->origin_y;
-                vertices_z[face_index] -= transformation->origin_z;
-                vertices_x[face_index] = arg_x * vertices_x[face_index] / 128;
-                vertices_y[face_index] = arg_y * vertices_y[face_index] / 128;
-                vertices_z[face_index] = arg_z * vertices_z[face_index] / 128;
-                vertices_x[face_index] += transformation->origin_x;
-                vertices_y[face_index] += transformation->origin_y;
-                vertices_z[face_index] += transformation->origin_z;
+                int vertex_index = bone[j];
+                vertices_x[vertex_index] -= transformation->origin_x;
+                vertices_y[vertex_index] -= transformation->origin_y;
+                vertices_z[vertex_index] -= transformation->origin_z;
+                vertices_x[vertex_index] = arg_x * vertices_x[vertex_index] / 128;
+                vertices_y[vertex_index] = arg_y * vertices_y[vertex_index] / 128;
+                vertices_z[vertex_index] = arg_z * vertices_z[vertex_index] / 128;
+                vertices_x[vertex_index] += transformation->origin_x;
+                vertices_y[vertex_index] += transformation->origin_y;
+                vertices_z[vertex_index] += transformation->origin_z;
             }
         }
         break;
