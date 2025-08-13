@@ -1,8 +1,8 @@
 #ifndef CONFIG_OBJECT_H
 #define CONFIG_OBJECT_H
 
+#include "../cache.h"
 #include "../rsbuf.h"
-#include "cache.h"
 #include "osrs/filelist.h"
 #include "osrs/tables/configs.h"
 

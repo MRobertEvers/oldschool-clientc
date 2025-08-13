@@ -1,7 +1,7 @@
 #ifndef CONFIG_IDK_H
 #define CONFIG_IDK_H
 
-#include "cache.h"
+#include "../cache.h"
 #include "osrs/filelist.h"
 #include "osrs/tables/configs.h"
 

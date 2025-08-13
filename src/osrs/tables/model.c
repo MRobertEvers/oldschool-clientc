@@ -2445,12 +2445,12 @@ model_new_copy(struct CacheModel* model)
 }
 
 static int
-copy_vertex(struct CacheModel* model, struct CacheModel* other, int face)
+copy_vertex(struct CacheModel* model, struct CacheModel* other, int vertex_index)
 {
     int new_vertex_count = -1;
-    int vert_x = other->vertices_x[face];
-    int vert_y = other->vertices_y[face];
-    int vert_z = other->vertices_z[face];
+    int vert_x = other->vertices_x[vertex_index];
+    int vert_y = other->vertices_y[vertex_index];
+    int vert_z = other->vertices_z[vertex_index];
 
     for( int i = 0; i < model->vertex_count; i++ )
     {
@@ -2470,6 +2470,10 @@ copy_vertex(struct CacheModel* model, struct CacheModel* other, int face)
         model->vertices_z[new_vertex_count] = vert_z;
 
         // TODO: Vertex skins
+        if( model->vertex_bone_map )
+        {
+            model->vertex_bone_map[new_vertex_count] = other->vertex_bone_map[vertex_index];
+        }
 
         new_vertex_count = model->vertex_count++;
     }
@@ -2660,18 +2664,11 @@ model_new_merge(struct CacheModel** models, int model_count)
 
             if( face_bone_map )
             {
+                assert(models[i]->face_count > j);
                 if( models[i]->face_bone_map )
                     model->face_bone_map[model->face_count] = models[i]->face_bone_map[j];
                 else
                     model->face_bone_map[model->face_count] = -1;
-            }
-
-            if( vertex_bone_map )
-            {
-                if( models[i]->vertex_bone_map )
-                    model->vertex_bone_map[model->face_count] = models[i]->vertex_bone_map[j];
-                else
-                    model->vertex_bone_map[model->face_count] = -1;
             }
 
             int index_a = copy_vertex(model, models[i], models[i]->face_indices_a[j]);
