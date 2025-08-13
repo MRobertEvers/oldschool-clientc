@@ -242,6 +242,10 @@ struct Game
     int mouse_x;
     int mouse_y;
 
+    int mouse_click_x;
+    int mouse_click_y;
+    int mouse_click_cycle;
+
     uint64_t start_time;
     uint64_t end_time;
 
@@ -265,6 +269,9 @@ struct Game
 
     struct SceneLocs* scene_locs;
     struct SceneTextures* loc_textures;
+
+    int** image_cross_pixels;
+    // THese are of known size.
 
     struct Scene* scene;
 
@@ -861,6 +868,53 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         apply_outline_effect(pixel_buffer, g_blit_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
     }
 
+    if( game->mouse_click_x != -1 && game->mouse_click_y != -1 )
+    {
+        if( game->mouse_click_cycle >= 400 )
+        {
+            game->mouse_click_cycle = 0;
+            game->mouse_click_x = -1;
+            game->mouse_click_y = -1;
+        }
+        else
+        {
+            int offset_x = -8;
+            int offset_y = -8;
+
+            // Draw cross pixels at mouse click location
+            {
+                int cross_width = 16;
+                int* cross_pixels = game->image_cross_pixels[game->mouse_click_cycle / 100];
+                // if( game->mouse_click_cycle / 100 == 0 )
+                // {
+                //     offset_x = -10;
+                //     offset_y = -7;
+                // }
+                if( cross_pixels )
+                {
+                    // Draw 8x8 cross sprite
+                    for( int y = 0; y < cross_width; y++ )
+                    {
+                        for( int x = 0; x < cross_width; x++ )
+                        {
+                            int pixel = cross_pixels[y * cross_width + x];
+                            if( pixel != 0 )
+                            {
+                                int screen_x = game->mouse_click_x + x + offset_x;
+                                int screen_y = game->mouse_click_y + y + offset_y;
+                                if( screen_x >= 0 && screen_x < SCREEN_WIDTH && screen_y >= 0 &&
+                                    screen_y < SCREEN_HEIGHT )
+                                {
+                                    pixel_buffer[screen_y * SCREEN_WIDTH + screen_x] = pixel;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Uint64 end_ticks = SDL_GetPerformanceCounter();
     game->start_time = start_ticks;
     game->end_time = end_ticks;
@@ -1162,67 +1216,80 @@ main()
     // filelist_free(filelist);
     // cache_archive_free(archive);
 
-    // // /**
-    // //  * Sprites
-    // //  */
+    // /**
+    //  * Sprites
+    //  */
 
-    // int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
-    // struct CacheSpritePack* sprite_packs =
-    //     (struct CacheSpritePack*)malloc(sprite_count * sizeof(struct CacheSpritePack));
-    // int* sprite_ids = (int*)malloc(sprite_count * sizeof(int));
+    // Initialize game state
+    struct Game game = { 0 };
+    game.image_cross_pixels = (int**)malloc(8 * sizeof(int*));
 
-    // for( int sprite_index = 0; sprite_index < sprite_count; sprite_index++ )
-    // {
-    //     archive = cache_archive_new_load(cache, CACHE_SPRITES, sprite_index);
-    //     if( !archive )
-    //     {
-    //         printf("Failed to load sprites archive\n");
-    //         return 1;
-    //     }
+    int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
+    struct CacheSpritePack* sprite_packs =
+        (struct CacheSpritePack*)malloc(sprite_count * sizeof(struct CacheSpritePack));
+    int* sprite_ids = (int*)malloc(sprite_count * sizeof(int));
 
-    //     struct ArchiveReference* archives = cache->tables[CACHE_SPRITES]->archives;
+    for( int sprite_index = 0; sprite_index < sprite_count; sprite_index++ )
+    {
+        archive = cache_archive_new_load(cache, CACHE_SPRITES, sprite_index);
+        if( !archive )
+        {
+            printf("Failed to load sprites archive\n");
+            return 1;
+        }
 
-    //     if( sprite_index == 455 )
-    //     {
-    //         int iiii = 0;
-    //     }
+        struct ArchiveReference* archives = cache->tables[CACHE_SPRITES]->archives;
 
-    //     struct CacheSpritePack* sprite_pack = sprite_pack_new_decode(
-    //         (const unsigned char*)archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
-    //     if( !sprite_pack )
-    //     {
-    //         printf("Failed to load sprites pack\n");
-    //         return 1;
-    //     }
+        if( sprite_index == 455 )
+        {
+            int iiii = 0;
+        }
+        if( sprite_index == 299 )
+        {
+            struct CacheSpritePack* sprite_pack = sprite_pack_new_decode(
+                (const unsigned char*)archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
+            if( !sprite_pack )
+            {
+                printf("Failed to load sprites pack\n");
+                return 1;
+            }
 
-    //     sprite_packs[sprite_index] = *sprite_pack;
-    //     // DO NOT FREE
-    //     // sprite_pack_free(sprite_pack);
+            sprite_packs[sprite_index] = *sprite_pack;
 
-    //     if( sprite_index == 455 || sprite_index == 1648 || sprite_index == 454 )
-    //     {
-    //         int* pixels = sprite_get_pixels(&sprite_pack->sprites[0], sprite_pack->palette, 1);
+            for( int i = 0; i < 8; i++ )
+            {
+                int* pixels = sprite_get_pixels(&sprite_pack->sprites[i], sprite_pack->palette, 1);
+                game.image_cross_pixels[i] = pixels;
+            }
+        }
+        // DO NOT FREE
+        // sprite_pack_free(sprite_pack);
+        // for( int ind = 0; ind < sprite_pack->count; ind++ )
+        // {
+        //     int* pixels = sprite_get_pixels(&sprite_pack->sprites[ind], sprite_pack->palette, 1);
 
-    //         if( !pixels )
-    //             return 1;
+        //     if( !pixels )
+        //         return 1;
 
-    //         char filename[100];
-    //         sprintf(filename, "sprite_%d.bmp", sprite_index);
+        //     char filename[100];
+        //     sprintf(filename, "sprite_%d_%d.bmp", sprite_index, ind);
 
-    //         // Replace the existing BMP writing code with:
-    //         write_bmp_file(
-    //             filename, pixels, sprite_pack->sprites[0].width, sprite_pack->sprites[0].height);
-    //         free(pixels);
-    //     }
+        //     // Replace the existing BMP writing code with:
+        //     write_bmp_file(
+        //         filename,
+        //         pixels,
+        //         sprite_pack->sprites[ind].width,
+        //         sprite_pack->sprites[ind].height);
+        //     free(pixels);
+        // }
+        // return 0;
 
-    //     // return 0;
+        int file_id = archives[cache->tables[CACHE_SPRITES]->ids[sprite_index]].index;
 
-    //     int file_id = archives[cache->tables[CACHE_SPRITES]->ids[sprite_index]].index;
+        sprite_ids[sprite_index] = file_id;
 
-    //     sprite_ids[sprite_index] = file_id;
-
-    //     cache_archive_free(archive);
-    // }
+        cache_archive_free(archive);
+    }
 
     /**
      * Decode textures from sprites
@@ -1331,9 +1398,6 @@ main()
         return 1;
     }
 
-    // Initialize game state
-    struct Game game = { 0 };
-
     game.show_debug_tiles = 1;
 
     game.camera_yaw = 0;
@@ -1434,6 +1498,12 @@ main()
             {
                 game.mouse_x = event.motion.x;
                 game.mouse_y = event.motion.y;
+            }
+            else if( event.type == SDL_MOUSEBUTTONDOWN && !imgui_wants_mouse )
+            {
+                game.mouse_click_x = event.button.x;
+                game.mouse_click_y = event.button.y;
+                game.mouse_click_cycle = 0;
             }
             else if( event.type == SDL_KEYDOWN && !imgui_wants_keyboard )
             {
@@ -1712,6 +1782,8 @@ main()
             if( game.max_render_ops > game.op_count )
                 game.max_render_ops = game.op_count;
         }
+
+        game.mouse_click_cycle += 20;
 
         SDL_RenderClear(platform.renderer);
         // Render frame

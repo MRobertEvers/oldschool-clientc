@@ -174,7 +174,7 @@ sprite_pack_new_from_cache(struct Cache* cache, int id)
 }
 
 struct CacheSpritePack*
-sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFlags flags)
+sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFlags decode_flags)
 {
     if( !data || length < 7 )
         return NULL;
@@ -349,7 +349,7 @@ sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFl
     }
 
     // See rs-map-viewer IndexedSprite.normalize
-    if( flags & SPRITELOAD_FLAG_NORMALIZE )
+    if( decode_flags & SPRITELOAD_FLAG_NORMALIZE )
     {
         for( int i = 0; i < sprite_count; i++ )
         {
@@ -371,7 +371,7 @@ sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFl
                 {
                     for( int x = 0; x < sprite->crop_width; x++ )
                     {
-                        int y_idx = sprite->width * y + sprite->offset_y;
+                        int y_idx = sprite->width * (y + sprite->offset_y);
                         int x_idx = x + sprite->offset_x;
                         pixel_idx[y_idx + x_idx] = sprite->palette_pixels[index];
                         pixel_alphas[y_idx + x_idx] = sprite->pixel_alphas[index];

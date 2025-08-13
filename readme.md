@@ -844,3 +844,10 @@ Need osrs weird data?
 Some locs are actually specified by varbits and varps.
 For example, the bank booth at the top of lumbridge castle,
 the loc second from the right is specified via a transform.
+
+### Some cache ids
+
+#### Sprites
+
+Mouse Click Yellow: 299 0-3
+Mouse Click Red: 299 4-7
