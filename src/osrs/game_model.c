@@ -107,6 +107,7 @@ model_transform_orient(struct CacheModel* model, int orientation)
     orientation &= 3;
     while( orientation-- > 0 )
     {
+        // This is a counter clockwise rotation. 1536.
         for( int v = 0; v < model->vertex_count; v++ )
         {
             int tmp = model->vertices_x[v];

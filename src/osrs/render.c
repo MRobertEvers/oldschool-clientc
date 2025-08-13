@@ -2617,7 +2617,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                             loc->_wall_decor.side == WALL_CORNER_SOUTHWEST )
                             y_near = -y_diff;
 
-                        if( y_near >= x_near )
+                        if( y_near < x_near )
                         {
                             // Draw model a
                             ops[op_count++] = (struct SceneOp){
@@ -2990,7 +2990,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
                         // The deobs and official clients calculate the nearest quadrant.
                         // Notice a line goes from SW to NE with y = x.
-                        if( y_near < x_near )
+                        if( y_near >= x_near )
                         {
                             // Draw model a
                             ops[op_count++] = (struct SceneOp){

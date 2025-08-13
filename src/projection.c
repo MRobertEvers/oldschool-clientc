@@ -58,9 +58,9 @@ project_orthographic(
     int cos_roll = g_cos_table[roll];
 
     // Rotate around Y-axis (yaw)
-    int x_rotated = x * cos_yaw - z * sin_yaw;
+    int x_rotated = x * cos_yaw + z * sin_yaw;
     x_rotated >>= 16;
-    int z_rotated = x * sin_yaw + z * cos_yaw;
+    int z_rotated = z * cos_yaw - x * sin_yaw;
     z_rotated >>= 16;
 
     // Rotate around X-axis (pitch)
@@ -82,9 +82,9 @@ project_orthographic(
 
     // Apply perspective rotation
     // First rotate around Y-axis (scene yaw)
-    int x_scene = x_final * cos_camera_yaw - z_rotated2 * sin_camera_yaw;
+    int x_scene = x_final * cos_camera_yaw + z_rotated2 * sin_camera_yaw;
     x_scene >>= 16;
-    int z_scene = x_final * sin_camera_yaw + z_rotated2 * cos_camera_yaw;
+    int z_scene = z_rotated2 * cos_camera_yaw - x_final * sin_camera_yaw;
     z_scene >>= 16;
 
     // Then rotate around X-axis (scene pitch)

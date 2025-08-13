@@ -320,10 +320,10 @@ loc_load_model(
         // locType.transforms !== undefined ||
         // locLoadType === LocLoadType.NO_MODELS;
         /**
-         * Model orientation rotates -90 degress
-         * Yaw rotates in the positive direction.
+         * Model orientation rotates -90 degress clockwise.
+         * Yaw rotates in the clockwise direction.
          *
-         * TODO: Figure out what the deal with this is.
+         * 3 * 512 is counter clockwise.
          */
         scene_loc->yaw = 3 * 512 * orientation;
         scene_loc->yaw %= 2048;
@@ -1376,13 +1376,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_nw);
 
             init_scene_model_1x1(model, tile_x, tile_y, height_center);
-            model->yaw += 768;
+            model->yaw += 256;
 
             // TODO: Get this from the wall offset??
             // This needs to be taken from the wall offset.
             // Lumbridge walls are 16 thick.
             // Walls in al kharid are 8 thick.
-            int offset = -45;
+            int offset = 53;
             calculate_wall_decor_offset(
                 model, outside_orientation, offset, true // diagonal
             );
@@ -1403,10 +1403,10 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_nw);
 
             init_scene_model_1x1(model, tile_x, tile_y, height_center);
-            model->yaw += 768;
+            model->yaw += 256;
 
             // TODO: Get this from the wall offset??
-            offset = -53;
+            offset = 45;
             calculate_wall_decor_offset(
                 model, inside_orientation, offset, true // diagonal
             );

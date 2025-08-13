@@ -237,6 +237,7 @@ struct Game
     int hover_loc_x;
     int hover_loc_y;
     int hover_loc_level;
+    int hover_loc_yaw;
 
     int mouse_x;
     int mouse_y;
@@ -610,6 +611,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     int last_model_hit = -1;
     struct SceneModel* last_model_hit_model = NULL;
+    int last_model_hit_yaw = 0;
     while( iter_render_scene_ops_next(&iter) )
     {
         if( iter.value.tile_nullable_ )
@@ -676,7 +678,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                         iter.value.model_nullable_->model->face_alphas,
                         iter.value.model_nullable_->original_face_alphas,
                         sizeof(int) * iter.value.model_nullable_->model->face_count);
-                        
 
                 anim_frame_apply(
                     iter.value.model_nullable_->frames[iter.value.model_nullable_->anim_frame_step],
@@ -688,16 +689,32 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                     iter.value.model_nullable_->vertex_bones->bones_count,
                     iter.value.model_nullable_->vertex_bones->bones,
                     iter.value.model_nullable_->vertex_bones->bones_sizes,
-                    iter.value.model_nullable_->face_bones ? iter.value.model_nullable_->face_bones->bones_count : 0,
-                    iter.value.model_nullable_->face_bones ? iter.value.model_nullable_->face_bones->bones : NULL,
-                    iter.value.model_nullable_->face_bones ? iter.value.model_nullable_->face_bones->bones_sizes : NULL);
+                    iter.value.model_nullable_->face_bones
+                        ? iter.value.model_nullable_->face_bones->bones_count
+                        : 0,
+                    iter.value.model_nullable_->face_bones
+                        ? iter.value.model_nullable_->face_bones->bones
+                        : NULL,
+                    iter.value.model_nullable_->face_bones
+                        ? iter.value.model_nullable_->face_bones->bones_sizes
+                        : NULL);
+            }
+            int yaw_adjust = iter.value.yaw;
+            if( game->hover_loc_x == iter.value.model_nullable_->_chunk_pos_x &&
+                game->hover_loc_y == iter.value.model_nullable_->_chunk_pos_y &&
+                game->hover_loc_level == iter.value.model_nullable_->_chunk_pos_level &&
+                iter.value.model_nullable_->model_id == game->hover_model )
+            {
+                yaw_adjust += game->hover_loc_yaw;
+                last_model_hit_yaw = yaw_adjust;
             }
 
             iter_render_model_init(
                 &iter_model,
                 iter.value.model_nullable_,
-                // TODO: For wall decor, this should probably be set on the model->yaw rather than on the op.
-                iter.value.yaw,
+                // TODO: For wall decor, this should probably be set on the model->yaw rather than
+                // on the op.
+                yaw_adjust,
                 game->camera_x,
                 game->camera_y,
                 game->camera_z,
@@ -830,7 +847,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             // Had to use 100 here because of the scale, near plane z was resulting in
             // extremely close to the camera.
             100,
-            last_model_hit_model->yaw,
+            last_model_hit_yaw,
             game->camera_x,
             game->camera_y,
             game->camera_z,
@@ -1455,10 +1472,14 @@ main()
                     f_pressed = 1;
                     break;
                 case SDLK_q:
-                    game.camera_roll = (game.camera_roll - 10 + 2048) % 2048;
+                    // Counter Clockwise
+                    game.hover_loc_yaw += 512 * 3;
+                    game.hover_loc_yaw %= 2048;
                     break;
                 case SDLK_e:
-                    game.camera_roll = (game.camera_roll + 10) % 2048;
+                    // Clockwise
+                    game.hover_loc_yaw += 512;
+                    game.hover_loc_yaw %= 2048;
                     break;
                 case SDLK_SEMICOLON:
                     game.show_loc_enabled = !game.show_loc_enabled;
@@ -1566,7 +1587,7 @@ main()
         int camera_moved = 0;
         if( w_pressed )
         {
-            game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
             game.camera_y -= (g_cos_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
         }
@@ -1574,13 +1595,13 @@ main()
         if( a_pressed )
         {
             game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_y += (g_sin_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
         }
 
         if( s_pressed )
         {
-            game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
             game.camera_y += (g_cos_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
         }
@@ -1588,7 +1609,7 @@ main()
         if( d_pressed )
         {
             game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y += (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
         }
 
@@ -1600,13 +1621,13 @@ main()
 
         if( left_pressed )
         {
-            game.camera_yaw = (game.camera_yaw - 10 + 2048) % 2048;
+            game.camera_yaw = (game.camera_yaw + 10) % 2048;
             camera_moved = 1;
         }
 
         if( right_pressed )
         {
-            game.camera_yaw = (game.camera_yaw + 10) % 2048;
+            game.camera_yaw = (game.camera_yaw - 10 + 2048) % 2048;
             camera_moved = 1;
         }
 
