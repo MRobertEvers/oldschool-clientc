@@ -319,13 +319,8 @@ loc_load_model(
         // seqId !== -1 ||
         // locType.transforms !== undefined ||
         // locLoadType === LocLoadType.NO_MODELS;
-        /**
-         * Model orientation rotates -90 degress clockwise.
-         * Yaw rotates in the clockwise direction.
-         *
-         * 3 * 512 is counter clockwise.
-         */
-        scene_loc->yaw = 3 * 512 * orientation;
+
+        scene_loc->yaw = 512 * orientation;
         scene_loc->yaw %= 2048;
         orientation = 0;
     }

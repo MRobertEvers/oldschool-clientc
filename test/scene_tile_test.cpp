@@ -706,7 +706,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 iter.value.model_nullable_->model_id == game->hover_model )
             {
                 yaw_adjust += game->hover_loc_yaw;
-                last_model_hit_yaw = yaw_adjust;
             }
 
             iter_render_model_init(
@@ -772,6 +771,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                         game->hover_loc_level = iter_model.model->_chunk_pos_level;
 
                         last_model_hit_model = iter.value.model_nullable_;
+                        last_model_hit_yaw = iter.value.model_nullable_->yaw + game->hover_loc_yaw;
 
                         model_intersected = true;
                     }
