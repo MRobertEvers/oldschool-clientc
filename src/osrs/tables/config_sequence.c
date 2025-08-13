@@ -726,6 +726,9 @@ config_sequence_new_decode(int revision, char* data, int data_size)
 void
 config_sequence_free(struct CacheConfigSequence* def)
 {
+    if( !def )
+        return;
+
     if( def->frame_ids )
     {
         free(def->frame_ids);

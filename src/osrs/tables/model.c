@@ -2614,6 +2614,8 @@ model_new_merge(struct CacheModel** models, int model_count)
     // model->face_count = face_count;
     // model->textured_face_count = textured_face_count;
 
+    model->textureRenderTypes = textureRenderTypes;
+
     model->vertices_x = vertices_x;
     model->vertices_y = vertices_y;
     model->vertices_z = vertices_z;
@@ -2816,6 +2818,9 @@ write_model_separate(const struct CacheModel* model, const char* filename)
 void
 modelbones_free(struct ModelBones* modelbones)
 {
+    if( !modelbones )
+        return;
+
     for( int i = 0; i < modelbones->bones_count; i++ )
         free(modelbones->bones[i]);
     free(modelbones->bones);

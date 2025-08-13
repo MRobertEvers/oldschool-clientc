@@ -188,6 +188,9 @@ frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer)
 void
 frame_free(struct CacheFrame* def)
 {
+    if( !def )
+        return;
+
     if( def->index_frame_ids )
     {
         free(def->index_frame_ids);
@@ -204,4 +207,6 @@ frame_free(struct CacheFrame* def)
     {
         free(def->translator_arg_z);
     }
+
+    free(def);
 }

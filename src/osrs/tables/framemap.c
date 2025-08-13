@@ -83,6 +83,9 @@ framemap_new_decode(int id, struct Buffer* buffer)
 void
 framemap_free(struct CacheFramemap* def)
 {
+    if( !def )
+        return;
+
     if( def->types )
         free(def->types);
 

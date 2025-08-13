@@ -132,6 +132,12 @@ error:
 void
 config_idk_table_free(struct CacheConfigIdkTable* table)
 {
+    if( !table )
+        return;
+
+    filelist_free(table->file_list);
+    cache_archive_free(table->archive);
+
     free(table);
 }
 
@@ -146,7 +152,7 @@ config_idk_table_get(struct CacheConfigIdkTable* table, int id)
 
     if( table->value )
     {
-        config_idk_free(table->value);
+        // config_idk_free(table->value);
         table->value = NULL;
     }
 

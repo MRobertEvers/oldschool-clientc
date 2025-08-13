@@ -375,6 +375,7 @@ loc_load_model(
         assert(sequence->frame_lengths);
         scene_loc->sequence = sequence;
 
+        assert(scene_loc->frames == NULL);
         scene_loc->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
         memset(scene_loc->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
 
@@ -386,7 +387,6 @@ loc_load_model(
 
         frame_archive = cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
         frame_filelist = filelist_new_from_cache_archive(frame_archive);
-
         for( int i = 0; i < sequence->frame_count; i++ )
         {
             assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
@@ -403,13 +403,15 @@ loc_load_model(
             int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
             int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
 
-            framemap = framemap_new_from_cache(cache, framemap_id);
+            if( !scene_loc->framemap )
+            {
+                framemap = framemap_new_from_cache(cache, framemap_id);
+                scene_loc->framemap = framemap;
+            }
 
-            frame = frame_new_decode2(frame_id, framemap, frame_data, frame_data_size);
+            frame = frame_new_decode2(frame_id, scene_loc->framemap, frame_data, frame_data_size);
 
-            scene_loc->framemap = framemap;
-            scene_loc->frames[i] = frame;
-            scene_loc->frame_count++;
+            scene_loc->frames[scene_loc->frame_count++] = frame;
         }
 
         cache_archive_free(frame_archive);
@@ -1717,6 +1719,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         printf("Failed to load scene tiles\n");
         goto error;
     }
+    scene->scene_tiles = scene_tiles;
+    scene->scene_tiles_length = MAP_TILE_COUNT;
 
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
     {
@@ -1985,12 +1989,65 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     map_terrain_free(map_terrain);
 
     config_locs_table_free(config_locs_table);
-    // config_sequence_table_free(config_sequence_table);
+    config_object_table_free(config_object_table);
+    config_sequence_table_free(config_sequence_table);
+    config_idk_table_free(config_idk_table);
+
+    free(shade_map);
 
     return scene;
 
 error:
     return NULL;
+}
+
+static void
+lighting_normals_free(struct ModelNormals* normals)
+{
+    if( !normals )
+        return;
+
+    free(normals->lighting_vertex_normals);
+    free(normals->lighting_face_normals);
+
+    free(normals);
+}
+
+static void
+model_lighting_free(struct ModelLighting* lighting)
+{
+    if( !lighting )
+        return;
+
+    free(lighting->face_colors_hsl_a);
+    free(lighting->face_colors_hsl_b);
+    free(lighting->face_colors_hsl_c);
+    free(lighting);
+}
+
+static void
+scene_model_free(struct SceneModel* model)
+{
+    model_free(model->model);
+    lighting_normals_free(model->normals);
+    lighting_normals_free(model->aliased_lighting_normals);
+    model_lighting_free(model->lighting);
+    modelbones_free(model->vertex_bones);
+    modelbones_free(model->face_bones);
+
+    for( int i = 0; i < model->frame_count; i++ )
+    {
+        frame_free(model->frames[i]);
+    }
+    free(model->frames);
+    config_sequence_free(model->sequence);
+
+    framemap_free(model->framemap);
+
+    free(model->original_vertices_x);
+    free(model->original_vertices_y);
+    free(model->original_vertices_z);
+    free(model->original_face_alphas);
 }
 
 void
@@ -2002,7 +2059,7 @@ scene_free(struct Scene* scene)
     for( int i = 0; i < scene->models_length; i++ )
     {
         struct SceneModel* model = &scene->models[i];
-        model_free(model->model);
+        scene_model_free(model);
     }
 
     free(scene->models);
