@@ -1709,6 +1709,92 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         struct CacheModel* merged_model = model_new_merge(models, parts__models_count);
 
         model->model = merged_model;
+
+        struct CacheConfigSequence* sequence = NULL;
+
+        sequence = config_sequence_table_get_new(config_sequence_table, 819);
+        if( sequence )
+        {
+            model->sequence = sequence;
+
+            if( model->model->vertex_bone_map )
+                model->vertex_bones = modelbones_new_decode(
+                    model->model->vertex_bone_map, model->model->vertex_count);
+            if( model->model->face_bone_map )
+                model->face_bones =
+                    modelbones_new_decode(model->model->face_bone_map, model->model->face_count);
+
+            model->original_vertices_x = malloc(sizeof(int) * model->model->vertex_count);
+            model->original_vertices_y = malloc(sizeof(int) * model->model->vertex_count);
+            model->original_vertices_z = malloc(sizeof(int) * model->model->vertex_count);
+
+            memcpy(
+                model->original_vertices_x,
+                model->model->vertices_x,
+                sizeof(int) * model->model->vertex_count);
+            memcpy(
+                model->original_vertices_y,
+                model->model->vertices_y,
+                sizeof(int) * model->model->vertex_count);
+            memcpy(
+                model->original_vertices_z,
+                model->model->vertices_z,
+                sizeof(int) * model->model->vertex_count);
+
+            if( model->model->face_alphas )
+            {
+                model->original_face_alphas = malloc(sizeof(int) * model->model->face_count);
+                memcpy(
+                    model->original_face_alphas,
+                    model->model->face_alphas,
+                    sizeof(int) * model->model->face_count);
+            }
+
+            assert(model->frames == NULL);
+            model->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
+            memset(model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+
+            int frame_id = sequence->frame_ids[0];
+            int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+            // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
+            //     first 2 bytes are the sequence ID,
+            //     the second 2 bytes are the frame archive ID
+
+            struct CacheArchive* frame_archive =
+                cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
+            struct FileList* frame_filelist = filelist_new_from_cache_archive(frame_archive);
+            for( int i = 0; i < sequence->frame_count; i++ )
+            {
+                assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
+                // assert(i < frame_filelist->file_count);
+
+                int frame_id = sequence->frame_ids[i];
+                int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+                int frame_file_id = frame_id & 0xFFFF;
+
+                assert(frame_file_id > 0);
+                assert(frame_file_id - 1 < frame_filelist->file_count);
+
+                char* frame_data = frame_filelist->files[frame_file_id - 1];
+                int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
+                int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
+
+                if( !model->framemap )
+                {
+                    model->framemap = framemap_new_from_cache(cache, framemap_id);
+                }
+
+                struct CacheFrame* frame =
+                    frame_new_decode2(frame_id, model->framemap, frame_data, frame_data_size);
+
+                model->frames[model->frame_count++] = frame;
+            }
+
+            cache_archive_free(frame_archive);
+            frame_archive = NULL;
+            filelist_free(frame_filelist);
+            frame_filelist = NULL;
+        }
     }
     // TODO: End Remove
 

@@ -46,7 +46,7 @@ framemap_new_decode(int id, struct Buffer* buffer)
 
     // Initialize the framemap definition
     def->id = id;
-    def->length = read_8(buffer);
+    def->length = read_u8(buffer);
     def->types = malloc(def->length * sizeof(int));
     def->bone_groups = malloc(def->length * sizeof(int*));
     def->bone_groups_lengths = malloc(def->length * sizeof(int));
@@ -57,15 +57,16 @@ framemap_new_decode(int id, struct Buffer* buffer)
     // Read the types array
     for( int i = 0; i < def->length; i++ )
     {
-        def->types[i] = read_8(buffer);
+        def->types[i] = read_u8(buffer);
     }
 
     // Read the frame maps lengths
     for( int i = 0; i < def->length; i++ )
     {
-        def->bone_groups_lengths[i] = read_8(buffer);
-        def->bone_groups[i] = malloc(def->bone_groups_lengths[i] * sizeof(int));
-        memset(def->bone_groups[i], 0, def->bone_groups_lengths[i] * sizeof(int));
+        int group_length = read_u8(buffer);
+        def->bone_groups_lengths[i] = group_length;
+        def->bone_groups[i] = malloc(group_length * sizeof(int));
+        memset(def->bone_groups[i], 0, group_length * sizeof(int));
     }
 
     // Read the frame maps data
@@ -73,7 +74,7 @@ framemap_new_decode(int id, struct Buffer* buffer)
     {
         for( int j = 0; j < def->bone_groups_lengths[i]; j++ )
         {
-            def->bone_groups[i][j] = read_8(buffer);
+            def->bone_groups[i][j] = read_u8(buffer);
         }
     }
 
