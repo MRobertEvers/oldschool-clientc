@@ -81,6 +81,6 @@ struct CacheConfigSequenceTable* config_sequence_table_new(struct Cache* cache);
 void config_sequence_table_free(struct CacheConfigSequenceTable* table);
 
 struct CacheConfigSequence*
-config_sequence_table_get(struct CacheConfigSequenceTable* table, int id);
+config_sequence_table_get_new(struct CacheConfigSequenceTable* table, int id);
 
 #endif // SEQUENCE_H

@@ -135,6 +135,6 @@ struct CacheConfigObjectTable
 struct CacheConfigObjectTable* config_object_table_new(struct Cache* cache);
 void config_object_table_free(struct CacheConfigObjectTable* table);
 
-struct CacheConfigObject* config_object_table_get(struct CacheConfigObjectTable* table, int id);
+struct CacheConfigObject* config_object_table_get_new(struct CacheConfigObjectTable* table, int id);
 
 #endif

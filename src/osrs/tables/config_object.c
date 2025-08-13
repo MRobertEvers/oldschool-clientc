@@ -524,7 +524,7 @@ config_object_table_free(struct CacheConfigObjectTable* table)
 }
 
 struct CacheConfigObject*
-config_object_table_get(struct CacheConfigObjectTable* table, int id)
+config_object_table_get_new(struct CacheConfigObjectTable* table, int id)
 {
     if( id < 0 || id > table->file_list->file_count )
     {
@@ -534,7 +534,7 @@ config_object_table_get(struct CacheConfigObjectTable* table, int id)
 
     if( table->value )
     {
-        config_object_free(table->value);
+        // config_object_free(table->value);
         table->value = NULL;
     }
 

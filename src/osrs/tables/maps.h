@@ -42,6 +42,16 @@ struct CacheMapLoc
      * horizontal etc. and the shape_select field selects which one to use.
      */
     int shape_select;
+
+    /**
+     * For models with no animations (or other transforms), this causes the model to be
+     * pre-rotated before rendering, i.e. during the creation of the scene.
+     *
+     * For models that have a sequence, the animation is applied and the model is rotated
+     * during rendering.
+     *
+     * This is why the render functions always take an additional "yaw" parameter.
+     */
     int orientation;
     int chunk_pos_x;
     int chunk_pos_y;

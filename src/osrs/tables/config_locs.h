@@ -176,6 +176,7 @@ struct CacheConfigLocationTable
 struct CacheConfigLocationTable* config_locs_table_new(struct Cache* cache);
 void config_locs_table_free(struct CacheConfigLocationTable* table);
 
-struct CacheConfigLocation* config_locs_table_get(struct CacheConfigLocationTable* table, int id);
+struct CacheConfigLocation*
+config_locs_table_get_new(struct CacheConfigLocationTable* table, int id);
 
 #endif

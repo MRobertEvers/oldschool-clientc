@@ -2628,7 +2628,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .angle = 768 },
+                                               },
                             };
                         }
 
@@ -2643,7 +2643,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .angle = 768 },
+                                           },
                             };
                         }
                     }
@@ -3001,7 +3001,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .angle = 768 },
+                                          },
                             };
                         }
                         else if( loc->_wall_decor.model_b != -1 )
@@ -3015,7 +3015,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .angle = 768 },
+                                          },
                             };
                         }
                     }
@@ -3450,7 +3450,7 @@ render_scene_ops(
                 width,
                 height,
                 near_plane_z,
-                op->_wall_decor.angle,
+                0,
                 camera_x,
                 camera_y,
                 camera_z,
@@ -3655,7 +3655,7 @@ next:
         iter->value.x = op->x;
         iter->value.z = op->z;
         iter->value.level = op->level;
-        iter->value.yaw = op->_wall_decor.angle;
+        iter->value.yaw = 0;
         iter->has_value = true;
     }
     break;
@@ -3774,22 +3774,8 @@ iter_render_model_init(
     int x = camera_x + scene_model->region_x;
     int y = camera_y + scene_model->region_y;
     int z = camera_z + scene_model->region_z;
-
-    // if( model->mirrored )
-    // {
-    //     yaw += 1024;
-    // }
-
-    // int rotation = model->orientation;
-    // while( rotation-- )
-    // {
-    //     yaw += 1536;
-    // }
-    if( scene_model->model->_id == 3453 )
-    {
-        yaw += scene_model->yaw;
-        yaw %= 2048;
-    }
+    yaw += scene_model->yaw;
+    yaw %= 2048;
 
     x += scene_model->offset_x;
     y += scene_model->offset_y;

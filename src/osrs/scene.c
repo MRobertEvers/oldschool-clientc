@@ -219,6 +219,7 @@ loc_load_model(
     struct CacheConfigLocation* loc_config,
     struct Cache* cache,
     struct ModelCache* model_cache,
+    struct CacheConfigSequenceTable* sequence_table,
     int shape_select,
     int orientation,
     int sw_height,
@@ -226,6 +227,7 @@ loc_load_model(
     int ne_height,
     int nw_height)
 {
+    struct CacheConfigSequence* sequence = NULL;
     int* shapes = loc_config->shapes;
     int** model_id_sets = loc_config->models;
     int* lengths = loc_config->lengths;
@@ -317,7 +319,13 @@ loc_load_model(
         // seqId !== -1 ||
         // locType.transforms !== undefined ||
         // locLoadType === LocLoadType.NO_MODELS;
-        scene_loc->yaw = 512 * orientation;
+        /**
+         * Model orientation rotates -90 degress
+         * Yaw rotates in the positive direction.
+         *
+         * TODO: Figure out what the deal with this is.
+         */
+        scene_loc->yaw = 3 * 512 * orientation;
         scene_loc->yaw %= 2048;
         orientation = 0;
     }
@@ -340,12 +348,9 @@ loc_load_model(
     if( model->face_bone_map )
         scene_loc->face_bones = modelbones_new_decode(model->face_bone_map, model->face_count);
 
+    scene_loc->sequence = NULL;
     if( loc_config->seq_id != -1 )
     {
-        if( model->_id == 3453 )
-        {
-            int iii = 0;
-        }
         scene_loc->original_vertices_x = malloc(sizeof(int) * model->vertex_count);
         scene_loc->original_vertices_y = malloc(sizeof(int) * model->vertex_count);
         scene_loc->original_vertices_z = malloc(sizeof(int) * model->vertex_count);
@@ -366,9 +371,9 @@ loc_load_model(
                 sizeof(int) * model->face_count);
         }
 
-        struct CacheConfigSequenceTable* table = config_sequence_table_new(cache);
-        assert(table);
-        struct CacheConfigSequence* sequence = config_sequence_table_get(table, loc_config->seq_id);
+        sequence = config_sequence_table_get_new(sequence_table, loc_config->seq_id);
+        assert(sequence);
+        assert(sequence->frame_lengths);
         scene_loc->sequence = sequence;
 
         scene_loc->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
@@ -412,7 +417,6 @@ loc_load_model(
 
         cache_archive_free(frame_archive);
         filelist_free(frame_filelist);
-        // config_sequence_table_free(table);
     }
 
     free(models);
@@ -732,6 +736,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct ModelCache* model_cache = model_cache_new();
     struct CacheConfigLocationTable* config_locs_table = NULL;
     struct CacheConfigObjectTable* config_object_table = NULL;
+    struct CacheConfigSequenceTable* config_sequence_table = NULL;
     struct CacheConfigIdkTable* config_idk_table = NULL;
     struct CacheMapLoc* map = NULL;
     struct Loc* loc = NULL;
@@ -798,6 +803,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         }
     }
 
+    config_sequence_table = config_sequence_table_new(cache);
+    assert(config_sequence_table);
+
     config_locs_table = config_locs_table_new(cache);
     if( !config_locs_table )
     {
@@ -853,7 +861,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             p1x1_height_center = height_center;
         }
 
-        loc_config = config_locs_table_get(config_locs_table, map->loc_id);
+        loc_config = config_locs_table_get_new(config_locs_table, map->loc_id);
         assert(loc_config);
 
         switch( map->shape_select )
@@ -868,6 +876,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 map->shape_select,
                 map->orientation,
                 height_sw,
@@ -967,6 +976,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 map->shape_select,
                 map->orientation,
                 height_sw,
@@ -1039,6 +1049,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_WALL_TWO_SIDES,
                 map->orientation + 4,
                 height_sw,
@@ -1055,6 +1066,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_WALL_TWO_SIDES,
                 next_orientation,
                 height_sw,
@@ -1112,6 +1124,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 map->shape_select,
                 map->orientation,
                 height_sw,
@@ -1184,6 +1197,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
                 map->orientation,
                 height_sw,
@@ -1216,6 +1230,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
                 map->orientation,
                 height_sw,
@@ -1263,6 +1278,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
                 map->orientation + 4,
                 height_sw,
@@ -1307,6 +1323,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
                 map->orientation,
                 height_sw,
@@ -1350,6 +1367,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
                 outside_orientation,
                 height_sw,
@@ -1358,6 +1376,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_nw);
 
             init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            model->yaw += 768;
 
             // TODO: Get this from the wall offset??
             // This needs to be taken from the wall offset.
@@ -1375,6 +1394,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
                 inside_orientation,
                 height_sw,
@@ -1383,6 +1403,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_nw);
 
             init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            model->yaw += 768;
 
             // TODO: Get this from the wall offset??
             offset = -53;
@@ -1417,6 +1438,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 map->shape_select,
                 map->orientation,
                 height_sw,
@@ -1453,6 +1475,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 LOC_SHAPE_SCENERY,
                 map->orientation,
                 height_sw,
@@ -1528,6 +1551,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 map->shape_select,
                 map->orientation,
                 height_sw,
@@ -1559,6 +1583,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 loc_config,
                 cache,
                 model_cache,
+                config_sequence_table,
                 map->shape_select,
                 map->orientation,
                 height_sw,
@@ -1585,6 +1610,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             printf("Unknown loc shape: %d\n", map->shape_select);
         }
         }
+
+        // free_loc(loc_config);
+        // loc_config = NULL;
     }
 
     map_locs_iter_free(iter);
@@ -1600,7 +1628,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     {
         int const abyssal_whip = 4151;
         struct CacheConfigObject* object =
-            config_object_table_get(config_object_table, abyssal_whip);
+            config_object_table_get_new(config_object_table, abyssal_whip);
         if( object )
         {
             printf("Abyssal whip: %d\n", object->male_model_0);
@@ -1958,6 +1986,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     map_terrain_free(map_terrain);
 
     config_locs_table_free(config_locs_table);
+    // config_sequence_table_free(config_sequence_table);
 
     return scene;
 

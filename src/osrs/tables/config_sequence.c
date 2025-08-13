@@ -927,17 +927,17 @@ config_sequence_table_free(struct CacheConfigSequenceTable* table)
 }
 
 struct CacheConfigSequence*
-config_sequence_table_get(struct CacheConfigSequenceTable* table, int id)
+config_sequence_table_get_new(struct CacheConfigSequenceTable* table, int id)
 {
     if( id < 0 || id > table->file_list->file_count )
     {
-        printf("config_sequence_table_get: Invalid id %d\n", id);
+        printf("config_sequence_table_get_new: Invalid id %d\n", id);
         return NULL;
     }
 
     if( table->value )
     {
-        config_sequence_free(table->value);
+        // config_sequence_free(table->value);
         table->value = NULL;
     }
 

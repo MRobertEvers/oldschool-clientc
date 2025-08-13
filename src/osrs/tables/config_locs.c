@@ -691,7 +691,7 @@ config_locs_table_free(struct CacheConfigLocationTable* table)
 }
 
 struct CacheConfigLocation*
-config_locs_table_get(struct CacheConfigLocationTable* table, int id)
+config_locs_table_get_new(struct CacheConfigLocationTable* table, int id)
 {
     if( id < 0 || id > table->file_list->file_count )
     {
@@ -701,7 +701,7 @@ config_locs_table_get(struct CacheConfigLocationTable* table, int id)
 
     if( table->value )
     {
-        free_loc(table->value);
+        // free_loc(table->value);
         table->value = NULL;
     }
 
