@@ -228,6 +228,10 @@ loc_load_model(
     int nw_height)
 {
     struct CacheConfigSequence* sequence = NULL;
+    struct CacheFramemap* framemap = NULL;
+    struct CacheFrame* frame = NULL;
+    struct CacheArchive* frame_archive = NULL;
+    struct FileList* frame_filelist = NULL;
     int* shapes = loc_config->shapes;
     int** model_id_sets = loc_config->models;
     int* lengths = loc_config->lengths;
@@ -380,9 +384,8 @@ loc_load_model(
         //     first 2 bytes are the sequence ID,
         //     the second 2 bytes are the frame archive ID
 
-        struct CacheArchive* frame_archive =
-            cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
-        struct FileList* frame_filelist = filelist_new_from_cache_archive(frame_archive);
+        frame_archive = cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
+        frame_filelist = filelist_new_from_cache_archive(frame_archive);
 
         for( int i = 0; i < sequence->frame_count; i++ )
         {
@@ -400,10 +403,9 @@ loc_load_model(
             int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
             int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
 
-            struct CacheFramemap* framemap = framemap_new_from_cache(cache, framemap_id);
+            framemap = framemap_new_from_cache(cache, framemap_id);
 
-            struct CacheFrame* frame =
-                frame_new_decode2(frame_id, framemap, frame_data, frame_data_size);
+            frame = frame_new_decode2(frame_id, framemap, frame_data, frame_data_size);
 
             scene_loc->framemap = framemap;
             scene_loc->frames[i] = frame;
@@ -411,7 +413,9 @@ loc_load_model(
         }
 
         cache_archive_free(frame_archive);
+        frame_archive = NULL;
         filelist_free(frame_filelist);
+        frame_filelist = NULL;
     }
 
     free(models);
