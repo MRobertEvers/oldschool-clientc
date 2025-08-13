@@ -1606,8 +1606,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         }
         }
 
-        // free_loc(loc_config);
-        // loc_config = NULL;
+        free_loc(loc_config);
+        loc_config = NULL;
     }
 
     map_locs_iter_free(iter);

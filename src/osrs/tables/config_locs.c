@@ -682,7 +682,6 @@ error:
 void
 config_locs_table_free(struct CacheConfigLocationTable* table)
 {
-    free_loc(table->value);
     if( table->file_list )
         filelist_free(table->file_list);
     if( table->archive )

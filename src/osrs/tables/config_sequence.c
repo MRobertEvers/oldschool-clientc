@@ -921,8 +921,10 @@ error:
 void
 config_sequence_table_free(struct CacheConfigSequenceTable* table)
 {
-    filelist_free(table->file_list);
-    cache_archive_free(table->archive);
+    if( table->file_list )
+        filelist_free(table->file_list);
+    if( table->archive )
+        cache_archive_free(table->archive);
     free(table);
 }
 
