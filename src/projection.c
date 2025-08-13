@@ -70,9 +70,9 @@ project_orthographic(
     z_rotated2 >>= 16;
 
     // Rotate around Z-axis (roll)
-    int x_final = x_rotated * cos_roll - y_rotated * sin_roll;
+    int x_final = x_rotated * cos_roll + y_rotated * sin_roll;
     x_final >>= 16;
-    int y_final = x_rotated * sin_roll + y_rotated * cos_roll;
+    int y_final = y_rotated * cos_roll - x_rotated * sin_roll;
     y_final >>= 16;
 
     // Translate points relative to camera position
@@ -94,9 +94,9 @@ project_orthographic(
     z_final_scene >>= 16;
 
     // Finally rotate around Z-axis (scene roll)
-    int x_final_scene = x_scene * cos_camera_roll - y_scene * sin_camera_roll;
+    int x_final_scene = x_scene * cos_camera_roll + y_scene * sin_camera_roll;
     x_final_scene >>= 16;
-    int y_final_scene = x_scene * sin_camera_roll + y_scene * cos_camera_roll;
+    int y_final_scene = y_scene * cos_camera_roll - x_scene * sin_camera_roll;
     y_final_scene >>= 16;
 
     projected_triangle.x = x_final_scene;
