@@ -5,7 +5,10 @@ extern "C" {
 #include "osrs/scene.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
+#include "osrs/tables/config_idk.h"
 #include "osrs/tables/config_locs.h"
+#include "osrs/tables/config_object.h"
+#include "osrs/tables/config_sequence.h"
 #include "osrs/tables/configs.h"
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/texture_pixels.h"
@@ -245,6 +248,12 @@ struct Game
     int mouse_click_x;
     int mouse_click_y;
     int mouse_click_cycle;
+
+    int player_tile_x;
+    int player_tile_y;
+    int player_yaw;
+    int player_animation_id;
+    struct SceneModel* player_model;
 
     uint64_t start_time;
     uint64_t end_time;
@@ -1408,6 +1417,9 @@ main()
     game.camera_y = -873;
     game.camera_z = 800;
 
+    game.player_tile_x = 10;
+    game.player_tile_y = 10;
+
     // game.camera_x = -2576;
     // game.camera_y = -3015;
     // game.camera_z = 2000;
@@ -1433,6 +1445,255 @@ main()
 
     game.show_loc_x = 63;
     game.show_loc_y = 63;
+
+    struct ModelCache* model_cache = model_cache_new();
+    struct SceneModel* player_model = NULL;
+
+    {
+        struct SceneModel* model = (struct SceneModel*)malloc(sizeof(struct SceneModel));
+        memset(model, 0, sizeof(struct SceneModel));
+
+        struct CacheConfigIdkTable* config_idk_table = config_idk_table_new(cache);
+        if( !config_idk_table )
+        {
+            printf("Failed to load config idk table\n");
+            return 0;
+        }
+
+        struct CacheConfigSequenceTable* config_sequence_table = config_sequence_table_new(cache);
+        assert(config_sequence_table);
+
+        struct CacheConfigLocationTable* config_locs_table = config_locs_table_new(cache);
+        if( !config_locs_table )
+        {
+            printf("Failed to load config locs table\n");
+            return 0;
+        }
+
+        struct CacheConfigObjectTable* config_object_table = config_object_table_new(cache);
+        if( !config_object_table )
+        {
+            printf("Failed to load config object table\n");
+            return 0;
+        }
+
+        // 4,274  6,282 292 256 289 298 266
+        int idk_ids[12] = { 0, 0, 0, 0, 274, 0, 282, 292, 256, 289, 298, 266 };
+        int parts__models_ids[10] = { 0 };
+        int parts__models_count = 0;
+
+        for( int i = 0; i < 12; i++ )
+        {
+            int idk_id = idk_ids[i];
+            if( idk_id >= 256 && idk_id < 512 )
+            {
+                idk_id -= 256;
+            }
+            else
+                continue;
+            struct CacheConfigIdk* idk = config_idk_table_get(config_idk_table, idk_id);
+            if( idk )
+            {
+                assert(idk->model_ids_count == 1);
+                parts__models_ids[parts__models_count++] = idk->model_ids[0];
+            }
+        }
+
+        struct CacheModel* models[12] = { 0 };
+        for( int i = 0; i < parts__models_count; i++ )
+        {
+            struct CacheModel* model =
+                model_cache_checkout(model_cache, cache, parts__models_ids[i]);
+            if( model )
+            {
+                models[i] = model;
+            }
+            else
+            {
+                assert(false);
+            }
+        }
+
+        struct CacheModel* merged_model = model_new_merge(models, parts__models_count);
+
+        model->model = merged_model;
+
+        struct CacheConfigSequence* sequence = NULL;
+
+        sequence = config_sequence_table_get_new(config_sequence_table, 819);
+        if( sequence )
+        {
+            model->sequence = sequence;
+
+            if( model->model->vertex_bone_map )
+                model->vertex_bones = modelbones_new_decode(
+                    model->model->vertex_bone_map, model->model->vertex_count);
+            if( model->model->face_bone_map )
+                model->face_bones =
+                    modelbones_new_decode(model->model->face_bone_map, model->model->face_count);
+
+            model->original_vertices_x = (int*)malloc(sizeof(int) * model->model->vertex_count);
+            model->original_vertices_y = (int*)malloc(sizeof(int) * model->model->vertex_count);
+            model->original_vertices_z = (int*)malloc(sizeof(int) * model->model->vertex_count);
+
+            memcpy(
+                model->original_vertices_x,
+                model->model->vertices_x,
+                sizeof(int) * model->model->vertex_count);
+            memcpy(
+                model->original_vertices_y,
+                model->model->vertices_y,
+                sizeof(int) * model->model->vertex_count);
+            memcpy(
+                model->original_vertices_z,
+                model->model->vertices_z,
+                sizeof(int) * model->model->vertex_count);
+
+            if( model->model->face_alphas )
+            {
+                model->original_face_alphas = (int*)malloc(sizeof(int) * model->model->face_count);
+                memcpy(
+                    model->original_face_alphas,
+                    model->model->face_alphas,
+                    sizeof(int) * model->model->face_count);
+            }
+
+            assert(model->frames == NULL);
+            model->frames =
+                (struct CacheFrame**)malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
+            memset(model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+
+            int frame_id = sequence->frame_ids[0];
+            int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+            // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
+            //     first 2 bytes are the sequence ID,
+            //     the second 2 bytes are the frame archive ID
+
+            struct CacheArchive* frame_archive =
+                cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
+            struct FileList* frame_filelist = filelist_new_from_cache_archive(frame_archive);
+            for( int i = 0; i < sequence->frame_count; i++ )
+            {
+                assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
+                // assert(i < frame_filelist->file_count);
+
+                int frame_id = sequence->frame_ids[i];
+                int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+                int frame_file_id = frame_id & 0xFFFF;
+
+                assert(frame_file_id > 0);
+                assert(frame_file_id - 1 < frame_filelist->file_count);
+
+                char* frame_data = frame_filelist->files[frame_file_id - 1];
+                int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
+                int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
+
+                if( !model->framemap )
+                {
+                    model->framemap = framemap_new_from_cache(cache, framemap_id);
+                }
+
+                struct CacheFrame* frame =
+                    frame_new_decode2(frame_id, model->framemap, frame_data, frame_data_size);
+
+                model->frames[model->frame_count++] = frame;
+            }
+
+            cache_archive_free(frame_archive);
+            frame_archive = NULL;
+            filelist_free(frame_filelist);
+            frame_filelist = NULL;
+
+            struct CacheModel* cache_model = model->model;
+
+            struct ModelNormals* normals =
+                (struct ModelNormals*)malloc(sizeof(struct ModelNormals));
+            memset(normals, 0, sizeof(struct ModelNormals));
+
+            normals->lighting_vertex_normals = (struct LightingNormal*)malloc(
+                sizeof(struct LightingNormal) * cache_model->vertex_count);
+            memset(
+                normals->lighting_vertex_normals,
+                0,
+                sizeof(struct LightingNormal) * cache_model->vertex_count);
+            normals->lighting_face_normals = (struct LightingNormal*)malloc(
+                sizeof(struct LightingNormal) * cache_model->face_count);
+            memset(
+                normals->lighting_face_normals,
+                0,
+                sizeof(struct LightingNormal) * cache_model->face_count);
+
+            normals->lighting_vertex_normals_count = cache_model->vertex_count;
+            normals->lighting_face_normals_count = cache_model->face_count;
+
+            calculate_vertex_normals(
+                normals->lighting_vertex_normals,
+                normals->lighting_face_normals,
+                cache_model->vertex_count,
+                cache_model->face_indices_a,
+                cache_model->face_indices_b,
+                cache_model->face_indices_c,
+                cache_model->vertices_x,
+                cache_model->vertices_y,
+                cache_model->vertices_z,
+                cache_model->face_count);
+
+            model->normals = normals;
+
+            struct ModelLighting* lighting =
+                (struct ModelLighting*)malloc(sizeof(struct ModelLighting));
+            memset(lighting, 0, sizeof(struct ModelLighting));
+            lighting->face_colors_hsl_a = (int*)malloc(sizeof(int) * model->model->face_count);
+            memset(lighting->face_colors_hsl_a, 0, sizeof(int) * model->model->face_count);
+            lighting->face_colors_hsl_b = (int*)malloc(sizeof(int) * model->model->face_count);
+            memset(lighting->face_colors_hsl_b, 0, sizeof(int) * model->model->face_count);
+            lighting->face_colors_hsl_c = (int*)malloc(sizeof(int) * model->model->face_count);
+            memset(lighting->face_colors_hsl_c, 0, sizeof(int) * model->model->face_count);
+
+            model->lighting = lighting;
+
+            int light_ambient = 64;
+            int light_attenuation = 768;
+            int lightsrc_x = -50;
+            int lightsrc_y = -10;
+            int lightsrc_z = -50;
+
+            light_ambient += model->light_ambient;
+            // 2004Scape multiplies contrast by 5.
+            // Later versions do not.
+            light_attenuation += model->light_contrast;
+
+            int light_magnitude = (int)sqrt(
+                lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+            int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+            apply_lighting(
+                lighting->face_colors_hsl_a,
+                lighting->face_colors_hsl_b,
+                lighting->face_colors_hsl_c,
+                model->aliased_lighting_normals
+                    ? model->aliased_lighting_normals->lighting_vertex_normals
+                    : model->normals->lighting_vertex_normals,
+                model->normals->lighting_face_normals,
+                model->model->face_indices_a,
+                model->model->face_indices_b,
+                model->model->face_indices_c,
+                model->model->face_count,
+                model->model->face_colors,
+                model->model->face_alphas,
+                model->model->face_textures,
+                model->model->face_infos,
+                light_ambient,
+                attenuation,
+                lightsrc_x,
+                lightsrc_y,
+                lightsrc_z);
+
+            model->lighting = lighting;
+
+            player_model = model;
+        }
+    }
 
     int w_pressed = 0;
     int a_pressed = 0;
@@ -1722,34 +1983,36 @@ main()
 
         if( i_pressed )
         {
-            game.show_loc_y += 1;
-            printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
+            game.player_tile_y += 1;
         }
         if( k_pressed )
         {
-            game.show_loc_y -= 1;
-            printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
+            game.player_tile_y -= 1;
         }
         if( l_pressed )
         {
-            game.show_loc_x += 1;
-            printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
+            game.player_tile_x += 1;
+            // game.show_loc_x += 1;
+            // printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
         }
         if( j_pressed )
         {
-            game.show_loc_x -= 1;
-            printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
-            int loc_id =
-                game.scene->grid_tiles[MAP_TILE_COORD(game.show_loc_x, game.show_loc_y, 0)].locs[0];
-            if( loc_id != 0 )
-            {
-                // struct SceneLoc* loc = &game.scene->locs->locs[loc_id];
-                // printf(
-                //     "Loc: %s, %d, %d\n",
-                //     loc->__loc.name,
-                //     loc->__loc._file_id,
-                //     loc->model_ids ? loc->model_ids[0] : -1);
-            }
+            game.player_tile_x -= 1;
+
+            // game.show_loc_x -= 1;
+            // printf("Show loc: %d, %d\n", game.show_loc_x, game.show_loc_y);
+            // int loc_id =
+            //     game.scene->grid_tiles[MAP_TILE_COORD(game.show_loc_x, game.show_loc_y,
+            //     0)].locs[0];
+            // if( loc_id != 0 )
+            // {
+            //     // struct SceneLoc* loc = &game.scene->locs->locs[loc_id];
+            //     // printf(
+            //     //     "Loc: %s, %d, %d\n",
+            //     //     loc->__loc.name,
+            //     //     loc->__loc._file_id,
+            //     //     loc->model_ids ? loc->model_ids[0] : -1);
+            // }
         }
 
         if( camera_moved )
@@ -1784,6 +2047,22 @@ main()
         }
 
         game.mouse_click_cycle += 20;
+
+        player_model->anim_frame_count += 1;
+        if( player_model->anim_frame_count >=
+            player_model->sequence->frame_lengths[player_model->anim_frame_step] )
+        {
+            player_model->anim_frame_count = 0;
+            player_model->anim_frame_step += 1;
+            if( player_model->anim_frame_step >= player_model->sequence->frame_count )
+            {
+                player_model->anim_frame_step = 0;
+            }
+        }
+
+        scene_clear_entities(game.scene);
+        scene_add_player_entity(
+            game.scene, game.player_tile_x, game.player_tile_y, 0, player_model);
 
         SDL_RenderClear(platform.renderer);
         // Render frame

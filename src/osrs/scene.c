@@ -435,6 +435,8 @@ vec_loc_push(struct Scene* scene)
 
     memset(scene->locs + scene->locs_length, 0, sizeof(struct Loc));
 
+    scene->locs[scene->locs_length].entity = -1;
+
     return scene->locs_length++;
 }
 
@@ -1668,134 +1670,134 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     }
 
     // TODO: Remove
-    {
-        // 4,274  6,282 292 256 289 298 266
-        int idk_ids[12] = { 0, 0, 0, 0, 274, 0, 282, 292, 256, 289, 298, 266 };
-        int parts__models_ids[10] = { 0 };
-        int parts__models_count = 0;
+    // {
+    //     // 4,274  6,282 292 256 289 298 266
+    //     int idk_ids[12] = { 0, 0, 0, 0, 274, 0, 282, 292, 256, 289, 298, 266 };
+    //     int parts__models_ids[10] = { 0 };
+    //     int parts__models_count = 0;
 
-        for( int i = 0; i < 12; i++ )
-        {
-            int idk_id = idk_ids[i];
-            if( idk_id >= 256 && idk_id < 512 )
-            {
-                idk_id -= 256;
-            }
-            else
-                continue;
-            struct CacheConfigIdk* idk = config_idk_table_get(config_idk_table, idk_id);
-            if( idk )
-            {
-                assert(idk->model_ids_count == 1);
-                parts__models_ids[parts__models_count++] = idk->model_ids[0];
-            }
-        }
+    //     for( int i = 0; i < 12; i++ )
+    //     {
+    //         int idk_id = idk_ids[i];
+    //         if( idk_id >= 256 && idk_id < 512 )
+    //         {
+    //             idk_id -= 256;
+    //         }
+    //         else
+    //             continue;
+    //         struct CacheConfigIdk* idk = config_idk_table_get(config_idk_table, idk_id);
+    //         if( idk )
+    //         {
+    //             assert(idk->model_ids_count == 1);
+    //             parts__models_ids[parts__models_count++] = idk->model_ids[0];
+    //         }
+    //     }
 
-        struct CacheModel* models[12] = { 0 };
-        for( int i = 0; i < parts__models_count; i++ )
-        {
-            struct CacheModel* model =
-                model_cache_checkout(model_cache, cache, parts__models_ids[i]);
-            if( model )
-            {
-                models[i] = model;
-            }
-            else
-            {
-                assert(false);
-            }
-        }
+    //     struct CacheModel* models[12] = { 0 };
+    //     for( int i = 0; i < parts__models_count; i++ )
+    //     {
+    //         struct CacheModel* model =
+    //             model_cache_checkout(model_cache, cache, parts__models_ids[i]);
+    //         if( model )
+    //         {
+    //             models[i] = model;
+    //         }
+    //         else
+    //         {
+    //             assert(false);
+    //         }
+    //     }
 
-        struct CacheModel* merged_model = model_new_merge(models, parts__models_count);
+    //     struct CacheModel* merged_model = model_new_merge(models, parts__models_count);
 
-        model->model = merged_model;
+    //     model->model = merged_model;
 
-        struct CacheConfigSequence* sequence = NULL;
+    //     struct CacheConfigSequence* sequence = NULL;
 
-        sequence = config_sequence_table_get_new(config_sequence_table, 819);
-        if( sequence )
-        {
-            model->sequence = sequence;
+    //     sequence = config_sequence_table_get_new(config_sequence_table, 819);
+    //     if( sequence )
+    //     {
+    //         model->sequence = sequence;
 
-            if( model->model->vertex_bone_map )
-                model->vertex_bones = modelbones_new_decode(
-                    model->model->vertex_bone_map, model->model->vertex_count);
-            if( model->model->face_bone_map )
-                model->face_bones =
-                    modelbones_new_decode(model->model->face_bone_map, model->model->face_count);
+    //         if( model->model->vertex_bone_map )
+    //             model->vertex_bones = modelbones_new_decode(
+    //                 model->model->vertex_bone_map, model->model->vertex_count);
+    //         if( model->model->face_bone_map )
+    //             model->face_bones =
+    //                 modelbones_new_decode(model->model->face_bone_map, model->model->face_count);
 
-            model->original_vertices_x = malloc(sizeof(int) * model->model->vertex_count);
-            model->original_vertices_y = malloc(sizeof(int) * model->model->vertex_count);
-            model->original_vertices_z = malloc(sizeof(int) * model->model->vertex_count);
+    //         model->original_vertices_x = malloc(sizeof(int) * model->model->vertex_count);
+    //         model->original_vertices_y = malloc(sizeof(int) * model->model->vertex_count);
+    //         model->original_vertices_z = malloc(sizeof(int) * model->model->vertex_count);
 
-            memcpy(
-                model->original_vertices_x,
-                model->model->vertices_x,
-                sizeof(int) * model->model->vertex_count);
-            memcpy(
-                model->original_vertices_y,
-                model->model->vertices_y,
-                sizeof(int) * model->model->vertex_count);
-            memcpy(
-                model->original_vertices_z,
-                model->model->vertices_z,
-                sizeof(int) * model->model->vertex_count);
+    //         memcpy(
+    //             model->original_vertices_x,
+    //             model->model->vertices_x,
+    //             sizeof(int) * model->model->vertex_count);
+    //         memcpy(
+    //             model->original_vertices_y,
+    //             model->model->vertices_y,
+    //             sizeof(int) * model->model->vertex_count);
+    //         memcpy(
+    //             model->original_vertices_z,
+    //             model->model->vertices_z,
+    //             sizeof(int) * model->model->vertex_count);
 
-            if( model->model->face_alphas )
-            {
-                model->original_face_alphas = malloc(sizeof(int) * model->model->face_count);
-                memcpy(
-                    model->original_face_alphas,
-                    model->model->face_alphas,
-                    sizeof(int) * model->model->face_count);
-            }
+    //         if( model->model->face_alphas )
+    //         {
+    //             model->original_face_alphas = malloc(sizeof(int) * model->model->face_count);
+    //             memcpy(
+    //                 model->original_face_alphas,
+    //                 model->model->face_alphas,
+    //                 sizeof(int) * model->model->face_count);
+    //         }
 
-            assert(model->frames == NULL);
-            model->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
-            memset(model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+    //         assert(model->frames == NULL);
+    //         model->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
+    //         memset(model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
 
-            int frame_id = sequence->frame_ids[0];
-            int frame_archive_id = (frame_id >> 16) & 0xFFFF;
-            // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
-            //     first 2 bytes are the sequence ID,
-            //     the second 2 bytes are the frame archive ID
+    //         int frame_id = sequence->frame_ids[0];
+    //         int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+    //         // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
+    //         //     first 2 bytes are the sequence ID,
+    //         //     the second 2 bytes are the frame archive ID
 
-            struct CacheArchive* frame_archive =
-                cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
-            struct FileList* frame_filelist = filelist_new_from_cache_archive(frame_archive);
-            for( int i = 0; i < sequence->frame_count; i++ )
-            {
-                assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
-                // assert(i < frame_filelist->file_count);
+    //         struct CacheArchive* frame_archive =
+    //             cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
+    //         struct FileList* frame_filelist = filelist_new_from_cache_archive(frame_archive);
+    //         for( int i = 0; i < sequence->frame_count; i++ )
+    //         {
+    //             assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
+    //             // assert(i < frame_filelist->file_count);
 
-                int frame_id = sequence->frame_ids[i];
-                int frame_archive_id = (frame_id >> 16) & 0xFFFF;
-                int frame_file_id = frame_id & 0xFFFF;
+    //             int frame_id = sequence->frame_ids[i];
+    //             int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+    //             int frame_file_id = frame_id & 0xFFFF;
 
-                assert(frame_file_id > 0);
-                assert(frame_file_id - 1 < frame_filelist->file_count);
+    //             assert(frame_file_id > 0);
+    //             assert(frame_file_id - 1 < frame_filelist->file_count);
 
-                char* frame_data = frame_filelist->files[frame_file_id - 1];
-                int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
-                int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
+    //             char* frame_data = frame_filelist->files[frame_file_id - 1];
+    //             int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
+    //             int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
 
-                if( !model->framemap )
-                {
-                    model->framemap = framemap_new_from_cache(cache, framemap_id);
-                }
+    //             if( !model->framemap )
+    //             {
+    //                 model->framemap = framemap_new_from_cache(cache, framemap_id);
+    //             }
 
-                struct CacheFrame* frame =
-                    frame_new_decode2(frame_id, model->framemap, frame_data, frame_data_size);
+    //             struct CacheFrame* frame =
+    //                 frame_new_decode2(frame_id, model->framemap, frame_data, frame_data_size);
 
-                model->frames[model->frame_count++] = frame;
-            }
+    //             model->frames[model->frame_count++] = frame;
+    //         }
 
-            cache_archive_free(frame_archive);
-            frame_archive = NULL;
-            filelist_free(frame_filelist);
-            frame_filelist = NULL;
-        }
-    }
+    //         cache_archive_free(frame_archive);
+    //         frame_archive = NULL;
+    //         filelist_free(frame_filelist);
+    //         frame_filelist = NULL;
+    //     }
+    // }
     // TODO: End Remove
 
     // This must happen after loading of locs because locs influence the lightness.
@@ -2072,7 +2074,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             lightsrc_z);
     }
 
-    map_terrain_free(map_terrain);
+    scene->terrain = map_terrain;
+
+    // map_terrain_free(map_terrain);
 
     config_locs_table_free(config_locs_table);
     config_object_table_free(config_object_table);
@@ -2152,4 +2156,85 @@ scene_free(struct Scene* scene)
     free(scene->locs);
     free(scene->grid_tiles);
     free(scene);
+}
+
+void
+scene_clear_entities(struct Scene* scene)
+{
+    struct GridTile* tile = NULL;
+    struct Loc* loc = NULL;
+    int index = 0;
+
+    for( int i = 0; i < scene->entities_length; i++ )
+    {
+        tile = &scene->grid_tiles[MAP_TILE_COORD(
+            scene->entities[i].x, scene->entities[i].y, scene->entities[i].level)];
+        while( tile->locs_length > 0 &&
+               scene->locs[tile->locs[tile->locs_length - 1]].entity != -1 )
+        {
+            tile->locs_length--;
+            scene->models_length--;
+        }
+    }
+
+    scene->locs_length -= scene->temporary_locs_length;
+    scene->temporary_locs_length = 0;
+
+    memset(scene->entities, 0, sizeof(scene->entities));
+    scene->entities_length = 0;
+}
+
+void
+scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct SceneModel* model)
+{
+    struct GridTile* tile = NULL;
+    struct Loc* loc = NULL;
+
+    int tile_x = x;
+    int tile_y = y;
+    int tile_z = level;
+
+    struct CacheMapTerrain* map_terrain = scene->terrain;
+
+    int height_sw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y, tile_z)].height;
+    int height_se = height_sw;
+    if( tile_x + 1 < MAP_TERRAIN_X )
+        height_se = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y, tile_z)].height;
+
+    int height_ne = height_sw;
+    if( tile_y + 1 < MAP_TERRAIN_Y && tile_x + 1 < MAP_TERRAIN_X )
+        height_ne = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_z)].height;
+
+    int height_nw = height_sw;
+    if( tile_y + 1 < MAP_TERRAIN_Y )
+        height_nw = map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_y + 1, tile_z)].height;
+
+    int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
+
+    model->region_x = x * 128 + 64;
+    model->region_y = y * 128 + 64;
+    model->region_z = height_center;
+
+    scene->models[scene->models_length++] = *model;
+
+    loc = &scene->locs[scene->locs_length++];
+    loc->entity = scene->temporary_locs_length++;
+    loc->chunk_pos_x = x;
+    loc->chunk_pos_y = y;
+    loc->chunk_pos_level = level;
+    loc->size_x = 1;
+    loc->size_y = 1;
+
+    loc->type = LOC_TYPE_SCENERY;
+    loc->_scenery.model = scene->models_length - 1;
+
+    tile = &scene->grid_tiles[MAP_TILE_COORD(x, y, level)];
+
+    tile->locs[tile->locs_length++] = scene->locs_length - 1;
+
+    scene->entities[scene->entities_length++] = (struct TemporaryEntity){
+        .x = x,
+        .y = y,
+        .level = level,
+    };
 }

@@ -5,6 +5,7 @@
 #include "lighting.h"
 #include "osrs/anim.h"
 #include "osrs/tables/config_sequence.h"
+#include "osrs/tables/maps.h"
 #include "scene_cache.h"
 #include "scene_tile.h"
 
@@ -151,6 +152,9 @@ struct GridTile
     int locs[20];
     int locs_length;
 
+    int temporary_locs[20];
+    int temporary_locs_length;
+
     int wall;
     int wall_decor;
     int ground_decor;
@@ -277,6 +281,8 @@ struct Loc
     int chunk_pos_y;
     int chunk_pos_level;
 
+    int entity;
+
     union
     {
         struct NormalScenery _scenery;
@@ -285,6 +291,13 @@ struct Loc
         struct WallDecor _wall_decor;
         struct GroundObject _ground_object;
     };
+};
+
+struct TemporaryEntity
+{
+    int x;
+    int y;
+    int level;
 };
 
 struct Scene
@@ -296,6 +309,8 @@ struct Scene
     int locs_length;
     int locs_capacity;
 
+    int temporary_locs_length;
+
     struct SceneModel* models;
     int models_length;
     int models_capacity;
@@ -305,11 +320,20 @@ struct Scene
 
     struct ModelCache* _model_cache;
 
+    struct CacheMapTerrain* terrain;
+
     int* _shade_map;
     int _shade_map_length;
+
+    struct TemporaryEntity entities[100];
+    int entities_length;
 };
 
 struct Scene* scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y);
 void scene_free(struct Scene* scene);
+
+void scene_clear_entities(struct Scene* scene);
+void
+scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct SceneModel* model);
 
 #endif

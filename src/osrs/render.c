@@ -3283,6 +3283,7 @@ render_scene_ops(
         {
             int model_index = -1;
             int loc_index = op->_loc.loc_index;
+
             loc = &scene->locs[loc_index];
 
             model_index = loc->_scenery.model;
