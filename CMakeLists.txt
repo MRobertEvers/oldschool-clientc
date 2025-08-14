@@ -5,15 +5,18 @@ project(RSClient
 
 # set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
 # set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
-set(PROFILING_FLAGS)
+# set(PROFILING_FLAGS "-fsanitize=address -g -fno-omit-frame-pointer")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
+# Add sanitizer to linker flags
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(USE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1 -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] -s NO_EXIT_RUNTIME=1")
