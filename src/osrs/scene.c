@@ -2077,8 +2077,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     scene->terrain = map_terrain;
 
-    // map_terrain_free(map_terrain);
-
     config_locs_table_free(config_locs_table);
     config_object_table_free(config_object_table);
     config_sequence_table_free(config_sequence_table);
@@ -2156,6 +2154,7 @@ scene_free(struct Scene* scene)
     free(scene->models);
     free(scene->locs);
     free(scene->grid_tiles);
+    map_terrain_free(scene->terrain);
     free(scene);
 }
 

@@ -569,39 +569,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     // Get the frequency (ticks per second)
     Uint64 frequency = SDL_GetPerformanceFrequency();
 
-    // memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
-
-    // render_scene_tiles(
-    //     pixel_buffer,
-    //     SCREEN_WIDTH,
-    //     SCREEN_HEIGHT,
-    //     50,
-    //     game->camera_x,
-    //     game->camera_y,
-    //     game->camera_z,
-    //     game->camera_pitch,
-    //     game->camera_yaw,
-    //     game->camera_roll,
-    //     game->camera_fov,
-    //     game->tiles,
-    //     game->tile_count,
-    //     game->scene_textures);
-
-    // render_scene_locs(
-    //     pixel_buffer,
-    //     SCREEN_WIDTH,
-    //     SCREEN_HEIGHT,
-    //     50,
-    //     game->camera_x,
-    //     game->camera_y,
-    //     game->camera_z,
-    //     game->camera_pitch,
-    //     game->camera_yaw,
-    //     game->camera_roll,
-    //     game->camera_fov,
-    //     game->scene_locs,
-    //     game->scene_textures);
-
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     int render_ops = game->max_render_ops;
     if( !game->manual_render_ops )

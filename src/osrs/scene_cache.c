@@ -435,11 +435,6 @@ textures_cache_checkout(
         if( i > 0 && texture_definition->sprite_types )
             index = texture_definition->sprite_types[i - 1];
 
-        if( texture_id == 7 )
-        {
-            int iii = 0;
-        }
-
         if( index == 0 )
         {
             if( size == sprite->width )

@@ -49,15 +49,13 @@ brew install sdl2
 ### TODOS
 
 1. Fix the need to `long long` in the texture renderer.
-2. Gouraud raster exact + stepped4 + alpha/no-alpha
-3. lighting for models - mergedgrounddecor
-4. Clean up diagonal wall decor. (Janky weird hardcoded offset.)
-5. Consolodate sprite pixel loading.
-6. Consolodate pixel blending
-7. Consolodate face modes. (the whole colorc == -2 thing)
-8. Animations
-9. Scene manager (manage lifetimes of models etc, )
-10. Varbits and VarP transforms. e.g. Lumbridge castle bank not showing.
+2. lighting for models - mergedgrounddecor
+3. Consolodate sprite pixel loading.
+4. Consolodate pixel blending
+5. Consolodate face modes. (the whole colorc == -2 thing)
+6. Animated textures
+7. Scene manager (manage lifetimes of models etc, )
+8. Varbits and VarP transforms. e.g. Lumbridge castle bank not showing.
 
 Software rester
 
@@ -69,16 +67,33 @@ Scene is used by the renderer.
 
 Loading the world.
 
-1. Load the Chunk Scenery (locs).
-   a. For each tile, organize the following (in render order); (Loaded from the ChunkMaps)
-   Walls, decor etc. have additional information about where in the tile they are.
-   That will inform the renderer the order to draw.
-   - Bridge Tile
-   - Tile Underlay/Overlay
-   - Ground Decor
-   - Walls (don't know far/near yet)
-   - Wall Decor
-2. The scene is produced from a world.
+1. Load static scene
+   1. Load the models (and "Loc" metadata) for each tile
+      1. Load models
+      2. apply static transforms
+      3. [if present] load animations
+   2. Load scene ground; this requires shademap from step 1
+   3. Shift bridge tiles down
+   4. Calculate Normals
+   5. Join Sharelight normals
+   6. Apply lighting
+2. Update game
+   1. Clear previous entities
+   2. Create entity elements for each entity (load new animations etc etc.)
+      1. Load models
+      2. apply static transforms
+      3. [if present] load animations
+      4. calculate normals, note: This is done per model rather than in a loop over all models.
+      5. apply lighting
+3. Prior to draw
+   1. Add entity elements
+   2. update animations on entities and on scene.
+   3. update other things
+4. During draw
+   1. Painters algorithm
+   2. Apply frustrum culling
+   3. Compute draw commands
+   4. For each face, check mouse intersection.
 
 - Load the base model used for each model used.
 - Load textures

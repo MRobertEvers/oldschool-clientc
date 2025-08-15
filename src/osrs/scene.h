@@ -329,6 +329,9 @@ struct Scene
     int entities_length;
 };
 
+/*
+ * Build the "static" elements of the scene.
+ */
 struct Scene* scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y);
 void scene_free(struct Scene* scene);
 
