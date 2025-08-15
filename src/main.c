@@ -4,7 +4,6 @@
 #include "osrs/anim.h"
 #include "osrs/tables/framemap.h"
 #include "osrs/tables/model.h"
-#include "osrs_cache.h"
 #include "projection.h"
 #include "texture.h"
 #include <sys/stat.h>

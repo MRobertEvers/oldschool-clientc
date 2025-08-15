@@ -1,24 +1,10 @@
 #include "reference_table.h"
 
-#include "buffer.h"
+#include "rsbuf.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
-// public static int getSmartInt(ByteBuffer buffer) {
-// 	if (buffer.get(buffer.position()) < 0)
-// 		return buffer.getInt() & 0x7fffffff;
-// 	return buffer.getShort() & 0xFFFF;
-// }
-static int
-get_smart_int(struct Buffer* buffer)
-{
-    assert(buffer->position < buffer->data_size);
-    if( (buffer->data[buffer->position]) < 0 )
-        return read_32(buffer) & 0x7fffffff;
-    return read_16(buffer) & 0xFFFF;
-}
 
 #define FLAG_IDENTIFIERS 0x1
 #define FLAG_WHIRLPOOL 0x2
@@ -42,10 +28,10 @@ reference_table_new_decode(char* data, int data_size)
     }
     memset(table, 0, sizeof(struct ReferenceTable));
 
-    struct Buffer buffer = { .data = data, .position = 0, .data_size = data_size };
+    struct RSBuffer buffer = { .data = data, .position = 0, .size = data_size };
 
     // Read header
-    table->format = read_8(&buffer) & 0xFF;
+    table->format = g1(&buffer);
     if( table->format < 5 || table->format > 7 )
     {
         free(table);
@@ -54,17 +40,17 @@ reference_table_new_decode(char* data, int data_size)
 
     if( table->format >= 6 )
     {
-        table->version = read_32(&buffer);
+        table->version = g4(&buffer);
     }
 
-    table->flags = read_8(&buffer) & 0xFF;
+    table->flags = g1(&buffer);
 
     // Read the IDs
     int id_count;
     if( table->format >= 7 )
-        id_count = get_smart_int(&buffer);
+        id_count = gusmart(&buffer);
     else
-        id_count = read_16(&buffer) & 0xFFFF;
+        id_count = g2(&buffer);
     int* ids = malloc(id_count * sizeof(int));
     if( !ids )
     {
@@ -79,7 +65,7 @@ reference_table_new_decode(char* data, int data_size)
     int max_id = -1;
     for( int i = 0; i < id_count; i++ )
     {
-        int delta = table->format >= 7 ? get_smart_int(&buffer) : read_16(&buffer) & 0xFFFF;
+        int delta = table->format >= 7 ? gusmart(&buffer) : g2(&buffer);
         ids[i] = accumulator += delta;
         if( ids[i] > max_id )
         {
@@ -114,7 +100,7 @@ reference_table_new_decode(char* data, int data_size)
         for( int i = 0; i < id_count; i++ )
         {
             int id = ids[i];
-            table->archives[id].identifier = read_32(&buffer);
+            table->archives[id].identifier = g4(&buffer);
         }
     }
 
@@ -122,7 +108,7 @@ reference_table_new_decode(char* data, int data_size)
     for( int i = 0; i < id_count; i++ )
     {
         int id = ids[i];
-        table->archives[id].crc = read_32(&buffer);
+        table->archives[id].crc = g4(&buffer);
     }
 
     // Read sizes if present
@@ -131,8 +117,8 @@ reference_table_new_decode(char* data, int data_size)
         for( int i = 0; i < id_count; i++ )
         {
             int id = ids[i];
-            table->archives[id].compressed = read_32(&buffer);
-            table->archives[id].uncompressed = read_32(&buffer);
+            table->archives[id].compressed = g4(&buffer);
+            table->archives[id].uncompressed = g4(&buffer);
         }
     }
 
@@ -140,7 +126,7 @@ reference_table_new_decode(char* data, int data_size)
     for( int i = 0; i < id_count; i++ )
     {
         int id = ids[i];
-        table->archives[id].version = read_32(&buffer);
+        table->archives[id].version = g4(&buffer);
     }
 
     // Read child sizes
@@ -149,9 +135,9 @@ reference_table_new_decode(char* data, int data_size)
         int id = ids[i];
         int child_count;
         if( table->format >= 7 )
-            child_count = get_smart_int(&buffer);
+            child_count = gusmart(&buffer);
         else
-            child_count = read_16(&buffer) & 0xFFFF;
+            child_count = g2(&buffer);
         table->archives[id].children.count = child_count;
         table->archives[id].children.files =
             malloc(child_count * sizeof(struct ArchiveFileReference));
@@ -176,7 +162,7 @@ reference_table_new_decode(char* data, int data_size)
         accumulator = 0;
         for( int j = 0; j < table->archives[id].children.count; j++ )
         {
-            int delta = table->format >= 7 ? get_smart_int(&buffer) : read_16(&buffer) & 0xFFFF;
+            int delta = table->format >= 7 ? gusmart(&buffer) : g2(&buffer);
             table->archives[id].children.files[j].id = accumulator += delta;
         }
     }
@@ -201,7 +187,7 @@ reference_table_new_decode(char* data, int data_size)
             int id = ids[i];
             for( int j = 0; j < table->archives[id].children.count; j++ )
             {
-                table->archives[id].children.files[j].name_hash = read_32(&buffer);
+                table->archives[id].children.files[j].name_hash = g4(&buffer);
             }
         }
     }

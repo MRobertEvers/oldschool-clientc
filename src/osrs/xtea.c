@@ -1,4 +1,4 @@
-#include "buffer.h"
+#include "xtea.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -31,6 +31,13 @@
 // 	return out.flip();
 // }
 
+static int
+read_32(char* data, int position)
+{
+    return ((data[position] & 0xFF) << 24) | ((data[position + 1] & 0xFF) << 16) |
+           ((data[position + 2] & 0xFF) << 8) | (data[position + 3] & 0xFF);
+}
+
 static void
 write_32(char* data, uint32_t value)
 {
@@ -44,12 +51,15 @@ void
 xtea_decrypt(char* data, int length, int32_t key[4])
 {
     int num_blocks = length / 8;
-    struct Buffer buffer = { .data = data, .position = 0, .data_size = length };
+
+    int position = 0;
 
     for( int block = 0; block < num_blocks; block++ )
     {
-        uint32_t v0 = read_32(&buffer);
-        uint32_t v1 = read_32(&buffer);
+        uint32_t v0 = read_32(data, position);
+        position += 4;
+        uint32_t v1 = read_32(data, position);
+        position += 4;
 
         uint32_t sum = XTEA_DELTA * XTEA_ROUNDS;
 

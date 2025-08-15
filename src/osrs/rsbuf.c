@@ -6,7 +6,7 @@
 #include <wchar.h>
 
 void
-rsbuf_init(struct RSBuffer* buffer, uint8_t* data, int size)
+rsbuf_init(struct RSBuffer* buffer, int8_t* data, int size)
 {
     buffer->data = data;
     buffer->size = size;
@@ -72,6 +72,17 @@ rsbuf_g8(struct RSBuffer* buffer)
     int64_t high = (int64_t)rsbuf_g4(buffer) & 0xffffffffLL;
     int64_t low = (int64_t)rsbuf_g4(buffer) & 0xffffffffLL;
     return (high << 32) | low;
+}
+
+int
+rsbuf_read_usmart(struct RSBuffer* buffer)
+{
+    assert(buffer->position < buffer->size);
+    int peek = buffer->data[buffer->position];
+    if( peek < 0 )
+        return rsbuf_g4(buffer) & 0x7fffffff;
+    else
+        return rsbuf_g2(buffer) & 0xFFFF;
 }
 
 int

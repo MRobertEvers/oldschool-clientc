@@ -15,12 +15,12 @@ struct Params
 
 struct RSBuffer
 {
-    uint8_t* data;
+    int8_t* data;
     int size;
     int position;
 };
 
-void rsbuf_init(struct RSBuffer* buffer, uint8_t* data, int size);
+void rsbuf_init(struct RSBuffer* buffer, int8_t* data, int size);
 
 int rsbuf_g1(struct RSBuffer* buffer);
 // signed
@@ -32,6 +32,7 @@ int rsbuf_g3(struct RSBuffer* buffer);
 int rsbuf_g4(struct RSBuffer* buffer);
 int64_t rsbuf_g8(struct RSBuffer* buffer);
 
+int rsbuf_read_usmart(struct RSBuffer* buffer);
 int rsbuf_read_big_smart(struct RSBuffer* buffer);
 char* rsbuf_read_string(struct RSBuffer* buffer);
 
@@ -49,6 +50,8 @@ int rsbuf_readto(struct RSBuffer* buffer, char* out, int out_size, int len);
 #define g3(buffer) rsbuf_g3(buffer)
 #define g4(buffer) rsbuf_g4(buffer)
 #define g8(buffer) rsbuf_g8(buffer)
+#define gusmart(buffer) rsbuf_read_usmart(buffer)
+#define gbigsmart(buffer) rsbuf_read_big_smart(buffer)
 
 #define gstring(buffer) rsbuf_read_string(buffer)
 #define gparams(buffer, params) rsbuf_read_params(buffer, params)
