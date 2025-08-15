@@ -3156,8 +3156,11 @@ render_scene_ops(
         {
         case SCENE_OP_TYPE_DRAW_GROUND:
         {
-            tile = grid_tile->tile;
-            if( !tile || !tile->valid_faces )
+            if( grid_tile->ground == -1 )
+                break;
+
+            tile = &scene->scene_tiles[grid_tile->ground];
+            if( !tile->valid_faces )
                 break;
 
             int* color_override_hsl16_nullable = NULL;
@@ -3451,8 +3454,11 @@ next:
     {
     case SCENE_OP_TYPE_DRAW_GROUND:
     {
-        tile = grid_tile->tile;
-        if( !tile || !tile->valid_faces )
+        if( grid_tile->ground == -1 )
+            goto next;
+
+        tile = &iter->scene->scene_tiles[grid_tile->ground];
+        if( !tile->valid_faces )
             goto next;
 
         int tile_x = tile->chunk_pos_x;

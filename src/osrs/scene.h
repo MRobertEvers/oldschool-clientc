@@ -186,9 +186,7 @@ struct GridTile
     // The spans are used to determine which tiles are waiting for us to draw.
     int spans;
 
-    struct SceneTile* tile;
-
-    int sharelight;
+    int ground;
 
     int x;
     int z;

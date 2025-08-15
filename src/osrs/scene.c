@@ -793,7 +793,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 grid_tile->z = y;
                 grid_tile->level = level;
                 grid_tile->spans = 0;
-                grid_tile->sharelight = 0;
+                grid_tile->ground = -1;
 
                 grid_tile->wall = -1;
                 grid_tile->ground_decor = -1;
@@ -1816,7 +1816,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         struct SceneTile* scene_tile = &scene_tiles[i];
         grid_tile = &scene->grid_tiles[MAP_TILE_COORD(
             scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
-        grid_tile->tile = scene_tile;
+        grid_tile->ground = i;
     }
 
     // Adjust bridges.
