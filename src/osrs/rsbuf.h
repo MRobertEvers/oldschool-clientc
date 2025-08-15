@@ -52,6 +52,7 @@ int rsbuf_readto(struct RSBuffer* buffer, char* out, int out_size, int len);
 #define g8(buffer) rsbuf_g8(buffer)
 #define gusmart(buffer) rsbuf_read_usmart(buffer)
 #define gbigsmart(buffer) rsbuf_read_big_smart(buffer)
+#define gshortsmart(buffer) rsbuf_read_unsigned_short_smart(buffer)
 
 #define gstring(buffer) rsbuf_read_string(buffer)
 #define gparams(buffer, params) rsbuf_read_params(buffer, params)

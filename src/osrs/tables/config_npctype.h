@@ -75,7 +75,6 @@ struct CacheConfigNPCType
 struct CacheConfigNPCType* config_npctype_new_decode(int revision, char* buffer, int buffer_size);
 void config_npctype_free(struct CacheConfigNPCType* npc);
 
-void decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buffer);
 void print_npc_type(const struct CacheConfigNPCType* npc);
 void free_npc_type(struct CacheConfigNPCType* npc);
 

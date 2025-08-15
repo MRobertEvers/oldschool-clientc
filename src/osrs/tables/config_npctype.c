@@ -1,6 +1,6 @@
 #include "config_npctype.h"
 
-#include "buffer.h"
+#include "osrs/rsbuf.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,6 +8,8 @@
 #include <string.h>
 
 #define REV_210_NPC_ARCHIVE_REV 1493
+
+static void decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct RSBuffer* buffer);
 
 struct CacheConfigNPCType*
 config_npctype_new_decode(int revision, char* data, int data_size)
@@ -19,7 +21,7 @@ config_npctype_new_decode(int revision, char* data, int data_size)
         return NULL;
     }
 
-    struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
 
     decode_npc_type(npc, revision, &buffer);
 
@@ -72,8 +74,8 @@ config_npctype_free(struct CacheConfigNPCType* npc)
  * @param npc
  * @param buffer
  */
-void
-decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buffer)
+static void
+decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct RSBuffer* buffer)
 {
     if( !npc || !buffer || !buffer->data )
     {
@@ -86,16 +88,16 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
     int prev_opcode = -1;
     while( 1 )
     {
-        if( buffer->position >= buffer->data_size )
+        if( buffer->position >= buffer->size )
         {
             printf(
                 "decode_npc_type: Buffer position %d exceeded data size %d\n",
                 buffer->position,
-                buffer->data_size);
+                buffer->size);
             return;
         }
 
-        int opcode = read_8(buffer) & 0xFF;
+        int opcode = g1(buffer);
         if( opcode == 0 )
         {
             // printf("decode_npc_type: Reached end of data (opcode 0)\n");
@@ -106,12 +108,12 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         {
         case 1:
         {
-            if( buffer->position >= buffer->data_size )
+            if( buffer->position >= buffer->size )
             {
                 printf("decode_npc_type: Buffer overflow in case 1\n");
                 return;
             }
-            int length = read_8(buffer) & 0xFF;
+            int length = g1(&buffer);
             npc->models = malloc(length * sizeof(int));
             if( !npc->models )
             {
@@ -122,7 +124,7 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
 
             for( int idx = 0; idx < length; ++idx )
             {
-                if( buffer->position + 1 >= buffer->data_size )
+                if( buffer->position + 1 >= buffer->size )
                 {
                     printf(
                         "decode_npc_type: Buffer overflow while reading models at index %d\n", idx);
@@ -131,7 +133,7 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
                     npc->models_count = 0;
                     return;
                 }
-                npc->models[idx] = read_16(buffer) & 0xFFFF;
+                npc->models[idx] = g2(buffer);
             }
             break;
         }
@@ -139,12 +141,12 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         {
             // Read string length first
             int str_len = 0;
-            while( buffer->position + str_len < buffer->data_size &&
+            while( buffer->position + str_len < buffer->size &&
                    buffer->data[buffer->position + str_len] != '\0' )
             {
                 str_len++;
             }
-            if( buffer->position + str_len >= buffer->data_size )
+            if( buffer->position + str_len >= buffer->size )
             {
                 printf("decode_npc_type: Buffer overflow while reading name string\n");
                 return;
@@ -161,40 +163,40 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         }
         case 12:
         {
-            npc->size = read_8(buffer) & 0xFF;
+            npc->size = g1(buffer);
             break;
         }
         case 13:
         {
-            npc->standing_animation = read_16(buffer) & 0xFFFF;
+            npc->standing_animation = g2(buffer);
             break;
         }
         case 14:
         {
-            npc->walking_animation = read_16(buffer) & 0xFFFF;
+            npc->walking_animation = g2(buffer);
             break;
         }
         case 15:
         {
-            npc->idle_rotate_left_animation = read_16(buffer) & 0xFFFF;
+            npc->idle_rotate_left_animation = g2(buffer);
             break;
         }
         case 16:
         {
-            npc->idle_rotate_right_animation = read_16(buffer) & 0xFFFF;
+            npc->idle_rotate_right_animation = g2(buffer);
             break;
         }
         case 17:
         {
-            npc->walking_animation = read_16(buffer) & 0xFFFF;
-            npc->rotate180_animation = read_16(buffer) & 0xFFFF;
-            npc->rotate_left_animation = read_16(buffer) & 0xFFFF;
-            npc->rotate_right_animation = read_16(buffer) & 0xFFFF;
+            npc->walking_animation = g2(buffer);
+            npc->rotate180_animation = g2(buffer);
+            npc->rotate_left_animation = g2(buffer);
+            npc->rotate_right_animation = g2(buffer);
             break;
         }
         case 18:
         {
-            npc->category = read_16(buffer);
+            npc->category = g2(buffer);
             break;
         }
         case 30:
@@ -206,12 +208,12 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
             int idx = opcode - 30;
             // Read string length first
             int str_len = 0;
-            while( buffer->position + str_len < buffer->data_size &&
+            while( buffer->position + str_len < buffer->size &&
                    buffer->data[buffer->position + str_len] != '\0' )
             {
                 str_len++;
             }
-            if( buffer->position + str_len >= buffer->data_size )
+            if( buffer->position + str_len >= buffer->size )
             {
                 return;
             }
@@ -228,72 +230,72 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         }
         case 40:
         {
-            int length = read_8(buffer) & 0xFF;
+            int length = g1(buffer);
             npc->recolor_to_find = malloc(length * sizeof(short));
             npc->recolor_to_replace = malloc(length * sizeof(short));
             npc->recolor_count = length;
 
             for( int idx = 0; idx < length; ++idx )
             {
-                npc->recolor_to_find[idx] = (short)(read_16(buffer) & 0xFFFF);
-                npc->recolor_to_replace[idx] = (short)(read_16(buffer) & 0xFFFF);
+                npc->recolor_to_find[idx] = (short)(g2(buffer));
+                npc->recolor_to_replace[idx] = (short)(g2(buffer));
             }
             break;
         }
         case 41:
         {
-            int length = read_8(buffer) & 0xFF;
+            int length = g1(buffer);
             npc->retexture_to_find = malloc(length * sizeof(short));
             npc->retexture_to_replace = malloc(length * sizeof(short));
             npc->retexture_count = length;
 
             for( int idx = 0; idx < length; ++idx )
             {
-                npc->retexture_to_find[idx] = (short)(read_16(buffer) & 0xFFFF);
-                npc->retexture_to_replace[idx] = (short)(read_16(buffer) & 0xFFFF);
+                npc->retexture_to_find[idx] = (short)(g2(buffer));
+                npc->retexture_to_replace[idx] = (short)(g2(buffer));
             }
             break;
         }
         case 60:
         {
-            int length = read_8(buffer) & 0xFF;
+            int length = g1(buffer);
             npc->chathead_models = malloc(length * sizeof(int));
             npc->chathead_models_count = length;
 
             for( int idx = 0; idx < length; ++idx )
             {
-                npc->chathead_models[idx] = read_16(buffer) & 0xFFFF;
+                npc->chathead_models[idx] = g2(buffer);
             }
             break;
         }
         case 74:
         {
-            npc->stats[0] = read_16(buffer) & 0xFFFF;
+            npc->stats[0] = g2(buffer);
             break;
         }
         case 75:
         {
-            npc->stats[1] = read_16(buffer) & 0xFFFF;
+            npc->stats[1] = g2(buffer);
             break;
         }
         case 76:
         {
-            npc->stats[2] = read_16(buffer) & 0xFFFF;
+            npc->stats[2] = g2(buffer);
             break;
         }
         case 77:
         {
-            npc->stats[3] = read_16(buffer) & 0xFFFF;
+            npc->stats[3] = g2(buffer);
             break;
         }
         case 78:
         {
-            npc->stats[4] = read_16(buffer) & 0xFFFF;
+            npc->stats[4] = g2(buffer);
             break;
         }
         case 79:
         {
-            npc->stats[5] = read_16(buffer) & 0xFFFF;
+            npc->stats[5] = g2(buffer);
             break;
         }
         case 93:
@@ -303,17 +305,17 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         }
         case 95:
         {
-            npc->combat_level = read_16(buffer) & 0xFFFF;
+            npc->combat_level = g2(buffer);
             break;
         }
         case 97:
         {
-            npc->width_scale = read_16(buffer) & 0xFFFF;
+            npc->width_scale = g2(buffer);
             break;
         }
         case 98:
         {
-            npc->height_scale = read_16(buffer) & 0xFFFF;
+            npc->height_scale = g2(buffer);
             break;
         }
         case 99:
@@ -323,12 +325,12 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         }
         case 100:
         {
-            npc->ambient = read_8(buffer);
+            npc->ambient = g1(buffer);
             break;
         }
         case 101:
         {
-            npc->contrast = read_8(buffer);
+            npc->contrast = g1(buffer);
             break;
         }
         case 102:
@@ -342,11 +344,11 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
                 npc->head_icon_sprite_index = malloc(sizeof(short));
                 npc->head_icon_count = 1;
                 npc->head_icon_archive_ids[0] = default_head_icon_archive;
-                npc->head_icon_sprite_index[0] = (short)(read_16(buffer) & 0xFFFF);
+                npc->head_icon_sprite_index[0] = (short)(g2(buffer));
             }
             else
             {
-                int bitfield = read_8(buffer) & 0xFF;
+                int bitfield = g1(buffer);
                 int len = 0;
                 for( int var5 = bitfield; var5 != 0; var5 >>= 1 )
                 {
@@ -366,9 +368,8 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
                     }
                     else
                     {
-                        npc->head_icon_archive_ids[i] = read_big_smart2(buffer);
-                        npc->head_icon_sprite_index[i] =
-                            read_unsigned_short_smart_minus_one(buffer);
+                        npc->head_icon_archive_ids[i] = gbigsmart(buffer);
+                        npc->head_icon_sprite_index[i] = gshortsmart(buffer) - 1;
                     }
                 }
             }
@@ -376,30 +377,30 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         }
         case 103:
         {
-            npc->rotation_speed = read_16(buffer) & 0xFFFF;
+            npc->rotation_speed = g2(buffer);
             break;
         }
         case 106:
         {
-            npc->varbit_id = read_16(buffer) & 0xFFFF;
+            npc->varbit_id = g2(buffer);
             if( npc->varbit_id == 0xFFFF )
             {
                 npc->varbit_id = -1;
             }
 
-            npc->varp_index = read_16(buffer) & 0xFFFF;
+            npc->varp_index = g2(buffer);
             if( npc->varp_index == 0xFFFF )
             {
                 npc->varp_index = -1;
             }
 
-            int length = read_8(buffer) & 0xFF;
+            int length = g1(buffer);
             npc->configs = malloc((length + 2) * sizeof(int));
             npc->configs_count = length + 2;
 
             for( int idx = 0; idx <= length; ++idx )
             {
-                npc->configs[idx] = read_16(buffer) & 0xFFFF;
+                npc->configs[idx] = g2(buffer);
                 if( npc->configs[idx] == 0xFFFF )
                 {
                     npc->configs[idx] = -1;
@@ -426,57 +427,57 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         }
         case 114:
         {
-            npc->run_animation = read_16(buffer) & 0xFFFF;
+            npc->run_animation = g2(buffer);
             break;
         }
         case 115:
         {
-            npc->run_animation = read_16(buffer) & 0xFFFF;
-            npc->run_rotate180_animation = read_16(buffer) & 0xFFFF;
-            npc->run_rotate_left_animation = read_16(buffer) & 0xFFFF;
-            npc->run_rotate_right_animation = read_16(buffer) & 0xFFFF;
+            npc->run_animation = g2(buffer);
+            npc->run_rotate180_animation = g2(buffer);
+            npc->run_rotate_left_animation = g2(buffer);
+            npc->run_rotate_right_animation = g2(buffer);
             break;
         }
         case 116:
         {
-            npc->crawl_animation = read_16(buffer) & 0xFFFF;
+            npc->crawl_animation = g2(buffer);
             break;
         }
         case 117:
         {
-            npc->crawl_animation = read_16(buffer) & 0xFFFF;
-            npc->crawl_rotate180_animation = read_16(buffer) & 0xFFFF;
-            npc->crawl_rotate_left_animation = read_16(buffer) & 0xFFFF;
-            npc->crawl_rotate_right_animation = read_16(buffer) & 0xFFFF;
+            npc->crawl_animation = g2(buffer);
+            npc->crawl_rotate180_animation = g2(buffer);
+            npc->crawl_rotate_left_animation = g2(buffer);
+            npc->crawl_rotate_right_animation = g2(buffer);
             break;
         }
         case 118:
         {
-            npc->varbit_id = read_16(buffer) & 0xFFFF;
+            npc->varbit_id = g2(buffer);
             if( npc->varbit_id == 0xFFFF )
             {
                 npc->varbit_id = -1;
             }
 
-            npc->varp_index = read_16(buffer) & 0xFFFF;
+            npc->varp_index = g2(buffer);
             if( npc->varp_index == 0xFFFF )
             {
                 npc->varp_index = -1;
             }
 
-            int var = read_16(buffer) & 0xFFFF;
+            int var = g2(buffer);
             if( var == 0xFFFF )
             {
                 var = -1;
             }
 
-            int length = read_8(buffer) & 0xFF;
+            int length = g1(buffer);
             npc->configs = malloc((length + 2) * sizeof(int));
             npc->configs_count = length + 2;
 
             for( int idx = 0; idx <= length; ++idx )
             {
-                npc->configs[idx] = read_16(buffer) & 0xFFFF;
+                npc->configs[idx] = g2(buffer);
                 if( npc->configs[idx] == 0xFFFF )
                 {
                     npc->configs[idx] = -1;
@@ -498,17 +499,17 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
         }
         case 124:
         {
-            npc->height = read_16(buffer) & 0xFFFF;
+            npc->height = g2(buffer);
             break;
         }
         case 249:
         {
-            if( buffer->position >= buffer->data_size )
+            if( buffer->position >= buffer->size )
             {
                 printf("decode_npc_type: Buffer overflow in case 249\n");
                 return;
             }
-            int length = read_8(buffer) & 0xFF;
+            int length = g1(buffer);
 
             // Initialize params with next power of 2 size
             int capacity = 1;
@@ -539,7 +540,7 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
 
             for( int i = 0; i < length; i++ )
             {
-                if( buffer->position >= buffer->data_size )
+                if( buffer->position >= buffer->size )
                 {
                     printf(
                         "decode_npc_type: Buffer overflow while reading params at index %d\n", i);
@@ -562,20 +563,20 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
                     return;
                 }
 
-                bool is_string = (read_8(buffer) & 0xFF) == 1;
-                int key = read_24(buffer);
+                bool is_string = (g1(buffer)) == 1;
+                int key = g3(buffer);
                 void* value;
 
                 if( is_string )
                 {
                     // Read string length first
                     int str_len = 0;
-                    while( buffer->position + str_len < buffer->data_size &&
+                    while( buffer->position + str_len < buffer->size &&
                            buffer->data[buffer->position + str_len] != '\0' )
                     {
                         str_len++;
                     }
-                    if( buffer->position + str_len >= buffer->data_size )
+                    if( buffer->position + str_len >= buffer->size )
                     {
                         printf(
                             "decode_npc_type: Buffer overflow while reading param string at index "
@@ -625,11 +626,11 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
                         npc->params.capacity = 0;
                         return;
                     }
-                    readto(value, str_len + 1, str_len + 1, buffer);
+                    greadto(buffer, value, str_len + 1, str_len + 1);
                 }
                 else
                 {
-                    if( buffer->position + 3 >= buffer->data_size )
+                    if( buffer->position + 3 >= buffer->size )
                     {
                         printf(
                             "decode_npc_type: Buffer overflow while reading param int at index "
@@ -675,7 +676,7 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct Buffer* buf
                         npc->params.capacity = 0;
                         return;
                     }
-                    *(int*)value = read_32(buffer);
+                    *(int*)value = g4(buffer);
                 }
 
                 npc->params.keys[npc->params.count] = key;
