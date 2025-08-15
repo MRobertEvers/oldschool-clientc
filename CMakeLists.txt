@@ -251,9 +251,49 @@ if(APPLE)
     find_library(METALKIT_LIBRARY MetalKit)
     find_library(FOUNDATION_LIBRARY Foundation)
 
+    # Find required libraries
+    find_package(BZip2 REQUIRED)
+    find_package(ZLIB REQUIRED)
+
     # Add source files
     set(SOURCES
         src/metal_main.mm
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+        src/osrs/scene_tile.c
+        src/osrs/palette.c
+        src/osrs/cache.c
+        src/osrs/tables/model.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/scene.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_idk.c
+        src/osrs/tables/framemap.c
+        src/osrs/tables/frame.c
+        src/osrs/tables/maps.c
+        src/osrs/filelist.c
+        src/osrs/render.c
+        src/osrs/rsbuf.c
+        src/gouraud.c
+        src/gouraud_deob.c
+        src/flat.c
+        src/lighting.c
+        src/projection.c
+        src/texture.c
+        src/osrs/anim.c
+        src/osrs/game_model.c
+        src/osrs/xtea.c
+        src/osrs/archive.c
+        src/osrs/xtea_config.c
+        src/osrs/scene_cache.c
+        src/osrs/tables/noise.c
+        src/datastruct/ht.c
     )
 
     # Add shader files
@@ -270,6 +310,9 @@ if(APPLE)
         ${METAL_LIBRARY}
         ${METALKIT_LIBRARY}
         ${FOUNDATION_LIBRARY}
+        ${BZIP2_LIBRARIES}
+        ${ZLIB_LIBRARIES}
+        ${EXTRA_LIBS}
     )
 
     # Set compiler flags
@@ -281,6 +324,8 @@ if(APPLE)
     # Set include directories
     target_include_directories(metal_renderer PRIVATE
         ${CMAKE_SOURCE_DIR}/src
+        ${BZIP2_INCLUDE_DIRS}
+        ${ZLIB_INCLUDE_DIRS}
     )
 
     # Metal shader compilation

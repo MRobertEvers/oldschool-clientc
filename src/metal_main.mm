@@ -2,10 +2,63 @@
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
 
+extern "C" {
+#include "osrs/cache.h"
+#include "osrs/filelist.h"
+#include "osrs/render.h"
+#include "osrs/scene.h"
+#include "osrs/scene_tile.h"
+#include "osrs/tables/config_floortype.h"
+#include "osrs/tables/config_idk.h"
+#include "osrs/tables/config_locs.h"
+#include "osrs/tables/config_object.h"
+#include "osrs/tables/config_sequence.h"
+#include "osrs/tables/configs.h"
+#include "osrs/tables/sprites.h"
+#include "osrs/tables/textures.h"
+#include "osrs/xtea_config.h"
+}
+
+#include <assert.h>
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
 //             for hue, 3 for saturation and 7 for lightness, bitpacked and
 //             represented as a short.
-static int g_hsl16_to_rgb_table[65536];
+int g_hsl16_to_rgb_table[65536];
+
+int g_sin_table[2048];
+int g_cos_table[2048];
+int g_tan_table[2048];
+
+void
+init_sin_table()
+{
+    // 0.0030679615 = 2 * PI / 2048
+    // (int)(sin((double)i * 0.0030679615) * 65536.0);
+    for( int i = 0; i < 2048; i++ )
+        g_sin_table[i] = (int)(sin((double)i * 0.0030679615) * (1 << 16));
+}
+
+void
+init_cos_table()
+{
+    // 0.0030679615 = 2 * PI / 2048
+    // (int)(cos((double)i * 0.0030679615) * 65536.0);
+    for( int i = 0; i < 2048; i++ )
+        g_cos_table[i] = (int)(cos((double)i * 0.0030679615) * (1 << 16));
+}
+
+void
+init_tan_table()
+{
+    for( int i = 0; i < 2048; i++ )
+        g_tan_table[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
+}
 
 static int
 pix3d_set_gamma(int rgb, double gamma)
@@ -116,6 +169,13 @@ pix3d_set_brightness(int* palette, double brightness)
             palette[offset++] = rgbAdjusted;
         }
     }
+}
+
+void
+init_hsl16_to_rgb_table()
+{
+    // 0 and 128 are both black.
+    pix3d_set_brightness(g_hsl16_to_rgb_table, 0.8);
 }
 
 // Vertex structure for our 3D objects
@@ -255,92 +315,19 @@ typedef struct
 - (BOOL)loadModel:(const char*)filename
 {
     // Load vertices file
-    char name_buffer[256];
-    snprintf(name_buffer, sizeof(name_buffer), "%s.vertices", filename);
-    FILE* file = fopen(name_buffer, "rb");
-    if( !file )
-        return NO;
+    struct Cache* cache = cache_new_from_directory(CACHE_PATH);
 
-    // Read vertex count and allocate vertex arrays
-    fread(&_model.vertex_count, sizeof(int), 1, file);
-    _model.vertices_x = (int*)malloc(_model.vertex_count * sizeof(int));
-    _model.vertices_y = (int*)malloc(_model.vertex_count * sizeof(int));
-    _model.vertices_z = (int*)malloc(_model.vertex_count * sizeof(int));
+    struct CacheModel* model = model_new_from_cache(cache, 9319);
 
-    if( !_model.vertices_x || !_model.vertices_y || !_model.vertices_z )
-    {
-        fclose(file);
-        return NO;
-    }
-
-    // Read vertices
-    fread(_model.vertices_x, sizeof(int), _model.vertex_count, file);
-    fread(_model.vertices_y, sizeof(int), _model.vertex_count, file);
-    fread(_model.vertices_z, sizeof(int), _model.vertex_count, file);
-    fclose(file);
-
-    // Load faces file
-    snprintf(name_buffer, sizeof(name_buffer), "%s.faces", filename);
-    file = fopen(name_buffer, "rb");
-    if( !file )
-    {
-        free(_model.vertices_x);
-        free(_model.vertices_y);
-        free(_model.vertices_z);
-        return NO;
-    }
-
-    // Read face count and allocate face arrays
-    fread(&_model.face_count, sizeof(int), 1, file);
-    _model.face_indices_a = (int*)malloc(_model.face_count * sizeof(int));
-    _model.face_indices_b = (int*)malloc(_model.face_count * sizeof(int));
-    _model.face_indices_c = (int*)malloc(_model.face_count * sizeof(int));
-
-    if( !_model.face_indices_a || !_model.face_indices_b || !_model.face_indices_c )
-    {
-        fclose(file);
-        free(_model.vertices_x);
-        free(_model.vertices_y);
-        free(_model.vertices_z);
-        return NO;
-    }
-
-    // Read faces
-    fread(_model.face_indices_a, sizeof(int), _model.face_count, file);
-    fread(_model.face_indices_b, sizeof(int), _model.face_count, file);
-    fread(_model.face_indices_c, sizeof(int), _model.face_count, file);
-    fclose(file);
-
-    // Load colors file
-    snprintf(name_buffer, sizeof(name_buffer), "%s.colors", filename);
-    file = fopen(name_buffer, "rb");
-    if( !file )
-    {
-        free(_model.vertices_x);
-        free(_model.vertices_y);
-        free(_model.vertices_z);
-        free(_model.face_indices_a);
-        free(_model.face_indices_b);
-        free(_model.face_indices_c);
-        return NO;
-    }
-
-    fread(&_model.face_count, sizeof(int), 1, file);
-    _model.face_colors = (int*)malloc(_model.face_count * sizeof(int));
-    if( !_model.face_colors )
-    {
-        fclose(file);
-        free(_model.vertices_x);
-        free(_model.vertices_y);
-        free(_model.vertices_z);
-        free(_model.face_indices_a);
-        free(_model.face_indices_b);
-        free(_model.face_indices_c);
-        return NO;
-    }
-
-    fread(_model.face_colors, sizeof(int), _model.face_count, file);
-    fclose(file);
+    _model.vertex_count = model->vertex_count;
+    _model.vertices_x = model->vertices_x;
+    _model.vertices_y = model->vertices_y;
+    _model.vertices_z = model->vertices_z;
+    _model.face_count = model->face_count;
+    _model.face_indices_a = model->face_indices_a;
+    _model.face_indices_b = model->face_indices_b;
+    _model.face_indices_c = model->face_indices_c;
+    _model.face_colors = model->face_colors;
 
     return YES;
 }
@@ -759,6 +746,11 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
 int
 main(int argc, const char* argv[])
 {
+    init_hsl16_to_rgb_table();
+    init_sin_table();
+    init_cos_table();
+    init_tan_table();
+
     @autoreleasepool
     {
         // Create the application first
