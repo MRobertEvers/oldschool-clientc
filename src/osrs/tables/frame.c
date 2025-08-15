@@ -1,7 +1,7 @@
 #include "frame.h"
 
-#include "buffer.h"
 #include "osrs/cache.h"
+#include "osrs/rsbuf.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -9,16 +9,16 @@
 #include <string.h>
 
 static int
-read_short_smart(struct Buffer* buffer)
+read_short_smart(struct RSBuffer* buffer)
 {
     int value = buffer->data[buffer->position] & 0xFF;
     if( value < 128 )
     {
-        return read_8(buffer) - 64;
+        return g1(buffer) - 64;
     }
     else
     {
-        unsigned short ushort_value = read_16(buffer);
+        unsigned short ushort_value = g2(buffer);
         return (int)(ushort_value - 0xC000);
     }
 }
@@ -41,15 +41,18 @@ frame_new_from_cache(struct Cache* cache, int frame_id, struct CacheFramemap* fr
     return frame;
 }
 
+static struct CacheFrame*
+frame_new_decode(int id, struct CacheFramemap* framemap, struct RSBuffer* buffer);
+
 struct CacheFrame*
 frame_new_decode2(int id, struct CacheFramemap* framemap, char* data, int data_size)
 {
-    struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
     return frame_new_decode(id, framemap, &buffer);
 }
 
-struct CacheFrame*
-frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer)
+static struct CacheFrame*
+frame_new_decode(int id, struct CacheFramemap* framemap, struct RSBuffer* buffer)
 {
     // Initialize the frame definition
     struct CacheFrame* def = malloc(sizeof(struct CacheFrame));
@@ -60,11 +63,11 @@ frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer)
     def->showing = false;
 
     // Read the framemap archive index and length
-    int framemap_archive_index = read_16(buffer);
-    int length = read_8(buffer);
+    int framemap_archive_index = g2(buffer);
+    int length = g1(buffer);
 
     // Skip the framemap archive index and length in the data buffer
-    struct Buffer data = *buffer;
+    struct RSBuffer data = *buffer;
     data.position = 3 + length;
 
     // Allocate temporary arrays for processing
@@ -79,7 +82,7 @@ frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer)
     // Process each frame
     for( int i = 0; i < length; ++i )
     {
-        int var9 = read_8(buffer);
+        int var9 = g1(buffer);
 
         if( var9 <= 0 )
         {
@@ -150,7 +153,7 @@ frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer)
     }
 
     // Verify we read all the data
-    if( data.position != data.data_size )
+    if( data.position != data.size )
     {
         // Handle error - data size mismatch
         free(index_frame_ids);

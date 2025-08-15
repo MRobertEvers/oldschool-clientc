@@ -1,7 +1,6 @@
 #ifndef FRAME_H
 #define FRAME_H
 
-#include "buffer.h"
 #include "framemap.h"
 
 #include <stdbool.h>
@@ -38,7 +37,6 @@ frame_new_from_cache(struct Cache* cache, int frame_id, struct CacheFramemap* fr
 struct CacheFrame*
 frame_new_decode2(int frame_id, struct CacheFramemap* framemap, char* data, int data_size);
 
-struct CacheFrame* frame_new_decode(int id, struct CacheFramemap* framemap, struct Buffer* buffer);
 void frame_free(struct CacheFrame* frame);
 
 #endif // FRAME_H
