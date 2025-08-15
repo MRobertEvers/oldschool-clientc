@@ -1,5 +1,7 @@
+#include "archive_decompress.h"
+
 #include "archive.h"
-#include "buffer.h"
+#include "rsbuf.h"
 #include "xtea.h"
 
 #include <assert.h>
@@ -16,17 +18,15 @@
  * @param archive
  */
 bool
-archive_decrypt_decompress(struct Dat2Archive* archive, int32_t* xtea_key_nullable)
+archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nullable)
 {
     // TODO: CRC32
 
-    struct Buffer buffer = { .data = archive->data,
-                             .position = 0,
-                             .data_size = archive->data_size };
+    struct RSBuffer buffer = { .data = archive->data, .position = 0, .size = archive->data_size };
 
-    int compression = read_8(&buffer);
+    int compression = g1(&buffer);
     // Uncompressed size
-    int size = read_32(&buffer);
+    int size = g4(&buffer);
     if( xtea_key_nullable )
         xtea_decrypt(archive->data + buffer.position, size + 4, xtea_key_nullable);
 
@@ -44,7 +44,7 @@ archive_decrypt_decompress(struct Dat2Archive* archive, int32_t* xtea_key_nullab
     {
         // No compression
         char* data = malloc(size);
-        bytes_read = readto(data, size, size, &buffer);
+        bytes_read = greadto(&buffer, data, size, size);
         if( bytes_read < size )
             return false;
 
@@ -57,10 +57,10 @@ archive_decrypt_decompress(struct Dat2Archive* archive, int32_t* xtea_key_nullab
     case 1:
     {
         // BZip compression
-        int uncompressed_length = read_32(&buffer);
+        int uncompressed_length = g4(&buffer);
 
         char* compressed_data = malloc(size + 4);
-        bytes_read = readto(compressed_data + 4, size, size, &buffer);
+        bytes_read = greadto(&buffer, compressed_data + 4, size, size);
 
         // Add BZIP2 magic header (BZh1)
         compressed_data[0] = 'B';
@@ -96,9 +96,9 @@ archive_decrypt_decompress(struct Dat2Archive* archive, int32_t* xtea_key_nullab
     {
         // GZ compression
         // 	int uncompressedLength = buffer.getInt();
-        int uncompressed_length = read_32(&buffer) & 0xFFFFFFFF;
+        int uncompressed_length = g4(&buffer) & 0xFFFFFFFF;
         char* compressed_data = malloc(size);
-        bytes_read = readto(compressed_data, size, size, &buffer);
+        bytes_read = greadto(&buffer, compressed_data, size, size);
         if( bytes_read < size )
         {
             free(compressed_data);
