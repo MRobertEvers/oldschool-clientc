@@ -1,8 +1,6 @@
 #ifndef FRAMEMAP_H
 #define FRAMEMAP_H
 
-#include "buffer.h"
-
 /**
  * A framemap acts as the "rigging" for a model.
  *
@@ -63,7 +61,6 @@ struct CacheFramemap* framemap_new_from_cache(struct Cache* cache, int framemap_
  */
 int framemap_id_from_frame_archive(char* data, int data_size);
 
-struct CacheFramemap* framemap_new_decode(int id, struct Buffer* buffer);
 struct CacheFramemap* framemap_new_decode2(int id, char* data, int data_size);
 void framemap_free(struct CacheFramemap* framemap);
 

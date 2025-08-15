@@ -1,6 +1,7 @@
 #include "framemap.h"
 
 #include "osrs/cache.h"
+#include "osrs/rsbuf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,23 +31,24 @@ framemap_id_from_frame_archive(char* data, int data_size)
     int framemap_id = (data[0] & 0xFF) << 8 | (data[1] & 0xFF);
     return framemap_id;
 }
+static struct CacheFramemap* framemap_new_decode(int id, struct RSBuffer* buffer);
 
 struct CacheFramemap*
 framemap_new_decode2(int id, char* data, int data_size)
 {
-    struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
     return framemap_new_decode(id, &buffer);
 }
 
-struct CacheFramemap*
-framemap_new_decode(int id, struct Buffer* buffer)
+static struct CacheFramemap*
+framemap_new_decode(int id, struct RSBuffer* buffer)
 {
     struct CacheFramemap* def = malloc(sizeof(struct CacheFramemap));
     memset(def, 0, sizeof(struct CacheFramemap));
 
     // Initialize the framemap definition
     def->id = id;
-    def->length = read_u8(buffer);
+    def->length = g1(buffer);
     def->types = malloc(def->length * sizeof(int));
     def->bone_groups = malloc(def->length * sizeof(int*));
     def->bone_groups_lengths = malloc(def->length * sizeof(int));
@@ -57,13 +59,13 @@ framemap_new_decode(int id, struct Buffer* buffer)
     // Read the types array
     for( int i = 0; i < def->length; i++ )
     {
-        def->types[i] = read_u8(buffer);
+        def->types[i] = g1(buffer);
     }
 
     // Read the frame maps lengths
     for( int i = 0; i < def->length; i++ )
     {
-        int group_length = read_u8(buffer);
+        int group_length = g1(buffer);
         def->bone_groups_lengths[i] = group_length;
         def->bone_groups[i] = malloc(group_length * sizeof(int));
         memset(def->bone_groups[i], 0, group_length * sizeof(int));
@@ -74,7 +76,7 @@ framemap_new_decode(int id, struct Buffer* buffer)
     {
         for( int j = 0; j < def->bone_groups_lengths[i]; j++ )
         {
-            def->bone_groups[i][j] = read_u8(buffer);
+            def->bone_groups[i][j] = g1(buffer);
         }
     }
 
