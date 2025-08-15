@@ -6,7 +6,6 @@ project(RSClient
 # set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
 # set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
 # set(PROFILING_FLAGS "-fsanitize=address -g -fno-omit-frame-pointer")
-
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -65,7 +64,6 @@ add_executable(main_client
     src/osrs/cache.c
     src/osrs/scene_tile.c
     src/osrs/tables/model.c
-    src/buffer.c
     src/osrs/archive_decompress.c
     src/osrs/reference_table.c
     src/osrs/tables/config_npctype.c
@@ -102,7 +100,6 @@ add_executable(scene_tile_test
     src/osrs/palette.c
     src/osrs/cache.c
     src/osrs/tables/model.c
-    src/buffer.c
     src/osrs/archive_decompress.c
     src/osrs/reference_table.c
     src/osrs/scene.c
@@ -153,7 +150,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/palette.c
         src/osrs/cache.c
         src/osrs/tables/model.c
-        src/buffer.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c
         src/osrs/scene.c

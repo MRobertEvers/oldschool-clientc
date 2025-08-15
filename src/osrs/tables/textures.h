@@ -1,8 +1,6 @@
 #ifndef TEXTURES_H
 #define TEXTURES_H
 
-#include "buffer.h"
-
 #include <stdbool.h>
 
 struct CacheTexture

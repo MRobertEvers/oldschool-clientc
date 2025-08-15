@@ -1,4 +1,3 @@
-#include "buffer.h"
 #include "gouraud.h"
 #include "lighting.h"
 #include "osrs/anim.h"
