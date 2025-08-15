@@ -2,7 +2,7 @@
 
 #include "archive.h"
 #include "archive_decompress.h"
-#include "buffer.h"
+#include "rsbuf.h"
 #include "xtea_config.h"
 
 #include <assert.h>
@@ -59,7 +59,7 @@ read_dat2(
     int sector,
     int length)
 {
-    struct Buffer data_buffer = { .data = data, .position = 0, .data_size = data_size };
+    struct RSBuffer data_buffer = { .data = data, .position = 0, .size = data_size };
 
     char read_buffer[SECTOR_SIZE];
     int read_buffer_len = 0;
@@ -97,8 +97,8 @@ read_dat2(
             if( data_block_size > SECTOR_SIZE - header_size )
                 data_block_size = SECTOR_SIZE - header_size;
 
-            int bytes_read = readto(
-                read_buffer, sizeof(read_buffer), header_size + data_block_size, &data_buffer);
+            int bytes_read = greadto(
+                &data_buffer, read_buffer, sizeof(read_buffer), header_size + data_block_size);
             if( bytes_read < header_size + data_block_size )
             {
                 printf("short read when reading file data for %d/%d\n", archive_id, current_index);
@@ -120,8 +120,8 @@ read_dat2(
             if( data_block_size > SECTOR_SIZE - header_size )
                 data_block_size = SECTOR_SIZE - header_size;
 
-            int bytes_read = readto(
-                read_buffer, sizeof(read_buffer), header_size + data_block_size, &data_buffer);
+            int bytes_read = greadto(
+                &data_buffer, read_buffer, sizeof(read_buffer), header_size + data_block_size);
             if( bytes_read < header_size + data_block_size )
             {
                 printf("short read when reading file data for %d/%d\n", archive_id, current_index);
