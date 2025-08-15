@@ -11,7 +11,6 @@ extern "C" {
 #include "osrs/tables/config_sequence.h"
 #include "osrs/tables/configs.h"
 #include "osrs/tables/sprites.h"
-#include "osrs/tables/texture_pixels.h"
 #include "osrs/tables/textures.h"
 #include "osrs/xtea_config.h"
 }

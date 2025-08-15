@@ -56,7 +56,6 @@ endif()
 add_executable(main_client
     src/main_client.c
     src/texture.c
-    src/osrs/tables/texture_pixels.c
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
@@ -92,7 +91,6 @@ add_executable(main_client
 
 add_executable(scene_tile_test
     test/scene_tile_test.cpp
-    src/osrs/tables/texture_pixels.c
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
@@ -142,7 +140,6 @@ add_executable(scene_tile_test
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(scene_tile_test_browser
         test/scene_tile_test_browser.c
-        src/osrs/tables/texture_pixels.c
         src/osrs/tables/textures.c
         src/osrs/tables/sprites.c
         src/osrs/blend_underlays.c

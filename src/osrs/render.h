@@ -80,16 +80,6 @@ struct SceneTextures
     int* texel_id_to_offset_lut;
 };
 
-struct SceneTextures* scene_textures_new_from_tiles(
-    struct SceneTile* tiles,
-    int tile_count,
-    struct CacheSpritePack* sprite_packs,
-    int* sprite_ids,
-    int sprite_count,
-    struct CacheTexture* textures,
-    int* texture_ids,
-    int texture_count);
-
 void scene_textures_free(struct SceneTextures* textures);
 
 void render_scene_tile(

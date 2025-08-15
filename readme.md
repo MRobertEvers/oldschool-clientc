@@ -591,7 +591,7 @@ Which you can get from here:
 https://github.com/brendangregg/FlameGraph
 
 ```
-# /Users/matthewevers/Documents/git_repos/FlameGraph/jmaps
+# /Users/matthewevers/Documents/git_repos/FlameGraph
 
 ./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded
 ./flamegraph.pl out.folded > flamegraph.svg
