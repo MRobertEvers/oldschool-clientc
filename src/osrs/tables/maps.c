@@ -1,6 +1,5 @@
 #include "maps.h"
 
-#include "buffer.h"
 #include "noise.h"
 #include "osrs/archive.h"
 #include "osrs/archive_decompress.h"
@@ -244,7 +243,7 @@ map_terrain_new_from_decode(char* data, int data_size)
     struct CacheMapTerrain* map_terrain = malloc(sizeof(struct CacheMapTerrain));
     memset(map_terrain, 0, sizeof(struct CacheMapTerrain));
 
-    struct Buffer buffer = { .data = data, .position = 0, .data_size = data_size };
+    struct RSBuffer buffer = { .data = data, .position = 0, .size = data_size };
 
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
@@ -256,21 +255,21 @@ map_terrain_new_from_decode(char* data, int data_size)
 
                 while( true )
                 {
-                    int attribute = read_u16(&buffer);
+                    int attribute = g2(&buffer);
                     if( attribute == 0 )
                     {
                         break;
                     }
                     else if( attribute == 1 )
                     {
-                        int height = read_u8(&buffer);
+                        int height = g1(&buffer);
                         tile->height = height;
                         break;
                     }
                     else if( attribute <= 49 )
                     {
                         tile->attr_opcode = attribute;
-                        tile->overlay_id = read_16(&buffer);
+                        tile->overlay_id = g2(&buffer);
                         tile->shape = (attribute - 2) / 4;
                         tile->rotation = attribute - 2 & 3;
                     }
