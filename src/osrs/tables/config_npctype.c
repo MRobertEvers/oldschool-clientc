@@ -158,7 +158,7 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct RSBuffer* b
                 return;
             }
             memset(npc->name, 0, str_len + 1);
-            readto(npc->name, str_len + 1, str_len + 1, buffer);
+            greadto(buffer, npc->name, str_len + 1, str_len + 1);
             break;
         }
         case 12:
@@ -218,7 +218,7 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct RSBuffer* b
                 return;
             }
             npc->actions[idx] = malloc(str_len + 1);
-            readto(npc->actions[idx], str_len + 1, str_len + 1, buffer);
+            greadto(buffer, npc->actions[idx], str_len + 1, str_len + 1);
 
             // Check if string is "Hidden"
             if( strcmp(npc->actions[idx], "Hidden") == 0 )

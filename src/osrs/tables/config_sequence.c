@@ -2,6 +2,7 @@
 
 #include "configs.h"
 #include "osrs/cache.h"
+#include "osrs/rsbuf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -247,10 +248,10 @@ add_frame_sound(struct CacheConfigFrameSoundMap* map, int frame, struct CacheCon
 }
 
 static void
-decode_pre_220_frame_sound(struct CacheConfigFrameSound* sound, struct Buffer* buffer)
+decode_pre_220_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer* buffer)
 {
     // Old format: 24-bit int with packed fields
-    int bits = read_24(buffer);
+    int bits = g3(buffer);
     sound->location = bits & 15;
     sound->id = bits >> 8;
     sound->loops = (bits >> 4) & 7;
@@ -259,31 +260,31 @@ decode_pre_220_frame_sound(struct CacheConfigFrameSound* sound, struct Buffer* b
 }
 
 static void
-decode_220_226_frame_sound(struct CacheConfigFrameSound* sound, struct Buffer* buffer)
+decode_220_226_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer* buffer)
 {
     // New format: separate fields
-    sound->id = read_16(buffer);
-    sound->loops = read_8(buffer);
-    sound->location = read_8(buffer);
-    sound->retain = read_8(buffer);
+    sound->id = g2(buffer);
+    sound->loops = g1(buffer);
+    sound->location = g1(buffer);
+    sound->retain = g1(buffer);
     sound->weight = -1;
 }
 
 static void
-decode_226_plus_frame_sound(struct CacheConfigFrameSound* sound, struct Buffer* buffer)
+decode_226_plus_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer* buffer)
 {
     // New format: frame sounds with weights
-    sound->id = read_16(buffer);
-    sound->weight = read_8(buffer);
-    sound->loops = read_8(buffer);
-    sound->location = read_8(buffer);
-    sound->retain = read_8(buffer);
+    sound->id = g2(buffer);
+    sound->weight = g1(buffer);
+    sound->loops = g1(buffer);
+    sound->location = g1(buffer);
+    sound->retain = g1(buffer);
 }
 
 static void
-handle_frame_sounds_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
+handle_frame_sounds_pre_220(struct CacheConfigSequence* def, struct RSBuffer* buffer)
 {
-    int var3 = read_8(buffer);
+    int var3 = g1(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
     {
         struct CacheConfigFrameSound sound = { 0 };
@@ -296,9 +297,9 @@ handle_frame_sounds_pre_220(struct CacheConfigSequence* def, struct Buffer* buff
 }
 
 static void
-handle_frame_sounds_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
+handle_frame_sounds_220_226(struct CacheConfigSequence* def, struct RSBuffer* buffer)
 {
-    int var3 = read_8(buffer);
+    int var3 = g1(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
     {
         struct CacheConfigFrameSound sound = { 0 };
@@ -311,12 +312,12 @@ handle_frame_sounds_220_226(struct CacheConfigSequence* def, struct Buffer* buff
 }
 
 static void
-handle_frame_sounds_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
+handle_frame_sounds_226_plus(struct CacheConfigSequence* def, struct RSBuffer* buffer)
 {
-    int var3 = read_16(buffer);
+    int var3 = g2(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
     {
-        int frame = read_16(buffer);
+        int frame = g2(buffer);
         struct CacheConfigFrameSound sound = { 0 };
         decode_226_plus_frame_sound(&sound, buffer);
         if( sound.id >= 1 && sound.loops >= 1 && sound.location >= 0 && sound.retain >= 0 )
@@ -327,7 +328,7 @@ handle_frame_sounds_226_plus(struct CacheConfigSequence* def, struct Buffer* buf
 }
 
 static void
-decode_sequence_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
+decode_sequence_pre_220(struct CacheConfigSequence* def, struct RSBuffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -337,7 +338,7 @@ decode_sequence_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
 
     while( true )
     {
-        int opcode = read_8(buffer);
+        int opcode = g1(buffer);
         if( opcode == 0 )
         {
             break;
@@ -347,7 +348,7 @@ decode_sequence_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
         {
         case 1:
         {
-            int var3 = read_16(buffer);
+            int var3 = g2(buffer);
             def->frame_count = var3;
             def->frame_lengths = malloc(var3 * sizeof(int));
             def->frame_ids = malloc(var3 * sizeof(int));
@@ -356,29 +357,29 @@ decode_sequence_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
 
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_lengths[var4] = read_16(buffer);
+                def->frame_lengths[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_ids[var4] = read_16(buffer);
+                def->frame_ids[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_ids[var4] += read_16(buffer) << 16;
+                def->frame_ids[var4] += g2(buffer) << 16;
             }
             break;
         }
         case 2:
-            def->frame_step = read_16(buffer);
+            def->frame_step = g2(buffer);
             break;
         case 3:
         {
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             def->interleave_leave = malloc((var3 + 1) * sizeof(int));
             memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->interleave_leave[var4] = read_8(buffer);
+                def->interleave_leave[var4] = g1(buffer);
             }
             def->interleave_leave[var3] = 9999999;
             break;
@@ -387,38 +388,38 @@ decode_sequence_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
             def->stretches = true;
             break;
         case 5:
-            def->forced_priority = read_8(buffer);
+            def->forced_priority = g1(buffer);
             break;
         case 6:
-            def->left_hand_item = read_16(buffer);
+            def->left_hand_item = g2(buffer);
             break;
         case 7:
-            def->right_hand_item = read_16(buffer);
+            def->right_hand_item = g2(buffer);
             break;
         case 8:
-            def->max_loops = read_8(buffer);
+            def->max_loops = g1(buffer);
             break;
         case 9:
-            def->precedence_animating = read_8(buffer);
+            def->precedence_animating = g1(buffer);
             break;
         case 10:
-            def->priority = read_8(buffer);
+            def->priority = g1(buffer);
             break;
         case 11:
-            def->reply_mode = read_8(buffer);
+            def->reply_mode = g1(buffer);
             break;
         case 12:
         {
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             def->chat_frame_ids = malloc(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->chat_frame_ids[var4] = read_16(buffer);
+                def->chat_frame_ids[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->chat_frame_ids[var4] += read_16(buffer) << 16;
+                def->chat_frame_ids[var4] += g2(buffer) << 16;
             }
             break;
         }
@@ -426,27 +427,27 @@ decode_sequence_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
             handle_frame_sounds_pre_220(def, buffer);
             break;
         case 14:
-            def->anim_maya_id = read_32(buffer);
+            def->anim_maya_id = g4(buffer);
             break;
         case 15:
             handle_frame_sounds_220_226(def, buffer);
             break;
         case 16:
-            def->anim_maya_start = read_16(buffer);
-            def->anim_maya_end = read_16(buffer);
+            def->anim_maya_start = g2(buffer);
+            def->anim_maya_end = g2(buffer);
             break;
         case 17:
         {
             def->anim_maya_masks = calloc(256, sizeof(bool));
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->anim_maya_masks[read_8(buffer)] = true;
+                def->anim_maya_masks[g1(buffer)] = true;
             }
             break;
         }
         case 18:
-            def->debug_name = read_string(buffer);
+            def->debug_name = gstring(buffer);
             break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
@@ -456,7 +457,7 @@ decode_sequence_pre_220(struct CacheConfigSequence* def, struct Buffer* buffer)
 }
 
 static void
-decode_sequence_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
+decode_sequence_220_226(struct CacheConfigSequence* def, struct RSBuffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -466,7 +467,7 @@ decode_sequence_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
 
     while( true )
     {
-        int opcode = read_8(buffer);
+        int opcode = g1(buffer);
         if( opcode == 0 )
         {
             break;
@@ -476,7 +477,7 @@ decode_sequence_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
         {
         case 1:
         {
-            int var3 = read_16(buffer);
+            int var3 = g2(buffer);
             def->frame_count = var3;
             def->frame_lengths = malloc(var3 * sizeof(int));
             def->frame_ids = malloc(var3 * sizeof(int));
@@ -485,29 +486,29 @@ decode_sequence_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
 
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_lengths[var4] = read_16(buffer);
+                def->frame_lengths[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_ids[var4] = read_16(buffer);
+                def->frame_ids[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_ids[var4] += read_16(buffer) << 16;
+                def->frame_ids[var4] += g2(buffer) << 16;
             }
             break;
         }
         case 2:
-            def->frame_step = read_16(buffer);
+            def->frame_step = g2(buffer);
             break;
         case 3:
         {
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             def->interleave_leave = malloc((var3 + 1) * sizeof(int));
             memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->interleave_leave[var4] = read_8(buffer);
+                def->interleave_leave[var4] = g1(buffer);
             }
             def->interleave_leave[var3] = 9999999;
             break;
@@ -516,38 +517,38 @@ decode_sequence_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
             def->stretches = true;
             break;
         case 5:
-            def->forced_priority = read_8(buffer);
+            def->forced_priority = g1(buffer);
             break;
         case 6:
-            def->left_hand_item = read_16(buffer);
+            def->left_hand_item = g2(buffer);
             break;
         case 7:
-            def->right_hand_item = read_16(buffer);
+            def->right_hand_item = g2(buffer);
             break;
         case 8:
-            def->max_loops = read_8(buffer);
+            def->max_loops = g1(buffer);
             break;
         case 9:
-            def->precedence_animating = read_8(buffer);
+            def->precedence_animating = g1(buffer);
             break;
         case 10:
-            def->priority = read_8(buffer);
+            def->priority = g1(buffer);
             break;
         case 11:
-            def->reply_mode = read_8(buffer);
+            def->reply_mode = g1(buffer);
             break;
         case 12:
         {
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             def->chat_frame_ids = malloc(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->chat_frame_ids[var4] = read_16(buffer);
+                def->chat_frame_ids[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->chat_frame_ids[var4] += read_16(buffer) << 16;
+                def->chat_frame_ids[var4] += g2(buffer) << 16;
             }
             break;
         }
@@ -555,27 +556,27 @@ decode_sequence_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
             handle_frame_sounds_220_226(def, buffer);
             break;
         case 14:
-            def->anim_maya_id = read_32(buffer);
+            def->anim_maya_id = g4(buffer);
             break;
         case 15:
             handle_frame_sounds_220_226(def, buffer);
             break;
         case 16:
-            def->anim_maya_start = read_16(buffer);
-            def->anim_maya_end = read_16(buffer);
+            def->anim_maya_start = g2(buffer);
+            def->anim_maya_end = g2(buffer);
             break;
         case 17:
         {
             def->anim_maya_masks = calloc(256, sizeof(bool));
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->anim_maya_masks[read_8(buffer)] = true;
+                def->anim_maya_masks[g1(buffer)] = true;
             }
             break;
         }
         case 18:
-            def->debug_name = read_string(buffer);
+            def->debug_name = gstring(buffer);
             break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
@@ -585,7 +586,7 @@ decode_sequence_220_226(struct CacheConfigSequence* def, struct Buffer* buffer)
 }
 
 static void
-decode_sequence_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
+decode_sequence_226_plus(struct CacheConfigSequence* def, struct RSBuffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -595,7 +596,7 @@ decode_sequence_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
 
     while( true )
     {
-        int opcode = read_8(buffer);
+        int opcode = g1(buffer);
         if( opcode == 0 )
         {
             break;
@@ -605,7 +606,7 @@ decode_sequence_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
         {
         case 1:
         {
-            int var3 = read_16(buffer);
+            int var3 = g2(buffer);
             def->frame_count = var3;
             def->frame_lengths = malloc(var3 * sizeof(int));
             def->frame_ids = malloc(var3 * sizeof(int));
@@ -614,29 +615,29 @@ decode_sequence_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
 
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_lengths[var4] = read_16(buffer);
+                def->frame_lengths[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_ids[var4] = read_16(buffer);
+                def->frame_ids[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->frame_ids[var4] += read_16(buffer) << 16;
+                def->frame_ids[var4] += g2(buffer) << 16;
             }
             break;
         }
         case 2:
-            def->frame_step = read_16(buffer);
+            def->frame_step = g2(buffer);
             break;
         case 3:
         {
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             def->interleave_leave = malloc((var3 + 1) * sizeof(int));
             memset(def->interleave_leave, 0, (var3 + 1) * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->interleave_leave[var4] = read_8(buffer);
+                def->interleave_leave[var4] = g1(buffer);
             }
             def->interleave_leave[var3] = 9999999;
             break;
@@ -645,63 +646,63 @@ decode_sequence_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
             def->stretches = true;
             break;
         case 5:
-            def->forced_priority = read_8(buffer);
+            def->forced_priority = g1(buffer);
             break;
         case 6:
-            def->left_hand_item = read_16(buffer);
+            def->left_hand_item = g2(buffer);
             break;
         case 7:
-            def->right_hand_item = read_16(buffer);
+            def->right_hand_item = g2(buffer);
             break;
         case 8:
-            def->max_loops = read_8(buffer);
+            def->max_loops = g1(buffer);
             break;
         case 9:
-            def->precedence_animating = read_8(buffer);
+            def->precedence_animating = g1(buffer);
             break;
         case 10:
-            def->priority = read_8(buffer);
+            def->priority = g1(buffer);
             break;
         case 11:
-            def->reply_mode = read_8(buffer);
+            def->reply_mode = g1(buffer);
             break;
         case 12:
         {
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             def->chat_frame_ids = malloc(var3 * sizeof(int));
             memset(def->chat_frame_ids, 0, var3 * sizeof(int));
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->chat_frame_ids[var4] = read_16(buffer);
+                def->chat_frame_ids[var4] = g2(buffer);
             }
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->chat_frame_ids[var4] += read_16(buffer) << 16;
+                def->chat_frame_ids[var4] += g2(buffer) << 16;
             }
             break;
         }
         case 13:
-            def->anim_maya_id = read_32(buffer);
+            def->anim_maya_id = g4(buffer);
             break;
         case 14:
             handle_frame_sounds_226_plus(def, buffer);
             break;
         case 15:
-            def->anim_maya_start = read_16(buffer);
-            def->anim_maya_end = read_16(buffer);
+            def->anim_maya_start = g2(buffer);
+            def->anim_maya_end = g2(buffer);
             break;
         case 17:
         {
             def->anim_maya_masks = calloc(256, sizeof(bool));
-            int var3 = read_8(buffer);
+            int var3 = g1(buffer);
             for( int var4 = 0; var4 < var3; ++var4 )
             {
-                def->anim_maya_masks[read_8(buffer)] = true;
+                def->anim_maya_masks[g1(buffer)] = true;
             }
             break;
         }
         case 18:
-            def->debug_name = read_string(buffer);
+            def->debug_name = gstring(buffer);
             break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
@@ -709,6 +710,8 @@ decode_sequence_226_plus(struct CacheConfigSequence* def, struct Buffer* buffer)
         }
     }
 }
+
+static void decode_sequence(struct CacheConfigSequence* def, int revision, struct RSBuffer* buffer);
 
 struct CacheConfigSequence*
 config_sequence_new_decode(int revision, char* data, int data_size)
@@ -716,7 +719,7 @@ config_sequence_new_decode(int revision, char* data, int data_size)
     struct CacheConfigSequence* def = malloc(sizeof(struct CacheConfigSequence));
     memset(def, 0, sizeof(struct CacheConfigSequence));
 
-    struct Buffer buffer = { .data = data, .data_size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
 
     decode_sequence(def, revision, &buffer);
 
@@ -769,12 +772,12 @@ void
 config_sequence_decode_inplace(
     struct CacheConfigSequence* sequence, int revision, char* data, int buffer_size)
 {
-    struct Buffer buffer = { .data = data, .data_size = buffer_size, .position = 0 };
+    struct RSBuffer buffer = { .data = data, .size = buffer_size, .position = 0 };
     decode_sequence(sequence, revision, &buffer);
 }
 
-void
-decode_sequence(struct CacheConfigSequence* def, int revision, struct Buffer* buffer)
+static void
+decode_sequence(struct CacheConfigSequence* def, int revision, struct RSBuffer* buffer)
 {
     if( revision <= REV_220_SEQ_ARCHIVE_REV )
     {

@@ -1,8 +1,6 @@
 #ifndef OSRS_NPC_TYPE_H
 #define OSRS_NPC_TYPE_H
 
-#include "buffer.h"
-
 #include <stdbool.h>
 
 /**
