@@ -116,8 +116,8 @@ struct SceneModel
     int light_contrast;
 
     int region_x;
-    int region_y;
     int region_z;
+    int region_height;
 
     int offset_x;
     int offset_y;

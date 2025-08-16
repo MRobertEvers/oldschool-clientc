@@ -506,8 +506,8 @@ render_scene_model(
     struct TexturesCache* textures_cache)
 {
     int x = camera_x + model->region_x;
-    int y = camera_y + model->region_y;
-    int z = camera_z + model->region_z;
+    int y = camera_y + model->region_z;
+    int z = camera_z + model->region_height;
 
     // if( model->mirrored )
     // {

@@ -42,8 +42,8 @@ init_scene_model_wxh(
     struct SceneModel* model, int tile_x, int tile_y, int height_center, int size_x, int size_y)
 {
     model->region_x = tile_x * TILE_SIZE + size_x * 64;
-    model->region_y = tile_y * TILE_SIZE + size_y * 64;
-    model->region_z = height_center;
+    model->region_z = tile_y * TILE_SIZE + size_y * 64;
+    model->region_height = height_center;
 
     model->_size_x = size_x;
     model->_size_y = size_y;
@@ -2001,7 +2001,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                                          (other_model->_size_x - model->_size_x) * 64;
                     int check_offset_y = (other_model->_chunk_pos_y - model->_chunk_pos_y) * 128 +
                                          (other_model->_size_y - model->_size_y) * 64;
-                    int check_offset_level = other_model->region_z - model->region_z;
+                    int check_offset_level = other_model->region_height - model->region_height;
 
                     merge_normals(
                         model->model,
@@ -2212,8 +2212,8 @@ scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct Sce
     int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
 
     model->region_x = x * 128 + 64;
-    model->region_y = y * 128 + 64;
-    model->region_z = height_center;
+    model->region_z = y * 128 + 64;
+    model->region_height = height_center;
 
     scene->models[scene->models_length++] = *model;
 

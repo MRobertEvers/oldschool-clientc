@@ -2028,8 +2028,8 @@ render_scene_model(
     struct TexturesCache* textures_cache)
 {
     int x = camera_x + model->region_x;
-    int y = camera_y + model->region_y;
-    int z = camera_z + model->region_z;
+    int y = camera_y + model->region_z;
+    int z = camera_z + model->region_height;
 
     // if( model->mirrored )
     // {
@@ -3693,8 +3693,8 @@ iter_render_model_init(
     int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
 
     int x = camera_x + scene_model->region_x;
-    int y = camera_y + scene_model->region_y;
-    int z = camera_z + scene_model->region_z;
+    int y = camera_y + scene_model->region_z;
+    int z = camera_z + scene_model->region_height;
     yaw += scene_model->yaw;
     yaw %= 2048;
 
