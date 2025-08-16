@@ -220,8 +220,8 @@ typedef struct
     BOOL _aKeyPressed;
     BOOL _sKeyPressed;
     BOOL _dKeyPressed;
-    BOOL _upArrowPressed;
-    BOOL _downArrowPressed;
+    BOOL _rKeyPressed;
+    BOOL _fKeyPressed;
 }
 
 - (instancetype)initWithMetalView:(MTKView*)metalView;
@@ -460,8 +460,8 @@ typedef struct
         _aKeyPressed = NO;
         _sKeyPressed = NO;
         _dKeyPressed = NO;
-        _upArrowPressed = NO;
-        _downArrowPressed = NO;
+        _rKeyPressed = NO;
+        _fKeyPressed = NO;
 
         _commandQueue = [_device newCommandQueue];
 
@@ -860,22 +860,22 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     }
     if( _aKeyPressed )
     {
-        _cameraWorldX += (cos(_yawAngle) * moveSpeed);
-        _cameraWorldZ -= (sin(_yawAngle) * moveSpeed);
+        _cameraWorldX -= (cos(_yawAngle) * moveSpeed);
+        _cameraWorldZ += (sin(_yawAngle) * moveSpeed);
     }
     if( _dKeyPressed )
     {
-        _cameraWorldX -= (cos(_yawAngle) * moveSpeed);
-        _cameraWorldZ += (sin(_yawAngle) * moveSpeed);
+        _cameraWorldX += (cos(_yawAngle) * moveSpeed);
+        _cameraWorldZ -= (sin(_yawAngle) * moveSpeed);
     }
 
     // Update camera height based on arrow keys
     // In Metal coordinates: Z is up, so up arrow increases Z
-    if( _upArrowPressed )
+    if( _rKeyPressed )
     {
         _cameraHeight += moveSpeed;
     }
-    if( _downArrowPressed )
+    if( _fKeyPressed )
     {
         _cameraHeight -= moveSpeed;
     }
@@ -889,27 +889,21 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     {
     case 13: // W key
         _wKeyPressed = YES;
-        NSLog(@"W key pressed - camera will move forward");
         break;
     case 0: // A key
         _aKeyPressed = YES;
-        NSLog(@"A key pressed - camera will move left");
         break;
     case 1: // S key
         _sKeyPressed = YES;
-        NSLog(@"S key pressed - camera will move backward");
         break;
     case 2: // D key
         _dKeyPressed = YES;
-        NSLog(@"D key pressed - camera will move right");
         break;
-    case 126: // Up arrow
-        _upArrowPressed = YES;
-        NSLog(@"Up arrow pressed - camera will move up");
+    case 15: // R key
+        _rKeyPressed = YES;
         break;
-    case 125: // Down arrow
-        _downArrowPressed = YES;
-        NSLog(@"Down arrow pressed - camera will move down");
+    case 3: // F key
+        _fKeyPressed = YES;
         break;
     }
 }
@@ -920,27 +914,21 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     {
     case 13: // W key
         _wKeyPressed = NO;
-        NSLog(@"W key released - camera will stop moving forward");
         break;
     case 0: // A key
         _aKeyPressed = NO;
-        NSLog(@"A key released - camera will stop moving left");
         break;
     case 1: // S key
         _sKeyPressed = NO;
-        NSLog(@"S key released - camera will stop moving backward");
         break;
     case 2: // D key
         _dKeyPressed = NO;
-        NSLog(@"D key released - camera will stop moving right");
         break;
-    case 126: // Up arrow
-        _upArrowPressed = NO;
-        NSLog(@"Up arrow released - camera will stop moving up");
+    case 15: // R key
+        _rKeyPressed = NO;
         break;
-    case 125: // Down arrow
-        _downArrowPressed = NO;
-        NSLog(@"Down arrow released - camera will stop moving down");
+    case 3: // F key
+        _fKeyPressed = NO;
         break;
     }
 }
@@ -995,13 +983,18 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     // Handle WASD and arrow keys through the renderer's key state system
     switch( event.keyCode )
     {
-    case 13:  // W key
-    case 0:   // A key
-    case 1:   // S key
-    case 2:   // D key
-    case 126: // Up arrow
-    case 125: // Down arrow
+    case 13: // W key
+    case 0:  // A key
+    case 1:  // S key
+    case 2:  // D key
+    case 15: // R key
+    case 3:  // F key
+             // case 126: // Up arrow
+             // case 125: // Down arrow
         [renderer keyDown:event.keyCode];
+        break;
+    case 53: // Escape key
+        [NSApp terminate:nil];
         break;
     }
 }
@@ -1013,12 +1006,14 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     // Handle WASD and arrow keys through the renderer's key state system
     switch( event.keyCode )
     {
-    case 13:  // W key
-    case 0:   // A key
-    case 1:   // S key
-    case 2:   // D key
-    case 126: // Up arrow
-    case 125: // Down arrow
+    case 13: // W key
+    case 0:  // A key
+    case 1:  // S key
+    case 2:  // D key
+    case 15: // R key
+    case 3:  // F key
+             // case 126: // Up arrow
+             // case 125: // Down arrow
         [renderer keyUp:event.keyCode];
         break;
     }
