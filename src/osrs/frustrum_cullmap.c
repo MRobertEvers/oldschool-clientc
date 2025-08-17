@@ -79,7 +79,7 @@ test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
     struct ProjectedTriangle projected_triangle =
         project(0, 0, 0, 0, 0, 0, x, y, z, pitch, yaw, 0, 512, 100, 1024, 768);
 
-    if( projected_triangle.clipped )
+    if( projected_triangle.clipped || projected_triangle.z > 3500 )
         return false;
 
     projected_triangle.x = (projected_triangle.x + (1024 >> 1));
