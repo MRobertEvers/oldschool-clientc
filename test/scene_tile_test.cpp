@@ -14,6 +14,7 @@ extern "C" {
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/textures.h"
 #include "osrs/xtea_config.h"
+#include "screen.h"
 }
 
 #include <SDL.h>
@@ -24,8 +25,6 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-#define SCREEN_WIDTH 1024
-#define SCREEN_HEIGHT 768
 #define GUI_WINDOW_WIDTH 400
 #define GUI_WINDOW_HEIGHT 600
 
@@ -602,7 +601,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->ops,
         game->op_count,
         render_ops,
-        game->fake_pitch,
+        game->camera_pitch,
         game->camera_yaw,
         game->camera_x / 128,
         game->camera_y / 128);
@@ -982,6 +981,28 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     // Use bilinear scaling when copying texture to renderer
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); // Enable bilinear filtering
+
+    // Calculate aspect ratio preserving dimensions
+    float src_aspect = (float)SCREEN_WIDTH / SCREEN_HEIGHT;
+    float dst_aspect = (float)platform->drawable_width / platform->drawable_height;
+
+    if( src_aspect > dst_aspect )
+    {
+        // Source is wider - fit to width
+        dst_rect.w = platform->drawable_width;
+        dst_rect.h = (int)(platform->drawable_width / src_aspect);
+        dst_rect.x = 0;
+        dst_rect.y = (platform->drawable_height - dst_rect.h) / 2;
+    }
+    else
+    {
+        // Source is taller - fit to height
+        dst_rect.h = platform->drawable_height;
+        dst_rect.w = (int)(platform->drawable_height * src_aspect);
+        dst_rect.y = 0;
+        dst_rect.x = (platform->drawable_width - dst_rect.w) / 2;
+    }
+
     SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
 
     SDL_FreeSurface(surface);

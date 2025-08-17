@@ -642,9 +642,6 @@ raster_gouraud(
     int alpha)
 {
     assert(alpha >= 0 && alpha <= 0xFF);
-    // TODO: Document this.
-    if( alpha == 0 )
-        alpha = 0xFF;
 
     // Sort vertices by y
     // where y0 is the bottom vertex and y2 is the top vertex (or bottom of the screen)

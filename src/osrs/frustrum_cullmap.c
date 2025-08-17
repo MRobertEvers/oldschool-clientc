@@ -1,6 +1,7 @@
 #include "frustrum_cullmap.h"
 
 #include "projection.h"
+#include "screen.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -77,16 +78,16 @@ static bool
 test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
 {
     struct ProjectedTriangle projected_triangle =
-        project(0, 0, 0, 0, 0, 0, x, y, z, pitch, yaw, 0, 512, 100, 1024, 768);
+        project(0, 0, 0, 0, 0, 0, x, y, z, pitch, yaw, 0, 512, 100, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     if( projected_triangle.clipped || projected_triangle.z > 3500 )
         return false;
 
-    projected_triangle.x = (projected_triangle.x + (1024 >> 1));
-    projected_triangle.y = (projected_triangle.y + (768 >> 1));
+    projected_triangle.x = (projected_triangle.x + (SCREEN_WIDTH >> 1));
+    projected_triangle.y = (projected_triangle.y + (SCREEN_HEIGHT >> 1));
 
-    return projected_triangle.x >= 0 && projected_triangle.x <= 1024 && projected_triangle.y >= 0 &&
-           projected_triangle.y <= 768;
+    return projected_triangle.x >= 0 && projected_triangle.x <= SCREEN_WIDTH &&
+           projected_triangle.y >= 0 && projected_triangle.y <= SCREEN_HEIGHT;
     // int px = (z * g_sin_table[yaw] + x * g_cos_table[yaw]) >> 16;
     // int tmp = (z * g_cos_table[yaw] - x * g_sin_table[yaw]) >> 16;
     // int pz = (y * g_sin_table[pitch] + tmp * g_cos_table[pitch]) >> 16;
