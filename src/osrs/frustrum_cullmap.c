@@ -76,18 +76,29 @@ pitch_height(int pitch)
 static bool
 test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
 {
-    int px = (z * g_sin_table[yaw] + x * g_cos_table[yaw]) >> 16;
-    int tmp = (z * g_cos_table[yaw] - x * g_sin_table[yaw]) >> 16;
-    int pz = (y * g_sin_table[pitch] + tmp * g_cos_table[pitch]) >> 16;
-    int py = (y * g_cos_table[pitch] - tmp * g_sin_table[pitch]) >> 16;
-    if( pz < 50 || pz > 3500 )
-    {
-        return false;
-    }
+    struct ProjectedTriangle projected_triangle =
+        project(0, 0, 0, 0, 0, 0, x, y, z, pitch, yaw, 0, 512, 100, 1024, 768);
 
-    int viewportX = (1024 >> 1) + (px << 9) / pz;
-    int viewportY = (768 >> 1) + (py << 9) / pz;
-    return viewportX >= 0 && viewportX <= 1024 && viewportY >= 0 && viewportY <= 768;
+    if( projected_triangle.clipped )
+        return false;
+
+    projected_triangle.x = (projected_triangle.x + (1024 >> 1));
+    projected_triangle.y = (projected_triangle.y + (768 >> 1));
+
+    return projected_triangle.x >= 0 && projected_triangle.x <= 1024 && projected_triangle.y >= 0 &&
+           projected_triangle.y <= 768;
+    // int px = (z * g_sin_table[yaw] + x * g_cos_table[yaw]) >> 16;
+    // int tmp = (z * g_cos_table[yaw] - x * g_sin_table[yaw]) >> 16;
+    // int pz = (y * g_sin_table[pitch] + tmp * g_cos_table[pitch]) >> 16;
+    // int py = (y * g_cos_table[pitch] - tmp * g_sin_table[pitch]) >> 16;
+    // if( pz < 50 || pz > 3500 )
+    // {
+    //     return false;
+    // }
+
+    // int viewportX = (1024 >> 1) + (px << 9) / pz;
+    // int viewportY = (768 >> 1) + (py << 9) / pz;
+    // return viewportX >= 0 && viewportX <= 1024 && viewportY >= 0 && viewportY <= 768;
 }
 
 struct FrustrumCullmap*
