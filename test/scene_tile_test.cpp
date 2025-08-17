@@ -256,6 +256,7 @@ struct Game
     struct SceneModel* player_model;
 
     struct FrustrumCullmap* frustrum_cullmap;
+    int fake_pitch;
 
     uint64_t start_time;
     uint64_t end_time;
@@ -475,10 +476,12 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     snprintf(
         camera_rot_text,
         sizeof(camera_rot_text),
-        "Camera (pitch, yaw, roll): %d, %d, %d",
+        "Camera (pitch, yaw, roll, fake_pitch): %d, %d, %d, %d",
+
         game->camera_pitch,
         game->camera_yaw,
-        game->camera_roll);
+        game->camera_roll,
+        game->fake_pitch);
     ImGui::Text("%s", camera_rot_text);
     ImGui::SameLine();
     if( ImGui::SmallButton("Copy##rot") )
@@ -599,7 +602,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->ops,
         game->op_count,
         render_ops,
-        game->camera_pitch,
+        game->fake_pitch,
         game->camera_yaw,
         game->camera_x / 128,
         game->camera_y / 128);
@@ -1696,6 +1699,8 @@ main()
     int k_pressed = 0;
     int l_pressed = 0;
     int j_pressed = 0;
+    int q_pressed = 0;
+    int e_pressed = 0;
 
     int comma_pressed = 0;
     int period_pressed = 0;
@@ -1784,16 +1789,16 @@ main()
                 case SDLK_f:
                     f_pressed = 1;
                     break;
-                case SDLK_q:
-                    // Counter Clockwise
-                    game.hover_loc_yaw += 512 * 3;
-                    game.hover_loc_yaw %= 2048;
-                    break;
-                case SDLK_e:
-                    // Clockwise
-                    game.hover_loc_yaw += 512;
-                    game.hover_loc_yaw %= 2048;
-                    break;
+                // case SDLK_q:
+                //     // Counter Clockwise
+                //     game.hover_loc_yaw += 512 * 3;
+                //     game.hover_loc_yaw %= 2048;
+                //     break;
+                // case SDLK_e:
+                //     // Clockwise
+                //     game.hover_loc_yaw += 512;
+                //     game.hover_loc_yaw %= 2048;
+                //     break;
                 case SDLK_SEMICOLON:
                     game.show_loc_enabled = !game.show_loc_enabled;
                     break;
@@ -1823,6 +1828,12 @@ main()
                     break;
                 case SDLK_j:
                     j_pressed = 1;
+                    break;
+                case SDLK_q:
+                    q_pressed = 1;
+                    break;
+                case SDLK_e:
+                    e_pressed = 1;
                     break;
                 case SDLK_PERIOD:
                     period_pressed = 1;
@@ -1893,6 +1904,12 @@ main()
                 case SDLK_COMMA:
                     comma_pressed = 0;
                     break;
+                case SDLK_q:
+                    q_pressed = 0;
+                    break;
+                case SDLK_e:
+                    e_pressed = 0;
+                    break;
                 }
             }
         }
@@ -1924,6 +1941,16 @@ main()
             game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
             game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
+        }
+
+        if( q_pressed )
+        {
+            game.fake_pitch = (game.fake_pitch + 10) % 2048;
+        }
+
+        if( e_pressed )
+        {
+            game.fake_pitch = (game.fake_pitch - 10 + 2048) % 2048;
         }
 
         if( up_pressed )

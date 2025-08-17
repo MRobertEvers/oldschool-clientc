@@ -1,6 +1,10 @@
 #include "frustrum_cullmap.h"
 
+#include "projection.h"
+
 #include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #define PITCH_STEPS 16
@@ -36,8 +40,17 @@ cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, i
 int
 frustrum_cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw)
 {
-    pitch = pitch / 128;
-    yaw = yaw / 64;
+    pitch = pitch / (128 / 4);
+    yaw = yaw / (2048 / YAW_STEPS);
+
+    if( pitch < 0 )
+        pitch = 0;
+    if( pitch >= PITCH_STEPS )
+        pitch = PITCH_STEPS - 1;
+    if( yaw < 0 )
+        yaw = 0;
+    if( yaw >= YAW_STEPS )
+        yaw = YAW_STEPS - 1;
 
     if( x <= -frustrum_cullmap->radius || y <= -frustrum_cullmap->radius ||
         x >= frustrum_cullmap->radius || y >= frustrum_cullmap->radius )
@@ -48,6 +61,33 @@ frustrum_cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int
 
     int index = coord_for_grid(x, y, frustrum_cullmap->radius, pitch, yaw);
     return frustrum_cullmap->cullmap[index];
+}
+
+static int64_t
+pitch_height(int pitch)
+{
+    // Multiply by 32 to get [0, 16] => [0, 512]
+    int angle = pitch * 32 + 15;
+    int offset = 600;
+    int sin = g_sin_table[angle];
+    return offset * sin >> 16;
+}
+
+static bool
+test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
+{
+    int px = (z * g_sin_table[yaw] + x * g_cos_table[yaw]) >> 16;
+    int tmp = (z * g_cos_table[yaw] - x * g_sin_table[yaw]) >> 16;
+    int pz = (y * g_sin_table[pitch] + tmp * g_cos_table[pitch]) >> 16;
+    int py = (y * g_cos_table[pitch] - tmp * g_sin_table[pitch]) >> 16;
+    if( pz < 50 || pz > 3500 )
+    {
+        return false;
+    }
+
+    int viewportX = (1024 >> 1) + (px << 9) / pz;
+    int viewportY = (768 >> 1) + (py << 9) / pz;
+    return viewportX >= 0 && viewportX <= 1024 && viewportY >= 0 && viewportY <= 768;
 }
 
 struct FrustrumCullmap*
@@ -68,39 +108,29 @@ frustrum_cullmap_new(int radius, int fov_multiplier)
             // The camera is at the center of the grid.
             // Convert yaw to radians (pitch unused for 2D culling)
             int yaw_rad = yaw * (2048 / YAW_STEPS);
-
-            // Get direction vector from camera angles (2D horizontal only)
-            // Match the yaw convention used in projection.c (clockwise rotation)
-            int dir_x = -g_sin_table[yaw_rad];
-            int dir_z = g_cos_table[yaw_rad];
+            int pitch_rad = pitch * (512 / PITCH_STEPS);
 
             // For each tile in the radius
             for( int tile_x = 0; tile_x < radius * 2; tile_x++ )
             {
                 for( int tile_z = 0; tile_z < radius * 2; tile_z++ )
                 {
-                    // Get vector from camera (at center) to tile
-                    int to_tile_x = tile_x - radius; // Camera at radius,radius
+                    // Camera at radius,radius
+                    int to_tile_x = tile_x - radius;
                     int to_tile_z = tile_z - radius;
+                    int visible = 0;
 
-                    // Skip center tile (camera position)
-                    if( to_tile_x == 0 && to_tile_z == 0 )
+                    // If the tile is visible from any height within the frustrum, it's visible.
+                    for( int fr = -500; fr < 1500; fr += 128 )
                     {
-                        cullmap_set(
-                            frustrum_cullmap, tile_x, tile_z, pitch, yaw, 1); // Always visible
-                        continue;
+                        int to_tile_y = pitch_height(pitch) + fr;
+
+                        visible = test_point_in_frustrum(
+                            to_tile_x * 128, to_tile_z * 128, to_tile_y, pitch_rad, yaw_rad);
+                        if( visible )
+                            break;
                     }
 
-                    // Project tile vector onto view direction (2D dot product)
-                    int dot = (to_tile_x * dir_x + to_tile_z * dir_z) >> 16;
-
-                    // Tile is visible if it's in front of camera (dot > 0)
-                    // and within view angle (cross product < threshold)
-                    int cross = (to_tile_x * dir_z - to_tile_z * dir_x) >> 16;
-                    int fov_threshold = (abs(dot) * frustrum_cullmap->fov_multiplier) >> 16;
-                    int visible = (dot > 0) && (abs(cross) < fov_threshold);
-
-                    // Store visibility result for this yaw/pitch combination
                     cullmap_set(frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible ? 1 : 0);
                 }
             }
@@ -111,43 +141,49 @@ frustrum_cullmap_new(int radius, int fov_multiplier)
     {
         for( int pitch = 0; pitch < PITCH_STEPS; pitch++ )
         {
-            int forward_yaw = (yaw + 1) % YAW_STEPS;
-            int backward_yaw = (yaw - 1 + YAW_STEPS) % YAW_STEPS;
-
             // For each tile in the radius
             for( int tile_x = 0; tile_x < radius * 2; tile_x++ )
             {
                 for( int tile_z = 0; tile_z < radius * 2; tile_z++ )
                 {
-                    int forward_visible =
-                        cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, forward_yaw);
-                    int backward_visible =
-                        cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, backward_yaw);
-                    int center_visible = cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, yaw);
-                    int visible =
-                        (forward_visible & 1) | (backward_visible & 1) | (center_visible & 1);
+                    int self = cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, yaw);
+                    int visible = 0;
+                    int blend_radius = 3;
 
-                    cullmap_set(frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible << 1);
+                    for( int blend_range = -blend_radius; blend_range <= blend_radius;
+                         blend_range++ )
+                    {
+                        if( blend_range == 0 )
+                            continue;
+                        int test_yaw = (yaw + blend_range + YAW_STEPS) % YAW_STEPS;
+
+                        int test_visible =
+                            cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, test_yaw);
+                        visible |= (test_visible & 1) != 0;
+                    }
+
+                    cullmap_set(
+                        frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible ? (self | 2) : 0);
                 }
             }
         }
     }
 
-    for( int yaw = 0; yaw < YAW_STEPS; yaw++ )
-    {
-        for( int pitch = 0; pitch < PITCH_STEPS; pitch++ )
-        {
-            // For each tile in the radius
-            for( int tile_x = 0; tile_x < radius * 2; tile_x++ )
-            {
-                for( int tile_z = 0; tile_z < radius * 2; tile_z++ )
-                {
-                    int visible = cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, yaw);
-                    cullmap_set(frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible != 0);
-                }
-            }
-        }
-    }
+    // for( int yaw = 0; yaw < YAW_STEPS; yaw++ )
+    // {
+    //     for( int pitch = 0; pitch < PITCH_STEPS; pitch++ )
+    //     {
+    //         // For each tile in the radius
+    //         for( int tile_x = 0; tile_x < radius * 2; tile_x++ )
+    //         {
+    //             for( int tile_z = 0; tile_z < radius * 2; tile_z++ )
+    //             {
+    //                 int visible = cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, yaw);
+    //                 cullmap_set(frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible != 0);
+    //             }
+    //         }
+    //     }
+    // }
 
     return frustrum_cullmap;
 }
