@@ -1699,6 +1699,11 @@ render_model_frame(
     {
         int face_index = tmp_face_order[i];
 
+        if( model->_id == 2255 )
+        {
+            int iiii = 0;
+        }
+
         model_draw_face(
             pixel_buffer,
             face_index,
@@ -3654,6 +3659,11 @@ iter_render_model_init(
 {
     memset(iter, 0, sizeof(struct IterRenderModel));
     iter->model = scene_model;
+
+    if( iter->model->model->_id == 2255 )
+    {
+        int iiii = 0;
+    }
 
     iter->screen_vertices_x = tmp_screen_vertices_x;
     iter->screen_vertices_y = tmp_screen_vertices_y;

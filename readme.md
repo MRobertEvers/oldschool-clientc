@@ -866,3 +866,7 @@ the loc second from the right is specified via a transform.
 
 Mouse Click Yellow: 299 0-3
 Mouse Click Red: 299 4-7
+
+## Face Alphas
+
+It appears that if a model has an animation, but no face alphas, then face alphas are all assumed to be "0" (opaque), this is so the animation can add transparency.

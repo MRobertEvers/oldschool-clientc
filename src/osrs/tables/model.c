@@ -2300,6 +2300,19 @@ model_new_decode(const unsigned char* inputData, int inputLength)
 
     assert(model != NULL);
 
+    // This is a hack. I'm not sure where this is done in the deob,
+    // but it appears that if a model has face bone map, but no face alphas,
+    // then face alphas are all assumed to be "0" (opaque), this is so the animation can add
+    // transparency.
+    if( model->face_bone_map )
+    {
+        if( !model->face_alphas )
+        {
+            model->face_alphas = (int*)malloc(model->face_count * sizeof(int));
+            memset(model->face_alphas, 0, model->face_count * sizeof(int));
+        }
+    }
+
     // if( model->face_infos )
     // {
     //     for( int i = 0; i < model->face_count; i++ )
