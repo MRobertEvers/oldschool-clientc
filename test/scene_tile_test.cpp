@@ -1,6 +1,7 @@
 extern "C" {
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
+#include "osrs/frustrum_cullmap.h"
 #include "osrs/render.h"
 #include "osrs/scene.h"
 #include "osrs/scene_tile.h"
@@ -253,6 +254,8 @@ struct Game
     int player_yaw;
     int player_animation_id;
     struct SceneModel* player_model;
+
+    struct FrustrumCullmap* frustrum_cullmap;
 
     uint64_t start_time;
     uint64_t end_time;
@@ -589,7 +592,17 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     struct IterRenderSceneOps iter;
     struct IterRenderModel iter_model;
 
-    iter_render_scene_ops_init(&iter, game->scene, game->ops, game->op_count, render_ops);
+    iter_render_scene_ops_init(
+        &iter,
+        game->frustrum_cullmap,
+        game->scene,
+        game->ops,
+        game->op_count,
+        render_ops,
+        game->camera_pitch,
+        game->camera_yaw,
+        game->camera_x / 128,
+        game->camera_y / 128);
 
     int last_model_hit = -1;
     struct SceneModel* last_model_hit_model = NULL;
@@ -1660,6 +1673,8 @@ main()
             player_model = model;
         }
     }
+
+    game.frustrum_cullmap = frustrum_cullmap_new(30, 131072); // 65536 = 90° FOV
 
     int w_pressed = 0;
     int a_pressed = 0;

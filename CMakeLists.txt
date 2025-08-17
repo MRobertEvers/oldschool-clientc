@@ -55,6 +55,7 @@ endif()
 
 add_executable(main_client
     src/main_client.c
+    src/osrs/frustrum_cullmap.c
     src/texture.c
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
@@ -91,6 +92,7 @@ add_executable(main_client
 
 add_executable(scene_tile_test
     test/scene_tile_test.cpp
+    src/osrs/frustrum_cullmap.c
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
@@ -258,6 +260,7 @@ if(APPLE)
     # Add source files
     set(SOURCES
         src/metal_main.mm
+        src/osrs/frustrum_cullmap.c
         src/osrs/tables/textures.c
         src/osrs/tables/sprites.c
         src/osrs/blend_underlays.c

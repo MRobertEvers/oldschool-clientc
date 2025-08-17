@@ -2,6 +2,7 @@
 
 #include "anim.h"
 #include "flat.h"
+#include "frustrum_cullmap.h"
 #include "gouraud.h"
 #include "gouraud_deob.h"
 #include "lighting.h"
@@ -3418,18 +3419,28 @@ render_scene_ops(
 void
 iter_render_scene_ops_init(
     struct IterRenderSceneOps* iter,
+    struct FrustrumCullmap* map,
     struct Scene* scene,
     struct SceneOp* ops,
     int op_count,
-    int op_max)
+    int op_max,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_x,
+    int camera_y)
 {
     memset(iter, 0, sizeof(struct IterRenderSceneOps));
     iter->has_value = false;
+    iter->map = map;
     iter->scene = scene;
     iter->_ops = ops;
     iter->_op_count = op_count;
     iter->_current_op = 0;
     iter->_op_max = op_max;
+    iter->camera_pitch = camera_pitch; // 2048 / 16 PITCH_STEPS
+    iter->camera_yaw = camera_yaw;     // 2048 / 16 YAW_STEPS
+    iter->camera_x = camera_x;
+    iter->camera_y = camera_y;
 }
 
 bool
@@ -3451,6 +3462,12 @@ next:
 
     struct SceneOp* op = &iter->_ops[i];
     grid_tile = &iter->scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
+
+    int to_tile_x = op->x + iter->camera_x;
+    int to_tile_y = op->z + iter->camera_y;
+    if( frustrum_cullmap_get(
+            iter->map, to_tile_x, to_tile_y, iter->camera_pitch, iter->camera_yaw) == 0 )
+        goto next;
 
     // if( !within_rect(op->x, op->z, 30, 0, 20, 20) )
     //     continue;

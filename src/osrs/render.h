@@ -248,9 +248,12 @@ void render_scene_ops(
     struct Scene* scene,
     struct TexturesCache* textures_cache);
 
+struct FrustrumCullmap;
 struct IterRenderSceneOps
 {
     bool has_value;
+
+    struct FrustrumCullmap* map;
 
     struct
     {
@@ -267,6 +270,10 @@ struct IterRenderSceneOps
     struct Scene* scene;
 
     struct SceneOp* _ops;
+    int camera_pitch;
+    int camera_yaw;
+    int camera_x;
+    int camera_y;
     int _current_op;
     int _op_count;
     int _op_max;
@@ -274,10 +281,15 @@ struct IterRenderSceneOps
 
 void iter_render_scene_ops_init(
     struct IterRenderSceneOps* iter,
+    struct FrustrumCullmap* map,
     struct Scene* scene,
     struct SceneOp* ops,
     int op_count,
-    int op_max);
+    int op_max,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_x,
+    int camera_y);
 
 bool iter_render_scene_ops_next(struct IterRenderSceneOps* iter);
 
