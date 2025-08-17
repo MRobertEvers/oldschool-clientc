@@ -223,12 +223,16 @@ animate(
             {
                 int face_index = bone[j];
 
-                face_alphas[face_index] += arg_x * 8;
-                if( face_alphas[face_index] < 0 )
-                    face_alphas[face_index] = 0;
+                // This mask is important because the alpha expects to wrap.
+                int alpha = face_alphas[face_index] & 0xFF;
+                alpha += arg_x * 8;
+                if( alpha < 0 )
+                    alpha = 0;
 
-                if( face_alphas[face_index] > 255 )
-                    face_alphas[face_index] = 255;
+                if( alpha > 255 )
+                    alpha = 255;
+
+                face_alphas[face_index] = alpha;
             }
         }
     }
