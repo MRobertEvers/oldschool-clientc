@@ -18,12 +18,19 @@ coord_for_grid(int x, int y, int radius, int pitch, int yaw)
 }
 
 static inline void
-frustrum_cullmap_set(
-    struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw, int visible)
+cullmap_set(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw, int visible)
 {
     int index = coord_for_grid(x, y, frustrum_cullmap->radius, pitch, yaw);
 
     frustrum_cullmap->cullmap[index] = visible;
+}
+
+static inline int
+cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw)
+{
+    int index = coord_for_grid(x, y, frustrum_cullmap->radius, pitch, yaw);
+
+    return frustrum_cullmap->cullmap[index];
 }
 
 int
@@ -79,7 +86,7 @@ frustrum_cullmap_new(int radius, int fov_multiplier)
                     // Skip center tile (camera position)
                     if( to_tile_x == 0 && to_tile_z == 0 )
                     {
-                        frustrum_cullmap_set(
+                        cullmap_set(
                             frustrum_cullmap, tile_x, tile_z, pitch, yaw, 1); // Always visible
                         continue;
                     }
@@ -94,8 +101,49 @@ frustrum_cullmap_new(int radius, int fov_multiplier)
                     int visible = (dot > 0) && (abs(cross) < fov_threshold);
 
                     // Store visibility result for this yaw/pitch combination
-                    frustrum_cullmap_set(
-                        frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible ? 1 : 0);
+                    cullmap_set(frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible ? 1 : 0);
+                }
+            }
+        }
+    }
+
+    for( int yaw = 0; yaw < YAW_STEPS; yaw++ )
+    {
+        for( int pitch = 0; pitch < PITCH_STEPS; pitch++ )
+        {
+            int forward_yaw = (yaw + 1) % YAW_STEPS;
+            int backward_yaw = (yaw - 1 + YAW_STEPS) % YAW_STEPS;
+
+            // For each tile in the radius
+            for( int tile_x = 0; tile_x < radius * 2; tile_x++ )
+            {
+                for( int tile_z = 0; tile_z < radius * 2; tile_z++ )
+                {
+                    int forward_visible =
+                        cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, forward_yaw);
+                    int backward_visible =
+                        cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, backward_yaw);
+                    int center_visible = cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, yaw);
+                    int visible =
+                        (forward_visible & 1) | (backward_visible & 1) | (center_visible & 1);
+
+                    cullmap_set(frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible << 1);
+                }
+            }
+        }
+    }
+
+    for( int yaw = 0; yaw < YAW_STEPS; yaw++ )
+    {
+        for( int pitch = 0; pitch < PITCH_STEPS; pitch++ )
+        {
+            // For each tile in the radius
+            for( int tile_x = 0; tile_x < radius * 2; tile_x++ )
+            {
+                for( int tile_z = 0; tile_z < radius * 2; tile_z++ )
+                {
+                    int visible = cullmap_get(frustrum_cullmap, tile_x, tile_z, pitch, yaw);
+                    cullmap_set(frustrum_cullmap, tile_x, tile_z, pitch, yaw, visible != 0);
                 }
             }
         }
