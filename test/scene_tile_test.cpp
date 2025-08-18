@@ -424,6 +424,57 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     return true;
 }
 static void
+transform_mouse_coordinates(
+    int window_mouse_x,
+    int window_mouse_y,
+    int* game_mouse_x,
+    int* game_mouse_y,
+    struct PlatformSDL2* platform)
+{
+    // Calculate the same scaling transformation as the rendering
+    float src_aspect = (float)SCREEN_WIDTH / SCREEN_HEIGHT;
+    float dst_aspect = (float)platform->drawable_width / platform->drawable_height;
+
+    int dst_x, dst_y, dst_w, dst_h;
+
+    if( src_aspect > dst_aspect )
+    {
+        // Source is wider - fit to width
+        dst_w = platform->drawable_width;
+        dst_h = (int)(platform->drawable_width / src_aspect);
+        dst_x = 0;
+        dst_y = (platform->drawable_height - dst_h) / 2;
+    }
+    else
+    {
+        // Source is taller - fit to height
+        dst_h = platform->drawable_height;
+        dst_w = (int)(platform->drawable_height * src_aspect);
+        dst_y = 0;
+        dst_x = (platform->drawable_width - dst_w) / 2;
+    }
+
+    // Transform window coordinates to game coordinates
+    // Account for the offset and scaling of the game rendering area
+    if( window_mouse_x < dst_x || window_mouse_x >= dst_x + dst_w || window_mouse_y < dst_y ||
+        window_mouse_y >= dst_y + dst_h )
+    {
+        // Mouse is outside the game rendering area
+        *game_mouse_x = -1;
+        *game_mouse_y = -1;
+    }
+    else
+    {
+        // Transform from window coordinates to game coordinates
+        float relative_x = (float)(window_mouse_x - dst_x) / dst_w;
+        float relative_y = (float)(window_mouse_y - dst_y) / dst_h;
+
+        *game_mouse_x = (int)(relative_x * SCREEN_WIDTH);
+        *game_mouse_y = (int)(relative_y * SCREEN_HEIGHT);
+    }
+}
+
+static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
     ImGui_ImplSDLRenderer2_NewFrame();
@@ -1764,13 +1815,16 @@ main()
             }
             else if( event.type == SDL_MOUSEMOTION && !imgui_wants_mouse )
             {
-                game.mouse_x = event.motion.x;
-                game.mouse_y = event.motion.y;
+                transform_mouse_coordinates(
+                    event.motion.x, event.motion.y, &game.mouse_x, &game.mouse_y, &platform);
             }
             else if( event.type == SDL_MOUSEBUTTONDOWN && !imgui_wants_mouse )
             {
-                game.mouse_click_x = event.button.x;
-                game.mouse_click_y = event.button.y;
+                int transformed_x, transformed_y;
+                transform_mouse_coordinates(
+                    event.button.x, event.button.y, &transformed_x, &transformed_y, &platform);
+                game.mouse_click_x = transformed_x;
+                game.mouse_click_y = transformed_y;
                 game.mouse_click_cycle = 0;
             }
             else if( event.type == SDL_KEYDOWN && !imgui_wants_keyboard )

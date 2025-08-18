@@ -12,12 +12,12 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O3 -fsanitize=address")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 # Add C flags for ASan
 set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_C_FLAGS_DEBUG "-g -fsanitize=address")
+set(CMAKE_C_FLAGS_DEBUG "-g -Og -fsanitize=address")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 
 # Add sanitizer to linker flags for Debug mode
