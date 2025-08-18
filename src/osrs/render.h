@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+extern int g_queue_calls;
+
 struct CacheModel;
 struct CacheModelBones;
 struct Frame;

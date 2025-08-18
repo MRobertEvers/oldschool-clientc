@@ -27,6 +27,18 @@
             "MIMode": "lldb"
         },
         {
+            "name": "(lldb) Launch Speed Test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/speed_test",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
             "name": "(lldb) Launch Tiles Test",
             "type": "cppdbg",
             "request": "launch",

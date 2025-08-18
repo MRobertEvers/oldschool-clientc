@@ -1082,13 +1082,13 @@ raster_texture_step_blend(
     int shade8bit_edge_ish8 =
         (shade7bit_a << 9) - shade8bit_xhat_ish8 * screen_x0 + shade8bit_xhat_ish8;
 
-    long long au = 0;
-    long long bv = 0;
-    long long cw = 0;
+    int au = 0;
+    int bv = 0;
+    int cw = 0;
 
-    long long edge_x_AC_ish16 = screen_x0 << 16;
-    long long edge_x_AB_ish16 = screen_x0 << 16;
-    long long edge_x_BC_ish16 = screen_x1 << 16;
+    int edge_x_AC_ish16 = screen_x0 << 16;
+    int edge_x_AB_ish16 = screen_x0 << 16;
+    int edge_x_BC_ish16 = screen_x1 << 16;
 
     if( screen_y0 < 0 )
     {
@@ -1115,20 +1115,20 @@ raster_texture_step_blend(
     bv = vUOPlane_normal_zhat * UNIT_SCALE;
     cw = vUVPlane_normal_zhat * UNIT_SCALE;
 
-    long long dy = screen_y0 - (screen_height >> 1);
+    int dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
     bv += vUOPlane_normal_yhat * (dy);
     cw += vUVPlane_normal_yhat * (dy);
 
-    long long steps = screen_y1 - screen_y0;
-    long long offset = screen_y0 * screen_width;
+    int steps = screen_y1 - screen_y0;
+    int offset = screen_y0 * screen_width;
 
     assert(screen_y0 < screen_height);
 
     while( steps-- > 0 )
     {
-        long long x_start = edge_x_AC_ish16 >> 16;
-        long long x_end = edge_x_AB_ish16 >> 16;
+        int x_start = edge_x_AC_ish16 >> 16;
+        int x_end = edge_x_AB_ish16 >> 16;
 
         raster_texture_scanline_blend_lerp8(
             pixel_buffer,

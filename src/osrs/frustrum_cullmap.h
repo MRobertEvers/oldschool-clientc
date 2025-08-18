@@ -8,7 +8,8 @@ struct FrustrumCullmap
     int fov_multiplier; // Fixed-point multiplier for FOV (65536 = 90° FOV)
 };
 
-struct FrustrumCullmap* frustrum_cullmap_new(int radius, int fov_multiplier);
+struct FrustrumCullmap*
+frustrum_cullmap_new(int radius, int camera_low, int camera_high, int fov_r2pi2048);
 
 int
 frustrum_cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw);

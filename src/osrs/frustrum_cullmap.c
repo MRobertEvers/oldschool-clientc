@@ -75,10 +75,10 @@ pitch_height(int pitch)
 }
 
 static bool
-test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
+test_point_in_frustrum(int x, int z, int y, int pitch, int yaw, int fov_r2pi2048)
 {
-    struct ProjectedTriangle projected_triangle =
-        project(0, 0, 0, 0, 0, 0, x, y, z, pitch, yaw, 0, 512, 100, SCREEN_WIDTH, SCREEN_HEIGHT);
+    struct ProjectedTriangle projected_triangle = project(
+        0, 0, 0, 0, 0, 0, x, y, z, pitch, yaw, 0, fov_r2pi2048, 100, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     if( projected_triangle.clipped || projected_triangle.z > 3500 )
         return false;
@@ -103,14 +103,13 @@ test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
 }
 
 struct FrustrumCullmap*
-frustrum_cullmap_new(int radius, int fov_multiplier)
+frustrum_cullmap_new(int radius, int camera_low, int camera_high, int fov_r2pi2048)
 {
     struct FrustrumCullmap* frustrum_cullmap =
         (struct FrustrumCullmap*)malloc(sizeof(struct FrustrumCullmap));
     frustrum_cullmap->cullmap =
         (int*)malloc(((radius * radius) << 2) * sizeof(int) * PITCH_STEPS * YAW_STEPS);
     frustrum_cullmap->radius = radius;
-    frustrum_cullmap->fov_multiplier = fov_multiplier;
 
     // 16 quadrants
     for( int yaw = 0; yaw < YAW_STEPS; yaw++ )
@@ -133,12 +132,17 @@ frustrum_cullmap_new(int radius, int fov_multiplier)
                     int visible = 0;
 
                     // If the tile is visible from any height within the frustrum, it's visible.
-                    for( int fr = -500; fr < 1500; fr += 128 )
+                    for( int fr = camera_low; fr < camera_high; fr += 128 )
                     {
                         int to_tile_y = pitch_height(pitch) + fr;
 
                         visible = test_point_in_frustrum(
-                            to_tile_x * 128, to_tile_z * 128, to_tile_y, pitch_rad, yaw_rad);
+                            to_tile_x * 128,
+                            to_tile_z * 128,
+                            to_tile_y,
+                            pitch_rad,
+                            yaw_rad,
+                            fov_r2pi2048);
                         if( visible )
                             break;
                     }

@@ -24,6 +24,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+int g_queue_calls = 0;
+
 static int tmp_depth_face_count[1500] = { 0 };
 static int tmp_depth_faces[1500 * 512] = { 0 };
 static int tmp_priority_face_count[12] = { 0 };
@@ -210,7 +212,7 @@ project_vertices(
     }
 }
 
-static void
+static bool
 project_vertices_textured(
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -269,13 +271,13 @@ project_vertices_textured(
 
     if( projected_triangle.clipped )
     {
-        for( int i = 0; i < num_vertices; i++ )
-        {
-            screen_vertices_x[i] = -5000;
-            screen_vertices_y[i] = -5000;
-            screen_vertices_z[i] = -5000;
-        }
-        return;
+        // for( int i = 0; i < num_vertices; i++ )
+        // {
+        //     screen_vertices_x[i] = -5000;
+        //     screen_vertices_y[i] = -5000;
+        //     screen_vertices_z[i] = -5000;
+        // }
+        return false;
     }
 
     for( int i = 0; i < num_vertices; i++ )
@@ -320,6 +322,8 @@ project_vertices_textured(
             screen_vertices_z[i] = projected_triangle.z - model_origin_z_projection;
         }
     }
+
+    return true;
 }
 
 /**
@@ -405,7 +409,7 @@ clipped:
 /**
  * Terrain is treated as a single, so the origin test does not apply.
  */
-static void
+static bool
 project_vertices_terrain_textured(
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -482,17 +486,11 @@ project_vertices_terrain_textured(
         }
     }
 
-    return;
+    return true;
 
 clipped:
-    for( int i = 0; i < num_vertices; i++ )
-    {
-        screen_vertices_x[i] = -5000;
-        screen_vertices_y[i] = -5000;
-        screen_vertices_z[i] = -5000;
-    }
 
-    return;
+    return false;
 }
 
 static void
@@ -525,6 +523,9 @@ bucket_sort_by_average_depth(
         int za = vertex_z[a];
         int zb = vertex_z[b];
         int zc = vertex_z[c];
+
+        if( xa == -5000 || xb == -5000 || xc == -5000 )
+            continue;
 
         // dot product of the vectors (AB, BC)
         // If the dot product is 0, then AB and BC are on the same line.
@@ -1567,7 +1568,7 @@ render_model_frame(
     //     height,
     //     near_plane_z);
 
-    project_vertices_textured(
+    int inrange = project_vertices_textured(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -1591,6 +1592,49 @@ render_model_frame(
         width,
         height,
         near_plane_z);
+
+    if( inrange == 0 )
+        return;
+
+    // if( true )
+    // {
+    //     for( int i = 0; i < model->face_count; i++ )
+    //     {
+    //         int face = i;
+    //         model_draw_face(
+    //             pixel_buffer,
+    //             face,
+    //             model->face_infos,
+    //             face_indices_a,
+    //             face_indices_b,
+    //             face_indices_c,
+    //             model->face_count,
+    //             screen_vertices_x,
+    //             screen_vertices_y,
+    //             screen_vertices_z,
+    //             orthographic_vertices_x,
+    //             orthographic_vertices_y,
+    //             orthographic_vertices_z,
+    //             model->vertex_count,
+    //             model->face_textures,
+    //             model->face_texture_coords,
+    //             model->textured_face_count,
+    //             model->textured_p_coordinate,
+    //             model->textured_m_coordinate,
+    //             model->textured_n_coordinate,
+    //             model->textured_face_count,
+    //             lighting->face_colors_hsl_a,
+    //             lighting->face_colors_hsl_b,
+    //             lighting->face_colors_hsl_c,
+    //             model->face_alphas,
+    //             width / 2,
+    //             height / 2,
+    //             width,
+    //             height,
+    //             textures_cache);
+    //     }
+    //     return;
+    // }
 
     bucket_sort_by_average_depth(
         tmp_depth_faces,
@@ -1872,7 +1916,7 @@ render_scene_tile(
         else
         {
             // Tile vertexes are wrapped ccw.
-            project_vertices_terrain_textured(
+            bool inrange = project_vertices_terrain_textured(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -1896,6 +1940,9 @@ render_scene_tile(
                 near_plane_z,
                 width,
                 height);
+
+            if( inrange == 0 )
+                continue;
 
             bool success = raster_osrs_single_texture(
                 pixel_buffer,
@@ -2182,6 +2229,7 @@ near_wall_flags(int camera_tile_x, int camera_tile_y, int loc_x, int loc_y)
 struct SceneOp*
 render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene* scene, int* len)
 {
+    g_queue_calls = 0;
     struct GridTile* grid_tile = NULL;
     struct GridTile* bridge_underpass_tile = NULL;
 
@@ -2212,7 +2260,8 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     }
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 30;
+    // int radius = 30;
+    int radius = 25;
     int coord_list_x[4];
     int coord_list_y[4];
 
@@ -2270,6 +2319,8 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     coord_list_x[3] = max_draw_x - 1;
     coord_list_y[3] = max_draw_y - 1;
 
+    int max_level = 0;
+
     // Render tiles in painter's algorithm order (farthest to nearest)
     for( int i = 0; i < coord_list_length; i++ )
     {
@@ -2315,12 +2366,13 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             if( element->q_count > 0 )
                 continue;
 
-            if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 )
+            if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 || tile_level > max_level )
             {
                 element = &elements[tile_coord];
                 element->step = E_STEP_DONE;
                 continue;
             }
+            g_queue_calls++;
 
             // printf("Tile %d, %d Coord %d\n", tile_x, tile_y, tile_coord);
             // printf("Min %d, %d\n", min_draw_x, min_draw_y);
@@ -3729,7 +3781,7 @@ iter_render_model_init(
     y += scene_model->offset_y;
     z += scene_model->offset_height;
 
-    project_vertices_textured(
+    int inrange = project_vertices_textured(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -3753,6 +3805,9 @@ iter_render_model_init(
         width,
         height,
         near_plane_z);
+
+    if( inrange == 0 )
+        return;
 
     bucket_sort_by_average_depth(
         tmp_depth_faces,

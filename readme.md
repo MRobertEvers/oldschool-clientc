@@ -581,6 +581,7 @@ return;
 
 ```
 sudo ../profile.d -c ./scene_tile_test > out.stacks
+sudo ../profile.d -c ./speed_test > out.stacks
 
 sudo ../profile.d -c ./main_client > out.stacks
 ```
@@ -870,3 +871,43 @@ Mouse Click Red: 299 4-7
 ## Face Alphas
 
 It appears that if a model has an animation, but no face alphas, then face alphas are all assumed to be "0" (opaque), this is so the animation can add transparency.
+
+## Some Benchmarks
+
+### Java OS1 Lumbridge Castle Kitchen
+
+Scene draw time: 2.56 milliseconds
+Scene draw time: 2.58 milliseconds
+Scene draw time: 2.26 milliseconds
+Scene draw time: 2.41 milliseconds
+Scene draw time: 2.32 milliseconds
+Scene draw time: 2.44 milliseconds
+Scene draw time: 2.41 milliseconds
+Scene draw time: 2.63 milliseconds
+Scene draw time: 2.56 milliseconds
+Scene draw time: 2.52 milliseconds
+
+## Client3 Draw Time Lumbridge Castle Kitchen
+
+Time taken: 1.721000 ms
+Time taken: 1.625000 ms
+Time taken: 1.642000 ms
+Time taken: 1.623000 ms
+Time taken: 1.716000 ms
+Time taken: 1.638000 ms
+Time taken: 1.568000 ms
+Time taken: 1.478000 ms
+
+## ClientTS Draw Time Lumbridge Castle Kitchen
+
+Client.ts:4353 Scene draw time: 2.7999999970197678ms
+Client.ts:4353 Scene draw time: 2.800000011920929ms
+Client.ts:4353 Scene draw time: 2.7999999970197678ms
+Client.ts:4353 Scene draw time: 2.7000000029802322ms
+Client.ts:4353 Scene draw time: 3.1000000089406967ms
+Client.ts:4353 Scene draw time: 3.2999999970197678ms
+
+Without Occluders
+Scene draw time: 3ms
+Client.ts:4353 Scene draw time: 3.1000000089406967ms
+Client.ts:4353 Scene draw time: 3.0999999940395355ms

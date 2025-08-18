@@ -727,6 +727,90 @@ gather_sharelight_models(
     return count;
 }
 
+void
+scene_model_normals_new(struct SceneModel* scene_model)
+{
+    struct CacheModel* model = scene_model->model;
+    struct ModelNormals* normals = (struct ModelNormals*)malloc(sizeof(struct ModelNormals));
+    memset(normals, 0, sizeof(struct ModelNormals));
+    normals->lighting_vertex_normals =
+        (struct LightingNormal*)malloc(sizeof(struct LightingNormal) * model->vertex_count);
+    normals->lighting_face_normals =
+        (struct LightingNormal*)malloc(sizeof(struct LightingNormal) * model->face_count);
+    memset(
+        normals->lighting_vertex_normals, 0, sizeof(struct LightingNormal) * model->vertex_count);
+    memset(normals->lighting_face_normals, 0, sizeof(struct LightingNormal) * model->face_count);
+
+    calculate_vertex_normals(
+        normals->lighting_vertex_normals,
+        normals->lighting_face_normals,
+        model->vertex_count,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
+        model->face_count);
+
+    scene_model->normals = normals;
+}
+
+void
+scene_model_lighting_new(struct SceneModel* scene_model, struct ModelNormals* normals)
+{
+    struct CacheModel* model = scene_model->model;
+    struct ModelLighting* lighting = (struct ModelLighting*)malloc(sizeof(struct ModelLighting));
+    memset(lighting, 0, sizeof(struct ModelLighting));
+
+    lighting->face_colors_hsl_a = malloc(sizeof(int) * model->face_count);
+    lighting->face_colors_hsl_b = malloc(sizeof(int) * model->face_count);
+    lighting->face_colors_hsl_c = malloc(sizeof(int) * model->face_count);
+
+    memset(lighting->face_colors_hsl_a, 0, sizeof(int) * model->face_count);
+    memset(lighting->face_colors_hsl_b, 0, sizeof(int) * model->face_count);
+    memset(lighting->face_colors_hsl_c, 0, sizeof(int) * model->face_count);
+
+    int light_ambient = 64;
+    int light_attenuation = 768;
+    int lightsrc_x = -50;
+    int lightsrc_y = -10;
+    int lightsrc_z = -50;
+
+    light_ambient += scene_model->light_ambient;
+    // 2004Scape multiplies contrast by 5.
+    // Later versions do not.
+    light_attenuation += scene_model->light_contrast;
+
+    int light_magnitude =
+        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+    int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+    apply_lighting(
+        lighting->face_colors_hsl_a,
+        lighting->face_colors_hsl_b,
+        lighting->face_colors_hsl_c,
+        scene_model->aliased_lighting_normals
+            ? scene_model->aliased_lighting_normals->lighting_vertex_normals
+            : scene_model->normals->lighting_vertex_normals,
+        scene_model->normals->lighting_face_normals,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        model->face_count,
+        model->face_colors,
+        model->face_alphas,
+        model->face_textures,
+        model->face_infos,
+        light_ambient,
+        attenuation,
+        lightsrc_x,
+        lightsrc_y,
+        lightsrc_z);
+
+    scene_model->lighting = lighting;
+}
+
 struct Scene*
 scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 {

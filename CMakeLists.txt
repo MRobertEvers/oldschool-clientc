@@ -12,15 +12,16 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O3 -fsanitize=address")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -Og -fsanitize=address")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto")
 
 # Add C flags for ASan
 set(CMAKE_C_FLAGS "-Wall -Wextra")
 set(CMAKE_C_FLAGS_DEBUG "-g -Og -fsanitize=address")
-set(CMAKE_C_FLAGS_RELEASE "-O3")
+set(CMAKE_C_FLAGS_RELEASE "-O3 -flto")
 
 # Add sanitizer to linker flags for Debug mode
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -flto")
 set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address")
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -89,6 +90,55 @@ add_executable(main_client
     src/osrs/scene_cache.c
     src/datastruct/ht.c
     src/osrs/tables/noise.c
+)
+
+add_executable(speed_test
+    test/speed_test.cpp
+    src/osrs/frustrum_cullmap.c
+    src/osrs/tables/textures.c
+    src/osrs/tables/sprites.c
+    src/osrs/blend_underlays.c
+    src/osrs/scene_tile.c
+    src/osrs/palette.c
+    src/osrs/cache.c
+    src/osrs/tables/model.c
+    src/osrs/archive_decompress.c
+    src/osrs/reference_table.c
+    src/osrs/scene.c
+    src/osrs/tables/config_npctype.c
+    src/osrs/tables/config_sequence.c
+    src/osrs/tables/config_floortype.c
+    src/osrs/tables/config_locs.c
+    src/osrs/tables/config_object.c
+    src/osrs/tables/config_idk.c
+    src/osrs/tables/framemap.c
+    src/osrs/tables/frame.c
+    src/osrs/tables/maps.c
+    src/osrs/filelist.c
+    src/osrs/render.c
+    src/osrs/rsbuf.c
+    src/gouraud.c
+    src/gouraud_deob.c
+    src/flat.c
+    src/lighting.c
+    src/projection.c
+    src/texture.c
+    src/osrs/anim.c
+    src/osrs/game_model.c
+    src/osrs/xtea.c
+    src/osrs/archive.c
+    src/osrs/xtea_config.c
+    src/osrs/scene_cache.c
+    src/osrs/tables/noise.c
+    src/datastruct/ht.c
+
+    src/imgui/imgui.cpp
+    src/imgui/imgui_draw.cpp
+    src/imgui/imgui_tables.cpp
+    src/imgui/imgui_widgets.cpp
+    src/imgui/imgui_demo.cpp
+    src/imgui/imgui_impl_sdl2.cpp
+    src/imgui/imgui_impl_sdlrenderer2.cpp
 )
 
 add_executable(scene_tile_test
@@ -186,24 +236,6 @@ else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 endif()
 
-# Model viewer with ImGui
-add_executable(model_viewer
-    test/model_viewer.cpp
-    src/imgui/imgui.cpp
-    src/imgui/imgui_draw.cpp
-    src/imgui/imgui_tables.cpp
-    src/imgui/imgui_widgets.cpp
-    src/imgui/imgui_demo.cpp
-    src/imgui/imgui_impl_sdl2.cpp
-    src/imgui/imgui_impl_sdlrenderer2.cpp
-)
-
-# Set C++ standard for model viewer
-set_target_properties(model_viewer PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
 set_target_properties(scene_tile_test PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
@@ -216,20 +248,13 @@ else()
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    target_link_libraries(main_client ${EXTRA_LIBS})
-    target_link_libraries(scene_tile_test ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test_browser ${EXTRA_LIBS})
-    target_link_libraries(model_viewer ${EXTRA_LIBS})
 
-    # Add preload flags to all targets
-    set_target_properties(main_client PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(scene_tile_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
 else()
     target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-    target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(speed_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
 endif()
 
 cmake_minimum_required(VERSION 3.10)

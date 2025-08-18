@@ -138,6 +138,9 @@ struct SceneModel
     int __loc_id;
 };
 
+void scene_model_normals_new(struct SceneModel* scene_model);
+void scene_model_lighting_new(struct SceneModel* scene_model, struct ModelNormals* normals);
+
 enum GridTileFlags
 {
     /**

@@ -625,6 +625,8 @@ draw_scanline_gouraud(
     }
 }
 
+#include "gouraud_deob.h"
+
 void
 raster_gouraud(
     int* pixel_buffer,
@@ -641,6 +643,9 @@ raster_gouraud(
     int color2_hsl16,
     int alpha)
 {
+    // gouraud_deob_draw_triangle(
+    //     pixel_buffer, y0, y1, y2, x0, x1, x2, color0_hsl16, color1_hsl16, color2_hsl16);
+    // return;
     assert(alpha >= 0 && alpha <= 0xFF);
 
     // Sort vertices by y

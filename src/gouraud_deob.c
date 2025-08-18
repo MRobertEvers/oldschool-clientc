@@ -2,8 +2,8 @@
 
 #include <stdbool.h>
 
-#define BOTTOM_Y 600
-#define WIDTH 800
+#define BOTTOM_Y (768 / 2)
+#define WIDTH (1024 / 2)
 
 extern int g_hsl16_to_rgb_table[65536];
 

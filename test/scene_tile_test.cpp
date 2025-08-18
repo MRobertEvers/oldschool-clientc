@@ -498,10 +498,8 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
         "Average Render Time: %.3f ms/frame",
         (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency);
     ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
-
+    ImGui::Text("Queue calls, Op Count: %d, %d", g_queue_calls, game->op_count);
     ImGui::Text("Hover model: %d", game->hover_model);
-    ImGui::Text(
-        "Hover loc: %d, %d, %d", game->hover_loc_x, game->hover_loc_y, game->hover_loc_level);
 
     // Camera position with copy button
     char camera_pos_text[256];
@@ -650,9 +648,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->frustrum_cullmap,
         game->scene,
         game->ops,
-        game->op_count,
+        min(game->op_count, 800),
         render_ops,
-        game->camera_pitch,
+        game->fake_pitch,
         game->camera_yaw,
         game->camera_x / 128,
         game->camera_y / 128);
@@ -1463,13 +1461,31 @@ main()
 
     game.show_debug_tiles = 1;
 
-    game.camera_yaw = 0;
-    game.camera_pitch = 0;
+    // game.camera_yaw = 0;
+    // game.camera_pitch = 0;
+    // game.camera_roll = 0;
+    // game.camera_fov = 512;
+    // game.camera_x = -3542;
+    // game.camera_y = -873;
+    // game.camera_z = 800;
+
+    // Lumbridge Castle Kitchen
+    /// Camera (x, y, z): -1084, -1911, 1400 : -8, -14
+    /// Camera (pitch, yaw, roll, fake_pitch): 280, 1528, 0, 0
+    // Goal time
+    // Scene draw time: 1.91 milliseconds
+    // Scene draw time: 1.92 milliseconds
+    // Scene draw time: 1.81 milliseconds
+    // Scene draw time: 1.85 milliseconds
+    // Goal queue calls calls: 1117 queueTime: 846
+
+    game.camera_pitch = 280;
+    game.camera_yaw = 1528;
     game.camera_roll = 0;
     game.camera_fov = 512;
-    game.camera_x = -3542;
-    game.camera_y = -873;
-    game.camera_z = 800;
+    game.camera_x = -1084;
+    game.camera_y = -1911;
+    game.camera_z = 1400;
 
     game.player_tile_x = 10;
     game.player_tile_y = 10;
@@ -1749,7 +1765,7 @@ main()
         }
     }
 
-    game.frustrum_cullmap = frustrum_cullmap_new(30, 131072); // 65536 = 90° FOV
+    game.frustrum_cullmap = frustrum_cullmap_new(26, -500, 800, 512); // 65536 = 90° FOV
 
     int w_pressed = 0;
     int a_pressed = 0;
