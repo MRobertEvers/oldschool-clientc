@@ -3,7 +3,7 @@ project(RSClient
     LANGUAGES C
 )
 
-set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
+# set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
 
 # set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
 # set(PROFILING_FLAGS "-fsanitize=address -g -fno-omit-frame-pointer")

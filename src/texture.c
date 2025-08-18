@@ -519,8 +519,8 @@ raster_texture_scanline_lerp8(
 
     long long lerp8_steps = steps >> 3;
     long long lerp8_last_steps = steps & 0x7;
-    long long curr_u;
-    long long curr_v;
+    long long curr_u = 0;
+    long long curr_v = 0;
 
     long long u = au;
     long long v = bv;
@@ -543,8 +543,8 @@ raster_texture_scanline_lerp8(
             curr_v = texture_width - 1;
     }
 
-    long long next_u;
-    long long next_v;
+    long long next_u = 0;
+    long long next_v = 0;
 
     u = u + (step_au_dx << 3);
     v = v + (step_bv_dx << 3);
