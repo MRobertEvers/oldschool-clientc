@@ -11,17 +11,42 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O3 -fsanitize=address")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-
-# Add C flags for ASan
+# Fix: Use C flags instead of C++ flags for C project
 set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_C_FLAGS_DEBUG "-g -Og -fsanitize=address")
+set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fno-omit-frame-pointer -fsanitize=address")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 
-# Add sanitizer to linker flags for Debug mode
-set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address")
+# Remove duplicate C flags section
+# set(CMAKE_C_FLAGS "-Wall -Wextra")
+# set(CMAKE_C_FLAGS_DEBUG "-g -fno-omit-frame-pointer -fsanitize=address")
+# set(CMAKE_C_FLAGS_RELEASE "-O3")
+
+# Fix: Properly configure ASan for Debug mode
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # Set ASan environment options
+    set(ENV{ASAN_OPTIONS} "detect_leaks=1:abort_on_error=1:check_initialization_order=1:strict_init_order=1")
+    
+    # Ensure ASan is linked first by setting proper linker flags
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "-fsanitize=address ${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
+    set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "-fsanitize=address ${CMAKE_MODULE_LINKER_FLAGS_DEBUG}")
+    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "-fsanitize=address ${CMAKE_SHARED_LINKER_FLAGS_DEBUG}")
+    
+    # Add runtime path for ASan
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -Wl,-rpath,\$ORIGIN")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -Wl,--enable-new-dtags")
+endif()
+
+# Remove the old ASan configuration that was causing issues
+# if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+#     # Set environment variable to ensure ASan runtime is loaded first
+#     set(ENV{ASAN_OPTIONS} "detect_leaks=1:abort_on_error=1:check_initialization_order=1:strict_init_order=1")
+#     
+#     # Add ASan-specific compiler flags
+#     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fno-common -fno-builtin")
+#     
+#     # Ensure ASan is linked first
+#     set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -Wl,--whole-archive -fsanitize=address -Wl,--no-whole-archive")
+# endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(USE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1 -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] -s NO_EXIT_RUNTIME=1")
@@ -91,6 +116,13 @@ add_executable(main_client
     src/osrs/tables/noise.c
 )
 
+# Fix: Add ASan target properties for main_client
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set_target_properties(main_client PROPERTIES
+        LINK_FLAGS "-fsanitize=address"
+    )
+endif()
+
 add_executable(scene_tile_test
     test/scene_tile_test.cpp
     src/osrs/frustrum_cullmap.c
@@ -128,8 +160,8 @@ add_executable(scene_tile_test
     src/osrs/archive.c
     src/osrs/xtea_config.c
     src/osrs/scene_cache.c
-    src/osrs/tables/noise.c
     src/datastruct/ht.c
+    src/osrs/tables/noise.c
 
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
@@ -139,6 +171,13 @@ add_executable(scene_tile_test
     src/imgui/imgui_impl_sdl2.cpp
     src/imgui/imgui_impl_sdlrenderer2.cpp
 )
+
+# Fix: Add ASan target properties for scene_tile_test
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set_target_properties(scene_tile_test PROPERTIES
+        LINK_FLAGS "-fsanitize=address"
+    )
+endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(scene_tile_test_browser
@@ -203,6 +242,13 @@ set_target_properties(model_viewer PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
+
+# Fix: Add ASan target properties for model_viewer
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set_target_properties(model_viewer PROPERTIES
+        LINK_FLAGS "-fsanitize=address"
+    )
+endif()
 
 set_target_properties(scene_tile_test PROPERTIES
     CXX_STANDARD 17

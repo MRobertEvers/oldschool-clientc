@@ -61,4 +61,23 @@ struct ProjectedTriangle project(
     int screen_width,
     int screen_height);
 
+/**
+ * Omits model roll and pitch, and camera roll.
+ */
+void project_fast(
+    struct ProjectedTriangle* projected_triangle,
+    int x,
+    int y,
+    int z,
+    int yaw_r2pi2048,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch_r2pi2048,
+    int camera_yaw_r2pi2048,
+    int fov_r2pi2048,
+    int near_clip,
+    int screen_width,
+    int screen_height);
+
 #endif

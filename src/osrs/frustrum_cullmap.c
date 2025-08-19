@@ -77,8 +77,22 @@ pitch_height(int pitch)
 static bool
 test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
 {
-    struct ProjectedTriangle projected_triangle =
-        project(0, 0, 0, 0, 0, 0, x, y, z, pitch, yaw, 0, 512, 100, SCREEN_WIDTH, SCREEN_HEIGHT);
+    struct ProjectedTriangle projected_triangle;
+    project_fast(
+        &projected_triangle,
+        0,
+        0,
+        0,
+        0,
+        x,
+        y,
+        z,
+        pitch,
+        yaw,
+        512,
+        100,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT);
 
     if( projected_triangle.clipped || projected_triangle.z > 3500 )
         return false;
