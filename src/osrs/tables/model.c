@@ -1238,11 +1238,6 @@ decodeType2(const unsigned char* var1, int var1_length)
     else
     {
         def->model_priority = (int)var13;
-        def->face_priorities = (int*)malloc(var10 * sizeof(int));
-        for( int i = 0; i < var10; i++ )
-        {
-            def->face_priorities[i] = var13;
-        }
     }
 
     // Allocate face transparencies if needed
