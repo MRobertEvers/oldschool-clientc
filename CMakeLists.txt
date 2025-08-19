@@ -13,7 +13,7 @@ endif()
 
 # Fix: Use C flags instead of C++ flags for C project
 set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fno-omit-frame-pointer -fsanitize=address")
+set(CMAKE_C_FLAGS_DEBUG "-g -fno-omit-frame-pointer -fsanitize=address")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 
 # Remove duplicate C flags section

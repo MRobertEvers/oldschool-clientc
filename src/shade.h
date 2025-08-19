@@ -18,25 +18,16 @@
 static inline int
 shade_blend(int base, int shade)
 {
-    assert(shade >= 0 && shade <= 0xFF);
+    int rb = base & 0x00ff00ff;
+    int g = base & 0x0000ff00;
 
-    int r = (base & 0xFF0000) >> 16;
-    int g = (base & 0x00FF00) >> 8;
-    int b = (base & 0x0000FF);
-
-    r *= shade;
+    rb *= shade;
     g *= shade;
-    b *= shade;
 
-    r >>= 8;
-    g >>= 8;
-    b >>= 8;
+    rb &= 0xFF00FF00;
+    g &= 0x00FF0000;
 
-    r &= 0xFF;
-    g &= 0xFF;
-    b &= 0xFF;
-
-    return (r << 16) | (g << 8) | b;
+    return (rb | g) >> 8;
 }
 
 #endif
