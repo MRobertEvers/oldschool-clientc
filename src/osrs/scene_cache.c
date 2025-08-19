@@ -426,8 +426,14 @@ textures_cache_checkout(
         for( int pi = 0; pi < palette_length; pi++ )
         {
             int alpha = 0xff;
-            if( palette[pi] == 0 )
+            // 0xf8f8ff masks off the lower 3 bits of the rgb values.
+            // The trick is they can shift bits downward to change the darkness.
+            // So the top 5 bits of each color contains the full-bright color.
+            if( (palette[pi] & 0xf8f8ff) == 0 )
+            {
                 alpha = 0;
+                opaque = false;
+            }
             adjusted_palette[pi] = (alpha << 24) + gamma_blend(palette[pi], gamma);
         }
 
@@ -488,7 +494,7 @@ textures_cache_checkout(
     texture->texels = pixels;
     texture->width = size;
     texture->height = size;
-    texture->opaque = false;
+    texture->opaque = opaque;
 
     item = httex_cache_emplace(textures_cache, texture_id);
     assert(item != NULL);
