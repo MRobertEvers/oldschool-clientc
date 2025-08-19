@@ -323,6 +323,10 @@ raster_texture_scanline_transparent_blend_lerp8(
     bv += step_bv_dx * adjust;
     cw += step_cw_dx * adjust;
 
+    step_au_dx <<= 3;
+    step_bv_dx <<= 3;
+    step_cw_dx <<= 3;
+
     shade8bit_ish8 += step_shade8bit_dx_ish8 * screen_x0;
 
     steps = screen_x1 - screen_x0;
@@ -342,10 +346,10 @@ raster_texture_scanline_transparent_blend_lerp8(
     assert(texture_width == 128 || texture_width == 64);
     int texture_shift = (texture_width & 0x80) ? 7 : 6;
 
-    long long curr_u = 0;
-    long long curr_v = 0;
-    long long next_u = 0;
-    long long next_v = 0;
+    int curr_u = 0;
+    int curr_v = 0;
+    int next_u = 0;
+    int next_v = 0;
 
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
@@ -365,9 +369,9 @@ raster_texture_scanline_transparent_blend_lerp8(
         curr_v = (bv) / w;
         // curr_v = clamp(curr_v, 0, texture_width - 1);
 
-        au += (step_au_dx << 3);
-        bv += (step_bv_dx << 3);
-        cw += (step_cw_dx << 3);
+        au += step_au_dx;
+        bv += step_bv_dx;
+        cw += step_cw_dx;
 
         w = (-cw) >> texture_shift;
         if( w == 0 )
@@ -416,9 +420,9 @@ raster_texture_scanline_transparent_blend_lerp8(
     curr_v = (bv) / w;
     // curr_v = clamp(curr_v, 0, texture_width - 1);
 
-    au += (step_au_dx << 3);
-    bv += (step_bv_dx << 3);
-    cw += (step_cw_dx << 3);
+    au += step_au_dx;
+    bv += step_bv_dx;
+    cw += step_cw_dx;
 
     w = (-cw) >> texture_shift;
     if( w == 0 )
