@@ -61,6 +61,26 @@ struct ProjectedTriangle project(
     int screen_width,
     int screen_height);
 
+void project_orthographic_fast(
+    struct ProjectedTriangle* projected_triangle,
+    int x,
+    int y,
+    int z,
+    int yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw);
+
+void project_perspective_fast(
+    struct ProjectedTriangle* projected_triangle,
+    int x,
+    int y,
+    int z,
+    int fov, // FOV in units of (2π/2048) radians
+    int near_clip);
+
 /**
  * Omits model roll and pitch, and camera roll.
  */

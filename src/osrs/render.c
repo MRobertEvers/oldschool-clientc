@@ -210,7 +210,7 @@ project_vertices(
     }
 }
 
-static void
+static int
 project_vertices_textured(
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -242,19 +242,17 @@ project_vertices_textured(
     assert(camera_yaw >= 0 && camera_yaw < 2048);
     assert(camera_roll >= 0 && camera_roll < 2048);
 
-    projected_triangle = project(
+    project_fast(
+        &projected_triangle,
         0,
         0,
         0,
-        model_pitch,
         model_yaw,
-        model_roll,
         scene_x,
         scene_y,
         scene_z,
         camera_pitch,
         camera_yaw,
-        camera_roll,
         camera_fov,
         near_plane_z,
         screen_width,
@@ -269,36 +267,50 @@ project_vertices_textured(
 
     if( projected_triangle.clipped )
     {
-        for( int i = 0; i < num_vertices; i++ )
-        {
-            screen_vertices_x[i] = -5000;
-            screen_vertices_y[i] = -5000;
-            screen_vertices_z[i] = -5000;
-        }
-        return;
+        return 0;
+    }
+
+    /**
+     * These checks are a significant performance improvement.
+     */
+    if( projected_triangle.z > 3500 )
+    {
+        return 0;
+    }
+
+    int width = screen_width >> 1;
+    int height = screen_height >> 1;
+
+    if( projected_triangle.x < -width || projected_triangle.x > width )
+    {
+        return 0;
+    }
+
+    if( projected_triangle.y < -height || projected_triangle.y > height )
+    {
+        return 0;
     }
 
     for( int i = 0; i < num_vertices; i++ )
     {
-        projected_triangle = project_orthographic(
+        project_orthographic_fast(
+            &projected_triangle,
             vertex_x[i],
             vertex_y[i],
             vertex_z[i],
-            model_pitch,
             model_yaw,
-            model_roll,
             scene_x,
             scene_y,
             scene_z,
             camera_pitch,
-            camera_yaw,
-            camera_roll);
+            camera_yaw);
 
         orthographic_vertices_x[i] = projected_triangle.x;
         orthographic_vertices_y[i] = projected_triangle.y;
         orthographic_vertices_z[i] = projected_triangle.z;
 
-        projected_triangle = project_perspective(
+        project_perspective_fast(
+            &projected_triangle,
             orthographic_vertices_x[i],
             orthographic_vertices_y[i],
             orthographic_vertices_z[i],
@@ -310,8 +322,8 @@ project_vertices_textured(
         if( projected_triangle.clipped )
         {
             screen_vertices_x[i] = -5000;
-            screen_vertices_y[i] = -5000;
-            screen_vertices_z[i] = -5000;
+            // screen_vertices_y[i] = -5000;
+            // screen_vertices_z[i] = -5000;
         }
         else
         {
@@ -320,6 +332,8 @@ project_vertices_textured(
             screen_vertices_z[i] = projected_triangle.z - model_origin_z_projection;
         }
     }
+
+    return 1;
 }
 
 /**
@@ -1567,7 +1581,7 @@ render_model_frame(
     //     height,
     //     near_plane_z);
 
-    project_vertices_textured(
+    int success = project_vertices_textured(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -1591,6 +1605,9 @@ render_model_frame(
         width,
         height,
         near_plane_z);
+
+    if( !success )
+        return;
 
     bucket_sort_by_average_depth(
         tmp_depth_faces,
@@ -3676,11 +3693,7 @@ iter_render_model_init(
 {
     memset(iter, 0, sizeof(struct IterRenderModel));
     iter->model = scene_model;
-
-    if( iter->model->model->_id == 2255 )
-    {
-        int iiii = 0;
-    }
+    struct BoundingCylinder bounding_cylinder;
 
     iter->screen_vertices_x = tmp_screen_vertices_x;
     iter->screen_vertices_y = tmp_screen_vertices_y;
@@ -3700,7 +3713,6 @@ iter_render_model_init(
     int* face_indices_b = model->face_indices_b;
     int* face_indices_c = model->face_indices_c;
 
-    memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
     // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
     memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
     memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
@@ -3714,11 +3726,6 @@ iter_render_model_init(
     int* orthographic_vertices_y = tmp_orthographic_vertices_y;
     int* orthographic_vertices_z = tmp_orthographic_vertices_z;
 
-    struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
-        model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
-
-    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
-
     int x = camera_x + scene_model->region_x;
     int y = camera_y + scene_model->region_z;
     int z = camera_z + scene_model->region_height;
@@ -3729,7 +3736,7 @@ iter_render_model_init(
     y += scene_model->offset_y;
     z += scene_model->offset_height;
 
-    project_vertices_textured(
+    int success = project_vertices_textured(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -3753,6 +3760,16 @@ iter_render_model_init(
         width,
         height,
         near_plane_z);
+
+    if( !success )
+        return;
+
+    bounding_cylinder = calculate_bounding_cylinder(
+        model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
+
+    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
+
+    memset(tmp_depth_face_count, 0, (model_min_depth * 2 + 1) * sizeof(tmp_depth_face_count[0]));
 
     bucket_sort_by_average_depth(
         tmp_depth_faces,

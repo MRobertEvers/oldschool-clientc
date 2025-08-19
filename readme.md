@@ -769,6 +769,7 @@ valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
 # Callgrind must be built without ASan
 valgrind --tool=callgrind  ./scene_tile_test > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
+kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
 ```
 
 ## White triangles on textured
