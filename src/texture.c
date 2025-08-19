@@ -383,18 +383,18 @@ raster_texture_scanline_transparent_blend_lerp8(
         // next_v = clamp(next_v, 0x0, texture_width - 1);
 
         int step_u = (next_u - curr_u);
-        int step_v = (next_v - curr_v);
+        int step_v = (next_v - curr_v) << (texture_shift - 3);
 
         int u_scan = curr_u << 3;
-        int v_scan = curr_v << 3;
+        int v_scan = curr_v << texture_shift;
 
         for( int i = 0; i < 8; i++ )
         {
             int u = u_scan >> 3;
-            int v = v_scan >> 3;
+            int v = v_scan;
             u &= texture_width - 1;
-            v &= texture_width - 1;
-            int texel = texels[u + v * texture_width];
+            v &= 0x3f80;
+            int texel = texels[u + (v)];
             if( texel != 0 )
                 pixel_buffer[offset] = shade_blend(texel, shade8bit_ish8 >> 8);
 
