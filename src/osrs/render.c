@@ -837,20 +837,39 @@ raster_osrs(
 
             int alpha = face_alphas[index];
 
-            raster_gouraud(
-                pixel_buffer,
-                screen_width,
-                screen_height,
-                x1,
-                x2,
-                x3,
-                y1,
-                y2,
-                y3,
-                color_a,
-                color_b,
-                color_c,
-                alpha);
+            if( alpha == 0xFF )
+            {
+                raster_gouraud_s4(
+                    pixel_buffer,
+                    screen_width,
+                    screen_height,
+                    x1,
+                    x2,
+                    x3,
+                    y1,
+                    y2,
+                    y3,
+                    color_a,
+                    color_b,
+                    color_c);
+            }
+            else
+            {
+                raster_gouraud_blend_s4(
+                    pixel_buffer,
+                    screen_width,
+                    screen_height,
+                    x1,
+                    x2,
+                    x3,
+                    y1,
+                    y2,
+                    y3,
+                    color_a,
+                    color_b,
+                    color_c,
+                    alpha);
+            }
         }
     }
 }
@@ -1033,20 +1052,39 @@ model_draw_face(
             assert(face_a < num_vertices);
             assert(face_b < num_vertices);
             assert(face_c < num_vertices);
-            raster_gouraud(
-                pixel_buffer,
-                screen_width,
-                screen_height,
-                x1,
-                x2,
-                x3,
-                y1,
-                y2,
-                y3,
-                color_a,
-                color_b,
-                color_c,
-                alpha);
+            if( alpha == 0xFF )
+            {
+                raster_gouraud_s4(
+                    pixel_buffer,
+                    screen_width,
+                    screen_height,
+                    x1,
+                    x2,
+                    x3,
+                    y1,
+                    y2,
+                    y3,
+                    color_a,
+                    color_b,
+                    color_c);
+            }
+            else
+            {
+                raster_gouraud_blend_s4(
+                    pixel_buffer,
+                    screen_width,
+                    screen_height,
+                    x1,
+                    x2,
+                    x3,
+                    y1,
+                    y2,
+                    y3,
+                    color_a,
+                    color_b,
+                    color_c,
+                    alpha);
+            }
             break;
         case FACE_TYPE_FLAT:
             if( alpha == 0xFF )
@@ -1369,24 +1407,39 @@ raster_osrs_single_gouraud(
 
     // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
 
-    raster_gouraud(
-        pixel_buffer,
-        // z_buffer,
-        screen_width,
-        screen_height,
-        x1,
-        x2,
-        x3,
-        y1,
-        y2,
-        y3,
-        // z1,
-        // z2,
-        // z3,
-        color_a,
-        color_b,
-        color_c,
-        alpha);
+    if( alpha == 0xFF )
+    {
+        raster_gouraud_s4(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c);
+    }
+    else
+    {
+        raster_gouraud_blend_s4(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+    }
 }
 
 static bool
