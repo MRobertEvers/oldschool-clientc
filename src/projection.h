@@ -2,6 +2,7 @@
 #define PROJECTION_H
 
 #define UNIT_SCALE (512)
+#define UNIT_SCALE_SHIFT (9)
 
 struct ProjectedTriangle
 {

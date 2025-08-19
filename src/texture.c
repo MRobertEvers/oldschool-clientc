@@ -382,18 +382,16 @@ raster_texture_scanline_transparent_blend_lerp8(
         next_v = (bv) / w;
         // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-        int step_u = (next_u - curr_u);
+        int step_u = (next_u - curr_u) << (texture_shift - 3);
         int step_v = (next_v - curr_v) << (texture_shift - 3);
 
-        int u_scan = curr_u << 3;
+        int u_scan = curr_u << texture_shift;
         int v_scan = curr_v << texture_shift;
 
         for( int i = 0; i < 8; i++ )
         {
-            int u = u_scan >> 3;
-            int v = v_scan;
-            u &= texture_width - 1;
-            v &= 0x3f80;
+            int u = u_scan >> texture_shift;
+            int v = v_scan & 0x3f80;
             int texel = texels[u + (v)];
             if( texel != 0 )
                 pixel_buffer[offset] = shade_blend(texel, shade8bit_ish8 >> 8);
@@ -1373,9 +1371,9 @@ raster_texture_transparent_blend_lerp8(
     if( screen_y1 >= screen_height )
         screen_y1 = screen_height - 1;
 
-    au = vOVPlane_normal_zhat * UNIT_SCALE;
-    bv = vUOPlane_normal_zhat * UNIT_SCALE;
-    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
 
     long long dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
@@ -1429,9 +1427,9 @@ raster_texture_transparent_blend_lerp8(
         return;
 
     dy = screen_y1 - (screen_height >> 1);
-    au = vOVPlane_normal_zhat * UNIT_SCALE;
-    bv = vUOPlane_normal_zhat * UNIT_SCALE;
-    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
     au += vOVPlane_normal_yhat * dy;
     bv += vUOPlane_normal_yhat * dy;
     cw += vUVPlane_normal_yhat * dy;
@@ -1657,9 +1655,9 @@ raster_texture_opaque_blend_lerp8(
     if( screen_y1 >= screen_height )
         screen_y1 = screen_height - 1;
 
-    au = vOVPlane_normal_zhat * UNIT_SCALE;
-    bv = vUOPlane_normal_zhat * UNIT_SCALE;
-    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
 
     long long dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
@@ -1713,9 +1711,9 @@ raster_texture_opaque_blend_lerp8(
         return;
 
     dy = screen_y1 - (screen_height >> 1);
-    au = vOVPlane_normal_zhat * UNIT_SCALE;
-    bv = vUOPlane_normal_zhat * UNIT_SCALE;
-    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
     au += vOVPlane_normal_yhat * dy;
     bv += vUOPlane_normal_yhat * dy;
     cw += vUVPlane_normal_yhat * dy;
@@ -1919,9 +1917,9 @@ raster_texture_transparent_lerp8(
     if( screen_y1 >= screen_height )
         screen_y1 = screen_height - 1;
 
-    au = vOVPlane_normal_zhat * UNIT_SCALE;
-    bv = vUOPlane_normal_zhat * UNIT_SCALE;
-    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
 
     long long dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
@@ -1971,9 +1969,9 @@ raster_texture_transparent_lerp8(
         return;
 
     dy = screen_y1 - (screen_height >> 1);
-    au = vOVPlane_normal_zhat * UNIT_SCALE;
-    bv = vUOPlane_normal_zhat * UNIT_SCALE;
-    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
     au += vOVPlane_normal_yhat * dy;
     bv += vUOPlane_normal_yhat * dy;
     cw += vUVPlane_normal_yhat * dy;
@@ -2173,9 +2171,9 @@ raster_texture_opaque_lerp8(
     if( screen_y1 >= screen_height )
         screen_y1 = screen_height - 1;
 
-    au = vOVPlane_normal_zhat * UNIT_SCALE;
-    bv = vUOPlane_normal_zhat * UNIT_SCALE;
-    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
 
     long long dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
@@ -2225,9 +2223,9 @@ raster_texture_opaque_lerp8(
         return;
 
     dy = screen_y1 - (screen_height >> 1);
-    au = vOVPlane_normal_zhat * UNIT_SCALE;
-    bv = vUOPlane_normal_zhat * UNIT_SCALE;
-    cw = vUVPlane_normal_zhat * UNIT_SCALE;
+    au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
+    cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
     au += vOVPlane_normal_yhat * dy;
     bv += vUOPlane_normal_yhat * dy;
     cw += vUVPlane_normal_yhat * dy;
@@ -2407,12 +2405,12 @@ raster_texture(
             if( x < 0 || x >= screen_width )
                 continue;
 
-            au = vOVPlane_normal_zhat * UNIT_SCALE + vOVPlane_normal_xhat * (x - 400) +
-                 vOVPlane_normal_yhat * (y - 300);
-            bv = vUOPlane_normal_zhat * UNIT_SCALE + vUOPlane_normal_xhat * (x - 400) +
-                 vUOPlane_normal_yhat * (y - 300);
-            cw = vUVPlane_normal_zhat * UNIT_SCALE + vUVPlane_normal_xhat * (x - 400) +
-                 vUVPlane_normal_yhat * (y - 300);
+            au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT + vOVPlane_normal_xhat * (x - 400) +
+                                             vOVPlane_normal_yhat * (y - 300);
+            bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT + vUOPlane_normal_xhat * (x - 400) +
+                                             vUOPlane_normal_yhat * (y - 300);
+            cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT + vUVPlane_normal_xhat * (x - 400) +
+                                             vUVPlane_normal_yhat * (y - 300);
 
             assert(cw != 0);
 
@@ -2470,12 +2468,12 @@ raster_texture(
             if( x < 0 || x >= screen_width )
                 continue;
 
-            au = vOVPlane_normal_zhat * UNIT_SCALE + vOVPlane_normal_xhat * (x - 400) +
-                 vOVPlane_normal_yhat * (y - 300);
-            bv = vUOPlane_normal_zhat * UNIT_SCALE + vUOPlane_normal_xhat * (x - 400) +
-                 vUOPlane_normal_yhat * (y - 300);
-            cw = vUVPlane_normal_zhat * UNIT_SCALE + vUVPlane_normal_xhat * (x - 400) +
-                 vUVPlane_normal_yhat * (y - 300);
+            au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT + vOVPlane_normal_xhat * (x - 400) +
+                                             vOVPlane_normal_yhat * (y - 300);
+            bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT + vUOPlane_normal_xhat * (x - 400) +
+                                             vUOPlane_normal_yhat * (y - 300);
+            cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT + vUVPlane_normal_xhat * (x - 400) +
+                                             vUVPlane_normal_yhat * (y - 300);
 
             assert(cw != 0);
 

@@ -7,6 +7,7 @@ Rewrite of the osrs renderer.
 ```
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 # For compiler invocations
