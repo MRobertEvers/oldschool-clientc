@@ -594,6 +594,19 @@ m_draw_face(struct SceneModel* model, int face_index)
 
     gouraud_deob_draw_triangle(
         _Pix3D.pixel_buffer, ay, by, cy, ax, bx, cx, color_a, color_b, color_c);
+    raster_gouraud_s4(
+        _Pix3D.pixel_buffer, //
+        _Pix3D.width,
+        _Pix3D.height,
+        ax,
+        bx,
+        cx,
+        ay,
+        by,
+        cy,
+        color_a,
+        color_b,
+        color_c);
 }
 
 static void

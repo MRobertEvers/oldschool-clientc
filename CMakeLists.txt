@@ -13,7 +13,7 @@ endif()
 
 # Fix: Use C flags instead of C++ flags for C project
 set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_C_FLAGS_DEBUG "-g -fno-omit-frame-pointer -fsanitize=address")
+set(CMAKE_C_FLAGS_DEBUG "-g -fno-omit-frame-pointer ")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 
 # Remove duplicate C flags section
@@ -27,7 +27,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscr
     set(ENV{ASAN_OPTIONS} "detect_leaks=1:abort_on_error=1:check_initialization_order=1:strict_init_order=1")
     
     # Ensure ASan is linked first by setting proper linker flags
-    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "-fsanitize=address ${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG " ${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
     set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "-fsanitize=address ${CMAKE_MODULE_LINKER_FLAGS_DEBUG}")
     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "-fsanitize=address ${CMAKE_SHARED_LINKER_FLAGS_DEBUG}")
     
@@ -286,9 +286,9 @@ set_target_properties(model_viewer PROPERTIES
 
 # Fix: Add ASan target properties for model_viewer
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set_target_properties(model_viewer PROPERTIES
-        LINK_FLAGS "-fsanitize=address"
-    )
+    # set_target_properties(model_viewer PROPERTIES
+    #     LINK_FLAGS "-fsanitize=address"
+    # )
 endif()
 
 set_target_properties(scene_tile_test PROPERTIES

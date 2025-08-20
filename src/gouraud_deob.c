@@ -592,7 +592,7 @@ gouraud_deob_draw_triangle(
     int dxdy_BC;
     if( y3 != y2 )
     {
-        dxdy_BC = (x3 - x2 << 14) / (y3 - y2);
+        dxdy_BC = ((x3 - x2) << 14) / (y3 - y2);
     }
     else
     {
@@ -618,12 +618,16 @@ gouraud_deob_draw_triangle(
     {
         dxdy_AC = 0;
     }
-
+    // 2d cross product to get signed area of triangle (*2)
     int var18 = dx_AB * dy_AC - dx_AC * dy_AB;
     if( var18 != 0 )
     {
-        int var19 = (d_hsl_AB * dy_AC - d_hsl_AC * dy_AB << 8) / var18;
-        int var20 = (d_hsl_AC * dx_AB - d_hsl_AB * dx_AC << 8) / var18;
+        // Barycentric coordinates for color.
+        // d_hsl_ab is some scalar factor of d_ab.
+        // So we are implicitly converting to the hsl value
+        // by using d_hsl
+        int var19 = ((d_hsl_AB * dy_AC - d_hsl_AC * dy_AB) << 8) / var18;
+        int var20 = ((d_hsl_AC * dx_AB - d_hsl_AB * dx_AC) << 8) / var18;
         if( y1 <= y2 && y1 <= y3 )
         {
             if( y1 < BOTTOM_Y )
@@ -1258,7 +1262,7 @@ gouraud_deob_draw_scanline(
         int var10;
         if( true )
         {
-            var3 = var5 - var4 >> 2;
+            var3 = (var5 - var4) >> 2;
             var7 <<= 2;
             if( true )
             {
@@ -1276,7 +1280,7 @@ gouraud_deob_draw_scanline(
                     } while( var3 > 0 );
                 }
 
-                var3 = var5 - var4 & 3;
+                var3 = (var5 - var4) & 3;
                 if( var3 > 0 )
                 {
                     var2 = g_hsl16_to_rgb_table[var6 >> 8];
