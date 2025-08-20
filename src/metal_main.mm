@@ -670,6 +670,9 @@ typedef struct
                     int idx_b = cacheModel->face_indices_b[i];
                     int idx_c = cacheModel->face_indices_c[i];
 
+                    if (sceneModel->lighting->face_colors_hsl_c[i] == -2)
+                    continue;
+
                     // Bounds checking for vertex indices
                     if( idx_a < 0 || idx_a >= cacheModel->vertex_count || idx_b < 0 ||
                         idx_b >= cacheModel->vertex_count || idx_c < 0 ||
