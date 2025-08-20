@@ -641,6 +641,14 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             game->max_render_ops += 10;
         }
 
+    struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
+
+    while( textures_cache_walk_next(walk) )
+    {
+        texture_animate(walk->texture, 1);
+    }
+
+    textures_cache_walk_free(walk);
     Uint64 start_ticks = SDL_GetPerformanceCounter();
     struct IterRenderSceneOps iter;
     struct IterRenderModel iter_model;
@@ -676,7 +684,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 SCREEN_HEIGHT,
                 // Had to use 100 here because of the scale, near plane z was resulting in triangles
                 // extremely close to the camera.
-                100,
+                50,
                 game->camera_x,
                 game->camera_y,
                 game->camera_z,
@@ -771,7 +779,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 game->camera_fov,
                 SCREEN_WIDTH,
                 SCREEN_HEIGHT,
-                100);
+                50);
 
             int model_intersected = 0;
             while( iter_render_model_next(&iter_model) )

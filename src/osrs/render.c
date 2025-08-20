@@ -278,18 +278,18 @@ project_vertices_textured(
         return 0;
     }
 
-    int width = screen_width >> 1;
-    int height = screen_height >> 1;
+    // int width = screen_width >> 1;
+    // int height = screen_height >> 1;
 
-    if( projected_triangle.x < -width || projected_triangle.x > width )
-    {
-        return 0;
-    }
+    // if( projected_triangle.x < -width || projected_triangle.x > width )
+    // {
+    //     return 0;
+    // }
 
-    if( projected_triangle.y < -height || projected_triangle.y > height )
-    {
-        return 0;
-    }
+    // if( projected_triangle.y < -height || projected_triangle.y > height )
+    // {
+    //     return 0;
+    // }
 
     for( int i = 0; i < num_vertices; i++ )
     {
@@ -339,7 +339,7 @@ project_vertices_textured(
 /**
  * Terrain is treated as a single, so the origin test does not apply.
  */
-static void
+static bool
 project_vertices_terrain(
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -404,16 +404,10 @@ project_vertices_terrain(
         }
     }
 
-    return;
+    return true;
 clipped:
-    for( int i = 0; i < num_vertices; i++ )
-    {
-        screen_vertices_x[i] = -5000;
-        screen_vertices_y[i] = -5000;
-        screen_vertices_z[i] = -5000;
-    }
 
-    return;
+    return false;
 }
 
 /**
@@ -1735,11 +1729,10 @@ render_model_frame(
     // int* orthographic_vertices_y = tmp_orthographic_vertices_y;
     // int* orthographic_vertices_z = tmp_orthographic_vertices_z;
 
-    // struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
-    //     model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
+    struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
+        model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
 
-    // int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
-    int model_min_depth = 92;
+    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
 
     memset(tmp_depth_face_count, 0, (model_min_depth * 2 + 1) * sizeof(tmp_depth_face_count[0]));
 
@@ -2025,7 +2018,7 @@ render_scene_tile(
 
         if( texture_id == -1 || textures_cache_nullable == NULL )
         {
-            project_vertices_terrain(
+            bool success = project_vertices_terrain(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -2046,6 +2039,9 @@ render_scene_tile(
                 near_plane_z,
                 width,
                 height);
+
+            if( !success )
+                continue;
 
             int* colors_a = color_override_hsl16_nullable ? color_override_hsl16_nullable
                                                           : tile->face_color_hsl_a;
@@ -2373,6 +2369,8 @@ near_wall_flags(int camera_tile_x, int camera_tile_y, int loc_x, int loc_y)
 }
 
 /**
+ * Painters algorithm
+ *
  * 1. Draw Bridge Underlay (the water, not the surface)
  * 2. Draw Bridge Wall (the arches holding the bridge up)
  * 3. Draw bridge locs

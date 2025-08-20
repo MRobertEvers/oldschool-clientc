@@ -196,18 +196,23 @@ model_cache_checkin(struct ModelCache* model_cache, struct CacheModel* model)
     }
 }
 
-struct TexturesCache
-{
-    struct Cache* cache;
-
-    struct HashTable table;
-};
-
 struct TexItem
 {
     int id;
     int ref_count;
     struct Texture* texture;
+
+    struct TexItem* next;
+    struct TexItem* prev;
+};
+
+struct TexturesCache
+{
+    struct Cache* cache;
+
+    struct HashTable table;
+
+    struct TexItem root;
 };
 
 static int
@@ -300,6 +305,81 @@ httex_cache_remove(struct TexturesCache* textures_cache, int model_id)
     } while( ht_nexth(&textures_cache->table, &iter) );
 
     return NULL;
+}
+
+void
+texture_animate(struct Texture* texture, int time_delta)
+{
+    if( texture->animation_direction == TEXTURE_DIRECTION_NONE )
+        return;
+
+    int animation_speed = texture->animation_speed;
+    int animation_direction = texture->animation_direction;
+
+    int width = texture->width;
+    int height = texture->height;
+    int length = width * height;
+
+    int* pixels = texture->texels;
+
+    int v_offset = width * time_delta * animation_speed;
+    if( animation_direction == TEXTURE_DIRECTION_V_DOWN )
+    {
+        v_offset = -v_offset;
+    }
+
+    if( v_offset > 0 )
+    {
+        for( int offset = 0; offset < length - 1; offset++ )
+        {
+            int index = (v_offset + (offset)) & (length - 1);
+            pixels[offset] = pixels[index];
+        }
+    }
+    else
+    {
+        for( int offset = length - 2; offset >= 0; offset-- )
+        {
+            int index = (v_offset + (offset)) & (length - 1);
+            pixels[offset] = pixels[index];
+        }
+    }
+    // else if( animation_direction == TEXTURE_DIRECTION_V_UP )
+    // {
+    //     for( int y = height - 1; y >= 0; y-- )
+    //     {
+    //         for( int x = 0; x < width; x++ )
+    //         {
+    //             int index = y * width + x;
+    //             int pixel = pixels[index];
+    //             pixels[index] = pixel;
+    //         }
+    //     }
+    // }
+    // else if( animation_direction == TEXTURE_DIRECTION_U_DOWN )
+    // {
+    //     for( int y = 0; y < height; y++ )
+    //     {
+    //         for( int x = width - 1; x >= 0; x-- )
+    //         {
+    //             int index = y * width + x;
+    //             int pixel = pixels[index];
+    //             pixels[index] = pixel;
+    //         }
+    //     }
+    // }
+    // else if( animation_direction == TEXTURE_DIRECTION_U_UP )
+    // {
+    //     for( int y = height - 1; y >= 0; y-- )
+    //     {
+    //         for( int x = width - 1; x >= 0; x-- )
+    //         {
+    //             int index = y * width + x;
+    //             int pixel = pixels[index];
+    //             pixels[index] = pixel;
+    //         }
+    //     }
+    // }
 }
 
 struct TexturesCache*
@@ -487,20 +567,33 @@ textures_cache_checkout(
     }
     free(sprite_packs);
 
-    texture_definition_free(texture_definition);
-
     texture = (struct Texture*)malloc(sizeof(struct Texture));
     assert(texture);
     texture->texels = pixels;
     texture->width = size;
     texture->height = size;
     texture->opaque = opaque;
+    texture->animation_direction = texture_definition->animation_direction;
+    texture->animation_speed = texture_definition->animation_speed;
+
+    texture_definition_free(texture_definition);
 
     item = httex_cache_emplace(textures_cache, texture_id);
+    memset(item, 0, sizeof(struct TexItem));
     assert(item != NULL);
     item->texture = texture;
     item->ref_count = 1;
     item->id = texture_id;
+
+    struct TexItem* walk = &textures_cache->root;
+    while( walk->next )
+        walk = walk->next;
+
+    if( walk )
+    {
+        walk->next = item;
+        item->prev = walk;
+    }
 
     return texture;
 }
@@ -508,3 +601,33 @@ textures_cache_checkout(
 void
 textures_cache_checkin(struct TexturesCache* textures_cache, struct Texture* texture)
 {}
+
+struct TexWalk*
+textures_cache_walk_new(struct TexturesCache* textures_cache)
+{
+    struct TexWalk* walk = (struct TexWalk*)malloc(sizeof(struct TexWalk));
+    walk->item = &textures_cache->root;
+
+    walk->texture = NULL;
+    return walk;
+}
+
+void
+textures_cache_walk_free(struct TexWalk* walk)
+{
+    free(walk);
+}
+
+struct Texture*
+textures_cache_walk_next(struct TexWalk* walk)
+{
+    struct TexItem* item = (struct TexItem*)walk->item;
+    if( !item->next )
+        return NULL;
+    item = item->next;
+
+    walk->item = item;
+    walk->texture = item->texture;
+
+    return item->texture;
+}

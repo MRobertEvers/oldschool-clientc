@@ -3,6 +3,19 @@
 
 #include <stdbool.h>
 
+enum TextureDirection
+{
+    TEXTURE_DIRECTION_NONE,
+    TEXTURE_DIRECTION_V_DOWN = 1,
+    TEXTURE_DIRECTION_U_DOWN = 2,
+    TEXTURE_DIRECTION_V_UP = 3,
+    TEXTURE_DIRECTION_U_UP = 4,
+};
+
+static const int TEXTURE_U_DIRECTION[] = { 0, 0, -1, 0, 1 };
+
+static const int TEXTURE_V_DIRECTION[] = { 0, -1, 0, 1, 0 };
+
 struct CacheTexture
 {
     int average_hsl;
@@ -12,7 +25,11 @@ struct CacheTexture
 
     int* sprite_types;
     int* transforms;
+
+    // See direction above.
     int animation_direction;
+
+    // Pixels per time unit
     int animation_speed;
 };
 
