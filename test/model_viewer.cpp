@@ -271,6 +271,33 @@ struct Game
     struct TexturesCache* textures_cache;
 };
 
+struct Pix3D
+{
+    int* pixel_buffer;
+    int width;
+    int height;
+
+    int center_x;
+    int center_y;
+
+    bool clipped;
+
+    int screen_vertices_x[4096];
+    int screen_vertices_y[4096];
+    int screen_vertices_z[4096];
+    int ortho_vertices_x[4096];
+    int ortho_vertices_y[4096];
+    int ortho_vertices_z[4096];
+
+    int depth_to_face_count[1600];
+    int depth_to_face_buckets[1600][512];
+
+    uint64_t deob_sum;
+    uint64_t s4_sum;
+
+    int deob_count;
+} _Pix3D;
+
 void
 game_free(struct Game* game)
 {
@@ -452,9 +479,10 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
         (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency);
     ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
 
-    ImGui::Text("Hover model: %d", game->hover_model);
     ImGui::Text(
-        "Hover loc: %d, %d, %d", game->hover_loc_x, game->hover_loc_y, game->hover_loc_level);
+        "S4, deob: %.4f, %.4f us",
+        ((((double)_Pix3D.s4_sum) / _Pix3D.deob_count) * 1000000.0 / (double)frequency),
+        ((((double)_Pix3D.deob_sum) / _Pix3D.deob_count) * 1000000.0 / (double)frequency));
 
     // Camera position with copy button
     char camera_pos_text[256];
@@ -547,29 +575,6 @@ calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int*
     return bounding_cylinder;
 }
 
-struct Pix3D
-{
-    int* pixel_buffer;
-    int width;
-    int height;
-
-    int center_x;
-    int center_y;
-
-    bool clipped;
-
-    int screen_vertices_x[4096];
-    int screen_vertices_y[4096];
-    int screen_vertices_z[4096];
-    int ortho_vertices_x[4096];
-    int ortho_vertices_y[4096];
-    int ortho_vertices_z[4096];
-
-    int depth_to_face_count[1600];
-    int depth_to_face_buckets[1600][512];
-
-} _Pix3D;
-
 extern "C" {
 
 #include "gouraud.h"
@@ -592,8 +597,14 @@ m_draw_face(struct SceneModel* model, int face_index)
     int color_b = model->lighting->face_colors_hsl_b[face_index];
     int color_c = model->lighting->face_colors_hsl_c[face_index];
 
+    uint64_t deob_start = SDL_GetPerformanceCounter();
     gouraud_deob_draw_triangle(
         _Pix3D.pixel_buffer, ay, by, cy, ax, bx, cx, color_a, color_b, color_c);
+    uint64_t deob_end = SDL_GetPerformanceCounter();
+    _Pix3D.deob_sum += deob_end - deob_start;
+    _Pix3D.deob_count++;
+
+    uint64_t s4_start = SDL_GetPerformanceCounter();
     raster_gouraud_s4(
         _Pix3D.pixel_buffer, //
         _Pix3D.width,
@@ -607,6 +618,8 @@ m_draw_face(struct SceneModel* model, int face_index)
         color_a,
         color_b,
         color_c);
+    uint64_t s4_end = SDL_GetPerformanceCounter();
+    _Pix3D.s4_sum += s4_end - s4_start;
 }
 
 static void
