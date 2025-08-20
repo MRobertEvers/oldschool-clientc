@@ -495,6 +495,306 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     ImGui::Render();
     ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->renderer);
 }
+struct BoundingCylinder
+{
+    int center_to_top_edge;
+    int center_to_bottom_edge;
+    int radius;
+
+    // TODO: Name?
+    // - Max extent from model origin.
+    // - Distance to farthest vertex?
+    int min_z_depth_any_rotation;
+};
+
+#include <limits.h>
+
+static struct BoundingCylinder
+calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z)
+{
+    struct BoundingCylinder bounding_cylinder = { 0 };
+
+    int min_y = INT_MAX;
+    int max_y = INT_MIN;
+    int radius_squared = 0;
+
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        int x = vertex_x[i];
+        int y = vertex_y[i];
+        int z = vertex_z[i];
+        if( y < min_y )
+            min_y = y;
+        if( y > max_y )
+            max_y = y;
+        int radius_squared_vertex = x * x + z * z;
+        if( radius_squared_vertex > radius_squared )
+            radius_squared = radius_squared_vertex;
+    }
+
+    // Reminder, +y is down on the screen.
+    bounding_cylinder.center_to_bottom_edge = (int)sqrt(radius_squared + min_y * min_y) + 1;
+    bounding_cylinder.center_to_top_edge = (int)sqrt(radius_squared + max_y * max_y) + 1;
+
+    bounding_cylinder.radius = (int)sqrt(radius_squared);
+
+    // Use max of the two here because OSRS assumes the camera is always above the model,
+    // which may not be the case for us.
+    bounding_cylinder.min_z_depth_any_rotation =
+        bounding_cylinder.center_to_top_edge > bounding_cylinder.center_to_bottom_edge
+            ? bounding_cylinder.center_to_top_edge
+            : bounding_cylinder.center_to_bottom_edge;
+
+    return bounding_cylinder;
+}
+
+struct Pix3D
+{
+    int* pixel_buffer;
+    int width;
+    int height;
+
+    int center_x;
+    int center_y;
+
+    bool clipped;
+
+    int screen_vertices_x[4096];
+    int screen_vertices_y[4096];
+    int screen_vertices_z[4096];
+    int ortho_vertices_x[4096];
+    int ortho_vertices_y[4096];
+    int ortho_vertices_z[4096];
+
+    int depth_to_face_count[1600];
+    int depth_to_face_buckets[1600][512];
+
+} _Pix3D;
+
+extern "C" {
+
+#include "gouraud.h"
+#include "gouraud_deob.h"
+}
+
+static void
+m_draw_face(struct SceneModel* model, int face_index)
+{
+    int ax = _Pix3D.screen_vertices_x[model->model->face_indices_a[face_index]];
+    int ay = _Pix3D.screen_vertices_y[model->model->face_indices_a[face_index]];
+
+    int bx = _Pix3D.screen_vertices_x[model->model->face_indices_b[face_index]];
+    int by = _Pix3D.screen_vertices_y[model->model->face_indices_b[face_index]];
+
+    int cx = _Pix3D.screen_vertices_x[model->model->face_indices_c[face_index]];
+    int cy = _Pix3D.screen_vertices_y[model->model->face_indices_c[face_index]];
+
+    int color_a = model->lighting->face_colors_hsl_a[face_index];
+    int color_b = model->lighting->face_colors_hsl_b[face_index];
+    int color_c = model->lighting->face_colors_hsl_c[face_index];
+
+    gouraud_deob_draw_triangle(
+        _Pix3D.pixel_buffer, ay, by, cy, ax, bx, cx, color_a, color_b, color_c);
+}
+
+static void
+m_paint(struct SceneModel* model)
+{
+    struct BoundingCylinder* bounding_cylinder = (struct BoundingCylinder*)model->bounding_cylinder;
+
+    if( bounding_cylinder->min_z_depth_any_rotation > 1600 )
+        return;
+
+    int max_depth = bounding_cylinder->min_z_depth_any_rotation * 2 + 1;
+    memset(_Pix3D.depth_to_face_count, 0, max_depth * sizeof(_Pix3D.depth_to_face_count[0]));
+
+    for( int face_index = 0; face_index < model->model->face_count; face_index++ )
+    {
+        int vertex_a_index = model->model->face_indices_a[face_index];
+        int vertex_b_index = model->model->face_indices_b[face_index];
+        int vertex_c_index = model->model->face_indices_c[face_index];
+
+        int ax = _Pix3D.screen_vertices_x[vertex_a_index];
+        int bx = _Pix3D.screen_vertices_x[vertex_b_index];
+        int cx = _Pix3D.screen_vertices_x[vertex_c_index];
+
+        if( ax == -5000 || bx == -5000 || cx == -5000 )
+            continue;
+
+        int depth =
+            (_Pix3D.screen_vertices_z[vertex_a_index] + _Pix3D.screen_vertices_z[vertex_b_index] +
+             _Pix3D.screen_vertices_z[vertex_c_index]) /
+                3 +
+            bounding_cylinder->min_z_depth_any_rotation;
+
+        if( depth < 0 || depth >= max_depth )
+            continue;
+
+        int index_in_depth_bucket = _Pix3D.depth_to_face_count[depth]++;
+
+        _Pix3D.depth_to_face_buckets[depth][index_in_depth_bucket] = face_index;
+    }
+
+    for( int depth = max_depth - 1; depth >= 0; depth-- )
+    {
+        int count = _Pix3D.depth_to_face_count[depth];
+        if( count == 0 )
+            continue;
+
+        int* face_indices = _Pix3D.depth_to_face_buckets[depth];
+
+        for( int i = 0; i < count; i++ )
+        {
+            int face_index = face_indices[i];
+            m_draw_face(model, face_index);
+        }
+    }
+}
+
+extern "C" {
+#include "projection.h"
+}
+
+static void
+m_draw(
+    struct SceneModel* model,
+    int model_yaw,
+    int pitch,
+    int yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z)
+{
+    struct BoundingCylinder* bounding_cylinder;
+    if( !model->bounding_cylinder )
+    {
+        bounding_cylinder = (struct BoundingCylinder*)malloc(sizeof(struct BoundingCylinder));
+        *bounding_cylinder = calculate_bounding_cylinder(
+            model->model->vertex_count,
+            model->model->vertices_x,
+            model->model->vertices_y,
+            model->model->vertices_z);
+        model->bounding_cylinder = bounding_cylinder;
+    }
+
+    bounding_cylinder = (struct BoundingCylinder*)model->bounding_cylinder;
+
+    int pitch_sin = g_sin_table[pitch];
+    int pitch_cos = g_cos_table[pitch];
+    int yaw_sin = g_sin_table[yaw];
+    int yaw_cos = g_cos_table[yaw];
+
+    int z_center_projected_yaw = yaw_cos * scene_z - yaw_sin * scene_x;
+    z_center_projected_yaw >>= 16;
+    int z_center_projected_pitch_yaw = pitch_sin * scene_y + pitch_cos * z_center_projected_yaw;
+    z_center_projected_pitch_yaw >>= 16;
+
+    int cylinder_radius_projected = bounding_cylinder->radius * pitch_cos >> 16;
+    int distance_to_camera = cylinder_radius_projected + z_center_projected_pitch_yaw;
+    if( distance_to_camera < 50 || z_center_projected_pitch_yaw > 3500 )
+        return;
+
+    // Only check left and right yaw to see if offscreen
+    int x_center_projected_yaw = (yaw_sin * scene_z + yaw_cos * scene_x) >> 16;
+    int x_center_screen_min = (x_center_projected_yaw - bounding_cylinder->radius) << 9;
+    if( x_center_screen_min / distance_to_camera >= _Pix3D.center_x )
+        return;
+
+    int x_center_screen_max = (x_center_projected_yaw + bounding_cylinder->radius) << 9;
+    if( x_center_screen_max / distance_to_camera <= -_Pix3D.center_x )
+        return;
+
+    // TODO: Y
+
+    int model_yaw_sin = g_sin_table[model_yaw];
+    int model_yaw_cos = g_cos_table[model_yaw];
+
+    _Pix3D.clipped = false;
+
+    for( int i = 0; i < model->model->vertex_count; i++ )
+    {
+        // struct ProjectedTriangle projected_triangle = { 0 };
+        // project_orthographic_fast(
+        //     &projected_triangle,
+        //     model->model->vertices_x[i],
+        //     model->model->vertices_y[i],
+        //     model->model->vertices_z[i],
+        //     0,
+        //     scene_x,
+        //     scene_y,
+        //     scene_z,
+        //     pitch,
+        //     yaw);
+
+        int x = model->model->vertices_x[i];
+        int y = model->model->vertices_y[i];
+        int z = model->model->vertices_z[i];
+
+        if( model_yaw != 0 )
+        {
+            int x_projected = (model_yaw_sin * z + model_yaw_cos * x) >> 16;
+            int z_projected = (model_yaw_cos * z - model_yaw_sin * x_projected) >> 16;
+
+            x = x_projected;
+            z = z_projected;
+        }
+
+        x += scene_x;
+        y += scene_y;
+        z += scene_z;
+
+        int x_scene_rotated = (yaw_sin * z + yaw_cos * x) >> 16;
+        int z_scene_rotated_yaw = (yaw_cos * z - yaw_sin * x) >> 16;
+
+        int y_scene_rotated = (pitch_cos * y - pitch_sin * z_scene_rotated_yaw) >> 16;
+        int z_scene_rotated_pitch_yaw = (pitch_sin * y + pitch_cos * z_scene_rotated_yaw) >> 16;
+
+        x = x_scene_rotated;
+        y = y_scene_rotated;
+        z = z_scene_rotated_pitch_yaw;
+
+        _Pix3D.screen_vertices_z[i] = z_scene_rotated_pitch_yaw - z_center_projected_pitch_yaw;
+        if( z_scene_rotated_pitch_yaw >= 50 )
+        {
+            _Pix3D.screen_vertices_x[i] = (x << 9) / z_scene_rotated_pitch_yaw + _Pix3D.center_x;
+            _Pix3D.screen_vertices_y[i] = (y << 9) / z_scene_rotated_pitch_yaw + _Pix3D.center_y;
+
+            // struct ProjectedTriangle projected_triangle = { 0 };
+            // project_fast(
+            //     &projected_triangle,
+            //     x,
+            //     y,
+            //     z,
+            //     0,
+            //     scene_x,
+            //     scene_y,
+            //     scene_z,
+            //     pitch,
+            //     yaw,
+            //     512,
+            //     50,
+            //     _Pix3D.width,
+            //     _Pix3D.height);
+
+            // _Pix3D.screen_vertices_x[i] = projected_triangle.x + _Pix3D.center_x;
+            // _Pix3D.screen_vertices_y[i] = projected_triangle.y + _Pix3D.center_y;
+        }
+        else
+        {
+            _Pix3D.screen_vertices_x[i] = -5000;
+            _Pix3D.clipped = true;
+        }
+
+        if( model->model->textured_face_count > 0 )
+        {
+            _Pix3D.ortho_vertices_x[i] = x_scene_rotated;
+            _Pix3D.ortho_vertices_y[i] = y_scene_rotated;
+            _Pix3D.ortho_vertices_z[i] = z_scene_rotated_pitch_yaw;
+        }
+    }
+
+    m_paint(model);
+}
 
 static void
 render_scene_model(
@@ -588,23 +888,36 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             int model_y = game->camera_y + 200 + z * 128;
             int model_z = game->camera_z + 100;
 
-            render_scene_model(
-                pixel_buffer,
-                SCREEN_WIDTH,
-                SCREEN_HEIGHT,
-                // Had to use 100 here because of the scale, near plane z was resulting in
-                // extremely close to the camera.
-                50,
+            m_draw(
+                game->scene_model,
                 0,
-                model_x,
-                model_y,
-                model_z,
                 game->camera_pitch,
                 game->camera_yaw,
-                game->camera_roll,
-                game->camera_fov,
-                game->scene_model,
-                game->textures_cache);
+                model_x,
+                model_z,
+                model_y);
+
+            // int model_x = game->camera_x + x * 128;
+            // int model_y = game->camera_y + 200 + z * 128;
+            // int model_z = game->camera_z + 100;
+
+            // render_scene_model(
+            //     pixel_buffer,
+            //     SCREEN_WIDTH,
+            //     SCREEN_HEIGHT,
+            //     // Had to use 100 here because of the scale, near plane z was resulting in
+            //     // extremely close to the camera.
+            //     50,
+            //     0,
+            //     model_x,
+            //     model_y,
+            //     model_z,
+            //     game->camera_pitch,
+            //     game->camera_yaw,
+            //     game->camera_roll,
+            //     game->camera_fov,
+            //     game->scene_model,
+            //     game->textures_cache);
         }
     }
 
@@ -614,27 +927,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     game->frame_count++;
     game->frame_time_sum += end_ticks - start_ticks;
-
-    // render_scene_ops(
-    //     game->ops,
-    //     game->op_count,
-    //     0,
-    //     game->max_render_ops,
-    //     pixel_buffer,
-    //     SCREEN_WIDTH,
-    //     SCREEN_HEIGHT,
-    //     // Had to use 100 here because of the scale, near plane z was resulting in triangles
-    //     // extremely close to the camera.
-    //     100,
-    //     game->camera_x,
-    //     game->camera_y,
-    //     game->camera_z,
-    //     game->camera_pitch,
-    //     game->camera_yaw,
-    //     game->camera_roll,
-    //     game->camera_fov,
-    //     game->scene,
-    //     game->textures_cache);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,
@@ -646,15 +938,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         0x0000FF00,
         0x000000FF,
         0xFF000000);
-
-    // Draw debug text for camera position and rotation
-    // printf(
-    //     "Camera: x=%d y=%d z=%d pitch=%d yaw=%d\n",
-    //     game->camera_x,
-    //     game->camera_y,
-    //     game->camera_z,
-    //     game->camera_pitch,
-    //     game->camera_yaw);
 
     // Copy the pixels into the texture
     int* pix_write = NULL;
@@ -740,6 +1023,13 @@ main()
         printf("Failed to initialize SDL\n");
         return 1;
     }
+
+    memset(&_Pix3D, 0, sizeof(_Pix3D));
+    _Pix3D.width = SCREEN_WIDTH;
+    _Pix3D.height = SCREEN_HEIGHT;
+    _Pix3D.center_x = SCREEN_WIDTH / 2;
+    _Pix3D.center_y = SCREEN_HEIGHT / 2;
+    _Pix3D.pixel_buffer = platform.pixel_buffer;
 
     struct Game game = { 0 };
 
@@ -1212,13 +1502,13 @@ main()
 
         if( space_pressed )
         {
-            if( game.ops )
-                free(game.ops);
-            game.ops = render_scene_compute_ops(
-                game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
-            memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
-            game.max_render_ops = 1;
-            game.manual_render_ops = 0;
+            // if( game.ops )
+            //     free(game.ops);
+            // game.ops = render_scene_compute_ops(
+            //     game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
+            // memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+            // game.max_render_ops = 1;
+            // game.manual_render_ops = 0;
         }
 
         if( comma_pressed )

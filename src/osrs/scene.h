@@ -106,6 +106,8 @@ struct SceneModel
     struct CacheFrame** frames;
     int frame_count;
 
+    void* bounding_cylinder;
+
     struct CacheFramemap* framemap;
     struct CacheConfigSequence* sequence;
 

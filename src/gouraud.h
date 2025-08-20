@@ -13,6 +13,16 @@ void draw_scanline_gouraud_zbuf(
     int color_start,
     int color_end);
 
+void draw_scanline_gouraud_blend_s4(
+    int* pixel_buffer,
+    int stride_width,
+    int y,
+    int x_start,
+    int x_end,
+    int color_start_hsl16_ish8,
+    int color_end_hsl16_ish8,
+    int alpha);
+
 void raster_gouraud_zbuf(
     int* pixel_buffer,
     int* z_buffer,

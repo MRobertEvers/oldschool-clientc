@@ -1791,7 +1791,6 @@ render_model_frame(
         width,
         height,
         near_plane_z);
-    return;
     if( !success )
         return;
 
