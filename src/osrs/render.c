@@ -936,6 +936,24 @@ model_draw_face(
     struct TexturesCache* textures_cache)
 {
     struct Texture* texture = NULL;
+
+    // TODO: FaceTYpe is wrong, type 2 is hidden, 3 is black, 0 is gouraud, 1 is flat.
+    enum FaceType type = face_infos ? (face_infos[face_index] & 0x3) : FACE_TYPE_GOURAUD;
+    if( type == 2 )
+    {
+        return;
+    }
+    assert(type >= 0 && type <= 3);
+
+    int color_a = colors_a[face_index];
+    int color_b = colors_b[face_index];
+    int color_c = colors_c[face_index];
+
+    if( color_c == -2 )
+    {
+        return;
+    }
+
     int tp_face = -1;
     int tm_face = -1;
     int tn_face = -1;
@@ -962,18 +980,19 @@ model_draw_face(
     int face_c = face_indices_c[index];
 
     int x1 = vertex_x[face_a];
-    int y1 = vertex_y[face_a];
-    int z1 = vertex_z[face_a];
     int x2 = vertex_x[face_b];
-    int y2 = vertex_y[face_b];
-    int z2 = vertex_z[face_b];
     int x3 = vertex_x[face_c];
-    int y3 = vertex_y[face_c];
-    int z3 = vertex_z[face_c];
 
     // Skip triangle if any vertex was clipped
     if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
         return;
+
+    int y1 = vertex_y[face_a];
+    int y2 = vertex_y[face_b];
+    int y3 = vertex_y[face_c];
+    int z1 = vertex_z[face_a];
+    int z2 = vertex_z[face_b];
+    int z3 = vertex_z[face_c];
 
     x1 += offset_x;
     y1 += offset_y;
@@ -984,9 +1003,7 @@ model_draw_face(
 
     assert(offset_y == (screen_height >> 1));
     assert(offset_x == (screen_width >> 1));
-    int color_a = colors_a[index];
-    int color_b = colors_b[index];
-    int color_c = colors_c[index];
+
     int alpha = face_alphas_nullable ? (face_alphas_nullable[index]) : 0xFF;
 
     // Faces with color_c == -2 are not drawn. As far as I can tell, these faces are used for
@@ -1012,9 +1029,6 @@ model_draw_face(
     // {
     //     return;
     // }
-
-    enum FaceType type = face_infos ? (face_infos[index] & 0x3) : FACE_TYPE_GOURAUD;
-    assert(type >= 0 && type <= 3);
 
     int* texels = g_empty_texture_texels;
     if( face_textures && face_textures[index] != -1 )
@@ -1702,32 +1716,32 @@ render_model_frame(
     struct Framemap* framemap_nullable,
     struct TexturesCache* textures_cache)
 {
-    int* vertices_x = model->vertices_x;
-    int* vertices_y = model->vertices_y;
-    int* vertices_z = model->vertices_z;
+    //     int* vertices_x = model->vertices_x;
+    //     int* vertices_y = model->vertices_y;
+    //     int* vertices_z = model->vertices_z;
 
-    int* face_indices_a = model->face_indices_a;
-    int* face_indices_b = model->face_indices_b;
-    int* face_indices_c = model->face_indices_c;
+    //     int* face_indices_a = model->face_indices_a;
+    //     int* face_indices_b = model->face_indices_b;
+    //     int* face_indices_c = model->face_indices_c;
 
-    memset(tmp_depth_face_count, 0, sizeof(tmp_depth_face_count));
     // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
-    memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
-    memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
     // memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
 
-    int* screen_vertices_x = tmp_screen_vertices_x;
-    int* screen_vertices_y = tmp_screen_vertices_y;
-    int* screen_vertices_z = tmp_screen_vertices_z;
+    // int* screen_vertices_x = tmp_screen_vertices_x;
+    // int* screen_vertices_y = tmp_screen_vertices_y;
+    // int* screen_vertices_z = tmp_screen_vertices_z;
 
-    int* orthographic_vertices_x = tmp_orthographic_vertices_x;
-    int* orthographic_vertices_y = tmp_orthographic_vertices_y;
-    int* orthographic_vertices_z = tmp_orthographic_vertices_z;
+    // int* orthographic_vertices_x = tmp_orthographic_vertices_x;
+    // int* orthographic_vertices_y = tmp_orthographic_vertices_y;
+    // int* orthographic_vertices_z = tmp_orthographic_vertices_z;
 
-    struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
-        model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
+    // struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
+    //     model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
 
-    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
+    // int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
+    int model_min_depth = 92;
+
+    memset(tmp_depth_face_count, 0, (model_min_depth * 2 + 1) * sizeof(tmp_depth_face_count[0]));
 
     // TODO: Move this before lighting.
 
@@ -1754,16 +1768,16 @@ render_model_frame(
     //     near_plane_z);
 
     int success = project_vertices_textured(
-        screen_vertices_x,
-        screen_vertices_y,
-        screen_vertices_z,
-        orthographic_vertices_x,
-        orthographic_vertices_y,
-        orthographic_vertices_z,
+        tmp_screen_vertices_x,
+        tmp_screen_vertices_y,
+        tmp_screen_vertices_z,
+        tmp_orthographic_vertices_x,
+        tmp_orthographic_vertices_y,
+        tmp_orthographic_vertices_z,
         model->vertex_count,
-        vertices_x,
-        vertices_y,
-        vertices_z,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
         model_pitch,
         model_yaw,
         model_roll,
@@ -1777,7 +1791,7 @@ render_model_frame(
         width,
         height,
         near_plane_z);
-
+    return;
     if( !success )
         return;
 
@@ -1786,12 +1800,12 @@ render_model_frame(
         tmp_depth_face_count,
         model_min_depth,
         model->face_count,
-        screen_vertices_x,
-        screen_vertices_y,
-        screen_vertices_z,
-        face_indices_a,
-        face_indices_b,
-        face_indices_c);
+        tmp_screen_vertices_x,
+        tmp_screen_vertices_y,
+        tmp_screen_vertices_z,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c);
 
     if( !model->face_priorities )
     {
@@ -1801,7 +1815,7 @@ render_model_frame(
             if( bucket_count == 0 )
                 continue;
 
-            int* faces = &tmp_depth_faces[depth * 512];
+            int* faces = &tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
                 int face = faces[j];
@@ -1809,16 +1823,16 @@ render_model_frame(
                     pixel_buffer,
                     face,
                     model->face_infos,
-                    face_indices_a,
-                    face_indices_b,
-                    face_indices_c,
+                    model->face_indices_a,
+                    model->face_indices_b,
+                    model->face_indices_c,
                     model->face_count,
-                    screen_vertices_x,
-                    screen_vertices_y,
-                    screen_vertices_z,
-                    orthographic_vertices_x,
-                    orthographic_vertices_y,
-                    orthographic_vertices_z,
+                    tmp_screen_vertices_x,
+                    tmp_screen_vertices_y,
+                    tmp_screen_vertices_z,
+                    tmp_orthographic_vertices_x,
+                    tmp_orthographic_vertices_y,
+                    tmp_orthographic_vertices_z,
                     model->vertex_count,
                     model->face_textures,
                     model->face_texture_coords,
@@ -1840,6 +1854,8 @@ render_model_frame(
         }
         goto done;
     }
+    memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
+    memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
 
     // project_vertices_terrain_textured(
     //     screen_vertices_x,
@@ -1898,16 +1914,16 @@ render_model_frame(
             pixel_buffer,
             face_index,
             model->face_infos,
-            face_indices_a,
-            face_indices_b,
-            face_indices_c,
+            model->face_indices_a,
+            model->face_indices_b,
+            model->face_indices_c,
             model->face_count,
-            screen_vertices_x,
-            screen_vertices_y,
-            screen_vertices_z,
-            orthographic_vertices_x,
-            orthographic_vertices_y,
-            orthographic_vertices_z,
+            tmp_screen_vertices_x,
+            tmp_screen_vertices_y,
+            tmp_screen_vertices_z,
+            tmp_orthographic_vertices_x,
+            tmp_orthographic_vertices_y,
+            tmp_orthographic_vertices_z,
             model->vertex_count,
             model->face_textures,
             model->face_texture_coords,
@@ -2222,6 +2238,7 @@ render_scene_model(
     struct SceneModel* model,
     struct TexturesCache* textures_cache)
 {
+    return;
     int x = camera_x + model->region_x;
     int y = camera_y + model->region_z;
     int z = camera_z + model->region_height;
@@ -2238,7 +2255,9 @@ render_scene_model(
     // {
     //     yaw += 1536;
     // }
-    yaw %= 2048;
+    // 2048 in hex
+
+    yaw &= 0x7FF;
 
     x += model->offset_x;
     y += model->offset_y;
@@ -2401,9 +2420,10 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     }
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 30;
+    int radius = 25;
     int coord_list_x[4];
     int coord_list_y[4];
+    int max_level = 0;
 
     int coord_list_length = 0;
 
@@ -2504,7 +2524,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             if( element->q_count > 0 )
                 continue;
 
-            if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 )
+            if( (grid_tile->flags & GRID_TILE_FLAG_BRIDGE) != 0 || tile_level > max_level )
             {
                 element = &elements[tile_coord];
                 element->step = E_STEP_DONE;

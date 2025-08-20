@@ -27,6 +27,18 @@
             "MIMode": "lldb"
         },
         {
+            "name": "(lldb) Launch Model Test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/model_viewer",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
             "name": "(lldb) Launch Tiles Test",
             "type": "cppdbg",
             "request": "launch",

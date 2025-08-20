@@ -84,7 +84,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->is_interactive = -1;
     loc->contoured_ground = -1;
     loc->sharelight = 0;
-    loc->model_clipped = 0;
+    loc->occlude = 0;
     loc->seq_id = -1;
     loc->ambient = 0;
     loc->contrast = 0;
@@ -242,7 +242,7 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             loc->sharelight = 1;
             break;
         case 23:
-            loc->model_clipped = 1;
+            loc->occlude = 1;
             break;
         case 24:
         {

@@ -313,6 +313,11 @@ loc_load_model(
         model = model_new_copy(models[0]);
     }
 
+    if( model->_id == 14815 )
+    {
+        printf("model %d\n", model->_id);
+    }
+
     // Sequences don't account for rotations, so models must be rotated AFTER the animation is
     // applied.
     if( loc_config->seq_id != -1 )
@@ -511,6 +516,10 @@ tile_ground_decor_model_nullable(struct SceneModel* models, struct Loc* loc)
     return NULL;
 }
 
+static int g_merge_index = 0;
+static int g_vertex_a_merge_index[10000] = { 0 };
+static int g_vertex_b_merge_index[10000] = { 0 };
+
 static void
 merge_normals(
     struct CacheModel* model,
@@ -523,12 +532,16 @@ merge_normals(
     int check_offset_y,
     int check_offset_z)
 {
+    g_merge_index++;
+
     struct LightingNormal* model_a_normal = NULL;
     struct LightingNormal* model_b_normal = NULL;
     struct LightingNormal* model_a_lighting_normal = NULL;
     struct LightingNormal* model_b_lighting_normal = NULL;
     int x, y, z;
     int other_x, other_y, other_z;
+
+    int merged_vertex_count = 0;
 
     for( int vertex = 0; vertex < model->vertex_count; vertex++ )
     {
@@ -562,7 +575,56 @@ merge_normals(
                 model_b_lighting_normal->z += model_a_normal->z;
                 model_b_lighting_normal->face_count += model_a_normal->face_count;
                 model_b_lighting_normal->merged++;
+
+                merged_vertex_count++;
+
+                g_vertex_a_merge_index[vertex] = g_merge_index;
+                g_vertex_b_merge_index[other_vertex] = g_merge_index;
             }
+        }
+    }
+
+    /**
+     * Normals that are merged are assumed to be abutting each other and their faces not visible.
+     * Hide them.
+     */
+
+    // TODO: This isn't allow for locs. Only ground decor.
+    if( merged_vertex_count < 3 || true )
+        return;
+
+    // Can't have two faces with the same 3 points, so only need to check two.
+    for( int face = 0; face < model->face_count; face++ )
+    {
+        if( g_vertex_a_merge_index[model->face_indices_a[face]] == g_merge_index &&
+            g_vertex_a_merge_index[model->face_indices_b[face]] == g_merge_index &&
+            g_vertex_a_merge_index[model->face_indices_c[face]] == g_merge_index )
+        {
+            // OS1 initializes face infos to 0 here.
+            if( !model->face_infos )
+            {
+                model->face_infos = malloc(sizeof(int) * model->face_count);
+                memset(model->face_infos, 0, sizeof(int) * model->face_count);
+            }
+            // Hidden face (facetype 2 is hidden)
+            model->face_infos[face] = 2;
+            break;
+        }
+    }
+    for( int face = 0; face < other_model->face_count; face++ )
+    {
+        if( g_vertex_b_merge_index[other_model->face_indices_a[face]] == g_merge_index &&
+            g_vertex_b_merge_index[other_model->face_indices_b[face]] == g_merge_index &&
+            g_vertex_b_merge_index[other_model->face_indices_c[face]] == g_merge_index )
+        {
+            // OS1 initializes face infos to 0 here.
+            if( !other_model->face_infos )
+            {
+                other_model->face_infos = malloc(sizeof(int) * other_model->face_count);
+                memset(other_model->face_infos, 0, sizeof(int) * other_model->face_count);
+            }
+            // Hidden face (facetype 2 is hidden)
+            other_model->face_infos[face] = 2;
         }
     }
 }

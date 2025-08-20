@@ -33,7 +33,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscr
     
     # Add runtime path for ASan
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -Wl,-rpath,\$ORIGIN")
-    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -Wl,--enable-new-dtags")
+    # set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -Wl,--enable-new-dtags")
 endif()
 
 # Remove the old ASan configuration that was causing issues
@@ -172,6 +172,57 @@ add_executable(scene_tile_test
     src/imgui/imgui_impl_sdlrenderer2.cpp
 )
 
+
+# Model viewer with ImGui
+add_executable(model_viewer
+    test/model_viewer.cpp
+    src/osrs/frustrum_cullmap.c
+    src/osrs/tables/textures.c
+    src/osrs/tables/sprites.c
+    src/osrs/blend_underlays.c
+    src/osrs/scene_tile.c
+    src/osrs/palette.c
+    src/osrs/cache.c
+    src/osrs/tables/model.c
+    src/osrs/archive_decompress.c
+    src/osrs/reference_table.c
+    src/osrs/scene.c
+    src/osrs/tables/config_npctype.c
+    src/osrs/tables/config_sequence.c
+    src/osrs/tables/config_floortype.c
+    src/osrs/tables/config_locs.c
+    src/osrs/tables/config_object.c
+    src/osrs/tables/config_idk.c
+    src/osrs/tables/framemap.c
+    src/osrs/tables/frame.c
+    src/osrs/tables/maps.c
+    src/osrs/filelist.c
+    src/osrs/render.c
+    src/osrs/rsbuf.c
+    src/gouraud.c
+    src/gouraud_deob.c
+    src/flat.c
+    src/lighting.c
+    src/projection.c
+    src/texture.c
+    src/osrs/anim.c
+    src/osrs/game_model.c
+    src/osrs/xtea.c
+    src/osrs/archive.c
+    src/osrs/xtea_config.c
+    src/osrs/scene_cache.c
+    src/datastruct/ht.c
+    src/osrs/tables/noise.c
+
+    src/imgui/imgui.cpp
+    src/imgui/imgui_draw.cpp
+    src/imgui/imgui_tables.cpp
+    src/imgui/imgui_widgets.cpp
+    src/imgui/imgui_demo.cpp
+    src/imgui/imgui_impl_sdl2.cpp
+    src/imgui/imgui_impl_sdlrenderer2.cpp
+)
+
 # Fix: Add ASan target properties for scene_tile_test
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test PROPERTIES
@@ -223,19 +274,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(scene_tile_test)
 else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
+    target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
 endif()
 
-# Model viewer with ImGui
-add_executable(model_viewer
-    test/model_viewer.cpp
-    src/imgui/imgui.cpp
-    src/imgui/imgui_draw.cpp
-    src/imgui/imgui_tables.cpp
-    src/imgui/imgui_widgets.cpp
-    src/imgui/imgui_demo.cpp
-    src/imgui/imgui_impl_sdl2.cpp
-    src/imgui/imgui_impl_sdlrenderer2.cpp
-)
 
 # Set C++ standard for model viewer
 set_target_properties(model_viewer PROPERTIES

@@ -79,6 +79,7 @@ struct CacheConfigLocation
     int size_x;
     int size_y;
 
+    // TODO: This is blockwalk.
     int clip_type;
     int blocks_projectiles;
 
@@ -94,7 +95,7 @@ struct CacheConfigLocation
     // This is merge_normals in rs map viewer
     int sharelight;
 
-    int model_clipped;
+    int occlude;
 
     // Animation
     int seq_id;
