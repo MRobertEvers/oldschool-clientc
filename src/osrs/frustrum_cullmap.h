@@ -9,6 +9,7 @@ struct FrustrumCullmap
 };
 
 struct FrustrumCullmap* frustrum_cullmap_new(int radius, int fov_multiplier);
+struct FrustrumCullmap* frustrum_cullmap_new_nocull(int radius);
 
 int
 frustrum_cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw);

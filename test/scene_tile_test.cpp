@@ -1757,7 +1757,7 @@ main()
         }
     }
 
-    game.frustrum_cullmap = frustrum_cullmap_new(30, 131072); // 65536 = 90° FOV
+    game.frustrum_cullmap = frustrum_cullmap_new(40, 131072); // 65536 = 90° FOV
 
     int w_pressed = 0;
     int a_pressed = 0;

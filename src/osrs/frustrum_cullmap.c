@@ -116,6 +116,31 @@ test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
     // return viewportX >= 0 && viewportX <= 1024 && viewportY >= 0 && viewportY <= 768;
 }
 
+static void
+null_cullmap(struct FrustrumCullmap* frustrum_cullmap)
+{
+    // set everything to visible
+    for( int i = 0;
+         i < (frustrum_cullmap->radius * frustrum_cullmap->radius) * 4 * PITCH_STEPS * YAW_STEPS;
+         i++ )
+    {
+        frustrum_cullmap->cullmap[i] = 1;
+    }
+}
+
+struct FrustrumCullmap*
+frustrum_cullmap_new_nocull(int radius)
+{
+    struct FrustrumCullmap* frustrum_cullmap =
+        (struct FrustrumCullmap*)malloc(sizeof(struct FrustrumCullmap));
+    frustrum_cullmap->cullmap =
+        (int*)malloc(((radius * radius) << 2) * sizeof(int) * PITCH_STEPS * YAW_STEPS);
+    frustrum_cullmap->radius = radius;
+
+    null_cullmap(frustrum_cullmap);
+    return frustrum_cullmap;
+}
+
 struct FrustrumCullmap*
 frustrum_cullmap_new(int radius, int fov_multiplier)
 {

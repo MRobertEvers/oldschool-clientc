@@ -988,6 +988,25 @@ raster_gouraud_s4(
 
     // Use hsl from color0 because this is where the vertex attribute scan is starting
     // as we scan across the screen.
+    if( (y2 - y0) >= screen_height )
+    {
+        // This can happen if vertices extremely close to the camera plane, but outside the FOV
+        // are projected. Those vertices need to be culled.
+        return;
+    }
+
+    // TODO: Remove this check for callers that cull correctly.
+    if( (x0 < 0 || x1 < 0 || x2 < 0) &&
+        (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
+    {
+        // This can happen if vertices extremely close to the camera plane, but outside the FOV
+        // are projected. Those vertices need to be culled.
+        return;
+    }
+
+    // skip if the triangle is degenerate
+    if( x0 == x1 && x1 == x2 )
+        return;
 
     int hsl = color0_hsl16;
 

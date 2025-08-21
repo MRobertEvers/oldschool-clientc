@@ -273,10 +273,10 @@ project_vertices_textured(
     /**
      * These checks are a significant performance improvement.
      */
-    if( projected_triangle.z > 3500 )
-    {
-        return 0;
-    }
+    // if( projected_triangle.z > 3500 )
+    // {
+    //     return 0;
+    // }
 
     // int width = screen_width >> 1;
     // int height = screen_height >> 1;
@@ -2419,7 +2419,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     }
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 25;
+    int radius = 30;
     int coord_list_x[4];
     int coord_list_y[4];
     int max_level = 0;
