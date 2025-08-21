@@ -1312,6 +1312,7 @@ model_draw_face(
                     tp_z,
                     tm_z,
                     tn_z,
+                    color_a,
                     texels,
                     128);
             }
@@ -1339,6 +1340,7 @@ model_draw_face(
                     tp_z,
                     tm_z,
                     tn_z,
+                    color_a,
                     texels,
                     128);
             }

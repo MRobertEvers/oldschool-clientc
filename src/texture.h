@@ -78,6 +78,7 @@ void raster_texture_opaque_lerp8(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
+    int shade7bit,
     int* texels,
     int texture_width);
 void raster_texture_transparent_lerp8(
@@ -102,6 +103,7 @@ void raster_texture_transparent_lerp8(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
+    int shade7bit,
     int* texels,
     int texture_width);
 

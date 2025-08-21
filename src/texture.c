@@ -644,6 +644,7 @@ raster_texture_scanline_transparent_lerp8(
     int step_au_dx,
     int step_bv_dx,
     int step_cw_dx,
+    int shade8bit_ish8,
     int* texels,
     int texture_width)
 {
@@ -700,6 +701,8 @@ raster_texture_scanline_transparent_lerp8(
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
 
+    int shade = shade8bit_ish8 >> 8;
+
     do
     {
         if( lerp8_steps == 0 )
@@ -741,7 +744,7 @@ raster_texture_scanline_transparent_lerp8(
             v &= texture_width - 1;
             int texel = texels[u + v * texture_width];
             if( texel != 0 )
-                pixel_buffer[offset] = texel;
+                pixel_buffer[offset] = shade_blend(texel, shade);
 
             u_scan += step_u;
             v_scan += step_v;
@@ -791,7 +794,7 @@ raster_texture_scanline_transparent_lerp8(
         v &= texture_width - 1;
         int texel = texels[u + v * texture_width];
         if( texel != 0 )
-            pixel_buffer[offset] = texel;
+            pixel_buffer[offset] = shade_blend(texel, shade);
 
         u_scan += step_u;
         v_scan += step_v;
@@ -814,6 +817,7 @@ raster_texture_scanline_opaque_lerp8(
     int step_au_dx,
     int step_bv_dx,
     int step_cw_dx,
+    int shade8bit_ish8,
     int* texels,
     int texture_width)
 {
@@ -870,6 +874,8 @@ raster_texture_scanline_opaque_lerp8(
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
 
+    int shade = shade8bit_ish8 >> 8;
+
     do
     {
         if( lerp8_steps == 0 )
@@ -910,7 +916,7 @@ raster_texture_scanline_opaque_lerp8(
             u &= texture_width - 1;
             v &= texture_width - 1;
             int texel = texels[u + v * texture_width];
-            pixel_buffer[offset] = texel;
+            pixel_buffer[offset] = shade_blend(texel, shade);
 
             u_scan += step_u;
             v_scan += step_v;
@@ -959,7 +965,7 @@ raster_texture_scanline_opaque_lerp8(
         u &= texture_width - 1;
         v &= texture_width - 1;
         int texel = texels[u + v * texture_width];
-        pixel_buffer[offset] = texel;
+        pixel_buffer[offset] = shade_blend(texel, shade);
 
         u_scan += step_u;
         v_scan += step_v;
@@ -1781,6 +1787,7 @@ raster_texture_transparent_lerp8(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
+    int shade7bit,
     int* texels,
     int texture_width)
 {
@@ -1929,6 +1936,8 @@ raster_texture_transparent_lerp8(
     long long steps = screen_y1 - screen_y0;
     long long offset = screen_y0 * screen_width;
 
+    int shade = shade7bit << 9;
+
     assert(screen_y0 < screen_height);
 
     while( steps-- > 0 )
@@ -1949,6 +1958,7 @@ raster_texture_transparent_lerp8(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
+            shade,
             texels,
             texture_width);
 
@@ -1998,6 +2008,7 @@ raster_texture_transparent_lerp8(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
+            shade,
             texels,
             texture_width);
 
@@ -2035,6 +2046,7 @@ raster_texture_opaque_lerp8(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
+    int shade7bit,
     int* texels,
     int texture_width)
 {
@@ -2183,6 +2195,8 @@ raster_texture_opaque_lerp8(
     long long steps = screen_y1 - screen_y0;
     long long offset = screen_y0 * screen_width;
 
+    int shade = shade7bit << 9;
+
     assert(screen_y0 < screen_height);
 
     while( steps-- > 0 )
@@ -2203,6 +2217,7 @@ raster_texture_opaque_lerp8(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
+            shade,
             texels,
             texture_width);
 
@@ -2252,6 +2267,7 @@ raster_texture_opaque_lerp8(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
+            shade,
             texels,
             texture_width);
 
