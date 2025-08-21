@@ -1687,7 +1687,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     // TODO: Remove
     {
-        int const abyssal_whip = 4151;
+        // int const abyssal_whip = 4151;
+        // Infernal cape
+        int const abyssal_whip = 21295;
         struct CacheConfigObject* object =
             config_object_table_get_new(config_object_table, abyssal_whip);
         if( object )
