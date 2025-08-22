@@ -1,6 +1,7 @@
 #ifndef OSRS_RENDER_H
 #define OSRS_RENDER_H
 
+#include "bounds_cylinder.h"
 #include "lighting.h"
 
 #include <stdbool.h>
@@ -62,6 +63,7 @@ void render_model_frame(
     int fov,
     struct CacheModel* model,
     struct ModelLighting* lighting,
+    struct BoundsCylinder* bounds_cylinder,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable,

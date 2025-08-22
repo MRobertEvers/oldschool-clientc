@@ -565,6 +565,16 @@ render_scene_model(
     int y = camera_y + model->region_z;
     int z = camera_z + model->region_height;
 
+    if( !model->bounds_cylinder )
+    {
+        model->bounds_cylinder = (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
+        *model->bounds_cylinder = calculate_bounds_cylinder(
+            model->model->vertex_count,
+            model->model->vertices_x,
+            model->model->vertices_y,
+            model->model->vertices_z);
+    }
+
     // if( model->mirrored )
     // {
     //     yaw += 1024;
@@ -601,6 +611,7 @@ render_scene_model(
         fov,
         model->model,
         model->lighting,
+        model->bounds_cylinder,
         NULL,
         NULL,
         NULL,

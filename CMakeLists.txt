@@ -13,7 +13,7 @@ endif()
 
 # Fix: Use C flags instead of C++ flags for C project
 set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_C_FLAGS_DEBUG "-g  -fsanitize=address -fno-omit-frame-pointer")
+set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 
 # Remove duplicate C flags section
@@ -126,6 +126,7 @@ endif()
 add_executable(scene_tile_test
     test/scene_tile_test.cpp
     src/osrs/frustrum_cullmap.c
+    src/osrs/bounds_cylinder.c
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c
@@ -177,6 +178,7 @@ add_executable(scene_tile_test
 add_executable(model_viewer
     test/model_viewer.cpp
     src/osrs/frustrum_cullmap.c
+    src/osrs/bounds_cylinder.c
     src/osrs/tables/textures.c
     src/osrs/tables/sprites.c
     src/osrs/blend_underlays.c

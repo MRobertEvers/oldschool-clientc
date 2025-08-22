@@ -1707,6 +1707,7 @@ render_model_frame(
     int fov,
     struct CacheModel* model,
     struct ModelLighting* lighting,
+    struct BoundsCylinder* bounds_cylinder,
     struct CacheModelBones* bones_nullable,
     struct Frame* frame_nullable,
     struct Framemap* framemap_nullable,
@@ -1731,10 +1732,7 @@ render_model_frame(
     // int* orthographic_vertices_y = tmp_orthographic_vertices_y;
     // int* orthographic_vertices_z = tmp_orthographic_vertices_z;
 
-    struct BoundingCylinder bounding_cylinder = calculate_bounding_cylinder(
-        model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
-
-    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
+    int model_min_depth = bounds_cylinder->min_z_depth_any_rotation;
 
     memset(tmp_depth_face_count, 0, (model_min_depth * 2 + 1) * sizeof(tmp_depth_face_count[0]));
 
@@ -2235,7 +2233,6 @@ render_scene_model(
     struct SceneModel* model,
     struct TexturesCache* textures_cache)
 {
-    return;
     int x = camera_x + model->region_x;
     int y = camera_y + model->region_z;
     int z = camera_z + model->region_height;
@@ -2280,6 +2277,7 @@ render_scene_model(
         fov,
         model->model,
         model->lighting,
+        model->bounds_cylinder,
         NULL,
         NULL,
         NULL,
@@ -2422,7 +2420,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     int radius = 30;
     int coord_list_x[4];
     int coord_list_y[4];
-    int max_level = 0;
+    int max_level = 4;
 
     int coord_list_length = 0;
 
@@ -2520,6 +2518,17 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             element->generation = gen++;
             element->q_count--;
 
+            // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
+            // Dane discovered this also.
+            // The issue turned out to be...a nuance of the DoublyLinkedList and Node
+            // implementations. In 317 anything that extends Node will be automatically unlinked
+            // from a list when inserted into a list, even if it's already in that same list. I had
+            // overlooked this and used a standard FIFO list in my scene tile queue. This meant that
+            // tiles which were supposed to move in the render queue were actually just occupying >1
+            // spot in the list.
+            // It's also not a very standard way to implement doubly linked lists.. but it does save
+            // allocations since now the next/prev is built into the tile. luckily the solution is
+            // super simple. Add the next and prev fields to the Tile struct and use this queue:
             if( element->q_count > 0 )
                 continue;
 

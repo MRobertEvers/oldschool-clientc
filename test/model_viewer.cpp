@@ -625,12 +625,12 @@ m_draw_face(struct SceneModel* model, int face_index)
 static void
 m_paint(struct SceneModel* model)
 {
-    struct BoundingCylinder* bounding_cylinder = (struct BoundingCylinder*)model->bounding_cylinder;
+    struct BoundsCylinder* bounds_cylinder = model->bounds_cylinder;
 
-    if( bounding_cylinder->min_z_depth_any_rotation > 1600 )
+    if( bounds_cylinder->min_z_depth_any_rotation > 1600 )
         return;
 
-    int max_depth = bounding_cylinder->min_z_depth_any_rotation * 2 + 1;
+    int max_depth = bounds_cylinder->min_z_depth_any_rotation * 2 + 1;
     memset(_Pix3D.depth_to_face_count, 0, max_depth * sizeof(_Pix3D.depth_to_face_count[0]));
 
     for( int face_index = 0; face_index < model->model->face_count; face_index++ )
@@ -650,7 +650,7 @@ m_paint(struct SceneModel* model)
             (_Pix3D.screen_vertices_z[vertex_a_index] + _Pix3D.screen_vertices_z[vertex_b_index] +
              _Pix3D.screen_vertices_z[vertex_c_index]) /
                 3 +
-            bounding_cylinder->min_z_depth_any_rotation;
+            bounds_cylinder->min_z_depth_any_rotation;
 
         if( depth < 0 || depth >= max_depth )
             continue;
@@ -690,19 +690,17 @@ m_draw(
     int scene_y,
     int scene_z)
 {
-    struct BoundingCylinder* bounding_cylinder;
-    if( !model->bounding_cylinder )
+    if( !model->bounds_cylinder )
     {
-        bounding_cylinder = (struct BoundingCylinder*)malloc(sizeof(struct BoundingCylinder));
-        *bounding_cylinder = calculate_bounding_cylinder(
+        model->bounds_cylinder = (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
+        *model->bounds_cylinder = calculate_bounds_cylinder(
             model->model->vertex_count,
             model->model->vertices_x,
             model->model->vertices_y,
             model->model->vertices_z);
-        model->bounding_cylinder = bounding_cylinder;
     }
 
-    bounding_cylinder = (struct BoundingCylinder*)model->bounding_cylinder;
+    struct BoundsCylinder* bounds_cylinder = model->bounds_cylinder;
 
     int pitch_sin = g_sin_table[pitch];
     int pitch_cos = g_cos_table[pitch];
@@ -714,18 +712,18 @@ m_draw(
     int z_center_projected_pitch_yaw = pitch_sin * scene_y + pitch_cos * z_center_projected_yaw;
     z_center_projected_pitch_yaw >>= 16;
 
-    int cylinder_radius_projected = bounding_cylinder->radius * pitch_cos >> 16;
+    int cylinder_radius_projected = bounds_cylinder->radius * pitch_cos >> 16;
     int distance_to_camera = cylinder_radius_projected + z_center_projected_pitch_yaw;
     if( distance_to_camera < 50 || z_center_projected_pitch_yaw > 3500 )
         return;
 
     // Only check left and right yaw to see if offscreen
     int x_center_projected_yaw = (yaw_sin * scene_z + yaw_cos * scene_x) >> 16;
-    int x_center_screen_min = (x_center_projected_yaw - bounding_cylinder->radius) << 9;
+    int x_center_screen_min = (x_center_projected_yaw - bounds_cylinder->radius) << 9;
     if( x_center_screen_min / distance_to_camera >= _Pix3D.center_x )
         return;
 
-    int x_center_screen_max = (x_center_projected_yaw + bounding_cylinder->radius) << 9;
+    int x_center_screen_max = (x_center_projected_yaw + bounds_cylinder->radius) << 9;
     if( x_center_screen_max / distance_to_camera <= -_Pix3D.center_x )
         return;
 
@@ -842,6 +840,16 @@ render_scene_model(
     int y = camera_y + model->region_z;
     int z = camera_z + model->region_height;
 
+    if( !model->bounds_cylinder )
+    {
+        model->bounds_cylinder = (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
+        *model->bounds_cylinder = calculate_bounds_cylinder(
+            model->model->vertex_count,
+            model->model->vertices_x,
+            model->model->vertices_y,
+            model->model->vertices_z);
+    }
+
     // if( model->mirrored )
     // {
     //     yaw += 1024;
@@ -878,6 +886,7 @@ render_scene_model(
         fov,
         model->model,
         model->lighting,
+        model->bounds_cylinder,
         NULL,
         NULL,
         NULL,

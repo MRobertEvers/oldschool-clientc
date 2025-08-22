@@ -2056,6 +2056,12 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                     other_model = adjacent_sharelight_models[k];
                     assert(other_model->sharelight);
 
+                    // If the other loc is a wall, treat it as if it is one off.
+                    if( model->_chunk_pos_x == 48 && model->_chunk_pos_y == 10 )
+                    {
+                        int iii = 0;
+                    }
+
                     int check_offset_x = (other_model->_chunk_pos_x - model->_chunk_pos_x) * 128 +
                                          (other_model->_size_x - model->_size_x) * 64;
                     int check_offset_y = (other_model->_chunk_pos_y - model->_chunk_pos_y) * 128 +
@@ -2102,10 +2108,18 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         int lightsrc_y = -10;
         int lightsrc_z = -50;
 
-        light_ambient += model->light_ambient;
-        // 2004Scape multiplies contrast by 5.
-        // Later versions do not.
-        light_attenuation += model->light_contrast;
+        {
+            light_ambient += model->light_ambient;
+            // 2004Scape multiplies contrast by 5.
+            // Later versions do not.
+            light_attenuation += model->light_contrast;
+        }
+
+        if( model->_chunk_pos_x == 48 && model->_chunk_pos_y == 10 &&
+            model->model->face_count == 10 )
+        {
+            int iii = 0;
+        }
 
         int light_magnitude =
             (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);

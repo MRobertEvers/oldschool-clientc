@@ -877,3 +877,7 @@ Mouse Click Red: 299 4-7
 ## Face Alphas
 
 It appears that if a model has an animation, but no face alphas, then face alphas are all assumed to be "0" (opaque), this is so the animation can add transparency.
+
+### Performance
+
+Dane's client also gets about 10ms per scene draw.
