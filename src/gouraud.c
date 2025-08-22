@@ -37,83 +37,6 @@ interpolate_color_rgba_ish16(int color1, int color2, int t_ish16)
     return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
-struct ScanLine
-{
-    int y;
-    int x_start;
-    int x_end;
-    int color_start;
-    int color_end;
-};
-
-static struct ScanLine
-raster_gouraud_2(
-    int* pixel_buffer,
-    int screen_width,
-    int screen_height,
-    int index,
-    int x0,
-    int x1,
-    int x2,
-    int y0,
-    int y1,
-    int y2,
-    int color0,
-    int color1,
-    int color2)
-{
-    int i = index;
-    struct ScanLine scanline = { 0 };
-
-    /*
-     *          /\      y2
-     *         /  \
-     *        /    \    y1 (second_half = true above)
-     *       /   /
-     *      / /  y0 (second_half = false)
-     */
-    int total_height = y2 - y0;
-    bool second_half = i > (y1 - y0) || y1 == y0;
-    int segment_height = second_half ? y2 - y1 : y1 - y0;
-    if( segment_height == 0 )
-        return scanline;
-
-    int alpha_ish16 = (i << 16) / total_height;
-    int beta_ish16 = ((i - (second_half ? y1 - y0 : 0)) << 16) / segment_height;
-
-    int ax = interpolate_ish16(x0, x2, alpha_ish16);
-    int bx =
-        second_half ? interpolate_ish16(x1, x2, beta_ish16) : interpolate_ish16(x0, x1, beta_ish16);
-
-    int acolor = interpolate_color_rgba_ish16(color0, color2, alpha_ish16);
-    int bcolor = second_half ? interpolate_color_rgba_ish16(color1, color2, beta_ish16)
-                             : interpolate_color_rgba_ish16(color0, color1, beta_ish16);
-
-    int y = y0 + i;
-    if( y >= 0 && y < screen_height )
-    {
-        if( ax < 0 )
-            ax = 0;
-        if( ax >= screen_width )
-            ax = screen_width - 1;
-
-        if( bx < 0 )
-            bx = 0;
-        if( bx >= screen_width )
-            bx = screen_width - 1;
-
-        scanline.y = y;
-        scanline.x_start = ax;
-        scanline.x_end = bx;
-        scanline.color_start = acolor;
-        scanline.color_end = bcolor;
-
-        return scanline;
-    }
-
-    return scanline;
-}
-
 /**
  * @brief Requires caller to clamp y value to screen.
  *
@@ -474,52 +397,6 @@ raster_gouraud_zbuf(
 
         edge_color_AC_ish15 += step_edge_color_AC_ish15;
         edge_color_BC_ish15 += step_edge_color_BC_ish15;
-    }
-}
-
-void
-draw_scanline_gouraud_lerp(
-    int* pixel_buffer,
-    int stride_width,
-    int y,
-    int x_start,
-    int x_end,
-    int color_start,
-    int color_end)
-{
-    if( x_start == x_end )
-        return;
-    if( x_start > x_end )
-    {
-        int tmp;
-        tmp = x_start;
-        x_start = x_end;
-        x_end = tmp;
-        tmp = color_start;
-        color_start = color_end;
-        color_end = tmp;
-    }
-
-    int dx_stride = x_end - x_start;
-    for( int x = x_start; x <= x_end; ++x )
-    {
-        int t_sh16 = dx_stride == 0 ? 0 : ((x - x_start) << 16) / dx_stride;
-
-        int r = interpolate_ish16((color_start >> 16) & 0xFF, (color_end >> 16) & 0xFF, t_sh16);
-        int g = interpolate_ish16((color_start >> 8) & 0xFF, (color_end >> 8) & 0xFF, t_sh16);
-        int b = interpolate_ish16(color_start & 0xFF, color_end & 0xFF, t_sh16);
-        int a = 0xFF; // Alpha value
-
-        int alpha = a;
-        int inv_alpha = 0xFF - alpha;
-
-        int r_blend = (r * alpha + inv_alpha * r) >> 8;
-        int g_blend = (g * alpha + inv_alpha * g) >> 8;
-        int b_blend = (b * alpha + inv_alpha * b) >> 8;
-
-        int color = (a << 24) | (r_blend << 16) | (g_blend << 8) | b_blend;
-
-        pixel_buffer[y * stride_width + x] = color;
     }
 }
 
@@ -987,25 +864,28 @@ raster_gouraud_s4(
         color1_hsl16 = temp;
     }
 
-    if( (y2 - y0) >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
+    /**
+     * If tiles that are culled far outside the FOV, then this is not needed.
+     */
+    // if( (y2 - y0) >= screen_height )
+    // {
+    //     // This can happen if vertices extremely close to the camera plane, but outside the FOV
+    //     // are projected. Those vertices need to be culled.
+    //     return;
+    // }
 
-    // TODO: Remove this check for callers that cull correctly.
-    if( (x0 < 0 || x1 < 0 || x2 < 0) &&
-        (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
+    // // TODO: Remove this check for callers that cull correctly.
+    // if( (x0 < 0 || x1 < 0 || x2 < 0) &&
+    //     (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
+    // {
+    //     // This can happen if vertices extremely close to the camera plane, but outside the FOV
+    //     // are projected. Those vertices need to be culled.
+    //     return;
+    // }
 
-    // skip if the triangle is degenerate
-    if( x0 == x1 && x1 == x2 )
-        return;
+    // // skip if the triangle is degenerate
+    // if( x0 == x1 && x1 == x2 )
+    //     return;
 
     // Use hsl from color0 because this is where the vertex attribute scan is starting
     // as we scan across the screen.
@@ -1111,135 +991,5 @@ raster_gouraud_s4(
 
         hsl += color_step_y;
         offset += screen_width;
-    }
-}
-
-void
-raster_gouraud_lerp(
-    int* pixel_buffer,
-    int screen_width,
-    int screen_height,
-    int x0,
-    int x1,
-    int x2,
-    int y0,
-    int y1,
-    int y2,
-    int color0,
-    int color1,
-    int color2)
-{
-    // Sort vertices by y
-    // where y0 is the bottom vertex and y2 is the top vertex
-    if( y0 > y1 )
-    {
-        int temp = y0;
-        y0 = y1;
-        y1 = temp;
-
-        temp = x0;
-        x0 = x1;
-        x1 = temp;
-
-        temp = color0;
-        color0 = color1;
-        color1 = temp;
-    }
-
-    if( y1 > y2 )
-    {
-        int temp = y1;
-        y1 = y2;
-        y2 = temp;
-
-        temp = x1;
-        x1 = x2;
-        x2 = temp;
-
-        temp = color1;
-        color1 = color2;
-        color2 = temp;
-    }
-
-    if( y0 > y1 )
-    {
-        int temp = y0;
-        y0 = y1;
-        y1 = temp;
-
-        temp = x0;
-        x0 = x1;
-        x1 = temp;
-
-        temp = color0;
-        color0 = color1;
-        color1 = temp;
-    }
-
-    int total_height = y2 - y0;
-    if( total_height == 0 )
-        return;
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (x0 < 0 || x1 < 0 || x2 < 0) &&
-        (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // skip if the triangle is degenerate
-    if( x0 == x1 && x1 == x2 )
-        return;
-
-    for( int i = 0; i < total_height; ++i )
-    {
-        /*
-         *          /\      y2
-         *         /  \
-         *        /    \    y1 (second_half = true above)
-         *       /   /
-         *      / /  y0 (second_half = false)
-         */
-        bool second_half = i > (y1 - y0) || y1 == y0;
-        int segment_height = second_half ? y2 - y1 : y1 - y0;
-        if( segment_height == 0 )
-            continue;
-
-        int alpha_ish16 = (i << 16) / total_height;
-        int beta_ish16 = ((i - (second_half ? y1 - y0 : 0)) << 16) / segment_height;
-
-        int ax = interpolate_ish16(x0, x2, alpha_ish16);
-        int bx = second_half ? interpolate_ish16(x1, x2, beta_ish16)
-                             : interpolate_ish16(x0, x1, beta_ish16);
-
-        int acolor = interpolate_color_rgba_ish16(color0, color2, alpha_ish16);
-        int bcolor = second_half ? interpolate_color_rgba_ish16(color1, color2, beta_ish16)
-                                 : interpolate_color_rgba_ish16(color0, color1, beta_ish16);
-
-        int y = y0 + i;
-        if( y >= 0 && y < screen_height )
-        {
-            if( ax < 0 )
-                ax = 0;
-            if( ax >= screen_width )
-                ax = screen_width - 1;
-
-            if( bx < 0 )
-                bx = 0;
-            if( bx >= screen_width )
-                bx = screen_width - 1;
-
-            draw_scanline_gouraud_lerp(pixel_buffer, screen_width, y, ax, bx, acolor, bcolor);
-        }
     }
 }

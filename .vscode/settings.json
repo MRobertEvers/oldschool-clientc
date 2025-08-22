@@ -73,6 +73,7 @@
         "lighting.h": "c",
         "scene_cache.h": "c",
         "filelist.h": "c",
-        "gouraud_deob.h": "c"
+        "gouraud_deob.h": "c",
+        "cstring": "c"
     }
 }
