@@ -2420,7 +2420,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     int radius = 30;
     int coord_list_x[4];
     int coord_list_y[4];
-    int max_level = 4;
+    int max_level = 0;
 
     int coord_list_length = 0;
 

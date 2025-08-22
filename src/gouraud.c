@@ -539,7 +539,6 @@ draw_scanline_gouraud_s4(
         x_start = x_end;
         x_end = tmp;
     }
-    int dx_stride = x_end - x_start;
 
     if( x_start < 0 )
         x_start = 0;
@@ -548,10 +547,12 @@ draw_scanline_gouraud_s4(
     if( x_start >= x_end )
         return;
 
+    int dx_stride = x_end - x_start;
+
     // Steps by 4.
     offset += x_start;
 
-    int steps = (x_end - x_start) >> 2;
+    int steps = dx_stride >> 2;
 
     hsl += hsl_step * x_start;
 
@@ -569,7 +570,7 @@ draw_scanline_gouraud_s4(
         hsl += hsl_step;
     }
 
-    steps = (x_end - x_start) & 0x3;
+    steps = dx_stride & 0x3;
     rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
     while( --steps >= 0 )
         pixel_buffer[offset++] = rgb_color;
@@ -986,8 +987,6 @@ raster_gouraud_s4(
         color1_hsl16 = temp;
     }
 
-    // Use hsl from color0 because this is where the vertex attribute scan is starting
-    // as we scan across the screen.
     if( (y2 - y0) >= screen_height )
     {
         // This can happen if vertices extremely close to the camera plane, but outside the FOV
@@ -1008,6 +1007,8 @@ raster_gouraud_s4(
     if( x0 == x1 && x1 == x2 )
         return;
 
+    // Use hsl from color0 because this is where the vertex attribute scan is starting
+    // as we scan across the screen.
     int hsl = color0_hsl16;
 
     int dx_AC = x2 - x0;
