@@ -1,8 +1,8 @@
 #include "scene.h"
 
 #include "filelist.h"
-#include "game_model.h"
 #include "lighting.h"
+#include "model_transforms.h"
 #include "tables/config_idk.h"
 #include "tables/config_locs.h"
 #include "tables/config_object.h"

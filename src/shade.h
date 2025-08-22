@@ -6,7 +6,7 @@
 /**
  * This is a cute way to alpha blend two rgb colors.
  *
- * Since alpha is 0-0xFF, then alpha * 0xFF < 0x10000,
+ * Since alpha is 0-0xFF, then (alpha * 0xFF) < 0x10000 i.e. (0 to 0xFFFF, 0xFF^2),
  * so we can multiply the r,b components (0xFF00FF) and the result of the multiplcation
  * for r,b will be 0xRRRRBBBB, so we can shift and mask.
  *
