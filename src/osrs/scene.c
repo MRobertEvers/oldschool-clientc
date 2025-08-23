@@ -17,6 +17,69 @@
 
 #define TILE_SIZE 128
 
+static struct ModelNormals*
+model_normals_new(int vertex_count, int face_count)
+{
+    struct ModelNormals* normals = malloc(sizeof(struct ModelNormals));
+    memset(normals, 0, sizeof(struct ModelNormals));
+
+    normals->lighting_vertex_normals = malloc(sizeof(struct LightingNormal) * vertex_count);
+    memset(normals->lighting_vertex_normals, 0, sizeof(struct LightingNormal) * vertex_count);
+
+    normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
+    memset(normals->lighting_face_normals, 0, sizeof(struct LightingNormal) * face_count);
+
+    normals->lighting_vertex_normals_count = vertex_count;
+    normals->lighting_face_normals_count = face_count;
+
+    return normals;
+}
+
+static struct ModelNormals*
+model_normals_new_copy(struct ModelNormals* normals)
+{
+    struct ModelNormals* aliased_normals = malloc(sizeof(struct ModelNormals));
+    memset(aliased_normals, 0, sizeof(struct ModelNormals));
+
+    int vertex_count = normals->lighting_vertex_normals_count;
+    int face_count = normals->lighting_face_normals_count;
+
+    aliased_normals->lighting_vertex_normals = malloc(sizeof(struct LightingNormal) * vertex_count);
+    memcpy(
+        aliased_normals->lighting_vertex_normals,
+        normals->lighting_vertex_normals,
+        sizeof(struct LightingNormal) * vertex_count);
+
+    aliased_normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
+    memcpy(
+        aliased_normals->lighting_face_normals,
+        normals->lighting_face_normals,
+        sizeof(struct LightingNormal) * face_count);
+
+    aliased_normals->lighting_vertex_normals_count = vertex_count;
+    aliased_normals->lighting_face_normals_count = face_count;
+
+    return aliased_normals;
+}
+
+static struct ModelLighting*
+model_lighting_new(int face_count)
+{
+    struct ModelLighting* lighting = malloc(sizeof(struct ModelLighting));
+    memset(lighting, 0, sizeof(struct ModelLighting));
+
+    lighting->face_colors_hsl_a = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_a, 0, sizeof(int) * face_count);
+
+    lighting->face_colors_hsl_b = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_b, 0, sizeof(int) * face_count);
+
+    lighting->face_colors_hsl_c = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_c, 0, sizeof(int) * face_count);
+
+    return lighting;
+}
+
 static void
 init_wall_default(struct Wall* wall)
 {
@@ -801,7 +864,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct CacheMapLoc* map = NULL;
     struct Loc* loc = NULL;
     struct Loc* other_loc = NULL;
-    struct SceneModel* model = NULL;
+    struct SceneModel* scene_model = NULL;
     struct SceneModel* other_model = NULL;
     struct CacheMapLocsIter* iter = NULL;
     struct CacheConfigLocation* loc_config = NULL;
@@ -891,7 +954,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     while( (map = map_locs_iter_next(iter)) )
     {
-        model = NULL;
+        scene_model = NULL;
         other_model = NULL;
 
         int tile_x = map->chunk_pos_x;
@@ -930,9 +993,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             // Load model
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -944,7 +1007,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1030,9 +1093,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_WALL_TRI_CORNER:
         {
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1044,7 +1107,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1103,9 +1166,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
             // Load model
             int model_a_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1117,12 +1180,12 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             int model_b_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1134,7 +1197,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1178,9 +1241,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_WALL_RECT_CORNER:
         {
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1192,7 +1255,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1209,7 +1272,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             int orientation = map->orientation;
             loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[orientation];
 
-            assert(model->model_id != 0);
+            assert(scene_model->model_id != 0);
             grid_tile->wall = loc_index;
 
             if( loc_config->shadowed )
@@ -1251,9 +1314,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_WALL_DECOR_NOOFFSET:
         {
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1265,7 +1328,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1284,9 +1347,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_WALL_DECOR_OFFSET:
         {
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1298,7 +1361,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Default offset is 16.
             int offset = 16;
@@ -1312,7 +1375,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             }
 
             calculate_wall_decor_offset(
-                model, map->orientation, offset, false // diagonal
+                scene_model, map->orientation, offset, false // diagonal
             );
 
             // Add the loc
@@ -1332,9 +1395,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
         {
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1345,9 +1408,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_se,
                 height_ne,
                 height_nw);
-            model->yaw += 256;
+            scene_model->yaw += 256;
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // TODO: Get this from the wall offset??
             // This needs to be taken from the wall offset.
@@ -1355,7 +1418,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Walls in al kharid are 8 thick.
             int offset = 45;
             calculate_wall_decor_offset(
-                model, map->orientation, offset, true // diagonal
+                scene_model, map->orientation, offset, true // diagonal
             );
 
             // Add the loc
@@ -1378,9 +1441,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
         {
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1392,11 +1455,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             int offset = 45;
             calculate_wall_decor_offset(
-                model, map->orientation, offset, true // diagonal
+                scene_model, map->orientation, offset, true // diagonal
             );
 
             // Add the loc
@@ -1422,9 +1485,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             int inside_orientation = (map->orientation + 2) & 0x3;
 
             int model_index_a = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1436,8 +1499,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
-            model->yaw += 256;
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
+            scene_model->yaw += 256;
 
             // TODO: Get this from the wall offset??
             // This needs to be taken from the wall offset.
@@ -1445,13 +1508,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // Walls in al kharid are 8 thick.
             int offset = 53;
             calculate_wall_decor_offset(
-                model, outside_orientation, offset, true // diagonal
+                scene_model, outside_orientation, offset, true // diagonal
             );
 
             int model_index_b = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1463,13 +1526,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
-            model->yaw += 256;
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
+            scene_model->yaw += 256;
 
             // TODO: Get this from the wall offset??
             offset = 45;
             calculate_wall_decor_offset(
-                model, inside_orientation, offset, true // diagonal
+                scene_model, inside_orientation, offset, true // diagonal
             );
 
             // Add the loc
@@ -1493,9 +1556,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_WALL_DIAGONAL:
         {
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1507,7 +1570,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1530,9 +1593,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             // Load model
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1553,9 +1616,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 size_y = temp;
             }
 
-            init_scene_model_wxh(model, tile_x, tile_y, height_center, size_x, size_y);
+            init_scene_model_wxh(scene_model, tile_x, tile_y, height_center, size_x, size_y);
             if( map->shape_select == LOC_SHAPE_SCENERY_DIAGIONAL )
-                model->yaw += 256;
+                scene_model->yaw += 256;
 
             // Add the loc
 
@@ -1606,9 +1669,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
         {
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1620,7 +1683,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1638,9 +1701,9 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             // Load model
             int model_index = vec_model_push(scene);
-            model = vec_model_back(scene);
+            scene_model = vec_model_back(scene);
             loc_load_model(
-                model,
+                scene_model,
                 loc_config,
                 cache,
                 model_cache,
@@ -1652,7 +1715,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_ne,
                 height_nw);
 
-            init_scene_model_1x1(model, tile_x, tile_y, height_center);
+            init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
             int loc_index = vec_loc_push(scene);
@@ -1704,7 +1767,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         init_loc_1x1(loc, abyssal_tile_x, abyssal_tile_y, 0);
 
         int model_index = vec_model_push(scene);
-        model = vec_model_back(scene);
+        scene_model = vec_model_back(scene);
 
         struct CacheModel* abyssal_model =
             model_cache_checkout(model_cache, cache, object->inventory_model_id);
@@ -1715,12 +1778,12 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         }
 
         abyssal_model = model_new_copy(abyssal_model);
-        model->model = abyssal_model;
-        model->model_id = abyssal_model->_id;
-        init_scene_model_1x1(model, abyssal_tile_x, abyssal_tile_y, p1x1_height_center);
+        scene_model->model = abyssal_model;
+        scene_model->model_id = abyssal_model->_id;
+        init_scene_model_1x1(scene_model, abyssal_tile_x, abyssal_tile_y, p1x1_height_center);
 
-        model->light_ambient = object->ambient;
-        model->light_contrast = object->contrast;
+        scene_model->light_ambient = object->ambient;
+        scene_model->light_contrast = object->contrast;
 
         loc->type = LOC_TYPE_GROUND_OBJECT;
         loc->_ground_object.model = model_index;
@@ -1936,31 +1999,15 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     for( int i = 0; i < scene->models_length; i++ )
     {
-        struct SceneModel* model = &scene->models[i];
+        scene_model = &scene->models[i];
 
-        if( model->model == NULL )
+        if( scene_model->model == NULL )
             continue;
 
-        struct CacheModel* cache_model = model->model;
+        struct CacheModel* cache_model = scene_model->model;
 
-        struct ModelNormals* normals = malloc(sizeof(struct ModelNormals));
-        memset(normals, 0, sizeof(struct ModelNormals));
-
-        normals->lighting_vertex_normals =
-            malloc(sizeof(struct LightingNormal) * cache_model->vertex_count);
-        memset(
-            normals->lighting_vertex_normals,
-            0,
-            sizeof(struct LightingNormal) * cache_model->vertex_count);
-        normals->lighting_face_normals =
-            malloc(sizeof(struct LightingNormal) * cache_model->face_count);
-        memset(
-            normals->lighting_face_normals,
-            0,
-            sizeof(struct LightingNormal) * cache_model->face_count);
-
-        normals->lighting_vertex_normals_count = cache_model->vertex_count;
-        normals->lighting_face_normals_count = cache_model->face_count;
+        struct ModelNormals* normals =
+            model_normals_new(cache_model->vertex_count, cache_model->face_count);
 
         calculate_vertex_normals(
             normals->lighting_vertex_normals,
@@ -1974,29 +2021,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             cache_model->vertices_z,
             cache_model->face_count);
 
-        model->normals = normals;
+        scene_model->normals = normals;
 
-        if( model->sharelight )
-        {
-            struct ModelNormals* aliased_normals = malloc(sizeof(struct ModelNormals));
-            memset(aliased_normals, 0, sizeof(struct ModelNormals));
-
-            aliased_normals->lighting_vertex_normals =
-                malloc(sizeof(struct LightingNormal) * cache_model->vertex_count);
-            memcpy(
-                aliased_normals->lighting_vertex_normals,
-                normals->lighting_vertex_normals,
-                sizeof(struct LightingNormal) * cache_model->vertex_count);
-
-            aliased_normals->lighting_face_normals =
-                malloc(sizeof(struct LightingNormal) * cache_model->face_count);
-            memcpy(
-                aliased_normals->lighting_face_normals,
-                normals->lighting_face_normals,
-                sizeof(struct LightingNormal) * cache_model->face_count);
-
-            model->aliased_lighting_normals = aliased_normals;
-        }
+        // Make a copy of the normals so sharelight can mutate them.
+        if( scene_model->sharelight )
+            scene_model->aliased_lighting_normals = model_normals_new_copy(normals);
     }
 
     struct IterGrid iter_grid = iter_grid_init(0, 0, 0);
@@ -2025,8 +2054,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
         for( int i = 0; i < sharelight_models_count; i++ )
         {
-            model = sharelight_models[i];
-            assert(model->sharelight);
+            scene_model = sharelight_models[i];
+            assert(scene_model->sharelight);
 
             int adjacent_tiles_count = gather_adjacent_tiles(
                 adjacent_tiles,
@@ -2035,8 +2064,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 iter_grid.x,
                 iter_grid.y,
                 iter_grid.level,
-                model->_size_x,
-                model->_size_y);
+                scene_model->_size_x,
+                scene_model->_size_y);
 
             for( int j = 0; j < adjacent_tiles_count; j++ )
             {
@@ -2057,21 +2086,24 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                     assert(other_model->sharelight);
 
                     // If the other loc is a wall, treat it as if it is one off.
-                    if( model->_chunk_pos_x == 48 && model->_chunk_pos_y == 10 )
+                    if( scene_model->_chunk_pos_x == 48 && scene_model->_chunk_pos_y == 10 )
                     {
                         int iii = 0;
                     }
 
-                    int check_offset_x = (other_model->_chunk_pos_x - model->_chunk_pos_x) * 128 +
-                                         (other_model->_size_x - model->_size_x) * 64;
-                    int check_offset_y = (other_model->_chunk_pos_y - model->_chunk_pos_y) * 128 +
-                                         (other_model->_size_y - model->_size_y) * 64;
-                    int check_offset_level = other_model->region_height - model->region_height;
+                    int check_offset_x =
+                        (other_model->_chunk_pos_x - scene_model->_chunk_pos_x) * 128 +
+                        (other_model->_size_x - scene_model->_size_x) * 64;
+                    int check_offset_y =
+                        (other_model->_chunk_pos_y - scene_model->_chunk_pos_y) * 128 +
+                        (other_model->_size_y - scene_model->_size_y) * 64;
+                    int check_offset_level =
+                        other_model->region_height - scene_model->region_height;
 
                     merge_normals(
-                        model->model,
-                        model->normals->lighting_vertex_normals,
-                        model->aliased_lighting_normals->lighting_vertex_normals,
+                        scene_model->model,
+                        scene_model->normals->lighting_vertex_normals,
+                        scene_model->aliased_lighting_normals->lighting_vertex_normals,
                         other_model->model,
                         other_model->normals->lighting_vertex_normals,
                         other_model->aliased_lighting_normals->lighting_vertex_normals,
@@ -2087,20 +2119,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     for( int i = 0; i < scene->models_length; i++ )
     {
-        struct SceneModel* model = &scene->models[i];
-        if( model->model == NULL )
+        struct SceneModel* scene_model = &scene->models[i];
+        if( scene_model->model == NULL )
             continue;
 
-        struct ModelLighting* lighting = malloc(sizeof(struct ModelLighting));
-        memset(lighting, 0, sizeof(struct ModelLighting));
-        lighting->face_colors_hsl_a = malloc(sizeof(int) * model->model->face_count);
-        memset(lighting->face_colors_hsl_a, 0, sizeof(int) * model->model->face_count);
-        lighting->face_colors_hsl_b = malloc(sizeof(int) * model->model->face_count);
-        memset(lighting->face_colors_hsl_b, 0, sizeof(int) * model->model->face_count);
-        lighting->face_colors_hsl_c = malloc(sizeof(int) * model->model->face_count);
-        memset(lighting->face_colors_hsl_c, 0, sizeof(int) * model->model->face_count);
+        struct ModelLighting* lighting = model_lighting_new(scene_model->model->face_count);
 
-        model->lighting = lighting;
+        scene_model->lighting = lighting;
 
         int light_ambient = 64;
         int light_attenuation = 768;
@@ -2109,14 +2134,14 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         int lightsrc_z = -50;
 
         {
-            light_ambient += model->light_ambient;
+            light_ambient += scene_model->light_ambient;
             // 2004Scape multiplies contrast by 5.
             // Later versions do not.
-            light_attenuation += model->light_contrast;
+            light_attenuation += scene_model->light_contrast;
         }
 
-        if( model->_chunk_pos_x == 48 && model->_chunk_pos_y == 10 &&
-            model->model->face_count == 10 )
+        if( scene_model->_chunk_pos_x == 48 && scene_model->_chunk_pos_y == 10 &&
+            scene_model->model->face_count == 10 )
         {
             int iii = 0;
         }
@@ -2129,18 +2154,18 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             lighting->face_colors_hsl_a,
             lighting->face_colors_hsl_b,
             lighting->face_colors_hsl_c,
-            model->aliased_lighting_normals
-                ? model->aliased_lighting_normals->lighting_vertex_normals
-                : model->normals->lighting_vertex_normals,
-            model->normals->lighting_face_normals,
-            model->model->face_indices_a,
-            model->model->face_indices_b,
-            model->model->face_indices_c,
-            model->model->face_count,
-            model->model->face_colors,
-            model->model->face_alphas,
-            model->model->face_textures,
-            model->model->face_infos,
+            scene_model->aliased_lighting_normals
+                ? scene_model->aliased_lighting_normals->lighting_vertex_normals
+                : scene_model->normals->lighting_vertex_normals,
+            scene_model->normals->lighting_face_normals,
+            scene_model->model->face_indices_a,
+            scene_model->model->face_indices_b,
+            scene_model->model->face_indices_c,
+            scene_model->model->face_count,
+            scene_model->model->face_colors,
+            scene_model->model->face_alphas,
+            scene_model->model->face_textures,
+            scene_model->model->face_infos,
             light_ambient,
             attenuation,
             lightsrc_x,

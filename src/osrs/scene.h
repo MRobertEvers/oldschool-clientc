@@ -25,6 +25,7 @@ enum SpanFlag
 
 struct ModelLighting
 {
+    // TODO: These can be shorts (hsl16)
     int* face_colors_hsl_a;
 
     // null if mode is LIGHTING_FLAT
@@ -339,5 +340,7 @@ void scene_free(struct Scene* scene);
 void scene_clear_entities(struct Scene* scene);
 void
 scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct SceneModel* model);
+
+void scene_step_animations(void);
 
 #endif

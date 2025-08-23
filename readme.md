@@ -882,3 +882,5 @@ It appears that if a model has an animation, but no face alphas, then face alpha
 
 Dane's client also gets about 10ms per scene draw.
 https://discord.com/channels/788652898904309761/1069689552052166657/1171591528402133093
+
+![go_frame_time](./res/danes_frame_time.png)
