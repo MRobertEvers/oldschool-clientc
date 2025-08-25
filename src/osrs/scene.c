@@ -80,6 +80,45 @@ model_lighting_new(int face_count)
     return lighting;
 }
 
+/**
+ * If a model is animated, we need to store the original vertices
+ */
+static void
+scene_model_vertices_create_original(struct SceneModel* scene_model)
+{
+    scene_model->original_vertices_x = (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
+    scene_model->original_vertices_y = (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
+    scene_model->original_vertices_z = (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
+
+    memcpy(
+        scene_model->original_vertices_x,
+        scene_model->model->vertices_x,
+        sizeof(int) * scene_model->model->vertex_count);
+
+    memcpy(
+        scene_model->original_vertices_y,
+        scene_model->model->vertices_y,
+        sizeof(int) * scene_model->model->vertex_count);
+
+    memcpy(
+        scene_model->original_vertices_z,
+        scene_model->model->vertices_z,
+        sizeof(int) * scene_model->model->vertex_count);
+}
+
+/**
+ * If a model is animated, we need to store the original face alphas
+ */
+static void
+scene_model_face_alphas_create_original(struct SceneModel* scene_model)
+{
+    scene_model->original_face_alphas = malloc(sizeof(int) * scene_model->model->face_count);
+    memcpy(
+        scene_model->original_face_alphas,
+        scene_model->model->face_alphas,
+        sizeof(int) * scene_model->model->face_count);
+}
+
 static void
 init_wall_default(struct Wall* wall)
 {
@@ -278,7 +317,7 @@ loc_apply_transforms(
 
 static void
 loc_load_model(
-    struct SceneModel* scene_loc,
+    struct SceneModel* scene_model,
     struct CacheConfigLocation* loc_config,
     struct Cache* cache,
     struct ModelCache* model_cache,
@@ -387,60 +426,45 @@ loc_load_model(
         // locType.transforms !== undefined ||
         // locLoadType === LocLoadType.NO_MODELS;
 
-        scene_loc->yaw = 512 * orientation;
-        scene_loc->yaw %= 2048;
+        scene_model->yaw = 512 * orientation;
+        scene_model->yaw %= 2048;
         orientation = 0;
     }
 
     loc_apply_transforms(
         loc_config, model, orientation, sw_height, se_height, ne_height, nw_height);
 
-    scene_loc->model = model;
-    scene_loc->model_id = model_ids[0];
+    scene_model->model = model;
+    scene_model->model_id = model_ids[0];
 
-    scene_loc->light_ambient = loc_config->ambient;
-    scene_loc->light_contrast = loc_config->contrast;
-    scene_loc->sharelight = loc_config->sharelight;
+    scene_model->light_ambient = loc_config->ambient;
+    scene_model->light_contrast = loc_config->contrast;
+    scene_model->sharelight = loc_config->sharelight;
 
-    scene_loc->__loc_id = loc_config->_id;
+    scene_model->__loc_id = loc_config->_id;
 
     if( model->vertex_bone_map )
-        scene_loc->vertex_bones =
+        scene_model->vertex_bones =
             modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
     if( model->face_bone_map )
-        scene_loc->face_bones = modelbones_new_decode(model->face_bone_map, model->face_count);
+        scene_model->face_bones = modelbones_new_decode(model->face_bone_map, model->face_count);
 
-    scene_loc->sequence = NULL;
+    scene_model->sequence = NULL;
     if( loc_config->seq_id != -1 )
     {
-        scene_loc->original_vertices_x = malloc(sizeof(int) * model->vertex_count);
-        scene_loc->original_vertices_y = malloc(sizeof(int) * model->vertex_count);
-        scene_loc->original_vertices_z = malloc(sizeof(int) * model->vertex_count);
-
-        memcpy(
-            scene_loc->original_vertices_x, model->vertices_x, sizeof(int) * model->vertex_count);
-        memcpy(
-            scene_loc->original_vertices_y, model->vertices_y, sizeof(int) * model->vertex_count);
-        memcpy(
-            scene_loc->original_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
+        scene_model_vertices_create_original(scene_model);
 
         if( model->face_alphas )
-        {
-            scene_loc->original_face_alphas = malloc(sizeof(int) * model->face_count);
-            memcpy(
-                scene_loc->original_face_alphas,
-                model->face_alphas,
-                sizeof(int) * model->face_count);
-        }
+            scene_model_face_alphas_create_original(scene_model);
 
         sequence = config_sequence_table_get_new(sequence_table, loc_config->seq_id);
         assert(sequence);
         assert(sequence->frame_lengths);
-        scene_loc->sequence = sequence;
+        scene_model->sequence = sequence;
 
-        assert(scene_loc->frames == NULL);
-        scene_loc->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
-        memset(scene_loc->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+        assert(scene_model->frames == NULL);
+        scene_model->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
+        memset(scene_model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
 
         int frame_id = sequence->frame_ids[0];
         int frame_archive_id = (frame_id >> 16) & 0xFFFF;
@@ -466,15 +490,15 @@ loc_load_model(
             int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
             int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
 
-            if( !scene_loc->framemap )
+            if( !scene_model->framemap )
             {
                 framemap = framemap_new_from_cache(cache, framemap_id);
-                scene_loc->framemap = framemap;
+                scene_model->framemap = framemap;
             }
 
-            frame = frame_new_decode2(frame_id, scene_loc->framemap, frame_data, frame_data_size);
+            frame = frame_new_decode2(frame_id, scene_model->framemap, frame_data, frame_data_size);
 
-            scene_loc->frames[scene_loc->frame_count++] = frame;
+            scene_model->frames[scene_model->frame_count++] = frame;
         }
 
         cache_archive_free(frame_archive);
