@@ -2266,7 +2266,7 @@ scene_clear_entities(struct Scene* scene)
     for( int i = 0; i < scene->entities_length; i++ )
     {
         tile = &scene->grid_tiles[MAP_TILE_COORD(
-            scene->entities[i].x, scene->entities[i].y, scene->entities[i].level)];
+            scene->entities[i].x, scene->entities[i].z, scene->entities[i].level)];
         while( tile->locs_length > 0 &&
                scene->locs[tile->locs[tile->locs_length - 1]].entity != -1 )
         {
@@ -2283,13 +2283,13 @@ scene_clear_entities(struct Scene* scene)
 }
 
 void
-scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct SceneModel* model)
+scene_add_player_entity(struct Scene* scene, int x, int z, int level, struct SceneModel* model)
 {
     struct GridTile* tile = NULL;
     struct Loc* loc = NULL;
 
     int tile_x = x;
-    int tile_y = y;
+    int tile_y = z;
     int tile_z = level;
 
     struct CacheMapTerrain* map_terrain = scene->terrain;
@@ -2310,7 +2310,7 @@ scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct Sce
     int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
 
     model->region_x = x * 128 + 64;
-    model->region_z = y * 128 + 64;
+    model->region_z = z * 128 + 64;
     model->region_height = height_center;
 
     scene->models[scene->models_length++] = *model;
@@ -2318,7 +2318,7 @@ scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct Sce
     loc = &scene->locs[scene->locs_length++];
     loc->entity = scene->temporary_locs_length++;
     loc->chunk_pos_x = x;
-    loc->chunk_pos_y = y;
+    loc->chunk_pos_y = z;
     loc->chunk_pos_level = level;
     loc->size_x = 1;
     loc->size_y = 1;
@@ -2326,13 +2326,13 @@ scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct Sce
     loc->type = LOC_TYPE_SCENERY;
     loc->_scenery.model = scene->models_length - 1;
 
-    tile = &scene->grid_tiles[MAP_TILE_COORD(x, y, level)];
+    tile = &scene->grid_tiles[MAP_TILE_COORD(x, z, level)];
 
     tile->locs[tile->locs_length++] = scene->locs_length - 1;
 
     scene->entities[scene->entities_length++] = (struct TemporaryEntity){
         .x = x,
-        .y = y,
+        .z = z,
         .level = level,
     };
 }

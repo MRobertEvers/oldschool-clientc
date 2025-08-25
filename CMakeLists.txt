@@ -133,6 +133,7 @@ add_executable(scene_tile_test
     src/osrs/scene_tile.c
     src/osrs/palette.c
     src/osrs/cache.c
+    src/osrs/world.c
     src/osrs/tables/model.c
     src/osrs/archive_decompress.c
     src/osrs/reference_table.c
@@ -255,6 +256,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/filelist.c
         src/osrs/render.c
         src/osrs/rsbuf.c
+        src/osrs/world.c
         src/gouraud.c
         src/gouraud_deob.c
         src/flat.c

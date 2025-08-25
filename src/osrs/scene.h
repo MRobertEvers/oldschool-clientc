@@ -298,7 +298,7 @@ struct Loc
 struct TemporaryEntity
 {
     int x;
-    int y;
+    int z;
     int level;
 };
 

@@ -1,4 +1,5 @@
 extern "C" {
+#include "bmp.h"
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/frustrum_cullmap.h"
@@ -13,6 +14,7 @@ extern "C" {
 #include "osrs/tables/configs.h"
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/textures.h"
+#include "osrs/world.h"
 #include "osrs/xtea_config.h"
 #include "screen.h"
 }
@@ -285,6 +287,7 @@ struct Game
     // THese are of known size.
 
     struct Scene* scene;
+    struct World* world;
 
     struct SceneOp* ops;
     int op_count;
@@ -1078,84 +1081,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_FreeSurface(surface);
 }
 
-void
-write_bmp_file(const char* filename, int* pixels, int width, int height)
-{
-    FILE* file = fopen(filename, "wb");
-    if( !file )
-    {
-        printf("Failed to open file for writing: %s\n", filename);
-        return;
-    }
-
-    // BMP header (14 bytes)
-    unsigned char header[14] = {
-        'B', 'M',       // Magic number
-        0,   0,   0, 0, // File size (to be filled)
-        0,   0,         // Reserved
-        0,   0,         // Reserved
-        54,  0,   0, 0  // Pixel data offset
-    };
-
-    // DIB header (40 bytes)
-    unsigned char dib_header[40] = {
-        40, 0, 0, 0, // DIB header size
-        0,  0, 0, 0, // Width (to be filled)
-        0,  0, 0, 0, // Height (to be filled)
-        1,  0,       // Planes
-        32, 0,       // Bits per pixel
-        0,  0, 0, 0, // Compression
-        0,  0, 0, 0, // Image size
-        0,  0, 0, 0, // X pixels per meter
-        0,  0, 0, 0, // Y pixels per meter
-        0,  0, 0, 0, // Colors in color table
-        0,  0, 0, 0  // Important color count
-    };
-
-    // Fill in width and height
-    dib_header[4] = width & 0xFF;
-    dib_header[5] = (width >> 8) & 0xFF;
-    dib_header[6] = (width >> 16) & 0xFF;
-    dib_header[7] = (width >> 24) & 0xFF;
-    dib_header[8] = height & 0xFF;
-    dib_header[9] = (height >> 8) & 0xFF;
-    dib_header[10] = (height >> 16) & 0xFF;
-    dib_header[11] = (height >> 24) & 0xFF;
-
-    // Calculate file size
-    int pixel_data_size = width * height * 4; // 4 bytes per pixel (32-bit)
-    int file_size = 54 + pixel_data_size;     // 54 = header size (14 + 40)
-    header[2] = file_size & 0xFF;
-    header[3] = (file_size >> 8) & 0xFF;
-    header[4] = (file_size >> 16) & 0xFF;
-    header[5] = (file_size >> 24) & 0xFF;
-
-    // Write headers
-    fwrite(header, 1, 14, file);
-    fwrite(dib_header, 1, 40, file);
-
-    // Write pixel data (BMP is stored bottom-up)
-    for( int y = height - 1; y >= 0; y-- )
-    {
-        for( int x = 0; x < width; x++ )
-        {
-            int pixel = pixels[y * width + x];
-            // Source is RGBA, need to convert to BGRA for BMP
-            unsigned char r = (pixel >> 16) & 0xFF; // Red (was incorrectly reading as Blue)
-            unsigned char g = (pixel >> 8) & 0xFF;  // Green
-            unsigned char b = pixel & 0xFF;         // Blue (was incorrectly reading as Red)
-            unsigned char a = (pixel >> 24) & 0xFF; // Alpha
-            // Write in BGRA order for BMP
-            fwrite(&b, 1, 1, file);
-            fwrite(&g, 1, 1, file);
-            fwrite(&r, 1, 1, file);
-            fwrite(&a, 1, 1, file);
-        }
-    }
-
-    fclose(file);
-}
-
 int
 main()
 {
@@ -1304,6 +1229,7 @@ main()
 
     // Initialize game state
     struct Game game = { 0 };
+    game.world = world_new();
     game.image_cross_pixels = (int**)malloc(8 * sizeof(int*));
 
     int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
@@ -1523,8 +1449,8 @@ main()
     struct SceneModel* player_model = NULL;
 
     {
-        struct SceneModel* model = (struct SceneModel*)malloc(sizeof(struct SceneModel));
-        memset(model, 0, sizeof(struct SceneModel));
+        struct SceneModel* scene_model = (struct SceneModel*)malloc(sizeof(struct SceneModel));
+        memset(scene_model, 0, sizeof(struct SceneModel));
 
         struct CacheConfigIdkTable* config_idk_table = config_idk_table_new(cache);
         if( !config_idk_table )
@@ -1589,52 +1515,56 @@ main()
 
         struct CacheModel* merged_model = model_new_merge(models, parts__models_count);
 
-        model->model = merged_model;
+        scene_model->model = merged_model;
 
         struct CacheConfigSequence* sequence = NULL;
 
         sequence = config_sequence_table_get_new(config_sequence_table, 819);
         if( sequence )
         {
-            model->sequence = sequence;
+            scene_model->sequence = sequence;
 
-            if( model->model->vertex_bone_map )
-                model->vertex_bones = modelbones_new_decode(
-                    model->model->vertex_bone_map, model->model->vertex_count);
-            if( model->model->face_bone_map )
-                model->face_bones =
-                    modelbones_new_decode(model->model->face_bone_map, model->model->face_count);
+            if( scene_model->model->vertex_bone_map )
+                scene_model->vertex_bones = modelbones_new_decode(
+                    scene_model->model->vertex_bone_map, scene_model->model->vertex_count);
+            if( scene_model->model->face_bone_map )
+                scene_model->face_bones = modelbones_new_decode(
+                    scene_model->model->face_bone_map, scene_model->model->face_count);
 
-            model->original_vertices_x = (int*)malloc(sizeof(int) * model->model->vertex_count);
-            model->original_vertices_y = (int*)malloc(sizeof(int) * model->model->vertex_count);
-            model->original_vertices_z = (int*)malloc(sizeof(int) * model->model->vertex_count);
+            scene_model->original_vertices_x =
+                (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
+            scene_model->original_vertices_y =
+                (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
+            scene_model->original_vertices_z =
+                (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
 
             memcpy(
-                model->original_vertices_x,
-                model->model->vertices_x,
-                sizeof(int) * model->model->vertex_count);
+                scene_model->original_vertices_x,
+                scene_model->model->vertices_x,
+                sizeof(int) * scene_model->model->vertex_count);
             memcpy(
-                model->original_vertices_y,
-                model->model->vertices_y,
-                sizeof(int) * model->model->vertex_count);
+                scene_model->original_vertices_y,
+                scene_model->model->vertices_y,
+                sizeof(int) * scene_model->model->vertex_count);
             memcpy(
-                model->original_vertices_z,
-                model->model->vertices_z,
-                sizeof(int) * model->model->vertex_count);
+                scene_model->original_vertices_z,
+                scene_model->model->vertices_z,
+                sizeof(int) * scene_model->model->vertex_count);
 
-            if( model->model->face_alphas )
+            if( scene_model->model->face_alphas )
             {
-                model->original_face_alphas = (int*)malloc(sizeof(int) * model->model->face_count);
+                scene_model->original_face_alphas =
+                    (int*)malloc(sizeof(int) * scene_model->model->face_count);
                 memcpy(
-                    model->original_face_alphas,
-                    model->model->face_alphas,
-                    sizeof(int) * model->model->face_count);
+                    scene_model->original_face_alphas,
+                    scene_model->model->face_alphas,
+                    sizeof(int) * scene_model->model->face_count);
             }
 
-            assert(model->frames == NULL);
-            model->frames =
+            assert(scene_model->frames == NULL);
+            scene_model->frames =
                 (struct CacheFrame**)malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
-            memset(model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+            memset(scene_model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
 
             int frame_id = sequence->frame_ids[0];
             int frame_archive_id = (frame_id >> 16) & 0xFFFF;
@@ -1661,15 +1591,15 @@ main()
                 int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
                 int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
 
-                if( !model->framemap )
+                if( !scene_model->framemap )
                 {
-                    model->framemap = framemap_new_from_cache(cache, framemap_id);
+                    scene_model->framemap = framemap_new_from_cache(cache, framemap_id);
                 }
 
                 struct CacheFrame* frame =
-                    frame_new_decode2(frame_id, model->framemap, frame_data, frame_data_size);
+                    frame_new_decode2(frame_id, scene_model->framemap, frame_data, frame_data_size);
 
-                model->frames[model->frame_count++] = frame;
+                scene_model->frames[scene_model->frame_count++] = frame;
             }
 
             cache_archive_free(frame_archive);
@@ -1677,7 +1607,7 @@ main()
             filelist_free(frame_filelist);
             frame_filelist = NULL;
 
-            struct CacheModel* cache_model = model->model;
+            struct CacheModel* cache_model = scene_model->model;
 
             struct ModelNormals* normals =
                 (struct ModelNormals*)malloc(sizeof(struct ModelNormals));
@@ -1711,19 +1641,22 @@ main()
                 cache_model->vertices_z,
                 cache_model->face_count);
 
-            model->normals = normals;
+            scene_model->normals = normals;
 
             struct ModelLighting* lighting =
                 (struct ModelLighting*)malloc(sizeof(struct ModelLighting));
             memset(lighting, 0, sizeof(struct ModelLighting));
-            lighting->face_colors_hsl_a = (int*)malloc(sizeof(int) * model->model->face_count);
-            memset(lighting->face_colors_hsl_a, 0, sizeof(int) * model->model->face_count);
-            lighting->face_colors_hsl_b = (int*)malloc(sizeof(int) * model->model->face_count);
-            memset(lighting->face_colors_hsl_b, 0, sizeof(int) * model->model->face_count);
-            lighting->face_colors_hsl_c = (int*)malloc(sizeof(int) * model->model->face_count);
-            memset(lighting->face_colors_hsl_c, 0, sizeof(int) * model->model->face_count);
+            lighting->face_colors_hsl_a =
+                (int*)malloc(sizeof(int) * scene_model->model->face_count);
+            memset(lighting->face_colors_hsl_a, 0, sizeof(int) * scene_model->model->face_count);
+            lighting->face_colors_hsl_b =
+                (int*)malloc(sizeof(int) * scene_model->model->face_count);
+            memset(lighting->face_colors_hsl_b, 0, sizeof(int) * scene_model->model->face_count);
+            lighting->face_colors_hsl_c =
+                (int*)malloc(sizeof(int) * scene_model->model->face_count);
+            memset(lighting->face_colors_hsl_c, 0, sizeof(int) * scene_model->model->face_count);
 
-            model->lighting = lighting;
+            scene_model->lighting = lighting;
 
             int light_ambient = 64;
             int light_attenuation = 768;
@@ -1731,10 +1664,10 @@ main()
             int lightsrc_y = -10;
             int lightsrc_z = -50;
 
-            light_ambient += model->light_ambient;
+            light_ambient += scene_model->light_ambient;
             // 2004Scape multiplies contrast by 5.
             // Later versions do not.
-            light_attenuation += model->light_contrast;
+            light_attenuation += scene_model->light_contrast;
 
             int light_magnitude = (int)sqrt(
                 lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
@@ -1744,28 +1677,30 @@ main()
                 lighting->face_colors_hsl_a,
                 lighting->face_colors_hsl_b,
                 lighting->face_colors_hsl_c,
-                model->aliased_lighting_normals
-                    ? model->aliased_lighting_normals->lighting_vertex_normals
-                    : model->normals->lighting_vertex_normals,
-                model->normals->lighting_face_normals,
-                model->model->face_indices_a,
-                model->model->face_indices_b,
-                model->model->face_indices_c,
-                model->model->face_count,
-                model->model->face_colors,
-                model->model->face_alphas,
-                model->model->face_textures,
-                model->model->face_infos,
+                scene_model->aliased_lighting_normals
+                    ? scene_model->aliased_lighting_normals->lighting_vertex_normals
+                    : scene_model->normals->lighting_vertex_normals,
+                scene_model->normals->lighting_face_normals,
+                scene_model->model->face_indices_a,
+                scene_model->model->face_indices_b,
+                scene_model->model->face_indices_c,
+                scene_model->model->face_count,
+                scene_model->model->face_colors,
+                scene_model->model->face_alphas,
+                scene_model->model->face_textures,
+                scene_model->model->face_infos,
                 light_ambient,
                 attenuation,
                 lightsrc_x,
                 lightsrc_y,
                 lightsrc_z);
 
-            model->lighting = lighting;
+            scene_model->lighting = lighting;
 
-            player_model = model;
+            player_model = scene_model;
         }
+
+        world_player_entity_new_add(game.world, 0, 0, 0, player_model);
     }
 
     game.frustrum_cullmap = frustrum_cullmap_new(40, 131072); // 65536 = 90° FOV
@@ -2162,9 +2097,11 @@ main()
             }
         }
 
-        scene_clear_entities(game.scene);
-        scene_add_player_entity(
-            game.scene, game.player_tile_x, game.player_tile_y, 0, player_model);
+        // scene_clear_entities(game.scene);
+        // scene_add_player_entity(
+        //     game.scene, game.player_tile_x, game.player_tile_y, 0, player_model);
+
+        world_begin_scene_frame(game.world, game.scene);
 
         SDL_RenderClear(platform.renderer);
         // Render frame
@@ -2172,6 +2109,8 @@ main()
         game_render_imgui(&game, &platform);
 
         SDL_RenderPresent(platform.renderer);
+
+        world_end_scene_frame(game.world, game.scene);
 
         // Calculate frame time and sleep appropriately
         Uint32 frame_end_time = SDL_GetTicks();
