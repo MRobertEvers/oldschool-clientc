@@ -2765,6 +2765,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,
+                                                .wall_yaw_adjust = 256,
                                                },
                             };
                         }
@@ -2780,6 +2781,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
+                                                .wall_yaw_adjust = 1280,
                                            },
                             };
                         }
@@ -3138,6 +3140,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,
+                                                .wall_yaw_adjust = 256,
                                           },
                             };
                         }
@@ -3152,6 +3155,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
+                                                .wall_yaw_adjust = 1280,
                                           },
                             };
                         }
@@ -3815,7 +3819,7 @@ next:
         iter->value.x = op->x;
         iter->value.z = op->z;
         iter->value.level = op->level;
-        iter->value.yaw = 0;
+        iter->value.yaw = op->_wall_decor.wall_yaw_adjust;
         iter->has_value = true;
     }
     break;

@@ -212,6 +212,7 @@ struct SceneOp
             int loc_index;
             int is_wall_a;
             int __rotation;
+            int wall_yaw_adjust;
         } _wall_decor;
 
         struct

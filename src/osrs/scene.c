@@ -415,6 +415,11 @@ loc_load_model(
         model = model_new_copy(models[0]);
     }
 
+    if( model->_id == 2255 && scene_model->yaw != 0 )
+    {
+        int i = 0;
+    }
+
     // Sequences don't account for rotations, so models must be rotated AFTER the animation is
     // applied.
     if( loc_config->seq_id != -1 )
