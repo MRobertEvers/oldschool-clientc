@@ -2241,31 +2241,6 @@ model_lighting_free(struct ModelLighting* lighting)
     free(lighting);
 }
 
-static void
-scene_model_free(struct SceneModel* model)
-{
-    model_free(model->model);
-    lighting_normals_free(model->normals);
-    lighting_normals_free(model->aliased_lighting_normals);
-    model_lighting_free(model->lighting);
-    modelbones_free(model->vertex_bones);
-    modelbones_free(model->face_bones);
-
-    for( int i = 0; i < model->frame_count; i++ )
-    {
-        frame_free(model->frames[i]);
-    }
-    free(model->frames);
-    config_sequence_free(model->sequence);
-
-    framemap_free(model->framemap);
-
-    free(model->original_vertices_x);
-    free(model->original_vertices_y);
-    free(model->original_vertices_z);
-    free(model->original_face_alphas);
-}
-
 void
 scene_free(struct Scene* scene)
 {
@@ -2364,4 +2339,41 @@ scene_add_player_entity(struct Scene* scene, int x, int z, int level, struct Sce
         .z = z,
         .level = level,
     };
+}
+
+struct SceneModel*
+scene_model_new_from_idkit(struct Scene* scene, struct Cache* cache, struct SceneIdKit* kit)
+{
+    int parts__models_ids[12] = { 0 };
+    int parts__models_count = 0;
+}
+
+void
+scene_model_set_sequence(
+    struct Scene* scene, struct Cache* cache, struct SceneModel* model, int sequence_id)
+{}
+
+static void
+scene_model_free(struct SceneModel* model)
+{
+    model_free(model->model);
+    lighting_normals_free(model->normals);
+    lighting_normals_free(model->aliased_lighting_normals);
+    model_lighting_free(model->lighting);
+    modelbones_free(model->vertex_bones);
+    modelbones_free(model->face_bones);
+
+    for( int i = 0; i < model->frame_count; i++ )
+    {
+        frame_free(model->frames[i]);
+    }
+    free(model->frames);
+    config_sequence_free(model->sequence);
+
+    framemap_free(model->framemap);
+
+    free(model->original_vertices_x);
+    free(model->original_vertices_y);
+    free(model->original_vertices_z);
+    free(model->original_face_alphas);
 }

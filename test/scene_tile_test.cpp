@@ -726,9 +726,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 {
                     iter.value.model_nullable_->anim_frame_count = 0;
                     iter.value.model_nullable_->anim_frame_step += 1;
-                    if( iter.value.model_nullable_->anim_frame_step >= sequence->frame_count )
                     {
-                        iter.value.model_nullable_->anim_frame_step = 0;
+                        if( iter.value.model_nullable_->anim_frame_step >= sequence->frame_count )
+                            iter.value.model_nullable_->anim_frame_step = 0;
                     }
                 }
                 memcpy(
@@ -1479,19 +1479,38 @@ main()
 
         // 4,274  6,282 292 256 289 298 266
         int idk_ids[12] = { 0, 0, 0, 0, 274, 0, 282, 292, 256, 289, 298, 266 };
+        int idk_part_model_id = 0;
         int parts__models_ids[10] = { 0 };
         int parts__models_count = 0;
 
         for( int i = 0; i < 12; i++ )
         {
+            // if (leftHandValue >= 0 && part == 3) {
+            //     value = leftHandValue;
+            // }
+            // // 4,274  6,282 292 256 289 298 266
+            // if (rightHandValue >= 0 && part == 5) {
+            //     value = rightHandValue;
+            // }
+
             int idk_id = idk_ids[i];
             if( idk_id >= 256 && idk_id < 512 )
             {
-                idk_id -= 256;
+                idk_part_model_id = idk_id - 256;
             }
             else
                 continue;
-            struct CacheConfigIdk* idk = config_idk_table_get(config_idk_table, idk_id);
+
+            // if (value >= 512) {
+            //     ObjType *obj = objtype_get(value - 512);
+            //     Model *wornModel = objtype_get_wornmodel(obj, entity->gender);
+
+            //     if (wornModel) {
+            //         models[modelCount++] = wornModel;
+            //     }
+            // }
+
+            struct CacheConfigIdk* idk = config_idk_table_get(config_idk_table, idk_part_model_id);
             if( idk )
             {
                 assert(idk->model_ids_count == 1);

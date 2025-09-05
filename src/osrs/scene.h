@@ -313,6 +313,7 @@ struct Scene
 
     int temporary_locs_length;
 
+    // static models
     struct SceneModel* models;
     int models_length;
     int models_capacity;
@@ -321,6 +322,8 @@ struct Scene
     int scene_tiles_length;
 
     struct ModelCache* _model_cache;
+    // struct IdKitCache* _id_kit_cache;
+    // struct CacheConfigIdkTable* _sequence_cache;
 
     struct CacheMapTerrain* terrain;
 
@@ -342,5 +345,18 @@ void
 scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct SceneModel* model);
 
 void scene_step_animations(void);
+
+struct SceneIdKit
+{
+    int id_kits[12];
+};
+
+struct SceneModel*
+scene_model_new_from_idkit(struct Scene* scene, struct Cache* cache, struct SceneIdKit* kit);
+
+void scene_model_set_sequence(
+    struct Scene* scene, struct Cache* cache, struct SceneModel* model, int sequence_id);
+
+void scene_model_free(struct SceneModel* scene_model);
 
 #endif
