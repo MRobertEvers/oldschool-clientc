@@ -377,7 +377,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     // Create renderer
     platform->renderer = SDL_CreateRenderer(
-        platform->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        platform->window, -1, SDL_RENDERER_ACCELERATED);
 
     if( !platform->renderer )
     {
@@ -1755,7 +1755,7 @@ SDL_main(int argc, char* argv[])
 
     // Frame timing variables
     Uint32 last_frame_time = SDL_GetTicks();
-    const int target_fps = 30;
+    const int target_fps = 50;
     const int target_frame_time = 1000 / target_fps;
 
     while( !quit )

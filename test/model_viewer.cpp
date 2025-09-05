@@ -332,7 +332,6 @@ struct PlatformSDL2
 static bool
 platform_sdl2_init(struct PlatformSDL2* platform)
 {
-    return false;
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -1069,8 +1068,6 @@ main(int argc, char* argv[])
     }
     printf("Cache loaded successfully\n");
 
-    // Initialize SDL
-    return 0;
     struct PlatformSDL2 platform = { 0 };
     if( !platform_sdl2_init(&platform) )
     {
@@ -1078,7 +1075,6 @@ main(int argc, char* argv[])
         return 1;
     }
 
-    return 0;
 
     memset(&_Pix3D, 0, sizeof(_Pix3D));
     _Pix3D.width = SCREEN_WIDTH;
@@ -1243,7 +1239,7 @@ main(int argc, char* argv[])
 
     // Frame timing variables
     Uint32 last_frame_time = SDL_GetTicks();
-    const int target_fps = 30;
+    const int target_fps = 50;
     const int target_frame_time = 1000 / target_fps;
 
     while( !quit )
@@ -1602,7 +1598,7 @@ main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            SDL_Delay(target_frame_time - frame_time);
+            //SDL_Delay(target_frame_time - frame_time);
         }
 
         last_frame_time = frame_end_time;
