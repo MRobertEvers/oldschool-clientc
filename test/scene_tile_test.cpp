@@ -34,6 +34,7 @@ extern "C" {
 
 #define GUI_WINDOW_WIDTH 400
 #define GUI_WINDOW_HEIGHT 600
+#define CACHE_PATH "../cache"
 
 // ImGui headers
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -1087,27 +1088,38 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_FreeSurface(surface);
 }
 
+#include <iostream>
+
 int
 SDL_main(int argc, char* argv[])
 {
+    std::cout << "SDL_main" << std::endl;
     init_hsl16_to_rgb_table();
     init_sin_table();
     init_cos_table();
     init_tan_table();
 
+    printf("Loading XTEA keys from: ../cache/xteas.json\n");
     int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
     if( xtea_keys_count == -1 )
     {
-        printf("Failed to load xtea keys\n");
+        printf("Failed to load xtea keys from: ../cache/xteas.json\n");
+        printf("Make sure the xteas.json file exists in the cache directory\n");
         return 1;
     }
+    printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
 
+    printf("Loading cache from directory: %s\n", CACHE_PATH);
     struct Cache* cache = cache_new_from_directory(CACHE_PATH);
     if( !cache )
     {
-        printf("Failed to load cache\n");
+        printf("Failed to load cache from directory: %s\n", CACHE_PATH);
+        printf("Make sure the cache directory exists and contains the required files:\n");
+        printf("  - main_file_cache.dat2\n");
+        printf("  - main_file_cache.idx0 through main_file_cache.idx255\n");
         return 1;
     }
+    printf("Cache loaded successfully\n");
 
     struct CacheArchive* archive = NULL;
     struct FileList* filelist = NULL;

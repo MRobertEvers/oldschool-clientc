@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(Windows) Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-ninja/model_viewer.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build-ninja",
+            "environment": [],
+            "console": "externalTerminal"
+        },
+        {
             "name": "Launch to_bin.js",
             "program": "${workspaceFolder}/docs/to_bin.js",
             "request": "launch",
@@ -169,6 +180,19 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "(Windows MSVC) Launch Scene Tiles Test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-ninja/scene_tile_test.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build-ninja",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.40.33807/bin/Hostx64/x64/gdb.exe"
         }
     ]
 }

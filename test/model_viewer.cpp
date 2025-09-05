@@ -31,6 +31,7 @@ extern "C" {
 #endif
 
 #define LUMBRIDGE_KITCHEN_TILE_1 14815
+#define CACHE_PATH "../cache"
 
 // ImGui headers
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -331,6 +332,7 @@ struct PlatformSDL2
 static bool
 platform_sdl2_init(struct PlatformSDL2* platform)
 {
+    return false;
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -1033,35 +1035,50 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_FreeSurface(surface);
 }
 
+#include <iostream>
+
 int
-SDL_main(int argc, char* argv[])
+main(int argc, char* argv[])
 {
+    std::cout << "SDL_main" << std::endl;
     init_hsl16_to_rgb_table();
     init_sin_table();
     init_cos_table();
     init_tan_table();
 
+    printf("Loading XTEA keys from: ../cache/xteas.json\n");
     int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
     if( xtea_keys_count == -1 )
     {
-        printf("Failed to load xtea keys\n");
-        return 1;
+        printf("Failed to load xtea keys from: ../cache/xteas.json\n");
+        printf("Make sure the xteas.json file exists in the cache directory\n");
+        return 0;
     }
+    printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
 
-    struct Cache* cache = cache_new_from_directory(CACHE_PATH);
+    printf("Loading cache from directory: %s\n", CACHE_PATH);
+    fflush(stdout);
+    struct Cache* cache = cache_new_from_directory("../cache");
     if( !cache )
     {
-        printf("Failed to load cache\n");
+        printf("Failed to load cache from directory: %s\n", CACHE_PATH);
+        printf("Make sure the cache directory exists and contains the required files:\n");
+        printf("  - main_file_cache.dat2\n");
+        printf("  - main_file_cache.idx0 through main_file_cache.idx255\n");
         return 1;
     }
+    printf("Cache loaded successfully\n");
 
     // Initialize SDL
+    return 0;
     struct PlatformSDL2 platform = { 0 };
     if( !platform_sdl2_init(&platform) )
     {
         printf("Failed to initialize SDL\n");
         return 1;
     }
+
+    return 0;
 
     memset(&_Pix3D, 0, sizeof(_Pix3D));
     _Pix3D.width = SCREEN_WIDTH;

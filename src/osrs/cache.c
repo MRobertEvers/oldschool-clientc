@@ -22,6 +22,7 @@ load_dat2_memory(char const* cache_directory, int* out_size)
 
     char path[1024];
     snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_directory);
+    printf("Loading dat2 from: %s\n", path);
     FILE* dat2_file = fopen(path, "rb");
     if( !dat2_file )
         return NULL;
@@ -70,6 +71,7 @@ read_dat2(
     int current_part;
     int next_sector;
     int current_index = 0;
+    char* out = NULL;
 
     if( sector <= 0L || data_size / SECTOR_SIZE < (long)sector )
     {
@@ -78,7 +80,7 @@ read_dat2(
     }
 
     int out_len = 0;
-    char* out = malloc(length);
+    out = malloc(length);
     memset(out, 0, length);
 
     for( int part = 0, read_bytes_count = 0; length > read_bytes_count; sector = next_sector )
@@ -171,6 +173,7 @@ read_dat2(
     return 0;
 
 error:
+    if(out)
     free(out);
     return -1;
 }
@@ -213,19 +216,22 @@ cache_new_from_directory(char const* directory)
 {
     struct Cache* cache = malloc(sizeof(struct Cache));
     memset(cache, 0, sizeof(struct Cache));
-
+    
     cache->directory = strdup(directory);
-
+    
     cache->_dat2 = load_dat2_memory(cache->directory, &cache->_dat2_size);
 
     struct CacheArchive* table_archive = NULL;
     struct ReferenceTable* table = NULL;
     for( int i = 0; i < CACHE_TABLE_COUNT; ++i )
     {
+
         if( !cache_is_valid_table_id(i) )
             continue;
 
+
         table_archive = cache_archive_new_reference_table_load(cache, i);
+
         if( !table_archive )
         {
             printf("Failed to load referencetable %d\n", i);

@@ -98,7 +98,7 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(RSClient src src/imgui)
 elseif(WIN32)
-    include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
+    include_directories(RSClient src ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
 else()
     include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
 endif()
@@ -201,7 +201,6 @@ add_executable(scene_tile_test
     src/imgui/imgui_impl_sdlrenderer2.cpp
 )
 
-
 # Model viewer with ImGui
 add_executable(model_viewer
     test/model_viewer.cpp
@@ -254,6 +253,13 @@ add_executable(model_viewer
     src/imgui/imgui_impl_sdl2.cpp
     src/imgui/imgui_impl_sdlrenderer2.cpp
 )
+
+# Add SDL2 include directories for Windows
+if(WIN32)
+    target_include_directories(scene_tile_test PRIVATE ${SDL2_INCLUDE_DIRS})
+    target_include_directories(model_viewer PRIVATE ${SDL2_INCLUDE_DIRS})
+    target_include_directories(main_client PRIVATE ${SDL2_INCLUDE_DIRS})
+endif()
 
 # Fix: Add ASan target properties for scene_tile_test (Unix/Linux only)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
@@ -308,8 +314,8 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(scene_tile_test)
 elseif(WIN32)
-    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS})
-    target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS})
+    target_link_libraries(scene_tile_test SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS})
+    target_link_libraries(model_viewer SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS})
 else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
@@ -352,9 +358,53 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
 elseif(WIN32)
-    target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
-    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
-    target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(main_client SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(model_viewer SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    
+    # Copy DLLs to output directories for Windows
+    # Use relative path from project root to vcpkg
+    set(VCPKG_BIN_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/bin")
+    set(VCPKG_DEBUG_BIN_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/debug/bin")
+    
+    # Function to copy DLLs for a target
+    function(copy_dlls_to_target target_name)
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            # Copy debug DLLs to Debug directory
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/Debug"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VCPKG_DEBUG_BIN_DIR}/bz2d.dll"
+                "${CMAKE_CURRENT_BINARY_DIR}/Debug/"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VCPKG_DEBUG_BIN_DIR}/zlibd1.dll"
+                "${CMAKE_CURRENT_BINARY_DIR}/Debug/"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VCPKG_DEBUG_BIN_DIR}/SDL2d.dll"
+                "${CMAKE_CURRENT_BINARY_DIR}/Debug/"
+                COMMENT "Copying debug DLLs for ${target_name}"
+            )
+        else()
+            # Copy release DLLs to build root
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VCPKG_BIN_DIR}/bz2.dll"
+                "${CMAKE_CURRENT_BINARY_DIR}/"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VCPKG_BIN_DIR}/zlib1.dll"
+                "${CMAKE_CURRENT_BINARY_DIR}/"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VCPKG_BIN_DIR}/SDL2.dll"
+                "${CMAKE_CURRENT_BINARY_DIR}/"
+                COMMENT "Copying release DLLs for ${target_name}"
+            )
+        endif()
+    endfunction()
+    
+    # Apply DLL copying to all targets
+    copy_dlls_to_target(main_client)
+    copy_dlls_to_target(scene_tile_test)
+    copy_dlls_to_target(model_viewer)
 else()
     target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
