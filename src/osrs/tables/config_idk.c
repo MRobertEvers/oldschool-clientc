@@ -89,7 +89,16 @@ config_idk_decode_inplace(struct CacheConfigIdk* idk, char* buffer, int buffer_s
                 idk->retextures_to[i] = g2(&rsbuf);
             }
             break;
-        case 60 ... 69:
+        case 60:
+        case 61:
+        case 62:
+        case 63:
+        case 64:
+        case 65:
+        case 66:
+        case 67:
+        case 68:
+        case 69:
         {
             idk->if_model_ids[opcode - 60] = g2(&rsbuf);
             break;

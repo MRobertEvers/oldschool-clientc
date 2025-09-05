@@ -1975,10 +1975,12 @@ render_model_frame(
     // free(face_indices_b);
     // free(face_indices_c);
 
-done:
+    // Fall through to cleanup
+done:;
     // free(screen_vertices_x);
     // free(screen_vertices_y);
     // free(screen_vertices_z);
+    return;
 }
 
 #define TILE_SIZE 128

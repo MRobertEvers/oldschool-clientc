@@ -4,7 +4,7 @@
 #define SWAP(a, b)                                                                                 \
     do                                                                                             \
     {                                                                                              \
-        typeof(a) temp = a;                                                                        \
+        long long temp = a;                                                                        \
         a = b;                                                                                     \
         b = temp;                                                                                  \
     } while( 0 )

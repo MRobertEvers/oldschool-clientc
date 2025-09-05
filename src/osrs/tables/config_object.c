@@ -278,7 +278,11 @@ config_object_decode_inplace(struct CacheConfigObject* object, char* data, int d
             object->wearpos_3 = g1(&buffer);
             break;
         }
-        case 30 ... 34:
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
         {
             object->actions[opcode - 30] = gstring(&buffer);
             if( strcasecmp(object->actions[opcode - 30], "Hidden") == 0 )
@@ -288,7 +292,11 @@ config_object_decode_inplace(struct CacheConfigObject* object, char* data, int d
             }
             break;
         }
-        case 35 ... 39:
+        case 35:
+        case 36:
+        case 37:
+        case 38:
+        case 39:
         {
             object->if_actions[opcode - 35] = gstring(&buffer);
 
@@ -414,7 +422,16 @@ config_object_decode_inplace(struct CacheConfigObject* object, char* data, int d
             object->noted_template = g2(&buffer);
             break;
         }
-        case 100 ... 109:
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+        case 108:
+        case 109:
         {
             object->count_obj[opcode - 100] = g2(&buffer);
             object->count_co[opcode - 100] = g2(&buffer);

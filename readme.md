@@ -884,3 +884,17 @@ Dane's client also gets about 10ms per scene draw.
 https://discord.com/channels/788652898904309761/1069689552052166657/1171591528402133093
 
 ![go_frame_time](./res/danes_frame_time.png)
+
+### Windows
+
+.\vcpkg.exe install sdl2:x64-windows bzip2:x64-windows zlib:x64-windows freetype:x64-windows
+
+
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
+
+
+& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"; cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
+
+cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows'
+
+cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && ninja -C build-ninja'

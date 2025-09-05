@@ -231,7 +231,6 @@ map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
 
     return map_terrain;
 
-error:
     cache_archive_free(archive);
     map_terrain_free(map_terrain);
     return NULL;

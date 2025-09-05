@@ -2484,11 +2484,11 @@ raster_texture(
             if( x < 0 || x >= screen_width )
                 continue;
 
-            au = vOVPlane_normal_zhat << UNIT_SCALE_SHIFT + vOVPlane_normal_xhat * (x - 400) +
+            au = (vOVPlane_normal_zhat << UNIT_SCALE_SHIFT) + vOVPlane_normal_xhat * (x - 400) +
                                              vOVPlane_normal_yhat * (y - 300);
-            bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT + vUOPlane_normal_xhat * (x - 400) +
+            bv = (vUOPlane_normal_zhat << UNIT_SCALE_SHIFT) + vUOPlane_normal_xhat * (x - 400) +
                                              vUOPlane_normal_yhat * (y - 300);
-            cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT + vUVPlane_normal_xhat * (x - 400) +
+            cw = (vUVPlane_normal_zhat << UNIT_SCALE_SHIFT) + vUVPlane_normal_xhat * (x - 400) +
                                              vUVPlane_normal_yhat * (y - 300);
 
             assert(cw != 0);

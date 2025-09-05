@@ -608,7 +608,7 @@ decode_tile(
     tile->face_color_hsl_b = face_colors_hsl_b;
     tile->face_color_hsl_c = face_colors_hsl_c;
     return true;
-error:
+// error:;
     free(valid_faces);
     free(vertex_x);
     free(vertex_y);

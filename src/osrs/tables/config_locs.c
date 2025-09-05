@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>
 
 struct CacheConfigLocation*
 config_locs_new_decode(char* buffer, int buffer_size)

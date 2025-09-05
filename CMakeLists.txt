@@ -12,17 +12,27 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Fix: Use C flags instead of C++ flags for C project
-set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
-set(CMAKE_C_FLAGS_RELEASE "-O3")
+if(WIN32)
+    # Windows-specific compiler flags
+    set(CMAKE_C_FLAGS "/W3")
+    set(CMAKE_C_FLAGS_DEBUG "/Zi /Od /MDd")
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /MD")
+    # Enable C99 features
+    set(CMAKE_C_STANDARD 99)
+    set(CMAKE_C_STANDARD_REQUIRED ON)
+else()
+    set(CMAKE_C_FLAGS "-Wall -Wextra")
+    set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS_RELEASE "-O3")
+endif()
 
 # Remove duplicate C flags section
 # set(CMAKE_C_FLAGS "-Wall -Wextra")
 # set(CMAKE_C_FLAGS_DEBUG "-g -fno-omit-frame-pointer -fsanitize=address")
 # set(CMAKE_C_FLAGS_RELEASE "-O3")
 
-# Fix: Properly configure ASan for Debug mode
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+# Fix: Properly configure ASan for Debug mode (Unix/Linux only)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
     # Set ASan environment options
     set(ENV{ASAN_OPTIONS} "detect_leaks=1:abort_on_error=1:check_initialization_order=1:strict_init_order=1")
     
@@ -57,6 +67,13 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${USE_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} ${PRELOAD_FLAGS}")
     set(CMAKE_EXECUTABLE_SUFFIX .html)
+elseif(WIN32)
+    set(CMAKE_EXECUTABLE_SUFFIX .exe)
+    find_package(SDL2 REQUIRED)
+    find_package(Freetype REQUIRED)
+    find_package(BZip2 REQUIRED)
+    find_package(ZLIB REQUIRED)
+    add_compile_definitions(CACHE_PATH="../cache")
 else()
     find_package(SDL2 REQUIRED)
     find_package(Freetype REQUIRED)
@@ -69,12 +86,19 @@ endif()
 if(APPLE)
     find_library(OPENGL_LIBRARY OpenGL)
     find_library(GLUT_LIBRARY GLUT)
+elseif(WIN32)
+    # Windows OpenGL configuration
+    find_package(OpenGL REQUIRED)
+    # Windows-specific libraries
+    set(WINDOWS_LIBS opengl32)
 else()
     find_package(OpenGL REQUIRED)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(RSClient src src/imgui)
+elseif(WIN32)
+    include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
 else()
     include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
 endif()
@@ -116,8 +140,8 @@ add_executable(main_client
     src/osrs/tables/noise.c
 )
 
-# Fix: Add ASan target properties for main_client
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+# Fix: Add ASan target properties for main_client (Unix/Linux only)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
     set_target_properties(main_client PROPERTIES
         LINK_FLAGS "-fsanitize=address"
     )
@@ -226,8 +250,8 @@ add_executable(model_viewer
     src/imgui/imgui_impl_sdlrenderer2.cpp
 )
 
-# Fix: Add ASan target properties for scene_tile_test
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+# Fix: Add ASan target properties for scene_tile_test (Unix/Linux only)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
     set_target_properties(scene_tile_test PROPERTIES
         LINK_FLAGS "-fsanitize=address"
     )
@@ -276,6 +300,9 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(scene_tile_test)
+elseif(WIN32)
+    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS})
+    target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS})
 else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
@@ -288,8 +315,8 @@ set_target_properties(model_viewer PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# Fix: Add ASan target properties for model_viewer
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+# Fix: Add ASan target properties for model_viewer (Unix/Linux only)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
     # set_target_properties(model_viewer PROPERTIES
     #     LINK_FLAGS "-fsanitize=address"
     # )
@@ -317,6 +344,10 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+elseif(WIN32)
+    target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
 else()
     target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
