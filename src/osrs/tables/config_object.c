@@ -1,6 +1,7 @@
 #include "config_object.h"
 
 #include "../rsbuf.h"
+#include "../../string_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>

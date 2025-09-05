@@ -1,6 +1,7 @@
 #include "config_locs.h"
 
 #include "osrs/rsbuf.h"
+#include "../string_utils.h"
 
 #include <assert.h>
 #include <stdbool.h>

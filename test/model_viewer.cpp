@@ -25,6 +25,11 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+// SDL2 main handling
+#ifdef main
+#undef main
+#endif
+
 #define LUMBRIDGE_KITCHEN_TILE_1 14815
 
 // ImGui headers
@@ -33,11 +38,11 @@ extern "C" {
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
 
-int g_sin_table[2048];
-int g_cos_table[2048];
-int g_tan_table[2048];
+extern "C" int g_sin_table[2048];
+extern "C" int g_cos_table[2048];
+extern "C" int g_tan_table[2048];
 
-int g_blit_buffer[SCREEN_WIDTH * SCREEN_HEIGHT] = { 0 };
+extern "C" int g_blit_buffer[SCREEN_WIDTH * SCREEN_HEIGHT] = { 0 };
 
 static inline int
 min(int a, int b)
@@ -53,7 +58,7 @@ max(int a, int b)
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
 //             for hue, 3 for saturation and 7 for lightness, bitpacked and
 //             represented as a short.
-int g_hsl16_to_rgb_table[65536];
+extern "C" int g_hsl16_to_rgb_table[65536];
 
 int
 pix3d_set_gamma(int rgb, double gamma)
@@ -1029,7 +1034,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 }
 
 int
-main()
+SDL_main(int argc, char* argv[])
 {
     init_hsl16_to_rgb_table();
     init_sin_table();

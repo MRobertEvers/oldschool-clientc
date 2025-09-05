@@ -4,7 +4,7 @@
 #define WIDTH 800
 #define HEIGHT 800
 
-extern int g_hsl16_to_rgb_table[65536];
+extern "C" int g_hsl16_to_rgb_table[65536];
 
 void gouraudRaster(int x0, int x1, int color0, int color1, int* dst, int offset, int length);
 

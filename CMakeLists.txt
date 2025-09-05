@@ -105,6 +105,7 @@ endif()
 
 add_executable(main_client
     src/main_client.c
+    src/shared_tables.c
     src/osrs/frustrum_cullmap.c
     src/texture.c
     src/osrs/tables/textures.c
@@ -149,6 +150,8 @@ endif()
 
 add_executable(scene_tile_test
     test/scene_tile_test.cpp
+    src/shared_tables.c
+    src/string_utils.c
     src/osrs/frustrum_cullmap.c
     src/osrs/bounds_cylinder.c
     src/osrs/tables/textures.c
@@ -202,6 +205,8 @@ add_executable(scene_tile_test
 # Model viewer with ImGui
 add_executable(model_viewer
     test/model_viewer.cpp
+    src/shared_tables.c
+    src/string_utils.c
     src/osrs/frustrum_cullmap.c
     src/osrs/bounds_cylinder.c
     src/osrs/tables/textures.c
@@ -260,6 +265,8 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(scene_tile_test_browser
         test/scene_tile_test_browser.c
+        src/shared_tables.c
+        src/string_utils.c
         src/osrs/tables/textures.c
         src/osrs/tables/sprites.c
         src/osrs/blend_underlays.c
@@ -383,6 +390,8 @@ if(APPLE)
     # Add source files
     set(SOURCES
         src/metal_main.mm
+        src/shared_tables.c
+        src/string_utils.c
         src/osrs/frustrum_cullmap.c
         src/osrs/tables/textures.c
         src/osrs/tables/sprites.c

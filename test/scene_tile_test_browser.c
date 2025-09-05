@@ -25,14 +25,14 @@
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 600
 
-int g_sin_table[2048];
-int g_cos_table[2048];
-int g_tan_table[2048];
+extern "C" int g_sin_table[2048];
+extern "C" int g_cos_table[2048];
+extern "C" int g_tan_table[2048];
 
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
 //             for hue, 3 for saturation and 7 for lightness, bitpacked and
 //             represented as a short.
-int g_hsl16_to_rgb_table[65536];
+extern "C" int g_hsl16_to_rgb_table[65536];
 
 // Global game state for browser access
 struct Game* g_game = NULL;
