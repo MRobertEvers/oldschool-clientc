@@ -1,0 +1,5 @@
+﻿Executable: build\Debug\model_viewer.exe
+Size: 2669056 bytes
+Created: 09/05/2025 09:17:02
+Modified: 09/05/2025 10:17:37
+Build Type: build/Debug

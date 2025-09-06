@@ -2119,7 +2119,7 @@ main()
 
         if( frame_time < target_frame_time )
         {
-            SDL_Delay(target_frame_time - frame_time);
+            // SDL_Delay(target_frame_time - frame_time);
         }
 
         last_frame_time = frame_end_time;

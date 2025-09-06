@@ -1,0 +1,19 @@
+﻿Microsoft (R) COFF/PE Dumper Version 14.43.34809.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+
+Dump of file build\Debug\model_viewer.exe
+
+File Type: EXECUTABLE IMAGE
+
+  Summary
+
+        1000 .00cfg
+      927000 .data
+        3000 .idata
+        C000 .pdata
+       94000 .rdata
+        8000 .reloc
+        1000 .rsrc
+      1CA000 .text
+        1000 .tls
