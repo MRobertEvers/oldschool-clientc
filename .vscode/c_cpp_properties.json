@@ -21,6 +21,31 @@
             "defines": [],
             "cStandard": "c17",
             "intelliSenseMode": "macos-clang-arm64"
+        },
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/src/imgui",
+                "${workspaceFolder}/src/osrs",
+                "${workspaceFolder}/src/3rd",
+                "${workspaceFolder}/src/datastruct",
+                "${workspaceFolder}/vcpkg/installed/x64-windows/include",
+                "${workspaceFolder}/vcpkg/installed/x64-windows/include/SDL2"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "CACHE_PATH=\"../cache\""
+            ],
+            "windowsSdkVersion": "10.0.22621.0",
+            "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.43.348/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c99",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-msvc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "compileCommands": "${workspaceFolder}/compile_commands.json"
         }
     ],
     "version": 4

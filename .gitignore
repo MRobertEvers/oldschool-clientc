@@ -6,3 +6,4 @@ all_tiles.json
 symbols.txt
 build*/
 public/cache/
+.cache/

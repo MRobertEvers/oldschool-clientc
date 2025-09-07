@@ -139,6 +139,9 @@ add_executable(main_client
     src/osrs/scene_cache.c
     src/datastruct/ht.c
     src/osrs/tables/noise.c
+
+    src/3rd/bzip/bzip.c
+    src/3rd/miniz/miniz.c
 )
 
 # Fix: Add ASan target properties for main_client (Unix/Linux only)
@@ -199,6 +202,9 @@ add_executable(scene_tile_test
     src/imgui/imgui_demo.cpp
     src/imgui/imgui_impl_sdl2.cpp
     src/imgui/imgui_impl_sdlrenderer2.cpp
+
+    src/3rd/bzip/bzip.c
+    src/3rd/miniz/miniz.c
 )
 
 # Model viewer with ImGui
@@ -252,6 +258,9 @@ add_executable(model_viewer
     src/imgui/imgui_demo.cpp
     src/imgui/imgui_impl_sdl2.cpp
     src/imgui/imgui_impl_sdlrenderer2.cpp
+
+    src/3rd/bzip/bzip.c
+    src/3rd/miniz/miniz.c
 )
 
 # Add SDL2 include directories for Windows

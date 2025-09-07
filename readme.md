@@ -887,6 +887,8 @@ https://discord.com/channels/788652898904309761/1069689552052166657/117159152840
 
 ### Windows
 
+In order for ninja to work, you need to set up your visual studio vars for powershell. See the microsoft powershell profile in scripts.
+
 .\vcpkg.exe install sdl2:x64-windows bzip2:x64-windows zlib:x64-windows freetype:x64-windows
 
 

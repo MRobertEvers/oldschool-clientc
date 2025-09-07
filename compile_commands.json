@@ -1,0 +1,830 @@
+[
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\main_client.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\main_client.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\main_client.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\main_client.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\shared_tables.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\shared_tables.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\shared_tables.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\shared_tables.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\frustrum_cullmap.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\frustrum_cullmap.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\frustrum_cullmap.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\frustrum_cullmap.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\texture.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\texture.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\texture.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\texture.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\textures.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\textures.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\textures.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\textures.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\sprites.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\sprites.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\sprites.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\sprites.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\blend_underlays.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\blend_underlays.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\blend_underlays.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\blend_underlays.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\palette.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\palette.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\palette.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\palette.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\cache.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\cache.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\cache.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\cache.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\scene_tile.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_tile.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_tile.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\scene_tile.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\model.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\model.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\model.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\model.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\archive_decompress.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive_decompress.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive_decompress.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\archive_decompress.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\reference_table.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\reference_table.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\reference_table.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\reference_table.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\config_npctype.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_npctype.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_npctype.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\config_npctype.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\config_sequence.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_sequence.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_sequence.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\config_sequence.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\config_floortype.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_floortype.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_floortype.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\config_floortype.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\framemap.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\framemap.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\framemap.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\framemap.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\frame.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\frame.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\frame.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\frame.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\maps.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\maps.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\maps.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\maps.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\filelist.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\filelist.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\filelist.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\filelist.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\render.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\render.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\render.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\render.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\rsbuf.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\rsbuf.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\rsbuf.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\rsbuf.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\flat.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\flat.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\flat.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\flat.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\gouraud.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\gouraud.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\gouraud_deob.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud_deob.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud_deob.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\gouraud_deob.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\lighting.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\lighting.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\lighting.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\lighting.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\projection.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\projection.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\projection.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\projection.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\anim.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\anim.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\anim.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\anim.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\xtea.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\xtea.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\archive.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\archive.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\xtea_config.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea_config.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea_config.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\xtea_config.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\scene_cache.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_cache.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_cache.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\scene_cache.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\datastruct\\ht.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\datastruct\\ht.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\datastruct\\ht.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\datastruct\\ht.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\osrs\\tables\\noise.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\noise.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\noise.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\osrs\\tables\\noise.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\3rd\\bzip\\bzip.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\bzip\\bzip.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\bzip\\bzip.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\3rd\\bzip\\bzip.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\main_client.dir\\src\\3rd\\miniz\\miniz.c.obj /FdCMakeFiles\\main_client.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\miniz\\miniz.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\miniz\\miniz.c",
+  "output": "CMakeFiles\\main_client.dir\\src\\3rd\\miniz\\miniz.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\scene_tile_test.dir\\test\\scene_tile_test.cpp.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\test\\scene_tile_test.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\test\\scene_tile_test.cpp",
+  "output": "CMakeFiles\\scene_tile_test.dir\\test\\scene_tile_test.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\shared_tables.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\shared_tables.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\shared_tables.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\shared_tables.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\string_utils.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\string_utils.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\string_utils.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\string_utils.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\frustrum_cullmap.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\frustrum_cullmap.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\frustrum_cullmap.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\frustrum_cullmap.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\bounds_cylinder.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\bounds_cylinder.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\bounds_cylinder.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\bounds_cylinder.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\textures.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\textures.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\textures.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\textures.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\sprites.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\sprites.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\sprites.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\sprites.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\blend_underlays.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\blend_underlays.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\blend_underlays.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\blend_underlays.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\scene_tile.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_tile.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_tile.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\scene_tile.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\palette.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\palette.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\palette.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\palette.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\cache.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\cache.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\cache.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\cache.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\world.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\world.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\world.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\world.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\model.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\model.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\model.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\model.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\archive_decompress.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive_decompress.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive_decompress.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\archive_decompress.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\reference_table.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\reference_table.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\reference_table.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\reference_table.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\scene.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\scene.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_npctype.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_npctype.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_npctype.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_npctype.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_sequence.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_sequence.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_sequence.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_sequence.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_floortype.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_floortype.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_floortype.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_floortype.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_locs.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_locs.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_locs.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_locs.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_object.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_object.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_object.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_object.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_idk.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_idk.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_idk.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\config_idk.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\framemap.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\framemap.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\framemap.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\framemap.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\frame.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\frame.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\frame.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\frame.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\maps.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\maps.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\maps.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\maps.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\filelist.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\filelist.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\filelist.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\filelist.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\render.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\render.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\render.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\render.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\rsbuf.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\rsbuf.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\rsbuf.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\rsbuf.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\gouraud.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\gouraud.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\gouraud_deob.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud_deob.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud_deob.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\gouraud_deob.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\flat.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\flat.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\flat.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\flat.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\lighting.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\lighting.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\lighting.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\lighting.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\projection.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\projection.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\projection.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\projection.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\texture.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\texture.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\texture.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\texture.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\anim.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\anim.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\anim.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\anim.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\model_transforms.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\model_transforms.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\model_transforms.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\model_transforms.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\xtea.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\xtea.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\archive.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\archive.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\xtea_config.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea_config.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea_config.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\xtea_config.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\scene_cache.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_cache.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_cache.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\scene_cache.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\datastruct\\ht.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\datastruct\\ht.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\datastruct\\ht.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\datastruct\\ht.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\noise.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\noise.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\noise.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\osrs\\tables\\noise.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui.cpp.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui.cpp",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_draw.cpp.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_draw.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_draw.cpp",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_draw.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_tables.cpp.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_tables.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_tables.cpp",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_tables.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_widgets.cpp.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_widgets.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_widgets.cpp",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_widgets.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_demo.cpp.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_demo.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_demo.cpp",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_demo.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_impl_sdl2.cpp.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_impl_sdl2.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_impl_sdl2.cpp",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_impl_sdl2.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_impl_sdlrenderer2.cpp.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_impl_sdlrenderer2.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_impl_sdlrenderer2.cpp",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\imgui\\imgui_impl_sdlrenderer2.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\3rd\\bzip\\bzip.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\bzip\\bzip.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\bzip\\bzip.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\3rd\\bzip\\bzip.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\scene_tile_test.dir\\src\\3rd\\miniz\\miniz.c.obj /FdCMakeFiles\\scene_tile_test.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\miniz\\miniz.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\miniz\\miniz.c",
+  "output": "CMakeFiles\\scene_tile_test.dir\\src\\3rd\\miniz\\miniz.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\model_viewer.dir\\test\\model_viewer.cpp.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\test\\model_viewer.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\test\\model_viewer.cpp",
+  "output": "CMakeFiles\\model_viewer.dir\\test\\model_viewer.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\shared_tables.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\shared_tables.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\shared_tables.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\shared_tables.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\string_utils.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\string_utils.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\string_utils.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\string_utils.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\frustrum_cullmap.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\frustrum_cullmap.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\frustrum_cullmap.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\frustrum_cullmap.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\bounds_cylinder.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\bounds_cylinder.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\bounds_cylinder.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\bounds_cylinder.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\textures.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\textures.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\textures.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\textures.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\sprites.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\sprites.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\sprites.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\sprites.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\blend_underlays.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\blend_underlays.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\blend_underlays.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\blend_underlays.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\scene_tile.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_tile.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_tile.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\scene_tile.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\palette.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\palette.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\palette.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\palette.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\cache.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\cache.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\cache.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\cache.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\model.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\model.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\model.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\model.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\archive_decompress.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive_decompress.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive_decompress.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\archive_decompress.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\reference_table.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\reference_table.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\reference_table.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\reference_table.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\scene.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\scene.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_npctype.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_npctype.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_npctype.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_npctype.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_sequence.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_sequence.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_sequence.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_sequence.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_floortype.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_floortype.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_floortype.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_floortype.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_locs.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_locs.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_locs.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_locs.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_object.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_object.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_object.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_object.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_idk.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_idk.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\config_idk.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\config_idk.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\framemap.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\framemap.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\framemap.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\framemap.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\frame.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\frame.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\frame.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\frame.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\maps.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\maps.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\maps.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\maps.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\filelist.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\filelist.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\filelist.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\filelist.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\render.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\render.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\render.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\render.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\rsbuf.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\rsbuf.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\rsbuf.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\rsbuf.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\gouraud.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\gouraud.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\gouraud_deob.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud_deob.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\gouraud_deob.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\gouraud_deob.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\flat.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\flat.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\flat.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\flat.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\lighting.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\lighting.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\lighting.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\lighting.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\projection.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\projection.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\projection.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\projection.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\texture.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\texture.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\texture.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\texture.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\anim.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\anim.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\anim.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\anim.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\model_transforms.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\model_transforms.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\model_transforms.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\model_transforms.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\xtea.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\xtea.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\archive.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\archive.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\archive.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\xtea_config.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea_config.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\xtea_config.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\xtea_config.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\scene_cache.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_cache.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\scene_cache.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\scene_cache.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\datastruct\\ht.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\datastruct\\ht.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\datastruct\\ht.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\datastruct\\ht.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\noise.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\noise.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\osrs\\tables\\noise.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\osrs\\tables\\noise.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\model_viewer.dir\\src\\imgui\\imgui.cpp.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui.cpp",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\imgui\\imgui.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_draw.cpp.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_draw.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_draw.cpp",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_draw.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_tables.cpp.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_tables.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_tables.cpp",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_tables.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_widgets.cpp.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_widgets.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_widgets.cpp",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_widgets.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_demo.cpp.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_demo.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_demo.cpp",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_demo.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_impl_sdl2.cpp.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_impl_sdl2.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_impl_sdl2.cpp",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_impl_sdl2.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O2 /Ob2 /DNDEBUG -std:c++17 /FoCMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_impl_sdlrenderer2.cpp.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_impl_sdlrenderer2.cpp",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui\\imgui_impl_sdlrenderer2.cpp",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\imgui\\imgui_impl_sdlrenderer2.cpp.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\3rd\\bzip\\bzip.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\bzip\\bzip.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\bzip\\bzip.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\3rd\\bzip\\bzip.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -external:IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include\\SDL2 -external:W0 /W3 /O2 /MD /FoCMakeFiles\\model_viewer.dir\\src\\3rd\\miniz\\miniz.c.obj /FdCMakeFiles\\model_viewer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\miniz\\miniz.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\3rd\\miniz\\miniz.c",
+  "output": "CMakeFiles\\model_viewer.dir\\src\\3rd\\miniz\\miniz.c.obj"
+},
+{
+  "directory": "C:/Users/mrobe/Documents/git_repos/3d-raster/build-ninja",
+  "command": "C:\\PROGRA~1\\MICROS~3\\2022\\COMMUN~1\\VC\\Tools\\MSVC\\1443~1.348\\bin\\Hostx64\\x64\\cl.exe  /nologo -DCACHE_PATH=\\\"../cache\\\" -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\RSClient -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\vcpkg\\installed\\x64-windows\\include -IC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\imgui /W3 /O2 /MD /FoCMakeFiles\\metal_renderer.dir\\src\\dummy.c.obj /FdCMakeFiles\\metal_renderer.dir\\ /FS -c C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\dummy.c",
+  "file": "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\src\\dummy.c",
+  "output": "CMakeFiles\\metal_renderer.dir\\src\\dummy.c.obj"
+}
+]

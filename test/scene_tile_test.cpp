@@ -1113,7 +1113,7 @@ SDL_main(int argc, char* argv[])
     struct Cache* cache = cache_new_from_directory(CACHE_PATH);
     if( !cache )
     {
-        printf("Failed to load cache from directory: %s\n", CACHE_PATH);
+        printf("Failed to load cache from directory2: %s\n", CACHE_PATH);
         printf("Make sure the cache directory exists and contains the required files:\n");
         printf("  - main_file_cache.dat2\n");
         printf("  - main_file_cache.idx0 through main_file_cache.idx255\n");

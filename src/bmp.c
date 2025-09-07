@@ -8,7 +8,7 @@ bmp_write_file(const char* filename, int* pixels, int width, int height)
     FILE* file = fopen(filename, "wb");
     if( !file )
     {
-        printf("Failed to open file for writing: %s\n", filename);
+        printf("Failed to open file for writing2: %s\n", filename);
         return;
     }
 
