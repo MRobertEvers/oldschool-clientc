@@ -34,7 +34,6 @@ static inline compression_format_t detect_compression_format(const uint8_t* data
     // Check for GZIP magic number (0x1f, 0x8b)
     if( data[0] == 0x1f && data[1] == 0x8b )
     {
-        printf("Detected GZIP format\n");
         return COMPRESSION_FORMAT_GZIP;
     }
     
@@ -275,7 +274,7 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
             // Update archive with decompressed data
             free(archive->data);
             archive->data = (char*)decompressed_data;
-            archive->data_size = decompressed_size;
+            archive->data_size = (int)decompressed_size;
         }
         else // format == COMPRESSION_FORMAT_ZLIB
         {

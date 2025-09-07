@@ -71,14 +71,10 @@ elseif(WIN32)
     set(CMAKE_EXECUTABLE_SUFFIX .exe)
     find_package(SDL2 REQUIRED)
     find_package(Freetype REQUIRED)
-    find_package(BZip2 REQUIRED)
-    find_package(ZLIB REQUIRED)
     add_compile_definitions(CACHE_PATH="../cache")
 else()
     find_package(SDL2 REQUIRED)
     find_package(Freetype REQUIRED)
-    find_package(BZip2 REQUIRED)
-    find_package(ZLIB REQUIRED)
     add_compile_definitions(CACHE_PATH="../cache")
 endif()
 
@@ -98,9 +94,9 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(RSClient src src/imgui)
 elseif(WIN32)
-    include_directories(RSClient src ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
+    include_directories(RSClient src src/imgui)
 else()
-    include_directories(RSClient src ${SDL2_INCLUDE_DIRS} ${BZIP2_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS} src/imgui)
+    include_directories(RSClient src ${SDL2_INCLUDE_DIRS} src/imgui)
 endif()
 
 add_executable(main_client
@@ -140,7 +136,7 @@ add_executable(main_client
     src/datastruct/ht.c
     src/osrs/tables/noise.c
 
-    src/3rd/bzip/bzip.c
+    src/3rd/bzip/bzip.c 
     src/3rd/miniz/miniz.c
 )
 
@@ -323,11 +319,11 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(scene_tile_test)
 elseif(WIN32)
-    target_link_libraries(scene_tile_test SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS})
-    target_link_libraries(model_viewer SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS})
+    target_link_libraries(scene_tile_test SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS})
+    target_link_libraries(model_viewer SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS})
 else()
-    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
-    target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES})
+    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES})
+    target_link_libraries(model_viewer ${SDL2_LIBRARIES})
 endif()
 
 
@@ -367,9 +363,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
 elseif(WIN32)
-    target_link_libraries(main_client SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
-    target_link_libraries(scene_tile_test SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
-    target_link_libraries(model_viewer SDL2::SDL2 SDL2::SDL2main ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(main_client SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(model_viewer SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS} ${EXTRA_LIBS})
     
     # Copy DLLs to output directories for Windows
     # Use relative path from project root to vcpkg
@@ -383,12 +379,6 @@ elseif(WIN32)
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/Debug"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${VCPKG_DEBUG_BIN_DIR}/bz2d.dll"
-                "${CMAKE_CURRENT_BINARY_DIR}/Debug/"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${VCPKG_DEBUG_BIN_DIR}/zlibd1.dll"
-                "${CMAKE_CURRENT_BINARY_DIR}/Debug/"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${VCPKG_DEBUG_BIN_DIR}/SDL2d.dll"
                 "${CMAKE_CURRENT_BINARY_DIR}/Debug/"
                 COMMENT "Copying debug DLLs for ${target_name}"
@@ -396,12 +386,6 @@ elseif(WIN32)
         else()
             # Copy release DLLs to build root
             add_custom_command(TARGET ${target_name} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${VCPKG_BIN_DIR}/bz2.dll"
-                "${CMAKE_CURRENT_BINARY_DIR}/"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${VCPKG_BIN_DIR}/zlib1.dll"
-                "${CMAKE_CURRENT_BINARY_DIR}/"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${VCPKG_BIN_DIR}/SDL2.dll"
                 "${CMAKE_CURRENT_BINARY_DIR}/"
@@ -415,8 +399,8 @@ elseif(WIN32)
     copy_dlls_to_target(scene_tile_test)
     copy_dlls_to_target(model_viewer)
 else()
-    target_link_libraries(main_client ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
-    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${BZIP2_LIBRARIES} ${ZLIB_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(main_client ${SDL2_LIBRARIES} ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
 endif()
 
@@ -442,11 +426,6 @@ if(APPLE)
     find_library(METALKIT_LIBRARY MetalKit)
     find_library(FOUNDATION_LIBRARY Foundation)
 
-    # Find required libraries
-    find_package(BZip2 REQUIRED)
-    find_package(ZLIB REQUIRED)
-
-    # Add source files
     set(SOURCES
         src/metal_main.mm
         src/shared_tables.c
@@ -504,8 +483,6 @@ if(APPLE)
         ${METAL_LIBRARY}
         ${METALKIT_LIBRARY}
         ${FOUNDATION_LIBRARY}
-        ${BZIP2_LIBRARIES}
-        ${ZLIB_LIBRARIES}
         ${EXTRA_LIBS}
     )
 
@@ -518,8 +495,6 @@ if(APPLE)
     # Set include directories
     target_include_directories(metal_renderer PRIVATE
         ${CMAKE_SOURCE_DIR}/src
-        ${BZIP2_INCLUDE_DIRS}
-        ${ZLIB_INCLUDE_DIRS}
     )
 
     # Metal shader compilation
