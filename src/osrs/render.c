@@ -771,7 +771,7 @@ sort_face_draw_order(
 
 void
 raster_osrs(
-    struct Pixel* pixel_buffer,
+    int* pixel_buffer,
     int* priority_faces,
     int* priority_face_counts,
     int* face_indices_a,
@@ -1352,7 +1352,7 @@ model_draw_face(
 
 void
 raster_osrs_typed(
-    struct Pixel* pixel_buffer,
+    int* pixel_buffer,
     int* priority_faces,
     int* priority_face_counts,
     int* face_infos,
@@ -1432,7 +1432,7 @@ raster_osrs_typed(
 
 void
 raster_osrs_single_gouraud(
-    struct Pixel* pixel_buffer,
+    int* pixel_buffer,
     int face,
     int* face_indices_a,
     int* face_indices_b,
@@ -1513,7 +1513,7 @@ raster_osrs_single_gouraud(
 
 static bool
 raster_osrs_single_texture(
-    struct Pixel* pixel_buffer,
+    int* pixel_buffer,
     int width,
     int height,
     int face,
@@ -2188,7 +2188,7 @@ render_scene_tiles(
                     camera_roll,
                     fov,
                     tile,
-                    textures,
+                    NULL,
                     NULL);
             }
         }

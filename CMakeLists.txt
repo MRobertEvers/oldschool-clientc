@@ -12,8 +12,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Fix: Use C flags instead of C++ flags for C project
-if(WIN32)
-    # Windows-specific compiler flags
+if(WIN32 AND MSVC)
+    # Windows MSVC-specific compiler flags
     set(CMAKE_C_FLAGS "/W3")
     set(CMAKE_C_FLAGS_DEBUG "/Zi /Od /MDd")
     set(CMAKE_C_FLAGS_RELEASE "/O2 /MD")
@@ -21,9 +21,13 @@ if(WIN32)
     set(CMAKE_C_STANDARD 99)
     set(CMAKE_C_STANDARD_REQUIRED ON)
 else()
+    # GCC/MinGW and other compilers
     set(CMAKE_C_FLAGS "-Wall -Wextra")
     set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
     set(CMAKE_C_FLAGS_RELEASE "-O3")
+    # Enable C99 features
+    set(CMAKE_C_STANDARD 99)
+    set(CMAKE_C_STANDARD_REQUIRED ON)
 endif()
 
 # Remove duplicate C flags section

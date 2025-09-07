@@ -113,7 +113,7 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct RSBuffer* b
                 printf("decode_npc_type: Buffer overflow in case 1\n");
                 return;
             }
-            int length = g1(&buffer);
+            int length = g1(buffer);
             npc->models = malloc(length * sizeof(int));
             if( !npc->models )
             {

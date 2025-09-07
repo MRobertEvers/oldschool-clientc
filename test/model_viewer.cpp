@@ -1037,7 +1037,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 #include <iostream>
 
 int
-main(int argc, char* argv[])
+SDL_main(int argc, char* argv[])
 {
     std::cout << "SDL_main" << std::endl;
     init_hsl16_to_rgb_table();

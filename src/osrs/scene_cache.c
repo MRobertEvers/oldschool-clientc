@@ -61,7 +61,7 @@ ht_cache_keyslot(struct ModelCache* model_cache, int key)
 {
     struct Hash hash = { 0 };
     ht_hash_init(&hash);
-    ht_hash_update(&hash, &key, sizeof(key));
+    ht_hash_update(&hash, (const char*)&key, sizeof(key));
     ht_hash_end(&hash);
 
     struct HashTableIter iter = ht_lookuph(&model_cache->table, &hash);
@@ -86,7 +86,7 @@ ht_cache_lookup(struct ModelCache* model_cache, int model_id)
 {
     struct Hash hash = { 0 };
     ht_hash_init(&hash);
-    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_update(&hash, (const char*)&model_id, sizeof(model_id));
     ht_hash_end(&hash);
 
     struct HashTableIter iter = ht_lookuph(&model_cache->table, &hash);
@@ -108,7 +108,7 @@ ht_cache_emplace(struct ModelCache* model_cache, int model_id)
 {
     struct Hash hash = { 0 };
     ht_hash_init(&hash);
-    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_update(&hash, (const char*)&model_id, sizeof(model_id));
     ht_hash_end(&hash);
 
     struct HashTableIter iter = ht_lookuph(&model_cache->table, &hash);
@@ -131,7 +131,7 @@ ht_cache_remove(struct ModelCache* model_cache, int model_id)
 {
     struct Hash hash = { 0 };
     ht_hash_init(&hash);
-    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_update(&hash, (const char*)&model_id, sizeof(model_id));
     ht_hash_end(&hash);
 
     struct HashTableIter iter = ht_lookuph(&model_cache->table, &hash);
@@ -220,7 +220,7 @@ httex_cache_keyslot(struct TexturesCache* textures_cache, int key)
 {
     struct Hash hash = { 0 };
     ht_hash_init(&hash);
-    ht_hash_update(&hash, &key, sizeof(key));
+    ht_hash_update(&hash, (const char*)&key, sizeof(key));
     ht_hash_end(&hash);
 
     struct HashTableIter iter = ht_lookuph(&textures_cache->table, &hash);
@@ -245,7 +245,7 @@ httex_cache_lookup(struct TexturesCache* textures_cache, int model_id)
 {
     struct Hash hash = { 0 };
     ht_hash_init(&hash);
-    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_update(&hash, (const char*)&model_id, sizeof(model_id));
     ht_hash_end(&hash);
 
     struct HashTableIter iter = ht_lookuph(&textures_cache->table, &hash);
@@ -267,7 +267,7 @@ httex_cache_emplace(struct TexturesCache* textures_cache, int model_id)
 {
     struct Hash hash = { 0 };
     ht_hash_init(&hash);
-    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_update(&hash, (const char*)&model_id, sizeof(model_id));
     ht_hash_end(&hash);
 
     struct HashTableIter iter = ht_lookuph(&textures_cache->table, &hash);
@@ -290,7 +290,7 @@ httex_cache_remove(struct TexturesCache* textures_cache, int model_id)
 {
     struct Hash hash = { 0 };
     ht_hash_init(&hash);
-    ht_hash_update(&hash, &model_id, sizeof(model_id));
+    ht_hash_update(&hash, (const char*)&model_id, sizeof(model_id));
     ht_hash_end(&hash);
 
     struct HashTableIter iter = ht_lookuph(&textures_cache->table, &hash);

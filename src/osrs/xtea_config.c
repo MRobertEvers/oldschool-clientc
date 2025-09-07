@@ -203,7 +203,7 @@ xtea_config_find_key(int archive, int group)
     for( int i = 0; i < xtea_key_count; i++ )
     {
         if( xtea_keys[i].archive == archive && xtea_keys[i].group == group )
-            return &xtea_keys[i].key;
+            return xtea_keys[i].key;
     }
     return NULL;
 }
