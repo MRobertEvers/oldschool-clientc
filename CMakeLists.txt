@@ -88,8 +88,20 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 elseif(WIN32)
     set(CMAKE_EXECUTABLE_SUFFIX .exe)
-    find_package(SDL2 REQUIRED)
-    find_package(Freetype REQUIRED)
+    
+    # Detect MinGW compiler and configure for static linking
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND WIN32)
+        set(IS_MINGW TRUE)
+        # Force static linking for MinGW
+        set(SDL2_STATIC ON)
+        set(SDL2_SHARED OFF)
+        find_package(SDL2 REQUIRED)
+        find_package(Freetype REQUIRED)
+    else()
+        find_package(SDL2 REQUIRED)
+        find_package(Freetype REQUIRED)
+    endif()
+    
     add_compile_definitions(CACHE_PATH="../cache")
 else()
     find_package(SDL2 REQUIRED)
@@ -389,6 +401,8 @@ elseif(WIN32)
     # Detect MinGW compiler
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND WIN32)
         set(IS_MINGW TRUE)
+        # Add static linking flags for MinGW
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
     else()
         set(IS_MINGW FALSE)
     endif()
@@ -424,8 +438,8 @@ elseif(WIN32)
             #     COMMENT "Copying libstdc++-6.dll for ${target_name}"
             # )
             
-            # Copy SDL2.dll from lib directory if it exists
-            if(EXISTS "${CMAKE_SOURCE_DIR}/lib/SDL2.dll")
+            # Copy SDL2.dll from lib directory if it exists (only for dynamic linking)
+            if(NOT SDL2_STATIC AND EXISTS "${CMAKE_SOURCE_DIR}/lib/SDL2.dll")
                 add_custom_command(TARGET ${target_name} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "${CMAKE_SOURCE_DIR}/lib/SDL2.dll"
