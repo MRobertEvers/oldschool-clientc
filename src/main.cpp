@@ -6,6 +6,10 @@
 #include <vector>
 #include <cmath>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 extern "C" {
 #include "shared_tables.h"
 #include "osrs/cache.h"
@@ -37,48 +41,77 @@ static float g_vertices[10000] = { 0 };
 const char* vertexShaderSource = R"(#version 300 es
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
-uniform float uRotationX;
-uniform float uRotationY;
-uniform float uDistance;
+uniform float uRotationX;  // pitch
+uniform float uRotationY;  // yaw
+// uniform float uDistance;   // zoom
+uniform vec3 uCameraPos;   // camera position
+uniform float uAspect;     // aspect ratio
 
 out vec3 vColor;
 
 mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
-    float f = 1.0 / tan(fov * 0.5);
-    float rangeInv = 1.0 / (far - near);
+    float y = 1.0 / tan(fov * 0.5);
+    float x = y / aspect;
+    float z = far / (far - near);
     
     return mat4(
-        f / aspect, 0.0, 0.0, 0.0,
-        0.0, f, 0.0, 0.0,
-        0.0, 0.0, (far + near) * rangeInv, 1.0,
-        0.0, 0.0, -2.0 * near * far * rangeInv, 0.0
+        x, 0.0, 0.0, 0.0,
+        0.0, -y, 0.0, 0.0,  // Negate y to flip screen space coordinates
+        0.0, 0.0, z, 1.0,
+        0.0, 0.0, -z * near, 0.0
     );
 }
 
-mat4 createModelMatrix(float angleX, float angleY, float dist) {
-    float cx = cos(angleX);
-    float sx = sin(angleX);
-    float cy = cos(angleY);
-    float sy = sin(angleY);
-    
-    return mat4(
-        cy, sx*sy, -cx*sy, 0.0,
-        0.0, -cx, -sx, 0.0,
-        -sy, sx*cy, cx*cy, 0.0,
-        0.0, 0.0, dist, 1.0
+mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
+    float cosPitch = cos(-pitch);
+    float sinPitch = sin(-pitch);
+    float cosYaw = cos(yaw);
+    float sinYaw = sin(yaw);
+
+    // Create rotation matrices
+    mat4 pitchMatrix = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, cosPitch, -sinPitch, 0.0,
+        0.0, sinPitch, cosPitch, 0.0,
+        0.0, 0.0, 0.0, 1.0
     );
+    
+    mat4 yawMatrix = mat4(
+        cosYaw, 0.0, sinYaw, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        -sinYaw, 0.0, cosYaw, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+    
+    // Create translation matrix, move relative to camera position
+    mat4 translateMatrix = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        -cameraPos.x, cameraPos.y, -cameraPos.z, 1.0
+    );
+    
+    // Combine matrices: rotation * translation
+    return yawMatrix * pitchMatrix * translateMatrix;
 }
 
 void main() {
-    mat4 model = createModelMatrix(uRotationX, uRotationY, uDistance);
-    mat4 projection = createProjectionMatrix(radians(45.0), 800.0/600.0, 1.0, 10000.0);
+    // Create view matrix with camera transformations
+    mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
     
-    vec4 worldPos = model * vec4(aPos, 1.0);
+    // Create projection matrix with 90 degree FOV (same as Metal version)
+    mat4 projection = createProjectionMatrix(radians(90.0), uAspect, 0.1, 10000.0);
+    
+    // Transform vertex position
+    vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
+    
+    // Apply zoom by moving camera back
+    // viewPos.z += uDistance;
     
     // Pass through the color
     vColor = aColor;
     
-    gl_Position = projection * worldPos;
+    gl_Position = projection * viewPos;
 }
 )";
 
@@ -104,13 +137,24 @@ struct Triangle {
 GLuint shaderProgram;
 GLuint VAO;
 GLuint VBO, colorVBO, EBO;
-float rotationX = 0.0f;
-float rotationY = 0.0f;
-float distance = 2000.0f;
+float rotationX = 0.3f;  // Initial pitch (look down slightly)
+float rotationY = 0.0f;   // Initial yaw
+// float distance = 1000.0f;  // Initial zoom level
+float cameraX = 0.0f;     // Camera position X
+float cameraY = 50.0f;   // Camera height (Y in Metal coords)
+float cameraZ = -300.0f;     // Camera position Z
 bool isDragging = false;
 float lastX = 0.0f;
 float lastY = 0.0f;
 std::vector<unsigned int> sortedIndices;
+
+// Keyboard state
+bool wKeyPressed = false;
+bool aKeyPressed = false;
+bool sKeyPressed = false;
+bool dKeyPressed = false;
+bool rKeyPressed = false;
+bool fKeyPressed = false;
 
 // Cube vertices with smoothed normals at corners
 std::vector<float> vertices = {
@@ -162,7 +206,8 @@ static void sort_model_faces()
         // on the op.
         0,
         0,
-        distance,
+        500,
+        // distance,
         0,
         0,
         0,
@@ -331,55 +376,60 @@ void initGL() {
     glGenBuffers(1, &colorVBO);
     glGenBuffers(1, &EBO);
 
-    // Prepare vertex data
-    for (int i = 0; i < g_scene_model->model->vertex_count; i++) {
-        g_vertices[i * 3] = (float)g_scene_model->model->vertices_x[i];
-        g_vertices[i * 3 + 1] = (float)g_scene_model->model->vertices_y[i];
-        g_vertices[i * 3 + 2] = (float)g_scene_model->model->vertices_z[i];
+    // Prepare vertex data - one set of vertices per face
+    std::vector<float> vertices(g_scene_model->model->face_count * 9);  // 3 vertices * 3 coordinates per face
+    for (int i = 0; i < g_scene_model->model->face_count; i++) {
+        // Get vertex indices for this face
+        unsigned int v1 = g_scene_model->model->face_indices_a[i];
+        unsigned int v2 = g_scene_model->model->face_indices_b[i];
+        unsigned int v3 = g_scene_model->model->face_indices_c[i];
+        
+        // First vertex
+        vertices[i * 9] = (float)g_scene_model->model->vertices_x[v1];
+        vertices[i * 9 + 1] = (float)g_scene_model->model->vertices_y[v1];
+        vertices[i * 9 + 2] = (float)g_scene_model->model->vertices_z[v1];
+        
+        // Second vertex
+        vertices[i * 9 + 3] = (float)g_scene_model->model->vertices_x[v2];
+        vertices[i * 9 + 4] = (float)g_scene_model->model->vertices_y[v2];
+        vertices[i * 9 + 5] = (float)g_scene_model->model->vertices_z[v2];
+        
+        // Third vertex
+        vertices[i * 9 + 6] = (float)g_scene_model->model->vertices_x[v3];
+        vertices[i * 9 + 7] = (float)g_scene_model->model->vertices_y[v3];
+        vertices[i * 9 + 8] = (float)g_scene_model->model->vertices_z[v3];
     }
 
-    printf("Vertices: %d\n", g_scene_model->model->vertex_count);
+    printf("Faces: %d\n", g_scene_model->model->face_count);
     
     // Setup vertex buffer
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, g_scene_model->model->vertex_count * 3 * sizeof(float), g_vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    // Create and setup color buffer
-    std::vector<float> colors(g_scene_model->model->vertex_count * 3);
-    for (int i = 0; i < g_sort_order_count; i++) {
-        int face_idx = g_sort_order[i];
+    // Create and setup color buffer for faces (3 vertices per face)
+    std::vector<float> colors(g_scene_model->model->face_count * 9);  // 3 vertices * 3 colors per face
+    for (int i = 0; i < g_scene_model->model->face_count; i++) {
+        int face_idx = i;
         
-        // Get the HSL colors for each vertex of the face
-        int hsl_a = g_scene_model->lighting->face_colors_hsl_a[face_idx];
-        int hsl_b = g_scene_model->lighting->face_colors_hsl_b[face_idx];
-        int hsl_c = g_scene_model->lighting->face_colors_hsl_c[face_idx];
+        // Get the face color in HSL
+        int hsl = g_scene_model->model->face_colors[face_idx];
         
-        // Get vertex indices
-        unsigned int vertex_a = g_scene_model->model->face_indices_a[face_idx];
-        unsigned int vertex_b = g_scene_model->model->face_indices_b[face_idx];
-        unsigned int vertex_c = g_scene_model->model->face_indices_c[face_idx];
+        // Convert HSL to RGB
+        int rgb = g_hsl16_to_rgb_table[hsl];
         
-        // Convert HSL to RGB and store for each vertex
-        int rgb_a = g_hsl16_to_rgb_table[hsl_a];
-        int rgb_b = g_hsl16_to_rgb_table[hsl_b];
-        int rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        // Extract RGB components
+        float r = ((rgb >> 16) & 0xFF) / 255.0f;
+        float g = ((rgb >> 8) & 0xFF) / 255.0f;
+        float b = (rgb & 0xFF) / 255.0f;
         
-        // Vertex A
-        colors[vertex_a * 3] = ((rgb_a >> 16) & 0xFF) / 255.0f;
-        colors[vertex_a * 3 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
-        colors[vertex_a * 3 + 2] = (rgb_a & 0xFF) / 255.0f;
-        
-        // Vertex B
-        colors[vertex_b * 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
-        colors[vertex_b * 3 + 1] = ((rgb_b >> 8) & 0xFF) / 255.0f;
-        colors[vertex_b * 3 + 2] = (rgb_b & 0xFF) / 255.0f;
-        
-        // Vertex C
-        colors[vertex_c * 3] = ((rgb_c >> 16) & 0xFF) / 255.0f;
-        colors[vertex_c * 3 + 1] = ((rgb_c >> 8) & 0xFF) / 255.0f;
-        colors[vertex_c * 3 + 2] = (rgb_c & 0xFF) / 255.0f;
+        // Store the same color for all three vertices of this face
+        for (int j = 0; j < 3; j++) {
+            colors[i * 9 + j * 3] = r;
+            colors[i * 9 + j * 3 + 1] = g;
+            colors[i * 9 + j * 3 + 2] = b;
+        }
     }
     
     glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
@@ -400,9 +450,38 @@ void initGL() {
     // Enable depth testing only for now
     glEnable(GL_DEPTH_TEST);
     // Disable face culling for debugging
-    // glEnable(GL_CULL_FACE);
-    // glFrontFace(GL_CCW);
-    // glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
+    glFrontFace(GL_CW);
+    glCullFace(GL_FRONT);
+}
+
+// Camera movement speed
+const float MOVE_SPEED = 50.0f;  // Increased for larger scale
+const float ROTATE_SPEED = 0.01f;
+
+void updateCameraPosition(bool forward, bool backward, bool left, bool right, bool up, bool down) {
+    if (forward) {
+        cameraX += sin(rotationY) * MOVE_SPEED;
+        cameraZ += cos(rotationY) * MOVE_SPEED;
+    }
+    if (backward) {
+        cameraX -= sin(rotationY) * MOVE_SPEED;
+        cameraZ -= cos(rotationY) * MOVE_SPEED;
+    }
+    if (left) {
+        cameraX -= cos(rotationY) * MOVE_SPEED;
+        cameraZ += sin(rotationY) * MOVE_SPEED;
+    }
+    if (right) {
+        cameraX += cos(rotationY) * MOVE_SPEED;
+        cameraZ -= sin(rotationY) * MOVE_SPEED;
+    }
+    if (up) {
+        cameraY += MOVE_SPEED;
+    }
+    if (down) {
+        cameraY -= MOVE_SPEED;
+    }
 }
 
 EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData) {
@@ -419,11 +498,11 @@ EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userD
         float deltaY = e->clientY - lastY;
         
         // Update rotation angles (scale down the movement)
-        rotationY += deltaX * 0.01f;
-        rotationX += deltaY * 0.01f;
+        rotationY += deltaX * ROTATE_SPEED;
+        rotationX += deltaY * ROTATE_SPEED;
         
-        // Limit vertical rotation to avoid gimbal lock
-        rotationX = fmax(fmin(rotationX, 1.5f), -1.5f);
+        // Clamp pitch to prevent over-rotation (same as Metal version)
+        rotationX = fmax(fmin(rotationX, M_PI / 2), -M_PI / 2);
         
         lastX = e->clientX;
         lastY = e->clientY;
@@ -438,6 +517,9 @@ void render() {
         printf("Render frame %d\n", frame_count);
     }
     
+    // Update camera position based on keyboard state
+    updateCameraPosition(wKeyPressed, sKeyPressed, aKeyPressed, dKeyPressed, rKeyPressed, fKeyPressed);
+    
     // Clear any existing errors
     while (glGetError() != GL_NO_ERROR);
 
@@ -451,9 +533,12 @@ void render() {
     // Get and validate uniform locations
     GLint rotationXLoc = glGetUniformLocation(shaderProgram, "uRotationX");
     GLint rotationYLoc = glGetUniformLocation(shaderProgram, "uRotationY");
-    GLint distanceLoc = glGetUniformLocation(shaderProgram, "uDistance");
+    // GLint distanceLoc = glGetUniformLocation(shaderProgram, "uDistance");
+    GLint cameraPosLoc = glGetUniformLocation(shaderProgram, "uCameraPos");
+    GLint aspectLoc = glGetUniformLocation(shaderProgram, "uAspect");
     
-    if (rotationXLoc == -1 || rotationYLoc == -1 || distanceLoc == -1) {
+    if (rotationXLoc == -1 || rotationYLoc == -1  || 
+        cameraPosLoc == -1 || aspectLoc == -1) {
         printf("Failed to get uniform locations\n");
         return;
     }
@@ -461,14 +546,13 @@ void render() {
     // Update uniforms
     glUniform1f(rotationXLoc, rotationX);
     glUniform1f(rotationYLoc, rotationY);
-    glUniform1f(distanceLoc, distance);
+    // glUniform1f(distanceLoc, distance);
+    glUniform3f(cameraPosLoc, cameraX, cameraY, cameraZ);
+    glUniform1f(aspectLoc, 800.0f/600.0f); // TODO: Get actual window dimensions
     
-    // Sort triangles based on current transformation
-    updateTriangleOrder();
-    
-    // Verify we have data to draw
-    if (g_sort_order_count > 0) {
-        glDrawElements(GL_TRIANGLES, g_sort_order_count * 3, GL_UNSIGNED_INT, 0);
+    // Draw all faces
+    if (g_scene_model->model->face_count > 0) {
+        glDrawArrays(GL_TRIANGLES, 0, g_scene_model->model->face_count * 3);
         
         // Check for errors after draw
         GLenum err = glGetError();
@@ -618,12 +702,48 @@ static int load_model()
     return 1;   
 }
 
+// Keyboard event handlers
+EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData) {
+    bool* keyState = nullptr;
+    
+    // Map key codes to key states
+    switch (e->keyCode) {
+        case 87: // W key
+            keyState = &wKeyPressed;
+            break;
+        case 65: // A key
+            keyState = &aKeyPressed;
+            break;
+        case 83: // S key
+            keyState = &sKeyPressed;
+            break;
+        case 68: // D key
+            keyState = &dKeyPressed;
+            break;
+        case 82: // R key
+            keyState = &rKeyPressed;
+            break;
+        case 70: // F key
+            keyState = &fKeyPressed;
+            break;
+    }
+    
+    if (keyState) {
+        if (eventType == EMSCRIPTEN_EVENT_KEYDOWN) {
+            *keyState = true;
+        } else if (eventType == EMSCRIPTEN_EVENT_KEYUP) {
+            *keyState = false;
+        }
+    }
+    
+    return EM_TRUE;
+}
+
 int main() {
     init_hsl16_to_rgb_table();
     init_sin_table();
     init_cos_table();
     init_tan_table();
-
 
     int model = load_model();
     if( !model )
@@ -646,6 +766,10 @@ int main() {
     emscripten_set_mousedown_callback("#canvas", nullptr, true, mouse_callback);
     emscripten_set_mouseup_callback("#canvas", nullptr, true, mouse_callback);
     emscripten_set_mousemove_callback("#canvas", nullptr, true, mouse_callback);
+    
+    // Register keyboard event handlers
+    emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, key_callback);
+    emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, key_callback);
     
     emscripten_request_animation_frame_loop(loop, nullptr);
     
