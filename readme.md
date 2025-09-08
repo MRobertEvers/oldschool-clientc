@@ -902,6 +902,8 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x6
 cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/insw lled/x64-windows'
 
 cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
+
 
 cmake -B build-ninja2 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
 
@@ -912,6 +914,144 @@ Your Visual Studio 2017 installation is probably missing the C packages (they ar
 
 To install it, start the Visual Studio Installer, go to Individual components, and check Windows Universal C Runtime:
 
+#### Building with MSVC 
+
+Configure your powershell terminal with vcvars.
+
+```
+# Visual Studio 2022 Community Environment Setup
+# This automatically sets up the Visual Studio environment variables
+# so you don't need to run vcvars64.bat before ninja commands
+
+$vcvarsPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+
+if (Test-Path $vcvarsPath) {
+    # Call the batch file and capture its environment variables
+    cmd /c "`"$vcvarsPath`" && set" | ForEach-Object {
+        if ($_ -match "^([^=]+)=(.*)$") {
+            $name = $matches[1]
+            $value = $matches[2]
+            [Environment]::SetEnvironmentVariable($name, $value, "Process")
+        }
+    }
+    
+    Write-Host "Visual Studio 2022 Community environment loaded successfully!" -ForegroundColor Green
+} else {
+    Write-Host "Warning: Visual Studio 2022 Community not found at expected path: $vcvarsPath" -ForegroundColor Yellow
+    Write-Host "Please update the path in your PowerShell profile if Visual Studio is installed elsewhere." -ForegroundColor Yellow
+}
+```
+
+You must also set up vcpkg for SDL2.
+
+```
+cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
+```
+
+TODO: How to set up vcpkg and SDL2.
+
+Then using cmake.
+
+```
+cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
+```
+
+
+
+#### Building with GCC and MinGW
+
+MinGW (Minimalist GNU for Windows) provides a GCC compiler toolchain for Windows. It often provides better performance than MSVC for this project.
+
+Note, when building with MinGW, you must also include `libwinpthread-1.dll` in addition to `SDL2.dll`
+
+**Prerequisites:**
+- Install MinGW-w64 (recommended: MSYS2 or standalone installer)
+  `winget install --id MSYS2.MSYS2`
+  ```
+  C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -Syu --noconfirm"
+
+  C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-SDL2 mingw-w64-x86_64-freetype mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib"
+
+  cmake -B build-mingw -DCMAKE_BUILD_TYPE=Release -G 'MinGW Makefiles'
+
+  mingw32-make -j4
+  ```
+
+
+**Terminal Configuration**
+
+```
+   "MSYS2 Terminal": {
+            "path": "C:\\msys64\\msys2_shell.cmd",
+            "args": ["-defterm", "-here", "-no-start", "-mingw64"],
+            "icon": "terminal-bash",
+            "env": {
+                "CHERE_INVOKING": "1",
+                "MSYSTEM": "MINGW64"
+            }
+        },
+```
+
+**Installation Options:**
+
+1. **MSYS2 (Recommended):**
+   ```bash
+   # Download and install MSYS2 from https://www.msys2.org/
+   # Then install MinGW-w64 toolchain:
+   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make
+   ```
+
+   Or using winget
+
+   ```
+   winget install --id MSYS2.MSYS2
+   ```
+
+2. **MSYS2 Terminal (Alternative):**
+   - Install MSYS2 from https://www.msys2.org/
+   - Use the MSYS2 terminal (not MinGW64 terminal) for a Unix-like environment
+   - Install packages with: `pacman -S gcc cmake make`
+   - Note: This uses the MSYS2 environment, not native Windows MinGW
+
+3. **Standalone MinGW-w64:**
+   - Download from https://www.mingw-w64.org/downloads/
+   - Add `bin` directory to your PATH
+
+**Dependencies:**
+
+For MinGW builds, it's recommended to use MSYS2 packages rather than vcpkg:
+
+```bash
+# Using MSYS2 MinGW64 packages (recommended for native Windows MinGW)
+pacman -S mingw-w64-x86_64-SDL2 mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib mingw-w64-x86_64-freetype mingw-w64-x86_64-opengl
+
+# Using MSYS2 terminal packages (Unix-like environment)
+pacman -S SDL2 freetype2 mesa
+```
+
+**Building:**
+```bash
+# Configure with MinGW (using MSYS2 packages)
+cmake -B build-mingw -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+
+# Build (recommended - works regardless of make availability)
+cmake --build build-mingw
+
+# Alternative: Using mingw32-make (MinGW's make)
+cd build-mingw
+mingw32-make -j$(nproc)
+```
+
+
+**Static Linking (Optional):**
+```bash
+# Using MSYS2 static packages (recommended)
+pacman -S mingw-w64-x86_64-SDL2-static mingw-w64-x86_64-bzip2-static mingw-w64-x86_64-zlib-static mingw-w64-x86_64-freetype-static
+
+# Configure for static linking
+cmake -B build-mingw-static -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build-mingw-static
+```
 
 #### Performance
 

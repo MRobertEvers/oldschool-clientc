@@ -5,5 +5,46 @@
     "cpp.default.configurationName": "Win32",
     "cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
     "cpp.default.browse.limitSymbolsToIncludedHeaders": true,
-    "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db"
+    "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell"
+        },
+        "Command Prompt": {
+            "path": "C:\\Windows\\System32\\cmd.exe",
+            "args": [],
+            "icon": "terminal-cmd"
+        },
+        "MSYS2 MinGW64": {
+            "path": "C:\\msys64\\mingw64.exe",
+            "args": [],
+            "icon": "terminal-bash",
+            "env": {
+                "CHERE_INVOKING": "1",
+                "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}",
+                "MSYSTEM": "MINGW64"
+            }
+        },
+        "MSYS2 Terminal": {
+            "path": "C:\\msys64\\msys2_shell.cmd",
+            "args": ["-defterm", "-here", "-no-start", "-mingw64"],
+            "icon": "terminal-bash",
+            "env": {
+                "CHERE_INVOKING": "1",
+                "MSYSTEM": "MINGW64"
+            }
+        },
+        "MSYS2 Bash": {
+            "path": "C:\\msys64\\usr\\bin\\bash.exe",
+            "args": ["--login", "-i"],
+            "icon": "terminal-bash",
+            "env": {
+                "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}",
+                "MSYSTEM": "MINGW64",
+                "CHERE_INVOKING": "1"
+            }
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell"
 }

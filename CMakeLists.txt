@@ -16,7 +16,22 @@ if(WIN32 AND MSVC)
     # Windows MSVC-specific compiler flags
     set(CMAKE_C_FLAGS "/W3")
     set(CMAKE_C_FLAGS_DEBUG "/Zi /Od /MDd")
-    set(CMAKE_C_FLAGS_RELEASE "/O2 /MD")
+    
+    # Enhanced Release flags for better branching performance
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /Ob2 /Ot /Oi /Oy /GL /fp:fast /Qpar /arch:AVX2 /MD")
+    
+    # Enable link-time code generation for Release builds
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG")
+    
+    # Profile-Guided Optimization configurations
+    # For PGO instrumentation build (first step):
+    # set(CMAKE_C_FLAGS_RELEASE_PGI "/O2 /Ob2 /Ot /Oi /Oy /GL /fp:fast /Qpar /arch:AVX2 /MD")
+    # set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG:PGINSTRUMENT")
+    
+    # For PGO optimized build (second step):
+    # set(CMAKE_C_FLAGS_RELEASE_PGO "/O2 /Ob2 /Ot /Oi /Oy /GL /fp:fast /Qpar /arch:AVX2 /MD")
+    # set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG:PGOPTIMIZE")
+    
     # Enable C99 features
     set(CMAKE_C_STANDARD 99)
     set(CMAKE_C_STANDARD_REQUIRED ON)
