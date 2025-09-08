@@ -380,6 +380,13 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
     )
+
+    # Set C++ standard for ImGui browser target
+    set_target_properties(scene_tile_test_imgui_browser PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -412,11 +419,6 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     )
 endif()
 
-# Set C++ standard for ImGui browser target
-set_target_properties(scene_tile_test_imgui_browser PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
 
 if(UNIX AND NOT APPLE)
     set(EXTRA_LIBS m)

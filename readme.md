@@ -1084,7 +1084,7 @@ git clone https://github.com/emscripten-core/emsdk.git
 .\emsdk\upstream\emscripten\emcc.bat --version
 
 # Create build files
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Debug
+emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
 ```
 
 Then building=
@@ -1101,6 +1101,6 @@ powershell -ExecutionPolicy Bypass -File scripts/copy_browser_files.ps1
 
 Then copy the output to public/build
 
-`python -m http.server 8000`
+`python -m http.server -d public/build 8000 `
 
 `http://localhost:8000`
