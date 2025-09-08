@@ -1082,6 +1082,7 @@ Install emscripten with it's sdk
 ```
 git clone https://github.com/emscripten-core/emsdk.git
 
+# Windows
 .\emsdk\emsdk.bat install latest
 .\emsdk\emsdk.bat activate latest
 
@@ -1092,6 +1093,13 @@ git clone https://github.com/emscripten-core/emsdk.git
 
 # Create build files
 emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
+
+# Unix Like
+.\emsdk\emsdk install latest
+.\emsdk\emsdk activate latest
+
+.\emsdk\upstream\emscripten\emcc --version
+emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
 ```
 
 Then building=
@@ -1100,6 +1108,10 @@ Then building=
 cd build.em
 
 emmake ninja 
+
+# or on unixlike
+
+emmake make
 
 # Then copy the build files.
 # Windows

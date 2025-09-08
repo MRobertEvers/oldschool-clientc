@@ -89,9 +89,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "")
     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "")
     
-    set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1")
-    set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1 -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] -s NO_EXIT_RUNTIME=1")
-    set(IMGUI_LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1 -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] -s NO_EXIT_RUNTIME=1")
+    set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s")
+    set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1")
     set(PRELOAD_FLAGS "--preload-file ../cache@/cache")
     set(DATA_FILE_PATH "build/scene_tile_test_browser.data")
     add_compile_definitions(CACHE_PATH="/cache")
@@ -330,10 +329,83 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/3rd/miniz/miniz.c
     )
 
+    add_executable(main
+        src/main.cpp
+        src/shared_tables.c
+        src/string_utils.c
+        src/osrs/frustrum_cullmap.c
+        src/osrs/bounds_cylinder.c
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+        src/osrs/scene_tile.c
+        src/osrs/palette.c
+        src/osrs/cache.c
+        src/osrs/world.c
+        src/osrs/tables/model.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/scene.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_idk.c
+        src/osrs/tables/framemap.c
+        src/osrs/tables/frame.c
+        src/osrs/tables/maps.c
+        src/osrs/filelist.c
+        src/osrs/render.c
+        src/osrs/rsbuf.c
+        src/gouraud.c
+        src/gouraud_deob.c
+        src/flat.c
+        src/lighting.c
+        src/projection.c
+        src/texture.c
+        src/osrs/anim.c
+        src/osrs/model_transforms.c
+        src/osrs/xtea.c
+        src/osrs/archive.c
+        src/osrs/xtea_config.c
+        src/osrs/scene_cache.c
+        src/datastruct/ht.c
+        src/osrs/tables/noise.c
+
+        src/imgui/imgui.cpp
+        src/imgui/imgui_draw.cpp
+        src/imgui/imgui_tables.cpp
+        src/imgui/imgui_widgets.cpp
+        src/imgui/imgui_demo.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
+
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+    )
+
     # Set C++ standard for ImGui browser target
     set_target_properties(scene_tile_test_imgui_browser PROPERTIES
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED ON
+    )
+
+    set_target_properties(main PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    # Add custom command to copy main files to public/build
+    add_custom_command(TARGET main POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/public/build"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_BINARY_DIR}/main.html"
+            "${CMAKE_BINARY_DIR}/main.js"
+            "${CMAKE_BINARY_DIR}/main.wasm"
+            "${CMAKE_BINARY_DIR}/main.data"
+            "${CMAKE_SOURCE_DIR}/public/build/"
+        COMMENT "Copying main Emscripten build files to public/build directory"
     )
 
 endif()
@@ -377,8 +449,10 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(scene_tile_test_imgui_browser ${EXTRA_LIBS})
+    set_target_properties(scene_tile_test_imgui_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32']")
 
-    set_target_properties(scene_tile_test_imgui_browser PROPERTIES LINK_FLAGS "${IMGUI_LINK_FLAGS} ${PRELOAD_FLAGS}")
+    target_link_libraries(main ${EXTRA_LIBS})
+    set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=2 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})

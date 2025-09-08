@@ -205,7 +205,7 @@ canvas.emscripten { border: 0px none; background-color: black; }
           // Start the render loop now that the module is ready
           setInterval(renderFrame, 1000 / 50);
 
-          Module._SDL_main();
+          Module._main();
         }
       };
       Module.setStatus('Downloading...');

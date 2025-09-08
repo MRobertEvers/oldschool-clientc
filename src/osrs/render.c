@@ -242,6 +242,7 @@ project_vertices_textured(
     assert(camera_yaw >= 0 && camera_yaw < 2048);
     assert(camera_roll >= 0 && camera_roll < 2048);
 
+
     project_fast(
         &projected_triangle,
         0,
@@ -516,6 +517,7 @@ bucket_sort_by_average_depth(
     int* face_b,
     int* face_c)
 {
+
     for( int f = 0; f < num_faces; f++ )
     {
         int a = face_a[f];
@@ -566,6 +568,7 @@ bucket_sort_by_average_depth(
             // min_depth is used to adjust all z values to be positive, but maintain relative
             // order.
             int depth_average = (za + zb + zc) / 3 + model_min_depth;
+
 
             if( depth_average < 1500 && depth_average > 0 )
             {

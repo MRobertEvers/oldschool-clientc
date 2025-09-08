@@ -1323,7 +1323,7 @@ extern "C" {
 #endif
 
 int
-SDL_main(int argc, char* argv[])
+main(int argc, char* argv[])
 {
     printf("=== SDL_main called ===\n");
     printf("Starting ImGui Scene Tile Test with Emscripten compatibility...\n");

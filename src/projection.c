@@ -13,12 +13,9 @@ extern int g_tan_table[2048];
  *
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  *
- * z points away from the screen.
+ * z points into the screen.
  * x points to the right.
- * y points down
- *
- *
- *
+ * y points up
  */
 struct ProjectedTriangle
 project_orthographic(
