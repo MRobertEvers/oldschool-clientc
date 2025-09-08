@@ -338,8 +338,8 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(scene_tile_test)
 elseif(WIN32)
-    target_link_libraries(scene_tile_test SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS})
-    target_link_libraries(model_viewer SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS})
+    target_link_libraries(scene_tile_test SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS})
+    target_link_libraries(model_viewer SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS})
 else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES})
@@ -382,34 +382,81 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
     set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
 elseif(WIN32)
-    target_link_libraries(main_client SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS} ${EXTRA_LIBS})
-    target_link_libraries(scene_tile_test SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS} ${EXTRA_LIBS})
-    target_link_libraries(model_viewer SDL2::SDL2 SDL2::SDL2main ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(main_client SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(model_viewer SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     
-    # Copy DLLs to output directories for Windows
-    # Use relative path from project root to vcpkg
-    set(VCPKG_BIN_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/bin")
-    set(VCPKG_DEBUG_BIN_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/debug/bin")
+    # Detect MinGW compiler
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND WIN32)
+        set(IS_MINGW TRUE)
+    else()
+        set(IS_MINGW FALSE)
+    endif()
     
     # Function to copy DLLs for a target
     function(copy_dlls_to_target target_name)
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            # Copy debug DLLs to Debug directory
-            add_custom_command(TARGET ${target_name} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/Debug"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${VCPKG_DEBUG_BIN_DIR}/SDL2d.dll"
-                "${CMAKE_CURRENT_BINARY_DIR}/Debug/"
-                COMMENT "Copying debug DLLs for ${target_name}"
-            )
-        else()
-            # Copy release DLLs to build root
+        if(IS_MINGW)
+            # MinGW-specific DLL copying
+            # Find MinGW installation directory
+            get_filename_component(MINGW_BIN_DIR "${CMAKE_C_COMPILER}" DIRECTORY)
+            
+            # Copy MinGW runtime DLLs
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${VCPKG_BIN_DIR}/SDL2.dll"
+                "${MINGW_BIN_DIR}/libwinpthread-1.dll"
                 "${CMAKE_CURRENT_BINARY_DIR}/"
-                COMMENT "Copying release DLLs for ${target_name}"
+                COMMENT "Copying MinGW runtime DLLs for ${target_name}"
             )
+            
+            # These are only necessary for dynamic linking.
+            # # Also copy other common MinGW runtime DLLs if they exist
+            # add_custom_command(TARGET ${target_name} POST_BUILD
+            #     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            #     "${MINGW_BIN_DIR}/libgcc_s_seh-1.dll"
+            #     "${CMAKE_CURRENT_BINARY_DIR}/"
+            #     COMMENT "Copying libgcc_s_seh-1.dll for ${target_name}"
+            # )
+            
+            # add_custom_command(TARGET ${target_name} POST_BUILD
+            #     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            #     "${MINGW_BIN_DIR}/libstdc++-6.dll"
+            #     "${CMAKE_CURRENT_BINARY_DIR}/"
+            #     COMMENT "Copying libstdc++-6.dll for ${target_name}"
+            # )
+            
+            # Copy SDL2.dll from lib directory if it exists
+            if(EXISTS "${CMAKE_SOURCE_DIR}/lib/SDL2.dll")
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_SOURCE_DIR}/lib/SDL2.dll"
+                    "${CMAKE_CURRENT_BINARY_DIR}/"
+                    COMMENT "Copying SDL2.dll for ${target_name}"
+                )
+            endif()
+        else()
+            # MSVC-specific DLL copying (existing logic)
+            # Use relative path from project root to vcpkg
+            set(VCPKG_BIN_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/bin")
+            set(VCPKG_DEBUG_BIN_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/debug/bin")
+            
+            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                # Copy debug DLLs to Debug directory
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/Debug"
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${VCPKG_DEBUG_BIN_DIR}/SDL2d.dll"
+                    "${CMAKE_CURRENT_BINARY_DIR}/Debug/"
+                    COMMENT "Copying debug DLLs for ${target_name}"
+                )
+            else()
+                # Copy release DLLs to build root
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${VCPKG_BIN_DIR}/SDL2.dll"
+                    "${CMAKE_CURRENT_BINARY_DIR}/"
+                    COMMENT "Copying release DLLs for ${target_name}"
+                )
+            endif()
         endif()
     endfunction()
     

@@ -964,6 +964,9 @@ MinGW (Minimalist GNU for Windows) provides a GCC compiler toolchain for Windows
 
 Note, when building with MinGW, you must also include `libwinpthread-1.dll` in addition to `SDL2.dll`
 
+Also set up and a .bashrc script so you can type `make` instead of `mingw32-make`.
+
+
 **Prerequisites:**
 - Install MinGW-w64 (recommended: MSYS2 or standalone installer)
   `winget install --id MSYS2.MSYS2`
@@ -987,7 +990,8 @@ Note, when building with MinGW, you must also include `libwinpthread-1.dll` in a
             "icon": "terminal-bash",
             "env": {
                 "CHERE_INVOKING": "1",
-                "MSYSTEM": "MINGW64"
+                "MSYSTEM": "MINGW64",
+                "HOME": "${workspaceFolder}/scripts"
             }
         },
 ```

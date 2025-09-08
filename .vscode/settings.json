@@ -32,7 +32,8 @@
             "icon": "terminal-bash",
             "env": {
                 "CHERE_INVOKING": "1",
-                "MSYSTEM": "MINGW64"
+                "MSYSTEM": "MINGW64",
+                "HOME": "${workspaceFolder}/scripts"
             }
         },
         "MSYS2 Bash": {
