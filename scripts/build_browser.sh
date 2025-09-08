@@ -22,19 +22,33 @@ cd build.em
 echo "Configuring with CMake..."
 emcmake cmake ..
 
-# Build the browser target
+# Build the browser targets
 echo "Building scene_tile_test_browser..."
 emmake make scene_tile_test_browser
 
+echo "Building scene_tile_test_imgui_browser..."
+emmake make scene_tile_test_imgui_browser
+
 # Copy the cache to the public/cache directory
 echo "Copying cache to public/cache directory..."
+mkdir -p ../public/cache
 cp -r ../cache/* ../public/cache
 
 # Copy files to public/build directory
 echo "Copying files to public/build directory..."
+mkdir -p ../public/build
+
+# Copy simple browser version
 cp scene_tile_test_browser.js ../public/build/
 cp scene_tile_test_browser.wasm ../public/build/
 cp scene_tile_test_browser.data ../public/build/
+cp scene_tile_test_browser.html ../public/build/
+
+# Copy ImGui browser version
+cp scene_tile_test_imgui_browser.js ../public/build/
+cp scene_tile_test_imgui_browser.wasm ../public/build/
+cp scene_tile_test_imgui_browser.data ../public/build/
+cp scene_tile_test_imgui_browser.html ../public/build/
 
 echo "Build completed successfully!"
 echo "Files copied to public/build/ directory"

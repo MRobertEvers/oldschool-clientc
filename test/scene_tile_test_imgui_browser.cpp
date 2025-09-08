@@ -1,17 +1,14 @@
 extern "C" {
-#include "bmp.h"
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/frustrum_cullmap.h"
 #include "osrs/render.h"
 #include "osrs/scene.h"
 #include "osrs/scene_tile.h"
-#include "osrs/tables/config_floortype.h"
 #include "osrs/tables/config_idk.h"
 #include "osrs/tables/config_locs.h"
 #include "osrs/tables/config_object.h"
 #include "osrs/tables/config_sequence.h"
-#include "osrs/tables/configs.h"
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/textures.h"
 #include "osrs/world.h"
@@ -27,6 +24,15 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+// Browser-compatible logging macro
+#define BROWSER_LOG(...) emscripten_log(EM_LOG_CONSOLE, __VA_ARGS__)
+#else
+#define BROWSER_LOG(...) printf(__VA_ARGS__)
+#endif
+
 // SDL2 main handling
 #ifdef main
 #undef main
@@ -34,7 +40,10 @@ extern "C" {
 
 #define GUI_WINDOW_WIDTH 400
 #define GUI_WINDOW_HEIGHT 600
-#define CACHE_PATH "../cache"
+// CACHE_PATH is defined by CMake build system
+#ifndef CACHE_PATH
+#define CACHE_PATH "/cache"
+#endif
 
 // ImGui headers
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -367,7 +376,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         SDL_WINDOWPOS_UNDEFINED,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        SDL_WINDOW_RESIZABLE);
+        SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
 
     if( !platform->window )
     {
@@ -377,7 +386,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     // Create renderer
     platform->renderer = SDL_CreateRenderer(
-        platform->window, -1, SDL_RENDERER_ACCELERATED);
+        platform->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
     if( !platform->renderer )
     {
@@ -646,9 +655,35 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     Uint64 frequency = SDL_GetPerformanceFrequency();
 
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    
+    // Debug: Add a test pattern to verify pixel buffer is working
+    static int debug_frame_count = 0;
+    debug_frame_count++;
+    
+    // Add a simple test pattern in the top-left corner
+    for (int y = 0; y < 50; y++) {
+        for (int x = 0; x < 50; x++) {
+            int color = ((debug_frame_count / 10) % 2) ? 0xFF0000 : 0x00FF00; // Red or Green
+            pixel_buffer[y * SCREEN_WIDTH + x] = color;
+        }
+    }
+    
+    // Add frame counter text pattern (simple pixel-based)
+    int text_x = 60;
+    int text_y = 10;
+    int frame_color = 0xFFFFFF; // White
+    // Draw a simple "F" pattern
+    for (int i = 0; i < 20; i++) {
+        pixel_buffer[(text_y + i) * SCREEN_WIDTH + text_x] = frame_color; // Vertical line
+    }
+    for (int i = 0; i < 15; i++) {
+        pixel_buffer[text_y * SCREEN_WIDTH + text_x + i] = frame_color; // Top horizontal
+        pixel_buffer[(text_y + 10) * SCREEN_WIDTH + text_x + i] = frame_color; // Middle horizontal
+    }
     int render_ops = game->max_render_ops;
     if( !game->manual_render_ops )
-     {   if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
+    {
+        if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
         {
             if( game->ops )
                 free(game->ops);
@@ -660,7 +695,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         else
         {
             game->max_render_ops += 10;
-        }}
+        }
+    }
 
     struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
 
@@ -913,10 +949,10 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     {
         memset(g_blit_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
-        int model_id = last_model_hit_model->model_id;
-        int model_x = last_model_hit_model->_chunk_pos_x;
-        int model_y = last_model_hit_model->_chunk_pos_y;
-        int model_z = last_model_hit_model->_chunk_pos_level;
+        // int model_id = last_model_hit_model->model_id;
+        // int model_x = last_model_hit_model->_chunk_pos_x;
+        // int model_y = last_model_hit_model->_chunk_pos_y;
+        // int model_z = last_model_hit_model->_chunk_pos_level;
 
         render_scene_model(
             g_blit_buffer,
@@ -1025,6 +1061,30 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         0x000000FF,
         0xFF000000);
 
+    if( surface )
+    {
+        // Debug: Log every 60 frames
+        if (debug_frame_count % 60 == 0) {
+            printf("DEBUG: Frame %d - Pixel buffer updated, texture size: %dx%d\n", 
+                   debug_frame_count, SCREEN_WIDTH, SCREEN_HEIGHT);
+            
+            // Check if pixel buffer has non-zero content
+            int non_zero_pixels = 0;
+            for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
+                if (pixel_buffer[i] != 0) {
+                    non_zero_pixels++;
+                }
+            }
+            printf("DEBUG: Non-zero pixels: %d out of %d total\n", 
+                   non_zero_pixels, SCREEN_WIDTH * SCREEN_HEIGHT);
+        }
+    }
+    else
+    {
+        printf("ERROR: Failed to create SDL surface from pixel buffer\n");
+        return;
+    }
+
     // Draw debug text for camera position and rotation
     // printf(
     //     "Camera: x=%d y=%d z=%d pitch=%d yaw=%d\n",
@@ -1089,7 +1149,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_FreeSurface(surface);
 }
 
-#include <iostream>
+// #include <iostream>
 
 // Emscripten compatibility
 #ifdef __EMSCRIPTEN__
@@ -1104,7 +1164,19 @@ bool g_quit = false;
 // Emscripten main loop function
 void emscripten_main_loop()
 {
+    static int loop_count = 0;
+    loop_count++;
+    
+    // Debug: Log every 60 loops (about every second at 60fps)
+    if (loop_count % 60 == 0) {
+        printf("DEBUG: Main loop iteration %d\n", loop_count);
+    }
+    
     if (g_quit || !g_game || !g_platform) {
+        if (loop_count % 60 == 0) {
+            printf("DEBUG: Main loop early exit - quit=%d, game=%p, platform=%p\n", 
+                   g_quit, g_game, g_platform);
+        }
         return;
     }
 
@@ -1253,17 +1325,36 @@ extern "C" {
 int
 SDL_main(int argc, char* argv[])
 {
-    std::cout << "SDL_main" << std::endl;
+    printf("=== SDL_main called ===\n");
+    printf("Starting ImGui Scene Tile Test with Emscripten compatibility...\n");
+    printf("Arguments: argc=%d\n", argc);
+    for (int i = 0; i < argc; i++) {
+        printf("  argv[%d] = %s\n", i, argv[i]);
+    }
+
+    printf("=== SDL_main called ===\n");
+    
+#ifdef __EMSCRIPTEN__
+    printf("Running in Emscripten environment\n");
+    // Emscripten-specific initialization
+    emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
+    printf("Emscripten main loop timing set\n");
+#else
+    BROWSER_LOG("Running in native environment\n");
+#endif
+
     init_hsl16_to_rgb_table();
     init_sin_table();
     init_cos_table();
     init_tan_table();
 
-    printf("Loading XTEA keys from: ../cache/xteas.json\n");
-    int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
+    BROWSER_LOG("Loading XTEA keys from: %s/xteas.json\n", CACHE_PATH);
+    char xtea_path[256];
+    snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", CACHE_PATH);
+    int xtea_keys_count = xtea_config_load_keys(xtea_path);
     if( xtea_keys_count == -1 )
     {
-        printf("Failed to load xtea keys from: ../cache/xteas.json\n");
+        printf("Failed to load xtea keys from: %s\n", xtea_path);
         printf("Make sure the xteas.json file exists in the cache directory\n");
         return 1;
     }
@@ -1426,10 +1517,10 @@ SDL_main(int argc, char* argv[])
 
         struct ArchiveReference* archives = cache->tables[CACHE_SPRITES]->archives;
 
-        if( sprite_index == 455 )
-        {
-            int iiii = 0;
-        }
+        // if( sprite_index == 455 )
+        // {
+        //     int iiii = 0;
+        // }
         if( sprite_index == 299 )
         {
             struct CacheSpritePack* sprite_pack = sprite_pack_new_decode(
@@ -1924,8 +2015,15 @@ SDL_main(int argc, char* argv[])
     g_platform = &platform;
     g_quit = false;
 
+    printf("DEBUG: Initialization complete - game=%p, platform=%p\n", g_game, g_platform);
+    printf("DEBUG: Platform pixel_buffer=%p, renderer=%p, texture=%p\n", 
+           platform.pixel_buffer, platform.renderer, platform.texture);
+    printf("DEBUG: Screen dimensions: %dx%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
+
     // Use Emscripten's main loop
+    printf("DEBUG: Setting up Emscripten main loop...\n");
     emscripten_set_main_loop(emscripten_main_loop, 0, 1);
+    printf("DEBUG: Emscripten main loop setup complete\n");
 #else
     // Traditional SDL main loop for native builds
     while( !quit )

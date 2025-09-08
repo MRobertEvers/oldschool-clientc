@@ -1,6 +1,7 @@
+
 cmake_minimum_required(VERSION 3.7)
 project(RSClient
-    LANGUAGES C
+    LANGUAGES C CXX
 )
 
 # set(PROFILING_FLAGS -g -fno-omit-frame-pointer)
@@ -50,10 +51,13 @@ endif()
 # set(CMAKE_C_FLAGS_DEBUG "-g -fno-omit-frame-pointer -fsanitize=address")
 # set(CMAKE_C_FLAGS_RELEASE "-O3")
 
-# Fix: Properly configure ASan for Debug mode (Unix/Linux only)
+# Fix: Properly configure ASan for Debug mode (Unix/Linux only, excluding Emscripten)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
     # Set ASan environment options
     set(ENV{ASAN_OPTIONS} "detect_leaks=1:abort_on_error=1:check_initialization_order=1:strict_init_order=1")
+    
+    # Add ASan compiler flags
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer")
     
     # Ensure ASan is linked first by setting proper linker flags
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG "-fsanitize=address ${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
@@ -78,13 +82,22 @@ endif()
 # endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(USE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1 -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] -s NO_EXIT_RUNTIME=1")
+    # Override ASan flags for Emscripten - ASan is not supported
+    set(CMAKE_C_FLAGS_DEBUG "-g -O0")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "")
+    set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "")
+    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "")
+    
+    set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1")
+    set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1 -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS=['_SDL_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] -s NO_EXIT_RUNTIME=1")
+    set(IMGUI_LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s USE_BZIP2=1 -s USE_ZLIB=1 -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_FUNCTIONS=['_SDL_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] -s NO_EXIT_RUNTIME=1")
     set(PRELOAD_FLAGS "--preload-file ../cache@/cache")
     set(DATA_FILE_PATH "build/scene_tile_test_browser.data")
     add_compile_definitions(CACHE_PATH="/cache")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${USE_FLAGS}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${USE_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} ${PRELOAD_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMPILE_FLAGS}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMPILE_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LINK_FLAGS} ${PRELOAD_FLAGS}")
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 elseif(WIN32)
     set(CMAKE_EXECUTABLE_SUFFIX .exe)
@@ -130,6 +143,7 @@ else()
     include_directories(RSClient src ${SDL2_INCLUDE_DIRS} src/imgui)
 endif()
 
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 add_executable(main_client
     src/main_client.c
     src/shared_tables.c
@@ -169,152 +183,30 @@ add_executable(main_client
 
     src/3rd/bzip/bzip.c 
     src/3rd/miniz/miniz.c
-)
+    )
+endif()
 
-# Fix: Add ASan target properties for main_client (Unix/Linux only)
+# Fix: Add ASan target properties for main_client (Unix/Linux only, excluding Emscripten)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
     set_target_properties(main_client PROPERTIES
         LINK_FLAGS "-fsanitize=address"
     )
 endif()
 
-add_executable(scene_tile_test
-    test/scene_tile_test.cpp
-    src/shared_tables.c
-    src/string_utils.c
-    src/osrs/frustrum_cullmap.c
-    src/osrs/bounds_cylinder.c
-    src/osrs/tables/textures.c
-    src/osrs/tables/sprites.c
-    src/osrs/blend_underlays.c
-    src/osrs/scene_tile.c
-    src/osrs/palette.c
-    src/osrs/cache.c
-    src/osrs/world.c
-    src/osrs/tables/model.c
-    src/osrs/archive_decompress.c
-    src/osrs/reference_table.c
-    src/osrs/scene.c
-    src/osrs/tables/config_npctype.c
-    src/osrs/tables/config_sequence.c
-    src/osrs/tables/config_floortype.c
-    src/osrs/tables/config_locs.c
-    src/osrs/tables/config_object.c
-    src/osrs/tables/config_idk.c
-    src/osrs/tables/framemap.c
-    src/osrs/tables/frame.c
-    src/osrs/tables/maps.c
-    src/osrs/filelist.c
-    src/osrs/render.c
-    src/osrs/rsbuf.c
-    src/gouraud.c
-    src/gouraud_deob.c
-    src/flat.c
-    src/lighting.c
-    src/projection.c
-    src/texture.c
-    src/osrs/anim.c
-    src/osrs/model_transforms.c
-    src/osrs/xtea.c
-    src/osrs/archive.c
-    src/osrs/xtea_config.c
-    src/osrs/scene_cache.c
-    src/datastruct/ht.c
-    src/osrs/tables/noise.c
-
-    src/imgui/imgui.cpp
-    src/imgui/imgui_draw.cpp
-    src/imgui/imgui_tables.cpp
-    src/imgui/imgui_widgets.cpp
-    src/imgui/imgui_demo.cpp
-    src/imgui/imgui_impl_sdl2.cpp
-    src/imgui/imgui_impl_sdlrenderer2.cpp
-
-    src/3rd/bzip/bzip.c
-    src/3rd/miniz/miniz.c
-)
-
-# Model viewer with ImGui
-add_executable(model_viewer
-    test/model_viewer.cpp
-    src/shared_tables.c
-    src/string_utils.c
-    src/osrs/frustrum_cullmap.c
-    src/osrs/bounds_cylinder.c
-    src/osrs/tables/textures.c
-    src/osrs/tables/sprites.c
-    src/osrs/blend_underlays.c
-    src/osrs/scene_tile.c
-    src/osrs/palette.c
-    src/osrs/cache.c
-    src/osrs/tables/model.c
-    src/osrs/archive_decompress.c
-    src/osrs/reference_table.c
-    src/osrs/scene.c
-    src/osrs/tables/config_npctype.c
-    src/osrs/tables/config_sequence.c
-    src/osrs/tables/config_floortype.c
-    src/osrs/tables/config_locs.c
-    src/osrs/tables/config_object.c
-    src/osrs/tables/config_idk.c
-    src/osrs/tables/framemap.c
-    src/osrs/tables/frame.c
-    src/osrs/tables/maps.c
-    src/osrs/filelist.c
-    src/osrs/render.c
-    src/osrs/rsbuf.c
-    src/gouraud.c
-    src/gouraud_deob.c
-    src/flat.c
-    src/lighting.c
-    src/projection.c
-    src/texture.c
-    src/osrs/anim.c
-    src/osrs/model_transforms.c
-    src/osrs/xtea.c
-    src/osrs/archive.c
-    src/osrs/xtea_config.c
-    src/osrs/scene_cache.c
-    src/datastruct/ht.c
-    src/osrs/tables/noise.c
-
-    src/imgui/imgui.cpp
-    src/imgui/imgui_draw.cpp
-    src/imgui/imgui_tables.cpp
-    src/imgui/imgui_widgets.cpp
-    src/imgui/imgui_demo.cpp
-    src/imgui/imgui_impl_sdl2.cpp
-    src/imgui/imgui_impl_sdlrenderer2.cpp
-
-    src/3rd/bzip/bzip.c
-    src/3rd/miniz/miniz.c
-)
-
-# Add SDL2 include directories for Windows
-if(WIN32)
-    target_include_directories(scene_tile_test PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_include_directories(model_viewer PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_include_directories(main_client PRIVATE ${SDL2_INCLUDE_DIRS})
-endif()
-
-# Fix: Add ASan target properties for scene_tile_test (Unix/Linux only)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
-    set_target_properties(scene_tile_test PROPERTIES
-        LINK_FLAGS "-fsanitize=address"
-    )
-endif()
-
-if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    add_executable(scene_tile_test_browser
-        test/scene_tile_test_browser.c
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    add_executable(scene_tile_test
+        test/scene_tile_test.cpp
         src/shared_tables.c
         src/string_utils.c
+        src/osrs/frustrum_cullmap.c
+        src/osrs/bounds_cylinder.c
         src/osrs/tables/textures.c
         src/osrs/tables/sprites.c
         src/osrs/blend_underlays.c
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/world.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c
@@ -323,13 +215,14 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/config_sequence.c
         src/osrs/tables/config_floortype.c
         src/osrs/tables/config_locs.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_idk.c
         src/osrs/tables/framemap.c
         src/osrs/tables/frame.c
         src/osrs/tables/maps.c
         src/osrs/filelist.c
         src/osrs/render.c
         src/osrs/rsbuf.c
-        src/osrs/world.c
         src/gouraud.c
         src/gouraud_deob.c
         src/flat.c
@@ -344,11 +237,152 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_cache.c
         src/datastruct/ht.c
         src/osrs/tables/noise.c
+
+        src/imgui/imgui.cpp
+        src/imgui/imgui_draw.cpp
+        src/imgui/imgui_tables.cpp
+        src/imgui/imgui_widgets.cpp
+        src/imgui/imgui_demo.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
+
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+    )
+endif()
+
+# Model viewer with ImGui
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    add_executable(model_viewer
+        test/model_viewer.cpp
+        src/shared_tables.c
+        src/string_utils.c
+        src/osrs/frustrum_cullmap.c
+        src/osrs/bounds_cylinder.c
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+        src/osrs/scene_tile.c
+        src/osrs/palette.c
+        src/osrs/cache.c
+        src/osrs/tables/model.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/scene.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_idk.c
+        src/osrs/tables/framemap.c
+        src/osrs/tables/frame.c
+        src/osrs/tables/maps.c
+        src/osrs/filelist.c
+        src/osrs/render.c
+        src/osrs/rsbuf.c
+        src/gouraud.c
+        src/gouraud_deob.c
+        src/flat.c
+        src/lighting.c
+        src/projection.c
+        src/texture.c
+        src/osrs/anim.c
+        src/osrs/model_transforms.c
+        src/osrs/xtea.c
+        src/osrs/archive.c
+        src/osrs/xtea_config.c
+        src/osrs/scene_cache.c
+        src/datastruct/ht.c
+        src/osrs/tables/noise.c
+
+        src/imgui/imgui.cpp
+        src/imgui/imgui_draw.cpp
+        src/imgui/imgui_tables.cpp
+        src/imgui/imgui_widgets.cpp
+        src/imgui/imgui_demo.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
+
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+    )
+endif()
+
+# Add SDL2 include directories for Windows
+if(WIN32)
+    target_include_directories(scene_tile_test PRIVATE ${SDL2_INCLUDE_DIRS})
+    target_include_directories(model_viewer PRIVATE ${SDL2_INCLUDE_DIRS})
+    target_include_directories(main_client PRIVATE ${SDL2_INCLUDE_DIRS})
+endif()
+
+# Fix: Add ASan target properties for scene_tile_test (Unix/Linux only, excluding Emscripten)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
+    set_target_properties(scene_tile_test PROPERTIES
+        LINK_FLAGS "-fsanitize=address"
     )
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    target_link_libraries(scene_tile_test)
+    # ImGui browser version with SDL2 + ImGui support
+    add_executable(scene_tile_test_imgui_browser
+        test/scene_tile_test_imgui_browser.cpp
+        src/shared_tables.c
+        src/string_utils.c
+        src/osrs/frustrum_cullmap.c
+        src/osrs/bounds_cylinder.c
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+        src/osrs/scene_tile.c
+        src/osrs/palette.c
+        src/osrs/cache.c
+        src/osrs/world.c
+        src/osrs/tables/model.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/scene.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_idk.c
+        src/osrs/tables/framemap.c
+        src/osrs/tables/frame.c
+        src/osrs/tables/maps.c
+        src/osrs/filelist.c
+        src/osrs/render.c
+        src/osrs/rsbuf.c
+        src/gouraud.c
+        src/gouraud_deob.c
+        src/flat.c
+        src/lighting.c
+        src/projection.c
+        src/texture.c
+        src/osrs/anim.c
+        src/osrs/model_transforms.c
+        src/osrs/xtea.c
+        src/osrs/archive.c
+        src/osrs/xtea_config.c
+        src/osrs/scene_cache.c
+        src/datastruct/ht.c
+        src/osrs/tables/noise.c
+
+        src/imgui/imgui.cpp
+        src/imgui/imgui_draw.cpp
+        src/imgui/imgui_tables.cpp
+        src/imgui/imgui_widgets.cpp
+        src/imgui/imgui_demo.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
+
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+    )
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS})
@@ -358,20 +392,28 @@ else()
 endif()
 
 
-# Set C++ standard for model viewer
-set_target_properties(model_viewer PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
+# Set C++ standard for model viewer (only on non-Emscripten platforms)
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set_target_properties(model_viewer PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
 
-# Fix: Add ASan target properties for model_viewer (Unix/Linux only)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
-    # set_target_properties(model_viewer PROPERTIES
-    #     LINK_FLAGS "-fsanitize=address"
-    # )
+    # Fix: Add ASan target properties for model_viewer (Unix/Linux only, excluding Emscripten)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT WIN32)
+        # set_target_properties(model_viewer PROPERTIES
+        #     LINK_FLAGS "-fsanitize=address"
+        # )
+    endif()
+
+    set_target_properties(scene_tile_test PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
 endif()
 
-set_target_properties(scene_tile_test PROPERTIES
+# Set C++ standard for ImGui browser target
+set_target_properties(scene_tile_test_imgui_browser PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
@@ -383,16 +425,9 @@ else()
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    target_link_libraries(main_client ${EXTRA_LIBS})
-    target_link_libraries(scene_tile_test ${EXTRA_LIBS})
-    target_link_libraries(scene_tile_test_browser ${EXTRA_LIBS})
-    target_link_libraries(model_viewer ${EXTRA_LIBS})
+    target_link_libraries(scene_tile_test_imgui_browser ${EXTRA_LIBS})
 
-    # Add preload flags to all targets
-    set_target_properties(main_client PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(scene_tile_test PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(scene_tile_test_browser PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
-    set_target_properties(model_viewer PROPERTIES LINK_FLAGS "${PRELOAD_FLAGS}")
+    set_target_properties(scene_tile_test_imgui_browser PROPERTIES LINK_FLAGS "${IMGUI_LINK_FLAGS} ${PRELOAD_FLAGS}")
 elseif(WIN32)
     target_link_libraries(main_client SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
@@ -599,8 +634,11 @@ if(APPLE)
 
     target_compile_options(main_client PRIVATE ${PROFILING_FLAGS})
     target_compile_options(scene_tile_test PRIVATE ${PROFILING_FLAGS})
-else()
-    # On non-macOS platforms, create an empty executable
+elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # On non-macOS platforms (except Emscripten), create an empty executable
     add_executable(metal_renderer src/dummy.c)
     message(STATUS "Metal renderer is only supported on macOS. Creating empty executable.")
+else()
+    # On Emscripten, don't create metal_renderer at all
+    message(STATUS "Metal renderer is not supported on Emscripten. Skipping.")
 endif()

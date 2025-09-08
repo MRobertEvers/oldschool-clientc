@@ -1066,3 +1066,41 @@ MSVC
 
 GCC with MingGW
 ![mingw_release](./res/perf/windows/mingw_win64_s4_faster.png)
+
+
+### Building For Emscripten
+
+Install emscripten with it's sdk
+
+```
+git clone https://github.com/emscripten-core/emsdk.git
+
+.\emsdk\emsdk.bat install latest
+.\emsdk\emsdk.bat activate latest
+
+.\emsdk\emsdk_env.ps1
+
+# Test if found
+.\emsdk\upstream\emscripten\emcc.bat --version
+
+# Create build files
+emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Debug
+```
+
+Then building=
+
+```
+cd build.em
+
+emmake ninja 
+
+# Then copy the build files.
+# Windows
+powershell -ExecutionPolicy Bypass -File scripts/copy_browser_files.ps1
+```
+
+Then copy the output to public/build
+
+`python -m http.server 8000`
+
+`http://localhost:8000`

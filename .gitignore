@@ -7,3 +7,4 @@ symbols.txt
 build*/
 public/cache/
 .cache/
+emsdk/
