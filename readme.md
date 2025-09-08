@@ -1062,11 +1062,18 @@ cmake --build build-mingw-static
 Windows s4 performance (sorting triangle points before rendering) is slower with msvc. Faster with GCC. GCC is about the same on Linux.
 
 MSVC
-![msvc_release_s4_slower_than_deob](./res/perf/windows/msvc_release_s4_slower.png)
+![msvc_release_s4_slower_than_deob](./res/perf/windows/win64_msvc_release_s4_slower.png.png)
 
 GCC with MingGW
-![mingw_release](./res/perf/windows/mingw_win64_s4_faster.png)
+![mingw_release](./res/perf/windows/win64_mingw_s4_faster.png.png)
 
+Thinkpad 14
+
+Wasm
+![wasm_emscripten](./res/perf/windows/thinkpad14_wasm.png)
+
+Native Mingw Static
+![native_msvg_static](./res/perf/windows/thinkpad14_native_msvc.png)
 
 ### Building For Emscripten
 
