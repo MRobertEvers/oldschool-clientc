@@ -1037,7 +1037,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 #include <iostream>
 
 int
-SDL_main(int argc, char* argv[])
+main(int argc, char* argv[])
 {
     std::cout << "SDL_main" << std::endl;
     init_hsl16_to_rgb_table();
@@ -1074,7 +1074,6 @@ SDL_main(int argc, char* argv[])
         printf("Failed to initialize SDL\n");
         return 1;
     }
-
 
     memset(&_Pix3D, 0, sizeof(_Pix3D));
     _Pix3D.width = SCREEN_WIDTH;
@@ -1598,7 +1597,7 @@ SDL_main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            //SDL_Delay(target_frame_time - frame_time);
+            // SDL_Delay(target_frame_time - frame_time);
         }
 
         last_frame_time = frame_end_time;

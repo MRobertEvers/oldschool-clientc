@@ -376,8 +376,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     }
 
     // Create renderer
-    platform->renderer = SDL_CreateRenderer(
-        platform->window, -1, SDL_RENDERER_ACCELERATED);
+    platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
 
     if( !platform->renderer )
     {
@@ -634,7 +633,6 @@ static int g_ortho_vertices_x[20];
 static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
 
-
 static void
 game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 {
@@ -648,7 +646,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     int render_ops = game->max_render_ops;
     if( !game->manual_render_ops )
-     {   if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
+    {
+        if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
         {
             if( game->ops )
                 free(game->ops);
@@ -660,7 +659,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         else
         {
             game->max_render_ops += 10;
-        }}
+        }
+    }
 
     struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
 
@@ -1093,8 +1093,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
 // Emscripten compatibility
 #ifdef __EMSCRIPTEN__
-#include <emscripten.h>
 #include <emscripten/html5.h>
+
+#include <emscripten.h>
 
 // Global game state for Emscripten access
 struct Game* g_game = NULL;
@@ -1102,14 +1103,17 @@ struct PlatformSDL2* g_platform = NULL;
 bool g_quit = false;
 
 // Emscripten main loop function
-void emscripten_main_loop()
+void
+emscripten_main_loop()
 {
-    if (g_quit || !g_game || !g_platform) {
+    if( g_quit || !g_game || !g_platform )
+    {
         return;
     }
 
     SDL_Event event;
-    while (SDL_PollEvent(&event)) {
+    while( SDL_PollEvent(&event) )
+    {
         ImGui_ImplSDL2_ProcessEvent(&event);
 
         // Check if ImGui wants to capture keyboard/mouse input
@@ -1117,22 +1121,29 @@ void emscripten_main_loop()
         bool imgui_wants_keyboard = io.WantCaptureKeyboard;
         bool imgui_wants_mouse = io.WantCaptureMouse;
 
-        if (event.type == SDL_QUIT) {
+        if( event.type == SDL_QUIT )
+        {
             g_quit = true;
         }
-        else if (event.type == SDL_WINDOWEVENT) {
-            if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+        else if( event.type == SDL_WINDOWEVENT )
+        {
+            if( event.window.event == SDL_WINDOWEVENT_RESIZED )
+            {
                 SDL_GetWindowSize(
                     g_platform->window, &g_platform->window_width, &g_platform->window_height);
                 SDL_GetRendererOutputSize(
-                    g_platform->renderer, &g_platform->drawable_width, &g_platform->drawable_height);
+                    g_platform->renderer,
+                    &g_platform->drawable_width,
+                    &g_platform->drawable_height);
             }
         }
-        else if (event.type == SDL_MOUSEMOTION && !imgui_wants_mouse) {
+        else if( event.type == SDL_MOUSEMOTION && !imgui_wants_mouse )
+        {
             transform_mouse_coordinates(
                 event.motion.x, event.motion.y, &g_game->mouse_x, &g_game->mouse_y, g_platform);
         }
-        else if (event.type == SDL_MOUSEBUTTONDOWN && !imgui_wants_mouse) {
+        else if( event.type == SDL_MOUSEBUTTONDOWN && !imgui_wants_mouse )
+        {
             int transformed_x, transformed_y;
             transform_mouse_coordinates(
                 event.button.x, event.button.y, &transformed_x, &transformed_y, g_platform);
@@ -1140,8 +1151,10 @@ void emscripten_main_loop()
             g_game->mouse_click_y = transformed_y;
             g_game->mouse_click_cycle = 0;
         }
-        else if (event.type == SDL_KEYDOWN && !imgui_wants_keyboard) {
-            switch (event.key.keysym.sym) {
+        else if( event.type == SDL_KEYDOWN && !imgui_wants_keyboard )
+        {
+            switch( event.key.keysym.sym )
+            {
             case SDLK_ESCAPE:
                 g_quit = true;
                 break;
@@ -1201,57 +1214,75 @@ void emscripten_main_loop()
 
 // Exported functions for JavaScript
 extern "C" {
-    EMSCRIPTEN_KEEPALIVE
-    void set_camera_position(int x, int y, int z) {
-        if (g_game) {
-            g_game->camera_x = x;
-            g_game->camera_y = y;
-            g_game->camera_z = z;
-        }
+EMSCRIPTEN_KEEPALIVE
+void
+set_camera_position(int x, int y, int z)
+{
+    if( g_game )
+    {
+        g_game->camera_x = x;
+        g_game->camera_y = y;
+        g_game->camera_z = z;
     }
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    void set_camera_rotation(int pitch, int yaw, int roll) {
-        if (g_game) {
-            g_game->camera_pitch = pitch;
-            g_game->camera_yaw = yaw;
-            g_game->camera_roll = roll;
-        }
+EMSCRIPTEN_KEEPALIVE
+void
+set_camera_rotation(int pitch, int yaw, int roll)
+{
+    if( g_game )
+    {
+        g_game->camera_pitch = pitch;
+        g_game->camera_yaw = yaw;
+        g_game->camera_roll = roll;
     }
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    void set_camera_fov(int fov) {
-        if (g_game) {
-            g_game->camera_fov = fov;
-        }
+EMSCRIPTEN_KEEPALIVE
+void
+set_camera_fov(int fov)
+{
+    if( g_game )
+    {
+        g_game->camera_fov = fov;
     }
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    int* get_pixel_buffer() {
-        return g_platform ? g_platform->pixel_buffer : nullptr;
-    }
+EMSCRIPTEN_KEEPALIVE
+int*
+get_pixel_buffer()
+{
+    return g_platform ? g_platform->pixel_buffer : nullptr;
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    int get_screen_width() {
-        return SCREEN_WIDTH;
-    }
+EMSCRIPTEN_KEEPALIVE
+int
+get_screen_width()
+{
+    return SCREEN_WIDTH;
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    int get_screen_height() {
-        return SCREEN_HEIGHT;
-    }
+EMSCRIPTEN_KEEPALIVE
+int
+get_screen_height()
+{
+    return SCREEN_HEIGHT;
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    void render_frame() {
-        if (g_game && g_platform) {
-            game_render_sdl2(g_game, g_platform);
-        }
+EMSCRIPTEN_KEEPALIVE
+void
+render_frame()
+{
+    if( g_game && g_platform )
+    {
+        game_render_sdl2(g_game, g_platform);
     }
+}
 }
 #endif
 
 int
-SDL_main(int argc, char* argv[])
+main(int argc, char* argv[])
 {
     std::cout << "SDL_main" << std::endl;
     init_hsl16_to_rgb_table();

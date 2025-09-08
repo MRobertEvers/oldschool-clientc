@@ -143,56 +143,6 @@ else()
     include_directories(RSClient src ${SDL2_INCLUDE_DIRS} src/imgui)
 endif()
 
-if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-add_executable(main_client
-    src/main_client.c
-    src/shared_tables.c
-    src/osrs/frustrum_cullmap.c
-    src/texture.c
-    src/osrs/tables/textures.c
-    src/osrs/tables/sprites.c
-    src/osrs/blend_underlays.c
-    src/osrs/palette.c
-    src/osrs/cache.c
-    src/osrs/scene_tile.c
-    src/osrs/tables/model.c
-    src/osrs/archive_decompress.c
-    src/osrs/reference_table.c
-    src/osrs/tables/config_npctype.c
-    src/osrs/tables/config_sequence.c
-    src/osrs/tables/config_floortype.c
-    src/osrs/tables/framemap.c
-    src/osrs/tables/frame.c
-    src/osrs/tables/maps.c
-    src/osrs/filelist.c
-    src/osrs/render.c
-    src/osrs/rsbuf.c
-    src/flat.c
-    src/gouraud.c
-    src/gouraud_deob.c
-    src/lighting.c
-    src/projection.c
-    src/texture.c
-    src/osrs/anim.c
-    src/osrs/xtea.c
-    src/osrs/archive.c
-    src/osrs/xtea_config.c
-    src/osrs/scene_cache.c
-    src/datastruct/ht.c
-    src/osrs/tables/noise.c
-
-    src/3rd/bzip/bzip.c 
-    src/3rd/miniz/miniz.c
-    )
-endif()
-
-# Fix: Add ASan target properties for main_client (Unix/Linux only, excluding Emscripten)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
-    set_target_properties(main_client PROPERTIES
-        LINK_FLAGS "-fsanitize=address"
-    )
-endif()
-
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(scene_tile_test
         test/scene_tile_test.cpp
@@ -313,7 +263,6 @@ endif()
 if(WIN32)
     target_include_directories(scene_tile_test PRIVATE ${SDL2_INCLUDE_DIRS})
     target_include_directories(model_viewer PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_include_directories(main_client PRIVATE ${SDL2_INCLUDE_DIRS})
 endif()
 
 # Fix: Add ASan target properties for scene_tile_test (Unix/Linux only, excluding Emscripten)
@@ -431,7 +380,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     set_target_properties(scene_tile_test_imgui_browser PROPERTIES LINK_FLAGS "${IMGUI_LINK_FLAGS} ${PRELOAD_FLAGS}")
 elseif(WIN32)
-    target_link_libraries(main_client SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2main SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     
@@ -512,11 +460,9 @@ elseif(WIN32)
     endfunction()
     
     # Apply DLL copying to all targets
-    copy_dlls_to_target(main_client)
     copy_dlls_to_target(scene_tile_test)
     copy_dlls_to_target(model_viewer)
 else()
-    target_link_libraries(main_client ${SDL2_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
 endif()
@@ -584,6 +530,9 @@ if(APPLE)
         src/osrs/scene_cache.c
         src/osrs/tables/noise.c
         src/datastruct/ht.c
+
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
     )
 
     # Add shader files
@@ -634,7 +583,6 @@ if(APPLE)
     add_custom_target(metal_shaders DEPENDS ${CMAKE_BINARY_DIR}/Shaders.metallib)
     add_dependencies(metal_renderer metal_shaders)
 
-    target_compile_options(main_client PRIVATE ${PROFILING_FLAGS})
     target_compile_options(scene_tile_test PRIVATE ${PROFILING_FLAGS})
 elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # On non-macOS platforms (except Emscripten), create an empty executable
