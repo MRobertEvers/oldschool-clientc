@@ -677,8 +677,8 @@ drawPixelBufferToCanvas()
                 container.style.display = 'flex';
                 container.style.justifyContent = 'center';
                 container.style.alignItems = 'center';
-                container.style.gap = '20px';
-                container.style.padding = '20px';
+                // container.style.gap = '20px';
+                // container.style.padding = '20px';
                 container.style.backgroundColor = '#1a1a1a';
                 container.style.position = 'fixed';
                 container.style.top = '0';
