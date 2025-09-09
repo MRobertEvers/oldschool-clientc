@@ -33,7 +33,7 @@ struct SceneModel* g_scene_model = NULL;
 struct IterRenderModel g_iter_model;
 static int g_sort_order[1024] = { 0 };  // Stores face indices for sorting
 static int g_sort_order_count = 0;
-static unsigned int g_element_indices[1024 * 3] = { 0 };  // Stores vertex indices for OpenGL
+static unsigned int g_element_indices[1024 * 9] = { 0 };  // Stores vertex indices for OpenGL
 static float g_vertices[10000] = { 0 };
 
 
@@ -279,39 +279,22 @@ void updateTriangleOrder() {
 
     
     // Convert face indices to vertex indices
-    // for (int i = 0; i < g_sort_order_count; i++) {
-    //     int face_idx = g_sort_order[i];
+    for (int i = 0; i < g_sort_order_count; i++) {
+        int face_idx = g_sort_order[i];
         
-    //     // Each face maps to 3 vertex indices
-    //     unsigned int v1 = g_scene_model->model->face_indices_a[face_idx];
-    //     unsigned int v2 = g_scene_model->model->face_indices_b[face_idx];
-    //     unsigned int v3 = g_scene_model->model->face_indices_c[face_idx];
-        
-    //     g_element_indices[i * 3] = v1;
-    //     g_element_indices[i * 3 + 1] = v2;
-    //     g_element_indices[i * 3 + 2] = v3;
-    // }
-
-    for (int i = 0; i < g_scene_model->model->face_count; i++) {
-        int face_idx = i;
-        
-        unsigned int v1 = g_scene_model->model->face_indices_a[face_idx];
-        unsigned int v2 = g_scene_model->model->face_indices_b[face_idx];
-        unsigned int v3 = g_scene_model->model->face_indices_c[face_idx];
-        
-        g_element_indices[i * 3] = v1;
-        g_element_indices[i * 3 + 1] = v2;
-        g_element_indices[i * 3 + 2] = v3;
+        // For each face, we need to reference the correct vertices and their corresponding colors
+        // Each face has 3 vertices, and each vertex has its own color in the face
+        g_element_indices[i * 3] = face_idx * 3;      // First vertex of the face
+        g_element_indices[i * 3 + 1] = face_idx * 3 + 1;  // Second vertex of the face
+        g_element_indices[i * 3 + 2] = face_idx * 3 + 2;  // Third vertex of the face
     }
-
-    g_sort_order_count = g_scene_model->model->face_count;
 
     // Ensure VAO is bound before updating EBO
     glBindVertexArray(VAO);
     
     // Update GPU buffer with vertex indices
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, g_sort_order_count * 3 * sizeof(unsigned int),
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, g_sort_order_count * 9 * sizeof(unsigned int),
                 g_element_indices, GL_DYNAMIC_DRAW);
                 
     // Check for errors after buffer update
@@ -408,28 +391,37 @@ void initGL() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    // Create and setup color buffer for faces (3 vertices per face)
+    // Create and setup color buffer - one color per vertex per face
     std::vector<float> colors(g_scene_model->model->face_count * 9);  // 3 vertices * 3 colors per face
     for (int i = 0; i < g_scene_model->model->face_count; i++) {
         int face_idx = i;
         
-        // Get the face color in HSL
-        int hsl = g_scene_model->model->face_colors[face_idx];
+        // Get the HSL colors for each vertex of the face
+        int hsl_a = g_scene_model->lighting->face_colors_hsl_a[face_idx];
+        int hsl_b = g_scene_model->lighting->face_colors_hsl_b[face_idx];
+        int hsl_c = g_scene_model->lighting->face_colors_hsl_c[face_idx];
         
         // Convert HSL to RGB
-        int rgb = g_hsl16_to_rgb_table[hsl];
+        int rgb_a = g_hsl16_to_rgb_table[hsl_a];
+        int rgb_b = g_hsl16_to_rgb_table[hsl_b];
+        int rgb_c = g_hsl16_to_rgb_table[hsl_c];
+
         
-        // Extract RGB components
-        float r = ((rgb >> 16) & 0xFF) / 255.0f;
-        float g = ((rgb >> 8) & 0xFF) / 255.0f;
-        float b = (rgb & 0xFF) / 255.0f;
+        // Store colors for this face's vertices
+        // First vertex color
+        colors[i * 9] = ((rgb_a >> 16) & 0xFF) / 255.0f;
+        colors[i * 9 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
+        colors[i * 9 + 2] = (rgb_a & 0xFF) / 255.0f;
         
-        // Store the same color for all three vertices of this face
-        for (int j = 0; j < 3; j++) {
-            colors[i * 9 + j * 3] = r;
-            colors[i * 9 + j * 3 + 1] = g;
-            colors[i * 9 + j * 3 + 2] = b;
-        }
+        // Second vertex color
+        colors[i * 9 + 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
+        colors[i * 9 + 4] = ((rgb_b >> 8) & 0xFF) / 255.0f;
+        colors[i * 9 + 5] = (rgb_b & 0xFF) / 255.0f;
+        
+        // Third vertex color
+        colors[i * 9 + 6] = ((rgb_c >> 16) & 0xFF) / 255.0f;
+        colors[i * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
+        colors[i * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
     }
     
     glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
@@ -528,7 +520,6 @@ void render() {
     
     // Ensure proper state
     glUseProgram(shaderProgram);
-    glBindVertexArray(VAO);
     
     // Get and validate uniform locations
     GLint rotationXLoc = glGetUniformLocation(shaderProgram, "uRotationX");
@@ -550,9 +541,12 @@ void render() {
     glUniform3f(cameraPosLoc, cameraX, cameraY, cameraZ);
     glUniform1f(aspectLoc, 800.0f/600.0f); // TODO: Get actual window dimensions
     
-    // Draw all faces
-    if (g_scene_model->model->face_count > 0) {
-        glDrawArrays(GL_TRIANGLES, 0, g_scene_model->model->face_count * 3);
+    // Sort triangles based on current transformation
+    updateTriangleOrder();
+    
+    // Verify we have data to draw
+    if (g_sort_order_count > 0) {
+        glDrawElements(GL_TRIANGLES, g_sort_order_count * 3, GL_UNSIGNED_INT, 0);
         
         // Check for errors after draw
         GLenum err = glGetError();
