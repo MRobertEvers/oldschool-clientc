@@ -1130,3 +1130,10 @@ Then copy the output to public/build
 +y is down
 +z is away from camera (into)
 +x is to the right.
+
+# WebGL
+
+My Moto X (Gen 1) has blacklisted chromium webgl2 drivers.
+See here.
+https://issues.chromium.org/issues/40114751
+

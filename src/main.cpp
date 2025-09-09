@@ -164,6 +164,91 @@ void main() {
 }
 )";
 
+// WebGL1 vertex shader
+const char* vertexShaderSourceWebGL1 = R"(
+attribute vec3 aPos;
+attribute vec3 aColor;
+uniform float uRotationX;  // pitch
+uniform float uRotationY;  // yaw
+uniform vec3 uCameraPos;   // camera position
+uniform float uAspect;     // aspect ratio
+
+varying vec3 vColor;
+
+mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
+    float y = 1.0 / tan(fov * 0.5);
+    float x = y / aspect;
+    float z = far / (far - near);
+    
+    return mat4(
+        x, 0.0, 0.0, 0.0,
+        0.0, -y, 0.0, 0.0,  // Negate y to flip screen space coordinates
+        0.0, 0.0, z, 1.0,
+        0.0, 0.0, -z * near, 0.0
+    );
+}
+
+mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
+    float cosPitch = cos(-pitch);
+    float sinPitch = sin(-pitch);
+    float cosYaw = cos(-yaw);
+    float sinYaw = sin(-yaw);
+
+    // Create rotation matrices
+    mat4 pitchMatrix = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, cosPitch, -sinPitch, 0.0,
+        0.0, sinPitch, cosPitch, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+    
+    mat4 yawMatrix = mat4(
+        cosYaw, 0.0, sinYaw, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        -sinYaw, 0.0, cosYaw, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+    
+    // Create translation matrix, move relative to camera position
+    mat4 translateMatrix = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        -cameraPos.x, -cameraPos.y, -cameraPos.z, 1.0
+    );
+    
+    // Combine matrices: rotation * translation
+    return pitchMatrix * yawMatrix * translateMatrix;
+}
+
+void main() {
+    // Create view matrix with camera transformations
+    mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
+    
+    // Create projection matrix with 90 degree FOV (same as Metal version)
+    mat4 projection = createProjectionMatrix(radians(90.0), uAspect, 0.1, 10000.0);
+    
+    // Transform vertex position
+    vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
+    
+    // Pass through the color
+    vColor = aColor;
+    
+    gl_Position = projection * viewPos;
+}
+)";
+
+// WebGL1 fragment shader
+const char* fragmentShaderSourceWebGL1 = R"(
+precision mediump float;
+
+varying vec3 vColor;
+
+void main() {
+    gl_FragColor = vec4(vColor, 1.0);
+}
+)";
+
 // Structure to hold triangle data for sorting
 struct Triangle
 {
@@ -175,6 +260,9 @@ struct Triangle
 GLuint shaderProgram;
 GLuint VAO;
 GLuint VBO, colorVBO, EBO;
+
+// WebGL version tracking
+static bool g_using_webgl2 = false;
 
 // Timer query objects and state
 GLuint g_timer_queries[2];            // Double-buffered timer queries
@@ -190,9 +278,11 @@ check_timer_query_support()
     if( !extensions )
         return false;
 
+    
+
     // Check for either EXT_disjoint_timer_query or EXT_timer_query
     return (strstr(extensions, "EXT_disjoint_timer_query") != NULL) ||
-           (strstr(extensions, "EXT_timer_query") != NULL);
+           (strstr(extensions, "EXT_timer_query") != NULL) || (strstr(extensions, "EXT_disjoint_timer_query_webgl2") != NULL);
 }
 float rotationX = 0.1f; // Initial pitch (look down slightly)
 float rotationY = 0.0f; // Initial yaw
@@ -520,8 +610,10 @@ void
 initGL()
 {
     // Create and compile shaders
-    GLuint vertexShader = createShader(GL_VERTEX_SHADER, vertexShaderSource);
-    GLuint fragmentShader = createShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+    const char* vsSource = g_using_webgl2 ? vertexShaderSource : vertexShaderSourceWebGL1;
+    const char* fsSource = g_using_webgl2 ? fragmentShaderSource : fragmentShaderSourceWebGL1;
+    GLuint vertexShader = createShader(GL_VERTEX_SHADER, vsSource);
+    GLuint fragmentShader = createShader(GL_FRAGMENT_SHADER, fsSource);
 
     // Create shader program
     shaderProgram = glCreateProgram();
@@ -546,9 +638,11 @@ initGL()
     // Initialize triangles array
     sort_model_faces();
 
-    // Create and bind VAO first
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
+    // Create and bind VAO if available (WebGL2)
+    if (g_using_webgl2) {
+        glGenVertexArrays(1, &VAO);
+        glBindVertexArray(VAO);
+    }
 
     // Create buffers
     glGenBuffers(1, &VBO);
@@ -634,9 +728,16 @@ initGL()
     // Initialize sorted indices after buffer setup
     updateTriangleOrder();
 
-    // Normal attribute
-    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 *
-    // sizeof(float))); glEnableVertexAttribArray(1);
+    // If using WebGL1, set up attributes here since we don't have VAOs
+    if (!g_using_webgl2) {
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+    }
 
     // Enable depth testing only for now
     glEnable(GL_DEPTH_TEST);
@@ -801,7 +902,6 @@ render()
     // Reset software render time for this frame
     g_software_render_time = 0.0;
 
-    double start_time = get_time_ms();
 
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
@@ -824,6 +924,7 @@ render()
     ImGui::Separator();
 
     ImGui::Text("Performance Metrics (Rasterization Only)");
+    ImGui::Text("WebGL Version: %s", g_using_webgl2 ? "WebGL2" : "WebGL1");
     ImGui::Text("Software Rasterizer (CPU, model_draw_face):");
     ImGui::Text("  Current: %.2f ms", g_software_render_time);
     ImGui::Text("  Average: %.2f ms", g_avg_software_time);
@@ -926,6 +1027,8 @@ render()
         }
         else
         {
+            // Hacky, but force a flush and sync to get the actual time
+            glFinish();
             g_gpu_render_time = get_time_ms() - frame_start_time;
             g_avg_gpu_time =
                 (g_avg_gpu_time * (g_frame_count - 1) + g_gpu_render_time) / g_frame_count;
@@ -1322,11 +1425,9 @@ main()
         return 0;
     }
 
-    // Set up WebGL2 context through Emscripten
+    // Try WebGL2 first, then fall back to WebGL1
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
-    attrs.majorVersion = 2;
-    attrs.minorVersion = 0;
     attrs.enableExtensionsByDefault = 1;
     attrs.alpha = 1;
     attrs.depth = 1;
@@ -1337,11 +1438,25 @@ main()
     attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_DEFAULT;
     attrs.failIfMajorPerformanceCaveat = 0;
 
+    // Try WebGL2 first
+    attrs.majorVersion = 2;
+    attrs.minorVersion = 0;
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context = emscripten_webgl_create_context("#canvas", &attrs);
-    if( context < 0 )
-    {
-        printf("Failed to create WebGL2 context!\n");
-        return 0;
+    
+    if (context < 0) {
+        printf("WebGL2 not available, falling back to WebGL1\n");
+        // Fall back to WebGL1
+        attrs.majorVersion = 1;
+        context = emscripten_webgl_create_context("#canvas", &attrs);
+        g_using_webgl2 = false;
+        
+        if (context < 0) {
+            printf("Failed to create WebGL context!\n");
+            return 0;
+        }
+    } else {
+        g_using_webgl2 = true;
+        printf("Using WebGL2\n");
     }
     emscripten_webgl_make_context_current(context);
 
@@ -1368,7 +1483,7 @@ main()
 
     // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForOpenGL(g_window, (void*)context);
-    ImGui_ImplOpenGL3_Init("#version 300 es");
+    ImGui_ImplOpenGL3_Init(g_using_webgl2 ? "#version 300 es" : "#version 100");
 
     // Enable SDL events we need
     // SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
