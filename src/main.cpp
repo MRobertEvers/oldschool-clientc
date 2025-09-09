@@ -279,8 +279,10 @@ void updateTriangleOrder() {
 
     
     // Convert face indices to vertex indices
-    for (int i = 0; i < g_sort_order_count; i++) {
-        int face_idx = g_sort_order[i];
+    for (int i = 0; i < g_scene_model->model->face_count; i++) {
+        int face_idx = i;
+    // for (int i = 0; i < g_sort_order_count; i++) {
+    //     int face_idx = g_sort_order[i];
         
         // For each face, we need to reference the correct vertices and their corresponding colors
         // Each face has 3 vertices, and each vertex has its own color in the face
@@ -289,12 +291,14 @@ void updateTriangleOrder() {
         g_element_indices[i * 3 + 2] = face_idx * 3 + 2;  // Third vertex of the face
     }
 
+    g_sort_order_count = g_scene_model->model->face_count;
+
     // Ensure VAO is bound before updating EBO
     glBindVertexArray(VAO);
     
     // Update GPU buffer with vertex indices
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, g_sort_order_count * 9 * sizeof(unsigned int),
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, g_sort_order_count * 3 * sizeof(unsigned int),
                 g_element_indices, GL_DYNAMIC_DRAW);
                 
     // Check for errors after buffer update
@@ -442,9 +446,9 @@ void initGL() {
     // Enable depth testing only for now
     glEnable(GL_DEPTH_TEST);
     // Disable face culling for debugging
-    glEnable(GL_CULL_FACE);
-    glFrontFace(GL_CW);
-    glCullFace(GL_FRONT);
+    // glEnable(GL_CULL_FACE);
+    // glFrontFace(GL_CW);
+    // glCullFace(GL_FRONT);
 }
 
 // Camera movement speed
