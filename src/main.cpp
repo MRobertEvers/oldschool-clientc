@@ -170,113 +170,6 @@ bool dKeyPressed = false;
 bool rKeyPressed = false;
 bool fKeyPressed = false;
 
-// Cube vertices with smoothed normals at corners
-std::vector<float> vertices = {
-    // Positions and averaged normals for each vertex
-    // Front-bottom-left
-    -0.5f,
-    -0.5f,
-    0.5f,
-    -0.577f,
-    -0.577f,
-    0.577f, // v0
-            // Front-bottom-right
-    0.5f,
-    -0.5f,
-    0.5f,
-    0.577f,
-    -0.577f,
-    0.577f, // v1
-            // Front-top-right
-    0.5f,
-    0.5f,
-    0.5f,
-    0.577f,
-    0.577f,
-    0.577f, // v2
-    // Front-top-left
-    -0.5f,
-    0.5f,
-    0.5f,
-    -0.577f,
-    0.577f,
-    0.577f, // v3
-    // Back-bottom-left
-    -0.5f,
-    -0.5f,
-    -0.5f,
-    -0.577f,
-    -0.577f,
-    -0.577f, // v4
-             // Back-bottom-right
-    0.5f,
-    -0.5f,
-    -0.5f,
-    0.577f,
-    -0.577f,
-    -0.577f, // v5
-             // Back-top-right
-    0.5f,
-    0.5f,
-    -0.5f,
-    0.577f,
-    0.577f,
-    -0.577f, // v6
-    // Back-top-left
-    -0.5f,
-    0.5f,
-    -0.5f,
-    -0.577f,
-    0.577f,
-    -0.577f // v7
-};
-
-// Indices for the cube using shared vertices
-std::vector<unsigned int> indices = {
-    // Front face
-    0,
-    1,
-    2,
-    0,
-    2,
-    3, // v0-v1-v2, v0-v2-v3
-    // Back face
-    5,
-    4,
-    7,
-    5,
-    7,
-    6, // v5-v4-v7, v5-v7-v6
-    // Top face
-    3,
-    2,
-    6,
-    3,
-    6,
-    7, // v3-v2-v6, v3-v6-v7
-    // Bottom face
-    4,
-    5,
-    1,
-    4,
-    1,
-    0, // v4-v5-v1, v4-v1-v0
-    // Right face
-    1,
-    5,
-    6,
-    1,
-    6,
-    2, // v1-v5-v6, v1-v6-v2
-    // Left face
-    4,
-    0,
-    3,
-    4,
-    3,
-    7 // v4-v0-v3, v4-v3-v7
-};
-
 static int
 get_rotation_r2pi2048(float rotation)
 {
@@ -770,7 +663,7 @@ drawPixelBufferToCanvas()
                 mainCanvas.style.flex = '1';
                 mainCanvas.style.maxWidth = 'calc(50% - 10px)';
                 mainCanvas.style.height = 'auto';
-                mainCanvas.style.aspectRatio = $0 + '/' + $1;
+                // mainCanvas.style.aspectRatio = $0 + '/' + $1;
                 mainCanvas.style.position = 'relative';
                 mainCanvas.style.zIndex = '1';
 
@@ -786,7 +679,7 @@ drawPixelBufferToCanvas()
                     pixelCanvas.style.flex = '1';
                     pixelCanvas.style.maxWidth = 'calc(50% - 10px)';
                     pixelCanvas.style.height = 'auto';
-                    pixelCanvas.style.aspectRatio = $0 + '/' + $1;
+                    // pixelCanvas.style.aspectRatio = $0 + '/' + $1;
                 }
 
                 // Move elements to container
