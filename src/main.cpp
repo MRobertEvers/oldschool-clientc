@@ -1,10 +1,18 @@
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #include <GLES3/gl3.h>
 #include <emscripten/html5.h>
 
+// Define timer query extension types if not available
+#ifndef GL_TIME_ELAPSED_EXT
+#define GL_TIME_ELAPSED_EXT 0x88BF
+#endif
+
 #include <SDL.h>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -14,6 +22,22 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// Performance measurement variables
+static double g_software_render_time = 0.0; // Time in milliseconds
+static double g_gpu_render_time = 0.0;      // Time in milliseconds
+static int g_frame_count = 0;
+static double g_avg_software_time = 0.0;
+static double g_avg_gpu_time = 0.0;
+
+// Helper function to get current time in milliseconds
+static double
+get_time_ms()
+{
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = now.time_since_epoch();
+    return std::chrono::duration<double, std::milli>(duration).count();
+}
 
 // Global SDL variables
 SDL_Window* g_window = nullptr;
@@ -151,6 +175,25 @@ struct Triangle
 GLuint shaderProgram;
 GLuint VAO;
 GLuint VBO, colorVBO, EBO;
+
+// Timer query objects and state
+GLuint g_timer_queries[2];            // Double-buffered timer queries
+int g_current_query = 0;              // Index of current query
+GLuint g_gpu_time_ns = 0;             // Last GPU time in nanoseconds
+bool g_timer_query_supported = false; // Whether timer queries are supported
+
+// Helper function to check for timer query extension support
+static bool
+check_timer_query_support()
+{
+    const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
+    if( !extensions )
+        return false;
+
+    // Check for either EXT_disjoint_timer_query or EXT_timer_query
+    return (strstr(extensions, "EXT_disjoint_timer_query") != NULL) ||
+           (strstr(extensions, "EXT_timer_query") != NULL);
+}
 float rotationX = 0.1f; // Initial pitch (look down slightly)
 float rotationY = 0.0f; // Initial yaw
 // float distance = 1000.0f;  // Initial zoom level
@@ -207,6 +250,9 @@ sort_model_faces()
 
     int index = 0;
     memset(g_pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    g_software_render_time = 0.0; // Reset software render time for this frame
+    double start_time = get_time_ms();
+
     while( iter_render_model_next(&g_iter_model) )
     {
         int face = g_iter_model.value_face;
@@ -218,6 +264,8 @@ sort_model_faces()
 
         g_sort_order[index] = face;
         index++;
+
+        // Time only the actual rasterization
 
         model_draw_face(
             g_pixel_buffer,
@@ -252,7 +300,12 @@ sort_model_faces()
             NULL);
     }
 
+    g_software_render_time += get_time_ms() - start_time;
     g_sort_order_count = index;
+
+    // Update average render time
+    g_avg_software_time =
+        (g_avg_software_time * g_frame_count + g_software_render_time) / (g_frame_count + 1);
 }
 
 // Function to transform a vertex by the model matrix
@@ -591,6 +644,13 @@ initGL()
     // glEnable(GL_CULL_FACE);
     // glFrontFace(GL_CW);
     // glCullFace(GL_FRONT);
+
+    // Check and initialize timer queries if supported
+    g_timer_query_supported = check_timer_query_support();
+    if( g_timer_query_supported )
+    {
+        glGenQueries(2, g_timer_queries);
+    }
 }
 
 // Camera movement speed
@@ -732,12 +792,16 @@ drawPixelBufferToCanvas()
 void
 render()
 {
-    static int frame_count = 0;
-    frame_count++;
-    if( frame_count % 60 == 0 )
+    g_frame_count++;
+    if( g_frame_count % 60 == 0 )
     { // Print every 60 frames
-        printf("Render frame %d\n", frame_count);
+        printf("Render frame %d\n", g_frame_count);
     }
+
+    // Reset software render time for this frame
+    g_software_render_time = 0.0;
+
+    double start_time = get_time_ms();
 
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
@@ -757,6 +821,31 @@ render()
     ImGui::SliderFloat("Pitch", &rotationX, -M_PI / 2, M_PI / 2);
     ImGui::SliderFloat("Yaw", &rotationY, -M_PI, M_PI);
 
+    ImGui::Separator();
+
+    ImGui::Text("Performance Metrics (Rasterization Only)");
+    ImGui::Text("Software Rasterizer (CPU, model_draw_face):");
+    ImGui::Text("  Current: %.2f ms", g_software_render_time);
+    ImGui::Text("  Average: %.2f ms", g_avg_software_time);
+    ImGui::Text(
+        "GPU Rasterizer (%s, glDrawElements):",
+        g_timer_query_supported ? "GL Timer Query" : "CPU Timer");
+    ImGui::Text("  Current: %.2f ms", g_gpu_render_time);
+    ImGui::Text("  Average: %.2f ms", g_avg_gpu_time);
+    ImGui::Text("Frame Count: %d", g_frame_count);
+
+    if( g_frame_count <= 1 && g_timer_query_supported )
+    {
+        ImGui::TextColored(
+            ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Note: GPU timing data will appear after first frame");
+    }
+    else if( !g_timer_query_supported )
+    {
+        ImGui::TextColored(
+            ImVec4(1.0f, 1.0f, 0.0f, 1.0f),
+            "Note: Using CPU timing fallback (GL_TIME_ELAPSED_EXT not supported)");
+    }
+
     ImGui::End();
 
     // Update camera position based on keyboard state
@@ -766,6 +855,24 @@ render()
     // Clear any existing errors
     while( glGetError() != GL_NO_ERROR )
         ;
+
+    double frame_start_time = 0.0;
+
+    // Check result from previous frame's timer query
+    if( g_timer_query_supported && g_frame_count > 1 )
+    { // Skip first frame
+        GLuint timer_ready = 0;
+        glGetQueryObjectuiv(
+            g_timer_queries[1 - g_current_query], GL_QUERY_RESULT_AVAILABLE, &timer_ready);
+        if( timer_ready )
+        {
+            GLuint time_ns = 0;
+            glGetQueryObjectuiv(g_timer_queries[1 - g_current_query], GL_QUERY_RESULT, &time_ns);
+            g_gpu_render_time = time_ns / 1000000.0; // Convert to milliseconds
+            g_avg_gpu_time =
+                (g_avg_gpu_time * (g_frame_count - 1) + g_gpu_render_time) / g_frame_count;
+        }
+    }
 
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -799,7 +906,30 @@ render()
     // Verify we have data to draw
     if( g_sort_order_count > 0 )
     {
+        // Start timing just before the draw call
+        if( g_timer_query_supported )
+        {
+            glBeginQuery(GL_TIME_ELAPSED_EXT, g_timer_queries[g_current_query]);
+        }
+        else
+        {
+            frame_start_time = get_time_ms();
+        }
+
         glDrawElements(GL_TRIANGLES, g_sort_order_count * 3, GL_UNSIGNED_INT, 0);
+
+        // End timing right after the draw call
+        if( g_timer_query_supported )
+        {
+            glEndQuery(GL_TIME_ELAPSED_EXT);
+            g_current_query = 1 - g_current_query; // Swap query buffers
+        }
+        else
+        {
+            g_gpu_render_time = get_time_ms() - frame_start_time;
+            g_avg_gpu_time =
+                (g_avg_gpu_time * (g_frame_count - 1) + g_gpu_render_time) / g_frame_count;
+        }
 
         // Check for errors after draw
         GLenum err = glGetError();
