@@ -1123,3 +1123,10 @@ Then copy the output to public/build
 `python -m http.server -d public/build 8000 `
 
 `http://localhost:8000`
+
+
+# World and model coords
+
++y is down
++z is away from camera (into)
++x is to the right.

@@ -3935,15 +3935,15 @@ iter_render_model_init(
     int* orthographic_vertices_y = tmp_orthographic_vertices_y;
     int* orthographic_vertices_z = tmp_orthographic_vertices_z;
 
-    int x = camera_x + scene_model->region_x;
-    int y = camera_y + scene_model->region_z;
-    int z = camera_z + scene_model->region_height;
+    int scene_x = scene_model->region_x - camera_x;
+    int scene_y = scene_model->region_height - camera_y;
+    int scene_z = scene_model->region_z - camera_z;
     yaw += scene_model->yaw;
     yaw %= 2048;
 
-    x += scene_model->offset_x;
-    y += scene_model->offset_y;
-    z += scene_model->offset_height;
+    scene_x += scene_model->offset_x;
+    scene_y += scene_model->offset_y;
+    scene_z += scene_model->offset_height;
 
     int success = project_vertices_textured(
         screen_vertices_x,
@@ -3959,9 +3959,9 @@ iter_render_model_init(
         0,
         yaw,
         0,
-        x,
-        z,
-        y,
+        scene_x,
+        scene_y,
+        scene_z,
         camera_pitch,
         camera_yaw,
         camera_roll,
