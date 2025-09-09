@@ -738,37 +738,6 @@ updateCameraPosition(bool forward, bool backward, bool left, bool right, bool up
     }
 }
 
-EM_BOOL
-mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData)
-{
-    if( eventType == EMSCRIPTEN_EVENT_MOUSEDOWN )
-    {
-        isDragging = true;
-        lastX = e->clientX;
-        lastY = e->clientY;
-    }
-    else if( eventType == EMSCRIPTEN_EVENT_MOUSEUP )
-    {
-        isDragging = false;
-    }
-    else if( eventType == EMSCRIPTEN_EVENT_MOUSEMOVE && isDragging )
-    {
-        float deltaX = e->clientX - lastX;
-        float deltaY = e->clientY - lastY;
-
-        // Update rotation angles (scale down the movement)
-        rotationY -= deltaX * ROTATE_SPEED;
-        rotationX += deltaY * ROTATE_SPEED;
-
-        // Clamp pitch to prevent over-rotation (same as Metal version)
-        rotationX = fmax(fmin(rotationX, M_PI / 2), -M_PI / 2);
-
-        lastX = e->clientX;
-        lastY = e->clientY;
-    }
-    return EM_TRUE;
-}
-
 void
 drawPixelBufferToCanvas()
 {
@@ -802,6 +771,8 @@ drawPixelBufferToCanvas()
                 mainCanvas.style.maxWidth = 'calc(50% - 10px)';
                 mainCanvas.style.height = 'auto';
                 mainCanvas.style.aspectRatio = $0 + '/' + $1;
+                mainCanvas.style.position = 'relative';
+                mainCanvas.style.zIndex = '1';
 
                 // Create and style the software rasterizer canvas
                 let pixelCanvas = document.getElementById('pixel-canvas');
@@ -964,13 +935,6 @@ render()
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-EM_BOOL
-loop(double time, void* userData)
-{
-    render();
-    return EM_TRUE;
-}
-
 static const int TZTOK_JAD_MODEL_ID = 9319;
 static const int TZTOK_JAD_NPCTYPE_ID = 3127;
 
@@ -1099,40 +1063,85 @@ load_model()
 EM_BOOL
 key_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData)
 {
-    bool* keyState = nullptr;
+    ImGuiIO& io = ImGui::GetIO();
 
-    // Map key codes to key states
-    switch( e->keyCode )
+    // Update ImGui key state
+    if( eventType == EMSCRIPTEN_EVENT_KEYDOWN || eventType == EMSCRIPTEN_EVENT_KEYUP )
     {
-    case 87: // W key
-        keyState = &wKeyPressed;
-        break;
-    case 65: // A key
-        keyState = &aKeyPressed;
-        break;
-    case 83: // S key
-        keyState = &sKeyPressed;
-        break;
-    case 68: // D key
-        keyState = &dKeyPressed;
-        break;
-    case 82: // R key
-        keyState = &rKeyPressed;
-        break;
-    case 70: // F key
-        keyState = &fKeyPressed;
-        break;
+        io.KeyCtrl = e->ctrlKey;
+        io.KeyShift = e->shiftKey;
+        io.KeyAlt = e->altKey;
+        io.KeySuper = e->metaKey;
+
+        // Map common keys
+        if( e->keyCode == 9 )
+            io.AddKeyEvent(ImGuiKey_Tab, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 37 )
+            io.AddKeyEvent(ImGuiKey_LeftArrow, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 39 )
+            io.AddKeyEvent(ImGuiKey_RightArrow, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 38 )
+            io.AddKeyEvent(ImGuiKey_UpArrow, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 40 )
+            io.AddKeyEvent(ImGuiKey_DownArrow, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 36 )
+            io.AddKeyEvent(ImGuiKey_Home, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 35 )
+            io.AddKeyEvent(ImGuiKey_End, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 33 )
+            io.AddKeyEvent(ImGuiKey_PageUp, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 34 )
+            io.AddKeyEvent(ImGuiKey_PageDown, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 13 )
+            io.AddKeyEvent(ImGuiKey_Enter, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 27 )
+            io.AddKeyEvent(ImGuiKey_Escape, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 8 )
+            io.AddKeyEvent(ImGuiKey_Backspace, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 46 )
+            io.AddKeyEvent(ImGuiKey_Delete, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
+        if( e->keyCode == 32 )
+            io.AddKeyEvent(ImGuiKey_Space, eventType == EMSCRIPTEN_EVENT_KEYDOWN);
     }
 
-    if( keyState )
+    // Only handle game input if ImGui is not capturing keyboard
+    if( !io.WantCaptureKeyboard )
     {
-        if( eventType == EMSCRIPTEN_EVENT_KEYDOWN )
+        bool* keyState = nullptr;
+
+        // Map key codes to key states
+        switch( e->keyCode )
         {
-            *keyState = true;
+        case 87: // W key
+            keyState = &wKeyPressed;
+            break;
+        case 65: // A key
+            keyState = &aKeyPressed;
+            break;
+        case 83: // S key
+            keyState = &sKeyPressed;
+            break;
+        case 68: // D key
+            keyState = &dKeyPressed;
+            break;
+        case 82: // R key
+            keyState = &rKeyPressed;
+            break;
+        case 70: // F key
+            keyState = &fKeyPressed;
+            break;
         }
-        else if( eventType == EMSCRIPTEN_EVENT_KEYUP )
+
+        if( keyState )
         {
-            *keyState = false;
+            if( eventType == EMSCRIPTEN_EVENT_KEYDOWN )
+            {
+                *keyState = true;
+            }
+            else if( eventType == EMSCRIPTEN_EVENT_KEYUP )
+            {
+                *keyState = false;
+            }
         }
     }
 
@@ -1161,6 +1170,8 @@ sdl_event_handler(int eventType, const void* keyEvent, void* userData)
     {
         ImGui_ImplSDL2_ProcessEvent(&event);
 
+        ImGuiIO& io = ImGui::GetIO();
+
         // Handle SDL events
         switch( event.type )
         {
@@ -1168,6 +1179,7 @@ sdl_event_handler(int eventType, const void* keyEvent, void* userData)
             cleanup();
             emscripten_cancel_main_loop();
             return EM_FALSE;
+
         case SDL_WINDOWEVENT:
             if( event.window.event == SDL_WINDOWEVENT_CLOSE )
             {
@@ -1176,8 +1188,78 @@ sdl_event_handler(int eventType, const void* keyEvent, void* userData)
                 return EM_FALSE;
             }
             break;
+
+        case SDL_MOUSEBUTTONDOWN:
+            if( !io.WantCaptureMouse )
+            {
+                isDragging = true;
+                lastX = event.button.x;
+                lastY = event.button.y;
+            }
+            break;
+
+        case SDL_MOUSEBUTTONUP:
+            if( !io.WantCaptureMouse )
+            {
+                isDragging = false;
+            }
+            break;
+
+        case SDL_MOUSEMOTION:
+            if( !io.WantCaptureMouse && isDragging )
+            {
+                float deltaX = event.motion.x - lastX;
+                float deltaY = event.motion.y - lastY;
+
+                rotationY -= deltaX * ROTATE_SPEED;
+                rotationX += deltaY * ROTATE_SPEED;
+                rotationX = fmax(fmin(rotationX, M_PI / 2), -M_PI / 2);
+
+                lastX = event.motion.x;
+                lastY = event.motion.y;
+            }
+            break;
+
+        case SDL_KEYDOWN:
+        case SDL_KEYUP:
+            if( !io.WantCaptureKeyboard )
+            {
+                bool isDown = event.type == SDL_KEYDOWN;
+                switch( event.key.keysym.sym )
+                {
+                case SDLK_w:
+                    wKeyPressed = isDown;
+                    break;
+                case SDLK_a:
+                    aKeyPressed = isDown;
+                    break;
+                case SDLK_s:
+                    sKeyPressed = isDown;
+                    break;
+                case SDLK_d:
+                    dKeyPressed = isDown;
+                    break;
+                case SDLK_r:
+                    rKeyPressed = isDown;
+                    break;
+                case SDLK_f:
+                    fKeyPressed = isDown;
+                    break;
+                }
+            }
+            break;
         }
     }
+    return EM_TRUE;
+}
+
+EM_BOOL
+loop(double time, void* userData)
+{
+    // Handle SDL events for ImGui
+    sdl_event_handler(0, nullptr, nullptr);
+
+    render();
     return EM_TRUE;
 }
 
@@ -1196,38 +1278,28 @@ main()
         return 0;
     }
 
-    // Initialize SDL
+    // Initialize SDL for input handling only
     if( SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0 )
     {
         printf("Error: %s\n", SDL_GetError());
         return 0;
     }
 
-    // GL ES 3.0 + GLSL 300 es
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-
-    // Create window with graphics context
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-    SDL_DisplayMode current;
-    SDL_GetCurrentDisplayMode(0, &current);
+    // Create a dummy SDL window for input handling
     g_window = SDL_CreateWindow(
         "3D Raster",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
+        SDL_WINDOW_HIDDEN); // Hidden window, we'll use the Emscripten canvas
     if( !g_window )
     {
         printf("Failed to create window: %s\n", SDL_GetError());
         return 0;
     }
 
+    // Set up WebGL2 context through Emscripten
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
     attrs.majorVersion = 2;
@@ -1254,8 +1326,11 @@ main()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    (void)io;
-    io.IniFilename = nullptr; // Don't save settings
+    io.IniFilename = nullptr;                               // Don't save settings
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;   // Enable keyboard controls
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange; // Don't change mouse cursor
+    io.ConfigWindowsMoveFromTitleBarOnly = true;            // Only move windows from title bar
+    io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;   // We can honor GetMouseCursor() values
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -1269,20 +1344,32 @@ main()
     style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
 
     // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForOpenGL(g_window, nullptr);
+    ImGui_ImplSDL2_InitForOpenGL(g_window, (void*)context);
     ImGui_ImplOpenGL3_Init("#version 300 es");
+
+    // Enable SDL events we need
+    SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEBUTTONDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEBUTTONUP, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEWHEEL, SDL_ENABLE);
+    SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_KEYUP, SDL_ENABLE);
+    SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
 
     // Initialize OpenGL
     initGL();
 
-    // Register mouse event handlers
-    emscripten_set_mousedown_callback("#canvas", nullptr, true, mouse_callback);
-    emscripten_set_mouseup_callback("#canvas", nullptr, true, mouse_callback);
-    emscripten_set_mousemove_callback("#canvas", nullptr, true, mouse_callback);
+    // Register SDL event handler for ImGui
+    SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEBUTTONDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEBUTTONUP, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEWHEEL, SDL_ENABLE);
+    SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_KEYUP, SDL_ENABLE);
+    SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
 
-    // Register keyboard event handlers
-    emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, key_callback);
-    emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, key_callback);
+    // Register SDL event handler for ImGui
+    emscripten_set_main_loop_timing(EM_TIMING_RAF, 0);
 
     emscripten_request_animation_frame_loop(loop, nullptr);
 
