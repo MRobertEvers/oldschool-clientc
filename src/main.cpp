@@ -1,6 +1,10 @@
+#include "imgui.h"
+#include "imgui_impl_opengl3.h"
+#include "imgui_impl_sdl2.h"
 #include <GLES3/gl3.h>
 #include <emscripten/html5.h>
 
+#include <SDL.h>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -10,6 +14,10 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// Global SDL variables
+SDL_Window* g_window = nullptr;
+SDL_GLContext g_gl_context = nullptr;
 
 extern "C" {
 #include "osrs/cache.h"
@@ -464,6 +472,105 @@ createShader(GLenum type, const char* source)
 }
 
 void
+initImGui()
+{
+    // Initialize SDL
+    if( SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0 )
+    {
+        printf("Error: %s\n", SDL_GetError());
+        return;
+    }
+
+    // GL ES 3.0 + GLSL 300 es
+    const char* glsl_version = "#version 300 es";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+
+    // Create window with graphics context
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+    SDL_DisplayMode current;
+    SDL_GetCurrentDisplayMode(0, &current);
+    g_window = SDL_CreateWindow(
+        "3D Raster",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
+    if( !g_window )
+    {
+        printf("Failed to create window: %s\n", SDL_GetError());
+        return;
+    }
+    g_gl_context = SDL_GL_CreateContext(g_window);
+    if( !g_gl_context )
+    {
+        printf("Failed to create GL context: %s\n", SDL_GetError());
+        return;
+    }
+    SDL_GL_MakeCurrent(g_window, g_gl_context);
+    SDL_GL_SetSwapInterval(1); // Enable vsync
+
+    // Initialize ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    io.IniFilename = nullptr; // Don't save settings
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL2_InitForOpenGL(g_window, g_gl_context);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    // Colors
+    ImVec4* colors = style.Colors;
+    colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.10f, 0.10f, 0.94f);
+    colors[ImGuiCol_PopupBg] = ImVec4(0.08f, 0.08f, 0.08f, 0.94f);
+    colors[ImGuiCol_Border] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
+    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg] = ImVec4(0.25f, 0.25f, 0.25f, 0.54f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.31f, 0.31f, 0.31f, 0.40f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.39f, 0.39f, 0.39f, 0.67f);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.00f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.53f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.86f, 0.86f, 0.86f, 1.00f);
+    colors[ImGuiCol_Button] = ImVec4(0.44f, 0.44f, 0.44f, 0.40f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.46f, 0.47f, 0.48f, 1.00f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.42f, 0.42f, 0.42f, 1.00f);
+
+    // Style
+    style.WindowRounding = 5.0f;
+    style.FrameRounding = 4.0f;
+    style.PopupRounding = 4.0f;
+    style.ScrollbarRounding = 4.0f;
+    style.GrabRounding = 4.0f;
+    style.TabRounding = 4.0f;
+    style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+    style.WindowPadding = ImVec2(8.0f, 8.0f);
+    style.FramePadding = ImVec2(5.0f, 3.0f);
+    style.ItemSpacing = ImVec2(6.0f, 4.0f);
+    style.ScrollbarSize = 16.0f;
+    style.GrabMinSize = 8.0f;
+}
+
+void
 initGL()
 {
     // Create and compile shaders
@@ -768,6 +875,26 @@ render()
         printf("Render frame %d\n", frame_count);
     }
 
+    // Start the Dear ImGui frame
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    // Create ImGui window
+    ImGui::Begin("Controls");
+
+    // Camera controls
+    ImGui::Text("Camera Position");
+    ImGui::SliderFloat("X##Pos", &cameraX, -1000.0f, 1000.0f);
+    ImGui::SliderFloat("Y##Pos", &cameraY, -1000.0f, 1000.0f);
+    ImGui::SliderFloat("Z##Pos", &cameraZ, -1000.0f, 1000.0f);
+
+    ImGui::Text("Camera Rotation");
+    ImGui::SliderFloat("Pitch", &rotationX, -M_PI / 2, M_PI / 2);
+    ImGui::SliderFloat("Yaw", &rotationY, -M_PI, M_PI);
+
+    ImGui::End();
+
     // Update camera position based on keyboard state
     updateCameraPosition(
         wKeyPressed, sKeyPressed, aKeyPressed, dKeyPressed, rKeyPressed, fKeyPressed);
@@ -831,6 +958,10 @@ render()
 
     // Draw the software rasterized buffer to a separate canvas
     drawPixelBufferToCanvas();
+
+    // Render ImGui
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 EM_BOOL
@@ -1008,6 +1139,48 @@ key_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData)
     return EM_TRUE;
 }
 
+void
+cleanup()
+{
+    // Cleanup ImGui
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    // Cleanup SDL
+    SDL_GL_DeleteContext(g_gl_context);
+    SDL_DestroyWindow(g_window);
+    SDL_Quit();
+}
+
+EM_BOOL
+sdl_event_handler(int eventType, const void* keyEvent, void* userData)
+{
+    SDL_Event event;
+    while( SDL_PollEvent(&event) )
+    {
+        ImGui_ImplSDL2_ProcessEvent(&event);
+
+        // Handle SDL events
+        switch( event.type )
+        {
+        case SDL_QUIT:
+            cleanup();
+            emscripten_cancel_main_loop();
+            return EM_FALSE;
+        case SDL_WINDOWEVENT:
+            if( event.window.event == SDL_WINDOWEVENT_CLOSE )
+            {
+                cleanup();
+                emscripten_cancel_main_loop();
+                return EM_FALSE;
+            }
+            break;
+        }
+    }
+    return EM_TRUE;
+}
+
 int
 main()
 {
@@ -1023,14 +1196,83 @@ main()
         return 0;
     }
 
+    // Initialize SDL
+    if( SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0 )
+    {
+        printf("Error: %s\n", SDL_GetError());
+        return 0;
+    }
+
+    // GL ES 3.0 + GLSL 300 es
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+
+    // Create window with graphics context
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+    SDL_DisplayMode current;
+    SDL_GetCurrentDisplayMode(0, &current);
+    g_window = SDL_CreateWindow(
+        "3D Raster",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
+    if( !g_window )
+    {
+        printf("Failed to create window: %s\n", SDL_GetError());
+        return 0;
+    }
+
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
     attrs.majorVersion = 2;
     attrs.minorVersion = 0;
+    attrs.enableExtensionsByDefault = 1;
+    attrs.alpha = 1;
+    attrs.depth = 1;
+    attrs.stencil = 1;
+    attrs.antialias = 1;
+    attrs.premultipliedAlpha = 0;
+    attrs.preserveDrawingBuffer = 0;
+    attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_DEFAULT;
+    attrs.failIfMajorPerformanceCaveat = 0;
 
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context = emscripten_webgl_create_context("#canvas", &attrs);
+    if( context < 0 )
+    {
+        printf("Failed to create WebGL2 context!\n");
+        return 0;
+    }
     emscripten_webgl_make_context_current(context);
 
+    // Initialize ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    io.IniFilename = nullptr; // Don't save settings
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 5.0f;
+    style.FrameRounding = 4.0f;
+    style.PopupRounding = 4.0f;
+    style.ScrollbarRounding = 4.0f;
+    style.GrabRounding = 4.0f;
+    style.TabRounding = 4.0f;
+    style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL2_InitForOpenGL(g_window, nullptr);
+    ImGui_ImplOpenGL3_Init("#version 300 es");
+
+    // Initialize OpenGL
     initGL();
 
     // Register mouse event handlers

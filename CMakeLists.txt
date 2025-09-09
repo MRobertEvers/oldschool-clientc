@@ -89,8 +89,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "")
     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "")
     
-    set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s")
-    set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1")
+    set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s USE_WEBGL2=1")
+    set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=2 -s FULL_ES3=1")
     set(PRELOAD_FLAGS "--preload-file ../cache@/cache")
     set(DATA_FILE_PATH "build/scene_tile_test_browser.data")
     add_compile_definitions(CACHE_PATH="/cache")
@@ -98,6 +98,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMPILE_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LINK_FLAGS} ${PRELOAD_FLAGS}")
     set(CMAKE_EXECUTABLE_SUFFIX .html)
+    
+    # Add SDL2 include path for Emscripten
+    include_directories(${EMSCRIPTEN_ROOT_PATH}/cache/sysroot/include)
 elseif(WIN32)
     set(CMAKE_EXECUTABLE_SUFFIX .exe)
     
@@ -380,6 +383,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/imgui/imgui_demo.cpp
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
+        src/imgui/imgui_impl_opengl3.cpp
 
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
@@ -452,7 +456,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test_imgui_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32']")
 
     target_link_libraries(main ${EXTRA_LIBS})
-    set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=2 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
+    set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=2 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
