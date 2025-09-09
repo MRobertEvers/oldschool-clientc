@@ -105,7 +105,7 @@ mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
     );
     
     // Combine matrices: rotation * translation
-    return yawMatrix * pitchMatrix * translateMatrix;
+    return pitchMatrix * yawMatrix * translateMatrix;
 }
 
 void main() {
