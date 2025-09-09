@@ -94,7 +94,8 @@ mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
     return mat4(
         x * 768.0 / 512.0, 0.0, 0.0, 0.0,
         0.0, -y * 768.0 / 512.0, 0.0, 0.0,  // Negate y to flip screen space coordinates
-        0.0, 0.0, 0.0, 0.88,
+        // 0.0, 0.0, 0.0, 0.875, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
+        0.0, 0.0, 0.0, 1.0 - (1.0 - 1.0/aspect) / 2.0, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
         0.0, 0.0, -1.0, 0.0
     );
 }
