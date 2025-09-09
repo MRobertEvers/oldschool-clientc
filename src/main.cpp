@@ -1348,13 +1348,13 @@ main()
     ImGui_ImplOpenGL3_Init("#version 300 es");
 
     // Enable SDL events we need
-    SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
-    SDL_EventState(SDL_MOUSEBUTTONDOWN, SDL_ENABLE);
-    SDL_EventState(SDL_MOUSEBUTTONUP, SDL_ENABLE);
-    SDL_EventState(SDL_MOUSEWHEEL, SDL_ENABLE);
-    SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
-    SDL_EventState(SDL_KEYUP, SDL_ENABLE);
-    SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
+    // SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+    // SDL_EventState(SDL_MOUSEBUTTONDOWN, SDL_ENABLE);
+    // SDL_EventState(SDL_MOUSEBUTTONUP, SDL_ENABLE);
+    // SDL_EventState(SDL_MOUSEWHEEL, SDL_ENABLE);
+    // SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
+    // SDL_EventState(SDL_KEYUP, SDL_ENABLE);
+    // SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
 
     // Initialize OpenGL
     initGL();
