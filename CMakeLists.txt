@@ -40,7 +40,7 @@ else()
     # GCC/MinGW and other compilers
     set(CMAKE_C_FLAGS "-Wall -Wextra")
     set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
-    set(CMAKE_C_FLAGS_RELEASE "-O3")
+    set(CMAKE_C_FLAGS_RELEASE "-g -O3")
     # Enable C99 features
     set(CMAKE_C_STANDARD 99)
     set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -456,7 +456,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test_imgui_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32']")
 
     target_link_libraries(main ${EXTRA_LIBS})
-    set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=2 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
+    set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})

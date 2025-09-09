@@ -274,15 +274,19 @@ bool g_timer_query_supported = false; // Whether timer queries are supported
 static bool
 check_timer_query_support()
 {
+    printf("Checking timer query support %d\n", g_using_webgl2);
+    if (!g_using_webgl2) {
+        return false;
+    }
+
     const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
     if( !extensions )
         return false;
 
-    
-
     // Check for either EXT_disjoint_timer_query or EXT_timer_query
     return (strstr(extensions, "EXT_disjoint_timer_query") != NULL) ||
-           (strstr(extensions, "EXT_timer_query") != NULL) || (strstr(extensions, "EXT_disjoint_timer_query_webgl2") != NULL);
+           (strstr(extensions, "EXT_timer_query") != NULL) ||
+           (strstr(extensions, "EXT_disjoint_timer_query_webgl2") != NULL);
 }
 float rotationX = 0.1f; // Initial pitch (look down slightly)
 float rotationY = 0.0f; // Initial yaw
@@ -469,8 +473,19 @@ updateTriangleOrder()
 
     // g_sort_order_count = g_scene_model->model->face_count;
 
-    // Ensure VAO is bound before updating EBO
-    glBindVertexArray(VAO);
+    // For WebGL2, bind VAO before updating EBO
+    if (g_using_webgl2) {
+        glBindVertexArray(VAO);
+    } else {
+        // WebGL1 fallback: manually bind vertex attributes
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+    }
 
     // Update GPU buffer with vertex indices
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -729,7 +744,8 @@ initGL()
     updateTriangleOrder();
 
     // If using WebGL1, set up attributes here since we don't have VAOs
-    if (!g_using_webgl2) {
+    if( !g_using_webgl2 )
+    {
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
@@ -802,13 +818,12 @@ drawPixelBufferToCanvas()
         // Initialize the canvas only once
         EM_ASM_(
             {
-                // Create container for the canvases
+                // Create container for the canvases and status
                 let container = document.createElement('div');
                 container.style.display = 'flex';
+                container.style.flexDirection = 'column';
                 container.style.justifyContent = 'center';
                 container.style.alignItems = 'center';
-                // container.style.gap = '20px';
-                // container.style.padding = '20px';
                 container.style.backgroundColor = '#1a1a1a';
                 container.style.position = 'fixed';
                 container.style.top = '0';
@@ -817,6 +832,84 @@ drawPixelBufferToCanvas()
                 container.style.height = '100%';
                 document.body.style.margin = '0';
                 document.body.style.overflow = 'hidden';
+
+                // Create status container
+                let statusContainer = document.createElement('div');
+                statusContainer.id = 'status-container';
+                statusContainer.style.position = 'fixed';
+                statusContainer.style.top = '10px';
+                statusContainer.style.left = '50%';
+                statusContainer.style.transform = 'translateX(-50%)';
+                statusContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                statusContainer.style.padding = '10px';
+                statusContainer.style.borderRadius = '5px';
+                statusContainer.style.color = '#fff';
+                statusContainer.style.fontFamily = 'Arial, sans-serif';
+                statusContainer.style.fontSize = '14px';
+                statusContainer.style.zIndex = '1000';
+                statusContainer.style.display = 'flex';
+                statusContainer.style.gap = '20px';
+
+                // Create status elements
+                let loadingStatus = document.createElement('div');
+                loadingStatus.id = 'loading-status';
+                loadingStatus.textContent = 'Loading: Ready';
+                loadingStatus.style.display = 'flex';
+                loadingStatus.style.alignItems = 'center';
+                loadingStatus.style.gap = '5px';
+
+                let renderStatus = document.createElement('div');
+                renderStatus.id = 'render-status';
+                renderStatus.textContent = 'Rendering: Active';
+                renderStatus.style.display = 'flex';
+                renderStatus.style.alignItems = 'center';
+                renderStatus.style.gap = '5px';
+
+                let webglStatus = document.createElement('div');
+                webglStatus.id = 'webgl-status';
+                webglStatus.textContent = 'WebGL: ' + window.webgl_version;
+                webglStatus.style.display = 'flex';
+                webglStatus.style.alignItems = 'center';
+                webglStatus.style.gap = '5px';
+
+                // Add status elements to status container
+                statusContainer.appendChild(loadingStatus);
+                statusContainer.appendChild(renderStatus);
+                statusContainer.appendChild(webglStatus);
+
+                // Add status container to main container
+                container.appendChild(statusContainer);
+
+                // Add functions to update status
+                window.updateLoadingStatus = function(status)
+                {
+                    const loadingStatus = document.getElementById('loading-status');
+                    if( loadingStatus )
+                    {
+                        loadingStatus.textContent = 'Loading: ' + status;
+                        loadingStatus.style.color = status ==  'Ready' ? '#4CAF50' : '#FFA500';
+                    }
+                };
+
+                window.updateRenderStatus = function(status)
+                {
+                    const renderStatus = document.getElementById('render-status');
+                    if( renderStatus )
+                    {
+                        renderStatus.textContent = 'Rendering: ' + status;
+                        renderStatus.style.color = status == 'Active' ? '#4CAF50' : '#FFA500';
+                    }
+                };
+
+                window.updateWebGLStatus = function(version, error)
+                {
+                    const webglStatus = document.getElementById('webgl-status');
+                    if( webglStatus )
+                    {
+                        webglStatus.textContent = 'WebGL: ' + (error ? error : version);
+                        webglStatus.style.color = error ? '#FF5252' : '#4CAF50';
+                    }
+                };
 
                 // Style the main WebGL canvas
                 let mainCanvas = document.getElementById('canvas');
@@ -901,7 +994,6 @@ render()
 
     // Reset software render time for this frame
     g_software_render_time = 0.0;
-
 
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
@@ -1068,11 +1160,25 @@ static int
 load_model()
 {
     printf("Loading model...\n");
+    EM_ASM({
+        //
+        if( window.updateLoadingStatus )
+        {
+            updateLoadingStatus('Loading model...');
+        }
+    });
 
     struct Cache* cache = cache_new_from_directory("../cache");
     if( !cache )
     {
         printf("Failed to load cache from directory: ../cache\n");
+        EM_ASM({
+            //
+            if( window.updateLoadingStatus )
+            {
+                updateLoadingStatus('Failed to load cache');
+            }
+        });
         return 0;
     }
     printf("Loaded cache\n");
@@ -1081,8 +1187,22 @@ load_model()
     if( !cache_model )
     {
         printf("Failed to load model\n");
+        EM_ASM({
+            //
+            if( window.updateLoadingStatus )
+            {
+                updateLoadingStatus('Failed to load model');
+            }
+        });
         return 0;
     }
+    EM_ASM({
+        //
+        if( window.updateLoadingStatus )
+        {
+            updateLoadingStatus('Ready');
+        }
+    });
     printf("Loaded model: vertex count: %d\n", cache_model->vertex_count);
 
     struct SceneModel* scene_model = (struct SceneModel*)malloc(sizeof(struct SceneModel));
@@ -1431,34 +1551,169 @@ main()
     attrs.enableExtensionsByDefault = 1;
     attrs.alpha = 1;
     attrs.depth = 1;
-    attrs.stencil = 1;
-    attrs.antialias = 1;
+    attrs.stencil = 0;
+    attrs.antialias = 0;
     attrs.premultipliedAlpha = 0;
     attrs.preserveDrawingBuffer = 0;
     attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_DEFAULT;
     attrs.failIfMajorPerformanceCaveat = 0;
 
-    // Try WebGL2 first
-    attrs.majorVersion = 2;
-    attrs.minorVersion = 0;
-    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context = emscripten_webgl_create_context("#canvas", &attrs);
-    
-    if (context < 0) {
-        printf("WebGL2 not available, falling back to WebGL1\n");
-        // Fall back to WebGL1
-        attrs.majorVersion = 1;
-        context = emscripten_webgl_create_context("#canvas", &attrs);
-        g_using_webgl2 = false;
-        
-        if (context < 0) {
-            printf("Failed to create WebGL context!\n");
+    // Check WebGL2 support first
+    /**
+     * Note: I found that even if requesting webgl2 and it's disabled, emscripten will not fail to
+     * create a context for itself, so we need to check in javascript first.
+     */
+    bool webgl2_supported = EM_ASM_INT({
+        try
+        {
+            const testCanvas = document.createElement('canvas');
+            const gl = testCanvas.getContext('webgl2');
+            if( !gl )
+            {
+                console.log("WebGL2 not supported or blocked");
+                return 0;
+            }
+            return 1;
+        }
+        catch( e )
+        {
+            console.error("Error checking WebGL2 support:", e);
             return 0;
         }
-    } else {
-        g_using_webgl2 = true;
-        printf("Using WebGL2\n");
+    });
+
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
+    if( webgl2_supported )
+    {
+        // Try WebGL2 first
+        attrs.majorVersion = 2;
+        attrs.minorVersion = 0;
+        context = emscripten_webgl_create_context("#canvas", &attrs);
+
+        if( context >= 0 )
+        {
+            g_using_webgl2 = true;
+            printf("Using WebGL2\n");
+        }
+        else
+        {
+            printf(
+                "WebGL2 support check passed but context creation failed, falling back to "
+                "WebGL1\n");
+            webgl2_supported = false;
+        }
     }
-    emscripten_webgl_make_context_current(context);
+
+    if( !webgl2_supported || context < 0 )
+    {
+        // Fall back to WebGL1
+        attrs.majorVersion = 1;
+        attrs.minorVersion = 0;
+        context = emscripten_webgl_create_context("#canvas", &attrs);
+        g_using_webgl2 = false;
+
+        if( context < 0 )
+        {
+            printf("Failed to create WebGL context!\n");
+            EM_ASM({
+                if( window.updateWebGLStatus )
+                {
+                    updateWebGLStatus('Failed', 'Failed to create context');
+                }
+            });
+            return 0;
+        }
+        printf("Using WebGL1\n");
+    }
+
+    // Make the context current before querying version
+    if( emscripten_webgl_make_context_current(context) != EMSCRIPTEN_RESULT_SUCCESS )
+    {
+        printf("Failed to make WebGL context current!\n");
+        EM_ASM({
+            if( window.updateWebGLStatus )
+            {
+                updateWebGLStatus('Failed', 'Failed to make context current');
+            }
+        });
+        return 0;
+    }
+
+    const char* version = NULL;
+
+    if( !g_using_webgl2 )
+    {
+        // version = (const char*)EM_ASM_INT({
+        //     const canvas = document.querySelector('#canvas');
+        //     const gl = canvas.getContext('webgl');
+        //     if( !gl )
+        //     {
+        //         console.log("WebGL1 not supported or blocked");
+        //         return stringToNewUTF8("Failed");
+        //     }
+
+        //     const versionStr = gl.getParameter(gl.VERSION);
+        //     return stringToNewUTF8(versionStr); // allocates in wasm heap
+        // });
+
+        version = "WebGL1";
+    }
+    else
+    {
+        //       glGetString is deprecated in webgl1 due to security reasons
+        // Get WebGL version after context is made current
+        version = (const char*)glGetString(GL_VERSION);
+        if( !version )
+        {
+            printf("Failed to get WebGL version!\n");
+            EM_ASM({
+                if( window.updateWebGLStatus )
+                {
+                    updateWebGLStatus('Failed', 'Failed to get WebGL version');
+                }
+            });
+            return 0;
+        }
+
+        // version = (const char*)EM_ASM_INT({
+        //     const canvas = document.querySelector('#canvas');
+        //     const gl = canvas.getContext('webgl2');
+        //     if( !gl )
+        //     {
+        //         console.log("WebGL2 not supported or blocked");
+        //         return stringToNewUTF8("Failed");
+        //     }
+
+        //     const versionStr = gl.getParameter(gl.VERSION);
+        //     return stringToNewUTF8(versionStr); // allocates in wasm heap
+        // });
+    }
+
+    if( strcmp(version, "Failed") == 0 )
+    {
+        printf("Failed to get WebGL version!\n");
+        EM_ASM({
+            //
+            if( window.updateWebGLStatus )
+            {
+                updateWebGLStatus('Failed', 'Failed to get WebGL version');
+            }
+        });
+        return 0;
+    }
+
+    
+    printf("WebGL Version: %s\n", version);
+    EM_ASM_(
+        {
+            if( window.updateWebGLStatus )
+            {
+                window.webgl_version = UTF8ToString($0);
+                updateWebGLStatus(UTF8ToString($0), null);
+            }
+        },
+        version);
+  
 
     // Initialize ImGui
     IMGUI_CHECKVERSION();
@@ -1480,19 +1735,23 @@ main()
     style.GrabRounding = 4.0f;
     style.TabRounding = 4.0f;
     style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+    
+    context = emscripten_webgl_create_context("#canvas", &attrs);
+    if( emscripten_webgl_make_context_current(context) != EMSCRIPTEN_RESULT_SUCCESS )
+    {
+        printf("Failed to make WebGL context current!\n");
+        EM_ASM({
+            if( window.updateWebGLStatus )
+            {
+                updateWebGLStatus('Failed', 'Failed to make context current');
+            }
+        });
+        return 0;
+    }
 
     // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForOpenGL(g_window, (void*)context);
     ImGui_ImplOpenGL3_Init(g_using_webgl2 ? "#version 300 es" : "#version 100");
-
-    // Enable SDL events we need
-    // SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
-    // SDL_EventState(SDL_MOUSEBUTTONDOWN, SDL_ENABLE);
-    // SDL_EventState(SDL_MOUSEBUTTONUP, SDL_ENABLE);
-    // SDL_EventState(SDL_MOUSEWHEEL, SDL_ENABLE);
-    // SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
-    // SDL_EventState(SDL_KEYUP, SDL_ENABLE);
-    // SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
 
     // Initialize OpenGL
     initGL();
