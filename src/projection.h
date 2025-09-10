@@ -80,7 +80,7 @@ void project_perspective_fast(
     int x,
     int y,
     int z,
-    int fov, // FOV in units of (2π/2048) radians
+    // int fov, // FOV in units of (2π/2048) radians
     int near_clip);
 
 /**

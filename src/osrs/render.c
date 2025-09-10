@@ -314,7 +314,7 @@ project_vertices_textured(
             orthographic_vertices_x[i],
             orthographic_vertices_y[i],
             orthographic_vertices_z[i],
-            camera_fov,
+            // camera_fov,
             near_plane_z);
 
         // If vertex is too close to camera, set it to a large negative value
@@ -809,7 +809,7 @@ raster_osrs(
             int z3 = vertex_z[face_indices_c[index]];
 
             // Skip triangle if any vertex was clipped
-            if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
+            if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
                 continue;
 
             int color_a = colors_a[index];

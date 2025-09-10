@@ -501,7 +501,6 @@ draw_scanline_gouraud_blend_s4(
     if( x_start >= x_end )
         return;
 
-    assert(!(x_start == 0 && x_end == stride_width - 1));
 
     // Steps by 4.
     int offset = x_start + y * stride_width;

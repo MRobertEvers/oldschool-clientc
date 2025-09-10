@@ -2,6 +2,8 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 extern int g_cos_table[2048];
@@ -127,9 +129,12 @@ project_perspective(
     // things you can consider are the average size of models.
     // It is up to the caller to cull the triangle if it is too close or behind the camera.
     // e.g. z <= 50
-    if( z < near_clip )
+    // 1024 value is 2^10, so z must be > 5 bits.
+    static const int z_clip_bits = 7;
+    static const int clip_bits = 13;
+    // clip_bits - z_clip_bits < 7; see math below
+    if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 << clip_bits) || y > (1 << clip_bits)  )
     {
-        memset(&projected_triangle, 0x00, sizeof(projected_triangle));
         projected_triangle.z = z;
         projected_triangle.clipped = 1;
         return projected_triangle;
@@ -148,14 +153,18 @@ project_perspective(
     // cot(x) = tan(pi/2 - x)
     // cot(x + pi) = cot(x)
     assert(fov_half < 1536);
-    int cot_fov_half = g_tan_table[1536 - fov_half];
+    // int cot_fov_half = g_tan_table[1536 - fov_half];
 
     // Apply FOV scaling to x and y coordinates
-    int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
+    // int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
+
 
     // Project to screen space with FOV
-    int screen_x = ((x * fov_scale_ish16) >> 16);
-    int screen_y = ((y * fov_scale_ish16) >> 16);
+    // int screen_x = ((x * fov_scale_ish16) >> 16);
+    // int screen_y = ((y * fov_scale_ish16) >> 16);
+
+    int screen_x = SCALE_UNIT(x) / z;
+    int screen_y = SCALE_UNIT(y) / z;
 
     // Set the projected triangle
     projected_triangle.x = screen_x;
@@ -230,6 +239,7 @@ project_orthographic_fast(
     assert(camera_yaw >= 0 && camera_yaw < 2048);
     assert(yaw >= 0 && yaw < 2048);
 
+
     int cos_camera_pitch = g_cos_table[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
     int cos_camera_yaw = g_cos_table[camera_yaw];
@@ -270,6 +280,7 @@ project_orthographic_fast(
     projected_triangle->z = z_final_scene;
 }
 
+
 /**
  * Treats the camera as if it is at the origin (0, 0, 0)
  *
@@ -281,7 +292,7 @@ project_perspective_fast(
     int x,
     int y,
     int z,
-    int fov, // FOV in units of (2π/2048) radians
+    // int fov, // FOV in units of (2π/2048) radians
     int near_clip)
 {
     // Perspective projection with FOV
@@ -291,7 +302,12 @@ project_perspective_fast(
     // things you can consider are the average size of models.
     // It is up to the caller to cull the triangle if it is too close or behind the camera.
     // e.g. z <= 50
-    if( z < near_clip )
+    // We have to check that x and y are within a reasonable range (see math below)
+    // to avoid overflow.
+    static const int z_clip_bits = 7;
+    static const int clip_bits = 13;
+    // clip_bits - z_clip_bits < 7; see math below
+    if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 << clip_bits) || y > (1 << clip_bits)  )
     {
         memset(projected_triangle, 0x00, sizeof(*projected_triangle));
         projected_triangle->z = z;
@@ -305,21 +321,40 @@ project_perspective_fast(
     // fov is in units of (2π/2048) radians
     // For perspective projection, we need tan(fov/2)
     // tan(x) = sin(x)/cos(x)
-    int fov_half = fov >> 1; // fov/2
+    // int fov_half = fov >> 1; // fov/2
 
     // fov_scale = 1/tan(fov/2)
     // cot(x) = 1/tan(x)
     // cot(x) = tan(pi/2 - x)
     // cot(x + pi) = cot(x)
-    assert(fov_half < 1536);
-    int cot_fov_half = g_tan_table[1536 - fov_half];
+    // assert(fov_half < 1536);
+    // int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+
+    // static const int scale_angle = 1;
+    // int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
 
     // Apply FOV scaling to x and y coordinates
-    int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
 
-    // Project to screen space with FOV
-    int screen_x = ((x * fov_scale_ish16) >> 16);
-    int screen_y = ((y * fov_scale_ish16) >> 16);
+    // unit scale 9, angle scale 16
+    // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    // if valid x is -Screen_width/2 to Screen_width/2
+    // And the max resolution we allow is 1600 (either dimension)
+    // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    // i.e. x/z < 2^6 or x/z < 64
+
+    // Suppose we allow z > 16, so z_clip_bits = 4
+    // then x_bits_max < 10, so 2^9, which is 512
+
+    // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
+    int screen_x = SCALE_UNIT(x) / z;
+    int screen_y = SCALE_UNIT(y) / z;
+    // screen_x *= cot_fov_half_ish_scaled;
+    // screen_y *= cot_fov_half_ish_scaled;
+    // screen_x >>= 16 - scale_angle;
+    // screen_y >>= 16 - scale_angle;
 
     // Set the projected triangle
     projected_triangle->x = screen_x;
@@ -356,12 +391,12 @@ project_fast(
         scene_z,
         camera_pitch_r2pi2048,
         camera_yaw_r2pi2048);
-
+    
     project_perspective_fast(
         projected_triangle,
         projected_triangle->x,
         projected_triangle->y,
         projected_triangle->z,
-        fov_r2pi2048,
+        // fov_r2pi2048,
         near_clip);
 }
