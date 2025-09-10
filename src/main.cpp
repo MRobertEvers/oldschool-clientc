@@ -81,15 +81,21 @@ layout(location = 1) in vec3 aColor;
 uniform float uRotationX;  // pitch
 uniform float uRotationY;  // yaw
 uniform float uScreenHeight;
+uniform float uScreenWidth;
 uniform vec3 uCameraPos;   // camera position
-uniform float uAspect;     // aspect ratio
 
 out vec3 vColor;
-mat4 createProjectionMatrix(float fov, float aspect, float screenHeight) {
+mat4 createProjectionMatrix(float fov, float screenWidth, float screenHeight) {
     float y = 1.0 / tan(fov * 0.5);
-    float x = y / aspect;
+    float x = y;
+
+    // Example: Screen 800x600
+    // Multiply by 512 which is what the software renderer scales by.
+    // Then we want a pixel at +400 to be normalized to 1.0 and -400 to be normalized to -1.0.
+    // So we divide by half the screen width for x and half the screen height for y.
+    // Since y is mult
     return mat4(
-        x * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 0.0,
+        x * 512.0 / (screenWidth / 2.0), 0.0, 0.0, 0.0,
         0.0, -y * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 
         0.0, 0.0, 0.0, 1.0,
         0.0, 0.0, -1.0, 0.0
@@ -102,7 +108,6 @@ mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
     float cosYaw = cos(-yaw);
     float sinYaw = sin(-yaw);
 
-    // Create rotation matrices
     mat4 pitchMatrix = mat4(
         1.0, 0.0, 0.0, 0.0,
         0.0, cosPitch, -sinPitch, 0.0,
@@ -117,7 +122,6 @@ mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
         0.0, 0.0, 0.0, 1.0
     );
     
-    // Create translation matrix, move relative to camera position
     mat4 translateMatrix = mat4(
         1.0, 0.0, 0.0, 0.0,
         0.0, 1.0, 0.0, 0.0,
@@ -125,21 +129,16 @@ mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
         -cameraPos.x, -cameraPos.y, -cameraPos.z, 1.0
     );
     
-    // Combine matrices: rotation * translation
     return pitchMatrix * yawMatrix * translateMatrix;
 }
 
 void main() {
-    // Create view matrix with camera transformations
     mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
     
-    // Create projection matrix with 90 degree FOV (same as Metal version)
-    mat4 projection = createProjectionMatrix(radians(90.0), uAspect, uScreenHeight);
+    mat4 projection = createProjectionMatrix(radians(90.0), uScreenWidth, uScreenHeight);
     
-    // Transform vertex position
     vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
     
-    // Pass through the color
     vColor = aColor;
     
     gl_Position = projection * viewPos;
@@ -165,16 +164,17 @@ attribute vec3 aColor;
 uniform float uRotationX;  // pitch
 uniform float uRotationY;  // yaw
 uniform vec3 uCameraPos;   // camera position
-uniform float uAspect;     // aspect ratio
+uniform float uScreenWidth;
+uniform float uScreenHeight;
 
 varying vec3 vColor;
 
-mat4 createProjectionMatrix(float fov, float aspect, float screenHeight) {
+mat4 createProjectionMatrix(float fov, float screenWidth, float screenHeight) {
     float y = 1.0 / tan(fov * 0.5);
-    float x = y / aspect;
-    
+    float x = y;
+
     return mat4(
-        x * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 0.0,
+        x * 512.0 / (screenWidth / 2.0), 0.0, 0.0, 0.0,
         0.0, -y * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 
         0.0, 0.0, 0.0, 1.0,
         0.0, 0.0, -1.0, 0.0
@@ -219,7 +219,7 @@ void main() {
     mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
     
     // Create projection matrix with 90 degree FOV (same as Metal version)
-    mat4 projection = createProjectionMatrix(radians(90.0), uAspect, uScreenHeight);
+    mat4 projection = createProjectionMatrix(radians(90.0), uScreenWidth, uScreenHeight);
     
     // Transform vertex position
     vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
@@ -947,10 +947,10 @@ render()
     GLint rotationXLoc = glGetUniformLocation(shaderProgram, "uRotationX");
     GLint rotationYLoc = glGetUniformLocation(shaderProgram, "uRotationY");
     GLint screenHeightLoc = glGetUniformLocation(shaderProgram, "uScreenHeight");
+    GLint screenWidthLoc = glGetUniformLocation(shaderProgram, "uScreenWidth");
     GLint cameraPosLoc = glGetUniformLocation(shaderProgram, "uCameraPos");
-    GLint aspectLoc = glGetUniformLocation(shaderProgram, "uAspect");
 
-    if( rotationXLoc == -1 || rotationYLoc == -1 || cameraPosLoc == -1 || aspectLoc == -1 )
+    if( rotationXLoc == -1 || rotationYLoc == -1 || cameraPosLoc == -1 || screenHeightLoc == -1 || screenWidthLoc == -1 )
     {
         printf("Failed to get uniform locations\n");
         return;
@@ -960,8 +960,8 @@ render()
     glUniform1f(rotationXLoc, rotationX);
     glUniform1f(rotationYLoc, rotationY);
     glUniform1f(screenHeightLoc, (float)SCREEN_HEIGHT);
+    glUniform1f(screenWidthLoc, (float)SCREEN_WIDTH);
     glUniform3f(cameraPosLoc, cameraX, cameraY, cameraZ);
-    glUniform1f(aspectLoc, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT);
 
     // Sort triangles based on current transformation
     updateTriangleOrder();
