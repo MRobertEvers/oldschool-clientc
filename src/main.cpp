@@ -62,8 +62,8 @@ extern "C" {
 // #include "screen.h"
 }
 
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 600
+#define SCREEN_WIDTH 1600
+#define SCREEN_HEIGHT 1200
 
 static int g_pixel_buffer[SCREEN_WIDTH * SCREEN_HEIGHT] = { 0 };
 
@@ -85,7 +85,7 @@ uniform vec3 uCameraPos;   // camera position
 uniform float uAspect;     // aspect ratio
 
 out vec3 vColor;
-
+// 7/8
 mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
     float y = 1.0 / tan(fov * 0.5);
     float x = y / aspect;
@@ -94,8 +94,8 @@ mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
     return mat4(
         x * 768.0 / 512.0, 0.0, 0.0, 0.0,
         0.0, -y * 768.0 / 512.0, 0.0, 0.0,  // Negate y to flip screen space coordinates
-        // 0.0, 0.0, 0.0, 0.875, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
-        0.0, 0.0, 0.0, 1.0 - (1.0 - 1.0/aspect) / 2.0, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
+        0.0, 0.0, 0.0, 0.875, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
+        // 0.0, 0.0, 0.0, 1.0 - (1.0 - 1.0/aspect) / 2.0, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
         0.0, 0.0, -1.0, 0.0
     );
 }
@@ -339,8 +339,8 @@ sort_model_faces()
         rotation_yaw_r2pi2048,
         0,
         512,
-        800,
-        600,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
         50);
 
     int index = 0;
@@ -403,53 +403,6 @@ sort_model_faces()
         (g_avg_software_time * g_frame_count + g_software_render_time) / (g_frame_count + 1);
 }
 
-// Function to transform a vertex by the model matrix
-void
-transformVertex(const float* vertex, float* result, float angleX, float angleY, float dist)
-{
-    // Create rotation matrices
-    float cx = cos(angleX);
-    float sx = sin(angleX);
-    float cy = cos(angleY);
-    float sy = sin(angleY);
-
-    // Apply rotations and translation
-    float tempX = vertex[0];
-    float tempY = vertex[1];
-    float tempZ = vertex[2];
-
-    // Rotate around X
-    float y2 = tempY * cx - tempZ * sx;
-    float z2 = tempY * sx + tempZ * cx;
-
-    // Rotate around Y
-    result[0] = tempX * cy - z2 * sy;
-    result[1] = y2;
-    result[2] = tempX * sy + z2 * cy + dist;
-}
-
-// Function to calculate triangle depth
-float
-calculateTriangleDepth(
-    const std::vector<float>& vertices,
-    const unsigned int* indices,
-    float angleX,
-    float angleY,
-    float dist)
-{
-    float depth = 0.0f;
-    float transformedVertex[3];
-
-    // Calculate average Z of transformed vertices
-    for( int i = 0; i < 3; i++ )
-    {
-        const float* vertex = &vertices[indices[i] * 6]; // Skip normal data
-        transformVertex(vertex, transformedVertex, angleX, angleY, dist);
-        depth += transformedVertex[2];
-    }
-
-    return depth / 3.0f;
-}
 
 // Function to update triangle depths and sort
 void
@@ -1092,7 +1045,7 @@ render()
     glUniform1f(rotationYLoc, rotationY);
     // glUniform1f(distanceLoc, distance);
     glUniform3f(cameraPosLoc, cameraX, cameraY, cameraZ);
-    glUniform1f(aspectLoc, 800.0f / 600.0f); // TODO: Get actual window dimensions
+    glUniform1f(aspectLoc, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT);
 
     // Sort triangles based on current transformation
     updateTriangleOrder();
