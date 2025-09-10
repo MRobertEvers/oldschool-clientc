@@ -151,11 +151,11 @@ project_perspective(
     int cot_fov_half = g_tan_table[1536 - fov_half];
 
     // Apply FOV scaling to x and y coordinates
-    long long fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
+    int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
 
     // Project to screen space with FOV
-    long long screen_x = ((x * fov_scale_ish16) >> 16);
-    long long screen_y = ((y * fov_scale_ish16) >> 16);
+    int screen_x = ((x * fov_scale_ish16) >> 16);
+    int screen_y = ((y * fov_scale_ish16) >> 16);
 
     // Set the projected triangle
     projected_triangle.x = screen_x;
@@ -291,7 +291,7 @@ project_perspective_fast(
     // things you can consider are the average size of models.
     // It is up to the caller to cull the triangle if it is too close or behind the camera.
     // e.g. z <= 50
-    if( z < near_clip )
+    if( z < 50 )
     {
         memset(projected_triangle, 0x00, sizeof(*projected_triangle));
         projected_triangle->z = z;

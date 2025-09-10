@@ -978,7 +978,7 @@ model_draw_face(
     int x3 = vertex_x[face_c];
 
     // Skip triangle if any vertex was clipped
-    if( x1 == -5000 || x3 == -5000 || x3 == -5000 )
+    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
         return;
 
     int y1 = vertex_y[face_a];
