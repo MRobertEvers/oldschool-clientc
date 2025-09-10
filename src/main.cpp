@@ -62,8 +62,8 @@ extern "C" {
 // #include "screen.h"
 }
 
-#define SCREEN_WIDTH 1600
-#define SCREEN_HEIGHT 1200
+#define SCREEN_WIDTH 800
+#define SCREEN_HEIGHT 600
 
 static int g_pixel_buffer[SCREEN_WIDTH * SCREEN_HEIGHT] = { 0 };
 
@@ -88,14 +88,11 @@ out vec3 vColor;
 // 7/8
 mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
     float y = 1.0 / tan(fov * 0.5);
-    float x = y ;
-    float z = 0.0001;
-    // float z = 1.0;
+    float x = y;
     return mat4(
-        x * 768.0 / 512.0, 0.0, 0.0, 0.0,
-        0.0, -y * 1024.0 / 512.0, 0.0, 0.0,  // Negate y to flip screen space coordinates
-        0.0, 0.0, 0.0, 0.875, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
-        // 0.0, 0.0, 0.0, 1.0 - (1.0 - 1.0/aspect) / 2.0, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
+        x * 512.0 / 400.0, 0.0, 0.0, 0.0,
+        0.0, -y * 512.0 / 300.0, 0.0, 0.0, 
+        0.0, 0.0, 0.0, 1.0,
         0.0, 0.0, -1.0, 0.0
     );
 }
@@ -787,83 +784,7 @@ drawPixelBufferToCanvas()
                 document.body.style.margin = '0';
                 document.body.style.overflow = 'hidden';
 
-                // Create status container
-                let statusContainer = document.createElement('div');
-                statusContainer.id = 'status-container';
-                statusContainer.style.position = 'fixed';
-                statusContainer.style.top = '10px';
-                statusContainer.style.left = '50%';
-                statusContainer.style.transform = 'translateX(-50%)';
-                statusContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-                statusContainer.style.padding = '10px';
-                statusContainer.style.borderRadius = '5px';
-                statusContainer.style.color = '#fff';
-                statusContainer.style.fontFamily = 'Arial, sans-serif';
-                statusContainer.style.fontSize = '14px';
-                statusContainer.style.zIndex = '1000';
-                statusContainer.style.display = 'flex';
-                statusContainer.style.gap = '20px';
-
-                // Create status elements
-                let loadingStatus = document.createElement('div');
-                loadingStatus.id = 'loading-status';
-                loadingStatus.textContent = 'Loading: Ready';
-                loadingStatus.style.display = 'flex';
-                loadingStatus.style.alignItems = 'center';
-                loadingStatus.style.gap = '5px';
-
-                let renderStatus = document.createElement('div');
-                renderStatus.id = 'render-status';
-                renderStatus.textContent = 'Rendering: Active';
-                renderStatus.style.display = 'flex';
-                renderStatus.style.alignItems = 'center';
-                renderStatus.style.gap = '5px';
-
-                let webglStatus = document.createElement('div');
-                webglStatus.id = 'webgl-status';
-                webglStatus.textContent = 'WebGL: ' + window.webgl_version;
-                webglStatus.style.display = 'flex';
-                webglStatus.style.alignItems = 'center';
-                webglStatus.style.gap = '5px';
-
-                // Add status elements to status container
-                statusContainer.appendChild(loadingStatus);
-                statusContainer.appendChild(renderStatus);
-                statusContainer.appendChild(webglStatus);
-
-                // Add status container to main container
-                container.appendChild(statusContainer);
-
-                // Add functions to update status
-                window.updateLoadingStatus = function(status)
-                {
-                    const loadingStatus = document.getElementById('loading-status');
-                    if( loadingStatus )
-                    {
-                        loadingStatus.textContent = 'Loading: ' + status;
-                        loadingStatus.style.color = status ==  'Ready' ? '#4CAF50' : '#FFA500';
-                    }
-                };
-
-                window.updateRenderStatus = function(status)
-                {
-                    const renderStatus = document.getElementById('render-status');
-                    if( renderStatus )
-                    {
-                        renderStatus.textContent = 'Rendering: ' + status;
-                        renderStatus.style.color = status == 'Active' ? '#4CAF50' : '#FFA500';
-                    }
-                };
-
-                window.updateWebGLStatus = function(version, error)
-                {
-                    const webglStatus = document.getElementById('webgl-status');
-                    if( webglStatus )
-                    {
-                        webglStatus.textContent = 'WebGL: ' + (error ? error : version);
-                        webglStatus.style.color = error ? '#FF5252' : '#4CAF50';
-                    }
-                };
+            
 
                 // Style the main WebGL canvas
                 let mainCanvas = document.getElementById('canvas');
@@ -1104,7 +1025,7 @@ render()
 
     // Render ImGui
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    // ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 static const int TZTOK_JAD_MODEL_ID = 9319;
@@ -1569,12 +1490,6 @@ main()
         if( context < 0 )
         {
             printf("Failed to create WebGL context!\n");
-            EM_ASM({
-                if( window.updateWebGLStatus )
-                {
-                    updateWebGLStatus('Failed', 'Failed to create context');
-                }
-            });
             return 0;
         }
         printf("Using WebGL1\n");
@@ -1584,12 +1499,6 @@ main()
     if( emscripten_webgl_make_context_current(context) != EMSCRIPTEN_RESULT_SUCCESS )
     {
         printf("Failed to make WebGL context current!\n");
-        EM_ASM({
-            if( window.updateWebGLStatus )
-            {
-                updateWebGLStatus('Failed', 'Failed to make context current');
-            }
-        });
         return 0;
     }
 
@@ -1620,12 +1529,6 @@ main()
         if( !version )
         {
             printf("Failed to get WebGL version!\n");
-            EM_ASM({
-                if( window.updateWebGLStatus )
-                {
-                    updateWebGLStatus('Failed', 'Failed to get WebGL version');
-                }
-            });
             return 0;
         }
 
@@ -1646,28 +1549,11 @@ main()
     if( strcmp(version, "Failed") == 0 )
     {
         printf("Failed to get WebGL version!\n");
-        EM_ASM({
-            //
-            if( window.updateWebGLStatus )
-            {
-                updateWebGLStatus('Failed', 'Failed to get WebGL version');
-            }
-        });
         return 0;
     }
 
     
     printf("WebGL Version: %s\n", version);
-    EM_ASM_(
-        {
-            if( window.updateWebGLStatus )
-            {
-                window.webgl_version = UTF8ToString($0);
-                updateWebGLStatus(UTF8ToString($0), null);
-            }
-        },
-        version);
-  
 
     // Initialize ImGui
     IMGUI_CHECKVERSION();
@@ -1694,12 +1580,6 @@ main()
     if( emscripten_webgl_make_context_current(context) != EMSCRIPTEN_RESULT_SUCCESS )
     {
         printf("Failed to make WebGL context current!\n");
-        EM_ASM({
-            if( window.updateWebGLStatus )
-            {
-                updateWebGLStatus('Failed', 'Failed to make context current');
-            }
-        });
         return 0;
     }
 
