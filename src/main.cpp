@@ -80,18 +80,17 @@ layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
 uniform float uRotationX;  // pitch
 uniform float uRotationY;  // yaw
-// uniform float uDistance;   // zoom
+uniform float uScreenHeight;
 uniform vec3 uCameraPos;   // camera position
 uniform float uAspect;     // aspect ratio
 
 out vec3 vColor;
-// 7/8
-mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
+mat4 createProjectionMatrix(float fov, float aspect, float screenHeight) {
     float y = 1.0 / tan(fov * 0.5);
-    float x = y;
+    float x = y / aspect;
     return mat4(
-        x * 512.0 / 400.0, 0.0, 0.0, 0.0,
-        0.0, -y * 512.0 / 300.0, 0.0, 0.0, 
+        x * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 0.0,
+        0.0, -y * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 
         0.0, 0.0, 0.0, 1.0,
         0.0, 0.0, -1.0, 0.0
     );
@@ -135,13 +134,10 @@ void main() {
     mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
     
     // Create projection matrix with 90 degree FOV (same as Metal version)
-    mat4 projection = createProjectionMatrix(radians(90.0), uAspect, 0.1, 10000.0);
+    mat4 projection = createProjectionMatrix(radians(90.0), uAspect, uScreenHeight);
     
     // Transform vertex position
     vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
-    
-    // Apply zoom by moving camera back
-    // viewPos.z += uDistance;
     
     // Pass through the color
     vColor = aColor;
@@ -173,16 +169,15 @@ uniform float uAspect;     // aspect ratio
 
 varying vec3 vColor;
 
-mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
+mat4 createProjectionMatrix(float fov, float aspect, float screenHeight) {
     float y = 1.0 / tan(fov * 0.5);
     float x = y / aspect;
-    float z = far / (far - near);
     
     return mat4(
-        x, 0.0, 0.0, 0.0,
-        0.0, -y, 0.0, 0.0,  // Negate y to flip screen space coordinates
-        0.0, 0.0, z, 1.0,
-        0.0, 0.0, -z * near, 0.0
+        x * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 0.0,
+        0.0, -y * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 
+        0.0, 0.0, 0.0, 1.0,
+        0.0, 0.0, -1.0, 0.0
     );
 }
 
@@ -224,7 +219,7 @@ void main() {
     mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
     
     // Create projection matrix with 90 degree FOV (same as Metal version)
-    mat4 projection = createProjectionMatrix(radians(90.0), uAspect, 0.1, 10000.0);
+    mat4 projection = createProjectionMatrix(radians(90.0), uAspect, uScreenHeight);
     
     // Transform vertex position
     vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
@@ -951,7 +946,7 @@ render()
     // Get and validate uniform locations
     GLint rotationXLoc = glGetUniformLocation(shaderProgram, "uRotationX");
     GLint rotationYLoc = glGetUniformLocation(shaderProgram, "uRotationY");
-    // GLint distanceLoc = glGetUniformLocation(shaderProgram, "uDistance");
+    GLint screenHeightLoc = glGetUniformLocation(shaderProgram, "uScreenHeight");
     GLint cameraPosLoc = glGetUniformLocation(shaderProgram, "uCameraPos");
     GLint aspectLoc = glGetUniformLocation(shaderProgram, "uAspect");
 
@@ -964,7 +959,7 @@ render()
     // Update uniforms
     glUniform1f(rotationXLoc, rotationX);
     glUniform1f(rotationYLoc, rotationY);
-    // glUniform1f(distanceLoc, distance);
+    glUniform1f(screenHeightLoc, (float)SCREEN_HEIGHT);
     glUniform3f(cameraPosLoc, cameraX, cameraY, cameraZ);
     glUniform1f(aspectLoc, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT);
 
