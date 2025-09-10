@@ -291,7 +291,7 @@ project_perspective_fast(
     // things you can consider are the average size of models.
     // It is up to the caller to cull the triangle if it is too close or behind the camera.
     // e.g. z <= 50
-    if( z < 50 )
+    if( z < near_clip )
     {
         memset(projected_triangle, 0x00, sizeof(*projected_triangle));
         projected_triangle->z = z;
