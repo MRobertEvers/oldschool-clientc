@@ -88,12 +88,12 @@ out vec3 vColor;
 // 7/8
 mat4 createProjectionMatrix(float fov, float aspect, float near, float far) {
     float y = 1.0 / tan(fov * 0.5);
-    float x = y / aspect;
+    float x = y ;
     float z = 0.0001;
     // float z = 1.0;
     return mat4(
         x * 768.0 / 512.0, 0.0, 0.0, 0.0,
-        0.0, -y * 768.0 / 512.0, 0.0, 0.0,  // Negate y to flip screen space coordinates
+        0.0, -y * 1024.0 / 512.0, 0.0, 0.0,  // Negate y to flip screen space coordinates
         0.0, 0.0, 0.0, 0.875, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
         // 0.0, 0.0, 0.0, 1.0 - (1.0 - 1.0/aspect) / 2.0, // Halfway between .75 and 1.0 drags z to -1.0 and 1.0
         0.0, 0.0, -1.0, 0.0

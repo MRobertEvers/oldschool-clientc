@@ -276,7 +276,7 @@ struct IterRenderSceneOps
     int camera_pitch;
     int camera_yaw;
     int camera_x;
-    int camera_y;
+    int camera_z;
     int _current_op;
     int _op_count;
     int _op_max;

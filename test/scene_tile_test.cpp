@@ -569,9 +569,9 @@ render_scene_model(
     struct SceneModel* model,
     struct TexturesCache* textures_cache)
 {
-    int x = camera_x + model->region_x;
-    int y = camera_y + model->region_z;
-    int z = camera_z + model->region_height;
+    int x = model->region_x + camera_x;
+    int y = model->region_height + camera_y;
+    int z = model->region_z + camera_z;
 
     if( !model->bounds_cylinder )
     {
@@ -684,7 +684,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         game->camera_pitch,
         game->camera_yaw,
         game->camera_x / 128,
-        game->camera_y / 128);
+        game->camera_z / 128);
 
     int last_model_hit = -1;
     struct SceneModel* last_model_hit_model = NULL;
@@ -1621,9 +1621,9 @@ main(int argc, char* argv[])
     game.camera_pitch = 0;
     game.camera_roll = 0;
     game.camera_fov = 512;
-    game.camera_x = -3542;
-    game.camera_y = -873;
-    game.camera_z = 800;
+    game.camera_x = 0;
+    game.camera_y = -240;
+    game.camera_z = 0;
 
     game.player_tile_x = 10;
     game.player_tile_y = 10;
@@ -2149,29 +2149,29 @@ main(int argc, char* argv[])
         int camera_moved = 0;
         if( w_pressed )
         {
-            game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_z += (g_cos_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
         }
 
         if( a_pressed )
         {
-            game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y += (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+            game.camera_z -= (g_sin_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
         }
 
         if( s_pressed )
         {
-            game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y += (g_cos_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_z -= (g_cos_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
         }
 
         if( d_pressed )
         {
-            game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
+            game.camera_z += (g_sin_table[game.camera_yaw] * speed) >> 16;
             camera_moved = 1;
         }
 
@@ -2211,13 +2211,13 @@ main(int argc, char* argv[])
 
         if( f_pressed )
         {
-            game.camera_z -= speed;
+            game.camera_y += speed;
             camera_moved = 1;
         }
 
         if( r_pressed )
         {
-            game.camera_z += speed;
+            game.camera_y -= speed;
             camera_moved = 1;
         }
 

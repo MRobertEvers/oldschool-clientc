@@ -242,7 +242,6 @@ project_vertices_textured(
     assert(camera_yaw >= 0 && camera_yaw < 2048);
     assert(camera_roll >= 0 && camera_roll < 2048);
 
-
     project_fast(
         &projected_triangle,
         0,
@@ -378,10 +377,10 @@ project_vertices_terrain(
             model_pitch,
             model_yaw,
             model_roll,
-            camera_x,
+            -camera_x,
             // Camera z is the y axis in OSRS
-            camera_z,
-            camera_y,
+            -camera_z,
+            -camera_y,
             camera_pitch,
             camera_yaw,
             camera_roll,
@@ -429,9 +428,9 @@ project_vertices_terrain_textured(
     int model_pitch,
     int model_yaw,
     int model_roll,
-    int scene_x,
-    int scene_y,
-    int scene_z,
+    int camera_x,
+    int camera_y,
+    int camera_z,
     int camera_pitch,
     int camera_yaw,
     int camera_roll,
@@ -455,10 +454,10 @@ project_vertices_terrain_textured(
             model_pitch,
             model_yaw,
             model_roll,
-            scene_x,
+            -camera_x,
             // Camera z is the y axis in OSRS
-            scene_z,
-            scene_y,
+            -camera_z,
+            -camera_y,
             camera_pitch,
             camera_yaw,
             camera_roll);
@@ -517,7 +516,6 @@ bucket_sort_by_average_depth(
     int* face_b,
     int* face_c)
 {
-
     for( int f = 0; f < num_faces; f++ )
     {
         int a = face_a[f];
@@ -568,7 +566,6 @@ bucket_sort_by_average_depth(
             // min_depth is used to adjust all z values to be positive, but maintain relative
             // order.
             int depth_average = (za + zb + zc) / 3 + model_min_depth;
-
 
             if( depth_average < 1500 && depth_average > 0 )
             {
@@ -2035,8 +2032,8 @@ render_scene_tile(
                 0,
                 0,
                 camera_x,
-                camera_y,
                 camera_z,
+                camera_y,
                 camera_pitch,
                 camera_yaw,
                 camera_roll,
@@ -2092,8 +2089,8 @@ render_scene_tile(
                 0,
                 0,
                 camera_x,
-                camera_y,
                 camera_z,
+                camera_y,
                 camera_pitch,
                 camera_yaw,
                 camera_roll,
@@ -2351,11 +2348,11 @@ static int g_loc_buffer[100];
 static int g_loc_buffer_length = 0;
 
 static inline int
-near_wall_flags(int camera_tile_x, int camera_tile_y, int loc_x, int loc_y)
+near_wall_flags(int camera_tile_x, int camera_tile_z, int loc_x, int loc_y)
 {
     int flags = 0;
 
-    int camera_is_north = loc_y < camera_tile_y;
+    int camera_is_north = loc_y < camera_tile_z;
     int camera_is_east = loc_x < camera_tile_x;
 
     if( camera_is_north )
@@ -2424,40 +2421,40 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     // Generate painter's algorithm coordinate list - farthest to nearest
     int radius = 30;
     int coord_list_x[4];
-    int coord_list_y[4];
+    int coord_list_z[4];
     int max_level = 0;
 
     int coord_list_length = 0;
 
-    int camera_tile_x = -camera_x / TILE_SIZE;
-    int camera_tile_y = -camera_y / TILE_SIZE;
-    int camera_tile_z = camera_z / 240;
+    int camera_tile_x = camera_x / TILE_SIZE;
+    int camera_tile_z = camera_z / TILE_SIZE;
+    int camera_tile_y = camera_y / 240;
 
     int max_draw_x = camera_tile_x + radius;
-    int max_draw_y = camera_tile_y + radius;
+    int max_draw_z = camera_tile_z + radius;
     if( max_draw_x >= MAP_TERRAIN_X )
         max_draw_x = MAP_TERRAIN_X;
-    if( max_draw_y >= MAP_TERRAIN_Y )
-        max_draw_y = MAP_TERRAIN_Y;
+    if( max_draw_z >= MAP_TERRAIN_Y )
+        max_draw_z = MAP_TERRAIN_Y;
     if( max_draw_x < 0 )
         max_draw_x = 0;
-    if( max_draw_y < 0 )
-        max_draw_y = 0;
+    if( max_draw_z < 0 )
+        max_draw_z = 0;
 
     int min_draw_x = camera_tile_x - radius;
-    int min_draw_y = camera_tile_y - radius;
+    int min_draw_z = camera_tile_z - radius;
     if( min_draw_x < 0 )
         min_draw_x = 0;
-    if( min_draw_y < 0 )
-        min_draw_y = 0;
+    if( min_draw_z < 0 )
+        min_draw_z = 0;
     if( min_draw_x > MAP_TERRAIN_X )
         min_draw_x = MAP_TERRAIN_X;
-    if( min_draw_y > MAP_TERRAIN_Y )
-        min_draw_y = MAP_TERRAIN_Y;
+    if( min_draw_z > MAP_TERRAIN_Y )
+        min_draw_z = MAP_TERRAIN_Y;
 
     if( min_draw_x >= max_draw_x )
         return ops;
-    if( min_draw_y >= max_draw_y )
+    if( min_draw_z >= max_draw_z )
         return ops;
 
     struct IntQueue queue = { 0 };
@@ -2470,29 +2467,29 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
     coord_list_length = 4;
     coord_list_x[0] = min_draw_x;
-    coord_list_y[0] = min_draw_y;
+    coord_list_z[0] = min_draw_z;
 
     coord_list_x[1] = min_draw_x;
-    coord_list_y[1] = max_draw_y - 1;
+    coord_list_z[1] = max_draw_z - 1;
 
     coord_list_x[2] = max_draw_x - 1;
-    coord_list_y[2] = min_draw_y;
+    coord_list_z[2] = min_draw_z;
 
     coord_list_x[3] = max_draw_x - 1;
-    coord_list_y[3] = max_draw_y - 1;
+    coord_list_z[3] = max_draw_z - 1;
 
     // Render tiles in painter's algorithm order (farthest to nearest)
     for( int i = 0; i < coord_list_length; i++ )
     {
         int _coord_x = coord_list_x[i];
-        int _coord_y = coord_list_y[i];
+        int _coord_z = coord_list_z[i];
 
         assert(_coord_x >= min_draw_x);
         assert(_coord_x < max_draw_x);
-        assert(_coord_y >= min_draw_y);
-        assert(_coord_y < max_draw_y);
+        assert(_coord_z >= min_draw_z);
+        assert(_coord_z < max_draw_z);
 
-        int _coord_idx = MAP_TILE_COORD(_coord_x, _coord_y, 0);
+        int _coord_idx = MAP_TILE_COORD(_coord_x, _coord_z, 0);
         int_queue_push_wrap(&queue, _coord_idx);
 
         int gen = 0;
@@ -2516,7 +2513,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             grid_tile = &scene->grid_tiles[tile_coord];
 
             int tile_x = grid_tile->x;
-            int tile_y = grid_tile->z;
+            int tile_z = grid_tile->z;
             int tile_level = grid_tile->level;
 
             element = &elements[tile_coord];
@@ -2544,14 +2541,14 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 continue;
             }
 
-            // printf("Tile %d, %d Coord %d\n", tile_x, tile_y, tile_coord);
-            // printf("Min %d, %d\n", min_draw_x, min_draw_y);
-            // printf("Max %d, %d\n", max_draw_x, max_draw_y);
+            // printf("Tile %d, %d Coord %d\n", tile_x, tile_z, tile_coord);
+            // printf("Min %d, %d\n", min_draw_x, min_draw_z);
+            // printf("Max %d, %d\n", max_draw_x, max_draw_z);
 
             assert(tile_x >= min_draw_x);
             assert(tile_x < max_draw_x);
-            assert(tile_y >= min_draw_y);
-            assert(tile_y < max_draw_y);
+            assert(tile_z >= min_draw_z);
+            assert(tile_z < max_draw_z);
 
             element = &elements[tile_coord];
 
@@ -2564,7 +2561,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             {
                 if( tile_level > 0 )
                 {
-                    other = &elements[MAP_TILE_COORD(tile_x, tile_y, tile_level - 1)];
+                    other = &elements[MAP_TILE_COORD(tile_x, tile_z, tile_level - 1)];
 
                     if( other->step != E_STEP_DONE )
                     {
@@ -2576,7 +2573,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 {
                     if( tile_x + 1 < max_draw_x )
                     {
-                        other = &elements[MAP_TILE_COORD(tile_x + 1, tile_y, tile_level)];
+                        other = &elements[MAP_TILE_COORD(tile_x + 1, tile_z, tile_level)];
 
                         // If we are not spanned by the tile, then we need to verify it is done.
                         if( other->step != E_STEP_DONE )
@@ -2594,7 +2591,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 {
                     if( tile_x - 1 >= min_draw_x )
                     {
-                        other = &elements[MAP_TILE_COORD(tile_x - 1, tile_y, tile_level)];
+                        other = &elements[MAP_TILE_COORD(tile_x - 1, tile_z, tile_level)];
                         if( other->step != E_STEP_DONE )
                         {
                             if( (grid_tile->spans & SPAN_FLAG_WEST) == 0 ||
@@ -2606,11 +2603,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     }
                 }
 
-                if( tile_y >= camera_tile_y && tile_y < max_draw_y )
+                if( tile_z >= camera_tile_z && tile_z < max_draw_z )
                 {
-                    if( tile_y + 1 < max_draw_y )
+                    if( tile_z + 1 < max_draw_z )
                     {
-                        other = &elements[MAP_TILE_COORD(tile_x, tile_y + 1, tile_level)];
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_z + 1, tile_level)];
                         if( other->step != E_STEP_DONE )
                         {
                             if( (grid_tile->spans & SPAN_FLAG_NORTH) == 0 ||
@@ -2621,11 +2618,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                         }
                     }
                 }
-                if( tile_y <= camera_tile_y && tile_y > min_draw_y )
+                if( tile_z <= camera_tile_z && tile_z > min_draw_z )
                 {
-                    if( tile_y - 1 >= min_draw_y )
+                    if( tile_z - 1 >= min_draw_z )
                     {
-                        other = &elements[MAP_TILE_COORD(tile_x, tile_y - 1, tile_level)];
+                        other = &elements[MAP_TILE_COORD(tile_x, tile_z - 1, tile_level)];
                         if( other->step != E_STEP_DONE )
                         {
                             if( (grid_tile->spans & SPAN_FLAG_SOUTH) == 0 ||
@@ -2644,7 +2641,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             {
                 element->step = E_STEP_WAIT_ADJACENT_GROUND;
 
-                int near_walls = near_wall_flags(camera_tile_x, camera_tile_y, tile_x, tile_y);
+                int near_walls = near_wall_flags(camera_tile_x, camera_tile_z, tile_x, tile_z);
                 int far_walls = ~near_walls;
                 element->near_wall_flags |= near_walls;
 
@@ -2654,7 +2651,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     ops[op_count++] = (struct SceneOp){
                         .op = SCENE_OP_TYPE_DRAW_GROUND,
                         .x = tile_x,
-                        .z = tile_y,
+                        .z = tile_z,
 
                         .level = bridge_underpass_tile->level,
                     };
@@ -2689,7 +2686,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 ops[op_count++] = (struct SceneOp){
                     .op = SCENE_OP_TYPE_DRAW_GROUND,
                     .x = tile_x,
-                    .z = tile_y,
+                    .z = tile_z,
                     .level = tile_level,
                 };
 
@@ -2746,7 +2743,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     if( loc->_wall_decor.through_wall_flags != 0 )
                     {
                         int x_diff = loc->chunk_pos_x - camera_tile_x;
-                        int y_diff = loc->chunk_pos_y - camera_tile_y;
+                        int y_diff = loc->chunk_pos_y - camera_tile_z;
 
                         // TODO: Document what this is doing.
                         int x_near = x_diff;
@@ -2807,7 +2804,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 {
                     if( tile_x + 1 < max_draw_x )
                     {
-                        int idx = MAP_TILE_COORD(tile_x + 1, tile_y, tile_level);
+                        int idx = MAP_TILE_COORD(tile_x + 1, tile_z, tile_level);
                         other = &elements[idx];
 
                         if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_EAST) != 0 )
@@ -2825,7 +2822,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 {
                     if( tile_x - 1 >= min_draw_x )
                     {
-                        int idx = MAP_TILE_COORD(tile_x - 1, tile_y, tile_level);
+                        int idx = MAP_TILE_COORD(tile_x - 1, tile_z, tile_level);
                         other = &elements[idx];
 
                         if( other->step != E_STEP_DONE && (grid_tile->spans & SPAN_FLAG_WEST) != 0 )
@@ -2840,11 +2837,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     }
                 }
 
-                if( tile_y < camera_tile_y )
+                if( tile_z < camera_tile_z )
                 {
-                    if( tile_y + 1 < max_draw_y )
+                    if( tile_z + 1 < max_draw_z )
                     {
-                        int idx = MAP_TILE_COORD(tile_x, tile_y + 1, tile_level);
+                        int idx = MAP_TILE_COORD(tile_x, tile_z + 1, tile_level);
                         other = &elements[idx];
 
                         if( other->step != E_STEP_DONE &&
@@ -2860,11 +2857,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     }
                 }
 
-                if( tile_y > camera_tile_y )
+                if( tile_z > camera_tile_z )
                 {
-                    if( tile_y - 1 >= min_draw_y )
+                    if( tile_z - 1 >= min_draw_z )
                     {
-                        int idx = MAP_TILE_COORD(tile_x, tile_y - 1, tile_level);
+                        int idx = MAP_TILE_COORD(tile_x, tile_z - 1, tile_level);
                         other = &elements[idx];
 
                         if( other->step != E_STEP_DONE &&
@@ -2898,26 +2895,26 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                         continue;
 
                     int min_tile_x = loc->chunk_pos_x;
-                    int min_tile_y = loc->chunk_pos_y;
+                    int min_tile_z = loc->chunk_pos_y;
                     int max_tile_x = min_tile_x + loc->size_x - 1;
-                    int max_tile_y = min_tile_y + loc->size_y - 1;
+                    int max_tile_z = min_tile_z + loc->size_y - 1;
 
                     if( max_tile_x > max_draw_x - 1 )
                         max_tile_x = max_draw_x - 1;
-                    if( max_tile_y > max_draw_y - 1 )
-                        max_tile_y = max_draw_y - 1;
+                    if( max_tile_z > max_draw_z - 1 )
+                        max_tile_z = max_draw_z - 1;
                     if( min_tile_x < min_draw_x )
                         min_tile_x = min_draw_x;
-                    if( min_tile_y < min_draw_y )
-                        min_tile_y = min_draw_y;
+                    if( min_tile_z < min_draw_z )
+                        min_tile_z = min_draw_z;
 
                     for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x; other_tile_x++ )
                     {
-                        for( int other_tile_y = min_tile_y; other_tile_y <= max_tile_y;
-                             other_tile_y++ )
+                        for( int other_tile_z = min_tile_z; other_tile_z <= max_tile_z;
+                             other_tile_z++ )
                         {
                             other =
-                                &elements[MAP_TILE_COORD(other_tile_x, other_tile_y, tile_level)];
+                                &elements[MAP_TILE_COORD(other_tile_x, other_tile_z, tile_level)];
                             if( other->step <= E_STEP_GROUND )
                             {
                                 contains_locs = true;
@@ -2952,9 +2949,9 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     };
 
                     int min_tile_x = loc->chunk_pos_x;
-                    int min_tile_y = loc->chunk_pos_y;
+                    int min_tile_z = loc->chunk_pos_y;
                     int max_tile_x = min_tile_x + loc->size_x - 1;
-                    int max_tile_y = min_tile_y + loc->size_y - 1;
+                    int max_tile_z = min_tile_z + loc->size_y - 1;
 
                     int next_prio = 0;
                     if( loc->size_x > 1 || loc->size_y > 1 )
@@ -2964,20 +2961,20 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
                     if( max_tile_x > max_draw_x - 1 )
                         max_tile_x = max_draw_x - 1;
-                    if( max_tile_y > max_draw_y - 1 )
-                        max_tile_y = max_draw_y - 1;
+                    if( max_tile_z > max_draw_z - 1 )
+                        max_tile_z = max_draw_z - 1;
                     if( min_tile_x < min_draw_x )
                         min_tile_x = min_draw_x;
-                    if( min_tile_y < min_draw_y )
-                        min_tile_y = min_draw_y;
+                    if( min_tile_z < min_draw_z )
+                        min_tile_z = min_draw_z;
 
                     int step_x = tile_x <= camera_tile_x ? 1 : -1;
-                    int step_y = tile_y <= camera_tile_y ? 1 : -1;
+                    int step_y = tile_z <= camera_tile_z ? 1 : -1;
 
                     int start_x = min_tile_x;
-                    int start_y = min_tile_y;
+                    int start_y = min_tile_z;
                     int end_x = max_tile_x;
-                    int end_y = max_tile_y;
+                    int end_y = max_tile_z;
 
                     if( step_x < 0 )
                     {
@@ -2996,12 +2993,12 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     for( int other_tile_x = start_x; other_tile_x != end_x + step_x;
                          other_tile_x += step_x )
                     {
-                        for( int other_tile_y = start_y; other_tile_y != end_y + step_y;
-                             other_tile_y += step_y )
+                        for( int other_tile_z = start_y; other_tile_z != end_y + step_y;
+                             other_tile_z += step_y )
                         {
-                            int idx = MAP_TILE_COORD(other_tile_x, other_tile_y, tile_level);
+                            int idx = MAP_TILE_COORD(other_tile_x, other_tile_z, tile_level);
                             other = &elements[idx];
-                            if( other_tile_x != tile_x || other_tile_y != tile_y )
+                            if( other_tile_x != tile_x || other_tile_z != tile_z )
                             {
                                 other->q_count++;
                                 if( next_prio == 0 )
@@ -3026,7 +3023,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
             {
                 if( tile_level < MAP_TERRAIN_Z - 1 )
                 {
-                    int idx = MAP_TILE_COORD(tile_x, tile_y, tile_level + 1);
+                    int idx = MAP_TILE_COORD(tile_x, tile_z, tile_level + 1);
                     other = &elements[idx];
 
                     if( other->step != E_STEP_DONE )
@@ -3043,7 +3040,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 {
                     if( tile_x + 1 < max_draw_x )
                     {
-                        int idx = MAP_TILE_COORD(tile_x + 1, tile_y, tile_level);
+                        int idx = MAP_TILE_COORD(tile_x + 1, tile_z, tile_level);
                         other = &elements[idx];
 
                         if( other->step != E_STEP_DONE )
@@ -3060,7 +3057,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                 {
                     if( tile_x - 1 >= min_draw_x )
                     {
-                        int idx = MAP_TILE_COORD(tile_x - 1, tile_y, tile_level);
+                        int idx = MAP_TILE_COORD(tile_x - 1, tile_z, tile_level);
                         other = &elements[idx];
                         if( other->step != E_STEP_DONE )
                         {
@@ -3073,11 +3070,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     }
                 }
 
-                if( tile_y < camera_tile_y )
+                if( tile_z < camera_tile_z )
                 {
-                    if( tile_y + 1 < max_draw_y )
+                    if( tile_z + 1 < max_draw_z )
                     {
-                        int idx = MAP_TILE_COORD(tile_x, tile_y + 1, tile_level);
+                        int idx = MAP_TILE_COORD(tile_x, tile_z + 1, tile_level);
                         other = &elements[idx];
                         if( other->step != E_STEP_DONE )
                         {
@@ -3090,11 +3087,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     }
                 }
 
-                if( tile_y > camera_tile_y )
+                if( tile_z > camera_tile_z )
                 {
-                    if( tile_y - 1 >= min_draw_y )
+                    if( tile_z - 1 >= min_draw_z )
                     {
-                        int idx = MAP_TILE_COORD(tile_x, tile_y - 1, tile_level);
+                        int idx = MAP_TILE_COORD(tile_x, tile_z - 1, tile_level);
                         other = &elements[idx];
                         if( other->step != E_STEP_DONE )
                         {
@@ -3119,7 +3116,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
                     if( loc->_wall_decor.through_wall_flags != 0 )
                     {
                         int x_diff = loc->chunk_pos_x - camera_tile_x;
-                        int y_diff = loc->chunk_pos_y - camera_tile_y;
+                        int y_diff = loc->chunk_pos_y - camera_tile_z;
 
                         // TODO: Document what this is doing.
                         int x_near = x_diff;
@@ -3615,8 +3612,8 @@ render_scene_ops(
         case SCENE_OP_TYPE_DBG_TILE:
         {
             int tile_x = op->x;
-            int tile_y = op->z;
-            int tile_z = op->level;
+            int tile_z = op->z;
+            int tile_level = op->level;
 
             int color_rgb = op->_dbg.color;
 
@@ -3626,8 +3623,8 @@ render_scene_ops(
                 height,
                 near_plane_z,
                 tile_x,
-                tile_y,
                 tile_z,
+                tile_level,
                 color_rgb,
                 camera_x,
                 camera_y,
@@ -3653,7 +3650,7 @@ iter_render_scene_ops_init(
     int camera_pitch,
     int camera_yaw,
     int camera_x,
-    int camera_y)
+    int camera_z)
 {
     memset(iter, 0, sizeof(struct IterRenderSceneOps));
     iter->has_value = false;
@@ -3666,7 +3663,7 @@ iter_render_scene_ops_init(
     iter->camera_pitch = camera_pitch; // 2048 / 16 PITCH_STEPS
     iter->camera_yaw = camera_yaw;     // 2048 / 16 YAW_STEPS
     iter->camera_x = camera_x;
-    iter->camera_y = camera_y;
+    iter->camera_z = camera_z;
 }
 
 bool
@@ -3689,10 +3686,10 @@ next:
     struct SceneOp* op = &iter->_ops[i];
     grid_tile = &iter->scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
 
-    int to_tile_x = op->x + iter->camera_x;
-    int to_tile_y = op->z + iter->camera_y;
+    int to_tile_x = op->x - iter->camera_x;
+    int to_tile_z = op->z - iter->camera_z;
     if( frustrum_cullmap_get(
-            iter->map, to_tile_x, to_tile_y, iter->camera_pitch, iter->camera_yaw) == 0 )
+            iter->map, to_tile_x, to_tile_z, iter->camera_pitch, iter->camera_yaw) == 0 )
         goto next;
 
     // if( !within_rect(op->x, op->z, 30, 0, 20, 20) )
@@ -3710,8 +3707,8 @@ next:
             goto next;
 
         int tile_x = tile->chunk_pos_x;
-        int tile_y = tile->chunk_pos_y;
-        int tile_z = tile->chunk_pos_level;
+        int tile_z = tile->chunk_pos_y;
+        int tile_level = tile->chunk_pos_level;
 
         int* color_override_hsl16_nullable = NULL;
         if( op->_ground.override_color )
@@ -3867,8 +3864,7 @@ next:
     case SCENE_OP_TYPE_DBG_TILE:
     {
         int tile_x = op->x;
-        int tile_y = op->z;
-        int tile_z = op->level;
+        int tile_z = op->z;
 
         int color_rgb = op->_dbg.color;
     }
