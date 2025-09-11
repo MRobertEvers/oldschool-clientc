@@ -194,27 +194,6 @@ raster_gouraud_zbuf(
         color1_hsl16 = temp;
     }
 
-    int total_height = y2 - y0;
-    if( total_height == 0 )
-        return;
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (x0 < 0 || x1 < 0 || x2 < 0) &&
-        (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
     // skip if the triangle is degenerate
     if( x0 == x1 && x1 == x2 )
         return;
@@ -623,23 +602,6 @@ raster_gouraud_blend_s4(
     int total_height = y2 - y0;
     if( total_height == 0 )
         return;
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (x0 < 0 || x1 < 0 || x2 < 0) &&
-        (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
 
     // skip if the triangle is degenerate
     if( x0 == x1 && x1 == x2 )

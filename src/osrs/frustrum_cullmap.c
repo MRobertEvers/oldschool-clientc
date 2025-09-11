@@ -100,8 +100,8 @@ test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
     projected_triangle.x = (projected_triangle.x + (SCREEN_WIDTH >> 1));
     projected_triangle.y = (projected_triangle.y + (SCREEN_HEIGHT >> 1));
 
-    return projected_triangle.x >= 0 && projected_triangle.x <= SCREEN_WIDTH &&
-           projected_triangle.y >= 0 && projected_triangle.y <= SCREEN_HEIGHT;
+    return projected_triangle.x >= 0 && projected_triangle.x < SCREEN_WIDTH &&
+           projected_triangle.y >= 0 && projected_triangle.y < SCREEN_HEIGHT;
     // int px = (z * g_sin_table[yaw] + x * g_cos_table[yaw]) >> 16;
     // int tmp = (z * g_cos_table[yaw] - x * g_sin_table[yaw]) >> 16;
     // int pz = (y * g_sin_table[pitch] + tmp * g_cos_table[pitch]) >> 16;
@@ -176,8 +176,23 @@ frustrum_cullmap_new(int radius, int fov_multiplier)
                     {
                         int to_tile_y = pitch_height(pitch) + fr;
 
+                        int screen_x = to_tile_x * 128;
+                        int screen_z = to_tile_z * 128;
+
                         visible = test_point_in_frustrum(
-                            to_tile_x * 128, to_tile_z * 128, to_tile_y, pitch_rad, yaw_rad);
+                            screen_x, screen_z, to_tile_y, pitch_rad, yaw_rad);
+                        if( visible )
+                            break;
+                        visible = test_point_in_frustrum(
+                            screen_x + 128, screen_z, to_tile_y, pitch_rad, yaw_rad);
+                        if( visible )
+                            break;
+                        visible = test_point_in_frustrum(
+                            screen_x + 128, screen_z + 128, to_tile_y, pitch_rad, yaw_rad);
+                        if( visible )
+                            break;
+                        visible = test_point_in_frustrum(
+                            screen_x, screen_z + 128, to_tile_y, pitch_rad, yaw_rad);
                         if( visible )
                             break;
                     }

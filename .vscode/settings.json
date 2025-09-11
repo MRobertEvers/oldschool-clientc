@@ -6,7 +6,7 @@
     "cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
     "cpp.default.browse.limitSymbolsToIncludedHeaders": true,
     "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
-    "editor.formatOnSave": false,
+    "editor.formatOnSave": true,
     "terminal.integrated.profiles.windows": {
         "PowerShell": {
             "source": "PowerShell",

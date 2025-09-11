@@ -1137,3 +1137,57 @@ My Moto X (Gen 1) has blacklisted chromium webgl2 drivers.
 See here.
 https://issues.chromium.org/issues/40114751
 
+
+# Software Renderer integer limits
+
+Previously I used to see a lot of crazy rendering artifacts where triangles are drawn all over. This is due to integer overflow.
+
+The projection formula is 
+```
+(x << 9) / z
+```
+
+Since the gouraud raster and texture raster shift x values up by 16, for a signed int, that means 
+
+```
+((x << 9) / z) < (1 << 15)
+```
+
+For models that are very close to the screen plane and far off along the plane, this will result in overflow.
+
+There are several parameters:
+
+```
+z_min_clip_bits := e.g. if clip if z < 16, then z_min_clip_bits 4 (i.e. the number of bits it takes to represent the clip)
+xy_unit_scale_bits := (this is 9) aka 512
+xy_max_bits 
+
+raster_unit_bits := 16
+```
+
+Since we are using signed 32 bit integers, to avoid overflow
+
+```
+xy_max_bits - z_min_clip_bits + xy_unit_scale_bits + raster_unit_bits < 31
+```
+
+In the code example, z is 50, so z_min_clip_bits = 5
+
+```
+# Note it must be LESS THAN 31, not equal to.
+# -((1<<15) - 1) << 16
+# -2147418112
+# ((1<<15) - 1) << 16
+# 2147418112
+# Overflow here.
+# ((1<<15)) << 16
+# -2147483648
+
+xy_max_bits - 5 + 9 + 16 < 31
+xy_max_bits < 11
+
+xy_max <= ((1 << 11) - 1)
+```
+
+So the max x input to projection is +-2047.
+So triangles with values outside that range need to be clipped, or overflow will result.

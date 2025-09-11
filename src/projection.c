@@ -133,7 +133,14 @@ project_perspective(
     static const int z_clip_bits = 7;
     static const int clip_bits = 13;
     // clip_bits - z_clip_bits < 7; see math below
-    if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 << clip_bits) || y > (1 << clip_bits)  )
+    // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 << clip_bits) || y > (1 << clip_bits)  )
+    // {
+    //     projected_triangle.z = z;
+    //     projected_triangle.clipped = 1;
+    //     return projected_triangle;
+    // }
+
+    if (z < near_clip)
     {
         projected_triangle.z = z;
         projected_triangle.clipped = 1;
@@ -304,10 +311,19 @@ project_perspective_fast(
     // e.g. z <= 50
     // We have to check that x and y are within a reasonable range (see math below)
     // to avoid overflow.
-    static const int z_clip_bits = 7;
-    static const int clip_bits = 13;
-    // clip_bits - z_clip_bits < 7; see math below
-    if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 << clip_bits) || y > (1 << clip_bits)  )
+    static const int z_clip_bits = 5;
+    static const int clip_bits = 11;
+    // // clip_bits - z_clip_bits < 7; see math below
+    // // TODO: Frustrum culling should clip the inputs x's and y's.
+    // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 << clip_bits) || y > (1 << clip_bits)  )
+    // {
+    //     memset(projected_triangle, 0x00, sizeof(*projected_triangle));
+    //     projected_triangle->z = z;
+    //     projected_triangle->clipped = 1;
+    //     return;
+    // }
+
+    if( z < near_clip )
     {
         memset(projected_triangle, 0x00, sizeof(*projected_triangle));
         projected_triangle->z = z;

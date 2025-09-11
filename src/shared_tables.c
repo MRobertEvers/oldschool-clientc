@@ -10,6 +10,8 @@ int g_sin_table[2048];
 int g_cos_table[2048];
 int g_tan_table[2048];
 
+int g_reciprocal16[2048];
+
 
 int
 pix3d_set_gamma(int rgb, double gamma)
@@ -154,4 +156,11 @@ init_tan_table()
 {
     for( int i = 0; i < 2048; i++ )
         g_tan_table[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
+}
+
+void
+init_reciprocal16()
+{
+    for( int i = 0; i < 2048; i++ )
+        g_reciprocal16[i] = (65536 / i);
 }
