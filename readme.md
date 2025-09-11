@@ -891,9 +891,7 @@ In order for ninja to work, you need to set up your visual studio vars for power
 
 .\vcpkg.exe install sdl2:x64-windows bzip2:x64-windows zlib:x64-windows freetype:x64-windows
 
-
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
 
 & "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"; cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
 
@@ -904,17 +902,15 @@ cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Bu
 cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
 
-
 cmake -B build-ninja2 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
 
 cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && ninja -C build-ninja'
-
 
 Your Visual Studio 2017 installation is probably missing the C packages (they are not automatically included with the Desktop development with C++ workload).
 
 To install it, start the Visual Studio Installer, go to Individual components, and check Windows Universal C Runtime:
 
-#### Building with MSVC 
+#### Building with MSVC
 
 Configure your powershell terminal with vcvars.
 
@@ -934,7 +930,7 @@ if (Test-Path $vcvarsPath) {
             [Environment]::SetEnvironmentVariable($name, $value, "Process")
         }
     }
-    
+
     Write-Host "Visual Studio 2022 Community environment loaded successfully!" -ForegroundColor Green
 } else {
     Write-Host "Warning: Visual Studio 2022 Community not found at expected path: $vcvarsPath" -ForegroundColor Yellow
@@ -956,8 +952,6 @@ Then using cmake.
 cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
 ```
 
-
-
 #### Building with GCC and MinGW
 
 MinGW (Minimalist GNU for Windows) provides a GCC compiler toolchain for Windows. It often provides better performance than MSVC for this project.
@@ -966,10 +960,11 @@ Note, when building with MinGW, you must also include `libwinpthread-1.dll` in a
 
 Also set up and a .bashrc script so you can type `make` instead of `mingw32-make`.
 
-
 **Prerequisites:**
+
 - Install MinGW-w64 (recommended: MSYS2 or standalone installer)
   `winget install --id MSYS2.MSYS2`
+
   ```
   C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -Syu --noconfirm"
 
@@ -979,7 +974,6 @@ Also set up and a .bashrc script so you can type `make` instead of `mingw32-make
 
   mingw32-make -j4
   ```
-
 
 **Terminal Configuration**
 
@@ -999,6 +993,7 @@ Also set up and a .bashrc script so you can type `make` instead of `mingw32-make
 **Installation Options:**
 
 1. **MSYS2 (Recommended):**
+
    ```bash
    # Download and install MSYS2 from https://www.msys2.org/
    # Then install MinGW-w64 toolchain:
@@ -1012,6 +1007,7 @@ Also set up and a .bashrc script so you can type `make` instead of `mingw32-make
    ```
 
 2. **MSYS2 Terminal (Alternative):**
+
    - Install MSYS2 from https://www.msys2.org/
    - Use the MSYS2 terminal (not MinGW64 terminal) for a Unix-like environment
    - Install packages with: `pacman -S gcc cmake make`
@@ -1034,6 +1030,7 @@ pacman -S SDL2 freetype2 mesa
 ```
 
 **Building:**
+
 ```bash
 # Configure with MinGW (using MSYS2 packages)
 cmake -B build-mingw -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
@@ -1046,8 +1043,8 @@ cd build-mingw
 mingw32-make -j$(nproc)
 ```
 
-
 **Static Linking (Optional):**
+
 ```bash
 # Using MSYS2 static packages (recommended)
 pacman -S mingw-w64-x86_64-SDL2-static mingw-w64-x86_64-bzip2-static mingw-w64-x86_64-zlib-static mingw-w64-x86_64-freetype-static
@@ -1107,7 +1104,7 @@ Then building=
 ```
 cd build.em
 
-emmake ninja 
+emmake ninja
 
 # or on unixlike
 
@@ -1120,10 +1117,9 @@ powershell -ExecutionPolicy Bypass -File scripts/copy_browser_files.ps1
 
 Then copy the output to public/build
 
-`python -m http.server -d public/build 8000 `
+`python3 -m http.server -b 0.0.0.0 -d public/build 8000 `
 
 `http://localhost:8000`
-
 
 # World and model coords
 
@@ -1137,17 +1133,17 @@ My Moto X (Gen 1) has blacklisted chromium webgl2 drivers.
 See here.
 https://issues.chromium.org/issues/40114751
 
-
 # Software Renderer integer limits
 
 Previously I used to see a lot of crazy rendering artifacts where triangles are drawn all over. This is due to integer overflow.
 
-The projection formula is 
+The projection formula is
+
 ```
 (x << 9) / z
 ```
 
-Since the gouraud raster and texture raster shift x values up by 16, for a signed int, that means 
+Since the gouraud raster and texture raster shift x values up by 16, for a signed int, that means
 
 ```
 ((x << 9) / z) < (1 << 15)
@@ -1160,7 +1156,7 @@ There are several parameters:
 ```
 z_min_clip_bits := e.g. if clip if z < 16, then z_min_clip_bits 4 (i.e. the number of bits it takes to represent the clip)
 xy_unit_scale_bits := (this is 9) aka 512
-xy_max_bits 
+xy_max_bits
 
 raster_unit_bits := 16
 ```

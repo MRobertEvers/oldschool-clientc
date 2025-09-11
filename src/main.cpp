@@ -268,7 +268,8 @@ static bool
 check_timer_query_support()
 {
     printf("Checking timer query support %d\n", g_using_webgl2);
-    if (!g_using_webgl2) {
+    if( !g_using_webgl2 )
+    {
         return false;
     }
 
@@ -395,7 +396,6 @@ sort_model_faces()
         (g_avg_software_time * g_frame_count + g_software_render_time) / (g_frame_count + 1);
 }
 
-
 // Function to update triangle depths and sort
 void
 updateTriangleOrder()
@@ -420,9 +420,12 @@ updateTriangleOrder()
     // g_sort_order_count = g_scene_model->model->face_count;
 
     // For WebGL2, bind VAO before updating EBO
-    if (g_using_webgl2) {
+    if( g_using_webgl2 )
+    {
         glBindVertexArray(VAO);
-    } else {
+    }
+    else
+    {
         // WebGL1 fallback: manually bind vertex attributes
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
@@ -600,7 +603,8 @@ initGL()
     sort_model_faces();
 
     // Create and bind VAO if available (WebGL2)
-    if (g_using_webgl2) {
+    if( g_using_webgl2 )
+    {
         glGenVertexArrays(1, &VAO);
         glBindVertexArray(VAO);
     }
@@ -779,8 +783,6 @@ drawPixelBufferToCanvas()
                 document.body.style.margin = '0';
                 document.body.style.overflow = 'hidden';
 
-            
-
                 // Style the main WebGL canvas
                 let mainCanvas = document.getElementById('canvas');
                 mainCanvas.style.border = '1px solid white';
@@ -835,6 +837,10 @@ drawPixelBufferToCanvas()
             for( let i = 0; i < size; i++ )
             {
                 const pixel = pixels[i];
+
+                if( pixel == 0 )
+                    continue;
+
                 const r = (pixel >> 16) & 0xFF;
                 const g = (pixel >> 8) & 0xFF;
                 const b = pixel & 0xFF;
@@ -950,7 +956,8 @@ render()
     GLint screenWidthLoc = glGetUniformLocation(shaderProgram, "uScreenWidth");
     GLint cameraPosLoc = glGetUniformLocation(shaderProgram, "uCameraPos");
 
-    if( rotationXLoc == -1 || rotationYLoc == -1 || cameraPosLoc == -1 || screenHeightLoc == -1 || screenWidthLoc == -1 )
+    if( rotationXLoc == -1 || rotationYLoc == -1 || cameraPosLoc == -1 || screenHeightLoc == -1 ||
+        screenWidthLoc == -1 )
     {
         printf("Failed to get uniform locations\n");
         return;
@@ -1547,7 +1554,6 @@ main()
         return 0;
     }
 
-    
     printf("WebGL Version: %s\n", version);
 
     // Initialize ImGui
@@ -1570,7 +1576,7 @@ main()
     style.GrabRounding = 4.0f;
     style.TabRounding = 4.0f;
     style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
-    
+
     context = emscripten_webgl_create_context("#canvas", &attrs);
     if( emscripten_webgl_make_context_current(context) != EMSCRIPTEN_RESULT_SUCCESS )
     {

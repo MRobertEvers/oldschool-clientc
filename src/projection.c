@@ -133,14 +133,15 @@ project_perspective(
     static const int z_clip_bits = 7;
     static const int clip_bits = 13;
     // clip_bits - z_clip_bits < 7; see math below
-    // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 << clip_bits) || y > (1 << clip_bits)  )
+    // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 <<
+    // clip_bits) || y > (1 << clip_bits)  )
     // {
     //     projected_triangle.z = z;
     //     projected_triangle.clipped = 1;
     //     return projected_triangle;
     // }
 
-    if (z < near_clip)
+    if( z < near_clip )
     {
         projected_triangle.z = z;
         projected_triangle.clipped = 1;
@@ -164,7 +165,6 @@ project_perspective(
 
     // Apply FOV scaling to x and y coordinates
     // int fov_scale_ish16 = (cot_fov_half * UNIT_SCALE) / z;
-
 
     // Project to screen space with FOV
     // int screen_x = ((x * fov_scale_ish16) >> 16);
@@ -246,7 +246,6 @@ project_orthographic_fast(
     assert(camera_yaw >= 0 && camera_yaw < 2048);
     assert(yaw >= 0 && yaw < 2048);
 
-
     int cos_camera_pitch = g_cos_table[camera_pitch];
     int sin_camera_pitch = g_sin_table[camera_pitch];
     int cos_camera_yaw = g_cos_table[camera_yaw];
@@ -287,7 +286,6 @@ project_orthographic_fast(
     projected_triangle->z = z_final_scene;
 }
 
-
 /**
  * Treats the camera as if it is at the origin (0, 0, 0)
  *
@@ -315,7 +313,8 @@ project_perspective_fast(
     static const int clip_bits = 11;
     // // clip_bits - z_clip_bits < 7; see math below
     // // TODO: Frustrum culling should clip the inputs x's and y's.
-    // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 << clip_bits) || y > (1 << clip_bits)  )
+    // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 <<
+    // clip_bits) || y > (1 << clip_bits)  )
     // {
     //     memset(projected_triangle, 0x00, sizeof(*projected_triangle));
     //     projected_triangle->z = z;
@@ -407,7 +406,7 @@ project_fast(
         scene_z,
         camera_pitch_r2pi2048,
         camera_yaw_r2pi2048);
-    
+
     project_perspective_fast(
         projected_triangle,
         projected_triangle->x,

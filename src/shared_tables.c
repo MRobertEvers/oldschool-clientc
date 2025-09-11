@@ -12,7 +12,6 @@ int g_tan_table[2048];
 
 int g_reciprocal16[2048];
 
-
 int
 pix3d_set_gamma(int rgb, double gamma)
 {
@@ -124,14 +123,12 @@ pix3d_set_brightness(int* palette, double brightness)
     }
 }
 
-
 void
 init_hsl16_to_rgb_table(void)
 {
     // 0 and 128 are both black.
     pix3d_set_brightness(g_hsl16_to_rgb_table, 0.8);
 }
-
 
 void
 init_sin_table()
@@ -162,5 +159,5 @@ void
 init_reciprocal16()
 {
     for( int i = 0; i < 2048; i++ )
-        g_reciprocal16[i] = (65536 / i);
+        g_reciprocal16[i] = ((1 << 16) / i);
 }
