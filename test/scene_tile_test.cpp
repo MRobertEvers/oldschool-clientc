@@ -721,37 +721,37 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 }
 
                 // Only draw the face if mouse is inside the triangle
-                model_draw_face(
-                    pixel_buffer,
-                    face,
-                    iter.value.model_nullable_->model->face_infos,
-                    iter.value.model_nullable_->model->face_indices_a,
-                    iter.value.model_nullable_->model->face_indices_b,
-                    iter.value.model_nullable_->model->face_indices_c,
-                    iter.value.model_nullable_->model->face_count,
-                    iter_model.screen_vertices_x,
-                    iter_model.screen_vertices_y,
-                    iter_model.screen_vertices_z,
-                    iter_model.ortho_vertices_x,
-                    iter_model.ortho_vertices_y,
-                    iter_model.ortho_vertices_z,
-                    iter.value.model_nullable_->model->vertex_count,
-                    iter.value.model_nullable_->model->face_textures,
-                    iter.value.model_nullable_->model->face_texture_coords,
-                    iter.value.model_nullable_->model->textured_face_count,
-                    iter.value.model_nullable_->model->textured_p_coordinate,
-                    iter.value.model_nullable_->model->textured_m_coordinate,
-                    iter.value.model_nullable_->model->textured_n_coordinate,
-                    iter.value.model_nullable_->model->textured_face_count,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_a,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_b,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_c,
-                    iter.value.model_nullable_->model->face_alphas,
-                    SCREEN_WIDTH / 2,
-                    SCREEN_HEIGHT / 2,
-                    SCREEN_WIDTH,
-                    SCREEN_HEIGHT,
-                    game->textures_cache);
+                // model_draw_face(
+                //     pixel_buffer,
+                //     face,
+                //     iter.value.model_nullable_->model->face_infos,
+                //     iter.value.model_nullable_->model->face_indices_a,
+                //     iter.value.model_nullable_->model->face_indices_b,
+                //     iter.value.model_nullable_->model->face_indices_c,
+                //     iter.value.model_nullable_->model->face_count,
+                //     iter_model.screen_vertices_x,
+                //     iter_model.screen_vertices_y,
+                //     iter_model.screen_vertices_z,
+                //     iter_model.ortho_vertices_x,
+                //     iter_model.ortho_vertices_y,
+                //     iter_model.ortho_vertices_z,
+                //     iter.value.model_nullable_->model->vertex_count,
+                //     iter.value.model_nullable_->model->face_textures,
+                //     iter.value.model_nullable_->model->face_texture_coords,
+                //     iter.value.model_nullable_->model->textured_face_count,
+                //     iter.value.model_nullable_->model->textured_p_coordinate,
+                //     iter.value.model_nullable_->model->textured_m_coordinate,
+                //     iter.value.model_nullable_->model->textured_n_coordinate,
+                //     iter.value.model_nullable_->model->textured_face_count,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_a,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_b,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_c,
+                //     iter.value.model_nullable_->model->face_alphas,
+                //     SCREEN_WIDTH / 2,
+                //     SCREEN_HEIGHT / 2,
+                //     SCREEN_WIDTH,
+                //     SCREEN_HEIGHT,
+                //     game->textures_cache);
             }
 
             // render_scene_model(
@@ -1785,7 +1785,7 @@ main(int argc, char* argv[])
         world_player_entity_new_add(game.world, 0, 0, 0, player_model);
     }
 
-    game.frustrum_cullmap = frustrum_cullmap_new(40, 131072); // 65536 = 90° FOV
+    game.frustrum_cullmap = frustrum_cullmap_new(40, 50); // 65536 = 90° FOV
 
     int w_pressed = 0;
     int a_pressed = 0;

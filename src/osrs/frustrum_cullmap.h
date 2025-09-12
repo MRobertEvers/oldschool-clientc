@@ -5,10 +5,10 @@ struct FrustrumCullmap
 {
     int* cullmap;
     int radius;
-    int fov_multiplier; // Fixed-point multiplier for FOV (65536 = 90° FOV)
+    int near_clip_z; // Fixed-point multiplier for FOV (65536 = 90° FOV)
 };
 
-struct FrustrumCullmap* frustrum_cullmap_new(int radius, int fov_multiplier);
+struct FrustrumCullmap* frustrum_cullmap_new(int radius, int near_clip_z);
 struct FrustrumCullmap* frustrum_cullmap_new_nocull(int radius);
 
 int

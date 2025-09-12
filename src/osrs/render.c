@@ -1358,17 +1358,33 @@ static long long g_clip_x[10] = { 0 };
 static long long g_clip_y[10] = { 0 };
 static long long g_clip_color[10] = { 0 };
 
-static const int reciprocol_shift = 0;
+static const int reciprocol_shift = 16;
 
 static inline int
-lerp_plane_intersection(int near_plane_z, int za, int zb, int pa, int pb)
+slopei(int near_plane_z, int za, int zb)
 {
-    int lerp_slope = (za - near_plane_z) * g_reciprocal16[zb - za];
-    return pa + -(((pb - pa) * lerp_slope) >> reciprocol_shift);
+    assert(za - zb >= 0);
+    return (za - near_plane_z) * g_reciprocal16[za - zb];
+}
+
+static inline int
+lerp_planei(int near_plane_z, int lerp_slope, int pa, int pb)
+{
+    int lerp_p = pa + (((pb - pa) * lerp_slope) >> reciprocol_shift);
+
+    return lerp_p;
+}
+
+static inline int
+lerp_plane_projecti(int near_plane_z, int lerp_slope, int pa, int pb)
+{
+    int lerp_p = lerp_planei(near_plane_z, lerp_slope, pa, pb);
+
+    return SCALE_UNIT(lerp_p) / near_plane_z;
 }
 
 static inline void
-raster_osrs_single_gouraud_near_clip2(
+raster_osrs_single_gouraud_near_clip(
     int* pixel_buffer,
     int face,
     int* face_indices_a,
@@ -1424,39 +1440,31 @@ raster_osrs_single_gouraud_near_clip2(
         ya = orthographic_vertices_y[a];
         color_a = colors_a[face];
 
-        if( zb >= near_plane_z )
-        {
-            assert(zb - za >= 0);
-            lerp_slope = (za - near_plane_z) * g_reciprocal16[zb - za];
-
-            g_clip_x[clipped_count] =
-                SCALE_UNIT(
-                    (xa + (((orthographic_vertices_x[b] - xa) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
-            g_clip_y[clipped_count] =
-                SCALE_UNIT(
-                    (ya + (((orthographic_vertices_y[b] - ya) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
-            g_clip_color[clipped_count] =
-                color_a + -(((colors_b[face] - color_a) * lerp_slope) >> reciprocol_shift);
-            clipped_count++;
-        }
-
         if( zc >= near_plane_z )
         {
             assert(zc - za >= 0);
-            lerp_slope = (za - near_plane_z) * g_reciprocal16[zc - za];
+            lerp_slope = slopei(near_plane_z, zc, za);
 
             g_clip_x[clipped_count] =
-                SCALE_UNIT(
-                    (xa + (((orthographic_vertices_x[c] - xa) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
             g_clip_y[clipped_count] =
-                SCALE_UNIT(
-                    (ya + (((orthographic_vertices_y[c] - ya) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
             g_clip_color[clipped_count] =
-                color_a + -(((colors_c[face] - color_a) * lerp_slope) >> reciprocol_shift);
+                lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_a);
+            clipped_count++;
+        }
+
+        if( zb >= near_plane_z )
+        {
+            assert(zb - za >= 0);
+            lerp_slope = slopei(near_plane_z, zb, za);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_a);
             clipped_count++;
         }
     }
@@ -1474,40 +1482,32 @@ raster_osrs_single_gouraud_near_clip2(
         yb = orthographic_vertices_y[b];
         color_b = colors_b[face];
 
+        if( za >= near_plane_z )
+        {
+            lerp_slope = slopei(near_plane_z, za, zb);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_b);
+            clipped_count++;
+        }
+
         if( zc >= near_plane_z )
         {
             assert(zc - zb >= 0);
-            lerp_slope = (zb - near_plane_z) * g_reciprocal16[zc - zb];
+            lerp_slope = slopei(near_plane_z, zc, zb);
 
             // assert(0xFFFF0000 & ((zb - near_plane_z) * (orthographic_vertices_x[c] - xb)) == 0);
 
             g_clip_x[clipped_count] =
-                SCALE_UNIT(
-                    (xb + (((orthographic_vertices_x[c] - xb) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
             g_clip_y[clipped_count] =
-                SCALE_UNIT(
-                    (yb + (((orthographic_vertices_y[c] - yb) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
             g_clip_color[clipped_count] =
-                color_b + -(((colors_c[face] - color_b) * lerp_slope) >> reciprocol_shift);
-            clipped_count++;
-        }
-
-        if( za >= near_plane_z )
-        {
-            lerp_slope = (zb - near_plane_z) * g_reciprocal16[za - zb];
-
-            g_clip_x[clipped_count] =
-                SCALE_UNIT(
-                    (xb + (((orthographic_vertices_x[a] - xb) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
-            g_clip_y[clipped_count] =
-                SCALE_UNIT(
-                    (yb + (((orthographic_vertices_y[a] - yb) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
-            g_clip_color[clipped_count] =
-                color_b + -(((colors_a[face] - color_b) * lerp_slope) >> reciprocol_shift);
+                lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_b);
             clipped_count++;
         }
     }
@@ -1525,39 +1525,31 @@ raster_osrs_single_gouraud_near_clip2(
         yc = orthographic_vertices_y[c];
         color_c = colors_c[face];
 
-        if( za >= near_plane_z )
-        {
-            assert(za - zc >= 0);
-            lerp_slope = (zc - near_plane_z) * g_reciprocal16[za - zc];
-
-            g_clip_x[clipped_count] =
-                SCALE_UNIT(
-                    (xc + (((orthographic_vertices_x[a] - xc) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
-            g_clip_y[clipped_count] =
-                SCALE_UNIT(
-                    (yc + (((orthographic_vertices_y[a] - yc) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
-            g_clip_color[clipped_count] =
-                color_c + -(((colors_a[face] - color_c) * lerp_slope) >> reciprocol_shift);
-            clipped_count++;
-        }
-
         if( zb >= near_plane_z )
         {
             assert(zb - zc >= 0);
-            lerp_slope = (zc - near_plane_z) * g_reciprocal16[zb - zc];
+            lerp_slope = slopei(near_plane_z, zb, zc);
 
             g_clip_x[clipped_count] =
-                SCALE_UNIT(
-                    (xc + (((orthographic_vertices_x[b] - xc) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
             g_clip_y[clipped_count] =
-                SCALE_UNIT(
-                    (yc + (((orthographic_vertices_y[b] - yc) * lerp_slope) >> reciprocol_shift))) /
-                near_plane_z;
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
             g_clip_color[clipped_count] =
-                color_c + -(((colors_b[face] - color_c) * lerp_slope) >> reciprocol_shift);
+                lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_c);
+            clipped_count++;
+        }
+
+        if( za >= near_plane_z )
+        {
+            assert(za - zc >= 0);
+            lerp_slope = slopei(near_plane_z, za, zc);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_c);
             clipped_count++;
         }
     }
@@ -1578,9 +1570,6 @@ raster_osrs_single_gouraud_near_clip2(
     assert(color_b >= 0 && color_b < 65536);
     assert(color_c >= 0 && color_c < 65536);
 
-    if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) <= 0 )
-        return;
-
     xa += offset_x;
     ya += offset_y;
     xb += offset_x;
@@ -1588,48 +1577,26 @@ raster_osrs_single_gouraud_near_clip2(
     xc += offset_x;
     yc += offset_y;
 
-    if( clipped_count == 3 )
-    {
-        raster_gouraud_s4(
-            pixel_buffer,
-            screen_width,
-            screen_height,
-            xa,
-            xb,
-            xc,
-            ya,
-            yb,
-            yc,
-            color_a,
-            color_b,
-            color_c);
-    }
-
-    return;
-    assert(clipped_count <= 4);
-    if( clipped_count != 4 )
-        return;
-
     raster_gouraud_s4(
         pixel_buffer,
         screen_width,
         screen_height,
         xa,
-        xc,
         xb,
+        xc,
         ya,
-        yc,
         yb,
+        yc,
         color_a,
         color_b,
         color_c);
 
+    if( clipped_count != 4 )
+        return;
+
     xb = g_clip_x[3];
     yb = g_clip_y[3];
     color_b = g_clip_color[3];
-
-    if( (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb) <= 0 )
-        return;
 
     xb += offset_x;
     yb += offset_y;
@@ -1650,21 +1617,27 @@ raster_osrs_single_gouraud_near_clip2(
 }
 
 static inline float
-slope(float near_plane_z, float za, float zb)
+slopef(float near_plane_z, float za, float zb)
 {
     return (za - near_plane_z) / (za - zb);
 }
 
 static inline float
-lerp_plane(float near_plane_z, float lerp_slope, float pa, float pb)
+lerp_planef(float near_plane_z, float lerp_slope, float pa, float pb)
 {
-    float lerp_p = pa + (((pb - pa) * lerp_slope));
+    return pa + (((pb - pa) * lerp_slope));
+}
+
+static inline float
+lerp_plane_projectf(float near_plane_z, float lerp_slope, float pa, float pb)
+{
+    float lerp_p = lerp_planef(near_plane_z, lerp_slope, pa, pb);
 
     return SCALE_UNIT(lerp_p) / near_plane_z;
 }
 
 static inline void
-raster_osrs_single_gouraud_near_clip(
+raster_osrs_single_gouraud_near_clipf(
     int* pixel_buffer,
     int face,
     int* face_indices_a,
@@ -1724,15 +1697,16 @@ raster_osrs_single_gouraud_near_clip(
         if( zc >= near_plane_z )
         {
             assert(zc - za >= 0);
-            lerp_slope = slope(near_plane_z, zc, za);
+            lerp_slope = slopef(near_plane_z, zc, za);
 
             g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
 
             g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
 
-            g_clip_color[clipped_count] = color_a + (((colors_c[face] - color_a) * lerp_slope));
+            g_clip_color[clipped_count] =
+                lerp_planef(near_plane_z, lerp_slope, colors_c[face], color_a);
 
             clipped_count++;
         }
@@ -1740,15 +1714,16 @@ raster_osrs_single_gouraud_near_clip(
         if( zb >= near_plane_z )
         {
             assert(zb - za >= 0);
-            lerp_slope = slope(near_plane_z, zb, za);
+            lerp_slope = slopef(near_plane_z, zb, za);
 
             g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
 
             g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
 
-            g_clip_color[clipped_count] = color_a + (((colors_b[face] - color_a) * lerp_slope));
+            g_clip_color[clipped_count] =
+                lerp_planef(near_plane_z, lerp_slope, colors_b[face], color_a);
 
             clipped_count++;
         }
@@ -1770,15 +1745,16 @@ raster_osrs_single_gouraud_near_clip(
 
         if( za >= near_plane_z )
         {
-            lerp_slope = slope(near_plane_z, za, zb);
+            lerp_slope = slopef(near_plane_z, za, zb);
 
             g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
 
             g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
 
-            g_clip_color[clipped_count] = color_b + (((colors_a[face] - color_b) * lerp_slope));
+            g_clip_color[clipped_count] =
+                lerp_planef(near_plane_z, lerp_slope, colors_a[face], color_b);
 
             clipped_count++;
         }
@@ -1786,15 +1762,16 @@ raster_osrs_single_gouraud_near_clip(
         if( zc >= near_plane_z )
         {
             assert(zc - zb >= 0);
-            lerp_slope = slope(near_plane_z, zc, zb);
+            lerp_slope = slopef(near_plane_z, zc, zb);
 
             g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
 
             g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
 
-            g_clip_color[clipped_count] = color_b + (((colors_c[face] - color_b) * lerp_slope));
+            g_clip_color[clipped_count] =
+                lerp_planef(near_plane_z, lerp_slope, colors_c[face], color_b);
 
             clipped_count++;
         }
@@ -1817,14 +1794,15 @@ raster_osrs_single_gouraud_near_clip(
         if( zb >= near_plane_z )
         {
             assert(zb - zc >= 0);
-            lerp_slope = slope(near_plane_z, zb, zc);
+            lerp_slope = slopef(near_plane_z, zb, zc);
 
             g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
             g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
 
-            g_clip_color[clipped_count] = color_c + (((colors_b[face] - color_c) * lerp_slope));
+            g_clip_color[clipped_count] =
+                lerp_planef(near_plane_z, lerp_slope, colors_b[face], color_c);
 
             clipped_count++;
         }
@@ -1832,13 +1810,14 @@ raster_osrs_single_gouraud_near_clip(
         if( za >= near_plane_z )
         {
             assert(za - zc >= 0);
-            lerp_slope = slope(near_plane_z, za, zc);
+            lerp_slope = slopef(near_plane_z, za, zc);
 
             g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
             g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
-            g_clip_color[clipped_count] = color_c + (((colors_a[face] - color_c) * lerp_slope));
+                lerp_plane_projectf(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+            g_clip_color[clipped_count] =
+                lerp_planef(near_plane_z, lerp_slope, colors_a[face], color_c);
 
             clipped_count++;
         }
@@ -1867,36 +1846,23 @@ raster_osrs_single_gouraud_near_clip(
     xc += offset_x;
     yc += offset_y;
 
-    if( clipped_count == 3 )
-    {
-        raster_gouraud_s4(
-            pixel_buffer,
-            screen_width,
-            screen_height,
-            xa,
-            xb,
-            xc,
-            ya,
-            yb,
-            yc,
-            color_a,
-            color_b,
-            color_c);
-    }
+    raster_gouraud_s4(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        color_a,
+        color_b,
+        color_c);
 
     assert(clipped_count <= 4);
     if( clipped_count != 4 )
         return;
-
-    xa = g_clip_x[0];
-    ya = g_clip_y[0];
-    color_a = g_clip_color[0];
-    xb = g_clip_x[1];
-    yb = g_clip_y[1];
-    color_b = g_clip_color[1];
-    xc = g_clip_x[2];
-    yc = g_clip_y[2];
-    color_c = g_clip_color[2];
 
     // static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
 
@@ -1914,27 +1880,6 @@ raster_osrs_single_gouraud_near_clip(
     //         }
     //     }
     // }
-
-    xa += offset_x;
-    ya += offset_y;
-    xb += offset_x;
-    yb += offset_y;
-    xc += offset_x;
-    yc += offset_y;
-
-    raster_gouraud_s4(
-        pixel_buffer,
-        screen_width,
-        screen_height,
-        xa,
-        xb,
-        xc,
-        ya,
-        yb,
-        yc,
-        color_a,
-        color_b,
-        color_c);
 
     xb = g_clip_x[3];
     yb = g_clip_y[3];

@@ -75,7 +75,7 @@ pitch_height(int pitch)
 }
 
 static bool
-test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
+test_point_in_frustrum(int x, int z, int y, int pitch, int yaw, int near_clip_z)
 {
     struct ProjectedTriangle projected_triangle;
     project_fast(
@@ -90,7 +90,7 @@ test_point_in_frustrum(int x, int z, int y, int pitch, int yaw)
         pitch,
         yaw,
         512,
-        100,
+        near_clip_z,
         SCREEN_WIDTH,
         SCREEN_HEIGHT);
 
@@ -142,14 +142,14 @@ frustrum_cullmap_new_nocull(int radius)
 }
 
 struct FrustrumCullmap*
-frustrum_cullmap_new(int radius, int fov_multiplier)
+frustrum_cullmap_new(int radius, int near_clip_z)
 {
     struct FrustrumCullmap* frustrum_cullmap =
         (struct FrustrumCullmap*)malloc(sizeof(struct FrustrumCullmap));
     frustrum_cullmap->cullmap =
         (int*)malloc(((radius * radius) << 2) * sizeof(int) * PITCH_STEPS * YAW_STEPS);
     frustrum_cullmap->radius = radius;
-    frustrum_cullmap->fov_multiplier = fov_multiplier;
+    frustrum_cullmap->near_clip_z = near_clip_z;
 
     // 16 quadrants
     for( int yaw = 0; yaw < YAW_STEPS; yaw++ )
@@ -180,19 +180,24 @@ frustrum_cullmap_new(int radius, int fov_multiplier)
                         int screen_z = to_tile_z * 128;
 
                         visible = test_point_in_frustrum(
-                            screen_x, screen_z, to_tile_y, pitch_rad, yaw_rad);
+                            screen_x, screen_z, to_tile_y, pitch_rad, yaw_rad, near_clip_z);
                         if( visible )
                             break;
                         visible = test_point_in_frustrum(
-                            screen_x + 128, screen_z, to_tile_y, pitch_rad, yaw_rad);
+                            screen_x + 128, screen_z, to_tile_y, pitch_rad, yaw_rad, near_clip_z);
                         if( visible )
                             break;
                         visible = test_point_in_frustrum(
-                            screen_x + 128, screen_z + 128, to_tile_y, pitch_rad, yaw_rad);
+                            screen_x + 128,
+                            screen_z + 128,
+                            to_tile_y,
+                            pitch_rad,
+                            yaw_rad,
+                            near_clip_z);
                         if( visible )
                             break;
                         visible = test_point_in_frustrum(
-                            screen_x, screen_z + 128, to_tile_y, pitch_rad, yaw_rad);
+                            screen_x, screen_z + 128, to_tile_y, pitch_rad, yaw_rad, near_clip_z);
                         if( visible )
                             break;
                     }
