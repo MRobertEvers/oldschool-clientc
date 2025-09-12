@@ -2,7 +2,7 @@
 #define PROJECTION_H
 
 #define UNIT_SCALE (512)
-#define SCALE_UNIT(x) (((x) << 9))
+#define SCALE_UNIT(x) ((((long long)x) << 9))
 #define UNIT_SCALE_SHIFT (9)
 
 struct ProjectedTriangle

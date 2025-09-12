@@ -65,9 +65,7 @@ max(int a, int b)
 //             represented as a short.
 extern "C" int g_hsl16_to_rgb_table[65536];
 
-
 #include <stdio.h>
-
 
 static void
 apply_outline_effect(int* pixel_buffer, int* source_buffer, int width, int height)
@@ -549,8 +547,15 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     int last_model_hit = -1;
     struct SceneModel* last_model_hit_model = NULL;
     int last_model_hit_yaw = 0;
+    int min_z = 1;
+    int max_z = 1;
+    int min_x = 1;
+    int max_x = 1;
     while( iter_render_scene_ops_next(&iter) )
     {
+        if( iter.value.z < min_z || iter.value.z > max_z || iter.value.x < min_x ||
+            iter.value.x > max_x )
+            continue;
         if( iter.value.tile_nullable_ )
         {
             render_scene_tile(
@@ -716,37 +721,37 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 }
 
                 // Only draw the face if mouse is inside the triangle
-                model_draw_face(
-                    pixel_buffer,
-                    face,
-                    iter.value.model_nullable_->model->face_infos,
-                    iter.value.model_nullable_->model->face_indices_a,
-                    iter.value.model_nullable_->model->face_indices_b,
-                    iter.value.model_nullable_->model->face_indices_c,
-                    iter.value.model_nullable_->model->face_count,
-                    iter_model.screen_vertices_x,
-                    iter_model.screen_vertices_y,
-                    iter_model.screen_vertices_z,
-                    iter_model.ortho_vertices_x,
-                    iter_model.ortho_vertices_y,
-                    iter_model.ortho_vertices_z,
-                    iter.value.model_nullable_->model->vertex_count,
-                    iter.value.model_nullable_->model->face_textures,
-                    iter.value.model_nullable_->model->face_texture_coords,
-                    iter.value.model_nullable_->model->textured_face_count,
-                    iter.value.model_nullable_->model->textured_p_coordinate,
-                    iter.value.model_nullable_->model->textured_m_coordinate,
-                    iter.value.model_nullable_->model->textured_n_coordinate,
-                    iter.value.model_nullable_->model->textured_face_count,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_a,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_b,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_c,
-                    iter.value.model_nullable_->model->face_alphas,
-                    SCREEN_WIDTH / 2,
-                    SCREEN_HEIGHT / 2,
-                    SCREEN_WIDTH,
-                    SCREEN_HEIGHT,
-                    game->textures_cache);
+                // model_draw_face(
+                //     pixel_buffer,
+                //     face,
+                //     iter.value.model_nullable_->model->face_infos,
+                //     iter.value.model_nullable_->model->face_indices_a,
+                //     iter.value.model_nullable_->model->face_indices_b,
+                //     iter.value.model_nullable_->model->face_indices_c,
+                //     iter.value.model_nullable_->model->face_count,
+                //     iter_model.screen_vertices_x,
+                //     iter_model.screen_vertices_y,
+                //     iter_model.screen_vertices_z,
+                //     iter_model.ortho_vertices_x,
+                //     iter_model.ortho_vertices_y,
+                //     iter_model.ortho_vertices_z,
+                //     iter.value.model_nullable_->model->vertex_count,
+                //     iter.value.model_nullable_->model->face_textures,
+                //     iter.value.model_nullable_->model->face_texture_coords,
+                //     iter.value.model_nullable_->model->textured_face_count,
+                //     iter.value.model_nullable_->model->textured_p_coordinate,
+                //     iter.value.model_nullable_->model->textured_m_coordinate,
+                //     iter.value.model_nullable_->model->textured_n_coordinate,
+                //     iter.value.model_nullable_->model->textured_face_count,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_a,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_b,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_c,
+                //     iter.value.model_nullable_->model->face_alphas,
+                //     SCREEN_WIDTH / 2,
+                //     SCREEN_HEIGHT / 2,
+                //     SCREEN_WIDTH,
+                //     SCREEN_HEIGHT,
+                //     game->textures_cache);
             }
 
             // render_scene_model(
@@ -1478,13 +1483,20 @@ main(int argc, char* argv[])
 
     game.show_debug_tiles = 1;
 
-    game.camera_yaw = 0;
-    game.camera_pitch = 0;
+    // game.camera_yaw = 0;
+    // game.camera_pitch = 0;
+    // game.camera_roll = 0;
+    // game.camera_fov = 512;
+    // game.camera_x = 0;
+    // game.camera_y = -240;
+    // game.camera_z = 0;
+    game.camera_pitch = 370;
+    game.camera_yaw = 1358;
     game.camera_roll = 0;
     game.camera_fov = 512;
-    game.camera_x = 0;
-    game.camera_y = -240;
-    game.camera_z = 0;
+    game.camera_x = 239;
+    game.camera_y = -340;
+    game.camera_z = 192;
 
     game.player_tile_x = 10;
     game.player_tile_y = 10;
@@ -1802,7 +1814,7 @@ main(int argc, char* argv[])
     int period_pressed = 0;
 
     bool quit = false;
-    int speed = 200;
+    int speed = 50;
     SDL_Event event;
 
     // Frame timing variables

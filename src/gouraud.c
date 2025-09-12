@@ -480,7 +480,6 @@ draw_scanline_gouraud_blend_s4(
     if( x_start >= x_end )
         return;
 
-
     // Steps by 4.
     int offset = x_start + y * stride_width;
     int steps = (x_end - x_start) >> 2;
