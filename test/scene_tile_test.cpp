@@ -553,9 +553,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     int max_x = 1;
     while( iter_render_scene_ops_next(&iter) )
     {
-        if( iter.value.z < min_z || iter.value.z > max_z || iter.value.x < min_x ||
-            iter.value.x > max_x )
-            continue;
+        // if( iter.value.z < min_z || iter.value.z > max_z || iter.value.x < min_x ||
+        //     iter.value.x > max_x )
+        //     continue;
         if( iter.value.tile_nullable_ )
         {
             render_scene_tile(

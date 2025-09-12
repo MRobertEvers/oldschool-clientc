@@ -912,13 +912,8 @@ raster_gouraud_s4(
 
         y1 = 0;
     }
-    if( y0 >= screen_height )
-        y0 = screen_height - 1;
     if( y1 >= screen_height )
         y1 = screen_height - 1;
-
-    if( y0 >= y1 )
-        return;
 
     int offset = y0 * screen_width;
 
