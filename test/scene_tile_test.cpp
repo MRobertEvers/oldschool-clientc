@@ -559,13 +559,13 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         if( iter.value.tile_nullable_ )
         {
             render_scene_tile(
+                pixel_buffer,
                 g_screen_vertices_x,
                 g_screen_vertices_y,
                 g_screen_vertices_z,
                 g_ortho_vertices_x,
                 g_ortho_vertices_y,
                 g_ortho_vertices_z,
-                pixel_buffer,
                 SCREEN_WIDTH,
                 SCREEN_HEIGHT,
                 // Had to use 100 here because of the scale, near plane z was resulting in triangles
@@ -721,37 +721,37 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 }
 
                 // Only draw the face if mouse is inside the triangle
-                model_draw_face(
-                    pixel_buffer,
-                    face,
-                    iter.value.model_nullable_->model->face_infos,
-                    iter.value.model_nullable_->model->face_indices_a,
-                    iter.value.model_nullable_->model->face_indices_b,
-                    iter.value.model_nullable_->model->face_indices_c,
-                    iter.value.model_nullable_->model->face_count,
-                    iter_model.screen_vertices_x,
-                    iter_model.screen_vertices_y,
-                    iter_model.screen_vertices_z,
-                    iter_model.ortho_vertices_x,
-                    iter_model.ortho_vertices_y,
-                    iter_model.ortho_vertices_z,
-                    iter.value.model_nullable_->model->vertex_count,
-                    iter.value.model_nullable_->model->face_textures,
-                    iter.value.model_nullable_->model->face_texture_coords,
-                    iter.value.model_nullable_->model->textured_face_count,
-                    iter.value.model_nullable_->model->textured_p_coordinate,
-                    iter.value.model_nullable_->model->textured_m_coordinate,
-                    iter.value.model_nullable_->model->textured_n_coordinate,
-                    iter.value.model_nullable_->model->textured_face_count,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_a,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_b,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_c,
-                    iter.value.model_nullable_->model->face_alphas,
-                    SCREEN_WIDTH / 2,
-                    SCREEN_HEIGHT / 2,
-                    SCREEN_WIDTH,
-                    SCREEN_HEIGHT,
-                    game->textures_cache);
+                // model_draw_face(
+                //     pixel_buffer,
+                //     face,
+                //     iter.value.model_nullable_->model->face_infos,
+                //     iter.value.model_nullable_->model->face_indices_a,
+                //     iter.value.model_nullable_->model->face_indices_b,
+                //     iter.value.model_nullable_->model->face_indices_c,
+                //     iter.value.model_nullable_->model->face_count,
+                //     iter_model.screen_vertices_x,
+                //     iter_model.screen_vertices_y,
+                //     iter_model.screen_vertices_z,
+                //     iter_model.ortho_vertices_x,
+                //     iter_model.ortho_vertices_y,
+                //     iter_model.ortho_vertices_z,
+                //     iter.value.model_nullable_->model->vertex_count,
+                //     iter.value.model_nullable_->model->face_textures,
+                //     iter.value.model_nullable_->model->face_texture_coords,
+                //     iter.value.model_nullable_->model->textured_face_count,
+                //     iter.value.model_nullable_->model->textured_p_coordinate,
+                //     iter.value.model_nullable_->model->textured_m_coordinate,
+                //     iter.value.model_nullable_->model->textured_n_coordinate,
+                //     iter.value.model_nullable_->model->textured_face_count,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_a,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_b,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_c,
+                //     iter.value.model_nullable_->model->face_alphas,
+                //     SCREEN_WIDTH / 2,
+                //     SCREEN_HEIGHT / 2,
+                //     SCREEN_WIDTH,
+                //     SCREEN_HEIGHT,
+                //     game->textures_cache);
             }
 
             // render_scene_model(

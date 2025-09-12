@@ -97,6 +97,7 @@
         "variant": "cpp",
         "vector": "cpp",
         "algorithm": "cpp",
-        "math.h": "c"
+        "math.h": "c",
+        "stdlib.h": "c"
     }
 }
