@@ -1383,6 +1383,9 @@ lerp_plane_projecti(int near_plane_z, int lerp_slope, int pa, int pb)
     return SCALE_UNIT(lerp_p) / near_plane_z;
 }
 
+/**
+ * This requires vertices to be wound counterclockwise.
+ */
 static inline void
 raster_osrs_single_gouraud_near_clip(
     int* pixel_buffer,

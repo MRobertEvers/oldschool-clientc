@@ -1187,3 +1187,18 @@ xy_max <= ((1 << 11) - 1)
 
 So the max x input to projection is +-2047.
 So triangles with values outside that range need to be clipped, or overflow will result.
+
+### OSRS Vertex Order Winding
+
+OSRS Vertexes are wound counterclockwise.
+
+Can be seen by looking at the "near_clip" logic.
+
+```
+/**
+ * This requires vertices to be wound counterclockwise.
+ */
+static inline void
+raster_osrs_single_gouraud_near_clip(
+    int* pixel_buffer,
+```
