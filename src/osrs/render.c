@@ -1686,6 +1686,9 @@ raster_osrs_single_gouraud_near_clip(
     int screen_width,
     int screen_height)
 {
+    // return;
+    if( face == 0 )
+        return;
     int clipped_count = 0;
     int a = face_indices_a[face];
     int b = face_indices_b[face];
@@ -1712,6 +1715,7 @@ raster_osrs_single_gouraud_near_clip(
         g_clip_y[clipped_count] = screen_vertices_y[a];
         assert(g_clip_x[clipped_count] != -5000);
         g_clip_color[clipped_count] = colors_a[face];
+
         clipped_count++;
     }
     else
@@ -1719,21 +1723,6 @@ raster_osrs_single_gouraud_near_clip(
         xa = orthographic_vertices_x[a];
         ya = orthographic_vertices_y[a];
         color_a = colors_a[face];
-
-        if( zb >= near_plane_z )
-        {
-            assert(zb - za >= 0);
-            lerp_slope = slope(near_plane_z, zb, za);
-
-            g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
-
-            g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
-
-            g_clip_color[clipped_count] = color_a + -(((colors_b[face] - color_a) * lerp_slope));
-            clipped_count++;
-        }
 
         if( zc >= near_plane_z )
         {
@@ -1747,6 +1736,23 @@ raster_osrs_single_gouraud_near_clip(
                 lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
 
             g_clip_color[clipped_count] = color_a + -(((colors_c[face] - color_a) * lerp_slope));
+
+            clipped_count++;
+        }
+
+        if( zb >= near_plane_z )
+        {
+            assert(zb - za >= 0);
+            lerp_slope = slope(near_plane_z, zb, za);
+
+            g_clip_x[clipped_count] =
+                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+
+            g_clip_y[clipped_count] =
+                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+
+            g_clip_color[clipped_count] = color_a + -(((colors_b[face] - color_a) * lerp_slope));
+
             clipped_count++;
         }
     }
@@ -1756,6 +1762,7 @@ raster_osrs_single_gouraud_near_clip(
         g_clip_y[clipped_count] = screen_vertices_y[b];
         assert(g_clip_x[clipped_count] != -5000);
         g_clip_color[clipped_count] = colors_b[face];
+
         clipped_count++;
     }
     else
@@ -1763,23 +1770,6 @@ raster_osrs_single_gouraud_near_clip(
         xb = orthographic_vertices_x[b];
         yb = orthographic_vertices_y[b];
         color_b = colors_b[face];
-
-        if( zc >= near_plane_z )
-        {
-            assert(zc - zb >= 0);
-            lerp_slope = slope(near_plane_z, zc, zb);
-
-            // assert(0xFFFF0000 & ((zb - near_plane_z) * (orthographic_vertices_x[c] - xb)) == 0);
-
-            g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
-
-            g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
-
-            g_clip_color[clipped_count] = color_b + -(((colors_c[face] - color_b) * lerp_slope));
-            clipped_count++;
-        }
 
         if( za >= near_plane_z )
         {
@@ -1792,6 +1782,23 @@ raster_osrs_single_gouraud_near_clip(
                 lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
 
             g_clip_color[clipped_count] = color_b + -(((colors_a[face] - color_b) * lerp_slope));
+
+            clipped_count++;
+        }
+
+        if( zc >= near_plane_z )
+        {
+            assert(zc - zb >= 0);
+            lerp_slope = slope(near_plane_z, zc, zb);
+
+            g_clip_x[clipped_count] =
+                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+
+            g_clip_y[clipped_count] =
+                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+
+            g_clip_color[clipped_count] = color_b + -(((colors_c[face] - color_b) * lerp_slope));
+
             clipped_count++;
         }
     }
@@ -1801,6 +1808,7 @@ raster_osrs_single_gouraud_near_clip(
         g_clip_y[clipped_count] = screen_vertices_y[c];
         g_clip_color[clipped_count] = colors_c[face];
         assert(g_clip_x[clipped_count] != -5000);
+
         clipped_count++;
     }
     else
@@ -1808,19 +1816,6 @@ raster_osrs_single_gouraud_near_clip(
         xc = orthographic_vertices_x[c];
         yc = orthographic_vertices_y[c];
         color_c = colors_c[face];
-
-        if( za >= near_plane_z )
-        {
-            assert(za - zc >= 0);
-            lerp_slope = slope(near_plane_z, za, zc);
-
-            g_clip_x[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
-            g_clip_y[clipped_count] =
-                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
-            g_clip_color[clipped_count] = color_c + -(((colors_a[face] - color_c) * lerp_slope));
-            clipped_count++;
-        }
 
         if( zb >= near_plane_z )
         {
@@ -1833,6 +1828,21 @@ raster_osrs_single_gouraud_near_clip(
                 lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
 
             g_clip_color[clipped_count] = color_c + -(((colors_b[face] - color_c) * lerp_slope));
+
+            clipped_count++;
+        }
+
+        if( za >= near_plane_z )
+        {
+            assert(za - zc >= 0);
+            lerp_slope = slope(near_plane_z, za, zc);
+
+            g_clip_x[clipped_count] =
+                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+            g_clip_y[clipped_count] =
+                lerp_plane(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+            g_clip_color[clipped_count] = color_c + -(((colors_a[face] - color_c) * lerp_slope));
+
             clipped_count++;
         }
     }
@@ -1860,22 +1870,6 @@ raster_osrs_single_gouraud_near_clip(
     xc += offset_x;
     yc += offset_y;
 
-    for( int i = 0; i < screen_height; i++ )
-    {
-        if( xa > 0 && xa < screen_width )
-        {
-            pixel_buffer[i * screen_width + ((int)xa)] = 0xFF0000;
-        }
-        if( xb > 0 && xb < screen_width )
-        {
-            pixel_buffer[i * screen_width + ((int)xb)] = 0x00FF00;
-        }
-        if( xc > 0 && xc < screen_width )
-        {
-            pixel_buffer[i * screen_width + ((int)xc)] = 0x0000FF;
-        }
-    }
-
     if( clipped_count == 3 )
     {
         raster_gouraud_s4(
@@ -1897,16 +1891,50 @@ raster_osrs_single_gouraud_near_clip(
     if( clipped_count != 4 )
         return;
 
+    xa = g_clip_x[0];
+    ya = g_clip_y[0];
+    color_a = g_clip_color[0];
+    xb = g_clip_x[1];
+    yb = g_clip_y[1];
+    color_b = g_clip_color[1];
+    xc = g_clip_x[2];
+    yc = g_clip_y[2];
+    color_c = g_clip_color[2];
+
+    static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
+
+    for( int i = 0; i < screen_height; i++ )
+    {
+        for( int j = 0; j < 4; j++ )
+        {
+            int x = g_clip_x[j];
+
+            x += offset_x;
+
+            if( x > 0 && x < screen_width )
+            {
+                pixel_buffer[i * screen_width + ((int)x)] = colors[j];
+            }
+        }
+    }
+
+    xa += offset_x;
+    ya += offset_y;
+    xb += offset_x;
+    yb += offset_y;
+    xc += offset_x;
+    yc += offset_y;
+
     raster_gouraud_s4(
         pixel_buffer,
         screen_width,
         screen_height,
         xa,
-        xc,
         xb,
+        xc,
         ya,
-        yc,
         yb,
+        yc,
         color_a,
         color_b,
         color_c);
@@ -1917,14 +1945,6 @@ raster_osrs_single_gouraud_near_clip(
 
     xb += offset_x;
     yb += offset_y;
-
-    for( int i = 0; i < screen_height; i++ )
-    {
-        if( xb > 0 && xb < screen_width )
-        {
-            pixel_buffer[i * screen_width + ((int)xb)] = 0x00FFFF;
-        }
-    }
 
     raster_gouraud_s4(
         pixel_buffer,
@@ -1969,6 +1989,9 @@ raster_osrs_single_gouraud(
     int x1 = screen_vertices_x[face_indices_a[index]];
     int x2 = screen_vertices_x[face_indices_b[index]];
     int x3 = screen_vertices_x[face_indices_c[index]];
+
+    if( face == 0 )
+        return;
 
     // Skip triangle if any vertex was clipped
     // TODO: Perhaps use a separate buffer to track this.
@@ -2565,8 +2588,8 @@ render_scene_tile(
         if( tile->valid_faces[face] == 0 )
             continue;
 
-        if( face > 0 )
-            continue;
+        // if( face > 0 )
+        //     continue;
 
         int texture_id = tile->face_texture_ids ? tile->face_texture_ids[face] : -1;
 
