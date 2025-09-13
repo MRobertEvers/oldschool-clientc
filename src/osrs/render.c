@@ -174,8 +174,8 @@ project_vertices_textured(
         return 0;
     }
 
-    int width = (screen_width >> 1) + (screen_width >> 1);
-    int height = (screen_height >> 1) + (screen_height >> 1);
+    int width = (screen_width >> 1);
+    int height = (screen_height >> 1);
 
     if( projected_triangle.x < -width || projected_triangle.x > width )
     {
@@ -1568,7 +1568,7 @@ render_scene_model(
     yaw &= 0x7FF;
 
     x += model->offset_x;
-    y += model->offset_y;
+    y += model->offset_z;
     z += model->offset_height;
 
     if( model->model == NULL )
@@ -3250,8 +3250,8 @@ iter_render_model_init(
     yaw %= 2048;
 
     scene_x += scene_model->offset_x;
-    scene_y += scene_model->offset_y;
-    scene_z += scene_model->offset_height;
+    scene_y += scene_model->offset_height;
+    scene_z += scene_model->offset_z;
 
     int success = project_vertices_textured(
         screen_vertices_x,

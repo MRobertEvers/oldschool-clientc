@@ -869,7 +869,7 @@ render_scene_model(
     yaw &= 0x7FF;
 
     x += model->offset_x;
-    y += model->offset_y;
+    y += model->offset_z;
     z += model->offset_height;
 
     if( model->model == NULL )

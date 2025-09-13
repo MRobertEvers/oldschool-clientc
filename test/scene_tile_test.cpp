@@ -454,8 +454,8 @@ render_scene_model(
     yaw %= 2048;
 
     x += model->offset_x;
-    y += model->offset_y;
-    z += model->offset_height;
+    y += model->offset_height;
+    z += model->offset_z;
 
     if( model->model == NULL )
         return;

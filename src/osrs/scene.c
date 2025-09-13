@@ -203,13 +203,13 @@ calculate_wall_decor_offset(struct SceneModel* decor, int orientation, int offse
 
     int x_multiplier = diagonal ? WALL_DECOR_ROTATION_DIAGONAL_OFFSET_X[orientation]
                                 : WALL_DECOR_ROTATION_OFFSET_X[orientation];
-    int y_multiplier = diagonal ? WALL_DECOR_ROTATION_DIAGONAL_OFFSET_Z[orientation]
+    int z_multiplier = diagonal ? WALL_DECOR_ROTATION_DIAGONAL_OFFSET_Z[orientation]
                                 : WALL_DECOR_ROTATION_OFFSET_Z[orientation];
     int offset_x = offset * x_multiplier;
-    int offset_y = offset * y_multiplier;
+    int offset_z = offset * z_multiplier;
 
     decor->offset_x = offset_x;
-    decor->offset_y = offset_y;
+    decor->offset_z = offset_z;
 }
 
 static void
