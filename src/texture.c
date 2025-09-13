@@ -23,15 +23,15 @@ raster_texture_scanline(
     int screen_x0,
     int screen_x1,
     int pixel_offset,
-    long long au,
-    long long bv,
-    long long cw,
+    int au,
+    int bv,
+    int cw,
     int step_au_dx,
     int step_bv_dx,
     int step_cw_dx,
     int* texels,
-    long long texture_width,
-    long long texture_opaque)
+    int texture_width,
+    int texture_opaque)
 {
     if( screen_x0 == screen_x1 )
         return;
@@ -41,9 +41,9 @@ raster_texture_scanline(
         SWAP(screen_x0, screen_x1);
     }
 
-    long long steps, adjust;
+    int steps, adjust;
 
-    long long offset = pixel_offset;
+    int offset = pixel_offset;
 
     if( screen_x0 < 0 )
         screen_x0 = 0;
@@ -159,17 +159,17 @@ raster_texture_scanline_blend(
     int screen_x0,
     int screen_x1,
     int pixel_offset,
-    long long au,
-    long long bv,
-    long long cw,
+    int au,
+    int bv,
+    int cw,
     int step_au_dx,
     int step_bv_dx,
     int step_cw_dx,
     int shade8bit_ish8,
     int step_shade8bit_dx_ish8,
     int* texels,
-    long long texture_width,
-    long long texture_opaque)
+    int texture_width,
+    int texture_opaque)
 {
     if( screen_x0 == screen_x1 )
         return;
@@ -179,9 +179,9 @@ raster_texture_scanline_blend(
         SWAP(screen_x0, screen_x1);
     }
 
-    long long steps, adjust;
+    int steps, adjust;
 
-    long long offset = pixel_offset;
+    int offset = pixel_offset;
 
     if( screen_x0 < 0 )
         screen_x0 = 0;
@@ -303,9 +303,9 @@ raster_texture_scanline_transparent_blend_lerp8(
         SWAP(screen_x0, screen_x1);
     }
 
-    long long steps, adjust;
+    int steps, adjust;
 
-    long long offset = pixel_offset;
+    int offset = pixel_offset;
 
     if( screen_x0 < 0 )
         screen_x0 = 0;
@@ -432,11 +432,11 @@ raster_texture_scanline_transparent_blend_lerp8(
     next_v = (bv) / w;
     // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-    long long u_scan = curr_u << 3;
-    long long v_scan = curr_v << 3;
+    int u_scan = curr_u << 3;
+    int v_scan = curr_v << 3;
 
-    long long step_u = (next_u - curr_u);
-    long long step_v = (next_v - curr_v);
+    int step_u = (next_u - curr_u);
+    int step_v = (next_v - curr_v);
 
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
@@ -482,9 +482,9 @@ raster_texture_scanline_opaque_blend_lerp8(
         SWAP(screen_x0, screen_x1);
     }
 
-    long long steps, adjust;
+    int steps, adjust;
 
-    long long offset = pixel_offset;
+    int offset = pixel_offset;
 
     if( screen_x0 < 0 )
         screen_x0 = 0;
@@ -521,10 +521,10 @@ raster_texture_scanline_opaque_blend_lerp8(
     assert(texture_width == 128 || texture_width == 64);
     int texture_shift = (texture_width & 0x80) ? 7 : 6;
 
-    long long curr_u = 0;
-    long long curr_v = 0;
-    long long next_u = 0;
-    long long next_v = 0;
+    int curr_u = 0;
+    int curr_v = 0;
+    int next_u = 0;
+    int next_v = 0;
 
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
@@ -608,11 +608,11 @@ raster_texture_scanline_opaque_blend_lerp8(
     next_v = (bv) / w;
     // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-    long long u_scan = curr_u << 3;
-    long long v_scan = curr_v << 3;
+    int u_scan = curr_u << 3;
+    int v_scan = curr_v << 3;
 
-    long long step_u = (next_u - curr_u);
-    long long step_v = (next_v - curr_v);
+    int step_u = (next_u - curr_u);
+    int step_v = (next_v - curr_v);
 
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
@@ -656,9 +656,9 @@ raster_texture_scanline_transparent_lerp8(
         SWAP(screen_x0, screen_x1);
     }
 
-    long long steps, adjust;
+    int steps, adjust;
 
-    long long offset = pixel_offset;
+    int offset = pixel_offset;
 
     if( screen_x0 < 0 )
         screen_x0 = 0;
@@ -693,10 +693,10 @@ raster_texture_scanline_transparent_lerp8(
     assert(texture_width == 128 || texture_width == 64);
     int texture_shift = (texture_width & 0x80) ? 7 : 6;
 
-    long long curr_u = 0;
-    long long curr_v = 0;
-    long long next_u = 0;
-    long long next_v = 0;
+    int curr_u = 0;
+    int curr_v = 0;
+    int next_u = 0;
+    int next_v = 0;
 
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
@@ -780,11 +780,11 @@ raster_texture_scanline_transparent_lerp8(
     next_v = (bv) / w;
     // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-    long long u_scan = curr_u << 3;
-    long long v_scan = curr_v << 3;
+    int u_scan = curr_u << 3;
+    int v_scan = curr_v << 3;
 
-    long long step_u = (next_u - curr_u);
-    long long step_v = (next_v - curr_v);
+    int step_u = (next_u - curr_u);
+    int step_v = (next_v - curr_v);
 
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
@@ -829,9 +829,9 @@ raster_texture_scanline_opaque_lerp8(
         SWAP(screen_x0, screen_x1);
     }
 
-    long long steps, adjust;
+    int steps, adjust;
 
-    long long offset = pixel_offset;
+    int offset = pixel_offset;
 
     if( screen_x0 < 0 )
         screen_x0 = 0;
@@ -866,10 +866,10 @@ raster_texture_scanline_opaque_lerp8(
     assert(texture_width == 128 || texture_width == 64);
     int texture_shift = (texture_width & 0x80) ? 7 : 6;
 
-    long long curr_u = 0;
-    long long curr_v = 0;
-    long long next_u = 0;
-    long long next_v = 0;
+    int curr_u = 0;
+    int curr_v = 0;
+    int next_u = 0;
+    int next_v = 0;
 
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
@@ -952,11 +952,11 @@ raster_texture_scanline_opaque_lerp8(
     next_v = (bv) / w;
     // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-    long long u_scan = curr_u << 3;
-    long long v_scan = curr_v << 3;
+    int u_scan = curr_u << 3;
+    int v_scan = curr_v << 3;
 
-    long long step_u = (next_u - curr_u);
-    long long step_v = (next_v - curr_v);
+    int step_u = (next_u - curr_u);
+    int step_v = (next_v - curr_v);
 
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
@@ -982,15 +982,15 @@ raster_texture_scanline_lerp8(
     int screen_x0,
     int screen_x1,
     int pixel_offset,
-    long long au,
-    long long bv,
-    long long cw,
+    int au,
+    int bv,
+    int cw,
     int step_au_dx,
     int step_bv_dx,
     int step_cw_dx,
     int* texels,
-    long long texture_width,
-    long long texture_opaque)
+    int texture_width,
+    int texture_opaque)
 {
     if( screen_x0 == screen_x1 )
         return;
@@ -1000,9 +1000,9 @@ raster_texture_scanline_lerp8(
         SWAP(screen_x0, screen_x1);
     }
 
-    long long steps, adjust;
+    int steps, adjust;
 
-    long long offset = pixel_offset;
+    int offset = pixel_offset;
 
     if( screen_x0 < 0 )
         screen_x0 = 0;
@@ -1037,16 +1037,16 @@ raster_texture_scanline_lerp8(
     assert(texture_width == 128 || texture_width == 64);
     int texture_shift = (texture_width & 0x80) ? 7 : 6;
 
-    long long lerp8_steps = steps >> 3;
-    long long lerp8_last_steps = steps & 0x7;
-    long long curr_u = 0;
-    long long curr_v = 0;
+    int lerp8_steps = steps >> 3;
+    int lerp8_last_steps = steps & 0x7;
+    int curr_u = 0;
+    int curr_v = 0;
 
-    long long u = au;
-    long long v = bv;
-    long long w = cw;
+    int u = au;
+    int v = bv;
+    int w = cw;
 
-    long long curr_w_dsh7 = w >> 7;
+    int curr_w_dsh7 = w >> 7;
     if( curr_w_dsh7 != 0 )
     {
         curr_u = u / (-curr_w_dsh7);
@@ -1063,8 +1063,8 @@ raster_texture_scanline_lerp8(
             curr_v = texture_width - 1;
     }
 
-    long long next_u = 0;
-    long long next_v = 0;
+    int next_u = 0;
+    int next_v = 0;
 
     u = u + (step_au_dx << 3);
     v = v + (step_bv_dx << 3);
@@ -1207,9 +1207,6 @@ raster_texture_transparent_blend_lerp8(
     int screen_y0,
     int screen_y1,
     int screen_y2,
-    int screen_z0,
-    int screen_z1,
-    int screen_z2,
     int orthographic_uvorigin_x0,
     int orthographic_uend_x1,
     int orthographic_vend_x2,
@@ -1229,7 +1226,6 @@ raster_texture_transparent_blend_lerp8(
     {
         SWAP(screen_y0, screen_y2);
         SWAP(screen_x0, screen_x2);
-        SWAP(screen_z0, screen_z2);
         SWAP(shade7bit_a, shade7bit_c);
     }
 
@@ -1237,7 +1233,6 @@ raster_texture_transparent_blend_lerp8(
     {
         SWAP(screen_y0, screen_y1);
         SWAP(screen_x0, screen_x1);
-        SWAP(screen_z0, screen_z1);
         SWAP(shade7bit_a, shade7bit_b);
     }
 
@@ -1245,84 +1240,56 @@ raster_texture_transparent_blend_lerp8(
     {
         SWAP(screen_y1, screen_y2);
         SWAP(screen_x1, screen_x2);
-        SWAP(screen_z1, screen_z2);
         SWAP(shade7bit_b, shade7bit_c);
     }
-
-    int total_height = screen_y2 - screen_y0;
-    if( total_height == 0 )
-        return;
 
     if( screen_y0 >= screen_height )
         return;
 
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (screen_x0 < 0 || screen_x1 < 0 || screen_x2 < 0) &&
-        (screen_x0 > screen_width || screen_x1 > screen_width || screen_x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
+    // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
+    int vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
+    int vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
+    int vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
-    long long vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
-    long long vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
-    long long vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
-
-    // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
-    long long vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
-    long long vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
-    long long vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
+    int vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
+    int vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
+    int vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
 
     // TODO: The derivation leaves this as the VU plane,
     // so this needs to be flipped.
-    long long vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
-    long long vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
-    long long vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+    int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
+    int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
+    int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
 
-    long long vOVPlane_normal_xhat =
-        orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
-    long long vOVPlane_normal_yhat =
-        orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
-    long long vOVPlane_normal_zhat =
-        orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
+    int vOVPlane_normal_xhat = orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
+    int vOVPlane_normal_yhat = orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
+    int vOVPlane_normal_zhat = orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
 
-    long long vUOPlane_normal_xhat =
-        vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
-    long long vUOPlane_normal_yhat =
-        vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
+    int vUOPlane_normal_xhat = vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
+    int vUOPlane_normal_yhat = vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
 
-    long long vUOPlane_normal_zhat =
-        vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
+    int vUOPlane_normal_zhat = vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
 
-    // These two vectors now polong long in the direction or U or V.
+    // These two vectors now point in the direction or U or V.
     // TODO: Need to make sure this is the right order.
     // Compute the partial derivatives of the uv coordinates with respect to the x and y coordinates
     // of the screen.
 
-    long long dy_AC = screen_y2 - screen_y0;
-    long long dy_AB = screen_y1 - screen_y0;
-    long long dy_BC = screen_y2 - screen_y1;
+    int dy_AC = screen_y2 - screen_y0;
+    int dy_AB = screen_y1 - screen_y0;
+    int dy_BC = screen_y2 - screen_y1;
 
-    long long dx_AC = screen_x2 - screen_x0;
-    long long dx_AB = screen_x1 - screen_x0;
-    long long dx_BC = screen_x2 - screen_x1;
+    int dx_AC = screen_x2 - screen_x0;
+    int dx_AB = screen_x1 - screen_x0;
+    int dx_BC = screen_x2 - screen_x1;
 
     int dblend7bit_ab = shade7bit_b - shade7bit_a;
     int dblend7bit_ac = shade7bit_c - shade7bit_a;
 
-    long long step_edge_x_AC_ish16 = 0;
-    long long step_edge_x_AB_ish16 = 0;
-    long long step_edge_x_BC_ish16 = 0;
+    int step_edge_x_AC_ish16 = 0;
+    int step_edge_x_AB_ish16 = 0;
+    int step_edge_x_BC_ish16 = 0;
 
     if( dy_AC > 0 )
         step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
@@ -1348,13 +1315,13 @@ raster_texture_transparent_blend_lerp8(
     int shade8bit_edge_ish8 =
         (shade7bit_a << 9) - shade8bit_xhat_ish8 * screen_x0 + shade8bit_xhat_ish8;
 
-    long long au = 0;
-    long long bv = 0;
-    long long cw = 0;
+    int au = 0;
+    int bv = 0;
+    int cw = 0;
 
-    long long edge_x_AC_ish16 = screen_x0 << 16;
-    long long edge_x_AB_ish16 = screen_x0 << 16;
-    long long edge_x_BC_ish16 = screen_x1 << 16;
+    int edge_x_AC_ish16 = screen_x0 << 16;
+    int edge_x_AB_ish16 = screen_x0 << 16;
+    int edge_x_BC_ish16 = screen_x1 << 16;
 
     if( screen_y0 < 0 )
     {
@@ -1381,20 +1348,20 @@ raster_texture_transparent_blend_lerp8(
     bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
     cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
 
-    long long dy = screen_y0 - (screen_height >> 1);
+    int dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
     bv += vUOPlane_normal_yhat * (dy);
     cw += vUVPlane_normal_yhat * (dy);
 
-    long long steps = screen_y1 - screen_y0;
-    long long offset = screen_y0 * screen_width;
+    int steps = screen_y1 - screen_y0;
+    int offset = screen_y0 * screen_width;
 
     assert(screen_y0 < screen_height);
 
     while( steps-- > 0 )
     {
-        long long x_start = edge_x_AC_ish16 >> 16;
-        long long x_end = edge_x_AB_ish16 >> 16;
+        int x_start = edge_x_AC_ish16 >> 16;
+        int x_end = edge_x_AB_ish16 >> 16;
 
         raster_texture_scanline_transparent_blend_lerp8(
             pixel_buffer,
@@ -1491,9 +1458,6 @@ raster_texture_opaque_blend_lerp8(
     int screen_y0,
     int screen_y1,
     int screen_y2,
-    int screen_z0,
-    int screen_z1,
-    int screen_z2,
     int orthographic_uvorigin_x0,
     int orthographic_uend_x1,
     int orthographic_vend_x2,
@@ -1513,7 +1477,6 @@ raster_texture_opaque_blend_lerp8(
     {
         SWAP(screen_y0, screen_y2);
         SWAP(screen_x0, screen_x2);
-        SWAP(screen_z0, screen_z2);
         SWAP(shade7bit_a, shade7bit_c);
     }
 
@@ -1521,7 +1484,6 @@ raster_texture_opaque_blend_lerp8(
     {
         SWAP(screen_y0, screen_y1);
         SWAP(screen_x0, screen_x1);
-        SWAP(screen_z0, screen_z1);
         SWAP(shade7bit_a, shade7bit_b);
     }
 
@@ -1529,84 +1491,56 @@ raster_texture_opaque_blend_lerp8(
     {
         SWAP(screen_y1, screen_y2);
         SWAP(screen_x1, screen_x2);
-        SWAP(screen_z1, screen_z2);
         SWAP(shade7bit_b, shade7bit_c);
     }
-
-    int total_height = screen_y2 - screen_y0;
-    if( total_height == 0 )
-        return;
 
     if( screen_y0 >= screen_height )
         return;
 
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (screen_x0 < 0 || screen_x1 < 0 || screen_x2 < 0) &&
-        (screen_x0 > screen_width || screen_x1 > screen_width || screen_x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
+    // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
+    int vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
+    int vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
+    int vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
-    long long vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
-    long long vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
-    long long vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
-
-    // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
-    long long vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
-    long long vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
-    long long vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
+    int vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
+    int vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
+    int vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
 
     // TODO: The derivation leaves this as the VU plane,
     // so this needs to be flipped.
-    long long vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
-    long long vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
-    long long vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+    int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
+    int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
+    int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
 
-    long long vOVPlane_normal_xhat =
-        orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
-    long long vOVPlane_normal_yhat =
-        orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
-    long long vOVPlane_normal_zhat =
-        orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
+    int vOVPlane_normal_xhat = orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
+    int vOVPlane_normal_yhat = orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
+    int vOVPlane_normal_zhat = orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
 
-    long long vUOPlane_normal_xhat =
-        vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
-    long long vUOPlane_normal_yhat =
-        vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
+    int vUOPlane_normal_xhat = vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
+    int vUOPlane_normal_yhat = vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
 
-    long long vUOPlane_normal_zhat =
-        vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
+    int vUOPlane_normal_zhat = vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
 
-    // These two vectors now polong long in the direction or U or V.
+    // These two vectors now point in the direction or U or V.
     // TODO: Need to make sure this is the right order.
     // Compute the partial derivatives of the uv coordinates with respect to the x and y coordinates
     // of the screen.
 
-    long long dy_AC = screen_y2 - screen_y0;
-    long long dy_AB = screen_y1 - screen_y0;
-    long long dy_BC = screen_y2 - screen_y1;
+    int dy_AC = screen_y2 - screen_y0;
+    int dy_AB = screen_y1 - screen_y0;
+    int dy_BC = screen_y2 - screen_y1;
 
-    long long dx_AC = screen_x2 - screen_x0;
-    long long dx_AB = screen_x1 - screen_x0;
-    long long dx_BC = screen_x2 - screen_x1;
+    int dx_AC = screen_x2 - screen_x0;
+    int dx_AB = screen_x1 - screen_x0;
+    int dx_BC = screen_x2 - screen_x1;
 
     int dblend7bit_ab = shade7bit_b - shade7bit_a;
     int dblend7bit_ac = shade7bit_c - shade7bit_a;
 
-    long long step_edge_x_AC_ish16 = 0;
-    long long step_edge_x_AB_ish16 = 0;
-    long long step_edge_x_BC_ish16 = 0;
+    int step_edge_x_AC_ish16 = 0;
+    int step_edge_x_AB_ish16 = 0;
+    int step_edge_x_BC_ish16 = 0;
 
     if( dy_AC > 0 )
         step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
@@ -1632,13 +1566,13 @@ raster_texture_opaque_blend_lerp8(
     int shade8bit_edge_ish8 =
         (shade7bit_a << 9) - shade8bit_xhat_ish8 * screen_x0 + shade8bit_xhat_ish8;
 
-    long long au = 0;
-    long long bv = 0;
-    long long cw = 0;
+    int au = 0;
+    int bv = 0;
+    int cw = 0;
 
-    long long edge_x_AC_ish16 = screen_x0 << 16;
-    long long edge_x_AB_ish16 = screen_x0 << 16;
-    long long edge_x_BC_ish16 = screen_x1 << 16;
+    int edge_x_AC_ish16 = screen_x0 << 16;
+    int edge_x_AB_ish16 = screen_x0 << 16;
+    int edge_x_BC_ish16 = screen_x1 << 16;
 
     if( screen_y0 < 0 )
     {
@@ -1665,20 +1599,20 @@ raster_texture_opaque_blend_lerp8(
     bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
     cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
 
-    long long dy = screen_y0 - (screen_height >> 1);
+    int dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
     bv += vUOPlane_normal_yhat * (dy);
     cw += vUVPlane_normal_yhat * (dy);
 
-    long long steps = screen_y1 - screen_y0;
-    long long offset = screen_y0 * screen_width;
+    int steps = screen_y1 - screen_y0;
+    int offset = screen_y0 * screen_width;
 
     assert(screen_y0 < screen_height);
 
     while( steps-- > 0 )
     {
-        long long x_start = edge_x_AC_ish16 >> 16;
-        long long x_end = edge_x_AB_ish16 >> 16;
+        int x_start = edge_x_AC_ish16 >> 16;
+        int x_end = edge_x_AB_ish16 >> 16;
 
         raster_texture_scanline_opaque_blend_lerp8(
             pixel_buffer,
@@ -1775,9 +1709,6 @@ raster_texture_transparent_lerp8(
     int screen_y0,
     int screen_y1,
     int screen_y2,
-    int screen_z0,
-    int screen_z1,
-    int screen_z2,
     int orthographic_uvorigin_x0,
     int orthographic_uend_x1,
     int orthographic_vend_x2,
@@ -1795,94 +1726,64 @@ raster_texture_transparent_lerp8(
     {
         SWAP(screen_y0, screen_y2);
         SWAP(screen_x0, screen_x2);
-        SWAP(screen_z0, screen_z2);
     }
 
     if( screen_y1 < screen_y0 )
     {
         SWAP(screen_y0, screen_y1);
         SWAP(screen_x0, screen_x1);
-        SWAP(screen_z0, screen_z1);
     }
 
     if( screen_y2 < screen_y1 )
     {
         SWAP(screen_y1, screen_y2);
         SWAP(screen_x1, screen_x2);
-        SWAP(screen_z1, screen_z2);
     }
-
-    int total_height = screen_y2 - screen_y0;
-    if( total_height == 0 )
-        return;
 
     if( screen_y0 >= screen_height )
         return;
 
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (screen_x0 < 0 || screen_x1 < 0 || screen_x2 < 0) &&
-        (screen_x0 > screen_width || screen_x1 > screen_width || screen_x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
+    // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
+    int vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
+    int vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
+    int vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
-    long long vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
-    long long vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
-    long long vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
-
-    // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
-    long long vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
-    long long vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
-    long long vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
+    int vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
+    int vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
+    int vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
 
     // TODO: The derivation leaves this as the VU plane,
     // so this needs to be flipped.
-    long long vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
-    long long vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
-    long long vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+    int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
+    int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
+    int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
 
-    long long vOVPlane_normal_xhat =
-        orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
-    long long vOVPlane_normal_yhat =
-        orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
-    long long vOVPlane_normal_zhat =
-        orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
+    int vOVPlane_normal_xhat = orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
+    int vOVPlane_normal_yhat = orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
+    int vOVPlane_normal_zhat = orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
 
-    long long vUOPlane_normal_xhat =
-        vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
-    long long vUOPlane_normal_yhat =
-        vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
+    int vUOPlane_normal_xhat = vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
+    int vUOPlane_normal_yhat = vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
 
-    long long vUOPlane_normal_zhat =
-        vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
+    int vUOPlane_normal_zhat = vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
 
-    // These two vectors now polong long in the direction or U or V.
+    // These two vectors now point in the direction or U or V.
     // TODO: Need to make sure this is the right order.
     // Compute the partial derivatives of the uv coordinates with respect to the x and y coordinates
     // of the screen.
 
-    long long dy_AC = screen_y2 - screen_y0;
-    long long dy_AB = screen_y1 - screen_y0;
-    long long dy_BC = screen_y2 - screen_y1;
+    int dy_AC = screen_y2 - screen_y0;
+    int dy_AB = screen_y1 - screen_y0;
+    int dy_BC = screen_y2 - screen_y1;
 
-    long long dx_AC = screen_x2 - screen_x0;
-    long long dx_AB = screen_x1 - screen_x0;
-    long long dx_BC = screen_x2 - screen_x1;
+    int dx_AC = screen_x2 - screen_x0;
+    int dx_AB = screen_x1 - screen_x0;
+    int dx_BC = screen_x2 - screen_x1;
 
-    long long step_edge_x_AC_ish16 = 0;
-    long long step_edge_x_AB_ish16 = 0;
-    long long step_edge_x_BC_ish16 = 0;
+    int step_edge_x_AC_ish16 = 0;
+    int step_edge_x_AB_ish16 = 0;
+    int step_edge_x_BC_ish16 = 0;
 
     if( dy_AC > 0 )
         step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
@@ -1896,13 +1797,13 @@ raster_texture_transparent_lerp8(
     if( sarea_abc == 0 )
         return;
 
-    long long au = 0;
-    long long bv = 0;
-    long long cw = 0;
+    int au = 0;
+    int bv = 0;
+    int cw = 0;
 
-    long long edge_x_AC_ish16 = screen_x0 << 16;
-    long long edge_x_AB_ish16 = screen_x0 << 16;
-    long long edge_x_BC_ish16 = screen_x1 << 16;
+    int edge_x_AC_ish16 = screen_x0 << 16;
+    int edge_x_AB_ish16 = screen_x0 << 16;
+    int edge_x_BC_ish16 = screen_x1 << 16;
 
     if( screen_y0 < 0 )
     {
@@ -1928,13 +1829,13 @@ raster_texture_transparent_lerp8(
     bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
     cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
 
-    long long dy = screen_y0 - (screen_height >> 1);
+    int dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
     bv += vUOPlane_normal_yhat * (dy);
     cw += vUVPlane_normal_yhat * (dy);
 
-    long long steps = screen_y1 - screen_y0;
-    long long offset = screen_y0 * screen_width;
+    int steps = screen_y1 - screen_y0;
+    int offset = screen_y0 * screen_width;
 
     int shade = shade7bit << 9;
 
@@ -1942,8 +1843,8 @@ raster_texture_transparent_lerp8(
 
     while( steps-- > 0 )
     {
-        long long x_start = edge_x_AC_ish16 >> 16;
-        long long x_end = edge_x_AB_ish16 >> 16;
+        int x_start = edge_x_AC_ish16 >> 16;
+        int x_end = edge_x_AB_ish16 >> 16;
 
         raster_texture_scanline_transparent_lerp8(
             pixel_buffer,
@@ -2034,9 +1935,6 @@ raster_texture_opaque_lerp8(
     int screen_y0,
     int screen_y1,
     int screen_y2,
-    int screen_z0,
-    int screen_z1,
-    int screen_z2,
     int orthographic_uvorigin_x0,
     int orthographic_uend_x1,
     int orthographic_vend_x2,
@@ -2054,21 +1952,18 @@ raster_texture_opaque_lerp8(
     {
         SWAP(screen_y0, screen_y2);
         SWAP(screen_x0, screen_x2);
-        SWAP(screen_z0, screen_z2);
     }
 
     if( screen_y1 < screen_y0 )
     {
         SWAP(screen_y0, screen_y1);
         SWAP(screen_x0, screen_x1);
-        SWAP(screen_z0, screen_z1);
     }
 
     if( screen_y2 < screen_y1 )
     {
         SWAP(screen_y1, screen_y2);
         SWAP(screen_x1, screen_x2);
-        SWAP(screen_z1, screen_z2);
     }
 
     int total_height = screen_y2 - screen_y0;
@@ -2096,52 +1991,46 @@ raster_texture_opaque_lerp8(
     }
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
-    long long vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
-    long long vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
-    long long vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
+    int vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
+    int vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
+    int vU_z = orthographic_uend_z1 - orthographic_uvorigin_z0;
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
-    long long vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
-    long long vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
-    long long vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
+    int vV_x = orthographic_vend_x2 - orthographic_uvorigin_x0;
+    int vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
+    int vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
 
     // TODO: The derivation leaves this as the VU plane,
     // so this needs to be flipped.
-    long long vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
-    long long vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
-    long long vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+    int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
+    int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
+    int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
 
-    long long vOVPlane_normal_xhat =
-        orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
-    long long vOVPlane_normal_yhat =
-        orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
-    long long vOVPlane_normal_zhat =
-        orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
+    int vOVPlane_normal_xhat = orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
+    int vOVPlane_normal_yhat = orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
+    int vOVPlane_normal_zhat = orthographic_uvorigin_x0 * vV_y - orthographic_uvorigin_y0 * vV_x;
 
-    long long vUOPlane_normal_xhat =
-        vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
-    long long vUOPlane_normal_yhat =
-        vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
+    int vUOPlane_normal_xhat = vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
+    int vUOPlane_normal_yhat = vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
 
-    long long vUOPlane_normal_zhat =
-        vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
+    int vUOPlane_normal_zhat = vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
 
-    // These two vectors now polong long in the direction or U or V.
+    // These two vectors now point in the direction or U or V.
     // TODO: Need to make sure this is the right order.
     // Compute the partial derivatives of the uv coordinates with respect to the x and y coordinates
     // of the screen.
 
-    long long dy_AC = screen_y2 - screen_y0;
-    long long dy_AB = screen_y1 - screen_y0;
-    long long dy_BC = screen_y2 - screen_y1;
+    int dy_AC = screen_y2 - screen_y0;
+    int dy_AB = screen_y1 - screen_y0;
+    int dy_BC = screen_y2 - screen_y1;
 
-    long long dx_AC = screen_x2 - screen_x0;
-    long long dx_AB = screen_x1 - screen_x0;
-    long long dx_BC = screen_x2 - screen_x1;
+    int dx_AC = screen_x2 - screen_x0;
+    int dx_AB = screen_x1 - screen_x0;
+    int dx_BC = screen_x2 - screen_x1;
 
-    long long step_edge_x_AC_ish16 = 0;
-    long long step_edge_x_AB_ish16 = 0;
-    long long step_edge_x_BC_ish16 = 0;
+    int step_edge_x_AC_ish16 = 0;
+    int step_edge_x_AB_ish16 = 0;
+    int step_edge_x_BC_ish16 = 0;
 
     if( dy_AC > 0 )
         step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
@@ -2155,13 +2044,13 @@ raster_texture_opaque_lerp8(
     if( sarea_abc == 0 )
         return;
 
-    long long au = 0;
-    long long bv = 0;
-    long long cw = 0;
+    int au = 0;
+    int bv = 0;
+    int cw = 0;
 
-    long long edge_x_AC_ish16 = screen_x0 << 16;
-    long long edge_x_AB_ish16 = screen_x0 << 16;
-    long long edge_x_BC_ish16 = screen_x1 << 16;
+    int edge_x_AC_ish16 = screen_x0 << 16;
+    int edge_x_AB_ish16 = screen_x0 << 16;
+    int edge_x_BC_ish16 = screen_x1 << 16;
 
     if( screen_y0 < 0 )
     {
@@ -2187,13 +2076,13 @@ raster_texture_opaque_lerp8(
     bv = vUOPlane_normal_zhat << UNIT_SCALE_SHIFT;
     cw = vUVPlane_normal_zhat << UNIT_SCALE_SHIFT;
 
-    long long dy = screen_y0 - (screen_height >> 1);
+    int dy = screen_y0 - (screen_height >> 1);
     au += vOVPlane_normal_yhat * (dy);
     bv += vUOPlane_normal_yhat * (dy);
     cw += vUVPlane_normal_yhat * (dy);
 
-    long long steps = screen_y1 - screen_y0;
-    long long offset = screen_y0 * screen_width;
+    int steps = screen_y1 - screen_y0;
+    int offset = screen_y0 * screen_width;
 
     int shade = shade7bit << 9;
 
@@ -2201,8 +2090,8 @@ raster_texture_opaque_lerp8(
 
     while( steps-- > 0 )
     {
-        long long x_start = edge_x_AC_ish16 >> 16;
-        long long x_end = edge_x_AB_ish16 >> 16;
+        int x_start = edge_x_AC_ish16 >> 16;
+        int x_end = edge_x_AB_ish16 >> 16;
 
         raster_texture_scanline_opaque_lerp8(
             pixel_buffer,
@@ -2485,11 +2374,11 @@ raster_texture(
                 continue;
 
             au = (vOVPlane_normal_zhat << UNIT_SCALE_SHIFT) + vOVPlane_normal_xhat * (x - 400) +
-                                             vOVPlane_normal_yhat * (y - 300);
+                 vOVPlane_normal_yhat * (y - 300);
             bv = (vUOPlane_normal_zhat << UNIT_SCALE_SHIFT) + vUOPlane_normal_xhat * (x - 400) +
-                                             vUOPlane_normal_yhat * (y - 300);
+                 vUOPlane_normal_yhat * (y - 300);
             cw = (vUVPlane_normal_zhat << UNIT_SCALE_SHIFT) + vUVPlane_normal_xhat * (x - 400) +
-                                             vUVPlane_normal_yhat * (y - 300);
+                 vUVPlane_normal_yhat * (y - 300);
 
             assert(cw != 0);
 

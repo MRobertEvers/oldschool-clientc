@@ -1,13 +1,10 @@
 #include "gouraud.h"
-#include "shared_tables.h"
 
 #include <assert.h>
 
-static long long g_clip_x[10] = { 0 };
-static long long g_clip_y[10] = { 0 };
-static long long g_clip_color[10] = { 0 };
-
-static const int reciprocol_shift = 16;
+// clang-format off
+#include "render_clip.u.c"
+// clang-format on
 
 static inline void
 raster_gouraud(
@@ -58,29 +55,6 @@ raster_gouraud(
             color_c,
             alpha);
     }
-}
-
-static inline int
-slopei(int near_plane_z, int za, int zb)
-{
-    assert(za - zb >= 0);
-    return (za - near_plane_z) * g_reciprocal16[za - zb];
-}
-
-static inline int
-lerp_planei(int near_plane_z, int lerp_slope, int pa, int pb)
-{
-    int lerp_p = pa + (((pb - pa) * lerp_slope) >> reciprocol_shift);
-
-    return lerp_p;
-}
-
-static inline int
-lerp_plane_projecti(int near_plane_z, int lerp_slope, int pa, int pb)
-{
-    int lerp_p = lerp_planei(near_plane_z, lerp_slope, pa, pb);
-
-    return SCALE_UNIT(lerp_p) / near_plane_z;
 }
 
 /**
@@ -321,124 +295,6 @@ raster_face_gouraud_near_clip(
         color_c,
         color_b,
         alpha);
-}
-
-static inline void
-raster_face_gouraud(
-    int* pixel_buffer,
-    int face,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int* orthographic_vertices_x,
-    int* orthographic_vertices_y,
-    int* orthographic_vertices_z,
-    int* colors_a,
-    int* colors_b,
-    int* colors_c,
-    int* face_alphas_nullable,
-    int near_plane_z,
-    int offset_x,
-    int offset_y,
-    int screen_width,
-    int screen_height)
-{
-    int x1 = screen_vertices_x[face_indices_a[face]];
-    int x2 = screen_vertices_x[face_indices_b[face]];
-    int x3 = screen_vertices_x[face_indices_c[face]];
-
-    // Skip triangle if any vertex was clipped
-    // TODO: Perhaps use a separate buffer to track this.
-    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
-    {
-        raster_face_gouraud_near_clip(
-            pixel_buffer,
-            face,
-            face_indices_a,
-            face_indices_b,
-            face_indices_c,
-            screen_vertices_x,
-            screen_vertices_y,
-            screen_vertices_z,
-            orthographic_vertices_x,
-            orthographic_vertices_y,
-            orthographic_vertices_z,
-            colors_a,
-            colors_b,
-            colors_c,
-            face_alphas_nullable,
-            near_plane_z,
-            offset_x,
-            offset_y,
-            screen_width,
-            screen_height);
-        return;
-    }
-
-    int y1 = screen_vertices_y[face_indices_a[face]];
-    int z1 = screen_vertices_z[face_indices_a[face]];
-
-    int y2 = screen_vertices_y[face_indices_b[face]];
-    int z2 = screen_vertices_z[face_indices_b[face]];
-
-    int y3 = screen_vertices_y[face_indices_c[face]];
-    int z3 = screen_vertices_z[face_indices_c[face]];
-
-    x1 += offset_x;
-    y1 += offset_y;
-    x2 += offset_x;
-    y2 += offset_y;
-    x3 += offset_x;
-    y3 += offset_y;
-
-    int color_a = colors_a[face];
-    int color_b = colors_b[face];
-    int color_c = colors_c[face];
-    int alpha = face_alphas_nullable ? face_alphas_nullable[face] : 0xFF;
-
-    assert(color_a >= 0 && color_a < 65536);
-    assert(color_b >= 0 && color_b < 65536);
-    assert(color_c >= 0 && color_c < 65536);
-
-    // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
-
-    raster_gouraud(
-        pixel_buffer,
-        screen_width,
-        screen_height,
-        x1,
-        x2,
-        x3,
-        y1,
-        y2,
-        y3,
-        color_a,
-        color_b,
-        color_c,
-        alpha);
-}
-
-static inline float
-slopef(float near_plane_z, float za, float zb)
-{
-    return (za - near_plane_z) / (za - zb);
-}
-
-static inline float
-lerp_planef(float near_plane_z, float lerp_slope, float pa, float pb)
-{
-    return pa + (((pb - pa) * lerp_slope));
-}
-
-static inline float
-lerp_plane_projectf(float near_plane_z, float lerp_slope, float pa, float pb)
-{
-    float lerp_p = lerp_planef(near_plane_z, lerp_slope, pa, pb);
-
-    return SCALE_UNIT(lerp_p) / near_plane_z;
 }
 
 static inline void
@@ -709,5 +565,103 @@ raster_face_gouraud_near_clipf(
         color_a,
         color_c,
         color_b,
+        alpha);
+}
+
+static inline void
+raster_face_gouraud(
+    int* pixel_buffer,
+    int face,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int* face_alphas_nullable,
+    int near_plane_z,
+    int offset_x,
+    int offset_y,
+    int screen_width,
+    int screen_height)
+{
+    int x1 = screen_vertices_x[face_indices_a[face]];
+    int x2 = screen_vertices_x[face_indices_b[face]];
+    int x3 = screen_vertices_x[face_indices_c[face]];
+
+    // Skip triangle if any vertex was clipped
+    // TODO: Perhaps use a separate buffer to track this.
+    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
+    {
+        raster_face_gouraud_near_clip(
+            pixel_buffer,
+            face,
+            face_indices_a,
+            face_indices_b,
+            face_indices_c,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            colors_a,
+            colors_b,
+            colors_c,
+            face_alphas_nullable,
+            near_plane_z,
+            offset_x,
+            offset_y,
+            screen_width,
+            screen_height);
+        return;
+    }
+
+    int y1 = screen_vertices_y[face_indices_a[face]];
+    int z1 = screen_vertices_z[face_indices_a[face]];
+
+    int y2 = screen_vertices_y[face_indices_b[face]];
+    int z2 = screen_vertices_z[face_indices_b[face]];
+
+    int y3 = screen_vertices_y[face_indices_c[face]];
+    int z3 = screen_vertices_z[face_indices_c[face]];
+
+    x1 += offset_x;
+    y1 += offset_y;
+    x2 += offset_x;
+    y2 += offset_y;
+    x3 += offset_x;
+    y3 += offset_y;
+
+    int color_a = colors_a[face];
+    int color_b = colors_b[face];
+    int color_c = colors_c[face];
+    int alpha = face_alphas_nullable ? face_alphas_nullable[face] : 0xFF;
+
+    assert(color_a >= 0 && color_a < 65536);
+    assert(color_b >= 0 && color_b < 65536);
+    assert(color_c >= 0 && color_c < 65536);
+
+    // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
+
+    raster_gouraud(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        color_a,
+        color_b,
+        color_c,
         alpha);
 }

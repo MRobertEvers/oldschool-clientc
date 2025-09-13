@@ -42,6 +42,7 @@ void model_draw_face(
     int* face_alphas_nullable,
     int offset_x,
     int offset_y,
+    int near_plane_z,
     int screen_width,
     int screen_height,
     struct TexturesCache* textures_cache);

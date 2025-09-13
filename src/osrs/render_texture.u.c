@@ -1,68 +1,69 @@
 #include "scene_cache.h"
+#include "texture.h"
 
 #include <assert.h>
 #include <stdlib.h>
 
+// clang-format off
+#include "render_clip.u.c"
+// clang-format on
+
 static inline void
-raster_texture(
+raster_texture_blend(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
-    int x1,
-    int x2,
-    int x3,
-    int y1,
-    int y2,
-    int y3,
-    int z1,
-    int z2,
-    int z3,
-    int ortho_x0,
-    int ortho_x1,
-    int ortho_x3,
-    int ortho_y0,
-    int ortho_y1,
-    int ortho_y3,
-    int ortho_z0,
-    int ortho_z1,
-    int ortho_z3,
+    int screen_x0,
+    int screen_x1,
+    int screen_x2,
+    int screen_y0,
+    int screen_y1,
+    int screen_y2,
+    int orthographic_x0,
+    int orthographic_x1,
+    int orthographic_x2,
+    int orthographic_y0,
+    int orthographic_y1,
+    int orthographic_y2,
+    int orthographic_z0,
+    int orthographic_z1,
+    int orthographic_z2,
     int shade_a,
     int shade_b,
     int shade_c,
-    struct Texture* texture,
+    int* texels,
+    int texture_size,
+    int texture_opaque,
     int near_plane_z,
     int offset_x,
     int offset_y)
 {
-    if( texture->opaque )
+    if( texture_opaque )
     {
         raster_texture_opaque_blend_lerp8(
             pixel_buffer,
             screen_width,
             screen_height,
-            x1,
-            x2,
-            x3,
-            y1,
-            y2,
-            y3,
-            z1,
-            z2,
-            z3,
-            ortho_x0,
-            ortho_x1,
-            ortho_x3,
-            ortho_y0,
-            ortho_y1,
-            ortho_y3,
-            ortho_z0,
-            ortho_z1,
-            ortho_z3,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
             shade_a,
             shade_b,
             shade_c,
-            texture->texels,
-            texture->width);
+            texels,
+            texture_size);
     }
     else
     {
@@ -70,89 +71,506 @@ raster_texture(
             pixel_buffer,
             screen_width,
             screen_height,
-            x1,
-            x2,
-            x3,
-            y1,
-            y2,
-            y3,
-            z1,
-            z2,
-            z3,
-            ortho_x0,
-            ortho_x1,
-            ortho_x3,
-            ortho_y0,
-            ortho_y1,
-            ortho_y3,
-            ortho_z0,
-            ortho_z1,
-            ortho_z3,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
             shade_a,
             shade_b,
             shade_c,
-            texture->texels,
-            texture->width);
+            texels,
+            texture_size);
     }
 }
 
 static inline void
-raster_face_texture(
+raster_texture_flat(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
-    int face,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int* screen_vertex_x,
-    int* screen_vertex_y,
-    int* screen_vertex_z,
-    int* orthographic_vertex_x,
-    int* orthographic_vertex_y,
-    int* orthographic_vertex_z,
-    int* face_texture_ids,
-    int* colors_a,
-    int* colors_b,
-    int* colors_c,
-    struct TexturesCache* textures_cache,
+    int screen_x0,
+    int screen_x1,
+    int screen_x2,
+    int screen_y0,
+    int screen_y1,
+    int screen_y2,
+    int orthographic_x0,
+    int orthographic_x1,
+    int orthographic_x2,
+    int orthographic_y0,
+    int orthographic_y1,
+    int orthographic_y2,
+    int orthographic_z0,
+    int orthographic_z1,
+    int orthographic_z2,
+    int shade,
+    int* texels,
+    int texture_size,
+    int texture_opaque,
     int near_plane_z,
     int offset_x,
     int offset_y)
 {
-    struct Texture* texture = NULL;
+    if( texture_opaque )
+    {
+        raster_texture_opaque_lerp8(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade,
+            texels,
+            texture_size);
+    }
+    else
+    {
+        raster_texture_transparent_lerp8(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade,
+            texels,
+            texture_size);
+    }
+}
 
-    int x1 = screen_vertex_x[face_indices_a[face]];
-    int x2 = screen_vertex_x[face_indices_b[face]];
-    int x3 = screen_vertex_x[face_indices_c[face]];
+static inline void
+raster_face_texture_blend_near_clip(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int face,
+    int tp_vertex,
+    int tm_vertex,
+    int tn_vertex,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int* texels,
+    int texture_size,
+    int texture_opaque,
+    int near_plane_z,
+    int offset_x,
+    int offset_y)
+{
+    int clipped_count = 0;
+
+    int a = face_indices_a[face];
+    int b = face_indices_b[face];
+    int c = face_indices_c[face];
+
+    int za = orthographic_vertices_z[a];
+    int zb = orthographic_vertices_z[b];
+    int zc = orthographic_vertices_z[c];
+
+    int xa;
+    int xb;
+    int xc;
+    int ya;
+    int yb;
+    int yc;
+    int color_a;
+    int color_b;
+    int color_c;
+    int lerp_slope;
+
+    if( za >= near_plane_z )
+    {
+        g_clip_x[clipped_count] = screen_vertices_x[a];
+        g_clip_y[clipped_count] = screen_vertices_y[a];
+        assert(g_clip_x[clipped_count] != -5000);
+        g_clip_color[clipped_count] = colors_a[face];
+
+        clipped_count++;
+    }
+    else
+    {
+        xa = orthographic_vertices_x[a];
+        ya = orthographic_vertices_y[a];
+        color_a = colors_a[face];
+
+        if( zc >= near_plane_z )
+        {
+            assert(zc - za >= 0);
+            lerp_slope = slopei(near_plane_z, zc, za);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_a);
+
+            clipped_count++;
+        }
+
+        if( zb >= near_plane_z )
+        {
+            assert(zb - za >= 0);
+            lerp_slope = slopei(near_plane_z, zb, za);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_a);
+
+            clipped_count++;
+        }
+    }
+    if( zb >= near_plane_z )
+    {
+        g_clip_x[clipped_count] = screen_vertices_x[b];
+        g_clip_y[clipped_count] = screen_vertices_y[b];
+        assert(g_clip_x[clipped_count] != -5000);
+        g_clip_color[clipped_count] = colors_b[face];
+
+        clipped_count++;
+    }
+    else
+    {
+        xb = orthographic_vertices_x[b];
+        yb = orthographic_vertices_y[b];
+        color_b = colors_b[face];
+
+        if( za >= near_plane_z )
+        {
+            lerp_slope = slopei(near_plane_z, za, zb);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_b);
+
+            clipped_count++;
+        }
+
+        if( zc >= near_plane_z )
+        {
+            assert(zc - zb >= 0);
+            lerp_slope = slopei(near_plane_z, zc, zb);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_b);
+
+            clipped_count++;
+        }
+    }
+    if( zc >= near_plane_z )
+    {
+        g_clip_x[clipped_count] = screen_vertices_x[c];
+        g_clip_y[clipped_count] = screen_vertices_y[c];
+        g_clip_color[clipped_count] = colors_c[face];
+        assert(g_clip_x[clipped_count] != -5000);
+
+        clipped_count++;
+    }
+    else
+    {
+        xc = orthographic_vertices_x[c];
+        yc = orthographic_vertices_y[c];
+        color_c = colors_c[face];
+
+        if( zb >= near_plane_z )
+        {
+            assert(zb - zc >= 0);
+            lerp_slope = slopei(near_plane_z, zb, zc);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_c);
+
+            clipped_count++;
+        }
+
+        if( za >= near_plane_z )
+        {
+            assert(za - zc >= 0);
+            lerp_slope = slopei(near_plane_z, za, zc);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+
+            g_clip_color[clipped_count] =
+                lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_c);
+
+            clipped_count++;
+        }
+    }
+    if( clipped_count < 3 )
+        return;
+
+    int orthographic_x0 = orthographic_vertices_x[tp_vertex];
+    int orthographic_x1 = orthographic_vertices_x[tm_vertex];
+    int orthographic_x2 = orthographic_vertices_x[tn_vertex];
+
+    int orthographic_y0 = orthographic_vertices_y[tp_vertex];
+    int orthographic_y1 = orthographic_vertices_y[tm_vertex];
+    int orthographic_y2 = orthographic_vertices_y[tn_vertex];
+
+    int orthographic_z0 = orthographic_vertices_z[tp_vertex];
+    int orthographic_z1 = orthographic_vertices_z[tm_vertex];
+    int orthographic_z2 = orthographic_vertices_z[tn_vertex];
+
+    xa = g_clip_x[0];
+    ya = g_clip_y[0];
+    color_a = g_clip_color[0];
+    xb = g_clip_x[1];
+    yb = g_clip_y[1];
+    color_b = g_clip_color[1];
+    xc = g_clip_x[2];
+    yc = g_clip_y[2];
+    color_c = g_clip_color[2];
+
+    assert(color_a >= 0 && color_a < 65536);
+    assert(color_b >= 0 && color_b < 65536);
+    assert(color_c >= 0 && color_c < 65536);
+
+    xa += offset_x;
+    ya += offset_y;
+    xb += offset_x;
+    yb += offset_y;
+    xc += offset_x;
+    yc += offset_y;
+
+    raster_texture_blend(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        color_a,
+        color_b,
+        color_c,
+        texels,
+        texture_size,
+        texture_opaque,
+        near_plane_z,
+        offset_x,
+        offset_y);
+
+    assert(clipped_count <= 4);
+    if( clipped_count != 4 )
+        return;
+
+    // static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
+
+    // for( int i = 0; i < screen_height; i++ )
+    // {
+    //     for( int j = 0; j < 4; j++ )
+    //     {
+    //         int x = g_clip_x[j];
+
+    //         x += offset_x;
+
+    //         if( x > 0 && x < screen_width )
+    //         {
+    //             pixel_buffer[i * screen_width + ((int)x)] = colors[j];
+    //         }
+    //     }
+    // }
+
+    xb = g_clip_x[3];
+    yb = g_clip_y[3];
+    color_b = g_clip_color[3];
+
+    xb += offset_x;
+    yb += offset_y;
+
+    raster_texture_blend(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        color_a,
+        color_b,
+        color_c,
+        texels,
+        texture_size,
+        texture_opaque,
+        near_plane_z,
+        offset_x,
+        offset_y);
+}
+
+static inline void
+raster_face_texture_blend(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int face,
+    int tp_vertex,
+    int tm_vertex,
+    int tn_vertex,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int* texels,
+    int texture_size,
+    int texture_opaque,
+    int near_plane_z,
+    int offset_x,
+    int offset_y)
+{
+    int x1 = screen_vertices_x[face_indices_a[face]];
+    int x2 = screen_vertices_x[face_indices_b[face]];
+    int x3 = screen_vertices_x[face_indices_c[face]];
 
     // Skip triangle if any vertex was clipped
     // TODO: Perhaps use a separate buffer to track this.
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
+    {
+        raster_face_texture_blend_near_clip(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            face,
+            tp_vertex,
+            tm_vertex,
+            tn_vertex,
+            face_indices_a,
+            face_indices_b,
+            face_indices_c,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            colors_a,
+            colors_b,
+            colors_c,
+            texels,
+            texture_size,
+            texture_opaque,
+            near_plane_z,
+            offset_x,
+            offset_y);
         return;
+    }
 
-    int y1 = screen_vertex_y[face_indices_a[face]];
-    int z1 = screen_vertex_z[face_indices_a[face]];
-    int y2 = screen_vertex_y[face_indices_b[face]];
-    int z2 = screen_vertex_z[face_indices_b[face]];
-    int y3 = screen_vertex_y[face_indices_c[face]];
-    int z3 = screen_vertex_z[face_indices_c[face]];
-    // // sw
-    int ortho_x0 = orthographic_vertex_x[0];
-    int ortho_y0 = orthographic_vertex_y[0];
-    int ortho_z0 = orthographic_vertex_z[0];
-    // se
-    int ortho_x1 = orthographic_vertex_x[1];
-    int ortho_y1 = orthographic_vertex_y[1];
-    int ortho_z1 = orthographic_vertex_z[1];
-    // ne
-    int ortho_x2 = orthographic_vertex_x[2];
-    int ortho_y2 = orthographic_vertex_y[2];
-    int ortho_z2 = orthographic_vertex_z[2];
-    // nw
-    int ortho_x3 = orthographic_vertex_x[3];
-    int ortho_y3 = orthographic_vertex_y[3];
-    int ortho_z3 = orthographic_vertex_z[3];
+    int y1 = screen_vertices_y[face_indices_a[face]];
+    int z1 = screen_vertices_z[face_indices_a[face]];
+    int y2 = screen_vertices_y[face_indices_b[face]];
+    int z2 = screen_vertices_z[face_indices_b[face]];
+    int y3 = screen_vertices_y[face_indices_c[face]];
+    int z3 = screen_vertices_z[face_indices_c[face]];
+
+    int orthographic_x0 = orthographic_vertices_x[tp_vertex];
+    int orthographic_y0 = orthographic_vertices_y[tp_vertex];
+    int orthographic_z0 = orthographic_vertices_z[tp_vertex];
+    int orthographic_x1 = orthographic_vertices_x[tm_vertex];
+    int orthographic_y1 = orthographic_vertices_y[tm_vertex];
+    int orthographic_z1 = orthographic_vertices_z[tm_vertex];
+    int orthographic_x2 = orthographic_vertices_x[tn_vertex];
+    int orthographic_y2 = orthographic_vertices_y[tn_vertex];
+    int orthographic_z2 = orthographic_vertices_z[tn_vertex];
 
     int shade_a = colors_a[face];
     int shade_b = colors_b[face];
@@ -169,15 +587,7 @@ raster_face_texture(
     x3 += offset_x;
     y3 += offset_y;
 
-    int texture_id = face_texture_ids[face];
-    if( texture_id == -1 )
-        return;
-
-    texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 0.8);
-    if( !texture )
-        return;
-
-    raster_texture(
+    raster_texture_blend(
         pixel_buffer,
         screen_width,
         screen_height,
@@ -187,22 +597,418 @@ raster_face_texture(
         y1,
         y2,
         y3,
-        z1,
-        z2,
-        z3,
-        ortho_x0,
-        ortho_x1,
-        ortho_x3,
-        ortho_y0,
-        ortho_y1,
-        ortho_y3,
-        ortho_z0,
-        ortho_z1,
-        ortho_z3,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
         shade_a,
         shade_b,
         shade_c,
-        texture,
+        texels,
+        texture_size,
+        texture_opaque,
+        near_plane_z,
+        offset_x,
+        offset_y);
+
+    return;
+}
+
+static inline void
+raster_face_texture_flat_near_clip(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int face,
+    int tp_vertex,
+    int tm_vertex,
+    int tn_vertex,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* colors,
+    int* texels,
+    int texture_size,
+    int texture_opaque,
+    int near_plane_z,
+    int offset_x,
+    int offset_y)
+{
+    int clipped_count = 0;
+
+    int a = face_indices_a[face];
+    int b = face_indices_b[face];
+    int c = face_indices_c[face];
+
+    int za = orthographic_vertices_z[a];
+    int zb = orthographic_vertices_z[b];
+    int zc = orthographic_vertices_z[c];
+
+    int xa;
+    int xb;
+    int xc;
+    int ya;
+    int yb;
+    int yc;
+    int color = colors[face];
+    int lerp_slope;
+
+    if( za >= near_plane_z )
+    {
+        g_clip_x[clipped_count] = screen_vertices_x[a];
+        g_clip_y[clipped_count] = screen_vertices_y[a];
+        assert(g_clip_x[clipped_count] != -5000);
+
+        clipped_count++;
+    }
+    else
+    {
+        xa = orthographic_vertices_x[a];
+        ya = orthographic_vertices_y[a];
+
+        if( zc >= near_plane_z )
+        {
+            assert(zc - za >= 0);
+            lerp_slope = slopei(near_plane_z, zc, za);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+
+            clipped_count++;
+        }
+
+        if( zb >= near_plane_z )
+        {
+            assert(zb - za >= 0);
+            lerp_slope = slopei(near_plane_z, zb, za);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+
+            clipped_count++;
+        }
+    }
+    if( zb >= near_plane_z )
+    {
+        g_clip_x[clipped_count] = screen_vertices_x[b];
+        g_clip_y[clipped_count] = screen_vertices_y[b];
+        assert(g_clip_x[clipped_count] != -5000);
+
+        clipped_count++;
+    }
+    else
+    {
+        xb = orthographic_vertices_x[b];
+        yb = orthographic_vertices_y[b];
+
+        if( za >= near_plane_z )
+        {
+            lerp_slope = slopei(near_plane_z, za, zb);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+
+            clipped_count++;
+        }
+
+        if( zc >= near_plane_z )
+        {
+            assert(zc - zb >= 0);
+            lerp_slope = slopei(near_plane_z, zc, zb);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+
+            clipped_count++;
+        }
+    }
+    if( zc >= near_plane_z )
+    {
+        g_clip_x[clipped_count] = screen_vertices_x[c];
+        g_clip_y[clipped_count] = screen_vertices_y[c];
+        assert(g_clip_x[clipped_count] != -5000);
+
+        clipped_count++;
+    }
+    else
+    {
+        xc = orthographic_vertices_x[c];
+        yc = orthographic_vertices_y[c];
+
+        if( zb >= near_plane_z )
+        {
+            assert(zb - zc >= 0);
+            lerp_slope = slopei(near_plane_z, zb, zc);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+
+            clipped_count++;
+        }
+
+        if( za >= near_plane_z )
+        {
+            assert(za - zc >= 0);
+            lerp_slope = slopei(near_plane_z, za, zc);
+
+            g_clip_x[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+            g_clip_y[clipped_count] =
+                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+
+            clipped_count++;
+        }
+    }
+    if( clipped_count < 3 )
+        return;
+
+    int orthographic_x0 = orthographic_vertices_x[tp_vertex];
+    int orthographic_x1 = orthographic_vertices_x[tm_vertex];
+    int orthographic_x2 = orthographic_vertices_x[tn_vertex];
+
+    int orthographic_y0 = orthographic_vertices_y[tp_vertex];
+    int orthographic_y1 = orthographic_vertices_y[tm_vertex];
+    int orthographic_y2 = orthographic_vertices_y[tn_vertex];
+
+    int orthographic_z0 = orthographic_vertices_z[tp_vertex];
+    int orthographic_z1 = orthographic_vertices_z[tm_vertex];
+    int orthographic_z2 = orthographic_vertices_z[tn_vertex];
+
+    xa = g_clip_x[0];
+    ya = g_clip_y[0];
+    xb = g_clip_x[1];
+    yb = g_clip_y[1];
+    xc = g_clip_x[2];
+    yc = g_clip_y[2];
+
+    xa += offset_x;
+    ya += offset_y;
+    xb += offset_x;
+    yb += offset_y;
+    xc += offset_x;
+    yc += offset_y;
+
+    raster_texture_flat(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        color,
+        texels,
+        texture_size,
+        texture_opaque,
+        near_plane_z,
+        offset_x,
+        offset_y);
+
+    assert(clipped_count <= 4);
+    if( clipped_count != 4 )
+        return;
+
+    // static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
+
+    // for( int i = 0; i < screen_height; i++ )
+    // {
+    //     for( int j = 0; j < 4; j++ )
+    //     {
+    //         int x = g_clip_x[j];
+
+    //         x += offset_x;
+
+    //         if( x > 0 && x < screen_width )
+    //         {
+    //             pixel_buffer[i * screen_width + ((int)x)] = colors[j];
+    //         }
+    //     }
+    // }
+
+    xb = g_clip_x[3];
+    yb = g_clip_y[3];
+
+    xb += offset_x;
+    yb += offset_y;
+
+    raster_texture_flat(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        xa,
+        xb,
+        xc,
+        ya,
+        yb,
+        yc,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        color,
+        texels,
+        texture_size,
+        texture_opaque,
+        near_plane_z,
+        offset_x,
+        offset_y);
+}
+
+static inline void
+raster_face_texture_flat(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int face,
+    int tp_vertex,
+    int tm_vertex,
+    int tn_vertex,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* colors,
+    int* texels,
+    int texture_size,
+    int texture_opaque,
+    int near_plane_z,
+    int offset_x,
+    int offset_y)
+{
+    int x1 = screen_vertices_x[face_indices_a[face]];
+    int x2 = screen_vertices_x[face_indices_b[face]];
+    int x3 = screen_vertices_x[face_indices_c[face]];
+
+    // Skip triangle if any vertex was clipped
+    // TODO: Perhaps use a separate buffer to track this.
+    if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
+    {
+        raster_face_texture_flat_near_clip(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            face,
+            tp_vertex,
+            tm_vertex,
+            tn_vertex,
+            face_indices_a,
+            face_indices_b,
+            face_indices_c,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            colors,
+            texels,
+            texture_size,
+            texture_opaque,
+            near_plane_z,
+            offset_x,
+            offset_y);
+        return;
+    }
+
+    int y1 = screen_vertices_y[face_indices_a[face]];
+    int z1 = screen_vertices_z[face_indices_a[face]];
+    int y2 = screen_vertices_y[face_indices_b[face]];
+    int z2 = screen_vertices_z[face_indices_b[face]];
+    int y3 = screen_vertices_y[face_indices_c[face]];
+    int z3 = screen_vertices_z[face_indices_c[face]];
+
+    int orthographic_x0 = orthographic_vertices_x[tp_vertex];
+    int orthographic_y0 = orthographic_vertices_y[tp_vertex];
+    int orthographic_z0 = orthographic_vertices_z[tp_vertex];
+
+    int orthographic_x1 = orthographic_vertices_x[tm_vertex];
+    int orthographic_y1 = orthographic_vertices_y[tm_vertex];
+    int orthographic_z1 = orthographic_vertices_z[tm_vertex];
+
+    int orthographic_x2 = orthographic_vertices_x[tn_vertex];
+    int orthographic_y2 = orthographic_vertices_y[tn_vertex];
+    int orthographic_z2 = orthographic_vertices_z[tn_vertex];
+
+    int shade = colors[face];
+
+    assert(shade >= 0 && shade < 0xFF);
+
+    x1 += offset_x;
+    y1 += offset_y;
+    x2 += offset_x;
+    y2 += offset_y;
+    x3 += offset_x;
+    y3 += offset_y;
+
+    raster_texture_flat(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        shade,
+        texels,
+        texture_size,
+        texture_opaque,
         near_plane_z,
         offset_x,
         offset_y);

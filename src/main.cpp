@@ -383,6 +383,7 @@ sort_model_faces()
             g_scene_model->model->face_alphas,
             SCREEN_WIDTH / 2,
             SCREEN_HEIGHT / 2,
+            50,
             SCREEN_WIDTH,
             SCREEN_HEIGHT,
             NULL);
