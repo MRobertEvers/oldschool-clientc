@@ -6,8 +6,8 @@
 
 extern int g_hsl16_to_rgb_table[65536];
 
-void
-draw_scanline_flat(
+static inline void
+draw_scanline_flat_s4(
     int* pixel_buffer, int stride_width, int y, int x_start, int x_end, int color_hsl16)
 {
     if( x_start == x_end )
@@ -51,7 +51,7 @@ draw_scanline_flat(
 }
 
 void
-raster_flat(
+raster_flat_s4(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
@@ -96,27 +96,6 @@ raster_flat(
         temp = x0;
         x0 = x1;
         x1 = temp;
-    }
-
-    int total_height = y2 - y0;
-    if( total_height == 0 )
-        return;
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (x0 < 0 || x1 < 0 || x2 < 0) &&
-        (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
     }
 
     // skip if the triangle is degenerate
@@ -182,7 +161,7 @@ raster_flat(
         int x_start_current = edge_x_AC_ish16 >> 16;
         int x_end_current = edge_x_AB_ish16 >> 16;
 
-        draw_scanline_flat(
+        draw_scanline_flat_s4(
             pixel_buffer, screen_width, i, x_start_current, x_end_current, color_hsl16);
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -197,7 +176,7 @@ raster_flat(
         int x_start_current = edge_x_AC_ish16 >> 16;
         int x_end_current = edge_x_BC_ish16 >> 16;
 
-        draw_scanline_flat(
+        draw_scanline_flat_s4(
             pixel_buffer, screen_width, i, x_start_current, x_end_current, color_hsl16);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
@@ -206,7 +185,7 @@ raster_flat(
 }
 
 static inline void
-scanline_flat_alpha_step4(
+draw_scanline_flat_alpha_s4(
     int* pixel_buffer, int stride_width, int y, int x_start, int x_end, int color_hsl16, int alpha)
 {
     if( x_start == x_end )
@@ -266,7 +245,7 @@ scanline_flat_alpha_step4(
 }
 
 void
-raster_flat_alpha_step4(
+raster_flat_alpha_s4(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
@@ -312,27 +291,6 @@ raster_flat_alpha_step4(
         temp = x0;
         x0 = x1;
         x1 = temp;
-    }
-
-    int total_height = y2 - y0;
-    if( total_height == 0 )
-        return;
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (x0 < 0 || x1 < 0 || x2 < 0) &&
-        (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
     }
 
     // skip if the triangle is degenerate
@@ -398,7 +356,7 @@ raster_flat_alpha_step4(
         int x_start_current = edge_x_AC_ish16 >> 16;
         int x_end_current = edge_x_AB_ish16 >> 16;
 
-        scanline_flat_alpha_step4(
+        draw_scanline_flat_alpha_s4(
             pixel_buffer, screen_width, i, x_start_current, x_end_current, color_hsl16, alpha);
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -413,7 +371,7 @@ raster_flat_alpha_step4(
         int x_start_current = edge_x_AC_ish16 >> 16;
         int x_end_current = edge_x_BC_ish16 >> 16;
 
-        scanline_flat_alpha_step4(
+        draw_scanline_flat_alpha_s4(
             pixel_buffer, screen_width, i, x_start_current, x_end_current, color_hsl16, alpha);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;

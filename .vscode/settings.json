@@ -98,6 +98,8 @@
         "vector": "cpp",
         "algorithm": "cpp",
         "math.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "stddef.h": "c",
+        "gouraud.h": "c"
     }
 }

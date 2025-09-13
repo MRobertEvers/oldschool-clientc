@@ -287,13 +287,13 @@ project_vertices_textured(
     /**
      * These checks are a significant performance improvement.
      */
-    // if( projected_triangle.z > 3500 )
-    // {
-    //     return 0;
-    // }
+    if( projected_triangle.z > 3500 )
+    {
+        return 0;
+    }
 
-    int width = (screen_width >> 1) + (screen_width >> 2);
-    int height = (screen_height >> 1) + (screen_height >> 2);
+    int width = (screen_width >> 1) + (screen_width >> 1);
+    int height = (screen_height >> 1) + (screen_height >> 1);
 
     if( projected_triangle.x < -width || projected_triangle.x > width )
     {
@@ -336,8 +336,6 @@ project_vertices_textured(
         if( projected_triangle.clipped )
         {
             screen_vertices_x[i] = -5000;
-            // screen_vertices_y[i] = -5000;
-            // screen_vertices_z[i] = -5000;
         }
         else
         {
@@ -989,65 +987,51 @@ model_draw_face(
             assert(face_b < num_vertices);
             assert(face_c < num_vertices);
 
-            if( alpha == 0xFF )
-            {
-                raster_gouraud_s4(
-                    pixel_buffer,
-                    screen_width,
-                    screen_height,
-                    x1,
-                    x2,
-                    x3,
-                    y1,
-                    y2,
-                    y3,
-                    color_a,
-                    color_b,
-                    color_c);
-            }
-            else
-            {
-                raster_gouraud_blend_s4(
-                    pixel_buffer,
-                    screen_width,
-                    screen_height,
-                    x1,
-                    x2,
-                    x3,
-                    y1,
-                    y2,
-                    y3,
-                    color_a,
-                    color_b,
-                    color_c,
-                    alpha);
-            }
+            raster_face_gouraud(
+                pixel_buffer,
+                face,
+                face_indices_a,
+                face_indices_b,
+                face_indices_c,
+                vertex_x,
+                vertex_y,
+                vertex_z,
+                orthographic_vertex_x_nullable,
+                orthographic_vertex_y_nullable,
+                orthographic_vertex_z_nullable,
+                colors_a,
+                colors_b,
+                colors_c,
+                face_alphas_nullable,
+                near_plane_z,
+                offset_x,
+                offset_y,
+                screen_width,
+                screen_height);
+
             break;
         case FACE_TYPE_FLAT:
             // Skip triangle if any vertex was clipped
-            if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
-                return;
 
-            if( alpha == 0xFF )
-            {
-                raster_flat(
-                    pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a);
-            }
-            else
-            {
-                raster_flat_alpha_step4(
-                    pixel_buffer,
-                    screen_width,
-                    screen_height,
-                    x1,
-                    x2,
-                    x3,
-                    y1,
-                    y2,
-                    y3,
-                    color_a,
-                    alpha);
-            }
+            raster_face_flat(
+                pixel_buffer,
+                face,
+                face_indices_a,
+                face_indices_b,
+                face_indices_c,
+                vertex_x,
+                vertex_y,
+                vertex_z,
+                orthographic_vertex_x_nullable,
+                orthographic_vertex_y_nullable,
+                orthographic_vertex_z_nullable,
+                colors_a,
+                face_alphas_nullable,
+                near_plane_z,
+                offset_x,
+                offset_y,
+                screen_width,
+                screen_height);
 
             break;
         case FACE_TYPE_TEXTURED:

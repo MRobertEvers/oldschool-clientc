@@ -4,6 +4,7 @@
 
 // clang-format off
 #include "render_clip.u.c"
+#include "render_face_alpha.u.c"
 // clang-format on
 
 static inline void
@@ -233,7 +234,7 @@ raster_face_gouraud_near_clip(
     if( clipped_count < 3 )
         return;
 
-    int alpha = face_alphas_nullable ? face_alphas_nullable[face] : 0xFF;
+    int alpha = face_alpha(face_alphas_nullable, face);
 
     xa = g_clip_x[0];
     ya = g_clip_y[0];
@@ -486,7 +487,7 @@ raster_face_gouraud_near_clipf(
     if( clipped_count < 3 )
         return;
 
-    int alpha = face_alphas_nullable ? face_alphas_nullable[face] : 0xFF;
+    int alpha = face_alpha(face_alphas_nullable, face);
 
     xa = g_clip_x[0];
     ya = g_clip_y[0];
@@ -642,7 +643,8 @@ raster_face_gouraud(
     int color_a = colors_a[face];
     int color_b = colors_b[face];
     int color_c = colors_c[face];
-    int alpha = face_alphas_nullable ? face_alphas_nullable[face] : 0xFF;
+
+    int alpha = face_alpha(face_alphas_nullable, face);
 
     assert(color_a >= 0 && color_a < 65536);
     assert(color_b >= 0 && color_b < 65536);

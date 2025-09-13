@@ -16,7 +16,7 @@ struct ModelLighting;
 
 void model_draw_face(
     int* pixel_buffer,
-    int face_index,
+    int face,
     int* face_infos,
     int* face_indices_a,
     int* face_indices_b,
