@@ -36,7 +36,7 @@ raster_flat(
  * This requires vertices to be wound counterclockwise.
  */
 static inline void
-raster_face_gouraud_near_clip(
+raster_face_flat_near_clip(
     int* pixel_buffer,
     int face,
     int* face_indices_a,
@@ -71,7 +71,7 @@ raster_face_gouraud_near_clip(
     int ya;
     int yb;
     int yc;
-    int color;
+    int color = colors[face];
     int lerp_slope;
 
     if( za >= near_plane_z )

@@ -28,6 +28,7 @@
 // clang-format off
 #include "render_gouraud.u.c"
 #include "render_texture.u.c"
+#include "render_flat.u.c"
 // clang-format on
 
 static int tmp_depth_face_count[1500] = { 0 };
@@ -53,23 +54,6 @@ static int tmp_face_colors_c_hsl16[4096] = { 0 };
 
 static int tmp_vertex_normals[4096] = { 0 };
 
-extern int g_sin_table[2048];
-extern int g_cos_table[2048];
-extern int g_tan_table[2048];
-
-//   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
-//             for hue, 3 for saturation and 7 for lightness, bitpacked and
-//             represented as a short.
-extern int g_hsl16_to_rgb_table[65536];
-
-static inline void
-raster_face_textured()
-{}
-
-static inline void
-raster_face_flat()
-{}
-
 /**
  * A top and bottom cylinder that bounds the model.
  */
@@ -85,7 +69,7 @@ struct BoundingCylinder
     int min_z_depth_any_rotation;
 };
 
-static struct BoundingCylinder
+static inline struct BoundingCylinder
 calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z)
 {
     struct BoundingCylinder bounding_cylinder = { 0 };
@@ -120,108 +104,6 @@ calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int*
             : bounding_cylinder.center_to_bottom_edge;
 
     return bounding_cylinder;
-}
-
-static void
-project_vertices(
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int num_vertices,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    int model_pitch,
-    int model_yaw,
-    int model_roll,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    int camera_pitch,
-    int camera_yaw,
-    int camera_roll,
-    int camera_fov,
-    int screen_width,
-    int screen_height,
-    int near_plane_z)
-{
-    struct ProjectedTriangle projected_triangle;
-
-    assert(camera_pitch >= 0 && camera_pitch < 2048);
-    assert(camera_yaw >= 0 && camera_yaw < 2048);
-    assert(camera_roll >= 0 && camera_roll < 2048);
-
-    projected_triangle = project(
-        0,
-        0,
-        0,
-        model_pitch,
-        model_yaw,
-        model_roll,
-        scene_x,
-        scene_y,
-        scene_z,
-        camera_pitch,
-        camera_yaw,
-        camera_roll,
-        camera_fov,
-        near_plane_z,
-        screen_width,
-        screen_height);
-
-    // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
-    // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
-    // // So the depth is the z projection distance from the origin of the model.
-    // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
-
-    int model_origin_z_projection = projected_triangle.z;
-
-    if( projected_triangle.clipped )
-    {
-        for( int i = 0; i < num_vertices; i++ )
-        {
-            screen_vertices_x[i] = -5000;
-            screen_vertices_y[i] = -5000;
-            screen_vertices_z[i] = -5000;
-        }
-        return;
-    }
-
-    for( int i = 0; i < num_vertices; i++ )
-    {
-        projected_triangle = project(
-            vertex_x[i],
-            vertex_y[i],
-            vertex_z[i],
-            model_pitch,
-            model_yaw,
-            model_roll,
-            scene_x,
-            scene_y,
-            scene_z,
-            camera_pitch,
-            camera_yaw,
-            camera_roll,
-            camera_fov,
-            near_plane_z,
-            screen_width,
-            screen_height);
-
-        // If vertex is too close to camera, set it to a large negative value
-        // This will cause it to be clipped in the rasterization step
-        if( projected_triangle.clipped )
-        {
-            screen_vertices_x[i] = -5000;
-            screen_vertices_y[i] = -5000;
-            screen_vertices_z[i] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[i] = projected_triangle.x;
-            screen_vertices_y[i] = projected_triangle.y;
-            screen_vertices_z[i] = projected_triangle.z - model_origin_z_projection;
-        }
-    }
 }
 
 static int
@@ -513,7 +395,7 @@ bucket_sort_by_average_depth(
     }
 }
 
-static void
+static inline void
 parition_faces_by_priority(
     int* face_priority_buckets,
     int* face_priority_bucket_counts,
@@ -564,7 +446,7 @@ parition_faces_by_priority(
  *
  * Possible insertion points before: 0, 3, 5, or after all other prios.
  */
-static int
+static inline int
 sort_face_draw_order(
     int* face_draw_order,
     int* face_depth_buckets,
@@ -694,105 +576,6 @@ sort_face_draw_order(
     }
 
     return order_index;
-}
-
-void
-raster_osrs(
-    int* pixel_buffer,
-    int* priority_faces,
-    int* priority_face_counts,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    int* colors_a,
-    int* colors_b,
-    int* colors_c,
-    int* face_alphas,
-    int offset_x,
-    int offset_y,
-    int screen_width,
-    int screen_height)
-{
-    for( int prio = 0; prio < 12; prio++ )
-    {
-        int* triangle_indexes = &priority_faces[prio * 2000];
-        int triangle_count = priority_face_counts[prio];
-
-        for( int i = 0; i < triangle_count; i++ )
-        {
-            int index = triangle_indexes[i];
-
-            int x1 = vertex_x[face_indices_a[index]] + offset_x;
-            int y1 = vertex_y[face_indices_a[index]] + offset_y;
-            int z1 = vertex_z[face_indices_a[index]];
-            int x2 = vertex_x[face_indices_b[index]] + offset_x;
-            int y2 = vertex_y[face_indices_b[index]] + offset_y;
-            int z2 = vertex_z[face_indices_b[index]];
-            int x3 = vertex_x[face_indices_c[index]] + offset_x;
-            int y3 = vertex_y[face_indices_c[index]] + offset_y;
-            int z3 = vertex_z[face_indices_c[index]];
-
-            // Skip triangle if any vertex was clipped
-            if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
-                continue;
-
-            int color_a = colors_a[index];
-            int color_b = colors_b[index];
-            int color_c = colors_c[index];
-
-            if( color_a > 65535 )
-            {
-                color_a = 0xF123;
-            }
-            if( color_b > 65535 )
-            {
-                color_b = 0xF123;
-            }
-            if( color_c > 65535 )
-            {
-                color_c = 0xF123;
-            }
-
-            int alpha = face_alphas[index];
-
-            if( alpha == 0xFF )
-            {
-                raster_gouraud_s4(
-                    pixel_buffer,
-                    screen_width,
-                    screen_height,
-                    x1,
-                    x2,
-                    x3,
-                    y1,
-                    y2,
-                    y3,
-                    color_a,
-                    color_b,
-                    color_c);
-            }
-            else
-            {
-                raster_gouraud_blend_s4(
-                    pixel_buffer,
-                    screen_width,
-                    screen_height,
-                    x1,
-                    x2,
-                    x3,
-                    y1,
-                    y2,
-                    y3,
-                    color_a,
-                    color_b,
-                    color_c,
-                    alpha);
-            }
-        }
-    }
 }
 
 enum FaceType
