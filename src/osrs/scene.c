@@ -1529,12 +1529,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
-            scene_model->yaw += 256;
+            // scene_model->yaw += 256;
 
             // TODO: Get this from the wall offset??
             // This needs to be taken from the wall offset.
             // Lumbridge walls are 16 thick.
             // Walls in al kharid are 8 thick.
+            // int offset = 53;
             int offset = 53;
             calculate_wall_decor_offset(
                 scene_model, outside_orientation, offset, true // diagonal
@@ -1556,7 +1557,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
-            scene_model->yaw += 256;
+            scene_model->yaw += 1024;
 
             // TODO: Get this from the wall offset??
             offset = 45;
