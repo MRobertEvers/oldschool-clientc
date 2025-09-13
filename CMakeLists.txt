@@ -570,6 +570,7 @@ if(APPLE)
     set(SOURCES
         src/metal_main.mm
         src/shared_tables.c
+        src/osrs/bounds_cylinder.c
         src/string_utils.c
         src/osrs/frustrum_cullmap.c
         src/osrs/tables/textures.c

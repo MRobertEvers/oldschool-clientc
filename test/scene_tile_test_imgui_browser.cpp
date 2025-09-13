@@ -25,8 +25,9 @@ extern "C" {
 #include <string.h>
 
 #ifdef __EMSCRIPTEN__
-#include <emscripten.h>
 #include <emscripten/html5.h>
+
+#include <emscripten.h>
 // Browser-compatible logging macro
 #define BROWSER_LOG(...) emscripten_log(EM_LOG_CONSOLE, __VA_ARGS__)
 #else
@@ -606,8 +607,8 @@ render_scene_model(
     yaw %= 2048;
 
     x += model->offset_x;
-    y += model->offset_y;
-    z += model->offset_height;
+    y += model->offset_height;
+    z += model->offset_z;
 
     if( model->model == NULL )
         return;
@@ -643,7 +644,6 @@ static int g_ortho_vertices_x[20];
 static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
 
-
 static void
 game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 {
@@ -655,29 +655,33 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     Uint64 frequency = SDL_GetPerformanceFrequency();
 
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
-    
+
     // Debug: Add a test pattern to verify pixel buffer is working
     static int debug_frame_count = 0;
     debug_frame_count++;
-    
+
     // Add a simple test pattern in the top-left corner
-    for (int y = 0; y < 50; y++) {
-        for (int x = 0; x < 50; x++) {
+    for( int y = 0; y < 50; y++ )
+    {
+        for( int x = 0; x < 50; x++ )
+        {
             int color = ((debug_frame_count / 10) % 2) ? 0xFF0000 : 0x00FF00; // Red or Green
             pixel_buffer[y * SCREEN_WIDTH + x] = color;
         }
     }
-    
+
     // Add frame counter text pattern (simple pixel-based)
     int text_x = 60;
     int text_y = 10;
     int frame_color = 0xFFFFFF; // White
     // Draw a simple "F" pattern
-    for (int i = 0; i < 20; i++) {
+    for( int i = 0; i < 20; i++ )
+    {
         pixel_buffer[(text_y + i) * SCREEN_WIDTH + text_x] = frame_color; // Vertical line
     }
-    for (int i = 0; i < 15; i++) {
-        pixel_buffer[text_y * SCREEN_WIDTH + text_x + i] = frame_color; // Top horizontal
+    for( int i = 0; i < 15; i++ )
+    {
+        pixel_buffer[text_y * SCREEN_WIDTH + text_x + i] = frame_color;        // Top horizontal
         pixel_buffer[(text_y + 10) * SCREEN_WIDTH + text_x + i] = frame_color; // Middle horizontal
     }
     int render_ops = game->max_render_ops;
@@ -920,6 +924,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                     iter.value.model_nullable_->model->face_alphas,
                     SCREEN_WIDTH / 2,
                     SCREEN_HEIGHT / 2,
+                    50,
                     SCREEN_WIDTH,
                     SCREEN_HEIGHT,
                     game->textures_cache);
@@ -1064,19 +1069,27 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     if( surface )
     {
         // Debug: Log every 60 frames
-        if (debug_frame_count % 60 == 0) {
-            printf("DEBUG: Frame %d - Pixel buffer updated, texture size: %dx%d\n", 
-                   debug_frame_count, SCREEN_WIDTH, SCREEN_HEIGHT);
-            
+        if( debug_frame_count % 60 == 0 )
+        {
+            printf(
+                "DEBUG: Frame %d - Pixel buffer updated, texture size: %dx%d\n",
+                debug_frame_count,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT);
+
             // Check if pixel buffer has non-zero content
             int non_zero_pixels = 0;
-            for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
-                if (pixel_buffer[i] != 0) {
+            for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
+            {
+                if( pixel_buffer[i] != 0 )
+                {
                     non_zero_pixels++;
                 }
             }
-            printf("DEBUG: Non-zero pixels: %d out of %d total\n", 
-                   non_zero_pixels, SCREEN_WIDTH * SCREEN_HEIGHT);
+            printf(
+                "DEBUG: Non-zero pixels: %d out of %d total\n",
+                non_zero_pixels,
+                SCREEN_WIDTH * SCREEN_HEIGHT);
         }
     }
     else
@@ -1153,8 +1166,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
 // Emscripten compatibility
 #ifdef __EMSCRIPTEN__
-#include <emscripten.h>
 #include <emscripten/html5.h>
+
+#include <emscripten.h>
 
 // Global game state for Emscripten access
 struct Game* g_game = NULL;
@@ -1162,26 +1176,34 @@ struct PlatformSDL2* g_platform = NULL;
 bool g_quit = false;
 
 // Emscripten main loop function
-void emscripten_main_loop()
+void
+emscripten_main_loop()
 {
     static int loop_count = 0;
     loop_count++;
-    
+
     // Debug: Log every 60 loops (about every second at 60fps)
-    if (loop_count % 60 == 0) {
+    if( loop_count % 60 == 0 )
+    {
         printf("DEBUG: Main loop iteration %d\n", loop_count);
     }
-    
-    if (g_quit || !g_game || !g_platform) {
-        if (loop_count % 60 == 0) {
-            printf("DEBUG: Main loop early exit - quit=%d, game=%p, platform=%p\n", 
-                   g_quit, g_game, g_platform);
+
+    if( g_quit || !g_game || !g_platform )
+    {
+        if( loop_count % 60 == 0 )
+        {
+            printf(
+                "DEBUG: Main loop early exit - quit=%d, game=%p, platform=%p\n",
+                g_quit,
+                g_game,
+                g_platform);
         }
         return;
     }
 
     SDL_Event event;
-    while (SDL_PollEvent(&event)) {
+    while( SDL_PollEvent(&event) )
+    {
         ImGui_ImplSDL2_ProcessEvent(&event);
 
         // Check if ImGui wants to capture keyboard/mouse input
@@ -1189,22 +1211,29 @@ void emscripten_main_loop()
         bool imgui_wants_keyboard = io.WantCaptureKeyboard;
         bool imgui_wants_mouse = io.WantCaptureMouse;
 
-        if (event.type == SDL_QUIT) {
+        if( event.type == SDL_QUIT )
+        {
             g_quit = true;
         }
-        else if (event.type == SDL_WINDOWEVENT) {
-            if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+        else if( event.type == SDL_WINDOWEVENT )
+        {
+            if( event.window.event == SDL_WINDOWEVENT_RESIZED )
+            {
                 SDL_GetWindowSize(
                     g_platform->window, &g_platform->window_width, &g_platform->window_height);
                 SDL_GetRendererOutputSize(
-                    g_platform->renderer, &g_platform->drawable_width, &g_platform->drawable_height);
+                    g_platform->renderer,
+                    &g_platform->drawable_width,
+                    &g_platform->drawable_height);
             }
         }
-        else if (event.type == SDL_MOUSEMOTION && !imgui_wants_mouse) {
+        else if( event.type == SDL_MOUSEMOTION && !imgui_wants_mouse )
+        {
             transform_mouse_coordinates(
                 event.motion.x, event.motion.y, &g_game->mouse_x, &g_game->mouse_y, g_platform);
         }
-        else if (event.type == SDL_MOUSEBUTTONDOWN && !imgui_wants_mouse) {
+        else if( event.type == SDL_MOUSEBUTTONDOWN && !imgui_wants_mouse )
+        {
             int transformed_x, transformed_y;
             transform_mouse_coordinates(
                 event.button.x, event.button.y, &transformed_x, &transformed_y, g_platform);
@@ -1212,8 +1241,10 @@ void emscripten_main_loop()
             g_game->mouse_click_y = transformed_y;
             g_game->mouse_click_cycle = 0;
         }
-        else if (event.type == SDL_KEYDOWN && !imgui_wants_keyboard) {
-            switch (event.key.keysym.sym) {
+        else if( event.type == SDL_KEYDOWN && !imgui_wants_keyboard )
+        {
+            switch( event.key.keysym.sym )
+            {
             case SDLK_ESCAPE:
                 g_quit = true;
                 break;
@@ -1273,52 +1304,70 @@ void emscripten_main_loop()
 
 // Exported functions for JavaScript
 extern "C" {
-    EMSCRIPTEN_KEEPALIVE
-    void set_camera_position(int x, int y, int z) {
-        if (g_game) {
-            g_game->camera_x = x;
-            g_game->camera_y = y;
-            g_game->camera_z = z;
-        }
+EMSCRIPTEN_KEEPALIVE
+void
+set_camera_position(int x, int y, int z)
+{
+    if( g_game )
+    {
+        g_game->camera_x = x;
+        g_game->camera_y = y;
+        g_game->camera_z = z;
     }
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    void set_camera_rotation(int pitch, int yaw, int roll) {
-        if (g_game) {
-            g_game->camera_pitch = pitch;
-            g_game->camera_yaw = yaw;
-            g_game->camera_roll = roll;
-        }
+EMSCRIPTEN_KEEPALIVE
+void
+set_camera_rotation(int pitch, int yaw, int roll)
+{
+    if( g_game )
+    {
+        g_game->camera_pitch = pitch;
+        g_game->camera_yaw = yaw;
+        g_game->camera_roll = roll;
     }
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    void set_camera_fov(int fov) {
-        if (g_game) {
-            g_game->camera_fov = fov;
-        }
+EMSCRIPTEN_KEEPALIVE
+void
+set_camera_fov(int fov)
+{
+    if( g_game )
+    {
+        g_game->camera_fov = fov;
     }
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    int* get_pixel_buffer() {
-        return g_platform ? g_platform->pixel_buffer : nullptr;
-    }
+EMSCRIPTEN_KEEPALIVE
+int*
+get_pixel_buffer()
+{
+    return g_platform ? g_platform->pixel_buffer : nullptr;
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    int get_screen_width() {
-        return SCREEN_WIDTH;
-    }
+EMSCRIPTEN_KEEPALIVE
+int
+get_screen_width()
+{
+    return SCREEN_WIDTH;
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    int get_screen_height() {
-        return SCREEN_HEIGHT;
-    }
+EMSCRIPTEN_KEEPALIVE
+int
+get_screen_height()
+{
+    return SCREEN_HEIGHT;
+}
 
-    EMSCRIPTEN_KEEPALIVE
-    void render_frame() {
-        if (g_game && g_platform) {
-            game_render_sdl2(g_game, g_platform);
-        }
+EMSCRIPTEN_KEEPALIVE
+void
+render_frame()
+{
+    if( g_game && g_platform )
+    {
+        game_render_sdl2(g_game, g_platform);
     }
+}
 }
 #endif
 
@@ -1328,12 +1377,13 @@ main(int argc, char* argv[])
     printf("=== SDL_main called ===\n");
     printf("Starting ImGui Scene Tile Test with Emscripten compatibility...\n");
     printf("Arguments: argc=%d\n", argc);
-    for (int i = 0; i < argc; i++) {
+    for( int i = 0; i < argc; i++ )
+    {
         printf("  argv[%d] = %s\n", i, argv[i]);
     }
 
     printf("=== SDL_main called ===\n");
-    
+
 #ifdef __EMSCRIPTEN__
     printf("Running in Emscripten environment\n");
     // Emscripten-specific initialization
@@ -2016,8 +2066,11 @@ main(int argc, char* argv[])
     g_quit = false;
 
     printf("DEBUG: Initialization complete - game=%p, platform=%p\n", g_game, g_platform);
-    printf("DEBUG: Platform pixel_buffer=%p, renderer=%p, texture=%p\n", 
-           platform.pixel_buffer, platform.renderer, platform.texture);
+    printf(
+        "DEBUG: Platform pixel_buffer=%p, renderer=%p, texture=%p\n",
+        platform.pixel_buffer,
+        platform.renderer,
+        platform.texture);
     printf("DEBUG: Screen dimensions: %dx%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // Use Emscripten's main loop

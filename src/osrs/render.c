@@ -1,6 +1,7 @@
 #include "osrs/render.h"
 
 #include "anim.h"
+#include "bounds_cylinder.h"
 #include "flat.h"
 #include "frustrum_cullmap.h"
 #include "gouraud.h"
@@ -53,58 +54,6 @@ static int tmp_face_colors_b_hsl16[4096] = { 0 };
 static int tmp_face_colors_c_hsl16[4096] = { 0 };
 
 static int tmp_vertex_normals[4096] = { 0 };
-
-/**
- * A top and bottom cylinder that bounds the model.
- */
-struct BoundingCylinder
-{
-    int center_to_top_edge;
-    int center_to_bottom_edge;
-    int radius;
-
-    // TODO: Name?
-    // - Max extent from model origin.
-    // - Distance to farthest vertex?
-    int min_z_depth_any_rotation;
-};
-
-static inline struct BoundingCylinder
-calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z)
-{
-    struct BoundingCylinder bounding_cylinder = { 0 };
-
-    int min_y = INT_MAX;
-    int max_y = INT_MIN;
-    int radius_squared = 0;
-
-    for( int i = 0; i < num_vertices; i++ )
-    {
-        int x = vertex_x[i];
-        int y = vertex_y[i];
-        int z = vertex_z[i];
-        if( y < min_y )
-            min_y = y;
-        if( y > max_y )
-            max_y = y;
-        int radius_squared_vertex = x * x + z * z;
-        if( radius_squared_vertex > radius_squared )
-            radius_squared = radius_squared_vertex;
-    }
-
-    // Reminder, +y is down on the screen.
-    bounding_cylinder.center_to_bottom_edge = (int)sqrt(radius_squared + min_y * min_y) + 1;
-    bounding_cylinder.center_to_top_edge = (int)sqrt(radius_squared + max_y * max_y) + 1;
-
-    // Use max of the two here because OSRS assumes the camera is always above the model,
-    // which may not be the case for us.
-    bounding_cylinder.min_z_depth_any_rotation =
-        bounding_cylinder.center_to_top_edge > bounding_cylinder.center_to_bottom_edge
-            ? bounding_cylinder.center_to_top_edge
-            : bounding_cylinder.center_to_bottom_edge;
-
-    return bounding_cylinder;
-}
 
 static int
 project_vertices_textured(
@@ -3210,7 +3159,6 @@ iter_render_model_init(
 {
     memset(iter, 0, sizeof(struct IterRenderModel));
     iter->model = scene_model;
-    struct BoundingCylinder bounding_cylinder;
 
     iter->screen_vertices_x = tmp_screen_vertices_x;
     iter->screen_vertices_y = tmp_screen_vertices_y;
@@ -3281,10 +3229,15 @@ iter_render_model_init(
     if( !success )
         return;
 
-    bounding_cylinder = calculate_bounding_cylinder(
-        model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
+    if( !scene_model->bounds_cylinder )
+    {
+        scene_model->bounds_cylinder =
+            (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
+        *scene_model->bounds_cylinder = calculate_bounds_cylinder(
+            model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
+    }
 
-    int model_min_depth = bounding_cylinder.min_z_depth_any_rotation;
+    int model_min_depth = scene_model->bounds_cylinder->min_z_depth_any_rotation;
 
     memset(tmp_depth_face_count, 0, (model_min_depth * 2 + 1) * sizeof(tmp_depth_face_count[0]));
 

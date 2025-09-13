@@ -17,7 +17,10 @@ extern "C" {
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/textures.h"
 #include "osrs/xtea_config.h"
+#include "screen.h"
 }
+
+#include "shared_tables.h"
 
 #include <assert.h>
 #include <math.h>
@@ -25,8 +28,6 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "shared_tables.h"
 
 // Vertex structure for our 3D objects
 typedef struct
@@ -124,8 +125,8 @@ typedef struct
 {
     // Move forward in the direction the camera is facing
     // In Metal coordinates: X,Y are ground plane, Z is up
-    float forwardX = -sinf(_yawAngle) * amount;
-    float forwardY = -cosf(_yawAngle) * amount;
+    float forwardX = sinf(-_yawAngle) * amount;
+    float forwardY = cosf(-_yawAngle) * amount;
 
     _cameraWorldX += forwardX;
     _cameraWorldZ += forwardY;
@@ -154,8 +155,8 @@ typedef struct
 {
     // Move left (perpendicular to forward direction)
     // In Metal coordinates: X,Y are ground plane, Z is up
-    float leftX = -cosf(_yawAngle) * amount;
-    float leftY = sinf(_yawAngle) * amount;
+    float leftX = cosf(-_yawAngle) * amount;
+    float leftY = sinf(-_yawAngle) * amount;
 
     _cameraWorldX += leftX;
     _cameraWorldZ += leftY;
@@ -179,8 +180,8 @@ typedef struct
     };
 
     // Create yaw rotation matrix (around Y axis in Metal coordinates)
-    float cosYaw = cosf(_yawAngle);
-    float sinYaw = sinf(_yawAngle);
+    float cosYaw = cosf(-_yawAngle);
+    float sinYaw = sinf(-_yawAngle);
     simd_float4x4 yawMatrix = {
         .columns[0] = { cosYaw,  0, sinYaw, 0 },
         .columns[1] = { 0,       1, 0,      0 },
@@ -189,8 +190,8 @@ typedef struct
     };
 
     // Create pitch rotation matrix (around X axis)
-    float cosPitch = cosf(_pitchAngle);
-    float sinPitch = sinf(_pitchAngle);
+    float cosPitch = cosf(-_pitchAngle);
+    float sinPitch = sinf(-_pitchAngle);
     simd_float4x4 pitchMatrix = {
         .columns[0] = { 1, 0,        0,         0 },
         .columns[1] = { 0, cosPitch, -sinPitch, 0 },
@@ -198,18 +199,27 @@ typedef struct
         .columns[3] = { 0, 0,        0,         1 }
     };
 
-    simd_float4x4 viewMatrix = {
+    // Create translation matrix
+    simd_float4x4 translationMatrix = {
         .columns[0] = { 1,              0,              0,              0 },
         .columns[1] = { 0,              1,              0,              0 },
         .columns[2] = { 0,              0,              1,              0 },
         .columns[3] = { -_cameraWorldX, -_cameraHeight, -_cameraWorldZ, 1 }
     };
 
+    // // Log matrix state for debugging
+    // if (frameCount % 60 == 0) {
+    //     NSLog(@"View matrix translation: (%.2f, %.2f, %.2f)",
+    //           -_cameraWorldX, -_cameraHeight, -_cameraWorldZ);
+    // }
+
+    simd_float4x4 viewMatrix = translationMatrix;
+
     simd_float4x4 zoomMatrix = {
-        .columns[0] = { 1, 0, 0, 0          },
-        .columns[1] = { 0, 1, 0, 0          },
-        .columns[2] = { 0, 0, 1, _zoomLevel },
-        .columns[3] = { 0, 0, 0, 1          }
+        .columns[0] = { 1, 0, 0, 0 },
+        .columns[1] = { 0, 1, 0, 0 },
+        .columns[2] = { 0, 0, 1, 0 },
+        .columns[3] = { 0, 0, 0, 1 }
     };
 
     simd_float4x4 combinedMatrix = simd_mul(
@@ -217,8 +227,12 @@ typedef struct
         simd_mul(pitchMatrix, simd_mul(yawMatrix, simd_mul(viewMatrix, coordinateTransform))));
 
     _uniforms.modelViewMatrix = combinedMatrix;
-    _uniforms.projectionMatrix =
-        matrix4x4_perspective(90.0f * (M_PI / 180.0f), 1.0f, 0.001f, 100.0f);
+    float fov = 90.0f * (M_PI / 180.0f);         // 60 degree FOV
+    float aspect = SCREEN_WIDTH / SCREEN_HEIGHT; // Standard aspect ratio
+    float nearPlane = 1.0f;
+    float farPlane = 10000.0f;
+
+    _uniforms.projectionMatrix = matrix4x4_perspective(fov, aspect, nearPlane, farPlane);
 
     memcpy(_uniformBuffer.contents, &_uniforms, sizeof(Uniforms));
 }
@@ -262,6 +276,19 @@ typedef struct
         return NO;
     }
 
+    NSLog(@"Scene created successfully with %d models", _scene->models_length);
+
+    // Log some scene details
+    int validModels = 0;
+    for( int i = 0; i < _scene->models_length; i++ )
+    {
+        if( _scene->models[i].model != NULL )
+        {
+            validModels++;
+        }
+    }
+    NSLog(@"Found %d valid models out of %d total models", validModels, _scene->models_length);
+
     _cache = cache;
 
     return YES;
@@ -288,22 +315,33 @@ typedef struct
     if( self )
     {
         // Initialize the color palette
-                init_hsl16_to_rgb_table();
+        init_hsl16_to_rgb_table();
 
         _device = MTLCreateSystemDefaultDevice();
+        if( !_device )
+        {
+            NSLog(@"Metal is not supported on this device");
+            return nil;
+        }
+
         metalView.device = _device;
         metalView.delegate = self;
         metalView.clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
 
-        // Set initial zoom level, yaw, pitch, and camera height
-        _zoomLevel = 8.0f; // Zoom out more to see the full scene
-        _yawAngle = 0.0f;
-        _pitchAngle = -0.3f;  // Look down slightly to see the ground
-        _cameraHeight = 1.0f; // Raise camera higher in Z direction (Metal coordinates) to see more
-                              // of the scene
+        NSLog(@"Metal device: %@", _device.name);
 
-        _cameraWorldX = 0.0f;
-        _cameraWorldZ = 0.0f;
+        // Set initial camera parameters
+        _zoomLevel = 1.0f;       // Start with no zoom
+        _yawAngle = 0.0f;        // Looking straight ahead
+        _pitchAngle = -0.1f;     // Look down at 30 degrees
+        _cameraWorldX = 0.0f;    // Centered in X
+        _cameraHeight = -660.0f; // Position camera above the scene
+        _cameraWorldZ = 0.0f;    // Start at Z=0
+
+        NSLog(@"Initial camera settings:");
+        NSLog(@"  Position: (%.2f, %.2f, %.2f)", _cameraWorldX, _cameraHeight, _cameraWorldZ);
+        NSLog(@"  Orientation: Yaw=%.2f, Pitch=%.2f", _yawAngle, _pitchAngle);
+        NSLog(@"  Zoom: %.2f", _zoomLevel);
 
         // Initialize key states
         _wKeyPressed = NO;
@@ -358,8 +396,11 @@ typedef struct
         if( !library )
         {
             NSLog(@"Failed to load shader library: %@", error);
+            NSLog(@"Shader path attempted: %@", shaderPath);
+            NSLog(@"Shader data size: %lu bytes", (unsigned long)[shaderData length]);
             return nil;
         }
+        NSLog(@"Successfully loaded shader library");
 
         id<MTLFunction> vertexFunction = [library newFunctionWithName:@"vertexShader"];
         id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"fragmentShader"];
@@ -409,13 +450,31 @@ typedef struct
         colorAttachment.pixelFormat = metalView.colorPixelFormat;
         pipelineDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat;
 
+        // Verify shader functions were created successfully
+        if( !vertexFunction || !fragmentFunction )
+        {
+            NSLog(
+                @"Failed to create shader functions - vertex: %@, fragment: %@",
+                vertexFunction ? @"OK" : @"Failed",
+                fragmentFunction ? @"OK" : @"Failed");
+            return nil;
+        }
+
         _pipelineState = [_device newRenderPipelineStateWithDescriptor:pipelineDescriptor
                                                                  error:&error];
         if( !_pipelineState )
         {
             NSLog(@"Failed to create pipeline state: %@", error);
+            NSLog(@"Pipeline descriptor configuration:");
+            NSLog(@"  Vertex function: %@", pipelineDescriptor.vertexFunction.name);
+            NSLog(@"  Fragment function: %@", pipelineDescriptor.fragmentFunction.name);
+            NSLog(
+                @"  Pixel format: %lu",
+                (unsigned long)pipelineDescriptor.colorAttachments[0].pixelFormat);
+            NSLog(@"  Vertex descriptor: %@", pipelineDescriptor.vertexDescriptor);
             return nil;
         }
+        NSLog(@"Successfully created pipeline state");
 
         // Store depth stencil state
         _depthStencilState = depthStencilState;
@@ -465,11 +524,48 @@ typedef struct
 
 - (void)drawInMTKView:(MTKView*)view
 {
+    static int frameCount = 0;
+    frameCount++;
+
     // Update camera position based on current key states
     [self updateCameraPosition];
 
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
+    if( !commandBuffer )
+    {
+        NSLog(@"Failed to create command buffer");
+        return;
+    }
+
     MTLRenderPassDescriptor* renderPassDescriptor = view.currentRenderPassDescriptor;
+    if( !renderPassDescriptor )
+    {
+        NSLog(@"Failed to get render pass descriptor");
+        return;
+    }
+
+    // Log debug info every 60 frames
+    if( frameCount % 60 == 0 )
+    {
+        NSLog(
+            @"Frame %d - Camera pos: (%.2f, %.2f, %.2f), Yaw: %.2f, Pitch: %.2f, Zoom: %.2f",
+            frameCount,
+            _cameraWorldX,
+            _cameraHeight,
+            _cameraWorldZ,
+            _yawAngle,
+            _pitchAngle,
+            _zoomLevel);
+
+        if( _scene )
+        {
+            NSLog(@"Scene loaded - Models: %d", _scene->models_length);
+        }
+        else
+        {
+            NSLog(@"No scene loaded");
+        }
+    }
 
     if( renderPassDescriptor )
     {
@@ -477,8 +573,8 @@ typedef struct
             [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
         [renderEncoder setRenderPipelineState:_pipelineState];
         [renderEncoder setDepthStencilState:_depthStencilState];
-        [renderEncoder setCullMode:MTLCullModeFront];
-        [renderEncoder setFrontFacingWinding:MTLWindingClockwise];
+        [renderEncoder setCullMode:MTLCullModeBack];
+        [renderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
 
         // Draw axis lines
         [renderEncoder setVertexBuffer:_axisLinesBuffer offset:0 atIndex:0];
@@ -497,6 +593,13 @@ typedef struct
         if( _scene && _scene->models_length > 0 )
         {
             int renderedModels = 0;
+            int totalValidFaces = 0;
+
+            // Log model count every 60 frames
+            if( frameCount % 60 == 0 )
+            {
+                NSLog(@"Processing %d models", _scene->models_length);
+            }
             for( int modelIndex = 0; modelIndex < _scene->models_length; modelIndex++ )
             {
                 struct SceneModel* sceneModel = &_scene->models[modelIndex];
@@ -509,19 +612,37 @@ typedef struct
 
                 // Create vertex buffer for this model
                 struct CacheModel* cacheModel = sceneModel->model;
-                int vertexCount = cacheModel->face_count * 3;
+
+                // First count valid faces
+                int validFaceCount = 0;
+                for( int i = 0; i < cacheModel->face_count; i++ )
+                {
+                    if( sceneModel->lighting->face_colors_hsl_c[i] != -2 )
+                    {
+                        validFaceCount++;
+                    }
+                }
+
+                if( validFaceCount == 0 )
+                {
+                    continue; // Skip models with no valid faces
+                }
+
+                int vertexCount = validFaceCount * 3;
                 Vertex* vertices = (Vertex*)malloc(vertexCount * sizeof(Vertex));
 
                 // Convert model data to Metal vertices
+                int currentVertex = 0; // Track where we are in the vertices array
                 for( int i = 0; i < cacheModel->face_count; i++ )
                 {
+                    // Skip invalid faces
+                    if( sceneModel->lighting->face_colors_hsl_c[i] == -2 )
+                        continue;
+
                     // Get vertex indices for this face
                     int idx_a = cacheModel->face_indices_a[i];
                     int idx_b = cacheModel->face_indices_b[i];
                     int idx_c = cacheModel->face_indices_c[i];
-
-                    if (sceneModel->lighting->face_colors_hsl_c[i] == -2)
-                    continue;
 
                     // Bounds checking for vertex indices
                     if( idx_a < 0 || idx_a >= cacheModel->vertex_count || idx_b < 0 ||
@@ -536,30 +657,27 @@ typedef struct
                     // OSRS: X and Z are ground plane, Y is up
                     // The coordinate transformation matrix will handle the conversion to Metal
                     // coordinates
-                    float x_a = (cacheModel->vertices_x[idx_a] + sceneModel->region_x) / 1000.0f;
+                    float x_a = (cacheModel->vertices_x[idx_a] + sceneModel->region_x);
                     float y_a =
-                        (cacheModel->vertices_z[idx_a] + sceneModel->region_z) / 1000.0f; // OSRS Z
-                    float z_a = (cacheModel->vertices_y[idx_a] + sceneModel->region_height) /
-                                1000.0f; // OSRS Y
+                        (cacheModel->vertices_y[idx_a] + sceneModel->region_height); // OSRS Z
+                    float z_a = (cacheModel->vertices_z[idx_a] + sceneModel->region_z);
 
-                    float x_b = (cacheModel->vertices_x[idx_b] + sceneModel->region_x) / 1000.0f;
+                    float x_b = (cacheModel->vertices_x[idx_b] + sceneModel->region_x);
                     float y_b =
-                        (cacheModel->vertices_z[idx_b] + sceneModel->region_z) / 1000.0f; // OSRS Z
-                    float z_b = (cacheModel->vertices_y[idx_b] + sceneModel->region_height) /
-                                1000.0f; // OSRS Y
+                        (cacheModel->vertices_y[idx_b] + sceneModel->region_height); // OSRS Z
+                    float z_b = (cacheModel->vertices_z[idx_b] + sceneModel->region_z);
 
-                    float x_c = (cacheModel->vertices_x[idx_c] + sceneModel->region_x) / 1000.0f;
+                    float x_c = (cacheModel->vertices_x[idx_c] + sceneModel->region_x);
                     float y_c =
-                        (cacheModel->vertices_z[idx_c] + sceneModel->region_z) / 1000.0f; // OSRS Z
-                    float z_c = (cacheModel->vertices_y[idx_c] + sceneModel->region_height) /
-                                1000.0f; // OSRS Y
+                        (cacheModel->vertices_y[idx_c] + sceneModel->region_height); // OSRS Z
+                    float z_c = (cacheModel->vertices_z[idx_c] + sceneModel->region_z);
 
                     // simd_float3 pos_a = simd_make_float3(x_a, y_a, z_a);
                     // simd_float3 pos_b = simd_make_float3(x_b, y_b, z_b);
                     // simd_float3 pos_c = simd_make_float3(x_c, y_c, z_c);
-                    simd_float3 pos_a = simd_make_float3(x_a, -z_a, y_a);
-                    simd_float3 pos_b = simd_make_float3(x_b, -z_b, y_b);
-                    simd_float3 pos_c = simd_make_float3(x_c, -z_c, y_c);
+                    simd_float3 pos_a = simd_make_float3(x_a, y_a, z_a);
+                    simd_float3 pos_b = simd_make_float3(x_b, y_b, z_b);
+                    simd_float3 pos_c = simd_make_float3(x_c, y_c, z_c);
 
                     // Use lighting colors if available, otherwise fall back to original colors
                     int faceColor;
@@ -585,17 +703,19 @@ typedef struct
                             1.0f);
 
                         // Set vertices for this triangle
-                        vertices[i * 3] = (Vertex){ pos_a, color_vec };
-                        vertices[i * 3 + 1] = (Vertex){ pos_b, color_vec };
-                        vertices[i * 3 + 2] = (Vertex){ pos_c, color_vec };
+                        vertices[currentVertex] = (Vertex){ pos_a, color_vec };
+                        vertices[currentVertex + 1] = (Vertex){ pos_b, color_vec };
+                        vertices[currentVertex + 2] = (Vertex){ pos_c, color_vec };
+                        currentVertex += 3;
                     }
                     else
                     {
                         // Use a default color if the face color is invalid
                         simd_float4 color_vec = simd_make_float4(0.5f, 0.5f, 0.5f, 1.0f);
-                        vertices[i * 3] = (Vertex){ pos_a, color_vec };
-                        vertices[i * 3 + 1] = (Vertex){ pos_b, color_vec };
-                        vertices[i * 3 + 2] = (Vertex){ pos_c, color_vec };
+                        vertices[currentVertex] = (Vertex){ pos_a, color_vec };
+                        vertices[currentVertex + 1] = (Vertex){ pos_b, color_vec };
+                        vertices[currentVertex + 2] = (Vertex){ pos_c, color_vec };
+                        currentVertex += 3;
                     }
                 }
 
@@ -605,6 +725,16 @@ typedef struct
                                          length:vertexCount * sizeof(Vertex)
                                         options:MTLResourceStorageModeShared];
 
+                if( !modelVertexBuffer )
+                {
+                    NSLog(
+                        @"Failed to create vertex buffer for model %d - Vertex count: %d",
+                        modelIndex,
+                        vertexCount);
+                    free(vertices);
+                    continue;
+                }
+
                 // Set vertex buffer and draw
                 [renderEncoder setVertexBuffer:modelVertexBuffer offset:0 atIndex:0];
                 [renderEncoder setVertexBuffer:_uniformBuffer offset:0 atIndex:1];
@@ -613,8 +743,19 @@ typedef struct
                                   vertexStart:0
                                   vertexCount:vertexCount];
 
+                totalValidFaces += validFaceCount;
+
                 // Clean up
                 free(vertices);
+            }
+
+            // Log rendering stats every 60 frames
+            if( frameCount % 60 == 0 )
+            {
+                NSLog(
+                    @"Rendered %d models with %d total valid faces",
+                    renderedModels,
+                    totalValidFaces);
             }
         }
 
@@ -630,7 +771,7 @@ typedef struct
     // Handle window resize
     float aspect = size.width / size.height;
     _uniforms.projectionMatrix =
-        matrix4x4_perspective(65.0f * (M_PI / 180.0f), aspect, 0.1f, 100.0f);
+        matrix4x4_perspective(90.0f * (M_PI / 180.0f), aspect, 0.1f, 10000.0f);
     memcpy(_uniformBuffer.contents, &_uniforms, sizeof(Uniforms));
 }
 
@@ -651,15 +792,22 @@ static simd_float4x4
 matrix4x4_perspective(float fovy, float aspect, float near, float far)
 {
     float y = 1.0f / tanf(fovy * 0.5f);
-    float x = y / aspect;
-    float z = far / (far - near);
+    float x = y; // Correct for aspect ratio
 
+    // Standard perspective projection matrix
     simd_float4x4 m = {
-        .columns[0] = { x, 0, 0,         0 },
-        .columns[1] = { 0, y, 0,         0 },
-        .columns[2] = { 0, 0, z,         1 },
-        .columns[3] = { 0, 0, -z * near, 0 }
+        .columns[0] = { x * 512.0f / (SCREEN_WIDTH / 2.0f), 0,                                    0,  0 },
+        .columns[1] = { 0,                                  -y * 512.0f / (SCREEN_HEIGHT / 2.0f), 0,  0 },
+        .columns[2] = { 0,                                  0,                                    1,  1 },
+        .columns[3] = { 0,                                  0,                                    -1, 0 }
     };
+
+    NSLog(
+        @"Creating perspective matrix with FOV: %.2f, aspect: %.2f, near: %.2f, far: %.2f",
+        fovy,
+        aspect,
+        near,
+        far);
     return m;
 }
 
@@ -677,7 +825,7 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
 
 - (void)updateCameraPosition
 {
-    float moveSpeed = 1.0f;
+    float moveSpeed = 50.0f;
     float rotateSpeed = 0.005f; // Speed of rotation
 
     //    if( w_pressed )
@@ -703,34 +851,34 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
 
     if( _wKeyPressed )
     {
-        _cameraWorldX += (sin(_yawAngle) * moveSpeed);
-        _cameraWorldZ += (cos(_yawAngle) * moveSpeed);
+        _cameraWorldX += (sin(-_yawAngle) * moveSpeed);
+        _cameraWorldZ += (cos(-_yawAngle) * moveSpeed);
     }
     if( _sKeyPressed )
     {
-        _cameraWorldX -= (sin(_yawAngle) * moveSpeed);
-        _cameraWorldZ -= (cos(_yawAngle) * moveSpeed);
+        _cameraWorldX -= (sin(-_yawAngle) * moveSpeed);
+        _cameraWorldZ -= (cos(-_yawAngle) * moveSpeed);
     }
     if( _aKeyPressed )
     {
-        _cameraWorldX -= (cos(_yawAngle) * moveSpeed);
-        _cameraWorldZ += (sin(_yawAngle) * moveSpeed);
+        _cameraWorldX -= (cos(-_yawAngle) * moveSpeed);
+        _cameraWorldZ += (sin(-_yawAngle) * moveSpeed);
     }
     if( _dKeyPressed )
     {
-        _cameraWorldX += (cos(_yawAngle) * moveSpeed);
-        _cameraWorldZ -= (sin(_yawAngle) * moveSpeed);
+        _cameraWorldX += (cos(-_yawAngle) * moveSpeed);
+        _cameraWorldZ -= (sin(-_yawAngle) * moveSpeed);
     }
 
     // Update camera height based on arrow keys
     // In Metal coordinates: Z is up, so up arrow increases Z
     if( _rKeyPressed )
     {
-        _cameraHeight += moveSpeed;
+        _cameraHeight -= moveSpeed;
     }
     if( _fKeyPressed )
     {
-        _cameraHeight -= moveSpeed;
+        _cameraHeight += moveSpeed;
     }
 
     [self updateUniforms];
@@ -819,7 +967,7 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     // Convert the translation to rotation angles
     // Scale the movement to control rotation speed
     float rotationSpeed = 0.01f;
-    float deltaX = translation.x * rotationSpeed;
+    float deltaX = -translation.x * rotationSpeed;
     float deltaY = -translation.y * rotationSpeed;
 
     // Update the model's rotation
@@ -943,7 +1091,7 @@ main(int argc, const char* argv[])
 
         // Create the window
         CustomWindow* window = [[CustomWindow alloc]
-            initWithContentRect:NSMakeRect(0, 0, 800, 600)
+            initWithContentRect:NSMakeRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
                       styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                                 NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
                         backing:NSBackingStoreBuffered

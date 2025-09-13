@@ -1119,7 +1119,7 @@ Then copy the output to public/build
 
 `python3 -m http.server -b 0.0.0.0 -d public/build 8000 `
 
-`http://localhost:8000`
+`http://localhost:8000/main.html`
 
 # World and model coords
 
