@@ -938,8 +938,13 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
 
 @interface MetalView : MTKView
 {
+    BOOL _isRotating;
+    NSPoint _lastMousePoint;
+    NSMagnificationGestureRecognizer* _magnificationGestureRecognizer;
     NSPanGestureRecognizer* _panGestureRecognizer;
 }
+
+- (void)handleRotation:(float)deltaX pitch:(float)deltaY;
 @end
 
 @implementation MetalView
@@ -949,32 +954,93 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     self = [super initWithFrame:frame];
     if( self )
     {
-        // Create and configure the pan gesture recognizer
+        _isRotating = NO;
+
+        // Enable mouse and touch event tracking
+        [self setAcceptsTouchEvents:YES];
+        [self setWantsRestingTouches:YES];
+
+        // Set up pan gesture recognizer for touchpad input
         _panGestureRecognizer =
             [[NSPanGestureRecognizer alloc] initWithTarget:self
                                                     action:@selector(handlePanGesture:)];
-        _panGestureRecognizer.numberOfTouchesRequired = 2; // Require two fingers
+        _panGestureRecognizer.numberOfTouchesRequired = 2;
+        _panGestureRecognizer.delaysPrimaryMouseButtonEvents = NO;
+        _panGestureRecognizer.delaysKeyEvents = NO;
         [self addGestureRecognizer:_panGestureRecognizer];
+
+        // Set up magnification gesture recognizer for touchpad zoom
+        _magnificationGestureRecognizer = [[NSMagnificationGestureRecognizer alloc]
+            initWithTarget:self
+                    action:@selector(handleMagnification:)];
+        _magnificationGestureRecognizer.delaysPrimaryMouseButtonEvents = NO;
+        _magnificationGestureRecognizer.delaysKeyEvents = NO;
+        [self addGestureRecognizer:_magnificationGestureRecognizer];
     }
     return self;
 }
 
-- (void)handlePanGesture:(NSPanGestureRecognizer*)gesture
+- (void)handleRotation:(float)deltaX pitch:(float)deltaY
 {
     MetalRenderer* renderer = (MetalRenderer*)self.delegate;
-    NSPoint translation = [gesture translationInView:self];
+    [renderer handleRotation:deltaX pitch:deltaY];
+    // [[self window] makeFirstResponder:self];
+}
 
-    // Convert the translation to rotation angles
-    // Scale the movement to control rotation speed
+- (void)handlePanGesture:(NSPanGestureRecognizer*)gesture
+{
+    // if( gesture.state == NSGestureRecognizerStateBegan )
+    // {
+    //     [[self window] makeFirstResponder:self];
+    // }
+
+    NSPoint translation = [gesture translationInView:self];
     float rotationSpeed = 0.01f;
     float deltaX = -translation.x * rotationSpeed;
     float deltaY = -translation.y * rotationSpeed;
 
-    // Update the model's rotation
-    [renderer handleRotation:deltaX pitch:deltaY];
-
-    // Reset the translation to prevent accumulation
+    [self handleRotation:deltaX pitch:deltaY];
     [gesture setTranslation:NSZeroPoint inView:self];
+}
+
+- (void)handleMagnification:(NSMagnificationGestureRecognizer*)gesture
+{
+    // if( gesture.state == NSGestureRecognizerStateBegan )
+    // {
+    //     [[self window] makeFirstResponder:self];
+    // }
+
+    MetalRenderer* renderer = (MetalRenderer*)self.delegate;
+    [renderer handleZoom:-gesture.magnification * 10.0];
+}
+
+- (void)rightMouseDown:(NSEvent*)event
+{
+    _isRotating = YES;
+    _lastMousePoint = [self convertPoint:event.locationInWindow fromView:nil];
+    // [[self window] makeFirstResponder:self];
+}
+
+- (void)rightMouseUp:(NSEvent*)event
+{
+    _isRotating = NO;
+}
+
+- (void)rightMouseDragged:(NSEvent*)event
+{
+    if( _isRotating )
+    {
+        NSPoint currentPoint = [self convertPoint:event.locationInWindow fromView:nil];
+        float deltaX = currentPoint.x - _lastMousePoint.x;
+        float deltaY = currentPoint.y - _lastMousePoint.y;
+
+        float rotationSpeed = 0.01f;
+        deltaX *= -rotationSpeed;
+        deltaY *= -rotationSpeed;
+
+        [self handleRotation:deltaX pitch:deltaY];
+        _lastMousePoint = currentPoint;
+    }
 }
 
 - (void)keyDown:(NSEvent*)event
@@ -1030,6 +1096,7 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     MetalRenderer* renderer = (MetalRenderer*)self.delegate;
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     [renderer handleMouseClick:point inView:self];
+    // [[self window] makeFirstResponder:self];
 }
 
 - (void)scrollWheel:(NSEvent*)event
