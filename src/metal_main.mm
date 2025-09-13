@@ -795,11 +795,25 @@ matrix4x4_perspective(float fovy, float aspect, float near, float far)
     float x = y; // Correct for aspect ratio
 
     // Standard perspective projection matrix
+
+    //     Both APIs start with clip-space coordinates (x, y, z, w) from the vertex shader and then
+    //     divide by w to get NDC (x/w, y/w, z/w).
+    // The difference is just in how the depth range is interpreted.
+
+    // In OpenGL, z = -w is the near plane, z = +w is the far plane.
+
+    // In Metal, z = 0 corresponds to the near plane, z = w to the far plane.
     simd_float4x4 m = {
-        .columns[0] = { x * 512.0f / (SCREEN_WIDTH / 2.0f), 0,                                    0,  0 },
-        .columns[1] = { 0,                                  -y * 512.0f / (SCREEN_HEIGHT / 2.0f), 0,  0 },
-        .columns[2] = { 0,                                  0,                                    1,  1 },
-        .columns[3] = { 0,                                  0,                                    -1, 0 }
+        .columns[0] = { x * 512.0f / (SCREEN_WIDTH / 2.0f), 0,                                    0,   0 },
+        .columns[1] = { 0,                                  -y * 512.0f / (SCREEN_HEIGHT / 2.0f), 0,   0 },
+        // The sum of z * the 3rd column is the z device coordinate. which must be between [0, 1]
+        // (1 * z +  (-1))/z => [0, 1], with
+        // z is how the zbuffer draws, the relationship to he z increase, ndz.z increase (-1/z)
+        // becomes less negative. So it doesn't really matter what is in the 4th row of the 3rd
+        // column. Also, 1 - (val / z) => [0, 1], with z increasing. Here, if z < 50, then the near
+        // plane clips. There is no far plane.
+        .columns[2] = { 0,                                  0,                                    1,   1 },
+        .columns[3] = { 0,                                  0,                                    -50, 0 }
     };
 
     NSLog(
