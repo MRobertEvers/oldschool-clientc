@@ -11,7 +11,6 @@
 #include "osrs/tables/maps.h"
 #include "osrs/tables/model.h"
 #include "osrs/tables/sprites.h"
-#include "projection.h"
 #include "shared_tables.h"
 
 #include <assert.h>
@@ -27,6 +26,7 @@
 #include "render_gouraud.u.c"
 #include "render_texture.u.c"
 #include "render_flat.u.c"
+#include "projection.u.c"
 // clang-format on
 
 static int tmp_depth_face_count[1500] = { 0 };
@@ -194,7 +194,7 @@ project_vertices_model_textured(
 /**
  * Terrain is treated as a single, so the origin test does not apply.
  */
-static void
+static inline int
 project_vertices_terrain_textured(
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -220,59 +220,94 @@ project_vertices_terrain_textured(
     int screen_width,
     int screen_height)
 {
-    struct ProjectedVertex projected_triangle;
+    struct ProjectedVertex projected_vertex;
+
+    // TODO: This is normally solved by the frustrum cullmap,
+    // but that still has some issues if the cullmap is too generous.
+    // We run into overflow issues.
+
+    project_orthographic_fast(
+        &projected_vertex,
+        vertex_x[0] + 64,
+        vertex_y[0],
+        vertex_z[0] + 64,
+        model_yaw,
+        -camera_x,
+        // Camera z is the y axis in OSRS
+        -camera_z,
+        -camera_y,
+        camera_pitch,
+        camera_yaw);
+
+    int model_edge_radius = 64;
+    int max_z = projected_vertex.z + 64;
+
+    if( max_z < near_plane_z )
+    {
+        // The edge of the model that is farthest from the camera is too close to the near plane.
+        return 0;
+    }
+
+    int screen_edge_width = screen_width >> 1;
+    int mid_x = projected_vertex.x;
+
+    int left_x = mid_x + model_edge_radius;
+    int right_x = mid_x - model_edge_radius;
+
+    if( SCALE_UNIT(left_x) / max_z < -screen_edge_width ||
+        SCALE_UNIT(right_x) / max_z > screen_edge_width )
+    {
+        // All parts of the model left or right edges are projected off screen.
+        return 0;
+    }
 
     for( int i = 0; i < num_vertices; i++ )
     {
-        projected_triangle = project_orthographic(
+        project_orthographic_fast(
+            &projected_vertex,
             vertex_x[i],
             vertex_y[i],
             vertex_z[i],
-            model_pitch,
             model_yaw,
-            model_roll,
             -camera_x,
             // Camera z is the y axis in OSRS
             -camera_z,
             -camera_y,
             camera_pitch,
-            camera_yaw,
-            camera_roll);
+            camera_yaw);
 
-        assert(projected_triangle.clipped == 0);
+        orthographic_vertices_x[i] = projected_vertex.x;
+        orthographic_vertices_y[i] = projected_vertex.y;
+        orthographic_vertices_z[i] = projected_vertex.z;
 
-        orthographic_vertices_x[i] = projected_triangle.x;
-        orthographic_vertices_y[i] = projected_triangle.y;
-        orthographic_vertices_z[i] = projected_triangle.z;
-
-        projected_triangle = project_perspective(
+        project_perspective_fast(
+            &projected_vertex,
             orthographic_vertices_x[i],
             orthographic_vertices_y[i],
             orthographic_vertices_z[i],
-            camera_fov,
             near_plane_z);
 
-        if( projected_triangle.clipped )
+        if( projected_vertex.clipped )
         {
             // Since terrain vertexes are calculated as a single mesh rather,
             // than around some origin, assume that if any vertex is clipped,
             // then the entire terrain is clipped.
             screen_vertices_x[i] = -5000;
-            screen_vertices_z[i] = projected_triangle.z;
+            screen_vertices_z[i] = projected_vertex.z;
         }
         else
         {
-            screen_vertices_x[i] = projected_triangle.x;
+            screen_vertices_x[i] = projected_vertex.x;
             // TODO: The actual renderer from the deob marks that a face was clipped.
             // so it doesn't have to worry about a value actually being -5000.
-            if( projected_triangle.x == -5000 )
+            if( projected_vertex.x == -5000 )
                 screen_vertices_x[i] = -5001;
-            screen_vertices_y[i] = projected_triangle.y;
-            screen_vertices_z[i] = projected_triangle.z;
+            screen_vertices_y[i] = projected_vertex.y;
+            screen_vertices_z[i] = projected_vertex.z;
         }
     }
 
-    return;
+    return 1;
 }
 
 static inline void
@@ -1324,7 +1359,7 @@ render_scene_tile(
 
         if( texture_id == -1 || textures_cache_nullable == NULL )
         {
-            project_vertices_terrain_textured(
+            int success = project_vertices_terrain_textured(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -1348,6 +1383,9 @@ render_scene_tile(
                 near_plane_z,
                 screen_width,
                 screen_height);
+
+            if( !success )
+                continue;
 
             int* colors_a = color_override_hsl16_nullable ? color_override_hsl16_nullable
                                                           : tile->face_color_hsl_a;
@@ -1385,7 +1423,7 @@ render_scene_tile(
             assert(texture != NULL);
 
             // Tile vertexes are wrapped ccw.
-            project_vertices_terrain_textured(
+            int success = project_vertices_terrain_textured(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -1409,6 +1447,9 @@ render_scene_tile(
                 near_plane_z,
                 screen_width,
                 screen_height);
+
+            if( !success )
+                continue;
 
             // sw
             int tp_vertex = 0;

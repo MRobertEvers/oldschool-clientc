@@ -179,7 +179,6 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/graphics/gouraud_deob.c
         src/graphics/flat.c
         src/lighting.c
-        src/projection.c
         src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
@@ -237,7 +236,6 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/graphics/gouraud_deob.c
         src/graphics/flat.c
         src/lighting.c
-        src/projection.c
         src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
@@ -309,7 +307,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/graphics/gouraud_deob.c
         src/graphics/flat.c
         src/lighting.c
-        src/projection.c
         src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
@@ -365,7 +362,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/graphics/gouraud_deob.c
         src/graphics/flat.c
         src/lighting.c
-        src/projection.c
         src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
@@ -599,7 +595,6 @@ if(APPLE)
         src/graphics/gouraud_deob.c
         src/graphics/flat.c
         src/lighting.c
-        src/projection.c
         src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c

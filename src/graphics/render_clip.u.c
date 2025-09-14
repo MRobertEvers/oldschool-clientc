@@ -3,6 +3,10 @@
 
 #include "shared_tables.h"
 
+// clang-format off
+#include "projection.u.c"
+// clang-format on
+
 static int g_clip_x[10] = { 0 };
 static int g_clip_y[10] = { 0 };
 

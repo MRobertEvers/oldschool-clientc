@@ -1,12 +1,15 @@
 #include "frustrum_cullmap.h"
 
-#include "projection.h"
 #include "screen.h"
 
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+// clang-format off
+#include "projection.u.c"
+// clang-format on
 
 #define PITCH_STEPS 16
 #define YAW_STEPS 32
@@ -77,9 +80,9 @@ pitch_height(int pitch)
 static bool
 test_point_in_frustrum(int x, int z, int y, int pitch, int yaw, int near_clip_z)
 {
-    struct ProjectedVertex projected_triangle;
+    struct ProjectedVertex projected_vertex;
     project_fast(
-        &projected_triangle,
+        &projected_vertex,
         0,
         0,
         0,
@@ -94,14 +97,14 @@ test_point_in_frustrum(int x, int z, int y, int pitch, int yaw, int near_clip_z)
         SCREEN_WIDTH,
         SCREEN_HEIGHT);
 
-    if( projected_triangle.clipped || projected_triangle.z > 3500 )
+    if( projected_vertex.clipped || projected_vertex.z > 3500 )
         return false;
 
-    projected_triangle.x = (projected_triangle.x + (SCREEN_WIDTH >> 1));
-    projected_triangle.y = (projected_triangle.y + (SCREEN_HEIGHT >> 1));
+    projected_vertex.x = (projected_vertex.x + (SCREEN_WIDTH >> 1));
+    projected_vertex.y = (projected_vertex.y + (SCREEN_HEIGHT >> 1));
 
-    return projected_triangle.x >= 0 && projected_triangle.x < SCREEN_WIDTH &&
-           projected_triangle.y >= 0 && projected_triangle.y < SCREEN_HEIGHT;
+    return projected_vertex.x >= 0 && projected_vertex.x < SCREEN_WIDTH &&
+           projected_vertex.y >= 0 && projected_vertex.y < SCREEN_HEIGHT;
     // int px = (z * g_sin_table[yaw] + x * g_cos_table[yaw]) >> 16;
     // int tmp = (z * g_cos_table[yaw] - x * g_sin_table[yaw]) >> 16;
     // int pz = (y * g_sin_table[pitch] + tmp * g_cos_table[pitch]) >> 16;

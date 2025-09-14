@@ -457,6 +457,8 @@ raster_face_texture_blend_near_clip(
     yb = g_clip_y[3];
     color_b = g_clip_color[3];
 
+    // assert((xb > 0 && xb < screen_width) || (xa > 0 && xa < screen_width));
+
     xb += offset_x;
     yb += offset_y;
 

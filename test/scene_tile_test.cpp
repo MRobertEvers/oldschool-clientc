@@ -743,38 +743,38 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
                 }
 
                 // Only draw the face if mouse is inside the triangle
-                model_draw_face(
-                    pixel_buffer,
-                    face,
-                    iter.value.model_nullable_->model->face_infos,
-                    iter.value.model_nullable_->model->face_indices_a,
-                    iter.value.model_nullable_->model->face_indices_b,
-                    iter.value.model_nullable_->model->face_indices_c,
-                    iter.value.model_nullable_->model->face_count,
-                    iter_model.screen_vertices_x,
-                    iter_model.screen_vertices_y,
-                    iter_model.screen_vertices_z,
-                    iter_model.ortho_vertices_x,
-                    iter_model.ortho_vertices_y,
-                    iter_model.ortho_vertices_z,
-                    iter.value.model_nullable_->model->vertex_count,
-                    iter.value.model_nullable_->model->face_textures,
-                    iter.value.model_nullable_->model->face_texture_coords,
-                    iter.value.model_nullable_->model->textured_face_count,
-                    iter.value.model_nullable_->model->textured_p_coordinate,
-                    iter.value.model_nullable_->model->textured_m_coordinate,
-                    iter.value.model_nullable_->model->textured_n_coordinate,
-                    iter.value.model_nullable_->model->textured_face_count,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_a,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_b,
-                    iter.value.model_nullable_->lighting->face_colors_hsl_c,
-                    iter.value.model_nullable_->model->face_alphas,
-                    SCREEN_WIDTH / 2,
-                    SCREEN_HEIGHT / 2,
-                    50,
-                    SCREEN_WIDTH,
-                    SCREEN_HEIGHT,
-                    game->textures_cache);
+                // model_draw_face(
+                //     pixel_buffer,
+                //     face,
+                //     iter.value.model_nullable_->model->face_infos,
+                //     iter.value.model_nullable_->model->face_indices_a,
+                //     iter.value.model_nullable_->model->face_indices_b,
+                //     iter.value.model_nullable_->model->face_indices_c,
+                //     iter.value.model_nullable_->model->face_count,
+                //     iter_model.screen_vertices_x,
+                //     iter_model.screen_vertices_y,
+                //     iter_model.screen_vertices_z,
+                //     iter_model.ortho_vertices_x,
+                //     iter_model.ortho_vertices_y,
+                //     iter_model.ortho_vertices_z,
+                //     iter.value.model_nullable_->model->vertex_count,
+                //     iter.value.model_nullable_->model->face_textures,
+                //     iter.value.model_nullable_->model->face_texture_coords,
+                //     iter.value.model_nullable_->model->textured_face_count,
+                //     iter.value.model_nullable_->model->textured_p_coordinate,
+                //     iter.value.model_nullable_->model->textured_m_coordinate,
+                //     iter.value.model_nullable_->model->textured_n_coordinate,
+                //     iter.value.model_nullable_->model->textured_face_count,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_a,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_b,
+                //     iter.value.model_nullable_->lighting->face_colors_hsl_c,
+                //     iter.value.model_nullable_->model->face_alphas,
+                //     SCREEN_WIDTH / 2,
+                //     SCREEN_HEIGHT / 2,
+                //     50,
+                //     SCREEN_WIDTH,
+                //     SCREEN_HEIGHT,
+                //     game->textures_cache);
             }
 
             // render_scene_model(
@@ -1513,13 +1513,13 @@ main(int argc, char* argv[])
     // game.camera_x = 0;
     // game.camera_y = -240;
     // game.camera_z = 0;
-    game.camera_pitch = 2038;
-    game.camera_yaw = 1388;
+    game.camera_pitch = 210;
+    game.camera_yaw = 80;
     game.camera_roll = 0;
     game.camera_fov = 512;
-    game.camera_x = 235;
-    game.camera_y = -340;
-    game.camera_z = 360;
+    game.camera_x = 2888;
+    game.camera_y = -440;
+    game.camera_z = 270;
 
     game.player_tile_x = 10;
     game.player_tile_y = 10;

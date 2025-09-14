@@ -1,3 +1,6 @@
+#ifndef PROJECTION_U_C
+#define PROJECTION_U_C
+
 #include "projection.h"
 
 #include <assert.h>
@@ -19,7 +22,7 @@ extern int g_tan_table[2048];
  * x points to the right.
  * y points up
  */
-struct ProjectedVertex
+static inline struct ProjectedVertex
 project_orthographic(
     int x,
     int y,
@@ -34,7 +37,7 @@ project_orthographic(
     int camera_yaw,
     int camera_roll)
 {
-    struct ProjectedVertex projected_triangle = { 0 };
+    struct ProjectedVertex projected_vertex = { 0 };
 
     assert(camera_pitch >= 0 && camera_pitch < 2048);
     assert(camera_yaw >= 0 && camera_yaw < 2048);
@@ -100,11 +103,11 @@ project_orthographic(
     int y_final_scene = y_scene * cos_camera_roll - x_scene * sin_camera_roll;
     y_final_scene >>= 16;
 
-    projected_triangle.x = x_final_scene;
-    projected_triangle.y = y_final_scene;
-    projected_triangle.z = z_final_scene;
+    projected_vertex.x = x_final_scene;
+    projected_vertex.y = y_final_scene;
+    projected_vertex.z = z_final_scene;
 
-    return projected_triangle;
+    return projected_vertex;
 }
 
 /**
@@ -112,7 +115,7 @@ project_orthographic(
  *
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  */
-struct ProjectedVertex
+static inline struct ProjectedVertex
 project_perspective(
     int x,
     int y,
@@ -120,7 +123,7 @@ project_perspective(
     int fov, // FOV in units of (2π/2048) radians
     int near_clip)
 {
-    struct ProjectedVertex projected_triangle = { 0 };
+    struct ProjectedVertex projected_vertex = { 0 };
 
     // Perspective projection with FOV
 
@@ -136,16 +139,16 @@ project_perspective(
     // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 <<
     // clip_bits) || y > (1 << clip_bits)  )
     // {
-    //     projected_triangle.z = z;
-    //     projected_triangle.clipped = 1;
-    //     return projected_triangle;
+    //     projected_vertex.z = z;
+    //     projected_vertex.clipped = 1;
+    //     return projected_vertex;
     // }
 
     if( z < near_clip )
     {
-        projected_triangle.z = z;
-        projected_triangle.clipped = 1;
-        return projected_triangle;
+        projected_vertex.z = z;
+        projected_vertex.clipped = 1;
+        return projected_vertex;
     }
 
     assert(z != 0);
@@ -174,12 +177,12 @@ project_perspective(
     int screen_y = SCALE_UNIT(y) / z;
 
     // Set the projected triangle
-    projected_triangle.x = screen_x;
-    projected_triangle.y = screen_y;
-    projected_triangle.z = z;
-    projected_triangle.clipped = 0;
+    projected_vertex.x = screen_x;
+    projected_vertex.y = screen_y;
+    projected_vertex.z = z;
+    projected_vertex.clipped = 0;
 
-    return projected_triangle;
+    return projected_vertex;
 }
 
 /**
@@ -188,7 +191,7 @@ project_perspective(
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  *
  */
-struct ProjectedVertex
+static inline struct ProjectedVertex
 project(
     int x,
     int y,
@@ -207,9 +210,9 @@ project(
     int screen_width,
     int screen_height)
 {
-    struct ProjectedVertex projected_triangle;
+    struct ProjectedVertex projected_vertex;
 
-    projected_triangle = project_orthographic(
+    projected_vertex = project_orthographic(
         x,
         y,
         z,
@@ -223,15 +226,15 @@ project(
         camera_yaw,
         camera_roll);
 
-    projected_triangle = project_perspective(
-        projected_triangle.x, projected_triangle.y, projected_triangle.z, fov, near_clip);
+    projected_vertex = project_perspective(
+        projected_vertex.x, projected_vertex.y, projected_vertex.z, fov, near_clip);
 
-    return projected_triangle;
+    return projected_vertex;
 }
 
-void
+static inline void
 project_orthographic_fast(
-    struct ProjectedVertex* projected_triangle,
+    struct ProjectedVertex* projected_vertex,
     int x,
     int y,
     int z,
@@ -281,9 +284,9 @@ project_orthographic_fast(
     int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
     z_final_scene >>= 16;
 
-    projected_triangle->x = x_scene;
-    projected_triangle->y = y_scene;
-    projected_triangle->z = z_final_scene;
+    projected_vertex->x = x_scene;
+    projected_vertex->y = y_scene;
+    projected_vertex->z = z_final_scene;
 }
 
 /**
@@ -291,9 +294,9 @@ project_orthographic_fast(
  *
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  */
-void
+static inline void
 project_perspective_fast(
-    struct ProjectedVertex* projected_triangle,
+    struct ProjectedVertex* projected_vertex,
     int x,
     int y,
     int z,
@@ -316,17 +319,17 @@ project_perspective_fast(
     // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 <<
     // clip_bits) || y > (1 << clip_bits)  )
     // {
-    //     memset(projected_triangle, 0x00, sizeof(*projected_triangle));
-    //     projected_triangle->z = z;
-    //     projected_triangle->clipped = 1;
+    //     memset(projected_vertex, 0x00, sizeof(*projected_vertex));
+    //     projected_vertex->z = z;
+    //     projected_vertex->clipped = 1;
     //     return;
     // }
 
     if( z < near_clip )
     {
-        memset(projected_triangle, 0x00, sizeof(*projected_triangle));
-        projected_triangle->z = z;
-        projected_triangle->clipped = 1;
+        memset(projected_vertex, 0x00, sizeof(*projected_vertex));
+        projected_vertex->z = z;
+        projected_vertex->clipped = 1;
         return;
     }
 
@@ -372,15 +375,15 @@ project_perspective_fast(
     // screen_y >>= 16 - scale_angle;
 
     // Set the projected triangle
-    projected_triangle->x = screen_x;
-    projected_triangle->y = screen_y;
-    projected_triangle->z = z;
-    projected_triangle->clipped = 0;
+    projected_vertex->x = screen_x;
+    projected_vertex->y = screen_y;
+    projected_vertex->z = z;
+    projected_vertex->clipped = 0;
 }
 
-void
+static inline void
 project_fast(
-    struct ProjectedVertex* projected_triangle,
+    struct ProjectedVertex* projected_vertex,
     int x,
     int y,
     int z,
@@ -396,7 +399,7 @@ project_fast(
     int screen_height)
 {
     project_orthographic_fast(
-        projected_triangle,
+        projected_vertex,
         x,
         y,
         z,
@@ -408,10 +411,12 @@ project_fast(
         camera_yaw_r2pi2048);
 
     project_perspective_fast(
-        projected_triangle,
-        projected_triangle->x,
-        projected_triangle->y,
-        projected_triangle->z,
+        projected_vertex,
+        projected_vertex->x,
+        projected_vertex->y,
+        projected_vertex->z,
         // fov_r2pi2048,
         near_clip);
 }
+
+#endif
