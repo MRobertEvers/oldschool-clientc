@@ -415,6 +415,11 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     {
         ImGui::SetTooltip("Adjusts how fast the camera moves when using WASD keys");
     }
+    ImGui::SliderInt("FOV", &game->camera_fov, 340, 850, "%d");
+    if( ImGui::IsItemHovered() )
+    {
+        ImGui::SetTooltip("Adjusts the camera field of view");
+    }
     ImGui::End();
 
     ImGui::Render();

@@ -289,6 +289,66 @@ project_orthographic_fast(
     projected_vertex->z = z_final_scene;
 }
 
+static inline int
+project_scale_unit(int p, int fov)
+{
+    int fov_half = fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+
+    static const int scale_angle = 6;
+    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+
+    // Apply FOV scaling to x and y coordinates
+
+    // unit scale 9, angle scale 16
+    // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    // if valid x is -Screen_width/2 to Screen_width/2
+    // And the max resolution we allow is 1600 (either dimension)
+    // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    // i.e. x/z < 2^6 or x/z < 64
+
+    // Suppose we allow z > 16, so z_clip_bits = 4
+    // then x_bits_max < 10, so 2^9, which is 512
+
+    p *= cot_fov_half_ish_scaled;
+    p >>= 16 - scale_angle;
+
+    return SCALE_UNIT(p);
+}
+
+static inline int
+project_divide(int p, int z, int fov)
+{
+    int fov_half = fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+
+    static const int scale_angle = 1;
+    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+
+    // Apply FOV scaling to x and y coordinates
+
+    // unit scale 9, angle scale 16
+    // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    // if valid x is -Screen_width/2 to Screen_width/2
+    // And the max resolution we allow is 1600 (either dimension)
+    // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    // i.e. x/z < 2^6 or x/z < 64
+
+    // Suppose we allow z > 16, so z_clip_bits = 4
+    // then x_bits_max < 10, so 2^9, which is 512
+
+    p *= cot_fov_half_ish_scaled;
+    p >>= 16 - scale_angle;
+
+    return SCALE_UNIT(p) / z;
+}
+
 /**
  * Treats the camera as if it is at the origin (0, 0, 0)
  *
@@ -300,7 +360,7 @@ project_perspective_fast(
     int x,
     int y,
     int z,
-    // int fov, // FOV in units of (2π/2048) radians
+    int fov, // FOV in units of (2π/2048) radians
     int near_clip)
 {
     // Perspective projection with FOV
@@ -339,17 +399,17 @@ project_perspective_fast(
     // fov is in units of (2π/2048) radians
     // For perspective projection, we need tan(fov/2)
     // tan(x) = sin(x)/cos(x)
-    // int fov_half = fov >> 1; // fov/2
+    int fov_half = fov >> 1; // fov/2
 
     // fov_scale = 1/tan(fov/2)
     // cot(x) = 1/tan(x)
     // cot(x) = tan(pi/2 - x)
     // cot(x + pi) = cot(x)
     // assert(fov_half < 1536);
-    // int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
 
-    // static const int scale_angle = 1;
-    // int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+    static const int scale_angle = 1;
+    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
 
     // Apply FOV scaling to x and y coordinates
 
@@ -365,6 +425,11 @@ project_perspective_fast(
 
     // Suppose we allow z > 16, so z_clip_bits = 4
     // then x_bits_max < 10, so 2^9, which is 512
+
+    x *= cot_fov_half_ish_scaled;
+    y *= cot_fov_half_ish_scaled;
+    x >>= 16 - scale_angle;
+    y >>= 16 - scale_angle;
 
     // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
     int screen_x = SCALE_UNIT(x) / z;
@@ -415,7 +480,7 @@ project_fast(
         projected_vertex->x,
         projected_vertex->y,
         projected_vertex->z,
-        // fov_r2pi2048,
+        fov_r2pi2048,
         near_clip);
 }
 

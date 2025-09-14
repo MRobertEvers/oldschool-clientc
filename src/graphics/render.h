@@ -45,6 +45,7 @@ void model_draw_face(
     int near_plane_z,
     int screen_width,
     int screen_height,
+    int camera_fov,
     struct TexturesCache* textures_cache);
 
 void render_model_frame(

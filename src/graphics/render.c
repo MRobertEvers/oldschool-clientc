@@ -119,8 +119,8 @@ project_vertices_model_textured(
 
     int screen_edge_width = screen_width >> 1;
 
-    if( SCALE_UNIT(left_x) / max_z < -screen_edge_width ||
-        SCALE_UNIT(right_x) / max_z > screen_edge_width )
+    if( project_divide(left_x, max_z, camera_fov) < -screen_edge_width ||
+        project_divide(right_x, max_z, camera_fov) > screen_edge_width )
     {
         // All parts of the model left or right edges are projected off screen.
         return 0;
@@ -135,8 +135,8 @@ project_vertices_model_textured(
 
     int screen_edge_height = screen_height >> 1;
 
-    if( SCALE_UNIT(top_y) / max_z < -screen_edge_height ||
-        SCALE_UNIT(bottom_y) / max_z > screen_edge_height )
+    if( project_divide(top_y, max_z, camera_fov) < -screen_edge_height ||
+        project_divide(bottom_y, max_z, camera_fov) > screen_edge_height )
     {
         // All parts of the model top or bottom edges are projected off screen.
         return 0;
@@ -165,7 +165,7 @@ project_vertices_model_textured(
             orthographic_vertices_x[i],
             orthographic_vertices_y[i],
             orthographic_vertices_z[i],
-            // camera_fov,
+            camera_fov,
             near_plane_z);
 
         // If vertex is too close to camera, set it to a large negative value
@@ -239,8 +239,8 @@ project_vertices_terrain_textured(
         camera_pitch,
         camera_yaw);
 
-    int model_edge_radius = 64;
-    int max_z = projected_vertex.z + 64;
+    int model_edge_radius = 100;
+    int max_z = projected_vertex.z + model_edge_radius;
 
     if( max_z < near_plane_z )
     {
@@ -254,8 +254,8 @@ project_vertices_terrain_textured(
     int left_x = mid_x + model_edge_radius;
     int right_x = mid_x - model_edge_radius;
 
-    if( SCALE_UNIT(left_x) / max_z < -screen_edge_width ||
-        SCALE_UNIT(right_x) / max_z > screen_edge_width )
+    if( project_divide(left_x, max_z, camera_fov) < -screen_edge_width ||
+        project_divide(right_x, max_z, camera_fov) > screen_edge_width )
     {
         // All parts of the model left or right edges are projected off screen.
         return 0;
@@ -285,6 +285,7 @@ project_vertices_terrain_textured(
             orthographic_vertices_x[i],
             orthographic_vertices_y[i],
             orthographic_vertices_z[i],
+            camera_fov,
             near_plane_z);
 
         if( projected_vertex.clipped )
@@ -636,6 +637,7 @@ model_draw_face(
     int near_plane_z,
     int screen_width,
     int screen_height,
+    int camera_fov,
     struct TexturesCache* textures_cache)
 {
     struct Texture* texture = NULL;
@@ -827,6 +829,7 @@ model_draw_face(
                 pixel_buffer,
                 screen_width,
                 screen_height,
+                camera_fov,
                 face,
                 tp_vertex,
                 tm_vertex,
@@ -971,6 +974,7 @@ model_draw_face(
                 pixel_buffer,
                 screen_width,
                 screen_height,
+                camera_fov,
                 face,
                 tp_vertex,
                 tm_vertex,
@@ -1214,6 +1218,7 @@ render_model_frame(
                     near_plane_z,
                     width,
                     height,
+                    fov,
                     textures_cache);
             }
         }
@@ -1301,6 +1306,7 @@ render_model_frame(
             near_plane_z,
             width,
             height,
+            fov,
             textures_cache);
     }
 
@@ -1462,6 +1468,7 @@ render_scene_tile(
                 pixel_buffer,
                 screen_width,
                 screen_height,
+                fov,
                 face,
                 tp_vertex,
                 tm_vertex,
