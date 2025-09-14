@@ -97,8 +97,8 @@ mat4 createProjectionMatrix(float fov, float screenWidth, float screenHeight) {
     return mat4(
         x * 512.0 / (screenWidth / 2.0), 0.0, 0.0, 0.0,
         0.0, -y * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 
-        0.0, 0.0, 0.0, 1.0,
-        0.0, 0.0, -1.0, 0.0
+        0.0, 0.0, 1.0, 1.0,
+        0.0, 0.0, -50.0, 0.0
     );
 }
 

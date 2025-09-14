@@ -77,7 +77,7 @@ pitch_height(int pitch)
 static bool
 test_point_in_frustrum(int x, int z, int y, int pitch, int yaw, int near_clip_z)
 {
-    struct ProjectedTriangle projected_triangle;
+    struct ProjectedVertex projected_triangle;
     project_fast(
         &projected_triangle,
         0,

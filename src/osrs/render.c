@@ -55,8 +55,8 @@ static int tmp_face_colors_c_hsl16[4096] = { 0 };
 
 static int tmp_vertex_normals[4096] = { 0 };
 
-static int
-project_vertices_textured(
+static inline int
+project_vertices_model_textured(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
@@ -70,6 +70,7 @@ project_vertices_textured(
     int model_pitch,
     int model_yaw,
     int model_roll,
+    int model_radius,
     int scene_x,
     int scene_y,
     int scene_z,
@@ -81,65 +82,73 @@ project_vertices_textured(
     int screen_height,
     int near_plane_z)
 {
-    struct ProjectedTriangle projected_triangle;
+    struct ProjectedVertex projected_vertex;
 
     assert(camera_pitch >= 0 && camera_pitch < 2048);
     assert(camera_yaw >= 0 && camera_yaw < 2048);
     assert(camera_roll >= 0 && camera_roll < 2048);
 
-    project_fast(
-        &projected_triangle,
-        0,
-        0,
-        0,
-        model_yaw,
-        scene_x,
-        scene_y,
-        scene_z,
-        camera_pitch,
-        camera_yaw,
-        camera_fov,
-        near_plane_z,
-        screen_width,
-        screen_height);
+    project_orthographic_fast(
+        &projected_vertex, 0, 0, 0, model_yaw, scene_x, scene_y, scene_z, camera_pitch, camera_yaw);
+
+    int model_edge_radius = model_radius * g_cos_table[camera_pitch] >> 16;
 
     // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
     // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
     // // So the depth is the z projection distance from the origin of the model.
     // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
 
-    int model_origin_z_projection = projected_triangle.z;
-
-    if( projected_triangle.clipped )
-    {
-        return 0;
-    }
-
     /**
      * These checks are a significant performance improvement.
      */
-    if( projected_triangle.z > 3500 )
+    int mid_z = projected_vertex.z;
+    int max_z = model_edge_radius + mid_z;
+    if( max_z < near_plane_z )
     {
+        // The edge of the model that is farthest from the camera is too close to the near plane.
         return 0;
     }
 
-    int width = (screen_width >> 1);
-    int height = (screen_height >> 1);
-
-    if( projected_triangle.x < -width || projected_triangle.x > width )
+    if( mid_z > 3500 )
     {
+        // Model too far away.
         return 0;
     }
 
-    if( projected_triangle.y < -height || projected_triangle.y > height )
+    int mid_x = projected_vertex.x;
+
+    int left_x = mid_x - model_edge_radius;
+    int right_x = mid_x + model_edge_radius;
+
+    int screen_edge_width = screen_width >> 1;
+
+    if( SCALE_UNIT(left_x) / max_z < -screen_edge_width ||
+        SCALE_UNIT(right_x) / max_z > screen_edge_width )
     {
+        // All parts of the model left or right edges are projected off screen.
+        return 0;
+    }
+
+    int mid_y = projected_vertex.y;
+
+    int model_edge_height = (model_edge_radius * 4) * g_sin_table[camera_pitch] >> 16;
+
+    int top_y = mid_y + model_edge_height;
+    int bottom_y = mid_y - model_edge_height;
+
+    int screen_edge_height = screen_height >> 1;
+
+    if( SCALE_UNIT(top_y) / max_z < -screen_edge_height ||
+        SCALE_UNIT(bottom_y) / max_z > screen_edge_height )
+    {
+        // All parts of the model top or bottom edges are projected off screen.
         return 0;
     }
 
     for( int i = 0; i < num_vertices; i++ )
     {
         project_orthographic_fast(
-            &projected_triangle,
+            &projected_vertex,
             vertex_x[i],
             vertex_y[i],
             vertex_z[i],
@@ -150,12 +159,12 @@ project_vertices_textured(
             camera_pitch,
             camera_yaw);
 
-        orthographic_vertices_x[i] = projected_triangle.x;
-        orthographic_vertices_y[i] = projected_triangle.y;
-        orthographic_vertices_z[i] = projected_triangle.z;
+        orthographic_vertices_x[i] = projected_vertex.x;
+        orthographic_vertices_y[i] = projected_vertex.y;
+        orthographic_vertices_z[i] = projected_vertex.z;
 
         project_perspective_fast(
-            &projected_triangle,
+            &projected_vertex,
             orthographic_vertices_x[i],
             orthographic_vertices_y[i],
             orthographic_vertices_z[i],
@@ -164,15 +173,21 @@ project_vertices_textured(
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step
-        if( projected_triangle.clipped )
+        // screen_vertices_z[i] = projected_vertex.z - mid_z;
+        screen_vertices_z[i] = projected_vertex.z - mid_z;
+
+        if( projected_vertex.clipped )
         {
             screen_vertices_x[i] = -5000;
         }
         else
         {
-            screen_vertices_x[i] = projected_triangle.x;
-            screen_vertices_y[i] = projected_triangle.y;
-            screen_vertices_z[i] = projected_triangle.z - model_origin_z_projection;
+            screen_vertices_x[i] = projected_vertex.x;
+            // TODO: The actual renderer from the deob marks that a face was clipped.
+            // so it doesn't have to worry about a value actually being -5000.
+            if( screen_vertices_x[i] == -5000 )
+                screen_vertices_x[i] = -5001;
+            screen_vertices_y[i] = projected_vertex.y;
         }
     }
 
@@ -208,7 +223,7 @@ project_vertices_terrain_textured(
     int screen_width,
     int screen_height)
 {
-    struct ProjectedTriangle projected_triangle;
+    struct ProjectedVertex projected_triangle;
 
     for( int i = 0; i < num_vertices; i++ )
     {
@@ -251,7 +266,9 @@ project_vertices_terrain_textured(
         else
         {
             screen_vertices_x[i] = projected_triangle.x;
-            if( screen_vertices_x[i] == -5000 )
+            // TODO: The actual renderer from the deob marks that a face was clipped.
+            // so it doesn't have to worry about a value actually being -5000.
+            if( projected_triangle.x == -5000 )
                 screen_vertices_x[i] = -5001;
             screen_vertices_y[i] = projected_triangle.y;
             screen_vertices_z[i] = projected_triangle.z;
@@ -261,7 +278,7 @@ project_vertices_terrain_textured(
     return;
 }
 
-static void
+static inline void
 bucket_sort_by_average_depth(
     int* face_depth_buckets,
     int* face_depth_bucket_counts,
@@ -627,31 +644,6 @@ model_draw_face(
 
     assert(face < num_faces);
 
-    int face_a = face_indices_a[face];
-    int face_b = face_indices_b[face];
-    int face_c = face_indices_c[face];
-
-    int x1 = vertex_x[face_a];
-    int x2 = vertex_x[face_b];
-    int x3 = vertex_x[face_c];
-
-    int y1 = vertex_y[face_a];
-    int y2 = vertex_y[face_b];
-    int y3 = vertex_y[face_c];
-    int z1 = vertex_z[face_a];
-    int z2 = vertex_z[face_b];
-    int z3 = vertex_z[face_c];
-
-    x1 += offset_x;
-    y1 += offset_y;
-    x2 += offset_x;
-    y2 += offset_y;
-    x3 += offset_x;
-    y3 += offset_y;
-
-    assert(offset_y == (screen_height >> 1));
-    assert(offset_x == (screen_width >> 1));
-
     int alpha = face_alphas_nullable ? (face_alphas_nullable[face]) : 0xFF;
 
     // Faces with color_c == -2 are not drawn. As far as I can tell, these faces are used for
@@ -715,9 +707,6 @@ model_draw_face(
         switch( type )
         {
         case FACE_TYPE_GOURAUD:
-            assert(face_a < num_vertices);
-            assert(face_b < num_vertices);
-            assert(face_c < num_vertices);
 
             raster_face_gouraud(
                 pixel_buffer,
@@ -1110,7 +1099,7 @@ render_model_frame(
     //     height,
     //     near_plane_z);
 
-    int success = project_vertices_textured(
+    int success = project_vertices_model_textured(
         tmp_screen_vertices_x,
         tmp_screen_vertices_y,
         tmp_screen_vertices_z,
@@ -1124,6 +1113,7 @@ render_model_frame(
         model_pitch,
         model_yaw,
         model_roll,
+        bounds_cylinder->radius,
         camera_x,
         camera_z,
         camera_y,
@@ -1247,11 +1237,6 @@ render_model_frame(
     for( int i = 0; i < valid_faces; i++ )
     {
         int face_index = tmp_face_order[i];
-
-        if( model->_id == 2255 )
-        {
-            int iiii = 0;
-        }
 
         model_draw_face(
             pixel_buffer,
@@ -3195,13 +3180,22 @@ iter_render_model_init(
     int scene_y = scene_model->region_height - camera_y;
     int scene_z = scene_model->region_z - camera_z;
     yaw += scene_model->yaw;
-    yaw %= 2048;
+    // yaw %= 2048;
+    yaw &= 0x7FF;
 
     scene_x += scene_model->offset_x;
     scene_y += scene_model->offset_height;
     scene_z += scene_model->offset_z;
 
-    int success = project_vertices_textured(
+    if( !scene_model->bounds_cylinder )
+    {
+        scene_model->bounds_cylinder =
+            (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
+        *scene_model->bounds_cylinder = calculate_bounds_cylinder(
+            model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
+    }
+
+    int success = project_vertices_model_textured(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
@@ -3215,6 +3209,7 @@ iter_render_model_init(
         0,
         yaw,
         0,
+        scene_model->bounds_cylinder->radius,
         scene_x,
         scene_y,
         scene_z,
@@ -3228,14 +3223,6 @@ iter_render_model_init(
 
     if( !success )
         return;
-
-    if( !scene_model->bounds_cylinder )
-    {
-        scene_model->bounds_cylinder =
-            (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
-        *scene_model->bounds_cylinder = calculate_bounds_cylinder(
-            model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
-    }
 
     int model_min_depth = scene_model->bounds_cylinder->min_z_depth_any_rotation;
 

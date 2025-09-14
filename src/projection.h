@@ -5,7 +5,7 @@
 #define SCALE_UNIT(x) ((((long long)x) << 9))
 #define UNIT_SCALE_SHIFT (9)
 
-struct ProjectedTriangle
+struct ProjectedVertex
 {
     int x;
     int y;
@@ -17,7 +17,7 @@ struct ProjectedTriangle
     int clipped;
 };
 
-struct ProjectedTriangle project_orthographic(
+struct ProjectedVertex project_orthographic(
     int x,
     int y,
     int z,
@@ -31,7 +31,7 @@ struct ProjectedTriangle project_orthographic(
     int camera_yaw_r2pi2048,
     int camera_roll_r2pi2048);
 
-struct ProjectedTriangle project_perspective(
+struct ProjectedVertex project_perspective(
     int x,
     int y,
     int z,
@@ -44,7 +44,7 @@ struct ProjectedTriangle project_perspective(
  *
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  */
-struct ProjectedTriangle project(
+struct ProjectedVertex project(
     int x1,
     int y1,
     int z1,
@@ -64,7 +64,7 @@ struct ProjectedTriangle project(
     int screen_height);
 
 void project_orthographic_fast(
-    struct ProjectedTriangle* projected_triangle,
+    struct ProjectedVertex* projected_triangle,
     int x,
     int y,
     int z,
@@ -76,7 +76,7 @@ void project_orthographic_fast(
     int camera_yaw);
 
 void project_perspective_fast(
-    struct ProjectedTriangle* projected_triangle,
+    struct ProjectedVertex* projected_triangle,
     int x,
     int y,
     int z,
@@ -87,7 +87,7 @@ void project_perspective_fast(
  * Omits model roll and pitch, and camera roll.
  */
 void project_fast(
-    struct ProjectedTriangle* projected_triangle,
+    struct ProjectedVertex* projected_triangle,
     int x,
     int y,
     int z,

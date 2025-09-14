@@ -19,7 +19,7 @@ extern int g_tan_table[2048];
  * x points to the right.
  * y points up
  */
-struct ProjectedTriangle
+struct ProjectedVertex
 project_orthographic(
     int x,
     int y,
@@ -34,7 +34,7 @@ project_orthographic(
     int camera_yaw,
     int camera_roll)
 {
-    struct ProjectedTriangle projected_triangle = { 0 };
+    struct ProjectedVertex projected_triangle = { 0 };
 
     assert(camera_pitch >= 0 && camera_pitch < 2048);
     assert(camera_yaw >= 0 && camera_yaw < 2048);
@@ -112,7 +112,7 @@ project_orthographic(
  *
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  */
-struct ProjectedTriangle
+struct ProjectedVertex
 project_perspective(
     int x,
     int y,
@@ -120,7 +120,7 @@ project_perspective(
     int fov, // FOV in units of (2π/2048) radians
     int near_clip)
 {
-    struct ProjectedTriangle projected_triangle = { 0 };
+    struct ProjectedVertex projected_triangle = { 0 };
 
     // Perspective projection with FOV
 
@@ -188,7 +188,7 @@ project_perspective(
  * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
  *
  */
-struct ProjectedTriangle
+struct ProjectedVertex
 project(
     int x,
     int y,
@@ -207,7 +207,7 @@ project(
     int screen_width,
     int screen_height)
 {
-    struct ProjectedTriangle projected_triangle;
+    struct ProjectedVertex projected_triangle;
 
     projected_triangle = project_orthographic(
         x,
@@ -231,7 +231,7 @@ project(
 
 void
 project_orthographic_fast(
-    struct ProjectedTriangle* projected_triangle,
+    struct ProjectedVertex* projected_triangle,
     int x,
     int y,
     int z,
@@ -293,7 +293,7 @@ project_orthographic_fast(
  */
 void
 project_perspective_fast(
-    struct ProjectedTriangle* projected_triangle,
+    struct ProjectedVertex* projected_triangle,
     int x,
     int y,
     int z,
@@ -380,7 +380,7 @@ project_perspective_fast(
 
 void
 project_fast(
-    struct ProjectedTriangle* projected_triangle,
+    struct ProjectedVertex* projected_triangle,
     int x,
     int y,
     int z,

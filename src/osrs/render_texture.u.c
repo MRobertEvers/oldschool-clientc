@@ -432,15 +432,11 @@ raster_face_texture_blend_near_clip(
         offset_x,
         offset_y);
 
-    assert(clipped_count <= 4);
-    if( clipped_count != 4 )
-        return;
-
-    // static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
+    static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
 
     // for( int i = 0; i < screen_height; i++ )
     // {
-    //     for( int j = 0; j < 4; j++ )
+    //     for( int j = 0; j < clipped_count; j++ )
     //     {
     //         int x = g_clip_x[j];
 
@@ -452,6 +448,10 @@ raster_face_texture_blend_near_clip(
     //         }
     //     }
     // }
+
+    assert(clipped_count <= 4);
+    if( clipped_count != 4 )
+        return;
 
     xb = g_clip_x[3];
     yb = g_clip_y[3];

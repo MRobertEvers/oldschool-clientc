@@ -172,6 +172,8 @@ struct Game
     int debug_glow_b;
     int debug_glow_intensity;
     int debug_glow_radius;
+
+    int camera_speed; // Camera movement speed
 };
 
 void
@@ -404,6 +406,15 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     {
         ImGui::SetClipboardText(camera_rot_text);
     }
+
+    // Add camera speed slider
+    ImGui::Separator();
+    ImGui::Text("Camera Controls");
+    ImGui::SliderInt("Movement Speed", &game->camera_speed, 10, 200, "%d");
+    if( ImGui::IsItemHovered() )
+    {
+        ImGui::SetTooltip("Adjusts how fast the camera moves when using WASD keys");
+    }
     ImGui::End();
 
     ImGui::Render();
@@ -547,10 +558,10 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     int last_model_hit = -1;
     struct SceneModel* last_model_hit_model = NULL;
     int last_model_hit_yaw = 0;
-    int min_z = 1;
-    int max_z = 1;
-    int min_x = 1;
-    int max_x = 1;
+    int min_z = 2;
+    int max_z = 4;
+    int min_x = 2;
+    int max_x = 4;
     while( iter_render_scene_ops_next(&iter) )
     {
         // if( iter.value.z < min_z || iter.value.z > max_z || iter.value.x < min_x ||
@@ -649,6 +660,10 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             // {
             //     yaw_adjust += game->hover_loc_yaw;
             // }
+
+            // // Brick wall
+            // if( iter.value.model_nullable_->model->_id != 638 )
+            //     continue;
 
             iter_render_model_init(
                 &iter_model,
@@ -775,35 +790,35 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         }
     }
 
-    if( last_model_hit_model )
-    {
-        memset(g_blit_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    // if( last_model_hit_model )
+    // {
+    //     memset(g_blit_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
-        int model_id = last_model_hit_model->model_id;
-        int model_x = last_model_hit_model->_chunk_pos_x;
-        int model_y = last_model_hit_model->_chunk_pos_y;
-        int model_z = last_model_hit_model->_chunk_pos_level;
+    //     int model_id = last_model_hit_model->model_id;
+    //     int model_x = last_model_hit_model->_chunk_pos_x;
+    //     int model_y = last_model_hit_model->_chunk_pos_y;
+    //     int model_z = last_model_hit_model->_chunk_pos_level;
 
-        render_scene_model(
-            g_blit_buffer,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            // Had to use 100 here because of the scale, near plane z was resulting in
-            // extremely close to the camera.
-            100,
-            last_model_hit_yaw,
-            game->camera_x,
-            game->camera_y,
-            game->camera_z,
-            game->camera_pitch,
-            game->camera_yaw,
-            game->camera_roll,
-            game->camera_fov,
-            last_model_hit_model,
-            game->textures_cache);
+    //     render_scene_model(
+    //         g_blit_buffer,
+    //         SCREEN_WIDTH,
+    //         SCREEN_HEIGHT,
+    //         // Had to use 100 here because of the scale, near plane z was resulting in
+    //         // extremely close to the camera.
+    //         100,
+    //         last_model_hit_yaw,
+    //         game->camera_x,
+    //         game->camera_y,
+    //         game->camera_z,
+    //         game->camera_pitch,
+    //         game->camera_yaw,
+    //         game->camera_roll,
+    //         game->camera_fov,
+    //         last_model_hit_model,
+    //         game->textures_cache);
 
-        apply_outline_effect(pixel_buffer, g_blit_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
-    }
+    //     apply_outline_effect(pixel_buffer, g_blit_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
+    // }
 
     if( game->mouse_click_x != -1 && game->mouse_click_y != -1 )
     {
@@ -1491,13 +1506,13 @@ main(int argc, char* argv[])
     // game.camera_x = 0;
     // game.camera_y = -240;
     // game.camera_z = 0;
-    game.camera_pitch = 370;
-    game.camera_yaw = 1358;
+    game.camera_pitch = 2038;
+    game.camera_yaw = 1388;
     game.camera_roll = 0;
     game.camera_fov = 512;
-    game.camera_x = 239;
+    game.camera_x = 235;
     game.camera_y = -340;
-    game.camera_z = 192;
+    game.camera_z = 360;
 
     game.player_tile_x = 10;
     game.player_tile_y = 10;
@@ -1508,7 +1523,8 @@ main(int argc, char* argv[])
     // game.camera_pitch = 405;
     // game.camera_yaw = 1536;
     // game.camera_roll = 0;
-    game.camera_fov = 512; // Default FOV
+    game.camera_fov = 512;  // Default FOV
+    game.camera_speed = 50; // Default camera speed
     // game.tiles = tiles;
     game.tile_count = MAP_TILE_COUNT;
     // game.scene_textures = textures;
@@ -1786,7 +1802,8 @@ main(int argc, char* argv[])
         world_player_entity_new_add(game.world, 0, 0, 0, player_model);
     }
 
-    game.frustrum_cullmap = frustrum_cullmap_new(40, 50); // 65536 = 90° FOV
+    // game.frustrum_cullmap = frustrum_cullmap_new(40, 50); // 65536 = 90° FOV
+    game.frustrum_cullmap = frustrum_cullmap_new_nocull(40); // 65536 = 90° FOV
 
     int w_pressed = 0;
     int a_pressed = 0;
@@ -1815,7 +1832,6 @@ main(int argc, char* argv[])
     int period_pressed = 0;
 
     bool quit = false;
-    int speed = 50;
     SDL_Event event;
 
     // Frame timing variables
@@ -2023,29 +2039,29 @@ main(int argc, char* argv[])
         int camera_moved = 0;
         if( w_pressed )
         {
-            game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
-            game.camera_z += (g_cos_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x -= (g_sin_table[game.camera_yaw] * game.camera_speed) >> 16;
+            game.camera_z += (g_cos_table[game.camera_yaw] * game.camera_speed) >> 16;
             camera_moved = 1;
         }
 
         if( a_pressed )
         {
-            game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
-            game.camera_z -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x -= (g_cos_table[game.camera_yaw] * game.camera_speed) >> 16;
+            game.camera_z -= (g_sin_table[game.camera_yaw] * game.camera_speed) >> 16;
             camera_moved = 1;
         }
 
         if( s_pressed )
         {
-            game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
-            game.camera_z -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x += (g_sin_table[game.camera_yaw] * game.camera_speed) >> 16;
+            game.camera_z -= (g_cos_table[game.camera_yaw] * game.camera_speed) >> 16;
             camera_moved = 1;
         }
 
         if( d_pressed )
         {
-            game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
-            game.camera_z += (g_sin_table[game.camera_yaw] * speed) >> 16;
+            game.camera_x += (g_cos_table[game.camera_yaw] * game.camera_speed) >> 16;
+            game.camera_z += (g_sin_table[game.camera_yaw] * game.camera_speed) >> 16;
             camera_moved = 1;
         }
 
@@ -2085,13 +2101,13 @@ main(int argc, char* argv[])
 
         if( f_pressed )
         {
-            game.camera_y += speed;
+            game.camera_y += game.camera_speed;
             camera_moved = 1;
         }
 
         if( r_pressed )
         {
-            game.camera_y -= speed;
+            game.camera_y -= game.camera_speed;
             camera_moved = 1;
         }
 
