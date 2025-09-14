@@ -114,8 +114,8 @@ project_vertices_model_textured(
 
     int mid_x = projected_vertex.x;
 
-    int left_x = mid_x - model_edge_radius;
-    int right_x = mid_x + model_edge_radius;
+    int left_x = mid_x + model_edge_radius;
+    int right_x = mid_x - model_edge_radius;
 
     int screen_edge_width = screen_width >> 1;
 

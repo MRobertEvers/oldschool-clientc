@@ -503,7 +503,7 @@ static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
 
 static void
-game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
+game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
 {
     SDL_Texture* texture = platform->texture;
     SDL_Renderer* renderer = platform->renderer;
@@ -531,14 +531,18 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         }
     }
 
-    struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
-
-    while( textures_cache_walk_next(walk) )
+    for( int i = 0; i < deltas; i++ )
     {
-        texture_animate(walk->texture, 1);
+        struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
+
+        while( textures_cache_walk_next(walk) )
+        {
+            texture_animate(walk->texture, 1);
+        }
+
+        textures_cache_walk_free(walk);
     }
 
-    textures_cache_walk_free(walk);
     Uint64 start_ticks = SDL_GetPerformanceCounter();
     struct IterRenderSceneOps iter;
     struct IterRenderModel iter_model;
@@ -603,15 +607,18 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             struct CacheConfigSequence* sequence = iter.value.model_nullable_->sequence;
             if( sequence )
             {
-                iter.value.model_nullable_->anim_frame_count += 1;
-                if( iter.value.model_nullable_->anim_frame_count >=
-                    sequence->frame_lengths[iter.value.model_nullable_->anim_frame_step] )
+                for( int i = 0; i < deltas; i++ )
                 {
-                    iter.value.model_nullable_->anim_frame_count = 0;
-                    iter.value.model_nullable_->anim_frame_step += 1;
-                    if( iter.value.model_nullable_->anim_frame_step >= sequence->frame_count )
+                    iter.value.model_nullable_->anim_frame_count += 1;
+                    if( iter.value.model_nullable_->anim_frame_count >=
+                        sequence->frame_lengths[iter.value.model_nullable_->anim_frame_step] )
                     {
-                        iter.value.model_nullable_->anim_frame_step = 0;
+                        iter.value.model_nullable_->anim_frame_count = 0;
+                        iter.value.model_nullable_->anim_frame_step += 1;
+                        if( iter.value.model_nullable_->anim_frame_step >= sequence->frame_count )
+                        {
+                            iter.value.model_nullable_->anim_frame_step = 0;
+                        }
                     }
                 }
                 memcpy(
@@ -1837,6 +1844,8 @@ main(int argc, char* argv[])
     // Frame timing variables
     Uint32 last_frame_time = SDL_GetTicks();
     const int target_fps = 50;
+    const int target_input_fps = 50;
+    const float time_delta_step = 1.0f / target_input_fps;
     const int target_frame_time = 1000 / target_fps;
 
 #ifdef __EMSCRIPTEN__
@@ -1848,10 +1857,15 @@ main(int argc, char* argv[])
     // Use Emscripten's main loop
     emscripten_set_main_loop(emscripten_main_loop, 0, 1);
 #else
+
+    float time_delta_accumulator = 0.0f;
+
     // Traditional SDL main loop for native builds
     while( !quit )
     {
-        Uint32 frame_start_time = SDL_GetTicks();
+        Uint64 frame_start_time = SDL_GetTicks64();
+        time_delta_accumulator += (frame_start_time - last_frame_time) / 1000.0f;
+        last_frame_time = frame_start_time;
 
         while( SDL_PollEvent(&event) )
         {
@@ -2036,140 +2050,148 @@ main(int argc, char* argv[])
             }
         }
 
-        int camera_moved = 0;
-        if( w_pressed )
+        int deltas = 0;
+        while( time_delta_accumulator >= time_delta_step )
         {
-            game.camera_x -= (g_sin_table[game.camera_yaw] * game.camera_speed) >> 16;
-            game.camera_z += (g_cos_table[game.camera_yaw] * game.camera_speed) >> 16;
-            camera_moved = 1;
-        }
+            deltas += 1;
+            time_delta_accumulator -= time_delta_step;
 
-        if( a_pressed )
-        {
-            game.camera_x -= (g_cos_table[game.camera_yaw] * game.camera_speed) >> 16;
-            game.camera_z -= (g_sin_table[game.camera_yaw] * game.camera_speed) >> 16;
-            camera_moved = 1;
-        }
-
-        if( s_pressed )
-        {
-            game.camera_x += (g_sin_table[game.camera_yaw] * game.camera_speed) >> 16;
-            game.camera_z -= (g_cos_table[game.camera_yaw] * game.camera_speed) >> 16;
-            camera_moved = 1;
-        }
-
-        if( d_pressed )
-        {
-            game.camera_x += (g_cos_table[game.camera_yaw] * game.camera_speed) >> 16;
-            game.camera_z += (g_sin_table[game.camera_yaw] * game.camera_speed) >> 16;
-            camera_moved = 1;
-        }
-
-        if( q_pressed )
-        {
-            game.fake_pitch = (game.fake_pitch + 10) % 2048;
-        }
-
-        if( e_pressed )
-        {
-            game.fake_pitch = (game.fake_pitch - 10 + 2048) % 2048;
-        }
-
-        if( up_pressed )
-        {
-            game.camera_pitch = (game.camera_pitch + 10) % 2048;
-            camera_moved = 1;
-        }
-
-        if( left_pressed )
-        {
-            game.camera_yaw = (game.camera_yaw + 10) % 2048;
-            camera_moved = 1;
-        }
-
-        if( right_pressed )
-        {
-            game.camera_yaw = (game.camera_yaw - 10 + 2048) % 2048;
-            camera_moved = 1;
-        }
-
-        if( down_pressed )
-        {
-            game.camera_pitch = (game.camera_pitch - 10 + 2048) % 2048;
-            camera_moved = 1;
-        }
-
-        if( f_pressed )
-        {
-            game.camera_y += game.camera_speed;
-            camera_moved = 1;
-        }
-
-        if( r_pressed )
-        {
-            game.camera_y -= game.camera_speed;
-            camera_moved = 1;
-        }
-
-        if( i_pressed )
-        {
-            game.player_tile_y += 1;
-        }
-        if( k_pressed )
-        {
-            game.player_tile_y -= 1;
-        }
-        if( l_pressed )
-        {
-            game.player_tile_x += 1;
-        }
-        if( j_pressed )
-        {
-            game.player_tile_x -= 1;
-        }
-
-        if( camera_moved )
-        {
-            memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
-        }
-
-        if( space_pressed )
-        {
-            if( game.ops )
-                free(game.ops);
-            game.ops = render_scene_compute_ops(
-                game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
-            memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
-            game.max_render_ops = 1;
-            game.manual_render_ops = 0;
-        }
-
-        if( comma_pressed )
-        {
-            game.manual_render_ops = 1;
-            game.max_render_ops -= 1;
-            if( game.max_render_ops < 0 )
-                game.max_render_ops = 0;
-        }
-        if( period_pressed )
-        {
-            game.manual_render_ops = 1;
-            game.max_render_ops += 1;
-            if( game.max_render_ops > game.op_count )
-                game.max_render_ops = game.op_count;
-        }
-
-        game.mouse_click_cycle += 20;
-
-        player_model->anim_frame_count += 1;
-        if( player_model->anim_frame_count >=
-            player_model->sequence->frame_lengths[player_model->anim_frame_step] )
-        {
-            player_model->anim_frame_count = 0;
-            player_model->anim_frame_step += 1;
-            if( player_model->anim_frame_step >= player_model->sequence->frame_count )
+            int camera_speed = game.camera_speed;
+            int camera_moved = 0;
+            if( w_pressed )
             {
-                player_model->anim_frame_step = 0;
+                game.camera_x -= ((int)(g_sin_table[game.camera_yaw] * camera_speed)) >> 16;
+                game.camera_z += ((int)(g_cos_table[game.camera_yaw] * camera_speed)) >> 16;
+                camera_moved = 1;
+            }
+
+            if( a_pressed )
+            {
+                game.camera_x -= ((int)(g_cos_table[game.camera_yaw] * camera_speed)) >> 16;
+                game.camera_z -= ((int)(g_sin_table[game.camera_yaw] * camera_speed)) >> 16;
+                camera_moved = 1;
+            }
+
+            if( s_pressed )
+            {
+                game.camera_x += ((int)(g_sin_table[game.camera_yaw] * camera_speed)) >> 16;
+                game.camera_z -= ((int)(g_cos_table[game.camera_yaw] * camera_speed)) >> 16;
+                camera_moved = 1;
+            }
+
+            if( d_pressed )
+            {
+                game.camera_x += ((int)(g_cos_table[game.camera_yaw] * camera_speed)) >> 16;
+                game.camera_z += ((int)(g_sin_table[game.camera_yaw] * camera_speed)) >> 16;
+                camera_moved = 1;
+            }
+
+            if( q_pressed )
+            {
+                game.fake_pitch = (game.fake_pitch + 10) % 2048;
+            }
+
+            if( e_pressed )
+            {
+                game.fake_pitch = (game.fake_pitch - 10 + 2048) % 2048;
+            }
+
+            if( up_pressed )
+            {
+                game.camera_pitch = (game.camera_pitch + 10) % 2048;
+                camera_moved = 1;
+            }
+
+            if( left_pressed )
+            {
+                game.camera_yaw = (game.camera_yaw + 10) % 2048;
+                camera_moved = 1;
+            }
+
+            if( right_pressed )
+            {
+                game.camera_yaw = (game.camera_yaw - 10 + 2048) % 2048;
+                camera_moved = 1;
+            }
+
+            if( down_pressed )
+            {
+                game.camera_pitch = (game.camera_pitch - 10 + 2048) % 2048;
+                camera_moved = 1;
+            }
+
+            if( f_pressed )
+            {
+                game.camera_y += game.camera_speed;
+                camera_moved = 1;
+            }
+
+            if( r_pressed )
+            {
+                game.camera_y -= game.camera_speed;
+                camera_moved = 1;
+            }
+
+            if( i_pressed )
+            {
+                game.player_tile_y += 1;
+            }
+            if( k_pressed )
+            {
+                game.player_tile_y -= 1;
+            }
+            if( l_pressed )
+            {
+                game.player_tile_x += 1;
+            }
+            if( j_pressed )
+            {
+                game.player_tile_x -= 1;
+            }
+
+            if( camera_moved )
+            {
+                memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+            }
+
+            if( space_pressed )
+            {
+                if( game.ops )
+                    free(game.ops);
+                game.ops = render_scene_compute_ops(
+                    game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
+                memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+                game.max_render_ops = 1;
+                game.manual_render_ops = 0;
+            }
+
+            if( comma_pressed )
+            {
+                game.manual_render_ops = 1;
+                game.max_render_ops -= 1;
+                if( game.max_render_ops < 0 )
+                    game.max_render_ops = 0;
+            }
+            if( period_pressed )
+            {
+                game.manual_render_ops = 1;
+                game.max_render_ops += 1;
+                if( game.max_render_ops > game.op_count )
+                    game.max_render_ops = game.op_count;
+            }
+
+            game.mouse_click_cycle += 20;
+
+            player_model->anim_frame_count += 1;
+            if( player_model->anim_frame_count >=
+                player_model->sequence->frame_lengths[player_model->anim_frame_step] )
+            {
+                player_model->anim_frame_count = 0;
+                player_model->anim_frame_step += 1;
+                if( player_model->anim_frame_step >= player_model->sequence->frame_count )
+                {
+                    player_model->anim_frame_step = 0;
+                }
             }
         }
 
@@ -2177,7 +2199,7 @@ main(int argc, char* argv[])
 
         SDL_RenderClear(platform.renderer);
         // Render frame
-        game_render_sdl2(&game, &platform);
+        game_render_sdl2(&game, &platform, deltas);
         game_render_imgui(&game, &platform);
 
         SDL_RenderPresent(platform.renderer);
@@ -2185,15 +2207,13 @@ main(int argc, char* argv[])
         world_end_scene_frame(game.world, game.scene);
 
         // Calculate frame time and sleep appropriately
-        Uint32 frame_end_time = SDL_GetTicks();
-        Uint32 frame_time = frame_end_time - frame_start_time;
+        Uint64 frame_end_time = SDL_GetTicks64();
+        Uint64 frame_time = frame_end_time - frame_start_time;
 
         if( frame_time < target_frame_time )
         {
             // SDL_Delay(target_frame_time - frame_time);
         }
-
-        last_frame_time = frame_end_time;
     }
 #endif
 
