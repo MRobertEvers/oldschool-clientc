@@ -1,7 +1,7 @@
 #ifndef OSRS_RENDER_H
 #define OSRS_RENDER_H
 
-#include "bounds_cylinder.h"
+#include "../osrs/bounds_cylinder.h"
 #include "lighting.h"
 
 #include <stdbool.h>

@@ -1,4 +1,4 @@
-#include "scene_cache.h"
+#include "osrs/scene_cache.h"
 #include "texture.h"
 
 #include <assert.h>

@@ -1,21 +1,18 @@
-#include "osrs/render.h"
+#include "render.h"
 
-#include "anim.h"
-#include "bounds_cylinder.h"
 #include "flat.h"
-#include "frustrum_cullmap.h"
 #include "gouraud.h"
 #include "gouraud_deob.h"
 #include "lighting.h"
-#include "palette.h"
+#include "osrs/frustrum_cullmap.h"
+#include "osrs/palette.h"
+#include "osrs/scene.h"
+#include "osrs/scene_tile.h"
+#include "osrs/tables/maps.h"
+#include "osrs/tables/model.h"
+#include "osrs/tables/sprites.h"
 #include "projection.h"
-#include "scene.h"
-#include "scene_tile.h"
 #include "shared_tables.h"
-#include "tables/maps.h"
-#include "tables/model.h"
-#include "tables/sprites.h"
-#include "texture.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -1461,8 +1458,6 @@ scene_textures_free(struct SceneTextures* textures)
     free(textures->texel_id_to_offset_lut);
     free(textures);
 }
-
-#include "tables/maps.h"
 
 static void
 render_scene_model(

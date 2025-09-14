@@ -1,9 +1,9 @@
 extern "C" {
 #include "bmp.h"
+#include "graphics/render.h"
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/frustrum_cullmap.h"
-#include "osrs/render.h"
 #include "osrs/scene.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
@@ -2190,7 +2190,7 @@ main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            SDL_Delay(target_frame_time - frame_time);
+            // SDL_Delay(target_frame_time - frame_time);
         }
 
         last_frame_time = frame_end_time;

@@ -1,8 +1,8 @@
 extern "C" {
+#include "graphics/render.h"
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/frustrum_cullmap.h"
-#include "osrs/render.h"
 #include "osrs/scene.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
@@ -583,8 +583,8 @@ calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int*
 
 extern "C" {
 
-#include "gouraud.h"
-#include "gouraud_deob.h"
+#include "graphics/gouraud.h"
+#include "graphics/gouraud_deob.h"
 }
 
 static void

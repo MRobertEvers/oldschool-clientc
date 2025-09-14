@@ -3,9 +3,9 @@
 #import <MetalKit/MetalKit.h>
 
 extern "C" {
+#include "graphics/render.h"
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
-#include "osrs/render.h"
 #include "osrs/scene.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"

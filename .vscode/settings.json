@@ -100,6 +100,12 @@
         "math.h": "c",
         "stdlib.h": "c",
         "stddef.h": "c",
-        "gouraud.h": "c"
+        "gouraud.h": "c",
+        "render.h": "c",
+        "model.h": "c",
+        "frustrum_cullmap.h": "c",
+        "projection.h": "c",
+        "shared_tables.h": "c",
+        "maps.h": "c"
     }
 }

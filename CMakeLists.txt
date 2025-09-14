@@ -173,14 +173,14 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/frame.c
         src/osrs/tables/maps.c
         src/osrs/filelist.c
-        src/osrs/render.c
+        src/graphics/render.c
         src/osrs/rsbuf.c
-        src/gouraud.c
-        src/gouraud_deob.c
-        src/flat.c
+        src/graphics/gouraud.c
+        src/graphics/gouraud_deob.c
+        src/graphics/flat.c
         src/lighting.c
         src/projection.c
-        src/texture.c
+        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -231,14 +231,14 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/frame.c
         src/osrs/tables/maps.c
         src/osrs/filelist.c
-        src/osrs/render.c
+        src/graphics/render.c
         src/osrs/rsbuf.c
-        src/gouraud.c
-        src/gouraud_deob.c
-        src/flat.c
+        src/graphics/gouraud.c
+        src/graphics/gouraud_deob.c
+        src/graphics/flat.c
         src/lighting.c
         src/projection.c
-        src/texture.c
+        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -303,14 +303,14 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/frame.c
         src/osrs/tables/maps.c
         src/osrs/filelist.c
-        src/osrs/render.c
+        src/graphics/render.c
         src/osrs/rsbuf.c
-        src/gouraud.c
-        src/gouraud_deob.c
-        src/flat.c
+        src/graphics/gouraud.c
+        src/graphics/gouraud_deob.c
+        src/graphics/flat.c
         src/lighting.c
         src/projection.c
-        src/texture.c
+        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -359,14 +359,14 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/frame.c
         src/osrs/tables/maps.c
         src/osrs/filelist.c
-        src/osrs/render.c
+        src/graphics/render.c
         src/osrs/rsbuf.c
-        src/gouraud.c
-        src/gouraud_deob.c
-        src/flat.c
+        src/graphics/gouraud.c
+        src/graphics/gouraud_deob.c
+        src/graphics/flat.c
         src/lighting.c
         src/projection.c
-        src/texture.c
+        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -593,14 +593,14 @@ if(APPLE)
         src/osrs/tables/frame.c
         src/osrs/tables/maps.c
         src/osrs/filelist.c
-        src/osrs/render.c
+        src/graphics/render.c
         src/osrs/rsbuf.c
-        src/gouraud.c
-        src/gouraud_deob.c
-        src/flat.c
+        src/graphics/gouraud.c
+        src/graphics/gouraud_deob.c
+        src/graphics/flat.c
         src/lighting.c
         src/projection.c
-        src/texture.c
+        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
