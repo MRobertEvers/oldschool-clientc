@@ -39,7 +39,7 @@ if(WIN32 AND MSVC)
 else()
     # GCC/MinGW and other compilers
     set(CMAKE_C_FLAGS "-Wall -Wextra")
-    set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS_DEBUG "-g -Og -fsanitize=address -fno-omit-frame-pointer")
     set(CMAKE_C_FLAGS_RELEASE "-g -O3")
     # Enable C99 features
     set(CMAKE_C_STANDARD 99)
