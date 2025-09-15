@@ -1,4 +1,5 @@
-#include "flat.h"
+#ifndef FLAT_U_C
+#define FLAT_U_C
 
 #include "alpha.h"
 
@@ -378,3 +379,5 @@ raster_flat_alpha_s4(
         edge_x_BC_ish16 += step_edge_x_BC_ish16;
     }
 }
+
+#endif

@@ -1,8 +1,8 @@
-#include "flat.h"
 
 #include <assert.h>
 
 // clang-format off
+#include "flat.u.c"
 #include "render_face_alpha.u.c"
 #include "render_clip.u.c"
 // clang-format on

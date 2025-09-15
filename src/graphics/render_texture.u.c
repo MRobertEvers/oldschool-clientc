@@ -1,10 +1,10 @@
 #include "osrs/scene_cache.h"
-#include "texture.h"
 
 #include <assert.h>
 #include <stdlib.h>
 
 // clang-format off
+#include "texture.u.c"
 #include "render_clip.u.c"
 // clang-format on
 

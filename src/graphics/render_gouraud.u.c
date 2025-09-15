@@ -1,8 +1,9 @@
-#include "gouraud.h"
+
 
 #include <assert.h>
 
 // clang-format off
+#include "gouraud.u.c"
 #include "render_clip.u.c"
 #include "render_face_alpha.u.c"
 // clang-format on

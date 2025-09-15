@@ -7,8 +7,11 @@
 
 extern int g_hsl16_to_rgb_table[65536];
 
-// public static void drawGouraudTriangle(int y1, int y2, int y3, int x1, int x2, int x3, int hsl1,
-// int hsl2, int hsl3) {
+static void gouraud_deob_draw_scanline(
+    int* var0, int var1, int var2, int var3, int var4, int var5, int var6, int var7);
+
+// public static void drawGouraudTriangle(int y1, int y2, int y3, int x1, int x2, int x3, int
+// hsl1, int hsl2, int hsl3) {
 //         int var9 = x2 - x1;
 //         int var10 = y2 - y1;
 //         int var11 = x3 - x1;
@@ -88,7 +91,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                 }
 
 //                                 gouraud_deob_draw_scanline(pixels, y1, 0, 0, x1 >> 14, x3
-//                                 >> 14, hsl1, var19); x3 += var17; x1 += var16; hsl1 += var20; y1
+//                                 >> 14, hsl1, var19); x3 += var17; x1 += var16; hsl1 += var20;
+//                                 y1
 //                                 += WIDTH;
 //                             }
 //                         } else {
@@ -113,7 +117,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                 }
 
 //                                 gouraud_deob_draw_scanline(pixels, y1, 0, 0, x3 >> 14, x1
-//                                 >> 14, hsl1, var19); x3 += var17; x1 += var16; hsl1 += var20; y1
+//                                 >> 14, hsl1, var19); x3 += var17; x1 += var16; hsl1 += var20;
+//                                 y1
 //                                 += WIDTH;
 //                             }
 //                         }
@@ -154,7 +159,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                 }
 
 //                                 gouraud_deob_draw_scanline(pixels, y1, 0, 0, x2 >> 14, x1
-//                                 >> 14, hsl1, var19); x2 += var17; x1 += var16; hsl1 += var20; y1
+//                                 >> 14, hsl1, var19); x2 += var17; x1 += var16; hsl1 += var20;
+//                                 y1
 //                                 += WIDTH;
 //                             }
 //                         } else {
@@ -179,7 +185,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                 }
 
 //                                 gouraud_deob_draw_scanline(pixels, y1, 0, 0, x1 >> 14, x2
-//                                 >> 14, hsl1, var19); x2 += var17; x1 += var16; hsl1 += var20; y1
+//                                 >> 14, hsl1, var19); x2 += var17; x1 += var16; hsl1 += var20;
+//                                 y1
 //                                 += WIDTH;
 //                             }
 //                         }
@@ -233,7 +240,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                 }
 
 //                                 gouraud_deob_draw_scanline(pixels, y2, 0, 0, x2 >> 14, x1
-//                                 >> 14, hsl2, var19); x1 += var16; x2 += var15; hsl2 += var20; y2
+//                                 >> 14, hsl2, var19); x1 += var16; x2 += var15; hsl2 += var20;
+//                                 y2
 //                                 += WIDTH;
 //                             }
 //                         } else {
@@ -258,7 +266,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                 }
 
 //                                 gouraud_deob_draw_scanline(pixels, y2, 0, 0, x1 >> 14, x2
-//                                 >> 14, hsl2, var19); x1 += var16; x2 += var15; hsl2 += var20; y2
+//                                 >> 14, hsl2, var19); x1 += var16; x2 += var15; hsl2 += var20;
+//                                 y2
 //                                 += WIDTH;
 //                             }
 //                         }
@@ -299,7 +308,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                 }
 
 //                                 gouraud_deob_draw_scanline(pixels, y2, 0, 0, x3 >> 14, x2
-//                                 >> 14, hsl2, var19); x3 += var16; x2 += var15; hsl2 += var20; y2
+//                                 >> 14, hsl2, var19); x3 += var16; x2 += var15; hsl2 += var20;
+//                                 y2
 //                                 += WIDTH;
 //                             }
 //                         } else {
@@ -324,7 +334,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //                                 }
 
 //                                 gouraud_deob_draw_scanline(pixels, y2, 0, 0, x2 >> 14, x3
-//                                 >> 14, hsl2, var19); x3 += var16; x2 += var15; hsl2 += var20; y2
+//                                 >> 14, hsl2, var19); x3 += var16; x2 += var15; hsl2 += var20;
+//                                 y2
 //                                 += WIDTH;
 //                             }
 //                         }
@@ -474,8 +485,8 @@ extern int g_hsl16_to_rgb_table[65536];
 //     }
 
 // Code:
-// public static void gouraud_deob_draw_scanline(int var0[], int var1, int var2, int var3, int var4,
-// int var5, int var6, int var7) {
+// public static void gouraud_deob_draw_scanline(int var0[], int var1, int var2, int var3, int
+// var4, int var5, int var6, int var7) {
 //         if (textureOutOfDrawingBounds) {
 //             if (var5 > lastX) {
 //                 var5 = lastX;
@@ -526,14 +537,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                             var6 += var7;
 //                             var2 = (var9 * (var2 & 65280) >> 8 & 65280) + (var9 * (var2 &
 //                             16711935) >> 8 & 16711935); var10 = var0[var1]; var0[var1++] =
-//                             ((var10 & 16711935) * var8 >> 8 & 16711935) + var2 + (var8 * (var10 &
-//                             65280) >> 8 & 65280); var10 = var0[var1]; var0[var1++] = ((var10 &
-//                             16711935) * var8 >> 8 & 16711935) + var2 + (var8 * (var10 & 65280) >>
-//                             8 & 65280); var10 = var0[var1]; var0[var1++] = ((var10 & 16711935) *
-//                             var8 >> 8 & 16711935) + var2 + (var8 * (var10 & 65280) >> 8 & 65280);
-//                             var10 = var0[var1];
-//                             var0[var1++] = ((var10 & 16711935) * var8 >> 8 & 16711935) + var2 +
-//                             (var8 * (var10 & 65280) >> 8 & 65280);
+//                             ((var10 & 16711935) * var8 >> 8 & 16711935) + var2 + (var8 *
+//                             (var10 & 65280) >> 8 & 65280); var10 = var0[var1]; var0[var1++] =
+//                             ((var10 & 16711935) * var8 >> 8 & 16711935) + var2 + (var8 *
+//                             (var10 & 65280) >> 8 & 65280); var10 = var0[var1]; var0[var1++] =
+//                             ((var10 & 16711935) * var8 >> 8 & 16711935) + var2 + (var8 *
+//                             (var10 & 65280) >> 8 & 65280); var10 = var0[var1]; var0[var1++] =
+//                             ((var10 & 16711935) * var8 >> 8 & 16711935) + var2 + (var8 *
+//                             (var10 & 65280) >> 8 & 65280);
 //                             --var3;
 //                         } while(var3 > 0);
 //                     }
@@ -541,13 +552,14 @@ extern int g_hsl16_to_rgb_table[65536];
 //                     var3 = var5 - var4 & 3;
 //                     if (var3 > 0) {
 //                         var2 = hslToRgb[var6 >> 8];
-//                         var2 = (var9 * (var2 & 65280) >> 8 & 65280) + (var9 * (var2 & 16711935)
+//                         var2 = (var9 * (var2 & 65280) >> 8 & 65280) + (var9 * (var2 &
+//                         16711935)
 //                         >> 8 & 16711935);
 
 //                         do {
 //                             var10 = var0[var1];
-//                             var0[var1++] = ((var10 & 16711935) * var8 >> 8 & 16711935) + var2 +
-//                             (var8 * (var10 & 65280) >> 8 & 65280);
+//                             var0[var1++] = ((var10 & 16711935) * var8 >> 8 & 16711935) + var2
+//                             + (var8 * (var10 & 65280) >> 8 & 65280);
 //                             --var3;
 //                         } while(var3 > 0);
 //                     }
@@ -568,9 +580,12 @@ extern int g_hsl16_to_rgb_table[65536];
 //                     do {
 //                         var2 = hslToRgb[var6 >> 8];
 //                         var6 += var7;
-//                         var2 = (var9 * (var2 & 65280) >> 8 & 65280) + (var9 * (var2 & 16711935)
-//                         >> 8 & 16711935); var10 = var0[var1]; var0[var1++] = ((var10 & 16711935)
-//                         * var8 >> 8 & 16711935) + var2 + (var8 * (var10 & 65280) >> 8 & 65280);
+//                         var2 = (var9 * (var2 & 65280) >> 8 & 65280) + (var9 * (var2 &
+//                         16711935)
+//                         >> 8 & 16711935); var10 = var0[var1]; var0[var1++] = ((var10 &
+//                         16711935)
+//                         * var8 >> 8 & 16711935) + var2 + (var8 * (var10 & 65280) >> 8 &
+//                         65280);
 //                         --var3;
 //                     } while(var3 > 0);
 //                 }
@@ -579,7 +594,7 @@ extern int g_hsl16_to_rgb_table[65536];
 //         }
 //     }
 
-void
+static inline void
 gouraud_deob_draw_triangle(
     int* pixels, int y1, int y2, int y3, int x1, int x2, int x3, int hsl1, int hsl2, int hsl3)
 {
@@ -1227,7 +1242,7 @@ gouraud_deob_draw_triangle(
 // gouraud_deob_draw_scanline(int* pixels, int y, int x1, int x2, int x3, int hsl1, int hsl2, int
 // hsl3)
 
-void
+static inline void
 gouraud_deob_draw_scanline(
     int* var0, int var1, int var2, int var3, int var4, int var5, int var6, int var7)
 {

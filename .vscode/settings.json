@@ -106,6 +106,8 @@
         "frustrum_cullmap.h": "c",
         "projection.h": "c",
         "shared_tables.h": "c",
-        "maps.h": "c"
+        "maps.h": "c",
+        "stdbool.h": "c",
+        "gouraud.u.c": "cpp"
     }
 }

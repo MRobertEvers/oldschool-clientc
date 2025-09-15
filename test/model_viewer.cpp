@@ -583,9 +583,10 @@ calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int*
 
 extern "C" {
 
-#include "graphics/gouraud.h"
-#include "graphics/gouraud_deob.h"
+#include "graphics/gouraud_deob.c"
 }
+
+#include "graphics/gouraud.u.c"
 
 static void
 m_draw_face(struct SceneModel* model, int face_index)

@@ -41,6 +41,10 @@ else()
     set(CMAKE_C_FLAGS "-Wall -Wextra")
     set(CMAKE_C_FLAGS_DEBUG "-g -Og -fsanitize=address -fno-omit-frame-pointer")
     set(CMAKE_C_FLAGS_RELEASE "-g -O3")
+    
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -Og -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS_RELEASE "-g -O3")
     # Enable C99 features
     set(CMAKE_C_STANDARD 99)
     set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -175,11 +179,8 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/filelist.c
         src/graphics/render.c
         src/osrs/rsbuf.c
-        src/graphics/gouraud.c
         src/graphics/gouraud_deob.c
-        src/graphics/flat.c
         src/lighting.c
-        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -232,11 +233,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/filelist.c
         src/graphics/render.c
         src/osrs/rsbuf.c
-        src/graphics/gouraud.c
-        src/graphics/gouraud_deob.c
-        src/graphics/flat.c
         src/lighting.c
-        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -303,11 +300,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/filelist.c
         src/graphics/render.c
         src/osrs/rsbuf.c
-        src/graphics/gouraud.c
         src/graphics/gouraud_deob.c
-        src/graphics/flat.c
         src/lighting.c
-        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -358,11 +352,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/filelist.c
         src/graphics/render.c
         src/osrs/rsbuf.c
-        src/graphics/gouraud.c
         src/graphics/gouraud_deob.c
-        src/graphics/flat.c
         src/lighting.c
-        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -591,11 +582,7 @@ if(APPLE)
         src/osrs/filelist.c
         src/graphics/render.c
         src/osrs/rsbuf.c
-        src/graphics/gouraud.c
-        src/graphics/gouraud_deob.c
-        src/graphics/flat.c
         src/lighting.c
-        src/graphics/texture.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c

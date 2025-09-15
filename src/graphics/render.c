@@ -1,7 +1,5 @@
 #include "render.h"
 
-#include "flat.h"
-#include "gouraud.h"
 #include "gouraud_deob.h"
 #include "lighting.h"
 #include "osrs/frustrum_cullmap.h"
