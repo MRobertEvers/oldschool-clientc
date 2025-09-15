@@ -1186,6 +1186,7 @@ main(int argc, char* argv[])
     init_reciprocal16();
 
     printf("Loading XTEA keys from: ../cache/xteas.json\n");
+    // printf("Loading XTEA keys from: ../cache/xteas.json\n");
     int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
     if( xtea_keys_count == -1 )
     {
@@ -2208,7 +2209,7 @@ main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            SDL_Delay(target_frame_time - frame_time);
+            // SDL_Delay(target_frame_time - frame_time);
         }
     }
 

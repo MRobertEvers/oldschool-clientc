@@ -20,6 +20,7 @@ if(WIN32 AND MSVC)
     
     # Enhanced Release flags for better branching performance
     set(CMAKE_C_FLAGS_RELEASE "/O2 /Ob2 /Ot /Oi /Oy /GL /fp:fast /Qpar /arch:AVX2 /MD")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /Ot /Oi /Oy /GL /fp:fast /Qpar /arch:AVX2 /MD")
     
     # Enable link-time code generation for Release builds
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG")
