@@ -899,10 +899,7 @@ initGL()
                 int dyc = yc - p_y;
                 int dzc = zc - p_z;
 
-                // Cross product of UV_normal and V.
-                // This math is the same as the math in texture.c, except it shortcuts the fact that
-                // (N - O) x ((M - O) x (N - O)) = (N - O) x ((M - O) x N - (M - O) x O)
-                // (N - O) x ((M x N) - (O x N) - (M x O) + (O x O))  = (N - O) x (N x M)
+                // The derivation is the same, this is the coefficient on U given by cramer's rule
                 float U_xhat = vV_y * vUVPlane_normal_zhat - vV_z * vUVPlane_normal_yhat;
                 float U_yhat = vV_z * vUVPlane_normal_xhat - vV_x * vUVPlane_normal_zhat;
                 float U_zhat = vV_x * vUVPlane_normal_yhat - vV_y * vUVPlane_normal_xhat;
@@ -913,7 +910,7 @@ initGL()
                 u2 = (U_xhat * dxb + U_yhat * dyb + U_zhat * dzb) * U_inv_w;
                 u3 = (U_xhat * dxc + U_yhat * dyc + U_zhat * dzc) * U_inv_w;
 
-                // Cross product of UV_normal and U.
+                // The derivation is the same, this is the coefficient on V given by cramer's rule
                 float V_xhat = vU_y * vUVPlane_normal_zhat - vU_z * vUVPlane_normal_yhat;
                 float V_yhat = vU_z * vUVPlane_normal_xhat - vU_x * vUVPlane_normal_zhat;
                 float V_zhat = vU_x * vUVPlane_normal_yhat - vU_y * vUVPlane_normal_xhat;
@@ -922,78 +919,9 @@ initGL()
                 v1 = (V_xhat * dxa + V_yhat * dya + V_zhat * dza) * V_inv_w;
                 v2 = (V_xhat * dxb + V_yhat * dyb + V_zhat * dzb) * V_inv_w;
                 v3 = (V_xhat * dxc + V_yhat * dyc + V_zhat * dzc) * V_inv_w;
-
-#define SCALE(x) ((((long long)x) << 9))
-
-                // #define ADJUST_Y_MUL(y) (y - (SCREEN_HEIGHT / 2))
-                // #define ADJUST_X_MUL(x) (x - (SCREEN_WIDTH / 2))
-#define ADJUST_Y_MUL(y) (y)
-#define ADJUST_X_MUL(x) (x)
-
-                // For each vertex, compute a, b, c values and then u, v
-                // For tp_vertex (origin)
-                // float a1 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(ya)
-                // +
-                //            vOVPlane_normal_xhat * ADJUST_X_MUL(xa);
-                // float b1 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(ya)
-                // +
-                //            vUOPlane_normal_xhat * ADJUST_X_MUL(xa);
-                // float c1 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(ya)
-                // +
-                //            vUVPlane_normal_xhat * ADJUST_X_MUL(xa);
-                // u1 = (c1 != 0.0f) ? a1 / -c1 : 0.0f;
-                // v1 = (c1 != 0.0f) ? b1 / -c1 : 0.0f;
-
-                // // For tm_vertex (U endpoint)
-                // float a2 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(yb)
-                // +
-                //            vOVPlane_normal_xhat * ADJUST_X_MUL(xb);
-                // float b2 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(yb)
-                // +
-                //            vUOPlane_normal_xhat * ADJUST_X_MUL(xb);
-                // float c2 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yb)
-                // +
-                //            vUVPlane_normal_xhat * ADJUST_X_MUL(xb);
-                // u2 = (c2 != 0.0f) ? a2 / -c2 : 1.0f;
-                // v2 = (c2 != 0.0f) ? b2 / -c2 : 0.0f;
-
-                // // For tn_vertex (V endpoint)
-                // float a3 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(yc)
-                // +
-                //            vOVPlane_normal_xhat * ADJUST_X_MUL(xc);
-                // float b3 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(yc)
-                // +
-                //            vUOPlane_normal_xhat * ADJUST_X_MUL(xc);
-                // float c3 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yc)
-                // +
-                //            vUVPlane_normal_xhat * ADJUST_X_MUL(xc);
-                // u3 = (c3 != 0.0f) ? a3 / -c3 : 0.0f;
-                // v3 = (c3 != 0.0f) ? b3 / -c3 : 1.0f;
             }
         }
 
-        // u1 /= 128.0f;
-        // v1 /= 128.0f;
-        // u2 /= 128.0f;
-        // v2 /= 128.0f;
-        // u3 /= 128.0f;
-        // v3 /= 128.0f;
-        // u1 /= -1;
-        // v1 /= -1;
-        // u2 /= -1;
-        // v2 /= -1;
-        // u3 /= -1;
-        // v3 /= -1;
-
-        // u1 = 0;
-        // v1 = 0;
-        // u2 = 1;
-        // v2 = 0;
-        // u3 = 0;
-        // v3 = 1;
-
-        printf(
-            "face %d: u1: %f, v1: %f, u2: %f, v2: %f, u3: %f, v3: %f\n", i, u1, v1, u2, v2, u3, v3);
         // Store texture coordinates for this face's vertices
         texCoords[i * 6] = u1;     // First vertex U (tp - origin)
         texCoords[i * 6 + 1] = v1; // First vertex V
