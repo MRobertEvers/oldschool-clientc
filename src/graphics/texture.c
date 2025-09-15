@@ -1935,7 +1935,6 @@ raster_texture_opaque_lerp8(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
-
     int camera_fov,
     int screen_x0,
     int screen_x1,
@@ -1972,30 +1971,6 @@ raster_texture_opaque_lerp8(
     {
         SWAP(screen_y1, screen_y2);
         SWAP(screen_x1, screen_x2);
-    }
-
-    int total_height = screen_y2 - screen_y0;
-    if( total_height == 0 )
-        return;
-
-    if( screen_y0 >= screen_height )
-        return;
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( total_height >= screen_height )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
-    }
-
-    // TODO: Remove this check for callers that cull correctly.
-    if( (screen_x0 < 0 || screen_x1 < 0 || screen_x2 < 0) &&
-        (screen_x0 > screen_width || screen_x1 > screen_width || screen_x2 > screen_width) )
-    {
-        // This can happen if vertices extremely close to the camera plane, but outside the FOV
-        // are projected. Those vertices need to be culled.
-        return;
     }
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor

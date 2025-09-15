@@ -821,16 +821,19 @@ initGL()
         float u2 = 1.0f, v2 = 0.0f;
         float u3 = 0.5f, v3 = 1.0f;
 
-        int xa = g_scene_model->model->vertices_x[face_indices_a[face]];
-        int ya = g_scene_model->model->vertices_y[face_indices_a[face]];
+// #define ADJUST_X(x) (x - (SCREEN_WIDTH / 2))
+// #define ADJUST_Y(y) (y - (SCREEN_HEIGHT / 2))
+#define ADJUST_X(x) (x)
+#define ADJUST_Y(y) (y)
+
+        int xa = ADJUST_X(g_scene_model->model->vertices_x[face_indices_a[face]]);
+        int ya = ADJUST_Y(g_scene_model->model->vertices_y[face_indices_a[face]]);
         int za = g_scene_model->model->vertices_z[face_indices_a[face]];
-
-        int xb = g_scene_model->model->vertices_x[face_indices_b[face]];
-        int yb = g_scene_model->model->vertices_y[face_indices_b[face]];
+        int xb = ADJUST_X(g_scene_model->model->vertices_x[face_indices_b[face]]);
+        int yb = ADJUST_Y(g_scene_model->model->vertices_y[face_indices_b[face]]);
         int zb = g_scene_model->model->vertices_z[face_indices_b[face]];
-
-        int xc = g_scene_model->model->vertices_x[face_indices_c[face]];
-        int yc = g_scene_model->model->vertices_y[face_indices_c[face]];
+        int xc = ADJUST_X(g_scene_model->model->vertices_x[face_indices_c[face]]);
+        int yc = ADJUST_Y(g_scene_model->model->vertices_y[face_indices_c[face]]);
         int zc = g_scene_model->model->vertices_z[face_indices_c[face]];
 
         if( face_texture_coords && face_texture_coords[face] != -1 )
@@ -855,9 +858,6 @@ initGL()
             int texture_idx = g_scene_model->model->face_textures[i];
             if( texture_idx >= 0 )
             {
-                // Get texture coordinates from the model
-                const int* coords = &g_scene_model->model->face_texture_coords[texture_face * 6];
-
                 // Get vertex positions for UV coordinate computation
                 float p_x = g_scene_model->model->vertices_x[tp_vertex];
                 float p_y = g_scene_model->model->vertices_y[tp_vertex];
@@ -871,63 +871,64 @@ initGL()
                 float n_y = g_scene_model->model->vertices_y[tn_vertex];
                 float n_z = g_scene_model->model->vertices_z[tn_vertex];
 
-                // Compute UV vectors
-                float vU_x = m_x - p_x; // Vector from origin (tp) to U end point (tm)
+                // Compute vectors for texture space
+                float vU_x = m_x - p_x; // M vector (U direction)
                 float vU_y = m_y - p_y;
                 float vU_z = m_z - p_z;
 
-                float vV_x = n_x - p_x; // Vector from origin (tp) to V end point (tn)
+                float vV_x = n_x - p_x; // N vector (V direction)
                 float vV_y = n_y - p_y;
                 float vV_z = n_z - p_z;
 
-                // Compute the normal of the UV plane for projection
-                float vUVPlane_normal_x = vU_y * vV_z - vU_z * vV_y;
-                float vUVPlane_normal_y = vU_z * vV_x - vU_x * vV_z;
-                float vUVPlane_normal_z = vU_x * vV_y - vU_y * vV_x;
+                int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
+                int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
+                int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
 
-                // Compute the normal of the plane formed by origin and V vector
-                float vOVPlane_normal_x = p_y * vV_z - p_z * vV_y;
-                float vOVPlane_normal_y = p_z * vV_x - p_x * vV_z;
-                float vOVPlane_normal_z = p_x * vV_y - p_y * vV_x;
+                int vOVPlane_normal_xhat = p_y * vV_z - p_z * vV_y;
+                int vOVPlane_normal_yhat = p_z * vV_x - p_x * vV_z;
+                int vOVPlane_normal_zhat = p_x * vV_y - p_y * vV_x;
 
-                // Compute the normal of the plane formed by U vector and origin
-                float vUOPlane_normal_x = vU_y * p_z - vU_z * p_y;
-                float vUOPlane_normal_y = vU_z * p_x - vU_x * p_z;
-                float vUOPlane_normal_z = vU_x * p_y - vU_y * p_x;
+                int vUOPlane_normal_xhat = vU_y * p_z - vU_z * p_y;
+                int vUOPlane_normal_yhat = vU_z * p_x - vU_x * p_z;
 
-                // Calculate UV coordinates using plane normals
-                // For vertex A (face_indices_a)
-                float au = vOVPlane_normal_x * xa + vOVPlane_normal_y * ya + vOVPlane_normal_z * za;
-                float bv = vUOPlane_normal_x * xa + vUOPlane_normal_y * ya + vUOPlane_normal_z * za;
-                float cw = vUVPlane_normal_x * xa + vUVPlane_normal_y * ya + vUVPlane_normal_z * za;
-                if( cw != 0 )
-                {
-                    u1 = au / cw;
-                    v1 = bv / cw;
-                }
+                int vUOPlane_normal_zhat = vU_x * p_y - vU_y * p_x;
 
-                // For vertex B (face_indices_b)
-                au = vOVPlane_normal_x * xb + vOVPlane_normal_y * yb + vOVPlane_normal_z * zb;
-                bv = vUOPlane_normal_x * xb + vUOPlane_normal_y * yb + vUOPlane_normal_z * zb;
-                cw = vUVPlane_normal_x * xb + vUVPlane_normal_y * yb + vUVPlane_normal_z * zb;
-                if( cw != 0 )
-                {
-                    u2 = au / cw;
-                    v2 = bv / cw;
-                }
+#define SCALE(x) (((long long)x) << 9)
 
-                // For vertex C (face_indices_c)
-                au = vOVPlane_normal_x * xc + vOVPlane_normal_y * yc + vOVPlane_normal_z * zc;
-                bv = vUOPlane_normal_x * xc + vUOPlane_normal_y * yc + vUOPlane_normal_z * zc;
-                cw = vUVPlane_normal_x * xc + vUVPlane_normal_y * yc + vUVPlane_normal_z * zc;
-                if( cw != 0 )
-                {
-                    u3 = au / cw;
-                    v3 = bv / cw;
-                }
+                // For each vertex, compute a, b, c values and then u, v
+                // For tp_vertex (origin)
+                float a1 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ya +
+                           vOVPlane_normal_xhat * xa;
+                float b1 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ya +
+                           vUOPlane_normal_xhat * xa;
+                float c1 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ya +
+                           vUOPlane_normal_xhat * xa;
+                u1 = (c1 != 0.0f) ? a1 / -c1 : 0.0f;
+                v1 = (c1 != 0.0f) ? b1 / -c1 : 0.0f;
+
+                // For tm_vertex (U endpoint)
+                float a2 = SCALE(vOVPlane_normal_zhat) + vUVPlane_normal_yhat * yb +
+                           vUOPlane_normal_xhat * xb;
+                float b2 = SCALE(vUOPlane_normal_zhat) + vUVPlane_normal_yhat * yb +
+                           vUOPlane_normal_xhat * xb;
+                float c2 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * yb +
+                           vUOPlane_normal_xhat * xb;
+                u2 = (c2 != 0.0f) ? a2 / -c2 : 1.0f;
+                v2 = (c2 != 0.0f) ? b2 / -c2 : 0.0f;
+
+                // For tn_vertex (V endpoint)
+                float a3 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * yc +
+                           vOVPlane_normal_xhat * xc;
+                float b3 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * yc +
+                           vUOPlane_normal_xhat * xc;
+                float c3 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * yc +
+                           vUVPlane_normal_xhat * xc;
+                u3 = (c3 != 0.0f) ? a3 / -c3 : 0.0f;
+                v3 = (c3 != 0.0f) ? b3 / -c3 : 1.0f;
             }
         }
 
+        printf("u1: %f, v1: %f, u2: %f, v2: %f, u3: %f, v3: %f\n", u1, v1, u2, v2, u3, v3);
         // Store texture coordinates for this face's vertices
         texCoords[i * 6] = u1;     // First vertex U (tp - origin)
         texCoords[i * 6 + 1] = v1; // First vertex V
