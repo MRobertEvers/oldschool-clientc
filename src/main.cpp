@@ -895,34 +895,37 @@ initGL()
 
 #define SCALE(x) (((long long)x) << 9)
 
+#define ADJUST_Y_MUL(y) (y - (SCREEN_HEIGHT / 2))
+#define ADJUST_X_MUL(x) (x - (SCREEN_WIDTH / 2))
+
                 // For each vertex, compute a, b, c values and then u, v
                 // For tp_vertex (origin)
-                float a1 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ya +
-                           vOVPlane_normal_xhat * xa;
-                float b1 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ya +
-                           vUOPlane_normal_xhat * xa;
-                float c1 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ya +
-                           vUOPlane_normal_xhat * xa;
+                float a1 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(ya) +
+                           vOVPlane_normal_xhat * ADJUST_X_MUL(xa);
+                float b1 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(ya) +
+                           vUOPlane_normal_xhat * ADJUST_X_MUL(xa);
+                float c1 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(ya) +
+                           vUOPlane_normal_xhat * ADJUST_X_MUL(xa);
                 u1 = (c1 != 0.0f) ? a1 / -c1 : 0.0f;
                 v1 = (c1 != 0.0f) ? b1 / -c1 : 0.0f;
 
                 // For tm_vertex (U endpoint)
-                float a2 = SCALE(vOVPlane_normal_zhat) + vUVPlane_normal_yhat * yb +
-                           vUOPlane_normal_xhat * xb;
-                float b2 = SCALE(vUOPlane_normal_zhat) + vUVPlane_normal_yhat * yb +
-                           vUOPlane_normal_xhat * xb;
-                float c2 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * yb +
-                           vUOPlane_normal_xhat * xb;
+                float a2 = SCALE(vOVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yb) +
+                           vUOPlane_normal_xhat * ADJUST_X_MUL(xb);
+                float b2 = SCALE(vUOPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yb) +
+                           vUOPlane_normal_xhat * ADJUST_X_MUL(xb);
+                float c2 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yb) +
+                           vUOPlane_normal_xhat * ADJUST_X_MUL(xb);
                 u2 = (c2 != 0.0f) ? a2 / -c2 : 1.0f;
                 v2 = (c2 != 0.0f) ? b2 / -c2 : 0.0f;
 
                 // For tn_vertex (V endpoint)
-                float a3 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * yc +
-                           vOVPlane_normal_xhat * xc;
-                float b3 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * yc +
-                           vUOPlane_normal_xhat * xc;
-                float c3 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * yc +
-                           vUVPlane_normal_xhat * xc;
+                float a3 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(yc) +
+                           vOVPlane_normal_xhat * ADJUST_X_MUL(xc);
+                float b3 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(yc) +
+                           vUOPlane_normal_xhat * ADJUST_X_MUL(xc);
+                float c3 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yc) +
+                           vUVPlane_normal_xhat * ADJUST_X_MUL(xc);
                 u3 = (c3 != 0.0f) ? a3 / -c3 : 0.0f;
                 v3 = (c3 != 0.0f) ? b3 / -c3 : 1.0f;
             }
@@ -1250,7 +1253,7 @@ render()
             frame_start_time = get_time_ms();
         }
 
-        // Set default texture matrix (identity)
+        // Set identity matrix for texture coordinates since they're already correctly computed
         float texture_matrix[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                                      0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
         glUniformMatrix4fv(g_texture_matrix_loc, 1, GL_FALSE, texture_matrix);
@@ -1370,8 +1373,8 @@ load_texture(int texture_id, int size)
     // Set texture parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     // Upload texture data
     glTexImage2D(
