@@ -113,6 +113,7 @@
         "tuple": "c",
         "map": "c",
         "set": "c",
-        "unordered_set": "c"
+        "unordered_set": "c",
+        "arm_neon.h": "c"
     }
 }

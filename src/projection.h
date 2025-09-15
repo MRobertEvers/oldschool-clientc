@@ -1,9 +1,9 @@
 #ifndef PROJECTION_H
 #define PROJECTION_H
 
-#define UNIT_SCALE (512)
-#define SCALE_UNIT(x) ((((long long)x) << 9))
 #define UNIT_SCALE_SHIFT (9)
+#define SCALE_UNIT(x) ((((long long)x) << UNIT_SCALE_SHIFT))
+#define UNIT_SCALE ((1 << UNIT_SCALE_SHIFT))
 
 struct ProjectedVertex
 {

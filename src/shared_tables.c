@@ -11,6 +11,7 @@ int g_cos_table[2048];
 int g_tan_table[2048];
 
 int g_reciprocal16[2048];
+int g_reciprocal16_simd[4096];
 
 int
 pix3d_set_gamma(int rgb, double gamma)
@@ -160,4 +161,7 @@ init_reciprocal16()
 {
     for( int i = 0; i < 2048; i++ )
         g_reciprocal16[i] = ((1 << 16) / i);
+
+    for( int i = 0; i < 4096; i++ )
+        g_reciprocal16_simd[i] = ((1 << 16) / i);
 }

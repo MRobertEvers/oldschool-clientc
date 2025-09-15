@@ -277,7 +277,10 @@ project_vertices_terrain_textured(
         orthographic_vertices_x[i] = projected_vertex.x;
         orthographic_vertices_y[i] = projected_vertex.y;
         orthographic_vertices_z[i] = projected_vertex.z;
+    }
 
+    for( int i = 0; i < num_vertices; i++ )
+    {
         project_perspective_fast(
             &projected_vertex,
             orthographic_vertices_x[i],

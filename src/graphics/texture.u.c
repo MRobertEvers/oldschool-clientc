@@ -47,14 +47,18 @@ shade_texture_masked_neon(
     int u_scan_start,
     int v_scan_start,
     int step_u,
-    int step_v)
+    int step_v,
+    int shade8bit_ish8)
 {
     int u_scan = u_scan_start;
     int v_scan = v_scan_start;
+    int shade = shade8bit_ish8 >> 8; // Convert from ish8 format to 0-255 range
 
     for( int i = 0; i < 8; i += 4 )
     {
         uint32_t u_vals[4], v_vals[4], texel_vals[4], dst_vals[4];
+        int32_t shaded_vals[4];
+        int32_t shade_vals[4] = { shade, shade, shade, shade };
 
         // Step 1: compute indices
         for( int j = 0; j < 4; j++ )
@@ -72,69 +76,20 @@ shade_texture_masked_neon(
             dst_vals[j] = pixel_buffer[offset + j];
         }
 
+        // Apply shading to texels
+        shade_blend_neon((const int32_t*)texel_vals, shade_vals, (int32_t*)shaded_vals);
+
         // Load NEON registers
-        uint32x4_t texel_vec = vld1q_u32(texel_vals);
+        uint32x4_t texel_vec = vld1q_u32((uint32_t*)shaded_vals);
         uint32x4_t dst_vec = vld1q_u32(dst_vals);
 
         // Mask: texel != 0
-        uint32x4_t mask_vec = vcgtq_u32(texel_vec, vdupq_n_u32(0));
+        uint32x4_t mask_vec = vcgtq_u32(vld1q_u32(texel_vals), vdupq_n_u32(0));
 
         // Apply mask: keep original dst where texel == 0
         uint32x4_t result = vbslq_u32(mask_vec, texel_vec, dst_vec);
 
         // Store back
-        vst1q_u32(&pixel_buffer[offset], result);
-
-        offset += 4;
-    }
-}
-
-static inline void
-shade_texture_neon(
-    uint32_t* pixel_buffer,
-    int offset,
-    const uint32_t* texels,
-    int texture_width,
-    int u_scan_start,
-    int v_scan_start,
-    int step_u,
-    int step_v,
-    uint32_t shade)
-{
-    int u_scan = u_scan_start;
-    int v_scan = v_scan_start;
-
-    // Process 8 pixels at a time
-    for( int i = 0; i < 8; i += 4 ) // two NEON vectors of 4
-    {
-        // Compute u/v for 4 pixels
-        uint32_t u_vals[4], v_vals[4];
-        for( int j = 0; j < 4; j++ )
-        {
-            u_vals[j] = (u_scan >> 7);
-            v_vals[j] = (v_scan & 0x3f80);
-            u_scan += step_u;
-            v_scan += step_v;
-        }
-
-        // Load texels into a vector
-        uint32_t texel_vals[4];
-        for( int j = 0; j < 4; j++ )
-        {
-            texel_vals[j] = texels[u_vals[j] + v_vals[j]];
-        }
-        uint32x4_t texel_vec = vld1q_u32(texel_vals);
-
-        // Load destination pixels
-        uint32x4_t dst_vec = vld1q_u32(&pixel_buffer[offset]);
-
-        // Shade blend: dst + ((texel - dst) * shade >> 8)
-        uint32x4_t diff = vsubq_u32(texel_vec, dst_vec);
-        uint32x4_t scaled = vmulq_n_u32(diff, shade);
-        scaled = vshrq_n_u32(scaled, 8);
-        uint32x4_t result = vaddq_u32(dst_vec, scaled);
-
-        // Store result
         vst1q_u32(&pixel_buffer[offset], result);
 
         offset += 4;
@@ -253,24 +208,32 @@ raster_texture_scanline_transparent_blend_lerp8(
         int u_scan = curr_u << texture_shift;
         int v_scan = curr_v << texture_shift;
 
-        // for( int i = 0; i < 8; i++ )
-        // {
-        //     int u = u_scan >> texture_shift;
-        //     int v = v_scan & 0x3f80;
-        //     int texel = texels[u + (v)];
-        //     if( texel != 0 )
-        //         pixel_buffer[offset] = shade_blend(texel, shade8bit_ish8 >> 8);
+        for( int i = 0; i < 8; i++ )
+        {
+            int u = u_scan >> texture_shift;
+            int v = v_scan & 0x3f80;
+            int texel = texels[u + (v)];
+            if( texel != 0 )
+                pixel_buffer[offset] = shade_blend(texel, shade8bit_ish8 >> 8);
 
-        //     u_scan += step_u;
-        //     v_scan += step_v;
+            u_scan += step_u;
+            v_scan += step_v;
 
-        //     offset += 1;
-        // }
+            offset += 1;
+        }
 
-        shade_texture_masked_neon(
-            pixel_buffer, offset, texels, texture_shift, u_scan, v_scan, step_u, step_v);
+        // shade_texture_masked_neon(
+        //     pixel_buffer,
+        //     offset,
+        //     texels,
+        //     texture_shift,
+        //     u_scan,
+        //     v_scan,
+        //     step_u,
+        //     step_v,
+        //     shade8bit_ish8);
 
-        offset += 8;
+        // offset += 8;
 
         shade8bit_ish8 += lerp8_shade_step;
 
