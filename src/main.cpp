@@ -6,6 +6,10 @@
 #include <GLES3/gl3.h>
 #include <emscripten/html5.h>
 
+extern "C" {
+#include "osrs/scene_cache.h"
+}
+
 // Define timer query extension types if not available
 #ifndef GL_TIME_ELAPSED_EXT
 #define GL_TIME_ELAPSED_EXT 0x88BF
@@ -17,7 +21,43 @@
 #include <cstdlib>
 #include <cstring>
 #include <emscripten.h>
+#include <set>
 #include <vector>
+
+extern "C" {
+#include "datastruct/ht.h"
+#include "osrs/cache.h"
+#include "osrs/scene_cache.h"
+#include "osrs/tables/textures.h"
+}
+
+struct TextureGL
+{
+    GLuint id;
+    int width;
+    int height;
+    bool opaque;
+};
+
+TextureGL load_texture(int texture_id, int size);
+
+// Define TexItem struct to match the one in scene_cache.c
+struct TexItem
+{
+    int id;
+    int ref_count;
+    struct Texture* texture;
+    struct TexItem* next;
+    struct TexItem* prev;
+};
+
+// Define TexturesCache struct to match the one in scene_cache.c
+struct TexturesCache
+{
+    struct Cache* cache;
+    struct HashTable table;
+    struct TexItem root;
+};
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -44,11 +84,12 @@ SDL_Window* g_window = nullptr;
 SDL_GLContext g_gl_context = nullptr;
 
 extern "C" {
+#include "graphics/render.h"
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/frustrum_cullmap.h"
-#include "osrs/render.h"
 #include "osrs/scene.h"
+#include "osrs/scene_cache.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_idk.h"
 #include "osrs/tables/config_locs.h"
@@ -78,13 +119,18 @@ static float g_vertices[10000] = { 0 };
 const char* vertexShaderSource = R"(#version 300 es
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
+layout(location = 2) in vec2 aTexCoord;  // UV coordinates
+
 uniform float uRotationX;  // pitch
 uniform float uRotationY;  // yaw
 uniform float uScreenHeight;
 uniform float uScreenWidth;
 uniform vec3 uCameraPos;   // camera position
+uniform mat4 uTextureMatrix;  // Optional texture coordinate transform
 
 out vec3 vColor;
+out vec2 vTexCoord;  // Pass UV coordinates to fragment shader
+
 mat4 createProjectionMatrix(float fov, float screenWidth, float screenHeight) {
     float y = 1.0 / tan(fov * 0.5);
     float x = y;
@@ -93,7 +139,6 @@ mat4 createProjectionMatrix(float fov, float screenWidth, float screenHeight) {
     // Multiply by 512 which is what the software renderer scales by.
     // Then we want a pixel at +400 to be normalized to 1.0 and -400 to be normalized to -1.0.
     // So we divide by half the screen width for x and half the screen height for y.
-    // Since y is mult
     return mat4(
         x * 512.0 / (screenWidth / 2.0), 0.0, 0.0, 0.0,
         0.0, -y * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 
@@ -134,12 +179,15 @@ mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
 
 void main() {
     mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
-    
     mat4 projection = createProjectionMatrix(radians(90.0), uScreenWidth, uScreenHeight);
-    
     vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
     
     vColor = aColor;
+    
+    // Transform texture coordinates if needed
+    vec4 texCoord = vec4(aTexCoord, 0.0, 1.0);
+    vec4 transformedTexCoord = uTextureMatrix * texCoord;
+    vTexCoord = transformedTexCoord.xy / transformedTexCoord.w;
     
     gl_Position = projection * viewPos;
 }
@@ -150,10 +198,18 @@ const char* fragmentShaderSource = R"(#version 300 es
 precision mediump float;
 
 in vec3 vColor;
+in vec2 vTexCoord;
+uniform sampler2D uTexture;
+uniform bool uUseTexture;
 out vec4 FragColor;
 
 void main() {
-    FragColor = vec4(vColor, 1.0);
+    if (uUseTexture) {
+        vec4 texColor = texture(uTexture, vTexCoord);
+        FragColor = texColor * vec4(vColor, 1.0);
+    } else {
+        FragColor = vec4(vColor, 1.0);
+    }
 }
 )";
 
@@ -161,13 +217,17 @@ void main() {
 const char* vertexShaderSourceWebGL1 = R"(
 attribute vec3 aPos;
 attribute vec3 aColor;
+attribute vec2 aTexCoord;  // UV coordinates
+
 uniform float uRotationX;  // pitch
 uniform float uRotationY;  // yaw
 uniform vec3 uCameraPos;   // camera position
 uniform float uScreenWidth;
 uniform float uScreenHeight;
+uniform mat4 uTextureMatrix;  // Optional texture coordinate transform
 
 varying vec3 vColor;
+varying vec2 vTexCoord;  // Pass UV coordinates to fragment shader
 
 mat4 createProjectionMatrix(float fov, float screenWidth, float screenHeight) {
     float y = 1.0 / tan(fov * 0.5);
@@ -227,6 +287,11 @@ void main() {
     // Pass through the color
     vColor = aColor;
     
+    // Transform texture coordinates if needed
+    vec4 texCoord = vec4(aTexCoord, 0.0, 1.0);
+    vec4 transformedTexCoord = uTextureMatrix * texCoord;
+    vTexCoord = transformedTexCoord.xy / transformedTexCoord.w;
+    
     gl_Position = projection * viewPos;
 }
 )";
@@ -236,9 +301,17 @@ const char* fragmentShaderSourceWebGL1 = R"(
 precision mediump float;
 
 varying vec3 vColor;
+varying vec2 vTexCoord;
+uniform sampler2D uTexture;
+uniform bool uUseTexture;
 
 void main() {
-    gl_FragColor = vec4(vColor, 1.0);
+    if (uUseTexture) {
+        vec4 texColor = texture2D(uTexture, vTexCoord);
+        gl_FragColor = texColor * vec4(vColor, 1.0);
+    } else {
+        gl_FragColor = vec4(vColor, 1.0);
+    }
 }
 )";
 
@@ -252,7 +325,13 @@ struct Triangle
 // Global variables
 GLuint shaderProgram;
 GLuint VAO;
-GLuint VBO, colorVBO, EBO;
+GLuint VBO, colorVBO, texCoordVBO, EBO; // Added texCoordVBO for texture coordinates
+
+// Texture management
+
+std::vector<TextureGL> g_textures; // Store loaded textures
+GLuint g_texture_matrix_loc;       // Uniform location for texture matrix
+GLuint g_use_texture_loc;          // Uniform location for texture toggle
 
 // WebGL version tracking
 static bool g_using_webgl2 = false;
@@ -286,8 +365,8 @@ float rotationX = 0.1f; // Initial pitch (look down slightly)
 float rotationY = 0.0f; // Initial yaw
 // float distance = 1000.0f;  // Initial zoom level
 float cameraX = 0.0f;
-float cameraY = 50.0f;
-float cameraZ = -300.0f;
+float cameraY = -120.0f;
+float cameraZ = -1100.0f;
 bool isDragging = false;
 float lastX = 0.0f;
 float lastY = 0.0f;
@@ -355,38 +434,39 @@ sort_model_faces()
 
         // Time only the actual rasterization
 
-        model_draw_face(
-            g_pixel_buffer,
-            face,
-            g_scene_model->model->face_infos,
-            g_scene_model->model->face_indices_a,
-            g_scene_model->model->face_indices_b,
-            g_scene_model->model->face_indices_c,
-            g_scene_model->model->face_count,
-            g_iter_model.screen_vertices_x,
-            g_iter_model.screen_vertices_y,
-            g_iter_model.screen_vertices_z,
-            g_iter_model.ortho_vertices_x,
-            g_iter_model.ortho_vertices_y,
-            g_iter_model.ortho_vertices_z,
-            g_scene_model->model->vertex_count,
-            g_scene_model->model->face_textures,
-            g_scene_model->model->face_texture_coords,
-            g_scene_model->model->textured_face_count,
-            g_scene_model->model->textured_p_coordinate,
-            g_scene_model->model->textured_m_coordinate,
-            g_scene_model->model->textured_n_coordinate,
-            g_scene_model->model->textured_face_count,
-            g_scene_model->lighting->face_colors_hsl_a,
-            g_scene_model->lighting->face_colors_hsl_b,
-            g_scene_model->lighting->face_colors_hsl_c,
-            g_scene_model->model->face_alphas,
-            SCREEN_WIDTH / 2,
-            SCREEN_HEIGHT / 2,
-            50,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            NULL);
+        // model_draw_face(
+        //     g_pixel_buffer,
+        //     face,
+        //     g_scene_model->model->face_infos,
+        //     g_scene_model->model->face_indices_a,
+        //     g_scene_model->model->face_indices_b,
+        //     g_scene_model->model->face_indices_c,
+        //     g_scene_model->model->face_count,
+        //     g_iter_model.screen_vertices_x,
+        //     g_iter_model.screen_vertices_y,
+        //     g_iter_model.screen_vertices_z,
+        //     g_iter_model.ortho_vertices_x,
+        //     g_iter_model.ortho_vertices_y,
+        //     g_iter_model.ortho_vertices_z,
+        //     g_scene_model->model->vertex_count,
+        //     g_scene_model->model->face_textures,
+        //     g_scene_model->model->face_texture_coords,
+        //     g_scene_model->model->textured_face_count,
+        //     g_scene_model->model->textured_p_coordinate,
+        //     g_scene_model->model->textured_m_coordinate,
+        //     g_scene_model->model->textured_n_coordinate,
+        //     g_scene_model->model->textured_face_count,
+        //     g_scene_model->lighting->face_colors_hsl_a,
+        //     g_scene_model->lighting->face_colors_hsl_b,
+        //     g_scene_model->lighting->face_colors_hsl_c,
+        //     g_scene_model->model->face_alphas,
+        //     SCREEN_WIDTH / 2,
+        //     SCREEN_HEIGHT / 2,
+        //     50,
+        //     SCREEN_WIDTH,
+        //     SCREEN_HEIGHT,
+        //     512,
+        //     NULL);
     }
 
     g_software_render_time += get_time_ms() - start_time;
@@ -600,6 +680,34 @@ initGL()
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
+    // Get texture uniform locations
+    g_texture_matrix_loc = glGetUniformLocation(shaderProgram, "uTextureMatrix");
+    g_use_texture_loc = glGetUniformLocation(shaderProgram, "uUseTexture");
+
+    // Load textures for the model
+    g_textures.clear();
+    if( g_scene_model->model->face_textures )
+    {
+        std::set<int> unique_textures;
+        for( int i = 0; i < g_scene_model->model->face_count; i++ )
+        {
+            int texture_id = g_scene_model->model->face_textures[i];
+            if( texture_id >= 0 )
+            {
+                unique_textures.insert(texture_id);
+            }
+        }
+
+        for( int texture_id : unique_textures )
+        {
+            TextureGL tex = load_texture(texture_id, 128);
+            if( tex.id != 0 )
+            {
+                g_textures.push_back(tex);
+            }
+        }
+    }
+
     // Initialize triangles array
     sort_model_faces();
 
@@ -613,6 +721,7 @@ initGL()
     // Create buffers
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &colorVBO);
+    glGenBuffers(1, &texCoordVBO); // New buffer for texture coordinates
     glGenBuffers(1, &EBO);
 
     // Prepare vertex data - one set of vertices per face
@@ -687,6 +796,77 @@ initGL()
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
+
+    // Create and setup texture coordinate buffer - one UV pair per vertex per face
+    std::vector<float> texCoords(
+        g_scene_model->model->face_count * 6); // 3 vertices * 2 UV coordinates per face
+
+    int* face_texture_coords = g_scene_model->model->face_texture_coords;
+    int* face_indices_a = g_scene_model->model->face_indices_a;
+    int* face_indices_b = g_scene_model->model->face_indices_b;
+    int* face_indices_c = g_scene_model->model->face_indices_c;
+    int* face_p_coordinate_nullable = g_scene_model->model->textured_p_coordinate;
+    int* face_m_coordinate_nullable = g_scene_model->model->textured_m_coordinate;
+    int* face_n_coordinate_nullable = g_scene_model->model->textured_n_coordinate;
+    int texture_face = -1;
+    int tp_vertex = -1;
+    int tm_vertex = -1;
+    int tn_vertex = -1;
+
+    for( int i = 0; i < g_scene_model->model->face_count; i++ )
+    {
+        int face = i;
+        // Get texture coordinates for this face
+        float u1 = 0.0f, v1 = 0.0f;
+        float u2 = 1.0f, v2 = 0.0f;
+        float u3 = 0.5f, v3 = 1.0f;
+
+        if( face_texture_coords && face_texture_coords[face] != -1 )
+        {
+            texture_face = face_texture_coords[face];
+
+            tp_vertex = face_p_coordinate_nullable[texture_face];
+            tm_vertex = face_m_coordinate_nullable[texture_face];
+            tn_vertex = face_n_coordinate_nullable[texture_face];
+        }
+        else
+        {
+            texture_face = face;
+            tp_vertex = face_indices_a[texture_face];
+            tm_vertex = face_indices_b[texture_face];
+            tn_vertex = face_indices_c[texture_face];
+        }
+
+        if( g_scene_model->model->face_textures && g_scene_model->model->face_texture_coords )
+        {
+            int texture_idx = g_scene_model->model->face_textures[i];
+            if( texture_idx >= 0 )
+            {
+                // Get actual texture coordinates from face_texture_coords
+                const int* coords = &g_scene_model->model->face_texture_coords[i * 6];
+                u1 = coords[0] / 128.0f; // Normalize coordinates
+                v1 = coords[1] / 128.0f;
+                u2 = coords[2] / 128.0f;
+                v2 = coords[3] / 128.0f;
+                u3 = coords[4] / 128.0f;
+                v3 = coords[5] / 128.0f;
+            }
+        }
+
+        // Store texture coordinates for this face's vertices
+        texCoords[i * 6] = u1;     // First vertex U
+        texCoords[i * 6 + 1] = v1; // First vertex V
+        texCoords[i * 6 + 2] = u2; // Second vertex U
+        texCoords[i * 6 + 3] = v2; // Second vertex V
+        texCoords[i * 6 + 4] = u3; // Third vertex U
+        texCoords[i * 6 + 5] = v3; // Third vertex V
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER, texCoords.size() * sizeof(float), texCoords.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(2);
 
     // Bind EBO and initialize indices
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -866,7 +1046,14 @@ render()
     g_frame_count++;
     if( g_frame_count % 60 == 0 )
     { // Print every 60 frames
-        printf("Render frame %d\n", g_frame_count);
+        printf(
+            "Render frame %d, camera: %f, %f, %f (pitch: %f, yaw: %f)\n",
+            g_frame_count,
+            cameraX,
+            cameraY,
+            cameraZ,
+            rotationX,
+            rotationY);
     }
 
     // Reset software render time for this frame
@@ -987,6 +1174,47 @@ render()
             frame_start_time = get_time_ms();
         }
 
+        // Set default texture matrix (identity)
+        float texture_matrix[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                                     0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+        glUniformMatrix4fv(g_texture_matrix_loc, 1, GL_FALSE, texture_matrix);
+
+        // Draw faces with textures
+        if( !g_textures.empty() && g_scene_model->model->face_textures )
+        {
+            glUniform1i(g_use_texture_loc, 1); // Enable texturing
+
+            for( int i = 0; i < g_sort_order_count; i++ )
+            {
+                int face_idx = g_sort_order[i];
+                int texture_id = g_scene_model->model->face_textures[face_idx];
+
+                if( texture_id >= 0 )
+                {
+                    // Find and bind the texture
+                    for( const auto& tex : g_textures )
+                    {
+                        if( tex.id != 0 )
+                        {
+                            glActiveTexture(GL_TEXTURE0);
+                            glBindTexture(GL_TEXTURE_2D, tex.id);
+                            break;
+                        }
+                    }
+
+                    // Draw the textured face
+                    glDrawElements(
+                        GL_TRIANGLES, 3, GL_UNSIGNED_INT, (void*)(i * 3 * sizeof(unsigned int)));
+                }
+            }
+
+            // Reset texture state
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        // Draw untextured faces
+        glUniform1i(g_use_texture_loc, 0); // Disable texturing
         glDrawElements(GL_TRIANGLES, g_sort_order_count * 3, GL_UNSIGNED_INT, 0);
 
         // End timing right after the draw call
@@ -1024,7 +1252,7 @@ render()
     }
 
     // Draw the software rasterized buffer to a separate canvas
-    drawPixelBufferToCanvas();
+    // drawPixelBufferToCanvas();
 
     // Render ImGui
     ImGui::Render();
@@ -1033,6 +1261,64 @@ render()
 
 static const int TZTOK_JAD_MODEL_ID = 9319;
 static const int TZTOK_JAD_NPCTYPE_ID = 3127;
+
+static const int BRICK_WALL_MODEL_ID = 638;
+
+struct TexturesCache* g_textures_cache = NULL; // Defined in scene_cache.c
+
+// Function to load a texture from cache and create OpenGL texture
+TextureGL
+load_texture(int texture_id, int size)
+{
+    TextureGL tex = { 0 };
+
+    // Load texture from cache
+    struct Texture* cache_tex = textures_cache_checkout(
+        g_textures_cache,
+        g_textures_cache->cache,
+        texture_id,
+        size,
+        1.0 // Default gamma
+    );
+
+    if( !cache_tex )
+    {
+        printf("Failed to load texture %d from cache\n", texture_id);
+        return tex;
+    }
+
+    // Create OpenGL texture
+    glGenTextures(1, &tex.id);
+    glBindTexture(GL_TEXTURE_2D, tex.id);
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // Upload texture data
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        cache_tex->width,
+        cache_tex->height,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        cache_tex->texels);
+
+    // Store texture info
+    tex.width = cache_tex->width;
+    tex.height = cache_tex->height;
+    tex.opaque = cache_tex->opaque;
+
+    // Clean up cache texture
+    textures_cache_checkin(g_textures_cache, cache_tex);
+
+    return tex;
+}
 
 static int
 load_model()
@@ -1061,7 +1347,10 @@ load_model()
     }
     printf("Loaded cache\n");
 
-    struct CacheModel* cache_model = model_new_from_cache(cache, TZTOK_JAD_MODEL_ID);
+    g_textures_cache = textures_cache_new(cache);
+
+    // struct CacheModel* cache_model = model_new_from_cache(cache, TZTOK_JAD_MODEL_ID);
+    struct CacheModel* cache_model = model_new_from_cache(cache, BRICK_WALL_MODEL_ID);
     if( !cache_model )
     {
         printf("Failed to load model\n");
@@ -1275,6 +1564,23 @@ key_callback(int eventType, const EmscriptenKeyboardEvent* e, void* userData)
 void
 cleanup()
 {
+    // Cleanup textures
+    for( const auto& tex : g_textures )
+    {
+        if( tex.id != 0 )
+        {
+            glDeleteTextures(1, &tex.id);
+        }
+    }
+    g_textures.clear();
+
+    // Cleanup texture cache
+    if( g_textures_cache )
+    {
+        textures_cache_free(g_textures_cache);
+        g_textures_cache = NULL;
+    }
+
     // Cleanup ImGui
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();

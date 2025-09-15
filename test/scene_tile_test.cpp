@@ -1854,16 +1854,6 @@ main(int argc, char* argv[])
     const float time_delta_step = 1.0f / target_input_fps;
     const int target_frame_time = 1000 / target_fps;
 
-#ifdef __EMSCRIPTEN__
-    // Set global pointers for Emscripten
-    g_game = &game;
-    g_platform = &platform;
-    g_quit = false;
-
-    // Use Emscripten's main loop
-    emscripten_set_main_loop(emscripten_main_loop, 0, 1);
-#else
-
     float time_delta_accumulator = 0.0f;
 
     // Traditional SDL main loop for native builds
@@ -2221,7 +2211,6 @@ main(int argc, char* argv[])
             SDL_Delay(target_frame_time - frame_time);
         }
     }
-#endif
 
     // Cleanup
     SDL_DestroyTexture(platform.texture);

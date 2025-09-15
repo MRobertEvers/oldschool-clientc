@@ -1,8 +1,8 @@
 extern "C" {
+#include "graphics/render.h"
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
 #include "osrs/frustrum_cullmap.h"
-#include "osrs/render.h"
 #include "osrs/scene.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_idk.h"
@@ -927,6 +927,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                     50,
                     SCREEN_WIDTH,
                     SCREEN_HEIGHT,
+                    game->camera_fov,
                     game->textures_cache);
             }
 
