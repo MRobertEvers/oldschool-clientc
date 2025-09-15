@@ -1519,13 +1519,13 @@ main(int argc, char* argv[])
     // game.camera_x = 0;
     // game.camera_y = -240;
     // game.camera_z = 0;
-    game.camera_pitch = 210;
-    game.camera_yaw = 80;
+    game.camera_pitch = 290;
+    game.camera_yaw = 1538;
     game.camera_roll = 0;
     game.camera_fov = 512;
-    game.camera_x = 2888;
-    game.camera_y = -440;
-    game.camera_z = 270;
+    game.camera_x = 390;
+    game.camera_y = -1340;
+    game.camera_z = 1916;
 
     game.player_tile_x = 10;
     game.player_tile_y = 10;
@@ -2208,7 +2208,7 @@ main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            SDL_Delay(target_frame_time - frame_time);
+            // SDL_Delay(target_frame_time - frame_time);
         }
     }
 

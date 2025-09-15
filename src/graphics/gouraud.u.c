@@ -8,6 +8,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// clang-format off
+#include "simd.u.c"
+// clang-format on
+
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
@@ -53,10 +57,13 @@ draw_scanline_gouraud_s4(
     {
         rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
 
-        pixel_buffer[offset++] = rgb_color;
-        pixel_buffer[offset++] = rgb_color;
-        pixel_buffer[offset++] = rgb_color;
-        pixel_buffer[offset++] = rgb_color;
+        simd_write4((uint32_t*)(pixel_buffer + offset), rgb_color);
+        offset += 4;
+
+        // pixel_buffer[offset++] = rgb_color;
+        // pixel_buffer[offset++] = rgb_color;
+        // pixel_buffer[offset++] = rgb_color;
+        // pixel_buffer[offset++] = rgb_color;
 
         hsl += hsl_step;
 
@@ -147,11 +154,6 @@ draw_scanline_gouraud_blend_s4(
         rgb_blend = pixel_buffer[offset];
         rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
         pixel_buffer[offset++] = rgb_blend;
-
-        // pixel_buffer[offset++] = rgb_color;
-        // pixel_buffer[offset++] = rgb_color;
-        // pixel_buffer[offset++] = rgb_color;
-        // pixel_buffer[offset++] = rgb_color;
 
         color_hsl16_ish8 += step_color_hsl16_ish8;
     }

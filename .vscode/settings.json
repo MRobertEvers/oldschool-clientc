@@ -108,6 +108,11 @@
         "shared_tables.h": "c",
         "maps.h": "c",
         "stdbool.h": "c",
-        "gouraud.u.c": "cpp"
+        "gouraud.u.c": "cpp",
+        "regex": "c",
+        "tuple": "c",
+        "map": "c",
+        "set": "c",
+        "unordered_set": "c"
     }
 }
