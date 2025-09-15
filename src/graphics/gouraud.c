@@ -381,40 +381,43 @@ raster_gouraud_zbuf(
 
 extern int g_hsl16_to_rgb_table[65536];
 
-void
+static inline void
 draw_scanline_gouraud_s4(
-    int* pixel_buffer, int offset, int stride_width, int x_start, int x_end, int hsl, int hsl_step)
+    int* pixel_buffer,
+    int offset,
+    int stride_width,
+    int x_start_ish,
+    int x_end_ish,
+    int hsl,
+    int hsl_step)
 {
-    if( x_start == x_end )
-        return;
-
-    if( x_start > x_end )
+    if( x_start_ish > x_end_ish )
     {
         int tmp;
-        tmp = x_start;
-        x_start = x_end;
-        x_end = tmp;
+        tmp = x_start_ish;
+        x_start_ish = x_end_ish;
+        x_end_ish = tmp;
     }
 
-    if( x_start < 0 )
-        x_start = 0;
-    if( x_end >= stride_width )
-        x_end = stride_width - 1;
-    if( x_start >= x_end )
+    if( x_start_ish < 0 )
+        x_start_ish = 0;
+    if( x_end_ish >= (stride_width) )
+        x_end_ish = (stride_width)-1;
+    if( x_start_ish >= x_end_ish )
         return;
 
-    int dx_stride = x_end - x_start;
+    int dx_stride = (x_end_ish - x_start_ish) >> 8;
 
     // Steps by 4.
-    offset += x_start;
+    offset += x_start_ish >> 8;
 
     int steps = dx_stride >> 2;
 
-    hsl += hsl_step * x_start;
+    hsl += hsl_step * (x_start_ish >> 8);
 
     hsl_step <<= 2;
     int rgb_color;
-    while( --steps >= 0 )
+    while( steps > 0 )
     {
         rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
 
@@ -424,12 +427,18 @@ draw_scanline_gouraud_s4(
         pixel_buffer[offset++] = rgb_color;
 
         hsl += hsl_step;
+
+        steps -= 1;
     }
 
     steps = dx_stride & 0x3;
     rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
-    while( --steps >= 0 )
+    while( steps > 0 )
+    {
         pixel_buffer[offset++] = rgb_color;
+
+        steps -= 1;
+    }
 }
 
 void
@@ -917,14 +926,21 @@ raster_gouraud_s4(
 
     int offset = y0 * screen_width;
 
+    int stride_width = screen_width << 8;
     int i = y0;
     for( ; i < y1; ++i )
     {
-        int x_start_current = edge_x_AC_ish16 >> coord_shift;
-        int x_end_current = edge_x_AB_ish16 >> coord_shift;
+        // int x_start_current = edge_x_AC_ish16 >> 0;
+        // int x_end_current = edge_x_AB_ish16 >> 0;
 
         draw_scanline_gouraud_s4(
-            pixel_buffer, offset, screen_width, x_start_current, x_end_current, hsl, color_step_x);
+            pixel_buffer,
+            offset,
+            stride_width,
+            edge_x_AC_ish16,
+            edge_x_AB_ish16,
+            hsl,
+            color_step_x);
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
 
@@ -940,11 +956,17 @@ raster_gouraud_s4(
     i = y1;
     for( ; i < y2; ++i )
     {
-        int x_start_current = edge_x_AC_ish16 >> coord_shift;
-        int x_end_current = edge_x_BC_ish16 >> coord_shift;
+        // int x_start_current = edge_x_AC_ish16 >> 0;
+        // int x_end_current = edge_x_BC_ish16 >> 0;
 
         draw_scanline_gouraud_s4(
-            pixel_buffer, offset, screen_width, x_start_current, x_end_current, hsl, color_step_x);
+            pixel_buffer,
+            offset,
+            stride_width,
+            edge_x_AC_ish16,
+            edge_x_BC_ish16,
+            hsl,
+            color_step_x);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;
