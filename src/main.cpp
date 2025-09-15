@@ -884,6 +884,11 @@ initGL()
                 float vV_y = n_y - p_y;
                 float vV_z = n_z - p_z;
 
+                int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
+                int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
+                int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+
+                // Compute the positions of A, B, C relative to P.
                 int dxa = xa - p_x;
                 int dya = ya - p_y;
                 int dza = za - p_z;
@@ -894,35 +899,29 @@ initGL()
                 int dyc = yc - p_y;
                 int dzc = zc - p_z;
 
-                int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
-                int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
-                int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+                // Cross product of UV_normal and V.
+                // This math is the same as the math in texture.c, except it shortcuts the fact that
+                // (N - O) x ((M - O) x (N - O)) = (N - O) x ((M - O) x N - (M - O) x O)
+                // (N - O) x ((M x N) - (O x N) - (M x O) + (O x O))  = (N - O) x (N x M)
+                float U_xhat = vV_y * vUVPlane_normal_zhat - vV_z * vUVPlane_normal_yhat;
+                float U_yhat = vV_z * vUVPlane_normal_xhat - vV_x * vUVPlane_normal_zhat;
+                float U_zhat = vV_x * vUVPlane_normal_yhat - vV_y * vUVPlane_normal_xhat;
+                float U_inv_w = 1.0 / (U_xhat * vU_x + U_yhat * vU_y + U_zhat * vU_z);
 
-                // int vOVPlane_normal_xhat = p_y * vV_z - p_z * vV_y;
-                // int vOVPlane_normal_yhat = p_z * vV_x - p_x * vV_z;
-                // int vOVPlane_normal_zhat = p_x * vV_y - p_y * vV_x;
+                // dot product of A and U
+                u1 = (U_xhat * dxa + U_yhat * dya + U_zhat * dza) * U_inv_w;
+                u2 = (U_xhat * dxb + U_yhat * dyb + U_zhat * dzb) * U_inv_w;
+                u3 = (U_xhat * dxc + U_yhat * dyc + U_zhat * dzc) * U_inv_w;
 
-                // int vUOPlane_normal_xhat = vU_y * p_z - vU_z * p_y;
-                // int vUOPlane_normal_yhat = vU_z * p_x - vU_x * p_z;
-                // int vUOPlane_normal_zhat = vU_x * p_y - vU_y * p_x;
+                // Cross product of UV_normal and U.
+                float V_xhat = vU_y * vUVPlane_normal_zhat - vU_z * vUVPlane_normal_yhat;
+                float V_yhat = vU_z * vUVPlane_normal_xhat - vU_x * vUVPlane_normal_zhat;
+                float V_zhat = vU_x * vUVPlane_normal_yhat - vU_y * vUVPlane_normal_xhat;
+                float V_inv_w = 1.0 / (V_xhat * vV_x + V_yhat * vV_y + V_zhat * vV_z);
 
-                float f_900_ = vV_y * vUVPlane_normal_zhat - vV_z * vUVPlane_normal_yhat;
-                float f_901_ = vV_z * vUVPlane_normal_xhat - vV_x * vUVPlane_normal_zhat;
-                float f_902_ = vV_x * vUVPlane_normal_yhat - vV_y * vUVPlane_normal_xhat;
-                float f_903_ = 1.0 / (f_900_ * vU_x + f_901_ * vU_y + f_902_ * vU_z);
-
-                u1 = (f_900_ * dxa + f_901_ * dya + f_902_ * dza) * f_903_;
-                u2 = (f_900_ * dxb + f_901_ * dyb + f_902_ * dzb) * f_903_;
-                u3 = (f_900_ * dxc + f_901_ * dyc + f_902_ * dzc) * f_903_;
-
-                f_900_ = vU_y * vUVPlane_normal_zhat - vU_z * vUVPlane_normal_yhat;
-                f_901_ = vU_z * vUVPlane_normal_xhat - vU_x * vUVPlane_normal_zhat;
-                f_902_ = vU_x * vUVPlane_normal_yhat - vU_y * vUVPlane_normal_xhat;
-                f_903_ = 1.0 / (f_900_ * vV_x + f_901_ * vV_y + f_902_ * vV_z);
-
-                v1 = (f_900_ * dxa + f_901_ * dya + f_902_ * dza) * f_903_;
-                v2 = (f_900_ * dxb + f_901_ * dyb + f_902_ * dzb) * f_903_;
-                v3 = (f_900_ * dxc + f_901_ * dyc + f_902_ * dzc) * f_903_;
+                v1 = (V_xhat * dxa + V_yhat * dya + V_zhat * dza) * V_inv_w;
+                v2 = (V_xhat * dxb + V_yhat * dyb + V_zhat * dzb) * V_inv_w;
+                v3 = (V_xhat * dxc + V_yhat * dyc + V_zhat * dzc) * V_inv_w;
 
 #define SCALE(x) ((((long long)x) << 9))
 
