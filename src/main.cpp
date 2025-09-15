@@ -818,8 +818,8 @@ initGL()
         int face = i;
         // Get texture coordinates for this face
         float u1 = 0.0f, v1 = 0.0f;
-        float u2 = 1.0f, v2 = 0.0f;
-        float u3 = 0.5f, v3 = 1.0f;
+        float u2 = 0.0f, v2 = 0.0f;
+        float u3 = 0.0f, v3 = 0.0f;
 
 // #define ADJUST_X(x) (x - (SCREEN_WIDTH / 2))
 // #define ADJUST_Y(y) (y - (SCREEN_HEIGHT / 2))
@@ -829,15 +829,18 @@ initGL()
         int xa = ADJUST_X(g_scene_model->model->vertices_x[face_indices_a[face]]);
         int ya = ADJUST_Y(g_scene_model->model->vertices_y[face_indices_a[face]]);
         int za = g_scene_model->model->vertices_z[face_indices_a[face]];
+
         int xb = ADJUST_X(g_scene_model->model->vertices_x[face_indices_b[face]]);
         int yb = ADJUST_Y(g_scene_model->model->vertices_y[face_indices_b[face]]);
         int zb = g_scene_model->model->vertices_z[face_indices_b[face]];
+
         int xc = ADJUST_X(g_scene_model->model->vertices_x[face_indices_c[face]]);
         int yc = ADJUST_Y(g_scene_model->model->vertices_y[face_indices_c[face]]);
         int zc = g_scene_model->model->vertices_z[face_indices_c[face]];
 
         if( face_texture_coords && face_texture_coords[face] != -1 )
         {
+            printf("face %d: has texture coords\n", i);
             texture_face = face_texture_coords[face];
 
             tp_vertex = face_p_coordinate_nullable[texture_face];
@@ -846,6 +849,7 @@ initGL()
         }
         else
         {
+            printf("face %d: no texture coords\n", i);
             texture_face = face;
             tp_vertex = face_indices_a[texture_face];
             tm_vertex = face_indices_b[texture_face];
@@ -880,58 +884,117 @@ initGL()
                 float vV_y = n_y - p_y;
                 float vV_z = n_z - p_z;
 
+                int dxa = xa - p_x;
+                int dya = ya - p_y;
+                int dza = za - p_z;
+                int dxb = xb - p_x;
+                int dyb = yb - p_y;
+                int dzb = zb - p_z;
+                int dxc = xc - p_x;
+                int dyc = yc - p_y;
+                int dzc = zc - p_z;
+
                 int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
                 int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
                 int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
 
-                int vOVPlane_normal_xhat = p_y * vV_z - p_z * vV_y;
-                int vOVPlane_normal_yhat = p_z * vV_x - p_x * vV_z;
-                int vOVPlane_normal_zhat = p_x * vV_y - p_y * vV_x;
+                // int vOVPlane_normal_xhat = p_y * vV_z - p_z * vV_y;
+                // int vOVPlane_normal_yhat = p_z * vV_x - p_x * vV_z;
+                // int vOVPlane_normal_zhat = p_x * vV_y - p_y * vV_x;
 
-                int vUOPlane_normal_xhat = vU_y * p_z - vU_z * p_y;
-                int vUOPlane_normal_yhat = vU_z * p_x - vU_x * p_z;
+                // int vUOPlane_normal_xhat = vU_y * p_z - vU_z * p_y;
+                // int vUOPlane_normal_yhat = vU_z * p_x - vU_x * p_z;
+                // int vUOPlane_normal_zhat = vU_x * p_y - vU_y * p_x;
 
-                int vUOPlane_normal_zhat = vU_x * p_y - vU_y * p_x;
+                float f_900_ = vV_y * vUVPlane_normal_zhat - vV_z * vUVPlane_normal_yhat;
+                float f_901_ = vV_z * vUVPlane_normal_xhat - vV_x * vUVPlane_normal_zhat;
+                float f_902_ = vV_x * vUVPlane_normal_yhat - vV_y * vUVPlane_normal_xhat;
+                float f_903_ = 1.0 / (f_900_ * vU_x + f_901_ * vU_y + f_902_ * vU_z);
 
-#define SCALE(x) (((long long)x) << 9)
+                u1 = (f_900_ * dxa + f_901_ * dya + f_902_ * dza) * f_903_;
+                u2 = (f_900_ * dxb + f_901_ * dyb + f_902_ * dzb) * f_903_;
+                u3 = (f_900_ * dxc + f_901_ * dyc + f_902_ * dzc) * f_903_;
 
-#define ADJUST_Y_MUL(y) (y - (SCREEN_HEIGHT / 2))
-#define ADJUST_X_MUL(x) (x - (SCREEN_WIDTH / 2))
+                f_900_ = vU_y * vUVPlane_normal_zhat - vU_z * vUVPlane_normal_yhat;
+                f_901_ = vU_z * vUVPlane_normal_xhat - vU_x * vUVPlane_normal_zhat;
+                f_902_ = vU_x * vUVPlane_normal_yhat - vU_y * vUVPlane_normal_xhat;
+                f_903_ = 1.0 / (f_900_ * vV_x + f_901_ * vV_y + f_902_ * vV_z);
+
+                v1 = (f_900_ * dxa + f_901_ * dya + f_902_ * dza) * f_903_;
+                v2 = (f_900_ * dxb + f_901_ * dyb + f_902_ * dzb) * f_903_;
+                v3 = (f_900_ * dxc + f_901_ * dyc + f_902_ * dzc) * f_903_;
+
+#define SCALE(x) ((((long long)x) << 9))
+
+                // #define ADJUST_Y_MUL(y) (y - (SCREEN_HEIGHT / 2))
+                // #define ADJUST_X_MUL(x) (x - (SCREEN_WIDTH / 2))
+#define ADJUST_Y_MUL(y) (y)
+#define ADJUST_X_MUL(x) (x)
 
                 // For each vertex, compute a, b, c values and then u, v
                 // For tp_vertex (origin)
-                float a1 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(ya) +
-                           vOVPlane_normal_xhat * ADJUST_X_MUL(xa);
-                float b1 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(ya) +
-                           vUOPlane_normal_xhat * ADJUST_X_MUL(xa);
-                float c1 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(ya) +
-                           vUOPlane_normal_xhat * ADJUST_X_MUL(xa);
-                u1 = (c1 != 0.0f) ? a1 / -c1 : 0.0f;
-                v1 = (c1 != 0.0f) ? b1 / -c1 : 0.0f;
+                // float a1 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(ya)
+                // +
+                //            vOVPlane_normal_xhat * ADJUST_X_MUL(xa);
+                // float b1 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(ya)
+                // +
+                //            vUOPlane_normal_xhat * ADJUST_X_MUL(xa);
+                // float c1 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(ya)
+                // +
+                //            vUVPlane_normal_xhat * ADJUST_X_MUL(xa);
+                // u1 = (c1 != 0.0f) ? a1 / -c1 : 0.0f;
+                // v1 = (c1 != 0.0f) ? b1 / -c1 : 0.0f;
 
-                // For tm_vertex (U endpoint)
-                float a2 = SCALE(vOVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yb) +
-                           vUOPlane_normal_xhat * ADJUST_X_MUL(xb);
-                float b2 = SCALE(vUOPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yb) +
-                           vUOPlane_normal_xhat * ADJUST_X_MUL(xb);
-                float c2 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yb) +
-                           vUOPlane_normal_xhat * ADJUST_X_MUL(xb);
-                u2 = (c2 != 0.0f) ? a2 / -c2 : 1.0f;
-                v2 = (c2 != 0.0f) ? b2 / -c2 : 0.0f;
+                // // For tm_vertex (U endpoint)
+                // float a2 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(yb)
+                // +
+                //            vOVPlane_normal_xhat * ADJUST_X_MUL(xb);
+                // float b2 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(yb)
+                // +
+                //            vUOPlane_normal_xhat * ADJUST_X_MUL(xb);
+                // float c2 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yb)
+                // +
+                //            vUVPlane_normal_xhat * ADJUST_X_MUL(xb);
+                // u2 = (c2 != 0.0f) ? a2 / -c2 : 1.0f;
+                // v2 = (c2 != 0.0f) ? b2 / -c2 : 0.0f;
 
-                // For tn_vertex (V endpoint)
-                float a3 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(yc) +
-                           vOVPlane_normal_xhat * ADJUST_X_MUL(xc);
-                float b3 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(yc) +
-                           vUOPlane_normal_xhat * ADJUST_X_MUL(xc);
-                float c3 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yc) +
-                           vUVPlane_normal_xhat * ADJUST_X_MUL(xc);
-                u3 = (c3 != 0.0f) ? a3 / -c3 : 0.0f;
-                v3 = (c3 != 0.0f) ? b3 / -c3 : 1.0f;
+                // // For tn_vertex (V endpoint)
+                // float a3 = SCALE(vOVPlane_normal_zhat) + vOVPlane_normal_yhat * ADJUST_Y_MUL(yc)
+                // +
+                //            vOVPlane_normal_xhat * ADJUST_X_MUL(xc);
+                // float b3 = SCALE(vUOPlane_normal_zhat) + vUOPlane_normal_yhat * ADJUST_Y_MUL(yc)
+                // +
+                //            vUOPlane_normal_xhat * ADJUST_X_MUL(xc);
+                // float c3 = SCALE(vUVPlane_normal_zhat) + vUVPlane_normal_yhat * ADJUST_Y_MUL(yc)
+                // +
+                //            vUVPlane_normal_xhat * ADJUST_X_MUL(xc);
+                // u3 = (c3 != 0.0f) ? a3 / -c3 : 0.0f;
+                // v3 = (c3 != 0.0f) ? b3 / -c3 : 1.0f;
             }
         }
 
-        printf("u1: %f, v1: %f, u2: %f, v2: %f, u3: %f, v3: %f\n", u1, v1, u2, v2, u3, v3);
+        // u1 /= 128.0f;
+        // v1 /= 128.0f;
+        // u2 /= 128.0f;
+        // v2 /= 128.0f;
+        // u3 /= 128.0f;
+        // v3 /= 128.0f;
+        // u1 /= -1;
+        // v1 /= -1;
+        // u2 /= -1;
+        // v2 /= -1;
+        // u3 /= -1;
+        // v3 /= -1;
+
+        // u1 = 0;
+        // v1 = 0;
+        // u2 = 1;
+        // v2 = 0;
+        // u3 = 0;
+        // v3 = 1;
+
+        printf(
+            "face %d: u1: %f, v1: %f, u2: %f, v2: %f, u3: %f, v3: %f\n", i, u1, v1, u2, v2, u3, v3);
         // Store texture coordinates for this face's vertices
         texCoords[i * 6] = u1;     // First vertex U (tp - origin)
         texCoords[i * 6 + 1] = v1; // First vertex V
@@ -1125,14 +1188,14 @@ render()
     g_frame_count++;
     if( g_frame_count % 60 == 0 )
     { // Print every 60 frames
-        printf(
-            "Render frame %d, camera: %f, %f, %f (pitch: %f, yaw: %f)\n",
-            g_frame_count,
-            cameraX,
-            cameraY,
-            cameraZ,
-            rotationX,
-            rotationY);
+      // printf(
+      //     "Render frame %d, camera: %f, %f, %f (pitch: %f, yaw: %f)\n",
+      //     g_frame_count,
+      //     cameraX,
+      //     cameraY,
+      //     cameraZ,
+      //     rotationX,
+      //     rotationY);
     }
 
     // Reset software render time for this frame
@@ -1378,15 +1441,7 @@ load_texture(int texture_id, int size)
 
     // Upload texture data
     glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGBA,
-        cache_tex->width,
-        cache_tex->height,
-        0,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        cache_tex->texels);
+        GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGBA, GL_UNSIGNED_BYTE, cache_tex->texels);
 
     // Store texture info
     tex.width = cache_tex->width;
