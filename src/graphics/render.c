@@ -186,8 +186,7 @@ project_vertices_model_textured(
 
     compute_screen_x_aabb(aabb, mid_x, mid_z, model_edge_radius, camera_fov, screen_width);
 
-    if( project_divide(aabb->min_screen_x, max_z, camera_fov) > screen_width ||
-        project_divide(aabb->max_screen_x, max_z, camera_fov) < 0 )
+    if( aabb->min_screen_x > screen_width || aabb->max_screen_x < 0 )
     {
         // All parts of the model left or right edges are projected off screen.
         return 0;
@@ -204,8 +203,7 @@ project_vertices_model_textured(
         camera_pitch,
         screen_height);
 
-    if( project_divide(aabb->min_screen_y, max_z, camera_fov) > screen_height ||
-        project_divide(aabb->max_screen_y, max_z, camera_fov) < 0 )
+    if( aabb->min_screen_y > screen_height || aabb->max_screen_y < 0 )
     {
         // All parts of the model top or bottom edges are projected off screen.
         return 0;
