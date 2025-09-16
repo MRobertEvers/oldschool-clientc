@@ -29,11 +29,11 @@
 #include "projection.u.c"
 // clang-format on
 
-static int tmp_depth_face_count[1500] = { 0 };
-static int tmp_depth_faces[1500 * 512] = { 0 };
-static int tmp_priority_face_count[12] = { 0 };
-static int tmp_priority_depth_sum[12] = { 0 };
-static int tmp_priority_faces[12 * 2000] = { 0 };
+static short tmp_depth_face_count[1500] = { 0 };
+static short tmp_depth_faces[1500 * 512] = { 0 };
+static short tmp_priority_face_count[12] = { 0 };
+static short tmp_priority_depth_sum[12] = { 0 };
+static short tmp_priority_faces[12 * 2000] = { 0 };
 static int tmp_flex_prio11_face_to_depth[1024] = { 0 };
 static int tmp_flex_prio12_face_to_depth[512] = { 0 };
 static int tmp_face_order[1024] = { 0 };
@@ -80,11 +80,6 @@ project_vertices_model_textured(
     int near_plane_z)
 {
     struct ProjectedVertex projected_vertex;
-    struct ProjectedVertex tmp_projected_vertices[4096];
-
-    assert(camera_pitch >= 0 && camera_pitch < 2048);
-    assert(camera_yaw >= 0 && camera_yaw < 2048);
-    assert(camera_roll >= 0 && camera_roll < 2048);
 
     project_orthographic_fast(
         &projected_vertex, 0, 0, 0, model_yaw, scene_x, scene_y, scene_z, camera_pitch, camera_yaw);
@@ -143,6 +138,22 @@ project_vertices_model_textured(
         return 0;
     }
 
+    // Calculate FOV scale based on the angle using sin/cos tables
+    // fov is in units of (2π/2048) radians
+    // For perspective projection, we need tan(fov/2)
+    // tan(x) = sin(x)/cos(x)
+    int fov_half = camera_fov >> 1; // fov/2
+
+    // fov_scale = 1/tan(fov/2)
+    // cot(x) = 1/tan(x)
+    // cot(x) = tan(pi/2 - x)
+    // cot(x + pi) = cot(x)
+    // assert(fov_half < 1536);
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+
+    static const int scale_angle = 1;
+    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+
     // Checked on 09/15/2025, this does get vectorized on Mac, using arm neon.
     for( int i = 0; i < num_vertices; i++ )
     {
@@ -158,12 +169,57 @@ project_vertices_model_textured(
             camera_pitch,
             camera_yaw);
 
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+        int z = projected_vertex.z;
+
+        x *= cot_fov_half_ish_scaled;
+        y *= cot_fov_half_ish_scaled;
+        x >>= 16 - scale_angle;
+        y >>= 16 - scale_angle;
+
+        // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
+        int screen_x = SCALE_UNIT(x);
+        int screen_y = SCALE_UNIT(y);
+        // screen_x *= cot_fov_half_ish_scaled;
+        // screen_y *= cot_fov_half_ish_scaled;
+        // screen_x >>= 16 - scale_angle;
+        // screen_y >>= 16 - scale_angle;
+
+        // Set the projected triangle
+
         orthographic_vertices_x[i] = projected_vertex.x;
         orthographic_vertices_y[i] = projected_vertex.y;
         orthographic_vertices_z[i] = projected_vertex.z;
+
+        screen_vertices_x[i] = screen_x;
+        screen_vertices_y[i] = screen_y;
+        screen_vertices_z[i] = z;
     }
 
     // int cot_fov_half_ish15 = calc_cot_fov_half_ish15(camera_fov);
+
+    // for( int i = 0; i < num_vertices; i++ )
+    // {
+    //     int x = orthographic_vertices_x[i];
+    //     int y = orthographic_vertices_y[i];
+    //     int z = orthographic_vertices_z[i];
+
+    //     // Apply FOV scaling to x and y coordinates
+
+    //     // unit scale 9, angle scale 16
+    //     // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    //     // if valid x is -Screen_width/2 to Screen_width/2
+    //     // And the max resolution we allow is 1600 (either dimension)
+    //     // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    //     // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    //     // i.e. x/z < 2^6 or x/z < 64
+
+    //     // Suppose we allow z > 16, so z_clip_bits = 4
+    //     // then x_bits_max < 10, so 2^9, which is 512
+    // }
 
     for( int i = 0; i < num_vertices; i++ )
     {
@@ -175,31 +231,37 @@ project_vertices_model_textured(
         //     cot_fov_half_ish15,
         //     near_plane_z);
 
-        project_perspective_fast(
-            &projected_vertex,
-            orthographic_vertices_x[i],
-            orthographic_vertices_y[i],
-            orthographic_vertices_z[i],
-            camera_fov,
-            near_plane_z);
+        // project_perspective_fast(
+        //     &projected_vertex,
+        //     orthographic_vertices_x[i],
+        //     orthographic_vertices_y[i],
+        //     orthographic_vertices_z[i],
+        //     camera_fov,
+        //     near_plane_z);
+
+        int z = screen_vertices_z[i];
+
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
 
         // If vertex is too close to camera, set it to a large negative value
         // This will cause it to be clipped in the rasterization step
         // screen_vertices_z[i] = projected_vertex.z - mid_z;
-        screen_vertices_z[i] = projected_vertex.z - mid_z;
+        screen_vertices_z[i] = z - mid_z;
 
-        if( projected_vertex.clipped )
+        if( clipped )
         {
             screen_vertices_x[i] = -5000;
         }
         else
         {
-            screen_vertices_x[i] = projected_vertex.x;
+            screen_vertices_x[i] = screen_vertices_x[i] / z;
             // TODO: The actual renderer from the deob marks that a face was clipped.
             // so it doesn't have to worry about a value actually being -5000.
             if( screen_vertices_x[i] == -5000 )
                 screen_vertices_x[i] = -5001;
-            screen_vertices_y[i] = projected_vertex.y;
+            screen_vertices_y[i] = screen_vertices_y[i] / z;
         }
     }
 
@@ -276,6 +338,22 @@ project_vertices_terrain_textured(
         return 0;
     }
 
+    // Calculate FOV scale based on the angle using sin/cos tables
+    // fov is in units of (2π/2048) radians
+    // For perspective projection, we need tan(fov/2)
+    // tan(x) = sin(x)/cos(x)
+    int fov_half = camera_fov >> 1; // fov/2
+
+    // fov_scale = 1/tan(fov/2)
+    // cot(x) = 1/tan(x)
+    // cot(x) = tan(pi/2 - x)
+    // cot(x + pi) = cot(x)
+    // assert(fov_half < 1536);
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+
+    static const int scale_angle = 1;
+    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+
     // Checked on 09/15/2025, this does get vectorized on Mac, using arm neon.
     for( int i = 0; i < num_vertices; i++ )
     {
@@ -286,18 +364,62 @@ project_vertices_terrain_textured(
             vertex_z[i],
             model_yaw,
             -camera_x,
-            // Camera z is the y axis in OSRS
             -camera_z,
             -camera_y,
             camera_pitch,
             camera_yaw);
 
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+        int z = projected_vertex.z;
+
+        x *= cot_fov_half_ish_scaled;
+        y *= cot_fov_half_ish_scaled;
+        x >>= 16 - scale_angle;
+        y >>= 16 - scale_angle;
+
+        // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
+        int screen_x = SCALE_UNIT(x);
+        int screen_y = SCALE_UNIT(y);
+        // screen_x *= cot_fov_half_ish_scaled;
+        // screen_y *= cot_fov_half_ish_scaled;
+        // screen_x >>= 16 - scale_angle;
+        // screen_y >>= 16 - scale_angle;
+
+        // Set the projected triangle
+
         orthographic_vertices_x[i] = projected_vertex.x;
         orthographic_vertices_y[i] = projected_vertex.y;
         orthographic_vertices_z[i] = projected_vertex.z;
+
+        screen_vertices_x[i] = screen_x;
+        screen_vertices_y[i] = screen_y;
+        screen_vertices_z[i] = z;
     }
 
     // int cot_fov_half_ish15 = calc_cot_fov_half_ish15(camera_fov);
+
+    // for( int i = 0; i < num_vertices; i++ )
+    // {
+    //     int x = orthographic_vertices_x[i];
+    //     int y = orthographic_vertices_y[i];
+    //     int z = orthographic_vertices_z[i];
+
+    //     // Apply FOV scaling to x and y coordinates
+
+    //     // unit scale 9, angle scale 16
+    //     // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    //     // if valid x is -Screen_width/2 to Screen_width/2
+    //     // And the max resolution we allow is 1600 (either dimension)
+    //     // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    //     // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    //     // i.e. x/z < 2^6 or x/z < 64
+
+    //     // Suppose we allow z > 16, so z_clip_bits = 4
+    //     // then x_bits_max < 10, so 2^9, which is 512
+    // }
 
     for( int i = 0; i < num_vertices; i++ )
     {
@@ -309,41 +431,47 @@ project_vertices_terrain_textured(
         //     cot_fov_half_ish15,
         //     near_plane_z);
 
-        project_perspective_fast(
-            &projected_vertex,
-            orthographic_vertices_x[i],
-            orthographic_vertices_y[i],
-            orthographic_vertices_z[i],
-            camera_fov,
-            near_plane_z);
+        // project_perspective_fast(
+        //     &projected_vertex,
+        //     orthographic_vertices_x[i],
+        //     orthographic_vertices_y[i],
+        //     orthographic_vertices_z[i],
+        //     camera_fov,
+        //     near_plane_z);
 
-        if( projected_vertex.clipped )
+        int z = screen_vertices_z[i];
+
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
+
+        // If vertex is too close to camera, set it to a large negative value
+        // This will cause it to be clipped in the rasterization step
+        // screen_vertices_z[i] = projected_vertex.z - mid_z;
+        screen_vertices_z[i] = z;
+
+        if( clipped )
         {
-            // Since terrain vertexes are calculated as a single mesh rather,
-            // than around some origin, assume that if any vertex is clipped,
-            // then the entire terrain is clipped.
             screen_vertices_x[i] = -5000;
-            screen_vertices_z[i] = projected_vertex.z;
         }
         else
         {
-            screen_vertices_x[i] = projected_vertex.x;
+            screen_vertices_x[i] = screen_vertices_x[i] / z;
             // TODO: The actual renderer from the deob marks that a face was clipped.
             // so it doesn't have to worry about a value actually being -5000.
-            if( projected_vertex.x == -5000 )
+            if( screen_vertices_x[i] == -5000 )
                 screen_vertices_x[i] = -5001;
-            screen_vertices_y[i] = projected_vertex.y;
-            screen_vertices_z[i] = projected_vertex.z;
+            screen_vertices_y[i] = screen_vertices_y[i] / z;
         }
     }
 
     return 1;
 }
 
-static inline void
+static inline int
 bucket_sort_by_average_depth(
-    int* face_depth_buckets,
-    int* face_depth_bucket_counts,
+    short* face_depth_buckets,
+    short* face_depth_bucket_counts,
     int model_min_depth,
     int num_faces,
     int* vertex_x,
@@ -353,6 +481,9 @@ bucket_sort_by_average_depth(
     int* face_b,
     int* face_c)
 {
+    int min_depth = INT_MAX;
+    int max_depth = INT_MIN;
+
     for( int f = 0; f < num_faces; f++ )
     {
         int a = face_a[f];
@@ -407,30 +538,28 @@ bucket_sort_by_average_depth(
             if( depth_average < 1500 && depth_average > 0 )
             {
                 int bucket_index = face_depth_bucket_counts[depth_average]++;
-                face_depth_buckets[depth_average * 512 + bucket_index] = f;
-            }
-            else
-            {
-                // printf(
-                //     "Out of bounds %d, (%d, %d, %d) - %d\n",
-                //     depth_average,
-                //     za,
-                //     zb,
-                //     zc,
-                //     model_min_depth);
+                face_depth_buckets[(depth_average << 9) + bucket_index] = f;
+
+                if( depth_average < min_depth )
+                    min_depth = depth_average;
+                if( depth_average > max_depth )
+                    max_depth = depth_average;
             }
         }
     }
+
+    return (min_depth) | (max_depth << 16);
 }
 
 static inline void
 parition_faces_by_priority(
-    int* face_priority_buckets,
-    int* face_priority_bucket_counts,
-    int* face_depth_buckets,
-    int* face_depth_bucket_counts,
+    short* face_priority_buckets,
+    short* face_priority_bucket_counts,
+    short* face_depth_buckets,
+    short* face_depth_bucket_counts,
     int num_faces,
     int* face_priorities,
+    int depth_lower_bound,
     int depth_upper_bound)
 {
     /**
@@ -441,13 +570,13 @@ parition_faces_by_priority(
      * then it should be drawn "below" the body.
      *
      */
-    for( int depth = depth_upper_bound; depth >= 0 && depth < 1500; depth-- )
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
     {
         int face_count = face_depth_bucket_counts[depth];
         if( face_count == 0 )
             continue;
 
-        int* faces = &face_depth_buckets[depth * 512];
+        short* faces = &face_depth_buckets[depth << 9];
         for( int i = 0; i < face_count; i++ )
         {
             int face_idx = faces[i];
@@ -477,26 +606,27 @@ parition_faces_by_priority(
 static inline int
 sort_face_draw_order(
     int* face_draw_order,
-    int* face_depth_buckets,
-    int* face_depth_bucket_counts,
-    int* face_priority_buckets,
-    int* face_priority_bucket_counts,
+    short* face_depth_buckets,
+    short* face_depth_bucket_counts,
+    short* face_priority_buckets,
+    short* face_priority_bucket_counts,
     int num_faces,
     int* face_priorities,
+    int depth_lower_bound,
     int depth_upper_bound)
 {
-    int* priority_depths = tmp_priority_depth_sum;
+    short* priority_depths = tmp_priority_depth_sum;
     int* flex_prio11_face_to_depth = tmp_flex_prio11_face_to_depth;
     int* flex_prio12_face_to_depth = tmp_flex_prio12_face_to_depth;
 
     int counts[12] = { 0 };
-    for( int depth = depth_upper_bound; depth >= 0 && depth < 1500; depth-- )
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
     {
         int face_count = face_depth_bucket_counts[depth];
         if( face_count == 0 )
             continue;
 
-        int* faces = &face_depth_buckets[depth * 512];
+        short* faces = &face_depth_buckets[depth << 9];
         for( int i = 0; i < face_count; i++ )
         {
             int face_idx = faces[i];
@@ -1117,6 +1247,7 @@ render_model_frame(
     struct Framemap* framemap_nullable,
     struct TexturesCache* textures_cache)
 {
+    return;
     //     int* vertices_x = model->vertices_x;
     //     int* vertices_y = model->vertices_y;
     //     int* vertices_z = model->vertices_z;
@@ -1124,9 +1255,6 @@ render_model_frame(
     //     int* face_indices_a = model->face_indices_a;
     //     int* face_indices_b = model->face_indices_b;
     //     int* face_indices_c = model->face_indices_c;
-
-    // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
-    // memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
 
     // int* screen_vertices_x = tmp_screen_vertices_x;
     // int* screen_vertices_y = tmp_screen_vertices_y;
@@ -1137,8 +1265,6 @@ render_model_frame(
     // int* orthographic_vertices_z = tmp_orthographic_vertices_z;
 
     int model_min_depth = bounds_cylinder->min_z_depth_any_rotation;
-
-    memset(tmp_depth_face_count, 0, (model_min_depth * 2 + 1) * sizeof(tmp_depth_face_count[0]));
 
     // TODO: Move this before lighting.
 
@@ -1192,7 +1318,9 @@ render_model_frame(
     if( !success )
         return;
 
-    bucket_sort_by_average_depth(
+    memset(tmp_depth_face_count, 0, (model_min_depth * 2 + 1) * sizeof(tmp_depth_face_count[0]));
+
+    int bounds = bucket_sort_by_average_depth(
         tmp_depth_faces,
         tmp_depth_face_count,
         model_min_depth,
@@ -1204,9 +1332,12 @@ render_model_frame(
         model->face_indices_b,
         model->face_indices_c);
 
+    model_min_depth = bounds & 0xFFFF;
+    int model_max_depth = bounds >> 16;
+
     if( !model->face_priorities )
     {
-        for( int depth = model_min_depth * 2; depth < 1500 && depth >= 0; depth-- )
+        for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
         {
             int bucket_count = tmp_depth_face_count[depth];
             if( bucket_count == 0 )
@@ -1288,7 +1419,8 @@ render_model_frame(
         tmp_depth_face_count,
         model->face_count,
         model->face_priorities,
-        model_min_depth * 2);
+        model_min_depth,
+        model_max_depth);
 
     int valid_faces = sort_face_draw_order(
         tmp_face_order,
@@ -1298,7 +1430,8 @@ render_model_frame(
         tmp_priority_face_count,
         model->face_count,
         model->face_priorities,
-        model_min_depth * 2);
+        model_min_depth,
+        model_max_depth);
 
     for( int i = 0; i < valid_faces; i++ )
     {
@@ -1553,6 +1686,7 @@ render_scene_model(
     struct SceneModel* model,
     struct TexturesCache* textures_cache)
 {
+    return;
     int x = camera_x + model->region_x;
     int y = camera_y + model->region_z;
     int z = camera_z + model->region_height;
@@ -3235,11 +3369,6 @@ iter_render_model_init(
     int* face_indices_b = model->face_indices_b;
     int* face_indices_c = model->face_indices_c;
 
-    // memset(tmp_depth_faces, 0, sizeof(tmp_depth_faces));
-    memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
-    memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
-    // memset(tmp_priority_faces, 0, sizeof(tmp_priority_faces));
-
     int* screen_vertices_x = tmp_screen_vertices_x;
     int* screen_vertices_y = tmp_screen_vertices_y;
     int* screen_vertices_z = tmp_screen_vertices_z;
@@ -3300,7 +3429,7 @@ iter_render_model_init(
 
     memset(tmp_depth_face_count, 0, (model_min_depth * 2 + 1) * sizeof(tmp_depth_face_count[0]));
 
-    bucket_sort_by_average_depth(
+    int bounds = bucket_sort_by_average_depth(
         tmp_depth_faces,
         tmp_depth_face_count,
         model_min_depth,
@@ -3312,24 +3441,28 @@ iter_render_model_init(
         face_indices_b,
         face_indices_c);
 
+    model_min_depth = bounds & 0xFFFF;
+    int model_max_depth = bounds >> 16;
+
     if( !model->face_priorities )
     {
-        for( int depth = model_min_depth * 2; depth < 1500 && depth >= 0; depth-- )
+        for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
         {
-            int bucket_count = tmp_depth_face_count[depth];
+            short bucket_count = tmp_depth_face_count[depth];
             if( bucket_count == 0 )
                 continue;
-
-            int* faces = &tmp_depth_faces[depth << 9];
+            short* faces = &tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
-                int face = faces[j];
+                short face = faces[j];
                 tmp_face_order[iter->valid_faces++] = face;
             }
         }
     }
     else
     {
+        memset(tmp_priority_face_count, 0, sizeof(tmp_priority_face_count));
+        memset(tmp_priority_depth_sum, 0, sizeof(tmp_priority_depth_sum));
         parition_faces_by_priority(
             tmp_priority_faces,
             tmp_priority_face_count,
@@ -3337,7 +3470,8 @@ iter_render_model_init(
             tmp_depth_face_count,
             model->face_count,
             model->face_priorities,
-            model_min_depth * 2);
+            model_min_depth,
+            model_max_depth);
 
         int valid_faces = sort_face_draw_order(
             tmp_face_order,
@@ -3347,7 +3481,8 @@ iter_render_model_init(
             tmp_priority_face_count,
             model->face_count,
             model->face_priorities,
-            model_min_depth * 2);
+            model_min_depth,
+            model_max_depth);
 
         iter->valid_faces = valid_faces;
     }
