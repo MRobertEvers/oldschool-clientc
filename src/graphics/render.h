@@ -230,13 +230,8 @@ struct SceneOp
 };
 struct Scene;
 
-int render_scene_compute_ops(
-    struct SceneOp* op_buffer,
-    int op_buffer_length,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    struct Scene* scene);
+struct SceneOp*
+render_scene_compute_ops(int scene_x, int scene_y, int scene_z, struct Scene* scene, int* len);
 
 struct TexturesCache;
 void render_scene_ops(
