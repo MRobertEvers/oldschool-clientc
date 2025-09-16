@@ -581,6 +581,7 @@ raster_texture_scanline_opaque_blend_lerp8(
 
         // Checked on 09/15/2025, clang does NOT vectorize this loop.
         // even with -O3
+        // On large screens the vectorized version is significantly faster.
         // for( int i = 0; i < 8; i++ )
         // {
         //     int u = u_scan >> texture_shift;
@@ -820,8 +821,8 @@ raster_texture_scanline_opaque_lerp8(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
-    int screen_x0,
-    int screen_x1,
+    int screen_x0_ish16,
+    int screen_x1_ish16,
     int pixel_offset,
     int au,
     int bv,
@@ -829,24 +830,27 @@ raster_texture_scanline_opaque_lerp8(
     int step_au_dx,
     int step_bv_dx,
     int step_cw_dx,
-    int shade8bit_ish8,
+    int shade8bit,
     int* texels,
     int texture_width)
 {
-    if( screen_x0 == screen_x1 )
+    if( screen_x0_ish16 == screen_x1_ish16 )
         return;
 
-    if( screen_x0 > screen_x1 )
+    if( screen_x0_ish16 > screen_x1_ish16 )
     {
-        SWAP(screen_x0, screen_x1);
+        SWAP(screen_x0_ish16, screen_x1_ish16);
     }
 
     int steps, adjust;
 
     int offset = pixel_offset;
 
-    if( screen_x0 < 0 )
-        screen_x0 = 0;
+    if( screen_x0_ish16 < 0 )
+        screen_x0_ish16 = 0;
+
+    int screen_x0 = screen_x0_ish16 >> 16;
+    int screen_x1 = screen_x1_ish16 >> 16;
 
     if( screen_x1 >= screen_width )
     {
@@ -860,6 +864,10 @@ raster_texture_scanline_opaque_lerp8(
     au += step_au_dx * adjust;
     bv += step_bv_dx * adjust;
     cw += step_cw_dx * adjust;
+
+    step_au_dx <<= 3;
+    step_bv_dx <<= 3;
+    step_cw_dx <<= 3;
 
     steps = screen_x1 - screen_x0;
 
@@ -885,15 +893,12 @@ raster_texture_scanline_opaque_lerp8(
 
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
-
-    int shade = shade8bit_ish8 >> 8;
-
     do
     {
         if( lerp8_steps == 0 )
             break;
 
-        int w = (-cw) >> texture_shift;
+        int w = (cw) >> texture_shift;
         if( w == 0 )
             continue;
 
@@ -902,82 +907,83 @@ raster_texture_scanline_opaque_lerp8(
         curr_v = (bv) / w;
         // curr_v = clamp(curr_v, 0, texture_width - 1);
 
-        au += (step_au_dx << 3);
-        bv += (step_bv_dx << 3);
-        cw += (step_cw_dx << 3);
+        au += step_au_dx;
+        bv += step_bv_dx;
+        cw += step_cw_dx;
 
-        w = (-cw) >> texture_shift;
+        w = (cw) >> texture_shift;
         if( w == 0 )
             continue;
 
         next_u = (au) / w;
         next_u = clamp(next_u, 0x0, texture_width - 1);
         next_v = (bv) / w;
-        // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-        int step_u = (next_u - curr_u);
-        int step_v = (next_v - curr_v);
+        int step_u = (next_u - curr_u) << (texture_shift - 3);
+        int step_v = (next_v - curr_v) << (texture_shift - 3);
 
-        int u_scan = curr_u << 3;
-        int v_scan = curr_v << 3;
+        int u_scan = curr_u << texture_shift;
+        int v_scan = curr_v << texture_shift;
 
-        for( int i = 0; i < 8; i++ )
-        {
-            int u = u_scan >> 3;
-            int v = v_scan >> 3;
-            u &= texture_width - 1;
-            v &= texture_width - 1;
-            int texel = texels[u + v * texture_width];
-            pixel_buffer[offset] = shade_blend(texel, shade);
+        raster_linear_opaque_blend_lerp8(
+            pixel_buffer, offset, texels, u_scan, v_scan, step_u, step_v, texture_shift, shade8bit);
+        u_scan += step_u;
+        v_scan += step_v;
+        offset += 8;
 
-            u_scan += step_u;
-            v_scan += step_v;
+        // Checked on 09/15/2025, clang does NOT vectorize this loop.
+        // even with -O3
+        // On large screens the vectorized version is significantly faster.
+        // for( int i = 0; i < 8; i++ )
+        // {
+        //     int u = u_scan >> texture_shift;
+        //     int v = v_scan & 0x3f80;
+        //     int texel = texels[u + (v)];
+        //     pixel_buffer[offset] = shade_blend(texel, shade);
 
-            offset += 1;
-        }
+        //     u_scan += step_u;
+        //     v_scan += step_v;
+
+        //     offset += 1;
+        // }
 
     } while( lerp8_steps-- > 0 );
 
     if( lerp8_last_steps == 0 )
         return;
 
-    int w = (-cw) >> texture_shift;
+    int w = (cw) >> texture_shift;
     if( w == 0 )
         return;
 
     curr_u = (au) / w;
     curr_u = clamp(curr_u, 0, texture_width - 1);
     curr_v = (bv) / w;
-    // curr_v = clamp(curr_v, 0, texture_width - 1);
 
-    au += (step_au_dx << 3);
-    bv += (step_bv_dx << 3);
-    cw += (step_cw_dx << 3);
+    au += step_au_dx;
+    bv += step_bv_dx;
+    cw += step_cw_dx;
 
-    w = (-cw) >> texture_shift;
+    w = (cw) >> texture_shift;
     if( w == 0 )
         return;
 
     next_u = (au) / w;
     next_u = clamp(next_u, 0x0, texture_width - 1);
-
     next_v = (bv) / w;
-    // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-    int u_scan = curr_u << 3;
-    int v_scan = curr_v << 3;
+    int step_u = (next_u - curr_u) << (texture_shift - 3);
+    int step_v = (next_v - curr_v) << (texture_shift - 3);
 
-    int step_u = (next_u - curr_u);
-    int step_v = (next_v - curr_v);
+    int u_scan = curr_u << texture_shift;
+    int v_scan = curr_v << texture_shift;
 
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
-        int u = u_scan >> 3;
-        int v = v_scan >> 3;
-        u &= texture_width - 1;
-        v &= texture_width - 1;
-        int texel = texels[u + v * texture_width];
-        pixel_buffer[offset] = shade_blend(texel, shade);
+        int u = u_scan >> texture_shift;
+        int v = v_scan & 0x3f80;
+        int texel = texels[u + v];
+        pixel_buffer[offset] = shade_blend(texel, shade8bit);
 
         u_scan += step_u;
         v_scan += step_v;
@@ -1976,6 +1982,9 @@ raster_texture_opaque_lerp8(
         SWAP(screen_x1, screen_x2);
     }
 
+    if( screen_y0 >= screen_height )
+        return;
+
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
     int vU_x = orthographic_uend_x1 - orthographic_uvorigin_x0;
     int vU_y = orthographic_uend_y1 - orthographic_uvorigin_y0;
@@ -1986,11 +1995,9 @@ raster_texture_opaque_lerp8(
     int vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
     int vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
 
-    // TODO: The derivation leaves this as the VU plane,
-    // so this needs to be flipped.
-    int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
-    int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
-    int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+    int vUVPlane_normal_xhat = vU_z * vV_y - vU_y * vV_z;
+    int vUVPlane_normal_yhat = vU_x * vV_z - vU_z * vV_x;
+    int vUVPlane_normal_zhat = vU_y * vV_x - vU_x * vV_y;
 
     int vOVPlane_normal_xhat = orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
     int vOVPlane_normal_yhat = orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
@@ -1998,6 +2005,7 @@ raster_texture_opaque_lerp8(
 
     int vUOPlane_normal_xhat = vU_y * orthographic_uvorigin_z0 - vU_z * orthographic_uvorigin_y0;
     int vUOPlane_normal_yhat = vU_z * orthographic_uvorigin_x0 - vU_x * orthographic_uvorigin_z0;
+
     int vUOPlane_normal_zhat = vU_x * orthographic_uvorigin_y0 - vU_y * orthographic_uvorigin_x0;
 
     // These two vectors now point in the direction or U or V.
@@ -2028,6 +2036,9 @@ raster_texture_opaque_lerp8(
     int sarea_abc = dx_AC * dy_AB - dx_AB * dy_AC;
     if( sarea_abc == 0 )
         return;
+
+    // Same idea here for color. Solve the system of equations.
+    // Barycentric coordinates.
 
     int au = 0;
     int bv = 0;
@@ -2069,21 +2080,18 @@ raster_texture_opaque_lerp8(
     int steps = screen_y1 - screen_y0;
     int offset = screen_y0 * screen_width;
 
-    int shade = shade7bit << 9;
+    int shade8bit = shade7bit << 1;
 
     assert(screen_y0 < screen_height);
 
     while( steps-- > 0 )
     {
-        int x_start = edge_x_AC_ish16 >> 16;
-        int x_end = edge_x_AB_ish16 >> 16;
-
         raster_texture_scanline_opaque_lerp8(
             pixel_buffer,
             screen_width,
             screen_height,
-            x_start,
-            x_end,
+            edge_x_AC_ish16,
+            edge_x_AB_ish16,
             offset,
             au,
             bv,
@@ -2091,7 +2099,7 @@ raster_texture_opaque_lerp8(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
-            shade,
+            shade8bit,
             texels,
             texture_width);
 
@@ -2132,8 +2140,8 @@ raster_texture_opaque_lerp8(
             pixel_buffer,
             screen_width,
             screen_height,
-            edge_x_AC_ish16 >> 16,
-            edge_x_BC_ish16 >> 16,
+            edge_x_AC_ish16,
+            edge_x_BC_ish16,
             offset,
             au,
             bv,
@@ -2141,7 +2149,7 @@ raster_texture_opaque_lerp8(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
-            shade,
+            shade8bit,
             texels,
             texture_width);
 
