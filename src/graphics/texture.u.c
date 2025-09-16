@@ -96,7 +96,7 @@ shade_texture_masked_neon(
     }
 }
 
-static void
+static inline void
 raster_texture_scanline_transparent_blend_lerp8(
     int* pixel_buffer,
     int screen_width,
@@ -174,7 +174,7 @@ raster_texture_scanline_transparent_blend_lerp8(
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
     int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
-
+    int shade;
     do
     {
         if( lerp8_steps == 0 )
@@ -200,7 +200,6 @@ raster_texture_scanline_transparent_blend_lerp8(
         next_u = (au) / w;
         next_u = clamp(next_u, 0x0, texture_width - 1);
         next_v = (bv) / w;
-        // next_v = clamp(next_v, 0x0, texture_width - 1);
 
         int step_u = (next_u - curr_u) << (texture_shift - 3);
         int step_v = (next_v - curr_v) << (texture_shift - 3);
@@ -208,32 +207,20 @@ raster_texture_scanline_transparent_blend_lerp8(
         int u_scan = curr_u << texture_shift;
         int v_scan = curr_v << texture_shift;
 
+        shade = shade8bit_ish8 >> 8;
         for( int i = 0; i < 8; i++ )
         {
             int u = u_scan >> texture_shift;
             int v = v_scan & 0x3f80;
             int texel = texels[u + (v)];
             if( texel != 0 )
-                pixel_buffer[offset] = shade_blend(texel, shade8bit_ish8 >> 8);
+                pixel_buffer[offset] = shade_blend(texel, shade);
 
             u_scan += step_u;
             v_scan += step_v;
 
             offset += 1;
         }
-
-        // shade_texture_masked_neon(
-        //     pixel_buffer,
-        //     offset,
-        //     texels,
-        //     texture_shift,
-        //     u_scan,
-        //     v_scan,
-        //     step_u,
-        //     step_v,
-        //     shade8bit_ish8);
-
-        // offset += 8;
 
         shade8bit_ish8 += lerp8_shade_step;
 
@@ -249,7 +236,6 @@ raster_texture_scanline_transparent_blend_lerp8(
     curr_u = (au) / w;
     curr_u = clamp(curr_u, 0, texture_width - 1);
     curr_v = (bv) / w;
-    // curr_v = clamp(curr_v, 0, texture_width - 1);
 
     au += step_au_dx;
     bv += step_bv_dx;
@@ -261,31 +247,98 @@ raster_texture_scanline_transparent_blend_lerp8(
 
     next_u = (au) / w;
     next_u = clamp(next_u, 0x0, texture_width - 1);
-
     next_v = (bv) / w;
-    // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-    int u_scan = curr_u << 3;
-    int v_scan = curr_v << 3;
+    int step_u = (next_u - curr_u) << (texture_shift - 3);
+    int step_v = (next_v - curr_v) << (texture_shift - 3);
 
-    int step_u = (next_u - curr_u);
-    int step_v = (next_v - curr_v);
+    int u_scan = curr_u << texture_shift;
+    int v_scan = curr_v << texture_shift;
 
+    shade = shade8bit_ish8 >> 8;
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
-        int u = u_scan >> 3;
-        int v = v_scan >> 3;
-        u &= texture_width - 1;
-        v &= texture_width - 1;
-        int texel = texels[u + v * texture_width];
+        int u = u_scan >> texture_shift;
+        int v = v_scan & 0x3f80;
+        int texel = texels[u + v];
         if( texel != 0 )
-            pixel_buffer[offset] = shade_blend(texel, shade8bit_ish8 >> 8);
+            pixel_buffer[offset] = shade_blend(texel, shade);
 
         u_scan += step_u;
         v_scan += step_v;
 
         offset += 1;
     }
+
+    // int u;
+    // int v;
+    // int texel;
+    // switch( lerp8_last_steps )
+    // {
+    // case 7:
+    //     u = u_scan >> texture_shift;
+    //     v = v_scan & 0x3f80;
+    //     texel = texels[u + v];
+    //     if( texel != 0 )
+    //         pixel_buffer[offset] = shade_blend(texel, shade);
+    //     u_scan += step_u;
+    //     v_scan += step_v;
+    //     offset += 1;
+    // case 6:
+    //     u = u_scan >> texture_shift;
+    //     v = v_scan & 0x3f80;
+    //     texel = texels[u + v];
+    //     if( texel != 0 )
+    //         pixel_buffer[offset] = shade_blend(texel, shade);
+    //     u_scan += step_u;
+    //     v_scan += step_v;
+    //     offset += 1;
+    // case 5:
+    //     u = u_scan >> texture_shift;
+    //     v = v_scan & 0x3f80;
+    //     texel = texels[u + v];
+    //     if( texel != 0 )
+    //         pixel_buffer[offset] = shade_blend(texel, shade);
+    //     u_scan += step_u;
+    //     v_scan += step_v;
+    //     offset += 1;
+    // case 4:
+    //     u = u_scan >> texture_shift;
+    //     v = v_scan & 0x3f80;
+    //     texel = texels[u + v];
+    //     if( texel != 0 )
+    //         pixel_buffer[offset] = shade_blend(texel, shade);
+    //     u_scan += step_u;
+    //     v_scan += step_v;
+    //     offset += 1;
+    // case 3:
+    //     u = u_scan >> texture_shift;
+    //     v = v_scan & 0x3f80;
+    //     texel = texels[u + v];
+    //     if( texel != 0 )
+    //         pixel_buffer[offset] = shade_blend(texel, shade);
+    //     u_scan += step_u;
+    //     v_scan += step_v;
+    //     offset += 1;
+    // case 2:
+    //     u = u_scan >> texture_shift;
+    //     v = v_scan & 0x3f80;
+    //     texel = texels[u + v];
+    //     if( texel != 0 )
+    //         pixel_buffer[offset] = shade_blend(texel, shade);
+    //     u_scan += step_u;
+    //     v_scan += step_v;
+    //     offset += 1;
+    // case 1:
+    //     u = u_scan >> texture_shift;
+    //     v = v_scan & 0x3f80;
+    //     texel = texels[u + v];
+    //     if( texel != 0 )
+    //         pixel_buffer[offset] = shade_blend(texel, shade);
+    //     u_scan += step_u;
+    //     v_scan += step_v;
+    //     offset += 1;
+    // }
 }
 
 static void
