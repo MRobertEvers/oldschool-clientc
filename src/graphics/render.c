@@ -10,6 +10,7 @@
 #include "osrs/tables/model.h"
 #include "osrs/tables/sprites.h"
 #include "shared_tables.h"
+#include <mach/mach_time.h>
 
 #include <assert.h>
 #include <limits.h>
@@ -19,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 // clang-format off
 #include "render_gouraud.u.c"
@@ -78,6 +80,7 @@ project_vertices_model_textured(
     int near_plane_z)
 {
     struct ProjectedVertex projected_vertex;
+    struct ProjectedVertex tmp_projected_vertices[4096];
 
     assert(camera_pitch >= 0 && camera_pitch < 2048);
     assert(camera_yaw >= 0 && camera_yaw < 2048);
@@ -140,6 +143,7 @@ project_vertices_model_textured(
         return 0;
     }
 
+    // Checked on 09/15/2025, this does get vectorized on Mac, using arm neon.
     for( int i = 0; i < num_vertices; i++ )
     {
         project_orthographic_fast(
@@ -157,7 +161,10 @@ project_vertices_model_textured(
         orthographic_vertices_x[i] = projected_vertex.x;
         orthographic_vertices_y[i] = projected_vertex.y;
         orthographic_vertices_z[i] = projected_vertex.z;
+    }
 
+    for( int i = 0; i < num_vertices; i++ )
+    {
         project_perspective_fast(
             &projected_vertex,
             orthographic_vertices_x[i],
@@ -259,6 +266,7 @@ project_vertices_terrain_textured(
         return 0;
     }
 
+    // Checked on 09/15/2025, this does get vectorized on Mac, using arm neon.
     for( int i = 0; i < num_vertices; i++ )
     {
         project_orthographic_fast(

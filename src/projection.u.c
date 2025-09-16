@@ -485,134 +485,164 @@ project_fast(
         near_clip);
 }
 
-// #include <arm_neon.h>
+#include <arm_neon.h>
 
-// static inline void
-// project_orthographic_fast_array(
-//     int* out_x,
-//     int* out_y,
-//     int* out_z,
-//     int* x,
-//     int* y,
-//     int* z,
-//     int count,
-//     int yaw,
-//     int scene_x,
-//     int scene_y,
-//     int scene_z,
-//     int camera_pitch,
-//     int camera_yaw)
-// {
-//     int i = 0;
+static inline void
+project_orthographic_fast_array(
+    // struct ProjectedVertex* restrict out __attribute__((aligned(16))),
+    int* restrict out_x __attribute__((aligned(16))),
+    int* restrict out_y __attribute__((aligned(16))),
+    int* restrict out_z __attribute__((aligned(16))),
+    int* restrict xs __attribute__((aligned(16))),
+    int* restrict ys __attribute__((aligned(16))),
+    int* restrict zs __attribute__((aligned(16))),
+    int count,
+    int yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int offset = 0;
 
-// #if defined(__ARM_NEON) || defined(__ARM_NEON__)
-//     // Load camera angles
-//     int cos_camera_pitch = g_cos_table[camera_pitch];
-//     int sin_camera_pitch = g_sin_table[camera_pitch];
-//     int cos_camera_yaw = g_cos_table[camera_yaw];
-//     int sin_camera_yaw = g_sin_table[camera_yaw];
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
 
-//     // Create constant vectors for camera angles
-//     int32x4_t vcos_camera_pitch = vdupq_n_s32(cos_camera_pitch);
-//     int32x4_t vsin_camera_pitch = vdupq_n_s32(sin_camera_pitch);
-//     int32x4_t vcos_camera_yaw = vdupq_n_s32(cos_camera_yaw);
-//     int32x4_t vsin_camera_yaw = vdupq_n_s32(sin_camera_yaw);
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
 
-//     // Model yaw rotation constants
-//     int32x4_t vscene_x = vdupq_n_s32(scene_x);
-//     int32x4_t vscene_y = vdupq_n_s32(scene_y);
-//     int32x4_t vscene_z = vdupq_n_s32(scene_z);
+    int step4 = count >> 2;
+    count = count & 0x3;
+    while( step4 > 0 )
+    {
+        step4--;
+        // int x_channel[4];
+        // int y_channel[4];
+        // int z_channel[4];
 
-//     // Process 4 vertices at a time
-//     for( ; i + 4 <= count; i += 4 )
-//     {
-//         // Load 4 vertices
-//         int32x4_t vx = vld1q_s32(x + i);
-//         int32x4_t vy = vld1q_s32(y + i);
-//         int32x4_t vz = vld1q_s32(z + i);
+        //     // Load camera angles
 
-//         int32x4_t vx_rotated = vx;
-//         int32x4_t vz_rotated = vz;
+        // Create constant vectors for camera angles
+        int32x4_t vcos_camera_pitch = vdupq_n_s32(cos_camera_pitch);
+        int32x4_t vsin_camera_pitch = vdupq_n_s32(sin_camera_pitch);
+        int32x4_t vcos_camera_yaw = vdupq_n_s32(cos_camera_yaw);
+        int32x4_t vsin_camera_yaw = vdupq_n_s32(sin_camera_yaw);
 
-//         if( yaw != 0 )
-//         {
-//             int sin_yaw = g_sin_table[yaw];
-//             int cos_yaw = g_cos_table[yaw];
-//             int32x4_t vsin_yaw = vdupq_n_s32(sin_yaw);
-//             int32x4_t vcos_yaw = vdupq_n_s32(cos_yaw);
+        // Model yaw rotation constants
+        int32x4_t vscene_x = vdupq_n_s32(scene_x);
+        int32x4_t vscene_y = vdupq_n_s32(scene_y);
+        int32x4_t vscene_z = vdupq_n_s32(scene_z);
 
-//             // Rotate around Y-axis (yaw)
-//             int32x4_t vx_temp = vaddq_s32(
-//                 vshrq_n_s32(vmulq_s32(vx, vcos_yaw), 16), vshrq_n_s32(vmulq_s32(vz, vsin_yaw),
-//                 16));
-//             vz_rotated = vsubq_s32(
-//                 vshrq_n_s32(vmulq_s32(vz, vcos_yaw), 16), vshrq_n_s32(vmulq_s32(vx, vsin_yaw),
-//                 16));
-//             vx_rotated = vx_temp;
-//         }
+        // Pre-compute yaw vectors if needed
+        int32x4_t vsin_yaw, vcos_yaw;
+        if( yaw != 0 )
+        {
+            int sin_yaw = g_sin_table[yaw];
+            int cos_yaw = g_cos_table[yaw];
+            vsin_yaw = vdupq_n_s32(sin_yaw);
+            vcos_yaw = vdupq_n_s32(cos_yaw);
+        }
 
-//         // Translate points relative to camera position
-//         vx_rotated = vaddq_s32(vx_rotated, vscene_x);
-//         int32x4_t vy_rotated = vaddq_s32(vy, vscene_y);
-//         vz_rotated = vaddq_s32(vz_rotated, vscene_z);
+        // Process 16 vertices at a time
+        // Load all 16 vertices upfront to maximize cache line usage
+        int32x4_t vx1 = vld1q_s32(xs + offset);
+        int32x4_t vy1 = vld1q_s32(ys + offset);
+        int32x4_t vz1 = vld1q_s32(zs + offset);
 
-//         // Apply perspective rotation
-//         // First rotate around Y-axis (scene yaw)
-//         int32x4_t vx_scene = vaddq_s32(
-//             vshrq_n_s32(vmulq_s32(vx_rotated, vcos_camera_yaw), 16),
-//             vshrq_n_s32(vmulq_s32(vz_rotated, vsin_camera_yaw), 16));
-//         int32x4_t vz_scene = vsubq_s32(
-//             vshrq_n_s32(vmulq_s32(vz_rotated, vcos_camera_yaw), 16),
-//             vshrq_n_s32(vmulq_s32(vx_rotated, vsin_camera_yaw), 16));
+        int32x4_t vx_rotated1 = vx1;
+        int32x4_t vz_rotated1 = vz1;
 
-//         // Then rotate around X-axis (scene pitch)
-//         int32x4_t vy_scene = vsubq_s32(
-//             vshrq_n_s32(vmulq_s32(vy_rotated, vcos_camera_pitch), 16),
-//             vshrq_n_s32(vmulq_s32(vz_scene, vsin_camera_pitch), 16));
-//         int32x4_t vz_final = vaddq_s32(
-//             vshrq_n_s32(vmulq_s32(vy_rotated, vsin_camera_pitch), 16),
-//             vshrq_n_s32(vmulq_s32(vz_scene, vcos_camera_pitch), 16));
+        if( yaw != 0 )
+        {
+            // Process all 16 vertices in parallel for yaw rotation
+            // First set of 4
+            int32x4_t vx_temp1 = vaddq_s32(
+                vshrq_n_s32(vmulq_s32(vx1, vcos_yaw), 16),
+                vshrq_n_s32(vmulq_s32(vz1, vsin_yaw), 16));
+            vz_rotated1 = vsubq_s32(
+                vshrq_n_s32(vmulq_s32(vz1, vcos_yaw), 16),
+                vshrq_n_s32(vmulq_s32(vx1, vsin_yaw), 16));
+            vx_rotated1 = vx_temp1;
+        }
 
-//         // Store results
-//         vst1q_s32(out_x + i, vx_scene);
-//         vst1q_s32(out_y + i, vy_scene);
-//         vst1q_s32(out_z + i, vz_final);
-//     }
-// #endif
+        // Translate all points relative to camera position
+        vx_rotated1 = vaddq_s32(vx_rotated1, vscene_x);
 
-//     // Scalar fallback for remaining vertices
-//     for( ; i < count; i++ )
-//     {
-//         int x_rotated = x[i];
-//         int z_rotated = z[i];
+        int32x4_t vy_rotated1 = vaddq_s32(vy1, vscene_y);
 
-//         if( yaw != 0 )
-//         {
-//             int sin_yaw = g_sin_table[yaw];
-//             int cos_yaw = g_cos_table[yaw];
-//             x_rotated = (x[i] * cos_yaw + z[i] * sin_yaw) >> 16;
-//             z_rotated = (z[i] * cos_yaw - x[i] * sin_yaw) >> 16;
-//         }
+        vz_rotated1 = vaddq_s32(vz_rotated1, vscene_z);
 
-//         // Translate points relative to camera position
-//         x_rotated += scene_x;
-//         int y_rotated = y[i] + scene_y;
-//         z_rotated += scene_z;
+        // Rotate all points around Y-axis (scene yaw)
+        int32x4_t vx_scene1 = vaddq_s32(
+            vshrq_n_s32(vmulq_s32(vx_rotated1, vcos_camera_yaw), 16),
+            vshrq_n_s32(vmulq_s32(vz_rotated1, vsin_camera_yaw), 16));
 
-//         // Apply perspective rotation
-//         // First rotate around Y-axis (scene yaw)
-//         int x_scene = (x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw) >> 16;
-//         int z_scene = (z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw) >> 16;
+        int32x4_t vz_scene1 = vsubq_s32(
+            vshrq_n_s32(vmulq_s32(vz_rotated1, vcos_camera_yaw), 16),
+            vshrq_n_s32(vmulq_s32(vx_rotated1, vsin_camera_yaw), 16));
 
-//         // Then rotate around X-axis (scene pitch)
-//         int y_scene = (y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
-//         int z_final = (y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
+        // Rotate all points around X-axis (scene pitch)
+        int32x4_t vy_scene1 = vsubq_s32(
+            vshrq_n_s32(vmulq_s32(vy_rotated1, vcos_camera_pitch), 16),
+            vshrq_n_s32(vmulq_s32(vz_scene1, vsin_camera_pitch), 16));
 
-//         out_x[i] = x_scene;
-//         out_y[i] = y_scene;
-//         out_z[i] = z_final;
-//     }
-// }
+        int32x4_t vz_final1 = vaddq_s32(
+            vshrq_n_s32(vmulq_s32(vy_rotated1, vsin_camera_pitch), 16),
+            vshrq_n_s32(vmulq_s32(vz_scene1, vcos_camera_pitch), 16));
+
+        // Store all results
+        vst1q_s32(out_x + offset, vx_scene1);
+        vst1q_s32(out_y + offset, vy_scene1);
+        vst1q_s32(out_z + offset, vz_final1);
+
+        offset += 4;
+    }
+
+#endif
+
+    while( count > 0 )
+    {
+        count--;
+
+        int x = xs[offset];
+        int y = ys[offset];
+        int z = zs[offset];
+
+        int x_rotated = x;
+        int z_rotated = z;
+
+        if( yaw != 0 )
+        {
+            int sin_yaw = g_sin_table[yaw];
+            int cos_yaw = g_cos_table[yaw];
+
+            x_rotated = (x * cos_yaw + z * sin_yaw) >> 16;
+            z_rotated = (z * cos_yaw - x * sin_yaw) >> 16;
+        }
+
+        // Translate points relative to camera position
+        x_rotated += scene_x;
+        int y_rotated = y + scene_y;
+        z_rotated += scene_z;
+
+        // Apply perspective rotation
+        // First rotate around Y-axis (scene yaw)
+        int x_scene = (x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw) >> 16;
+        int z_scene = (z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw) >> 16;
+
+        // Then rotate around X-axis (scene pitch)
+        int y_scene = (y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
+        int z_final = (y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
+
+        out_x[offset] = x_scene;
+        out_y[offset] = y_scene;
+        out_z[offset] = z_final;
+
+        offset++;
+    }
+}
 
 // static inline void
 // project_perspective_fast_array(

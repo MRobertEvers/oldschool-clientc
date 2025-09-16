@@ -114,6 +114,7 @@
         "map": "c",
         "set": "c",
         "unordered_set": "c",
-        "arm_neon.h": "c"
+        "arm_neon.h": "c",
+        "*.inc": "c"
     }
 }

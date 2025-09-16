@@ -574,7 +574,7 @@ this.transform(base.types[index], base.bones[index], arg1.x[i], arg1.y[i], arg1.
 } else {
 this.transform(base.types[index], base.bones[index], arg1.x[i], arg1.y[i], arg1.z[i], arg7, parts2, arg9);
 }
-}
+}`
 }
 return;
 }
