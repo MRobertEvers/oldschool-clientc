@@ -115,37 +115,30 @@ raster_linear_opaque_blend_lerp8(
     vst1q_u32(&pixel_buffer[offset], r0);
     vst1q_u32(&pixel_buffer[offset + 4], r1);
 }
-#elif defined(__AVX2__) && defined(__AVX22__)
+#elif defined(__AVX2__)
 #include <immintrin.h>
 
 // shade_blend for 8 pixels at a time using AVX2
 static inline __m256i
-shade_blend8(__m256i texel, int shade)
+shade_blend8_avx2(__m256i texel, int shade)
 {
-    // Convert shade to vector
-    __m256i shade_vec = _mm256_set1_epi32(shade);
+    // Expand 8-bit channels to 16-bit (similar to NEON vmovl_u8)
+    __m256i texel_lo = _mm256_unpacklo_epi8(texel, _mm256_setzero_si256());
+    __m256i texel_hi = _mm256_unpackhi_epi8(texel, _mm256_setzero_si256());
 
-    // Extract RGB components using masks
-    __m256i rb_mask = _mm256_set1_epi32(0x00ff00ff);
-    __m256i g_mask = _mm256_set1_epi32(0x0000ff00);
+    // Multiply by shade (similar to NEON vmulq_n_u16)
+    __m256i shade_16 = _mm256_set1_epi16(shade);
+    texel_lo = _mm256_mullo_epi16(texel_lo, shade_16);
+    texel_hi = _mm256_mullo_epi16(texel_hi, shade_16);
 
-    __m256i rb = _mm256_and_si256(texel, rb_mask);
-    __m256i g = _mm256_and_si256(texel, g_mask);
+    // >> 8 (same as scalar shade_blend and NEON vshrq_n_u16)
+    texel_lo = _mm256_srli_epi16(texel_lo, 8);
+    texel_hi = _mm256_srli_epi16(texel_hi, 8);
 
-    // Multiply by shade
-    rb = _mm256_mullo_epi32(rb, shade_vec);
-    g = _mm256_mullo_epi32(g, shade_vec);
+    // Pack back to 8-bit (similar to NEON vqmovn_u16)
+    __m256i shaded = _mm256_packus_epi16(texel_lo, texel_hi);
 
-    // Apply masks to prevent overflow
-    __m256i rb_result_mask = _mm256_set1_epi32(0xFF00FF00);
-    __m256i g_result_mask = _mm256_set1_epi32(0x00FF0000);
-
-    rb = _mm256_and_si256(rb, rb_result_mask);
-    g = _mm256_and_si256(g, g_result_mask);
-
-    // Combine and shift right by 8
-    __m256i result = _mm256_or_si256(rb, g);
-    return _mm256_srli_epi32(result, 8);
+    return shaded;
 }
 
 static inline void
@@ -182,7 +175,7 @@ raster_linear_transparent_blend_lerp8(
         texels[idx[0]]);
 
     // Shade blend in SIMD
-    __m256i r = shade_blend8(t, shade);
+    __m256i r = shade_blend8_avx2(t, shade);
 
     // Handle transparency: preserve existing pixel buffer where texel is 0
     __m256i zero = _mm256_setzero_si256();
@@ -232,7 +225,7 @@ raster_linear_opaque_blend_lerp8(
         texels[idx[0]]);
 
     // Shade blend in SIMD
-    __m256i r = shade_blend8(t, shade);
+    __m256i r = shade_blend8_avx2(t, shade);
 
     // Store results directly (no transparency masking for opaque rendering)
     _mm256_storeu_si256((__m256i*)&pixel_buffer[offset], r);
