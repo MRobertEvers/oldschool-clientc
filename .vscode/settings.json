@@ -29,7 +29,12 @@
         },
         "MSYS2 Terminal": {
             "path": "C:\\msys64\\msys2_shell.cmd",
-            "args": ["-defterm", "-here", "-no-start", "-mingw64"],
+            "args": [
+                "-defterm",
+                "-here",
+                "-no-start",
+                "-mingw64"
+            ],
             "icon": "terminal-bash",
             "env": {
                 "CHERE_INVOKING": "1",
@@ -39,7 +44,10 @@
         },
         "MSYS2 Bash": {
             "path": "C:\\msys64\\usr\\bin\\bash.exe",
-            "args": ["--login", "-i"],
+            "args": [
+                "--login",
+                "-i"
+            ],
             "icon": "terminal-bash",
             "env": {
                 "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}",

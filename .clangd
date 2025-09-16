@@ -1,0 +1,57 @@
+CompileFlags:
+  Add:
+    - -mavx2
+    - -mfma
+    - -ftree-vectorizer-verbose=6
+    - -fopt-info-vec-all
+    - -fopt-info-vec-missed
+    - -fopt-info-loop-all
+    - -fopt-info-slp
+    - -Rpass=vector
+    - -Rpass-missed=vector
+    - -Rpass-analysis=vector
+    - -Rpass=loop
+    - -Rpass-missed=loop
+    - -Rpass-analysis=loop
+    - -Rpass=slp
+    - -Rpass-missed=slp
+    - -Rpass-analysis=slp
+    - -D_CRT_SECURE_NO_WARNINGS
+    - -D_WINSOCK_DEPRECATED_NO_WARNINGS
+    - -D_WIN32_WINNT=0x0A00
+    - -DUNICODE
+    - -D_UNICODE
+    - -O3
+    - -ffast-math
+  Remove:
+    - -W*
+    - -w
+    - /W3
+    - /W4
+
+Diagnostics:
+  ClangTidy:
+    Add:
+      - readability-*
+      - performance-*
+      - modernize-*
+    Remove:
+      - readability-magic-numbers
+      - readability-uppercase-literal-suffix
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+
+Index:
+  Background: Build
+  StandardLibrary: Yes
+
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+
+Hover:
+  ShowAKA: Yes
+
+Completion:
+  AllScopes: Yes
