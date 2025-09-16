@@ -42,7 +42,7 @@ raster_gouraud(
     }
     else
     {
-        raster_gouraud_blend_s4(
+        raster_gouraud_alpha_s4(
             pixel_buffer,
             screen_width,
             screen_height,

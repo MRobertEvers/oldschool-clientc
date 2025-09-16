@@ -37,7 +37,7 @@ draw_scanline_flat_s4(
     int offset = x_start + y * stride_width;
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
 
-    int steps = (x_end - x_start) >> 2;
+    int steps = dx_stride >> 2;
     while( --steps >= 0 )
     {
         pixel_buffer[offset++] = rgb_color;
@@ -46,9 +46,16 @@ draw_scanline_flat_s4(
         pixel_buffer[offset++] = rgb_color;
     }
 
-    steps = (x_end - x_start) & 0x3;
-    while( --steps >= 0 )
+    steps = dx_stride & 0x3;
+    switch( steps )
+    {
+    case 3:
         pixel_buffer[offset++] = rgb_color;
+    case 2:
+        pixel_buffer[offset++] = rgb_color;
+    case 1:
+        pixel_buffer[offset] = rgb_color;
+    }
 }
 
 void

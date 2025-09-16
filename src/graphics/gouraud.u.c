@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 // clang-format off
-#include "simd.u.c"
+#include "gouraud_simd.u.c"
 // clang-format on
 
 extern int g_hsl16_to_rgb_table[65536];
@@ -57,6 +57,7 @@ draw_scanline_gouraud_s4(
     {
         rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
 
+        // This loop is vectorized by clang.
         for( int i = 0; i < 4; i++ )
         {
             pixel_buffer[offset] = rgb_color;
@@ -83,7 +84,7 @@ draw_scanline_gouraud_s4(
 }
 
 static inline void
-draw_scanline_gouraud_blend_s4(
+draw_scanline_gouraud_alpha_s4(
     int* pixel_buffer,
     int stride_width,
     int y,
@@ -132,7 +133,7 @@ draw_scanline_gouraud_blend_s4(
 
     // Steps by 4.
     int offset = x_start + y * stride_width;
-    int steps = (x_end - x_start) >> 2;
+    int steps = (dx_stride) >> 2;
     step_color_hsl16_ish8 <<= 2;
 
     int color_hsl16_ish8 = color_start_hsl16_ish8;
@@ -141,34 +142,49 @@ draw_scanline_gouraud_blend_s4(
         int color_hsl16 = color_hsl16_ish8 >> 8;
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
 
-        for( int i = 0; i < 4; i++ )
-        {
-            int rgb_blend = pixel_buffer[offset];
-            rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
-            pixel_buffer[offset] = rgb_blend;
-            offset += 1;
-        }
+        // Tested in lumbridge church window, this is faster than the scalar version.
+        raster_linear_alpha_s4((uint32_t*)pixel_buffer, offset, rgb_color, alpha);
+        offset += 4;
+
+        // Checked on 09/16/2025, clang does NOT vectorize this loop.
+        // even with -O3
+        // for( int i = 0; i < 4; i++ )
+        // {
+        //     int rgb_blend = pixel_buffer[offset];
+        //     rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        //     pixel_buffer[offset] = rgb_blend;
+        //     offset += 1;
+        // }
 
         color_hsl16_ish8 += step_color_hsl16_ish8;
     }
 
-    steps = (x_end - x_start) & 0x3;
-    while( --steps >= 0 )
+    int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
+    int rgb_blend;
+    steps = (dx_stride) & 0x3;
+    switch( steps )
     {
-        int color_hsl16 = color_hsl16_ish8 >> 8;
-        assert(color_hsl16 >= 0 && color_hsl16 < 65536);
-        int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
-
-        int rgb_blend = pixel_buffer[offset];
+    case 3:
+        rgb_blend = pixel_buffer[offset];
         rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
-        pixel_buffer[offset++] = rgb_blend;
+        pixel_buffer[offset] = rgb_blend;
+        offset += 1;
+    case 2:
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset] = rgb_blend;
+        offset += 1;
+    case 1:
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset] = rgb_blend;
     }
 }
 
 // #include "gouraud_deob.h"
 
 static inline void
-raster_gouraud_blend_s4(
+raster_gouraud_alpha_s4(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
@@ -336,7 +352,7 @@ raster_gouraud_blend_s4(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_AB_ish15 >> 7;
 
-        draw_scanline_gouraud_blend_s4(
+        draw_scanline_gouraud_alpha_s4(
             pixel_buffer,
             screen_width,
             i,
@@ -365,7 +381,7 @@ raster_gouraud_blend_s4(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_BC_ish15 >> 7;
 
-        draw_scanline_gouraud_blend_s4(
+        draw_scanline_gouraud_alpha_s4(
             pixel_buffer,
             screen_width,
             i,
