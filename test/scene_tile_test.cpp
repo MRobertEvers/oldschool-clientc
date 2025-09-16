@@ -1553,6 +1553,20 @@ main(int argc, char* argv[])
     game.camera_y = -540;
     game.camera_z = 1219;
 
+    /**
+     * @brief
+     * Lumbrdige lots of walls
+     * Many gouraud transparent
+     * Camera (x, y, z): 1587, -890, 1907 : 12, -6
+     */
+    game.camera_pitch = 270;
+    game.camera_yaw = 1536;
+    game.camera_roll = 0;
+    game.camera_fov = 768;
+    game.camera_x = 1587;
+    game.camera_y = -890;
+    game.camera_z = 1907;
+
     game.player_tile_x = 10;
     game.player_tile_y = 10;
 
@@ -1562,7 +1576,7 @@ main(int argc, char* argv[])
     // game.camera_pitch = 405;
     // game.camera_yaw = 1536;
     // game.camera_roll = 0;
-    game.camera_fov = 512;  // Default FOV
+    // game.camera_fov = 512;  // Default FOV
     game.camera_speed = 50; // Default camera speed
     // game.tiles = tiles;
     game.tile_count = MAP_TILE_COUNT;
