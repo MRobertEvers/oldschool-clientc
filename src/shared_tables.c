@@ -159,9 +159,9 @@ init_tan_table()
 void
 init_reciprocal16()
 {
-    for( int i = 0; i < 2048; i++ )
+    for( int i = 1; i < 2048; i++ )
         g_reciprocal16[i] = ((1 << 16) / i);
 
-    for( int i = 0; i < 4096; i++ )
+    for( int i = 1; i < 4096; i++ )
         g_reciprocal16_simd[i] = ((1 << 16) / i);
 }
