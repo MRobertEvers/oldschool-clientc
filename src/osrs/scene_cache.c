@@ -463,7 +463,6 @@ textures_cache_checkout(
     uint8_t* palette_pixels = NULL;
     int* palette = NULL;
     int palette_length = 0;
-    bool opaque = true;
     struct CacheTexture* texture_definition = NULL;
     int* pixels = (int*)malloc(size * size * sizeof(int));
     if( !pixels )
@@ -473,6 +472,7 @@ textures_cache_checkout(
     if( !texture_definition )
         return NULL;
 
+    bool opaque = texture_definition->opaque;
     struct CacheSpritePack** sprite_packs = (struct CacheSpritePack**)malloc(
         texture_definition->sprite_ids_count * sizeof(struct CacheSpritePack*));
     memset(sprite_packs, 0, texture_definition->sprite_ids_count * sizeof(struct CacheSpritePack*));
@@ -511,8 +511,8 @@ textures_cache_checkout(
             // So the top 5 bits of each color contains the full-bright color.
             if( (palette[pi] & 0xf8f8ff) == 0 )
             {
+                // opaque = false;
                 alpha = 0;
-                opaque = false;
             }
             adjusted_palette[pi] = (alpha << 24) + gamma_blend(palette[pi], gamma);
         }

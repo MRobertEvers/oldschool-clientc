@@ -63,7 +63,7 @@ shade_blend4(uint32x4_t texel, int shade)
 }
 
 static inline void
-draw_span8(
+raster_linear_transparent_blend_lerp8(
     uint32_t* pixel_buffer,
     int offset,
     const uint32_t* texels,
@@ -92,19 +92,62 @@ draw_span8(
     uint32x4_t r0 = shade_blend4(t0, shade);
     uint32x4_t r1 = shade_blend4(t1, shade);
 
-    // Handle "if (texel != 0)" → mask out zeros
+    // Handle transparency: preserve existing pixel buffer where texel is 0
     uint32x4_t zero = vdupq_n_u32(0);
-    r0 = vbslq_u32(vceqq_u32(t0, zero), t0, r0);
-    r1 = vbslq_u32(vceqq_u32(t1, zero), t1, r1);
+    uint32x4_t existing0 = vld1q_u32(&pixel_buffer[offset]);
+    uint32x4_t existing1 = vld1q_u32(&pixel_buffer[offset + 4]);
+
+    // Create masks for non-zero texels
+    uint32x4_t mask0 = vceqq_u32(t0, zero); // true where texel is 0
+    uint32x4_t mask1 = vceqq_u32(t1, zero); // true where texel is 0
+
+    // Select existing pixels where texel is 0, shaded result where texel is not 0
+    r0 = vbslq_u32(mask0, existing0, r0);
+    r1 = vbslq_u32(mask1, existing1, r1);
 
     // Store results
+    vst1q_u32(&pixel_buffer[offset], r0);
+    vst1q_u32(&pixel_buffer[offset + 4], r1);
+}
+
+static inline void
+raster_linear_opaque_blend_lerp8(
+    uint32_t* pixel_buffer,
+    int offset,
+    const uint32_t* texels,
+    int u_scan,
+    int v_scan,
+    int step_u,
+    int step_v,
+    int texture_shift,
+    int shade)
+{
+    int idx[8];
+    for( int i = 0; i < 8; i++ )
+    {
+        int u = u_scan >> texture_shift;
+        int v = v_scan & 0x3f80;
+        idx[i] = u + v;
+        u_scan += step_u;
+        v_scan += step_v;
+    }
+
+    // Load 8 texels (scalar gather)
+    uint32x4_t t0 = { texels[idx[0]], texels[idx[1]], texels[idx[2]], texels[idx[3]] };
+    uint32x4_t t1 = { texels[idx[4]], texels[idx[5]], texels[idx[6]], texels[idx[7]] };
+
+    // Shade blend in SIMD
+    uint32x4_t r0 = shade_blend4(t0, shade);
+    uint32x4_t r1 = shade_blend4(t1, shade);
+
+    // Store results directly (no transparency masking for opaque rendering)
     vst1q_u32(&pixel_buffer[offset], r0);
     vst1q_u32(&pixel_buffer[offset + 4], r1);
 }
 #else
 
 static inline void
-draw_span8(
+raster_linear_transparent_blend_lerp8(
     uint32_t* pixel_buffer,
     int offset,
     const uint32_t* texels,
@@ -122,6 +165,32 @@ draw_span8(
         int texel = texels[u + (v)];
         if( texel != 0 )
             pixel_buffer[offset] = shade_blend(texel, shade);
+
+        u_scan += step_u;
+        v_scan += step_v;
+
+        offset += 1;
+    }
+}
+
+static inline void
+raster_linear_opaque_blend_lerp8(
+    uint32_t* pixel_buffer,
+    int offset,
+    const uint32_t* texels,
+    int u_scan,
+    int v_scan,
+    int step_u,
+    int step_v,
+    int texture_shift,
+    int shade)
+{
+    for( int i = 0; i < 8; i++ )
+    {
+        int u = u_scan >> texture_shift;
+        int v = v_scan & 0x3f80;
+        int texel = texels[u + (v)];
+        pixel_buffer[offset] = shade_blend(texel, shade);
 
         u_scan += step_u;
         v_scan += step_v;
@@ -247,7 +316,7 @@ raster_texture_scanline_transparent_blend_lerp8(
 
         shade = shade8bit_ish8 >> 8;
 
-        draw_span8(
+        raster_linear_transparent_blend_lerp8(
             pixel_buffer, offset, texels, u_scan, v_scan, step_u, step_v, texture_shift, shade);
         u_scan += step_u;
         v_scan += step_v;
@@ -393,8 +462,8 @@ raster_texture_scanline_opaque_blend_lerp8(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
-    int screen_x0,
-    int screen_x1,
+    int screen_x0_ish16,
+    int screen_x1_ish16,
     int pixel_offset,
     int au,
     int bv,
@@ -407,20 +476,23 @@ raster_texture_scanline_opaque_blend_lerp8(
     int* texels,
     int texture_width)
 {
-    if( screen_x0 == screen_x1 )
+    if( screen_x0_ish16 == screen_x1_ish16 )
         return;
 
-    if( screen_x0 > screen_x1 )
+    if( screen_x0_ish16 > screen_x1_ish16 )
     {
-        SWAP(screen_x0, screen_x1);
+        SWAP(screen_x0_ish16, screen_x1_ish16);
     }
 
     int steps, adjust;
 
     int offset = pixel_offset;
 
-    if( screen_x0 < 0 )
-        screen_x0 = 0;
+    if( screen_x0_ish16 < 0 )
+        screen_x0_ish16 = 0;
+
+    int screen_x0 = screen_x0_ish16 >> 16;
+    int screen_x1 = screen_x1_ish16 >> 16;
 
     if( screen_x1 >= screen_width )
     {
@@ -434,6 +506,10 @@ raster_texture_scanline_opaque_blend_lerp8(
     au += step_au_dx * adjust;
     bv += step_bv_dx * adjust;
     cw += step_cw_dx * adjust;
+
+    step_au_dx <<= 3;
+    step_bv_dx <<= 3;
+    step_cw_dx <<= 3;
 
     shade8bit_ish8 += step_shade8bit_dx_ish8 * screen_x0;
 
@@ -462,15 +538,13 @@ raster_texture_scanline_opaque_blend_lerp8(
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
     int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
-
     int shade;
-
     do
     {
         if( lerp8_steps == 0 )
             break;
 
-        int w = (-cw) >> texture_shift;
+        int w = (cw) >> texture_shift;
         if( w == 0 )
             continue;
 
@@ -479,40 +553,46 @@ raster_texture_scanline_opaque_blend_lerp8(
         curr_v = (bv) / w;
         // curr_v = clamp(curr_v, 0, texture_width - 1);
 
-        au += (step_au_dx << 3);
-        bv += (step_bv_dx << 3);
-        cw += (step_cw_dx << 3);
+        au += step_au_dx;
+        bv += step_bv_dx;
+        cw += step_cw_dx;
 
-        w = (-cw) >> texture_shift;
+        w = (cw) >> texture_shift;
         if( w == 0 )
             continue;
 
         next_u = (au) / w;
         next_u = clamp(next_u, 0x0, texture_width - 1);
         next_v = (bv) / w;
-        // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-        int step_u = (next_u - curr_u);
-        int step_v = (next_v - curr_v);
+        int step_u = (next_u - curr_u) << (texture_shift - 3);
+        int step_v = (next_v - curr_v) << (texture_shift - 3);
 
-        int u_scan = curr_u << 3;
-        int v_scan = curr_v << 3;
+        int u_scan = curr_u << texture_shift;
+        int v_scan = curr_v << texture_shift;
 
         shade = shade8bit_ish8 >> 8;
-        for( int i = 0; i < 8; i++ )
-        {
-            int u = u_scan >> 3;
-            int v = v_scan >> 3;
-            u &= texture_width - 1;
-            v &= texture_width - 1;
-            int texel = texels[u + v * texture_width];
-            pixel_buffer[offset] = shade_blend(texel, shade);
 
-            u_scan += step_u;
-            v_scan += step_v;
+        raster_linear_opaque_blend_lerp8(
+            pixel_buffer, offset, texels, u_scan, v_scan, step_u, step_v, texture_shift, shade);
+        u_scan += step_u;
+        v_scan += step_v;
+        offset += 8;
 
-            offset += 1;
-        }
+        // Checked on 09/15/2025, clang does NOT vectorize this loop.
+        // even with -O3
+        // for( int i = 0; i < 8; i++ )
+        // {
+        //     int u = u_scan >> texture_shift;
+        //     int v = v_scan & 0x3f80;
+        //     int texel = texels[u + (v)];
+        //     pixel_buffer[offset] = shade_blend(texel, shade);
+
+        //     u_scan += step_u;
+        //     v_scan += step_v;
+
+        //     offset += 1;
+        // }
 
         shade8bit_ish8 += lerp8_shade_step;
 
@@ -521,43 +601,38 @@ raster_texture_scanline_opaque_blend_lerp8(
     if( lerp8_last_steps == 0 )
         return;
 
-    int w = (-cw) >> texture_shift;
+    int w = (cw) >> texture_shift;
     if( w == 0 )
         return;
 
     curr_u = (au) / w;
     curr_u = clamp(curr_u, 0, texture_width - 1);
     curr_v = (bv) / w;
-    // curr_v = clamp(curr_v, 0, texture_width - 1);
 
-    au += (step_au_dx << 3);
-    bv += (step_bv_dx << 3);
-    cw += (step_cw_dx << 3);
+    au += step_au_dx;
+    bv += step_bv_dx;
+    cw += step_cw_dx;
 
-    w = (-cw) >> texture_shift;
+    w = (cw) >> texture_shift;
     if( w == 0 )
         return;
 
     next_u = (au) / w;
     next_u = clamp(next_u, 0x0, texture_width - 1);
-
     next_v = (bv) / w;
-    // next_v = clamp(next_v, 0x0, texture_width - 1);
 
-    int u_scan = curr_u << 3;
-    int v_scan = curr_v << 3;
+    int step_u = (next_u - curr_u) << (texture_shift - 3);
+    int step_v = (next_v - curr_v) << (texture_shift - 3);
 
-    int step_u = (next_u - curr_u);
-    int step_v = (next_v - curr_v);
+    int u_scan = curr_u << texture_shift;
+    int v_scan = curr_v << texture_shift;
 
     shade = shade8bit_ish8 >> 8;
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
-        int u = u_scan >> 3;
-        int v = v_scan >> 3;
-        u &= texture_width - 1;
-        v &= texture_width - 1;
-        int texel = texels[u + v * texture_width];
+        int u = u_scan >> texture_shift;
+        int v = v_scan & 0x3f80;
+        int texel = texels[u + v];
         pixel_buffer[offset] = shade_blend(texel, shade);
 
         u_scan += step_u;
@@ -1443,11 +1518,9 @@ raster_texture_opaque_blend_lerp8(
     int vV_y = orthographic_vend_y2 - orthographic_uvorigin_y0;
     int vV_z = orthographic_vend_z2 - orthographic_uvorigin_z0;
 
-    // TODO: The derivation leaves this as the VU plane,
-    // so this needs to be flipped.
-    int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
-    int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
-    int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+    int vUVPlane_normal_xhat = vU_z * vV_y - vU_y * vV_z;
+    int vUVPlane_normal_yhat = vU_x * vV_z - vU_z * vV_x;
+    int vUVPlane_normal_zhat = vU_y * vV_x - vU_x * vV_y;
 
     int vOVPlane_normal_xhat = orthographic_uvorigin_y0 * vV_z - orthographic_uvorigin_z0 * vV_y;
     int vOVPlane_normal_yhat = orthographic_uvorigin_z0 * vV_x - orthographic_uvorigin_x0 * vV_z;
@@ -1498,7 +1571,6 @@ raster_texture_opaque_blend_lerp8(
     int shade8bit_yhat_ish8 = ((dx_AC * dblend7bit_ab - dx_AB * dblend7bit_ac) << 9) / sarea_abc;
     int shade8bit_xhat_ish8 = ((dy_AB * dblend7bit_ac - dy_AC * dblend7bit_ab) << 9) / sarea_abc;
 
-    // TODO: Why add 1 xhat?
     int shade8bit_edge_ish8 =
         (shade7bit_a << 9) - shade8bit_xhat_ish8 * screen_x0 + shade8bit_xhat_ish8;
 
@@ -1547,15 +1619,15 @@ raster_texture_opaque_blend_lerp8(
 
     while( steps-- > 0 )
     {
-        int x_start = edge_x_AC_ish16 >> 16;
-        int x_end = edge_x_AB_ish16 >> 16;
+        // int x_start = edge_x_AC_ish16 >> 16;
+        // int x_end = edge_x_AB_ish16 >> 16;
 
         raster_texture_scanline_opaque_blend_lerp8(
             pixel_buffer,
             screen_width,
             screen_height,
-            x_start,
-            x_end,
+            edge_x_AC_ish16,
+            edge_x_AB_ish16,
             offset,
             au,
             bv,
@@ -1607,8 +1679,8 @@ raster_texture_opaque_blend_lerp8(
             pixel_buffer,
             screen_width,
             screen_height,
-            edge_x_AC_ish16 >> 16,
-            edge_x_BC_ish16 >> 16,
+            edge_x_AC_ish16,
+            edge_x_BC_ish16,
             offset,
             au,
             bv,
