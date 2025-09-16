@@ -1073,6 +1073,9 @@ Wasm
 Native Mingw Static
 ![native_msvg_static](./res/perf/windows/thinkpad14_native_msvc.png)
 
+Also noticing that the deob is faster for big screens.
+Update: No that's not true, it just doesn't work on big screens.
+
 ### Building For Emscripten
 
 Install emscripten with it's sdk
