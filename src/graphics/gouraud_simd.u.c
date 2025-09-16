@@ -58,7 +58,8 @@ raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int al
     vst1q_u32(&pixel_buffer[offset], result);
 }
 
-// SSE is slower than the vectorized version created by GCC.
+// SSE is slower than the vectorized version created by GCC and MSVC.
+// This was tested on 09/16/2025 by looking at the lumbridge church window.
 #elif defined(__SSE2__) && 0
 #include <emmintrin.h>
 
