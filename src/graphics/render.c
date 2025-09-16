@@ -52,13 +52,75 @@ static int tmp_face_colors_c_hsl16[4096] = { 0 };
 
 static int tmp_vertex_normals[4096] = { 0 };
 
-struct AABB
+static inline void
+compute_screen_x_aabb(
+    struct AABB* aabb,
+    int mid_x,
+    int mid_z,
+    int model_edge_radius,
+    int camera_fov,
+    int screen_width)
 {
-    int min_screen_x;
-    int min_screen_y;
-    int max_screen_x;
-    int max_screen_y;
-};
+    aabb->min_screen_x =
+        project_divide(mid_x - model_edge_radius, mid_z, camera_fov) + screen_width / 2;
+    aabb->max_screen_x =
+        project_divide(mid_x + model_edge_radius, mid_z, camera_fov) + screen_width / 2;
+}
+
+static inline void
+compute_screen_y_aabb(
+    struct AABB* aabb,
+    int mid_y,
+    int mid_z,
+    int model_edge_radius,
+    int model_center_to_top_edge,
+    int model_center_to_bottom_edge,
+    int camera_fov,
+    int camera_pitch,
+    int screen_height)
+{
+    // model_center_to_top_edge = (model_center_to_top_edge * g_cos_table[camera_pitch] >> 16) +
+    //                            (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+    model_center_to_top_edge = (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+
+    model_center_to_bottom_edge = (model_center_to_bottom_edge * g_cos_table[camera_pitch] >> 16) +
+                                  (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+    // model_center_to_bottom_edge = (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+    aabb->min_screen_y =
+        project_divide(mid_y - model_center_to_bottom_edge, mid_z, camera_fov) + screen_height / 2;
+    aabb->max_screen_y =
+        project_divide(mid_y + model_center_to_top_edge, mid_z, camera_fov) + screen_height / 2;
+}
+// static inline void
+// compute_aabb(
+//     struct AABB* aabb,
+//     int mid_x,
+//     int mid_y,
+//     int mid_z,
+//     int model_edge_radius,
+//     int model_center_to_top_edge,
+//     int model_center_to_bottom_edge,
+//     int camera_pitch,
+//     int camera_fov,
+//     int screen_width,
+//     int screen_height)
+// {
+//     model_center_to_top_edge = (model_center_to_top_edge * g_cos_table[camera_pitch] >> 16) +
+//                                (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+
+//     model_center_to_bottom_edge = (model_center_to_bottom_edge * g_cos_table[camera_pitch] >> 16)
+//     +
+//                                   (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+//     aabb->min_screen_x =
+//         project_divide(mid_x - model_edge_radius, mid_z, camera_fov) + screen_width / 2;
+//     aabb->max_screen_x =
+//         project_divide(mid_x + model_edge_radius, mid_z, camera_fov) + screen_width / 2;
+//     aabb->min_screen_y =
+//         project_divide(mid_y - model_center_to_bottom_edge, mid_z, camera_fov) + screen_height /
+//         2;
+//     aabb->max_screen_y =
+//         project_divide(mid_y + model_center_to_top_edge, mid_z, camera_fov) + screen_height / 2;
+// }
 
 static inline int
 project_vertices_model_textured(
@@ -77,6 +139,8 @@ project_vertices_model_textured(
     int model_yaw,
     int model_roll,
     int model_radius,
+    int model_cylinder_center_to_top_edge,
+    int model_cylinder_center_to_bottom_edge,
     int scene_x,
     int scene_y,
     int scene_z,
@@ -93,7 +157,7 @@ project_vertices_model_textured(
     project_orthographic_fast(
         &projected_vertex, 0, 0, 0, model_yaw, scene_x, scene_y, scene_z, camera_pitch, camera_yaw);
 
-    int model_edge_radius = model_radius * g_cos_table[camera_pitch] >> 16;
+    int model_edge_radius = model_radius;
 
     // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
     // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
@@ -118,38 +182,30 @@ project_vertices_model_textured(
     }
 
     int mid_x = projected_vertex.x;
+    int mid_y = projected_vertex.y;
 
-    int right_x = mid_x + model_edge_radius;
-    int left_x = mid_x - model_edge_radius;
+    compute_screen_x_aabb(aabb, mid_x, mid_z, model_edge_radius, camera_fov, screen_width);
 
-    aabb->min_screen_x = project_divide(left_x, max_z, camera_fov) + screen_width / 2;
-    aabb->max_screen_x = project_divide(right_x, max_z, camera_fov) + screen_width / 2;
-
-    int screen_edge_width = screen_width >> 1;
-
-    if( project_divide(right_x, max_z, camera_fov) < -screen_edge_width ||
-        project_divide(left_x, max_z, camera_fov) > screen_edge_width )
+    if( project_divide(aabb->min_screen_x, max_z, camera_fov) > screen_width ||
+        project_divide(aabb->max_screen_x, max_z, camera_fov) < 0 )
     {
         // All parts of the model left or right edges are projected off screen.
         return 0;
     }
 
-    int mid_y = projected_vertex.y;
+    compute_screen_y_aabb(
+        aabb,
+        mid_y,
+        mid_z,
+        model_edge_radius,
+        model_cylinder_center_to_top_edge,
+        model_cylinder_center_to_bottom_edge,
+        camera_fov,
+        camera_pitch,
+        screen_height);
 
-    int model_edge_height = (model_edge_radius * 4) * g_sin_table[camera_pitch] >> 16;
-
-    int top_y = mid_y + model_edge_height;
-    int bottom_y = mid_y - model_edge_height;
-
-    aabb->min_screen_y =
-        project_divide(mid_y - model_edge_height, max_z, camera_fov) + screen_height / 2;
-    aabb->max_screen_y =
-        project_divide(mid_y + model_edge_height, max_z, camera_fov) + screen_height / 2;
-
-    int screen_edge_height = screen_height >> 1;
-
-    if( project_divide(top_y, max_z, camera_fov) < -screen_edge_height ||
-        project_divide(bottom_y, max_z, camera_fov) > screen_edge_height )
+    if( project_divide(aabb->min_screen_y, max_z, camera_fov) > screen_height ||
+        project_divide(aabb->max_screen_y, max_z, camera_fov) < 0 )
     {
         // All parts of the model top or bottom edges are projected off screen.
         return 0;
@@ -1256,6 +1312,7 @@ render_model_frame(
     int camera_yaw,
     int camera_roll,
     int fov,
+    struct AABB* aabb,
     struct CacheModel* model,
     struct ModelLighting* lighting,
     struct BoundsCylinder* bounds_cylinder,
@@ -1317,13 +1374,11 @@ render_model_frame(
     //     height,
     //     near_plane_z);
 
-    struct AABB aabb;
-
     int success = project_vertices_model_textured(
         tmp_screen_vertices_x,
         tmp_screen_vertices_y,
         tmp_screen_vertices_z,
-        &aabb,
+        aabb,
         tmp_orthographic_vertices_x,
         tmp_orthographic_vertices_y,
         tmp_orthographic_vertices_z,
@@ -1335,6 +1390,8 @@ render_model_frame(
         model_yaw,
         model_roll,
         bounds_cylinder->radius,
+        bounds_cylinder->center_to_top_edge,
+        bounds_cylinder->center_to_bottom_edge,
         scene_x,
         scene_y,
         scene_z,
@@ -1743,6 +1800,8 @@ render_scene_model(
     if( model->model == NULL )
         return;
 
+    struct AABB aabb;
+
     render_model_frame(
         pixel_buffer,
         width,
@@ -1758,6 +1817,7 @@ render_scene_model(
         camera_yaw,
         camera_roll,
         fov,
+        &aabb,
         model->model,
         model->lighting,
         model->bounds_cylinder,
@@ -3443,6 +3503,8 @@ iter_render_model_init(
         yaw,
         0,
         scene_model->bounds_cylinder->radius,
+        scene_model->bounds_cylinder->center_to_top_edge,
+        scene_model->bounds_cylinder->center_to_bottom_edge,
         scene_x,
         scene_y,
         scene_z,

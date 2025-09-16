@@ -14,6 +14,14 @@ struct Framemap;
 struct TexturesCache;
 struct ModelLighting;
 
+struct AABB
+{
+    int min_screen_x;
+    int min_screen_y;
+    int max_screen_x;
+    int max_screen_y;
+};
+
 void model_draw_face(
     int* pixel_buffer,
     int face,
@@ -63,6 +71,7 @@ void render_model_frame(
     int camera_pitch,
     int camera_roll,
     int fov,
+    struct AABB* aabb,
     struct CacheModel* model,
     struct ModelLighting* lighting,
     struct BoundsCylinder* bounds_cylinder,

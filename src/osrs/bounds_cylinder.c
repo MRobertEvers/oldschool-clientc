@@ -27,17 +27,17 @@ calculate_bounds_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int* v
     }
 
     // Reminder, +y is down on the screen.
-    bounding_cylinder.center_to_bottom_edge = (int)sqrt(radius_squared + min_y * min_y) + 1;
-    bounding_cylinder.center_to_top_edge = (int)sqrt(radius_squared + max_y * max_y) + 1;
+    int center_to_bottom_edge = (int)sqrt(radius_squared + min_y * min_y) + 1;
+    int center_to_top_edge = (int)sqrt(radius_squared + max_y * max_y) + 1;
+    bounding_cylinder.center_to_bottom_edge = (int)sqrt(0 + min_y * min_y) + 1;
+    bounding_cylinder.center_to_top_edge = (int)sqrt(0 + max_y * max_y) + 1;
 
     bounding_cylinder.radius = (int)sqrt(radius_squared);
 
     // Use max of the two here because OSRS assumes the camera is always above the model,
     // which may not be the case for us.
     bounding_cylinder.min_z_depth_any_rotation =
-        bounding_cylinder.center_to_top_edge > bounding_cylinder.center_to_bottom_edge
-            ? bounding_cylinder.center_to_top_edge
-            : bounding_cylinder.center_to_bottom_edge;
+        center_to_top_edge > center_to_bottom_edge ? center_to_top_edge : center_to_bottom_edge;
 
     return bounding_cylinder;
 }

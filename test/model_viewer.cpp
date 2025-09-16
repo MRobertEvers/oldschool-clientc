@@ -876,6 +876,8 @@ render_scene_model(
     if( model->model == NULL )
         return;
 
+    struct AABB aabb;
+
     render_model_frame(
         pixel_buffer,
         width,
@@ -891,6 +893,7 @@ render_scene_model(
         camera_yaw,
         camera_roll,
         fov,
+        &aabb,
         model->model,
         model->lighting,
         model->bounds_cylinder,

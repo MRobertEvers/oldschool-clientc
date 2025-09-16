@@ -440,6 +440,7 @@ render_scene_model(
     int camera_yaw,
     int camera_roll,
     int fov,
+    struct AABB* aabb,
     struct SceneModel* model,
     struct TexturesCache* textures_cache)
 {
@@ -491,6 +492,7 @@ render_scene_model(
         camera_yaw,
         camera_roll,
         fov,
+        aabb,
         model->model,
         model->lighting,
         model->bounds_cylinder,
@@ -818,6 +820,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
         int model_y = last_model_hit_model->_chunk_pos_y;
         int model_z = last_model_hit_model->_chunk_pos_level;
 
+        struct AABB aabb;
+
         render_scene_model(
             g_blit_buffer,
             SCREEN_WIDTH,
@@ -833,10 +837,46 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
             game->camera_yaw,
             game->camera_roll,
             game->camera_fov,
+            &aabb,
             last_model_hit_model,
             game->textures_cache);
 
         apply_outline_effect(pixel_buffer, g_blit_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        // Draw AABB rectangle outline
+        for( int x = aabb.min_screen_x; x <= aabb.max_screen_x; x++ )
+        {
+            if( x >= 0 && x < SCREEN_WIDTH )
+            {
+                // Top line
+                if( aabb.min_screen_y >= 0 && aabb.min_screen_y < SCREEN_HEIGHT )
+                {
+                    pixel_buffer[aabb.min_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
+                }
+                // Bottom line
+                if( aabb.max_screen_y >= 0 && aabb.max_screen_y < SCREEN_HEIGHT )
+                {
+                    pixel_buffer[aabb.max_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
+                }
+            }
+        }
+
+        for( int y = aabb.min_screen_y; y <= aabb.max_screen_y; y++ )
+        {
+            if( y >= 0 && y < SCREEN_HEIGHT )
+            {
+                // Left line
+                if( aabb.min_screen_x >= 0 && aabb.min_screen_x < SCREEN_WIDTH )
+                {
+                    pixel_buffer[y * SCREEN_WIDTH + aabb.min_screen_x] = 0xFFFFFF;
+                }
+                // Right line
+                if( aabb.max_screen_x >= 0 && aabb.max_screen_x < SCREEN_WIDTH )
+                {
+                    pixel_buffer[y * SCREEN_WIDTH + aabb.max_screen_x] = 0xFFFFFF;
+                }
+            }
+        }
     }
 
     if( game->mouse_click_x != -1 && game->mouse_click_y != -1 )
