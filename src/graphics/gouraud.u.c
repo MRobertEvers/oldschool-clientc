@@ -148,13 +148,13 @@ draw_scanline_gouraud_alpha_s4(
 
         // Checked on 09/16/2025, clang does NOT vectorize this loop.
         // even with -O3
-        for( int i = 0; i < 4; i++ )
-        {
-            int rgb_blend = pixel_buffer[offset];
-            rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
-            pixel_buffer[offset] = rgb_blend;
-            offset += 1;
-        }
+        // for( int i = 0; i < 4; i++ )
+        // {
+        //     int rgb_blend = pixel_buffer[offset];
+        //     rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        //     pixel_buffer[offset] = rgb_blend;
+        //     offset += 1;
+        // }
 
         color_hsl16_ish8 += step_color_hsl16_ish8;
     }
