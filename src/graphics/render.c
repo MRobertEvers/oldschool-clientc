@@ -587,7 +587,7 @@ parition_faces_by_priority(
      * then it should be drawn "below" the body.
      *
      */
-    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
     {
         int face_count = face_depth_bucket_counts[depth];
         if( face_count == 0 )
@@ -637,7 +637,7 @@ sort_face_draw_order(
     int* flex_prio12_face_to_depth = tmp_flex_prio12_face_to_depth;
 
     int counts[12] = { 0 };
-    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
     {
         int face_count = face_depth_bucket_counts[depth];
         if( face_count == 0 )
@@ -1811,6 +1811,14 @@ int_queue_pop(struct IntQueue* queue)
 }
 
 void
+int_queue_clear(struct IntQueue* queue)
+{
+    queue->head = 0;
+    queue->tail = 0;
+    queue->length = 0;
+}
+
+void
 int_queue_free(struct IntQueue* queue)
 {
     free(queue->data);
@@ -1842,6 +1850,10 @@ near_wall_flags(int camera_tile_x, int camera_tile_z, int loc_x, int loc_y)
     return flags;
 }
 
+static struct SceneElement g_elements[40960];
+static struct IntQueue queue = { 0 };
+static struct IntQueue catchup_queue = { 0 };
+
 /**
  * Painters algorithm
  *
@@ -1858,8 +1870,14 @@ near_wall_flags(int camera_tile_x, int camera_tile_z, int loc_x, int loc_y)
  * 11. Draw near decor (i.e. facing away from the camera on the near wall)
  * 12. Draw the near wall.
  */
-struct SceneOp*
-render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene* scene, int* len)
+int
+render_scene_compute_ops(
+    struct SceneOp* ops,
+    int op_buffer_length,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    struct Scene* scene)
 {
     struct GridTile* grid_tile = NULL;
     struct GridTile* bridge_underpass_tile = NULL;
@@ -1873,12 +1891,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
     int op_count = 0;
 
-    int op_capacity = scene->grid_tiles_length * 11;
-    struct SceneOp* ops = (struct SceneOp*)malloc(op_capacity * sizeof(struct SceneOp));
-    memset(ops, 0, op_capacity * sizeof(struct SceneOp));
-    *len = 0;
-    struct SceneElement* elements =
-        (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
+    struct SceneElement* elements = g_elements;
 
     for( int i = 0; i < scene->grid_tiles_length; i++ )
     {
@@ -1925,14 +1938,20 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
         min_draw_z = MAP_TERRAIN_Y;
 
     if( min_draw_x >= max_draw_x )
-        return ops;
+        return 0;
     if( min_draw_z >= max_draw_z )
-        return ops;
+        return 0;
 
-    struct IntQueue queue = { 0 };
-    int_queue_init(&queue, scene->grid_tiles_length);
-    struct IntQueue catchup_queue = { 0 };
-    int_queue_init(&catchup_queue, scene->grid_tiles_length);
+    if( queue.capacity == 0 )
+    {
+        int_queue_init(&queue, scene->grid_tiles_length);
+        int_queue_init(&catchup_queue, scene->grid_tiles_length);
+    }
+    else
+    {
+        int_queue_clear(&queue);
+        int_queue_clear(&catchup_queue);
+    }
 
     struct SceneElement* element = NULL;
     struct SceneElement* other = NULL;
@@ -2681,12 +2700,10 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
         }
     }
 
-    free(elements);
-    int_queue_free(&queue);
-    int_queue_free(&catchup_queue);
+    // int_queue_free(&queue);
+    // int_queue_free(&catchup_queue);
 
-    *len = op_count;
-    return ops;
+    return op_count;
 }
 
 static int g_white_hsl16 = 0x00FFFFFF;

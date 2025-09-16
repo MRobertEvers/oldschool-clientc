@@ -117,6 +117,7 @@
         "arm_neon.h": "c",
         "*.inc": "c",
         "assert.h": "c",
-        "shade.h": "c"
+        "shade.h": "c",
+        "mach_time.h": "c"
     }
 }

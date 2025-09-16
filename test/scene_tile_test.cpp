@@ -524,10 +524,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
     {
         if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
         {
-            if( game->ops )
-                free(game->ops);
-            game->ops = render_scene_compute_ops(
-                game->camera_x, game->camera_y, game->camera_z, game->scene, &game->op_count);
+            game->op_count = render_scene_compute_ops(
+                game->ops, 10000, game->camera_x, game->camera_y, game->camera_z, game->scene);
             game->max_render_ops = game->op_count;
             render_ops = game->op_count;
         }
@@ -1564,6 +1562,10 @@ main(int argc, char* argv[])
     game.show_loc_x = 63;
     game.show_loc_y = 63;
 
+    game.ops = (struct SceneOp*)malloc(10000 * sizeof(struct SceneOp));
+    memset(game.ops, 0, 10000 * sizeof(struct SceneOp));
+    game.op_count = 0;
+
     struct ModelCache* model_cache = model_cache_new();
     struct SceneModel* player_model = NULL;
 
@@ -2159,10 +2161,8 @@ main(int argc, char* argv[])
 
             if( space_pressed )
             {
-                if( game.ops )
-                    free(game.ops);
-                game.ops = render_scene_compute_ops(
-                    game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
+                game.op_count = render_scene_compute_ops(
+                    game.ops, 10000, game.camera_x, game.camera_y, game.camera_z, game.scene);
                 memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
                 game.max_render_ops = 1;
                 game.manual_render_ops = 0;
