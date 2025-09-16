@@ -443,10 +443,9 @@ render_scene_model(
     struct SceneModel* model,
     struct TexturesCache* textures_cache)
 {
-    return;
-    int x = model->region_x + camera_x;
-    int y = model->region_height + camera_y;
-    int z = model->region_z + camera_z;
+    int scene_x = model->region_x - camera_x;
+    int scene_y = model->region_height - camera_y;
+    int scene_z = model->region_z - camera_z;
 
     if( !model->bounds_cylinder )
     {
@@ -470,9 +469,9 @@ render_scene_model(
     // }
     yaw %= 2048;
 
-    x += model->offset_x;
-    y += model->offset_height;
-    z += model->offset_z;
+    scene_x += model->offset_x;
+    scene_y += model->offset_height;
+    scene_z += model->offset_z;
 
     if( model->model == NULL )
         return;
@@ -485,9 +484,9 @@ render_scene_model(
         0,
         yaw,
         0,
-        x,
-        y,
-        z,
+        scene_x,
+        scene_y,
+        scene_z,
         camera_pitch,
         camera_yaw,
         camera_roll,
@@ -810,35 +809,35 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
         }
     }
 
-    // if( last_model_hit_model )
-    // {
-    //     memset(g_blit_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    if( last_model_hit_model )
+    {
+        memset(g_blit_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
-    //     int model_id = last_model_hit_model->model_id;
-    //     int model_x = last_model_hit_model->_chunk_pos_x;
-    //     int model_y = last_model_hit_model->_chunk_pos_y;
-    //     int model_z = last_model_hit_model->_chunk_pos_level;
+        int model_id = last_model_hit_model->model_id;
+        int model_x = last_model_hit_model->_chunk_pos_x;
+        int model_y = last_model_hit_model->_chunk_pos_y;
+        int model_z = last_model_hit_model->_chunk_pos_level;
 
-    //     render_scene_model(
-    //         g_blit_buffer,
-    //         SCREEN_WIDTH,
-    //         SCREEN_HEIGHT,
-    //         // Had to use 100 here because of the scale, near plane z was resulting in
-    //         // extremely close to the camera.
-    //         100,
-    //         last_model_hit_yaw,
-    //         game->camera_x,
-    //         game->camera_y,
-    //         game->camera_z,
-    //         game->camera_pitch,
-    //         game->camera_yaw,
-    //         game->camera_roll,
-    //         game->camera_fov,
-    //         last_model_hit_model,
-    //         game->textures_cache);
+        render_scene_model(
+            g_blit_buffer,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
+            // Had to use 100 here because of the scale, near plane z was resulting in
+            // extremely close to the camera.
+            100,
+            last_model_hit_yaw,
+            game->camera_x,
+            game->camera_y,
+            game->camera_z,
+            game->camera_pitch,
+            game->camera_yaw,
+            game->camera_roll,
+            game->camera_fov,
+            last_model_hit_model,
+            game->textures_cache);
 
-    //     apply_outline_effect(pixel_buffer, g_blit_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
-    // }
+        apply_outline_effect(pixel_buffer, g_blit_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
+    }
 
     if( game->mouse_click_x != -1 && game->mouse_click_y != -1 )
     {

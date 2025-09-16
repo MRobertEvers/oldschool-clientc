@@ -1249,9 +1249,9 @@ render_model_frame(
     int model_pitch,
     int model_yaw,
     int model_roll,
-    int camera_x,
-    int camera_y,
-    int camera_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
     int camera_pitch,
     int camera_yaw,
     int camera_roll,
@@ -1264,7 +1264,6 @@ render_model_frame(
     struct Framemap* framemap_nullable,
     struct TexturesCache* textures_cache)
 {
-    return;
     //     int* vertices_x = model->vertices_x;
     //     int* vertices_y = model->vertices_y;
     //     int* vertices_z = model->vertices_z;
@@ -1280,6 +1279,17 @@ render_model_frame(
     // int* orthographic_vertices_x = tmp_orthographic_vertices_x;
     // int* orthographic_vertices_y = tmp_orthographic_vertices_y;
     // int* orthographic_vertices_z = tmp_orthographic_vertices_z;
+
+    // int scene_x = scene_model->region_x - camera_x;
+    // int scene_y = scene_model->region_height - camera_y;
+    // int scene_z = scene_model->region_z - camera_z;
+    // yaw += scene_model->yaw;
+    // // yaw %= 2048;
+    // yaw &= 0x7FF;
+
+    // scene_x += scene_model->offset_x;
+    // scene_y += scene_model->offset_height;
+    // scene_z += scene_model->offset_z;
 
     int model_min_depth = bounds_cylinder->min_z_depth_any_rotation;
 
@@ -1325,9 +1335,9 @@ render_model_frame(
         model_yaw,
         model_roll,
         bounds_cylinder->radius,
-        camera_x,
-        camera_z,
-        camera_y,
+        scene_x,
+        scene_y,
+        scene_z,
         camera_pitch,
         camera_yaw,
         camera_roll,
@@ -1706,10 +1716,9 @@ render_scene_model(
     struct SceneModel* model,
     struct TexturesCache* textures_cache)
 {
-    return;
-    int x = camera_x + model->region_x;
-    int y = camera_y + model->region_z;
-    int z = camera_z + model->region_height;
+    int scene_x = model->region_x - camera_x;
+    int scene_y = model->region_height - camera_y;
+    int scene_z = model->region_height - camera_z;
 
     // if( model->mirrored )
     // {
@@ -1727,9 +1736,9 @@ render_scene_model(
 
     yaw &= 0x7FF;
 
-    x += model->offset_x;
-    y += model->offset_z;
-    z += model->offset_height;
+    scene_x += model->offset_x;
+    scene_y += model->offset_z;
+    scene_z += model->offset_height;
 
     if( model->model == NULL )
         return;
@@ -1742,9 +1751,9 @@ render_scene_model(
         0,
         yaw,
         0,
-        x,
-        y,
-        z,
+        scene_x,
+        scene_y,
+        scene_z,
         camera_pitch,
         camera_yaw,
         camera_roll,

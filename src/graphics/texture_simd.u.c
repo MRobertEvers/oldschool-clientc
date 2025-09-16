@@ -71,7 +71,6 @@ raster_linear_transparent_blend_lerp8(
     // Create masks for non-zero texels
     uint32x4_t mask0 = vceqq_u32(t0, zero); // true where texel is 0
     uint32x4_t mask1 = vceqq_u32(t1, zero); // true where texel is 0
-
     // Select existing pixels where texel is 0, shaded result where texel is not 0
     r0 = vbslq_u32(mask0, existing0, r0);
     r1 = vbslq_u32(mask1, existing1, r1);
@@ -115,6 +114,7 @@ raster_linear_opaque_blend_lerp8(
     vst1q_u32(&pixel_buffer[offset], r0);
     vst1q_u32(&pixel_buffer[offset + 4], r1);
 }
+
 #elif defined(__AVX2__)
 #include <immintrin.h>
 
