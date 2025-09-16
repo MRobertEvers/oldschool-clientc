@@ -230,7 +230,7 @@ raster_linear_opaque_blend_lerp8(
     // Store results directly (no transparency masking for opaque rendering)
     _mm256_storeu_si256((__m256i*)&pixel_buffer[offset], r);
 }
-#elif defined(__SSE2__)
+#elif defined(__SSE2__) && 0
 #include <emmintrin.h>
 
 // shade_blend for 4 pixels at a time using SSE2
