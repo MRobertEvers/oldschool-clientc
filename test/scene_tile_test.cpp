@@ -1559,13 +1559,13 @@ main(int argc, char* argv[])
      * Many gouraud transparent
      * Camera (x, y, z): 1587, -890, 1907 : 12, -6
      */
-    game.camera_pitch = 270;
-    game.camera_yaw = 1536;
-    game.camera_roll = 0;
-    game.camera_fov = 768;
-    game.camera_x = 1587;
-    game.camera_y = -890;
-    game.camera_z = 1907;
+    // game.camera_pitch = 270;
+    // game.camera_yaw = 1536;
+    // game.camera_roll = 0;
+    // game.camera_fov = 768;
+    // game.camera_x = 1587;
+    // game.camera_y = -890;
+    // game.camera_z = 1907;
 
     game.player_tile_x = 10;
     game.player_tile_y = 10;
