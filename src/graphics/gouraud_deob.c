@@ -1,9 +1,11 @@
 #include "gouraud_deob.h"
 
+#include "screen.h"
+
 #include <stdbool.h>
 
-#define BOTTOM_Y (768 / 2)
-#define WIDTH (1024 / 2)
+#define BOTTOM_Y (SCREEN_HEIGHT)
+#define WIDTH (SCREEN_WIDTH)
 
 extern int g_hsl16_to_rgb_table[65536];
 
