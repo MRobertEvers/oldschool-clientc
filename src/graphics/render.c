@@ -10,7 +10,7 @@
 #include "osrs/tables/model.h"
 #include "osrs/tables/sprites.h"
 #include "shared_tables.h"
-#include <mach/mach_time.h>
+// #include <mach/mach_time.h>
 
 #include <assert.h>
 #include <limits.h>
@@ -1363,7 +1363,7 @@ render_model_frame(
             if( bucket_count == 0 )
                 continue;
 
-            int* faces = &tmp_depth_faces[depth << 9];
+            short* faces = &tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
                 int face = faces[j];
