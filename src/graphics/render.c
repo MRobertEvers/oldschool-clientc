@@ -163,8 +163,18 @@ project_vertices_model_textured(
         orthographic_vertices_z[i] = projected_vertex.z;
     }
 
+    // int cot_fov_half_ish15 = calc_cot_fov_half_ish15(camera_fov);
+
     for( int i = 0; i < num_vertices; i++ )
     {
+        // project_perspective_fast_fov2(
+        //     &projected_vertex,
+        //     orthographic_vertices_x[i],
+        //     orthographic_vertices_y[i],
+        //     orthographic_vertices_z[i],
+        //     cot_fov_half_ish15,
+        //     near_plane_z);
+
         project_perspective_fast(
             &projected_vertex,
             orthographic_vertices_x[i],
@@ -287,8 +297,18 @@ project_vertices_terrain_textured(
         orthographic_vertices_z[i] = projected_vertex.z;
     }
 
+    // int cot_fov_half_ish15 = calc_cot_fov_half_ish15(camera_fov);
+
     for( int i = 0; i < num_vertices; i++ )
     {
+        // project_perspective_fast_fov2(
+        //     &projected_vertex,
+        //     orthographic_vertices_x[i],
+        //     orthographic_vertices_y[i],
+        //     orthographic_vertices_z[i],
+        //     cot_fov_half_ish15,
+        //     near_plane_z);
+
         project_perspective_fast(
             &projected_vertex,
             orthographic_vertices_x[i],

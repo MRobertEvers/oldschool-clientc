@@ -388,7 +388,7 @@ project_perspective_fast(
 
     if( z < near_clip )
     {
-        memset(projected_vertex, 0x00, sizeof(*projected_vertex));
+        // memset(projected_vertex, 0x00, sizeof(*projected_vertex));
         projected_vertex->z = z;
         projected_vertex->clipped = 1;
         return;
@@ -447,6 +447,67 @@ project_perspective_fast(
     projected_vertex->clipped = 0;
 }
 
+static inline int
+calc_cot_fov_half_ish15(int fov)
+{
+    int fov_half = fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    return cot_fov_half_ish16 >> 1;
+}
+
+static inline void
+project_perspective_fast_fov2(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int cot_fov_half_ish15,
+    int near_clip)
+{
+    if( z < near_clip )
+    {
+        projected_vertex->z = z;
+        projected_vertex->clipped = 1;
+        return;
+    }
+
+    assert(z != 0);
+
+    // Apply FOV scaling to x and y coordinates
+
+    // unit scale 9, angle scale 16
+    // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    // if valid x is -Screen_width/2 to Screen_width/2
+    // And the max resolution we allow is 1600 (either dimension)
+    // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    // i.e. x/z < 2^6 or x/z < 64
+
+    // Suppose we allow z > 16, so z_clip_bits = 4
+    // then x_bits_max < 10, so 2^9, which is 512
+
+    x *= cot_fov_half_ish15;
+    y *= cot_fov_half_ish15;
+    x >>= 15;
+    y >>= 15;
+
+    // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
+    int screen_x = SCALE_UNIT(x) / z;
+    int screen_y = SCALE_UNIT(y) / z;
+    // screen_x *= cot_fov_half_ish_scaled;
+    // screen_y *= cot_fov_half_ish_scaled;
+    // screen_x >>= 16 - scale_angle;
+    // screen_y >>= 16 - scale_angle;
+
+    // Set the projected triangle
+    projected_vertex->x = screen_x;
+    projected_vertex->y = screen_y;
+    projected_vertex->z = z;
+    projected_vertex->clipped = 0;
+}
+
 static inline void
 project_fast(
     struct ProjectedVertex* projected_vertex,
@@ -486,7 +547,11 @@ project_fast(
 }
 
 #include <arm_neon.h>
-
+/**
+ * I checked this on 09/15/2025, the normal code does get vectorized on Mac, using arm neon.
+ *
+ * Clang vectorizes the code better than this.
+ */
 static inline void
 project_orthographic_fast_array(
     // struct ProjectedVertex* restrict out __attribute__((aligned(16))),

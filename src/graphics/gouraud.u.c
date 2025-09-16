@@ -57,13 +57,11 @@ draw_scanline_gouraud_s4(
     {
         rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
 
-        simd_write4((uint32_t*)(pixel_buffer + offset), rgb_color);
-        offset += 4;
-
-        // pixel_buffer[offset++] = rgb_color;
-        // pixel_buffer[offset++] = rgb_color;
-        // pixel_buffer[offset++] = rgb_color;
-        // pixel_buffer[offset++] = rgb_color;
+        for( int i = 0; i < 4; i++ )
+        {
+            pixel_buffer[offset] = rgb_color;
+            offset += 1;
+        }
 
         hsl += hsl_step;
 
@@ -72,11 +70,14 @@ draw_scanline_gouraud_s4(
 
     steps = dx_stride & 0x3;
     rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
-    while( steps > 0 )
+    switch( dx_stride & 3 )
     {
+    case 3:
         pixel_buffer[offset++] = rgb_color;
-
-        steps -= 1;
+    case 2:
+        pixel_buffer[offset++] = rgb_color;
+    case 1:
+        pixel_buffer[offset] = rgb_color;
     }
 }
 
@@ -139,21 +140,13 @@ draw_scanline_gouraud_blend_s4(
         int color_hsl16 = color_hsl16_ish8 >> 8;
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
 
-        int rgb_blend = pixel_buffer[offset];
-        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
-        pixel_buffer[offset++] = rgb_blend;
-
-        rgb_blend = pixel_buffer[offset];
-        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
-        pixel_buffer[offset++] = rgb_blend;
-
-        rgb_blend = pixel_buffer[offset];
-        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
-        pixel_buffer[offset++] = rgb_blend;
-
-        rgb_blend = pixel_buffer[offset];
-        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
-        pixel_buffer[offset++] = rgb_blend;
+        for( int i = 0; i < 4; i++ )
+        {
+            int rgb_blend = pixel_buffer[offset];
+            rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+            pixel_buffer[offset] = rgb_blend;
+            offset += 1;
+        }
 
         color_hsl16_ish8 += step_color_hsl16_ish8;
     }
@@ -420,8 +413,8 @@ raster_gouraud_s4(
     int dhsl_AB = color1_hsl16 - color0_hsl16;
     int dhsl_AC = color2_hsl16 - color0_hsl16;
 
-    // Sort vertices by y
-    // where y0 is the bottom vertex and y2 is the top vertex (or bottom of the screen)
+    // Sort vertices by y where y0 is the bottom vertex and y2 is the top vertex(
+    // or bottom of the screen)
     if( y0 > y1 )
     {
         int temp = y0;
@@ -467,31 +460,6 @@ raster_gouraud_s4(
         color1_hsl16 = temp;
     }
 
-    /**
-     * If tiles that are culled far outside the FOV, then this is not needed.
-     */
-    // if( (y2 - y0) >= screen_height )
-    // {
-    //     // This can happen if vertices extremely close to the camera plane, but outside the FOV
-    //     // are projected. Those vertices need to be culled.
-    //     return;
-    // }
-
-    // // TODO: Remove this check for callers that cull correctly.
-    // if( (x0 < 0 || x1 < 0 || x2 < 0) &&
-    //     (x0 > screen_width || x1 > screen_width || x2 > screen_width) )
-    // {
-    //     // This can happen if vertices extremely close to the camera plane, but outside the FOV
-    //     // are projected. Those vertices need to be culled.
-    //     return;
-    // }
-
-    // // skip if the triangle is degenerate
-    // if( x0 == x1 && x1 == x2 )
-    //     return;
-
-    // Use hsl from color0 because this is where the vertex attribute scan is starting
-    // as we scan across the screen.
     int hsl = color0_hsl16;
 
     int dx_AC = x2 - x0;
