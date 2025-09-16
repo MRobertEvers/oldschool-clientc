@@ -131,6 +131,8 @@ draw_scanline_gouraud_alpha_s4(
     if( x_start >= x_end )
         return;
 
+    dx_stride = x_end - x_start;
+
     // Steps by 4.
     int offset = x_start + y * stride_width;
     int steps = (dx_stride) >> 2;
