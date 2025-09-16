@@ -7,7 +7,7 @@
 #include <stdbool.h>
 
 // clang-format off
-#include "gouraud_simd.u.c"
+#include "gouraud_simd_alpha.u.c"
 // clang-format on
 
 extern int g_hsl16_to_rgb_table[65536];
@@ -56,6 +56,7 @@ draw_scanline_gouraud_s4(
         rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
 
         // This loop is vectorized by clang.
+        // Even on msvc and gcc, this is faster than the manually vectorized version.
         for( int i = 0; i < 4; i++ )
         {
             pixel_buffer[offset] = rgb_color;
