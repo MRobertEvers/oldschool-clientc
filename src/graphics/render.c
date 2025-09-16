@@ -3320,7 +3320,7 @@ iter_render_model_init(
             if( bucket_count == 0 )
                 continue;
 
-            int* faces = &tmp_depth_faces[depth * 512];
+            int* faces = &tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
                 int face = faces[j];

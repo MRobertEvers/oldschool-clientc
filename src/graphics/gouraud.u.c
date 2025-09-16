@@ -68,14 +68,15 @@ draw_scanline_gouraud_s4(
         steps -= 1;
     }
 
-    steps = dx_stride & 0x3;
     rgb_color = g_hsl16_to_rgb_table[hsl >> 8];
-    switch( dx_stride & 3 )
+    switch( dx_stride & 0x3 )
     {
     case 3:
-        pixel_buffer[offset++] = rgb_color;
+        pixel_buffer[offset] = rgb_color;
+        offset += 1;
     case 2:
-        pixel_buffer[offset++] = rgb_color;
+        pixel_buffer[offset] = rgb_color;
+        offset += 1;
     case 1:
         pixel_buffer[offset] = rgb_color;
     }
@@ -532,9 +533,6 @@ raster_gouraud_s4(
     int i = y0;
     for( ; i < y1; ++i )
     {
-        // int x_start_current = edge_x_AC_ish16 >> 0;
-        // int x_end_current = edge_x_AB_ish16 >> 0;
-
         draw_scanline_gouraud_s4(
             pixel_buffer,
             offset,
@@ -543,24 +541,23 @@ raster_gouraud_s4(
             edge_x_AB_ish16,
             hsl,
             color_step_x);
+
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
 
         hsl += color_step_y;
         offset += screen_width;
     }
-    if( y1 >= y2 )
-        return;
 
     if( y2 >= screen_height )
         y2 = screen_height - 1;
 
+    if( y1 >= y2 )
+        return;
+
     i = y1;
     for( ; i < y2; ++i )
     {
-        // int x_start_current = edge_x_AC_ish16 >> 0;
-        // int x_end_current = edge_x_BC_ish16 >> 0;
-
         draw_scanline_gouraud_s4(
             pixel_buffer,
             offset,

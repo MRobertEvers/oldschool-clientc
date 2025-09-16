@@ -115,6 +115,8 @@
         "set": "c",
         "unordered_set": "c",
         "arm_neon.h": "c",
-        "*.inc": "c"
+        "*.inc": "c",
+        "assert.h": "c",
+        "shade.h": "c"
     }
 }
