@@ -21,17 +21,17 @@ draw_scanline_flat_s4(
         x_end = tmp;
     }
 
-    int dx_stride = x_end - x_start;
-    assert(dx_stride > 0);
-
-    if( x_end > stride_width )
-        x_end = stride_width;
+    if( x_end >= stride_width )
+        x_end = stride_width - 1;
 
     if( x_start < 0 )
         x_start = 0;
 
-    if( x_start > x_end )
+    if( x_start >= x_end )
         return;
+
+    int dx_stride = x_end - x_start;
+    assert(dx_stride > 0);
 
     // Steps by 4.
     int offset = x_start + y * stride_width;
@@ -206,23 +206,23 @@ draw_scanline_flat_alpha_s4(
         x_end = tmp;
     }
 
-    int dx_stride = x_end - x_start;
-    assert(dx_stride > 0);
-
-    if( x_end > stride_width )
-        x_end = stride_width;
+    if( x_end >= stride_width )
+        x_end = stride_width - 1;
 
     if( x_start < 0 )
         x_start = 0;
 
-    if( x_start > x_end )
+    if( x_start >= x_end )
         return;
+
+    int dx_stride = x_end - x_start;
+    assert(dx_stride > 0);
 
     // Steps by 4.
     int offset = x_start + y * stride_width;
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
 
-    int steps = (x_end - x_start) >> 2;
+    int steps = (dx_stride) >> 2;
     int rgb_blend;
     while( --steps >= 0 )
     {
@@ -243,7 +243,7 @@ draw_scanline_flat_alpha_s4(
         pixel_buffer[offset++] = rgb_blend;
     }
 
-    steps = (x_end - x_start) & 0x3;
+    steps = (dx_stride) & 0x3;
     while( --steps >= 0 )
     {
         rgb_blend = pixel_buffer[offset];
