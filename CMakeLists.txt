@@ -42,11 +42,21 @@ else()
     # GCC/MinGW and other compilers
     set(CMAKE_C_FLAGS "-Wall -Wextra")
     set(CMAKE_C_FLAGS_DEBUG "-g -Og -fsanitize=address -fno-omit-frame-pointer")
-    set(CMAKE_C_FLAGS_RELEASE "-g -O3 -mavx2 -mfma")
     
     set(CMAKE_CXX_FLAGS "-Wall -Wextra")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -Og -fsanitize=address -fno-omit-frame-pointer")
-    set(CMAKE_CXX_FLAGS_RELEASE "-g -O3 -mavx2 -mfma")
+    
+    # Set architecture-specific flags
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+        # x86_64 specific optimizations
+        set(CMAKE_C_FLAGS_RELEASE "-g -O3 -mavx2 -mfma")
+        set(CMAKE_CXX_FLAGS_RELEASE "-g -O3 -mavx2 -mfma")
+    else()
+        # ARM64 and other architectures - use generic optimizations
+        set(CMAKE_C_FLAGS_RELEASE "-g -O3")
+        set(CMAKE_CXX_FLAGS_RELEASE "-g -O3")
+    endif()
+    
     # Enable C99 features
     set(CMAKE_C_STANDARD 99)
     set(CMAKE_C_STANDARD_REQUIRED ON)
