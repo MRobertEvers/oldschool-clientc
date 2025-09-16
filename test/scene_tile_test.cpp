@@ -698,53 +698,62 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
             {
                 int face = iter_model.value_face;
 
-                // if( !model_intersected )
-                // {
-                //     // Get face vertex indices
-                //     int face_a = iter.value.model_nullable_->model->face_indices_a[face];
-                //     int face_b = iter.value.model_nullable_->model->face_indices_b[face];
-                //     int face_c = iter.value.model_nullable_->model->face_indices_c[face];
+                bool is_in_bb = false;
+                if( game->mouse_x >= iter_model.aabb_min_screen_x &&
+                    game->mouse_x <= iter_model.aabb_max_screen_x &&
+                    game->mouse_y >= iter_model.aabb_min_screen_y &&
+                    game->mouse_y <= iter_model.aabb_max_screen_y )
+                {
+                    is_in_bb = true;
+                }
 
-                //     // Get screen coordinates of the triangle vertices
-                //     int x1 = iter_model.screen_vertices_x[face_a] + SCREEN_WIDTH / 2;
-                //     int y1 = iter_model.screen_vertices_y[face_a] + SCREEN_HEIGHT / 2;
-                //     int x2 = iter_model.screen_vertices_x[face_b] + SCREEN_WIDTH / 2;
-                //     int y2 = iter_model.screen_vertices_y[face_b] + SCREEN_HEIGHT / 2;
-                //     int x3 = iter_model.screen_vertices_x[face_c] + SCREEN_WIDTH / 2;
-                //     int y3 = iter_model.screen_vertices_y[face_c] + SCREEN_HEIGHT / 2;
+                if( !model_intersected && is_in_bb )
+                {
+                    // Get face vertex indices
+                    int face_a = iter.value.model_nullable_->model->face_indices_a[face];
+                    int face_b = iter.value.model_nullable_->model->face_indices_b[face];
+                    int face_c = iter.value.model_nullable_->model->face_indices_c[face];
 
-                //     // Check if mouse is inside the triangle using barycentric coordinates
-                //     bool mouse_in_triangle = false;
-                //     if( x1 != -5000 && x2 != -5000 && x3 != -5000 )
-                //     { // Skip clipped triangles
-                //         int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
-                //         if( denominator != 0 )
-                //         {
-                //             float a = ((y2 - y3) * (game->mouse_x - x3) +
-                //                        (x3 - x2) * (game->mouse_y - y3)) /
-                //                       (float)denominator;
-                //             float b = ((y3 - y1) * (game->mouse_x - x3) +
-                //                        (x1 - x3) * (game->mouse_y - y3)) /
-                //                       (float)denominator;
-                //             float c = 1 - a - b;
-                //             mouse_in_triangle = (a >= 0 && b >= 0 && c >= 0);
-                //         }
-                //     }
+                    // Get screen coordinates of the triangle vertices
+                    int x1 = iter_model.screen_vertices_x[face_a] + SCREEN_WIDTH / 2;
+                    int y1 = iter_model.screen_vertices_y[face_a] + SCREEN_HEIGHT / 2;
+                    int x2 = iter_model.screen_vertices_x[face_b] + SCREEN_WIDTH / 2;
+                    int y2 = iter_model.screen_vertices_y[face_b] + SCREEN_HEIGHT / 2;
+                    int x3 = iter_model.screen_vertices_x[face_c] + SCREEN_WIDTH / 2;
+                    int y3 = iter_model.screen_vertices_y[face_c] + SCREEN_HEIGHT / 2;
 
-                //     if( mouse_in_triangle )
-                //     {
-                //         game->hover_model = iter_model.model->model_id;
-                //         game->hover_loc_x = iter_model.model->_chunk_pos_x;
-                //         game->hover_loc_y = iter_model.model->_chunk_pos_y;
-                //         game->hover_loc_level = iter_model.model->_chunk_pos_level;
-                //         game->hover_loc_yaw = iter_model.model->yaw;
+                    // Check if mouse is inside the triangle using barycentric coordinates
+                    bool mouse_in_triangle = false;
+                    if( x1 != -5000 && x2 != -5000 && x3 != -5000 )
+                    { // Skip clipped triangles
+                        int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+                        if( denominator != 0 )
+                        {
+                            float a = ((y2 - y3) * (game->mouse_x - x3) +
+                                       (x3 - x2) * (game->mouse_y - y3)) /
+                                      (float)denominator;
+                            float b = ((y3 - y1) * (game->mouse_x - x3) +
+                                       (x1 - x3) * (game->mouse_y - y3)) /
+                                      (float)denominator;
+                            float c = 1 - a - b;
+                            mouse_in_triangle = (a >= 0 && b >= 0 && c >= 0);
+                        }
+                    }
 
-                //         last_model_hit_model = iter.value.model_nullable_;
-                //         last_model_hit_yaw = iter.value.model_nullable_->yaw + iter.value.yaw;
+                    if( mouse_in_triangle )
+                    {
+                        game->hover_model = iter_model.model->model_id;
+                        game->hover_loc_x = iter_model.model->_chunk_pos_x;
+                        game->hover_loc_y = iter_model.model->_chunk_pos_y;
+                        game->hover_loc_level = iter_model.model->_chunk_pos_level;
+                        game->hover_loc_yaw = iter_model.model->yaw;
 
-                //         model_intersected = true;
-                //     }
-                // }
+                        last_model_hit_model = iter.value.model_nullable_;
+                        last_model_hit_yaw = iter.value.model_nullable_->yaw + iter.value.yaw;
+
+                        model_intersected = true;
+                    }
+                }
                 // Only draw the face if mouse is inside the triangle
                 model_draw_face(
                     pixel_buffer,

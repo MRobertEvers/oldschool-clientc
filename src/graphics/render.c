@@ -52,11 +52,20 @@ static int tmp_face_colors_c_hsl16[4096] = { 0 };
 
 static int tmp_vertex_normals[4096] = { 0 };
 
+struct AABB
+{
+    int min_screen_x;
+    int min_screen_y;
+    int max_screen_x;
+    int max_screen_y;
+};
+
 static inline int
 project_vertices_model_textured(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
+    struct AABB* aabb,
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
@@ -110,13 +119,16 @@ project_vertices_model_textured(
 
     int mid_x = projected_vertex.x;
 
-    int left_x = mid_x + model_edge_radius;
-    int right_x = mid_x - model_edge_radius;
+    int right_x = mid_x + model_edge_radius;
+    int left_x = mid_x - model_edge_radius;
+
+    aabb->min_screen_x = project_divide(left_x, max_z, camera_fov) + screen_width / 2;
+    aabb->max_screen_x = project_divide(right_x, max_z, camera_fov) + screen_width / 2;
 
     int screen_edge_width = screen_width >> 1;
 
-    if( project_divide(left_x, max_z, camera_fov) < -screen_edge_width ||
-        project_divide(right_x, max_z, camera_fov) > screen_edge_width )
+    if( project_divide(right_x, max_z, camera_fov) < -screen_edge_width ||
+        project_divide(left_x, max_z, camera_fov) > screen_edge_width )
     {
         // All parts of the model left or right edges are projected off screen.
         return 0;
@@ -128,6 +140,11 @@ project_vertices_model_textured(
 
     int top_y = mid_y + model_edge_height;
     int bottom_y = mid_y - model_edge_height;
+
+    aabb->min_screen_y =
+        project_divide(mid_y - model_edge_height, max_z, camera_fov) + screen_height / 2;
+    aabb->max_screen_y =
+        project_divide(mid_y + model_edge_height, max_z, camera_fov) + screen_height / 2;
 
     int screen_edge_height = screen_height >> 1;
 
@@ -1290,10 +1307,13 @@ render_model_frame(
     //     height,
     //     near_plane_z);
 
+    struct AABB aabb;
+
     int success = project_vertices_model_textured(
         tmp_screen_vertices_x,
         tmp_screen_vertices_y,
         tmp_screen_vertices_z,
+        &aabb,
         tmp_orthographic_vertices_x,
         tmp_orthographic_vertices_y,
         tmp_orthographic_vertices_z,
@@ -3396,10 +3416,13 @@ iter_render_model_init(
             model->vertex_count, model->vertices_x, model->vertices_y, model->vertices_z);
     }
 
+    struct AABB aabb;
+
     int success = project_vertices_model_textured(
         screen_vertices_x,
         screen_vertices_y,
         screen_vertices_z,
+        &aabb,
         orthographic_vertices_x,
         orthographic_vertices_y,
         orthographic_vertices_z,
@@ -3424,6 +3447,11 @@ iter_render_model_init(
 
     if( !success )
         return;
+
+    iter->aabb_min_screen_x = aabb.min_screen_x;
+    iter->aabb_min_screen_y = aabb.min_screen_y;
+    iter->aabb_max_screen_x = aabb.max_screen_x;
+    iter->aabb_max_screen_y = aabb.max_screen_y;
 
     int model_min_depth = scene_model->bounds_cylinder->min_z_depth_any_rotation;
 

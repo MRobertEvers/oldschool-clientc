@@ -315,6 +315,14 @@ struct IterRenderModel
     int* ortho_vertices_x;
     int* ortho_vertices_y;
     int* ortho_vertices_z;
+
+    int aabb_min_screen_x;
+
+    int aabb_min_screen_y;
+
+    int aabb_max_screen_x;
+
+    int aabb_max_screen_y;
 };
 
 void iter_render_model_init(
