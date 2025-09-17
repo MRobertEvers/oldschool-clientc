@@ -239,7 +239,7 @@ const completeResults = {
       mean: stats[bestOverallVer].mean,
       stdDev: stats[bestOverallVer].stdDev,
     },
-    tTests: pairs.map(([v1, v2]) => {
+    tTests: [["v1", "v2"]].map(([v1, v2]) => {
       const { t, df } = tTest(results[v1], results[v2]);
       return {
         comparison: `${v1} vs ${v2}`,
