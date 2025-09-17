@@ -1,0 +1,120 @@
+System Information:
+• CPU: Apple M4 Pro
+• Physical Cores: 14
+• Logical Cores: 14
+• Memory: 48.0GB
+• GPU: Apple M4 Pro
+• Platform: darwin 24.6.0
+• Architecture: arm64
+
+Timestamp: 2025-09-17T22:30:00.732Z
+Benchmark: gouraud_simd
+
+{
+  "iterations": 30,
+  "rawResults": {
+    "edge": [
+      195563,
+      201538,
+      197289,
+      196493,
+      196116,
+      197252,
+      196693,
+      195704,
+      196427,
+      194368,
+      194746,
+      195394,
+      196615,
+      193958,
+      193252,
+      193541,
+      193020,
+      199032,
+      193720,
+      194424,
+      193525,
+      194262,
+      193887,
+      194906,
+      194386,
+      194660,
+      194297,
+      192414,
+      195317,
+      194085
+    ],
+    "simd": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "statistics": {
+    "edge": {
+      "mean": 195229.46666666667,
+      "stdDev": 1901.8251439501264,
+      "ci95": 680.5593874243693,
+      "min": 192414,
+      "max": 201538
+    },
+    "simd": {
+      "mean": null,
+      "stdDev": null,
+      "ci95": null,
+      "min": null,
+      "max": null
+    }
+  },
+  "analysis": {
+    "fastestMethod": {
+      "name": "SIMD interpolation",
+      "mean": null,
+      "stdDev": null
+    },
+    "mostConsistentMethod": {
+      "name": "SIMD interpolation",
+      "mean": null,
+      "stdDev": null
+    },
+    "bestOverallMethod": {
+      "name": "SIMD interpolation",
+      "mean": null,
+      "stdDev": null
+    },
+    "tTest": {
+      "comparison": "Edge-based interpolation vs SIMD interpolation",
+      "tStatistic": null,
+      "degreesOfFreedom": 58,
+      "significant": false
+    }
+  }
+}

@@ -5,8 +5,8 @@
 #include <string.h>
 
 // Bring in the rasterizers and helpers
+#include "../../src/graphics/alpha.h"
 #include "../../src/graphics/gouraud.u.c"
-#include "../../src/graphics/gouraud_barycentric.u.c"
 
 #define W 800
 #define H 600
@@ -16,9 +16,108 @@
 // Provide the color table definition expected by the raster code
 int g_hsl16_to_rgb_table[65536];
 
-// Old edge-based alpha triangle raster (copied from pre-barycentric version)
 static inline void
-raster_gouraud_alpha_s4_edge(
+draw_scanline_gouraud_alpha_s4_nosimd(
+    int* pixel_buffer,
+    int stride_width,
+    int y,
+    int x_start,
+    int x_end,
+    int color_start_hsl16_ish8,
+    int color_end_hsl16_ish8,
+    int alpha)
+{
+    if( x_start == x_end )
+        return;
+    if( x_start > x_end )
+    {
+        int tmp;
+        tmp = x_start;
+        x_start = x_end;
+        x_end = tmp;
+        tmp = color_start_hsl16_ish8;
+        color_start_hsl16_ish8 = color_end_hsl16_ish8;
+        color_end_hsl16_ish8 = tmp;
+    }
+
+    int dx_stride = x_end - x_start;
+    assert(dx_stride > 0);
+
+    int dcolor_hsl16_ish8 = color_end_hsl16_ish8 - color_start_hsl16_ish8;
+
+    int step_color_hsl16_ish8 = 0;
+    if( dx_stride > 3 )
+    {
+        step_color_hsl16_ish8 = dcolor_hsl16_ish8 / dx_stride;
+    }
+
+    if( x_end >= stride_width )
+    {
+        x_end = stride_width - 1;
+    }
+    if( x_start < 0 )
+    {
+        color_start_hsl16_ish8 -= step_color_hsl16_ish8 * x_start;
+        x_start = 0;
+    }
+
+    if( x_start >= x_end )
+        return;
+
+    dx_stride = x_end - x_start;
+
+    // Steps by 4.
+    int offset = x_start + y * stride_width;
+    int steps = (dx_stride) >> 2;
+    step_color_hsl16_ish8 <<= 2;
+
+    int color_hsl16_ish8 = color_start_hsl16_ish8;
+    while( --steps >= 0 )
+    {
+        int color_hsl16 = color_hsl16_ish8 >> 8;
+        int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+
+        // Tested in lumbridge church window, this is faster than the scalar version.
+        // raster_linear_alpha_s4((uint32_t*)pixel_buffer, offset, rgb_color, alpha);
+        // offset += 4;
+
+        // Checked on 09/16/2025, clang does NOT vectorize this loop.
+        // even with -O3
+        for( int i = 0; i < 4; i++ )
+        {
+            int rgb_blend = pixel_buffer[offset];
+            rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+            pixel_buffer[offset] = rgb_blend;
+            offset += 1;
+        }
+
+        color_hsl16_ish8 += step_color_hsl16_ish8;
+    }
+
+    int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
+    int rgb_blend;
+    steps = (dx_stride) & 0x3;
+    switch( steps )
+    {
+    case 3:
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset] = rgb_blend;
+        offset += 1;
+    case 2:
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset] = rgb_blend;
+        offset += 1;
+    case 1:
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset] = rgb_blend;
+    }
+}
+
+static inline void
+raster_gouraud_alpha_s4_nosimd(
     int* pixel_buffer,
     int screen_width,
     int screen_height,
@@ -135,7 +234,7 @@ raster_gouraud_alpha_s4_edge(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_AB_ish15 >> 7;
 
-        draw_scanline_gouraud_alpha_s4(
+        draw_scanline_gouraud_alpha_s4_nosimd(
             pixel_buffer,
             screen_width,
             i,
@@ -159,7 +258,7 @@ raster_gouraud_alpha_s4_edge(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_BC_ish15 >> 7;
 
-        draw_scanline_gouraud_alpha_s4(
+        draw_scanline_gouraud_alpha_s4_nosimd(
             pixel_buffer,
             screen_width,
             i,
@@ -223,7 +322,6 @@ gen_tris()
             y2 = temp_y;
         }
 
-        // Reject near-degenerate triangles to avoid extreme barycentric steps
         int dx01 = x1 - x0;
         int dy01 = y1 - y0;
         int dx02 = x2 - x0;
@@ -303,7 +401,8 @@ bench_old(int* buffer, int alpha)
     for( int i = 0; i < NUM_TRIS; i++ )
     {
         Tri t = tris[i];
-        raster_gouraud_s4_bary(buffer, W, H, t.x0, t.y0, t.x1, t.y1, t.x2, t.y2, t.c0, t.c1, t.c2);
+        raster_gouraud_alpha_s4(
+            buffer, W, H, t.x0, t.y0, t.x1, t.y1, t.x2, t.y2, t.c0, t.c1, t.c2, alpha);
     }
 }
 
@@ -313,12 +412,11 @@ bench_new(int* buffer, int alpha)
     for( int i = 0; i < NUM_TRIS; i++ )
     {
         Tri t = tris[i];
-        raster_gouraud_alpha_s4(
+        raster_gouraud_alpha_s4_nosimd(
             buffer, W, H, t.x0, t.x1, t.x2, t.y0, t.y1, t.y2, t.c0, t.c1, t.c2, alpha);
     }
 }
 
-// clang - O3 benchmark_gouraud_alpha.c - o benchmark_gouraud_alpha./ benchmark_gouraud_alpha | cat
 int
 main()
 {
@@ -342,12 +440,11 @@ main()
     double t_new = time_func(bench_new);
 
     printf("Alpha Gouraud OLD (edge color): %.1f us\n", t_old);
-    printf("Alpha Gouraud NEW (barycentric): %.1f us\n", t_new);
+    printf("Alpha Gouraud NEW (simd): %.1f us\n", t_new);
     printf("Speedup: %.2fx\n", t_old / t_new);
 
     return 0;
 }
 
-// Build & run:
-//   cd scripts/benchmarks && clang -O3 benchmark_gouraud_alpha.c -o benchmark_gouraud_alpha &&
-//   ./benchmark_gouraud_alpha | cat
+// clang -O3 benchmark_gouraud_simd.c -o benchmark_gouraud_simd
+// ./benchmark_gouraud_simd

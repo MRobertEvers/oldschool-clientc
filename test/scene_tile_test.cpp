@@ -714,7 +714,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
                 int face = iter_model.value_face;
 
                 bool is_in_bb = false;
-                if( game->mouse_x >= iter_model.aabb_min_screen_x &&
+                if( game->mouse_x > 0 && game->mouse_x >= iter_model.aabb_min_screen_x &&
                     game->mouse_x <= iter_model.aabb_max_screen_x &&
                     game->mouse_y >= iter_model.aabb_min_screen_y &&
                     game->mouse_y <= iter_model.aabb_max_screen_y )

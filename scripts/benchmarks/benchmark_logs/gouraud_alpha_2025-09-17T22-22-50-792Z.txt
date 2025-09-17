@@ -1,0 +1,120 @@
+System Information:
+• CPU: Apple M4 Pro
+• Physical Cores: 14
+• Logical Cores: 14
+• Memory: 48.0GB
+• GPU: Apple M4 Pro
+• Platform: darwin 24.6.0
+• Architecture: arm64
+
+Timestamp: 2025-09-17T22:22:51.063Z
+Benchmark: gouraud_alpha
+
+{
+  "iterations": 30,
+  "rawResults": {
+    "edge": [
+      243728,
+      176198,
+      207052,
+      171799,
+      173171,
+      215144,
+      170092,
+      174493,
+      171239,
+      178736,
+      176021,
+      170480,
+      178540,
+      172227,
+      174221,
+      220560,
+      194779,
+      170618,
+      171629,
+      176888,
+      175370,
+      171438,
+      171584,
+      186491,
+      185540,
+      169951,
+      169919,
+      173315,
+      170960,
+      170146
+    ],
+    "barycentric": [
+      232750,
+      201373,
+      246846,
+      197998,
+      196566,
+      210917,
+      198664,
+      210064,
+      194267,
+      201076,
+      201516,
+      198253,
+      230254,
+      196489,
+      196954,
+      194271,
+      195722,
+      196392,
+      197684,
+      222053,
+      196802,
+      199298,
+      200548,
+      196914,
+      245485,
+      198314,
+      197401,
+      195292,
+      194826,
+      196021
+    ]
+  },
+  "statistics": {
+    "edge": {
+      "mean": 181077.63333333333,
+      "stdDev": 17837.164550615864,
+      "ci95": 6382.947359051821,
+      "min": 169919,
+      "max": 243728
+    },
+    "barycentric": {
+      "mean": 204700.33333333334,
+      "stdDev": 15017.426693869598,
+      "ci95": 5373.917125862903,
+      "min": 194267,
+      "max": 246846
+    }
+  },
+  "analysis": {
+    "fastestMethod": {
+      "name": "Edge-based interpolation",
+      "mean": 181077.63333333333,
+      "stdDev": 17837.164550615864
+    },
+    "mostConsistentMethod": {
+      "name": "Barycentric interpolation",
+      "mean": 204700.33333333334,
+      "stdDev": 15017.426693869598
+    },
+    "bestOverallMethod": {
+      "name": "Edge-based interpolation",
+      "mean": 181077.63333333333,
+      "stdDev": 17837.164550615864
+    },
+    "tTest": {
+      "comparison": "Edge-based interpolation vs Barycentric interpolation",
+      "tStatistic": -5.549009526517689,
+      "degreesOfFreedom": 58,
+      "significant": true
+    }
+  }
+}

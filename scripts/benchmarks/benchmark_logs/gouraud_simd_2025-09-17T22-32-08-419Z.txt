@@ -1,0 +1,120 @@
+System Information:
+• CPU: Apple M4 Pro
+• Physical Cores: 14
+• Logical Cores: 14
+• Memory: 48.0GB
+• GPU: Apple M4 Pro
+• Platform: darwin 24.6.0
+• Architecture: arm64
+
+Timestamp: 2025-09-17T22:32:08.704Z
+Benchmark: gouraud_simd
+
+{
+  "iterations": 30,
+  "rawResults": {
+    "edge": [
+      194486,
+      193644,
+      192965,
+      195642,
+      192462,
+      218973,
+      198945,
+      196014,
+      194165,
+      200780,
+      199034,
+      191805,
+      194473,
+      200314,
+      194125,
+      192173,
+      193951,
+      192580,
+      193167,
+      194336,
+      193267,
+      193040,
+      192296,
+      192674,
+      193259,
+      194727,
+      194593,
+      193652,
+      192715,
+      193443
+    ],
+    "simd": [
+      186668,
+      188515,
+      188807,
+      190813,
+      191033,
+      198408,
+      191143,
+      188532,
+      188686,
+      189215,
+      191003,
+      188870,
+      186212,
+      189614,
+      189196,
+      193218,
+      187837,
+      186083,
+      188027,
+      188149,
+      186132,
+      188037,
+      187254,
+      185809,
+      193995,
+      187802,
+      187683,
+      187199,
+      192208,
+      185891
+    ]
+  },
+  "statistics": {
+    "edge": {
+      "mean": 195256.66666666666,
+      "stdDev": 5062.833712003811,
+      "ci95": 1811.7117762552393,
+      "min": 191805,
+      "max": 218973
+    },
+    "simd": {
+      "mean": 189067.96666666667,
+      "stdDev": 2764.955327734576,
+      "ci95": 989.4265569496202,
+      "min": 185809,
+      "max": 198408
+    }
+  },
+  "analysis": {
+    "fastestMethod": {
+      "name": "SIMD interpolation",
+      "mean": 189067.96666666667,
+      "stdDev": 2764.955327734576
+    },
+    "mostConsistentMethod": {
+      "name": "SIMD interpolation",
+      "mean": 189067.96666666667,
+      "stdDev": 2764.955327734576
+    },
+    "bestOverallMethod": {
+      "name": "SIMD interpolation",
+      "mean": 189067.96666666667,
+      "stdDev": 2764.955327734576
+    },
+    "tTest": {
+      "comparison": "Edge-based interpolation vs SIMD interpolation",
+      "tStatistic": 5.876060482634844,
+      "degreesOfFreedom": 58,
+      "significant": true
+    }
+  }
+}
