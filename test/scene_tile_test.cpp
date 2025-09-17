@@ -1597,6 +1597,9 @@ main(int argc, char* argv[])
     /**
      * Lumbridge Kitchen
      * Many gouraud opaque
+     *
+     * // This should be ~0.97 milliseconds on mac m4.
+     * // If this changes, it's a regression.
      */
     game.camera_pitch = 290;
     game.camera_yaw = 1538;
