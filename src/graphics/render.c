@@ -238,10 +238,13 @@ project_vertices_model_textured(
 
     int height_sin = model_cylinder_center_to_bottom_edge * g_sin_table[camera_pitch] >> 16;
 
+    int min_screen_x = mid_x - model_edge_radius;
     if( mid_x > 0 )
     {
         aabb->min_screen_x =
-            project_divide(mid_x - model_edge_radius, max_z, camera_fov) + screen_width / 2;
+            project_divide(mid_x - model_edge_radius - model_edge_radius, max_z, camera_fov) +
+            screen_width / 2;
+
         aabb->max_screen_x =
             project_divide(
                 mid_x + (model_edge_radius + height_sin + sin_camera_radius), min_z, camera_fov) +
@@ -254,7 +257,8 @@ project_vertices_model_textured(
                 mid_x - model_edge_radius - height_sin - sin_camera_radius, min_z, camera_fov) +
             screen_width / 2;
         aabb->max_screen_x =
-            project_divide(mid_x + model_edge_radius, max_z, camera_fov) + screen_width / 2;
+            project_divide(mid_x + model_edge_radius + model_edge_radius, max_z, camera_fov) +
+            screen_width / 2;
     }
 
     int height_cos = model_cylinder_center_to_bottom_edge;
@@ -613,6 +617,13 @@ project_vertices_terrain_textured(
 }
 
 static inline int
+div3_fast(int x)
+{
+    // See benchmark_div3_trick.c for more details.
+    return (x * 21845) >> 16;
+}
+
+static inline int
 bucket_sort_by_average_depth(
     short* face_depth_buckets,
     short* face_depth_bucket_counts,
@@ -677,7 +688,7 @@ bucket_sort_by_average_depth(
             // origin, there may be negative z values, but always |z| < min_depth so the
             // min_depth is used to adjust all z values to be positive, but maintain relative
             // order.
-            int depth_average = (za + zb + zc) / 3 + model_min_depth;
+            int depth_average = div3_fast(za + zb + zc) + model_min_depth;
 
             if( depth_average < 1500 && depth_average > 0 )
             {

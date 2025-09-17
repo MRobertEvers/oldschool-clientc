@@ -1925,8 +1925,8 @@ main(int argc, char* argv[])
         world_player_entity_new_add(game.world, 0, 0, 0, player_model);
     }
 
-    // game.frustrum_cullmap = frustrum_cullmap_new(40, 50); // 65536 = 90° FOV
-    game.frustrum_cullmap = frustrum_cullmap_new_nocull(40); // 65536 = 90° FOV
+    game.frustrum_cullmap = frustrum_cullmap_new(40, 50); // 65536 = 90° FOV
+    // game.frustrum_cullmap = frustrum_cullmap_new_nocull(40); // 65536 = 90° FOV
 
     int w_pressed = 0;
     int a_pressed = 0;
