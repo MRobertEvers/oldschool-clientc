@@ -68,12 +68,26 @@ extern "C" int g_hsl16_to_rgb_table[65536];
 #include <stdio.h>
 
 static void
-apply_outline_effect(int* pixel_buffer, int* source_buffer, int width, int height)
+apply_outline_effect(
+    int* pixel_buffer,
+    int* source_buffer,
+    int width,
+    int height,
+    int bound_min_x,
+    int bound_max_x,
+    int bound_min_y,
+    int bound_max_y)
 {
-    for( int y = 1; y < height - 1; y++ )
+    for( int y = bound_min_y; y < bound_max_y; y++ )
     {
-        for( int x = 1; x < width - 1; x++ )
+        if( y < 1 || y >= height - 1 )
+            continue;
+
+        for( int x = bound_min_x; x < bound_max_x; x++ )
         {
+            if( x < 1 || x >= width - 1 )
+                continue;
+
             int pixel = source_buffer[y * width + x];
             if( pixel != 0 )
             {
@@ -841,7 +855,15 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
             last_model_hit_model,
             game->textures_cache);
 
-        apply_outline_effect(pixel_buffer, g_blit_buffer, SCREEN_WIDTH, SCREEN_HEIGHT);
+        apply_outline_effect(
+            pixel_buffer,
+            g_blit_buffer,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
+            aabb.min_screen_x,
+            aabb.max_screen_x,
+            aabb.min_screen_y,
+            aabb.max_screen_y);
 
         // Draw AABB rectangle outline
         for( int x = aabb.min_screen_x; x <= aabb.max_screen_x; x++ )
@@ -877,6 +899,12 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
                 }
             }
         }
+    }
+
+    // Draw horizontal line at screen center
+    for( int x = 0; x < SCREEN_WIDTH; x++ )
+    {
+        pixel_buffer[(SCREEN_HEIGHT / 2) * SCREEN_WIDTH + x] = 0xFFFFFF;
     }
 
     if( game->mouse_click_x != -1 && game->mouse_click_y != -1 )

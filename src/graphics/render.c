@@ -62,9 +62,11 @@ compute_screen_x_aabb(
     int screen_width)
 {
     aabb->min_screen_x =
-        project_divide(mid_x - model_edge_radius, mid_z, camera_fov) + screen_width / 2;
+        project_divide(mid_x - model_edge_radius, mid_z + model_edge_radius, camera_fov) +
+        screen_width / 2;
     aabb->max_screen_x =
-        project_divide(mid_x + model_edge_radius, mid_z, camera_fov) + screen_width / 2;
+        project_divide(mid_x + model_edge_radius, mid_z + model_edge_radius, camera_fov) +
+        screen_width / 2;
 }
 
 static inline void
@@ -86,10 +88,8 @@ compute_screen_y_aabb(
     model_center_to_bottom_edge = (model_center_to_bottom_edge * g_cos_table[camera_pitch] >> 16) +
                                   (model_edge_radius * g_sin_table[camera_pitch] >> 16);
     // model_center_to_bottom_edge = (model_edge_radius * g_sin_table[camera_pitch] >> 16);
-    aabb->min_screen_y =
-        project_divide(mid_y - model_center_to_bottom_edge, mid_z, camera_fov) + screen_height / 2;
-    aabb->max_screen_y =
-        project_divide(mid_y + model_center_to_top_edge, mid_z, camera_fov) + screen_height / 2;
+    aabb->min_screen_y = project_divide(mid_y - model_center_to_bottom_edge, mid_z, camera_fov);
+    aabb->max_screen_y = project_divide(mid_y + model_center_to_top_edge, mid_z, camera_fov);
 }
 // static inline void
 // compute_aabb(
@@ -184,29 +184,91 @@ project_vertices_model_textured(
     int mid_x = projected_vertex.x;
     int mid_y = projected_vertex.y;
 
-    compute_screen_x_aabb(aabb, mid_x, mid_z, model_edge_radius, camera_fov, screen_width);
+    int ortho_screen_x_min = mid_x - model_edge_radius;
+    int ortho_screen_x_max = mid_x + model_edge_radius;
 
-    if( aabb->min_screen_x > screen_width || aabb->max_screen_x < 0 )
+    int screen_x_min_unoffset =
+        project_divide(ortho_screen_x_min, mid_z + model_edge_radius, camera_fov);
+    int screen_x_max_unoffset =
+        project_divide(ortho_screen_x_max, mid_z + model_edge_radius, camera_fov);
+    int screen_edge_width = screen_width >> 1;
+    // compute_screen_x_aabb(aabb, mid_x, mid_z, model_edge_radius, camera_fov, screen_width);
+
+    if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
     {
         // All parts of the model left or right edges are projected off screen.
         return 0;
     }
 
-    compute_screen_y_aabb(
-        aabb,
-        mid_y,
-        mid_z,
-        model_edge_radius,
-        model_cylinder_center_to_top_edge,
-        model_cylinder_center_to_bottom_edge,
-        camera_fov,
-        camera_pitch,
-        screen_height);
+    // compute_screen_y_aabb(
+    //     aabb,
+    //     mid_y,
+    //     mid_z,
+    //     model_edge_radius,
+    //     model_cylinder_center_to_top_edge,
+    //     model_cylinder_center_to_bottom_edge,
+    //     camera_fov,
+    //     camera_pitch,
+    //     screen_height);
 
-    if( aabb->min_screen_y > screen_height || aabb->max_screen_y < 0 )
+    int model_center_to_top_edge = model_cylinder_center_to_top_edge;
+
+    int model_center_to_bottom_edge =
+        (model_cylinder_center_to_bottom_edge * g_cos_table[camera_pitch] >> 16) +
+        (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+
+    int screen_y_min_unoffset =
+        project_divide(mid_y - model_center_to_bottom_edge, mid_z, camera_fov);
+    int screen_y_max_unoffset = project_divide(mid_y + model_center_to_top_edge, mid_z, camera_fov);
+    int screen_edge_height = screen_height >> 1;
+    if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
     {
         // All parts of the model top or bottom edges are projected off screen.
         return 0;
+    }
+
+    int cos_camera_radius = model_edge_radius * g_cos_table[camera_pitch] >> 16;
+    int min_z = mid_z - (cos_camera_radius);
+    if( min_z < near_plane_z )
+        min_z = near_plane_z;
+
+    int height_sin = model_cylinder_center_to_bottom_edge * g_sin_table[camera_pitch] >> 16;
+
+    if( mid_x > 0 )
+    {
+        aabb->min_screen_x =
+            project_divide(mid_x - model_edge_radius, max_z, camera_fov) + screen_width / 2;
+        aabb->max_screen_x =
+            project_divide(mid_x + (model_edge_radius + height_sin), min_z, camera_fov) +
+            screen_width / 2;
+    }
+    else
+    {
+        aabb->min_screen_x =
+            project_divide(mid_x - model_edge_radius - height_sin, min_z, camera_fov) +
+            screen_width / 2;
+        aabb->max_screen_x =
+            project_divide(mid_x + model_edge_radius, max_z, camera_fov) + screen_width / 2;
+    }
+
+    int height_cos = model_cylinder_center_to_bottom_edge;
+
+    int highest_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
+
+    int min_screen_y = mid_y - (model_edge_radius)-height_cos;
+    int max_screen_y = mid_y + (highest_radius) + height_sin;
+    if( mid_y > 0 )
+    {
+        aabb->min_screen_y = project_divide(min_screen_y, max_z, camera_fov) + screen_height / 2;
+
+        aabb->max_screen_y = project_divide(max_screen_y, min_z, camera_fov) + screen_height / 2;
+    }
+    else
+    {
+        // min_screen_y -= highest_projected;
+        aabb->min_screen_y = project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
+
+        aabb->max_screen_y = project_divide(max_screen_y, max_z, camera_fov) + screen_height / 2;
     }
 
     // Calculate FOV scale based on the angle using sin/cos tables
