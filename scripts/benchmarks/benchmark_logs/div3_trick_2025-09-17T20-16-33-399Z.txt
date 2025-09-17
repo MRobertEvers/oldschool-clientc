@@ -1,0 +1,176 @@
+System Information:
+• CPU: Apple M4 Pro
+• Physical Cores: 14
+• Logical Cores: 14
+• Memory: 48.0GB
+• GPU: Apple M4 Pro
+• Platform: darwin 24.6.0
+• Architecture: arm64
+
+Timestamp: 2025-09-17T20:16:33.629Z
+Benchmark: div3_trick
+
+{
+  "iterations": 30,
+  "rawResults": {
+    "regular": [
+      9.755,
+      9.514,
+      9.489,
+      9.494,
+      9.463,
+      11.347,
+      9.46,
+      9.56,
+      9.51,
+      9.52,
+      9.511,
+      9.472,
+      9.681,
+      9.6,
+      9.564,
+      12.304,
+      9.58,
+      9.519,
+      9.826,
+      9.765,
+      9.673,
+      9.949,
+      9.599,
+      9.618,
+      9.523,
+      9.764,
+      9.702,
+      9.623,
+      11.269,
+      9.419
+    ],
+    "mulshift": [
+      5.191,
+      5.188,
+      5.33,
+      5.31,
+      5.281,
+      5.341,
+      5.347,
+      5.439,
+      5.36,
+      5.286,
+      5.295,
+      5.335,
+      5.209,
+      5.179,
+      5.262,
+      5.181,
+      5.17,
+      5.308,
+      7.057,
+      5.369,
+      5.243,
+      5.797,
+      5.301,
+      5.294,
+      5.324,
+      5.253,
+      5.147,
+      5.317,
+      5.273,
+      5.219
+    ],
+    "muloverflow": [
+      11.504,
+      11.618,
+      11.475,
+      11.402,
+      11.395,
+      11.657,
+      11.481,
+      11.366,
+      12.891,
+      11.545,
+      11.453,
+      11.488,
+      11.48,
+      11.655,
+      11.462,
+      11.651,
+      11.695,
+      11.782,
+      11.843,
+      11.712,
+      11.489,
+      13.847,
+      11.494,
+      11.464,
+      11.588,
+      11.583,
+      11.511,
+      11.368,
+      11.724,
+      11.612
+    ]
+  },
+  "statistics": {
+    "regular": {
+      "mean": 9.802433333333333,
+      "stdDev": 0.6525983441984624,
+      "ci95": 0.2335293182839054,
+      "min": 9.419,
+      "max": 12.304
+    },
+    "mulshift": {
+      "mean": 5.353533333333334,
+      "stdDev": 0.3423769583502889,
+      "ci95": 0.12251802106219385,
+      "min": 5.147,
+      "max": 7.057
+    },
+    "muloverflow": {
+      "mean": 11.674500000000002,
+      "stdDev": 0.49261734117627876,
+      "ci95": 0.17628085158723805,
+      "min": 11.366,
+      "max": 13.847
+    }
+  },
+  "analysis": {
+    "fastestMethod": {
+      "name": "Mul-shift trick",
+      "mean": 5.353533333333334,
+      "stdDev": 0.3423769583502889
+    },
+    "mostConsistentMethod": {
+      "name": "Mul-shift trick",
+      "mean": 5.353533333333334,
+      "stdDev": 0.3423769583502889
+    },
+    "bestOverallMethod": {
+      "name": "Mul-shift trick",
+      "mean": 5.353533333333334,
+      "stdDev": 0.3423769583502889
+    },
+    "tTests": [
+      {
+        "comparison": "Regular division vs Mul-shift trick",
+        "tStatistic": 33.06516840320099,
+        "degreesOfFreedom": 58,
+        "significant": true
+      },
+      {
+        "comparison": "Regular division vs Mul-overflow trick",
+        "tStatistic": -12.540443571754645,
+        "degreesOfFreedom": 58,
+        "significant": true
+      },
+      {
+        "comparison": "Mul-shift trick vs Mul-overflow trick",
+        "tStatistic": -57.710777991168264,
+        "degreesOfFreedom": 58,
+        "significant": true
+      }
+    ]
+  },
+  "correctnessChecks": {
+    "allPassed": true
+  }
+}
