@@ -184,6 +184,9 @@ project_vertices_model_textured(
     int mid_x = projected_vertex.x;
     int mid_y = projected_vertex.y;
 
+    if( mid_z < near_plane_z )
+        mid_z = near_plane_z;
+
     int ortho_screen_x_min = mid_x - model_edge_radius;
     int ortho_screen_x_max = mid_x + model_edge_radius;
 

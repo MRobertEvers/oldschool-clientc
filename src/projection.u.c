@@ -347,6 +347,7 @@ project_divide(int p, int z, int fov)
     p *= cot_fov_half_ish_scaled;
     p >>= 16 - scale_angle;
 
+    assert(z > 0);
     return SCALE_UNIT(p) / z;
 }
 
