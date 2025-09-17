@@ -259,7 +259,12 @@ project_vertices_model_textured(
     int max_screen_y = mid_y + (highest_radius) + height_sin;
     if( mid_y > 0 )
     {
-        aabb->min_screen_y = project_divide(min_screen_y, max_z, camera_fov) + screen_height / 2;
+        if( mid_y - model_cylinder_center_to_bottom_edge > 0 )
+            aabb->min_screen_y =
+                project_divide(min_screen_y, max_z, camera_fov) + screen_height / 2;
+        else
+            aabb->min_screen_y =
+                project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
 
         aabb->max_screen_y = project_divide(max_screen_y, min_z, camera_fov) + screen_height / 2;
     }
