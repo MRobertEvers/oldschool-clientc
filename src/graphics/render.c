@@ -231,6 +231,7 @@ project_vertices_model_textured(
     }
 
     int cos_camera_radius = model_edge_radius * g_cos_table[camera_pitch] >> 16;
+    int sin_camera_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
     int min_z = mid_z - (cos_camera_radius);
     if( min_z < near_plane_z )
         min_z = near_plane_z;
@@ -242,13 +243,15 @@ project_vertices_model_textured(
         aabb->min_screen_x =
             project_divide(mid_x - model_edge_radius, max_z, camera_fov) + screen_width / 2;
         aabb->max_screen_x =
-            project_divide(mid_x + (model_edge_radius + height_sin), min_z, camera_fov) +
+            project_divide(
+                mid_x + (model_edge_radius + height_sin + sin_camera_radius), min_z, camera_fov) +
             screen_width / 2;
     }
     else
     {
         aabb->min_screen_x =
-            project_divide(mid_x - model_edge_radius - height_sin, min_z, camera_fov) +
+            project_divide(
+                mid_x - model_edge_radius - height_sin - sin_camera_radius, min_z, camera_fov) +
             screen_width / 2;
         aabb->max_screen_x =
             project_divide(mid_x + model_edge_radius, max_z, camera_fov) + screen_width / 2;
