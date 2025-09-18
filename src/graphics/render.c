@@ -287,90 +287,7 @@ project_vertices_model_textured(
         aabb->max_screen_y = project_divide(max_screen_y, max_z, camera_fov) + screen_height / 2;
     }
 
-    // Calculate FOV scale based on the angle using sin/cos tables
-    // fov is in units of (2π/2048) radians
-    // For perspective projection, we need tan(fov/2)
-    // tan(x) = sin(x)/cos(x)
-    int fov_half = camera_fov >> 1; // fov/2
-
-    // fov_scale = 1/tan(fov/2)
-    // cot(x) = 1/tan(x)
-    // cot(x) = tan(pi/2 - x)
-    // cot(x + pi) = cot(x)
-    // assert(fov_half < 1536);
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
-
-    static const int scale_angle = 1;
-    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
-
-    // // Checked on 09/15/2025, this does get vectorized on Mac, using arm neon.
-    // for( int i = 0; i < num_vertices; i++ )
-    // {
-    //     project_orthographic_fast(
-    //         &projected_vertex,
-    //         vertex_x[i],
-    //         vertex_y[i],
-    //         vertex_z[i],
-    //         model_yaw,
-    //         scene_x,
-    //         scene_y,
-    //         scene_z,
-    //         camera_pitch,
-    //         camera_yaw);
-
-    //     int x = projected_vertex.x;
-    //     int y = projected_vertex.y;
-    //     int z = projected_vertex.z;
-
-    //     x *= cot_fov_half_ish_scaled;
-    //     y *= cot_fov_half_ish_scaled;
-    //     x >>= 16 - scale_angle;
-    //     y >>= 16 - scale_angle;
-
-    //     // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
-    //     int screen_x = SCALE_UNIT(x);
-    //     int screen_y = SCALE_UNIT(y);
-    //     // screen_x *= cot_fov_half_ish_scaled;
-    //     // screen_y *= cot_fov_half_ish_scaled;
-    //     // screen_x >>= 16 - scale_angle;
-    //     // screen_y >>= 16 - scale_angle;
-
-    //     // Set the projected triangle
-
-    //     orthographic_vertices_x[i] = projected_vertex.x;
-    //     orthographic_vertices_y[i] = projected_vertex.y;
-    //     orthographic_vertices_z[i] = projected_vertex.z;
-
-    //     screen_vertices_x[i] = screen_x;
-    //     screen_vertices_y[i] = screen_y;
-    //     screen_vertices_z[i] = z;
-    // }
-
-    // int cot_fov_half_ish15 = calc_cot_fov_half_ish15(camera_fov);
-
-    // for( int i = 0; i < num_vertices; i++ )
-    // {
-    //     int x = orthographic_vertices_x[i];
-    //     int y = orthographic_vertices_y[i];
-    //     int z = orthographic_vertices_z[i];
-
-    //     // Apply FOV scaling to x and y coordinates
-
-    //     // unit scale 9, angle scale 16
-    //     // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
-
-    //     // if valid x is -Screen_width/2 to Screen_width/2
-    //     // And the max resolution we allow is 1600 (either dimension)
-    //     // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
-
-    //     // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
-    //     // i.e. x/z < 2^6 or x/z < 64
-
-    //     // Suppose we allow z > 16, so z_clip_bits = 4
-    //     // then x_bits_max < 10, so 2^9, which is 512
-    // }
-
-    project_vertices_array_simd(
+    project_vertices_array(
         orthographic_vertices_x,
         orthographic_vertices_y,
         orthographic_vertices_z,
@@ -382,56 +299,14 @@ project_vertices_model_textured(
         vertex_z,
         num_vertices,
         model_yaw,
+        mid_z,
         scene_x,
         scene_y,
         scene_z,
+        near_plane_z,
         camera_fov,
         camera_pitch,
         camera_yaw);
-
-    for( int i = 0; i < num_vertices; i++ )
-    {
-        // project_perspective_fast_fov2(
-        //     &projected_vertex,
-        //     orthographic_vertices_x[i],
-        //     orthographic_vertices_y[i],
-        //     orthographic_vertices_z[i],
-        //     cot_fov_half_ish15,
-        //     near_plane_z);
-
-        // project_perspective_fast(
-        //     &projected_vertex,
-        //     orthographic_vertices_x[i],
-        //     orthographic_vertices_y[i],
-        //     orthographic_vertices_z[i],
-        //     camera_fov,
-        //     near_plane_z);
-
-        int z = orthographic_vertices_z[i];
-
-        bool clipped = false;
-        if( z < near_plane_z )
-            clipped = true;
-
-        // If vertex is too close to camera, set it to a large negative value
-        // This will cause it to be clipped in the rasterization step
-        // screen_vertices_z[i] = projected_vertex.z - mid_z;
-        screen_vertices_z[i] = z - mid_z;
-
-        if( clipped )
-        {
-            screen_vertices_x[i] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[i] = screen_vertices_x[i] / z;
-            // TODO: The actual renderer from the deob marks that a face was clipped.
-            // so it doesn't have to worry about a value actually being -5000.
-            if( screen_vertices_x[i] == -5000 )
-                screen_vertices_x[i] = -5001;
-            screen_vertices_y[i] = screen_vertices_y[i] / z;
-        }
-    }
 
     return 1;
 }
