@@ -887,33 +887,6 @@ project_vertices_array(
             camera_yaw);
     }
 
-    // for( int i = 0; i < num_vertices; i++ )
-    // {
-    //     int z = orthographic_vertices_z[i];
-
-    //     bool clipped = false;
-    //     if( z < near_plane_z )
-    //         clipped = true;
-
-    //     // If vertex is too close to camera, set it to a large negative value
-    //     // This will cause it to be clipped in the rasterization step
-    //     screen_vertices_z[i] = z - model_mid_z;
-
-    //     if( clipped )
-    //     {
-    //         screen_vertices_x[i] = -5000;
-    //     }
-    //     else
-    //     {
-    //         screen_vertices_x[i] = screen_vertices_x[i] / z;
-    //         // TODO: The actual renderer from the deob marks that a face was clipped.
-    //         // so it doesn't have to worry about a value actually being -5000.
-    //         if( screen_vertices_x[i] == -5000 )
-    //             screen_vertices_x[i] = -5001;
-    //         screen_vertices_y[i] = screen_vertices_y[i] / z;
-    //     }
-    // }
-
     const int vsteps = 8; // AVX2 processes 8x int32 per vector
     int i = 0;
 
@@ -1006,6 +979,15 @@ project_vertices_array(
 #elif defined(__SSE2__)
 
 #include <emmintrin.h>
+
+// blendv_epi8(a, b, mask) = (a & ~mask) | (b & mask)
+__m128i
+blendv_sse2(__m128i a, __m128i b, __m128i mask)
+{
+    __m128i t1 = _mm_andnot_si128(mask, a);
+    __m128i t2 = _mm_and_si128(mask, b);
+    return _mm_or_si128(t1, t2);
+}
 
 static inline void
 project_vertices_array_sse(
@@ -1329,7 +1311,76 @@ project_vertices_array(
             camera_yaw);
     }
 
-    for( int i = 0; i < num_vertices; i++ )
+    const int vsteps = 4; // 128-bit holds 4x int32
+    int i = 0;
+
+#ifdef SSE_FLOAT_DIV
+
+    __m128i v_near = _mm_set1_epi32(near_plane_z);
+    __m128i v_mid = _mm_set1_epi32(model_mid_z);
+    __m128i v_neg5000 = _mm_set1_epi32(-5000);
+    __m128i v_neg5001 = _mm_set1_epi32(-5001);
+    __m128i v_allones = _mm_set1_epi32(-1);
+
+    for( ; i + vsteps - 1 < num_vertices; i += vsteps )
+    {
+        // load z
+        __m128i vz = _mm_loadu_si128((__m128i const*)(orthographic_vertices_z + i));
+
+        // clipped mask: z < near_plane_z  <=> near > z
+        __m128i clipped_mask = _mm_cmpgt_epi32(v_near, vz); // 0xFFFFFFFF where clipped
+
+        // screen_vertices_z = z - model_mid_z
+        __m128i vscreen_z = _mm_sub_epi32(vz, v_mid);
+        _mm_storeu_si128((__m128i*)(screen_vertices_z + i), vscreen_z);
+
+        // load original screen x,y (pre-division numerators)
+        __m128i vsx = _mm_loadu_si128((__m128i const*)(screen_vertices_x + i));
+        __m128i vsy = _mm_loadu_si128((__m128i const*)(screen_vertices_y + i));
+
+        // Convert to float for division
+        __m128 fx = _mm_cvtepi32_ps(vsx);
+        __m128 fy = _mm_cvtepi32_ps(vsy);
+        __m128 fz = _mm_cvtepi32_ps(vz);
+
+        // perform float division
+        __m128 fdivx = _mm_div_ps(fx, fz);
+        __m128 fdivy = _mm_div_ps(fy, fz);
+
+        // convert back to int (truncate toward zero)
+        __m128i divx_i = _mm_cvttps_epi32(fdivx);
+        __m128i divy_i = _mm_cvttps_epi32(fdivy);
+
+        // check where divx_i == -5000
+        __m128i eq_neg5000 = _mm_cmpeq_epi32(divx_i, v_neg5000);
+
+        // mask for non-clipped lanes
+        __m128i not_clipped_mask = _mm_xor_si128(clipped_mask, v_allones);
+
+        // eq_and_not_clipped = eq_neg5000 & not_clipped_mask
+        __m128i eq_and_not_clipped = _mm_and_si128(eq_neg5000, not_clipped_mask);
+
+        // if eq_and_not_clipped → -5001, else divx_i
+        __m128i result_x_adj = _mm_or_si128(
+            _mm_and_si128(eq_and_not_clipped, v_neg5001),
+            _mm_andnot_si128(eq_and_not_clipped, divx_i));
+
+        // final x: if clipped → -5000, else result_x_adj
+        __m128i final_x = _mm_or_si128(
+            _mm_and_si128(clipped_mask, v_neg5000), _mm_andnot_si128(clipped_mask, result_x_adj));
+
+        // final y: if clipped → vsy, else divy_i
+        __m128i final_y =
+            _mm_or_si128(_mm_and_si128(clipped_mask, vsy), _mm_andnot_si128(clipped_mask, divy_i));
+
+        // store final results
+        _mm_storeu_si128((__m128i*)(screen_vertices_x + i), final_x);
+        _mm_storeu_si128((__m128i*)(screen_vertices_y + i), final_y);
+    }
+
+#endif // SSE_FLOAT_DIV
+
+    for( ; i < num_vertices; i++ )
     {
         int z = orthographic_vertices_z[i];
 

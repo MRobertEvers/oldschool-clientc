@@ -6,7 +6,9 @@
                 "${workspaceFolder}/**",
                 "/usr/include/SDL2"
             ],
-            "defines": [],
+            "defines": [
+                "__AVX2__"
+            ],
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "c17",
             "cppStandard": "gnu++17",
@@ -16,7 +18,7 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/homebrew/include/SDL2",
+                "/opt/homebrew/include/SDL2"
             ],
             "defines": [],
             "cStandard": "c17",
@@ -45,7 +47,9 @@
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-msvc-x64",
             "configurationProvider": "ms-vscode.cmake-tools",
-            "compileCommands": "${workspaceFolder}/compile_commands.json"
+            "compileCommands": [
+                "${workspaceFolder}/compile_commands.json"
+            ]
         }
     ],
     "version": 4
