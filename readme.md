@@ -905,6 +905,8 @@ cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg
 
 cmake -B build-ninja2 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
 
+cmake -G "Visual Studio 17 2022" -A x64 -B build-vs -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
+
 cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && ninja -C build-ninja'
 
 Your Visual Studio 2017 installation is probably missing the C packages (they are not automatically included with the Desktop development with C++ workload).

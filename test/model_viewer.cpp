@@ -684,7 +684,7 @@ m_paint(struct SceneModel* model)
 }
 
 extern "C" {
-#include "projection.h"
+#include "../graphics/projection.h"
 }
 
 static void

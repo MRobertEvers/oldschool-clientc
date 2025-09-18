@@ -85,6 +85,7 @@ raster_face_gouraud_near_clip(
     int screen_width,
     int screen_height)
 {
+    return;
     int clipped_count = 0;
     int a = face_indices_a[face];
     int b = face_indices_b[face];

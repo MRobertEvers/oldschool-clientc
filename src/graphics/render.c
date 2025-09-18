@@ -27,6 +27,7 @@
 #include "render_texture.u.c"
 #include "render_flat.u.c"
 #include "projection.u.c"
+#include "projection_simd.u.c"
 // clang-format on
 
 static short tmp_depth_face_count[1500] = { 0 };
@@ -302,48 +303,48 @@ project_vertices_model_textured(
     static const int scale_angle = 1;
     int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
 
-    // Checked on 09/15/2025, this does get vectorized on Mac, using arm neon.
-    for( int i = 0; i < num_vertices; i++ )
-    {
-        project_orthographic_fast(
-            &projected_vertex,
-            vertex_x[i],
-            vertex_y[i],
-            vertex_z[i],
-            model_yaw,
-            scene_x,
-            scene_y,
-            scene_z,
-            camera_pitch,
-            camera_yaw);
+    // // Checked on 09/15/2025, this does get vectorized on Mac, using arm neon.
+    // for( int i = 0; i < num_vertices; i++ )
+    // {
+    //     project_orthographic_fast(
+    //         &projected_vertex,
+    //         vertex_x[i],
+    //         vertex_y[i],
+    //         vertex_z[i],
+    //         model_yaw,
+    //         scene_x,
+    //         scene_y,
+    //         scene_z,
+    //         camera_pitch,
+    //         camera_yaw);
 
-        int x = projected_vertex.x;
-        int y = projected_vertex.y;
-        int z = projected_vertex.z;
+    //     int x = projected_vertex.x;
+    //     int y = projected_vertex.y;
+    //     int z = projected_vertex.z;
 
-        x *= cot_fov_half_ish_scaled;
-        y *= cot_fov_half_ish_scaled;
-        x >>= 16 - scale_angle;
-        y >>= 16 - scale_angle;
+    //     x *= cot_fov_half_ish_scaled;
+    //     y *= cot_fov_half_ish_scaled;
+    //     x >>= 16 - scale_angle;
+    //     y >>= 16 - scale_angle;
 
-        // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
-        int screen_x = SCALE_UNIT(x);
-        int screen_y = SCALE_UNIT(y);
-        // screen_x *= cot_fov_half_ish_scaled;
-        // screen_y *= cot_fov_half_ish_scaled;
-        // screen_x >>= 16 - scale_angle;
-        // screen_y >>= 16 - scale_angle;
+    //     // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
+    //     int screen_x = SCALE_UNIT(x);
+    //     int screen_y = SCALE_UNIT(y);
+    //     // screen_x *= cot_fov_half_ish_scaled;
+    //     // screen_y *= cot_fov_half_ish_scaled;
+    //     // screen_x >>= 16 - scale_angle;
+    //     // screen_y >>= 16 - scale_angle;
 
-        // Set the projected triangle
+    //     // Set the projected triangle
 
-        orthographic_vertices_x[i] = projected_vertex.x;
-        orthographic_vertices_y[i] = projected_vertex.y;
-        orthographic_vertices_z[i] = projected_vertex.z;
+    //     orthographic_vertices_x[i] = projected_vertex.x;
+    //     orthographic_vertices_y[i] = projected_vertex.y;
+    //     orthographic_vertices_z[i] = projected_vertex.z;
 
-        screen_vertices_x[i] = screen_x;
-        screen_vertices_y[i] = screen_y;
-        screen_vertices_z[i] = z;
-    }
+    //     screen_vertices_x[i] = screen_x;
+    //     screen_vertices_y[i] = screen_y;
+    //     screen_vertices_z[i] = z;
+    // }
 
     // int cot_fov_half_ish15 = calc_cot_fov_half_ish15(camera_fov);
 
@@ -369,6 +370,25 @@ project_vertices_model_textured(
     //     // then x_bits_max < 10, so 2^9, which is 512
     // }
 
+    project_vertices_array_simd(
+        orthographic_vertices_x,
+        orthographic_vertices_y,
+        orthographic_vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        vertex_x,
+        vertex_y,
+        vertex_z,
+        num_vertices,
+        model_yaw,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_fov,
+        camera_pitch,
+        camera_yaw);
+
     for( int i = 0; i < num_vertices; i++ )
     {
         // project_perspective_fast_fov2(
@@ -387,7 +407,7 @@ project_vertices_model_textured(
         //     camera_fov,
         //     near_plane_z);
 
-        int z = screen_vertices_z[i];
+        int z = orthographic_vertices_z[i];
 
         bool clipped = false;
         if( z < near_plane_z )

@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 // clang-format off
-#include "projection.u.c"
+#include "../graphics/projection.u.c"
 // clang-format on
 
 #define PITCH_STEPS 16
