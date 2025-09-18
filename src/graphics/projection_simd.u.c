@@ -109,7 +109,7 @@ project_vertices_array(
     }
 }
 
-#elif defined(__AVX2__) && 0
+#elif defined(__AVX2__)
 
 static inline void
 project_vertices_array_avx2(
@@ -586,7 +586,97 @@ project_vertices_array(
             camera_yaw);
     }
 
-    for( int i = 0; i < num_vertices; i++ )
+    // for( int i = 0; i < num_vertices; i++ )
+    // {
+    //     int z = orthographic_vertices_z[i];
+
+    //     bool clipped = false;
+    //     if( z < near_plane_z )
+    //         clipped = true;
+
+    //     // If vertex is too close to camera, set it to a large negative value
+    //     // This will cause it to be clipped in the rasterization step
+    //     screen_vertices_z[i] = z - model_mid_z;
+
+    //     if( clipped )
+    //     {
+    //         screen_vertices_x[i] = -5000;
+    //     }
+    //     else
+    //     {
+    //         screen_vertices_x[i] = screen_vertices_x[i] / z;
+    //         // TODO: The actual renderer from the deob marks that a face was clipped.
+    //         // so it doesn't have to worry about a value actually being -5000.
+    //         if( screen_vertices_x[i] == -5000 )
+    //             screen_vertices_x[i] = -5001;
+    //         screen_vertices_y[i] = screen_vertices_y[i] / z;
+    //     }
+    // }
+
+    const int vsteps = 8; // AVX2 processes 8x int32 per vector
+    int i = 0;
+
+#ifdef AVX2_FLOAT_DIV
+    __m256i v_near = _mm256_set1_epi32(near_plane_z);
+    __m256i v_mid = _mm256_set1_epi32(model_mid_z);
+    __m256i v_neg5000 = _mm256_set1_epi32(-5000);
+    __m256i v_neg5001 = _mm256_set1_epi32(-5001);
+
+    for( ; i + vsteps - 1 < num_vertices; i += vsteps )
+    {
+        // load z
+        __m256i vz = _mm256_loadu_si256((__m256i const*)(orthographic_vertices_z + i));
+
+        // clipped mask: z < near_plane_z  <=> near > z
+        __m256i clipped_mask = _mm256_cmpgt_epi32(v_near, vz); // 0xFFFFFFFF where clipped
+
+        // screen_vertices_z = z - model_mid_z
+        __m256i vscreen_z = _mm256_sub_epi32(vz, v_mid);
+        _mm256_storeu_si256((__m256i*)(screen_vertices_z + i), vscreen_z);
+
+        // load original screen x,y (these are the numerators pre-division)
+        __m256i vsx = _mm256_loadu_si256((__m256i const*)(screen_vertices_x + i));
+        __m256i vsy = _mm256_loadu_si256((__m256i const*)(screen_vertices_y + i));
+
+        // Convert to float for division (we'll truncate back to int)
+        __m256 fx = _mm256_cvtepi32_ps(vsx);
+        __m256 fz = _mm256_cvtepi32_ps(vz);
+
+        // perform float division
+        __m256 fdivx = _mm256_div_ps(fx, fz);
+        __m256 fdivy = _mm256_div_ps(_mm256_cvtepi32_ps(vsy), fz);
+
+        // convert back to int with truncation (matches C integer division trunc towards zero)
+        __m256i divx_i = _mm256_cvttps_epi32(fdivx);
+        __m256i divy_i = _mm256_cvttps_epi32(fdivy);
+
+        // For x: if divx_i == -5000 (and only for non-clipped lanes), change to -5001.
+        __m256i eq_neg5000 = _mm256_cmpeq_epi32(divx_i, v_neg5000);
+        // mask for non-clipped lanes:
+        __m256i not_clipped_mask =
+            _mm256_xor_si256(clipped_mask, _mm256_set1_epi32(-1)); // ~clipped_mask
+
+        // eq_and_not_clipped = eq_neg5000 & not_clipped_mask
+        __m256i eq_and_not_clipped = _mm256_and_si256(eq_neg5000, not_clipped_mask);
+
+        // where eq_and_not_clipped set -5001, else keep divx_i
+        // blend: result_x_adj = (eq_and_not_clipped) ? v_neg5001 : divx_i
+        __m256i result_x_adj = _mm256_blendv_epi8(divx_i, v_neg5001, eq_and_not_clipped);
+
+        // Now final x: clipped ? -5000 : result_x_adj
+        __m256i final_x = _mm256_blendv_epi8(result_x_adj, v_neg5000, clipped_mask);
+
+        // For y: if clipped, keep original vsy; else use divy_i
+        __m256i final_y = _mm256_blendv_epi8(divy_i, vsy, clipped_mask);
+
+        // store final results
+        _mm256_storeu_si256((__m256i*)(screen_vertices_x + i), final_x);
+        _mm256_storeu_si256((__m256i*)(screen_vertices_y + i), final_y);
+    }
+#endif // AVX2_FLOAT_DIV
+
+    // tail scalar for remaining elements
+    for( ; i < num_vertices; ++i )
     {
         int z = orthographic_vertices_z[i];
 
@@ -594,19 +684,17 @@ project_vertices_array(
         if( z < near_plane_z )
             clipped = true;
 
-        // If vertex is too close to camera, set it to a large negative value
-        // This will cause it to be clipped in the rasterization step
         screen_vertices_z[i] = z - model_mid_z;
 
         if( clipped )
         {
             screen_vertices_x[i] = -5000;
+            // screen_vertices_y stays as-is
         }
         else
         {
+            // integer division
             screen_vertices_x[i] = screen_vertices_x[i] / z;
-            // TODO: The actual renderer from the deob marks that a face was clipped.
-            // so it doesn't have to worry about a value actually being -5000.
             if( screen_vertices_x[i] == -5000 )
                 screen_vertices_x[i] = -5001;
             screen_vertices_y[i] = screen_vertices_y[i] / z;
