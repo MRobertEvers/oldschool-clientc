@@ -126,6 +126,7 @@
         "*.inc": "c",
         "assert.h": "c",
         "shade.h": "c",
-        "mach_time.h": "c"
+        "mach_time.h": "c",
+        "immintrin.h": "c"
     }
 }

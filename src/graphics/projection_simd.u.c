@@ -5,7 +5,6 @@
 #include "projection.u.c"
 
 #include <assert.h>
-#include <immintrin.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -13,8 +12,268 @@ extern int g_tan_table[2048];
 extern int g_cos_table[2048];
 extern int g_sin_table[2048];
 
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) )
 #include <arm_neon.h>
+
+static inline void
+project_vertices_array_neon(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int num_vertices,
+    int model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+
+    int sin_model_yaw = g_sin_table[model_yaw];
+    int cos_model_yaw = g_cos_table[model_yaw];
+
+    int i = 0;
+    for( ; i + 4 <= num_vertices; i += 4 )
+    {
+        // load 4 verts
+        int32x4_t xv4 = vld1q_s32(&vertex_x[i]);
+        int32x4_t yv4 = vld1q_s32(&vertex_y[i]);
+        int32x4_t zv4 = vld1q_s32(&vertex_z[i]);
+
+        int32x4_t x_rotated = xv4;
+        int32x4_t z_rotated = zv4;
+
+        int32x4_t c_my = vdupq_n_s32(cos_model_yaw);
+        int32x4_t s_my = vdupq_n_s32(sin_model_yaw);
+
+        // x' = (x*c + z*s)>>16
+        int32x4_t x_tmp = vaddq_s32(vmulq_s32(xv4, c_my), vmulq_s32(zv4, s_my));
+        x_rotated = vshrq_n_s32(x_tmp, 16);
+
+        // z' = (z*c - x*s)>>16
+        int32x4_t z_tmp = vsubq_s32(vmulq_s32(zv4, c_my), vmulq_s32(xv4, s_my));
+        z_rotated = vshrq_n_s32(z_tmp, 16);
+
+        // translate
+        x_rotated = vaddq_s32(x_rotated, vdupq_n_s32(scene_x));
+        int32x4_t y_rotated = vaddq_s32(yv4, vdupq_n_s32(scene_y));
+        z_rotated = vaddq_s32(z_rotated, vdupq_n_s32(scene_z));
+
+        // yaw
+        int32x4_t c_yaw = vdupq_n_s32(cos_camera_yaw);
+        int32x4_t s_yaw = vdupq_n_s32(sin_camera_yaw);
+
+        // x_scene = (x'*c + z'*s)>>16
+        int32x4_t x_scene = vaddq_s32(vmulq_s32(x_rotated, c_yaw), vmulq_s32(z_rotated, s_yaw));
+        x_scene = vshrq_n_s32(x_scene, 16);
+
+        // z_scene = (z'*c - x'*s)>>16
+        int32x4_t z_scene = vsubq_s32(vmulq_s32(z_rotated, c_yaw), vmulq_s32(x_rotated, s_yaw));
+        z_scene = vshrq_n_s32(z_scene, 16);
+
+        // pitch
+        int32x4_t c_pitch = vdupq_n_s32(cos_camera_pitch);
+        int32x4_t s_pitch = vdupq_n_s32(sin_camera_pitch);
+
+        // y_scene = (y'*c - z_scene*s)>>16
+        int32x4_t y_scene = vsubq_s32(vmulq_s32(y_rotated, c_pitch), vmulq_s32(z_scene, s_pitch));
+        y_scene = vshrq_n_s32(y_scene, 16);
+
+        // z_final = (y'*s + z_scene*c)>>16
+        int32x4_t z_final = vaddq_s32(vmulq_s32(y_rotated, s_pitch), vmulq_s32(z_scene, c_pitch));
+        z_final = vshrq_n_s32(z_final, 16);
+
+        // store orthographic
+        vst1q_s32(&orthographic_vertices_x[i], x_scene);
+        vst1q_s32(&orthographic_vertices_y[i], y_scene);
+        vst1q_s32(&orthographic_vertices_z[i], z_final);
+
+        // perspective scale (keeps your SSE path semantics: >>6 after mul with ish15)
+        int32x4_t cot_v = vdupq_n_s32(cot_fov_half_ish15);
+        int32x4_t xfov = vmulq_s32(x_scene, cot_v);
+        int32x4_t yfov = vmulq_s32(y_scene, cot_v);
+
+        int32x4_t x_scaled = vshrq_n_s32(xfov, 6);
+        int32x4_t y_scaled = vshrq_n_s32(yfov, 6);
+
+        vst1q_s32(&screen_vertices_x[i], x_scaled);
+        vst1q_s32(&screen_vertices_y[i], y_scaled);
+    }
+
+    // scalar tail (matches your original)
+    for( ; i < num_vertices; i++ )
+    {
+        int x = vertex_x[i];
+        int y = vertex_y[i];
+        int z = vertex_z[i];
+
+        int x_rotated = x;
+        int z_rotated = z;
+
+        x_rotated = (x * cos_model_yaw + z * sin_model_yaw) >> 16;
+        z_rotated = (z * cos_model_yaw - x * sin_model_yaw) >> 16;
+
+        x_rotated += scene_x;
+        int y_rotated = y + scene_y;
+        z_rotated += scene_z;
+
+        int x_scene = (x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw) >> 16;
+        int z_scene = (z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw) >> 16;
+
+        int y_scene = (y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
+        int z_final_scene = (y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
+
+        orthographic_vertices_x[i] = x_scene;
+        orthographic_vertices_y[i] = y_scene;
+        orthographic_vertices_z[i] = z_final_scene;
+
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
+
+        screen_x = SCALE_UNIT(screen_x);
+        screen_y = SCALE_UNIT(screen_y);
+
+        screen_vertices_x[i] = screen_x;
+        screen_vertices_y[i] = screen_y;
+    }
+}
+
+static inline void
+project_vertices_array_noyaw_neon(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int num_vertices,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+
+    int i = 0;
+    for( ; i + 4 <= num_vertices; i += 4 )
+    {
+        // load 4 verts
+        int32x4_t xv4 = vld1q_s32(&vertex_x[i]);
+        int32x4_t yv4 = vld1q_s32(&vertex_y[i]);
+        int32x4_t zv4 = vld1q_s32(&vertex_z[i]);
+
+        int32x4_t x_rotated = xv4;
+        int32x4_t z_rotated = zv4;
+
+        // translate
+        x_rotated = vaddq_s32(x_rotated, vdupq_n_s32(scene_x));
+        int32x4_t y_rotated = vaddq_s32(yv4, vdupq_n_s32(scene_y));
+        z_rotated = vaddq_s32(z_rotated, vdupq_n_s32(scene_z));
+
+        // yaw
+        int32x4_t c_yaw = vdupq_n_s32(cos_camera_yaw);
+        int32x4_t s_yaw = vdupq_n_s32(sin_camera_yaw);
+
+        // x_scene = (x'*c + z'*s)>>16
+        int32x4_t x_scene = vaddq_s32(vmulq_s32(x_rotated, c_yaw), vmulq_s32(z_rotated, s_yaw));
+        x_scene = vshrq_n_s32(x_scene, 16);
+
+        // z_scene = (z'*c - x'*s)>>16
+        int32x4_t z_scene = vsubq_s32(vmulq_s32(z_rotated, c_yaw), vmulq_s32(x_rotated, s_yaw));
+        z_scene = vshrq_n_s32(z_scene, 16);
+
+        // pitch
+        int32x4_t c_pitch = vdupq_n_s32(cos_camera_pitch);
+        int32x4_t s_pitch = vdupq_n_s32(sin_camera_pitch);
+
+        // y_scene = (y'*c - z_scene*s)>>16
+        int32x4_t y_scene = vsubq_s32(vmulq_s32(y_rotated, c_pitch), vmulq_s32(z_scene, s_pitch));
+        y_scene = vshrq_n_s32(y_scene, 16);
+
+        // z_final = (y'*s + z_scene*c)>>16
+        int32x4_t z_final = vaddq_s32(vmulq_s32(y_rotated, s_pitch), vmulq_s32(z_scene, c_pitch));
+        z_final = vshrq_n_s32(z_final, 16);
+
+        // store orthographic
+        vst1q_s32(&orthographic_vertices_x[i], x_scene);
+        vst1q_s32(&orthographic_vertices_y[i], y_scene);
+        vst1q_s32(&orthographic_vertices_z[i], z_final);
+
+        // perspective scale (keeps your SSE path semantics: >>6 after mul with ish15)
+        int32x4_t cot_v = vdupq_n_s32(cot_fov_half_ish15);
+        int32x4_t xfov = vmulq_s32(x_scene, cot_v);
+        int32x4_t yfov = vmulq_s32(y_scene, cot_v);
+
+        int32x4_t x_scaled = vshrq_n_s32(xfov, 6);
+        int32x4_t y_scaled = vshrq_n_s32(yfov, 6);
+
+        vst1q_s32(&screen_vertices_x[i], x_scaled);
+        vst1q_s32(&screen_vertices_y[i], y_scaled);
+    }
+
+    // scalar tail (matches your original)
+    for( ; i < num_vertices; i++ )
+    {
+        int x = vertex_x[i];
+        int y = vertex_y[i];
+        int z = vertex_z[i];
+
+        int x_rotated = x;
+        int z_rotated = z;
+
+        x_rotated += scene_x;
+        int y_rotated = y + scene_y;
+        z_rotated += scene_z;
+
+        int x_scene = (x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw) >> 16;
+        int z_scene = (z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw) >> 16;
+
+        int y_scene = (y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
+        int z_final_scene = (y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
+
+        orthographic_vertices_x[i] = x_scene;
+        orthographic_vertices_y[i] = y_scene;
+        orthographic_vertices_z[i] = z_final_scene;
+
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
+
+        screen_x = SCALE_UNIT(screen_x);
+        screen_y = SCALE_UNIT(screen_y);
+
+        screen_vertices_x[i] = screen_x;
+        screen_vertices_y[i] = screen_y;
+    }
+}
 
 static inline void
 project_vertices_array(
@@ -38,59 +297,107 @@ project_vertices_array(
     int camera_pitch,
     int camera_yaw)
 {
-    int fov_half = camera_fov >> 1;
-
-    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
-
-    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
-
-    // Checked on 09/15/2025, this does get vectorized on Mac with clang, using arm neon.
-    for( int i = 0; i < num_vertices; i++ )
+    if( model_yaw != 0 )
     {
-        struct ProjectedVertex projected_vertex;
-        project_orthographic_fast(
-            &projected_vertex,
-            vertex_x[i],
-            vertex_y[i],
-            vertex_z[i],
+        project_vertices_array_neon(
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            vertex_x,
+            vertex_y,
+            vertex_z,
+            num_vertices,
             model_yaw,
             scene_x,
             scene_y,
             scene_z,
+            camera_fov,
             camera_pitch,
             camera_yaw);
-
-        int x = projected_vertex.x;
-        int y = projected_vertex.y;
-        int z = projected_vertex.z;
-
-        x *= cot_fov_half_ish15;
-        y *= cot_fov_half_ish15;
-        x >>= 15;
-        y >>= 15;
-
-        int screen_x = SCALE_UNIT(x);
-        int screen_y = SCALE_UNIT(y);
-
-        orthographic_vertices_x[i] = projected_vertex.x;
-        orthographic_vertices_y[i] = projected_vertex.y;
-        orthographic_vertices_z[i] = projected_vertex.z;
-
-        screen_vertices_x[i] = screen_x;
-        screen_vertices_y[i] = screen_y;
+    }
+    else
+    {
+        project_vertices_array_noyaw_neon(
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            vertex_x,
+            vertex_y,
+            vertex_z,
+            num_vertices,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_fov,
+            camera_pitch,
+            camera_yaw);
     }
 
-    for( int i = 0; i < num_vertices; i++ )
+    int i = 0;
+
+#ifdef ARM_NEON_FLOAT_DIV
+    for( ; i + 4 <= num_vertices; i += 4 )
+    {
+        // Load z values
+        int32x4_t z_i = vld1q_s32(&orthographic_vertices_z[i]);
+
+        // Compute screen_vertices_z = z - model_mid_z
+        int32x4_t midz = vdupq_n_s32(model_mid_z);
+        int32x4_t outz = vsubq_s32(z_i, midz);
+        vst1q_s32(&screen_vertices_z[i], outz);
+
+        // Mask for clipped vertices (z < near_plane_z)
+        uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
+
+        // Convert z to float
+        float32x4_t z_f = vcvtq_f32_s32(z_i);
+
+        // Reciprocal estimate (1/z)
+        float32x4_t recip = vrecpeq_f32(z_f);
+        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip); // refine twice
+
+        // Scale reciprocal into Q31 fixed-point
+        float32x4_t scale = vdupq_n_f32((float)(1ll << 30)); // use Q30 for headroom
+        float32x4_t recip_scaled = vmulq_f32(recip, scale);
+        int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
+
+        // Load x and y
+        int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
+        int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
+
+        // Multiply by reciprocal (Q30) and shift down
+        int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
+        int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
+        int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
+        int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
+
+        // Shift down by 30 to undo fixed-point scale
+        int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
+        int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
+
+        // Apply clipping: x = -5000 if clipped
+        int32x4_t neg5000 = vdupq_n_s32(-5000);
+        x_div = vbslq_s32(clipped_mask, neg5000, x_div);
+
+        // Store results
+        vst1q_s32(&screen_vertices_x[i], x_div);
+        vst1q_s32(&screen_vertices_y[i], y_div);
+    }
+#endif // ARM_NEON_FLOAT_DIV
+
+    // Scalar fallback for leftovers
+    for( ; i < num_vertices; i++ )
     {
         int z = orthographic_vertices_z[i];
+        bool clipped = (z < near_plane_z);
 
-        bool clipped = false;
-        if( z < near_plane_z )
-            clipped = true;
-
-        // If vertex is too close to camera, set it to a large negative value
-        // This will cause it to be clipped in the rasterization step
-        // screen_vertices_z[i] = projected_vertex.z - mid_z;
         screen_vertices_z[i] = z - model_mid_z;
 
         if( clipped )
@@ -99,17 +406,16 @@ project_vertices_array(
         }
         else
         {
-            screen_vertices_x[i] = screen_vertices_x[i] / z;
-            // TODO: The actual renderer from the deob marks that a face was clipped.
-            // so it doesn't have to worry about a value actually being -5000.
+            screen_vertices_x[i] /= z;
             if( screen_vertices_x[i] == -5000 )
                 screen_vertices_x[i] = -5001;
-            screen_vertices_y[i] = screen_vertices_y[i] / z;
+            screen_vertices_y[i] /= z;
         }
     }
 }
 
 #elif defined(__AVX2__)
+#include <immintrin.h>
 
 static inline void
 project_vertices_array_avx2(
@@ -163,25 +469,20 @@ project_vertices_array_avx2(
         __m256i x_rotated = xv8;
         __m256i z_rotated = zv8;
 
-        if( model_yaw != 0 )
-        {
-            // x_rotated = x * cos_model_yaw + z * sin_model_yaw;
-            // x_rotated >>= 16;
-            // z_rotated = z * cos_model_yaw - x * sin_model_yaw;
-            // z_rotated >>= 16;
-            __m256i cos_model_yaw_v8 = _mm256_set1_epi32(cos_model_yaw);
-            __m256i sin_model_yaw_v8 = _mm256_set1_epi32(sin_model_yaw);
+        // x_rotated = x * cos_model_yaw + z * sin_model_yaw;
+        // x_rotated >>= 16;
+        // z_rotated = z * cos_model_yaw - x * sin_model_yaw;
+        // z_rotated >>= 16;
+        __m256i cos_model_yaw_v8 = _mm256_set1_epi32(cos_model_yaw);
+        __m256i sin_model_yaw_v8 = _mm256_set1_epi32(sin_model_yaw);
 
-            x_rotated = _mm256_add_epi32(
-                _mm256_mullo_epi32(xv8, cos_model_yaw_v8),
-                _mm256_mullo_epi32(zv8, sin_model_yaw_v8));
-            x_rotated = _mm256_srai_epi32(x_rotated, 16);
+        x_rotated = _mm256_add_epi32(
+            _mm256_mullo_epi32(xv8, cos_model_yaw_v8), _mm256_mullo_epi32(zv8, sin_model_yaw_v8));
+        x_rotated = _mm256_srai_epi32(x_rotated, 16);
 
-            z_rotated = _mm256_sub_epi32(
-                _mm256_mullo_epi32(zv8, cos_model_yaw_v8),
-                _mm256_mullo_epi32(xv8, sin_model_yaw_v8));
-            z_rotated = _mm256_srai_epi32(z_rotated, 16);
-        }
+        z_rotated = _mm256_sub_epi32(
+            _mm256_mullo_epi32(zv8, cos_model_yaw_v8), _mm256_mullo_epi32(xv8, sin_model_yaw_v8));
+        z_rotated = _mm256_srai_epi32(z_rotated, 16);
 
         // Translate points relative to camera position
         // x_rotated += scene_x;
@@ -701,7 +1002,9 @@ project_vertices_array(
         }
     }
 }
+
 #elif defined(__SSE2__)
+
 #include <emmintrin.h>
 
 static inline void
@@ -747,19 +1050,16 @@ project_vertices_array_sse(
         __m128i x_rotated = xv4;
         __m128i z_rotated = zv4;
 
-        if( model_yaw != 0 )
-        {
-            __m128i cos_model_yaw_v4 = _mm_set1_epi32(cos_model_yaw);
-            __m128i sin_model_yaw_v4 = _mm_set1_epi32(sin_model_yaw);
+        __m128i cos_model_yaw_v4 = _mm_set1_epi32(cos_model_yaw);
+        __m128i sin_model_yaw_v4 = _mm_set1_epi32(sin_model_yaw);
 
-            x_rotated = _mm_add_epi32(
-                _mm_mullo_epi32(xv4, cos_model_yaw_v4), _mm_mullo_epi32(zv4, sin_model_yaw_v4));
-            x_rotated = _mm_srai_epi32(x_rotated, 16);
+        x_rotated = _mm_add_epi32(
+            _mm_mullo_epi32(xv4, cos_model_yaw_v4), _mm_mullo_epi32(zv4, sin_model_yaw_v4));
+        x_rotated = _mm_srai_epi32(x_rotated, 16);
 
-            z_rotated = _mm_sub_epi32(
-                _mm_mullo_epi32(zv4, cos_model_yaw_v4), _mm_mullo_epi32(xv4, sin_model_yaw_v4));
-            z_rotated = _mm_srai_epi32(z_rotated, 16);
-        }
+        z_rotated = _mm_sub_epi32(
+            _mm_mullo_epi32(zv4, cos_model_yaw_v4), _mm_mullo_epi32(xv4, sin_model_yaw_v4));
+        z_rotated = _mm_srai_epi32(z_rotated, 16);
 
         x_rotated = _mm_add_epi32(x_rotated, _mm_set1_epi32(scene_x));
         __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
@@ -817,11 +1117,8 @@ project_vertices_array_sse(
         int x_rotated = x;
         int z_rotated = z;
 
-        if( model_yaw != 0 )
-        {
-            x_rotated = (x * cos_model_yaw + z * sin_model_yaw) >> 16;
-            z_rotated = (z * cos_model_yaw - x * sin_model_yaw) >> 16;
-        }
+        x_rotated = (x * cos_model_yaw + z * sin_model_yaw) >> 16;
+        z_rotated = (z * cos_model_yaw - x * sin_model_yaw) >> 16;
 
         x_rotated += scene_x;
         int y_rotated = y + scene_y;
@@ -1060,7 +1357,9 @@ project_vertices_array(
         }
     }
 }
+
 #else
+
 static inline void
 project_vertices_array(
     int* orthographic_vertices_x,
@@ -1089,7 +1388,9 @@ project_vertices_array(
 
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
-    // Checked on 09/15/2025, this does get vectorized on Mac with clang, using arm neon.
+    // Checked on 09/15/2025, this does get vectorized on Mac with clang, using arm neon. It also
+    // gets vectorized on Windows and Linux with GCC. Tested on 09/18/2025, that the hand-rolled
+    // Simd above is faster than the compilers
     for( int i = 0; i < num_vertices; i++ )
     {
         struct ProjectedVertex projected_vertex;
