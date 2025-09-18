@@ -890,6 +890,15 @@ project_vertices_array(
     const int vsteps = 8; // AVX2 processes 8x int32 per vector
     int i = 0;
 
+    // Benchmarking shows that AVX2_FLOAT_DIV is faster on newer platforms.
+    // On my Intel Core i5 4210U @ 1.70GHz, AVX2_FLOAT_DIV runs the lumbridge scene
+    // at about 6ms while without it runs about 5ms.
+    // Intel Core i5 4210U @ 1.70GHz
+    // AVX2_FLOAT_DIV: 6ms
+    // AVX2: 5ms
+    // No SIMD: 5.2ms
+    // On my Intel Core Ultra 7 258V, AVX2_FLOAT_DIV runs the lumbridge scene
+    // 1.67ms on Windows GCC and 1.72ms without.
 #ifdef AVX2_FLOAT_DIV
     __m256i v_near = _mm256_set1_epi32(near_plane_z);
     __m256i v_mid = _mm256_set1_epi32(model_mid_z);
