@@ -27,8 +27,8 @@ if(NOT CMAKE_ANDROID_NDK)
 endif()
 
 # Set Android-specific compiler flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -DANDROID -fPIC")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -DANDROID -fPIC")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g -DANDROID -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -g -DANDROID -fPIC")
 
 # Android-specific settings
 set(CMAKE_ANDROID_STL_TYPE c++_shared)
@@ -101,6 +101,8 @@ add_compile_definitions(
     SDL_JOYSTICK_ANDROID=1
     SDL_HAPTIC_ANDROID=1
     SDL_VIDEO_DRIVER_DUMMY=0
+        # Benchmarked on ARMv7 Moto X this does give an improvement.
+    ARM_NEON_FLOAT_DIV=1
 )
 
 # ARM-specific compiler flags

@@ -32,13 +32,13 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 166,
+				"line" : 168,
 				"parent" : 0
 			},
 			{
 				"command" : 1,
 				"file" : 0,
-				"line" : 174,
+				"line" : 176,
 				"parent" : 0
 			},
 			{
@@ -50,7 +50,7 @@
 			{
 				"command" : 3,
 				"file" : 0,
-				"line" : 179,
+				"line" : 181,
 				"parent" : 0
 			},
 			{
@@ -62,25 +62,25 @@
 			{
 				"command" : 4,
 				"file" : 0,
-				"line" : 108,
-				"parent" : 0
-			},
-			{
-				"command" : 4,
-				"file" : 0,
-				"line" : 109,
-				"parent" : 0
-			},
-			{
-				"command" : 4,
-				"file" : 0,
 				"line" : 110,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 111,
+				"parent" : 0
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 112,
 				"parent" : 0
 			},
 			{
 				"command" : 5,
 				"file" : 0,
-				"line" : 195,
+				"line" : 197,
 				"parent" : 0
 			},
 			{
@@ -110,7 +110,7 @@
 			{
 				"command" : 8,
 				"file" : 0,
-				"line" : 189,
+				"line" : 191,
 				"parent" : 0
 			}
 		]
@@ -121,7 +121,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -g -O0 -g -DANDROID -fPIC -fno-limit-debug-info  -fPIC"
+					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -g -O3 -g -DANDROID -fPIC -fno-limit-debug-info  -fPIC"
 				},
 				{
 					"backtrace" : 5,
@@ -156,6 +156,10 @@
 				{
 					"backtrace" : 10,
 					"define" : "ANDROID=1"
+				},
+				{
+					"backtrace" : 10,
+					"define" : "ARM_NEON_FLOAT_DIV=1"
 				},
 				{
 					"backtrace" : 10,
@@ -246,7 +250,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -O0 -g -DANDROID -fPIC -fno-limit-debug-info  -fPIC"
+					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -O3 -g -DANDROID -fPIC -fno-limit-debug-info  -fPIC"
 				},
 				{
 					"backtrace" : 5,
@@ -281,6 +285,10 @@
 				{
 					"backtrace" : 10,
 					"define" : "ANDROID=1"
+				},
+				{
+					"backtrace" : 10,
+					"define" : "ARM_NEON_FLOAT_DIV=1"
 				},
 				{
 					"backtrace" : 10,

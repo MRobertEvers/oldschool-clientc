@@ -1202,7 +1202,7 @@ AndroidPlatform::runMainLoop()
         SDL_RenderPresent(m_sdl_platform->renderer);
 
         // Small delay to prevent excessive CPU usage
-        SDL_Delay(16); // ~60 FPS
+//        SDL_Delay(16); // ~60 FPS
     }
 
     LOGI("Main loop ended");

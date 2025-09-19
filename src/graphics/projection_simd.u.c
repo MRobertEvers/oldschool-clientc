@@ -341,6 +341,12 @@ project_vertices_array(
 
     int i = 0;
 
+    /**
+     * Benchmarked on Moto X gen 1
+     * Lumbridge Kitchen Scene
+     * Without Neon: 24.1ms
+     * With Neon: 22.4ms
+     */
 #ifdef ARM_NEON_FLOAT_DIV
     for( ; i + 4 <= num_vertices; i += 4 )
     {
