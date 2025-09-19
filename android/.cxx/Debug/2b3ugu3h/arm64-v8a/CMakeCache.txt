@@ -245,6 +245,9 @@ CMAKE_TOOLCHAIN_FILE:UNINITIALIZED=C:\Users\mrobe\AppData\Local\Android\Sdk\ndk\
 // Studio IDE projects all commands are done without /nologo.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
+//The directory containing a CMake configuration file for SDL2.
+SDL2_DIR:PATH=SDL2_DIR-NOTFOUND
+
 //No help, variable specified on the command line.
 SDL_AUDIO_DRIVER_ANDROID:UNINITIALIZED=1
 

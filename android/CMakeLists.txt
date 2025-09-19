@@ -50,15 +50,43 @@ elseif(ANDROID_ABI STREQUAL "arm64-v8a")
     add_compile_options(-march=armv8-a)
 endif()
 
-# SDL2 configuration - use local headers for now
+# SDL2 configuration
 set(SDL2_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/src/main/cpp/SDL2/include)
+
+# Try to find SDL2 using find_package first
+find_package(SDL2 QUIET)
+
+# If SDL2 is not found via find_package, use manual configuration
+if(NOT SDL2_FOUND)
+    message(STATUS "SDL2 not found via find_package, using manual configuration")
+    
+    # Set SDL2 paths manually
+    set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
+    
+    # Use the built SDL2 library
+    set(SDL2_LIBRARY_PATH ${CMAKE_SOURCE_DIR}/src/main/cpp/SDL2/libs/android/${ANDROID_ABI}/libSDL2.so)
+    
+    if(EXISTS ${SDL2_LIBRARY_PATH})
+        # Add the library directory to the linker search path
+        link_directories(${CMAKE_SOURCE_DIR}/src/main/cpp/SDL2/libs/android/${ANDROID_ABI})
+        set(SDL2_LIBRARIES SDL2)
+        message(STATUS "Found built SDL2 library: ${SDL2_LIBRARY_PATH}")
+        message(STATUS "Added library directory: ${CMAKE_SOURCE_DIR}/src/main/cpp/SDL2/libs/android/${ANDROID_ABI}")
+    else()
+        message(WARNING "Built SDL2 library not found at: ${SDL2_LIBRARY_PATH}")
+        message(WARNING "You may need to build SDL2 from source first.")
+        set(SDL2_LIBRARIES "")
+    endif()
+else()
+    message(STATUS "SDL2 found via find_package")
+endif()
 
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/../src
     ${CMAKE_SOURCE_DIR}/../src/imgui
     ${CMAKE_SOURCE_DIR}/src/main/cpp
-    ${SDL2_INCLUDE_DIR}
+    ${SDL2_INCLUDE_DIRS}
 )
 
 # Add compile definitions
@@ -135,12 +163,14 @@ set(ANDROID_SOURCES
 # Create the shared library
 add_library(scene_tile_test_android SHARED ${ANDROID_SOURCES})
 
-# Link libraries - using SDL2 stub for now
+# Link libraries
 target_link_libraries(scene_tile_test_android
+    ${SDL2_LIBRARIES}
     android
     log
     GLESv2
     EGL
+    atomic
 )
 
 # Set target properties
