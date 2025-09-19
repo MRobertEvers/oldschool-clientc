@@ -1,3 +1,0 @@
-C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/181b1o1h/x86/CMakeFiles/scene_tile_test_android.dir
-C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/181b1o1h/x86/CMakeFiles/edit_cache.dir
-C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/181b1o1h/x86/CMakeFiles/rebuild_cache.dir

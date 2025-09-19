@@ -1,9 +1,0 @@
-# ninja log v5
-28	162	7800051110404148	CMakeFiles/scene_tile_test_android.dir/C_/Users/mrobe/Documents/git_repos/3d-raster/src/osrs/bounds_cylinder.c.o	a4e28e7358355a66
-15	169	7800051110404148	CMakeFiles/scene_tile_test_android.dir/C_/Users/mrobe/Documents/git_repos/3d-raster/src/string_utils.c.o	b6f6c4dff0b61346
-33	175	7800051110517564	CMakeFiles/scene_tile_test_android.dir/C_/Users/mrobe/Documents/git_repos/3d-raster/src/osrs/tables/textures.c.o	8be17c51e0628d4d
-10	181	7800051110715097	CMakeFiles/scene_tile_test_android.dir/C_/Users/mrobe/Documents/git_repos/3d-raster/src/shared_tables.c.o	eb98299538fa3398
-2	146	7800080720273991	build.ninja	6d281da1dd7ffe50
-0	18	0	clean	66d9397d6b4a13fc
-3	383	7800080720273991	build.ninja	6d281da1dd7ffe50
-0	26	0	clean	66d9397d6b4a13fc
