@@ -1,0 +1,25 @@
+                        -HC:\Users\mrobe\Documents\git_repos\3d-raster\android
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+-DCMAKE_SYSTEM_VERSION=21
+-DANDROID_PLATFORM=android-21
+-DANDROID_ABI=arm64-v8a
+-DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+-DANDROID_NDK=C:\Users\mrobe\AppData\Local\Android\Sdk\ndk\27.0.12077973
+-DCMAKE_ANDROID_NDK=C:\Users\mrobe\AppData\Local\Android\Sdk\ndk\27.0.12077973
+-DCMAKE_TOOLCHAIN_FILE=C:\Users\mrobe\AppData\Local\Android\Sdk\ndk\27.0.12077973\build\cmake\android.toolchain.cmake
+-DCMAKE_MAKE_PROGRAM=C:\Users\mrobe\AppData\Local\Android\Sdk\cmake\3.22.1\bin\ninja.exe
+-DCMAKE_CXX_FLAGS=-std=c++17
+-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=C:\Users\mrobe\Documents\git_repos\3d-raster\android\build\intermediates\cxx\RelWithDebInfo\145y72c2\obj\arm64-v8a
+-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=C:\Users\mrobe\Documents\git_repos\3d-raster\android\build\intermediates\cxx\RelWithDebInfo\145y72c2\obj\arm64-v8a
+-DCMAKE_BUILD_TYPE=RelWithDebInfo
+-BC:\Users\mrobe\Documents\git_repos\3d-raster\android\.cxx\RelWithDebInfo\145y72c2\arm64-v8a
+-GNinja
+-DANDROID_STL=c++_shared
+-DANDROID=1
+-DCMAKE_SYSTEM_NAME=Android
+-DSDL_VIDEO_DRIVER_ANDROID=1
+-DSDL_AUDIO_DRIVER_ANDROID=1
+-DSDL_JOYSTICK_ANDROID=1
+-DSDL_HAPTIC_ANDROID=1
+                        Build command args: []
+                        Version: 2

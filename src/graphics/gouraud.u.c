@@ -7,7 +7,9 @@
 #include <stdbool.h>
 
 // clang-format off
+#ifdef INTEL_SSE
 #include "gouraud_simd_alpha.u.c"
+#endif
 #include "gouraud_barycentric.u.c"
 // clang-format on
 

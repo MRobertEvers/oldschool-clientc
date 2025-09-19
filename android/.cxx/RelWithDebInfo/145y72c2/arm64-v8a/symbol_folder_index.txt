@@ -1,0 +1,1 @@
+C:\Users\mrobe\Documents\git_repos\3d-raster\android\build\intermediates\cxx\RelWithDebInfo\145y72c2\obj\arm64-v8a

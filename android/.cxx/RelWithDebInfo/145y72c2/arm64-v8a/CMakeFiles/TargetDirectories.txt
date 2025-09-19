@@ -1,0 +1,3 @@
+C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/RelWithDebInfo/145y72c2/arm64-v8a/CMakeFiles/scene_tile_test_android.dir
+C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/RelWithDebInfo/145y72c2/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/RelWithDebInfo/145y72c2/arm64-v8a/CMakeFiles/rebuild_cache.dir

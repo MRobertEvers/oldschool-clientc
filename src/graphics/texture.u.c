@@ -1,7 +1,9 @@
 #ifndef TEXTURE_U_C
 #define TEXTURE_U_C
 
+#ifdef INTEL_SSE
 #include "texture_simd.u.c"
+#endif
 
 #define SWAP(a, b)                                                                                 \
     {                                                                                              \
