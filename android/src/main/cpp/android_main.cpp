@@ -6,7 +6,6 @@
 #include <memory>
 #include <string>
 
-
 // SDL2 main handling
 #ifdef main
 #undef main
@@ -34,6 +33,8 @@ extern "C" {
 #include "shared_tables.h"
 }
 
+#include <SDL_main.h>
+
 #include <SDL.h>
 #include <assert.h>
 #include <math.h>
@@ -48,7 +49,6 @@ extern "C" {
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
-
 
 #define LOG_TAG "SceneTileTest"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -68,6 +68,9 @@ extern "C" void android_main_init();
 extern "C" void android_main_cleanup();
 extern "C" void android_main_pause();
 extern "C" void android_main_resume();
+
+// SDL_main function declaration
+extern "C" int SDL_main(int argc, char* argv[]);
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_scenetile_test_MainActivity_nativeInit(JNIEnv* env, jobject thiz)
@@ -179,4 +182,36 @@ android_main_resume()
     {
         g_platform->resume();
     }
+}
+
+// SDL_main function implementation
+int
+SDL_main(int argc, char* argv[])
+{
+    LOGI("SDL_main called with %d arguments", argc);
+
+    // Initialize the platform if not already done
+    if( !g_initialized )
+    {
+        try
+        {
+            android_main_init();
+            g_initialized = true;
+            LOGI("SDL_main initialization completed successfully");
+        }
+        catch( const std::exception& e )
+        {
+            LOGE("SDL_main initialization failed: %s", e.what());
+            return -1;
+        }
+    }
+
+    // Run the main loop
+    if( g_platform )
+    {
+        g_platform->runMainLoop();
+    }
+
+    LOGI("SDL_main exiting");
+    return 0;
 }

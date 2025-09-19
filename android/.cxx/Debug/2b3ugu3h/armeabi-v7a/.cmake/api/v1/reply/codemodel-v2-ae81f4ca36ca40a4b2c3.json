@@ -39,7 +39,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "scene_tile_test_android::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-scene_tile_test_android-Debug-4c6ce6d2e3b9d58d6c7d.json",
+					"jsonFile" : "target-scene_tile_test_android-Debug-ec42f9b1927c7f7ee627.json",
 					"name" : "scene_tile_test_android",
 					"projectIndex" : 0
 				}
@@ -49,7 +49,7 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/2b3ugu3h/arm64-v8a",
+		"build" : "C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/2b3ugu3h/armeabi-v7a",
 		"source" : "C:/Users/mrobe/Documents/git_repos/3d-raster/android"
 	},
 	"version" : 

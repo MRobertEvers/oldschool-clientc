@@ -163,6 +163,16 @@ set(ANDROID_SOURCES
 # Create the shared library
 add_library(scene_tile_test_android SHARED ${ANDROID_SOURCES})
 
+# Ensure SDL_main is properly exported
+# target_compile_definitions(scene_tile_test_android PRIVATE
+#     SDL_MAIN_AVAILABLE=1
+# )
+
+# Export SDL_main symbol
+target_link_options(scene_tile_test_android PRIVATE
+    -Wl,--export-dynamic
+)
+
 # Link libraries
 target_link_libraries(scene_tile_test_android
     ${SDL2_LIBRARIES}

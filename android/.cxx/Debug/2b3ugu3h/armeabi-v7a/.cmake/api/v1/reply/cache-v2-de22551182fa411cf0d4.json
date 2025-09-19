@@ -23,7 +23,7 @@
 				}
 			],
 			"type" : "UNINITIALIZED",
-			"value" : "arm64-v8a"
+			"value" : "armeabi-v7a"
 		},
 		{
 			"name" : "ANDROID_NDK",
@@ -87,7 +87,7 @@
 				}
 			],
 			"type" : "UNINITIALIZED",
-			"value" : "arm64-v8a"
+			"value" : "armeabi-v7a"
 		},
 		{
 			"name" : "CMAKE_ANDROID_NDK",
@@ -175,7 +175,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "c:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/2b3ugu3h/arm64-v8a"
+			"value" : "c:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/2b3ugu3h/armeabi-v7a"
 		},
 		{
 			"name" : "CMAKE_CACHE_MAJOR_VERSION",
@@ -731,7 +731,7 @@
 				}
 			],
 			"type" : "UNINITIALIZED",
-			"value" : "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\android\\build\\intermediates\\cxx\\Debug\\2b3ugu3h\\obj\\arm64-v8a"
+			"value" : "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\android\\build\\intermediates\\cxx\\Debug\\2b3ugu3h\\obj\\armeabi-v7a"
 		},
 		{
 			"name" : "CMAKE_LINKER",
@@ -1003,7 +1003,7 @@
 				}
 			],
 			"type" : "UNINITIALIZED",
-			"value" : "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\android\\build\\intermediates\\cxx\\Debug\\2b3ugu3h\\obj\\arm64-v8a"
+			"value" : "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\android\\build\\intermediates\\cxx\\Debug\\2b3ugu3h\\obj\\armeabi-v7a"
 		},
 		{
 			"name" : "CMAKE_SHARED_LINKER_FLAGS",
@@ -1335,7 +1335,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/2b3ugu3h/arm64-v8a"
+			"value" : "C:/Users/mrobe/Documents/git_repos/3d-raster/android/.cxx/Debug/2b3ugu3h/armeabi-v7a"
 		},
 		{
 			"name" : "scene_tile_test_android_IS_TOP_LEVEL",

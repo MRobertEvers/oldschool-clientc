@@ -2,7 +2,7 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "C:/Users/mrobe/Documents/git_repos/3d-raster/android/build/intermediates/cxx/Debug/2b3ugu3h/obj/arm64-v8a/libscene_tile_test_android.so"
+			"path" : "C:/Users/mrobe/Documents/git_repos/3d-raster/android/build/intermediates/cxx/Debug/2b3ugu3h/obj/armeabi-v7a/libscene_tile_test_android.so"
 		}
 	],
 	"backtrace" : 1,
@@ -56,7 +56,7 @@
 			{
 				"command" : 4,
 				"file" : 0,
-				"line" : 50,
+				"line" : 48,
 				"parent" : 0
 			},
 			{
@@ -121,11 +121,19 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -DANDROID -fPIC -fno-limit-debug-info  -fPIC"
+					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -std=c++17 -DANDROID -fPIC -fno-limit-debug-info  -fPIC"
 				},
 				{
 					"backtrace" : 5,
-					"fragment" : "-march=armv8-a"
+					"fragment" : "-march=armv7-a"
+				},
+				{
+					"backtrace" : 5,
+					"fragment" : "-mthumb"
+				},
+				{
+					"backtrace" : 5,
+					"fragment" : "-mfpu=neon"
 				},
 				{
 					"backtrace" : 6,
@@ -254,11 +262,19 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -DANDROID -fPIC -fno-limit-debug-info  -fPIC"
+					"fragment" : "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -DANDROID -fPIC -fno-limit-debug-info  -fPIC"
 				},
 				{
 					"backtrace" : 5,
-					"fragment" : "-march=armv8-a"
+					"fragment" : "-march=armv7-a"
+				},
+				{
+					"backtrace" : 5,
+					"fragment" : "-mthumb"
+				},
+				{
+					"backtrace" : 5,
+					"fragment" : "-mfpu=neon"
 				},
 				{
 					"backtrace" : 6,
@@ -435,7 +451,7 @@
 			},
 			{
 				"backtrace" : 3,
-				"fragment" : "-LC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\android\\src\\main\\cpp\\SDL2\\libs\\android\\arm64-v8a",
+				"fragment" : "-LC:\\Users\\mrobe\\Documents\\git_repos\\3d-raster\\android\\src\\main\\cpp\\SDL2\\libs\\android\\armeabi-v7a",
 				"role" : "libraryPath"
 			},
 			{

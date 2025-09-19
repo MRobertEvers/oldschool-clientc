@@ -5,7 +5,9 @@ import android.os.Bundle;
 import android.view.WindowManager;
 import android.widget.Toast;
 
-public class MainActivity extends Activity {
+import org.libsdl.app.SDLActivity;
+
+public class MainActivity extends SDLActivity {
     static {
         System.loadLibrary("scene_tile_test_android");
     }
@@ -51,6 +53,6 @@ public class MainActivity extends Activity {
     // Native methods
     public native void nativeInit();
     public native void nativeCleanup();
-    public native void nativePause();
-    public native void nativeResume();
+//    public native void nativePause();
+//    public native void nativeResume();
 }
