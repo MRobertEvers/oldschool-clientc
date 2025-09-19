@@ -1208,3 +1208,35 @@ static inline void
 raster_osrs_single_gouraud_near_clip(
     int* pixel_buffer,
 ```
+
+
+## Android APKs
+
+Windows
+
+Download adb
+
+```
+adb install -r path/to/your/app.apk
+
+# Replace downgrade
+adb install -r -d path/to/your/app.apk
+```
+
+
+## CPU Mark Result
+
+The Moto X is comparable to the Pentium 4.
+
+Motorola Moto X
+
+Integer Math: 1,419 MOps/Sec
+Floating Point Math: 625 MOps/Sec
+Single Thread: 851 MOps/Sec
+
+
+Pentium 4 (From Website)
+
+Integer Math: 1,346 MOps/Sec
+Floating Point Math: 696 MOps/Sec
+Single Thread: 528 MOps/Sec
