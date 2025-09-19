@@ -17,7 +17,8 @@ android {
         
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++17"
+                cppFlags "-std=c++17 -g"
+
                 arguments "-DANDROID_STL=c++_shared"
                 arguments "-DANDROID=1"
                 arguments "-DCMAKE_SYSTEM_NAME=Android"
@@ -39,6 +40,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
+            minifyEnabled false
             debuggable true
             jniDebuggable true
         }

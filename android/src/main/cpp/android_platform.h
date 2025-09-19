@@ -5,6 +5,12 @@
 #include <memory>
 #include <string>
 
+
+#define LOG_TAG "SceneTileTest"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+
 // Game struct definition (from scene_tile_test.cpp)
 struct Game
 {

@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.18.1)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 # Force Android platform detection
 if(NOT ANDROID)
     message(FATAL_ERROR "This CMakeLists.txt is designed for Android builds only. Please use Android NDK.")
@@ -25,8 +27,8 @@ if(NOT CMAKE_ANDROID_NDK)
 endif()
 
 # Set Android-specific compiler flags
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DANDROID -fPIC")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DANDROID -fPIC")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -DANDROID -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -DANDROID -fPIC")
 
 # Android-specific settings
 set(CMAKE_ANDROID_STL_TYPE c++_shared)

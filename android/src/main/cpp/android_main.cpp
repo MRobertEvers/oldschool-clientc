@@ -6,11 +6,6 @@
 #include <memory>
 #include <string>
 
-// SDL2 main handling
-#ifdef main
-#undef main
-#endif
-
 extern "C" {
 #include "bmp.h"
 #include "graphics/render.h"
@@ -50,9 +45,9 @@ extern "C" {
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
 
-#define LOG_TAG "SceneTileTest"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+//#define LOG_TAG "SceneTileTest"
+//#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+//#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 extern "C" int g_sin_table[2048];
 extern "C" int g_cos_table[2048];
@@ -81,7 +76,7 @@ Java_com_scenetile_test_MainActivity_nativeInit(JNIEnv* env, jobject thiz)
     {
         android_main_init();
         g_initialized = true;
-        LOGI("Native initialization completed successfully");
+        LOGI("Native initialization completed successfully %d", g_initialized);
     }
     catch( const std::exception& e )
     {
@@ -124,24 +119,35 @@ Java_com_scenetile_test_MainActivity_nativeResume(JNIEnv* env, jobject thiz)
     }
 }
 
+class WowZa
+{
+public:
+    WowZa() { LOGI("WowZa constructor"); }
+    ~WowZa() { LOGI("WowZa destructor"); }
+};
+
 extern "C" void
 android_main_init()
 {
     LOGI("Starting android_main_init");
 
     // Initialize math tables
-    init_hsl16_to_rgb_table();
-    init_sin_table();
-    init_cos_table();
-    init_tan_table();
-    init_reciprocal16();
+    // init_hsl16_to_rgb_table();
+    // init_sin_table();
+    // init_cos_table();
+    // init_tan_table();
+    // init_reciprocal16();
 
+    LOGI("Initializing platform g_platform = new AndroidPlatform();");
+
+    WowZa* wowza = new WowZa();
+    LOGI("WowZa object %p", wowza);
     // Initialize platform
     g_platform = new AndroidPlatform();
+    LOGI("AndroidPlatform object %p", g_platform);
     if( !g_platform->init() )
     {
         LOGE("Failed to initialize Android platform");
-        throw std::runtime_error("Platform initialization failed");
     }
 
     LOGI("android_main_init completed successfully");
@@ -185,7 +191,7 @@ android_main_resume()
 }
 
 // SDL_main function implementation
-int
+extern "C" int
 SDL_main(int argc, char* argv[])
 {
     LOGI("SDL_main called with %d arguments", argc);
@@ -193,6 +199,7 @@ SDL_main(int argc, char* argv[])
     // Initialize the platform if not already done
     if( !g_initialized )
     {
+        LOGI("SDL_main initializing platform");
         try
         {
             android_main_init();
@@ -209,7 +216,29 @@ SDL_main(int argc, char* argv[])
     // Run the main loop
     if( g_platform )
     {
-        g_platform->runMainLoop();
+        LOGI("g_platform->runMainLoop - g_platform: %p", g_platform);
+        try
+        {
+            // Test if we can call a simple method first
+            LOGI("About to call runMainLoop");
+            g_platform->runMainLoop();
+            LOGI("runMainLoop returned");
+        }
+        catch( const std::exception& e )
+        {
+            LOGE("runMainLoop failed: %s", e.what());
+            return -1;
+        }
+        catch( ... )
+        {
+            LOGE("runMainLoop failed with unknown exception");
+            return -1;
+        }
+    }
+    else
+    {
+        LOGE("SDL_main no platform");
+        return -1;
     }
 
     LOGI("SDL_main exiting");
