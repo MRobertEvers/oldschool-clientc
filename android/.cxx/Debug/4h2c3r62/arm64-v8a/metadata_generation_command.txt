@@ -1,18 +1,18 @@
-                        -HC:\Users\mrobe\Documents\git_repos\3d-raster\android
+                        -H/Users/matthewevers/Documents/git_repos/3draster/android
 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 -DCMAKE_SYSTEM_VERSION=21
 -DANDROID_PLATFORM=android-21
 -DANDROID_ABI=arm64-v8a
 -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
--DANDROID_NDK=C:\Users\mrobe\AppData\Local\Android\Sdk\ndk\27.0.12077973
--DCMAKE_ANDROID_NDK=C:\Users\mrobe\AppData\Local\Android\Sdk\ndk\27.0.12077973
--DCMAKE_TOOLCHAIN_FILE=C:\Users\mrobe\AppData\Local\Android\Sdk\ndk\27.0.12077973\build\cmake\android.toolchain.cmake
--DCMAKE_MAKE_PROGRAM=C:\Users\mrobe\AppData\Local\Android\Sdk\cmake\3.22.1\bin\ninja.exe
+-DANDROID_NDK=/Users/matthewevers/Library/Android/sdk/ndk/27.0.12077973
+-DCMAKE_ANDROID_NDK=/Users/matthewevers/Library/Android/sdk/ndk/27.0.12077973
+-DCMAKE_TOOLCHAIN_FILE=/Users/matthewevers/Library/Android/sdk/ndk/27.0.12077973/build/cmake/android.toolchain.cmake
+-DCMAKE_MAKE_PROGRAM=/Users/matthewevers/Library/Android/sdk/cmake/3.22.1/bin/ninja
 -DCMAKE_CXX_FLAGS=-std=c++17 -g
--DCMAKE_LIBRARY_OUTPUT_DIRECTORY=C:\Users\mrobe\Documents\git_repos\3d-raster\android\build\intermediates\cxx\Debug\4h2c3r62\obj\arm64-v8a
--DCMAKE_RUNTIME_OUTPUT_DIRECTORY=C:\Users\mrobe\Documents\git_repos\3d-raster\android\build\intermediates\cxx\Debug\4h2c3r62\obj\arm64-v8a
+-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/Users/matthewevers/Documents/git_repos/3draster/android/build/intermediates/cxx/Debug/4h2c3r62/obj/arm64-v8a
+-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/Users/matthewevers/Documents/git_repos/3draster/android/build/intermediates/cxx/Debug/4h2c3r62/obj/arm64-v8a
 -DCMAKE_BUILD_TYPE=Debug
--BC:\Users\mrobe\Documents\git_repos\3d-raster\android\.cxx\Debug\4h2c3r62\arm64-v8a
+-B/Users/matthewevers/Documents/git_repos/3draster/android/.cxx/Debug/4h2c3r62/arm64-v8a
 -GNinja
 -DANDROID_STL=c++_shared
 -DANDROID=1

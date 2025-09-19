@@ -48,14 +48,6 @@ extern "C" {
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
 
-#define LOG_TAG "AndroidPlatform"
-#define LOGI(...)                                                                                  \
-    printf("[INFO] " __VA_ARGS__);                                                                 \
-    printf("\n")
-#define LOGE(...)                                                                                  \
-    printf("[ERROR] " __VA_ARGS__);                                                                \
-    printf("\n")
-
 // Constants from scene_tile_test.cpp
 #define GUI_WINDOW_WIDTH 400
 #define GUI_WINDOW_HEIGHT 600
@@ -119,37 +111,56 @@ game_free(struct Game* game)
 static bool
 platform_sdl2_init(struct PlatformSDL2* platform)
 {
+    LOGI("Initializing SDL for Android...");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
+        LOGE("SDL_Init failed: %s", SDL_GetError());
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
+    LOGI("SDL initialization successful");
 
-    // Create window at the target resolution
+    // Create window for Android - let the system determine the size
+    LOGI("Creating SDL window...");
     platform->window = SDL_CreateWindow(
         "Scene Tile Test",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
-        SDL_WINDOW_RESIZABLE);
+        0, // Let Android determine width
+        0, // Let Android determine height
+        SDL_WINDOW_SHOWN);
 
     if( !platform->window )
     {
+        LOGE("Window creation failed: %s", SDL_GetError());
         printf("Window creation failed: %s\n", SDL_GetError());
         return false;
     }
 
+    // Get actual window size
+    SDL_GetWindowSize(platform->window, &platform->window_width, &platform->window_height);
+    SDL_GL_GetDrawableSize(platform->window, &platform->drawable_width, &platform->drawable_height);
+    LOGI(
+        "Window created successfully: %dx%d (drawable: %dx%d)",
+        platform->window_width,
+        platform->window_height,
+        platform->drawable_width,
+        platform->drawable_height);
+
     // Create renderer
+    LOGI("Creating SDL renderer...");
     platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
 
     if( !platform->renderer )
     {
+        LOGE("Renderer creation failed: %s", SDL_GetError());
         printf("Renderer creation failed: %s\n", SDL_GetError());
         return false;
     }
+    LOGI("Renderer created successfully");
 
-    // Create texture for game rendering
+    // Create texture for game rendering using render dimensions
+    LOGI("Creating render texture: %dx%d", SCREEN_WIDTH, SCREEN_HEIGHT);
     platform->texture = SDL_CreateTexture(
         platform->renderer,
         SDL_PIXELFORMAT_XRGB8888,
@@ -159,18 +170,23 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     if( !platform->texture )
     {
+        LOGE("Texture creation failed: %s", SDL_GetError());
         printf("Texture creation failed: %s\n", SDL_GetError());
         return false;
     }
+    LOGI("Texture created successfully");
 
     // Allocate pixel buffer
+    LOGI("Allocating pixel buffer: %d bytes", SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     platform->pixel_buffer = (int*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     if( !platform->pixel_buffer )
     {
+        LOGE("Pixel buffer allocation failed");
         printf("Failed to allocate pixel buffer\n");
         return false;
     }
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    LOGI("Pixel buffer allocated successfully");
 
     // Get initial window size
     SDL_GetWindowSize(platform->window, &platform->window_width, &platform->window_height);
@@ -1041,13 +1057,6 @@ AndroidPlatform::init()
 
     // Initialize lookup tables first
     initTables();
-
-    // Initialize SDL2
-    if( SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0 )
-    {
-        LOGE("SDL_Init failed: %s", SDL_GetError());
-        return false;
-    }
 
 // Create cache directory
 #ifdef _WIN32

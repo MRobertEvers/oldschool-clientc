@@ -45,9 +45,9 @@ extern "C" {
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
 
-//#define LOG_TAG "SceneTileTest"
-//#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
-//#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+// #define LOG_TAG "SceneTileTest"
+// #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+// #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 extern "C" int g_sin_table[2048];
 extern "C" int g_cos_table[2048];
@@ -70,19 +70,9 @@ extern "C" int SDL_main(int argc, char* argv[]);
 extern "C" JNIEXPORT void JNICALL
 Java_com_scenetile_test_MainActivity_nativeInit(JNIEnv* env, jobject thiz)
 {
-    LOGI("Initializing native code");
-
-    try
-    {
-        android_main_init();
-        g_initialized = true;
-        LOGI("Native initialization completed successfully %d", g_initialized);
-    }
-    catch( const std::exception& e )
-    {
-        LOGE("Native initialization failed: %s", e.what());
-        g_initialized = false;
-    }
+    LOGI("Native init called - deferring to SDL_main for proper timing");
+    // Don't initialize SDL here - it's too early!
+    // SDL initialization will happen in SDL_main() when surface is ready
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -97,27 +87,8 @@ Java_com_scenetile_test_MainActivity_nativeCleanup(JNIEnv* env, jobject thiz)
     }
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_scenetile_test_MainActivity_nativePause(JNIEnv* env, jobject thiz)
-{
-    LOGI("Pausing native code");
-
-    if( g_initialized )
-    {
-        android_main_pause();
-    }
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_scenetile_test_MainActivity_nativeResume(JNIEnv* env, jobject thiz)
-{
-    LOGI("Resuming native code");
-
-    if( g_initialized )
-    {
-        android_main_resume();
-    }
-}
+// Note: nativePause and nativeResume are commented out in MainActivity.java
+// SDL handles pause/resume automatically through the Activity lifecycle
 
 class WowZa
 {
@@ -190,57 +161,52 @@ android_main_resume()
     }
 }
 
-// SDL_main function implementation
+// SDL_main function implementation - called by SDL when surface is ready
 extern "C" int
 SDL_main(int argc, char* argv[])
 {
-    LOGI("SDL_main called with %d arguments", argc);
+    LOGI("SDL_main called with %d arguments - surface should be ready now", argc);
 
-    // Initialize the platform if not already done
-    if( !g_initialized )
+    // Now is the right time to initialize SDL since surface is ready
+    LOGI("SDL_main initializing platform");
+    try
     {
-        LOGI("SDL_main initializing platform");
-        try
-        {
-            android_main_init();
-            g_initialized = true;
-            LOGI("SDL_main initialization completed successfully");
-        }
-        catch( const std::exception& e )
-        {
-            LOGE("SDL_main initialization failed: %s", e.what());
-            return -1;
-        }
+        android_main_init();
+        g_initialized = true;
+        LOGI("SDL_main initialization completed successfully");
+    }
+    catch( const std::exception& e )
+    {
+        LOGE("SDL_main initialization failed: %s", e.what());
+        return -1;
     }
 
     // Run the main loop
     if( g_platform )
     {
-        LOGI("g_platform->runMainLoop - g_platform: %p", g_platform);
+        LOGI("Starting main loop - g_platform: %p", g_platform);
         try
         {
-            // Test if we can call a simple method first
-            LOGI("About to call runMainLoop");
             g_platform->runMainLoop();
-            LOGI("runMainLoop returned");
+            LOGI("Main loop completed");
         }
         catch( const std::exception& e )
         {
-            LOGE("runMainLoop failed: %s", e.what());
+            LOGE("Main loop failed: %s", e.what());
             return -1;
         }
         catch( ... )
         {
-            LOGE("runMainLoop failed with unknown exception");
+            LOGE("Main loop failed with unknown exception");
             return -1;
         }
     }
     else
     {
-        LOGE("SDL_main no platform");
+        LOGE("SDL_main: no platform available");
         return -1;
     }
 
-    LOGI("SDL_main exiting");
+    LOGI("SDL_main exiting normally");
     return 0;
 }

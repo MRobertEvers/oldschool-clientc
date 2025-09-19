@@ -43,6 +43,9 @@ android {
             minifyEnabled false
             debuggable true
             jniDebuggable true
+            ndk {
+                debugSymbolLevel 'FULL'
+            }
         }
     }
     
@@ -59,7 +62,7 @@ android {
     
     sourceSets {
         main {
-            assets.srcDirs = ['src/main/assets']
+            assets.srcDirs = ['src/main/assets', '../cache']
         }
     }
     

@@ -195,12 +195,10 @@ set_target_properties(scene_tile_test_android PROPERTIES
 target_compile_options(scene_tile_test_android PRIVATE
     -Wall
     -Wextra
-    -O3
-    -fvisibility=hidden
 )
 
 # Linker flags for Android
-target_link_options(scene_tile_test_android PRIVATE
-    -Wl,--gc-sections
-    -Wl,--strip-all
-)
+#target_link_options(scene_tile_test_android PRIVATE
+#    -Wl,--gc-sections
+#    -Wl,--strip-all
+#)

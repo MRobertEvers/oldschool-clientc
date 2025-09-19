@@ -1,5 +1,13 @@
 #ifndef ANDROID_PLATFORM_H
 #define ANDROID_PLATFORM_H
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
+#include <android/log.h>
+
+#include <jni.h>
+#include <memory>
+#include <string>
+
 
 #include <SDL.h>
 #include <memory>
