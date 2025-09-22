@@ -2,6 +2,7 @@
 
 #include "screen.h"
 
+#include <assert.h>
 #include <stdbool.h>
 
 #define BOTTOM_Y (SCREEN_HEIGHT)
@@ -596,6 +597,102 @@ static void gouraud_deob_draw_scanline(
 //         }
 //     }
 
+// gouraud_deob_draw_scanline(int* pixels, int y, int x1, int x2, int x3, int hsl1, int hsl2, int
+// hsl3)
+
+static inline void
+gouraud_deob_draw_scanline(
+    int* pixel_buffer,
+    int offset,
+    int var2,
+    int step4,
+    int x_start,
+    int x_end,
+    int hsl8,
+    int hsl_step)
+{
+    if( x_start < 0 || x_end < 0 )
+    {
+        return;
+    }
+
+    if( x_start > WIDTH || x_end > WIDTH )
+    {
+        return;
+    }
+    // if( textureOutOfDrawingBounds )
+    // {
+    //     if( var5 > lastX )
+    //     {
+    //         var5 = lastX;
+    //     }
+
+    //     if( var4 < 0 )
+    //     {
+    //         var4 = 0;
+    //     }
+    // }
+
+    if( x_start < x_end )
+    {
+        offset += x_start;
+        hsl8 += x_start * hsl_step;
+        int var8;
+        int var9;
+        int var10;
+        if( true )
+        {
+            step4 = (x_end - x_start) >> 2;
+            hsl_step <<= 2;
+            if( true )
+            {
+                if( step4 > 0 )
+                {
+                    do
+                    {
+                        var2 = g_hsl16_to_rgb_table[hsl8 >> 8];
+                        hsl8 += hsl_step;
+                        pixel_buffer[offset++] = var2;
+                        pixel_buffer[offset++] = var2;
+                        pixel_buffer[offset++] = var2;
+                        pixel_buffer[offset++] = var2;
+                        --step4;
+                    } while( step4 > 0 );
+                }
+
+                step4 = (x_end - x_start) & 3;
+                if( step4 > 0 )
+                {
+                    var2 = g_hsl16_to_rgb_table[hsl8 >> 8];
+
+                    do
+                    {
+                        pixel_buffer[offset++] = var2;
+                        --step4;
+                    } while( step4 > 0 );
+                }
+            }
+        }
+        else
+        {
+            step4 = x_end - x_start;
+            if( true )
+            {
+                do
+                {
+                    pixel_buffer[offset++] = g_hsl16_to_rgb_table[hsl8 >> 8];
+                    hsl8 += hsl_step;
+                    --step4;
+                } while( step4 > 0 );
+            }
+        }
+    }
+    else
+    {
+        int iii = 0;
+    }
+}
+
 static inline void
 gouraud_deob_draw_triangle(
     int* pixels, int y1, int y2, int y3, int x1, int x2, int x3, int hsl1, int hsl2, int hsl3)
@@ -660,6 +757,7 @@ gouraud_deob_draw_triangle(
                 }
 
                 hsl1 = var19 + ((hsl1 << 8) - x1 * var19);
+                // y1 <= y2 < y3
                 if( y2 < y3 )
                 {
                     x3 = x1 <<= 14;
@@ -769,6 +867,7 @@ gouraud_deob_draw_triangle(
                         y3 = 0;
                     }
 
+                    // y1 <= y3 <= y2
                     if( y1 != y3 && dxdy_AC < dxdy_AB || y1 == y3 && dxdy_BC > dxdy_AB )
                     {
                         y2 -= y3;
@@ -788,6 +887,7 @@ gouraud_deob_draw_triangle(
                                         return;
                                     }
 
+                                    assert(x3 >> 14 <= x1 >> 14);
                                     gouraud_deob_draw_scanline(
                                         pixels, y1, 0, 0, x3 >> 14, x1 >> 14, hsl1, var19);
                                     x3 += dxdy_BC;
@@ -797,6 +897,7 @@ gouraud_deob_draw_triangle(
                                 }
                             }
 
+                            assert(x2 >> 14 <= x1 >> 14);
                             gouraud_deob_draw_scanline(
                                 pixels, y1, 0, 0, x2 >> 14, x1 >> 14, hsl1, var19);
                             x2 += dxdy_AC;
@@ -1239,93 +1340,5 @@ gouraud_deob_draw_triangle(
                 }
             }
         }
-    }
-}
-// gouraud_deob_draw_scanline(int* pixels, int y, int x1, int x2, int x3, int hsl1, int hsl2, int
-// hsl3)
-
-static inline void
-gouraud_deob_draw_scanline(
-    int* var0, int var1, int var2, int var3, int var4, int var5, int var6, int var7)
-{
-    if( var4 < 0 || var5 < 0 )
-    {
-        return;
-    }
-
-    if( var4 > WIDTH || var5 > WIDTH )
-    {
-        return;
-    }
-    // if( textureOutOfDrawingBounds )
-    // {
-    //     if( var5 > lastX )
-    //     {
-    //         var5 = lastX;
-    //     }
-
-    //     if( var4 < 0 )
-    //     {
-    //         var4 = 0;
-    //     }
-    // }
-
-    if( var4 < var5 )
-    {
-        var1 += var4;
-        var6 += var4 * var7;
-        int var8;
-        int var9;
-        int var10;
-        if( true )
-        {
-            var3 = (var5 - var4) >> 2;
-            var7 <<= 2;
-            if( true )
-            {
-                if( var3 > 0 )
-                {
-                    do
-                    {
-                        var2 = g_hsl16_to_rgb_table[var6 >> 8];
-                        var6 += var7;
-                        var0[var1++] = var2;
-                        var0[var1++] = var2;
-                        var0[var1++] = var2;
-                        var0[var1++] = var2;
-                        --var3;
-                    } while( var3 > 0 );
-                }
-
-                var3 = (var5 - var4) & 3;
-                if( var3 > 0 )
-                {
-                    var2 = g_hsl16_to_rgb_table[var6 >> 8];
-
-                    do
-                    {
-                        var0[var1++] = var2;
-                        --var3;
-                    } while( var3 > 0 );
-                }
-            }
-        }
-        else
-        {
-            var3 = var5 - var4;
-            if( true )
-            {
-                do
-                {
-                    var0[var1++] = g_hsl16_to_rgb_table[var6 >> 8];
-                    var6 += var7;
-                    --var3;
-                } while( var3 > 0 );
-            }
-        }
-    }
-    else
-    {
-        int iii = 0;
     }
 }
