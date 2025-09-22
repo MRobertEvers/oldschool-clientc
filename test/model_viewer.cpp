@@ -612,48 +612,48 @@ m_draw_face(struct SceneModel* model, int face_index)
     int color_b = model->lighting->face_colors_hsl_b[face_index];
     int color_c = model->lighting->face_colors_hsl_c[face_index];
 
-    uint64_t deob_start = SDL_GetPerformanceCounter();
-    gouraud_deob_draw_triangle(
-        _Pix3D.pixel_buffer, ay, by, cy, ax, bx, cx, color_a, color_b, color_c);
-    uint64_t deob_end = SDL_GetPerformanceCounter();
-    _Pix3D.deob_sum += deob_end - deob_start;
-    _Pix3D.deob_count++;
+    // uint64_t deob_start = SDL_GetPerformanceCounter();
+    // gouraud_deob_draw_triangle(
+    //     _Pix3D.pixel_buffer, ay, by, cy, ax, bx, cx, color_a, color_b, color_c);
+    // uint64_t deob_end = SDL_GetPerformanceCounter();
+    // _Pix3D.deob_sum += deob_end - deob_start;
+    // _Pix3D.deob_count++;
 
-    uint64_t s4_start = SDL_GetPerformanceCounter();
-    raster_gouraud_s4(
-        _Pix3D.pixel_buffer, //
-        _Pix3D.width,
-        _Pix3D.height,
-        ax,
-        bx,
-        cx,
-        ay,
-        by,
-        cy,
-        color_a,
-        color_b,
-        color_c);
-    uint64_t s4_end = SDL_GetPerformanceCounter();
-    _Pix3D.s4_sum += s4_end - s4_start;
-    _Pix3D.s4_count++;
+    // uint64_t s4_start = SDL_GetPerformanceCounter();
+    // raster_gouraud_s4(
+    //     _Pix3D.pixel_buffer, //
+    //     _Pix3D.width,
+    //     _Pix3D.height,
+    //     ax,
+    //     bx,
+    //     cx,
+    //     ay,
+    //     by,
+    //     cy,
+    //     color_a,
+    //     color_b,
+    //     color_c);
+    // uint64_t s4_end = SDL_GetPerformanceCounter();
+    // _Pix3D.s4_sum += s4_end - s4_start;
+    // _Pix3D.s4_count++;
 
-    uint64_t bs4_start = SDL_GetPerformanceCounter();
-    raster_gouraud_bs4(
-        _Pix3D.pixel_buffer, //
-        _Pix3D.width,
-        _Pix3D.height,
-        ax,
-        bx,
-        cx,
-        ay,
-        by,
-        cy,
-        color_a,
-        color_b,
-        color_c);
-    uint64_t bs4_end = SDL_GetPerformanceCounter();
-    _Pix3D.bs4_sum += bs4_end - bs4_start;
-    _Pix3D.bs4_count++;
+    // uint64_t bs4_start = SDL_GetPerformanceCounter();
+    // raster_gouraud_bs4(
+    //     _Pix3D.pixel_buffer, //
+    //     _Pix3D.width,
+    //     _Pix3D.height,
+    //     ax,
+    //     bx,
+    //     cx,
+    //     ay,
+    //     by,
+    //     cy,
+    //     color_a,
+    //     color_b,
+    //     color_c);
+    // uint64_t bs4_end = SDL_GetPerformanceCounter();
+    // _Pix3D.bs4_sum += bs4_end - bs4_start;
+    // _Pix3D.bs4_count++;
 
     uint64_t bary_bs4_start = SDL_GetPerformanceCounter();
     raster_gouraud_bary_bs4(
@@ -1647,7 +1647,7 @@ main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            // SDL_Delay(target_frame_time - frame_time);
+            SDL_Delay(target_frame_time - frame_time);
         }
 
         last_frame_time = frame_end_time;

@@ -63,7 +63,7 @@ draw_scanline_gouraud_ordered_bary_bs4(
     }
 
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
-    steps = (stride) & 0x3;
+    steps = ((stride) & 0x3);
     switch( steps )
     {
     case 3:
@@ -126,8 +126,8 @@ raster_gouraud_ordered_bary_bs4(
         // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
 
         // assert(dy_AC < 4096);
-        step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
-        // step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
+        // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
+        step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
     }
     else
         step_edge_x_AC_ish16 = 0;
@@ -135,8 +135,8 @@ raster_gouraud_ordered_bary_bs4(
     if( dy_AB > 0 && dy_AB < 4096 )
     {
         // assert(dy_AB < 4096);
-        step_edge_x_AB_ish16 = (dx_AB)*g_reciprocal16[dy_AB];
-        // step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
+        // step_edge_x_AB_ish16 = (dx_AB)*g_reciprocal16[dy_AB];
+        step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
     }
     else
         step_edge_x_AB_ish16 = 0;
@@ -144,8 +144,8 @@ raster_gouraud_ordered_bary_bs4(
     if( y2 != y1 && y2 - y1 < 4096 )
     {
         // assert(y2 - y1 < 4096);
-        step_edge_x_BC_ish16 = ((x2 - x1)) * g_reciprocal16[y2 - y1];
-        // step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
+        // step_edge_x_BC_ish16 = ((x2 - x1)) * g_reciprocal16[y2 - y1];
+        step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
     }
     else
         step_edge_x_BC_ish16 = 0;
@@ -187,6 +187,10 @@ raster_gouraud_ordered_bary_bs4(
         y1 = screen_height - 1;
         y2 = screen_height - 1;
     }
+    else if( y2 >= screen_height )
+    {
+        y2 = screen_height - 1;
+    }
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
@@ -196,6 +200,8 @@ raster_gouraud_ordered_bary_bs4(
 
         while( --y1 > 0 )
         {
+            assert(offset < screen_width * screen_height);
+
             draw_scanline_gouraud_ordered_bary_bs4(
                 pixel_buffer,
                 offset,
@@ -216,6 +222,8 @@ raster_gouraud_ordered_bary_bs4(
 
         while( --y2 > 0 )
         {
+            assert(offset < screen_width * screen_height);
+
             draw_scanline_gouraud_ordered_bary_bs4(
                 pixel_buffer,
                 offset,
@@ -240,6 +248,7 @@ raster_gouraud_ordered_bary_bs4(
 
         while( --y1 > 0 )
         {
+            assert(offset < screen_width * screen_height);
             // if( i >= screen_height )
             //     break;
 
@@ -262,6 +271,8 @@ raster_gouraud_ordered_bary_bs4(
 
         while( --y2 > 0 )
         {
+            assert(offset < screen_width * screen_height);
+
             draw_scanline_gouraud_ordered_bary_bs4(
                 pixel_buffer,
                 offset,
