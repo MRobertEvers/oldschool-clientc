@@ -27,8 +27,8 @@ raster_gouraud(
 {
     if( alpha == 0xFF )
     {
-        // raster_gouraud_s4(
-        raster_gouraud_bary_bs4(
+        raster_gouraud_s4(
+            // raster_gouraud_bary_bs4(
             pixel_buffer,
             screen_width,
             screen_height,

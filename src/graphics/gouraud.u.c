@@ -4,6 +4,7 @@
 #include "alpha.h"
 
 #include <assert.h>
+extern int g_reciprocal16[2048];
 #include <stdbool.h>
 
 // clang-format off
