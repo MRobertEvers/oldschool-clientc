@@ -5,6 +5,12 @@
 #include <stdbool.h>
 extern int g_hsl16_to_rgb_table[65536];
 
+/**
+ * Tested on Mac M4.
+ *
+ * This is slower than the "sorting" version on P-Cores.
+ * For E-Cores, this is faster. E.g. Running in lower power mode.
+ */
 static inline void
 draw_scanline_gouraud_ordered_bary_bs4(
     int* pixel_buffer,
@@ -122,6 +128,12 @@ raster_gouraud_ordered_bary_bs4(
         step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
     else
         step_edge_x_BC_ish16 = 0;
+
+    if( y1 >= screen_height )
+        y1 = screen_height - 1;
+
+    if( y2 >= screen_height )
+        y2 = screen_height - 1;
 
     /*
      *          /\      y0 (A)
@@ -274,12 +286,6 @@ raster_gouraud_bary_bs4(
             if( y2 < 0 )
                 return;
 
-            if( y1 >= screen_height )
-                y1 = screen_height - 1;
-
-            if( y2 >= screen_height )
-                y2 = screen_height - 1;
-
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
                 screen_width,
@@ -299,12 +305,6 @@ raster_gouraud_bary_bs4(
         {
             if( y1 < 0 )
                 return;
-
-            if( y1 >= screen_height )
-                y1 = screen_height - 1;
-
-            if( y2 >= screen_height )
-                y2 = screen_height - 1;
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
@@ -332,12 +332,6 @@ raster_gouraud_bary_bs4(
             if( y0 < 0 )
                 return;
 
-            if( y0 >= screen_height )
-                y0 = screen_height - 1;
-
-            if( y2 >= screen_height )
-                y2 = screen_height - 1;
-
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
                 screen_width,
@@ -357,12 +351,6 @@ raster_gouraud_bary_bs4(
         {
             if( y2 < 0 )
                 return;
-
-            if( y0 >= screen_height )
-                y0 = screen_height - 1;
-
-            if( y2 >= screen_height )
-                y2 = screen_height - 1;
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
@@ -390,12 +378,6 @@ raster_gouraud_bary_bs4(
             if( y1 < 0 )
                 return;
 
-            if( y1 >= screen_height )
-                y1 = screen_height - 1;
-
-            if( y0 >= screen_height )
-                y0 = screen_height - 1;
-
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
                 screen_width,
@@ -415,12 +397,6 @@ raster_gouraud_bary_bs4(
         {
             if( y0 < 0 )
                 return;
-
-            if( y1 >= screen_height )
-                y1 = screen_height - 1;
-
-            if( y0 >= screen_height )
-                y0 = screen_height - 1;
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,

@@ -2319,7 +2319,7 @@ main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            // SDL_Delay(target_frame_time - frame_time);
+            SDL_Delay(target_frame_time - frame_time);
         }
     }
 
