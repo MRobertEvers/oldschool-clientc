@@ -301,10 +301,12 @@ struct Pix3D
     uint64_t deob_sum;
     uint64_t s4_sum;
     uint64_t bs4_sum;
+    uint64_t bary_bs4_sum;
 
     int deob_count;
     int s4_count;
     int bs4_count;
+    int bary_bs4_count;
 } _Pix3D;
 
 void
@@ -489,10 +491,11 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
 
     ImGui::Text(
-        "S4, deob, bs4: %.4f, %.4f, %.4f us",
+        "S4, deob, bs4, bary_bs4: %.4f, %.4f, %.4f, %.4f us",
         ((((double)_Pix3D.s4_sum) / _Pix3D.s4_count) * 1000000.0 / (double)frequency),
         ((((double)_Pix3D.deob_sum) / _Pix3D.deob_count) * 1000000.0 / (double)frequency),
-        ((((double)_Pix3D.bs4_sum) / _Pix3D.bs4_count) * 1000000.0 / (double)frequency));
+        ((((double)_Pix3D.bs4_sum) / _Pix3D.bs4_count) * 1000000.0 / (double)frequency),
+        ((((double)_Pix3D.bary_bs4_sum) / _Pix3D.bary_bs4_count) * 1000000.0 / (double)frequency));
 
     // Camera position with copy button
     char camera_pos_text[256];
@@ -586,7 +589,8 @@ calculate_bounding_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int*
 }
 
 extern "C" {
-
+#include "graphics/gouraud_branching.c"
+#include "graphics/gouraud_branching_barycentric.c"
 #include "graphics/gouraud_deob.c"
 }
 
@@ -608,30 +612,30 @@ m_draw_face(struct SceneModel* model, int face_index)
     int color_b = model->lighting->face_colors_hsl_b[face_index];
     int color_c = model->lighting->face_colors_hsl_c[face_index];
 
-    // uint64_t deob_start = SDL_GetPerformanceCounter();
-    // gouraud_deob_draw_triangle(
-    //     _Pix3D.pixel_buffer, ay, by, cy, ax, bx, cx, color_a, color_b, color_c);
-    // uint64_t deob_end = SDL_GetPerformanceCounter();
-    // _Pix3D.deob_sum += deob_end - deob_start;
-    // _Pix3D.deob_count++;
+    uint64_t deob_start = SDL_GetPerformanceCounter();
+    gouraud_deob_draw_triangle(
+        _Pix3D.pixel_buffer, ay, by, cy, ax, bx, cx, color_a, color_b, color_c);
+    uint64_t deob_end = SDL_GetPerformanceCounter();
+    _Pix3D.deob_sum += deob_end - deob_start;
+    _Pix3D.deob_count++;
 
-    // uint64_t s4_start = SDL_GetPerformanceCounter();
-    // raster_gouraud_s4(
-    //     _Pix3D.pixel_buffer, //
-    //     _Pix3D.width,
-    //     _Pix3D.height,
-    //     ax,
-    //     bx,
-    //     cx,
-    //     ay,
-    //     by,
-    //     cy,
-    //     color_a,
-    //     color_b,
-    //     color_c);
-    // uint64_t s4_end = SDL_GetPerformanceCounter();
-    // _Pix3D.s4_sum += s4_end - s4_start;
-    // _Pix3D.s4_count++;
+    uint64_t s4_start = SDL_GetPerformanceCounter();
+    raster_gouraud_s4(
+        _Pix3D.pixel_buffer, //
+        _Pix3D.width,
+        _Pix3D.height,
+        ax,
+        bx,
+        cx,
+        ay,
+        by,
+        cy,
+        color_a,
+        color_b,
+        color_c);
+    uint64_t s4_end = SDL_GetPerformanceCounter();
+    _Pix3D.s4_sum += s4_end - s4_start;
+    _Pix3D.s4_count++;
 
     uint64_t bs4_start = SDL_GetPerformanceCounter();
     raster_gouraud_bs4(
@@ -650,6 +654,24 @@ m_draw_face(struct SceneModel* model, int face_index)
     uint64_t bs4_end = SDL_GetPerformanceCounter();
     _Pix3D.bs4_sum += bs4_end - bs4_start;
     _Pix3D.bs4_count++;
+
+    uint64_t bary_bs4_start = SDL_GetPerformanceCounter();
+    raster_gouraud_bary_bs4(
+        _Pix3D.pixel_buffer, //
+        _Pix3D.width,
+        _Pix3D.height,
+        ax,
+        bx,
+        cx,
+        ay,
+        by,
+        cy,
+        color_a,
+        color_b,
+        color_c);
+    uint64_t bary_bs4_end = SDL_GetPerformanceCounter();
+    _Pix3D.bary_bs4_sum += bary_bs4_end - bary_bs4_start;
+    _Pix3D.bary_bs4_count++;
 }
 
 static void
@@ -1260,7 +1282,7 @@ main(int argc, char* argv[])
     int period_pressed = 0;
 
     bool quit = false;
-    int speed = 200;
+    int speed = 10;
     SDL_Event event;
 
     // Frame timing variables
@@ -1510,27 +1532,28 @@ main(int argc, char* argv[])
             // game.fake_pitch = (game.fake_pitch - 10 + 2048) % 2048;
         }
 
+        int angle_delta = 20;
         if( up_pressed )
         {
-            game.camera_pitch = (game.camera_pitch + 10) % 2048;
+            game.camera_pitch = (game.camera_pitch + angle_delta) % 2048;
             camera_moved = 1;
         }
 
         if( left_pressed )
         {
-            game.camera_yaw = (game.camera_yaw + 10) % 2048;
+            game.camera_yaw = (game.camera_yaw + angle_delta) % 2048;
             camera_moved = 1;
         }
 
         if( right_pressed )
         {
-            game.camera_yaw = (game.camera_yaw - 10 + 2048) % 2048;
+            game.camera_yaw = (game.camera_yaw - angle_delta + 2048) % 2048;
             camera_moved = 1;
         }
 
         if( down_pressed )
         {
-            game.camera_pitch = (game.camera_pitch - 10 + 2048) % 2048;
+            game.camera_pitch = (game.camera_pitch - angle_delta + 2048) % 2048;
             camera_moved = 1;
         }
 

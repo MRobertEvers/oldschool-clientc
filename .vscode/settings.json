@@ -127,6 +127,7 @@
         "assert.h": "c",
         "shade.h": "c",
         "mach_time.h": "c",
-        "immintrin.h": "c"
+        "immintrin.h": "c",
+        "gouraud_branching_barycentric.c": "cpp"
     }
 }

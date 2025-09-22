@@ -6,6 +6,7 @@
 #include "gouraud.u.c"
 #include "render_clip.u.c"
 #include "render_face_alpha.u.c"
+#include "gouraud_branching_barycentric.c"
 // clang-format on
 
 static inline void
@@ -27,6 +28,7 @@ raster_gouraud(
     if( alpha == 0xFF )
     {
         raster_gouraud_s4(
+            // raster_gouraud_bary_bs4(
             pixel_buffer,
             screen_width,
             screen_height,
