@@ -29,10 +29,7 @@ draw_scanline_gouraud_ordered_bary_bs4(
         x_end = screen_width - 1;
 
     if( x_start < 0 )
-    {
-        color_hsl16_ish8 -= x_start * color_step_hsl16_ish8;
         x_start = 0;
-    }
 
     if( x_start >= x_end )
         return;
