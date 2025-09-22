@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <stdbool.h>
 extern int g_hsl16_to_rgb_table[65536];
-extern int g_reciprocal16[2048];
+extern int g_reciprocal16[4096];
 
 /**
  * Tested on Mac M4.
@@ -193,8 +193,8 @@ raster_gouraud_ordered_bary_bs4(
                 offset,
                 screen_width,
                 0,
-                edge_x_AB_ish16 >> 16,
-                edge_x_AC_ish16 >> 16,
+                edge_x_AB_ish16,
+                edge_x_AC_ish16,
                 hsl_ish8,
                 step_x_hsl_ish8);
 
@@ -212,8 +212,8 @@ raster_gouraud_ordered_bary_bs4(
                 offset,
                 screen_width,
                 0,
-                edge_x_BC_ish16 >> 16,
-                edge_x_AC_ish16 >> 16,
+                edge_x_BC_ish16,
+                edge_x_AC_ish16,
                 hsl_ish8,
                 step_x_hsl_ish8);
 
@@ -223,27 +223,6 @@ raster_gouraud_ordered_bary_bs4(
             hsl_ish8 += step_y_hsl_ish8;
             offset += screen_width;
         }
-        // for( ; i < y2; ++i )
-        // {
-        //     // if( i >= screen_height )
-        //     //     break;
-
-        //     draw_scanline_gouraud_ordered_bary_bs4(
-        //         pixel_buffer,
-        //         offset,
-        //         screen_width,
-        //         i,
-        //         edge_x_BC_ish16 >> 16,
-        //         edge_x_AC_ish16 >> 16,
-        //         hsl_ish8,
-        //         step_x_hsl_ish8);
-
-        //     edge_x_AC_ish16 += step_edge_x_AC_ish16;
-        //     edge_x_BC_ish16 += step_edge_x_BC_ish16;
-
-        //     hsl_ish8 += step_y_hsl_ish8;
-        //     offset += screen_width;
-        // }
     }
     else
     {

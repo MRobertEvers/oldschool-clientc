@@ -10,7 +10,8 @@ int g_sin_table[2048];
 int g_cos_table[2048];
 int g_tan_table[2048];
 
-int g_reciprocal16[2048];
+int g_reciprocal15[4096];
+int g_reciprocal16[4096];
 int g_reciprocal16_simd[8192];
 
 int
@@ -159,8 +160,11 @@ init_tan_table()
 void
 init_reciprocal16()
 {
-    for( int i = 1; i < 2048; i++ )
+    for( int i = 1; i < 4096; i++ )
         g_reciprocal16[i] = ((1 << 16) / i);
+
+    for( int i = 1; i < 4096; i++ )
+        g_reciprocal15[i] = ((1 << 15) / i);
 
     for( int i = 1; i < 8192; i++ )
         g_reciprocal16_simd[i] = ((1 << 16) / i);

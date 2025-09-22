@@ -14,15 +14,14 @@ extern int g_sin_table[2048];
 extern int g_cos_table[2048];
 extern int g_tan_table[2048];
 
-extern int g_reciprocal16[2048];
+extern int g_reciprocal16[4096];
+extern int g_reciprocal15[4096];
 
 void init_hsl16_to_rgb_table(void);
 void init_sin_table(void);
 void init_cos_table(void);
 void init_tan_table(void);
 void init_reciprocal16(void);
-
-
 
 #ifdef __cplusplus
 }

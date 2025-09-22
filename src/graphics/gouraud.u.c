@@ -4,7 +4,8 @@
 #include "alpha.h"
 
 #include <assert.h>
-extern int g_reciprocal16[2048];
+extern int g_reciprocal15[4096];
+extern int g_reciprocal16[4096];
 #include <stdbool.h>
 
 // clang-format off
@@ -495,17 +496,24 @@ raster_gouraud_s4(
     int step_edge_x_BC_ish16;
 
     if( dy_AC > 0 )
-        step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
+    {
+        // step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
+        step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
+    }
     else
         step_edge_x_AC_ish16 = 0;
 
     if( dy_AB > 0 )
-        step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
+    {
+        // step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
+        step_edge_x_AB_ish16 = (dx_AB)*g_reciprocal16[dy_AB];
+    }
     else
         step_edge_x_AB_ish16 = 0;
 
     if( dy_BC > 0 )
-        step_edge_x_BC_ish16 = (dx_BC << 16) / dy_BC;
+        // step_edge_x_BC_ish16 = (dx_BC << 16) / dy_BC;
+        step_edge_x_BC_ish16 = (dx_BC)*g_reciprocal16[dy_BC];
     else
         step_edge_x_BC_ish16 = 0;
 
@@ -530,15 +538,20 @@ raster_gouraud_s4(
     int step_edge_color_BC_ish15;
 
     if( dy_AC > 0 )
-        step_edge_color_AC_ish15 = (dcolor_AC << 15) / dy_AC;
+    {
+        // step_edge_color_AC_ish15 = (dcolor_AC << 15) / dy_AC;
+        step_edge_color_AC_ish15 = (dcolor_AC)*g_reciprocal15[dy_AC];
+    }
     else
         step_edge_color_AC_ish15 = 0;
     if( dy_AB > 0 )
-        step_edge_color_AB_ish15 = (dcolor_AB << 15) / dy_AB;
+        // step_edge_color_AB_ish15 = (dcolor_AB << 15) / dy_AB;
+        step_edge_color_AB_ish15 = (dcolor_AB)*g_reciprocal15[dy_AB];
     else
         step_edge_color_AB_ish15 = 0;
     if( dy_BC > 0 )
-        step_edge_color_BC_ish15 = (dcolor_BC << 15) / dy_BC;
+        // step_edge_color_BC_ish15 = (dcolor_BC << 15) / dy_BC;
+        step_edge_color_BC_ish15 = (dcolor_BC)*g_reciprocal15[dy_BC];
     else
         step_edge_color_BC_ish15 = 0;
 
