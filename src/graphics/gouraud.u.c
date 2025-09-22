@@ -3,7 +3,6 @@
 
 #include "alpha.h"
 
-#include <assert.h>
 extern int g_reciprocal15[4096];
 extern int g_reciprocal16[4096];
 #include <stdbool.h>
@@ -125,7 +124,6 @@ draw_scanline_gouraud_alpha_s4(
     }
 
     int dx_stride = x_end - x_start;
-    assert(dx_stride > 0);
 
     int dcolor_hsl16_ish8 = color_end_hsl16_ish8 - color_start_hsl16_ish8;
 
