@@ -113,13 +113,18 @@ raster_gouraud_ordered_bary_bs4(
     int step_x_hsl_ish8 = ((d_hsl_AB * dy_AC - d_hsl_AC * dy_AB) << 8) / sarea;
     int step_y_hsl_ish8 = ((d_hsl_AC * dx_AB - d_hsl_AB * dx_AC) << 8) / sarea;
 
-    // AC is the longest edge
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;
     int step_edge_x_BC_ish16;
 
+    /**
+     * Attention! This relies on the reciprocol table, and that triangles that
+     * are too big are already clipped away.
+     */
     if( dy_AC > 0 )
     {
+        // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
+
         step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
         // step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
     }
