@@ -129,11 +129,8 @@ raster_gouraud_ordered_bary_bs4(
     else
         step_edge_x_BC_ish16 = 0;
 
-    if( y1 >= screen_height )
-        y1 = screen_height - 1;
-
-    if( y2 >= screen_height )
-        y2 = screen_height - 1;
+    y1 = y1 >= screen_height ? screen_height - 1 : y1;
+    y2 = y2 >= screen_height ? screen_height - 1 : y2;
 
     /*
      *          /\      y0 (A)
@@ -283,7 +280,7 @@ raster_gouraud_bary_bs4(
         // y0, y1, y2,
         if( y1 <= y2 )
         {
-            if( y2 < 0 )
+            if( y2 < 0 || y0 >= screen_height )
                 return;
 
             raster_gouraud_ordered_bary_bs4(
@@ -303,7 +300,7 @@ raster_gouraud_bary_bs4(
         // y0, y2, y1,
         else
         {
-            if( y1 < 0 )
+            if( y1 < 0 || y0 >= screen_height )
                 return;
 
             raster_gouraud_ordered_bary_bs4(
@@ -329,7 +326,7 @@ raster_gouraud_bary_bs4(
         // y1, y2, y0
         if( y2 <= y0 )
         {
-            if( y0 < 0 )
+            if( y0 < 0 || y1 >= screen_height )
                 return;
 
             raster_gouraud_ordered_bary_bs4(
@@ -349,7 +346,7 @@ raster_gouraud_bary_bs4(
         // y1, y0, y2,
         else
         {
-            if( y2 < 0 )
+            if( y2 < 0 || y1 >= screen_height )
                 return;
 
             raster_gouraud_ordered_bary_bs4(
@@ -375,7 +372,7 @@ raster_gouraud_bary_bs4(
         // y2, y0, y1,
         if( y0 <= y1 )
         {
-            if( y1 < 0 )
+            if( y1 < 0 || y2 >= screen_height )
                 return;
 
             raster_gouraud_ordered_bary_bs4(
@@ -395,7 +392,7 @@ raster_gouraud_bary_bs4(
         // y2, y1, y0,
         else
         {
-            if( y0 < 0 )
+            if( y0 < 0 || y2 >= screen_height )
                 return;
 
             raster_gouraud_ordered_bary_bs4(
