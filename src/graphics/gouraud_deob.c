@@ -1327,5 +1327,6 @@ gouraud_deob_draw_scanline(
     else
     {
         int iii = 0;
+        assert(0);
     }
 }
