@@ -68,7 +68,7 @@ draw_scanline_gouraud_s4(
     step_color_hsl16_ish8 <<= 2;
 
     int color_hsl16_ish8 = color_start_hsl16_ish8;
-    while( --steps >= 0 )
+    while( steps > 0 )
     {
         int color_hsl16 = color_hsl16_ish8 >> 8;
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
@@ -80,6 +80,8 @@ draw_scanline_gouraud_s4(
         }
 
         color_hsl16_ish8 += step_color_hsl16_ish8;
+
+        steps -= 1;
     }
 
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];

@@ -39,7 +39,7 @@ draw_scanline_gouraud_ordered_bary_bs4(
     int steps = (stride) >> 2;
     color_step_hsl16_ish8 <<= 2;
 
-    while( --steps >= 0 )
+    while( steps > 0 )
     {
         int color_hsl16 = color_hsl16_ish8 >> 8;
         int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
@@ -51,6 +51,8 @@ draw_scanline_gouraud_ordered_bary_bs4(
         }
 
         color_hsl16_ish8 += color_step_hsl16_ish8;
+
+        steps -= 1;
     }
 
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
@@ -133,7 +135,6 @@ raster_gouraud_ordered_bary_bs4(
     int edge_x_BC_ish16 = x1 << 16;
 
     int hsl_ish8 = step_x_hsl_ish8 + (color0_hsl16 << 8) - (x0 * step_x_hsl_ish8);
-    int offset = y0 * screen_width;
 
     if( y0 < 0 )
     {
@@ -151,6 +152,8 @@ raster_gouraud_ordered_bary_bs4(
 
         y1 = 0;
     }
+
+    int offset = y0 * screen_width;
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
