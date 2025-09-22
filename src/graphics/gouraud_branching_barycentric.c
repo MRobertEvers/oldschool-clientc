@@ -121,31 +121,31 @@ raster_gouraud_ordered_bary_bs4(
      * Attention! This relies on the reciprocol table, and that triangles that
      * are too big are already clipped away.
      */
-    if( dy_AC > 0 )
+    if( dy_AC > 0 && dy_AC < 4096 )
     {
         // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
 
-        assert(dy_AC < 4096);
-        // step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
-        step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
+        // assert(dy_AC < 4096);
+        step_edge_x_AC_ish16 = (dx_AC)*g_reciprocal16[dy_AC];
+        // step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
     }
     else
         step_edge_x_AC_ish16 = 0;
 
-    if( dy_AB > 0 )
+    if( dy_AB > 0 && dy_AB < 4096 )
     {
-        assert(dy_AB < 4096);
-        // step_edge_x_AB_ish16 = (dx_AB)*g_reciprocal16[dy_AB];
-        step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
+        // assert(dy_AB < 4096);
+        step_edge_x_AB_ish16 = (dx_AB)*g_reciprocal16[dy_AB];
+        // step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
     }
     else
         step_edge_x_AB_ish16 = 0;
 
-    if( y2 != y1 )
+    if( y2 != y1 && y2 - y1 < 4096 )
     {
         // assert(y2 - y1 < 4096);
-        // step_edge_x_BC_ish16 = ((x2 - x1)) * g_reciprocal16[y2 - y1];
-        step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
+        step_edge_x_BC_ish16 = ((x2 - x1)) * g_reciprocal16[y2 - y1];
+        // step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
     }
     else
         step_edge_x_BC_ish16 = 0;
