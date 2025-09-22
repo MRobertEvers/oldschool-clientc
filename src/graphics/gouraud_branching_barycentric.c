@@ -16,14 +16,11 @@ draw_scanline_gouraud_ordered_bary_bs4(
     int color_hsl16_ish8,
     int color_step_hsl16_ish8)
 {
-    if( x_start >= screen_width || x_end < 0 )
+    if( x_start == x_end )
         return;
 
     if( x_end >= screen_width )
         x_end = screen_width - 1;
-
-    if( x_start >= x_end )
-        return;
 
     if( x_start < 0 )
     {
@@ -31,7 +28,9 @@ draw_scanline_gouraud_ordered_bary_bs4(
         x_start = 0;
     }
 
-    int start_offset = offset;
+    if( x_start >= x_end )
+        return;
+
     offset += x_start;
     color_hsl16_ish8 += x_start * color_step_hsl16_ish8;
 
@@ -56,7 +55,6 @@ draw_scanline_gouraud_ordered_bary_bs4(
 
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
     steps = (stride) & 0x3;
-    assert(offset + steps < start_offset + screen_width);
     switch( steps )
     {
     case 3:

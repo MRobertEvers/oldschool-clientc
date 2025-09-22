@@ -16,7 +16,7 @@ extern int g_hsl16_to_rgb_table[65536];
 static inline void
 draw_scanline_gouraud_s4(
     int* pixel_buffer,
-    int stride_width,
+    int screen_width,
     int y,
     int x_start,
     int x_end,
@@ -47,9 +47,9 @@ draw_scanline_gouraud_s4(
         step_color_hsl16_ish8 = dcolor_hsl16_ish8 / dx_stride;
     }
 
-    if( x_end >= stride_width )
+    if( x_end >= screen_width )
     {
-        x_end = stride_width - 1;
+        x_end = screen_width - 1;
     }
     if( x_start < 0 )
     {
@@ -63,7 +63,7 @@ draw_scanline_gouraud_s4(
     dx_stride = x_end - x_start;
 
     // Steps by 4.
-    int offset = x_start + y * stride_width;
+    int offset = x_start + y * screen_width;
     int steps = (dx_stride) >> 2;
     step_color_hsl16_ish8 <<= 2;
 
