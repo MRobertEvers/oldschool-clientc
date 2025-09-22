@@ -198,7 +198,7 @@ raster_gouraud_ordered_bary_bs4(
         y2 -= y1;
         y1 -= y0;
 
-        while( --y1 > 0 )
+        while( y1-- > 0 )
         {
             assert(offset < screen_width * screen_height);
 
@@ -220,7 +220,7 @@ raster_gouraud_ordered_bary_bs4(
             offset += screen_width;
         }
 
-        while( --y2 > 0 )
+        while( y2-- > 0 )
         {
             assert(offset < screen_width * screen_height);
 
@@ -246,7 +246,7 @@ raster_gouraud_ordered_bary_bs4(
         y2 -= y1;
         y1 -= y0;
 
-        while( --y1 > 0 )
+        while( y1-- > 0 )
         {
             assert(offset < screen_width * screen_height);
             // if( i >= screen_height )
@@ -269,7 +269,7 @@ raster_gouraud_ordered_bary_bs4(
             offset += screen_width;
         }
 
-        while( --y2 > 0 )
+        while( y2-- > 0 )
         {
             assert(offset < screen_width * screen_height);
 
