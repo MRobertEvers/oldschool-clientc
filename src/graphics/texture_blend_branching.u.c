@@ -596,8 +596,8 @@ raster_texture_opaque_blend_blerp8(
                 orthographic_uvorigin_z0,
                 orthographic_uend_z1,
                 orthographic_vend_z2,
-                shade7bit_c,
                 shade7bit_b,
+                shade7bit_c,
                 shade7bit_a,
                 texels,
                 texture_width);

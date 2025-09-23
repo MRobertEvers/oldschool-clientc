@@ -50,14 +50,13 @@ brew install sdl2
 
 ### TODOS
 
-1. Fix the need to `long long` in the texture renderer.
-2. lighting for models - mergedgrounddecor
 3. Consolodate sprite pixel loading.
 4. Consolodate pixel blending
 5. Consolodate face modes. (the whole colorc == -2 thing)
-6. Animated textures
-7. Scene manager (manage lifetimes of models etc, )
-8. Varbits and VarP transforms. e.g. Lumbridge castle bank not showing.
+6. Scene manager (manage lifetimes of models etc, )
+7. Varbits and VarP transforms. e.g. Lumbridge castle bank not showing.
+8. Do not load cache into memory, read from disk mode.
+9. Network cache + inprocess server + multicast discovery (because i'm lazy)
 
 Software rester
 
@@ -1209,7 +1208,6 @@ raster_osrs_single_gouraud_near_clip(
     int* pixel_buffer,
 ```
 
-
 ## Android APKs
 
 Windows
@@ -1223,7 +1221,6 @@ adb install -r path/to/your/app.apk
 adb install -r -d path/to/your/app.apk
 ```
 
-
 ## CPU Mark Result
 
 The Moto X is comparable to the Pentium 4.
@@ -1233,7 +1230,6 @@ Motorola Moto X
 Integer Math: 1,419 MOps/Sec
 Floating Point Math: 625 MOps/Sec
 Single Thread: 851 MOps/Sec
-
 
 Pentium 4 (From Website)
 
