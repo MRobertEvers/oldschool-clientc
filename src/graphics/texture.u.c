@@ -120,11 +120,8 @@ raster_texture_scanline_transparent_blend_lerp8(
     int lerp8_last_steps = steps & 0x7;
     int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
     int shade;
-    do
+    while( lerp8_steps-- > 0 )
     {
-        if( lerp8_steps == 0 )
-            break;
-
         int w = (cw) >> texture_shift;
         if( w == 0 )
             continue;
@@ -185,8 +182,7 @@ raster_texture_scanline_transparent_blend_lerp8(
         // }
 
         shade8bit_ish8 += lerp8_shade_step;
-
-    } while( lerp8_steps-- > 0 );
+    };
 
     if( lerp8_last_steps == 0 )
         return;
@@ -217,6 +213,7 @@ raster_texture_scanline_transparent_blend_lerp8(
     int u_scan = curr_u << texture_shift;
     int v_scan = curr_v << texture_shift;
 
+    // This does get vectorized.
     shade = shade8bit_ish8 >> 8;
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
@@ -231,76 +228,6 @@ raster_texture_scanline_transparent_blend_lerp8(
 
         offset += 1;
     }
-
-    // int u;
-    // int v;
-    // int texel;
-    // switch( lerp8_last_steps )
-    // {
-    // case 7:
-    //     u = u_scan >> texture_shift;
-    //     v = v_scan & 0x3f80;
-    //     texel = texels[u + v];
-    //     if( texel != 0 )
-    //         pixel_buffer[offset] = shade_blend(texel, shade);
-    //     u_scan += step_u;
-    //     v_scan += step_v;
-    //     offset += 1;
-    // case 6:
-    //     u = u_scan >> texture_shift;
-    //     v = v_scan & 0x3f80;
-    //     texel = texels[u + v];
-    //     if( texel != 0 )
-    //         pixel_buffer[offset] = shade_blend(texel, shade);
-    //     u_scan += step_u;
-    //     v_scan += step_v;
-    //     offset += 1;
-    // case 5:
-    //     u = u_scan >> texture_shift;
-    //     v = v_scan & 0x3f80;
-    //     texel = texels[u + v];
-    //     if( texel != 0 )
-    //         pixel_buffer[offset] = shade_blend(texel, shade);
-    //     u_scan += step_u;
-    //     v_scan += step_v;
-    //     offset += 1;
-    // case 4:
-    //     u = u_scan >> texture_shift;
-    //     v = v_scan & 0x3f80;
-    //     texel = texels[u + v];
-    //     if( texel != 0 )
-    //         pixel_buffer[offset] = shade_blend(texel, shade);
-    //     u_scan += step_u;
-    //     v_scan += step_v;
-    //     offset += 1;
-    // case 3:
-    //     u = u_scan >> texture_shift;
-    //     v = v_scan & 0x3f80;
-    //     texel = texels[u + v];
-    //     if( texel != 0 )
-    //         pixel_buffer[offset] = shade_blend(texel, shade);
-    //     u_scan += step_u;
-    //     v_scan += step_v;
-    //     offset += 1;
-    // case 2:
-    //     u = u_scan >> texture_shift;
-    //     v = v_scan & 0x3f80;
-    //     texel = texels[u + v];
-    //     if( texel != 0 )
-    //         pixel_buffer[offset] = shade_blend(texel, shade);
-    //     u_scan += step_u;
-    //     v_scan += step_v;
-    //     offset += 1;
-    // case 1:
-    //     u = u_scan >> texture_shift;
-    //     v = v_scan & 0x3f80;
-    //     texel = texels[u + v];
-    //     if( texel != 0 )
-    //         pixel_buffer[offset] = shade_blend(texel, shade);
-    //     u_scan += step_u;
-    //     v_scan += step_v;
-    //     offset += 1;
-    // }
 }
 
 static void

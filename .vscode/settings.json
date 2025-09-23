@@ -131,6 +131,7 @@
         "gouraud_branching_barycentric.c": "cpp",
         "texture.u.c": "cpp",
         "texture_simd.u.c": "cpp",
-        "texture_blend_branching.c": "cpp"
+        "texture_blend_branching.c": "cpp",
+        "projection.u.c": "cpp"
     }
 }
