@@ -47,82 +47,6 @@ static int tmp_orthographic_vertices_x[4096] = { 0 };
 static int tmp_orthographic_vertices_y[4096] = { 0 };
 static int tmp_orthographic_vertices_z[4096] = { 0 };
 
-static int tmp_face_colors_a_hsl16[4096] = { 0 };
-static int tmp_face_colors_b_hsl16[4096] = { 0 };
-static int tmp_face_colors_c_hsl16[4096] = { 0 };
-
-static int tmp_vertex_normals[4096] = { 0 };
-
-static inline void
-compute_screen_x_aabb(
-    struct AABB* aabb,
-    int mid_x,
-    int mid_z,
-    int model_edge_radius,
-    int camera_fov,
-    int screen_width)
-{
-    aabb->min_screen_x =
-        project_divide(mid_x - model_edge_radius, mid_z + model_edge_radius, camera_fov) +
-        screen_width / 2;
-    aabb->max_screen_x =
-        project_divide(mid_x + model_edge_radius, mid_z + model_edge_radius, camera_fov) +
-        screen_width / 2;
-}
-
-static inline void
-compute_screen_y_aabb(
-    struct AABB* aabb,
-    int mid_y,
-    int mid_z,
-    int model_edge_radius,
-    int model_center_to_top_edge,
-    int model_center_to_bottom_edge,
-    int camera_fov,
-    int camera_pitch,
-    int screen_height)
-{
-    // model_center_to_top_edge = (model_center_to_top_edge * g_cos_table[camera_pitch] >> 16) +
-    //                            (model_edge_radius * g_sin_table[camera_pitch] >> 16);
-    model_center_to_top_edge = (model_edge_radius * g_sin_table[camera_pitch] >> 16);
-
-    model_center_to_bottom_edge = (model_center_to_bottom_edge * g_cos_table[camera_pitch] >> 16) +
-                                  (model_edge_radius * g_sin_table[camera_pitch] >> 16);
-    // model_center_to_bottom_edge = (model_edge_radius * g_sin_table[camera_pitch] >> 16);
-    aabb->min_screen_y = project_divide(mid_y - model_center_to_bottom_edge, mid_z, camera_fov);
-    aabb->max_screen_y = project_divide(mid_y + model_center_to_top_edge, mid_z, camera_fov);
-}
-// static inline void
-// compute_aabb(
-//     struct AABB* aabb,
-//     int mid_x,
-//     int mid_y,
-//     int mid_z,
-//     int model_edge_radius,
-//     int model_center_to_top_edge,
-//     int model_center_to_bottom_edge,
-//     int camera_pitch,
-//     int camera_fov,
-//     int screen_width,
-//     int screen_height)
-// {
-//     model_center_to_top_edge = (model_center_to_top_edge * g_cos_table[camera_pitch] >> 16) +
-//                                (model_edge_radius * g_sin_table[camera_pitch] >> 16);
-
-//     model_center_to_bottom_edge = (model_center_to_bottom_edge * g_cos_table[camera_pitch] >> 16)
-//     +
-//                                   (model_edge_radius * g_sin_table[camera_pitch] >> 16);
-//     aabb->min_screen_x =
-//         project_divide(mid_x - model_edge_radius, mid_z, camera_fov) + screen_width / 2;
-//     aabb->max_screen_x =
-//         project_divide(mid_x + model_edge_radius, mid_z, camera_fov) + screen_width / 2;
-//     aabb->min_screen_y =
-//         project_divide(mid_y - model_center_to_bottom_edge, mid_z, camera_fov) + screen_height /
-//         2;
-//     aabb->max_screen_y =
-//         project_divide(mid_y + model_center_to_top_edge, mid_z, camera_fov) + screen_height / 2;
-// }
-
 static inline int
 project_vertices_model_textured(
     int* screen_vertices_x,
@@ -196,7 +120,6 @@ project_vertices_model_textured(
     int screen_x_max_unoffset =
         project_divide(ortho_screen_x_max, mid_z + model_edge_radius, camera_fov);
     int screen_edge_width = screen_width >> 1;
-    // compute_screen_x_aabb(aabb, mid_x, mid_z, model_edge_radius, camera_fov, screen_width);
 
     if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
     {
@@ -2847,12 +2770,6 @@ dbg_tile(
         tile,
         NULL,
         g_dbg_tile_colors);
-}
-
-static bool
-within_rect(int x, int y, int rect_x, int rect_y, int rect_width, int rect_height)
-{
-    return x >= rect_x && x < rect_x + rect_width && y >= rect_y && y < rect_y + rect_height;
 }
 
 void
