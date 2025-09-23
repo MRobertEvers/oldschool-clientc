@@ -8,3 +8,4 @@ build*/
 public/cache/
 .cache/
 emsdk/
+android/.idea/

@@ -128,6 +128,8 @@
         "shade.h": "c",
         "mach_time.h": "c",
         "immintrin.h": "c",
-        "gouraud_branching_barycentric.c": "cpp"
+        "gouraud_branching_barycentric.c": "cpp",
+        "texture.u.c": "cpp",
+        "texture_simd.u.c": "cpp"
     }
 }

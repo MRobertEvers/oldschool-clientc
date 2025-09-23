@@ -22,8 +22,8 @@
 #include "projection.u.c"
 // clang-format on
 
-#define SCREEN_HEIGHT 600
-#define SCREEN_WIDTH 800
+// #define SCREEN_HEIGHT 600
+// #define SCREEN_WIDTH 800
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

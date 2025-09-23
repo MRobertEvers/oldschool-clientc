@@ -4,6 +4,7 @@ extern "C" {
 #include "osrs/filelist.h"
 #include "osrs/frustrum_cullmap.h"
 #include "osrs/scene.h"
+#include "osrs/scene_cache.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
 #include "osrs/tables/config_idk.h"
@@ -30,7 +31,9 @@ extern "C" {
 #undef main
 #endif
 
+// #define LUMBRIDGE_KITCHEN_TILE_1 14815
 #define LUMBRIDGE_KITCHEN_TILE_1 14815
+#define LUMBRIDGE_BRICK_WALL 638
 #define CACHE_PATH "../cache"
 
 // ImGui headers
@@ -274,6 +277,7 @@ struct Game
     int max_render_ops;
     int manual_render_ops;
 
+    struct Cache* cache;
     struct TexturesCache* textures_cache;
 };
 
@@ -597,7 +601,7 @@ extern "C" {
 #include "graphics/gouraud.u.c"
 
 static void
-m_draw_face(struct SceneModel* model, int face_index)
+m_draw_face_gouraud(struct SceneModel* model, int face_index)
 {
     int ax = _Pix3D.screen_vertices_x[model->model->face_indices_a[face_index]];
     int ay = _Pix3D.screen_vertices_y[model->model->face_indices_a[face_index]];
@@ -674,8 +678,764 @@ m_draw_face(struct SceneModel* model, int face_index)
     _Pix3D.bary_bs4_count++;
 }
 
+static inline void
+raster_gouraud_bench(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int ax,
+    int bx,
+    int cx,
+    int ay,
+    int by,
+    int cy,
+    int color_a,
+    int color_b,
+    int color_c,
+    int alpha)
+{
+    if( alpha == 0xFF )
+    {
+        uint64_t deob_start = SDL_GetPerformanceCounter();
+        gouraud_deob_draw_triangle(
+            _Pix3D.pixel_buffer, ay, by, cy, ax, bx, cx, color_a, color_b, color_c);
+        uint64_t deob_end = SDL_GetPerformanceCounter();
+        _Pix3D.deob_sum += deob_end - deob_start;
+        _Pix3D.deob_count++;
+
+        uint64_t s4_start = SDL_GetPerformanceCounter();
+        raster_gouraud_s4(
+            _Pix3D.pixel_buffer, //
+            _Pix3D.width,
+            _Pix3D.height,
+            ax,
+            bx,
+            cx,
+            ay,
+            by,
+            cy,
+            color_a,
+            color_b,
+            color_c);
+        uint64_t s4_end = SDL_GetPerformanceCounter();
+        _Pix3D.s4_sum += s4_end - s4_start;
+        _Pix3D.s4_count++;
+
+        uint64_t bs4_start = SDL_GetPerformanceCounter();
+        raster_gouraud_bs4(
+            _Pix3D.pixel_buffer, //
+            _Pix3D.width,
+            _Pix3D.height,
+            ax,
+            bx,
+            cx,
+            ay,
+            by,
+            cy,
+            color_a,
+            color_b,
+            color_c);
+        uint64_t bs4_end = SDL_GetPerformanceCounter();
+        _Pix3D.bs4_sum += bs4_end - bs4_start;
+        _Pix3D.bs4_count++;
+
+        uint64_t bary_bs4_start = SDL_GetPerformanceCounter();
+        raster_gouraud_bary_bs4(
+            _Pix3D.pixel_buffer, //
+            _Pix3D.width,
+            _Pix3D.height,
+            ax,
+            bx,
+            cx,
+            ay,
+            by,
+            cy,
+            color_a,
+            color_b,
+            color_c);
+        uint64_t bary_bs4_end = SDL_GetPerformanceCounter();
+        _Pix3D.bary_bs4_sum += bary_bs4_end - bary_bs4_start;
+        _Pix3D.bary_bs4_count++;
+    }
+    else
+    {
+        // raster_gouraud_alpha_s4(
+        //     pixel_buffer,
+        //     screen_width,
+        //     screen_height,
+        //     x1,
+        //     x2,
+        //     x3,
+        //     y1,
+        //     y2,
+        //     y3,
+        //     color_a,
+        //     color_b,
+        //     color_c,
+        //     alpha);
+    }
+}
+
+extern "C" {
+#include "graphics/texture.u.c"
+}
+
+static inline void
+raster_texture_blend(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int camera_fov,
+    int screen_x0,
+    int screen_x1,
+    int screen_x2,
+    int screen_y0,
+    int screen_y1,
+    int screen_y2,
+    int orthographic_x0,
+    int orthographic_x1,
+    int orthographic_x2,
+    int orthographic_y0,
+    int orthographic_y1,
+    int orthographic_y2,
+    int orthographic_z0,
+    int orthographic_z1,
+    int orthographic_z2,
+    int shade_a,
+    int shade_b,
+    int shade_c,
+    int* texels,
+    int texture_size,
+    int texture_opaque,
+    int near_plane_z,
+    int offset_x,
+    int offset_y)
+{
+    if( texture_opaque )
+    {
+        raster_texture_opaque_blend_lerp8(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade_a,
+            shade_b,
+            shade_c,
+            texels,
+            texture_size);
+    }
+    else
+    {
+        raster_texture_transparent_blend_lerp8(
+            pixel_buffer,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade_a,
+            shade_b,
+            shade_c,
+            texels,
+            texture_size);
+    }
+}
+
+static inline void
+raster_texture_bench(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_height,
+    int camera_fov,
+    int face,
+    int tp_vertex,
+    int tm_vertex,
+    int tn_vertex,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int* texels,
+    int texture_size,
+    int texture_opaque,
+    int near_plane_z,
+    int offset_x,
+    int offset_y)
+{
+    int x1 = screen_vertices_x[face_indices_a[face]];
+    int x2 = screen_vertices_x[face_indices_b[face]];
+    int x3 = screen_vertices_x[face_indices_c[face]];
+
+    int y1 = screen_vertices_y[face_indices_a[face]];
+    int y2 = screen_vertices_y[face_indices_b[face]];
+    int y3 = screen_vertices_y[face_indices_c[face]];
+
+    int orthographic_x0 = orthographic_vertices_x[tp_vertex];
+    int orthographic_y0 = orthographic_vertices_y[tp_vertex];
+    int orthographic_z0 = orthographic_vertices_z[tp_vertex];
+    int orthographic_x1 = orthographic_vertices_x[tm_vertex];
+    int orthographic_y1 = orthographic_vertices_y[tm_vertex];
+    int orthographic_z1 = orthographic_vertices_z[tm_vertex];
+    int orthographic_x2 = orthographic_vertices_x[tn_vertex];
+    int orthographic_y2 = orthographic_vertices_y[tn_vertex];
+    int orthographic_z2 = orthographic_vertices_z[tn_vertex];
+
+    int shade_a = colors_a[face];
+    int shade_b = colors_b[face];
+    int shade_c = colors_c[face];
+
+    assert(shade_a >= 0 && shade_a < 0xFF);
+    assert(shade_b >= 0 && shade_b < 0xFF);
+    assert(shade_c >= 0 && shade_c < 0xFF);
+
+    raster_texture_blend(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        512,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        shade_a,
+        shade_b,
+        shade_c,
+        texels,
+        texture_size,
+        texture_opaque,
+        near_plane_z,
+        offset_x,
+        offset_y);
+}
+
+void
+m_draw_face(
+    int* pixel_buffer,
+    int face,
+    int* face_infos,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int num_faces,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int* orthographic_vertex_x_nullable,
+    int* orthographic_vertex_y_nullable,
+    int* orthographic_vertex_z_nullable,
+    int num_vertices,
+    int* face_textures,
+    int* face_texture_coords,
+    int face_texture_coords_length,
+    int* face_p_coordinate_nullable,
+    int* face_m_coordinate_nullable,
+    int* face_n_coordinate_nullable,
+    int num_textured_faces,
+    int* colors_a,
+    int* colors_b,
+    int* colors_c,
+    int* face_alphas_nullable,
+    int offset_x,
+    int offset_y,
+    int near_plane_z,
+    int screen_width,
+    int screen_height,
+    int camera_fov,
+    struct TexturesCache* textures_cache)
+{
+    struct Texture* texture = NULL;
+
+    // TODO: FaceTYpe is wrong, type 2 is hidden, 3 is black, 0 is gouraud, 1 is flat.
+    int type = face_infos ? (face_infos[face] & 0x3) : 0;
+    if( type == 2 )
+    {
+        return;
+    }
+    assert(type >= 0 && type <= 3);
+
+    int color_a = colors_a[face];
+    int color_b = colors_b[face];
+    int color_c = colors_c[face];
+
+    if( color_c == -2 )
+    {
+        return;
+    }
+
+    int tp_vertex = -1;
+    int tm_vertex = -1;
+    int tn_vertex = -1;
+
+    int tp_x = -1;
+    int tp_y = -1;
+    int tp_z = -1;
+    int tm_x = -1;
+    int tm_y = -1;
+    int tm_z = -1;
+    int tn_x = -1;
+    int tn_y = -1;
+    int tn_z = -1;
+
+    int texture_id = -1;
+    int texture_face = -1;
+
+    assert(face < num_faces);
+
+    int alpha = face_alphas_nullable ? (face_alphas_nullable[face]) : 0xFF;
+
+    // Faces with color_c == -2 are not drawn. As far as I can tell, these faces are used for
+    // texture PNM coordinates that do not coincide with a visible face.
+    // /Users/matthewevers/Documents/git_repos/OS1/src/main/java/jagex3/dash3d/ModelUnlit.java
+    // OS1 skips faces with -2.
+    if( color_c == -2 )
+    {
+        // TODO: How to organize this.
+        // See here
+        // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/rs/model/ModelData.ts
+        // .light
+
+        // and
+        // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
+        // getModelFaces
+        return;
+        // color_c = 0;
+    }
+
+    // TODO: See above comments. alpha overrides colors.
+    // if( face_alphas_nullable && face_alphas_nullable[index] < 0 )
+    // {
+    //     return;
+    // }
+
+    int* texels = NULL;
+    int texture_size = 0;
+    int texture_opaque = true;
+    if( face_textures && face_textures[face] != -1 )
+    {
+        texture_id = face_textures[face];
+        // gamma 0.8 is the default in os1
+        texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 0.8);
+        assert(texture != NULL);
+        texels = texture->texels;
+        texture_size = texture->width;
+        texture_opaque = texture->opaque;
+
+        if( color_c == -1 )
+            goto textured_flat;
+        else
+            goto textured;
+    }
+    else
+    {
+        // Alpha is a signed byte, but for non-textured
+        // faces, we treat it as unsigned.
+        // -1 and -2 are reserved. See lighting code.
+        if( face_alphas_nullable )
+            alpha = 0xFF - (alpha & 0xff);
+
+        if( color_c == -1 )
+        {
+            type = 1;
+        }
+        else
+        {
+            type = 0;
+        }
+        switch( type )
+        {
+        case 0:
+
+            // raster_gouraud_bench(
+            //     pixel_buffer,
+            //     screen_width,
+            //     screen_height,
+            //     vertex_x[face_indices_a[face]],
+            //     vertex_x[face_indices_b[face]],
+            //     vertex_x[face_indices_c[face]],
+            //     vertex_y[face_indices_a[face]],
+            //     vertex_y[face_indices_b[face]],
+            //     vertex_y[face_indices_c[face]],
+            //     color_a,
+            //     color_b,
+            //     color_c,
+            //     alpha);
+
+            break;
+        case 1:
+            // Skip triangle if any vertex was clipped
+
+            // raster_face_flat(
+            //     pixel_buffer,
+            //     face,
+            //     face_indices_a,
+            //     face_indices_b,
+            //     face_indices_c,
+            //     vertex_x,
+            //     vertex_y,
+            //     vertex_z,
+            //     orthographic_vertex_x_nullable,
+            //     orthographic_vertex_y_nullable,
+            //     orthographic_vertex_z_nullable,
+            //     colors_a,
+            //     face_alphas_nullable,
+            //     near_plane_z,
+            //     offset_x,
+            //     offset_y,
+            //     screen_width,
+            //     screen_height);
+
+            break;
+        case 2:
+        textured:;
+            assert(face_p_coordinate_nullable != NULL);
+            assert(face_m_coordinate_nullable != NULL);
+            assert(face_n_coordinate_nullable != NULL);
+            assert(orthographic_vertex_x_nullable != NULL);
+            assert(orthographic_vertex_y_nullable != NULL);
+            assert(orthographic_vertex_z_nullable != NULL);
+
+            if( face_texture_coords && face_texture_coords[face] != -1 )
+            {
+                texture_face = face_texture_coords[face];
+
+                tp_vertex = face_p_coordinate_nullable[texture_face];
+                tm_vertex = face_m_coordinate_nullable[texture_face];
+                tn_vertex = face_n_coordinate_nullable[texture_face];
+            }
+            else
+            {
+                texture_face = face;
+                tp_vertex = face_indices_a[texture_face];
+                tm_vertex = face_indices_b[texture_face];
+                tn_vertex = face_indices_c[texture_face];
+            }
+            // texture_id = face_textures[index];
+            // texture_face = face_infos[index] >> 2;
+            // texture_face = face_texture_coords[index];
+
+            assert(tp_vertex > -1);
+            assert(tm_vertex > -1);
+            assert(tn_vertex > -1);
+
+            assert(tp_vertex < num_vertices);
+            assert(tm_vertex < num_vertices);
+            assert(tn_vertex < num_vertices);
+
+            raster_texture_bench(
+                pixel_buffer,
+                screen_width,
+                screen_height,
+                camera_fov,
+                face,
+                tp_vertex,
+                tm_vertex,
+                tn_vertex,
+                face_indices_a,
+                face_indices_b,
+                face_indices_c,
+                vertex_x,
+                vertex_y,
+                vertex_z,
+                orthographic_vertex_x_nullable,
+                orthographic_vertex_y_nullable,
+                orthographic_vertex_z_nullable,
+                colors_a,
+                colors_b,
+                colors_c,
+                texels,
+                texture_size,
+                texture_opaque,
+                near_plane_z,
+                offset_x,
+                offset_y);
+            // raster_face_texture_blend(
+            //     pixel_buffer,
+            //     screen_width,
+            //     screen_height,
+            //     camera_fov,
+            //     face,
+            //     tp_vertex,
+            //     tm_vertex,
+            //     tn_vertex,
+            //     face_indices_a,
+            //     face_indices_b,
+            //     face_indices_c,
+            //     vertex_x,
+            //     vertex_y,
+            //     vertex_z,
+            //     orthographic_vertex_x_nullable,
+            //     orthographic_vertex_y_nullable,
+            //     orthographic_vertex_z_nullable,
+            //     colors_a,
+            //     colors_b,
+            //     colors_c,
+            //     texels,
+            //     texture_size,
+            //     texture_opaque,
+            //     near_plane_z,
+            //     offset_x,
+            //     offset_y);
+
+            // tp_x = orthographic_vertex_x_nullable[tp_face];
+            // tp_y = orthographic_vertex_y_nullable[tp_face];
+            // tp_z = orthographic_vertex_z_nullable[tp_face];
+
+            // tm_x = orthographic_vertex_x_nullable[tm_face];
+            // tm_y = orthographic_vertex_y_nullable[tm_face];
+            // tm_z = orthographic_vertex_z_nullable[tm_face];
+
+            // tn_x = orthographic_vertex_x_nullable[tn_face];
+            // tn_y = orthographic_vertex_y_nullable[tn_face];
+            // tn_z = orthographic_vertex_z_nullable[tn_face];
+
+            // if( texture->opaque )
+            // {
+            //     raster_texture_opaque_blend_lerp8(
+            //         pixel_buffer,
+            //         screen_width,
+            //         screen_height,
+            //         x1,
+            //         x2,
+            //         x3,
+            //         y1,
+            //         y2,
+            //         y3,
+            //         tp_x,
+            //         tm_x,
+            //         tn_x,
+            //         tp_y,
+            //         tm_y,
+            //         tn_y,
+            //         tp_z,
+            //         tm_z,
+            //         tn_z,
+            //         color_a,
+            //         color_b,
+            //         color_c,
+            //         texels,
+            //         128);
+            // }
+            // else
+            // {
+            //     raster_texture_transparent_blend_lerp8(
+            //         pixel_buffer,
+            //         screen_width,
+            //         screen_height,
+            //         x1,
+            //         x2,
+            //         x3,
+            //         y1,
+            //         y2,
+            //         y3,
+            //         tp_x,
+            //         tm_x,
+            //         tn_x,
+            //         tp_y,
+            //         tm_y,
+            //         tn_y,
+            //         tp_z,
+            //         tm_z,
+            //         tn_z,
+            //         color_a,
+            //         color_b,
+            //         color_c,
+            //         texels,
+            //         128);
+            // }
+
+            // This will draw a white triangle over the projected texture pnm coords.
+
+            // raster_flat(
+            //     pixel_buffer,
+            //     screen_width,
+            //     screen_height,
+            //     tex_x1,
+            //     tex_x2,
+            //     tex_x3,
+            //     tex_y1,
+            //     tex_y2,
+            //     tex_y3,
+            //     color_a);
+            break;
+        case 3:
+        textured_flat:;
+            assert(face_p_coordinate_nullable != NULL);
+            assert(face_m_coordinate_nullable != NULL);
+            assert(face_n_coordinate_nullable != NULL);
+            assert(orthographic_vertex_x_nullable != NULL);
+            assert(orthographic_vertex_y_nullable != NULL);
+            assert(orthographic_vertex_z_nullable != NULL);
+
+            if( face_texture_coords && face_texture_coords[face] != -1 )
+            {
+                texture_face = face_texture_coords[face];
+
+                tp_vertex = face_p_coordinate_nullable[texture_face];
+                tm_vertex = face_m_coordinate_nullable[texture_face];
+                tn_vertex = face_n_coordinate_nullable[texture_face];
+            }
+            else
+            {
+                texture_face = face;
+                tp_vertex = face_indices_a[texture_face];
+                tm_vertex = face_indices_b[texture_face];
+                tn_vertex = face_indices_c[texture_face];
+            }
+            // texture_id = face_textures[index];
+            // texture_face = face_infos[index] >> 2;
+            // texture_face = face_texture_coords[index];
+
+            assert(tp_vertex > -1);
+            assert(tm_vertex > -1);
+            assert(tn_vertex > -1);
+
+            assert(tp_vertex < num_vertices);
+            assert(tm_vertex < num_vertices);
+            assert(tn_vertex < num_vertices);
+
+            // raster_face_texture_flat(
+            //     pixel_buffer,
+            //     screen_width,
+            //     screen_height,
+            //     camera_fov,
+            //     face,
+            //     tp_vertex,
+            //     tm_vertex,
+            //     tn_vertex,
+            //     face_indices_a,
+            //     face_indices_b,
+            //     face_indices_c,
+            //     vertex_x,
+            //     vertex_y,
+            //     vertex_z,
+            //     orthographic_vertex_x_nullable,
+            //     orthographic_vertex_y_nullable,
+            //     orthographic_vertex_z_nullable,
+            //     colors_a,
+            //     texels,
+            //     texture_size,
+            //     texture_opaque,
+            //     near_plane_z,
+            //     offset_x,
+            //     offset_y);
+
+            // tp_x = orthographic_vertex_x_nullable[tp_face];
+            // tp_y = orthographic_vertex_y_nullable[tp_face];
+            // tp_z = orthographic_vertex_z_nullable[tp_face];
+
+            // tm_x = orthographic_vertex_x_nullable[tm_face];
+            // tm_y = orthographic_vertex_y_nullable[tm_face];
+            // tm_z = orthographic_vertex_z_nullable[tm_face];
+
+            // tn_x = orthographic_vertex_x_nullable[tn_face];
+            // tn_y = orthographic_vertex_y_nullable[tn_face];
+            // tn_z = orthographic_vertex_z_nullable[tn_face];
+
+            // if( texture->opaque )
+            // {
+            //     raster_texture_opaque_lerp8(
+            //         pixel_buffer,
+            //         screen_width,
+            //         screen_height,
+            //         x1,
+            //         x2,
+            //         x3,
+            //         y1,
+            //         y2,
+            //         y3,
+            //         tp_x,
+            //         tm_x,
+            //         tn_x,
+            //         tp_y,
+            //         tm_y,
+            //         tn_y,
+            //         tp_z,
+            //         tm_z,
+            //         tn_z,
+            //         color_a,
+            //         texels,
+            //         128);
+            // }
+            // else
+            // {
+            //     raster_texture_transparent_lerp8(
+            //         pixel_buffer,
+            //         screen_width,
+            //         screen_height,
+            //         x1,
+            //         x2,
+            //         x3,
+            //         y1,
+            //         y2,
+            //         y3,
+            //         tp_x,
+            //         tm_x,
+            //         tn_x,
+            //         tp_y,
+            //         tm_y,
+            //         tn_y,
+            //         tp_z,
+            //         tm_z,
+            //         tn_z,
+            //         color_a,
+            //         texels,
+            //         128);
+            // }
+
+            break;
+        }
+    }
+}
+
 static void
-m_paint(struct SceneModel* model)
+m_paint(struct SceneModel* model, struct Cache* cache, struct TexturesCache* textures_cache)
 {
     struct BoundsCylinder* bounds_cylinder = model->bounds_cylinder;
 
@@ -695,12 +1455,20 @@ m_paint(struct SceneModel* model)
         int bx = _Pix3D.screen_vertices_x[vertex_b_index];
         int cx = _Pix3D.screen_vertices_x[vertex_c_index];
 
+        int ay = _Pix3D.screen_vertices_y[vertex_a_index];
+        int by = _Pix3D.screen_vertices_y[vertex_b_index];
+        int cy = _Pix3D.screen_vertices_y[vertex_c_index];
+
         if( ax == -5000 || bx == -5000 || cx == -5000 )
             continue;
 
+        int dot_product = (ax - bx) * (cy - by) - (ay - by) * (cx - bx);
+        if( dot_product < 0 )
+            continue;
+
         int depth =
-            (_Pix3D.screen_vertices_z[vertex_a_index] + _Pix3D.screen_vertices_z[vertex_b_index] +
-             _Pix3D.screen_vertices_z[vertex_c_index]) /
+            (model->model->vertices_z[vertex_a_index] + model->model->vertices_z[vertex_b_index] +
+             model->model->vertices_z[vertex_c_index]) /
                 3 +
             bounds_cylinder->min_z_depth_any_rotation;
 
@@ -723,7 +1491,42 @@ m_paint(struct SceneModel* model)
         for( int i = 0; i < count; i++ )
         {
             int face_index = face_indices[i];
-            m_draw_face(model, face_index);
+
+            m_draw_face(
+                _Pix3D.pixel_buffer,
+                face_index,
+                model->model->face_infos,
+                model->model->face_indices_a,
+                model->model->face_indices_b,
+                model->model->face_indices_c,
+                model->model->face_count,
+                _Pix3D.screen_vertices_x,
+                _Pix3D.screen_vertices_y,
+                _Pix3D.screen_vertices_z,
+                _Pix3D.ortho_vertices_x,
+                _Pix3D.ortho_vertices_y,
+                _Pix3D.ortho_vertices_z,
+                model->model->vertex_count,
+                model->model->face_textures,
+                model->model->face_texture_coords,
+                model->model->textured_face_count,
+                model->model->textured_p_coordinate,
+                model->model->textured_m_coordinate,
+                model->model->textured_n_coordinate,
+                model->model->textured_face_count,
+                model->lighting->face_colors_hsl_a,
+                model->lighting->face_colors_hsl_b,
+                model->lighting->face_colors_hsl_c,
+                model->model->face_alphas,
+                SCREEN_WIDTH / 2,
+                SCREEN_HEIGHT / 2,
+                50,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT,
+                512,
+                textures_cache);
+
+            // m_draw_face(model, texel_buffer, texture_opaque, face_index);
         }
     }
 }
@@ -740,7 +1543,9 @@ m_draw(
     int yaw,
     int scene_x,
     int scene_y,
-    int scene_z)
+    int scene_z,
+    struct Cache* cache,
+    struct TexturesCache* textures_cache)
 {
     if( !model->bounds_cylinder )
     {
@@ -868,7 +1673,7 @@ m_draw(
         }
     }
 
-    m_paint(model);
+    m_paint(model, cache, textures_cache);
 }
 
 static void
@@ -965,13 +1770,13 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     // Get the frequency (ticks per second)
     Uint64 frequency = SDL_GetPerformanceFrequency();
 
-    memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
     Uint64 start_ticks = SDL_GetPerformanceCounter();
 
     for( int x = 0; x < 4; x++ )
     {
-        for( int z = 0; z < 4; z++ )
+        for( int z = 3; z >= 0; z-- )
         {
             int model_x = game->camera_x + x * 128;
             int model_y = game->camera_y + 200 + z * 128;
@@ -984,7 +1789,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 game->camera_yaw,
                 model_x,
                 model_z,
-                model_y);
+                model_y,
+                game->cache,
+                game->textures_cache);
 
             // int model_x = game->camera_x + x * 128;
             // int model_y = game->camera_y + 200 + z * 128;
@@ -1155,9 +1962,11 @@ main(int argc, char* argv[])
     // game.camera_yaw = 1536;
     // game.camera_roll = 0;
     game.camera_fov = 512; // Default FOV
-    game.model_id = LUMBRIDGE_KITCHEN_TILE_1;
+    // game.model_id = LUMBRIDGE_KITCHEN_TILE_1;
+    game.model_id = LUMBRIDGE_BRICK_WALL;
 
     game.textures_cache = textures_cache_new(cache);
+    game.cache = cache;
 
     struct ModelCache* model_cache = model_cache_new();
 
@@ -1647,7 +2456,7 @@ main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            // SDL_Delay(target_frame_time - frame_time);
+            SDL_Delay(target_frame_time - frame_time);
         }
 
         last_frame_time = frame_end_time;
