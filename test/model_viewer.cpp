@@ -788,7 +788,7 @@ raster_gouraud_bench(
 
 extern "C" {
 #include "graphics/texture.u.c"
-#include "graphics/texture_blend_branching.c"
+#include "graphics/texture_blend_branching.u.c"
 }
 
 static inline void
