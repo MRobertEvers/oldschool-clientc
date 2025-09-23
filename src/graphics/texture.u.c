@@ -155,7 +155,15 @@ raster_texture_scanline_transparent_blend_lerp8(
         shade = shade8bit_ish8 >> 8;
 
         raster_linear_transparent_blend_lerp8(
-            pixel_buffer, offset, texels, u_scan, v_scan, step_u, step_v, texture_shift, shade);
+            (uint32_t*)pixel_buffer,
+            offset,
+            (uint32_t*)texels,
+            u_scan,
+            v_scan,
+            step_u,
+            step_v,
+            texture_shift,
+            shade);
         u_scan += step_u;
         v_scan += step_v;
         offset += 8;
@@ -412,7 +420,15 @@ raster_texture_scanline_opaque_blend_lerp8(
         shade = shade8bit_ish8 >> 8;
 
         raster_linear_opaque_blend_lerp8(
-            pixel_buffer, offset, texels, u_scan, v_scan, step_u, step_v, texture_shift, shade);
+            (uint32_t*)pixel_buffer,
+            offset,
+            (uint32_t*)texels,
+            u_scan,
+            v_scan,
+            step_u,
+            step_v,
+            texture_shift,
+            shade);
         u_scan += step_u;
         v_scan += step_v;
         offset += 8;
@@ -764,7 +780,15 @@ raster_texture_scanline_opaque_lerp8(
         int v_scan = curr_v << texture_shift;
 
         raster_linear_opaque_blend_lerp8(
-            pixel_buffer, offset, texels, u_scan, v_scan, step_u, step_v, texture_shift, shade8bit);
+            (uint32_t*)pixel_buffer,
+            offset,
+            (uint32_t*)texels,
+            u_scan,
+            v_scan,
+            step_u,
+            step_v,
+            texture_shift,
+            shade8bit);
         u_scan += step_u;
         v_scan += step_v;
         offset += 8;
@@ -1052,7 +1076,7 @@ raster_texture_scanline_lerp8(
     }
 }
 
-void
+static inline void
 raster_texture_transparent_blend_lerp8(
     int* pixel_buffer,
     int screen_width,
@@ -1301,7 +1325,7 @@ raster_texture_transparent_blend_lerp8(
     }
 }
 
-void
+static inline void
 raster_texture_opaque_blend_lerp8(
     int* pixel_buffer,
     int screen_width,
@@ -1550,7 +1574,7 @@ raster_texture_opaque_blend_lerp8(
     }
 }
 
-void
+static inline void
 raster_texture_transparent_lerp8(
     int* pixel_buffer,
     int screen_width,
@@ -1777,7 +1801,7 @@ raster_texture_transparent_lerp8(
     }
 }
 
-void
+static inline void
 raster_texture_opaque_lerp8(
     int* pixel_buffer,
     int screen_width,
