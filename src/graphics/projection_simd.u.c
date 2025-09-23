@@ -341,6 +341,8 @@ project_vertices_array(
 
     int i = 0;
 
+    // Arm Neon Float Div is faster.
+#define ARM_NEON_FLOAT_DIV
 #ifdef ARM_NEON_FLOAT_DIV
     for( ; i + 4 <= num_vertices; i += 4 )
     {
