@@ -192,7 +192,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/graphics/render.c
         src/osrs/rsbuf.c
         src/graphics/gouraud_deob.c
-        src/lighting.c
+        src/graphics/lighting.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -245,7 +245,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/filelist.c
         src/graphics/render.c
         src/osrs/rsbuf.c
-        src/lighting.c
+        src/graphics/lighting.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -313,7 +313,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/graphics/render.c
         src/osrs/rsbuf.c
         src/graphics/gouraud_deob.c
-        src/lighting.c
+        src/graphics/lighting.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -365,7 +365,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/graphics/render.c
         src/osrs/rsbuf.c
         src/graphics/gouraud_deob.c
-        src/lighting.c
+        src/graphics/lighting.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c
@@ -594,7 +594,7 @@ if(APPLE)
         src/osrs/filelist.c
         src/graphics/render.c
         src/osrs/rsbuf.c
-        src/lighting.c
+        src/graphics/lighting.c
         src/osrs/anim.c
         src/osrs/model_transforms.c
         src/osrs/xtea.c

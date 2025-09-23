@@ -3,7 +3,7 @@
 
 #include "bounds_cylinder.h"
 #include "cache.h"
-#include "lighting.h"
+#include "graphics/lighting.h"
 #include "osrs/anim.h"
 #include "osrs/tables/config_sequence.h"
 #include "osrs/tables/maps.h"

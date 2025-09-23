@@ -629,13 +629,10 @@ raster_face_gouraud(
     }
 
     int y1 = screen_vertices_y[face_indices_a[face]];
-    int z1 = screen_vertices_z[face_indices_a[face]];
 
     int y2 = screen_vertices_y[face_indices_b[face]];
-    int z2 = screen_vertices_z[face_indices_b[face]];
 
     int y3 = screen_vertices_y[face_indices_c[face]];
-    int z3 = screen_vertices_z[face_indices_c[face]];
 
     x1 += offset_x;
     y1 += offset_y;

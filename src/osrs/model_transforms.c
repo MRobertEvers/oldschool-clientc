@@ -1,6 +1,6 @@
 #include "model_transforms.h"
 
-#include "lighting.h"
+#include "graphics/lighting.h"
 
 #include <assert.h>
 #include <math.h>

@@ -2658,8 +2658,6 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     return ops;
 }
 
-static int g_white_hsl16 = 0x00FFFFFF;
-
 static struct SceneTile g_dbg_tile = { 0 };
 static int g_dbg_tile_vertex_count = 4;
 static int g_dbg_tile_face_count = 2;
@@ -3141,10 +3139,6 @@ next:
         if( !tile->valid_faces )
             goto next;
 
-        int tile_x = tile->chunk_pos_x;
-        int tile_z = tile->chunk_pos_y;
-        int tile_level = tile->chunk_pos_level;
-
         int* color_override_hsl16_nullable = NULL;
         if( op->_ground.override_color )
         {
@@ -3298,10 +3292,10 @@ next:
     break;
     case SCENE_OP_TYPE_DBG_TILE:
     {
-        int tile_x = op->x;
-        int tile_z = op->z;
+        // int tile_x = op->x;
+        // int tile_z = op->z;
 
-        int color_rgb = op->_dbg.color;
+        // int color_rgb = op->_dbg.color;
     }
     break;
     }

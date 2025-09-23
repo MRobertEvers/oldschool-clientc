@@ -1,7 +1,7 @@
 #include "scene.h"
 
 #include "filelist.h"
-#include "lighting.h"
+#include "graphics/lighting.h"
 #include "model_transforms.h"
 #include "tables/config_idk.h"
 #include "tables/config_locs.h"

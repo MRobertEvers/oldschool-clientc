@@ -158,13 +158,13 @@ project_perspective(
     // fov is in units of (2π/2048) radians
     // For perspective projection, we need tan(fov/2)
     // tan(x) = sin(x)/cos(x)
-    int fov_half = fov >> 1; // fov/2
+    // int fov_half = fov >> 1; // fov/2
 
     // fov_scale = 1/tan(fov/2)
     // cot(x) = 1/tan(x)
     // cot(x) = tan(pi/2 - x)
     // cot(x + pi) = cot(x)
-    assert(fov_half < 1536);
+    // assert(fov_half < 1536);
     // int cot_fov_half = g_tan_table[1536 - fov_half];
 
     // Apply FOV scaling to x and y coordinates
@@ -370,8 +370,8 @@ project_perspective_fast(
     // e.g. z <= 50
     // We have to check that x and y are within a reasonable range (see math below)
     // to avoid overflow.
-    static const int z_clip_bits = 5;
-    static const int clip_bits = 11;
+    // static const int z_clip_bits = 5;
+    // static const int clip_bits = 11;
     // // clip_bits - z_clip_bits < 7; see math below
     // // TODO: Frustrum culling should clip the inputs x's and y's.
     // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 <<

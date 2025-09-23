@@ -15,7 +15,7 @@
 #define MAP_UNITS_LEVEL_HEIGHT 240
 #define MAP_UNITS_TILE_HEIGHT_BASIS 8
 
-static int
+static inline int
 map_tile_coord_to_chunk_coord(int x, int y, int z)
 {
     assert(x >= 0);
