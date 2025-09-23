@@ -497,9 +497,6 @@ raster_texture_opaque_blend_blerp8(
     // y2, y1, y0,
     if( y0 <= y1 && y0 <= y2 )
     {
-        if( y0 >= screen_height )
-            return;
-
         // y0, y1, y2,
         if( y1 <= y2 )
         {
@@ -567,9 +564,6 @@ raster_texture_opaque_blend_blerp8(
     }
     else if( y1 <= y2 )
     {
-        if( y1 >= screen_height )
-            return;
-
         // y1, y2, y0
         if( y2 <= y0 )
         {
@@ -637,9 +631,6 @@ raster_texture_opaque_blend_blerp8(
     }
     else
     {
-        if( y2 >= screen_height )
-            return;
-
         // y2, y0, y1,
         if( y0 <= y1 )
         {
