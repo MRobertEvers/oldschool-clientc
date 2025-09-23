@@ -307,6 +307,10 @@ struct Pix3D
     uint64_t bs4_sum;
     uint64_t bary_bs4_sum;
 
+    uint64_t texture_sum;
+    uint64_t texture_blerp_sum;
+    uint64_t texture_count;
+
     int deob_count;
     int s4_count;
     int bs4_count;
@@ -492,7 +496,13 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     ImGui::Text(
         "Average Render Time: %.3f ms/frame",
         (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency);
-    ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+    // ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+
+    ImGui::Text(
+        "texture blerp8 lerp8: %.4f us, %.4f us",
+        ((((double)_Pix3D.texture_blerp_sum) / _Pix3D.texture_count) * 1000000.0 /
+         (double)frequency),
+        ((((double)_Pix3D.texture_sum) / _Pix3D.texture_count) * 1000000.0 / (double)frequency));
 
     ImGui::Text(
         "S4, deob, bs4, bary_bs4: %.4f, %.4f, %.4f, %.4f us",
@@ -778,95 +788,7 @@ raster_gouraud_bench(
 
 extern "C" {
 #include "graphics/texture.u.c"
-}
-
-static inline void
-raster_texture_blend(
-    int* pixel_buffer,
-    int screen_width,
-    int screen_height,
-    int camera_fov,
-    int screen_x0,
-    int screen_x1,
-    int screen_x2,
-    int screen_y0,
-    int screen_y1,
-    int screen_y2,
-    int orthographic_x0,
-    int orthographic_x1,
-    int orthographic_x2,
-    int orthographic_y0,
-    int orthographic_y1,
-    int orthographic_y2,
-    int orthographic_z0,
-    int orthographic_z1,
-    int orthographic_z2,
-    int shade_a,
-    int shade_b,
-    int shade_c,
-    int* texels,
-    int texture_size,
-    int texture_opaque,
-    int near_plane_z,
-    int offset_x,
-    int offset_y)
-{
-    if( texture_opaque )
-    {
-        raster_texture_opaque_blend_lerp8(
-            pixel_buffer,
-            screen_width,
-            screen_height,
-            camera_fov,
-            screen_x0,
-            screen_x1,
-            screen_x2,
-            screen_y0,
-            screen_y1,
-            screen_y2,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade_a,
-            shade_b,
-            shade_c,
-            texels,
-            texture_size);
-    }
-    else
-    {
-        raster_texture_transparent_blend_lerp8(
-            pixel_buffer,
-            screen_width,
-            screen_height,
-            camera_fov,
-            screen_x0,
-            screen_x1,
-            screen_x2,
-            screen_y0,
-            screen_y1,
-            screen_y2,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade_a,
-            shade_b,
-            shade_c,
-            texels,
-            texture_size);
-    }
+#include "graphics/texture_blend_branching.c"
 }
 
 static inline void
@@ -923,12 +845,16 @@ raster_texture_bench(
     assert(shade_a >= 0 && shade_a < 0xFF);
     assert(shade_b >= 0 && shade_b < 0xFF);
     assert(shade_c >= 0 && shade_c < 0xFF);
+    _Pix3D.texture_count++;
+    //
 
-    raster_texture_blend(
+    int texture_start = SDL_GetPerformanceCounter();
+
+    raster_texture_opaque_blend_lerp8(
         pixel_buffer,
         screen_width,
         screen_height,
-        512,
+        camera_fov,
         x1,
         x2,
         x3,
@@ -948,11 +874,41 @@ raster_texture_bench(
         shade_b,
         shade_c,
         texels,
-        texture_size,
-        texture_opaque,
-        near_plane_z,
-        offset_x,
-        offset_y);
+        texture_size);
+
+    int texture_end = SDL_GetPerformanceCounter();
+    _Pix3D.texture_sum += texture_end - texture_start;
+
+    int texture_blerp_start = SDL_GetPerformanceCounter();
+
+    raster_texture_opaque_blend_blerp8(
+        pixel_buffer,
+        screen_width,
+        screen_height,
+        camera_fov,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        orthographic_x0,
+        orthographic_x1,
+        orthographic_x2,
+        orthographic_y0,
+        orthographic_y1,
+        orthographic_y2,
+        orthographic_z0,
+        orthographic_z1,
+        orthographic_z2,
+        shade_a,
+        shade_b,
+        shade_c,
+        texels,
+        texture_size);
+
+    int texture_blerp_end = SDL_GetPerformanceCounter();
+    _Pix3D.texture_blerp_sum += texture_blerp_end - texture_blerp_start;
 }
 
 void
@@ -2456,7 +2412,7 @@ main(int argc, char* argv[])
 
         if( frame_time < target_frame_time )
         {
-            SDL_Delay(target_frame_time - frame_time);
+            // SDL_Delay(target_frame_time - frame_time);
         }
 
         last_frame_time = frame_end_time;
