@@ -1,6 +1,7 @@
 #ifndef TEXTURE_U_C
 #define TEXTURE_U_C
 
+#include "clamp.h"
 #include "texture_simd.u.c"
 
 #define SWAP(a, b)                                                                                 \
@@ -27,16 +28,6 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
-
-static inline int
-clamp(int value, int min, int max)
-{
-    if( value < min )
-        return min;
-    if( value > max )
-        return max;
-    return value;
-}
 
 static inline void
 raster_texture_scanline_transparent_blend_lerp8(

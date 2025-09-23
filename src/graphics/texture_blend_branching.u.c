@@ -1,7 +1,9 @@
 #ifndef TEXTURE_BLEND_BRANCHING_C
 #define TEXTURE_BLEND_BRANCHING_C
 
+#include "clamp.h"
 #include "projection.u.c"
+#include "texture_simd.u.c"
 
 #include <stdint.h>
 
