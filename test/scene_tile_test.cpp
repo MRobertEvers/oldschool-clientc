@@ -865,47 +865,47 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
             aabb.min_screen_y,
             aabb.max_screen_y);
 
-        // Draw AABB rectangle outline
-        for( int x = aabb.min_screen_x; x <= aabb.max_screen_x; x++ )
-        {
-            if( x >= 0 && x < SCREEN_WIDTH )
-            {
-                // Top line
-                if( aabb.min_screen_y >= 0 && aabb.min_screen_y < SCREEN_HEIGHT )
-                {
-                    pixel_buffer[aabb.min_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
-                }
-                // Bottom line
-                if( aabb.max_screen_y >= 0 && aabb.max_screen_y < SCREEN_HEIGHT )
-                {
-                    pixel_buffer[aabb.max_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
-                }
-            }
-        }
+        // // Draw AABB rectangle outline
+        // for( int x = aabb.min_screen_x; x <= aabb.max_screen_x; x++ )
+        // {
+        //     if( x >= 0 && x < SCREEN_WIDTH )
+        //     {
+        //         // Top line
+        //         if( aabb.min_screen_y >= 0 && aabb.min_screen_y < SCREEN_HEIGHT )
+        //         {
+        //             pixel_buffer[aabb.min_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
+        //         }
+        //         // Bottom line
+        //         if( aabb.max_screen_y >= 0 && aabb.max_screen_y < SCREEN_HEIGHT )
+        //         {
+        //             pixel_buffer[aabb.max_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
+        //         }
+        //     }
+        // }
 
-        for( int y = aabb.min_screen_y; y <= aabb.max_screen_y; y++ )
-        {
-            if( y >= 0 && y < SCREEN_HEIGHT )
-            {
-                // Left line
-                if( aabb.min_screen_x >= 0 && aabb.min_screen_x < SCREEN_WIDTH )
-                {
-                    pixel_buffer[y * SCREEN_WIDTH + aabb.min_screen_x] = 0xFFFFFF;
-                }
-                // Right line
-                if( aabb.max_screen_x >= 0 && aabb.max_screen_x < SCREEN_WIDTH )
-                {
-                    pixel_buffer[y * SCREEN_WIDTH + aabb.max_screen_x] = 0xFFFFFF;
-                }
-            }
-        }
+        // for( int y = aabb.min_screen_y; y <= aabb.max_screen_y; y++ )
+        // {
+        //     if( y >= 0 && y < SCREEN_HEIGHT )
+        //     {
+        //         // Left line
+        //         if( aabb.min_screen_x >= 0 && aabb.min_screen_x < SCREEN_WIDTH )
+        //         {
+        //             pixel_buffer[y * SCREEN_WIDTH + aabb.min_screen_x] = 0xFFFFFF;
+        //         }
+        //         // Right line
+        //         if( aabb.max_screen_x >= 0 && aabb.max_screen_x < SCREEN_WIDTH )
+        //         {
+        //             pixel_buffer[y * SCREEN_WIDTH + aabb.max_screen_x] = 0xFFFFFF;
+        //         }
+        //     }
+        // }
     }
 
-    // Draw horizontal line at screen center
-    for( int x = 0; x < SCREEN_WIDTH; x++ )
-    {
-        pixel_buffer[(SCREEN_HEIGHT / 2) * SCREEN_WIDTH + x] = 0xFFFFFF;
-    }
+    // // Draw horizontal line at screen center
+    // for( int x = 0; x < SCREEN_WIDTH; x++ )
+    // {
+    //     pixel_buffer[(SCREEN_HEIGHT / 2) * SCREEN_WIDTH + x] = 0xFFFFFF;
+    // }
 
     if( game->mouse_click_x != -1 && game->mouse_click_y != -1 )
     {
