@@ -15,7 +15,8 @@ endif()
 # Fix: Use C flags instead of C++ flags for C project
 if(WIN32 AND MSVC)
     # Windows MSVC-specific compiler flags
-    set(CMAKE_C_FLAGS "/W3")
+    set(CMAKE_C_FLAGS "/W4 /wd4100") # /W4 for more warnings, /wd4100 to disable unused parameter warning
+    set(CMAKE_CXX_FLAGS "/W4 /wd4100") # Same for C++
     set(CMAKE_C_FLAGS_DEBUG "/Zi /Od /MDd")
     set(CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /MDd")
     
@@ -40,10 +41,10 @@ if(WIN32 AND MSVC)
     set(CMAKE_C_STANDARD_REQUIRED ON)
 else()
     # GCC/MinGW and other compilers
-    set(CMAKE_C_FLAGS "-Wall -Wextra")
+    set(CMAKE_C_FLAGS "-Wall -Wextra -Wno-unused-parameter -Werror=implicit-function-declaration -Werror=return-type")
     set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
     
-    set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wno-unused-parameter -Werror=return-type")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
     
     # Set architecture-specific flags

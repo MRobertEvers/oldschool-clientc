@@ -1009,20 +1009,20 @@ m_draw_face(
         {
         case 0:
 
-            // raster_gouraud_bench(
-            //     pixel_buffer,
-            //     screen_width,
-            //     screen_height,
-            //     vertex_x[face_indices_a[face]],
-            //     vertex_x[face_indices_b[face]],
-            //     vertex_x[face_indices_c[face]],
-            //     vertex_y[face_indices_a[face]],
-            //     vertex_y[face_indices_b[face]],
-            //     vertex_y[face_indices_c[face]],
-            //     color_a,
-            //     color_b,
-            //     color_c,
-            //     alpha);
+            raster_gouraud_bench(
+                pixel_buffer,
+                screen_width,
+                screen_height,
+                vertex_x[face_indices_a[face]],
+                vertex_x[face_indices_b[face]],
+                vertex_x[face_indices_c[face]],
+                vertex_y[face_indices_a[face]],
+                vertex_y[face_indices_b[face]],
+                vertex_y[face_indices_c[face]],
+                color_a,
+                color_b,
+                color_c,
+                alpha);
 
             break;
         case 1:
@@ -1872,8 +1872,8 @@ main(int argc, char* argv[])
     // game.camera_yaw = 1536;
     // game.camera_roll = 0;
     game.camera_fov = 512; // Default FOV
-    // game.model_id = LUMBRIDGE_KITCHEN_TILE_1;
-    game.model_id = LUMBRIDGE_BRICK_WALL;
+    game.model_id = LUMBRIDGE_KITCHEN_TILE_1;
+    // game.model_id = LUMBRIDGE_BRICK_WALL;
 
     game.textures_cache = textures_cache_new(cache);
     game.cache = cache;

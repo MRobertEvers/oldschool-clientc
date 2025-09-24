@@ -11,7 +11,7 @@ struct Transformation
     int origin_z;
 };
 
-int anim_frame_apply(
+void anim_frame_apply(
     struct CacheFrame* frame,
     struct CacheFramemap* framemap,
     int* vertices_x,

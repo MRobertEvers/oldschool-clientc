@@ -14,16 +14,21 @@
 #define SECTOR_SIZE 520
 #define INDEX_ENTRY_SIZE 6
 
+static FILE*
+fopen_dat2(char const* cache_directory)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_directory);
+    return fopen(path, "rb");
+}
+
 static char*
 load_dat2_memory(char const* cache_directory, int* out_size)
 {
     char* data = NULL;
     int data_size = 0;
 
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_directory);
-    printf("Loading dat2 from: %s\n", path);
-    FILE* dat2_file = fopen(path, "rb");
+    FILE* dat2_file = fopen_dat2(cache_directory);
     if( !dat2_file )
         return NULL;
 
@@ -173,8 +178,137 @@ read_dat2(
     return 0;
 
 error:
-    if(out)
-    free(out);
+    if( out )
+        free(out);
+    return -1;
+}
+
+static int
+read_dat2_from_disk(
+    FILE* dat2_file,
+    struct Dat2Archive* archive,
+    int idx_file_id,
+    int archive_id,
+    int sector,
+    int length)
+{
+    char read_buffer[SECTOR_SIZE];
+    int read_buffer_len = 0;
+
+    struct RSBuffer data_buffer = { .data = read_buffer,
+                                    .position = 0,
+                                    .size = sizeof(read_buffer) };
+
+    int header_size;
+    int data_block_size;
+    int current_archive;
+    int current_part;
+    int next_sector;
+    int current_index = 0;
+    char* out = NULL;
+
+    if( sector <= 0L )
+    {
+        printf("bad read, dat length %d, requested sector %d", length, sector);
+        goto error;
+    }
+
+    int out_len = 0;
+    out = malloc(length);
+    memset(out, 0, length);
+
+    for( int part = 0, read_bytes_count = 0; length > read_bytes_count; sector = next_sector )
+    {
+        if( sector == 0 )
+        {
+            printf("Unexpected end of file\n");
+            goto error;
+        }
+
+        // data_buffer.position = sector * SECTOR_SIZE;
+        fseek(dat2_file, sector * SECTOR_SIZE, SEEK_SET);
+
+        data_block_size = length - read_bytes_count;
+        if( archive_id > 0xFFFF )
+        {
+            header_size = 10;
+            if( data_block_size > SECTOR_SIZE - header_size )
+                data_block_size = SECTOR_SIZE - header_size;
+
+            int bytes_read = fread(read_buffer, 1, header_size + data_block_size, dat2_file);
+            if( bytes_read < header_size + data_block_size )
+            {
+                printf("short read when reading file data for %d/%d\n", archive_id, current_index);
+                goto error;
+            }
+
+            read_buffer_len = bytes_read;
+
+            current_archive = ((read_buffer[0] & 0xFF) << 24) | ((read_buffer[1] & 0xFF) << 16) |
+                              ((read_buffer[2] & 0xFF) << 8) | (read_buffer[3] & 0xFF);
+            current_part = ((read_buffer[4] & 0xFF) << 8) + (read_buffer[5] & 0xFF);
+            next_sector = ((read_buffer[6] & 0xFF) << 16) | ((read_buffer[7] & 0xFF) << 8) |
+                          (read_buffer[8] & 0xFF);
+            current_index = read_buffer[9] & 0xFF;
+        }
+        else
+        {
+            header_size = 8;
+            if( data_block_size > SECTOR_SIZE - header_size )
+                data_block_size = SECTOR_SIZE - header_size;
+
+            int bytes_read = fread(read_buffer, 1, header_size + data_block_size, dat2_file);
+            if( bytes_read < header_size + data_block_size )
+            {
+                printf("short read when reading file data for %d/%d\n", archive_id, current_index);
+                goto error;
+            }
+
+            read_buffer_len = bytes_read;
+
+            current_archive = ((read_buffer[0] & 0xFF) << 8) | (read_buffer[1] & 0xFF);
+            current_part = ((read_buffer[2] & 0xFF) << 8) | (read_buffer[3] & 0xFF);
+            next_sector = ((read_buffer[4] & 0xFF) << 16) | ((read_buffer[5] & 0xFF) << 8) |
+                          (read_buffer[6] & 0xFF);
+            current_index = read_buffer[7] & 0xFF;
+        }
+
+        if( archive_id != current_archive || current_part != part || idx_file_id != current_index )
+        {
+            printf(
+                "data mismatch %d != %d, %d != %d, %d != %d\n",
+                archive_id,
+                current_archive,
+                part,
+                current_part,
+                idx_file_id,
+                current_index);
+            goto error;
+        }
+
+        if( next_sector < 0 )
+        {
+            printf("invalid next sector");
+            goto error;
+        }
+
+        memcpy(out + out_len, read_buffer + header_size, data_block_size);
+        out_len += data_block_size;
+
+        read_bytes_count += data_block_size;
+
+        ++part;
+    }
+
+    archive->data = out;
+    archive->data_size = out_len;
+    archive->archive_id = archive_id;
+    assert(archive->data == out);
+    return 0;
+
+error:
+    if( out )
+        free(out);
     return -1;
 }
 
@@ -216,19 +350,24 @@ cache_new_from_directory(char const* directory)
 {
     struct Cache* cache = malloc(sizeof(struct Cache));
     memset(cache, 0, sizeof(struct Cache));
-    
+
     cache->directory = strdup(directory);
-    
-    cache->_dat2 = load_dat2_memory(cache->directory, &cache->_dat2_size);
+
+    // cache->_dat2 = load_dat2_memory(cache->directory, &cache->_dat2_size);
+
+    cache->_dat2_file = fopen_dat2(cache->directory);
+    if( !cache->_dat2_file )
+    {
+        printf("Failed to open dat2 file\n");
+        goto error;
+    }
 
     struct CacheArchive* table_archive = NULL;
     struct ReferenceTable* table = NULL;
     for( int i = 0; i < CACHE_TABLE_COUNT; ++i )
     {
-
         if( !cache_is_valid_table_id(i) )
             continue;
-
 
         table_archive = cache_archive_new_reference_table_load(cache, i);
 
@@ -260,13 +399,18 @@ error:
 void
 cache_free(struct Cache* cache)
 {
+    if( cache->_dat2_file )
+        fclose(cache->_dat2_file);
+
     free(cache->directory);
     for( int i = 0; i < CACHE_TABLE_COUNT; ++i )
     {
         if( cache->tables[i] )
             reference_table_free(cache->tables[i]);
     }
-    free(cache->_dat2);
+
+    if( cache->_dat2 )
+        free(cache->_dat2);
 
     free(cache);
 }
@@ -343,10 +487,9 @@ cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
         goto error;
     }
 
-    res = read_dat2(
+    res = read_dat2_from_disk(
+        cache->_dat2_file,
         &dat2_archive,
-        cache->_dat2,
-        cache->_dat2_size,
         index_record.idx_file_id,
         index_record.archive_idx,
         index_record.sector,
@@ -441,10 +584,9 @@ cache_archive_new_load_decrypted(
     }
 
     struct Dat2Archive dat2_archive = { 0 };
-    int res = read_dat2(
+    int res = read_dat2_from_disk(
+        cache->_dat2_file,
         &dat2_archive,
-        cache->_dat2,
-        cache->_dat2_size,
         index_record.idx_file_id,
         index_record.archive_idx,
         index_record.sector,

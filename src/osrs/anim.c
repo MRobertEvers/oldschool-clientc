@@ -240,7 +240,7 @@ animate(
     }
 }
 
-int
+void
 anim_frame_apply(
     struct CacheFrame* frame,
     struct CacheFramemap* framemap,

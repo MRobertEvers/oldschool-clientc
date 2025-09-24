@@ -4,6 +4,7 @@
 #include "reference_table.h"
 
 #include <stdint.h>
+#include <stdio.h>
 
 enum CacheTable
 {
@@ -42,6 +43,8 @@ struct Cache
 
     char* _dat2;
     int _dat2_size;
+
+    FILE* _dat2_file;
 };
 
 struct Cache* cache_new_from_directory(char const* directory);
