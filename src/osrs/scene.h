@@ -83,15 +83,24 @@ struct ModelNormals
     int lighting_face_normals_count;
 };
 
+enum SceneModelLit
+{
+    SCENE_UNLIT = 0,
+    SCENE_LIT,
+};
+
 struct SceneModel
 {
     int model_id;
+    enum SceneModelLit lit;
     struct CacheModel* model;
 
     int* original_vertices_x;
     int* original_vertices_y;
     int* original_vertices_z;
     int* original_face_alphas;
+
+    // Below are only used if lit is SCENE_LIT
 
     bool sharelight;
     // "original" normals.
@@ -342,5 +351,7 @@ void
 scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct SceneModel* model);
 
 void scene_step_animations(void);
+
+struct SceneModel* scene_model_new_lit_from_model(struct CacheModel* model, int sharelight);
 
 #endif

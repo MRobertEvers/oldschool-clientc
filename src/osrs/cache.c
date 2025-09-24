@@ -195,10 +195,6 @@ read_dat2_from_disk(
     char read_buffer[SECTOR_SIZE];
     int read_buffer_len = 0;
 
-    struct RSBuffer data_buffer = { .data = read_buffer,
-                                    .position = 0,
-                                    .size = sizeof(read_buffer) };
-
     int header_size;
     int data_block_size;
     int current_archive;

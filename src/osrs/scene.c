@@ -2366,3 +2366,70 @@ scene_add_player_entity(struct Scene* scene, int x, int z, int level, struct Sce
         .level = level,
     };
 }
+
+static struct ModelLighting*
+model_lighting_new_default(
+    struct CacheModel* model,
+    struct ModelNormals* normals,
+    int model_contrast,
+    int model_attenuation)
+{
+    struct ModelLighting* lighting = model_lighting_new(model->face_count);
+
+    int light_ambient = 64;
+    int light_attenuation = 768;
+    int lightsrc_x = -50;
+    int lightsrc_y = -10;
+    int lightsrc_z = -50;
+
+    light_ambient += model_contrast;
+    light_attenuation += model_attenuation;
+
+    int light_magnitude =
+        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+    int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+    apply_lighting(
+        lighting->face_colors_hsl_a,
+        lighting->face_colors_hsl_b,
+        lighting->face_colors_hsl_c,
+        normals->lighting_vertex_normals,
+        normals->lighting_face_normals,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        model->face_count,
+        model->face_colors,
+        model->face_alphas,
+        model->face_textures,
+        model->face_infos,
+        light_ambient,
+        attenuation,
+        lightsrc_x,
+        lightsrc_y,
+        lightsrc_z);
+
+    return lighting;
+}
+
+struct SceneModel*
+scene_model_new_lit_from_model(struct CacheModel* model, int sharelight)
+{
+    struct SceneModel* scene_model = (struct SceneModel*)malloc(sizeof(struct SceneModel));
+    memset(scene_model, 0, sizeof(struct SceneModel));
+
+    scene_model->model = model;
+    scene_model->lit = SCENE_LIT;
+
+    scene_model->normals = model_normals_new(model->vertex_count, model->face_count);
+
+    if( sharelight )
+        scene_model->aliased_lighting_normals = model_normals_new_copy(scene_model->normals);
+
+    scene_model->lighting = model_lighting_new_default(
+        model, sharelight ? scene_model->aliased_lighting_normals : scene_model->normals, 0, 0);
+
+    // TODO: Animations
+
+    return scene_model;
+}
