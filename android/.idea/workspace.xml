@@ -4,7 +4,65 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="de6bb455-1fa0-487f-9ed9-12f588fa4070" name="Changes" comment="" />
+    <list default="true" id="de6bb455-1fa0-487f-9ed9-12f588fa4070" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/../.clangd" beforeDir="false" afterPath="$PROJECT_DIR$/../.clangd" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_arch_core_core_runtime_2_1_0_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_concurrent_concurrent_futures_1_1_0.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_core_core_ktx_1_2_0_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_annotation_1_0_1_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_core_1_5_0_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_espresso_espresso_core_3_5_1_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_espresso_espresso_idling_resource_3_5_1_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_ext_junit_1_1_5_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_monitor_1_6_1_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_runner_1_5_2_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_services_storage_1_4_2_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_tracing_tracing_1_0_0_aar.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__com_google_code_findbugs_jsr305_2_0_2.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__com_google_guava_listenablefuture_1_0.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__com_squareup_javawriter_2_1_1.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__javax_inject_javax_inject_1.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__org_hamcrest_hamcrest_integration_1_3.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__org_hamcrest_hamcrest_library_1_3.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__org_jetbrains_kotlin_kotlin_stdlib_jdk7_1_6_21.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__org_jetbrains_kotlin_kotlin_stdlib_jdk8_1_6_21.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.androidTest.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.main.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.main.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.unitTest.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.unitTest.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/app/Scene_Tile_Test_Android.app.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/app/Scene_Tile_Test_Android.app.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/executable_info.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle.dumpbin.symbols.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle.dumpbin.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle_main_client.asm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle_model_viewer.asm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle_model_viewer_obj.asm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle_obj.asm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4.dumpbin.symbols.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4.dumpbin.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4_main_client.asm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4_model_viewer.asm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4_model_viewer_obj.asm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4_obj.asm" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/../readme.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sample/2650.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../sample/anim.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/graphics/lighting.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/graphics/lighting.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/osrs/rsbuf.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/rsbuf.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/osrs/rsbuf.h" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/rsbuf.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/osrs/scene.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/scene.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/osrs/tables/config_locs.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/tables/config_locs.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/osrs/tables/config_npctype.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/tables/config_npctype.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/osrs/tables/model.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/tables/model.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/shared_tables.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/shared_tables.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../test/model_viewer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/../test/model_viewer.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../test/scene_tile_test.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/../test/scene_tile_test.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../vcpkg" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -13,7 +71,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=LocalEmulator, isTemplate=false, identifier=path=/Users/matthewevers/.android/avd/Pixel_3a_API_31_arm64-v8a.avd)]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=PhysicalDevice, isTemplate=false, identifier=serial=T062809L3Z)]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
@@ -22,12 +80,26 @@
   <component name="ExternalProjectsManager">
     <system id="GRADLE">
       <state>
+        <task path="$PROJECT_DIR$">
+          <activation />
+        </task>
         <projects_view>
           <tree_state>
             <expand>
               <path>
                 <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
                 <item name="Scene Tile Test Android" type="f1a62948:ProjectNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="Scene Tile Test Android" type="f1a62948:ProjectNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="Scene Tile Test Android" type="f1a62948:ProjectNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+                <item name="other" type="c8890929:TasksNode$1" />
               </path>
             </expand>
             <select />
@@ -42,9 +114,9 @@
   <component name="ProblemsViewState">
     <option name="selectedTabId" value="ProjectErrors" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 7
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7
+}</component>
   <component name="ProjectId" id="32vhigRjjyG3GFpUQkqSRwdEJFO" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -53,6 +125,7 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "Android App.Scene_Tile_Test_Android.executor": "Run",
+    "Gradle.android.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
@@ -63,12 +136,12 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "com.google.services.firebase.aqiPopupShown": "true",
-    "git-widget-placeholder": "android",
+    "git-widget-placeholder": "master",
     "last_opened_file_path": "/Users/matthewevers/Documents/git_repos/3draster/android",
     "settings.editor.selected.configurable": "AndroidSdkUpdater"
   }
 }]]></component>
-  <component name="RunManager">
+  <component name="RunManager" selected="Android App.Scene_Tile_Test_Android">
     <configuration name="Scene_Tile_Test_Android" type="AndroidRunConfigurationType" factoryName="Android App" activateToolWindowBeforeRun="false">
       <module name="Scene_Tile_Test_Android" />
       <option name="ANDROID_RUN_CONFIGURATION_SCHEMA_VERSION" value="1" />
@@ -141,6 +214,31 @@
         <option name="Android.Gradle.BeforeRunTask" enabled="true" />
       </method>
     </configuration>
+    <configuration name="android" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list />
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Gradle.android" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -166,31 +264,6 @@
           <url>file://$PROJECT_DIR$/src/main/cpp/android_main.cpp</url>
           <line>72</line>
           <option name="timeStamp" value="3" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/main/cpp/android_main.cpp</url>
-          <line>167</line>
-          <option name="timeStamp" value="6" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/main/cpp/android_main.cpp</url>
-          <line>170</line>
-          <option name="timeStamp" value="9" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/main/cpp/android_platform.cpp</url>
-          <line>1051</line>
-          <option name="timeStamp" value="12" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/main/cpp/android_platform.cpp</url>
-          <line>942</line>
-          <option name="timeStamp" value="21" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/com/scenetile/test/MainActivity.java</url>
-          <line>63</line>
-          <option name="timeStamp" value="15" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

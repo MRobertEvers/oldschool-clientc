@@ -1,7 +1,7 @@
 #include "config_locs.h"
 
-#include "osrs/rsbuf.h"
 #include "../string_utils.h"
+#include "osrs/rsbuf.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -702,6 +702,11 @@ config_locs_table_get_new(struct CacheConfigLocationTable* table, int id)
     {
         // free_loc(table->value);
         table->value = NULL;
+    }
+
+    if( id == 14876 )
+    {
+        int iii = 0;
     }
 
     table->value = malloc(sizeof(struct CacheConfigLocation));

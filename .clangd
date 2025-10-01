@@ -1,7 +1,6 @@
 CompileFlags:
   Add:
-    - -mavx2
-    - -mfma
+    - -march=native
     - -ftree-vectorizer-verbose=6
     - -fopt-info-vec-all
     - -fopt-info-vec-missed

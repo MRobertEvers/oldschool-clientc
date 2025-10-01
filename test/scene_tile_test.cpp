@@ -594,6 +594,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
         //     continue;
         if( iter.value.tile_nullable_ )
         {
+            continue;
             render_scene_tile(
                 pixel_buffer,
                 g_screen_vertices_x,
@@ -623,7 +624,10 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
         {
             if( !iter.value.model_nullable_->model )
                 continue;
-
+            if( iter.value.model_nullable_->model->_id != 14816 )
+            {
+                continue;
+            }
             // Advance animations
             struct CacheConfigSequence* sequence = iter.value.model_nullable_->sequence;
             if( sequence )

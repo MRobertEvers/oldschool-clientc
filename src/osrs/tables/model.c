@@ -3,18 +3,19 @@
 #include "osrs/cache.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 // Helper function to read a byte from the buffer
-static char
+static uint8_t
 read_byte(const char* buffer, int* offset)
 {
     return buffer[(*offset)++] & 0xFF;
 }
 
-static unsigned char
+static uint8_t
 read_unsigned_byte(const unsigned char* buffer, int* offset)
 {
     return buffer[(*offset)++] & 0xFF;

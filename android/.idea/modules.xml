@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.iml" filepath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.androidTest.iml" filepath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.androidTest.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/Scene_Tile_Test_Android.app.iml" filepath="$PROJECT_DIR$/.idea/modules/app/Scene_Tile_Test_Android.app.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.main.iml" filepath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.unitTest.iml" filepath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.unitTest.iml" />

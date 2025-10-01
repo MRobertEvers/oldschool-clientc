@@ -21,7 +21,7 @@ rsbuf_g1(struct RSBuffer* buffer)
 }
 
 // signed
-char
+int8_t
 rsbuf_g1b(struct RSBuffer* buffer)
 {
     return buffer->data[buffer->position++];
@@ -176,6 +176,13 @@ rsbuf_read_unsigned_int_smart_short_compat(struct RSBuffer* buffer)
     }
     var1 += var2;
     return var1;
+}
+
+int
+rsbuf_read_short_smart(struct RSBuffer* buffer)
+{
+    int peek = buffer->data[buffer->position] & 0xFF;
+    return peek < 128 ? (rsbuf_g1(buffer) - 64) : (rsbuf_g2(buffer) - 0xC000);
 }
 
 int

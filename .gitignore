@@ -9,3 +9,6 @@ public/cache/
 .cache/
 emsdk/
 android/.idea/
+
+debug.keystore
+gradle.properties

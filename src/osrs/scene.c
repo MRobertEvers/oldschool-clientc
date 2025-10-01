@@ -442,6 +442,11 @@ loc_load_model(
     scene_model->model = model;
     scene_model->model_id = model_ids[0];
 
+    if( scene_model->model->_id == 14816 )
+    {
+        int iii = 0;
+    }
+
     scene_model->light_ambient = loc_config->ambient;
     scene_model->light_contrast = loc_config->contrast;
     scene_model->sharelight = loc_config->sharelight;
@@ -2034,6 +2039,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         if( scene_model->model == NULL )
             continue;
 
+        if( scene_model->model->_id == 14816 )
+        {
+            int iii = 0;
+        }
+
         struct CacheModel* cache_model = scene_model->model;
 
         struct ModelNormals* normals =
@@ -2152,6 +2162,11 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         struct SceneModel* scene_model = &scene->models[i];
         if( scene_model->model == NULL )
             continue;
+
+        if( scene_model->model->_id == 14816 )
+        {
+            int iii = 0;
+        }
 
         struct ModelLighting* lighting = model_lighting_new(scene_model->model->face_count);
 

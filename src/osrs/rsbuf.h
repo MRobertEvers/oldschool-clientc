@@ -24,7 +24,7 @@ void rsbuf_init(struct RSBuffer* buffer, int8_t* data, int size);
 
 int rsbuf_g1(struct RSBuffer* buffer);
 // signed
-char rsbuf_g1b(struct RSBuffer* buffer);
+int8_t rsbuf_g1b(struct RSBuffer* buffer);
 int rsbuf_g2(struct RSBuffer* buffer);
 // signed
 int rsbuf_g2b(struct RSBuffer* buffer);
@@ -37,6 +37,7 @@ int rsbuf_read_big_smart(struct RSBuffer* buffer);
 char* rsbuf_read_string(struct RSBuffer* buffer);
 
 int rsbuf_read_unsigned_int_smart_short_compat(struct RSBuffer* buffer);
+int rsbuf_read_short_smart(struct RSBuffer* buffer);
 int rsbuf_read_unsigned_short_smart(struct RSBuffer* buffer);
 
 void rsbuf_read_params(struct RSBuffer* buffer, struct Params* params);
@@ -52,7 +53,8 @@ int rsbuf_readto(struct RSBuffer* buffer, char* out, int out_size, int len);
 #define g8(buffer) rsbuf_g8(buffer)
 #define gusmart(buffer) rsbuf_read_usmart(buffer)
 #define gbigsmart(buffer) rsbuf_read_big_smart(buffer)
-#define gshortsmart(buffer) rsbuf_read_unsigned_short_smart(buffer)
+#define gushortsmart(buffer) rsbuf_read_unsigned_short_smart(buffer)
+#define gshortsmart(buffer) rsbuf_read_short_smart(buffer)
 
 #define gstring(buffer) rsbuf_read_string(buffer)
 #define gparams(buffer, params) rsbuf_read_params(buffer, params)

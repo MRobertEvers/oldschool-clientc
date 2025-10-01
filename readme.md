@@ -1236,3 +1236,33 @@ Pentium 4 (From Website)
 Integer Math: 1,346 MOps/Sec
 Floating Point Math: 696 MOps/Sec
 Single Thread: 528 MOps/Sec
+
+
+# Char Sign - this was causing colors to be washed out because ambient light could not be negative.
+
+What’s going on?
+
+The ARM EABI (Application Binary Interface) does not fix the signedness of plain char.
+
+Each compiler (GCC, Clang) can choose its own default, and sometimes distributions set it differently for consistency.
+
+Historically:
+
+Debian ARM hard-float (armhf) GCC → defaults to unsigned char.
+
+Debian ARM64 (aarch64) → usually signed char, but some Android-style toolchains and certain GCC builds make it unsigned.
+
+Raspbian (based on Debian armhf) → uses unsigned char as the default.
+So your observation matches that: on Raspberry Pi OS, plain char is unsigned.
+
+To summarize (more precise version)
+
+Linux x86 / x86_64 (GCC/Clang): signed
+
+macOS Intel & Apple Silicon: signed
+
+Android ARMv7 / ARMv8 (NDK/Clang): unsigned
+
+Raspbian / Raspberry Pi OS (Debian armhf GCC): unsigned
+
+Other ARM Linux distros (Ubuntu arm64, Arch ARM, etc.): can be signed or unsigned depending on GCC defaults

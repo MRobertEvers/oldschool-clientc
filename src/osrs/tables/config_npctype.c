@@ -369,7 +369,7 @@ decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct RSBuffer* b
                     else
                     {
                         npc->head_icon_archive_ids[i] = gbigsmart(buffer);
-                        npc->head_icon_sprite_index[i] = gshortsmart(buffer) - 1;
+                        npc->head_icon_sprite_index[i] = gushortsmart(buffer) - 1;
                     }
                 }
             }

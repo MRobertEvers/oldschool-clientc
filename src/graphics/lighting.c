@@ -277,6 +277,7 @@ apply_lighting(
             if( type == 0 )
             {
                 n = &vertex_normals[a];
+                assert(n->face_count > 0);
                 //     // dot product of normal and light vector
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
@@ -325,6 +326,7 @@ apply_lighting(
             if( type == 0 )
             {
                 n = &vertex_normals[a];
+                assert(n->face_count > 0);
 
                 //     // dot product of normal and light vector
                 lightness =

@@ -29,8 +29,8 @@ pix3d_set_gamma(int rgb, double gamma)
     return (intR << 16) + (intG << 8) + intB;
 }
 
-void
-pix3d_set_brightness(int* palette, double brightness)
+static void
+pix3d_init_palette(int* palette, double brightness)
 {
     double random_brightness = brightness;
     int offset = 0;
@@ -115,12 +115,17 @@ pix3d_set_brightness(int* palette, double brightness)
                     b = p;
                 }
             }
-            int intR = (int)(r * 256.0);
-            int intG = (int)(g * 256.0);
-            int intB = (int)(b * 256.0);
+            // int intR = (int)(r * 256.0);
+            // int intG = (int)(g * 256.0);
+            // int intB = (int)(b * 256.0);
+
+            int intR = 16 + (int)(r * 219.0 + 0.5);
+            int intG = 16 + (int)(g * 219.0 + 0.5);
+            int intB = 16 + (int)(b * 219.0 + 0.5);
+
             int rgb = (intR << 16) + (intG << 8) + intB;
             int rgbAdjusted = pix3d_set_gamma(rgb, random_brightness);
-            palette[offset++] = rgbAdjusted;
+            palette[offset++] = (0xff000000) | rgbAdjusted;
         }
     }
 }
@@ -129,7 +134,7 @@ void
 init_hsl16_to_rgb_table(void)
 {
     // 0 and 128 are both black.
-    pix3d_set_brightness(g_hsl16_to_rgb_table, 0.8);
+    pix3d_init_palette(g_hsl16_to_rgb_table, 0.8);
 }
 
 void
