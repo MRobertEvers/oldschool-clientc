@@ -5,63 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="de6bb455-1fa0-487f-9ed9-12f588fa4070" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/../.clangd" beforeDir="false" afterPath="$PROJECT_DIR$/../.clangd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_arch_core_core_runtime_2_1_0_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_concurrent_concurrent_futures_1_1_0.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_core_core_ktx_1_2_0_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_annotation_1_0_1_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_core_1_5_0_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_espresso_espresso_core_3_5_1_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_espresso_espresso_idling_resource_3_5_1_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_ext_junit_1_1_5_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_monitor_1_6_1_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_runner_1_5_2_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_test_services_storage_1_4_2_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__androidx_tracing_tracing_1_0_0_aar.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__com_google_code_findbugs_jsr305_2_0_2.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__com_google_guava_listenablefuture_1_0.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__com_squareup_javawriter_2_1_1.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__javax_inject_javax_inject_1.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__org_hamcrest_hamcrest_integration_1_3.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__org_hamcrest_hamcrest_library_1_3.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__org_jetbrains_kotlin_kotlin_stdlib_jdk7_1_6_21.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Gradle__org_jetbrains_kotlin_kotlin_stdlib_jdk8_1_6_21.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.androidTest.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.main.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.main.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.unitTest.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.unitTest.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules/app/Scene_Tile_Test_Android.app.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/app/Scene_Tile_Test_Android.app.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/executable_info.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle.dumpbin.symbols.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle.dumpbin.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle_main_client.asm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle_model_viewer.asm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle_model_viewer_obj.asm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/gouraud_deob_draw_triangle_obj.asm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4.dumpbin.symbols.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4.dumpbin.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4_main_client.asm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4_model_viewer.asm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4_model_viewer_obj.asm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../assembly_dumps/raster_gouraud_s4_obj.asm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/../readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../sample/2650.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../sample/anim.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/graphics/lighting.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/graphics/lighting.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/osrs/rsbuf.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/rsbuf.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/osrs/rsbuf.h" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/rsbuf.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/osrs/scene.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/scene.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/osrs/tables/config_locs.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/tables/config_locs.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/osrs/tables/config_npctype.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/tables/config_npctype.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/osrs/tables/model.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/osrs/tables/model.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/shared_tables.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/shared_tables.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../test/model_viewer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/../test/model_viewer.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../test/scene_tile_test.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/../test/scene_tile_test.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../vcpkg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/cpp/android_platform.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/android_platform.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/cpp/android_platform.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/android_platform.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -138,7 +84,7 @@
     "com.google.services.firebase.aqiPopupShown": "true",
     "git-widget-placeholder": "master",
     "last_opened_file_path": "/Users/matthewevers/Documents/git_repos/3draster/android",
-    "settings.editor.selected.configurable": "AndroidSdkUpdater"
+    "settings.editor.selected.configurable": "preferences.keymap"
   }
 }]]></component>
   <component name="RunManager" selected="Android App.Scene_Tile_Test_Android">

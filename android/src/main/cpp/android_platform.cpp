@@ -410,8 +410,9 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
         "Render Time: %.3f ms/frame",
         (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
     ImGui::Text(
-        "Average Render Time: %.3f ms/frame",
-        (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency);
+        "Average Render Time: %.3f ms/frame, %.3f ms/frame",
+        (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency,
+        (double)(game->painters_time_sum / game->frame_count) * 1000.0 / (double)frequency);
     ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
 
     ImGui::Text("Hover model: %d, %d", game->hover_model, game->hover_loc_yaw);
@@ -480,8 +481,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
     SDL_Renderer* renderer = platform->renderer;
     int* pixel_buffer = platform->pixel_buffer;
 
-    // Get the frequency (ticks per second)
-    Uint64 frequency = SDL_GetPerformanceFrequency();
+    Uint64 start_painters_ticks = SDL_GetPerformanceCounter();
+
+
 
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     int render_ops = game->max_render_ops;
@@ -514,7 +516,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
         textures_cache_walk_free(walk);
     }
 
+
     Uint64 start_ticks = SDL_GetPerformanceCounter();
+    game->painters_time_sum += start_ticks - start_painters_ticks;
     struct IterRenderSceneOps iter;
     struct IterRenderModel iter_model;
 
@@ -530,13 +534,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
         game->camera_x / 128,
         game->camera_z / 128);
 
-    int last_model_hit = -1;
     struct SceneModel* last_model_hit_model = NULL;
     int last_model_hit_yaw = 0;
-    int min_z = 2;
-    int max_z = 4;
-    int min_x = 2;
-    int max_x = 4;
     while( iter_render_scene_ops_next(&iter) )
     {
         if( iter.value.tile_nullable_ )
@@ -868,6 +867,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
     }
 
     Uint64 end_ticks = SDL_GetPerformanceCounter();
+
     game->start_time = start_ticks;
     game->end_time = end_ticks;
 
@@ -1330,13 +1330,7 @@ AndroidPlatform::initGame()
     m_game->camera_speed = 50;
 
     // Initialize additional game state from scene_tile_test.cpp
-    m_game->show_debug_tiles = 1;
-    m_game->player_tile_x = 10;
-    m_game->player_tile_y = 10;
-    m_game->tile_count = MAP_TILE_COUNT;
     m_game->scene_locs = NULL;
-    m_game->show_loc_x = 63;
-    m_game->show_loc_y = 63;
 
     // Initialize image cross pixels for mouse click animation
     m_game->image_cross_pixels = (int**)malloc(8 * sizeof(int*));

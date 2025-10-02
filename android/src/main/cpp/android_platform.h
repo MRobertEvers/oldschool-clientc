@@ -43,38 +43,32 @@ struct Game
     int mouse_click_y;
     int mouse_click_cycle;
 
-    int player_tile_x;
-    int player_tile_y;
-    int player_yaw;
-    int player_animation_id;
-    struct SceneModel* player_model;
-
     struct FrustrumCullmap* frustrum_cullmap;
     int fake_pitch;
 
     uint64_t start_time;
     uint64_t end_time;
+    uint64_t start_painters_time;
+    uint64_t end_painters_time;
 
     uint64_t frame_count;
     uint64_t frame_time_sum;
+    uint64_t painters_time_sum;
 
     struct SceneTile* tiles;
-    int tile_count;
 
     struct SceneTextures* scene_textures;
 
     struct CacheTexture* textures;
-    int* texture_ids;
-    int texture_count;
 
     struct CacheSpritePack* sprite_packs;
-    int* sprite_ids;
-    int sprite_count;
 
     struct CacheMapLocs* map_locs;
 
     struct SceneLocs* scene_locs;
-    struct SceneTextures* loc_textures;
+
+    int* sprite_ids;
+    int sprite_count;
 
     int** image_cross_pixels;
     // THese are of known size.
@@ -88,19 +82,7 @@ struct Game
     int max_render_ops;
     int manual_render_ops;
 
-    int show_loc_enabled;
-    int show_loc_x;
-    int show_loc_y;
-
     struct TexturesCache* textures_cache;
-
-    int show_debug_tiles;
-    bool show_debug_glow;
-    int debug_glow_r;
-    int debug_glow_g;
-    int debug_glow_b;
-    int debug_glow_intensity;
-    int debug_glow_radius;
 
     int camera_speed; // Camera movement speed
 };
