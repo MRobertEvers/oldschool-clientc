@@ -4,20 +4,14 @@
 #include <android/asset_manager_jni.h>
 #include <android/log.h>
 
+#include <SDL.h>
 #include <jni.h>
 #include <memory>
 #include <string>
 
-
-#include <SDL.h>
-#include <memory>
-#include <string>
-
-
 #define LOG_TAG "SceneTileTest"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-
 
 // Game struct definition (from scene_tile_test.cpp)
 struct Game
@@ -78,6 +72,7 @@ struct Game
 
     struct SceneOp* ops;
     int op_count;
+    int op_capacity;
 
     int max_render_ops;
     int manual_render_ops;
@@ -100,7 +95,6 @@ struct PlatformSDL2
     int drawable_height;
 };
 
-
 class AndroidPlatform
 {
 public:
@@ -120,8 +114,8 @@ private:
     bool m_paused;
 
     // SDL2 platform wrapper
-    PlatformSDL2* m_sdl_platform;
-    Game* m_game;
+    struct PlatformSDL2* m_sdl_platform;
+    struct Game* m_game;
 
     // Cache and scene data
     struct Cache* m_cache;

@@ -1811,6 +1811,12 @@ near_wall_flags(int camera_tile_x, int camera_tile_z, int loc_x, int loc_y)
     return flags;
 }
 
+static struct IntQueue queue = { 0 };
+// int_queue_init(&queue, scene->grid_tiles_length);
+static struct IntQueue catchup_queue = { 0 };
+// int_queue_init(&catchup_queue, scene->grid_tiles_length);
+struct SceneElement elements[10900];
+
 /**
  * Painters algorithm
  *
@@ -1827,8 +1833,15 @@ near_wall_flags(int camera_tile_x, int camera_tile_z, int loc_x, int loc_y)
  * 11. Draw near decor (i.e. facing away from the camera on the near wall)
  * 12. Draw the near wall.
  */
-struct SceneOp*
-render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene* scene, int* len)
+int
+render_scene_compute_ops(
+    struct SceneOp* ops,
+    int op_capacity,
+    int camera_x,
+    int camera_y,
+    int camera_z,
+    struct Scene* scene,
+    int* len)
 {
     struct GridTile* grid_tile = NULL;
     struct GridTile* bridge_underpass_tile = NULL;
@@ -1842,12 +1855,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
 
     int op_count = 0;
 
-    int op_capacity = scene->grid_tiles_length * 11;
-    struct SceneOp* ops = (struct SceneOp*)malloc(op_capacity * sizeof(struct SceneOp));
-    memset(ops, 0, op_capacity * sizeof(struct SceneOp));
-    *len = 0;
-    struct SceneElement* elements =
-        (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
+    // int op_capacity = scene->grid_tiles_length * 11;
+    // struct SceneOp* ops = (struct SceneOp*)malloc(op_capacity * sizeof(struct SceneOp));
+    // memset(ops, 0, op_capacity * sizeof(struct SceneOp));
+    // struct SceneElement* elements =
+    //     (struct SceneElement*)malloc(scene->grid_tiles_length * sizeof(struct SceneElement));
 
     for( int i = 0; i < scene->grid_tiles_length; i++ )
     {
@@ -1860,7 +1872,7 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
     }
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 30;
+    int radius = 25;
     int coord_list_x[4];
     int coord_list_z[4];
     int max_level = 0;
@@ -1894,14 +1906,16 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
         min_draw_z = MAP_TERRAIN_Y;
 
     if( min_draw_x >= max_draw_x )
-        return ops;
+        return 0;
     if( min_draw_z >= max_draw_z )
-        return ops;
+        return 0;
 
-    struct IntQueue queue = { 0 };
-    int_queue_init(&queue, scene->grid_tiles_length);
-    struct IntQueue catchup_queue = { 0 };
-    int_queue_init(&catchup_queue, scene->grid_tiles_length);
+    // struct IntQueue queue = { 0 };
+    if( queue.data == NULL )
+        int_queue_init(&queue, scene->grid_tiles_length);
+    // struct IntQueue catchup_queue = { 0 };
+    if( catchup_queue.data == NULL )
+        int_queue_init(&catchup_queue, scene->grid_tiles_length);
 
     struct SceneElement* element = NULL;
     struct SceneElement* other = NULL;
@@ -2650,12 +2664,11 @@ render_scene_compute_ops(int camera_x, int camera_y, int camera_z, struct Scene*
         }
     }
 
-    free(elements);
-    int_queue_free(&queue);
-    int_queue_free(&catchup_queue);
+    // free(elements);
+    // int_queue_free(&queue);
+    // int_queue_free(&catchup_queue);
 
-    *len = op_count;
-    return ops;
+    return op_count;
 }
 
 static struct SceneTile g_dbg_tile = { 0 };

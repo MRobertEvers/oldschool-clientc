@@ -5,9 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="de6bb455-1fa0-487f-9ed9-12f588fa4070" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/cpp/android_platform.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/android_platform.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/cpp/android_platform.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/android_platform.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/graphics/render.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/graphics/render.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/graphics/render.h" beforeDir="false" afterPath="$PROJECT_DIR$/../src/graphics/render.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

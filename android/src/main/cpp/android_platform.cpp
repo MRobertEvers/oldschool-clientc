@@ -483,18 +483,20 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
 
     Uint64 start_painters_ticks = SDL_GetPerformanceCounter();
 
-
-
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     int render_ops = game->max_render_ops;
     if( !game->manual_render_ops )
     {
         if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
         {
-            if( game->ops )
-                free(game->ops);
-            game->ops = render_scene_compute_ops(
-                game->camera_x, game->camera_y, game->camera_z, game->scene, &game->op_count);
+            game->op_count = render_scene_compute_ops(
+                game->ops,
+                game->op_capacity,
+                game->camera_x,
+                game->camera_y,
+                game->camera_z,
+                game->scene,
+                &game->op_count);
             game->max_render_ops = game->op_count;
             render_ops = game->op_count;
         }
@@ -515,7 +517,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
 
         textures_cache_walk_free(walk);
     }
-
 
     Uint64 start_ticks = SDL_GetPerformanceCounter();
     game->painters_time_sum += start_ticks - start_painters_ticks;
@@ -1328,6 +1329,10 @@ AndroidPlatform::initGame()
     m_game->camera_y = -1340;
     m_game->camera_z = 1916;
     m_game->camera_speed = 50;
+
+    m_game->op_capacity = 10900;
+    m_game->ops = (struct SceneOp*)malloc(m_game->op_capacity * sizeof(struct SceneOp));
+    memset(m_game->ops, 0, m_game->op_capacity * sizeof(struct SceneOp));
 
     // Initialize additional game state from scene_tile_test.cpp
     m_game->scene_locs = NULL;

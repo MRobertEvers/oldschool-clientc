@@ -169,6 +169,7 @@ struct Game
 
     struct SceneOp* ops;
     int op_count;
+    int op_capacity;
 
     int max_render_ops;
     int manual_render_ops;
@@ -539,10 +540,14 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
     {
         if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
         {
-            if( game->ops )
-                free(game->ops);
-            game->ops = render_scene_compute_ops(
-                game->camera_x, game->camera_y, game->camera_z, game->scene, &game->op_count);
+            game->op_count = render_scene_compute_ops(
+                game->ops,
+                game->op_capacity,
+                game->camera_x,
+                game->camera_y,
+                game->camera_z,
+                game->scene,
+                &game->op_count);
             game->max_render_ops = game->op_count;
             render_ops = game->op_count;
         }
@@ -827,43 +832,43 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
 
     if( last_model_hit_model )
     {
-        memset(g_blit_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+        // memset(g_blit_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
 
-        int model_id = last_model_hit_model->model_id;
-        int model_x = last_model_hit_model->_chunk_pos_x;
-        int model_y = last_model_hit_model->_chunk_pos_y;
-        int model_z = last_model_hit_model->_chunk_pos_level;
+        // int model_id = last_model_hit_model->model_id;
+        // int model_x = last_model_hit_model->_chunk_pos_x;
+        // int model_y = last_model_hit_model->_chunk_pos_y;
+        // int model_z = last_model_hit_model->_chunk_pos_level;
 
-        struct AABB aabb;
+        // struct AABB aabb;
 
-        render_scene_model(
-            g_blit_buffer,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            // Had to use 100 here because of the scale, near plane z was resulting in
-            // extremely close to the camera.
-            100,
-            last_model_hit_yaw,
-            game->camera_x,
-            game->camera_y,
-            game->camera_z,
-            game->camera_pitch,
-            game->camera_yaw,
-            game->camera_roll,
-            game->camera_fov,
-            &aabb,
-            last_model_hit_model,
-            game->textures_cache);
+        // render_scene_model(
+        //     g_blit_buffer,
+        //     SCREEN_WIDTH,
+        //     SCREEN_HEIGHT,
+        //     // Had to use 100 here because of the scale, near plane z was resulting in
+        //     // extremely close to the camera.
+        //     100,
+        //     last_model_hit_yaw,
+        //     game->camera_x,
+        //     game->camera_y,
+        //     game->camera_z,
+        //     game->camera_pitch,
+        //     game->camera_yaw,
+        //     game->camera_roll,
+        //     game->camera_fov,
+        //     &aabb,
+        //     last_model_hit_model,
+        //     game->textures_cache);
 
-        apply_outline_effect(
-            pixel_buffer,
-            g_blit_buffer,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            aabb.min_screen_x,
-            aabb.max_screen_x,
-            aabb.min_screen_y,
-            aabb.max_screen_y);
+        // apply_outline_effect(
+        //     pixel_buffer,
+        //     g_blit_buffer,
+        //     SCREEN_WIDTH,
+        //     SCREEN_HEIGHT,
+        //     aabb.min_screen_x,
+        //     aabb.max_screen_x,
+        //     aabb.min_screen_y,
+        //     aabb.max_screen_y);
 
         // // Draw AABB rectangle outline
         // for( int x = aabb.min_screen_x; x <= aabb.max_screen_x; x++ )
@@ -1410,6 +1415,10 @@ main(int argc, char* argv[])
     struct Game game = { 0 };
     game.world = world_new();
     game.image_cross_pixels = (int**)malloc(8 * sizeof(int*));
+
+    game.op_capacity = 10900;
+    game.ops = (struct SceneOp*)malloc(game.op_capacity * sizeof(struct SceneOp));
+    memset(game.ops, 0, game.op_capacity * sizeof(struct SceneOp));
 
     int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
     struct CacheSpritePack* sprite_packs =
@@ -2263,10 +2272,14 @@ main(int argc, char* argv[])
 
             if( space_pressed )
             {
-                if( game.ops )
-                    free(game.ops);
-                game.ops = render_scene_compute_ops(
-                    game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
+                game.op_count = render_scene_compute_ops(
+                    game.ops,
+                    game.op_capacity,
+                    game.camera_x,
+                    game.camera_y,
+                    game.camera_z,
+                    game.scene,
+                    &game.op_count);
                 memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
                 game.max_render_ops = 1;
                 game.manual_render_ops = 0;
