@@ -1737,7 +1737,7 @@ struct IntQueue
     int tail;
 };
 
-void
+static inline void
 int_queue_init(struct IntQueue* queue, int capacity)
 {
     queue->data = (int*)malloc(capacity * sizeof(int));
@@ -1745,7 +1745,7 @@ int_queue_init(struct IntQueue* queue, int capacity)
     queue->capacity = capacity;
 }
 
-void
+static inline void
 int_queue_push_wrap(struct IntQueue* queue, int value)
 {
     int next_tail = (queue->tail + 1) % queue->capacity;
@@ -1756,7 +1756,7 @@ int_queue_push_wrap(struct IntQueue* queue, int value)
     queue->length++;
 }
 
-void
+static inline void
 int_queue_push_wrap_prio(struct IntQueue* queue, int value, int prio)
 {
     int next_tail = (queue->tail + 1) % queue->capacity;
@@ -1767,7 +1767,7 @@ int_queue_push_wrap_prio(struct IntQueue* queue, int value, int prio)
     queue->length++;
 }
 
-int
+static inline int
 int_queue_pop(struct IntQueue* queue)
 {
     assert((queue->head) != queue->tail);
@@ -1779,7 +1779,7 @@ int_queue_pop(struct IntQueue* queue)
     return value;
 }
 
-void
+static inline void
 int_queue_free(struct IntQueue* queue)
 {
     free(queue->data);
@@ -1811,12 +1811,6 @@ near_wall_flags(int camera_tile_x, int camera_tile_z, int loc_x, int loc_y)
     return flags;
 }
 
-static struct IntQueue queue = { 0 };
-// int_queue_init(&queue, scene->grid_tiles_length);
-static struct IntQueue catchup_queue = { 0 };
-// int_queue_init(&catchup_queue, scene->grid_tiles_length);
-struct SceneElement elements[32000];
-
 /**
  * Painters algorithm
  *
@@ -1843,6 +1837,12 @@ render_scene_compute_ops(
     struct Scene* scene,
     int* len)
 {
+    static struct IntQueue queue = { 0 };
+    // int_queue_init(&queue, scene->grid_tiles_length);
+    static struct IntQueue catchup_queue = { 0 };
+    // int_queue_init(&catchup_queue, scene->grid_tiles_length);
+    static struct SceneElement elements[32000] = { 0 };
+
     struct GridTile* grid_tile = NULL;
     struct GridTile* bridge_underpass_tile = NULL;
 
