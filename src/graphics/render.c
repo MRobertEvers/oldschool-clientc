@@ -1815,7 +1815,7 @@ static struct IntQueue queue = { 0 };
 // int_queue_init(&queue, scene->grid_tiles_length);
 static struct IntQueue catchup_queue = { 0 };
 // int_queue_init(&catchup_queue, scene->grid_tiles_length);
-struct SceneElement elements[10900];
+struct SceneElement elements[32000];
 
 /**
  * Painters algorithm

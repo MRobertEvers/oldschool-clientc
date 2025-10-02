@@ -5,10 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="de6bb455-1fa0-487f-9ed9-12f588fa4070" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/src/main/cpp/android_platform.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/android_platform.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/cpp/android_platform.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/android_platform.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.main.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.main.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.unitTest.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules/Scene_Tile_Test_Android.unitTest.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../src/graphics/render.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/graphics/render.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../src/graphics/render.h" beforeDir="false" afterPath="$PROJECT_DIR$/../src/graphics/render.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -71,7 +72,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
-    "Android App.Scene_Tile_Test_Android.executor": "Run",
+    "Android App.Scene_Tile_Test_Android.executor": "Debug",
     "Gradle.android.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
@@ -211,6 +212,21 @@
           <url>file://$PROJECT_DIR$/src/main/cpp/android_main.cpp</url>
           <line>72</line>
           <option name="timeStamp" value="3" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/main/cpp/android_platform.cpp</url>
+          <line>491</line>
+          <option name="timeStamp" value="61" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/main/cpp/android_platform.cpp</url>
+          <line>489</line>
+          <option name="timeStamp" value="63" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/../src/graphics/render.c</url>
+          <line>1913</line>
+          <option name="timeStamp" value="65" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
