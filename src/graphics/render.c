@@ -1835,7 +1835,7 @@ struct SceneElement elements[32000];
  */
 int
 render_scene_compute_ops(
-    struct SceneOp* ops,
+    struct SceneOp* __restrict__ __attribute__((aligned(16))) ops,
     int op_capacity,
     int camera_x,
     int camera_y,
@@ -2785,7 +2785,7 @@ dbg_tile(
 
 void
 render_scene_ops(
-    struct SceneOp* ops,
+    struct SceneOp* __restrict__ __attribute__((aligned(16))) ops,
     int op_count,
     int offset,
     int number_to_render,

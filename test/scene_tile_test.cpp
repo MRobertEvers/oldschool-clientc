@@ -174,6 +174,8 @@ struct Game
     int max_render_ops;
     int manual_render_ops;
 
+    uint64_t painters_time_sum;
+
     int show_loc_enabled;
     int show_loc_x;
     int show_loc_y;
@@ -378,8 +380,9 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
         "Render Time: %.3f ms/frame",
         (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
     ImGui::Text(
-        "Average Render Time: %.3f ms/frame",
-        (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency);
+        "Average Render Time: %.3f ms/frame, %.3f ms/frame",
+        (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency,
+        (double)(game->painters_time_sum / game->frame_count) * 1000.0 / (double)frequency);
     ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
 
     ImGui::Text("Hover model: %d, %d", game->hover_model, game->hover_loc_yaw);
@@ -534,6 +537,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
     // Get the frequency (ticks per second)
     Uint64 frequency = SDL_GetPerformanceFrequency();
 
+    Uint64 start_painters_ticks = SDL_GetPerformanceCounter();
+
     memset(platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     int render_ops = game->max_render_ops;
     if( !game->manual_render_ops )
@@ -570,6 +575,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
     }
 
     Uint64 start_ticks = SDL_GetPerformanceCounter();
+    game->painters_time_sum += start_ticks - start_painters_ticks;
     struct IterRenderSceneOps iter;
     struct IterRenderModel iter_model;
 
