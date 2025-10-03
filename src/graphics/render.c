@@ -239,67 +239,74 @@ project_vertices_model_textured(
     aabb->max_screen_x += screen_edge_width;
     aabb->max_screen_y += screen_edge_height;
 
-    // aabb->min_screen_x = 0;
-    // aabb->min_screen_y = 0;
-    // aabb->max_screen_x = 20;
-    // aabb->max_screen_y = 20;
+    if( aabb->min_screen_x >= screen_width )
+        return 0;
+    if( aabb->min_screen_y >= screen_height )
+        return 0;
+    if( aabb->max_screen_x < 0 )
+        return 0;
+    if( aabb->max_screen_y < 0 )
+        return 0;
 
-    // int cos_camera_radius = model_edge_radius * g_cos_table[camera_pitch] >> 16;
-    // int sin_camera_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
-    // int min_z = mid_z - (cos_camera_radius);
-    // if( min_z < near_plane_z )
-    //     min_z = near_plane_z;
+    //  int cos_camera_radius = model_edge_radius * g_cos_table[camera_pitch] >> 16;
+    //  int sin_camera_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
+    //  int min_z = mid_z - (cos_camera_radius);
+    //  if( min_z < near_plane_z )
+    //      min_z = near_plane_z;
 
-    // int height_sin = model_cylinder_center_to_bottom_edge * g_sin_table[camera_pitch] >> 16;
+    //  int height_sin = model_cylinder_center_to_bottom_edge * g_sin_table[camera_pitch] >> 16;
 
-    // int min_screen_x = mid_x - model_edge_radius;
-    // if( mid_x > 0 )
-    // {
-    //     aabb->min_screen_x =
-    //         project_divide(mid_x - model_edge_radius - model_edge_radius, max_z, camera_fov) +
-    //         screen_width / 2;
+    //  int min_screen_x = mid_x - model_edge_radius;
+    //  if( mid_x > 0 )
+    //  {
+    //      aabb->min_screen_x =
+    //          project_divide(mid_x - model_edge_radius - model_edge_radius, max_z, camera_fov) +
+    //          screen_width / 2;
 
-    //     aabb->max_screen_x =
-    //         project_divide(
-    //             mid_x + (model_edge_radius + height_sin + sin_camera_radius), min_z, camera_fov)
-    //             +
-    //         screen_width / 2;
-    // }
-    // else
-    // {
-    //     aabb->min_screen_x =
-    //         project_divide(
-    //             mid_x - model_edge_radius - height_sin - sin_camera_radius, min_z, camera_fov) +
-    //         screen_width / 2;
-    //     aabb->max_screen_x =
-    //         project_divide(mid_x + model_edge_radius + model_edge_radius, max_z, camera_fov) +
-    //         screen_width / 2;
-    // }
+    //      aabb->max_screen_x =
+    //          project_divide(
+    //              mid_x + (model_edge_radius + height_sin + sin_camera_radius), min_z, camera_fov)
+    //              +
+    //          screen_width / 2;
+    //  }
+    //  else
+    //  {
+    //      aabb->min_screen_x =
+    //          project_divide(
+    //              mid_x - model_edge_radius - height_sin - sin_camera_radius, min_z, camera_fov) +
+    //          screen_width / 2;
+    //      aabb->max_screen_x =
+    //          project_divide(mid_x + model_edge_radius + model_edge_radius, max_z, camera_fov) +
+    //          screen_width / 2;
+    //  }
 
-    // int height_cos = model_cylinder_center_to_bottom_edge;
+    //  int height_cos = model_cylinder_center_to_bottom_edge;
 
-    // int highest_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
+    //  int highest_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
 
-    // int min_screen_y = mid_y - (model_edge_radius)-height_cos;
-    // int max_screen_y = mid_y + (highest_radius) + height_sin;
-    // if( mid_y > 0 )
-    // {
-    //     if( mid_y - model_cylinder_center_to_bottom_edge > 0 )
-    //         aabb->min_screen_y =
-    //             project_divide(min_screen_y, max_z, camera_fov) + screen_height / 2;
-    //     else
-    //         aabb->min_screen_y =
-    //             project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
+    //  int min_screen_y = mid_y - (model_edge_radius)-height_cos;
+    //  int max_screen_y = mid_y + (highest_radius) + height_sin;
+    //  if( mid_y > 0 )
+    //  {
+    //      if( mid_y - model_cylinder_center_to_bottom_edge > 0 )
+    //          aabb->min_screen_y =
+    //              project_divide(min_screen_y, max_z, camera_fov) + screen_height / 2;
+    //      else
+    //          aabb->min_screen_y =
+    //              project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
 
-    //     aabb->max_screen_y = project_divide(max_screen_y, min_z, camera_fov) + screen_height / 2;
-    // }
-    // else
-    // {
-    //     // min_screen_y -= highest_projected;
-    //     aabb->min_screen_y = project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
+    //      aabb->max_screen_y = project_divide(max_screen_y, min_z, camera_fov) + screen_height /
+    //      2;
+    //  }
+    //  else
+    //  {
+    //      // min_screen_y -= highest_projected;
+    //      aabb->min_screen_y = project_divide(min_screen_y, min_z, camera_fov) + screen_height /
+    //      2;
 
-    //     aabb->max_screen_y = project_divide(max_screen_y, max_z, camera_fov) + screen_height / 2;
-    // }
+    //      aabb->max_screen_y = project_divide(max_screen_y, max_z, camera_fov) + screen_height /
+    //      2;
+    //  }
 
     project_vertices_array(
         orthographic_vertices_x,

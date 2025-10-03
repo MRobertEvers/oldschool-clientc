@@ -5,7 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="de6bb455-1fa0-487f-9ed9-12f588fa4070" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/cpp/android_platform.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/android_platform.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/graphics/render.c" beforeDir="false" afterPath="$PROJECT_DIR$/../src/graphics/render.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../src/screen.h" beforeDir="false" afterPath="$PROJECT_DIR$/../src/screen.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../test/scene_tile_test.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/../test/scene_tile_test.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -211,17 +215,17 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
           <url>file://$PROJECT_DIR$/src/main/cpp/android_platform.cpp</url>
-          <line>491</line>
+          <line>476</line>
           <option name="timeStamp" value="61" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
           <url>file://$PROJECT_DIR$/src/main/cpp/android_platform.cpp</url>
-          <line>489</line>
+          <line>474</line>
           <option name="timeStamp" value="63" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
           <url>file://$PROJECT_DIR$/../src/graphics/render.c</url>
-          <line>1913</line>
+          <line>2001</line>
           <option name="timeStamp" value="65" />
         </line-breakpoint>
       </breakpoints>
