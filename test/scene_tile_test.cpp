@@ -876,40 +876,40 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
         //     aabb.min_screen_y,
         //     aabb.max_screen_y);
 
-        // // Draw AABB rectangle outline
-        // for( int x = aabb.min_screen_x; x <= aabb.max_screen_x; x++ )
-        // {
-        //     if( x >= 0 && x < SCREEN_WIDTH )
-        //     {
-        //         // Top line
-        //         if( aabb.min_screen_y >= 0 && aabb.min_screen_y < SCREEN_HEIGHT )
-        //         {
-        //             pixel_buffer[aabb.min_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
-        //         }
-        //         // Bottom line
-        //         if( aabb.max_screen_y >= 0 && aabb.max_screen_y < SCREEN_HEIGHT )
-        //         {
-        //             pixel_buffer[aabb.max_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
-        //         }
-        //     }
-        // }
+        // Draw AABB rectangle outline
+        for( int x = aabb.min_screen_x; x <= aabb.max_screen_x; x++ )
+        {
+            if( x >= 0 && x < SCREEN_WIDTH )
+            {
+                // Top line
+                if( aabb.min_screen_y >= 0 && aabb.min_screen_y < SCREEN_HEIGHT )
+                {
+                    pixel_buffer[aabb.min_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
+                }
+                // Bottom line
+                if( aabb.max_screen_y >= 0 && aabb.max_screen_y < SCREEN_HEIGHT )
+                {
+                    pixel_buffer[aabb.max_screen_y * SCREEN_WIDTH + x] = 0xFFFFFF;
+                }
+            }
+        }
 
-        // for( int y = aabb.min_screen_y; y <= aabb.max_screen_y; y++ )
-        // {
-        //     if( y >= 0 && y < SCREEN_HEIGHT )
-        //     {
-        //         // Left line
-        //         if( aabb.min_screen_x >= 0 && aabb.min_screen_x < SCREEN_WIDTH )
-        //         {
-        //             pixel_buffer[y * SCREEN_WIDTH + aabb.min_screen_x] = 0xFFFFFF;
-        //         }
-        //         // Right line
-        //         if( aabb.max_screen_x >= 0 && aabb.max_screen_x < SCREEN_WIDTH )
-        //         {
-        //             pixel_buffer[y * SCREEN_WIDTH + aabb.max_screen_x] = 0xFFFFFF;
-        //         }
-        //     }
-        // }
+        for( int y = aabb.min_screen_y; y <= aabb.max_screen_y; y++ )
+        {
+            if( y >= 0 && y < SCREEN_HEIGHT )
+            {
+                // Left line
+                if( aabb.min_screen_x >= 0 && aabb.min_screen_x < SCREEN_WIDTH )
+                {
+                    pixel_buffer[y * SCREEN_WIDTH + aabb.min_screen_x] = 0xFFFFFF;
+                }
+                // Right line
+                if( aabb.max_screen_x >= 0 && aabb.max_screen_x < SCREEN_WIDTH )
+                {
+                    pixel_buffer[y * SCREEN_WIDTH + aabb.max_screen_x] = 0xFFFFFF;
+                }
+            }
+        }
     }
 
     // // Draw horizontal line at screen center
@@ -1687,9 +1687,6 @@ main(int argc, char* argv[])
     struct SceneModel* player_model = NULL;
 
     {
-        struct SceneModel* scene_model = (struct SceneModel*)malloc(sizeof(struct SceneModel));
-        memset(scene_model, 0, sizeof(struct SceneModel));
-
         struct CacheConfigIdkTable* config_idk_table = config_idk_table_new(cache);
         if( !config_idk_table )
         {
@@ -1753,7 +1750,7 @@ main(int argc, char* argv[])
 
         struct CacheModel* merged_model = model_new_merge(models, parts__models_count);
 
-        scene_model->model = merged_model;
+        struct SceneModel* scene_model = scene_model_new_lit_from_model(merged_model, 0);
 
         struct CacheConfigSequence* sequence = NULL;
 
@@ -1845,104 +1842,14 @@ main(int argc, char* argv[])
             filelist_free(frame_filelist);
             frame_filelist = NULL;
 
-            struct CacheModel* cache_model = scene_model->model;
-
-            struct ModelNormals* normals =
-                (struct ModelNormals*)malloc(sizeof(struct ModelNormals));
-            memset(normals, 0, sizeof(struct ModelNormals));
-
-            normals->lighting_vertex_normals = (struct LightingNormal*)malloc(
-                sizeof(struct LightingNormal) * cache_model->vertex_count);
-            memset(
-                normals->lighting_vertex_normals,
-                0,
-                sizeof(struct LightingNormal) * cache_model->vertex_count);
-            normals->lighting_face_normals = (struct LightingNormal*)malloc(
-                sizeof(struct LightingNormal) * cache_model->face_count);
-            memset(
-                normals->lighting_face_normals,
-                0,
-                sizeof(struct LightingNormal) * cache_model->face_count);
-
-            normals->lighting_vertex_normals_count = cache_model->vertex_count;
-            normals->lighting_face_normals_count = cache_model->face_count;
-
-            calculate_vertex_normals(
-                normals->lighting_vertex_normals,
-                normals->lighting_face_normals,
-                cache_model->vertex_count,
-                cache_model->face_indices_a,
-                cache_model->face_indices_b,
-                cache_model->face_indices_c,
-                cache_model->vertices_x,
-                cache_model->vertices_y,
-                cache_model->vertices_z,
-                cache_model->face_count);
-
-            scene_model->normals = normals;
-
-            struct ModelLighting* lighting =
-                (struct ModelLighting*)malloc(sizeof(struct ModelLighting));
-            memset(lighting, 0, sizeof(struct ModelLighting));
-            lighting->face_colors_hsl_a =
-                (int*)malloc(sizeof(int) * scene_model->model->face_count);
-            memset(lighting->face_colors_hsl_a, 0, sizeof(int) * scene_model->model->face_count);
-            lighting->face_colors_hsl_b =
-                (int*)malloc(sizeof(int) * scene_model->model->face_count);
-            memset(lighting->face_colors_hsl_b, 0, sizeof(int) * scene_model->model->face_count);
-            lighting->face_colors_hsl_c =
-                (int*)malloc(sizeof(int) * scene_model->model->face_count);
-            memset(lighting->face_colors_hsl_c, 0, sizeof(int) * scene_model->model->face_count);
-
-            scene_model->lighting = lighting;
-
-            int light_ambient = 64;
-            int light_attenuation = 768;
-            int lightsrc_x = -50;
-            int lightsrc_y = -10;
-            int lightsrc_z = -50;
-
-            light_ambient += scene_model->light_ambient;
-            // 2004Scape multiplies contrast by 5.
-            // Later versions do not.
-            light_attenuation += scene_model->light_contrast;
-
-            int light_magnitude = (int)sqrt(
-                lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-            int attenuation = (light_attenuation * light_magnitude) >> 8;
-
-            apply_lighting(
-                lighting->face_colors_hsl_a,
-                lighting->face_colors_hsl_b,
-                lighting->face_colors_hsl_c,
-                scene_model->aliased_lighting_normals
-                    ? scene_model->aliased_lighting_normals->lighting_vertex_normals
-                    : scene_model->normals->lighting_vertex_normals,
-                scene_model->normals->lighting_face_normals,
-                scene_model->model->face_indices_a,
-                scene_model->model->face_indices_b,
-                scene_model->model->face_indices_c,
-                scene_model->model->face_count,
-                scene_model->model->face_colors,
-                scene_model->model->face_alphas,
-                scene_model->model->face_textures,
-                scene_model->model->face_infos,
-                light_ambient,
-                attenuation,
-                lightsrc_x,
-                lightsrc_y,
-                lightsrc_z);
-
-            scene_model->lighting = lighting;
-
             player_model = scene_model;
         }
 
         world_player_entity_new_add(game.world, 0, 0, 0, player_model);
     }
 
-    game.frustrum_cullmap = frustrum_cullmap_new(40, 50); // 65536 = 90° FOV
-    // game.frustrum_cullmap = frustrum_cullmap_new_nocull(40); // 65536 = 90° FOV
+    // game.frustrum_cullmap = frustrum_cullmap_new(40, 50); // 65536 = 90° FOV
+    game.frustrum_cullmap = frustrum_cullmap_new_nocull(40); // 65536 = 90° FOV
 
     int w_pressed = 0;
     int a_pressed = 0;

@@ -55,8 +55,20 @@ brew install sdl2
 5. Consolodate face modes. (the whole colorc == -2 thing)
 6. Scene manager (manage lifetimes of models etc, )
 7. Varbits and VarP transforms. e.g. Lumbridge castle bank not showing.
-8. Do not load cache into memory, read from disk mode.
-9. Network cache + inprocess server + multicast discovery (because i'm lazy)
+8. Network cache + inprocess server + multicast discovery (because i'm lazy)
+9. SSE2 vs. SSE4.1 (support both); SSE2 does not have
+   \_mm_mullo_epi32, which is SSE4.1 only
+   e.g.
+
+```
+#if defined(__SSE4_1__)
+    #include <smmintrin.h>   // SSE4.1 intrinsics
+#elif defined(__SSE2__)
+    #include <emmintrin.h>   // SSE2 intrinsics
+#else
+    #error "Requires at least SSE2"
+#endif
+```
 
 Software rester
 
@@ -1237,7 +1249,6 @@ Integer Math: 1,346 MOps/Sec
 Floating Point Math: 696 MOps/Sec
 Single Thread: 528 MOps/Sec
 
-
 # Char Sign - this was causing colors to be washed out because ambient light could not be negative.
 
 What’s going on?
@@ -1266,3 +1277,16 @@ Android ARMv7 / ARMv8 (NDK/Clang): unsigned
 Raspbian / Raspberry Pi OS (Debian armhf GCC): unsigned
 
 Other ARM Linux distros (Ubuntu arm64, Arch ARM, etc.): can be signed or unsigned depending on GCC defaults
+
+## Cache Loading
+
+At Startup:
+
+1. Check if the cache exists.
+2. If so, do nothing.
+3. Otherwise, create the cache files
+
+- Dat2
+- idx2...
+
+Loading an archive

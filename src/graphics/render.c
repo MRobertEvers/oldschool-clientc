@@ -66,6 +66,8 @@ project_vertices_model_textured(
     int model_radius,
     int model_cylinder_center_to_top_edge,
     int model_cylinder_center_to_bottom_edge,
+    int model_min_y,
+    int model_max_y,
     int scene_x,
     int scene_y,
     int scene_z,
@@ -145,8 +147,9 @@ project_vertices_model_textured(
         (model_edge_radius * g_sin_table[camera_pitch] >> 16);
 
     int screen_y_min_unoffset =
-        project_divide(mid_y - model_center_to_bottom_edge, mid_z, camera_fov);
-    int screen_y_max_unoffset = project_divide(mid_y + model_center_to_top_edge, mid_z, camera_fov);
+        project_divide(mid_y - abs(model_center_to_bottom_edge), mid_z, camera_fov);
+    int screen_y_max_unoffset =
+        project_divide(mid_y + abs(model_center_to_top_edge), mid_z, camera_fov);
     int screen_edge_height = screen_height >> 1;
     if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
     {
@@ -154,61 +157,149 @@ project_vertices_model_textured(
         return 0;
     }
 
-    int cos_camera_radius = model_edge_radius * g_cos_table[camera_pitch] >> 16;
-    int sin_camera_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
-    int min_z = mid_z - (cos_camera_radius);
-    if( min_z < near_plane_z )
-        min_z = near_plane_z;
+    int bb_x[8];
+    int bb_y[8];
+    int bb_z[8];
 
-    int height_sin = model_cylinder_center_to_bottom_edge * g_sin_table[camera_pitch] >> 16;
+    int mz = 0;
+    int my = 0;
+    int mx = 0;
+    bb_x[0] = mx + model_edge_radius;
+    bb_x[1] = mx + model_edge_radius;
+    bb_x[2] = mx + model_edge_radius;
+    bb_x[3] = mx + model_edge_radius;
+    bb_x[4] = mx - model_edge_radius;
+    bb_x[5] = mx - model_edge_radius;
+    bb_x[6] = mx - model_edge_radius;
+    bb_x[7] = mx - model_edge_radius;
 
-    int min_screen_x = mid_x - model_edge_radius;
-    if( mid_x > 0 )
+    bb_y[0] = my + model_min_y;
+    bb_y[1] = my + model_min_y;
+    bb_y[2] = my + model_max_y;
+    bb_y[3] = my + model_max_y;
+    bb_y[4] = my + model_min_y;
+    bb_y[5] = my + model_min_y;
+    bb_y[6] = my + model_max_y;
+    bb_y[7] = my + model_max_y;
+
+    bb_z[0] = mz + model_edge_radius;
+    bb_z[1] = mz - model_edge_radius;
+    bb_z[2] = mz + model_edge_radius;
+    bb_z[3] = mz - model_edge_radius;
+    bb_z[4] = mz + model_edge_radius;
+    bb_z[5] = mz - model_edge_radius;
+    bb_z[6] = mz + model_edge_radius;
+    bb_z[7] = mz - model_edge_radius;
+
+    int sc_x[8] = { 0 };
+    int sc_y[8] = { 0 };
+    int sc_z[8] = { 0 };
+    int o_x[8] = { 0 };
+    int o_y[8] = { 0 };
+    int o_z[8] = { 0 };
+    project_vertices_array(
+        o_x,
+        o_y,
+        o_z,
+        sc_x,
+        sc_y,
+        sc_z,
+        bb_x,
+        bb_y,
+        bb_z,
+        8,
+        model_yaw,
+        0,
+        scene_x,
+        scene_y,
+        scene_z,
+        near_plane_z,
+        camera_fov,
+        camera_pitch,
+        camera_yaw);
+
+    aabb->min_screen_x = sc_x[0];
+    aabb->min_screen_y = sc_y[0];
+    aabb->max_screen_x = sc_x[0];
+    aabb->max_screen_y = sc_y[0];
+    for( int i = 0; i < 8; i++ )
     {
-        aabb->min_screen_x =
-            project_divide(mid_x - model_edge_radius - model_edge_radius, max_z, camera_fov) +
-            screen_width / 2;
-
-        aabb->max_screen_x =
-            project_divide(
-                mid_x + (model_edge_radius + height_sin + sin_camera_radius), min_z, camera_fov) +
-            screen_width / 2;
-    }
-    else
-    {
-        aabb->min_screen_x =
-            project_divide(
-                mid_x - model_edge_radius - height_sin - sin_camera_radius, min_z, camera_fov) +
-            screen_width / 2;
-        aabb->max_screen_x =
-            project_divide(mid_x + model_edge_radius + model_edge_radius, max_z, camera_fov) +
-            screen_width / 2;
+        if( sc_x[i] < aabb->min_screen_x )
+            aabb->min_screen_x = sc_x[i];
+        if( sc_x[i] > aabb->max_screen_x )
+            aabb->max_screen_x = sc_x[i];
+        if( sc_y[i] < aabb->min_screen_y )
+            aabb->min_screen_y = sc_y[i];
+        if( sc_y[i] > aabb->max_screen_y )
+            aabb->max_screen_y = sc_y[i];
     }
 
-    int height_cos = model_cylinder_center_to_bottom_edge;
+    aabb->min_screen_x += screen_edge_width;
+    aabb->min_screen_y += screen_edge_height;
+    aabb->max_screen_x += screen_edge_width;
+    aabb->max_screen_y += screen_edge_height;
 
-    int highest_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
+    // aabb->min_screen_x = 0;
+    // aabb->min_screen_y = 0;
+    // aabb->max_screen_x = 20;
+    // aabb->max_screen_y = 20;
 
-    int min_screen_y = mid_y - (model_edge_radius)-height_cos;
-    int max_screen_y = mid_y + (highest_radius) + height_sin;
-    if( mid_y > 0 )
-    {
-        if( mid_y - model_cylinder_center_to_bottom_edge > 0 )
-            aabb->min_screen_y =
-                project_divide(min_screen_y, max_z, camera_fov) + screen_height / 2;
-        else
-            aabb->min_screen_y =
-                project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
+    // int cos_camera_radius = model_edge_radius * g_cos_table[camera_pitch] >> 16;
+    // int sin_camera_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
+    // int min_z = mid_z - (cos_camera_radius);
+    // if( min_z < near_plane_z )
+    //     min_z = near_plane_z;
 
-        aabb->max_screen_y = project_divide(max_screen_y, min_z, camera_fov) + screen_height / 2;
-    }
-    else
-    {
-        // min_screen_y -= highest_projected;
-        aabb->min_screen_y = project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
+    // int height_sin = model_cylinder_center_to_bottom_edge * g_sin_table[camera_pitch] >> 16;
 
-        aabb->max_screen_y = project_divide(max_screen_y, max_z, camera_fov) + screen_height / 2;
-    }
+    // int min_screen_x = mid_x - model_edge_radius;
+    // if( mid_x > 0 )
+    // {
+    //     aabb->min_screen_x =
+    //         project_divide(mid_x - model_edge_radius - model_edge_radius, max_z, camera_fov) +
+    //         screen_width / 2;
+
+    //     aabb->max_screen_x =
+    //         project_divide(
+    //             mid_x + (model_edge_radius + height_sin + sin_camera_radius), min_z, camera_fov)
+    //             +
+    //         screen_width / 2;
+    // }
+    // else
+    // {
+    //     aabb->min_screen_x =
+    //         project_divide(
+    //             mid_x - model_edge_radius - height_sin - sin_camera_radius, min_z, camera_fov) +
+    //         screen_width / 2;
+    //     aabb->max_screen_x =
+    //         project_divide(mid_x + model_edge_radius + model_edge_radius, max_z, camera_fov) +
+    //         screen_width / 2;
+    // }
+
+    // int height_cos = model_cylinder_center_to_bottom_edge;
+
+    // int highest_radius = model_edge_radius * g_sin_table[camera_pitch] >> 16;
+
+    // int min_screen_y = mid_y - (model_edge_radius)-height_cos;
+    // int max_screen_y = mid_y + (highest_radius) + height_sin;
+    // if( mid_y > 0 )
+    // {
+    //     if( mid_y - model_cylinder_center_to_bottom_edge > 0 )
+    //         aabb->min_screen_y =
+    //             project_divide(min_screen_y, max_z, camera_fov) + screen_height / 2;
+    //     else
+    //         aabb->min_screen_y =
+    //             project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
+
+    //     aabb->max_screen_y = project_divide(max_screen_y, min_z, camera_fov) + screen_height / 2;
+    // }
+    // else
+    // {
+    //     // min_screen_y -= highest_projected;
+    //     aabb->min_screen_y = project_divide(min_screen_y, min_z, camera_fov) + screen_height / 2;
+
+    //     aabb->max_screen_y = project_divide(max_screen_y, max_z, camera_fov) + screen_height / 2;
+    // }
 
     project_vertices_array(
         orthographic_vertices_x,
@@ -1292,6 +1383,8 @@ render_model_frame(
         bounds_cylinder->radius,
         bounds_cylinder->center_to_top_edge,
         bounds_cylinder->center_to_bottom_edge,
+        bounds_cylinder->min_y,
+        bounds_cylinder->max_y,
         scene_x,
         scene_y,
         scene_z,
@@ -3406,6 +3499,8 @@ iter_render_model_init(
         scene_model->bounds_cylinder->radius,
         scene_model->bounds_cylinder->center_to_top_edge,
         scene_model->bounds_cylinder->center_to_bottom_edge,
+        scene_model->bounds_cylinder->min_y,
+        scene_model->bounds_cylinder->max_y,
         scene_x,
         scene_y,
         scene_z,

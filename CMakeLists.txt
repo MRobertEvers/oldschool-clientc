@@ -21,8 +21,8 @@ if(WIN32 AND MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /MDd")
     
     # Enhanced Release flags for better branching performance
-    set(CMAKE_C_FLAGS_RELEASE "/O2 /Ob2 /Ot /Oi /Oy /GL /fp:fast /Qpar /arch:AVX2 /MD /DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /Ot /Oi /Oy /GL /fp:fast /Qpar /arch:AVX2 /MD /DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /Ob2 /Ot /Oi /Oy /GL /MD /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /Ot /Oi /Oy /GL /MD /DNDEBUG")
     
     # Enable link-time code generation for Release builds
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG")
@@ -50,8 +50,8 @@ else()
     # Set architecture-specific flags
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
         # x86_64 specific optimizations
-        set(CMAKE_C_FLAGS_RELEASE "-g -O3 -mavx2 -mfma -DNDEBUG")
-        set(CMAKE_CXX_FLAGS_RELEASE "-g -O3 -mavx2 -mfma -DNDEBUG")
+        set(CMAKE_C_FLAGS_RELEASE "-g -O3 -march=native -DNDEBUG")
+        set(CMAKE_CXX_FLAGS_RELEASE "-g -O3 -march=native -DNDEBUG")
     else()
         # ARM64 and other architectures - use generic optimizations
         set(CMAKE_C_FLAGS_RELEASE "-g -O3 -DNDEBUG")

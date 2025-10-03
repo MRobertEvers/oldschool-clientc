@@ -8,6 +8,8 @@ struct BoundsCylinder
 {
     int center_to_top_edge;
     int center_to_bottom_edge;
+    int min_y;
+    int max_y;
     int radius;
 
     // TODO: Name?

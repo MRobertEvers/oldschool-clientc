@@ -187,6 +187,8 @@ static int
 read_dat2_from_disk(
     FILE* dat2_file,
     struct Dat2Archive* archive,
+    // This is a sanity check. I.e. if you run off the end of the index's dat2 file,
+    // this will catch an error.
     int idx_file_id,
     int archive_id,
     int sector,
@@ -225,6 +227,55 @@ read_dat2_from_disk(
         fseek(dat2_file, sector * SECTOR_SIZE, SEEK_SET);
 
         data_block_size = length - read_bytes_count;
+
+        // Archives are stored on disk in a linked list of sectors.
+        // [Part 0] -> [Part 1] -> [Part 2] -> ...
+        //
+        // sectors need not be contiguous on disk.
+        // e.g.
+        // DISK
+        // 1: Archive X, Part 5
+        // 2: Archive Y, Part 0
+        // 3: Archive Y, Part 1
+        // 4: Archive X, Part 6
+        //
+        //
+        // Each archive has an id.
+        // Each archive id in the header MUST match the archive id.
+        //
+        // Each archive belongs to a table (MODELS, ANIMS, etc.).
+        // The table is stored in the "Table" field.
+        // This MUST be the same for all parts of the archive.
+        //
+        //  Archives >= 16
+        //
+        //  0                   1                   2                   3
+        //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        // |                            Archive                            |
+        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        // |          CurrentPart          |           NextSector          |
+        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        // |               |     Table     |                               |
+        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               +
+        // |                            Payload (510 bytes)                |
+        // ...                           (510 bytes)                     ...
+        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        //
+        //
+        //  Archives < 16
+        //
+        //  0                   1                   2                   3
+        //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+        //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        //  |            Archive            |          CurrentPart          |
+        //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        //  |                   NextSector                  |     Table     |
+        //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        //  |                                                               |
+        //  +                            Payload                            +
+        //  |                                                               |
+        //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         if( archive_id > 0xFFFF )
         {
             header_size = 10;
@@ -413,9 +464,13 @@ cache_free(struct Cache* cache)
 
 struct IndexRecord
 {
+    // This is a sanity check. I.e. if you run off the end of the index's dat2 file,
+    // This should match the "table_id" to which the record belongs.
+    // i.e. idx2 is table_id 2.
     int idx_file_id;
     int archive_idx;
     int sector;
+    // length in bytes as it's stored on disk in the dat2 file.
     int length;
 };
 
@@ -547,18 +602,20 @@ cache_archive_new_load_decrypted(
 
     assert(archive_id < table->archive_count);
 
-    int archive_slot = -1;
-    for( int i = 0; i < table->id_count; ++i )
-    {
-        int id = table->ids[i];
-        if( table->archives[id].index == archive_id )
-        {
-            archive_slot = id;
-            break;
-        }
-    }
+    // int archive_slot = -1;
+    // for( int i = 0; i < table->id_count; ++i )
+    // {
+    //     int id = table->ids[i];
+    //     if( table->archives[id].index == archive_id )
+    //     {
+    //         archive_slot = id;
+    //         break;
+    //     }
+    // }
 
-    struct ArchiveReference* archive_reference = &table->archives[archive_slot];
+    // assert(archive_slot == archive_id);
+
+    struct ArchiveReference* archive_reference = &table->archives[archive_id];
     if( archive_reference->index != archive_id )
     {
         printf("Archive reference not found for table %d, archive %d\n", table_id, archive_id);

@@ -991,6 +991,30 @@ project_vertices_array(
 
 #include <emmintrin.h>
 
+// Emulate _mm_mullo_epi32(a, b) using SSE2
+static inline __m128i
+mullo_epi32_sse2(__m128i a, __m128i b)
+{
+    // Multiply low dwords (elements 0 and 2)
+    __m128i prod02 = _mm_mul_epu32(a, b);
+
+    // Shuffle to get elements 1 and 3 into low positions, then multiply
+    __m128i a13 = _mm_srli_si128(a, 4);
+    __m128i b13 = _mm_srli_si128(b, 4);
+    __m128i prod13 = _mm_mul_epu32(a13, b13);
+
+    // Extract low 32 bits of each product
+    __m128i prod02_lo = _mm_shuffle_epi32(prod02, _MM_SHUFFLE(0, 0, 2, 0));
+    __m128i prod13_lo = _mm_shuffle_epi32(prod13, _MM_SHUFFLE(0, 0, 2, 0));
+
+    // Interleave results: prod02 gives results for elements 0,2
+    // prod13 gives results for elements 1,3
+    __m128i prod01 = _mm_unpacklo_epi32(prod02_lo, prod13_lo);
+    __m128i prod23 = _mm_unpackhi_epi64(prod02_lo, prod13_lo);
+
+    return _mm_unpacklo_epi64(prod01, prod23);
+}
+
 // blendv_epi8(a, b, mask) = (a & ~mask) | (b & mask)
 __m128i
 blendv_sse2(__m128i a, __m128i b, __m128i mask)
@@ -1062,26 +1086,26 @@ project_vertices_array_sse(
         __m128i sin_camera_yaw_v4 = _mm_set1_epi32(sin_camera_yaw);
 
         __m128i x_scene = _mm_add_epi32(
-            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v4),
-            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v4));
+            mullo_epi32_sse2(x_rotated, cos_camera_yaw_v4),
+            mullo_epi32_sse2(z_rotated, sin_camera_yaw_v4));
         x_scene = _mm_srai_epi32(x_scene, 16);
 
         __m128i z_scene = _mm_sub_epi32(
-            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v4),
-            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v4));
+            mullo_epi32_sse2(z_rotated, cos_camera_yaw_v4),
+            mullo_epi32_sse2(x_rotated, sin_camera_yaw_v4));
         z_scene = _mm_srai_epi32(z_scene, 16);
 
         __m128i cos_camera_pitch_v4 = _mm_set1_epi32(cos_camera_pitch);
         __m128i sin_camera_pitch_v4 = _mm_set1_epi32(sin_camera_pitch);
 
         __m128i y_scene = _mm_sub_epi32(
-            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v4),
-            _mm_mullo_epi32(z_scene, sin_camera_pitch_v4));
+            mullo_epi32_sse2(y_rotated, cos_camera_pitch_v4),
+            mullo_epi32_sse2(z_scene, sin_camera_pitch_v4));
         y_scene = _mm_srai_epi32(y_scene, 16);
 
         __m128i z_scene_final = _mm_add_epi32(
-            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v4),
-            _mm_mullo_epi32(z_scene, cos_camera_pitch_v4));
+            mullo_epi32_sse2(y_rotated, sin_camera_pitch_v4),
+            mullo_epi32_sse2(z_scene, cos_camera_pitch_v4));
         z_scene_final = _mm_srai_epi32(z_scene_final, 16);
 
         _mm_storeu_si128((__m128i*)&orthographic_vertices_x[i], x_scene);

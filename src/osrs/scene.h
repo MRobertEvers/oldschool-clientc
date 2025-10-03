@@ -353,5 +353,5 @@ scene_add_player_entity(struct Scene* scene, int x, int y, int level, struct Sce
 void scene_step_animations(void);
 
 struct SceneModel* scene_model_new_lit_from_model(struct CacheModel* model, int sharelight);
-
+void scene_model_load_sequence(struct SceneModel* model, struct Cache* cache, int sequence_id);
 #endif
