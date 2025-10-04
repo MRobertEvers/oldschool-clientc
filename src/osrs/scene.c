@@ -2438,6 +2438,18 @@ scene_model_new_lit_from_model(struct CacheModel* model, int sharelight)
 
     scene_model->normals = model_normals_new(model->vertex_count, model->face_count);
 
+    calculate_vertex_normals(
+        scene_model->normals->lighting_vertex_normals,
+        scene_model->normals->lighting_face_normals,
+        model->vertex_count,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
+        model->face_count);
+
     if( sharelight )
         scene_model->aliased_lighting_normals = model_normals_new_copy(scene_model->normals);
 
