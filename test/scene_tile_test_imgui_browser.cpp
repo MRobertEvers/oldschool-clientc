@@ -307,6 +307,7 @@ struct Game
 
     struct SceneOp* ops;
     int op_count;
+    int op_capacity;
 
     int max_render_ops;
     int manual_render_ops;
@@ -613,6 +614,8 @@ render_scene_model(
     if( model->model == NULL )
         return;
 
+    struct AABB aabb;
+
     render_model_frame(
         pixel_buffer,
         width,
@@ -628,6 +631,7 @@ render_scene_model(
         camera_yaw,
         camera_roll,
         fov,
+        &aabb,
         model->model,
         model->lighting,
         model->bounds_cylinder,
@@ -689,10 +693,14 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     {
         if( game->max_render_ops > game->op_count || game->max_render_ops == 0 )
         {
-            if( game->ops )
-                free(game->ops);
-            game->ops = render_scene_compute_ops(
-                game->camera_x, game->camera_y, game->camera_z, game->scene, &game->op_count);
+            game->op_count = render_scene_compute_ops(
+                game->ops,
+                game->op_capacity,
+                game->camera_x,
+                game->camera_y,
+                game->camera_z,
+                game->scene,
+                &game->op_count);
             game->max_render_ops = game->op_count;
             render_ops = game->op_count;
         }
@@ -1551,6 +1559,9 @@ main(int argc, char* argv[])
     struct Game game = { 0 };
     game.world = world_new();
     game.image_cross_pixels = (int**)malloc(8 * sizeof(int*));
+    game.op_capacity = 1024;
+    game.ops = (struct SceneOp*)malloc(game.op_capacity * sizeof(struct SceneOp));
+    memset(game.ops, 0, game.op_capacity * sizeof(struct SceneOp));
 
     int sprite_count = cache->tables[CACHE_SPRITES]->archive_count;
     struct CacheSpritePack* sprite_packs =
@@ -2366,10 +2377,14 @@ main(int argc, char* argv[])
 
         if( space_pressed )
         {
-            if( game.ops )
-                free(game.ops);
-            game.ops = render_scene_compute_ops(
-                game.camera_x, game.camera_y, game.camera_z, game.scene, &game.op_count);
+            game.op_count = render_scene_compute_ops(
+                game.ops,
+                game.op_capacity,
+                game.camera_x,
+                game.camera_y,
+                game.camera_z,
+                game.scene,
+                &game.op_count);
             memset(platform.pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
             game.max_render_ops = 1;
             game.manual_render_ops = 0;
