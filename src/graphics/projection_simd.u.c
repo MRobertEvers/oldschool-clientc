@@ -1088,11 +1088,11 @@ project_vertices_array_sse(
         __m128i sin_model_yaw_v4 = _mm_set1_epi32(sin_model_yaw);
 
         x_rotated = _mm_add_epi32(
-            mullo_epi32_sse2(xv4, cos_model_yaw_v4), mullo_epi32_sse2(zv4, sin_model_yaw_v4));
+            mullo_epi32_sse(xv4, cos_model_yaw_v4), mullo_epi32_sse(zv4, sin_model_yaw_v4));
         x_rotated = _mm_srai_epi32(x_rotated, 16);
 
         z_rotated = _mm_sub_epi32(
-            mullo_epi32_sse2(zv4, cos_model_yaw_v4), mullo_epi32_sse2(xv4, sin_model_yaw_v4));
+            mullo_epi32_sse(zv4, cos_model_yaw_v4), mullo_epi32_sse(xv4, sin_model_yaw_v4));
         z_rotated = _mm_srai_epi32(z_rotated, 16);
 
         x_rotated = _mm_add_epi32(x_rotated, _mm_set1_epi32(scene_x));
@@ -1131,8 +1131,8 @@ project_vertices_array_sse(
 
         __m128i cot_fov_half_ish15_v4 = _mm_set1_epi32(cot_fov_half_ish15);
 
-        __m128i xfov_ish15 = mullo_epi32_sse2(x_scene, cot_fov_half_ish15_v4);
-        __m128i yfov_ish15 = mullo_epi32_sse2(y_scene, cot_fov_half_ish15_v4);
+        __m128i xfov_ish15 = mullo_epi32_sse(x_scene, cot_fov_half_ish15_v4);
+        __m128i yfov_ish15 = mullo_epi32_sse(y_scene, cot_fov_half_ish15_v4);
 
         __m128i x_scaled = _mm_srai_epi32(xfov_ish15, 6);
         __m128i y_scaled = _mm_srai_epi32(yfov_ish15, 6);
@@ -1226,26 +1226,26 @@ project_vertices_array_noyaw_sse(
         __m128i sin_camera_yaw_v4 = _mm_set1_epi32(sin_camera_yaw);
 
         __m128i x_scene = _mm_add_epi32(
-            mullo_epi32_sse2(x_rotated, cos_camera_yaw_v4),
-            mullo_epi32_sse2(z_rotated, sin_camera_yaw_v4));
+            mullo_epi32_sse(x_rotated, cos_camera_yaw_v4),
+            mullo_epi32_sse(z_rotated, sin_camera_yaw_v4));
         x_scene = _mm_srai_epi32(x_scene, 16);
 
         __m128i z_scene = _mm_sub_epi32(
-            mullo_epi32_sse2(z_rotated, cos_camera_yaw_v4),
-            mullo_epi32_sse2(x_rotated, sin_camera_yaw_v4));
+            mullo_epi32_sse(z_rotated, cos_camera_yaw_v4),
+            mullo_epi32_sse(x_rotated, sin_camera_yaw_v4));
         z_scene = _mm_srai_epi32(z_scene, 16);
 
         __m128i cos_camera_pitch_v4 = _mm_set1_epi32(cos_camera_pitch);
         __m128i sin_camera_pitch_v4 = _mm_set1_epi32(sin_camera_pitch);
 
         __m128i y_scene = _mm_sub_epi32(
-            mullo_epi32_sse2(y_rotated, cos_camera_pitch_v4),
-            mullo_epi32_sse2(z_scene, sin_camera_pitch_v4));
+            mullo_epi32_sse(y_rotated, cos_camera_pitch_v4),
+            mullo_epi32_sse(z_scene, sin_camera_pitch_v4));
         y_scene = _mm_srai_epi32(y_scene, 16);
 
         __m128i z_scene_final = _mm_add_epi32(
-            mullo_epi32_sse2(y_rotated, sin_camera_pitch_v4),
-            mullo_epi32_sse2(z_scene, cos_camera_pitch_v4));
+            mullo_epi32_sse(y_rotated, sin_camera_pitch_v4),
+            mullo_epi32_sse(z_scene, cos_camera_pitch_v4));
         z_scene_final = _mm_srai_epi32(z_scene_final, 16);
 
         _mm_storeu_si128((__m128i*)&orthographic_vertices_x[i], x_scene);
@@ -1254,8 +1254,8 @@ project_vertices_array_noyaw_sse(
 
         __m128i cot_fov_half_ish15_v4 = _mm_set1_epi32(cot_fov_half_ish15);
 
-        __m128i xfov_ish15 = mullo_epi32_sse2(x_scene, cot_fov_half_ish15_v4);
-        __m128i yfov_ish15 = mullo_epi32_sse2(y_scene, cot_fov_half_ish15_v4);
+        __m128i xfov_ish15 = mullo_epi32_sse(x_scene, cot_fov_half_ish15_v4);
+        __m128i yfov_ish15 = mullo_epi32_sse(y_scene, cot_fov_half_ish15_v4);
 
         __m128i x_scaled = _mm_srai_epi32(xfov_ish15, 6);
         __m128i y_scaled = _mm_srai_epi32(yfov_ish15, 6);
