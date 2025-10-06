@@ -176,6 +176,16 @@ draw_scanline_gouraud_alpha_s4(
         color_hsl16_ish8 += step_color_hsl16_ish8;
     }
 
+    // int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
+    // steps = (dx_stride) & 0x3;
+    // for( int i = 0; i < steps; i++ )
+    // {
+    //     int rgb_blend = pixel_buffer[offset];
+    //     rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+    //     pixel_buffer[offset] = rgb_blend;
+    //     offset += 1;
+    // }
+
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
     int rgb_blend;
     steps = (dx_stride) & 0x3;

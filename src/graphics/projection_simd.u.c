@@ -987,9 +987,32 @@ project_vertices_array(
     }
 }
 
-#elif defined(__SSE2__) && 0
+#elif defined(__SSE2__) || defined(__SSE4_1__)
+#ifdef __SSE4_1__
+#include <immintrin.h>
 
+static inline __m128i
+mullo_epi32_sse4_1(__m128i a, __m128i b)
+{
+    return _mm_mullo_epi32(a, b);
+}
+
+__m128i
+blendv_sse4_1(__m128i a, __m128i b, __m128i mask)
+{
+    return _mm_blendv_epi8(a, b, mask);
+}
+
+#else
 #include <emmintrin.h>
+
+// blendv_epi8(a, b, mask) = (a & ~mask) | (b & mask)
+__m128i
+blendv_sse2(__m128i a, __m128i b, __m128i mask)
+{
+    __m128i m = _mm_srai_epi8(mask, 7);
+    return _mm_or_si128(_mm_and_si128(b, m), _mm_andnot_si128(m, a));
+}
 
 // Emulate _mm_mullo_epi32(a, b) using SSE2
 static inline __m128i
@@ -1014,14 +1037,16 @@ mullo_epi32_sse2(__m128i a, __m128i b)
 
     return _mm_unpacklo_epi64(prod01, prod23);
 }
+#endif
 
-// blendv_epi8(a, b, mask) = (a & ~mask) | (b & mask)
-__m128i
-blendv_sse2(__m128i a, __m128i b, __m128i mask)
+static inline __m128i
+mullo_epi32_sse(__m128i a, __m128i b)
 {
-    __m128i t1 = _mm_andnot_si128(mask, a);
-    __m128i t2 = _mm_and_si128(mask, b);
-    return _mm_or_si128(t1, t2);
+#ifdef __SSE4_1__
+    return mullo_epi32_sse4_1(a, b);
+#else
+    return mullo_epi32_sse2(a, b);
+#endif
 }
 
 static inline void
@@ -1086,26 +1111,26 @@ project_vertices_array_sse(
         __m128i sin_camera_yaw_v4 = _mm_set1_epi32(sin_camera_yaw);
 
         __m128i x_scene = _mm_add_epi32(
-            mullo_epi32_sse2(x_rotated, cos_camera_yaw_v4),
-            mullo_epi32_sse2(z_rotated, sin_camera_yaw_v4));
+            mullo_epi32_sse(x_rotated, cos_camera_yaw_v4),
+            mullo_epi32_sse(z_rotated, sin_camera_yaw_v4));
         x_scene = _mm_srai_epi32(x_scene, 16);
 
         __m128i z_scene = _mm_sub_epi32(
-            mullo_epi32_sse2(z_rotated, cos_camera_yaw_v4),
-            mullo_epi32_sse2(x_rotated, sin_camera_yaw_v4));
+            mullo_epi32_sse(z_rotated, cos_camera_yaw_v4),
+            mullo_epi32_sse(x_rotated, sin_camera_yaw_v4));
         z_scene = _mm_srai_epi32(z_scene, 16);
 
         __m128i cos_camera_pitch_v4 = _mm_set1_epi32(cos_camera_pitch);
         __m128i sin_camera_pitch_v4 = _mm_set1_epi32(sin_camera_pitch);
 
         __m128i y_scene = _mm_sub_epi32(
-            mullo_epi32_sse2(y_rotated, cos_camera_pitch_v4),
-            mullo_epi32_sse2(z_scene, sin_camera_pitch_v4));
+            mullo_epi32_sse(y_rotated, cos_camera_pitch_v4),
+            mullo_epi32_sse(z_scene, sin_camera_pitch_v4));
         y_scene = _mm_srai_epi32(y_scene, 16);
 
         __m128i z_scene_final = _mm_add_epi32(
-            mullo_epi32_sse2(y_rotated, sin_camera_pitch_v4),
-            mullo_epi32_sse2(z_scene, cos_camera_pitch_v4));
+            mullo_epi32_sse(y_rotated, sin_camera_pitch_v4),
+            mullo_epi32_sse(z_scene, cos_camera_pitch_v4));
         z_scene_final = _mm_srai_epi32(z_scene_final, 16);
 
         _mm_storeu_si128((__m128i*)&orthographic_vertices_x[i], x_scene);

@@ -7,7 +7,7 @@
 #include "shade.h"
 // clang-format on
 
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) )
 #include <arm_neon.h>
 
 // shade_blend for 4 pixels at a time
