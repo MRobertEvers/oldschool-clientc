@@ -85,18 +85,14 @@ find_package(SDL2 QUIET)
 if(NOT SDL2_FOUND)
     message(STATUS "SDL2 not found via find_package, using manual configuration")
 
-    # Set SDL2 paths manually
     set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
-
-    # Use the built SDL2 library
-    set(SDL2_LIBRARY_PATH ${CMAKE_SOURCE_DIR}/src/main/cpp/SDL2/libs/android/${ANDROID_ABI}/libSDL2.so)
+    set(SDL2_LIBRARY_PATH ${CMAKE_SOURCE_DIR}/src/main/jniLibs/${ANDROID_ABI}/libSDL2.so)
 
     if(EXISTS ${SDL2_LIBRARY_PATH})
-        # Add the library directory to the linker search path
-        link_directories(${CMAKE_SOURCE_DIR}/src/main/cpp/SDL2/libs/android/${ANDROID_ABI})
+        add_library(SDL2 SHARED IMPORTED)
+        set_target_properties(SDL2 PROPERTIES IMPORTED_LOCATION "${SDL2_LIBRARY_PATH}")
         set(SDL2_LIBRARIES SDL2)
-        message(STATUS "Found built SDL2 library: ${SDL2_LIBRARY_PATH}")
-        message(STATUS "Added library directory: ${CMAKE_SOURCE_DIR}/src/main/cpp/SDL2/libs/android/${ANDROID_ABI}")
+        message(STATUS "Created IMPORTED library for SDL2: ${SDL2_LIBRARY_PATH}")
     else()
         message(WARNING "Built SDL2 library not found at: ${SDL2_LIBRARY_PATH}")
         message(WARNING "You may need to build SDL2 from source first.")
@@ -105,6 +101,7 @@ if(NOT SDL2_FOUND)
 else()
     message(STATUS "SDL2 found via find_package")
 endif()
+
 
 # Include directories
 include_directories(

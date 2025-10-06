@@ -31,6 +31,12 @@ For linux, install bzip
 
 ```
 sudo apt-get update && sudo apt-get install -y libbz2-dev
+
+# GCC
+sudo apt install build-essential
+
+# FreeType
+sudo apt install libfreetype6-dev
 ```
 
 ### Setup
