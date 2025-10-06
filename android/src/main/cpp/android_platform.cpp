@@ -1174,14 +1174,6 @@ AndroidPlatform::resume()
 void
 AndroidPlatform::runMainLoop()
 {
-    LOGI("runMainLoop called - ENTRY");
-    LOGI("runMainLoop called - AFTER FIRST LOG");
-    LOGI(
-        "Starting main loop - m_initialized: %d, m_running: %d, m_paused: %d",
-        m_initialized,
-        m_running,
-        m_paused);
-
     if( !m_initialized )
     {
         LOGE("Platform not initialized - m_initialized: %d", m_initialized);
@@ -1192,7 +1184,6 @@ AndroidPlatform::runMainLoop()
     LOGI("Entering main loop - m_running: %d, m_paused: %d", m_running, m_paused);
     while( m_running && !m_paused )
     {
-        LOGI("Main loop iteration");
         processEvents();
         update(1.0f / 60.0f); // 60 FPS
 
