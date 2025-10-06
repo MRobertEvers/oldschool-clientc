@@ -416,7 +416,7 @@ project_vertices_array(
     }
 }
 
-#elif defined(__AVX2__)
+#elif defined(__AVX2__) && 0
 #include <immintrin.h>
 
 static inline void
@@ -987,8 +987,8 @@ project_vertices_array(
     }
 }
 
-#elif defined(__SSE2__) || defined(__SSE4_1__)
-#ifdef __SSE4_1__
+#elif (defined(__SSE2__) || defined(__SSE4_1__))
+#if defined(__SSE4_1__) && 0
 #include <smmintrin.h>
 
 static inline __m128i
@@ -1034,7 +1034,7 @@ mullo_epi32_sse2(__m128i a, __m128i b)
 static inline __m128i
 mullo_epi32_sse(__m128i a, __m128i b)
 {
-#ifdef __SSE4_1__
+#if defined(__SSE4_1__) && 0
     return mullo_epi32_sse4_1(a, b);
 #else
     return mullo_epi32_sse2(a, b);
