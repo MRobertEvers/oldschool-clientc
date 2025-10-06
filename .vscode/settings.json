@@ -134,6 +134,7 @@
         "texture_blend_branching.c": "cpp",
         "projection.u.c": "cpp",
         "texture_blend_branching.u.c": "cpp",
-        "emmintrin.h": "c"
+        "emmintrin.h": "c",
+        "smmintrin.h": "c"
     }
 }

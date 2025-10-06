@@ -989,7 +989,7 @@ project_vertices_array(
 
 #elif defined(__SSE2__) || defined(__SSE4_1__)
 #ifdef __SSE4_1__
-#include <immintrin.h>
+#include <smmintrin.h>
 
 static inline __m128i
 mullo_epi32_sse4_1(__m128i a, __m128i b)
@@ -1003,16 +1003,8 @@ blendv_sse4_1(__m128i a, __m128i b, __m128i mask)
     return _mm_blendv_epi8(a, b, mask);
 }
 
-#else
+#else // __SSE2__
 #include <emmintrin.h>
-
-// blendv_epi8(a, b, mask) = (a & ~mask) | (b & mask)
-__m128i
-blendv_sse2(__m128i a, __m128i b, __m128i mask)
-{
-    __m128i m = _mm_srai_epi8(mask, 7);
-    return _mm_or_si128(_mm_and_si128(b, m), _mm_andnot_si128(m, a));
-}
 
 // Emulate _mm_mullo_epi32(a, b) using SSE2
 static inline __m128i
