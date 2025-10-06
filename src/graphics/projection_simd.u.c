@@ -416,7 +416,7 @@ project_vertices_array(
     }
 }
 
-#elif defined(__AVX2__) && 0
+#elif defined(__AVX2__)
 #include <immintrin.h>
 
 static inline void
