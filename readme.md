@@ -15,6 +15,21 @@ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make VERBOSE=1
 ```
 
+
+### Presets
+
+```
+# Configure
+cmake --preset sse1-only
+cmake --preset sse2
+cmake --preset avx2
+
+# Build
+cmake --build build_sse1
+cmake --build sse2
+cmake --build avx
+```
+
 ### Building - Emscripten
 
 ```

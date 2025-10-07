@@ -416,7 +416,7 @@ project_vertices_array(
     }
 }
 
-#elif defined(__AVX2__) && 0
+#elif defined(__AVX2__)
 #include <immintrin.h>
 
 static inline void
@@ -992,7 +992,7 @@ project_vertices_array(
     }
 }
 
-#elif (defined(__SSE2__) || defined(__SSE4_1__)) && 0
+#elif (defined(__SSE2__) || defined(__SSE4_1__))
 #include "sse2_41compat.h"
 
 static inline void
@@ -1322,67 +1322,64 @@ project_vertices_array(
 
 #define SSE_FLOAT_RECIP_DIV
 #ifdef SSE_FLOAT_RECIP_DIV
-    __m128i v_near = _mm_set1_epi32(near_plane_z);
-    __m128i v_mid = _mm_set1_epi32(model_mid_z);
-    __m128i v_neg5000 = _mm_set1_epi32(-5000);
-    __m128i v_neg5001 = _mm_set1_epi32(-5001);
-    __m128i v_allones = _mm_set1_epi32(-1);
-
+    // SSE1 compatible - use float operations and manual conversion
     for( ; i + vsteps - 1 < num_vertices; i += vsteps )
     {
-        // load z
-        __m128i vz = _mm_loadu_si128((__m128i const*)(orthographic_vertices_z + i));
+        // Load and process using floats and manual conversion for SSE1
+        int vz_arr[4] = { orthographic_vertices_z[i],
+                          orthographic_vertices_z[i + 1],
+                          orthographic_vertices_z[i + 2],
+                          orthographic_vertices_z[i + 3] };
+        int vsx_arr[4] = { screen_vertices_x[i],
+                           screen_vertices_x[i + 1],
+                           screen_vertices_x[i + 2],
+                           screen_vertices_x[i + 3] };
+        int vsy_arr[4] = { screen_vertices_y[i],
+                           screen_vertices_y[i + 1],
+                           screen_vertices_y[i + 2],
+                           screen_vertices_y[i + 3] };
 
-        // clipped mask: z < near_plane_z  <=> near > z
-        __m128i clipped_mask = _mm_cmpgt_epi32(v_near, vz); // 0xFFFFFFFF where clipped
-
-        // screen_vertices_z = z - model_mid_z
-        __m128i vscreen_z = _mm_sub_epi32(vz, v_mid);
-        _mm_storeu_si128((__m128i*)(screen_vertices_z + i), vscreen_z);
-
-        // load original screen x,y (pre-division numerators)
-        __m128i vsx = _mm_loadu_si128((__m128i const*)(screen_vertices_x + i));
-        __m128i vsy = _mm_loadu_si128((__m128i const*)(screen_vertices_y + i));
-
-        // Convert to float for division
-        __m128 fx = _mm_cvtepi32_ps(vsx);
-        __m128 fy = _mm_cvtepi32_ps(vsy);
-        __m128 fz = _mm_cvtepi32_ps(vz);
+        __m128 fz =
+            _mm_set_ps((float)vz_arr[3], (float)vz_arr[2], (float)vz_arr[1], (float)vz_arr[0]);
+        __m128 fx =
+            _mm_set_ps((float)vsx_arr[3], (float)vsx_arr[2], (float)vsx_arr[1], (float)vsx_arr[0]);
+        __m128 fy =
+            _mm_set_ps((float)vsy_arr[3], (float)vsy_arr[2], (float)vsy_arr[1], (float)vsy_arr[0]);
 
         // perform float division using reciprocal approximation
         __m128 rcp_z = _mm_rcp_ps(fz);
         __m128 fdivx = _mm_mul_ps(fx, rcp_z);
         __m128 fdivy = _mm_mul_ps(fy, rcp_z);
 
-        // convert back to int (truncate toward zero)
-        __m128i divx_i = _mm_cvttps_epi32(fdivx);
-        __m128i divy_i = _mm_cvttps_epi32(fdivy);
+        // Store results as float temporarily
+        float fdivx_arr[4], fdivy_arr[4];
+        _mm_storeu_ps(fdivx_arr, fdivx);
+        _mm_storeu_ps(fdivy_arr, fdivy);
 
-        // check where divx_i == -5000
-        __m128i eq_neg5000 = _mm_cmpeq_epi32(divx_i, v_neg5000);
+        // Process each element (SSE1 doesn't have integer operations)
+        for( int j = 0; j < 4; j++ )
+        {
+            int z = vz_arr[j];
+            bool clipped = (z < near_plane_z);
 
-        // mask for non-clipped lanes
-        __m128i not_clipped_mask = _mm_xor_si128(clipped_mask, v_allones);
+            screen_vertices_z[i + j] = z - model_mid_z;
 
-        // eq_and_not_clipped = eq_neg5000 & not_clipped_mask
-        __m128i eq_and_not_clipped = _mm_and_si128(eq_neg5000, not_clipped_mask);
+            int divx_i = (int)fdivx_arr[j];
+            int divy_i = (int)fdivy_arr[j];
 
-        // if eq_and_not_clipped → -5001, else divx_i
-        __m128i result_x_adj = _mm_or_si128(
-            _mm_and_si128(eq_and_not_clipped, v_neg5001),
-            _mm_andnot_si128(eq_and_not_clipped, divx_i));
-
-        // final x: if clipped → -5000, else result_x_adj
-        __m128i final_x = _mm_or_si128(
-            _mm_and_si128(clipped_mask, v_neg5000), _mm_andnot_si128(clipped_mask, result_x_adj));
-
-        // final y: if clipped → vsy, else divy_i
-        __m128i final_y =
-            _mm_or_si128(_mm_and_si128(clipped_mask, vsy), _mm_andnot_si128(clipped_mask, divy_i));
-
-        // store final results
-        _mm_storeu_si128((__m128i*)(screen_vertices_x + i), final_x);
-        _mm_storeu_si128((__m128i*)(screen_vertices_y + i), final_y);
+            if( clipped )
+            {
+                screen_vertices_x[i + j] = -5000;
+                screen_vertices_y[i + j] = vsy_arr[j];
+            }
+            else
+            {
+                if( divx_i == -5000 )
+                    divx_i = -5001;
+                screen_vertices_x[i + j] = divx_i;
+                screen_vertices_y[i + j] = divy_i;
+            }
+        }
     }
 #endif // SSE_FLOAT_DIV
 
@@ -1453,17 +1450,27 @@ project_vertices_array_sse_float(
     __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
+    __m128 v_512 = _mm_set1_ps(512.0f);
+
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        // Load vertices and convert to float
-        __m128i xv4_i = _mm_loadu_si128((__m128i*)&vertex_x[i]);
-        __m128i yv4_i = _mm_loadu_si128((__m128i*)&vertex_y[i]);
-        __m128i zv4_i = _mm_loadu_si128((__m128i*)&vertex_z[i]);
-
-        __m128 xv4 = _mm_cvtepi32_ps(xv4_i);
-        __m128 yv4 = _mm_cvtepi32_ps(yv4_i);
-        __m128 zv4 = _mm_cvtepi32_ps(zv4_i);
+        // Load vertices and convert to float (SSE1 compatible)
+        __m128 xv4 = _mm_set_ps(
+            (float)vertex_x[i + 3],
+            (float)vertex_x[i + 2],
+            (float)vertex_x[i + 1],
+            (float)vertex_x[i]);
+        __m128 yv4 = _mm_set_ps(
+            (float)vertex_y[i + 3],
+            (float)vertex_y[i + 2],
+            (float)vertex_y[i + 1],
+            (float)vertex_y[i]);
+        __m128 zv4 = _mm_set_ps(
+            (float)vertex_z[i + 3],
+            (float)vertex_z[i + 2],
+            (float)vertex_z[i + 1],
+            (float)vertex_z[i]);
 
         __m128 x_rotated =
             _mm_add_ps(_mm_mul_ps(xv4, v_cos_model_yaw), _mm_mul_ps(zv4, v_sin_model_yaw));
@@ -1486,19 +1493,48 @@ project_vertices_array_sse_float(
         __m128 z_final = _mm_add_ps(
             _mm_mul_ps(y_trans, v_sin_camera_pitch), _mm_mul_ps(z_scene, v_cos_camera_pitch));
 
-        // Store orthographic vertices
-        _mm_storeu_si128((__m128i*)&orthographic_vertices_x[i], _mm_cvtps_epi32(x_scene));
-        _mm_storeu_si128((__m128i*)&orthographic_vertices_y[i], _mm_cvtps_epi32(y_scene));
-        _mm_storeu_si128((__m128i*)&orthographic_vertices_z[i], _mm_cvtps_epi32(z_final));
+        // Store orthographic vertices (convert and store manually for SSE1)
+        float x_scene_arr[4], y_scene_arr[4], z_final_arr[4];
+        _mm_storeu_ps(x_scene_arr, x_scene);
+        _mm_storeu_ps(y_scene_arr, y_scene);
+        _mm_storeu_ps(z_final_arr, z_final);
+
+        orthographic_vertices_x[i] = (int)x_scene_arr[0];
+        orthographic_vertices_x[i + 1] = (int)x_scene_arr[1];
+        orthographic_vertices_x[i + 2] = (int)x_scene_arr[2];
+        orthographic_vertices_x[i + 3] = (int)x_scene_arr[3];
+
+        orthographic_vertices_y[i] = (int)y_scene_arr[0];
+        orthographic_vertices_y[i + 1] = (int)y_scene_arr[1];
+        orthographic_vertices_y[i + 2] = (int)y_scene_arr[2];
+        orthographic_vertices_y[i + 3] = (int)y_scene_arr[3];
+
+        orthographic_vertices_z[i] = (int)z_final_arr[0];
+        orthographic_vertices_z[i + 1] = (int)z_final_arr[1];
+        orthographic_vertices_z[i + 2] = (int)z_final_arr[2];
+        orthographic_vertices_z[i + 3] = (int)z_final_arr[3];
 
         __m128 x_proj = _mm_mul_ps(x_scene, v_cot_fov);
         __m128 y_proj = _mm_mul_ps(y_scene, v_cot_fov);
 
-        __m128i x_final = _mm_slli_epi32(_mm_cvtps_epi32(x_proj), 9);
-        __m128i y_final = _mm_slli_epi32(_mm_cvtps_epi32(y_proj), 9);
+        // Multiply by 512 instead of shifting (SSE1 compatible)
+        __m128 x_final_f = _mm_mul_ps(x_proj, v_512);
+        __m128 y_final_f = _mm_mul_ps(y_proj, v_512);
 
-        _mm_storeu_si128((__m128i*)&screen_vertices_x[i], x_final);
-        _mm_storeu_si128((__m128i*)&screen_vertices_y[i], y_final);
+        // Store results (convert and store manually for SSE1)
+        float x_final_arr[4], y_final_arr[4];
+        _mm_storeu_ps(x_final_arr, x_final_f);
+        _mm_storeu_ps(y_final_arr, y_final_f);
+
+        screen_vertices_x[i] = (int)x_final_arr[0];
+        screen_vertices_x[i + 1] = (int)x_final_arr[1];
+        screen_vertices_x[i + 2] = (int)x_final_arr[2];
+        screen_vertices_x[i + 3] = (int)x_final_arr[3];
+
+        screen_vertices_y[i] = (int)y_final_arr[0];
+        screen_vertices_y[i + 1] = (int)y_final_arr[1];
+        screen_vertices_y[i + 2] = (int)y_final_arr[2];
+        screen_vertices_y[i + 3] = (int)y_final_arr[3];
     }
 
     // Scalar fallback for remaining vertices
@@ -1594,67 +1630,63 @@ project_vertices_array(
     // SSE1 Float reciprocal division is enabled by default
     // because SSE1 uses floats anyway.
 
-    __m128i v_near = _mm_set1_epi32(near_plane_z);
-    __m128i v_mid = _mm_set1_epi32(model_mid_z);
-    __m128i v_neg5000 = _mm_set1_epi32(-5000);
-    __m128i v_neg5001 = _mm_set1_epi32(-5001);
-    __m128i v_allones = _mm_set1_epi32(-1);
-
     for( ; i + vsteps - 1 < num_vertices; i += vsteps )
     {
-        // load z
-        __m128i vz = _mm_loadu_si128((__m128i const*)(orthographic_vertices_z + i));
+        // Load and process using floats and manual conversion for SSE1
+        int vz_arr[4] = { orthographic_vertices_z[i],
+                          orthographic_vertices_z[i + 1],
+                          orthographic_vertices_z[i + 2],
+                          orthographic_vertices_z[i + 3] };
+        int vsx_arr[4] = { screen_vertices_x[i],
+                           screen_vertices_x[i + 1],
+                           screen_vertices_x[i + 2],
+                           screen_vertices_x[i + 3] };
+        int vsy_arr[4] = { screen_vertices_y[i],
+                           screen_vertices_y[i + 1],
+                           screen_vertices_y[i + 2],
+                           screen_vertices_y[i + 3] };
 
-        // clipped mask: z < near_plane_z  <=> near > z
-        __m128i clipped_mask = _mm_cmpgt_epi32(v_near, vz); // 0xFFFFFFFF where clipped
-
-        // screen_vertices_z = z - model_mid_z
-        __m128i vscreen_z = _mm_sub_epi32(vz, v_mid);
-        _mm_storeu_si128((__m128i*)(screen_vertices_z + i), vscreen_z);
-
-        // load original screen x,y (pre-division numerators)
-        __m128i vsx = _mm_loadu_si128((__m128i const*)(screen_vertices_x + i));
-        __m128i vsy = _mm_loadu_si128((__m128i const*)(screen_vertices_y + i));
-
-        // Convert to float for division
-        __m128 fx = _mm_cvtepi32_ps(vsx);
-        __m128 fy = _mm_cvtepi32_ps(vsy);
-        __m128 fz = _mm_cvtepi32_ps(vz);
+        __m128 fz =
+            _mm_set_ps((float)vz_arr[3], (float)vz_arr[2], (float)vz_arr[1], (float)vz_arr[0]);
+        __m128 fx =
+            _mm_set_ps((float)vsx_arr[3], (float)vsx_arr[2], (float)vsx_arr[1], (float)vsx_arr[0]);
+        __m128 fy =
+            _mm_set_ps((float)vsy_arr[3], (float)vsy_arr[2], (float)vsy_arr[1], (float)vsy_arr[0]);
 
         // perform float division using reciprocal approximation
         __m128 rcp_z = _mm_rcp_ps(fz);
         __m128 fdivx = _mm_mul_ps(fx, rcp_z);
         __m128 fdivy = _mm_mul_ps(fy, rcp_z);
 
-        // convert back to int (truncate toward zero)
-        __m128i divx_i = _mm_cvttps_epi32(fdivx);
-        __m128i divy_i = _mm_cvttps_epi32(fdivy);
+        // Store results as float temporarily
+        float fdivx_arr[4], fdivy_arr[4];
+        _mm_storeu_ps(fdivx_arr, fdivx);
+        _mm_storeu_ps(fdivy_arr, fdivy);
 
-        // check where divx_i == -5000
-        __m128i eq_neg5000 = _mm_cmpeq_epi32(divx_i, v_neg5000);
+        // Process each element (SSE1 doesn't have integer operations)
+        for( int j = 0; j < 4; j++ )
+        {
+            int z = vz_arr[j];
+            bool clipped = (z < near_plane_z);
 
-        // mask for non-clipped lanes
-        __m128i not_clipped_mask = _mm_xor_si128(clipped_mask, v_allones);
+            screen_vertices_z[i + j] = z - model_mid_z;
 
-        // eq_and_not_clipped = eq_neg5000 & not_clipped_mask
-        __m128i eq_and_not_clipped = _mm_and_si128(eq_neg5000, not_clipped_mask);
+            int divx_i = (int)fdivx_arr[j];
+            int divy_i = (int)fdivy_arr[j];
 
-        // if eq_and_not_clipped → -5001, else divx_i
-        __m128i result_x_adj = _mm_or_si128(
-            _mm_and_si128(eq_and_not_clipped, v_neg5001),
-            _mm_andnot_si128(eq_and_not_clipped, divx_i));
-
-        // final x: if clipped → -5000, else result_x_adj
-        __m128i final_x = _mm_or_si128(
-            _mm_and_si128(clipped_mask, v_neg5000), _mm_andnot_si128(clipped_mask, result_x_adj));
-
-        // final y: if clipped → vsy, else divy_i
-        __m128i final_y =
-            _mm_or_si128(_mm_and_si128(clipped_mask, vsy), _mm_andnot_si128(clipped_mask, divy_i));
-
-        // store final results
-        _mm_storeu_si128((__m128i*)(screen_vertices_x + i), final_x);
-        _mm_storeu_si128((__m128i*)(screen_vertices_y + i), final_y);
+            if( clipped )
+            {
+                screen_vertices_x[i + j] = -5000;
+                screen_vertices_y[i + j] = vsy_arr[j];
+            }
+            else
+            {
+                if( divx_i == -5000 )
+                    divx_i = -5001;
+                screen_vertices_x[i + j] = divx_i;
+                screen_vertices_y[i + j] = divy_i;
+            }
+        }
     }
 
     // Handle remaining vertices

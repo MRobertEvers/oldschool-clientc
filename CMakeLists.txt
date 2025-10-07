@@ -50,12 +50,12 @@ else()
     # Set architecture-specific flags
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
         # x86_64 specific optimizations
-        set(CMAKE_C_FLAGS_RELEASE "-g -O3 -march=native -DNDEBUG")
-        set(CMAKE_CXX_FLAGS_RELEASE "-g -O3 -march=native -DNDEBUG")
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -g -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -O3 -DNDEBUG")
     else()
         # ARM64 and other architectures - use generic optimizations
-        set(CMAKE_C_FLAGS_RELEASE "-g -O3 -DNDEBUG")
-        set(CMAKE_CXX_FLAGS_RELEASE "-g -O3 -DNDEBUG")
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -g -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -O3 -DNDEBUG")
     endif()
     
     # Enable C99 features
@@ -273,6 +273,13 @@ endif()
 if(WIN32)
     target_include_directories(scene_tile_test PRIVATE ${SDL2_INCLUDE_DIRS})
     target_include_directories(model_viewer PRIVATE ${SDL2_INCLUDE_DIRS})
+endif()
+
+# ImGui and other files that use sqrt()/pow() require at least SSE support for return values,
+# even in scalar builds. This applies per-source compile flags to override global -mno-sse.
+# The scalar build is meant to benchmark projection code without SIMD, not break standard library functions.
+if(NOT WIN32 AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+   
 endif()
 
 # Fix: Add ASan target properties for scene_tile_test (Unix/Linux only, excluding Emscripten)

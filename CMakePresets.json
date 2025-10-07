@@ -1,0 +1,100 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 7,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "sse1-only",
+            "displayName": "SSE 1 Only",
+            "description": "Build with only SSE 1 instructions enabled (no SSE2/SSE3/AVX)",
+            "binaryDir": "${sourceDir}/build_sse1",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-g -O3 -msse -mno-sse2 -mno-sse3 -mno-ssse3 -mno-sse4.1 -mno-sse4.2 -mno-avx -mno-avx2 -DNDEBUG"
+                },
+                "CMAKE_CXX_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-g -O3 -msse -mno-sse2 -mno-sse3 -mno-ssse3 -mno-sse4.1 -mno-sse4.2 -mno-avx -mno-avx2 -DNDEBUG"
+                }
+            }
+        },
+        {
+            "name": "sse2",
+            "displayName": "SSE 2",
+            "description": "Build with SSE 2 instructions enabled (no SSE3/SSE4/AVX)",
+            "binaryDir": "${sourceDir}/build_sse2",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-g -O3 -msse2 -mno-sse3 -mno-ssse3 -mno-sse4.1 -mno-sse4.2 -mno-avx -mno-avx2 -DNDEBUG"
+                },
+                "CMAKE_CXX_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-g -O3 -msse2 -mno-sse3 -mno-ssse3 -mno-sse4.1 -mno-sse4.2 -mno-avx -mno-avx2 -DNDEBUG"
+                }
+            }
+        },
+        {
+            "name": "avx2",
+            "displayName": "AVX2",
+            "description": "Build with AVX2 instructions enabled (includes SSE, SSE2, SSE3, SSE4, AVX, AVX2)",
+            "binaryDir": "${sourceDir}/build_avx2",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-g -O3 -mavx2 -DNDEBUG"
+                },
+                "CMAKE_CXX_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-g -O3 -mavx2 -DNDEBUG"
+                }
+            }
+        },
+        {
+            "name": "native",
+            "displayName": "Native CPU",
+            "description": "Build optimized for the current CPU architecture (march=native)",
+            "binaryDir": "${sourceDir}/build_native",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-g -O3 -march=native -DNDEBUG"
+                },
+                "CMAKE_CXX_FLAGS_RELEASE": {
+                    "type": "STRING",
+                    "value": "-g -O3 -march=native -DNDEBUG"
+                }
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "sse1-only",
+            "displayName": "SSE 1 Only Build",
+            "configurePreset": "sse1-only"
+        },
+        {
+            "name": "sse2",
+            "displayName": "SSE 2 Build",
+            "configurePreset": "sse2"
+        },
+        {
+            "name": "avx2",
+            "displayName": "AVX2 Build",
+            "configurePreset": "avx2"
+        },
+        {
+            "name": "native",
+            "displayName": "Native CPU Build",
+            "configurePreset": "native"
+        }
+    ]
+}
