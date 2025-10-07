@@ -266,6 +266,8 @@ struct Game
     uint64_t frame_count;
     uint64_t frame_time_sum;
 
+    uint64_t projection_time_sum;
+
     struct CacheTexture* textures;
     int* texture_ids;
     int texture_count;
@@ -316,6 +318,7 @@ struct Pix3D
     int s4_count;
     int bs4_count;
     int bary_bs4_count;
+    int projection_count;
 } _Pix3D;
 
 void
@@ -511,6 +514,10 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
         ((((double)_Pix3D.deob_sum) / _Pix3D.deob_count) * 1000000.0 / (double)frequency),
         ((((double)_Pix3D.bs4_sum) / _Pix3D.bs4_count) * 1000000.0 / (double)frequency),
         ((((double)_Pix3D.bary_bs4_sum) / _Pix3D.bary_bs4_count) * 1000000.0 / (double)frequency));
+
+    ImGui::Text(
+        "projection: %.4f us",
+        ((((double)_Pix3D.projection_count) / _Pix3D.s4_count) * 1000000.0 / (double)frequency));
 
     // Camera position with copy button
     char camera_pos_text[256];
@@ -1450,7 +1457,7 @@ m_paint(struct SceneModel* model, struct Cache* cache, struct TexturesCache* tex
 }
 
 extern "C" {
-#include "../graphics/projection.h"
+#include "../graphics/projection_simd.u.c"
 }
 
 static void
@@ -1509,88 +1516,127 @@ m_draw(
 
     _Pix3D.clipped = false;
 
+    // for( int i = 0; i < model->model->vertex_count; i++ )
+    // {
+    //     // struct ProjectedTriangle projected_triangle = { 0 };
+    //     // project_orthographic_fast(
+    //     //     &projected_triangle,
+    //     //     model->model->vertices_x[i],
+    //     //     model->model->vertices_y[i],
+    //     //     model->model->vertices_z[i],
+    //     //     0,
+    //     //     scene_x,
+    //     //     scene_y,
+    //     //     scene_z,
+    //     //     pitch,
+    //     //     yaw);
+
+    //     int x = model->model->vertices_x[i];
+    //     int y = model->model->vertices_y[i];
+    //     int z = model->model->vertices_z[i];
+
+    //     if( model_yaw != 0 )
+    //     {
+    //         int x_projected = (model_yaw_sin * z + model_yaw_cos * x) >> 16;
+    //         int z_projected = (model_yaw_cos * z - model_yaw_sin * x_projected) >> 16;
+
+    //         x = x_projected;
+    //         z = z_projected;
+    //     }
+
+    //     x += scene_x;
+    //     y += scene_y;
+    //     z += scene_z;
+
+    //     int x_scene_rotated = (yaw_sin * z + yaw_cos * x) >> 16;
+    //     int z_scene_rotated_yaw = (yaw_cos * z - yaw_sin * x) >> 16;
+
+    //     int y_scene_rotated = (pitch_cos * y - pitch_sin * z_scene_rotated_yaw) >> 16;
+    //     int z_scene_rotated_pitch_yaw = (pitch_sin * y + pitch_cos * z_scene_rotated_yaw) >> 16;
+
+    //     x = x_scene_rotated;
+    //     y = y_scene_rotated;
+    //     z = z_scene_rotated_pitch_yaw;
+
+    //     _Pix3D.screen_vertices_z[i] = z_scene_rotated_pitch_yaw - z_center_projected_pitch_yaw;
+    //     if( z_scene_rotated_pitch_yaw >= 50 )
+    //     {
+    //         _Pix3D.screen_vertices_x[i] = (x << 9) / z_scene_rotated_pitch_yaw + _Pix3D.center_x;
+    //         _Pix3D.screen_vertices_y[i] = (y << 9) / z_scene_rotated_pitch_yaw + _Pix3D.center_y;
+
+    //         // struct ProjectedTriangle projected_triangle = { 0 };
+    //         // project_fast(
+    //         //     &projected_triangle,
+    //         //     x,
+    //         //     y,
+    //         //     z,
+    //         //     0,
+    //         //     scene_x,
+    //         //     scene_y,
+    //         //     scene_z,
+    //         //     pitch,
+    //         //     yaw,
+    //         //     512,
+    //         //     50,
+    //         //     _Pix3D.width,
+    //         //     _Pix3D.height);
+
+    //         // _Pix3D.screen_vertices_x[i] = projected_triangle.x + _Pix3D.center_x;
+    //         // _Pix3D.screen_vertices_y[i] = projected_triangle.y + _Pix3D.center_y;
+    //     }
+    //     else
+    //     {
+    //         _Pix3D.screen_vertices_x[i] = -5000;
+    //         _Pix3D.clipped = true;
+    //     }
+
+    //     if( model->model->textured_face_count > 0 )
+    //     {
+    //         _Pix3D.ortho_vertices_x[i] = x_scene_rotated;
+    //         _Pix3D.ortho_vertices_y[i] = y_scene_rotated;
+    //         _Pix3D.ortho_vertices_z[i] = z_scene_rotated_pitch_yaw;
+    //     }
+    // }
+
+    uint64_t start_time = SDL_GetPerformanceCounter();
+
+    for( int i = 0; i < 20; i++ )
+    {
+        project_vertices_array(
+            _Pix3D.ortho_vertices_x,
+            _Pix3D.ortho_vertices_y,
+            _Pix3D.ortho_vertices_z,
+            _Pix3D.screen_vertices_x,
+            _Pix3D.screen_vertices_y,
+            _Pix3D.screen_vertices_z,
+            model->model->vertices_x,
+            model->model->vertices_y,
+            model->model->vertices_z,
+            model->model->vertex_count,
+            model_yaw,
+            z_center_projected_pitch_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            50,
+            512,
+            pitch,
+            yaw);
+    }
     for( int i = 0; i < model->model->vertex_count; i++ )
     {
-        // struct ProjectedTriangle projected_triangle = { 0 };
-        // project_orthographic_fast(
-        //     &projected_triangle,
-        //     model->model->vertices_x[i],
-        //     model->model->vertices_y[i],
-        //     model->model->vertices_z[i],
-        //     0,
-        //     scene_x,
-        //     scene_y,
-        //     scene_z,
-        //     pitch,
-        //     yaw);
-
-        int x = model->model->vertices_x[i];
-        int y = model->model->vertices_y[i];
-        int z = model->model->vertices_z[i];
-
-        if( model_yaw != 0 )
+        int vertex_x = _Pix3D.screen_vertices_x[i];
+        if( vertex_x == -5000 )
         {
-            int x_projected = (model_yaw_sin * z + model_yaw_cos * x) >> 16;
-            int z_projected = (model_yaw_cos * z - model_yaw_sin * x_projected) >> 16;
-
-            x = x_projected;
-            z = z_projected;
+            continue;
         }
 
-        x += scene_x;
-        y += scene_y;
-        z += scene_z;
-
-        int x_scene_rotated = (yaw_sin * z + yaw_cos * x) >> 16;
-        int z_scene_rotated_yaw = (yaw_cos * z - yaw_sin * x) >> 16;
-
-        int y_scene_rotated = (pitch_cos * y - pitch_sin * z_scene_rotated_yaw) >> 16;
-        int z_scene_rotated_pitch_yaw = (pitch_sin * y + pitch_cos * z_scene_rotated_yaw) >> 16;
-
-        x = x_scene_rotated;
-        y = y_scene_rotated;
-        z = z_scene_rotated_pitch_yaw;
-
-        _Pix3D.screen_vertices_z[i] = z_scene_rotated_pitch_yaw - z_center_projected_pitch_yaw;
-        if( z_scene_rotated_pitch_yaw >= 50 )
-        {
-            _Pix3D.screen_vertices_x[i] = (x << 9) / z_scene_rotated_pitch_yaw + _Pix3D.center_x;
-            _Pix3D.screen_vertices_y[i] = (y << 9) / z_scene_rotated_pitch_yaw + _Pix3D.center_y;
-
-            // struct ProjectedTriangle projected_triangle = { 0 };
-            // project_fast(
-            //     &projected_triangle,
-            //     x,
-            //     y,
-            //     z,
-            //     0,
-            //     scene_x,
-            //     scene_y,
-            //     scene_z,
-            //     pitch,
-            //     yaw,
-            //     512,
-            //     50,
-            //     _Pix3D.width,
-            //     _Pix3D.height);
-
-            // _Pix3D.screen_vertices_x[i] = projected_triangle.x + _Pix3D.center_x;
-            // _Pix3D.screen_vertices_y[i] = projected_triangle.y + _Pix3D.center_y;
-        }
-        else
-        {
-            _Pix3D.screen_vertices_x[i] = -5000;
-            _Pix3D.clipped = true;
-        }
-
-        if( model->model->textured_face_count > 0 )
-        {
-            _Pix3D.ortho_vertices_x[i] = x_scene_rotated;
-            _Pix3D.ortho_vertices_y[i] = y_scene_rotated;
-            _Pix3D.ortho_vertices_z[i] = z_scene_rotated_pitch_yaw;
-        }
+        _Pix3D.screen_vertices_x[i] = vertex_x + _Pix3D.center_x;
+        _Pix3D.screen_vertices_y[i] = _Pix3D.screen_vertices_y[i] + _Pix3D.center_y;
     }
 
+    uint64_t end_time = SDL_GetPerformanceCounter();
+    _Pix3D.projection_count += end_time - start_time;
     m_paint(model, cache, textures_cache);
 }
 
