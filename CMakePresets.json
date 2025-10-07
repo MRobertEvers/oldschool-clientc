@@ -100,11 +100,11 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_C_FLAGS_RELEASE": {
           "type": "STRING",
-          "value": "-g -O3 -DAVX2_DISABLED -DNEON_DISABLED -DSSE2_DISABLED -DSSE_DISABLED -DNDEBUG"
+          "value": "-g -O3 -fno-tree-vectorize -DAVX2_DISABLED -DNEON_DISABLED -DSSE2_DISABLED -DSSE_DISABLED -DNDEBUG"
         },
         "CMAKE_CXX_FLAGS_RELEASE": {
           "type": "STRING",
-          "value": "-g -O3 -DAVX2_DISABLED -DNEON_DISABLED -DSSE2_DISABLED -DSSE_DISABLED -DNDEBUG"
+          "value": "-g -O3 -fno-tree-vectorize -DAVX2_DISABLED -DNEON_DISABLED -DSSE2_DISABLED -DSSE_DISABLED -DNDEBUG"
         }
       }
     }

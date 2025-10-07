@@ -1450,7 +1450,7 @@ project_vertices_array_sse_float(
     __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
     __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
 
-    __m128 v_512 = _mm_set1_ps(512.0f);
+    __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
 
     int i = 0;
     for( ; i + 4 <= num_vertices; i += 4 )
@@ -1582,6 +1582,164 @@ project_vertices_array_sse_float(
 }
 
 static inline void
+project_vertices_array_sse_float_noyaw(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int num_vertices,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    const float inv_scale = 1.0f / 65535.0f;
+    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
+
+    __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
+
+    int i = 0;
+    for( ; i + 4 <= num_vertices; i += 4 )
+    {
+        // Load vertices and convert to float (SSE1 compatible)
+        __m128 xv4 = _mm_set_ps(
+            (float)vertex_x[i + 3],
+            (float)vertex_x[i + 2],
+            (float)vertex_x[i + 1],
+            (float)vertex_x[i]);
+        __m128 yv4 = _mm_set_ps(
+            (float)vertex_y[i + 3],
+            (float)vertex_y[i + 2],
+            (float)vertex_y[i + 1],
+            (float)vertex_y[i]);
+        __m128 zv4 = _mm_set_ps(
+            (float)vertex_z[i + 3],
+            (float)vertex_z[i + 2],
+            (float)vertex_z[i + 1],
+            (float)vertex_z[i]);
+
+        __m128 x_rotated = xv4;
+        __m128 z_rotated = zv4;
+
+        __m128 x_trans = _mm_add_ps(x_rotated, _mm_set1_ps((float)scene_x));
+        __m128 y_trans = _mm_add_ps(yv4, _mm_set1_ps((float)scene_y));
+        __m128 z_trans = _mm_add_ps(z_rotated, _mm_set1_ps((float)scene_z));
+
+        // Camera yaw rotation
+        __m128 x_scene = _mm_add_ps(
+            _mm_mul_ps(x_trans, v_cos_camera_yaw), _mm_mul_ps(z_trans, v_sin_camera_yaw));
+        __m128 z_scene = _mm_sub_ps(
+            _mm_mul_ps(z_trans, v_cos_camera_yaw), _mm_mul_ps(x_trans, v_sin_camera_yaw));
+
+        // Camera pitch rotation
+        __m128 y_scene = _mm_sub_ps(
+            _mm_mul_ps(y_trans, v_cos_camera_pitch), _mm_mul_ps(z_scene, v_sin_camera_pitch));
+        __m128 z_final = _mm_add_ps(
+            _mm_mul_ps(y_trans, v_sin_camera_pitch), _mm_mul_ps(z_scene, v_cos_camera_pitch));
+
+        // Store orthographic vertices (convert and store manually for SSE1)
+        float x_scene_arr[4], y_scene_arr[4], z_final_arr[4];
+        _mm_storeu_ps(x_scene_arr, x_scene);
+        _mm_storeu_ps(y_scene_arr, y_scene);
+        _mm_storeu_ps(z_final_arr, z_final);
+
+        orthographic_vertices_x[i] = (int)x_scene_arr[0];
+        orthographic_vertices_x[i + 1] = (int)x_scene_arr[1];
+        orthographic_vertices_x[i + 2] = (int)x_scene_arr[2];
+        orthographic_vertices_x[i + 3] = (int)x_scene_arr[3];
+
+        orthographic_vertices_y[i] = (int)y_scene_arr[0];
+        orthographic_vertices_y[i + 1] = (int)y_scene_arr[1];
+        orthographic_vertices_y[i + 2] = (int)y_scene_arr[2];
+        orthographic_vertices_y[i + 3] = (int)y_scene_arr[3];
+
+        orthographic_vertices_z[i] = (int)z_final_arr[0];
+        orthographic_vertices_z[i + 1] = (int)z_final_arr[1];
+        orthographic_vertices_z[i + 2] = (int)z_final_arr[2];
+        orthographic_vertices_z[i + 3] = (int)z_final_arr[3];
+
+        __m128 x_proj = _mm_mul_ps(x_scene, v_cot_fov);
+        __m128 y_proj = _mm_mul_ps(y_scene, v_cot_fov);
+
+        // Multiply by 512 instead of shifting (SSE1 compatible)
+        __m128 x_final_f = _mm_mul_ps(x_proj, v_512);
+        __m128 y_final_f = _mm_mul_ps(y_proj, v_512);
+
+        // Store results (convert and store manually for SSE1)
+        float x_final_arr[4], y_final_arr[4];
+        _mm_storeu_ps(x_final_arr, x_final_f);
+        _mm_storeu_ps(y_final_arr, y_final_f);
+
+        screen_vertices_x[i] = (int)x_final_arr[0];
+        screen_vertices_x[i + 1] = (int)x_final_arr[1];
+        screen_vertices_x[i + 2] = (int)x_final_arr[2];
+        screen_vertices_x[i + 3] = (int)x_final_arr[3];
+
+        screen_vertices_y[i] = (int)y_final_arr[0];
+        screen_vertices_y[i + 1] = (int)y_final_arr[1];
+        screen_vertices_y[i + 2] = (int)y_final_arr[2];
+        screen_vertices_y[i + 3] = (int)y_final_arr[3];
+    }
+
+    // Scalar fallback for remaining vertices
+    for( ; i < num_vertices; i++ )
+    {
+        float x = (float)vertex_x[i];
+        float y = (float)vertex_y[i];
+        float z = (float)vertex_z[i];
+
+        // Model yaw rotation
+        float x_rotated = x;
+        float z_rotated = z;
+
+        // Translate
+        float x_trans = x_rotated + (float)scene_x;
+        float y_trans = y + (float)scene_y;
+        float z_trans = z_rotated + (float)scene_z;
+
+        // Camera yaw rotation
+        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
+        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
+        float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
+
+        // Camera pitch rotation
+        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
+        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
+        float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
+
+        orthographic_vertices_x[i] = (int)x_scene;
+        orthographic_vertices_y[i] = (int)y_scene;
+        orthographic_vertices_z[i] = (int)z_final;
+
+        // Perspective projection
+        float cot_fov_f = cot_fov_half_ish16 * inv_scale;
+        float x_proj = x_scene * cot_fov_f;
+        float y_proj = y_scene * cot_fov_f;
+
+        screen_vertices_x[i] = SCALE_UNIT((int)x_proj);
+        screen_vertices_y[i] = SCALE_UNIT((int)y_proj);
+    }
+}
+
+static inline void
 project_vertices_array(
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
@@ -1604,24 +1762,47 @@ project_vertices_array(
     int camera_yaw)
 {
     // First do the projection using our float SSE implementation
-    project_vertices_array_sse_float(
-        orthographic_vertices_x,
-        orthographic_vertices_y,
-        orthographic_vertices_z,
-        screen_vertices_x,
-        screen_vertices_y,
-        screen_vertices_z,
-        vertex_x,
-        vertex_y,
-        vertex_z,
-        num_vertices,
-        model_yaw,
-        scene_x,
-        scene_y,
-        scene_z,
-        camera_fov,
-        camera_pitch,
-        camera_yaw);
+    if( model_yaw != 0 )
+    {
+        project_vertices_array_sse_float(
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            vertex_x,
+            vertex_y,
+            vertex_z,
+            num_vertices,
+            model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_fov,
+            camera_pitch,
+            camera_yaw);
+    }
+    else
+    {
+        project_vertices_array_sse_float_noyaw(
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            vertex_x,
+            vertex_y,
+            vertex_z,
+            num_vertices,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_fov,
+            camera_pitch,
+            camera_yaw);
+    }
 
     // Then handle z-clipping and perspective division
     const int vsteps = 4; // SSE processes 4x float32 per vector
