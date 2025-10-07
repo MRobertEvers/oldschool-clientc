@@ -1591,8 +1591,9 @@ project_vertices_array(
     const int vsteps = 4; // SSE processes 4x float32 per vector
     int i = 0;
 
-// #define SSE_FLOAT_RECIP_DIV
-#ifdef SSE_FLOAT_RECIP_DIV
+    // SSE1 Float reciprocal division is enabled by default
+    // because SSE1 uses floats anyway.
+
     __m128i v_near = _mm_set1_epi32(near_plane_z);
     __m128i v_mid = _mm_set1_epi32(model_mid_z);
     __m128i v_neg5000 = _mm_set1_epi32(-5000);
@@ -1655,7 +1656,6 @@ project_vertices_array(
         _mm_storeu_si128((__m128i*)(screen_vertices_x + i), final_x);
         _mm_storeu_si128((__m128i*)(screen_vertices_y + i), final_y);
     }
-#endif // SSE_FLOAT_DIV
 
     // Handle remaining vertices
     for( ; i < num_vertices; i++ )
