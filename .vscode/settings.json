@@ -138,6 +138,11 @@
         "smmintrin.h": "c",
         "projection_simd.u.c": "cpp",
         "gouraud_simd_alpha.u.c": "cpp",
-        "gouraud_barycentric.u.c": "cpp"
+        "gouraud_barycentric.u.c": "cpp",
+        "scenefx.h": "c",
+        "scene.h": "c",
+        "bounds_cylinder.h": "c",
+        "lighting.h": "c",
+        "pix3dgl.h": "cpp"
     }
 }

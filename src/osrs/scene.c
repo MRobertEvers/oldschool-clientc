@@ -563,7 +563,9 @@ vec_model_push(struct Scene* scene)
 static struct SceneModel*
 vec_model_back(struct Scene* scene)
 {
-    return &scene->models[scene->models_length - 1];
+    struct SceneModel* model = &scene->models[scene->models_length - 1];
+    model->scene_model_idx = scene->models_length - 1;
+    return model;
 }
 
 static struct SceneModel*

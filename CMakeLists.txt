@@ -269,10 +269,67 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     )
 endif()
 
+# Model viewer with ImGui
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    add_executable(model_viewerfx
+        test/model_viewerfx.cpp
+        src/shared_tables.c
+        src/string_utils.c
+        src/osrs/frustrum_cullmap.c
+        src/osrs/bounds_cylinder.c
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+        src/osrs/scene_tile.c
+        src/osrs/palette.c
+        src/osrs/cache.c
+        src/osrs/tables/model.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/scene.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_idk.c
+        src/osrs/tables/framemap.c
+        src/osrs/tables/frame.c
+        src/osrs/tables/maps.c
+        src/osrs/filelist.c
+        src/graphics/render.c
+        src/osrs/rsbuf.c
+        src/graphics/lighting.c
+        src/osrs/anim.c
+        src/osrs/model_transforms.c
+        src/osrs/xtea.c
+        src/osrs/archive.c
+        src/osrs/xtea_config.c
+        src/osrs/scene_cache.c
+        src/datastruct/ht.c
+        src/osrs/tables/noise.c
+
+        src/imgui/imgui.cpp
+        src/imgui/imgui_draw.cpp
+        src/imgui/imgui_tables.cpp
+        src/imgui/imgui_widgets.cpp
+        src/imgui/imgui_demo.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
+
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+
+        src/osrs/pix3dgl.cpp
+        src/osrs/scenefx.c
+    )
+endif()
+
 # Add SDL2 include directories for Windows
 if(WIN32)
     target_include_directories(scene_tile_test PRIVATE ${SDL2_INCLUDE_DIRS})
     target_include_directories(model_viewer PRIVATE ${SDL2_INCLUDE_DIRS})
+    target_include_directories(model_viewerfx PRIVATE ${SDL2_INCLUDE_DIRS})
 endif()
 
 # ImGui and other files that use sqrt()/pow() require at least SSE support for return values,
@@ -425,9 +482,11 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS})
+    target_link_libraries(model_viewerfx SDL2::SDL2 ${WINDOWS_LIBS} ${OPENGL_LIBRARIES})
 else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES})
+    target_link_libraries(model_viewerfx ${SDL2_LIBRARIES} ${OPENGL_LIBRARIES})
 endif()
 
 
@@ -449,6 +508,11 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED ON
     )
+
+    set_target_properties(model_viewerfx PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
 endif()
 
 
@@ -467,6 +531,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(model_viewerfx SDL2::SDL2 ${WINDOWS_LIBS} ${OPENGL_LIBRARIES} ${EXTRA_LIBS})
     
     # Detect MinGW compiler
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND WIN32)
@@ -547,9 +612,15 @@ elseif(WIN32)
     # Apply DLL copying to all targets
     copy_dlls_to_target(scene_tile_test)
     copy_dlls_to_target(model_viewer)
+    copy_dlls_to_target(model_viewerfx)
 else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES} ${EXTRA_LIBS})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES} ${EXTRA_LIBS})
+    if(APPLE)
+        target_link_libraries(model_viewerfx ${SDL2_LIBRARIES} ${OPENGL_LIBRARY} ${EXTRA_LIBS})
+    else()
+        target_link_libraries(model_viewerfx ${SDL2_LIBRARIES} ${OPENGL_LIBRARIES} ${EXTRA_LIBS})
+    endif()
 endif()
 
 cmake_minimum_required(VERSION 3.10)

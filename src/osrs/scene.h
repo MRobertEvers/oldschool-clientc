@@ -91,6 +91,8 @@ enum SceneModelLit
 
 struct SceneModel
 {
+    int scene_model_idx;
+
     int model_id;
     enum SceneModelLit lit;
     struct CacheModel* model;
