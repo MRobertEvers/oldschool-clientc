@@ -1,0 +1,179 @@
+System Information:
+• CPU: Intel(R) Core(TM) Ultra 7 258V
+• Physical Cores: 8
+• Logical Cores: 8
+• Memory: 30.9GB
+• GPU: N/A
+• Platform: linux 6.14.1-061401-generic
+• Architecture: x64
+
+Timestamp: 2025-10-07T13:40:17.589Z
+Benchmark: reciprocal_division
+
+{
+  "iterations": 20,
+  "rawResults": {
+    "integer": [
+      19185,
+      18255,
+      20017,
+      18789,
+      19209,
+      19367,
+      19878,
+      19883,
+      19612,
+      19648,
+      18675,
+      20943,
+      19238,
+      19942,
+      20042,
+      19597,
+      19927,
+      20679,
+      20281,
+      20126
+    ],
+    "float": [
+      26449,
+      26654,
+      26699,
+      26317,
+      27135,
+      26756,
+      26577,
+      26417,
+      27046,
+      26680,
+      27466,
+      26544,
+      27307,
+      26852,
+      26501,
+      26360,
+      26125,
+      26834,
+      26364,
+      26414
+    ],
+    "sse_fast": [
+      28827,
+      29162,
+      29291,
+      29688,
+      29456,
+      29443,
+      29278,
+      29274,
+      29058,
+      29760,
+      29716,
+      29605,
+      29687,
+      29975,
+      29570,
+      29337,
+      29156,
+      29315,
+      29906,
+      29392
+    ],
+    "sse_refined": [
+      27983,
+      28048,
+      28507,
+      28455,
+      28594,
+      28440,
+      28258,
+      28656,
+      28172,
+      28120,
+      29249,
+      29446,
+      29559,
+      27977,
+      28471,
+      28154,
+      28534,
+      28945,
+      28673,
+      28650
+    ]
+  },
+  "statistics": {
+    "integer": {
+      "mean": 19664.65,
+      "stdDev": 657.3679795413797,
+      "ci95": 288.1042197432983,
+      "min": 18255,
+      "max": 20943
+    },
+    "float": {
+      "mean": 26674.85,
+      "stdDev": 348.52852711152116,
+      "ci95": 152.749361828971,
+      "min": 26125,
+      "max": 27466
+    },
+    "sse_fast": {
+      "mean": 29444.8,
+      "stdDev": 293.1293229958409,
+      "ci95": 128.46959011376973,
+      "min": 28827,
+      "max": 29975
+    },
+    "sse_refined": {
+      "mean": 28544.55,
+      "stdDev": 459.0830076301418,
+      "ci95": 201.20199922570612,
+      "min": 27977,
+      "max": 29559
+    }
+  },
+  "accuracy": {
+    "avgAbsError": 0.000515,
+    "maxAbsError": 0.056534,
+    "avgRelError": 0.000179,
+    "avgRelErrorPercent": 0.0179,
+    "maxRelError": 0.0003,
+    "maxRelErrorPercent": 0.03
+  },
+  "analysis": {
+    "fastestMethod": {
+      "name": "Integer Division",
+      "mean": 19664.65,
+      "stdDev": 657.3679795413797
+    },
+    "mostConsistentMethod": {
+      "name": "SSE Fast Reciprocal",
+      "mean": 29444.8,
+      "stdDev": 293.1293229958409
+    },
+    "bestOverallMethod": {
+      "name": "Integer Division",
+      "mean": 19664.65,
+      "stdDev": 657.3679795413797
+    },
+    "speedups": {
+      "sseVsInteger": 0.6678479731565506,
+      "sseVsFloat": 0.9059273623865673,
+      "refinedVsFast": 1.0315384197683972
+    },
+    "tTests": {
+      "sseVsInteger": {
+        "tStatistic": 60.767524863451996,
+        "significant": true
+      },
+      "sseVsFloat": {
+        "tStatistic": 27.201055805471437,
+        "significant": true
+      },
+      "refinedVsFast": {
+        "tStatistic": -7.3914990102265525,
+        "significant": true
+      }
+    }
+  }
+}
