@@ -6,6 +6,7 @@
 // clang-format off
 #include "texture.u.c"
 #include "texture_blend_branching.u.c"
+#include "texture_affine_branching_bary.u.c"
 #include "render_clip.u.c"
 // clang-format on
 
@@ -576,15 +577,25 @@ raster_face_texture_blend(
     int y3 = screen_vertices_y[face_indices_c[face]];
     int z3 = screen_vertices_z[face_indices_c[face]];
 
-    int orthographic_x0 = orthographic_vertices_x[tp_vertex];
-    int orthographic_y0 = orthographic_vertices_y[tp_vertex];
-    int orthographic_z0 = orthographic_vertices_z[tp_vertex];
-    int orthographic_x1 = orthographic_vertices_x[tm_vertex];
-    int orthographic_y1 = orthographic_vertices_y[tm_vertex];
-    int orthographic_z1 = orthographic_vertices_z[tm_vertex];
-    int orthographic_x2 = orthographic_vertices_x[tn_vertex];
-    int orthographic_y2 = orthographic_vertices_y[tn_vertex];
-    int orthographic_z2 = orthographic_vertices_z[tn_vertex];
+    int orthographic_x0 = orthographic_vertices_x[face_indices_a[face]];
+    int orthographic_x1 = orthographic_vertices_x[face_indices_b[face]];
+    int orthographic_x2 = orthographic_vertices_x[face_indices_c[face]];
+    int orthographic_y0 = orthographic_vertices_y[face_indices_a[face]];
+    int orthographic_y1 = orthographic_vertices_y[face_indices_b[face]];
+    int orthographic_y2 = orthographic_vertices_y[face_indices_c[face]];
+    int orthographic_z0 = orthographic_vertices_z[face_indices_a[face]];
+    int orthographic_z1 = orthographic_vertices_z[face_indices_b[face]];
+    int orthographic_z2 = orthographic_vertices_z[face_indices_c[face]];
+
+    int orthographic_uvorigin_x0 = orthographic_vertices_x[tp_vertex];
+    int orthographic_uvorigin_y0 = orthographic_vertices_y[tp_vertex];
+    int orthographic_uvorigin_z0 = orthographic_vertices_z[tp_vertex];
+    int orthographic_uend_x1 = orthographic_vertices_x[tm_vertex];
+    int orthographic_uend_y1 = orthographic_vertices_y[tm_vertex];
+    int orthographic_uend_z1 = orthographic_vertices_z[tm_vertex];
+    int orthographic_vend_x2 = orthographic_vertices_x[tn_vertex];
+    int orthographic_vend_y2 = orthographic_vertices_y[tn_vertex];
+    int orthographic_vend_z2 = orthographic_vertices_z[tn_vertex];
 
     int shade_a = colors_a[face];
     int shade_b = colors_b[face];
@@ -601,7 +612,7 @@ raster_face_texture_blend(
     x3 += offset_x;
     y3 += offset_y;
 
-    raster_texture_blend(
+    raster_texture_affine_opaque_blend_blerp8(
         pixel_buffer,
         screen_width,
         screen_height,
@@ -621,15 +632,50 @@ raster_face_texture_blend(
         orthographic_z0,
         orthographic_z1,
         orthographic_z2,
+        orthographic_uvorigin_x0,
+        orthographic_uend_x1,
+        orthographic_vend_x2,
+        orthographic_uvorigin_y0,
+        orthographic_uend_y1,
+        orthographic_vend_y2,
+        orthographic_uvorigin_z0,
+        orthographic_uend_z1,
+        orthographic_vend_z2,
         shade_a,
         shade_b,
         shade_c,
         texels,
-        texture_size,
-        texture_opaque,
-        near_plane_z,
-        offset_x,
-        offset_y);
+        texture_size);
+
+    // raster_texture_blend(
+    //     pixel_buffer,
+    //     screen_width,
+    //     screen_height,
+    //     camera_fov,
+    //     x1,
+    //     x2,
+    //     x3,
+    //     y1,
+    //     y2,
+    //     y3,
+    //     orthographic_x0,
+    //     orthographic_x1,
+    //     orthographic_x2,
+    //     orthographic_y0,
+    //     orthographic_y1,
+    //     orthographic_y2,
+    //     orthographic_z0,
+    //     orthographic_z1,
+    //     orthographic_z2,
+    //     shade_a,
+    //     shade_b,
+    //     shade_c,
+    //     texels,
+    //     texture_size,
+    //     texture_opaque,
+    //     near_plane_z,
+    //     offset_x,
+    //     offset_y);
 
     return;
 }

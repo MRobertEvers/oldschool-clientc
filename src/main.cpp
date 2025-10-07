@@ -907,6 +907,8 @@ initGL()
                 u3 = uv_pnm.u3;
                 v3 = uv_pnm.v3;
 
+                printf("u1: %f, v1: %f, u2: %f, v2: %f, u3: %f, v3: %f\n", u1, v1, u2, v2, u3, v3);
+
                 // // Compute vectors for texture space
                 // float vU_x = m_x - p_x; // M vector (U direction)
                 // float vU_y = m_y - p_y;

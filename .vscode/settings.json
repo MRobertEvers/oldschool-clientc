@@ -136,6 +136,8 @@
         "texture_blend_branching.u.c": "cpp",
         "emmintrin.h": "c",
         "smmintrin.h": "c",
-        "projection_simd.u.c": "cpp"
+        "projection_simd.u.c": "cpp",
+        "gouraud_simd_alpha.u.c": "cpp",
+        "gouraud_barycentric.u.c": "cpp"
     }
 }
