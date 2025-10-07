@@ -23,11 +23,23 @@ make VERBOSE=1
 cmake --preset sse1-only
 cmake --preset sse2
 cmake --preset avx2
+cmake --preset neon
 
 # Build
 cmake --build build_sse1
 cmake --build sse2
 cmake --build avx
+cmake --build neon
+```
+
+### Pound Defines
+
+```
+# Disables manual vector functions
+SSE_DISABLED
+SSE2_DISABLED
+AVX2_DISABLED
+NEON_DISABLED
 ```
 
 ### Building - Emscripten

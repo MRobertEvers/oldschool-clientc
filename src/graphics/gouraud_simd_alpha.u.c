@@ -7,7 +7,7 @@
 #include "alpha.h"
 // clang-format on
 
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
 
 // alpha_blend for 4 pixels at a time
@@ -66,7 +66,7 @@ raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int al
 // After some research, SSE is slower on efficiency cores than
 // the scalar version.
 // AVX does not seem to have such a penalty.
-#elif defined(__AVX2__)
+#elif defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include <immintrin.h>
 
 // alpha_blend for 4 pixels at a time using AVX2
@@ -115,7 +115,7 @@ raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int al
     _mm_storeu_si128((__m128i*)&pixel_buffer[offset], result);
 }
 
-#elif (defined(__SSE2__) || defined(__SSE4_1__))
+#elif (defined(__SSE2__) || defined(__SSE4_1__)) && !defined(SSE2_DISABLED)
 #include <emmintrin.h>
 
 // alpha_blend for 4 pixels at a time using SSE2

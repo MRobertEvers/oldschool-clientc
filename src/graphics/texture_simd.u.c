@@ -7,7 +7,7 @@
 #include "shade.h"
 // clang-format on
 
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) )
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
 
 // shade_blend for 4 pixels at a time
@@ -115,7 +115,7 @@ raster_linear_opaque_blend_lerp8(
     vst1q_u32(&pixel_buffer[offset + 4], r1);
 }
 
-#elif defined(__AVX2__)
+#elif defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include <immintrin.h>
 
 // shade_blend for 8 pixels at a time using AVX2
@@ -230,7 +230,7 @@ raster_linear_opaque_blend_lerp8(
     // Store results directly (no transparency masking for opaque rendering)
     _mm256_storeu_si256((__m256i*)&pixel_buffer[offset], r);
 }
-#elif (defined(__SSE2__) || defined(__SSE4_1__))
+#elif (defined(__SSE2__) || defined(__SSE4_1__)) && !defined(SSE2_DISABLED)
 #include <emmintrin.h>
 
 // shade_blend for 4 pixels at a time using SSE2

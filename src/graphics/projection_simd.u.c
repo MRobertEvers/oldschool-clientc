@@ -12,7 +12,7 @@ extern int g_tan_table[2048];
 extern int g_cos_table[2048];
 extern int g_sin_table[2048];
 
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) )
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
 
 static inline void
@@ -416,7 +416,7 @@ project_vertices_array(
     }
 }
 
-#elif defined(__AVX2__)
+#elif defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include <immintrin.h>
 
 static inline void
@@ -992,7 +992,7 @@ project_vertices_array(
     }
 }
 
-#elif (defined(__SSE2__) || defined(__SSE4_1__))
+#elif (defined(__SSE2__) || defined(__SSE4_1__)) && !defined(SSE2_DISABLED)
 #include "sse2_41compat.h"
 
 static inline void
@@ -1413,7 +1413,7 @@ project_vertices_array(
 }
 
 // __SSE2__
-#elif defined(__SSE__)
+#elif defined(__SSE__) && !defined(SSE_DISABLED)
 #include <xmmintrin.h>
 
 static inline void
