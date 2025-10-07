@@ -1239,6 +1239,12 @@ adb install -r path/to/your/app.apk
 adb install -r -d path/to/your/app.apk
 ```
 
+## Supported ISAs
+
+Arm NEON
+AVX2
+SSE2
+
 ## CPU Mark Result
 
 The Moto X is comparable to the Pentium 4.
@@ -1296,3 +1302,4 @@ At Startup:
 - idx2...
 
 Loading an archive
+

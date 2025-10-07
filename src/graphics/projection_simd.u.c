@@ -992,7 +992,7 @@ project_vertices_array(
     }
 }
 
-#elif (defined(__SSE2__) || defined(__SSE4_1__))
+#elif (defined(__SSE2__) || defined(__SSE4_1__)) && 0
 #include "sse2_41compat.h"
 
 static inline void
@@ -1415,7 +1415,274 @@ project_vertices_array(
     }
 }
 
-#else
+// __SSE2__
+#elif defined(__SSE__)
+#include <xmmintrin.h>
+
+static inline void
+project_vertices_array_sse_float(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int num_vertices,
+    int model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    const float inv_scale = 1.0f / 65535.0f;
+    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
+
+    int i = 0;
+    for( ; i + 4 <= num_vertices; i += 4 )
+    {
+        // Load vertices and convert to float
+        __m128i xv4_i = _mm_loadu_si128((__m128i*)&vertex_x[i]);
+        __m128i yv4_i = _mm_loadu_si128((__m128i*)&vertex_y[i]);
+        __m128i zv4_i = _mm_loadu_si128((__m128i*)&vertex_z[i]);
+
+        __m128 xv4 = _mm_cvtepi32_ps(xv4_i);
+        __m128 yv4 = _mm_cvtepi32_ps(yv4_i);
+        __m128 zv4 = _mm_cvtepi32_ps(zv4_i);
+
+        __m128 x_rotated =
+            _mm_add_ps(_mm_mul_ps(xv4, v_cos_model_yaw), _mm_mul_ps(zv4, v_sin_model_yaw));
+        __m128 z_rotated =
+            _mm_sub_ps(_mm_mul_ps(zv4, v_cos_model_yaw), _mm_mul_ps(xv4, v_sin_model_yaw));
+
+        __m128 x_trans = _mm_add_ps(x_rotated, _mm_set1_ps((float)scene_x));
+        __m128 y_trans = _mm_add_ps(yv4, _mm_set1_ps((float)scene_y));
+        __m128 z_trans = _mm_add_ps(z_rotated, _mm_set1_ps((float)scene_z));
+
+        // Camera yaw rotation
+        __m128 x_scene = _mm_add_ps(
+            _mm_mul_ps(x_trans, v_cos_camera_yaw), _mm_mul_ps(z_trans, v_sin_camera_yaw));
+        __m128 z_scene = _mm_sub_ps(
+            _mm_mul_ps(z_trans, v_cos_camera_yaw), _mm_mul_ps(x_trans, v_sin_camera_yaw));
+
+        // Camera pitch rotation
+        __m128 y_scene = _mm_sub_ps(
+            _mm_mul_ps(y_trans, v_cos_camera_pitch), _mm_mul_ps(z_scene, v_sin_camera_pitch));
+        __m128 z_final = _mm_add_ps(
+            _mm_mul_ps(y_trans, v_sin_camera_pitch), _mm_mul_ps(z_scene, v_cos_camera_pitch));
+
+        // Store orthographic vertices
+        _mm_storeu_si128((__m128i*)&orthographic_vertices_x[i], _mm_cvtps_epi32(x_scene));
+        _mm_storeu_si128((__m128i*)&orthographic_vertices_y[i], _mm_cvtps_epi32(y_scene));
+        _mm_storeu_si128((__m128i*)&orthographic_vertices_z[i], _mm_cvtps_epi32(z_final));
+
+        __m128 x_proj = _mm_mul_ps(x_scene, v_cot_fov);
+        __m128 y_proj = _mm_mul_ps(y_scene, v_cot_fov);
+
+        __m128i x_final = _mm_slli_epi32(_mm_cvtps_epi32(x_proj), 9);
+        __m128i y_final = _mm_slli_epi32(_mm_cvtps_epi32(y_proj), 9);
+
+        _mm_storeu_si128((__m128i*)&screen_vertices_x[i], x_final);
+        _mm_storeu_si128((__m128i*)&screen_vertices_y[i], y_final);
+    }
+
+    // Scalar fallback for remaining vertices
+    for( ; i < num_vertices; i++ )
+    {
+        float x = (float)vertex_x[i];
+        float y = (float)vertex_y[i];
+        float z = (float)vertex_z[i];
+
+        // Model yaw rotation
+        float cos_model_yaw_f = g_cos_table[model_yaw] * inv_scale;
+        float sin_model_yaw_f = g_sin_table[model_yaw] * inv_scale;
+        float x_rotated = x * cos_model_yaw_f + z * sin_model_yaw_f;
+        float z_rotated = z * cos_model_yaw_f - x * sin_model_yaw_f;
+
+        // Translate
+        float x_trans = x_rotated + (float)scene_x;
+        float y_trans = y + (float)scene_y;
+        float z_trans = z_rotated + (float)scene_z;
+
+        // Camera yaw rotation
+        float cos_camera_yaw_f = g_cos_table[camera_yaw] * inv_scale;
+        float sin_camera_yaw_f = g_sin_table[camera_yaw] * inv_scale;
+        float x_scene = x_trans * cos_camera_yaw_f + z_trans * sin_camera_yaw_f;
+        float z_scene = z_trans * cos_camera_yaw_f - x_trans * sin_camera_yaw_f;
+
+        // Camera pitch rotation
+        float cos_camera_pitch_f = g_cos_table[camera_pitch] * inv_scale;
+        float sin_camera_pitch_f = g_sin_table[camera_pitch] * inv_scale;
+        float y_scene = y_trans * cos_camera_pitch_f - z_scene * sin_camera_pitch_f;
+        float z_final = y_trans * sin_camera_pitch_f + z_scene * cos_camera_pitch_f;
+
+        orthographic_vertices_x[i] = (int)x_scene;
+        orthographic_vertices_y[i] = (int)y_scene;
+        orthographic_vertices_z[i] = (int)z_final;
+
+        // Perspective projection
+        float cot_fov_f = cot_fov_half_ish16 * inv_scale;
+        float x_proj = x_scene * cot_fov_f;
+        float y_proj = y_scene * cot_fov_f;
+
+        screen_vertices_x[i] = SCALE_UNIT((int)x_proj);
+        screen_vertices_y[i] = SCALE_UNIT((int)y_proj);
+    }
+}
+
+static inline void
+project_vertices_array(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int num_vertices,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    // First do the projection using our float SSE implementation
+    project_vertices_array_sse_float(
+        orthographic_vertices_x,
+        orthographic_vertices_y,
+        orthographic_vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        vertex_x,
+        vertex_y,
+        vertex_z,
+        num_vertices,
+        model_yaw,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_fov,
+        camera_pitch,
+        camera_yaw);
+
+    // Then handle z-clipping and perspective division
+    const int vsteps = 4; // SSE processes 4x float32 per vector
+    int i = 0;
+
+// #define SSE_FLOAT_RECIP_DIV
+#ifdef SSE_FLOAT_RECIP_DIV
+    __m128i v_near = _mm_set1_epi32(near_plane_z);
+    __m128i v_mid = _mm_set1_epi32(model_mid_z);
+    __m128i v_neg5000 = _mm_set1_epi32(-5000);
+    __m128i v_neg5001 = _mm_set1_epi32(-5001);
+    __m128i v_allones = _mm_set1_epi32(-1);
+
+    for( ; i + vsteps - 1 < num_vertices; i += vsteps )
+    {
+        // load z
+        __m128i vz = _mm_loadu_si128((__m128i const*)(orthographic_vertices_z + i));
+
+        // clipped mask: z < near_plane_z  <=> near > z
+        __m128i clipped_mask = _mm_cmpgt_epi32(v_near, vz); // 0xFFFFFFFF where clipped
+
+        // screen_vertices_z = z - model_mid_z
+        __m128i vscreen_z = _mm_sub_epi32(vz, v_mid);
+        _mm_storeu_si128((__m128i*)(screen_vertices_z + i), vscreen_z);
+
+        // load original screen x,y (pre-division numerators)
+        __m128i vsx = _mm_loadu_si128((__m128i const*)(screen_vertices_x + i));
+        __m128i vsy = _mm_loadu_si128((__m128i const*)(screen_vertices_y + i));
+
+        // Convert to float for division
+        __m128 fx = _mm_cvtepi32_ps(vsx);
+        __m128 fy = _mm_cvtepi32_ps(vsy);
+        __m128 fz = _mm_cvtepi32_ps(vz);
+
+        // perform float division using reciprocal approximation
+        __m128 rcp_z = _mm_rcp_ps(fz);
+        __m128 fdivx = _mm_mul_ps(fx, rcp_z);
+        __m128 fdivy = _mm_mul_ps(fy, rcp_z);
+
+        // convert back to int (truncate toward zero)
+        __m128i divx_i = _mm_cvttps_epi32(fdivx);
+        __m128i divy_i = _mm_cvttps_epi32(fdivy);
+
+        // check where divx_i == -5000
+        __m128i eq_neg5000 = _mm_cmpeq_epi32(divx_i, v_neg5000);
+
+        // mask for non-clipped lanes
+        __m128i not_clipped_mask = _mm_xor_si128(clipped_mask, v_allones);
+
+        // eq_and_not_clipped = eq_neg5000 & not_clipped_mask
+        __m128i eq_and_not_clipped = _mm_and_si128(eq_neg5000, not_clipped_mask);
+
+        // if eq_and_not_clipped → -5001, else divx_i
+        __m128i result_x_adj = _mm_or_si128(
+            _mm_and_si128(eq_and_not_clipped, v_neg5001),
+            _mm_andnot_si128(eq_and_not_clipped, divx_i));
+
+        // final x: if clipped → -5000, else result_x_adj
+        __m128i final_x = _mm_or_si128(
+            _mm_and_si128(clipped_mask, v_neg5000), _mm_andnot_si128(clipped_mask, result_x_adj));
+
+        // final y: if clipped → vsy, else divy_i
+        __m128i final_y =
+            _mm_or_si128(_mm_and_si128(clipped_mask, vsy), _mm_andnot_si128(clipped_mask, divy_i));
+
+        // store final results
+        _mm_storeu_si128((__m128i*)(screen_vertices_x + i), final_x);
+        _mm_storeu_si128((__m128i*)(screen_vertices_y + i), final_y);
+    }
+#endif // SSE_FLOAT_DIV
+
+    // Handle remaining vertices
+    for( ; i < num_vertices; i++ )
+    {
+        int z = orthographic_vertices_z[i];
+
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
+
+        screen_vertices_z[i] = z - model_mid_z;
+
+        if( clipped )
+        {
+            screen_vertices_x[i] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[i] = screen_vertices_x[i] / z;
+            if( screen_vertices_x[i] == -5000 )
+                screen_vertices_x[i] = -5001;
+            screen_vertices_y[i] = screen_vertices_y[i] / z;
+        }
+    }
+}
+
+#else // __SSE_
 
 static inline void
 project_vertices_array(
