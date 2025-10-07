@@ -115,7 +115,7 @@ raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int al
     _mm_storeu_si128((__m128i*)&pixel_buffer[offset], result);
 }
 
-#elif defined(__SSE2__)
+#elif (defined(__SSE2__) || defined(__SSE4_1__))
 #include <emmintrin.h>
 
 // alpha_blend for 4 pixels at a time using SSE2

@@ -342,8 +342,8 @@ project_vertices_array(
     int i = 0;
 
     // Arm Neon Float Div is faster.
-#define ARM_NEON_FLOAT_DIV
-#ifdef ARM_NEON_FLOAT_DIV
+#define ARM_NEON_FLOAT_RECIP_DIV
+#ifdef ARM_NEON_FLOAT_RECIP_DIV
     for( ; i + 4 <= num_vertices; i += 4 )
     {
         // Load z values
@@ -416,7 +416,7 @@ project_vertices_array(
     }
 }
 
-#elif defined(__AVX2__)
+#elif defined(__AVX2__) && 0
 #include <immintrin.h>
 
 static inline void
@@ -901,7 +901,11 @@ project_vertices_array(
     // No SIMD: 5.2ms
     // On my Intel Core Ultra 7 258V, AVX2_FLOAT_DIV runs the lumbridge scene
     // 1.67ms on Windows GCC and 1.72ms without.
-#ifdef AVX2_FLOAT_DIV
+    //
+    // Update: 10/07/2025 - Fast reciprocal division is substantially faster on the Core Ultra 7
+    // 258V. This is closer to what ARM Neon Float Div does, which is something I didn't benchmark.
+#define AVX2_FLOAT_RECIP_DIV
+#ifdef AVX2_FLOAT_RECIP_DIV
     __m256i v_near = _mm256_set1_epi32(near_plane_z);
     __m256i v_mid = _mm256_set1_epi32(model_mid_z);
     __m256i v_neg5000 = _mm256_set1_epi32(-5000);
@@ -927,9 +931,10 @@ project_vertices_array(
         __m256 fx = _mm256_cvtepi32_ps(vsx);
         __m256 fz = _mm256_cvtepi32_ps(vz);
 
-        // perform float division
-        __m256 fdivx = _mm256_div_ps(fx, fz);
-        __m256 fdivy = _mm256_div_ps(_mm256_cvtepi32_ps(vsy), fz);
+        // perform float division using reciprocal approximation
+        __m256 rcp_z = _mm256_rcp_ps(fz);
+        __m256 fdivx = _mm256_mul_ps(fx, rcp_z);
+        __m256 fdivy = _mm256_mul_ps(_mm256_cvtepi32_ps(vsy), rcp_z);
 
         // convert back to int with truncation (matches C integer division trunc towards zero)
         __m256i divx_i = _mm256_cvttps_epi32(fdivx);
@@ -1315,7 +1320,8 @@ project_vertices_array(
     const int vsteps = 4; // 128-bit holds 4x int32
     int i = 0;
 
-#ifdef SSE_FLOAT_DIV
+#define SSE_FLOAT_RECIP_DIV
+#ifdef SSE_FLOAT_RECIP_DIV
     __m128i v_near = _mm_set1_epi32(near_plane_z);
     __m128i v_mid = _mm_set1_epi32(model_mid_z);
     __m128i v_neg5000 = _mm_set1_epi32(-5000);
@@ -1343,9 +1349,10 @@ project_vertices_array(
         __m128 fy = _mm_cvtepi32_ps(vsy);
         __m128 fz = _mm_cvtepi32_ps(vz);
 
-        // perform float division
-        __m128 fdivx = _mm_div_ps(fx, fz);
-        __m128 fdivy = _mm_div_ps(fy, fz);
+        // perform float division using reciprocal approximation
+        __m128 rcp_z = _mm_rcp_ps(fz);
+        __m128 fdivx = _mm_mul_ps(fx, rcp_z);
+        __m128 fdivy = _mm_mul_ps(fy, rcp_z);
 
         // convert back to int (truncate toward zero)
         __m128i divx_i = _mm_cvttps_epi32(fdivx);
