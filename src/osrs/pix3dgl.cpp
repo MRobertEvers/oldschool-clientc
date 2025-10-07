@@ -124,6 +124,8 @@ struct GLModel
     GLuint colorVBO;
     GLuint texCoordVBO;
     GLuint EBO;
+
+    int face_count;
 };
 
 struct Pix3DGL
@@ -252,6 +254,7 @@ pix3dgl_model_load(
 {
     GLModel gl_model;
     gl_model.idx = idx;
+    gl_model.face_count = face_count;
 
     // Create buffers
     glGenBuffers(1, &gl_model.VBO);
@@ -349,25 +352,35 @@ pix3dgl_render(struct Pix3DGL* pix3dgl)
 {
     // Basic render implementation - would need proper scene setup
     // This is a stub for now
+
+    for( auto& pair : pix3dgl->models )
+    {
+        GLModel& model = pair.second;
+
+        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, (void*)(0));
+    }
 }
 
 extern "C" void
 pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
 {
-    if (pix3dgl) {
+    if( pix3dgl )
+    {
         // Clean up GL resources
-        for (auto& pair : pix3dgl->models) {
+        for( auto& pair : pix3dgl->models )
+        {
             GLModel& model = pair.second;
             glDeleteBuffers(1, &model.VBO);
             glDeleteBuffers(1, &model.colorVBO);
             glDeleteBuffers(1, &model.texCoordVBO);
             glDeleteBuffers(1, &model.EBO);
         }
-        
-        for (auto& pair : pix3dgl->texture_ids) {
+
+        for( auto& pair : pix3dgl->texture_ids )
+        {
             glDeleteTextures(1, &pair.second);
         }
-        
+
         delete pix3dgl;
     }
 }

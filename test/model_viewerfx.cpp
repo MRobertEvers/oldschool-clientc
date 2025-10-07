@@ -19,6 +19,8 @@ extern "C" {
 #include "shared_tables.h"
 }
 
+#include "osrs/pix3dgl.h"
+
 #include <SDL.h>
 #include <assert.h>
 #include <math.h>
