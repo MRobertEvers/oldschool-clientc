@@ -29,6 +29,14 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+// OpenGL headers for rendering
+#ifdef __APPLE__
+#include <OpenGL/gl.h>
+#include <OpenGL/gl3.h>
+#else
+#include <GL/gl.h>
+#endif
+
 // SDL2 main handling
 #ifdef main
 #undef main
@@ -142,6 +150,9 @@ struct Game
 
     struct Cache* cache;
     struct TexturesCache* textures_cache;
+
+    // Add Pix3DGL for OpenGL rendering
+    struct Pix3DGL* pix3dgl;
 };
 
 struct Pix3D
@@ -192,6 +203,8 @@ game_free(struct Game* game)
         scene_free(game->scene);
     if( game->textures )
         free(game->textures);
+    if( game->pix3dgl )
+        pix3dgl_cleanup(game->pix3dgl);
 }
 
 struct PlatformSDL2
@@ -199,6 +212,7 @@ struct PlatformSDL2
     SDL_Window* window;
     SDL_Renderer* renderer;
     SDL_Texture* texture;
+    SDL_GLContext gl_context; // Add OpenGL context
     int* pixel_buffer;
     int window_width;
     int window_height;
@@ -215,14 +229,21 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         return false;
     }
 
-    // Create window at the target resolution
+    // Set OpenGL attributes for compatibility
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    // Create window with OpenGL support
     platform->window = SDL_CreateWindow(
-        "Scene Tile Test",
+        "Scene Tile Test - OpenGL",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        SDL_WINDOW_RESIZABLE);
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
     if( !platform->window )
     {
@@ -230,30 +251,24 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         return false;
     }
 
-    // Create renderer
-    platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
-
-    if( !platform->renderer )
+    // Create OpenGL context
+    platform->gl_context = SDL_GL_CreateContext(platform->window);
+    if( !platform->gl_context )
     {
-        printf("Renderer creation failed: %s\n", SDL_GetError());
+        printf("OpenGL context creation failed: %s\n", SDL_GetError());
         return false;
     }
 
-    // Create texture for game rendering
-    platform->texture = SDL_CreateTexture(
-        platform->renderer,
-        SDL_PIXELFORMAT_XRGB8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT);
+    // Enable vsync
+    SDL_GL_SetSwapInterval(1);
 
-    if( !platform->texture )
-    {
-        printf("Texture creation failed: %s\n", SDL_GetError());
-        return false;
-    }
+    printf("OpenGL context created successfully\n");
 
-    // Allocate pixel buffer
+    // Remove SDL renderer/texture creation - we're using pure OpenGL
+    // This prevents conflicts between OpenGL and SDL renderer
+
+    // We don't need pixel buffer for OpenGL rendering, but keep it for compatibility
+    // Allocate pixel buffer (not used for OpenGL but needed for struct compatibility)
     platform->pixel_buffer = (int*)malloc(SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
     if( !platform->pixel_buffer )
     {
@@ -264,25 +279,14 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     // Get initial window size
     SDL_GetWindowSize(platform->window, &platform->window_width, &platform->window_height);
-    SDL_GetRendererOutputSize(
-        platform->renderer, &platform->drawable_width, &platform->drawable_height);
+    // Note: No SDL renderer, so we use window size for drawable size too
+    platform->drawable_width = platform->window_width;
+    platform->drawable_height = platform->window_height;
 
-    // Initialize ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
+    printf("Window size: %dx%d\n", platform->window_width, platform->window_height);
 
-    // Setup Platform/Renderer backends
-    if( !ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer) )
-    {
-        printf("ImGui SDL2 init failed\n");
-        return false;
-    }
-    if( !ImGui_ImplSDLRenderer2_Init(platform->renderer) )
-    {
-        printf("ImGui Renderer init failed\n");
-        return false;
-    }
+    // Remove ImGui initialization for now - we're focusing on pure OpenGL
+    // ImGui requires SDL renderer which conflicts with pure OpenGL context
 
     return true;
 }
@@ -340,6 +344,7 @@ transform_mouse_coordinates(
 static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
+    return;
     ImGui_ImplSDLRenderer2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
@@ -1580,58 +1585,40 @@ render_scene_model(
 static void
 game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 {
-    SDL_Texture* texture = platform->texture;
-    SDL_Renderer* renderer = platform->renderer;
-    int* pixel_buffer = platform->pixel_buffer;
-
-    // Get the frequency (ticks per second)
-    Uint64 frequency = SDL_GetPerformanceFrequency();
-
-    memset(pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    // No longer need SDL texture/renderer variables since we're using pure OpenGL
 
     Uint64 start_ticks = SDL_GetPerformanceCounter();
 
-    for( int x = 0; x < 4; x++ )
+    // Use pix3dgl to render the model instead of software rasterization
+    if( game->pix3dgl )
     {
-        for( int z = 3; z >= 0; z-- )
-        {
-            int model_x = game->camera_x + x * 128;
-            int model_y = game->camera_y + 200 + z * 128;
-            int model_z = game->camera_z + 100;
+        printf("Starting OpenGL frame...\n");
 
-            m_draw(
-                game->scene_model,
-                0,
-                game->camera_pitch,
-                game->camera_yaw,
-                model_x,
-                model_z,
-                model_y,
-                game->cache,
-                game->textures_cache);
+        // Clear OpenGL buffers
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            // int model_x = game->camera_x + x * 128;
-            // int model_y = game->camera_y + 200 + z * 128;
-            // int model_z = game->camera_z + 100;
+        // Disable depth testing temporarily for debugging
+        glDisable(GL_DEPTH_TEST);
 
-            // render_scene_model(
-            //     pixel_buffer,
-            //     SCREEN_WIDTH,
-            //     SCREEN_HEIGHT,
-            //     // Had to use 100 here because of the scale, near plane z was resulting in
-            //     // extremely close to the camera.
-            //     50,
-            //     0,
-            //     model_x,
-            //     model_y,
-            //     model_z,
-            //     game->camera_pitch,
-            //     game->camera_yaw,
-            //     game->camera_roll,
-            //     game->camera_fov,
-            //     game->scene_model,
-            //     game->textures_cache);
-        }
+        // Disable face culling to make sure we see faces from any angle
+        glDisable(GL_CULL_FACE);
+
+        // Use the updated render function with actual camera parameters
+        pix3dgl_render_with_camera(
+            game->pix3dgl,
+            (float)game->camera_x,
+            (float)game->camera_y,
+            (float)game->camera_z,
+            (float)game->camera_pitch,
+            (float)game->camera_yaw,
+            (float)SCREEN_WIDTH,
+            (float)SCREEN_HEIGHT);
+
+        printf("Swapping OpenGL buffers...\n");
+        // Swap OpenGL buffers
+        SDL_GL_SwapWindow(platform->window);
+        printf("Frame complete.\n");
     }
 
     Uint64 end_ticks = SDL_GetPerformanceCounter();
@@ -1641,6 +1628,9 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     game->frame_count++;
     game->frame_time_sum += end_ticks - start_ticks;
 
+    // Old SDL texture rendering - no longer needed with OpenGL
+    /* ... */
+    /*
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         pixel_buffer,
         SCREEN_WIDTH,
@@ -1705,6 +1695,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
 
     SDL_FreeSurface(surface);
+    */
 }
 
 #include <iostream>
@@ -1781,16 +1772,38 @@ main(int argc, char* argv[])
     // game.camera_yaw = 1536;
     // game.camera_roll = 0;
     game.camera_fov = 512; // Default FOV
-    // game.model_id = LUMBRIDGE_KITCHEN_TILE_2;
-    game.model_id = LUMBRIDGE_BRICK_WALL;
+    game.model_id = LUMBRIDGE_KITCHEN_TILE_2;
+    // game.model_id = LUMBRIDGE_BRICK_WALL;
 
     game.textures_cache = textures_cache_new(cache);
     game.cache = cache;
+
+    // Initialize Pix3DGL for OpenGL rendering
+    game.pix3dgl = pix3dgl_new();
 
     struct ModelCache* model_cache = model_cache_new();
 
     struct CacheModel* model = model_cache_checkout(model_cache, cache, game.model_id);
     game.scene_model = scene_model_new_lit_from_model(model, 0);
+
+    // Load the model into Pix3DGL
+    if( game.scene_model && game.scene_model->model )
+    {
+        pix3dgl_model_load(
+            game.pix3dgl,
+            0, // model index
+            game.scene_model->model->vertices_x,
+            game.scene_model->model->vertices_y,
+            game.scene_model->model->vertices_z,
+            game.scene_model->model->face_indices_a,
+            game.scene_model->model->face_indices_b,
+            game.scene_model->model->face_indices_c,
+            game.scene_model->model->face_count,
+            game.scene_model->model->face_alphas,
+            game.scene_model->lighting->face_colors_hsl_a,
+            game.scene_model->lighting->face_colors_hsl_b,
+            game.scene_model->lighting->face_colors_hsl_c);
+    }
 
     int w_pressed = 0;
     int a_pressed = 0;
@@ -1833,12 +1846,7 @@ main(int argc, char* argv[])
 
         while( SDL_PollEvent(&event) )
         {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-
-            // Check if ImGui wants to capture keyboard/mouse input
-            ImGuiIO& io = ImGui::GetIO();
-            bool imgui_wants_keyboard = io.WantCaptureKeyboard;
-            bool imgui_wants_mouse = io.WantCaptureMouse;
+            // Removed ImGui event processing since we're not using ImGui
 
             if( event.type == SDL_QUIT )
             {
@@ -1850,16 +1858,17 @@ main(int argc, char* argv[])
                 {
                     SDL_GetWindowSize(
                         platform.window, &platform.window_width, &platform.window_height);
-                    SDL_GetRendererOutputSize(
-                        platform.renderer, &platform.drawable_width, &platform.drawable_height);
+                    // Since we don't have SDL renderer, drawable size = window size
+                    platform.drawable_width = platform.window_width;
+                    platform.drawable_height = platform.window_height;
                 }
             }
-            else if( event.type == SDL_MOUSEMOTION && !imgui_wants_mouse )
+            else if( event.type == SDL_MOUSEMOTION )
             {
                 transform_mouse_coordinates(
                     event.motion.x, event.motion.y, &game.mouse_x, &game.mouse_y, &platform);
             }
-            else if( event.type == SDL_MOUSEBUTTONDOWN && !imgui_wants_mouse )
+            else if( event.type == SDL_MOUSEBUTTONDOWN )
             {
                 int transformed_x, transformed_y;
                 transform_mouse_coordinates(
@@ -1868,7 +1877,7 @@ main(int argc, char* argv[])
                 game.mouse_click_y = transformed_y;
                 game.mouse_click_cycle = 0;
             }
-            else if( event.type == SDL_KEYDOWN && !imgui_wants_keyboard )
+            else if( event.type == SDL_KEYDOWN )
             {
                 switch( event.key.keysym.sym )
                 {
@@ -1959,7 +1968,7 @@ main(int argc, char* argv[])
                     break;
                 }
             }
-            else if( event.type == SDL_KEYUP && !imgui_wants_keyboard )
+            else if( event.type == SDL_KEYUP )
             {
                 switch( event.key.keysym.sym )
                 {
@@ -2174,7 +2183,7 @@ main(int argc, char* argv[])
         SDL_RenderClear(platform.renderer);
         // Render frame
         game_render_sdl2(&game, &platform);
-        game_render_imgui(&game, &platform);
+        // game_render_imgui(&game, &platform);
 
         SDL_RenderPresent(platform.renderer);
 

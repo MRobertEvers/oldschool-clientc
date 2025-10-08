@@ -7,6 +7,7 @@
 #include <emscripten/html5.h>
 
 extern "C" {
+#include "osrs/pix3dgl.h"
 #include "osrs/scene_cache.h"
 }
 
@@ -111,6 +112,7 @@ static int g_pixel_buffer[SCREEN_WIDTH * SCREEN_HEIGHT] = { 0 };
 
 struct SceneModel* g_scene_model = NULL;
 struct IterRenderModel g_iter_model;
+struct Pix3DGL* g_pix3dgl = NULL;
 static int g_sort_order[1024] = { 0 }; // Stores face indices for sorting
 static int g_sort_order_count = 0;
 static unsigned int g_element_indices[1024 * 9] = { 0 }; // Stores vertex indices for OpenGL
