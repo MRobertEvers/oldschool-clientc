@@ -55,8 +55,8 @@ extern "C" {
 // ImGui headers
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
+#include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
-#include "imgui_impl_sdlrenderer2.h"
 
 extern "C" int g_sin_table[2048];
 extern "C" int g_cos_table[2048];
@@ -235,7 +235,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     // Set OpenGL attributes for compatibility
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
@@ -267,6 +267,20 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     SDL_GL_SetSwapInterval(1);
 
     printf("OpenGL context created successfully\n");
+
+    // Initialize ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL2_InitForOpenGL(platform->window, platform->gl_context);
+    ImGui_ImplOpenGL3_Init("#version 150");
 
     // Remove SDL renderer/texture creation - we're using pure OpenGL
     // This prevents conflicts between OpenGL and SDL renderer
@@ -348,8 +362,8 @@ transform_mouse_coordinates(
 static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
-    return;
-    ImGui_ImplSDLRenderer2_NewFrame();
+    // Start the Dear ImGui frame
+    ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
@@ -423,8 +437,9 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     }
     ImGui::End();
 
+    // Rendering
     ImGui::Render();
-    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->renderer);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 struct BoundingCylinder
 {
@@ -1620,8 +1635,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             (float)SCREEN_HEIGHT);
 
         printf("Swapping OpenGL buffers...\n");
-        // Swap OpenGL buffers
-        SDL_GL_SwapWindow(platform->window);
+        // Don't swap buffers here - wait until after ImGui is rendered
+        // SDL_GL_SwapWindow(platform->window);
         printf("Frame complete.\n");
     }
 
@@ -1847,7 +1862,8 @@ main(int argc, char* argv[])
 
         while( SDL_PollEvent(&event) )
         {
-            // Removed ImGui event processing since we're not using ImGui
+            // Process ImGui events first
+            ImGui_ImplSDL2_ProcessEvent(&event);
 
             if( event.type == SDL_QUIT )
             {
@@ -2196,12 +2212,12 @@ main(int argc, char* argv[])
                 game.max_render_ops = game.op_count;
         }
 
-        SDL_RenderClear(platform.renderer);
         // Render frame
         game_render_sdl2(&game, &platform);
-        // game_render_imgui(&game, &platform);
+        game_render_imgui(&game, &platform);
 
-        SDL_RenderPresent(platform.renderer);
+        // Swap buffers after both 3D rendering and ImGui are complete
+        SDL_GL_SwapWindow(platform.window);
 
         // Calculate frame time and sleep appropriately
         Uint32 frame_end_time = SDL_GetTicks();
@@ -2215,9 +2231,16 @@ main(int argc, char* argv[])
         last_frame_time = frame_end_time;
     }
 
+    // Cleanup ImGui
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
     // Cleanup
-    SDL_DestroyTexture(platform.texture);
-    SDL_DestroyRenderer(platform.renderer);
+    if( platform.gl_context )
+    {
+        SDL_GL_DeleteContext(platform.gl_context);
+    }
     SDL_DestroyWindow(platform.window);
     free(platform.pixel_buffer);
     SDL_Quit();
