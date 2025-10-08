@@ -33,12 +33,21 @@ extern "C" {
 #define M_PI 3.14159265358979323846
 #endif
 
-// OpenGL headers for rendering
-#ifdef __APPLE__
+// OpenGL ES2 headers for rendering
+#ifdef __EMSCRIPTEN__
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#elif defined(__ANDROID__)
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#elif defined(__APPLE__)
+// Use regular OpenGL headers on macOS/iOS for development
 #include <OpenGL/gl.h>
 #include <OpenGL/gl3.h>
+#define GL_GLEXT_PROTOTYPES
 #else
-#include <GL/gl.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #endif
 
 // SDL2 main handling
@@ -233,12 +242,25 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         return false;
     }
 
-    // Set OpenGL attributes for compatibility
+    // Set OpenGL attributes based on platform
+#ifdef __EMSCRIPTEN__
+    // For WebGL, use ES profile
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#elif defined(__ANDROID__)
+    // For Android, use ES profile
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
+    // For desktop platforms, use regular OpenGL but with ES2-compatible features
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
 
     // Create window with OpenGL support
     platform->window = SDL_CreateWindow(
@@ -278,9 +300,13 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
-    // Setup Platform/Renderer backends
+    // Setup Platform/Renderer backends - Use appropriate shader version for platform
     ImGui_ImplSDL2_InitForOpenGL(platform->window, platform->gl_context);
-    ImGui_ImplOpenGL3_Init("#version 150");
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+    ImGui_ImplOpenGL3_Init("#version 100"); // ES2 shader version
+#else
+    ImGui_ImplOpenGL3_Init("#version 150"); // Desktop OpenGL 3.2 Core shader version
+#endif
 
     // Remove SDL renderer/texture creation - we're using pure OpenGL
     // This prevents conflicts between OpenGL and SDL renderer

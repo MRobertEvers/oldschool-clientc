@@ -9,11 +9,20 @@
 #endif
 
 //
-#if defined(__APPLE__)
+#ifdef __EMSCRIPTEN__
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#elif defined(__ANDROID__)
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#elif defined(__APPLE__)
+// Use regular OpenGL headers on macOS/iOS for development
 #include <OpenGL/gl.h>
 #include <OpenGL/gl3.h>
+#define GL_GLEXT_PROTOTYPES
 #else
-#include <GL/gl.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #endif
 
 #include <unordered_map>
@@ -250,7 +259,9 @@ const char* g_fragment_shader_es2 = R"(
 struct GLModel
 {
     int idx;
-    GLuint VAO; // Add VAO for OpenGL 3.0 Core Profile
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    GLuint VAO; // Use VAO on desktop platforms for better performance
+#endif
     GLuint VBO;
     GLuint colorVBO;
     GLuint texCoordVBO;
@@ -387,9 +398,11 @@ pix3dgl_model_load(
     gl_model.idx = idx;
     gl_model.face_count = face_count;
 
-    // Create VAO first (required for OpenGL 3.0 Core Profile)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Create VAO on desktop platforms for better performance
     glGenVertexArrays(1, &gl_model.VAO);
     glBindVertexArray(gl_model.VAO);
+#endif
 
     // Create buffers
     glGenBuffers(1, &gl_model.VBO);
@@ -472,8 +485,11 @@ pix3dgl_model_load(
 
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Set up vertex attributes when using VAO on desktop
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+#endif
 
     // Create and setup color buffer - one color per vertex per face
     std::vector<float> colors(face_count * 9); // 3 vertices * 3 colors per face
@@ -521,11 +537,14 @@ pix3dgl_model_load(
 
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Set up color attributes when using VAO on desktop
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Unbind VAO to avoid accidental modifications
     glBindVertexArray(0);
+#endif
 
     // Store the model in the map
     pix3dgl->models[idx] = gl_model;
@@ -589,8 +608,14 @@ pix3dgl_new()
 {
     struct Pix3DGL* pix3dgl = new Pix3DGL();
 
-    // Initialize OpenGL shaders - switch back to complex shaders for model rendering
+    // Initialize OpenGL shaders - Use appropriate shaders for platform
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+    // For WebGL and Android, use ES2 shaders
+    pix3dgl->program_es2 = create_shader_program(g_vertex_shader_es2, g_fragment_shader_es2);
+#else
+    // For desktop platforms, use Core Profile shaders (but still ES2-compatible rendering)
     pix3dgl->program_es2 = create_shader_program(g_vertex_shader_core, g_fragment_shader_core);
+#endif
 
     if( !pix3dgl->program_es2 )
     {
@@ -667,7 +692,6 @@ pix3dgl_render_with_camera(
         yaw_radians);
 
     // TEMP: Draw a simple hardcoded triangle to test if OpenGL pipeline works
-    static GLuint test_vao = 0;
     static GLuint test_vbo = 0;
     static bool test_triangle_created = false;
 
@@ -682,26 +706,21 @@ pix3dgl_render_with_camera(
             0.0f,  0.5f,  0.0f  // top
         };
 
-        glGenVertexArrays(1, &test_vao);
-        glBindVertexArray(test_vao);
-
         glGenBuffers(1, &test_vbo);
         glBindBuffer(GL_ARRAY_BUFFER, test_vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(test_vertices), test_vertices, GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-
-        glBindVertexArray(0);
         test_triangle_created = true;
         printf("Test triangle created successfully\n");
     }
 
-    // Draw the test triangle
+    // Draw the test triangle (set up attributes manually for ES2)
     printf("Drawing test triangle...\n");
-    glBindVertexArray(test_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, test_vbo);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
     glDrawArrays(GL_TRIANGLES, 0, 3);
-    glBindVertexArray(0);
+    glDisableVertexAttribArray(0);
 
     printf("Test triangle drawn\n");
 
@@ -722,17 +741,33 @@ pix3dgl_render_with_camera(
 
         printf("Rendering model %d with %d faces\n", model.idx, model.face_count);
 
-        // Bind the VAO for this model (contains all vertex attribute setup)
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+        // Desktop: Use VAO for better performance
         glBindVertexArray(model.VAO);
+        glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
+        glBindVertexArray(0);
+#else
+        // Mobile/WebGL: Manually set up vertex attributes each time
+        // Set up position attribute (location 0)
+        glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        // Set up color attribute (location 1)
+        glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
 
         // Draw the model (render all triangles)
         glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
 
+        // Disable vertex attributes
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+#endif
+
         printf("Drew %d vertices (%d triangles)\n", model.face_count * 3, model.face_count);
     }
-
-    // Unbind VAO
-    glBindVertexArray(0);
 
     // Check for OpenGL errors
     GLenum error = glGetError();
@@ -758,7 +793,9 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
         for( auto& pair : pix3dgl->models )
         {
             GLModel& model = pair.second;
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
             glDeleteVertexArrays(1, &model.VAO);
+#endif
             glDeleteBuffers(1, &model.VBO);
             glDeleteBuffers(1, &model.colorVBO);
             glDeleteBuffers(1, &model.texCoordVBO);
