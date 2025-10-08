@@ -29,6 +29,10 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 // OpenGL headers for rendering
 #ifdef __APPLE__
 #include <OpenGL/gl.h>
@@ -1750,7 +1754,7 @@ main(int argc, char* argv[])
 
     struct Game game = { 0 };
 
-    game.camera_yaw = 1728;
+    game.camera_yaw = 0;
     game.camera_pitch = 220;
     game.camera_roll = 0;
     game.camera_fov = 512;
@@ -2037,31 +2041,44 @@ main(int argc, char* argv[])
         }
 
         int camera_moved = 0;
-        if( w_pressed )
+
+        // Convert yaw from 2048-based system to radians for proper trigonometry
+        float yaw_radians = (game.camera_yaw * 2.0f * M_PI) / 2048.0f;
+
+        // Yaw is CCW around the Y axis.
+        // Yaw is 0 when aligned +Z
+        // Pitch is CCW around the X axis.
+        if( w_pressed ) // Forward
         {
-            game.camera_x += (g_sin_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y -= (g_cos_table[game.camera_yaw] * speed) >> 16;
+            // Move forward in the direction the camera is facing
+            // For CCW yaw around Y-axis: forward is +sin(yaw) in X, +cos(yaw) in Z
+            game.camera_x -= (int)(sin(yaw_radians) * speed);
+            game.camera_z += (int)(cos(yaw_radians) * speed);
             camera_moved = 1;
         }
 
-        if( a_pressed )
+        if( s_pressed ) // Backward
         {
-            game.camera_x += (g_cos_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y += (g_sin_table[game.camera_yaw] * speed) >> 16;
+            // Move backward opposite to camera facing direction
+            game.camera_x += (int)(sin(yaw_radians) * speed);
+            game.camera_z -= (int)(cos(yaw_radians) * speed);
             camera_moved = 1;
         }
 
-        if( s_pressed )
+        if( a_pressed ) // Strafe left
         {
-            game.camera_x -= (g_sin_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y += (g_cos_table[game.camera_yaw] * speed) >> 16;
+            // Strafe left: perpendicular to forward direction
+            // Left is forward rotated -90 degrees: -cos(yaw) in X, +sin(yaw) in Z
+            game.camera_x -= (int)(cos(yaw_radians) * speed);
+            game.camera_z -= (int)(sin(yaw_radians) * speed);
             camera_moved = 1;
         }
 
-        if( d_pressed )
+        if( d_pressed ) // Strafe right
         {
-            game.camera_x -= (g_cos_table[game.camera_yaw] * speed) >> 16;
-            game.camera_y -= (g_sin_table[game.camera_yaw] * speed) >> 16;
+            // Strafe right: opposite of left
+            game.camera_x += (int)(cos(yaw_radians) * speed);
+            game.camera_z += (int)(sin(yaw_radians) * speed);
             camera_moved = 1;
         }
 
@@ -2082,6 +2099,8 @@ main(int argc, char* argv[])
             camera_moved = 1;
         }
 
+        // Yaw is CCW around the Y axis.
+        // Pitch is CCW around the X axis.
         if( left_pressed )
         {
             game.camera_yaw = (game.camera_yaw + angle_delta) % 2048;
@@ -2100,15 +2119,15 @@ main(int argc, char* argv[])
             camera_moved = 1;
         }
 
-        if( f_pressed )
+        if( f_pressed ) // Move down (decrease Y - fall)
         {
-            game.camera_z -= speed;
+            game.camera_y += speed;
             camera_moved = 1;
         }
 
-        if( r_pressed )
+        if( r_pressed ) // Move up (increase Y - rise)
         {
-            game.camera_z += speed;
+            game.camera_y -= speed;
             camera_moved = 1;
         }
 

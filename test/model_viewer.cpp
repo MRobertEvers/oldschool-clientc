@@ -1779,8 +1779,8 @@ main(int argc, char* argv[])
     // game.camera_yaw = 1536;
     // game.camera_roll = 0;
     game.camera_fov = 512; // Default FOV
-    // game.model_id = LUMBRIDGE_KITCHEN_TILE_2;
-    game.model_id = LUMBRIDGE_BRICK_WALL;
+    game.model_id = LUMBRIDGE_KITCHEN_TILE_2;
+    // game.model_id = LUMBRIDGE_BRICK_WALL;
 
     game.textures_cache = textures_cache_new(cache);
     game.cache = cache;
