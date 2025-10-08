@@ -1750,17 +1750,14 @@ main(int argc, char* argv[])
 
     struct Game game = { 0 };
 
-    game.camera_pitch = 80;
-    game.camera_yaw = 1888;
+    game.camera_yaw = 1728;
+    game.camera_pitch = 220;
     game.camera_roll = 0;
     game.camera_fov = 512;
+    game.camera_x = -335;
+    game.camera_y = 499;
+    game.camera_z = -80;
 
-    game.camera_pitch = 0;
-    game.camera_yaw = 0;
-    // Camera (x, y, z): -203, 627, 200 : -1, 4
-    game.camera_x = -203;
-    game.camera_y = 627;
-    game.camera_z = 200;
     // game.camera_x = 170;
     // game.camera_y = 360;
     // game.camera_z = 200;

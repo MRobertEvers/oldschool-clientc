@@ -41,7 +41,7 @@
             "name": "(lldb) Launch Model Test",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/model_viewer",
+            "program": "${workspaceFolder}/build/model_viewerfx",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
