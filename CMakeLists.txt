@@ -315,7 +315,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/imgui/imgui_widgets.cpp
         src/imgui/imgui_demo.cpp
         src/imgui/imgui_impl_sdl2.cpp
-        src/imgui/imgui_impl_opengl3.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
 
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
@@ -447,7 +447,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/imgui/imgui_demo.cpp
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
-        src/imgui/imgui_impl_opengl3.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
 
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
@@ -521,7 +521,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/imgui/imgui_widgets.cpp
         src/imgui/imgui_demo.cpp
         src/imgui/imgui_impl_sdl2.cpp
-        src/imgui/imgui_impl_opengl3.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
 
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
@@ -589,7 +589,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
 
     target_link_libraries(model_viewerfx_browser ${EXTRA_LIBS})
-    set_target_properties(model_viewerfx_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s FULL_ES3=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
+    set_target_properties(model_viewerfx_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=0 -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s WASM=1 -s INITIAL_MEMORY=1073741824 -s STACK_SIZE=8388608 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})

@@ -40,6 +40,11 @@ extern "C" {
 #define M_PI 3.14159265358979323846
 #endif
 
+// Emscripten global variables - must be declared early for function visibility
+#ifdef __EMSCRIPTEN__
+bool g_using_webgl2 = false; // Track WebGL version globally
+#endif
+
 // OpenGL ES2 headers for rendering
 #ifdef __EMSCRIPTEN__
 #include <GLES2/gl2.h>
@@ -71,8 +76,8 @@ extern "C" {
 // ImGui headers
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
-#include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
+#include "imgui_impl_sdlrenderer2.h"
 
 extern "C" int g_sin_table[2048];
 extern "C" int g_cos_table[2048];
@@ -250,14 +255,14 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     }
 
 #ifdef __EMSCRIPTEN__
-    // For Emscripten, create a hidden window since we'll use the canvas directly
+    // For Emscripten, create a visible window that matches the canvas size
     platform->window = SDL_CreateWindow(
         "Model Viewer FX",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        SDL_WINDOW_HIDDEN);
+        SDL_WINDOW_SHOWN); // Remove OpenGL flag - use direct WebGL
 
     if( !platform->window )
     {
@@ -265,7 +270,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         return false;
     }
 
-    // Create WebGL context directly like main.cpp does to avoid Safari issues
+    // Create WebGL context directly (this approach worked before)
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
     attrs.enableExtensionsByDefault = 1;
@@ -278,65 +283,22 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_DEFAULT;
     attrs.failIfMajorPerformanceCaveat = 0;
 
-    // Check WebGL2 support first
-    bool webgl2_supported = EM_ASM_INT({
-        try
-        {
-            const testCanvas = document.createElement('canvas');
-            const gl = testCanvas.getContext('webgl2');
-            if( !gl )
-            {
-                console.log("WebGL2 not supported or blocked");
-                return 0;
-            }
-            return 1;
-        }
-        catch( e )
-        {
-            console.error("Error checking WebGL2 support:", e);
-            return 0;
-        }
-    });
+    // Force WebGL1 only for maximum compatibility
+    g_using_webgl2 = false;
 
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
-    bool using_webgl2 = false;
 
-    if( webgl2_supported )
+    // Create WebGL1 context directly
+    attrs.majorVersion = 1;
+    attrs.minorVersion = 0;
+    context = emscripten_webgl_create_context("#canvas", &attrs);
+
+    if( context < 0 )
     {
-        // Try WebGL2 first
-        attrs.majorVersion = 2;
-        attrs.minorVersion = 0;
-        context = emscripten_webgl_create_context("#canvas", &attrs);
-
-        if( context >= 0 )
-        {
-            using_webgl2 = true;
-            printf("Using WebGL2\n");
-        }
-        else
-        {
-            printf(
-                "WebGL2 support check passed but context creation failed, falling back to "
-                "WebGL1\n");
-            webgl2_supported = false;
-        }
+        printf("Failed to create WebGL1 context!\n");
+        return false;
     }
-
-    if( !webgl2_supported || context < 0 )
-    {
-        // Fall back to WebGL1
-        attrs.majorVersion = 1;
-        attrs.minorVersion = 0;
-        context = emscripten_webgl_create_context("#canvas", &attrs);
-        using_webgl2 = false;
-
-        if( context < 0 )
-        {
-            printf("Failed to create WebGL context!\n");
-            return false;
-        }
-        printf("Using WebGL1\n");
-    }
+    printf("Using WebGL1\n");
 
     // Make the context current
     if( emscripten_webgl_make_context_current(context) != EMSCRIPTEN_RESULT_SUCCESS )
@@ -348,6 +310,15 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     platform->gl_context = (SDL_GLContext)context;
     printf("WebGL context created successfully\n");
 
+    // Create SDL renderer for ImGui (this should now work properly)
+    platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_SOFTWARE);
+    if( !platform->renderer )
+    {
+        printf("Failed to create SDL renderer: %s\n", SDL_GetError());
+        return false;
+    }
+    printf("SDL software renderer created for ImGui\n");
+
     // Initialize ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -358,9 +329,12 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
-    // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForOpenGL(platform->window, (void*)context);
-    ImGui_ImplOpenGL3_Init(using_webgl2 ? "#version 300 es" : "#version 100");
+    // Setup Platform/Renderer backends for WebGL1 compatibility
+    ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer);
+
+    // Use SDL renderer backend (no OpenGL shaders needed)
+    printf("Initializing ImGui with SDL renderer backend for WebGL1 compatibility\n");
+    ImGui_ImplSDLRenderer2_Init(platform->renderer);
 
 #else
     // Set OpenGL attributes for native builds
@@ -397,6 +371,15 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     SDL_GL_SetSwapInterval(1);
     printf("OpenGL context created successfully\n");
 
+    // Create SDL renderer for ImGui
+    platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
+    if( !platform->renderer )
+    {
+        printf("Failed to create SDL renderer: %s\n", SDL_GetError());
+        return false;
+    }
+    printf("SDL renderer created for ImGui\n");
+
     // Initialize ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -408,8 +391,8 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     ImGui::StyleColorsDark();
 
     // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForOpenGL(platform->window, platform->gl_context);
-    ImGui_ImplOpenGL3_Init("#version 150"); // Desktop OpenGL 3.2 Core shader version
+    ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer);
+    ImGui_ImplSDLRenderer2_Init(platform->renderer); // Use SDL renderer backend for compatibility
 #endif
 
     // Remove SDL renderer/texture creation - we're using pure OpenGL
@@ -492,84 +475,92 @@ transform_mouse_coordinates(
 static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
-    // Start the Dear ImGui frame
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    return;
+    printf("=== IMGUI DEBUG: Starting ImGui rendering ===\n");
 
-    // Info window
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 150), ImGuiCond_FirstUseEver);
-
-    ImGui::Begin("Info");
-    ImGui::Text(
-        "Application average %.3f ms/frame (%.1f FPS)",
-        1000.0f / ImGui::GetIO().Framerate,
-        ImGui::GetIO().Framerate);
-    Uint64 frequency = SDL_GetPerformanceFrequency();
-    ImGui::Text(
-        "Render Time: %.3f ms/frame",
-        (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
-    ImGui::Text(
-        "Average Render Time: %.3f ms/frame",
-        (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency);
-    // ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
-
-    ImGui::Text(
-        "texture blerp8 lerp8: %.4f us, %.4f us",
-        ((((double)_Pix3D.texture_blerp_sum) / _Pix3D.texture_count) * 1000000.0 /
-         (double)frequency),
-        ((((double)_Pix3D.texture_sum) / _Pix3D.texture_count) * 1000000.0 / (double)frequency));
-
-    ImGui::Text(
-        "S4, deob, bs4, bary_bs4: %.4f, %.4f, %.4f, %.4f us",
-        ((((double)_Pix3D.s4_sum) / _Pix3D.s4_count) * 1000000.0 / (double)frequency),
-        ((((double)_Pix3D.deob_sum) / _Pix3D.deob_count) * 1000000.0 / (double)frequency),
-        ((((double)_Pix3D.bs4_sum) / _Pix3D.bs4_count) * 1000000.0 / (double)frequency),
-        ((((double)_Pix3D.bary_bs4_sum) / _Pix3D.bary_bs4_count) * 1000000.0 / (double)frequency));
-
-    ImGui::Text(
-        "projection: %.4f us",
-        ((((double)_Pix3D.projection_count) / _Pix3D.s4_count) * 1000000.0 / (double)frequency));
-
-    // Camera position with copy button
-    char camera_pos_text[256];
-    snprintf(
-        camera_pos_text,
-        sizeof(camera_pos_text),
-        "Camera (x, y, z): %d, %d, %d : %d, %d",
-        game->camera_x,
-        game->camera_y,
-        game->camera_z,
-        game->camera_x / 128,
-        game->camera_y / 128);
-    ImGui::Text("%s", camera_pos_text);
-    ImGui::SameLine();
-    if( ImGui::SmallButton("Copy##pos") )
+    // Safety checks before calling ImGui functions
+    if( !platform || !platform->window || !platform->renderer )
     {
-        ImGui::SetClipboardText(camera_pos_text);
+        printf("IMGUI ERROR: platform, window, or renderer is null!\n");
+        printf("  platform: %p\n", platform);
+        if( platform )
+        {
+            printf("  window: %p\n", platform->window);
+            printf("  renderer: %p\n", platform->renderer);
+        }
+        return;
     }
 
-    // Camera rotation with copy button
-    char camera_rot_text[256];
-    snprintf(
-        camera_rot_text,
-        sizeof(camera_rot_text),
-        "Camera (pitch, yaw, roll): %d, %d, %d",
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_roll);
-    ImGui::Text("%s", camera_rot_text);
-    ImGui::SameLine();
-    if( ImGui::SmallButton("Copy##rot") )
+    // Check SDL window state
+    int w, h;
+    SDL_GetWindowSize(platform->window, &w, &h);
+    printf("IMGUI DEBUG: Window size: %dx%d\n", w, h);
+
+    // Start the Dear ImGui frame
+    printf("IMGUI DEBUG: About to call ImGui_ImplSDLRenderer2_NewFrame\n");
+    ImGui_ImplSDLRenderer2_NewFrame();
+    printf("IMGUI DEBUG: ImGui_ImplSDLRenderer2_NewFrame completed\n");
+
+    printf("IMGUI DEBUG: About to call ImGui_ImplSDL2_NewFrame\n");
+
+    // Let's test the SDL2 calls that ImGui_ImplSDL2_NewFrame() makes internally
+    printf("IMGUI DEBUG: Testing SDL2 calls manually...\n");
+
+    // Test 1: Window size (we know this works)
+    int win_w, win_h;
+    SDL_GetWindowSize(platform->window, &win_w, &win_h);
+    printf("IMGUI DEBUG: SDL_GetWindowSize: %dx%d\n", win_w, win_h);
+
+    // Test 2: Drawable size
+    printf("IMGUI DEBUG: About to call SDL_GetRendererOutputSize\n");
+    int draw_w, draw_h;
+    if( SDL_GetRendererOutputSize(platform->renderer, &draw_w, &draw_h) == 0 )
     {
-        ImGui::SetClipboardText(camera_rot_text);
+        printf("IMGUI DEBUG: SDL_GetRendererOutputSize: %dx%d\n", draw_w, draw_h);
+    }
+    else
+    {
+        printf("IMGUI DEBUG: SDL_GetRendererOutputSize failed: %s\n", SDL_GetError());
+    }
+
+    // Test 3: Mouse state
+    printf("IMGUI DEBUG: About to call SDL_GetMouseState\n");
+    int mouse_x, mouse_y;
+    Uint32 mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
+    printf("IMGUI DEBUG: Mouse state: (%d, %d) buttons=0x%x\n", mouse_x, mouse_y, mouse_buttons);
+
+    // Test 4: Window focus
+    printf("IMGUI DEBUG: About to call SDL_GetWindowFlags\n");
+    Uint32 window_flags = SDL_GetWindowFlags(platform->window);
+    printf("IMGUI DEBUG: Window flags: 0x%x\n", window_flags);
+
+    printf("IMGUI DEBUG: Manual SDL2 tests completed, now calling ImGui_ImplSDL2_NewFrame\n");
+    ImGui_ImplSDL2_NewFrame();
+    printf("IMGUI DEBUG: ImGui_ImplSDL2_NewFrame completed\n");
+
+    printf("IMGUI DEBUG: About to call ImGui::NewFrame\n");
+    ImGui::NewFrame();
+    printf("IMGUI DEBUG: ImGui::NewFrame completed\n");
+
+    // Simple test window instead of complex one
+    printf("IMGUI DEBUG: Creating simple ImGui window\n");
+    if( ImGui::Begin("Debug") )
+    {
+        ImGui::Text("Test window");
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
     }
     ImGui::End();
+    printf("IMGUI DEBUG: ImGui window created\n");
 
-    // Rendering
+    printf("IMGUI DEBUG: About to call ImGui::Render\n");
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    printf("IMGUI DEBUG: ImGui::Render completed\n");
+
+    printf("IMGUI DEBUG: About to call ImGui_ImplSDLRenderer2_RenderDrawData\n");
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->renderer);
+    printf("IMGUI DEBUG: ImGui_ImplSDLRenderer2_RenderDrawData completed\n");
+
+    printf("=== IMGUI DEBUG: ImGui rendering completed successfully ===\n");
 }
 struct BoundingCylinder
 {
@@ -1016,16 +1007,38 @@ loop(double time, void* userData)
 
     if( camera_moved )
     {
-        memset(g_platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+        // Safety check to prevent memory access violations
+        if( g_platform && g_platform->pixel_buffer )
+        {
+            memset(g_platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+        }
+        else
+        {
+            printf("WARNING: pixel_buffer is null, skipping memset\n");
+        }
     }
 
     // Render frame
-    game_render_sdl2(g_game, g_platform);
-    game_render_imgui(g_game, g_platform);
+    printf("Testing 3D rendering alone...\n");
+    game_render_sdl2(g_game, g_platform); // RE-ENABLE 3D RENDERING
+    printf("Re-enabling ImGui rendering with debugging...\n");
+    game_render_imgui(g_game, g_platform); // RE-ENABLE IMGUI WITH DEBUGGING
 
-    // Swap buffers after both 3D rendering and ImGui are complete
-    SDL_GL_SwapWindow(g_platform->window);
+    // Safety check before swapping buffers
+    if( g_platform && g_platform->window )
+    {
+        printf("About to swap buffers...\n");
+        // Swap buffers after both 3D rendering and ImGui are complete
+        SDL_GL_SwapWindow(g_platform->window);
+        printf("Buffer swap completed successfully\n");
+    }
+    else
+    {
+        printf("ERROR: g_platform or window is null, skipping buffer swap\n");
+        return EM_FALSE;
+    }
 
+    printf("Loop function completing normally\n");
     return EM_TRUE;
 }
 #endif
@@ -1549,7 +1562,7 @@ main(int argc, char* argv[])
 #endif
 
     // Cleanup ImGui
-    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDLRenderer2_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 
