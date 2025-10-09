@@ -414,7 +414,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer);
-    ImGui_ImplSDLRenderer2_Init(platform->renderer); // Use SDL renderer backend for compatibility
+    ImGui_ImplOpenGL3_Init("#version 100"); // Use OpenGL3 backend for compatibility
 #endif
 
     // Remove SDL renderer/texture creation - we're using pure OpenGL
@@ -498,30 +498,15 @@ static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
     // ImGui rendering with OpenGL3 backend
-    printf("ImGui: Starting frame\n");
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
-    printf("ImGui: NewFrame completed\n");
-
-    // Debug display size
-    ImGuiIO& io = ImGui::GetIO();
-    printf(
-        "ImGui: Display size: %.0fx%.0f, Framebuffer scale: %.2fx%.2f\n",
-        io.DisplaySize.x,
-        io.DisplaySize.y,
-        io.DisplayFramebufferScale.x,
-        io.DisplayFramebufferScale.y);
 
     // Simple debug window
-    printf("ImGui: About to create Debug window\n");
-
-    // Set window position and size explicitly
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
 
     bool window_open = ImGui::Begin("Debug", nullptr, ImGuiWindowFlags_NoCollapse);
-    printf("ImGui: Debug window created, open: %d\n", window_open);
 
     if( window_open )
     {
@@ -533,25 +518,15 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
             (float)game->camera_z);
         ImGui::Text(
             "Display Size: %.0fx%.0f", ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
-        ImGui::Text("ImGui Test - This should be visible!");
-        printf("ImGui: Added text to window\n");
     }
     ImGui::End();
-    printf("ImGui: UI created\n");
 
     ImGui::Render();
-    printf("ImGui: About to render draw data\n");
 
     // Check if ImGui has anything to draw
     ImDrawData* draw_data = ImGui::GetDrawData();
     if( draw_data && draw_data->Valid && draw_data->CmdListsCount > 0 )
     {
-        printf(
-            "ImGui: Draw data valid - %d command lists, %d vertices, %d indices\n",
-            draw_data->CmdListsCount,
-            draw_data->TotalVtxCount,
-            draw_data->TotalIdxCount);
-
         // Save OpenGL state before ImGui rendering
         GLboolean depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
         GLboolean blend_enabled = glIsEnabled(GL_BLEND);
@@ -561,30 +536,14 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        // Actually render ImGui (unlike main.cpp which has it commented out)
+        // Render ImGui
         ImGui_ImplOpenGL3_RenderDrawData(draw_data);
-        printf("ImGui: Draw data rendered successfully\n");
 
         // Restore OpenGL state
         if( depth_test_enabled )
             glEnable(GL_DEPTH_TEST);
         if( !blend_enabled )
             glDisable(GL_BLEND);
-    }
-    else
-    {
-        printf("ImGui: No valid draw data to render\n");
-        if( draw_data )
-        {
-            printf(
-                "ImGui: Draw data - Valid: %d, CmdListsCount: %d\n",
-                draw_data->Valid,
-                draw_data->CmdListsCount);
-        }
-        else
-        {
-            printf("ImGui: Draw data is null\n");
-        }
     }
 }
 struct BoundingCylinder
@@ -611,8 +570,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
     // Use pix3dgl to render the model instead of software rasterization
     if( game->pix3dgl )
     {
-        printf("Starting OpenGL frame...\n");
-
         // Clear OpenGL buffers
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -633,11 +590,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             (float)game->camera_yaw,
             (float)SCREEN_WIDTH,
             (float)SCREEN_HEIGHT);
-
-        printf("Swapping OpenGL buffers...\n");
-        // Don't swap buffers here - wait until after ImGui is rendered
-        // SDL_GL_SwapWindow(platform->window);
-        printf("Frame complete.\n");
     }
 
     Uint64 end_ticks = SDL_GetPerformanceCounter();
@@ -940,22 +892,9 @@ EM_BOOL
 loop(double time, void* userData)
 {
     g_frame_count++;
-    printf("=== FRAME %d START ===\n", g_frame_count);
-
-    // Debug global pointers
-    printf("Frame %d: g_game=%p, g_platform=%p\n", g_frame_count, g_game, g_platform);
-    if( g_platform )
-    {
-        printf(
-            "Frame %d: g_platform->window=%p, g_platform->gl_context=%p\n",
-            g_frame_count,
-            g_platform->window,
-            g_platform->gl_context);
-    }
 
     if( g_quit || !g_game || !g_platform )
     {
-        printf("Frame %d: Exit condition met\n", g_frame_count);
         return EM_FALSE;
     }
 
@@ -1062,49 +1001,29 @@ loop(double time, void* userData)
     }
 
     // Render frame
-    printf("=== FRAME %d: ABOUT TO START 3D RENDERING ===\n", g_frame_count);
-    printf("Testing 3D rendering alone...\n");
-    printf("Calling game_render_sdl2...\n");
-
     // Make sure WebGL context is current before rendering
     if( g_platform->gl_context )
     {
-        printf("Frame %d: Making WebGL context current\n", g_frame_count);
         emscripten_webgl_make_context_current(
             (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)g_platform->gl_context);
     }
 
     // Set viewport to canvas size
-    printf("Frame %d: Setting viewport to %dx%d\n", g_frame_count, SCREEN_WIDTH, SCREEN_HEIGHT);
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // Clear the canvas
-    printf("Frame %d: Clearing canvas\n", g_frame_count);
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f); // Dark blue background
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    game_render_sdl2(g_game, g_platform); // RE-ENABLE 3D RENDERING
-    printf("=== FRAME %d: 3D RENDERING COMPLETED SUCCESSFULLY ===\n", g_frame_count);
-
-    // Re-enable ImGui rendering with OpenGL3 backend
-    printf("Frame %d: Rendering ImGui with OpenGL3 backend...\n", g_frame_count);
+    game_render_sdl2(g_game, g_platform);
     game_render_imgui(g_game, g_platform);
 
-    // Safety check before swapping buffers
+    // Swap buffers
     if( g_platform && g_platform->window )
     {
-        printf("About to swap buffers...\n");
-        // Swap buffers after both 3D rendering and ImGui are complete
         SDL_GL_SwapWindow(g_platform->window);
-        printf("Buffer swap completed successfully\n");
-    }
-    else
-    {
-        printf("ERROR: g_platform or window is null, skipping buffer swap\n");
-        return EM_FALSE;
     }
 
-    printf("Loop function completing normally\n");
     return EM_TRUE;
 }
 #endif

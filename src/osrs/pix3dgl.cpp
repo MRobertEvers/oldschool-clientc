@@ -663,51 +663,6 @@ pix3dgl_render_with_camera(
                                0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
         glUniformMatrix4fv(textureMatrixLoc, 1, GL_FALSE, identity);
     }
-
-    printf(
-        "Camera: pos(%.1f, %.1f, %.1f) pitch=%.3f yaw=%.3f\n",
-        camera_x,
-        camera_y,
-        camera_z,
-        pitch_radians,
-        yaw_radians);
-
-    // TEMP: Draw a simple hardcoded triangle to test if OpenGL pipeline works
-    static GLuint test_vbo = 0;
-    static bool test_triangle_created = false;
-
-    if( !test_triangle_created )
-    {
-        printf("Creating test triangle...\n");
-
-        // Simple triangle in screen coordinates
-        float test_vertices[] = {
-            -0.5f, -0.5f, 0.0f, // bottom left
-            0.5f,  -0.5f, 0.0f, // bottom right
-            0.0f,  0.5f,  0.0f  // top
-        };
-
-        glGenBuffers(1, &test_vbo);
-        glBindBuffer(GL_ARRAY_BUFFER, test_vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(test_vertices), test_vertices, GL_STATIC_DRAW);
-
-        test_triangle_created = true;
-        printf("Test triangle created successfully\n");
-    }
-
-    // Draw the test triangle (set up attributes manually for ES2)
-    printf("Drawing test triangle...\n");
-    glBindBuffer(GL_ARRAY_BUFFER, test_vbo);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glDisableVertexAttribArray(0);
-
-    printf("Test triangle drawn\n");
-
-    // Skip the model rendering for now to isolate the test triangle
-    // return;  // DISABLED - now rendering actual models
-
     // Check if we have any models to render
     if( pix3dgl->models.empty() )
     {
@@ -719,8 +674,6 @@ pix3dgl_render_with_camera(
     for( auto& pair : pix3dgl->models )
     {
         GLModel& model = pair.second;
-
-        printf("Rendering model %d with %d faces\n", model.idx, model.face_count);
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
         // Desktop: Use VAO for better performance
@@ -746,8 +699,6 @@ pix3dgl_render_with_camera(
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
 #endif
-
-        printf("Drew %d vertices (%d triangles)\n", model.face_count * 3, model.face_count);
     }
 
     // Check for OpenGL errors

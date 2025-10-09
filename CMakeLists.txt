@@ -315,7 +315,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/imgui/imgui_widgets.cpp
         src/imgui/imgui_demo.cpp
         src/imgui/imgui_impl_sdl2.cpp
-        src/imgui/imgui_impl_sdlrenderer2.cpp
+        src/imgui/imgui_impl_opengl3.cpp
 
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
