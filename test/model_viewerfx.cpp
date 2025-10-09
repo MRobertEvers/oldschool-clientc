@@ -341,6 +341,12 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
     printf("ImGui display size set to: %dx%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
 
+    // Store initial dimensions in platform struct
+    platform->window_width = SCREEN_WIDTH;
+    platform->window_height = SCREEN_HEIGHT;
+    platform->drawable_width = SCREEN_WIDTH;
+    platform->drawable_height = SCREEN_HEIGHT;
+
     ImGui::StyleColorsDark();
 
     // Setup Platform/Renderer backends - cast context like main.cpp does
@@ -582,8 +588,8 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
             (float)game->camera_z,
             (float)game->camera_pitch,
             (float)game->camera_yaw,
-            (float)SCREEN_WIDTH,
-            (float)SCREEN_HEIGHT);
+            (float)platform->drawable_width,
+            (float)platform->drawable_height);
     }
 
     Uint64 end_ticks = SDL_GetPerformanceCounter();
@@ -648,6 +654,11 @@ sdl_event_handler(int eventType, const EmscriptenUiEvent* uiEvent, void* userDat
                     g_platform->window, &g_platform->window_width, &g_platform->window_height);
                 g_platform->drawable_width = g_platform->window_width;
                 g_platform->drawable_height = g_platform->window_height;
+
+                // Update ImGui display size for proper scaling
+                ImGuiIO& io = ImGui::GetIO();
+                io.DisplaySize =
+                    ImVec2((float)g_platform->drawable_width, (float)g_platform->drawable_height);
             }
         }
         else if( event.type == SDL_MOUSEMOTION )
@@ -934,7 +945,7 @@ loop(double time, void* userData)
     }
 
     // Set viewport to canvas size
-    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    glViewport(0, 0, g_platform->drawable_width, g_platform->drawable_height);
 
     // Clear the canvas
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f); // Dark blue background
@@ -1153,6 +1164,11 @@ main(int argc, char* argv[])
                     // Since we don't have SDL renderer, drawable size = window size
                     platform.drawable_width = platform.window_width;
                     platform.drawable_height = platform.window_height;
+
+                    // Update ImGui display size for proper scaling
+                    ImGuiIO& io = ImGui::GetIO();
+                    io.DisplaySize =
+                        ImVec2((float)platform.drawable_width, (float)platform.drawable_height);
                 }
             }
             else if( event.type == SDL_MOUSEMOTION )
