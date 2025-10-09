@@ -307,34 +307,30 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         return false;
     }
 
+    // Set canvas size to match our screen dimensions
+    printf("SCREEN_WIDTH=%d, SCREEN_HEIGHT=%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
+    printf("Setting canvas size to %dx%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    if( SCREEN_WIDTH > 0 && SCREEN_HEIGHT > 0 )
+    {
+        emscripten_set_canvas_element_size("#canvas", SCREEN_WIDTH, SCREEN_HEIGHT);
+        printf("Canvas size set successfully\n");
+    }
+    else
+    {
+        printf("ERROR: Invalid screen dimensions, using fallback 800x600\n");
+        emscripten_set_canvas_element_size("#canvas", 800, 600);
+    }
+
     platform->gl_context = (SDL_GLContext)context;
     printf("WebGL context created successfully\n");
 
-    // Create SDL renderer for ImGui (this should now work properly)
-    platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_SOFTWARE);
-    if( !platform->renderer )
-    {
-        printf("Failed to create SDL renderer: %s\n", SDL_GetError());
-        return false;
-    }
-    printf("SDL software renderer created for ImGui\n");
+    // Skip SDL renderer creation - not needed without ImGui
+    platform->renderer = nullptr;
+    printf("Skipping SDL renderer creation\n");
 
-    // Initialize ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-
-    // Setup Platform/Renderer backends for WebGL1 compatibility
-    ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer);
-
-    // Use SDL renderer backend (no OpenGL shaders needed)
-    printf("Initializing ImGui with SDL renderer backend for WebGL1 compatibility\n");
-    ImGui_ImplSDLRenderer2_Init(platform->renderer);
+    // Skip ImGui initialization for now - focusing on 3D rendering
+    printf("Skipping ImGui initialization\n");
 
 #else
     // Set OpenGL attributes for native builds
@@ -475,92 +471,23 @@ transform_mouse_coordinates(
 static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
-    return;
-    printf("=== IMGUI DEBUG: Starting ImGui rendering ===\n");
-
-    // Safety checks before calling ImGui functions
-    if( !platform || !platform->window || !platform->renderer )
-    {
-        printf("IMGUI ERROR: platform, window, or renderer is null!\n");
-        printf("  platform: %p\n", platform);
-        if( platform )
-        {
-            printf("  window: %p\n", platform->window);
-            printf("  renderer: %p\n", platform->renderer);
-        }
-        return;
-    }
-
-    // Check SDL window state
-    int w, h;
-    SDL_GetWindowSize(platform->window, &w, &h);
-    printf("IMGUI DEBUG: Window size: %dx%d\n", w, h);
-
-    // Start the Dear ImGui frame
-    printf("IMGUI DEBUG: About to call ImGui_ImplSDLRenderer2_NewFrame\n");
+    // Simple ImGui rendering
     ImGui_ImplSDLRenderer2_NewFrame();
-    printf("IMGUI DEBUG: ImGui_ImplSDLRenderer2_NewFrame completed\n");
-
-    printf("IMGUI DEBUG: About to call ImGui_ImplSDL2_NewFrame\n");
-
-    // Let's test the SDL2 calls that ImGui_ImplSDL2_NewFrame() makes internally
-    printf("IMGUI DEBUG: Testing SDL2 calls manually...\n");
-
-    // Test 1: Window size (we know this works)
-    int win_w, win_h;
-    SDL_GetWindowSize(platform->window, &win_w, &win_h);
-    printf("IMGUI DEBUG: SDL_GetWindowSize: %dx%d\n", win_w, win_h);
-
-    // Test 2: Drawable size
-    printf("IMGUI DEBUG: About to call SDL_GetRendererOutputSize\n");
-    int draw_w, draw_h;
-    if( SDL_GetRendererOutputSize(platform->renderer, &draw_w, &draw_h) == 0 )
-    {
-        printf("IMGUI DEBUG: SDL_GetRendererOutputSize: %dx%d\n", draw_w, draw_h);
-    }
-    else
-    {
-        printf("IMGUI DEBUG: SDL_GetRendererOutputSize failed: %s\n", SDL_GetError());
-    }
-
-    // Test 3: Mouse state
-    printf("IMGUI DEBUG: About to call SDL_GetMouseState\n");
-    int mouse_x, mouse_y;
-    Uint32 mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
-    printf("IMGUI DEBUG: Mouse state: (%d, %d) buttons=0x%x\n", mouse_x, mouse_y, mouse_buttons);
-
-    // Test 4: Window focus
-    printf("IMGUI DEBUG: About to call SDL_GetWindowFlags\n");
-    Uint32 window_flags = SDL_GetWindowFlags(platform->window);
-    printf("IMGUI DEBUG: Window flags: 0x%x\n", window_flags);
-
-    printf("IMGUI DEBUG: Manual SDL2 tests completed, now calling ImGui_ImplSDL2_NewFrame\n");
     ImGui_ImplSDL2_NewFrame();
-    printf("IMGUI DEBUG: ImGui_ImplSDL2_NewFrame completed\n");
-
-    printf("IMGUI DEBUG: About to call ImGui::NewFrame\n");
     ImGui::NewFrame();
-    printf("IMGUI DEBUG: ImGui::NewFrame completed\n");
 
-    // Simple test window instead of complex one
-    printf("IMGUI DEBUG: Creating simple ImGui window\n");
-    if( ImGui::Begin("Debug") )
-    {
-        ImGui::Text("Test window");
-        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-    }
+    // Simple debug window
+    ImGui::Begin("Debug");
+    ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+    ImGui::Text(
+        "Camera: (%.1f, %.1f, %.1f)",
+        (float)game->camera_x,
+        (float)game->camera_y,
+        (float)game->camera_z);
     ImGui::End();
-    printf("IMGUI DEBUG: ImGui window created\n");
 
-    printf("IMGUI DEBUG: About to call ImGui::Render\n");
     ImGui::Render();
-    printf("IMGUI DEBUG: ImGui::Render completed\n");
-
-    printf("IMGUI DEBUG: About to call ImGui_ImplSDLRenderer2_RenderDrawData\n");
     ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->renderer);
-    printf("IMGUI DEBUG: ImGui_ImplSDLRenderer2_RenderDrawData completed\n");
-
-    printf("=== IMGUI DEBUG: ImGui rendering completed successfully ===\n");
 }
 struct BoundingCylinder
 {
@@ -907,12 +834,30 @@ sdl_event_handler(int eventType, const EmscriptenUiEvent* uiEvent, void* userDat
     return EM_TRUE;
 }
 
+// Global frame counter for debugging
+static int g_frame_count = 0;
+
 // Main loop function
 EM_BOOL
 loop(double time, void* userData)
 {
+    g_frame_count++;
+    printf("=== FRAME %d START ===\n", g_frame_count);
+
+    // Debug global pointers
+    printf("Frame %d: g_game=%p, g_platform=%p\n", g_frame_count, g_game, g_platform);
+    if( g_platform )
+    {
+        printf(
+            "Frame %d: g_platform->window=%p, g_platform->gl_context=%p\n",
+            g_frame_count,
+            g_platform->window,
+            g_platform->gl_context);
+    }
+
     if( g_quit || !g_game || !g_platform )
     {
+        printf("Frame %d: Exit condition met\n", g_frame_count);
         return EM_FALSE;
     }
 
@@ -1019,10 +964,13 @@ loop(double time, void* userData)
     }
 
     // Render frame
+    printf("=== ABOUT TO START 3D RENDERING ===\n");
     printf("Testing 3D rendering alone...\n");
+    printf("Calling game_render_sdl2...\n");
     game_render_sdl2(g_game, g_platform); // RE-ENABLE 3D RENDERING
-    printf("Re-enabling ImGui rendering with debugging...\n");
-    game_render_imgui(g_game, g_platform); // RE-ENABLE IMGUI WITH DEBUGGING
+    printf("=== 3D RENDERING COMPLETED SUCCESSFULLY ===\n");
+    printf("Skipping ImGui rendering to avoid memory conflicts...\n");
+    // game_render_imgui(g_game, g_platform); // DISABLE IMGUI FOR NOW
 
     // Safety check before swapping buffers
     if( g_platform && g_platform->window )
@@ -1046,13 +994,17 @@ loop(double time, void* userData)
 int
 main(int argc, char* argv[])
 {
+    printf("=== MAIN START ===\n");
     std::cout << "SDL_main" << std::endl;
+
+    printf("Initializing math tables...\n");
     init_hsl16_to_rgb_table();
     init_reciprocal16();
 
     init_sin_table();
     init_cos_table();
     init_tan_table();
+    printf("Math tables initialized\n");
 
     printf("Loading XTEA keys from: ../cache/xteas.json\n");
     int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
@@ -1077,12 +1029,16 @@ main(int argc, char* argv[])
     }
     printf("Cache loaded successfully\n");
 
+    printf("About to initialize platform...\n");
     struct PlatformSDL2 platform = { 0 };
+    printf("Platform struct created\n");
+
     if( !platform_sdl2_init(&platform) )
     {
         printf("Failed to initialize SDL\n");
         return 1;
     }
+    printf("Platform initialization completed\n");
 
     memset(&_Pix3D, 0, sizeof(_Pix3D));
     _Pix3D.width = SCREEN_WIDTH;
@@ -1199,7 +1155,18 @@ main(int argc, char* argv[])
 
     // Use Emscripten's animation frame loop like main.cpp does
     emscripten_set_main_loop_timing(EM_TIMING_RAF, 0);
-    emscripten_request_animation_frame_loop(loop, nullptr);
+
+    // DEBUG: Try single manual loop call first
+    printf("Testing single manual loop call...\n");
+    EM_BOOL result = loop(0.0, nullptr);
+    printf("Manual loop call completed with result: %d\n", result);
+
+    printf(
+        "If we reach here, loop function works - trying setTimeout instead of animation frame "
+        "loop...\n");
+
+    // Instead of animation frame loop, try a simple setTimeout approach
+    emscripten_set_main_loop([]() { loop(0.0, nullptr); }, 60, 1); // 60 FPS, simulate infinite loop
 
     printf("Emscripten main loop setup complete\n");
 #else
