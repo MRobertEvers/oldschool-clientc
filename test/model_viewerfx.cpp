@@ -1169,13 +1169,14 @@ main(int argc, char* argv[])
 
     // Simple camera setup - position camera to look at model at origin
     // mera: pos(-350.0, -500.0, 31.0) pitch=1.779 yaw=1.853
-    game.camera_yaw = 1.853 * 2048 / M_PI / 2;   // No rotation left/right
-    game.camera_pitch = 1.779 * 2048 / M_PI / 2; // No rotation up/down
+    // Camera: pos(136.0, -90.0, -8.0) pitch=0.611 yaw=1.543
+    game.camera_yaw = 1.543 * 2048 / M_PI / 2;   // No rotation left/right
+    game.camera_pitch = 0.611 * 2048 / M_PI / 2; // No rotation up/down
     game.camera_roll = 0;                        // No roll
     game.camera_fov = 512;                       // Standard FOV
-    game.camera_x = -350;                        // Center X (model is around 0)
-    game.camera_y = -500;                        // Slightly above model (model Y is -3 to 0)
-    game.camera_z = 31;                          // Camera back from model (model Z is -64 to 64)
+    game.camera_x = 136;                         // Center X (model is around 0)
+    game.camera_y = -90;                         // Slightly above model (model Y is -3 to 0)
+    game.camera_z = -8;                          // Camera back from model (model Z is -64 to 64)
     // // Simple camera setup - looking straight ahead
     // game.camera_yaw = 0;   // No rotation left/right
     // game.camera_pitch = 0; // No rotation up/down
