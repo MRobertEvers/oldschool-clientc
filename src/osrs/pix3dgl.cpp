@@ -634,8 +634,8 @@ pix3dgl_render_with_camera(
 
     // Convert camera angles from game units to radians
     // Game uses 2048 units per full rotation (2π radians)
-    float pitch_radians = (camera_pitch) / 2048.0f;
-    float yaw_radians = (camera_yaw) / 2048.0f;
+    float pitch_radians = (camera_pitch * 2.0f * M_PI) / 2048.0f;
+    float yaw_radians = (camera_yaw * 2.0f * M_PI) / 2048.0f;
 
     // Set up uniforms with actual camera parameters
     GLint rotationXLoc = glGetUniformLocation(pix3dgl->program_es2, "uRotationX");
