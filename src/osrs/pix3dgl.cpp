@@ -464,25 +464,6 @@ pix3dgl_model_load(
         min_z,
         max_z);
 
-    // TEMPORARY: Move model to be visible in front of camera
-    // Camera is at (-203, 627, 200), so put model at (-203, 627, 0) - right in front
-    float offset_x = -203.0f;
-    float offset_y = 627.0f;
-    float offset_z = 0.0f; // Put it in front of camera
-
-    printf(
-        "TEMP: Moving model in front of camera at (%.1f, %.1f, %.1f)\n",
-        offset_x,
-        offset_y,
-        offset_z);
-
-    for( size_t i = 0; i < vertices.size(); i += 3 )
-    {
-        vertices[i] += offset_x;     // X
-        vertices[i + 1] += offset_y; // Y
-        vertices[i + 2] += offset_z; // Z
-    }
-
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
@@ -653,8 +634,8 @@ pix3dgl_render_with_camera(
 
     // Convert camera angles from game units to radians
     // Game uses 2048 units per full rotation (2π radians)
-    float pitch_radians = (camera_pitch * 2.0f * M_PI) / 2048.0f;
-    float yaw_radians = (camera_yaw * 2.0f * M_PI) / 2048.0f;
+    float pitch_radians = (camera_pitch) / 2048.0f;
+    float yaw_radians = (camera_yaw) / 2048.0f;
 
     // Set up uniforms with actual camera parameters
     GLint rotationXLoc = glGetUniformLocation(pix3dgl->program_es2, "uRotationX");
