@@ -393,15 +393,6 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     SDL_GL_SetSwapInterval(1);
     printf("OpenGL context created successfully\n");
 
-    // Create SDL renderer for ImGui
-    platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
-    if( !platform->renderer )
-    {
-        printf("Failed to create SDL renderer: %s\n", SDL_GetError());
-        return false;
-    }
-    printf("SDL renderer created for ImGui\n");
-
     // Initialize ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -412,9 +403,12 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
-    // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer);
-    ImGui_ImplOpenGL3_Init("#version 100"); // Use OpenGL3 backend for compatibility
+    // Setup Platform/Renderer backends - use OpenGL3 for native builds too
+    ImGui_ImplSDL2_InitForOpenGL(platform->window, platform->gl_context);
+    ImGui_ImplOpenGL3_Init("#version 150"); // OpenGL 3.2 Core for native builds
+    
+    // No SDL renderer needed for OpenGL3 backend
+    platform->renderer = nullptr;
 #endif
 
     // Remove SDL renderer/texture creation - we're using pure OpenGL
