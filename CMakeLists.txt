@@ -476,6 +476,65 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         COMMENT "Copying main Emscripten build files to public/build directory"
     )
 
+    # Model viewer FX for browser with OpenGL ES
+    add_executable(model_viewerfx_browser
+        test/model_viewerfx.cpp
+        src/shared_tables.c
+        src/string_utils.c
+        src/osrs/frustrum_cullmap.c
+        src/osrs/bounds_cylinder.c
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+        src/osrs/scene_tile.c
+        src/osrs/palette.c
+        src/osrs/cache.c
+        src/osrs/tables/model.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/scene.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_idk.c
+        src/osrs/tables/framemap.c
+        src/osrs/tables/frame.c
+        src/osrs/tables/maps.c
+        src/osrs/filelist.c
+        src/graphics/render.c
+        src/osrs/rsbuf.c
+        src/graphics/lighting.c
+        src/osrs/anim.c
+        src/osrs/model_transforms.c
+        src/osrs/xtea.c
+        src/osrs/archive.c
+        src/osrs/xtea_config.c
+        src/osrs/scene_cache.c
+        src/datastruct/ht.c
+        src/osrs/tables/noise.c
+
+        src/imgui/imgui.cpp
+        src/imgui/imgui_draw.cpp
+        src/imgui/imgui_tables.cpp
+        src/imgui/imgui_widgets.cpp
+        src/imgui/imgui_demo.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_opengl3.cpp
+
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+
+        src/osrs/pix3dgl.cpp
+        src/osrs/scenefx.c
+    )
+
+    set_target_properties(model_viewerfx_browser PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -528,6 +587,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     target_link_libraries(main ${EXTRA_LIBS})
     set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
+
+    target_link_libraries(model_viewerfx_browser ${EXTRA_LIBS})
+    set_target_properties(model_viewerfx_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s FULL_ES3=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})

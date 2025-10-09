@@ -29,6 +29,13 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+// Emscripten compatibility
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+
+#include <emscripten.h>
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -242,29 +249,130 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         return false;
     }
 
-    // Set OpenGL attributes based on platform
 #ifdef __EMSCRIPTEN__
-    // For WebGL, use ES profile
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#elif defined(__ANDROID__)
-    // For Android, use ES profile
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    // For Emscripten, create a hidden window since we'll use the canvas directly
+    platform->window = SDL_CreateWindow(
+        "Model Viewer FX",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        SDL_WINDOW_HIDDEN);
+
+    if( !platform->window )
+    {
+        printf("Window creation failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    // Create WebGL context directly like main.cpp does to avoid Safari issues
+    EmscriptenWebGLContextAttributes attrs;
+    emscripten_webgl_init_context_attributes(&attrs);
+    attrs.enableExtensionsByDefault = 1;
+    attrs.alpha = 1;
+    attrs.depth = 1;
+    attrs.stencil = 0;
+    attrs.antialias = 0;
+    attrs.premultipliedAlpha = 0;
+    attrs.preserveDrawingBuffer = 0;
+    attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_DEFAULT;
+    attrs.failIfMajorPerformanceCaveat = 0;
+
+    // Check WebGL2 support first
+    bool webgl2_supported = EM_ASM_INT({
+        try
+        {
+            const testCanvas = document.createElement('canvas');
+            const gl = testCanvas.getContext('webgl2');
+            if( !gl )
+            {
+                console.log("WebGL2 not supported or blocked");
+                return 0;
+            }
+            return 1;
+        }
+        catch( e )
+        {
+            console.error("Error checking WebGL2 support:", e);
+            return 0;
+        }
+    });
+
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context;
+    bool using_webgl2 = false;
+
+    if( webgl2_supported )
+    {
+        // Try WebGL2 first
+        attrs.majorVersion = 2;
+        attrs.minorVersion = 0;
+        context = emscripten_webgl_create_context("#canvas", &attrs);
+
+        if( context >= 0 )
+        {
+            using_webgl2 = true;
+            printf("Using WebGL2\n");
+        }
+        else
+        {
+            printf(
+                "WebGL2 support check passed but context creation failed, falling back to "
+                "WebGL1\n");
+            webgl2_supported = false;
+        }
+    }
+
+    if( !webgl2_supported || context < 0 )
+    {
+        // Fall back to WebGL1
+        attrs.majorVersion = 1;
+        attrs.minorVersion = 0;
+        context = emscripten_webgl_create_context("#canvas", &attrs);
+        using_webgl2 = false;
+
+        if( context < 0 )
+        {
+            printf("Failed to create WebGL context!\n");
+            return false;
+        }
+        printf("Using WebGL1\n");
+    }
+
+    // Make the context current
+    if( emscripten_webgl_make_context_current(context) != EMSCRIPTEN_RESULT_SUCCESS )
+    {
+        printf("Failed to make WebGL context current!\n");
+        return false;
+    }
+
+    platform->gl_context = (SDL_GLContext)context;
+    printf("WebGL context created successfully\n");
+
+    // Initialize ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL2_InitForOpenGL(platform->window, (void*)context);
+    ImGui_ImplOpenGL3_Init(using_webgl2 ? "#version 300 es" : "#version 100");
+
 #else
-    // For desktop platforms, use regular OpenGL but with ES2-compatible features
+    // Set OpenGL attributes for native builds
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-#endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
 
     // Create window with OpenGL support
     platform->window = SDL_CreateWindow(
-        "Scene Tile Test - OpenGL",
+        "Model Viewer FX",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         SCREEN_WIDTH,
@@ -287,7 +395,6 @@ platform_sdl2_init(struct PlatformSDL2* platform)
 
     // Enable vsync
     SDL_GL_SetSwapInterval(1);
-
     printf("OpenGL context created successfully\n");
 
     // Initialize ImGui
@@ -300,11 +407,8 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
-    // Setup Platform/Renderer backends - Use appropriate shader version for platform
+    // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForOpenGL(platform->window, platform->gl_context);
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
-    ImGui_ImplOpenGL3_Init("#version 100"); // ES2 shader version
-#else
     ImGui_ImplOpenGL3_Init("#version 150"); // Desktop OpenGL 3.2 Core shader version
 #endif
 
@@ -599,6 +703,333 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
 #include <iostream>
 
+#ifdef __EMSCRIPTEN__
+// Global game state for Emscripten access
+struct Game* g_game = NULL;
+struct PlatformSDL2* g_platform = NULL;
+bool g_quit = false;
+
+// Global state variables for Emscripten main loop
+int g_w_pressed = 0;
+int g_a_pressed = 0;
+int g_s_pressed = 0;
+int g_d_pressed = 0;
+int g_up_pressed = 0;
+int g_down_pressed = 0;
+int g_left_pressed = 0;
+int g_right_pressed = 0;
+int g_space_pressed = 0;
+int g_f_pressed = 0;
+int g_r_pressed = 0;
+int g_m_pressed = 0;
+int g_n_pressed = 0;
+int g_i_pressed = 0;
+int g_k_pressed = 0;
+int g_l_pressed = 0;
+int g_j_pressed = 0;
+int g_q_pressed = 0;
+int g_e_pressed = 0;
+int g_comma_pressed = 0;
+int g_period_pressed = 0;
+int g_speed = 10;
+
+// Handle SDL events for ImGui and input
+EM_BOOL
+sdl_event_handler(int eventType, const EmscriptenUiEvent* uiEvent, void* userData)
+{
+    SDL_Event event;
+    while( SDL_PollEvent(&event) )
+    {
+        // Process ImGui events first
+        ImGui_ImplSDL2_ProcessEvent(&event);
+
+        if( event.type == SDL_QUIT )
+        {
+            g_quit = true;
+        }
+        else if( event.type == SDL_WINDOWEVENT )
+        {
+            if( event.window.event == SDL_WINDOWEVENT_RESIZED )
+            {
+                SDL_GetWindowSize(
+                    g_platform->window, &g_platform->window_width, &g_platform->window_height);
+                g_platform->drawable_width = g_platform->window_width;
+                g_platform->drawable_height = g_platform->window_height;
+            }
+        }
+        else if( event.type == SDL_MOUSEMOTION )
+        {
+            transform_mouse_coordinates(
+                event.motion.x, event.motion.y, &g_game->mouse_x, &g_game->mouse_y, g_platform);
+        }
+        else if( event.type == SDL_MOUSEBUTTONDOWN )
+        {
+            int transformed_x, transformed_y;
+            transform_mouse_coordinates(
+                event.button.x, event.button.y, &transformed_x, &transformed_y, g_platform);
+            g_game->mouse_click_x = transformed_x;
+            g_game->mouse_click_y = transformed_y;
+            g_game->mouse_click_cycle = 0;
+        }
+        else if( event.type == SDL_KEYDOWN )
+        {
+            switch( event.key.keysym.sym )
+            {
+            case SDLK_ESCAPE:
+                g_quit = true;
+                break;
+            case SDLK_UP:
+                g_up_pressed = 1;
+                break;
+            case SDLK_DOWN:
+                g_down_pressed = 1;
+                break;
+            case SDLK_LEFT:
+                g_left_pressed = 1;
+                break;
+            case SDLK_RIGHT:
+                g_right_pressed = 1;
+                break;
+            case SDLK_s:
+                g_s_pressed = 1;
+                break;
+            case SDLK_w:
+                g_w_pressed = 1;
+                break;
+            case SDLK_d:
+                g_d_pressed = 1;
+                break;
+            case SDLK_a:
+                g_a_pressed = 1;
+                break;
+            case SDLK_r:
+                g_r_pressed = 1;
+                break;
+            case SDLK_f:
+                g_f_pressed = 1;
+                break;
+            case SDLK_SPACE:
+                g_space_pressed = 1;
+                break;
+            case SDLK_m:
+                g_m_pressed = 1;
+                break;
+            case SDLK_n:
+                g_n_pressed = 1;
+                break;
+            case SDLK_i:
+                g_i_pressed = 1;
+                break;
+            case SDLK_k:
+                g_k_pressed = 1;
+                break;
+            case SDLK_l:
+                g_l_pressed = 1;
+                break;
+            case SDLK_j:
+                g_j_pressed = 1;
+                break;
+            case SDLK_q:
+                g_q_pressed = 1;
+                break;
+            case SDLK_e:
+                g_e_pressed = 1;
+                break;
+            case SDLK_PERIOD:
+                g_period_pressed = 1;
+                break;
+            case SDLK_COMMA:
+                g_comma_pressed = 1;
+                break;
+            }
+        }
+        else if( event.type == SDL_KEYUP )
+        {
+            switch( event.key.keysym.sym )
+            {
+            case SDLK_s:
+                g_s_pressed = 0;
+                break;
+            case SDLK_w:
+                g_w_pressed = 0;
+                break;
+            case SDLK_d:
+                g_d_pressed = 0;
+                break;
+            case SDLK_a:
+                g_a_pressed = 0;
+                break;
+            case SDLK_r:
+                g_r_pressed = 0;
+                break;
+            case SDLK_f:
+                g_f_pressed = 0;
+                break;
+            case SDLK_UP:
+                g_up_pressed = 0;
+                break;
+            case SDLK_DOWN:
+                g_down_pressed = 0;
+                break;
+            case SDLK_LEFT:
+                g_left_pressed = 0;
+                break;
+            case SDLK_RIGHT:
+                g_right_pressed = 0;
+                break;
+            case SDLK_SPACE:
+                g_space_pressed = 0;
+                break;
+            case SDLK_m:
+                g_m_pressed = 0;
+                break;
+            case SDLK_n:
+                g_n_pressed = 0;
+                break;
+            case SDLK_i:
+                g_i_pressed = 0;
+                break;
+            case SDLK_k:
+                g_k_pressed = 0;
+                break;
+            case SDLK_l:
+                g_l_pressed = 0;
+                break;
+            case SDLK_j:
+                g_j_pressed = 0;
+                break;
+            case SDLK_PERIOD:
+                g_period_pressed = 0;
+                break;
+            case SDLK_COMMA:
+                g_comma_pressed = 0;
+                break;
+            case SDLK_q:
+                g_q_pressed = 0;
+                break;
+            case SDLK_e:
+                g_e_pressed = 0;
+                break;
+            }
+        }
+    }
+    return EM_TRUE;
+}
+
+// Main loop function
+EM_BOOL
+loop(double time, void* userData)
+{
+    if( g_quit || !g_game || !g_platform )
+    {
+        return EM_FALSE;
+    }
+
+    // Handle SDL events for ImGui
+    sdl_event_handler(0, nullptr, nullptr);
+
+    int camera_moved = 0;
+
+    // Convert yaw from 2048-based system to radians for proper trigonometry
+    float yaw_radians = (g_game->camera_yaw * 2.0f * M_PI) / 2048.0f;
+
+    // Camera movement logic
+    if( g_w_pressed ) // Forward
+    {
+        g_game->camera_x -= (int)(sin(yaw_radians) * g_speed);
+        g_game->camera_z += (int)(cos(yaw_radians) * g_speed);
+        camera_moved = 1;
+    }
+
+    if( g_s_pressed ) // Backward
+    {
+        g_game->camera_x += (int)(sin(yaw_radians) * g_speed);
+        g_game->camera_z -= (int)(cos(yaw_radians) * g_speed);
+        camera_moved = 1;
+    }
+
+    if( g_a_pressed ) // Strafe left
+    {
+        g_game->camera_x -= (int)(cos(yaw_radians) * g_speed);
+        g_game->camera_z -= (int)(sin(yaw_radians) * g_speed);
+        camera_moved = 1;
+    }
+
+    if( g_d_pressed ) // Strafe right
+    {
+        g_game->camera_x += (int)(cos(yaw_radians) * g_speed);
+        g_game->camera_z += (int)(sin(yaw_radians) * g_speed);
+        camera_moved = 1;
+    }
+
+    int angle_delta = 20;
+    if( g_up_pressed )
+    {
+        g_game->camera_pitch = (g_game->camera_pitch + angle_delta) % 2048;
+        camera_moved = 1;
+    }
+
+    if( g_left_pressed )
+    {
+        g_game->camera_yaw = (g_game->camera_yaw + angle_delta) % 2048;
+        camera_moved = 1;
+    }
+
+    if( g_right_pressed )
+    {
+        g_game->camera_yaw = (g_game->camera_yaw - angle_delta + 2048) % 2048;
+        camera_moved = 1;
+    }
+
+    if( g_down_pressed )
+    {
+        g_game->camera_pitch = (g_game->camera_pitch - angle_delta + 2048) % 2048;
+        camera_moved = 1;
+    }
+
+    if( g_f_pressed ) // Move down (decrease Y - fall)
+    {
+        g_game->camera_y += g_speed;
+        camera_moved = 1;
+    }
+
+    if( g_r_pressed ) // Move up (increase Y - rise)
+    {
+        g_game->camera_y -= g_speed;
+        camera_moved = 1;
+    }
+
+    if( g_comma_pressed )
+    {
+        g_game->manual_render_ops = 1;
+        g_game->max_render_ops -= 1;
+        if( g_game->max_render_ops < 0 )
+            g_game->max_render_ops = 0;
+    }
+    if( g_period_pressed )
+    {
+        g_game->manual_render_ops = 1;
+        g_game->max_render_ops += 1;
+        if( g_game->max_render_ops > g_game->op_count )
+            g_game->max_render_ops = g_game->op_count;
+    }
+
+    if( camera_moved )
+    {
+        memset(g_platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
+    }
+
+    // Render frame
+    game_render_sdl2(g_game, g_platform);
+    game_render_imgui(g_game, g_platform);
+
+    // Swap buffers after both 3D rendering and ImGui are complete
+    SDL_GL_SwapWindow(g_platform->window);
+
+    return EM_TRUE;
+}
+#endif
+
 int
 main(int argc, char* argv[])
 {
@@ -736,6 +1167,30 @@ main(int argc, char* argv[])
     const int target_fps = 50;
     const int target_frame_time = 1000 / target_fps;
 
+#ifdef __EMSCRIPTEN__
+    // Set global pointers for Emscripten
+    g_game = &game;
+    g_platform = &platform;
+    g_quit = false;
+
+    printf("Setting up Emscripten main loop...\n");
+
+    // Register SDL event handlers
+    SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEBUTTONDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEBUTTONUP, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEWHEEL, SDL_ENABLE);
+    SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_KEYUP, SDL_ENABLE);
+    SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
+
+    // Use Emscripten's animation frame loop like main.cpp does
+    emscripten_set_main_loop_timing(EM_TIMING_RAF, 0);
+    emscripten_request_animation_frame_loop(loop, nullptr);
+
+    printf("Emscripten main loop setup complete\n");
+#else
+    // Traditional SDL main loop for native builds
     while( !quit )
     {
         Uint32 frame_start_time = SDL_GetTicks();
@@ -811,25 +1266,6 @@ main(int argc, char* argv[])
                 case SDLK_f:
                     f_pressed = 1;
                     break;
-                // case SDLK_q:
-                //     // Counter Clockwise
-                //     game.hover_loc_yaw += 512 * 3;
-                //     game.hover_loc_yaw %= 2048;
-                //     break;
-                // case SDLK_e:
-                //     // Clockwise
-                //     game.hover_loc_yaw += 512;
-                //     game.hover_loc_yaw %= 2048;
-                //     break;
-                case SDLK_SEMICOLON:
-                    // game.show_loc_enabled = !game.show_loc_enabled;
-                    break;
-                // case SDLK_i:
-                //     game.camera_fov += 1;
-                //     break;
-                // case SDLK_k:
-                //     game.camera_fov -= 1;
-                //     break;
                 case SDLK_SPACE:
                     space_pressed = 1;
                     break;
@@ -1110,6 +1546,7 @@ main(int argc, char* argv[])
 
         last_frame_time = frame_end_time;
     }
+#endif
 
     // Cleanup ImGui
     ImGui_ImplOpenGL3_Shutdown();
