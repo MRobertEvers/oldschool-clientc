@@ -350,8 +350,16 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     ImGui::StyleColorsDark();
 
     // Setup Platform/Renderer backends - cast context like main.cpp does
-    ImGui_ImplSDL2_InitForOpenGL(platform->window, (void*)platform->gl_context);
-    ImGui_ImplOpenGL3_Init("#version 100"); // For WebGL1 / GLES2
+    if( !ImGui_ImplSDL2_InitForOpenGL(platform->window, (void*)platform->gl_context) )
+    {
+        printf("Failed to initialize ImGui SDL2 backend\n");
+        return false;
+    }
+    if( !ImGui_ImplOpenGL3_Init("#version 100") )
+    { // For WebGL1 / GLES2
+        printf("Failed to initialize ImGui OpenGL3 backend\n");
+        return false;
+    }
     printf("ImGui initialized with OpenGL3 backend for WebGL1\n");
 
     // Enable SDL events like main.cpp does
@@ -437,9 +445,6 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     platform->drawable_height = platform->window_height;
 
     printf("Window size: %dx%d\n", platform->window_width, platform->window_height);
-
-    // Remove ImGui initialization for now - we're focusing on pure OpenGL
-    // ImGui requires SDL renderer which conflicts with pure OpenGL context
 
     return true;
 }
@@ -923,19 +928,6 @@ loop(double time, void* userData)
             g_game->max_render_ops = g_game->op_count;
     }
 
-    if( camera_moved )
-    {
-        // Safety check to prevent memory access violations
-        if( g_platform && g_platform->pixel_buffer )
-        {
-            memset(g_platform->pixel_buffer, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(int));
-        }
-        else
-        {
-            printf("WARNING: pixel_buffer is null, skipping memset\n");
-        }
-    }
-
     // Render frame
     // Make sure WebGL context is current before rendering
     if( g_platform->gl_context )
@@ -1138,7 +1130,10 @@ main(int argc, char* argv[])
     emscripten_set_main_loop_timing(EM_TIMING_RAF, 0);
 
     // Instead of animation frame loop, try a simple setTimeout approach
-    emscripten_set_main_loop([]() { loop(0.0, nullptr); }, 60, 1); // 60 FPS, simulate infinite loop
+    // emscripten_set_main_loop([]() { loop(0.0, nullptr); }, 60, 1); // 60 FPS, simulate infinite
+    // loop
+
+    emscripten_request_animation_frame_loop(loop, nullptr);
 
 #else
     // Traditional SDL main loop for native builds
@@ -1502,8 +1497,8 @@ main(int argc, char* argv[])
 
         last_frame_time = frame_end_time;
     }
-#endif
 
+    printf("Cleanup ImGui\n");
     // Cleanup ImGui
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
@@ -1526,6 +1521,7 @@ main(int argc, char* argv[])
     // free(underlays);
     // free(overlays);
     cache_free(cache);
+#endif
 
     return 0;
 }
