@@ -406,7 +406,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     // Setup Platform/Renderer backends - use OpenGL3 for native builds too
     ImGui_ImplSDL2_InitForOpenGL(platform->window, platform->gl_context);
     ImGui_ImplOpenGL3_Init("#version 150"); // OpenGL 3.2 Core for native builds
-    
+
     // No SDL renderer needed for OpenGL3 backend
     platform->renderer = nullptr;
 #endif
@@ -592,75 +592,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 
     game->frame_count++;
     game->frame_time_sum += end_ticks - start_ticks;
-
-    // Old SDL texture rendering - no longer needed with OpenGL
-    /* ... */
-    /*
-    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
-        pixel_buffer,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
-        32,
-        SCREEN_WIDTH * sizeof(int),
-        0x00FF0000,
-        0x0000FF00,
-        0x000000FF,
-        0xFF000000);
-
-    // Copy the pixels into the texture
-    int* pix_write = NULL;
-    int _pitch_unused = 0;
-    if( SDL_LockTexture(texture, NULL, (void**)&pix_write, &_pitch_unused) < 0 )
-        return;
-
-    int row_size = SCREEN_WIDTH * sizeof(int);
-    int* src_pixels = (int*)surface->pixels;
-    for( int src_y = 0; src_y < (SCREEN_HEIGHT); src_y++ )
-    {
-        // Calculate offset in texture to write a single row of pixels
-        int* row = &pix_write[(src_y * SCREEN_WIDTH)];
-        // Copy a single row of pixels
-        memcpy(row, &src_pixels[(src_y - 0) * SCREEN_WIDTH], row_size);
-    }
-
-    // Unlock the texture so that it may be used elsewhere
-    SDL_UnlockTexture(texture);
-
-    // Calculate destination rectangle to scale the texture to the current drawable size
-    SDL_Rect dst_rect;
-    dst_rect.x = 0;
-    dst_rect.y = 0;
-    dst_rect.w = platform->drawable_width;
-    dst_rect.h = platform->drawable_height;
-
-    // Use bilinear scaling when copying texture to renderer
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); // Enable bilinear filtering
-
-    // Calculate aspect ratio preserving dimensions
-    float src_aspect = (float)SCREEN_WIDTH / SCREEN_HEIGHT;
-    float dst_aspect = (float)platform->drawable_width / platform->drawable_height;
-
-    if( src_aspect > dst_aspect )
-    {
-        // Source is wider - fit to width
-        dst_rect.w = platform->drawable_width;
-        dst_rect.h = (int)(platform->drawable_width / src_aspect);
-        dst_rect.x = 0;
-        dst_rect.y = (platform->drawable_height - dst_rect.h) / 2;
-    }
-    else
-    {
-        // Source is taller - fit to height
-        dst_rect.h = platform->drawable_height;
-        dst_rect.w = (int)(platform->drawable_height * src_aspect);
-        dst_rect.y = 0;
-        dst_rect.x = (platform->drawable_width - dst_rect.w) / 2;
-    }
-
-    SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
-
-    SDL_FreeSurface(surface);
-    */
 }
 
 #include <iostream>
@@ -1060,16 +991,13 @@ main(int argc, char* argv[])
     }
     printf("Cache loaded successfully\n");
 
-    printf("About to initialize platform...\n");
     struct PlatformSDL2 platform = { 0 };
-    printf("Platform struct created\n");
 
     if( !platform_sdl2_init(&platform) )
     {
         printf("Failed to initialize SDL\n");
         return 1;
     }
-    printf("Platform initialization completed\n");
 
     memset(&_Pix3D, 0, sizeof(_Pix3D));
     _Pix3D.width = SCREEN_WIDTH;
@@ -1198,19 +1126,9 @@ main(int argc, char* argv[])
     // Use Emscripten's animation frame loop like main.cpp does
     emscripten_set_main_loop_timing(EM_TIMING_RAF, 0);
 
-    // DEBUG: Try single manual loop call first
-    printf("Testing single manual loop call...\n");
-    EM_BOOL result = loop(0.0, nullptr);
-    printf("Manual loop call completed with result: %d\n", result);
-
-    printf(
-        "If we reach here, loop function works - trying setTimeout instead of animation frame "
-        "loop...\n");
-
     // Instead of animation frame loop, try a simple setTimeout approach
     emscripten_set_main_loop([]() { loop(0.0, nullptr); }, 60, 1); // 60 FPS, simulate infinite loop
 
-    printf("Emscripten main loop setup complete\n");
 #else
     // Traditional SDL main loop for native builds
     while( !quit )
