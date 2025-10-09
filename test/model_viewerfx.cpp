@@ -76,8 +76,8 @@ bool g_using_webgl2 = false; // Track WebGL version globally
 // ImGui headers
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
+#include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
-#include "imgui_impl_sdlrenderer2.h"
 
 extern "C" int g_sin_table[2048];
 extern "C" int g_cos_table[2048];
@@ -325,12 +325,38 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     platform->gl_context = (SDL_GLContext)context;
     printf("WebGL context created successfully\n");
 
-    // Skip SDL renderer creation - not needed without ImGui
+    // Skip SDL renderer - use WebGL for everything including ImGui
     platform->renderer = nullptr;
-    printf("Skipping SDL renderer creation\n");
+    printf("Using WebGL for both 3D rendering and ImGui\n");
 
-    // Skip ImGui initialization for now - focusing on 3D rendering
-    printf("Skipping ImGui initialization\n");
+    // Initialize ImGui with OpenGL3 backend for WebGL1
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+
+    // Set display size explicitly for Emscripten
+    io.DisplaySize = ImVec2((float)SCREEN_WIDTH, (float)SCREEN_HEIGHT);
+    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+    printf("ImGui display size set to: %dx%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer backends - cast context like main.cpp does
+    ImGui_ImplSDL2_InitForOpenGL(platform->window, (void*)platform->gl_context);
+    ImGui_ImplOpenGL3_Init("#version 100"); // For WebGL1 / GLES2
+    printf("ImGui initialized with OpenGL3 backend for WebGL1\n");
+
+    // Enable SDL events like main.cpp does
+    SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEBUTTONDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEBUTTONUP, SDL_ENABLE);
+    SDL_EventState(SDL_MOUSEWHEEL, SDL_ENABLE);
+    SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_KEYUP, SDL_ENABLE);
+    SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
+    printf("SDL events enabled for ImGui\n");
 
 #else
     // Set OpenGL attributes for native builds
@@ -471,23 +497,95 @@ transform_mouse_coordinates(
 static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
-    // Simple ImGui rendering
-    ImGui_ImplSDLRenderer2_NewFrame();
+    // ImGui rendering with OpenGL3 backend
+    printf("ImGui: Starting frame\n");
+    ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
+    printf("ImGui: NewFrame completed\n");
+
+    // Debug display size
+    ImGuiIO& io = ImGui::GetIO();
+    printf(
+        "ImGui: Display size: %.0fx%.0f, Framebuffer scale: %.2fx%.2f\n",
+        io.DisplaySize.x,
+        io.DisplaySize.y,
+        io.DisplayFramebufferScale.x,
+        io.DisplayFramebufferScale.y);
 
     // Simple debug window
-    ImGui::Begin("Debug");
-    ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-    ImGui::Text(
-        "Camera: (%.1f, %.1f, %.1f)",
-        (float)game->camera_x,
-        (float)game->camera_y,
-        (float)game->camera_z);
+    printf("ImGui: About to create Debug window\n");
+
+    // Set window position and size explicitly
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+
+    bool window_open = ImGui::Begin("Debug", nullptr, ImGuiWindowFlags_NoCollapse);
+    printf("ImGui: Debug window created, open: %d\n", window_open);
+
+    if( window_open )
+    {
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::Text(
+            "Camera: (%.1f, %.1f, %.1f)",
+            (float)game->camera_x,
+            (float)game->camera_y,
+            (float)game->camera_z);
+        ImGui::Text(
+            "Display Size: %.0fx%.0f", ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
+        ImGui::Text("ImGui Test - This should be visible!");
+        printf("ImGui: Added text to window\n");
+    }
     ImGui::End();
+    printf("ImGui: UI created\n");
 
     ImGui::Render();
-    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->renderer);
+    printf("ImGui: About to render draw data\n");
+
+    // Check if ImGui has anything to draw
+    ImDrawData* draw_data = ImGui::GetDrawData();
+    if( draw_data && draw_data->Valid && draw_data->CmdListsCount > 0 )
+    {
+        printf(
+            "ImGui: Draw data valid - %d command lists, %d vertices, %d indices\n",
+            draw_data->CmdListsCount,
+            draw_data->TotalVtxCount,
+            draw_data->TotalIdxCount);
+
+        // Save OpenGL state before ImGui rendering
+        GLboolean depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean blend_enabled = glIsEnabled(GL_BLEND);
+
+        // Set up OpenGL state for ImGui (render on top)
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // Actually render ImGui (unlike main.cpp which has it commented out)
+        ImGui_ImplOpenGL3_RenderDrawData(draw_data);
+        printf("ImGui: Draw data rendered successfully\n");
+
+        // Restore OpenGL state
+        if( depth_test_enabled )
+            glEnable(GL_DEPTH_TEST);
+        if( !blend_enabled )
+            glDisable(GL_BLEND);
+    }
+    else
+    {
+        printf("ImGui: No valid draw data to render\n");
+        if( draw_data )
+        {
+            printf(
+                "ImGui: Draw data - Valid: %d, CmdListsCount: %d\n",
+                draw_data->Valid,
+                draw_data->CmdListsCount);
+        }
+        else
+        {
+            printf("ImGui: Draw data is null\n");
+        }
+    }
 }
 struct BoundingCylinder
 {
@@ -987,8 +1085,10 @@ loop(double time, void* userData)
 
     game_render_sdl2(g_game, g_platform); // RE-ENABLE 3D RENDERING
     printf("=== FRAME %d: 3D RENDERING COMPLETED SUCCESSFULLY ===\n", g_frame_count);
-    printf("Skipping ImGui rendering to avoid memory conflicts...\n");
-    // game_render_imgui(g_game, g_platform); // DISABLE IMGUI FOR NOW
+
+    // Re-enable ImGui rendering with OpenGL3 backend
+    printf("Frame %d: Rendering ImGui with OpenGL3 backend...\n", g_frame_count);
+    game_render_imgui(g_game, g_platform);
 
     // Safety check before swapping buffers
     if( g_platform && g_platform->window )
@@ -1557,7 +1657,7 @@ main(int argc, char* argv[])
 #endif
 
     // Cleanup ImGui
-    ImGui_ImplSDLRenderer2_Shutdown();
+    ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 

@@ -1361,7 +1361,7 @@ render()
 
     // Render ImGui
     ImGui::Render();
-    // ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 static const int TZTOK_JAD_MODEL_ID = 9319;

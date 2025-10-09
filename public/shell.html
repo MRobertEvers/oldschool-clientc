@@ -2,23 +2,41 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebGL2 Cube</title>
+    <title>3D Raster - Model Viewer FX</title>
     <style>
         body {
             margin: 0;
+            padding: 20px;
             background-color: #333;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
         }
         canvas {
             border: 2px solid #666;
+            max-width: 90vw;
+            max-height: 80vh;
+            background-color: #000;
+        }
+        .title {
+            color: #fff;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
-    <canvas id="canvas" width="800" height="600"></canvas>
+    <div class="container">
+        <h1 class="title">3D Raster - Model Viewer FX</h1>
+        <canvas id="canvas" width="800" height="600"></canvas>
+    </div>
     {{{ SCRIPT }}}
 </body>
 </html>
