@@ -928,14 +928,6 @@ loop(double time, void* userData)
             g_game->max_render_ops = g_game->op_count;
     }
 
-    // Render frame
-    // Make sure WebGL context is current before rendering
-    if( g_platform->gl_context )
-    {
-        emscripten_webgl_make_context_current(
-            (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)g_platform->gl_context);
-    }
-
     // Set viewport to canvas size
     glViewport(0, 0, g_platform->drawable_width, g_platform->drawable_height);
 
@@ -1130,12 +1122,10 @@ main(int argc, char* argv[])
     emscripten_set_main_loop_timing(EM_TIMING_RAF, 0);
 
     // Instead of animation frame loop, try a simple setTimeout approach
-    // emscripten_set_main_loop([]() { loop(0.0, nullptr); }, 60, 1); // 60 FPS, simulate infinite
-    // loop
-
-    emscripten_request_animation_frame_loop(loop, nullptr);
+    emscripten_set_main_loop([]() { loop(0.0, nullptr); }, 0, 1); // 60 FPS, simulate infinite
 
 #else
+
     // Traditional SDL main loop for native builds
     while( !quit )
     {
