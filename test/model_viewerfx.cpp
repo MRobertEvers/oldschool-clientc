@@ -298,7 +298,6 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         printf("Failed to create WebGL1 context!\n");
         return false;
     }
-    printf("Using WebGL1\n");
 
     // Make the context current
     if( emscripten_webgl_make_context_current(context) != EMSCRIPTEN_RESULT_SUCCESS )
@@ -307,14 +306,9 @@ platform_sdl2_init(struct PlatformSDL2* platform)
         return false;
     }
 
-    // Set canvas size to match our screen dimensions
-    printf("SCREEN_WIDTH=%d, SCREEN_HEIGHT=%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
-    printf("Setting canvas size to %dx%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
-
     if( SCREEN_WIDTH > 0 && SCREEN_HEIGHT > 0 )
     {
         emscripten_set_canvas_element_size("#canvas", SCREEN_WIDTH, SCREEN_HEIGHT);
-        printf("Canvas size set successfully\n");
     }
     else
     {
@@ -323,11 +317,9 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     }
 
     platform->gl_context = (SDL_GLContext)context;
-    printf("WebGL context created successfully\n");
 
     // Skip SDL renderer - use WebGL for everything including ImGui
     platform->renderer = nullptr;
-    printf("Using WebGL for both 3D rendering and ImGui\n");
 
     // Initialize ImGui with OpenGL3 backend for WebGL1
     IMGUI_CHECKVERSION();
@@ -339,7 +331,6 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     // Set display size explicitly for Emscripten
     io.DisplaySize = ImVec2((float)SCREEN_WIDTH, (float)SCREEN_HEIGHT);
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
-    printf("ImGui display size set to: %dx%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // Store initial dimensions in platform struct
     platform->window_width = SCREEN_WIDTH;
@@ -370,7 +361,6 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
     SDL_EventState(SDL_KEYUP, SDL_ENABLE);
     SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
-    printf("SDL events enabled for ImGui\n");
 
 #else
     // Set OpenGL attributes for native builds
@@ -444,10 +434,9 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     platform->drawable_width = platform->window_width;
     platform->drawable_height = platform->window_height;
 
-    printf("Window size: %dx%d\n", platform->window_width, platform->window_height);
-
     return true;
 }
+
 static void
 transform_mouse_coordinates(
     int window_mouse_x,
@@ -502,12 +491,17 @@ transform_mouse_coordinates(
 static void
 game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 {
-    // ImGui rendering with OpenGL3 backend
+    /**
+     * Platform and renderer specific!
+     */
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
+
+    /**
+     * START Common Imgui here!
+     */
     ImGui::NewFrame();
 
-    // Simple debug window
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
 
@@ -528,7 +522,13 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 
     ImGui::Render();
 
-    // Check if ImGui has anything to draw
+    /**
+     * END common imgui here!
+     */
+
+    /**
+     * Platform and renderer specific!
+     */
     ImDrawData* draw_data = ImGui::GetDrawData();
     if( draw_data && draw_data->Valid && draw_data->CmdListsCount > 0 )
     {
@@ -568,24 +568,22 @@ struct BoundingCylinder
 static void
 game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
 {
-    // No longer need SDL texture/renderer variables since we're using pure OpenGL
-
+    /**
+     * Implement COMMAND handlers here!
+     *
+     * LOAD_MODEL, CLEAR_MODEL, ETC.
+     */
     Uint64 start_ticks = SDL_GetPerformanceCounter();
 
-    // Use pix3dgl to render the model instead of software rasterization
     if( game->pix3dgl )
     {
-        // Clear OpenGL buffers
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Disable depth testing temporarily for debugging
         glDisable(GL_DEPTH_TEST);
 
-        // Disable face culling to make sure we see faces from any angle
         glDisable(GL_CULL_FACE);
 
-        // Use the updated render function with actual camera parameters
         pix3dgl_render_with_camera(
             game->pix3dgl,
             (float)game->camera_x,
@@ -951,19 +949,15 @@ loop(double time, void* userData)
 int
 main(int argc, char* argv[])
 {
-    printf("=== MAIN START ===\n");
     std::cout << "SDL_main" << std::endl;
 
-    printf("Initializing math tables...\n");
     init_hsl16_to_rgb_table();
     init_reciprocal16();
 
     init_sin_table();
     init_cos_table();
     init_tan_table();
-    printf("Math tables initialized\n");
 
-    printf("Loading XTEA keys from: ../cache/xteas.json\n");
     int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
     if( xtea_keys_count == -1 )
     {
@@ -971,9 +965,7 @@ main(int argc, char* argv[])
         printf("Make sure the xteas.json file exists in the cache directory\n");
         return 0;
     }
-    printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
 
-    printf("Loading cache from directory: %s\n", CACHE_PATH);
     fflush(stdout);
     struct Cache* cache = cache_new_from_directory("../cache");
     if( !cache )
@@ -984,7 +976,6 @@ main(int argc, char* argv[])
         printf("  - main_file_cache.idx0 through main_file_cache.idx255\n");
         return 1;
     }
-    printf("Cache loaded successfully\n");
 
     struct PlatformSDL2 platform = { 0 };
 

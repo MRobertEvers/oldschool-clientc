@@ -38,6 +38,18 @@
             "MIMode": "lldb"
         },
         {
+            "name": "(lldb) Launch Game Test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/osx_sdl2_game",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
             "name": "(lldb) Launch Model Test",
             "type": "cppdbg",
             "request": "launch",
