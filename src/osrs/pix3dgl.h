@@ -10,6 +10,7 @@ struct Pix3DGL;
 struct Pix3DGL* pix3dgl_new();
 void pix3dgl_model_load_textured_pnm(
     struct Pix3DGL* pix3dgl,
+    int idx,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,

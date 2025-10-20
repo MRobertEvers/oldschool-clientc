@@ -291,6 +291,7 @@ struct Pix3DGL
 extern "C" void
 pix3dgl_model_load_textured_pnm(
     struct Pix3DGL* pix3dgl,
+    int idx,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
@@ -309,35 +310,117 @@ pix3dgl_model_load_textured_pnm(
     int* face_colors_b,
     int* face_colors_c)
 {
-    // Get vertex positions for UV coordinate computation
-    int texture_face = -1;
-    int tp_vertex = -1;
-    int tm_vertex = -1;
-    int tn_vertex = -1;
+    GLModel gl_model;
+    gl_model.idx = idx;
+    gl_model.face_count = face_count;
 
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Create VAO on desktop platforms for better performance
+    glGenVertexArrays(1, &gl_model.VAO);
+    glBindVertexArray(gl_model.VAO);
+#endif
+
+    // Create buffers
+    glGenBuffers(1, &gl_model.VBO);
+    glGenBuffers(1, &gl_model.colorVBO);
+    glGenBuffers(1, &gl_model.texCoordVBO);
+    glGenBuffers(1, &gl_model.EBO);
+
+    // Allocate arrays for vertex data
+    std::vector<float> vertices(face_count * 9);  // 3 vertices * 3 coordinates per face
+    std::vector<float> colors(face_count * 9);    // 3 vertices * 3 colors per face
+    std::vector<float> texCoords(face_count * 6); // 3 vertices * 2 UV coords per face
+
+    // Track min/max for debugging
+    float min_x = 1e6, max_x = -1e6, min_y = 1e6, max_y = -1e6, min_z = 1e6, max_z = -1e6;
+
+    // Build vertex, color, and texture coordinate data
     for( int face = 0; face < face_count; face++ )
     {
+        // Get the vertex indices for this face
+        int v_a = face_indices_a[face];
+        int v_b = face_indices_b[face];
+        int v_c = face_indices_c[face];
+
+        // Get vertex positions
+        vertices[face * 9 + 0] = vertices_x[v_a];
+        vertices[face * 9 + 1] = vertices_y[v_a];
+        vertices[face * 9 + 2] = vertices_z[v_a];
+
+        vertices[face * 9 + 3] = vertices_x[v_b];
+        vertices[face * 9 + 4] = vertices_y[v_b];
+        vertices[face * 9 + 5] = vertices_z[v_b];
+
+        vertices[face * 9 + 6] = vertices_x[v_c];
+        vertices[face * 9 + 7] = vertices_y[v_c];
+        vertices[face * 9 + 8] = vertices_z[v_c];
+
+        // Track bounds
+        for( int i = 0; i < 3; i++ )
+        {
+            float x = vertices[face * 9 + i * 3];
+            float y = vertices[face * 9 + i * 3 + 1];
+            float z = vertices[face * 9 + i * 3 + 2];
+            if( x < min_x )
+                min_x = x;
+            if( x > max_x )
+                max_x = x;
+            if( y < min_y )
+                min_y = y;
+            if( y > max_y )
+                max_y = y;
+            if( z < min_z )
+                min_z = z;
+            if( z > max_z )
+                max_z = z;
+        }
+
+        // Get vertex colors (HSL to RGB conversion)
+        int hsl_a = face_colors_a[face];
+        int hsl_b = face_colors_b[face];
+        int hsl_c = face_colors_c[face];
+
+        int rgb_a = g_hsl16_to_rgb_table[hsl_a];
+        int rgb_b = g_hsl16_to_rgb_table[hsl_b];
+        int rgb_c = g_hsl16_to_rgb_table[hsl_c];
+
+        // Store colors for this face's vertices
+        colors[face * 9 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
+        colors[face * 9 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
+        colors[face * 9 + 2] = (rgb_a & 0xFF) / 255.0f;
+
+        colors[face * 9 + 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
+        colors[face * 9 + 4] = ((rgb_b >> 8) & 0xFF) / 255.0f;
+        colors[face * 9 + 5] = (rgb_b & 0xFF) / 255.0f;
+
+        colors[face * 9 + 6] = ((rgb_c >> 16) & 0xFF) / 255.0f;
+        colors[face * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
+        colors[face * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
+
+        // Compute UV coordinates using PNM method
+        // Determine which vertices define the texture space (P, M, N)
+        int texture_face = -1;
+        int tp_vertex = -1;
+        int tm_vertex = -1;
+        int tn_vertex = -1;
+
         if( face_texture_faces_nullable && face_texture_faces_nullable[face] != -1 )
         {
+            // Use custom texture space definition
             texture_face = face_texture_faces_nullable[face];
-
             tp_vertex = face_p_coordinate_nullable[texture_face];
             tm_vertex = face_m_coordinate_nullable[texture_face];
             tn_vertex = face_n_coordinate_nullable[texture_face];
         }
         else
         {
-            texture_face = face;
-
-            tp_vertex = face_indices_a[texture_face];
-            tm_vertex = face_indices_b[texture_face];
-            tn_vertex = face_indices_c[texture_face];
+            // Default: use the face's own vertices as texture space
+            tp_vertex = v_a;
+            tm_vertex = v_b;
+            tn_vertex = v_c;
         }
 
-        int tp_vertex = face_indices_a[face];
-        int tm_vertex = face_indices_b[face];
-        int tn_vertex = face_indices_c[face];
-
+        // Get the PNM triangle vertices that define texture space
         float p_x = vertices_x[tp_vertex];
         float p_y = vertices_y[tp_vertex];
         float p_z = vertices_z[tp_vertex];
@@ -350,18 +433,20 @@ pix3dgl_model_load_textured_pnm(
         float n_y = vertices_y[tn_vertex];
         float n_z = vertices_z[tn_vertex];
 
-        int a_x = face_indices_a[face];
-        int a_y = face_indices_a[face];
-        int a_z = face_indices_a[face];
+        // Get the actual face vertices (A, B, C) for UV computation
+        float a_x = vertices_x[v_a];
+        float a_y = vertices_y[v_a];
+        float a_z = vertices_z[v_a];
 
-        int b_x = face_indices_b[face];
-        int b_y = face_indices_b[face];
-        int b_z = face_indices_b[face];
+        float b_x = vertices_x[v_b];
+        float b_y = vertices_y[v_b];
+        float b_z = vertices_z[v_b];
 
-        int c_x = face_indices_c[face];
-        int c_y = face_indices_c[face];
-        int c_z = face_indices_c[face];
+        float c_x = vertices_x[v_c];
+        float c_y = vertices_y[v_c];
+        float c_z = vertices_z[v_c];
 
+        // Compute UV coordinates
         struct UVFaceCoords uv_pnm;
         uv_pnm_compute(
             &uv_pnm,
@@ -383,7 +468,59 @@ pix3dgl_model_load_textured_pnm(
             c_x,
             c_y,
             c_z);
+
+        // Store UV coordinates
+        texCoords[face * 6 + 0] = uv_pnm.u1;
+        texCoords[face * 6 + 1] = uv_pnm.v1;
+        texCoords[face * 6 + 2] = uv_pnm.u2;
+        texCoords[face * 6 + 3] = uv_pnm.v2;
+        texCoords[face * 6 + 4] = uv_pnm.u3;
+        texCoords[face * 6 + 5] = uv_pnm.v3;
     }
+
+    printf(
+        "Textured Model %d bounds: X[%.1f, %.1f] Y[%.1f, %.1f] Z[%.1f, %.1f]\n",
+        idx,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        min_z,
+        max_z);
+
+    // Upload vertex data to GPU
+    glBindBuffer(GL_ARRAY_BUFFER, gl_model.VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Set up vertex attributes when using VAO on desktop
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+#endif
+
+    // Upload color data to GPU
+    glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
+    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Set up color attributes when using VAO on desktop
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+#endif
+
+    // Upload texture coordinate data to GPU
+    glBindBuffer(GL_ARRAY_BUFFER, gl_model.texCoordVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER, texCoords.size() * sizeof(float), texCoords.data(), GL_STATIC_DRAW);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Set up texture coordinate attributes when using VAO on desktop
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(2);
+
+    // Unbind VAO to avoid accidental modifications
+    glBindVertexArray(0);
+#endif
+
+    // Store the model in the map
+    pix3dgl->models[idx] = gl_model;
 }
 
 extern "C" void
