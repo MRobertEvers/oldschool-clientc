@@ -180,130 +180,50 @@ render_scene(struct Renderer* renderer, struct Game* game)
             if( !scene_model->model )
                 continue;
 
-            pix3dgl_model_draw(
+            // Calculate world position from region coordinates
+            float position_x = scene_model->region_x + scene_model->offset_x;
+            float position_y = scene_model->region_height + scene_model->offset_height;
+            float position_z = scene_model->region_z + scene_model->offset_z;
+
+            // Convert yaw from game units to radians
+            // Game uses 2048 units per full rotation (2π radians)
+            float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
+
+            // Initialize the face iterator for painter's algorithm sorting
+            int yaw_adjust = 0;
+            iter_render_model_init(
+                &iter_render_model,
+                scene_model,
+                yaw_adjust,
+                game->camera_world_x,
+                game->camera_world_y,
+                game->camera_world_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                game->camera_roll,
+                game->camera_fov,
+                renderer->width,
+                renderer->height,
+                50);
+
+            // Begin drawing - setup the model once (uniforms, VAO/VBOs)
+            pix3dgl_model_begin_draw(
                 renderer->pix3dgl,
                 scene_model->scene_model_idx,
-                scene_model->region_x + scene_model->offset_x,
-                scene_model->region_height + scene_model->offset_height,
-                scene_model->region_z + scene_model->offset_z,
-                scene_model->yaw);
+                position_x,
+                position_y,
+                position_z,
+                yaw_radians);
 
-            // int yaw_adjust = 0;
-            // iter_render_model_init(
-            //     &iter_render_model,
-            //     scene_model,
-            //     // TODO: For wall decor, this should probably be set on the model->yaw rather
-            //     than
-            //     // on the op.
-            //     yaw_adjust,
-            //     game->camera_world_x,
-            //     game->camera_world_y,
-            //     game->camera_world_z,
-            //     game->camera_pitch,
-            //     game->camera_yaw,
-            //     game->camera_roll,
-            //     game->camera_fov,
-            //     renderer->width,
-            //     renderer->height,
-            //     50);
-            // int model_intersected = 0;
-            // while( iter_render_model_next(&iter_render_model) )
-            // {
-            //     int face = iter_render_model.value_face;
+            // Draw each face in painter's algorithm order with minimal overhead
+            while( iter_render_model_next(&iter_render_model) )
+            {
+                int face = iter_render_model.value_face;
+                pix3dgl_model_draw_face_fast(renderer->pix3dgl, face);
+            }
 
-            //     // bool is_in_bb = false;
-            //     // if( game->mouse_x > 0 && game->mouse_x >= iter_model.aabb_min_screen_x &&
-            //     //     game->mouse_x <= iter_model.aabb_max_screen_x &&
-            //     //     game->mouse_y >= iter_model.aabb_min_screen_y &&
-            //     //     game->mouse_y <= iter_model.aabb_max_screen_y )
-            //     // {
-            //     //     is_in_bb = true;
-            //     // }
-
-            //     // if( !model_intersected && is_in_bb )
-            //     // {
-            //     //     // Get face vertex indices
-            //     //     int face_a = iter.value.model_nullable_->model->face_indices_a[face];
-            //     //     int face_b = iter.value.model_nullable_->model->face_indices_b[face];
-            //     //     int face_c = iter.value.model_nullable_->model->face_indices_c[face];
-
-            //     //     // Get screen coordinates of the triangle vertices
-            //     //     int x1 = iter_model.screen_vertices_x[face_a] + SCREEN_WIDTH / 2;
-            //     //     int y1 = iter_model.screen_vertices_y[face_a] + SCREEN_HEIGHT / 2;
-            //     //     int x2 = iter_model.screen_vertices_x[face_b] + SCREEN_WIDTH / 2;
-            //     //     int y2 = iter_model.screen_vertices_y[face_b] + SCREEN_HEIGHT / 2;
-            //     //     int x3 = iter_model.screen_vertices_x[face_c] + SCREEN_WIDTH / 2;
-            //     //     int y3 = iter_model.screen_vertices_y[face_c] + SCREEN_HEIGHT / 2;
-
-            //     //     // Check if mouse is inside the triangle using barycentric coordinates
-            //     //     bool mouse_in_triangle = false;
-            //     //     if( x1 != -5000 && x2 != -5000 && x3 != -5000 )
-            //     //     { // Skip clipped triangles
-            //     //         int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
-            //     //         if( denominator != 0 )
-            //     //         {
-            //     //             float a =
-            //     //                 ((y2 - y3) * (game->mouse_x - x3) + (x3 - x2) * (game->mouse_y
-            //     -
-            //     //                 y3)) / (float)denominator;
-            //     //             float b =
-            //     //                 ((y3 - y1) * (game->mouse_x - x3) + (x1 - x3) * (game->mouse_y
-            //     -
-            //     //                 y3)) / (float)denominator;
-            //     //             float c = 1 - a - b;
-            //     //             mouse_in_triangle = (a >= 0 && b >= 0 && c >= 0);
-            //     //         }
-            //     //     }
-
-            //     //     if( mouse_in_triangle )
-            //     //     {
-            //     //         game->hover_model = iter_model.model->model_id;
-            //     //         game->hover_loc_x = iter_model.model->_chunk_pos_x;
-            //     //         game->hover_loc_y = iter_model.model->_chunk_pos_y;
-            //     //         game->hover_loc_level = iter_model.model->_chunk_pos_level;
-            //     //         game->hover_loc_yaw = iter_model.model->yaw;
-
-            //     //         last_model_hit_model = iter.value.model_nullable_;
-            //     //         last_model_hit_yaw = iter.value.model_nullable_->yaw + iter.value.yaw;
-
-            //     //         model_intersected = true;
-            //     //     }a
-            //     // }
-            //     // Only draw the face if mouse is inside the triangle
-            //     // Calculate world position from region coordinates
-            //     float position_x = scene_model->region_x + scene_model->offset_x;
-            //     float position_y = scene_model->region_height + scene_model->offset_height;
-            //     float position_z = scene_model->region_z + scene_model->offset_z;
-
-            //     // Convert yaw from game units to radians
-            //     // Game uses 2048 units per full rotation (2π radians)
-            //     float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
-
-            //     for( int face = 0; face < scene_model->model->face_count; face++ )
-            //     {
-            //         pix3dgl_model_draw_face(
-            //             renderer->pix3dgl,
-            //             scene_model->scene_model_idx,
-            //             face,
-            //             position_x,
-            //             position_y,
-            //             position_z,
-            //             yaw_radians);
-            //     }
-
-            //     while( iter_render_model_next(&iter_render_model) )
-            //     {
-            //         int face = iter_render_model.value_face;
-            //         pix3dgl_model_draw_face(
-            //             renderer->pix3dgl,
-            //             scene_model->scene_model_idx,
-            //             face,
-            //             position_x,
-            //             position_y,
-            //             position_z,
-            //             yaw_radians);
-            //     }
-            // }
+            // End drawing - cleanup
+            pix3dgl_model_end_draw(renderer->pix3dgl);
         }
     }
 
