@@ -146,33 +146,56 @@ render_scene(struct Renderer* renderer, struct Game* game)
 
     while( iter_render_scene_ops_next(&iter_render_scene_ops) )
     {
-        // if( iter_render_scene_ops.value.tile_nullable_ )
-        // {
-        //     render_scene_tile(
-        //         renderer->pixel_buffer,
-        //         g_screen_vertices_x,
-        //         g_screen_vertices_y,
-        //         g_screen_vertices_z,
-        //         g_ortho_vertices_x,
-        //         g_ortho_vertices_y,
-        //         g_ortho_vertices_z,
-        //         renderer->width,
-        //         renderer->height,
-        //         // Had to use 100 here because of the scale, near plane z was resulting in
-        //         triangles
-        //         // extremely close to the camera.
-        //         50,
-        //         game->camera_world_x,
-        //         game->camera_world_y,
-        //         game->camera_world_z,
-        //         game->camera_pitch,
-        //         game->camera_yaw,
-        //         game->camera_roll,
-        //         game->camera_fov,
-        //         iter_render_scene_ops.value.tile_nullable_,
-        //         game->textures_cache,
-        //         NULL);
-        // }
+        if( iter_render_scene_ops.value.tile_nullable_ )
+        {
+            struct SceneTile* tile = iter_render_scene_ops.value.tile_nullable_;
+
+            // Get the tile index from the scene
+            int tile_idx = tile - game->scene->scene_tiles;
+
+            // Load tile textures if needed
+            if( tile->face_texture_ids )
+            {
+                for( int face = 0; face < tile->face_count; face++ )
+                {
+                    if( tile->face_texture_ids[face] != -1 )
+                    {
+                        pix3dgl_load_texture(
+                            renderer->pix3dgl,
+                            tile->face_texture_ids[face],
+                            game->textures_cache,
+                            game->cache);
+                    }
+                }
+            }
+
+            // Check if tile is already loaded, if not load it
+            pix3dgl_tile_load(
+                renderer->pix3dgl,
+                tile_idx,
+                tile->vertex_x,
+                tile->vertex_y,
+                tile->vertex_z,
+                tile->vertex_count,
+                tile->faces_a,
+                tile->faces_b,
+                tile->faces_c,
+                tile->face_count,
+                tile->valid_faces,
+                tile->face_texture_ids,
+                tile->face_texture_u_a,
+                tile->face_texture_v_a,
+                tile->face_texture_u_b,
+                tile->face_texture_v_b,
+                tile->face_texture_u_c,
+                tile->face_texture_v_c,
+                tile->face_color_hsl_a,
+                tile->face_color_hsl_b,
+                tile->face_color_hsl_c);
+
+            // Draw the tile
+            pix3dgl_tile_draw(renderer->pix3dgl, tile_idx);
+        }
 
         if( iter_render_scene_ops.value.model_nullable_ )
         {

@@ -298,6 +298,22 @@ struct GLModel
                                     // or face_colors_c == -2)
 };
 
+struct GLTile
+{
+    int idx;
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    GLuint VAO;
+#endif
+    GLuint VBO;
+    GLuint colorVBO;
+    GLuint texCoordVBO;
+    GLuint EBO;
+
+    int face_count;
+    std::vector<int> face_textures; // Texture ID per face
+    std::vector<bool> face_visible; // Whether each face should be drawn
+};
+
 struct Pix3DGL
 {
     GLuint vertex_shader_es2;
@@ -306,6 +322,7 @@ struct Pix3DGL
 
     std::unordered_map<int, GLuint> texture_ids;
     std::unordered_map<int, GLModel> models;
+    std::unordered_map<int, GLTile> tiles;
 
     // For fast face drawing - stores the currently active model
     GLModel* current_model;
@@ -1560,6 +1577,273 @@ pix3dgl_model_end_draw(struct Pix3DGL* pix3dgl)
 
     pix3dgl->current_model = nullptr;
     pix3dgl->current_model_idx = -1;
+}
+
+extern "C" void
+pix3dgl_tile_load(
+    struct Pix3DGL* pix3dgl,
+    int idx,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int vertex_count,
+    int* faces_a,
+    int* faces_b,
+    int* faces_c,
+    int face_count,
+    int* valid_faces,
+    int* face_texture_ids,
+    int* face_texture_u_a,
+    int* face_texture_v_a,
+    int* face_texture_u_b,
+    int* face_texture_v_b,
+    int* face_texture_u_c,
+    int* face_texture_v_c,
+    int* face_color_hsl_a,
+    int* face_color_hsl_b,
+    int* face_color_hsl_c)
+{
+    GLTile gl_tile;
+    gl_tile.idx = idx;
+    gl_tile.face_count = face_count;
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    glGenVertexArrays(1, &gl_tile.VAO);
+    glBindVertexArray(gl_tile.VAO);
+#endif
+
+    // Create buffers
+    glGenBuffers(1, &gl_tile.VBO);
+    glGenBuffers(1, &gl_tile.colorVBO);
+    glGenBuffers(1, &gl_tile.texCoordVBO);
+    glGenBuffers(1, &gl_tile.EBO);
+
+    // Build vertex, color, and texture coordinate data
+    std::vector<float> vertices(face_count * 9);  // 3 vertices * 3 coordinates per face
+    std::vector<float> colors(face_count * 9);    // 3 vertices * 3 colors per face
+    std::vector<float> texCoords(face_count * 6); // 3 vertices * 2 UV coords per face
+
+    // Store face visibility and texture info
+    gl_tile.face_textures.resize(face_count);
+    gl_tile.face_visible.resize(face_count);
+
+    for( int face = 0; face < face_count; face++ )
+    {
+        // Check if face is valid
+        gl_tile.face_visible[face] = valid_faces ? (valid_faces[face] != 0) : true;
+        gl_tile.face_textures[face] = face_texture_ids ? face_texture_ids[face] : -1;
+
+        if( !gl_tile.face_visible[face] )
+            continue;
+
+        // Get vertex indices
+        int v_a = faces_a[face];
+        int v_b = faces_b[face];
+        int v_c = faces_c[face];
+
+        // Store vertex positions
+        vertices[face * 9 + 0] = vertex_x[v_a];
+        vertices[face * 9 + 1] = vertex_y[v_a];
+        vertices[face * 9 + 2] = vertex_z[v_a];
+
+        vertices[face * 9 + 3] = vertex_x[v_b];
+        vertices[face * 9 + 4] = vertex_y[v_b];
+        vertices[face * 9 + 5] = vertex_z[v_b];
+
+        vertices[face * 9 + 6] = vertex_x[v_c];
+        vertices[face * 9 + 7] = vertex_y[v_c];
+        vertices[face * 9 + 8] = vertex_z[v_c];
+
+        // Get vertex colors (HSL to RGB conversion)
+        int hsl_a = face_color_hsl_a[face];
+        int hsl_b = face_color_hsl_b[face];
+        int hsl_c = face_color_hsl_c[face];
+
+        // Check for flat shading
+        int rgb_a, rgb_b, rgb_c;
+        if( hsl_c == -1 )
+        {
+            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
+        }
+        else
+        {
+            rgb_a = g_hsl16_to_rgb_table[hsl_a];
+            rgb_b = g_hsl16_to_rgb_table[hsl_b];
+            rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        }
+
+        // Store colors
+        colors[face * 9 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
+        colors[face * 9 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
+        colors[face * 9 + 2] = (rgb_a & 0xFF) / 255.0f;
+
+        colors[face * 9 + 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
+        colors[face * 9 + 4] = ((rgb_b >> 8) & 0xFF) / 255.0f;
+        colors[face * 9 + 5] = (rgb_b & 0xFF) / 255.0f;
+
+        colors[face * 9 + 6] = ((rgb_c >> 16) & 0xFF) / 255.0f;
+        colors[face * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
+        colors[face * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
+
+        // Store texture coordinates (tiles use direct UV coordinates)
+        if( face_texture_ids && face_texture_ids[face] != -1 )
+        {
+            texCoords[face * 6 + 0] = face_texture_u_a[face] / 128.0f;
+            texCoords[face * 6 + 1] = face_texture_v_a[face] / 128.0f;
+
+            texCoords[face * 6 + 2] = face_texture_u_b[face] / 128.0f;
+            texCoords[face * 6 + 3] = face_texture_v_b[face] / 128.0f;
+
+            texCoords[face * 6 + 4] = face_texture_u_c[face] / 128.0f;
+            texCoords[face * 6 + 5] = face_texture_v_c[face] / 128.0f;
+        }
+        else
+        {
+            // Default UVs
+            texCoords[face * 6 + 0] = 0.0f;
+            texCoords[face * 6 + 1] = 0.0f;
+            texCoords[face * 6 + 2] = 1.0f;
+            texCoords[face * 6 + 3] = 0.0f;
+            texCoords[face * 6 + 4] = 0.0f;
+            texCoords[face * 6 + 5] = 1.0f;
+        }
+    }
+
+    // Upload vertex data
+    glBindBuffer(GL_ARRAY_BUFFER, gl_tile.VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+#endif
+
+    // Upload color data
+    glBindBuffer(GL_ARRAY_BUFFER, gl_tile.colorVBO);
+    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+#endif
+
+    // Upload texture coordinate data
+    glBindBuffer(GL_ARRAY_BUFFER, gl_tile.texCoordVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER, texCoords.size() * sizeof(float), texCoords.data(), GL_STATIC_DRAW);
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(2);
+#endif
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    glBindVertexArray(0);
+#endif
+
+    pix3dgl->tiles[idx] = gl_tile;
+    printf("Loaded tile %d with %d faces\n", idx, face_count);
+}
+
+extern "C" void
+pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
+{
+    if( !pix3dgl || !pix3dgl->program_es2 )
+    {
+        printf("Pix3DGL not properly initialized\n");
+        return;
+    }
+
+    auto it = pix3dgl->tiles.find(tile_idx);
+    if( it == pix3dgl->tiles.end() )
+    {
+        printf("Tile %d not loaded\n", tile_idx);
+        return;
+    }
+
+    GLTile& tile = it->second;
+
+    // Tiles are rendered at world origin (no transformation)
+    float modelMatrix[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                              0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+
+    GLint modelMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
+    if( modelMatrixLoc >= 0 )
+    {
+        glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
+    }
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    glBindVertexArray(tile.VAO);
+#else
+    glBindBuffer(GL_ARRAY_BUFFER, tile.VBO);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, tile.colorVBO);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, tile.texCoordVBO);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(2);
+#endif
+
+    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
+
+    // Draw each face
+    for( int face = 0; face < tile.face_count; face++ )
+    {
+        if( !tile.face_visible[face] )
+            continue;
+
+        int texture_id = tile.face_textures[face];
+
+        if( texture_id == -1 )
+        {
+            // No texture - use Gouraud shading
+            if( useTextureLoc >= 0 )
+            {
+                glUniform1i(useTextureLoc, 0);
+            }
+        }
+        else
+        {
+            // Has texture
+            auto tex_it = pix3dgl->texture_ids.find(texture_id);
+            if( tex_it != pix3dgl->texture_ids.end() )
+            {
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, tex_it->second);
+
+                GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
+                if( textureLoc >= 0 )
+                {
+                    glUniform1i(textureLoc, 0);
+                }
+
+                if( useTextureLoc >= 0 )
+                {
+                    glUniform1i(useTextureLoc, 1);
+                }
+            }
+            else
+            {
+                // Texture not loaded, fall back to Gouraud shading
+                if( useTextureLoc >= 0 )
+                {
+                    glUniform1i(useTextureLoc, 0);
+                }
+            }
+        }
+
+        glDrawArrays(GL_TRIANGLES, face * 3, 3);
+    }
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    glBindVertexArray(0);
+#else
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
+#endif
 }
 
 extern "C" void
