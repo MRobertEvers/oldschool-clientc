@@ -152,7 +152,14 @@ out vec4 FragColor;
 void main() {
     if (uUseTexture) {
         vec4 texColor = texture(uTexture, vTexCoord);
-        FragColor = texColor * vec4(vColor, 1.0);
+        // Make black texels transparent, preserve existing alpha
+        float epsilon = 0.001; // Small threshold to account for floating point precision
+        float luminance = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+        if (luminance < epsilon) {
+            // Discard completely transparent fragments so they don't write to depth buffer
+            discard;
+        }
+        FragColor = vec4(texColor.rgb * vColor, texColor.a);
     } else {
         FragColor = vec4(vColor, 1.0);
     }
@@ -258,7 +265,14 @@ const char* g_fragment_shader_es2 = R"(
     void main() {
         if (uUseTexture) {
             vec4 texColor = texture2D(uTexture, vTexCoord);
-            gl_FragColor = texColor * vec4(vColor, 1.0);
+            // Make black texels transparent, preserve existing alpha
+            float epsilon = 0.001; // Small threshold to account for floating point precision
+            float luminance = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+            if (luminance < epsilon) {
+                // Discard completely transparent fragments so they don't write to depth buffer
+                discard;
+            }
+            gl_FragColor = vec4(texColor.rgb * vColor, texColor.a);
         } else {
             gl_FragColor = vec4(vColor, 1.0);
         }
@@ -769,6 +783,10 @@ pix3dgl_new()
         return nullptr;
     }
 
+    // Enable alpha blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     printf("Pix3DGL initialized successfully with shader program ID: %d\n", pix3dgl->program_es2);
     return pix3dgl;
 }
@@ -984,6 +1002,12 @@ pix3dgl_begin_frame(
 
     // Set viewport
     glViewport(0, 0, (GLsizei)screen_width, (GLsizei)screen_height);
+
+    // Enable depth testing and alpha blending
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Convert camera angles from game units to radians
     // Game uses 2048 units per full rotation (2π radians)
