@@ -34,6 +34,16 @@ scenegfx_scene_load_map(
             game_gfx_op_list_push(gfx_op_list, &gfx_op);
         }
     }
+
+    for( int i = 0; i < game->scene->scene_tiles_length; i++ )
+    {
+        struct SceneTile* scene_tile = &game->scene->scene_tiles[i];
+        if( scene_tile->face_count > 0 )
+        {
+            gfx_op.kind = GAME_GFX_OP_SCENE_TILE_LOAD;
+            gfx_op._scene_tile_load.scene_tile_idx = i;
+        }
+    }
 }
 
 struct GameGfxOpList*

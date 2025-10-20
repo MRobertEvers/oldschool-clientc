@@ -10,6 +10,8 @@ enum GameGfxOpKind
 {
     GAME_GFX_OP_SCENE_MODEL_LOAD,
     GAME_GFX_OP_SCENE_MODEL_UNLOAD,
+    GAME_GFX_OP_SCENE_TILE_LOAD,
+    GAME_GFX_OP_SCENE_TILE_UNLOAD,
     GAME_GFX_OP_SCENE_MODEL_DRAW,
     GAME_GFX_OP_SCENE_DRAW,
 };
@@ -35,6 +37,16 @@ struct GameGfxOp
             int scene_model_idx;
             int frame_id;
         } _scene_model_draw;
+
+        struct
+        {
+            int scene_tile_idx;
+        } _scene_tile_load;
+
+        struct
+        {
+            int scene_tile_idx;
+        } _scene_tile_unload;
     };
 };
 

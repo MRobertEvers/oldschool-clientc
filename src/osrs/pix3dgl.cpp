@@ -327,6 +327,11 @@ struct Pix3DGL
     // For fast face drawing - stores the currently active model
     GLModel* current_model;
     int current_model_idx;
+
+    // Cached uniform locations for performance
+    GLint uniform_model_matrix;
+    GLint uniform_use_texture;
+    GLint uniform_texture;
 };
 
 extern "C" void
@@ -862,6 +867,11 @@ pix3dgl_new()
         delete pix3dgl;
         return nullptr;
     }
+
+    // Cache uniform locations for performance
+    pix3dgl->uniform_model_matrix = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
+    pix3dgl->uniform_use_texture = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
+    pix3dgl->uniform_texture = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
 
     // Enable alpha blending
     glEnable(GL_BLEND);
@@ -1436,11 +1446,10 @@ pix3dgl_model_begin_draw(
                               0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
-    // Set model matrix uniform
-    GLint modelMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
-    if( modelMatrixLoc >= 0 )
+    // Set model matrix uniform (using cached location)
+    if( pix3dgl->uniform_model_matrix >= 0 )
     {
-        glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
+        glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
     }
 
     // Note: Texture binding is now handled per-face in pix3dgl_model_draw_face_fast
@@ -1501,14 +1510,13 @@ pix3dgl_model_draw_face_fast(struct Pix3DGL* pix3dgl, int face_idx)
 
     // Check if this face has a texture or uses Gouraud shading
     int face_texture_id = model.face_textures[face_idx];
-    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
 
     if( face_texture_id == -1 )
     {
         // No texture - use Gouraud shading (interpolated vertex colors)
-        if( useTextureLoc >= 0 )
+        if( pix3dgl->uniform_use_texture >= 0 )
         {
-            glUniform1i(useTextureLoc, 0);
+            glUniform1i(pix3dgl->uniform_use_texture, 0);
         }
     }
     else
@@ -1520,23 +1528,22 @@ pix3dgl_model_draw_face_fast(struct Pix3DGL* pix3dgl, int face_idx)
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, tex_it->second);
 
-            GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
-            if( textureLoc >= 0 )
+            if( pix3dgl->uniform_texture >= 0 )
             {
-                glUniform1i(textureLoc, 0);
+                glUniform1i(pix3dgl->uniform_texture, 0);
             }
 
-            if( useTextureLoc >= 0 )
+            if( pix3dgl->uniform_use_texture >= 0 )
             {
-                glUniform1i(useTextureLoc, 1);
+                glUniform1i(pix3dgl->uniform_use_texture, 1);
             }
         }
         else
         {
             // Texture not loaded, fall back to Gouraud shading
-            if( useTextureLoc >= 0 )
+            if( pix3dgl->uniform_use_texture >= 0 )
             {
-                glUniform1i(useTextureLoc, 0);
+                glUniform1i(pix3dgl->uniform_use_texture, 0);
             }
         }
     }
@@ -1764,10 +1771,10 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
     float modelMatrix[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                               0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
 
-    GLint modelMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
-    if( modelMatrixLoc >= 0 )
+    // Set model matrix using cached uniform location
+    if( pix3dgl->uniform_model_matrix >= 0 )
     {
-        glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
+        glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
     }
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
@@ -1786,8 +1793,6 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
     glEnableVertexAttribArray(2);
 #endif
 
-    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
-
     // Draw each face
     for( int face = 0; face < tile.face_count; face++ )
     {
@@ -1799,9 +1804,9 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
         if( texture_id == -1 )
         {
             // No texture - use Gouraud shading
-            if( useTextureLoc >= 0 )
+            if( pix3dgl->uniform_use_texture >= 0 )
             {
-                glUniform1i(useTextureLoc, 0);
+                glUniform1i(pix3dgl->uniform_use_texture, 0);
             }
         }
         else
@@ -1813,23 +1818,22 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, tex_it->second);
 
-                GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
-                if( textureLoc >= 0 )
+                if( pix3dgl->uniform_texture >= 0 )
                 {
-                    glUniform1i(textureLoc, 0);
+                    glUniform1i(pix3dgl->uniform_texture, 0);
                 }
 
-                if( useTextureLoc >= 0 )
+                if( pix3dgl->uniform_use_texture >= 0 )
                 {
-                    glUniform1i(useTextureLoc, 1);
+                    glUniform1i(pix3dgl->uniform_use_texture, 1);
                 }
             }
             else
             {
                 // Texture not loaded, fall back to Gouraud shading
-                if( useTextureLoc >= 0 )
+                if( pix3dgl->uniform_use_texture >= 0 )
                 {
-                    glUniform1i(useTextureLoc, 0);
+                    glUniform1i(pix3dgl->uniform_use_texture, 0);
                 }
             }
         }

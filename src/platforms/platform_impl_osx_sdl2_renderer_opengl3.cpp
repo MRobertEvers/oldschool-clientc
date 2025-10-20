@@ -149,51 +149,9 @@ render_scene(struct Renderer* renderer, struct Game* game)
         if( iter_render_scene_ops.value.tile_nullable_ )
         {
             struct SceneTile* tile = iter_render_scene_ops.value.tile_nullable_;
-
-            // Get the tile index from the scene
             int tile_idx = tile - game->scene->scene_tiles;
 
-            // Load tile textures if needed
-            if( tile->face_texture_ids )
-            {
-                for( int face = 0; face < tile->face_count; face++ )
-                {
-                    if( tile->face_texture_ids[face] != -1 )
-                    {
-                        pix3dgl_load_texture(
-                            renderer->pix3dgl,
-                            tile->face_texture_ids[face],
-                            game->textures_cache,
-                            game->cache);
-                    }
-                }
-            }
-
-            // Check if tile is already loaded, if not load it
-            pix3dgl_tile_load(
-                renderer->pix3dgl,
-                tile_idx,
-                tile->vertex_x,
-                tile->vertex_y,
-                tile->vertex_z,
-                tile->vertex_count,
-                tile->faces_a,
-                tile->faces_b,
-                tile->faces_c,
-                tile->face_count,
-                tile->valid_faces,
-                tile->face_texture_ids,
-                tile->face_texture_u_a,
-                tile->face_texture_v_a,
-                tile->face_texture_u_b,
-                tile->face_texture_v_b,
-                tile->face_texture_u_c,
-                tile->face_texture_v_c,
-                tile->face_color_hsl_a,
-                tile->face_color_hsl_b,
-                tile->face_color_hsl_c);
-
-            // Draw the tile
+            // Just draw the tile - it should already be loaded
             pix3dgl_tile_draw(renderer->pix3dgl, tile_idx);
         }
 
@@ -345,8 +303,60 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
         switch( gfx_op->kind )
         {
         case GAME_GFX_OP_SCENE_DRAW:
+        {
             render_scene(renderer, game);
-            break;
+        }
+        break;
+        case GAME_GFX_OP_SCENE_TILE_LOAD:
+        {
+            struct SceneTile* scene_tile =
+                &game->scene->scene_tiles[gfx_op->_scene_tile_load.scene_tile_idx];
+
+            if( scene_tile->face_texture_ids != NULL && scene_tile->face_count > 0 )
+            {
+                // Load all unique textures used by this model
+                for( int face = 0; face < scene_tile->face_count; face++ )
+                {
+                    if( scene_tile->face_texture_ids[face] != -1 )
+                    {
+                        int texture_id = scene_tile->face_texture_ids[face];
+                        pix3dgl_load_texture(
+                            renderer->pix3dgl,
+                            scene_tile->face_texture_ids[face],
+                            game->textures_cache,
+                            game->cache);
+                    }
+                }
+            }
+
+            pix3dgl_tile_load(
+                renderer->pix3dgl,
+                gfx_op->_scene_tile_load.scene_tile_idx,
+                scene_tile->vertex_x,
+                scene_tile->vertex_y,
+                scene_tile->vertex_z,
+                scene_tile->vertex_count,
+                scene_tile->faces_a,
+                scene_tile->faces_b,
+                scene_tile->faces_c,
+                scene_tile->face_count,
+                scene_tile->valid_faces,
+                scene_tile->face_texture_ids,
+                scene_tile->face_texture_u_a,
+                scene_tile->face_texture_v_a,
+                scene_tile->face_texture_u_b,
+                scene_tile->face_texture_v_b,
+                scene_tile->face_texture_u_c,
+                scene_tile->face_texture_v_c,
+                scene_tile->face_color_hsl_a,
+                scene_tile->face_color_hsl_b,
+                scene_tile->face_color_hsl_c);
+        }
+        break;
+        case GAME_GFX_OP_SCENE_TILE_UNLOAD:
+        {
+        }
+        break;
         case GAME_GFX_OP_SCENE_MODEL_LOAD:
         {
             struct SceneModel* scene_model =
