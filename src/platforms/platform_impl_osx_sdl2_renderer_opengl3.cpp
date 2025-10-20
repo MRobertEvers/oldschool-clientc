@@ -219,9 +219,12 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
 
-    glDisable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
+    // glDisable(GL_DEPTH_TEST);
+
+    // glDisable(GL_CULL_FACE);
 
     for( int i = 0; i < gfx_op_list->op_count; i++ )
     {
