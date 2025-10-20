@@ -321,7 +321,6 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/3rd/miniz/miniz.c
 
         src/osrs/pix3dgl.cpp
-        src/osrs/scenefx.c
     )
 endif()
 
@@ -369,6 +368,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_cache.c
         src/datastruct/ht.c
         src/osrs/tables/noise.c
+
 
         src/imgui/imgui.cpp
         src/imgui/imgui_draw.cpp
@@ -590,7 +590,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/3rd/miniz/miniz.c
 
         src/osrs/pix3dgl.cpp
-        src/osrs/scenefx.c
     )
 
     set_target_properties(model_viewerfx_browser PROPERTIES

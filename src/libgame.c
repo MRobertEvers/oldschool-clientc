@@ -14,6 +14,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+void
+scenegfx_scene_load_map(
+    struct Game* game, int chunk_x, int chunk_y, struct GameGfxOpList* gfx_op_list)
+{
+    struct GameGfxOp gfx_op;
+
+    game->scene = scene_new_from_map(game->cache, chunk_x, chunk_y);
+
+    for( int i = 0; i < game->scene->models_length; i++ )
+    {
+        struct SceneModel* scene_model = &game->scene->models[i];
+        if( scene_model->model )
+        {
+            gfx_op.kind = GAME_GFX_OP_SCENE_MODEL_LOAD;
+            gfx_op._scene_model_load.scene_model_idx = i;
+            gfx_op._scene_model_load.frame_id = 0;
+
+            game_gfx_op_list_push(gfx_op_list, &gfx_op);
+        }
+    }
+}
+
 struct GameGfxOpList*
 game_gfx_op_list_new(int capacity_hint)
 {
@@ -52,7 +74,7 @@ game_gfx_op_list_push(struct GameGfxOpList* list, struct GameGfxOp* op)
 }
 
 struct Game*
-game_new(void)
+game_new(int flags, struct GameGfxOpList* gfx_op_list)
 {
     struct Game* game = (struct Game*)malloc(sizeof(struct Game));
     memset(game, 0, sizeof(struct Game));
@@ -71,7 +93,6 @@ game_new(void)
     game->camera_rotation_speed = 20;
 
     game->cache = NULL;
-    game->scene_model = NULL;
 
     init_hsl16_to_rgb_table();
     init_sin_table();
@@ -100,6 +121,8 @@ game_new(void)
     printf("Cache loaded successfully\n");
 
     game->cache = cache;
+    game->frustrum_cullmap = frustrum_cullmap_new_nocull(25);
+    game->textures_cache = textures_cache_new(cache);
 
     /**
      * Init
@@ -111,7 +134,7 @@ game_new(void)
 
     // model = model_cache_checkout(model_cache, cache, 14816);
 
-    game->scene = scene_new_from_map(cache, 50, 50);
+    scenegfx_scene_load_map(game, 50, 50, gfx_op_list);
 
     // game->scene_model = scene_model_new_lit_from_model(model, 0);
 
@@ -140,37 +163,39 @@ game_free(struct Game* game)
 void
 game_step_main_loop(struct Game* game, struct GameInput* input, struct GameGfxOpList* gfx_op_list)
 {
+    game_gfx_op_list_reset(gfx_op_list);
+
     if( input->w_pressed )
     {
-        game->camera_world_x += (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-        game->camera_world_y -= (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-    }
-
-    if( input->a_pressed )
-    {
-        game->camera_world_x += (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-        game->camera_world_y += (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        game->camera_world_x -= (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        game->camera_world_z += (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
     }
 
     if( input->s_pressed )
     {
-        game->camera_world_x -= (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-        game->camera_world_y += (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        game->camera_world_x += (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        game->camera_world_z -= (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+    }
+
+    if( input->a_pressed )
+    {
+        game->camera_world_x -= (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        game->camera_world_z -= (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
     }
 
     if( input->d_pressed )
     {
-        game->camera_world_x -= (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-        game->camera_world_y -= (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        game->camera_world_x += (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        game->camera_world_z += (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
     }
 
     if( input->r_pressed )
     {
-        game->camera_world_z -= game->camera_movement_speed;
+        game->camera_world_y -= game->camera_movement_speed;
     }
     if( input->f_pressed )
     {
-        game->camera_world_z += game->camera_movement_speed;
+        game->camera_world_y += game->camera_movement_speed;
     }
 
     if( input->up_pressed )
@@ -195,6 +220,11 @@ game_step_main_loop(struct Game* game, struct GameInput* input, struct GameGfxOp
     {
         game->running = false;
     }
+
+    struct GameGfxOp gfx_op = {
+        .kind = GAME_GFX_OP_SCENE_DRAW,
+    };
+    game_gfx_op_list_push(gfx_op_list, &gfx_op);
 
     return;
 }

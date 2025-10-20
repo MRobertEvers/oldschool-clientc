@@ -37,22 +37,17 @@ main(int argc, char* argv[])
         return 1;
     }
 
-    struct Game* game = game_new();
-    if( !game )
-    {
-        printf("Failed to create game\n");
-        return 1;
-    }
-    if( !game_init(game) )
-    {
-        printf("Failed to initialize game\n");
-        return 1;
-    }
-
     struct GameGfxOpList* gfx_op_list = game_gfx_op_list_new(1024);
     if( !gfx_op_list )
     {
         printf("Failed to create gfx op list\n");
+        return 1;
+    }
+
+    struct Game* game = game_new(0, gfx_op_list);
+    if( !game )
+    {
+        printf("Failed to create game\n");
         return 1;
     }
 
@@ -67,9 +62,7 @@ main(int argc, char* argv[])
     {
         PlatformImpl_OSX_SDL2_PollEvents(platform, input);
 
-        game_process_input(game, input);
-
-        game_step_main_loop(game, gfx_op_list);
+        game_step_main_loop(game, input, gfx_op_list);
 
         PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, gfx_op_list);
     }

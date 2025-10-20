@@ -26,6 +26,18 @@
             "type": "node"
         },
         {
+            "name": "(lldb) Launch Harness",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/osx_sdl2_game",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
             "name": "(lldb) Launch Scene Tiles Test",
             "type": "cppdbg",
             "request": "launch",

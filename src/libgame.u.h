@@ -2,6 +2,7 @@
 #define LIBGAME_U_H
 
 #include "cache.h"
+#include "osrs/frustrum_cullmap.h"
 #include "osrs/scene.h"
 #include "osrs/scene_cache.h"
 
@@ -64,6 +65,7 @@ struct Game
     struct Scene* scene;
 
     struct TexturesCache* textures_cache;
+    struct FrustrumCullmap* frustrum_cullmap;
 };
 
 #endif

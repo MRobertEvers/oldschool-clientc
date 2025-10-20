@@ -11,41 +11,242 @@ extern "C" {
 #include <SDL.h>
 #include <stdio.h>
 
+static int g_screen_vertices_x[20];
+static int g_screen_vertices_y[20];
+static int g_screen_vertices_z[20];
+static int g_ortho_vertices_x[20];
+static int g_ortho_vertices_y[20];
+static int g_ortho_vertices_z[20];
+
 static void
 render_imgui(struct Renderer* renderer, struct Game* game)
 {}
 
 static void
-render_game(struct Renderer* renderer, struct Game* game)
+render_scene(struct Renderer* renderer, struct Game* game)
 {
-    int scene_x = game->scene_model->region_x - game->camera_world_x;
-    int scene_y = game->scene_model->region_height - game->camera_world_y;
-    int scene_z = game->scene_model->region_z - game->camera_world_z;
+    struct IterRenderSceneOps iter_render_scene_ops;
+    struct IterRenderModel iter_render_model;
+    struct SceneModel* scene_model = NULL;
 
-    struct AABB aabb;
-    render_model_frame(
-        renderer->pixel_buffer,
-        renderer->width,
-        renderer->height,
-        50,
-        0,
-        game->scene_model->yaw,
-        0,
-        scene_x,
-        scene_y,
-        scene_z,
+    renderer->op_count = render_scene_compute_ops(
+        renderer->ops,
+        renderer->op_capacity,
+        game->camera_world_x,
+        game->camera_world_y,
+        game->camera_world_z,
+        game->scene,
+        NULL);
+
+    iter_render_scene_ops_init(
+        &iter_render_scene_ops,
+        game->frustrum_cullmap,
+        game->scene,
+        renderer->ops,
+        renderer->op_count,
+        renderer->op_count,
         game->camera_pitch,
         game->camera_yaw,
-        game->camera_roll,
-        game->camera_fov,
-        &aabb,
-        game->scene_model->model,
-        game->scene_model->lighting,
-        game->scene_model->bounds_cylinder,
-        NULL,
-        NULL,
-        NULL,
-        game->textures_cache);
+        game->camera_world_x / 128,
+        game->camera_world_z / 128);
+
+    while( iter_render_scene_ops_next(&iter_render_scene_ops) )
+    {
+        if( iter_render_scene_ops.value.tile_nullable_ )
+        {
+            render_scene_tile(
+                renderer->pixel_buffer,
+                g_screen_vertices_x,
+                g_screen_vertices_y,
+                g_screen_vertices_z,
+                g_ortho_vertices_x,
+                g_ortho_vertices_y,
+                g_ortho_vertices_z,
+                renderer->width,
+                renderer->height,
+                // Had to use 100 here because of the scale, near plane z was resulting in triangles
+                // extremely close to the camera.
+                50,
+                game->camera_world_x,
+                game->camera_world_y,
+                game->camera_world_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                game->camera_roll,
+                game->camera_fov,
+                iter_render_scene_ops.value.tile_nullable_,
+                game->textures_cache,
+                NULL);
+        }
+
+        if( iter_render_scene_ops.value.model_nullable_ )
+        {
+            scene_model = iter_render_scene_ops.value.model_nullable_;
+            if( !scene_model->model )
+                continue;
+
+            int yaw_adjust = 0;
+            iter_render_model_init(
+                &iter_render_model,
+                scene_model,
+                // TODO: For wall decor, this should probably be set on the model->yaw rather than
+                // on the op.
+                yaw_adjust,
+                game->camera_world_x,
+                game->camera_world_y,
+                game->camera_world_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                game->camera_roll,
+                game->camera_fov,
+                renderer->width,
+                renderer->height,
+                50);
+            int model_intersected = 0;
+            while( iter_render_model_next(&iter_render_model) )
+            {
+                int face = iter_render_model.value_face;
+
+                // bool is_in_bb = false;
+                // if( game->mouse_x > 0 && game->mouse_x >= iter_model.aabb_min_screen_x &&
+                //     game->mouse_x <= iter_model.aabb_max_screen_x &&
+                //     game->mouse_y >= iter_model.aabb_min_screen_y &&
+                //     game->mouse_y <= iter_model.aabb_max_screen_y )
+                // {
+                //     is_in_bb = true;
+                // }
+
+                // if( !model_intersected && is_in_bb )
+                // {
+                //     // Get face vertex indices
+                //     int face_a = iter.value.model_nullable_->model->face_indices_a[face];
+                //     int face_b = iter.value.model_nullable_->model->face_indices_b[face];
+                //     int face_c = iter.value.model_nullable_->model->face_indices_c[face];
+
+                //     // Get screen coordinates of the triangle vertices
+                //     int x1 = iter_model.screen_vertices_x[face_a] + SCREEN_WIDTH / 2;
+                //     int y1 = iter_model.screen_vertices_y[face_a] + SCREEN_HEIGHT / 2;
+                //     int x2 = iter_model.screen_vertices_x[face_b] + SCREEN_WIDTH / 2;
+                //     int y2 = iter_model.screen_vertices_y[face_b] + SCREEN_HEIGHT / 2;
+                //     int x3 = iter_model.screen_vertices_x[face_c] + SCREEN_WIDTH / 2;
+                //     int y3 = iter_model.screen_vertices_y[face_c] + SCREEN_HEIGHT / 2;
+
+                //     // Check if mouse is inside the triangle using barycentric coordinates
+                //     bool mouse_in_triangle = false;
+                //     if( x1 != -5000 && x2 != -5000 && x3 != -5000 )
+                //     { // Skip clipped triangles
+                //         int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+                //         if( denominator != 0 )
+                //         {
+                //             float a =
+                //                 ((y2 - y3) * (game->mouse_x - x3) + (x3 - x2) * (game->mouse_y -
+                //                 y3)) / (float)denominator;
+                //             float b =
+                //                 ((y3 - y1) * (game->mouse_x - x3) + (x1 - x3) * (game->mouse_y -
+                //                 y3)) / (float)denominator;
+                //             float c = 1 - a - b;
+                //             mouse_in_triangle = (a >= 0 && b >= 0 && c >= 0);
+                //         }
+                //     }
+
+                //     if( mouse_in_triangle )
+                //     {
+                //         game->hover_model = iter_model.model->model_id;
+                //         game->hover_loc_x = iter_model.model->_chunk_pos_x;
+                //         game->hover_loc_y = iter_model.model->_chunk_pos_y;
+                //         game->hover_loc_level = iter_model.model->_chunk_pos_level;
+                //         game->hover_loc_yaw = iter_model.model->yaw;
+
+                //         last_model_hit_model = iter.value.model_nullable_;
+                //         last_model_hit_yaw = iter.value.model_nullable_->yaw + iter.value.yaw;
+
+                //         model_intersected = true;
+                //     }
+                // }
+                // Only draw the face if mouse is inside the triangle
+                model_draw_face(
+                    renderer->pixel_buffer,
+                    face,
+                    scene_model->model->face_infos,
+                    scene_model->model->face_indices_a,
+                    scene_model->model->face_indices_b,
+                    scene_model->model->face_indices_c,
+                    scene_model->model->face_count,
+                    iter_render_model.screen_vertices_x,
+                    iter_render_model.screen_vertices_y,
+                    iter_render_model.screen_vertices_z,
+                    iter_render_model.ortho_vertices_x,
+                    iter_render_model.ortho_vertices_y,
+                    iter_render_model.ortho_vertices_z,
+                    scene_model->model->vertex_count,
+                    scene_model->model->face_textures,
+                    scene_model->model->face_texture_coords,
+                    scene_model->model->textured_face_count,
+                    scene_model->model->textured_p_coordinate,
+                    scene_model->model->textured_m_coordinate,
+                    scene_model->model->textured_n_coordinate,
+                    scene_model->model->textured_face_count,
+                    scene_model->lighting->face_colors_hsl_a,
+                    scene_model->lighting->face_colors_hsl_b,
+                    scene_model->lighting->face_colors_hsl_c,
+                    scene_model->model->face_alphas,
+                    renderer->width / 2,
+                    renderer->height / 2,
+                    50,
+                    renderer->width,
+                    renderer->height,
+                    game->camera_fov,
+                    game->textures_cache);
+            }
+
+            // render_scene_model(
+            //     pixel_buffer,
+            //     SCREEN_WIDTH,
+            //     SCREEN_HEIGHT,
+            //     // Had to use 100 here because of the scale, near plane z was resulting in
+            //     // extremely close to the camera.
+            //     100,
+            //     0,
+            //     game->camera_x,
+            //     game->camera_y,
+            //     game->camera_z,
+            //     game->camera_pitch,
+            //     game->camera_yaw,
+            //     game->camera_roll,
+            //     game->camera_fov,
+            //     iter.value.model_nullable_,
+            //     game->textures_cache);
+        }
+    }
+
+    // int scene_x = game->scene_model->region_x - game->camera_world_x;
+    // int scene_y = game->scene_model->region_height - game->camera_world_y;
+    // int scene_z = game->scene_model->region_z - game->camera_world_z;
+
+    // struct AABB aabb;
+    // render_model_frame(
+    //     renderer->pixel_buffer,
+    //     renderer->width,
+    //     renderer->height,
+    //     50,
+    //     0,
+    //     game->scene_model->yaw,
+    //     0,
+    //     scene_x,
+    //     scene_y,
+    //     scene_z,
+    //     game->camera_pitch,
+    //     game->camera_yaw,
+    //     game->camera_roll,
+    //     game->camera_fov,
+    //     &aabb,
+    //     game->scene_model->model,
+    //     game->scene_model->lighting,
+    //     game->scene_model->bounds_cylinder,
+    //     NULL,
+    //     NULL,
+    //     NULL,
+    //     game->textures_cache);
 }
 
 struct Renderer*
@@ -64,6 +265,12 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height)
 
     renderer->width = width;
     renderer->height = height;
+
+    renderer->op_capacity = 10900;
+    renderer->ops = (struct SceneOp*)malloc(renderer->op_capacity * sizeof(struct SceneOp));
+    memset(renderer->ops, 0, renderer->op_capacity * sizeof(struct SceneOp));
+
+    renderer->op_count = 0;
 
     return renderer;
 }
@@ -130,7 +337,18 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
     memset(renderer->pixel_buffer, 0, renderer->width * renderer->height * sizeof(int));
     SDL_RenderClear(renderer->renderer);
 
-    render_game(renderer, game);
+    for( int i = 0; i < gfx_op_list->op_count; i++ )
+    {
+        struct GameGfxOp* gfx_op = &gfx_op_list->ops[i];
+        switch( gfx_op->kind )
+        {
+        case GAME_GFX_OP_SCENE_DRAW:
+            render_scene(renderer, game);
+            break;
+        default:
+            break;
+        }
+    }
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,

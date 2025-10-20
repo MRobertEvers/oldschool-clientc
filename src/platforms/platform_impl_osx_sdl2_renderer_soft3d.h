@@ -2,6 +2,7 @@
 #define PLATFORM_IMPL_OSX_RENDERER_SDL2_H
 
 extern "C" {
+#include "graphics/render.h"
 #include "libgame.h"
 #include "libgame.u.h"
 }
@@ -18,6 +19,10 @@ struct Renderer
     int* pixel_buffer;
     int width;
     int height;
+
+    struct SceneOp* ops;
+    int op_count;
+    int op_capacity;
 };
 
 struct Renderer* PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height);

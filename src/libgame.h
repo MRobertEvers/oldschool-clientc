@@ -13,7 +13,7 @@ void game_gfx_op_list_free(struct GameGfxOpList* list);
 void game_gfx_op_list_reset(struct GameGfxOpList* list);
 int game_gfx_op_list_push(struct GameGfxOpList* list, struct GameGfxOp* op);
 
-struct Game* game_new(void);
+struct Game* game_new(int flags, struct GameGfxOpList* gfx_op_list);
 
 void game_free(struct Game* game);
 

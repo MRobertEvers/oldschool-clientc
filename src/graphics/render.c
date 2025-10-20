@@ -3195,8 +3195,8 @@ iter_render_scene_ops_init(
     int op_max,
     int camera_pitch,
     int camera_yaw,
-    int camera_x,
-    int camera_z)
+    int camera_tile_x,
+    int camera_tile_z)
 {
     memset(iter, 0, sizeof(struct IterRenderSceneOps));
     iter->has_value = false;
@@ -3208,8 +3208,8 @@ iter_render_scene_ops_init(
     iter->_op_max = op_max;
     iter->camera_pitch = camera_pitch; // 2048 / 16 PITCH_STEPS
     iter->camera_yaw = camera_yaw;     // 2048 / 16 YAW_STEPS
-    iter->camera_x = camera_x;
-    iter->camera_z = camera_z;
+    iter->camera_tile_x = camera_tile_x;
+    iter->camera_tile_z = camera_tile_z;
 }
 
 bool
@@ -3232,8 +3232,8 @@ next:
     struct SceneOp* op = &iter->_ops[i];
     grid_tile = &iter->scene->grid_tiles[MAP_TILE_COORD(op->x, op->z, op->level)];
 
-    int to_tile_x = op->x - iter->camera_x;
-    int to_tile_z = op->z - iter->camera_z;
+    int to_tile_x = op->x - iter->camera_tile_x;
+    int to_tile_z = op->z - iter->camera_tile_z;
     if( frustrum_cullmap_get(
             iter->map, to_tile_x, to_tile_z, iter->camera_pitch, iter->camera_yaw) == 0 )
         goto next;
