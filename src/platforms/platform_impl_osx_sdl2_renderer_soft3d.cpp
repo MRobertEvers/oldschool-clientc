@@ -20,7 +20,80 @@ static int g_ortho_vertices_z[20];
 
 static void
 render_imgui(struct Renderer* renderer, struct Game* game)
-{}
+{
+    ImGui_ImplSDLRenderer2_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    // Info window
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 150), ImGuiCond_FirstUseEver);
+
+    ImGui::Begin("Info");
+    ImGui::Text(
+        "Application average %.3f ms/frame (%.1f FPS)",
+        1000.0f / ImGui::GetIO().Framerate,
+        ImGui::GetIO().Framerate);
+    Uint64 frequency = SDL_GetPerformanceFrequency();
+    // ImGui::Text(
+    //     "Render Time: %.3f ms/frame",
+    //     (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
+    // ImGui::Text(
+    //     "Average Render Time: %.3f ms/frame, %.3f ms/frame, %.3f ms/frame",
+    //     (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency,
+    //     (double)(game->painters_time_sum / game->frame_count) * 1000.0 / (double)frequency,
+    //     (double)(game->texture_upload_time_sum / game->frame_count) * 1000.0 /
+    //     (double)frequency);
+    // ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+
+    // ImGui::Text("Hover model: %d, %d", game->hover_model, game->hover_loc_yaw);
+    // ImGui::Text(
+    //     "Hover loc: %d, %d, %d", game->hover_loc_x, game->hover_loc_y, game->hover_loc_level);
+
+    // Camera position with copy button
+    char camera_pos_text[256];
+    snprintf(
+        camera_pos_text,
+        sizeof(camera_pos_text),
+        "Camera (x, y, z): %d, %d, %d : %d, %d",
+        game->camera_world_x,
+        game->camera_world_y,
+        game->camera_world_z,
+        game->camera_world_x / 128,
+        game->camera_world_y / 128);
+    ImGui::Text("%s", camera_pos_text);
+    ImGui::SameLine();
+    if( ImGui::SmallButton("Copy##pos") )
+    {
+        ImGui::SetClipboardText(camera_pos_text);
+    }
+
+    // Camera rotation with copy button
+    char camera_rot_text[256];
+    snprintf(
+        camera_rot_text,
+        sizeof(camera_rot_text),
+        "Camera (pitch, yaw, roll): %d, %d, %d",
+
+        game->camera_pitch,
+        game->camera_yaw,
+        game->camera_roll);
+    ImGui::Text("%s", camera_rot_text);
+    ImGui::SameLine();
+    if( ImGui::SmallButton("Copy##rot") )
+    {
+        ImGui::SetClipboardText(camera_rot_text);
+    }
+
+    // Add camera speed slider
+    ImGui::Separator();
+    ImGui::Text("Camera Controls");
+    ImGui::SliderInt("FOV", &game->camera_fov, 64, 768, "%d");
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer->renderer);
+}
 
 static void
 render_scene(struct Renderer* renderer, struct Game* game)
@@ -161,7 +234,7 @@ render_scene(struct Renderer* renderer, struct Game* game)
                 //         last_model_hit_yaw = iter.value.model_nullable_->yaw + iter.value.yaw;
 
                 //         model_intersected = true;
-                //     }
+                //     }a
                 // }
                 // Only draw the face if mouse is inside the triangle
                 model_draw_face(
@@ -379,7 +452,6 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
 
     // Unlock the texture so that it may be used elsewhere
     SDL_UnlockTexture(renderer->texture);
-
     // Calculate destination rectangle to scale the texture to the current drawable size
     SDL_Rect dst_rect;
     dst_rect.x = 0;
@@ -412,8 +484,9 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
     }
 
     SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
-
     SDL_FreeSurface(surface);
+
+    render_imgui(renderer, game);
 
     SDL_RenderPresent(renderer->renderer);
 }

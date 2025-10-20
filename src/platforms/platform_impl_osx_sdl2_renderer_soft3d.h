@@ -23,6 +23,8 @@ struct Renderer
     struct SceneOp* ops;
     int op_count;
     int op_capacity;
+
+    float time_delta_accumulator;
 };
 
 struct Renderer* PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height);

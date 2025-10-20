@@ -1,6 +1,8 @@
 #ifndef LIBINPUT_H
 #define LIBINPUT_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,6 +36,8 @@ struct GameInput
 
     int comma_pressed;
     int period_pressed;
+
+    double time_delta_accumulator_seconds;
 };
 
 struct GameInput* GameInput_New(void);

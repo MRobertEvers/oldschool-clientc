@@ -46,6 +46,8 @@ PlatformImpl_OSX_SDL2_InitForSoft3D(struct Platform* platform, int screen_width,
         return false;
     }
 
+    platform->last_frame_time_ticks = SDL_GetTicks64();
+
     return true;
 }
 
@@ -58,6 +60,11 @@ PlatformImpl_OSX_SDL2_Shutdown(struct Platform* platform)
 void
 PlatformImpl_OSX_SDL2_PollEvents(struct Platform* platform, struct GameInput* input)
 {
+    uint64_t current_frame_time = SDL_GetTicks64();
+    input->time_delta_accumulator_seconds +=
+        (double)(current_frame_time - platform->last_frame_time_ticks) / 1000.0f;
+    platform->last_frame_time_ticks = current_frame_time;
+
     SDL_Event event;
     while( SDL_PollEvent(&event) )
     {

@@ -86,7 +86,7 @@ game_new(int flags, struct GameGfxOpList* gfx_op_list)
     game->camera_roll = 0;
     game->camera_fov = 512;
     game->camera_world_x = 0;
-    game->camera_world_y = -50;
+    game->camera_world_y = -500;
     game->camera_world_z = -500;
 
     game->camera_movement_speed = 20;
@@ -165,60 +165,81 @@ game_step_main_loop(struct Game* game, struct GameInput* input, struct GameGfxOp
 {
     game_gfx_op_list_reset(gfx_op_list);
 
-    if( input->w_pressed )
+    const int target_input_fps = 50;
+    const float time_delta_step = 1.0f / target_input_fps;
+
+    int time_quanta = 0;
+    while( input->time_delta_accumulator_seconds > time_delta_step )
     {
-        game->camera_world_x -= (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-        game->camera_world_z += (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        time_quanta++;
+        input->time_delta_accumulator_seconds -= time_delta_step;
     }
 
-    if( input->s_pressed )
+    for( int i = 0; i < time_quanta; i++ )
     {
-        game->camera_world_x += (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-        game->camera_world_z -= (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-    }
+        if( input->w_pressed )
+        {
+            game->camera_world_x -=
+                (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+            game->camera_world_z +=
+                (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        }
 
-    if( input->a_pressed )
-    {
-        game->camera_world_x -= (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-        game->camera_world_z -= (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-    }
+        if( input->s_pressed )
+        {
+            game->camera_world_x +=
+                (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+            game->camera_world_z -=
+                (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        }
 
-    if( input->d_pressed )
-    {
-        game->camera_world_x += (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-        game->camera_world_z += (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
-    }
+        if( input->a_pressed )
+        {
+            game->camera_world_x -=
+                (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+            game->camera_world_z -=
+                (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        }
 
-    if( input->r_pressed )
-    {
-        game->camera_world_y -= game->camera_movement_speed;
-    }
-    if( input->f_pressed )
-    {
-        game->camera_world_y += game->camera_movement_speed;
-    }
+        if( input->d_pressed )
+        {
+            game->camera_world_x +=
+                (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+            game->camera_world_z +=
+                (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+        }
 
-    if( input->up_pressed )
-    {
-        game->camera_pitch = (game->camera_pitch + game->camera_rotation_speed) % 2048;
-    }
-    if( input->down_pressed )
-    {
-        game->camera_pitch = (game->camera_pitch - game->camera_rotation_speed + 2048) % 2048;
-    }
+        if( input->r_pressed )
+        {
+            game->camera_world_y -= game->camera_movement_speed;
+        }
+        if( input->f_pressed )
+        {
+            game->camera_world_y += game->camera_movement_speed;
+        }
 
-    if( input->left_pressed )
-    {
-        game->camera_yaw = (game->camera_yaw + game->camera_rotation_speed) % 2048;
-    }
-    if( input->right_pressed )
-    {
-        game->camera_yaw = (game->camera_yaw - game->camera_rotation_speed + 2048) % 2048;
-    }
+        if( input->up_pressed )
+        {
+            game->camera_pitch = (game->camera_pitch + game->camera_rotation_speed) % 2048;
+        }
+        if( input->down_pressed )
+        {
+            game->camera_pitch = (game->camera_pitch - game->camera_rotation_speed + 2048) % 2048;
+        }
 
-    if( input->quit )
-    {
-        game->running = false;
+        if( input->left_pressed )
+        {
+            game->camera_yaw = (game->camera_yaw + game->camera_rotation_speed) % 2048;
+        }
+        if( input->right_pressed )
+        {
+            game->camera_yaw = (game->camera_yaw - game->camera_rotation_speed + 2048) % 2048;
+        }
+
+        if( input->quit )
+        {
+            game->running = false;
+        }
     }
 
     struct GameGfxOp gfx_op = {

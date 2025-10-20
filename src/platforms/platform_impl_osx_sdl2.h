@@ -5,6 +5,7 @@
 
 #include <SDL.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -18,6 +19,8 @@ struct Platform
     int window_height;
     int drawable_width;
     int drawable_height;
+
+    uint64_t last_frame_time_ticks;
 };
 
 struct Platform* PlatformImpl_OSX_SDL2_New(void);
