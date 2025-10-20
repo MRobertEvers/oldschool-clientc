@@ -7,6 +7,7 @@ extern "C" {
 #include "graphics/render.h"
 #include "libgame.h"
 #include "libgame.u.h"
+#include "osrs/pix3dgl.h"
 }
 
 #include <stdbool.h>
@@ -26,6 +27,8 @@ struct Renderer
     int op_capacity;
 
     float time_delta_accumulator;
+
+    struct Pix3DGL* pix3dgl;
 };
 
 struct Renderer* PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height);

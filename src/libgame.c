@@ -163,8 +163,6 @@ game_free(struct Game* game)
 void
 game_step_main_loop(struct Game* game, struct GameInput* input, struct GameGfxOpList* gfx_op_list)
 {
-    game_gfx_op_list_reset(gfx_op_list);
-
     const int target_input_fps = 50;
     const float time_delta_step = 1.0f / target_input_fps;
 

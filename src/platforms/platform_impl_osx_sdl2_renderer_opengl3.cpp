@@ -8,6 +8,10 @@ extern "C" {
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
 
+// Use regular OpenGL headers on macOS/iOS for development
+#include <OpenGL/gl.h>
+#include <OpenGL/gl3.h>
+
 #include <SDL.h>
 #include <stdio.h>
 
@@ -102,65 +106,76 @@ render_scene(struct Renderer* renderer, struct Game* game)
     struct IterRenderModel iter_render_model;
     struct SceneModel* scene_model = NULL;
 
-    renderer->op_count = render_scene_compute_ops(
-        renderer->ops,
-        renderer->op_capacity,
+    pix3dgl_render_with_camera(
+        renderer->pix3dgl,
         game->camera_world_x,
         game->camera_world_y,
         game->camera_world_z,
-        game->scene,
-        NULL);
-
-    iter_render_scene_ops_init(
-        &iter_render_scene_ops,
-        game->frustrum_cullmap,
-        game->scene,
-        renderer->ops,
-        renderer->op_count,
-        renderer->op_count,
         game->camera_pitch,
         game->camera_yaw,
-        game->camera_world_x / 128,
-        game->camera_world_z / 128);
+        renderer->width,
+        renderer->height);
 
-    while( iter_render_scene_ops_next(&iter_render_scene_ops) )
-    {
-        if( iter_render_scene_ops.value.tile_nullable_ )
-        {
-        }
+    // renderer->op_count = render_scene_compute_ops(
+    //     renderer->ops,
+    //     renderer->op_capacity,
+    //     game->camera_world_x,
+    //     game->camera_world_y,
+    //     game->camera_world_z,
+    //     game->scene,
+    //     NULL);
 
-        if( iter_render_scene_ops.value.model_nullable_ )
-        {
-            scene_model = iter_render_scene_ops.value.model_nullable_;
-            if( !scene_model->model )
-                continue;
+    // iter_render_scene_ops_init(
+    //     &iter_render_scene_ops,
+    //     game->frustrum_cullmap,
+    //     game->scene,
+    //     renderer->ops,
+    //     renderer->op_count,
+    //     renderer->op_count,
+    //     game->camera_pitch,
+    //     game->camera_yaw,
+    //     game->camera_world_x / 128,
+    //     game->camera_world_z / 128);
 
-            int yaw_adjust = 0;
-            iter_render_model_init(
-                &iter_render_model,
-                scene_model,
-                // TODO: For wall decor, this should probably be set on the model->yaw rather than
-                // on the op.
-                yaw_adjust,
-                game->camera_world_x,
-                game->camera_world_y,
-                game->camera_world_z,
-                game->camera_pitch,
-                game->camera_yaw,
-                game->camera_roll,
-                game->camera_fov,
-                renderer->width,
-                renderer->height,
-                50);
-            int model_intersected = 0;
-            while( iter_render_model_next(&iter_render_model) )
-            {
-                int face = iter_render_model.value_face;
+    // while( iter_render_scene_ops_next(&iter_render_scene_ops) )
+    // {
+    //     if( iter_render_scene_ops.value.tile_nullable_ )
+    //     {
+    //     }
 
-                // Issue face draw commands
-            }
-        }
-    }
+    //     if( iter_render_scene_ops.value.model_nullable_ )
+    //     {
+    //         scene_model = iter_render_scene_ops.value.model_nullable_;
+    //         if( !scene_model->model )
+    //             continue;
+
+    //         int yaw_adjust = 0;
+    //         iter_render_model_init(
+    //             &iter_render_model,
+    //             scene_model,
+    //             // TODO: For wall decor, this should probably be set on the model->yaw rather
+    //             than
+    //             // on the op.
+    //             yaw_adjust,
+    //             game->camera_world_x,
+    //             game->camera_world_y,
+    //             game->camera_world_z,
+    //             game->camera_pitch,
+    //             game->camera_yaw,
+    //             game->camera_roll,
+    //             game->camera_fov,
+    //             renderer->width,
+    //             renderer->height,
+    //             50);
+    //         int model_intersected = 0;
+    //         while( iter_render_model_next(&iter_render_model) )
+    //         {
+    //             int face = iter_render_model.value_face;
+
+    //             // Issue face draw commands
+    //         }
+    //     }
+    // }
 }
 
 struct Renderer*
@@ -224,6 +239,8 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(struct Renderer* renderer, struct Pl
     }
     ImGui_ImplOpenGL3_Init("#version 150"); // OpenGL 3.2 Core for native builds
 
+    renderer->pix3dgl = pix3dgl_new();
+
     return true;
 }
 
@@ -237,6 +254,13 @@ void
 PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
     struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glDisable(GL_DEPTH_TEST);
+
+    glDisable(GL_CULL_FACE);
+
     for( int i = 0; i < gfx_op_list->op_count; i++ )
     {
         struct GameGfxOp* gfx_op = &gfx_op_list->ops[i];
@@ -246,8 +270,25 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
             render_scene(renderer, game);
             break;
         case GAME_GFX_OP_SCENE_MODEL_LOAD:
-            // Noop
-            break;
+        {
+            struct SceneModel* scene_model =
+                &game->scene->models[gfx_op->_scene_model_load.scene_model_idx];
+            pix3dgl_model_load(
+                renderer->pix3dgl,
+                gfx_op->_scene_model_load.scene_model_idx,
+                scene_model->model->vertices_x,
+                scene_model->model->vertices_y,
+                scene_model->model->vertices_z,
+                scene_model->model->face_indices_a,
+                scene_model->model->face_indices_b,
+                scene_model->model->face_indices_c,
+                scene_model->model->face_count,
+                scene_model->model->face_alphas,
+                scene_model->lighting->face_colors_hsl_a,
+                scene_model->lighting->face_colors_hsl_b,
+                scene_model->lighting->face_colors_hsl_c);
+        }
+        break;
         case GAME_GFX_OP_SCENE_MODEL_UNLOAD:
             // Noop
             break;
@@ -265,4 +306,6 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
     {
         SDL_GL_SwapWindow(renderer->platform->window);
     }
+
+    game_gfx_op_list_reset(gfx_op_list);
 }
