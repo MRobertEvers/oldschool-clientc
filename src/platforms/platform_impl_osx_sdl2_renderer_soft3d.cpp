@@ -124,7 +124,8 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(struct Renderer* renderer)
 }
 
 void
-PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(struct Renderer* renderer, struct Game* game)
+PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
+    struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
     memset(renderer->pixel_buffer, 0, renderer->width * renderer->height * sizeof(int));
     SDL_RenderClear(renderer->renderer);

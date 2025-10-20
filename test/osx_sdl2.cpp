@@ -49,6 +49,13 @@ main(int argc, char* argv[])
         return 1;
     }
 
+    struct GameGfxOpList* gfx_op_list = game_gfx_op_list_new(1024);
+    if( !gfx_op_list )
+    {
+        printf("Failed to create gfx op list\n");
+        return 1;
+    }
+
     struct GameInput* input = GameInput_New();
     if( !input )
     {
@@ -62,10 +69,17 @@ main(int argc, char* argv[])
 
         game_process_input(game, input);
 
-        game_step_main_loop(game);
+        game_step_main_loop(game, gfx_op_list);
 
-        PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(renderer, game);
+        PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, gfx_op_list);
     }
+
+    PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(renderer);
+    PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(renderer);
+    PlatformImpl_OSX_SDL2_Shutdown(platform);
+    PlatformImpl_OSX_SDL2_Free(platform);
+    game_free(game);
+    GameInput_Free(input);
 
     return 0;
 }

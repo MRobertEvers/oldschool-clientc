@@ -29,6 +29,7 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Init(struct Renderer* renderer, struct Pla
 
 void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(struct Renderer* renderer);
 
-void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(struct Renderer* renderer, struct Game* game);
+void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
+    struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list);
 
 #endif

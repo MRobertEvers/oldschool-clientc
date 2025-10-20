@@ -21,6 +21,7 @@ struct Platform
 };
 
 struct Platform* PlatformImpl_OSX_SDL2_New(void);
+void PlatformImpl_OSX_SDL2_Free(struct Platform* platform);
 
 bool
 PlatformImpl_OSX_SDL2_InitForSoft3D(struct Platform* platform, int screen_width, int screen_height);

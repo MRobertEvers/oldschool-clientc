@@ -18,6 +18,12 @@ PlatformImpl_OSX_SDL2_New(void)
     return platform;
 }
 
+void
+PlatformImpl_OSX_SDL2_Free(struct Platform* platform)
+{
+    free(platform);
+}
+
 bool
 PlatformImpl_OSX_SDL2_InitForSoft3D(struct Platform* platform, int screen_width, int screen_height)
 {

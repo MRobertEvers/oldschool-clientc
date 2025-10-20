@@ -5,6 +5,37 @@
 #include "osrs/scene.h"
 #include "osrs/scene_cache.h"
 
+enum GameGfxOpType
+{
+    GAME_GFX_OP_TYPE_LOAD_SCENE_MODEL,
+    GAME_GFX_OP_TYPE_UNLOAD_SCENE_MODEL,
+};
+
+struct GameGfxOp
+{
+    enum GameGfxOpType type;
+    union
+    {
+        struct
+        {
+            int scene_model_idx;
+            int frame_id;
+        } _scene_model_load;
+        struct
+        {
+            int scene_model_idx;
+            int frame_id;
+        } _scene_model_unload;
+    };
+};
+
+struct GameGfxOpList
+{
+    struct GameGfxOp* ops;
+    int op_count;
+    int op_capacity;
+};
+
 struct Game
 {
     bool running;

@@ -14,6 +14,43 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct GameGfxOpList*
+game_gfx_op_list_new(int capacity_hint)
+{
+    struct GameGfxOpList* list = (struct GameGfxOpList*)malloc(sizeof(struct GameGfxOpList));
+    list->ops = (struct GameGfxOp*)malloc(capacity_hint * sizeof(struct GameGfxOp));
+    list->op_count = 0;
+    list->op_capacity = capacity_hint;
+    return list;
+}
+
+void
+game_gfx_op_list_free(struct GameGfxOpList* list)
+{
+    free(list->ops);
+    free(list);
+}
+
+void
+game_gfx_op_list_reset(struct GameGfxOpList* list)
+{
+    list->op_count = 0;
+}
+
+int
+game_gfx_op_list_push(struct GameGfxOpList* list, struct GameGfxOp* op)
+{
+    if( list->op_count >= list->op_capacity )
+    {
+        list->op_capacity *= 2;
+        list->ops =
+            (struct GameGfxOp*)realloc(list->ops, list->op_capacity * sizeof(struct GameGfxOp));
+    }
+    memcpy(&list->ops[list->op_count], op, sizeof(struct GameGfxOp));
+    list->op_count++;
+    return 0;
+}
+
 struct Game*
 game_new(void)
 {
@@ -166,7 +203,7 @@ game_process_input(struct Game* game, struct GameInput* input)
 }
 
 void
-game_step_main_loop(struct Game* game)
+game_step_main_loop(struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
     return;
 }
