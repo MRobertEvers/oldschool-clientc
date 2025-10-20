@@ -5,15 +5,17 @@
 #include "osrs/scene.h"
 #include "osrs/scene_cache.h"
 
-enum GameGfxOpType
+enum GameGfxOpKind
 {
-    GAME_GFX_OP_TYPE_LOAD_SCENE_MODEL,
-    GAME_GFX_OP_TYPE_UNLOAD_SCENE_MODEL,
+    GAME_GFX_OP_SCENE_MODEL_LOAD,
+    GAME_GFX_OP_SCENE_MODEL_UNLOAD,
+    GAME_GFX_OP_SCENE_MODEL_DRAW,
+    GAME_GFX_OP_SCENE_DRAW,
 };
 
 struct GameGfxOp
 {
-    enum GameGfxOpType type;
+    enum GameGfxOpKind kind;
     union
     {
         struct
@@ -26,6 +28,12 @@ struct GameGfxOp
             int scene_model_idx;
             int frame_id;
         } _scene_model_unload;
+
+        struct
+        {
+            int scene_model_idx;
+            int frame_id;
+        } _scene_model_draw;
     };
 };
 
@@ -53,7 +61,7 @@ struct Game
 
     struct Cache* cache;
 
-    struct SceneModel* scene_model;
+    struct Scene* scene;
 
     struct TexturesCache* textures_cache;
 };

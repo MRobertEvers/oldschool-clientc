@@ -17,11 +17,8 @@ struct Game* game_new(void);
 
 void game_free(struct Game* game);
 
-bool game_init(struct Game* game);
-
-void game_process_input(struct Game* game, struct GameInput* input);
-
-void game_step_main_loop(struct Game* game, struct GameGfxOpList* gfx_op_list);
+void
+game_step_main_loop(struct Game* game, struct GameInput* input, struct GameGfxOpList* out_commands);
 
 bool game_is_running(struct Game* game);
 

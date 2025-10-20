@@ -73,18 +73,6 @@ game_new(void)
     game->cache = NULL;
     game->scene_model = NULL;
 
-    return game;
-}
-
-void
-game_free(struct Game* game)
-{
-    free(game);
-}
-
-bool
-game_init(struct Game* game)
-{
     init_hsl16_to_rgb_table();
     init_sin_table();
     init_cos_table();
@@ -117,31 +105,40 @@ game_init(struct Game* game)
      * Init
      *
      */
-    struct ModelCache* model_cache = NULL;
-    struct CacheModel* model = NULL;
-    model_cache = model_cache_new();
+    // struct ModelCache* model_cache = NULL;
+    // struct CacheModel* model = NULL;
+    // model_cache = model_cache_new();
 
-    model = model_cache_checkout(model_cache, cache, 14816);
-    game->scene_model = scene_model_new_lit_from_model(model, 0);
+    // model = model_cache_checkout(model_cache, cache, 14816);
 
-    game->textures_cache = textures_cache_new(cache);
+    game->scene = scene_new_from_map(cache, 50, 50);
 
-    if( !game->scene_model->bounds_cylinder )
-    {
-        game->scene_model->bounds_cylinder =
-            (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
-        *game->scene_model->bounds_cylinder = calculate_bounds_cylinder(
-            game->scene_model->model->vertex_count,
-            game->scene_model->model->vertices_x,
-            game->scene_model->model->vertices_y,
-            game->scene_model->model->vertices_z);
-    }
+    // game->scene_model = scene_model_new_lit_from_model(model, 0);
 
-    return true;
+    // game->textures_cache = textures_cache_new(cache);
+
+    // if( !game->scene_model->bounds_cylinder )
+    // {
+    //     game->scene_model->bounds_cylinder =
+    //         (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
+    //     *game->scene_model->bounds_cylinder = calculate_bounds_cylinder(
+    //         game->scene_model->model->vertex_count,
+    //         game->scene_model->model->vertices_x,
+    //         game->scene_model->model->vertices_y,
+    //         game->scene_model->model->vertices_z);
+    // }
+
+    return game;
 }
 
 void
-game_process_input(struct Game* game, struct GameInput* input)
+game_free(struct Game* game)
+{
+    free(game);
+}
+
+void
+game_step_main_loop(struct Game* game, struct GameInput* input, struct GameGfxOpList* gfx_op_list)
 {
     if( input->w_pressed )
     {
@@ -199,12 +196,6 @@ game_process_input(struct Game* game, struct GameInput* input)
         game->running = false;
     }
 
-    return;
-}
-
-void
-game_step_main_loop(struct Game* game, struct GameGfxOpList* gfx_op_list)
-{
     return;
 }
 

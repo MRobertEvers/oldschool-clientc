@@ -1330,3 +1330,11 @@ At Startup:
 
 Loading an archive
 
+
+
+## For each target
+
+1. Platform Harness (E.g. android or main.mm)
+2. Platform Init (Select Platform Layer Abstraction)
+3. Platform Asset (Socket connection etc.)
+4. Platform Render (Paired with Platform Layer Abstraction)
