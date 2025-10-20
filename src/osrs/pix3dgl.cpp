@@ -417,9 +417,21 @@ pix3dgl_model_load_textured_pnm(
         int hsl_b = face_colors_b[face];
         int hsl_c = face_colors_c[face];
 
-        int rgb_a = g_hsl16_to_rgb_table[hsl_a];
-        int rgb_b = g_hsl16_to_rgb_table[hsl_b];
-        int rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        // Check if this is flat shading (face_colors_c == -1)
+        // If so, use face_colors_a for all three vertices
+        int rgb_a, rgb_b, rgb_c;
+        if( hsl_c == -1 )
+        {
+            // Flat shading - all vertices use the same color
+            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
+        }
+        else
+        {
+            // Gouraud shading - each vertex has its own color
+            rgb_a = g_hsl16_to_rgb_table[hsl_a];
+            rgb_b = g_hsl16_to_rgb_table[hsl_b];
+            rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        }
 
         // Store colors for this face's vertices
         colors[face * 9 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
@@ -684,10 +696,21 @@ pix3dgl_model_load(
         int hsl_b = face_colors_b[face];
         int hsl_c = face_colors_c[face];
 
-        // Convert HSL to RGB
-        int rgb_a = g_hsl16_to_rgb_table[hsl_a];
-        int rgb_b = g_hsl16_to_rgb_table[hsl_b];
-        int rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        // Check if this is flat shading (face_colors_c == -1)
+        // If so, use face_colors_a for all three vertices
+        int rgb_a, rgb_b, rgb_c;
+        if( hsl_c == -1 )
+        {
+            // Flat shading - all vertices use the same color
+            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
+        }
+        else
+        {
+            // Gouraud shading - each vertex has its own color
+            rgb_a = g_hsl16_to_rgb_table[hsl_a];
+            rgb_b = g_hsl16_to_rgb_table[hsl_b];
+            rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        }
 
         // Store colors for this face's vertices
         // First vertex color
