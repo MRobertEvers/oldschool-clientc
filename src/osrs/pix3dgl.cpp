@@ -292,7 +292,8 @@ struct GLModel
 
     int face_count;
     bool has_textures;
-    int first_texture_id; // First texture ID used by this model (for simple rendering)
+    int first_texture_id;           // First texture ID used by this model (for simple rendering)
+    std::vector<int> face_textures; // Texture ID per face (-1 = no texture, use Gouraud shading)
 };
 
 struct Pix3DGL
@@ -337,10 +338,14 @@ pix3dgl_model_load_textured_pnm(
     gl_model.has_textures = true;
     gl_model.first_texture_id = -1;
 
-    // Find the first valid texture ID
-    for( int face = 0; face < face_count && gl_model.first_texture_id == -1; face++ )
+    // Store face texture IDs for per-face texture/Gouraud switching
+    gl_model.face_textures.resize(face_count);
+    for( int face = 0; face < face_count; face++ )
     {
-        if( face_textures && face_textures[face] != -1 )
+        gl_model.face_textures[face] = face_textures ? face_textures[face] : -1;
+
+        // Find the first valid texture ID
+        if( face_textures && face_textures[face] != -1 && gl_model.first_texture_id == -1 )
         {
             gl_model.first_texture_id = face_textures[face];
         }
@@ -579,6 +584,9 @@ pix3dgl_model_load(
     gl_model.face_count = face_count;
     gl_model.has_textures = false;
     gl_model.first_texture_id = -1;
+
+    // All faces use Gouraud shading (no textures)
+    gl_model.face_textures.resize(face_count, -1);
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Create VAO on desktop platforms for better performance
@@ -1371,48 +1379,8 @@ pix3dgl_model_begin_draw(
         glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
     }
 
-    // Enable/disable texture based on model
-    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
-    if( model.has_textures && model.first_texture_id != -1 )
-    {
-        // Find the OpenGL texture ID for this texture
-        auto tex_it = pix3dgl->texture_ids.find(model.first_texture_id);
-        if( tex_it != pix3dgl->texture_ids.end() )
-        {
-            // Bind the texture
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, tex_it->second);
-
-            // Set the sampler to texture unit 0
-            GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
-            if( textureLoc >= 0 )
-            {
-                glUniform1i(textureLoc, 0);
-            }
-
-            // Enable texture usage
-            if( useTextureLoc >= 0 )
-            {
-                glUniform1i(useTextureLoc, 1);
-            }
-        }
-        else
-        {
-            // Texture not loaded, disable texturing
-            if( useTextureLoc >= 0 )
-            {
-                glUniform1i(useTextureLoc, 0);
-            }
-        }
-    }
-    else
-    {
-        // No textures, disable texturing
-        if( useTextureLoc >= 0 )
-        {
-            glUniform1i(useTextureLoc, 0);
-        }
-    }
+    // Note: Texture binding is now handled per-face in pix3dgl_model_draw_face_fast
+    // to support mixed textured/Gouraud faces within the same model
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Bind VAO once
@@ -1461,7 +1429,49 @@ pix3dgl_model_draw_face_fast(struct Pix3DGL* pix3dgl, int face_idx)
         return;
     }
 
-    // Just draw the face - all setup is already done
+    // Check if this face has a texture or uses Gouraud shading
+    int face_texture_id = model.face_textures[face_idx];
+    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
+
+    if( face_texture_id == -1 )
+    {
+        // No texture - use Gouraud shading (interpolated vertex colors)
+        if( useTextureLoc >= 0 )
+        {
+            glUniform1i(useTextureLoc, 0);
+        }
+    }
+    else
+    {
+        // Has texture - bind it and enable texture rendering
+        auto tex_it = pix3dgl->texture_ids.find(face_texture_id);
+        if( tex_it != pix3dgl->texture_ids.end() )
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, tex_it->second);
+
+            GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
+            if( textureLoc >= 0 )
+            {
+                glUniform1i(textureLoc, 0);
+            }
+
+            if( useTextureLoc >= 0 )
+            {
+                glUniform1i(useTextureLoc, 1);
+            }
+        }
+        else
+        {
+            // Texture not loaded, fall back to Gouraud shading
+            if( useTextureLoc >= 0 )
+            {
+                glUniform1i(useTextureLoc, 0);
+            }
+        }
+    }
+
+    // Draw the face
     glDrawArrays(GL_TRIANGLES, face_idx * 3, 3);
 }
 
