@@ -1179,6 +1179,148 @@ pix3dgl_model_draw(
 }
 
 extern "C" void
+pix3dgl_model_draw_face(
+    struct Pix3DGL* pix3dgl,
+    int model_idx,
+    int face_idx,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw)
+{
+    if( !pix3dgl || !pix3dgl->program_es2 )
+    {
+        printf("Pix3DGL not properly initialized\n");
+        return;
+    }
+
+    // Find the model
+    auto it = pix3dgl->models.find(model_idx);
+    if( it == pix3dgl->models.end() )
+    {
+        printf("Model %d not loaded\n", model_idx);
+        return;
+    }
+
+    GLModel& model = it->second;
+
+    // Validate face index
+    if( face_idx < 0 || face_idx >= model.face_count )
+    {
+        printf(
+            "Invalid face index %d for model %d (face_count=%d)\n",
+            face_idx,
+            model_idx,
+            model.face_count);
+        return;
+    }
+
+    // Create model transformation matrix (rotation around Y axis + translation)
+    float cos_yaw = cos(yaw);
+    float sin_yaw = sin(yaw);
+
+    // Model matrix: first rotate around Y axis, then translate
+    float modelMatrix[16] = { cos_yaw,    0.0f,       sin_yaw,    0.0f, 0.0f,    1.0f,
+                              0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
+                              position_x, position_y, position_z, 1.0f };
+
+    // Set model matrix uniform
+    GLint modelMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
+    if( modelMatrixLoc >= 0 )
+    {
+        glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
+    }
+
+    // Enable/disable texture based on model
+    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
+    if( model.has_textures && model.first_texture_id != -1 )
+    {
+        // Find the OpenGL texture ID for this texture
+        auto tex_it = pix3dgl->texture_ids.find(model.first_texture_id);
+        if( tex_it != pix3dgl->texture_ids.end() )
+        {
+            // Bind the texture
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, tex_it->second);
+
+            // Set the sampler to texture unit 0
+            GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
+            if( textureLoc >= 0 )
+            {
+                glUniform1i(textureLoc, 0);
+            }
+
+            // Enable texture usage
+            if( useTextureLoc >= 0 )
+            {
+                glUniform1i(useTextureLoc, 1);
+            }
+        }
+        else
+        {
+            // Texture not loaded, disable texturing
+            if( useTextureLoc >= 0 )
+            {
+                glUniform1i(useTextureLoc, 0);
+            }
+        }
+    }
+    else
+    {
+        // No textures, disable texturing
+        if( useTextureLoc >= 0 )
+        {
+            glUniform1i(useTextureLoc, 0);
+        }
+    }
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Desktop: Use VAO for better performance
+    glBindVertexArray(model.VAO);
+    // Draw only the specified face (3 vertices starting at face_idx * 3)
+    glDrawArrays(GL_TRIANGLES, face_idx * 3, 3);
+    glBindVertexArray(0);
+#else
+    // Mobile/WebGL: Manually set up vertex attributes each time
+    // Set up position attribute (location 0)
+    glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Set up color attribute (location 1)
+    glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+
+    // Set up texture coordinate attribute (location 2) if model has textures
+    if( model.has_textures )
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, model.texCoordVBO);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(2);
+    }
+
+    // Draw only the specified face (3 vertices starting at face_idx * 3)
+    glDrawArrays(GL_TRIANGLES, face_idx * 3, 3);
+
+    // Disable vertex attributes
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    if( model.has_textures )
+    {
+        glDisableVertexAttribArray(2);
+    }
+#endif
+
+    // Check for OpenGL errors
+    // GLenum error = glGetError();
+    // if( error != GL_NO_ERROR )
+    // {
+    //     printf("OpenGL error in pix3dgl_model_draw_face: 0x%x\n", error);
+    // }
+}
+
+extern "C" void
 pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
 {
     // Placeholder for any end-of-frame cleanup

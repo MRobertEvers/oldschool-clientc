@@ -66,6 +66,14 @@ void pix3dgl_model_draw(
     float position_y,
     float position_z,
     float yaw);
+void pix3dgl_model_draw_face(
+    struct Pix3DGL* pix3dgl,
+    int model_idx,
+    int face_idx,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw);
 void pix3dgl_begin_frame(
     struct Pix3DGL* pix3dgl,
     float camera_x,
