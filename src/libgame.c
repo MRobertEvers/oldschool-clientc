@@ -42,6 +42,7 @@ scenegfx_scene_load_map(
         {
             gfx_op.kind = GAME_GFX_OP_SCENE_TILE_LOAD;
             gfx_op._scene_tile_load.scene_tile_idx = i;
+            game_gfx_op_list_push(gfx_op_list, &gfx_op);
         }
     }
 }
