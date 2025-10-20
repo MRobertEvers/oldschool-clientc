@@ -342,12 +342,6 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
                 scene_tile->face_count,
                 scene_tile->valid_faces,
                 scene_tile->face_texture_ids,
-                scene_tile->face_texture_u_a,
-                scene_tile->face_texture_v_a,
-                scene_tile->face_texture_u_b,
-                scene_tile->face_texture_v_b,
-                scene_tile->face_texture_u_c,
-                scene_tile->face_texture_v_c,
                 scene_tile->face_color_hsl_a,
                 scene_tile->face_color_hsl_b,
                 scene_tile->face_color_hsl_c);

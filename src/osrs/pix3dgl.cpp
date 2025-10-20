@@ -1600,12 +1600,6 @@ pix3dgl_tile_load(
     int face_count,
     int* valid_faces,
     int* face_texture_ids,
-    int* face_texture_u_a,
-    int* face_texture_v_a,
-    int* face_texture_u_b,
-    int* face_texture_v_b,
-    int* face_texture_u_c,
-    int* face_texture_v_c,
     int* face_color_hsl_a,
     int* face_color_hsl_b,
     int* face_color_hsl_c)
@@ -1692,21 +1686,77 @@ pix3dgl_tile_load(
         colors[face * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
         colors[face * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
 
-        // Store texture coordinates (tiles use direct UV coordinates)
+        // Compute UV coordinates using PNM method (like models)
         if( face_texture_ids && face_texture_ids[face] != -1 )
         {
-            texCoords[face * 6 + 0] = face_texture_u_a[face] / 128.0f;
-            texCoords[face * 6 + 1] = face_texture_v_a[face] / 128.0f;
+            // For tiles, PNM vertices are fixed at specific corners:
+            // P (tp_vertex) = 0 (SW corner)
+            // M (tm_vertex) = 1 (NW corner)
+            // N (tn_vertex) = 3 (SE corner)
+            int tp_vertex = 0;
+            int tm_vertex = 1;
+            int tn_vertex = 3;
 
-            texCoords[face * 6 + 2] = face_texture_u_b[face] / 128.0f;
-            texCoords[face * 6 + 3] = face_texture_v_b[face] / 128.0f;
+            // Get the PNM triangle vertices that define texture space
+            float p_x = vertex_x[tp_vertex];
+            float p_y = vertex_y[tp_vertex];
+            float p_z = vertex_z[tp_vertex];
 
-            texCoords[face * 6 + 4] = face_texture_u_c[face] / 128.0f;
-            texCoords[face * 6 + 5] = face_texture_v_c[face] / 128.0f;
+            float m_x = vertex_x[tm_vertex];
+            float m_y = vertex_y[tm_vertex];
+            float m_z = vertex_z[tm_vertex];
+
+            float n_x = vertex_x[tn_vertex];
+            float n_y = vertex_y[tn_vertex];
+            float n_z = vertex_z[tn_vertex];
+
+            // Get the actual face vertices (A, B, C) for UV computation
+            float a_x = vertex_x[v_a];
+            float a_y = vertex_y[v_a];
+            float a_z = vertex_z[v_a];
+
+            float b_x = vertex_x[v_b];
+            float b_y = vertex_y[v_b];
+            float b_z = vertex_z[v_b];
+
+            float c_x = vertex_x[v_c];
+            float c_y = vertex_y[v_c];
+            float c_z = vertex_z[v_c];
+
+            // Compute UV coordinates
+            struct UVFaceCoords uv_pnm;
+            uv_pnm_compute(
+                &uv_pnm,
+                p_x,
+                p_y,
+                p_z,
+                m_x,
+                m_y,
+                m_z,
+                n_x,
+                n_y,
+                n_z,
+                a_x,
+                a_y,
+                a_z,
+                b_x,
+                b_y,
+                b_z,
+                c_x,
+                c_y,
+                c_z);
+
+            // Store UV coordinates
+            texCoords[face * 6 + 0] = uv_pnm.u1;
+            texCoords[face * 6 + 1] = uv_pnm.v1;
+            texCoords[face * 6 + 2] = uv_pnm.u2;
+            texCoords[face * 6 + 3] = uv_pnm.v2;
+            texCoords[face * 6 + 4] = uv_pnm.u3;
+            texCoords[face * 6 + 5] = uv_pnm.v3;
         }
         else
         {
-            // Default UVs
+            // Default UVs for non-textured faces
             texCoords[face * 6 + 0] = 0.0f;
             texCoords[face * 6 + 1] = 0.0f;
             texCoords[face * 6 + 2] = 1.0f;

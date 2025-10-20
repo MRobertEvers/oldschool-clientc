@@ -96,12 +96,6 @@ void pix3dgl_tile_load(
     int face_count,
     int* valid_faces,
     int* face_texture_ids,
-    int* face_texture_u_a,
-    int* face_texture_v_a,
-    int* face_texture_u_b,
-    int* face_texture_v_b,
-    int* face_texture_u_c,
-    int* face_texture_v_c,
     int* face_color_hsl_a,
     int* face_color_hsl_b,
     int* face_color_hsl_c);
