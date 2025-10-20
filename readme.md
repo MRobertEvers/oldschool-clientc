@@ -57,13 +57,13 @@ emmake make
 For linux, install bzip
 
 ```
-sudo apt-get update && sudo apt-get install -y libbz2-dev
+sudo apt-get update
 
 # GCC
 sudo apt install build-essential
 
-# FreeType
-sudo apt install libfreetype6-dev
+# FreeType, SDL2
+sudo apt install libfreetype6-dev libsdl2-dev
 ```
 
 ### Setup
