@@ -42,6 +42,7 @@ uniform vec3 uCameraPos;   // camera position
 uniform float uScreenWidth;
 uniform float uScreenHeight;
 uniform mat4 uTextureMatrix;  // Optional texture coordinate transform
+uniform mat4 uModelMatrix;    // Per-model transformation
 
 out vec3 vColor;
 out vec2 vTexCoord;
@@ -92,6 +93,9 @@ mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
 }
 
 void main() {
+    // Apply model transformation first, then view transformation
+    vec4 worldPos = uModelMatrix * vec4(aPos, 1.0);
+    
     // Create view matrix with camera transformations
     mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
     
@@ -99,7 +103,7 @@ void main() {
     mat4 projection = createProjectionMatrix(radians(90.0), uScreenWidth, uScreenHeight);
     
     // Transform vertex position
-    vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
+    vec4 viewPos = viewMatrix * worldPos;
     
     // Pass through the color
     vColor = aColor;
@@ -166,6 +170,7 @@ const char* g_vertex_shader_es2 = R"(
     uniform float uScreenWidth;
     uniform float uScreenHeight;
     uniform mat4 uTextureMatrix;  // Optional texture coordinate transform
+    uniform mat4 uModelMatrix;    // Per-model transformation
     
     varying vec3 vColor;
     varying vec2 vTexCoord;  // Pass UV coordinates to fragment shader
@@ -216,6 +221,9 @@ const char* g_vertex_shader_es2 = R"(
     }
     
     void main() {
+        // Apply model transformation first, then view transformation
+        vec4 worldPos = uModelMatrix * vec4(aPos, 1.0);
+        
         // Create view matrix with camera transformations
         mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
         
@@ -223,7 +231,7 @@ const char* g_vertex_shader_es2 = R"(
         mat4 projection = createProjectionMatrix(radians(90.0), uScreenWidth, uScreenHeight);
         
         // Transform vertex position
-        vec4 viewPos = viewMatrix * vec4(aPos, 1.0);
+        vec4 viewPos = viewMatrix * worldPos;
         
         // Pass through the color
         vColor = aColor;
@@ -714,6 +722,143 @@ pix3dgl_render(struct Pix3DGL* pix3dgl)
 {
     // Default camera parameters for backward compatibility
     pix3dgl_render_with_camera(pix3dgl, 0.0f, -120.0f, -1100.0f, 0.1f, 0.0f, 800.0f, 600.0f);
+}
+
+extern "C" void
+pix3dgl_begin_frame(
+    struct Pix3DGL* pix3dgl,
+    float camera_x,
+    float camera_y,
+    float camera_z,
+    float camera_pitch,
+    float camera_yaw,
+    float screen_width,
+    float screen_height)
+{
+    if( !pix3dgl || !pix3dgl->program_es2 )
+    {
+        printf("Pix3DGL not properly initialized\n");
+        return;
+    }
+
+    // Use our shader program
+    glUseProgram(pix3dgl->program_es2);
+
+    // Set viewport
+    glViewport(0, 0, (GLsizei)screen_width, (GLsizei)screen_height);
+
+    // Convert camera angles from game units to radians
+    // Game uses 2048 units per full rotation (2π radians)
+    float pitch_radians = (camera_pitch * 2.0f * M_PI) / 2048.0f;
+    float yaw_radians = (camera_yaw * 2.0f * M_PI) / 2048.0f;
+
+    // Set up uniforms with actual camera parameters
+    GLint rotationXLoc = glGetUniformLocation(pix3dgl->program_es2, "uRotationX");
+    GLint rotationYLoc = glGetUniformLocation(pix3dgl->program_es2, "uRotationY");
+    GLint screenWidthLoc = glGetUniformLocation(pix3dgl->program_es2, "uScreenWidth");
+    GLint screenHeightLoc = glGetUniformLocation(pix3dgl->program_es2, "uScreenHeight");
+    GLint cameraPosLoc = glGetUniformLocation(pix3dgl->program_es2, "uCameraPos");
+
+    if( rotationXLoc >= 0 )
+        glUniform1f(rotationXLoc, pitch_radians);
+    if( rotationYLoc >= 0 )
+        glUniform1f(rotationYLoc, yaw_radians);
+    if( screenWidthLoc >= 0 )
+        glUniform1f(screenWidthLoc, screen_width);
+    if( screenHeightLoc >= 0 )
+        glUniform1f(screenHeightLoc, screen_height);
+    if( cameraPosLoc >= 0 )
+        glUniform3f(cameraPosLoc, camera_x, camera_y, camera_z);
+
+    // Set identity matrix for texture coordinates
+    GLint textureMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uTextureMatrix");
+    if( textureMatrixLoc >= 0 )
+    {
+        float identity[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                               0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+        glUniformMatrix4fv(textureMatrixLoc, 1, GL_FALSE, identity);
+    }
+}
+
+extern "C" void
+pix3dgl_model_draw(
+    struct Pix3DGL* pix3dgl,
+    int model_idx,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw)
+{
+    if( !pix3dgl || !pix3dgl->program_es2 )
+    {
+        printf("Pix3DGL not properly initialized\n");
+        return;
+    }
+
+    // Find the model
+    auto it = pix3dgl->models.find(model_idx);
+    if( it == pix3dgl->models.end() )
+    {
+        printf("Model %d not loaded\n", model_idx);
+        return;
+    }
+
+    GLModel& model = it->second;
+
+    // Create model transformation matrix (rotation around Y axis + translation)
+    float cos_yaw = cos(yaw);
+    float sin_yaw = sin(yaw);
+
+    // Model matrix: first rotate around Y axis, then translate
+    float modelMatrix[16] = { cos_yaw,    0.0f,       sin_yaw,    0.0f, 0.0f,    1.0f,
+                              0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
+                              position_x, position_y, position_z, 1.0f };
+
+    // Set model matrix uniform
+    GLint modelMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
+    if( modelMatrixLoc >= 0 )
+    {
+        glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
+    }
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Desktop: Use VAO for better performance
+    glBindVertexArray(model.VAO);
+    glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
+    glBindVertexArray(0);
+#else
+    // Mobile/WebGL: Manually set up vertex attributes each time
+    // Set up position attribute (location 0)
+    glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Set up color attribute (location 1)
+    glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+
+    // Draw the model (render all triangles)
+    glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
+
+    // Disable vertex attributes
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+#endif
+
+    // Check for OpenGL errors
+    GLenum error = glGetError();
+    if( error != GL_NO_ERROR )
+    {
+        printf("OpenGL error in pix3dgl_model_draw: 0x%x\n", error);
+    }
+}
+
+extern "C" void
+pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
+{
+    // Placeholder for any end-of-frame cleanup
+    // Currently nothing to do here
 }
 
 extern "C" void

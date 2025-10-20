@@ -15,6 +15,10 @@ extern "C" {
 #include <SDL.h>
 #include <stdio.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 static int g_screen_vertices_x[20];
 static int g_screen_vertices_y[20];
 static int g_screen_vertices_z[20];
@@ -102,11 +106,8 @@ render_imgui(struct Renderer* renderer, struct Game* game)
 static void
 render_scene(struct Renderer* renderer, struct Game* game)
 {
-    struct IterRenderSceneOps iter_render_scene_ops;
-    struct IterRenderModel iter_render_model;
-    struct SceneModel* scene_model = NULL;
-
-    pix3dgl_render_with_camera(
+    // Begin frame with camera setup
+    pix3dgl_begin_frame(
         renderer->pix3dgl,
         game->camera_world_x,
         game->camera_world_y,
@@ -116,66 +117,27 @@ render_scene(struct Renderer* renderer, struct Game* game)
         renderer->width,
         renderer->height);
 
-    // renderer->op_count = render_scene_compute_ops(
-    //     renderer->ops,
-    //     renderer->op_capacity,
-    //     game->camera_world_x,
-    //     game->camera_world_y,
-    //     game->camera_world_z,
-    //     game->scene,
-    //     NULL);
+    // Draw all scene models at their correct positions
+    for( int i = 0; i < game->scene->models_length; i++ )
+    {
+        struct SceneModel* scene_model = &game->scene->models[i];
+        if( !scene_model->model )
+            continue;
 
-    // iter_render_scene_ops_init(
-    //     &iter_render_scene_ops,
-    //     game->frustrum_cullmap,
-    //     game->scene,
-    //     renderer->ops,
-    //     renderer->op_count,
-    //     renderer->op_count,
-    //     game->camera_pitch,
-    //     game->camera_yaw,
-    //     game->camera_world_x / 128,
-    //     game->camera_world_z / 128);
+        // Calculate world position from region coordinates
+        float position_x = scene_model->region_x + scene_model->offset_x;
+        float position_y = scene_model->region_height + scene_model->offset_height;
+        float position_z = scene_model->region_z + scene_model->offset_z;
 
-    // while( iter_render_scene_ops_next(&iter_render_scene_ops) )
-    // {
-    //     if( iter_render_scene_ops.value.tile_nullable_ )
-    //     {
-    //     }
+        // Convert yaw from game units to radians
+        // Game uses 2048 units per full rotation (2π radians)
+        float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
 
-    //     if( iter_render_scene_ops.value.model_nullable_ )
-    //     {
-    //         scene_model = iter_render_scene_ops.value.model_nullable_;
-    //         if( !scene_model->model )
-    //             continue;
+        // Draw the model
+        pix3dgl_model_draw(renderer->pix3dgl, i, position_x, position_y, position_z, yaw_radians);
+    }
 
-    //         int yaw_adjust = 0;
-    //         iter_render_model_init(
-    //             &iter_render_model,
-    //             scene_model,
-    //             // TODO: For wall decor, this should probably be set on the model->yaw rather
-    //             than
-    //             // on the op.
-    //             yaw_adjust,
-    //             game->camera_world_x,
-    //             game->camera_world_y,
-    //             game->camera_world_z,
-    //             game->camera_pitch,
-    //             game->camera_yaw,
-    //             game->camera_roll,
-    //             game->camera_fov,
-    //             renderer->width,
-    //             renderer->height,
-    //             50);
-    //         int model_intersected = 0;
-    //         while( iter_render_model_next(&iter_render_model) )
-    //         {
-    //             int face = iter_render_model.value_face;
-
-    //             // Issue face draw commands
-    //         }
-    //     }
-    // }
+    pix3dgl_end_frame(renderer->pix3dgl);
 }
 
 struct Renderer*
@@ -293,8 +255,30 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
             // Noop
             break;
         case GAME_GFX_OP_SCENE_MODEL_DRAW:
-            // TODO:
-            break;
+        {
+            struct SceneModel* scene_model =
+                &game->scene->models[gfx_op->_scene_model_draw.scene_model_idx];
+            if( !scene_model->model )
+                break;
+
+            // Calculate world position from region coordinates
+            float position_x = scene_model->region_x + scene_model->offset_x;
+            float position_y = scene_model->region_height + scene_model->offset_height;
+            float position_z = scene_model->region_z + scene_model->offset_z;
+
+            // Convert yaw from game units to radians
+            float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
+
+            // Draw the model
+            pix3dgl_model_draw(
+                renderer->pix3dgl,
+                gfx_op->_scene_model_draw.scene_model_idx,
+                position_x,
+                position_y,
+                position_z,
+                yaw_radians);
+        }
+        break;
         default:
             break;
         }

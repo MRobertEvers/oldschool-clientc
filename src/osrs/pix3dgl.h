@@ -51,6 +51,23 @@ void pix3dgl_render_with_camera(
     float camera_yaw,
     float screen_width,
     float screen_height);
+void pix3dgl_model_draw(
+    struct Pix3DGL* pix3dgl,
+    int model_idx,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw);
+void pix3dgl_begin_frame(
+    struct Pix3DGL* pix3dgl,
+    float camera_x,
+    float camera_y,
+    float camera_z,
+    float camera_pitch,
+    float camera_yaw,
+    float screen_width,
+    float screen_height);
+void pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
 void pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
 
 #ifdef __cplusplus
