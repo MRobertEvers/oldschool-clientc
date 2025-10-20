@@ -294,6 +294,8 @@ struct GLModel
     bool has_textures;
     int first_texture_id;           // First texture ID used by this model (for simple rendering)
     std::vector<int> face_textures; // Texture ID per face (-1 = no texture, use Gouraud shading)
+    std::vector<bool> face_visible; // Whether each face should be drawn (false if face_infos == 2
+                                    // or face_colors_c == -2)
 };
 
 struct Pix3DGL
@@ -339,10 +341,25 @@ pix3dgl_model_load_textured_pnm(
     gl_model.first_texture_id = -1;
 
     // Store face texture IDs for per-face texture/Gouraud switching
+    // Also determine which faces should be visible
     gl_model.face_textures.resize(face_count);
+    gl_model.face_visible.resize(face_count);
     for( int face = 0; face < face_count; face++ )
     {
         gl_model.face_textures[face] = face_textures ? face_textures[face] : -1;
+
+        // Check if face should be drawn
+        // Don't draw if face_infos == 2 or face_colors_c == -2
+        bool should_draw = true;
+        if( face_infos && face_infos[face] == 2 )
+        {
+            should_draw = false;
+        }
+        if( face_colors_c && face_colors_c[face] == -2 )
+        {
+            should_draw = false;
+        }
+        gl_model.face_visible[face] = should_draw;
 
         // Find the first valid texture ID
         if( face_textures && face_textures[face] != -1 && gl_model.first_texture_id == -1 )
@@ -599,6 +616,13 @@ pix3dgl_model_load(
 
     // All faces use Gouraud shading (no textures)
     gl_model.face_textures.resize(face_count, -1);
+
+    // Check which faces should be visible (don't draw if face_colors_c == -2)
+    gl_model.face_visible.resize(face_count);
+    for( int face = 0; face < face_count; face++ )
+    {
+        gl_model.face_visible[face] = !(face_colors_c && face_colors_c[face] == -2);
+    }
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Create VAO on desktop platforms for better performance
@@ -1450,6 +1474,12 @@ pix3dgl_model_draw_face_fast(struct Pix3DGL* pix3dgl, int face_idx)
             pix3dgl->current_model_idx,
             model.face_count);
         return;
+    }
+
+    // Check if this face should be drawn (skip if face_infos == 2 or face_colors_c == -2)
+    if( !model.face_visible[face_idx] )
+    {
+        return; // Don't draw this face
     }
 
     // Check if this face has a texture or uses Gouraud shading
