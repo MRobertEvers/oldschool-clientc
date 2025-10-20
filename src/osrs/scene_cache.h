@@ -7,6 +7,10 @@
 
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct ModelCache;
 
 struct ModelCache* model_cache_new();
@@ -52,5 +56,9 @@ struct TexWalk* textures_cache_walk_new(struct TexturesCache* textures_cache);
 void textures_cache_walk_free(struct TexWalk* walk);
 
 struct Texture* textures_cache_walk_next(struct TexWalk* walk);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -6,8 +6,15 @@ extern "C" {
 #endif
 
 struct Pix3DGL;
+struct TexturesCache;
+struct Cache;
 
 struct Pix3DGL* pix3dgl_new();
+void pix3dgl_load_texture(
+    struct Pix3DGL* pix3dgl,
+    int texture_id,
+    struct TexturesCache* textures_cache,
+    struct Cache* cache);
 void pix3dgl_model_load_textured_pnm(
     struct Pix3DGL* pix3dgl,
     int idx,

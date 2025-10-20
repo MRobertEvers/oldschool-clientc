@@ -2,6 +2,7 @@
 #include "pix3dgl.h"
 
 #include "graphics/uv_pnm.h"
+#include "scene_cache.h"
 #include "shared_tables.h"
 
 #ifndef M_PI
@@ -276,6 +277,8 @@ struct GLModel
     GLuint EBO;
 
     int face_count;
+    bool has_textures;
+    int first_texture_id; // First texture ID used by this model (for simple rendering)
 };
 
 struct Pix3DGL
@@ -313,6 +316,17 @@ pix3dgl_model_load_textured_pnm(
     GLModel gl_model;
     gl_model.idx = idx;
     gl_model.face_count = face_count;
+    gl_model.has_textures = true;
+    gl_model.first_texture_id = -1;
+
+    // Find the first valid texture ID
+    for( int face = 0; face < face_count && gl_model.first_texture_id == -1; face++ )
+    {
+        if( face_textures && face_textures[face] != -1 )
+        {
+            gl_model.first_texture_id = face_textures[face];
+        }
+    }
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Create VAO on desktop platforms for better performance
@@ -404,78 +418,81 @@ pix3dgl_model_load_textured_pnm(
         int tm_vertex = -1;
         int tn_vertex = -1;
 
-        if( face_texture_faces_nullable && face_texture_faces_nullable[face] != -1 )
+        if( face_textures[face] != -1 )
         {
-            // Use custom texture space definition
-            texture_face = face_texture_faces_nullable[face];
-            tp_vertex = face_p_coordinate_nullable[texture_face];
-            tm_vertex = face_m_coordinate_nullable[texture_face];
-            tn_vertex = face_n_coordinate_nullable[texture_face];
+            if( face_texture_faces_nullable && face_texture_faces_nullable[face] != -1 )
+            {
+                // Use custom texture space definition
+                texture_face = face_texture_faces_nullable[face];
+                tp_vertex = face_p_coordinate_nullable[texture_face];
+                tm_vertex = face_m_coordinate_nullable[texture_face];
+                tn_vertex = face_n_coordinate_nullable[texture_face];
+            }
+            else
+            {
+                // Default: use the face's own vertices as texture space
+                tp_vertex = v_a;
+                tm_vertex = v_b;
+                tn_vertex = v_c;
+            }
+
+            // Get the PNM triangle vertices that define texture space
+            float p_x = vertices_x[tp_vertex];
+            float p_y = vertices_y[tp_vertex];
+            float p_z = vertices_z[tp_vertex];
+
+            float m_x = vertices_x[tm_vertex];
+            float m_y = vertices_y[tm_vertex];
+            float m_z = vertices_z[tm_vertex];
+
+            float n_x = vertices_x[tn_vertex];
+            float n_y = vertices_y[tn_vertex];
+            float n_z = vertices_z[tn_vertex];
+
+            // Get the actual face vertices (A, B, C) for UV computation
+            float a_x = vertices_x[v_a];
+            float a_y = vertices_y[v_a];
+            float a_z = vertices_z[v_a];
+
+            float b_x = vertices_x[v_b];
+            float b_y = vertices_y[v_b];
+            float b_z = vertices_z[v_b];
+
+            float c_x = vertices_x[v_c];
+            float c_y = vertices_y[v_c];
+            float c_z = vertices_z[v_c];
+
+            // Compute UV coordinates
+            struct UVFaceCoords uv_pnm;
+            uv_pnm_compute(
+                &uv_pnm,
+                p_x,
+                p_y,
+                p_z,
+                m_x,
+                m_y,
+                m_z,
+                n_x,
+                n_y,
+                n_z,
+                a_x,
+                a_y,
+                a_z,
+                b_x,
+                b_y,
+                b_z,
+                c_x,
+                c_y,
+                c_z);
+
+            // Store UV coordinates
+            texCoords[face * 6 + 0] = uv_pnm.u1;
+            texCoords[face * 6 + 1] = uv_pnm.v1;
+            texCoords[face * 6 + 2] = uv_pnm.u2;
+            texCoords[face * 6 + 3] = uv_pnm.v2;
+            texCoords[face * 6 + 4] = uv_pnm.u3;
+            texCoords[face * 6 + 5] = uv_pnm.v3;
         }
-        else
-        {
-            // Default: use the face's own vertices as texture space
-            tp_vertex = v_a;
-            tm_vertex = v_b;
-            tn_vertex = v_c;
-        }
-
-        // Get the PNM triangle vertices that define texture space
-        float p_x = vertices_x[tp_vertex];
-        float p_y = vertices_y[tp_vertex];
-        float p_z = vertices_z[tp_vertex];
-
-        float m_x = vertices_x[tm_vertex];
-        float m_y = vertices_y[tm_vertex];
-        float m_z = vertices_z[tm_vertex];
-
-        float n_x = vertices_x[tn_vertex];
-        float n_y = vertices_y[tn_vertex];
-        float n_z = vertices_z[tn_vertex];
-
-        // Get the actual face vertices (A, B, C) for UV computation
-        float a_x = vertices_x[v_a];
-        float a_y = vertices_y[v_a];
-        float a_z = vertices_z[v_a];
-
-        float b_x = vertices_x[v_b];
-        float b_y = vertices_y[v_b];
-        float b_z = vertices_z[v_b];
-
-        float c_x = vertices_x[v_c];
-        float c_y = vertices_y[v_c];
-        float c_z = vertices_z[v_c];
-
-        // Compute UV coordinates
-        struct UVFaceCoords uv_pnm;
-        uv_pnm_compute(
-            &uv_pnm,
-            p_x,
-            p_y,
-            p_z,
-            m_x,
-            m_y,
-            m_z,
-            n_x,
-            n_y,
-            n_z,
-            a_x,
-            a_y,
-            a_z,
-            b_x,
-            b_y,
-            b_z,
-            c_x,
-            c_y,
-            c_z);
-
-        // Store UV coordinates
-        texCoords[face * 6 + 0] = uv_pnm.u1;
-        texCoords[face * 6 + 1] = uv_pnm.v1;
-        texCoords[face * 6 + 2] = uv_pnm.u2;
-        texCoords[face * 6 + 3] = uv_pnm.v2;
-        texCoords[face * 6 + 4] = uv_pnm.u3;
-        texCoords[face * 6 + 5] = uv_pnm.v3;
     }
 
     printf(
@@ -542,6 +559,8 @@ pix3dgl_model_load(
     GLModel gl_model;
     gl_model.idx = idx;
     gl_model.face_count = face_count;
+    gl_model.has_textures = false;
+    gl_model.first_texture_id = -1;
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Create VAO on desktop platforms for better performance
@@ -755,6 +774,88 @@ pix3dgl_new()
 }
 
 extern "C" void
+pix3dgl_load_texture(
+    struct Pix3DGL* pix3dgl,
+    int texture_id,
+    struct TexturesCache* textures_cache,
+    struct Cache* cache)
+{
+    // Check if texture is already loaded
+    if( pix3dgl->texture_ids.find(texture_id) != pix3dgl->texture_ids.end() )
+    {
+        return; // Texture already loaded
+    }
+
+    // Load texture from cache
+    struct Texture* cache_tex = textures_cache_checkout(
+        textures_cache,
+        cache,
+        texture_id,
+        128, // Size
+        1.0  // Default gamma
+    );
+
+    if( !cache_tex )
+    {
+        printf("Failed to load texture %d from cache\n", texture_id);
+        return;
+    }
+
+    // Create OpenGL texture
+    GLuint gl_texture_id;
+    glGenTextures(1, &gl_texture_id);
+    glBindTexture(GL_TEXTURE_2D, gl_texture_id);
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // Upload texture data - convert from RGBA int array to byte array
+    std::vector<unsigned char> texture_bytes(cache_tex->width * cache_tex->height * 4);
+    for( int i = 0; i < cache_tex->width * cache_tex->height; i++ )
+    {
+        int pixel = cache_tex->texels[i];
+        texture_bytes[i * 4 + 0] = (pixel >> 16) & 0xFF; // R
+        texture_bytes[i * 4 + 1] = (pixel >> 8) & 0xFF;  // G
+        texture_bytes[i * 4 + 2] = pixel & 0xFF;         // B
+        texture_bytes[i * 4 + 3] = (pixel >> 24) & 0xFF; // A
+    }
+
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        cache_tex->width,
+        cache_tex->height,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        texture_bytes.data());
+
+    // Store texture ID in map
+    pix3dgl->texture_ids[texture_id] = gl_texture_id;
+
+    printf(
+        "Loaded texture %d as OpenGL texture %u (%dx%d)\n",
+        texture_id,
+        gl_texture_id,
+        cache_tex->width,
+        cache_tex->height);
+
+    // Clean up cache texture
+    textures_cache_checkin(textures_cache, cache_tex);
+
+    // Check for OpenGL errors
+    GLenum error = glGetError();
+    if( error != GL_NO_ERROR )
+    {
+        printf("OpenGL error in pix3dgl_load_texture: 0x%x\n", error);
+    }
+}
+
+extern "C" void
 pix3dgl_render_with_camera(
     struct Pix3DGL* pix3dgl,
     float camera_x,
@@ -915,6 +1016,13 @@ pix3dgl_begin_frame(
                                0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
         glUniformMatrix4fv(textureMatrixLoc, 1, GL_FALSE, identity);
     }
+
+    // Disable texture usage by default (will be enabled for textured models later)
+    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
+    if( useTextureLoc >= 0 )
+    {
+        glUniform1i(useTextureLoc, 0);
+    }
 }
 
 extern "C" void
@@ -958,6 +1066,49 @@ pix3dgl_model_draw(
         glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
     }
 
+    // Enable/disable texture based on model
+    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
+    if( model.has_textures && model.first_texture_id != -1 )
+    {
+        // Find the OpenGL texture ID for this texture
+        auto tex_it = pix3dgl->texture_ids.find(model.first_texture_id);
+        if( tex_it != pix3dgl->texture_ids.end() )
+        {
+            // Bind the texture
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, tex_it->second);
+
+            // Set the sampler to texture unit 0
+            GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
+            if( textureLoc >= 0 )
+            {
+                glUniform1i(textureLoc, 0);
+            }
+
+            // Enable texture usage
+            if( useTextureLoc >= 0 )
+            {
+                glUniform1i(useTextureLoc, 1);
+            }
+        }
+        else
+        {
+            // Texture not loaded, disable texturing
+            if( useTextureLoc >= 0 )
+            {
+                glUniform1i(useTextureLoc, 0);
+            }
+        }
+    }
+    else
+    {
+        // No textures, disable texturing
+        if( useTextureLoc >= 0 )
+        {
+            glUniform1i(useTextureLoc, 0);
+        }
+    }
+
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Use VAO for better performance
     glBindVertexArray(model.VAO);
@@ -975,12 +1126,24 @@ pix3dgl_model_draw(
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
+    // Set up texture coordinate attribute (location 2) if model has textures
+    if( model.has_textures )
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, model.texCoordVBO);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(2);
+    }
+
     // Draw the model (render all triangles)
     glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
 
     // Disable vertex attributes
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
+    if( model.has_textures )
+    {
+        glDisableVertexAttribArray(2);
+    }
 #endif
 
     // Check for OpenGL errors
