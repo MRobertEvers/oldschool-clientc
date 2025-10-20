@@ -28,6 +28,8 @@ void PlatformImpl_OSX_SDL2_Free(struct Platform* platform);
 
 bool
 PlatformImpl_OSX_SDL2_InitForSoft3D(struct Platform* platform, int screen_width, int screen_height);
+bool PlatformImpl_OSX_SDL2_InitForOpenGL3(
+    struct Platform* platform, int screen_width, int screen_height);
 void PlatformImpl_OSX_SDL2_Shutdown(struct Platform* platform);
 
 void PlatformImpl_OSX_SDL2_PollEvents(struct Platform* platform, struct GameInput* input);

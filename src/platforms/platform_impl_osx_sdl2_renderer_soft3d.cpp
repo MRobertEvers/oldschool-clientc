@@ -418,6 +418,15 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
         case GAME_GFX_OP_SCENE_DRAW:
             render_scene(renderer, game);
             break;
+        case GAME_GFX_OP_SCENE_MODEL_LOAD:
+            // Noop
+            break;
+        case GAME_GFX_OP_SCENE_MODEL_UNLOAD:
+            // Noop
+            break;
+        case GAME_GFX_OP_SCENE_MODEL_DRAW:
+            // TODO:
+            break;
         default:
             break;
         }

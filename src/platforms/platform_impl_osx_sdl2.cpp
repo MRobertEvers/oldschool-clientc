@@ -51,6 +51,39 @@ PlatformImpl_OSX_SDL2_InitForSoft3D(struct Platform* platform, int screen_width,
     return true;
 }
 
+bool
+PlatformImpl_OSX_SDL2_InitForOpenGL3(struct Platform* platform, int screen_width, int screen_height)
+{
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
+
+    platform->window = SDL_CreateWindow(
+        "Game",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        screen_width,
+        screen_height,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->last_frame_time_ticks = SDL_GetTicks64();
+
+    return true;
+}
+
 void
 PlatformImpl_OSX_SDL2_Shutdown(struct Platform* platform)
 {

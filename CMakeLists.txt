@@ -332,6 +332,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/libinput.c
         src/platforms/platform_impl_osx_sdl2.cpp
         src/platforms/platform_impl_osx_sdl2_renderer_soft3d.cpp
+        src/platforms/platform_impl_osx_sdl2_renderer_opengl3.cpp
         
         src/shared_tables.c
         src/string_utils.c
@@ -377,6 +378,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/imgui/imgui_demo.cpp
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
+        src/imgui/imgui_impl_opengl3.cpp
 
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
@@ -392,7 +394,7 @@ endif()
 
 # Add SDL2 include directories for osx_sdl2_game
 if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    target_include_directories(osx_sdl2_game PRIVATE ${SDL2_INCLUDE_DIRS})
+    target_include_directories(osx_sdl2_game PRIVATE ${SDL2_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIRS})
 endif()
 
 # ImGui and other files that use sqrt()/pow() require at least SSE support for return values,
@@ -608,6 +610,7 @@ else()
     target_link_libraries(scene_tile_test ${SDL2_LIBRARIES})
     target_link_libraries(model_viewer ${SDL2_LIBRARIES})
     target_link_libraries(model_viewerfx ${SDL2_LIBRARIES} ${OPENGL_LIBRARIES})
+
 endif()
 
 
