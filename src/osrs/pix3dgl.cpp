@@ -39,74 +39,21 @@ layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
 layout(location = 2) in vec2 aTexCoord;
 
-uniform float uRotationX;  // pitch
-uniform float uRotationY;  // yaw
-uniform vec3 uCameraPos;   // camera position
-uniform float uScreenWidth;
-uniform float uScreenHeight;
-uniform mat4 uTextureMatrix;  // Optional texture coordinate transform
-uniform mat4 uModelMatrix;    // Per-model transformation
+uniform mat4 uViewMatrix;       // Precomputed on CPU
+uniform mat4 uProjectionMatrix; // Precomputed on CPU
+uniform mat4 uTextureMatrix;    // Optional texture coordinate transform
+uniform mat4 uModelMatrix;      // Per-model transformation
 
 out vec3 vColor;
 out vec2 vTexCoord;
-
-mat4 createProjectionMatrix(float fov, float screenWidth, float screenHeight) {
-    float y = 1.0 / tan(fov * 0.5);
-    float x = y;
-
-    return mat4(
-        x * 512.0 / (screenWidth / 2.0), 0.0, 0.0, 0.0,
-        0.0, -y * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 
-        0.0, 0.0, 0.0, 1.0,
-        0.0, 0.0, -1.0, 0.0
-    );
-}
-
-mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
-    float cosPitch = cos(-pitch);
-    float sinPitch = sin(-pitch);
-    float cosYaw = cos(-yaw);
-    float sinYaw = sin(-yaw);
-
-    // Create rotation matrices
-    mat4 pitchMatrix = mat4(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, cosPitch, -sinPitch, 0.0,
-        0.0, sinPitch, cosPitch, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-    
-    mat4 yawMatrix = mat4(
-        cosYaw, 0.0, sinYaw, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        -sinYaw, 0.0, cosYaw, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-    
-    // Create translation matrix, move relative to camera position
-    mat4 translateMatrix = mat4(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        -cameraPos.x, -cameraPos.y, -cameraPos.z, 1.0
-    );
-    
-    // Combine matrices: rotation * translation
-    return pitchMatrix * yawMatrix * translateMatrix;
-}
 
 void main() {
     // Apply model transformation first, then view transformation
     vec4 worldPos = uModelMatrix * vec4(aPos, 1.0);
     
-    // Create view matrix with camera transformations
-    mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
-    
-    // Create projection matrix with 90 degree FOV
-    mat4 projection = createProjectionMatrix(radians(90.0), uScreenWidth, uScreenHeight);
-    
-    // Transform vertex position
-    vec4 viewPos = viewMatrix * worldPos;
+    // Transform vertex position using precomputed matrices
+    vec4 viewPos = uViewMatrix * worldPos;
+    gl_Position = uProjectionMatrix * viewPos;
     
     // Pass through the color
     vColor = aColor;
@@ -115,30 +62,6 @@ void main() {
     vec4 texCoord = vec4(aTexCoord, 0.0, 1.0);
     vec4 transformedTexCoord = uTextureMatrix * texCoord;
     vTexCoord = transformedTexCoord.xy / transformedTexCoord.w;
-    
-    gl_Position = projection * viewPos;
-}
-)";
-
-// Simple test fragment shader - renders everything red
-const char* g_fragment_shader_simple = R"(
-#version 330 core
-out vec4 FragColor;
-
-void main() {
-    // Always render bright red for debugging
-    FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-}
-)";
-
-// Simple test vertex shader - just passes through positions
-const char* g_vertex_shader_simple = R"(
-#version 330 core
-layout(location = 0) in vec3 aPos;
-
-void main() {
-    // Just pass through the vertex position directly - no transformations
-    gl_Position = vec4(aPos, 1.0);
 }
 )";
 
@@ -168,118 +91,12 @@ void main() {
 }
 )";
 
-// WebGL1 vertex shader
-const char* g_vertex_shader_es2 = R"(
-    attribute vec3 aPos;
-    attribute vec3 aColor;
-    attribute vec2 aTexCoord;  // UV coordinates
-    
-    uniform float uRotationX;  // pitch
-    uniform float uRotationY;  // yaw
-    uniform vec3 uCameraPos;   // camera position
-    uniform float uScreenWidth;
-    uniform float uScreenHeight;
-    uniform mat4 uTextureMatrix;  // Optional texture coordinate transform
-    uniform mat4 uModelMatrix;    // Per-model transformation
-    
-    varying vec3 vColor;
-    varying vec2 vTexCoord;  // Pass UV coordinates to fragment shader
-    
-    mat4 createProjectionMatrix(float fov, float screenWidth, float screenHeight) {
-        float y = 1.0 / tan(fov * 0.5);
-        float x = y;
-    
-        return mat4(
-            x * 512.0 / (screenWidth / 2.0), 0.0, 0.0, 0.0,
-            0.0, -y * 512.0 / (screenHeight / 2.0), 0.0, 0.0, 
-            0.0, 0.0, 0.0, 1.0,
-            0.0, 0.0, -1.0, 0.0
-        );
-    }
-    
-    mat4 createViewMatrix(vec3 cameraPos, float pitch, float yaw) {
-        float cosPitch = cos(-pitch);
-        float sinPitch = sin(-pitch);
-        float cosYaw = cos(-yaw);
-        float sinYaw = sin(-yaw);
-    
-        // Create rotation matrices
-        mat4 pitchMatrix = mat4(
-            1.0, 0.0, 0.0, 0.0,
-            0.0, cosPitch, -sinPitch, 0.0,
-            0.0, sinPitch, cosPitch, 0.0,
-            0.0, 0.0, 0.0, 1.0
-        );
-        
-        mat4 yawMatrix = mat4(
-            cosYaw, 0.0, sinYaw, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            -sinYaw, 0.0, cosYaw, 0.0,
-            0.0, 0.0, 0.0, 1.0
-        );
-        
-        // Create translation matrix, move relative to camera position
-        mat4 translateMatrix = mat4(
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            -cameraPos.x, -cameraPos.y, -cameraPos.z, 1.0
-        );
-        
-        // Combine matrices: rotation * translation
-        return pitchMatrix * yawMatrix * translateMatrix;
-    }
-    
-    void main() {
-        // Apply model transformation first, then view transformation
-        vec4 worldPos = uModelMatrix * vec4(aPos, 1.0);
-        
-        // Create view matrix with camera transformations
-        mat4 viewMatrix = createViewMatrix(uCameraPos, uRotationX, uRotationY);
-        
-        // Create projection matrix with 90 degree FOV (same as Metal version)
-        mat4 projection = createProjectionMatrix(radians(90.0), uScreenWidth, uScreenHeight);
-        
-        // Transform vertex position
-        vec4 viewPos = viewMatrix * worldPos;
-        
-        // Pass through the color
-        vColor = aColor;
-        
-        // Transform texture coordinates if needed
-        vec4 texCoord = vec4(aTexCoord, 0.0, 1.0);
-        vec4 transformedTexCoord = uTextureMatrix * texCoord;
-        vTexCoord = transformedTexCoord.xy / transformedTexCoord.w;
-        
-        gl_Position = projection * viewPos;
-    }
-    )";
-
-// WebGL1 fragment shader
-const char* g_fragment_shader_es2 = R"(
-    precision mediump float;
-    
-    varying vec3 vColor;
-    varying vec2 vTexCoord;
-    uniform sampler2D uTexture;
-    uniform bool uUseTexture;
-    
-    void main() {
-        if (uUseTexture) {
-            vec4 texColor = texture2D(uTexture, vTexCoord);
-            // Make black texels transparent, preserve existing alpha
-            float epsilon = 0.001; // Small threshold to account for floating point precision
-            float luminance = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
-            if (luminance < epsilon) {
-                // Discard completely transparent fragments so they don't write to depth buffer
-                discard;
-            }
-            gl_FragColor = vec4(texColor.rgb * vColor, texColor.a);
-        } else {
-            gl_FragColor = vec4(vColor, 1.0);
-        }
-    }
-    )";
+enum FaceShadingType
+{
+    SHADING_TEXTURED = 0, // Face uses texture mapping
+    SHADING_GOURAUD = 1,  // Face uses Gouraud shading (interpolated vertex colors)
+    SHADING_FLAT = 2      // Face uses flat shading (single color)
+};
 
 struct GLModel
 {
@@ -295,9 +112,9 @@ struct GLModel
     int face_count;
     bool has_textures;
     int first_texture_id;           // First texture ID used by this model (for simple rendering)
-    std::vector<int> face_textures; // Texture ID per face (-1 = no texture, use Gouraud shading)
-    std::vector<bool> face_visible; // Whether each face should be drawn (false if face_infos == 2
-                                    // or face_colors_c == -2)
+    std::vector<int> face_textures; // Texture ID per face (-1 = no texture)
+    std::vector<bool> face_visible; // Whether each face should be drawn
+    std::vector<FaceShadingType> face_shading; // Shading type per face
 };
 
 struct GLTile
@@ -312,8 +129,17 @@ struct GLTile
     GLuint EBO;
 
     int face_count;
-    std::vector<int> face_textures; // Texture ID per face
-    std::vector<bool> face_visible; // Whether each face should be drawn
+    std::vector<int> face_textures;            // Texture ID per face
+    std::vector<bool> face_visible;            // Whether each face should be drawn
+    std::vector<FaceShadingType> face_shading; // Shading type per face
+};
+
+// Batch drawing for models - accumulate faces and draw in batches
+struct DrawBatch
+{
+    int texture_id;                   // -1 for untextured
+    std::vector<GLint> face_starts;   // Starting vertex index for each face
+    std::vector<GLsizei> face_counts; // Vertex count for each face (always 3)
 };
 
 struct Pix3DGL
@@ -332,19 +158,82 @@ struct Pix3DGL
 
     // Cached uniform locations for performance (to avoid expensive glGetUniformLocation calls)
     GLint uniform_model_matrix;
+    GLint uniform_view_matrix;
+    GLint uniform_projection_matrix;
     GLint uniform_use_texture;
     GLint uniform_texture;
-    GLint uniform_rotation_x;
-    GLint uniform_rotation_y;
-    GLint uniform_screen_width;
-    GLint uniform_screen_height;
-    GLint uniform_camera_pos;
     GLint uniform_texture_matrix;
 
     // State tracking to avoid redundant GL calls
     GLuint currently_bound_texture;
     int current_texture_state; // 0 = texture disabled, 1 = texture enabled
+
+    // Batching system - accumulate faces by texture and draw together
+    std::unordered_map<int, DrawBatch> draw_batches; // Key: texture_id (-1 for untextured)
 };
+
+// CPU-side matrix computation functions for performance
+static void
+compute_view_matrix(
+    float* out_matrix, float camera_x, float camera_y, float camera_z, float pitch, float yaw)
+{
+    float cosPitch = cos(-pitch);
+    float sinPitch = sin(-pitch);
+    float cosYaw = cos(-yaw);
+    float sinYaw = sin(-yaw);
+
+    // Combined rotation * translation matrix (column-major for OpenGL)
+    // First apply translation, then yaw, then pitch
+    out_matrix[0] = cosYaw;
+    out_matrix[1] = sinYaw * sinPitch;
+    out_matrix[2] = sinYaw * cosPitch;
+    out_matrix[3] = 0.0f;
+
+    out_matrix[4] = 0.0f;
+    out_matrix[5] = cosPitch;
+    out_matrix[6] = -sinPitch;
+    out_matrix[7] = 0.0f;
+
+    out_matrix[8] = -sinYaw;
+    out_matrix[9] = cosYaw * sinPitch;
+    out_matrix[10] = cosYaw * cosPitch;
+    out_matrix[11] = 0.0f;
+
+    out_matrix[12] = -camera_x * cosYaw + camera_z * sinYaw;
+    out_matrix[13] =
+        -camera_x * sinYaw * sinPitch - camera_y * cosPitch - camera_z * cosYaw * sinPitch;
+    out_matrix[14] =
+        -camera_x * sinYaw * cosPitch + camera_y * sinPitch - camera_z * cosYaw * cosPitch;
+    out_matrix[15] = 1.0f;
+}
+
+static void
+compute_projection_matrix(float* out_matrix, float fov, float screen_width, float screen_height)
+{
+    float y = 1.0f / tan(fov * 0.5f);
+    float x = y;
+
+    // Column-major for OpenGL
+    out_matrix[0] = x * 512.0f / (screen_width / 2.0f);
+    out_matrix[1] = 0.0f;
+    out_matrix[2] = 0.0f;
+    out_matrix[3] = 0.0f;
+
+    out_matrix[4] = 0.0f;
+    out_matrix[5] = -y * 512.0f / (screen_height / 2.0f);
+    out_matrix[6] = 0.0f;
+    out_matrix[7] = 0.0f;
+
+    out_matrix[8] = 0.0f;
+    out_matrix[9] = 0.0f;
+    out_matrix[10] = 0.0f;
+    out_matrix[11] = 1.0f;
+
+    out_matrix[12] = 0.0f;
+    out_matrix[13] = 0.0f;
+    out_matrix[14] = -1.0f;
+    out_matrix[15] = 0.0f;
+}
 
 extern "C" void
 pix3dgl_model_load_textured_pnm(
@@ -374,10 +263,10 @@ pix3dgl_model_load_textured_pnm(
     gl_model.has_textures = true;
     gl_model.first_texture_id = -1;
 
-    // Store face texture IDs for per-face texture/Gouraud switching
-    // Also determine which faces should be visible
+    // Store face texture IDs, shading types, and visibility
     gl_model.face_textures.resize(face_count);
     gl_model.face_visible.resize(face_count);
+    gl_model.face_shading.resize(face_count);
     for( int face = 0; face < face_count; face++ )
     {
         gl_model.face_textures[face] = face_textures ? face_textures[face] : -1;
@@ -394,6 +283,22 @@ pix3dgl_model_load_textured_pnm(
             should_draw = false;
         }
         gl_model.face_visible[face] = should_draw;
+
+        // Determine shading type based on texture and color data
+        if( face_textures && face_textures[face] != -1 )
+        {
+            gl_model.face_shading[face] = SHADING_TEXTURED;
+        }
+        else if( face_colors_c && face_colors_c[face] == -1 )
+        {
+            // face_colors_c == -1 means flat shading (all vertices same color)
+            gl_model.face_shading[face] = SHADING_FLAT;
+        }
+        else
+        {
+            // Gouraud shading (interpolated vertex colors)
+            gl_model.face_shading[face] = SHADING_GOURAUD;
+        }
 
         // Find the first valid texture ID
         if( face_textures && face_textures[face] != -1 && gl_model.first_texture_id == -1 )
@@ -648,14 +553,27 @@ pix3dgl_model_load(
     gl_model.has_textures = false;
     gl_model.first_texture_id = -1;
 
-    // All faces use Gouraud shading (no textures)
+    // No textures in this model
     gl_model.face_textures.resize(face_count, -1);
 
-    // Check which faces should be visible (don't draw if face_colors_c == -2)
+    // Check which faces should be visible and determine shading type
     gl_model.face_visible.resize(face_count);
+    gl_model.face_shading.resize(face_count);
     for( int face = 0; face < face_count; face++ )
     {
         gl_model.face_visible[face] = !(face_colors_c && face_colors_c[face] == -2);
+
+        // Determine shading type based on color data
+        if( face_colors_c && face_colors_c[face] == -1 )
+        {
+            // face_colors_c == -1 means flat shading (all vertices same color)
+            gl_model.face_shading[face] = SHADING_FLAT;
+        }
+        else
+        {
+            // Gouraud shading (interpolated vertex colors)
+            gl_model.face_shading[face] = SHADING_GOURAUD;
+        }
     }
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
@@ -886,23 +804,21 @@ pix3dgl_new()
 
     // Cache ALL uniform locations for performance (avoids expensive string lookups per-frame)
     pix3dgl->uniform_model_matrix = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
+    pix3dgl->uniform_view_matrix = glGetUniformLocation(pix3dgl->program_es2, "uViewMatrix");
+    pix3dgl->uniform_projection_matrix =
+        glGetUniformLocation(pix3dgl->program_es2, "uProjectionMatrix");
     pix3dgl->uniform_use_texture = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
     pix3dgl->uniform_texture = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
-    pix3dgl->uniform_rotation_x = glGetUniformLocation(pix3dgl->program_es2, "uRotationX");
-    pix3dgl->uniform_rotation_y = glGetUniformLocation(pix3dgl->program_es2, "uRotationY");
-    pix3dgl->uniform_screen_width = glGetUniformLocation(pix3dgl->program_es2, "uScreenWidth");
-    pix3dgl->uniform_screen_height = glGetUniformLocation(pix3dgl->program_es2, "uScreenHeight");
-    pix3dgl->uniform_camera_pos = glGetUniformLocation(pix3dgl->program_es2, "uCameraPos");
     pix3dgl->uniform_texture_matrix = glGetUniformLocation(pix3dgl->program_es2, "uTextureMatrix");
 
     printf(
-        "Cached uniform locations - model_matrix:%d use_texture:%d texture:%d rotation_x:%d "
-        "rotation_y:%d\n",
+        "Cached uniform locations - model_matrix:%d view_matrix:%d projection_matrix:%d "
+        "use_texture:%d texture:%d\n",
         pix3dgl->uniform_model_matrix,
+        pix3dgl->uniform_view_matrix,
+        pix3dgl->uniform_projection_matrix,
         pix3dgl->uniform_use_texture,
-        pix3dgl->uniform_texture,
-        pix3dgl->uniform_rotation_x,
-        pix3dgl->uniform_rotation_y);
+        pix3dgl->uniform_texture);
 
     // Enable alpha blending
     glEnable(GL_BLEND);
@@ -1153,17 +1069,23 @@ pix3dgl_begin_frame(
     float pitch_radians = (camera_pitch * 2.0f * M_PI) / 2048.0f;
     float yaw_radians = (camera_yaw * 2.0f * M_PI) / 2048.0f;
 
-    // Set up uniforms with actual camera parameters (using cached locations)
-    if( pix3dgl->uniform_rotation_x >= 0 )
-        glUniform1f(pix3dgl->uniform_rotation_x, pitch_radians);
-    if( pix3dgl->uniform_rotation_y >= 0 )
-        glUniform1f(pix3dgl->uniform_rotation_y, yaw_radians);
-    if( pix3dgl->uniform_screen_width >= 0 )
-        glUniform1f(pix3dgl->uniform_screen_width, screen_width);
-    if( pix3dgl->uniform_screen_height >= 0 )
-        glUniform1f(pix3dgl->uniform_screen_height, screen_height);
-    if( pix3dgl->uniform_camera_pos >= 0 )
-        glUniform3f(pix3dgl->uniform_camera_pos, camera_x, camera_y, camera_z);
+    // OPTIMIZATION: Compute view and projection matrices on CPU once per frame
+    float view_matrix[16];
+    float projection_matrix[16];
+
+    compute_view_matrix(view_matrix, camera_x, camera_y, camera_z, pitch_radians, yaw_radians);
+    compute_projection_matrix(
+        projection_matrix, (90.0f * M_PI) / 180.0f, screen_width, screen_height);
+
+    // Set matrices as uniforms
+    if( pix3dgl->uniform_view_matrix >= 0 )
+    {
+        glUniformMatrix4fv(pix3dgl->uniform_view_matrix, 1, GL_FALSE, view_matrix);
+    }
+    if( pix3dgl->uniform_projection_matrix >= 0 )
+    {
+        glUniformMatrix4fv(pix3dgl->uniform_projection_matrix, 1, GL_FALSE, projection_matrix);
+    }
 
     // Set identity matrix for texture coordinates
     if( pix3dgl->uniform_texture_matrix >= 0 )
@@ -1176,6 +1098,9 @@ pix3dgl_begin_frame(
     // Reset state tracking for new frame
     pix3dgl->currently_bound_texture = 0;
     pix3dgl->current_texture_state = -1;
+
+    // Clear batching data for new frame
+    pix3dgl->draw_batches.clear();
 
     // Disable texture usage by default (will be enabled for textured models later)
     if( pix3dgl->uniform_use_texture >= 0 )
@@ -1316,11 +1241,11 @@ pix3dgl_model_draw(
 #endif
 
     // Check for OpenGL errors
-    GLenum error = glGetError();
-    if( error != GL_NO_ERROR )
-    {
-        printf("OpenGL error in pix3dgl_model_draw: 0x%x\n", error);
-    }
+    // GLenum error = glGetError();
+    // if( error != GL_NO_ERROR )
+    // {
+    //     printf("OpenGL error in pix3dgl_model_draw: 0x%x\n", error);
+    // }
 }
 
 extern "C" void
@@ -1572,65 +1497,26 @@ pix3dgl_model_draw_face_fast(struct Pix3DGL* pix3dgl, int face_idx)
         return; // Don't draw this face
     }
 
-    // Check if this face has a texture or uses Gouraud shading
+    // OPTIMIZATION: Instead of drawing immediately, batch faces by texture
+    // This dramatically reduces draw calls
     int face_texture_id = model.face_textures[face_idx];
 
-    if( face_texture_id == -1 )
+    // Check if texture exists (if textured)
+    if( face_texture_id != -1 )
     {
-        // No texture - use Gouraud shading (interpolated vertex colors)
-        // Only update if state changed (avoid redundant uniform updates)
-        if( pix3dgl->current_texture_state != 0 )
-        {
-            if( pix3dgl->uniform_use_texture >= 0 )
-            {
-                glUniform1i(pix3dgl->uniform_use_texture, 0);
-                pix3dgl->current_texture_state = 0;
-            }
-        }
-    }
-    else
-    {
-        // Has texture - bind it and enable texture rendering
         auto tex_it = pix3dgl->texture_ids.find(face_texture_id);
-        if( tex_it != pix3dgl->texture_ids.end() )
+        if( tex_it == pix3dgl->texture_ids.end() )
         {
-            GLuint gl_texture_id = tex_it->second;
-
-            // Only bind texture if it's different from currently bound (avoid redundant state
-            // changes)
-            if( pix3dgl->currently_bound_texture != gl_texture_id )
-            {
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, gl_texture_id);
-                pix3dgl->currently_bound_texture = gl_texture_id;
-            }
-
-            // Only enable texture if not already enabled
-            if( pix3dgl->current_texture_state != 1 )
-            {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 1);
-                    pix3dgl->current_texture_state = 1;
-                }
-            }
-        }
-        else
-        {
-            // Texture not loaded, fall back to Gouraud shading
-            if( pix3dgl->current_texture_state != 0 )
-            {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 0);
-                    pix3dgl->current_texture_state = 0;
-                }
-            }
+            // Texture not loaded, treat as untextured
+            face_texture_id = -1;
         }
     }
 
-    // Draw the face
-    glDrawArrays(GL_TRIANGLES, face_idx * 3, 3);
+    // Add face to appropriate batch
+    DrawBatch& batch = pix3dgl->draw_batches[face_texture_id];
+    batch.texture_id = face_texture_id;
+    batch.face_starts.push_back(face_idx * 3);
+    batch.face_counts.push_back(3);
 }
 
 extern "C" void
@@ -1642,6 +1528,75 @@ pix3dgl_model_end_draw(struct Pix3DGL* pix3dgl)
     }
 
     GLModel& model = *pix3dgl->current_model;
+
+    // OPTIMIZATION: Flush all batches using glMultiDrawArrays
+    // This replaces thousands of individual glDrawArrays calls with a few batch draws
+
+    for( auto& [texture_id, batch] : pix3dgl->draw_batches )
+    {
+        if( batch.face_starts.empty() )
+            continue;
+
+        // Set texture state for this batch
+        if( texture_id == -1 )
+        {
+            // Untextured batch - disable texturing
+            if( pix3dgl->current_texture_state != 0 )
+            {
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 0);
+                    pix3dgl->current_texture_state = 0;
+                }
+            }
+        }
+        else
+        {
+            // Textured batch - bind texture
+            auto tex_it = pix3dgl->texture_ids.find(texture_id);
+            if( tex_it != pix3dgl->texture_ids.end() )
+            {
+                GLuint gl_texture_id = tex_it->second;
+
+                if( pix3dgl->currently_bound_texture != gl_texture_id )
+                {
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, gl_texture_id);
+                    pix3dgl->currently_bound_texture = gl_texture_id;
+                }
+
+                if( pix3dgl->current_texture_state != 1 )
+                {
+                    if( pix3dgl->uniform_use_texture >= 0 )
+                    {
+                        glUniform1i(pix3dgl->uniform_use_texture, 1);
+                        pix3dgl->current_texture_state = 1;
+                    }
+                }
+            }
+        }
+
+        // Use glMultiDrawArrays for efficient batch rendering
+        // This issues ONE driver call instead of N glDrawArrays calls
+#if defined(__APPLE__) && !defined(__EMSCRIPTEN__)
+        // macOS supports glMultiDrawArrays in OpenGL 3.2+
+        glMultiDrawArrays(
+            GL_TRIANGLES,
+            batch.face_starts.data(),
+            batch.face_counts.data(),
+            batch.face_starts.size());
+#else
+        // Fallback for platforms without glMultiDrawArrays
+        // Still better than drawing each face individually since we batch by texture
+        for( size_t i = 0; i < batch.face_starts.size(); i++ )
+        {
+            glDrawArrays(GL_TRIANGLES, batch.face_starts[i], batch.face_counts[i]);
+        }
+#endif
+    }
+
+    // Clear batches for next draw
+    pix3dgl->draw_batches.clear();
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Unbind VAO
@@ -1705,15 +1660,30 @@ pix3dgl_tile_load(
     std::vector<float> colors(face_count * 9);    // 3 vertices * 3 colors per face
     std::vector<float> texCoords(face_count * 6); // 3 vertices * 2 UV coords per face
 
-    // Store face visibility and texture info
+    // Store face visibility, texture info, and shading type
     gl_tile.face_textures.resize(face_count);
     gl_tile.face_visible.resize(face_count);
+    gl_tile.face_shading.resize(face_count);
 
     for( int face = 0; face < face_count; face++ )
     {
         // Check if face is valid
         gl_tile.face_visible[face] = valid_faces ? (valid_faces[face] != 0) : true;
         gl_tile.face_textures[face] = face_texture_ids ? face_texture_ids[face] : -1;
+
+        // Determine shading type
+        if( face_texture_ids && face_texture_ids[face] != -1 )
+        {
+            gl_tile.face_shading[face] = SHADING_TEXTURED;
+        }
+        else if( face_color_hsl_c && face_color_hsl_c[face] == -1 )
+        {
+            gl_tile.face_shading[face] = SHADING_FLAT;
+        }
+        else
+        {
+            gl_tile.face_shading[face] = SHADING_GOURAUD;
+        }
 
         if( !gl_tile.face_visible[face] )
             continue;
