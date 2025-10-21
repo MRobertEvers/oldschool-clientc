@@ -1154,64 +1154,9 @@ pix3dgl_model_draw(
         glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
     }
 
-    // Enable/disable texture based on model (using cached locations and state tracking)
-    if( model.has_textures && model.first_texture_id != -1 )
-    {
-        // Find the OpenGL texture ID for this texture
-        auto tex_it = pix3dgl->texture_ids.find(model.first_texture_id);
-        if( tex_it != pix3dgl->texture_ids.end() )
-        {
-            GLuint gl_texture_id = tex_it->second;
-
-            // Only bind texture if it's different from currently bound
-            if( pix3dgl->currently_bound_texture != gl_texture_id )
-            {
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, gl_texture_id);
-                pix3dgl->currently_bound_texture = gl_texture_id;
-            }
-
-            // Enable texture usage
-            if( pix3dgl->current_texture_state != 1 )
-            {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 1);
-                    pix3dgl->current_texture_state = 1;
-                }
-            }
-        }
-        else
-        {
-            // Texture not loaded, disable texturing
-            if( pix3dgl->current_texture_state != 0 )
-            {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 0);
-                    pix3dgl->current_texture_state = 0;
-                }
-            }
-        }
-    }
-    else
-    {
-        // No textures, disable texturing
-        if( pix3dgl->current_texture_state != 0 )
-        {
-            if( pix3dgl->uniform_use_texture >= 0 )
-            {
-                glUniform1i(pix3dgl->uniform_use_texture, 0);
-                pix3dgl->current_texture_state = 0;
-            }
-        }
-    }
-
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Use VAO for better performance
     glBindVertexArray(model.VAO);
-    glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
-    glBindVertexArray(0);
 #else
     // Mobile/WebGL: Manually set up vertex attributes each time
     // Set up position attribute (location 0)
@@ -1231,11 +1176,78 @@ pix3dgl_model_draw(
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(2);
     }
+#endif
 
-    // Draw the model (render all triangles)
-    glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
+    // Draw all faces with appropriate shading type (textured, Gouraud, or flat)
+    for( int face = 0; face < model.face_count; face++ )
+    {
+        if( !model.face_visible[face] )
+            continue;
 
-    // Disable vertex attributes
+        // Determine shading type and set texture state accordingly
+        FaceShadingType shading = model.face_shading[face];
+
+        if( shading == SHADING_TEXTURED )
+        {
+            // Textured face - bind texture and enable texturing
+            int face_texture_id = model.face_textures[face];
+            auto tex_it = pix3dgl->texture_ids.find(face_texture_id);
+
+            if( tex_it != pix3dgl->texture_ids.end() )
+            {
+                GLuint gl_texture_id = tex_it->second;
+
+                if( pix3dgl->currently_bound_texture != gl_texture_id )
+                {
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, gl_texture_id);
+                    pix3dgl->currently_bound_texture = gl_texture_id;
+                }
+
+                if( pix3dgl->current_texture_state != 1 )
+                {
+                    if( pix3dgl->uniform_use_texture >= 0 )
+                    {
+                        glUniform1i(pix3dgl->uniform_use_texture, 1);
+                        pix3dgl->current_texture_state = 1;
+                    }
+                }
+            }
+            else
+            {
+                // Texture not loaded, fall back to Gouraud shading
+                if( pix3dgl->current_texture_state != 0 )
+                {
+                    if( pix3dgl->uniform_use_texture >= 0 )
+                    {
+                        glUniform1i(pix3dgl->uniform_use_texture, 0);
+                        pix3dgl->current_texture_state = 0;
+                    }
+                }
+            }
+        }
+        else // SHADING_GOURAUD or SHADING_FLAT
+        {
+            // Gouraud or flat shading - disable texturing, use vertex colors
+            if( pix3dgl->current_texture_state != 0 )
+            {
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 0);
+                    pix3dgl->current_texture_state = 0;
+                }
+            }
+        }
+
+        // Draw the face
+        glDrawArrays(GL_TRIANGLES, face * 3, 3);
+    }
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // Desktop: Unbind VAO
+    glBindVertexArray(0);
+#else
+    // Mobile/WebGL: Disable vertex attributes
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
     if( model.has_textures )
