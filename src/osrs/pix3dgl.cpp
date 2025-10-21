@@ -55,10 +55,11 @@ void main() {
     vec4 viewPos = uViewMatrix * worldPos;
     gl_Position = uProjectionMatrix * viewPos;
     
-    // Pass through the color
+    // Pass through vertex color (supports all 3 shading types)
+    // TEXTURED: color modulates texture | GOURAUD: interpolated | FLAT: same for all vertices
     vColor = aColor;
     
-    // Transform texture coordinates if needed
+    // Transform texture coordinates (used only for textured faces)
     vec4 texCoord = vec4(aTexCoord, 0.0, 1.0);
     vec4 transformedTexCoord = uTextureMatrix * texCoord;
     vTexCoord = transformedTexCoord.xy / transformedTexCoord.w;
@@ -76,6 +77,7 @@ out vec4 FragColor;
 
 void main() {
     if (uUseTexture) {
+        // TEXTURED shading: texture * vertex color
         vec4 texColor = texture(uTexture, vTexCoord);
         // Make black texels transparent, preserve existing alpha
         float epsilon = 0.001; // Small threshold to account for floating point precision
@@ -86,6 +88,8 @@ void main() {
         }
         FragColor = vec4(texColor.rgb * vColor, texColor.a);
     } else {
+        // GOURAUD or FLAT shading: interpolated vertex colors
+        // (FLAT = all vertices same color, so no visual interpolation)
         FragColor = vec4(vColor, 1.0);
     }
 }
