@@ -5,6 +5,8 @@
 #include "scene_cache.h"
 #include "shared_tables.h"
 
+#include <string.h>
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -328,10 +330,20 @@ struct Pix3DGL
     GLModel* current_model;
     int current_model_idx;
 
-    // Cached uniform locations for performance
+    // Cached uniform locations for performance (to avoid expensive glGetUniformLocation calls)
     GLint uniform_model_matrix;
     GLint uniform_use_texture;
     GLint uniform_texture;
+    GLint uniform_rotation_x;
+    GLint uniform_rotation_y;
+    GLint uniform_screen_width;
+    GLint uniform_screen_height;
+    GLint uniform_camera_pos;
+    GLint uniform_texture_matrix;
+
+    // State tracking to avoid redundant GL calls
+    GLuint currently_bound_texture;
+    int current_texture_state; // 0 = texture disabled, 1 = texture enabled
 };
 
 extern "C" void
@@ -852,6 +864,10 @@ pix3dgl_new()
     pix3dgl->current_model = nullptr;
     pix3dgl->current_model_idx = -1;
 
+    // Initialize state tracking
+    pix3dgl->currently_bound_texture = 0;
+    pix3dgl->current_texture_state = -1; // -1 = unknown
+
     // Initialize OpenGL shaders - Use appropriate shaders for platform
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
     // For WebGL and Android, use ES2 shaders
@@ -868,14 +884,47 @@ pix3dgl_new()
         return nullptr;
     }
 
-    // Cache uniform locations for performance
+    // Cache ALL uniform locations for performance (avoids expensive string lookups per-frame)
     pix3dgl->uniform_model_matrix = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
     pix3dgl->uniform_use_texture = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
     pix3dgl->uniform_texture = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
+    pix3dgl->uniform_rotation_x = glGetUniformLocation(pix3dgl->program_es2, "uRotationX");
+    pix3dgl->uniform_rotation_y = glGetUniformLocation(pix3dgl->program_es2, "uRotationY");
+    pix3dgl->uniform_screen_width = glGetUniformLocation(pix3dgl->program_es2, "uScreenWidth");
+    pix3dgl->uniform_screen_height = glGetUniformLocation(pix3dgl->program_es2, "uScreenHeight");
+    pix3dgl->uniform_camera_pos = glGetUniformLocation(pix3dgl->program_es2, "uCameraPos");
+    pix3dgl->uniform_texture_matrix = glGetUniformLocation(pix3dgl->program_es2, "uTextureMatrix");
+
+    printf(
+        "Cached uniform locations - model_matrix:%d use_texture:%d texture:%d rotation_x:%d "
+        "rotation_y:%d\n",
+        pix3dgl->uniform_model_matrix,
+        pix3dgl->uniform_use_texture,
+        pix3dgl->uniform_texture,
+        pix3dgl->uniform_rotation_x,
+        pix3dgl->uniform_rotation_y);
 
     // Enable alpha blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Print OpenGL info to verify hardware acceleration
+    const GLubyte* renderer = glGetString(GL_RENDERER);
+    const GLubyte* version = glGetString(GL_VERSION);
+    const GLubyte* vendor = glGetString(GL_VENDOR);
+    printf("========================================\n");
+    printf("OpenGL Renderer: %s\n", renderer);
+    printf("OpenGL Version: %s\n", version);
+    printf("OpenGL Vendor: %s\n", vendor);
+    printf("========================================\n");
+
+    // Check if we're using software rendering (this would be a problem!)
+    const char* renderer_str = (const char*)renderer;
+    if( strstr(renderer_str, "Software") || strstr(renderer_str, "software") ||
+        strstr(renderer_str, "llvmpipe") || strstr(renderer_str, "SwiftShader") )
+    {
+        printf("WARNING: Software rendering detected! Hardware acceleration may not be working!\n");
+    }
 
     printf("Pix3DGL initialized successfully with shader program ID: %d\n", pix3dgl->program_es2);
     return pix3dgl;
@@ -1104,38 +1153,35 @@ pix3dgl_begin_frame(
     float pitch_radians = (camera_pitch * 2.0f * M_PI) / 2048.0f;
     float yaw_radians = (camera_yaw * 2.0f * M_PI) / 2048.0f;
 
-    // Set up uniforms with actual camera parameters
-    GLint rotationXLoc = glGetUniformLocation(pix3dgl->program_es2, "uRotationX");
-    GLint rotationYLoc = glGetUniformLocation(pix3dgl->program_es2, "uRotationY");
-    GLint screenWidthLoc = glGetUniformLocation(pix3dgl->program_es2, "uScreenWidth");
-    GLint screenHeightLoc = glGetUniformLocation(pix3dgl->program_es2, "uScreenHeight");
-    GLint cameraPosLoc = glGetUniformLocation(pix3dgl->program_es2, "uCameraPos");
-
-    if( rotationXLoc >= 0 )
-        glUniform1f(rotationXLoc, pitch_radians);
-    if( rotationYLoc >= 0 )
-        glUniform1f(rotationYLoc, yaw_radians);
-    if( screenWidthLoc >= 0 )
-        glUniform1f(screenWidthLoc, screen_width);
-    if( screenHeightLoc >= 0 )
-        glUniform1f(screenHeightLoc, screen_height);
-    if( cameraPosLoc >= 0 )
-        glUniform3f(cameraPosLoc, camera_x, camera_y, camera_z);
+    // Set up uniforms with actual camera parameters (using cached locations)
+    if( pix3dgl->uniform_rotation_x >= 0 )
+        glUniform1f(pix3dgl->uniform_rotation_x, pitch_radians);
+    if( pix3dgl->uniform_rotation_y >= 0 )
+        glUniform1f(pix3dgl->uniform_rotation_y, yaw_radians);
+    if( pix3dgl->uniform_screen_width >= 0 )
+        glUniform1f(pix3dgl->uniform_screen_width, screen_width);
+    if( pix3dgl->uniform_screen_height >= 0 )
+        glUniform1f(pix3dgl->uniform_screen_height, screen_height);
+    if( pix3dgl->uniform_camera_pos >= 0 )
+        glUniform3f(pix3dgl->uniform_camera_pos, camera_x, camera_y, camera_z);
 
     // Set identity matrix for texture coordinates
-    GLint textureMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uTextureMatrix");
-    if( textureMatrixLoc >= 0 )
+    if( pix3dgl->uniform_texture_matrix >= 0 )
     {
         float identity[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                                0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
-        glUniformMatrix4fv(textureMatrixLoc, 1, GL_FALSE, identity);
+        glUniformMatrix4fv(pix3dgl->uniform_texture_matrix, 1, GL_FALSE, identity);
     }
 
+    // Reset state tracking for new frame
+    pix3dgl->currently_bound_texture = 0;
+    pix3dgl->current_texture_state = -1;
+
     // Disable texture usage by default (will be enabled for textured models later)
-    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
-    if( useTextureLoc >= 0 )
+    if( pix3dgl->uniform_use_texture >= 0 )
     {
-        glUniform1i(useTextureLoc, 0);
+        glUniform1i(pix3dgl->uniform_use_texture, 0);
+        pix3dgl->current_texture_state = 0;
     }
 }
 
@@ -1173,53 +1219,62 @@ pix3dgl_model_draw(
                               0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
-    // Set model matrix uniform
-    GLint modelMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
-    if( modelMatrixLoc >= 0 )
+    // Set model matrix uniform (using cached location)
+    if( pix3dgl->uniform_model_matrix >= 0 )
     {
-        glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
+        glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
     }
 
-    // Enable/disable texture based on model
-    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
+    // Enable/disable texture based on model (using cached locations and state tracking)
     if( model.has_textures && model.first_texture_id != -1 )
     {
         // Find the OpenGL texture ID for this texture
         auto tex_it = pix3dgl->texture_ids.find(model.first_texture_id);
         if( tex_it != pix3dgl->texture_ids.end() )
         {
-            // Bind the texture
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, tex_it->second);
+            GLuint gl_texture_id = tex_it->second;
 
-            // Set the sampler to texture unit 0
-            GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
-            if( textureLoc >= 0 )
+            // Only bind texture if it's different from currently bound
+            if( pix3dgl->currently_bound_texture != gl_texture_id )
             {
-                glUniform1i(textureLoc, 0);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, gl_texture_id);
+                pix3dgl->currently_bound_texture = gl_texture_id;
             }
 
             // Enable texture usage
-            if( useTextureLoc >= 0 )
+            if( pix3dgl->current_texture_state != 1 )
             {
-                glUniform1i(useTextureLoc, 1);
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 1);
+                    pix3dgl->current_texture_state = 1;
+                }
             }
         }
         else
         {
             // Texture not loaded, disable texturing
-            if( useTextureLoc >= 0 )
+            if( pix3dgl->current_texture_state != 0 )
             {
-                glUniform1i(useTextureLoc, 0);
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 0);
+                    pix3dgl->current_texture_state = 0;
+                }
             }
         }
     }
     else
     {
         // No textures, disable texturing
-        if( useTextureLoc >= 0 )
+        if( pix3dgl->current_texture_state != 0 )
         {
-            glUniform1i(useTextureLoc, 0);
+            if( pix3dgl->uniform_use_texture >= 0 )
+            {
+                glUniform1i(pix3dgl->uniform_use_texture, 0);
+                pix3dgl->current_texture_state = 0;
+            }
         }
     }
 
@@ -1314,53 +1369,62 @@ pix3dgl_model_draw_face(
                               0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
-    // Set model matrix uniform
-    GLint modelMatrixLoc = glGetUniformLocation(pix3dgl->program_es2, "uModelMatrix");
-    if( modelMatrixLoc >= 0 )
+    // Set model matrix uniform (using cached location)
+    if( pix3dgl->uniform_model_matrix >= 0 )
     {
-        glUniformMatrix4fv(modelMatrixLoc, 1, GL_FALSE, modelMatrix);
+        glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
     }
 
-    // Enable/disable texture based on model
-    GLint useTextureLoc = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
+    // Enable/disable texture based on model (using cached locations and state tracking)
     if( model.has_textures && model.first_texture_id != -1 )
     {
         // Find the OpenGL texture ID for this texture
         auto tex_it = pix3dgl->texture_ids.find(model.first_texture_id);
         if( tex_it != pix3dgl->texture_ids.end() )
         {
-            // Bind the texture
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, tex_it->second);
+            GLuint gl_texture_id = tex_it->second;
 
-            // Set the sampler to texture unit 0
-            GLint textureLoc = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
-            if( textureLoc >= 0 )
+            // Only bind texture if it's different from currently bound
+            if( pix3dgl->currently_bound_texture != gl_texture_id )
             {
-                glUniform1i(textureLoc, 0);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, gl_texture_id);
+                pix3dgl->currently_bound_texture = gl_texture_id;
             }
 
             // Enable texture usage
-            if( useTextureLoc >= 0 )
+            if( pix3dgl->current_texture_state != 1 )
             {
-                glUniform1i(useTextureLoc, 1);
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 1);
+                    pix3dgl->current_texture_state = 1;
+                }
             }
         }
         else
         {
             // Texture not loaded, disable texturing
-            if( useTextureLoc >= 0 )
+            if( pix3dgl->current_texture_state != 0 )
             {
-                glUniform1i(useTextureLoc, 0);
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 0);
+                    pix3dgl->current_texture_state = 0;
+                }
             }
         }
     }
     else
     {
         // No textures, disable texturing
-        if( useTextureLoc >= 0 )
+        if( pix3dgl->current_texture_state != 0 )
         {
-            glUniform1i(useTextureLoc, 0);
+            if( pix3dgl->uniform_use_texture >= 0 )
+            {
+                glUniform1i(pix3dgl->uniform_use_texture, 0);
+                pix3dgl->current_texture_state = 0;
+            }
         }
     }
 
@@ -1514,9 +1578,14 @@ pix3dgl_model_draw_face_fast(struct Pix3DGL* pix3dgl, int face_idx)
     if( face_texture_id == -1 )
     {
         // No texture - use Gouraud shading (interpolated vertex colors)
-        if( pix3dgl->uniform_use_texture >= 0 )
+        // Only update if state changed (avoid redundant uniform updates)
+        if( pix3dgl->current_texture_state != 0 )
         {
-            glUniform1i(pix3dgl->uniform_use_texture, 0);
+            if( pix3dgl->uniform_use_texture >= 0 )
+            {
+                glUniform1i(pix3dgl->uniform_use_texture, 0);
+                pix3dgl->current_texture_state = 0;
+            }
         }
     }
     else
@@ -1525,25 +1594,37 @@ pix3dgl_model_draw_face_fast(struct Pix3DGL* pix3dgl, int face_idx)
         auto tex_it = pix3dgl->texture_ids.find(face_texture_id);
         if( tex_it != pix3dgl->texture_ids.end() )
         {
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, tex_it->second);
+            GLuint gl_texture_id = tex_it->second;
 
-            if( pix3dgl->uniform_texture >= 0 )
+            // Only bind texture if it's different from currently bound (avoid redundant state
+            // changes)
+            if( pix3dgl->currently_bound_texture != gl_texture_id )
             {
-                glUniform1i(pix3dgl->uniform_texture, 0);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, gl_texture_id);
+                pix3dgl->currently_bound_texture = gl_texture_id;
             }
 
-            if( pix3dgl->uniform_use_texture >= 0 )
+            // Only enable texture if not already enabled
+            if( pix3dgl->current_texture_state != 1 )
             {
-                glUniform1i(pix3dgl->uniform_use_texture, 1);
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 1);
+                    pix3dgl->current_texture_state = 1;
+                }
             }
         }
         else
         {
             // Texture not loaded, fall back to Gouraud shading
-            if( pix3dgl->uniform_use_texture >= 0 )
+            if( pix3dgl->current_texture_state != 0 )
             {
-                glUniform1i(pix3dgl->uniform_use_texture, 0);
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 0);
+                    pix3dgl->current_texture_state = 0;
+                }
             }
         }
     }
@@ -1843,7 +1924,7 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
     glEnableVertexAttribArray(2);
 #endif
 
-    // Draw each face
+    // Draw each face (optimized with state tracking)
     for( int face = 0; face < tile.face_count; face++ )
     {
         if( !tile.face_visible[face] )
@@ -1854,9 +1935,14 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
         if( texture_id == -1 )
         {
             // No texture - use Gouraud shading
-            if( pix3dgl->uniform_use_texture >= 0 )
+            // Only update if state changed (avoid redundant uniform updates)
+            if( pix3dgl->current_texture_state != 0 )
             {
-                glUniform1i(pix3dgl->uniform_use_texture, 0);
+                if( pix3dgl->uniform_use_texture >= 0 )
+                {
+                    glUniform1i(pix3dgl->uniform_use_texture, 0);
+                    pix3dgl->current_texture_state = 0;
+                }
             }
         }
         else
@@ -1865,25 +1951,37 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
             auto tex_it = pix3dgl->texture_ids.find(texture_id);
             if( tex_it != pix3dgl->texture_ids.end() )
             {
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, tex_it->second);
+                GLuint gl_texture_id = tex_it->second;
 
-                if( pix3dgl->uniform_texture >= 0 )
+                // Only bind texture if it's different from currently bound (avoid redundant state
+                // changes)
+                if( pix3dgl->currently_bound_texture != gl_texture_id )
                 {
-                    glUniform1i(pix3dgl->uniform_texture, 0);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, gl_texture_id);
+                    pix3dgl->currently_bound_texture = gl_texture_id;
                 }
 
-                if( pix3dgl->uniform_use_texture >= 0 )
+                // Only enable texture if not already enabled
+                if( pix3dgl->current_texture_state != 1 )
                 {
-                    glUniform1i(pix3dgl->uniform_use_texture, 1);
+                    if( pix3dgl->uniform_use_texture >= 0 )
+                    {
+                        glUniform1i(pix3dgl->uniform_use_texture, 1);
+                        pix3dgl->current_texture_state = 1;
+                    }
                 }
             }
             else
             {
                 // Texture not loaded, fall back to Gouraud shading
-                if( pix3dgl->uniform_use_texture >= 0 )
+                if( pix3dgl->current_texture_state != 0 )
                 {
-                    glUniform1i(pix3dgl->uniform_use_texture, 0);
+                    if( pix3dgl->uniform_use_texture >= 0 )
+                    {
+                        glUniform1i(pix3dgl->uniform_use_texture, 0);
+                        pix3dgl->current_texture_state = 0;
+                    }
                 }
             }
         }
