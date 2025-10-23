@@ -12,20 +12,13 @@
 #endif
 
 //
-#ifdef __EMSCRIPTEN__
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-#elif defined(__ANDROID__)
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-#elif defined(__APPLE__)
+
+#if defined(__APPLE__)
 // Use regular OpenGL headers on macOS/iOS for development
 #include <OpenGL/gl.h>
 #include <OpenGL/gl3.h>
 #define GL_GLEXT_PROTOTYPES
-#else
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
+
 #endif
 
 #include <unordered_map>
@@ -105,9 +98,7 @@ enum FaceShadingType
 struct GLModel
 {
     int idx;
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     GLuint VAO; // Use VAO on desktop platforms for better performance
-#endif
     GLuint VBO;
     GLuint colorVBO;
     GLuint texCoordVBO;
@@ -124,9 +115,7 @@ struct GLModel
 struct GLTile
 {
     int idx;
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     GLuint VAO;
-#endif
     GLuint VBO;
     GLuint colorVBO;
     GLuint texCoordVBO;
@@ -311,11 +300,9 @@ pix3dgl_model_load_textured_pnm(
         }
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Create VAO on desktop platforms for better performance
     glGenVertexArrays(1, &gl_model.VAO);
     glBindVertexArray(gl_model.VAO);
-#endif
 
     // Create buffers
     glGenBuffers(1, &gl_model.VBO);
@@ -503,33 +490,27 @@ pix3dgl_model_load_textured_pnm(
     // Upload vertex data to GPU
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Set up vertex attributes when using VAO on desktop
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-#endif
 
     // Upload color data to GPU
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Set up color attributes when using VAO on desktop
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
-#endif
 
     // Upload texture coordinate data to GPU
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.texCoordVBO);
     glBufferData(
         GL_ARRAY_BUFFER, texCoords.size() * sizeof(float), texCoords.data(), GL_STATIC_DRAW);
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Set up texture coordinate attributes when using VAO on desktop
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(2);
 
     // Unbind VAO to avoid accidental modifications
     glBindVertexArray(0);
-#endif
 
     // Store the model in the map
     pix3dgl->models[idx] = gl_model;
@@ -580,11 +561,9 @@ pix3dgl_model_load(
         }
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Create VAO on desktop platforms for better performance
     glGenVertexArrays(1, &gl_model.VAO);
     glBindVertexArray(gl_model.VAO);
-#endif
 
     // Create buffers
     glGenBuffers(1, &gl_model.VBO);
@@ -648,11 +627,9 @@ pix3dgl_model_load(
 
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Set up vertex attributes when using VAO on desktop
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-#endif
 
     // Create and setup color buffer - one color per vertex per face
     std::vector<float> colors(face_count * 9); // 3 vertices * 3 colors per face
@@ -711,14 +688,12 @@ pix3dgl_model_load(
 
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Set up color attributes when using VAO on desktop
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Unbind VAO to avoid accidental modifications
     glBindVertexArray(0);
-#endif
 
     // Store the model in the map
     pix3dgl->models[idx] = gl_model;
@@ -790,14 +765,7 @@ pix3dgl_new()
     pix3dgl->currently_bound_texture = 0;
     pix3dgl->current_texture_state = -1; // -1 = unknown
 
-    // Initialize OpenGL shaders - Use appropriate shaders for platform
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
-    // For WebGL and Android, use ES2 shaders
-    pix3dgl->program_es2 = create_shader_program(g_vertex_shader_es2, g_fragment_shader_es2);
-#else
-    // For desktop platforms, use Core Profile shaders (but still ES2-compatible rendering)
     pix3dgl->program_es2 = create_shader_program(g_vertex_shader_core, g_fragment_shader_core);
-#endif
 
     if( !pix3dgl->program_es2 )
     {
@@ -998,30 +966,10 @@ pix3dgl_render_with_camera(
     {
         GLModel& model = pair.second;
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
         // Desktop: Use VAO for better performance
         glBindVertexArray(model.VAO);
         glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
         glBindVertexArray(0);
-#else
-        // Mobile/WebGL: Manually set up vertex attributes each time
-        // Set up position attribute (location 0)
-        glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-
-        // Set up color attribute (location 1)
-        glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(1);
-
-        // Draw the model (render all triangles)
-        glDrawArrays(GL_TRIANGLES, 0, model.face_count * 3);
-
-        // Disable vertex attributes
-        glDisableVertexAttribArray(0);
-        glDisableVertexAttribArray(1);
-#endif
     }
 
     // Check for OpenGL errors
@@ -1154,29 +1102,8 @@ pix3dgl_model_draw(
         glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Use VAO for better performance
     glBindVertexArray(model.VAO);
-#else
-    // Mobile/WebGL: Manually set up vertex attributes each time
-    // Set up position attribute (location 0)
-    glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Set up color attribute (location 1)
-    glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-
-    // Set up texture coordinate attribute (location 2) if model has textures
-    if( model.has_textures )
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, model.texCoordVBO);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(2);
-    }
-#endif
 
     // Draw all faces with appropriate shading type (textured, Gouraud, or flat)
     for( int face = 0; face < model.face_count; face++ )
@@ -1243,18 +1170,8 @@ pix3dgl_model_draw(
         glDrawArrays(GL_TRIANGLES, face * 3, 3);
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Unbind VAO
     glBindVertexArray(0);
-#else
-    // Mobile/WebGL: Disable vertex attributes
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    if( model.has_textures )
-    {
-        glDisableVertexAttribArray(2);
-    }
-#endif
 
     // Check for OpenGL errors
     // GLenum error = glGetError();
@@ -1369,43 +1286,11 @@ pix3dgl_model_draw_face(
         }
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Use VAO for better performance
     glBindVertexArray(model.VAO);
     // Draw only the specified face (3 vertices starting at face_idx * 3)
     glDrawArrays(GL_TRIANGLES, face_idx * 3, 3);
     glBindVertexArray(0);
-#else
-    // Mobile/WebGL: Manually set up vertex attributes each time
-    // Set up position attribute (location 0)
-    glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Set up color attribute (location 1)
-    glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-
-    // Set up texture coordinate attribute (location 2) if model has textures
-    if( model.has_textures )
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, model.texCoordVBO);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(2);
-    }
-
-    // Draw only the specified face (3 vertices starting at face_idx * 3)
-    glDrawArrays(GL_TRIANGLES, face_idx * 3, 3);
-
-    // Disable vertex attributes
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    if( model.has_textures )
-    {
-        glDisableVertexAttribArray(2);
-    }
-#endif
 
     // Check for OpenGL errors
     // GLenum error = glGetError();
@@ -1460,29 +1345,8 @@ pix3dgl_model_begin_draw(
     // Note: Texture binding is now handled per-face in pix3dgl_model_draw_face_fast
     // to support mixed textured/Gouraud faces within the same model
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Bind VAO once
     glBindVertexArray(model.VAO);
-#else
-    // Mobile/WebGL: Set up vertex attributes once
-    // Set up position attribute (location 0)
-    glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Set up color attribute (location 1)
-    glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-
-    // Set up texture coordinate attribute (location 2) if model has textures
-    if( model.has_textures )
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, model.texCoordVBO);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(2);
-    }
-#endif
 }
 
 extern "C" void
@@ -1594,45 +1458,19 @@ pix3dgl_model_end_draw(struct Pix3DGL* pix3dgl)
 
         // Use glMultiDrawArrays for efficient batch rendering
         // This issues ONE driver call instead of N glDrawArrays calls
-#if defined(__APPLE__) && !defined(__EMSCRIPTEN__)
         // macOS supports glMultiDrawArrays in OpenGL 3.2+
         glMultiDrawArrays(
             GL_TRIANGLES,
             batch.face_starts.data(),
             batch.face_counts.data(),
             batch.face_starts.size());
-#else
-        // Fallback for platforms without glMultiDrawArrays
-        // Still better than drawing each face individually since we batch by texture
-        for( size_t i = 0; i < batch.face_starts.size(); i++ )
-        {
-            glDrawArrays(GL_TRIANGLES, batch.face_starts[i], batch.face_counts[i]);
-        }
-#endif
     }
 
     // Clear batches for next draw
     pix3dgl->draw_batches.clear();
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     // Desktop: Unbind VAO
     glBindVertexArray(0);
-#else
-    // Mobile/WebGL: Disable vertex attributes
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    if( model.has_textures )
-    {
-        glDisableVertexAttribArray(2);
-    }
-#endif
-
-    // Check for OpenGL errors
-    GLenum error = glGetError();
-    if( error != GL_NO_ERROR )
-    {
-        printf("OpenGL error in pix3dgl_model_end_draw: 0x%x\n", error);
-    }
 
     pix3dgl->current_model = nullptr;
     pix3dgl->current_model_idx = -1;
@@ -1660,10 +1498,8 @@ pix3dgl_tile_load(
     gl_tile.idx = idx;
     gl_tile.face_count = face_count;
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     glGenVertexArrays(1, &gl_tile.VAO);
     glBindVertexArray(gl_tile.VAO);
-#endif
 
     // Create buffers
     glGenBuffers(1, &gl_tile.VBO);
@@ -1836,31 +1672,23 @@ pix3dgl_tile_load(
     // Upload vertex data
     glBindBuffer(GL_ARRAY_BUFFER, gl_tile.VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-#endif
 
     // Upload color data
     glBindBuffer(GL_ARRAY_BUFFER, gl_tile.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
-#endif
 
     // Upload texture coordinate data
     glBindBuffer(GL_ARRAY_BUFFER, gl_tile.texCoordVBO);
     glBufferData(
         GL_ARRAY_BUFFER, texCoords.size() * sizeof(float), texCoords.data(), GL_STATIC_DRAW);
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(2);
-#endif
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     glBindVertexArray(0);
-#endif
 
     pix3dgl->tiles[idx] = gl_tile;
     printf("Loaded tile %d with %d faces\n", idx, face_count);
@@ -1894,21 +1722,7 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
         glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     glBindVertexArray(tile.VAO);
-#else
-    glBindBuffer(GL_ARRAY_BUFFER, tile.VBO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, tile.colorVBO);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer(GL_ARRAY_BUFFER, tile.texCoordVBO);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(2);
-#endif
 
     // Draw each face (optimized with state tracking)
     for( int face = 0; face < tile.face_count; face++ )
@@ -1975,13 +1789,7 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
         glDrawArrays(GL_TRIANGLES, face * 3, 3);
     }
 
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
     glBindVertexArray(0);
-#else
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    glDisableVertexAttribArray(2);
-#endif
 }
 
 extern "C" void
@@ -2000,9 +1808,7 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
         for( auto& pair : pix3dgl->models )
         {
             GLModel& model = pair.second;
-#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
             glDeleteVertexArrays(1, &model.VAO);
-#endif
             glDeleteBuffers(1, &model.VBO);
             glDeleteBuffers(1, &model.colorVBO);
             glDeleteBuffers(1, &model.texCoordVBO);
