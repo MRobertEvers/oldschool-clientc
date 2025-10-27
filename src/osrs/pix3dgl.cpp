@@ -143,6 +143,14 @@ struct SceneDrawBatch
     std::vector<GLsizei> face_counts;
 };
 
+// Structure to track where each model's faces are in the static scene buffer
+struct ModelRange
+{
+    int scene_model_idx; // Index of the model in the scene
+    int start_vertex;    // Starting vertex index in the buffer
+    int vertex_count;    // Number of vertices for this model
+};
+
 // Static scene buffer for combining multiple models into a single buffer
 struct StaticScene
 {
@@ -161,6 +169,12 @@ struct StaticScene
     // With texture atlas, we don't need separate batches anymore
     // but keep for now for gradual migration
     std::unordered_map<int, DrawBatch> texture_batches;
+
+    // Track model face positions in the buffer
+    std::unordered_map<int, ModelRange> model_ranges; // Key: scene_model_idx
+
+    // Draw order (list of scene_model_idx values in the order they should be drawn)
+    std::vector<int> draw_order;
 
     bool is_finalized;
 };
@@ -2360,6 +2374,7 @@ pix3dgl_scene_static_add_model(
 extern "C" void
 pix3dgl_scene_static_add_model_raw(
     struct Pix3DGL* pix3dgl,
+    int scene_model_idx,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
@@ -2400,6 +2415,7 @@ pix3dgl_scene_static_add_model_raw(
     float sin_yaw = sin(yaw);
 
     int current_vertex_index = scene->total_vertex_count;
+    int start_vertex_index = current_vertex_index;
 
     // Process each face
     for( int face = 0; face < face_count; face++ )
@@ -2635,6 +2651,24 @@ pix3dgl_scene_static_add_model_raw(
     }
 
     scene->total_vertex_count = current_vertex_index;
+
+    // Track the model's position in the buffer
+    int vertex_count = current_vertex_index - start_vertex_index;
+    if( vertex_count > 0 )
+    {
+        ModelRange range;
+        range.scene_model_idx = scene_model_idx;
+        range.start_vertex = start_vertex_index;
+        range.vertex_count = vertex_count;
+        scene->model_ranges[scene_model_idx] = range;
+
+        printf(
+            "Added model %d to static scene: start=%d, count=%d (total %d vertices)\n",
+            scene_model_idx,
+            start_vertex_index,
+            vertex_count,
+            scene->total_vertex_count);
+    }
 }
 
 extern "C" void
@@ -2720,6 +2754,38 @@ pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl)
 }
 
 extern "C" void
+pix3dgl_scene_static_set_draw_order(struct Pix3DGL* pix3dgl, int* scene_model_indices, int count)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        printf("Static scene not initialized\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    // Clear and set the draw order
+    scene->draw_order.clear();
+    scene->draw_order.reserve(count);
+
+    for( int i = 0; i < count; i++ )
+    {
+        int scene_model_idx = scene_model_indices[i];
+
+        // Only add models that actually have geometry in the buffer
+        if( scene->model_ranges.find(scene_model_idx) != scene->model_ranges.end() )
+        {
+            scene->draw_order.push_back(scene_model_idx);
+        }
+    }
+
+    printf(
+        "Set draw order for %d models (out of %d requested)\n",
+        (int)scene->draw_order.size(),
+        count);
+}
+
+extern "C" void
 pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->static_scene )
@@ -2765,22 +2831,49 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
     // Bind the static scene VAO
     glBindVertexArray(scene->VAO);
 
-    // Draw entire scene in a single call!
-    glDrawArrays(GL_TRIANGLES, 0, scene->total_vertex_count);
+    // Draw models in the specified order, or all models if no order is set
+    if( !scene->draw_order.empty() )
+    {
+        // Draw models in the order specified by draw_order
+        for( int scene_model_idx : scene->draw_order )
+        {
+            auto it = scene->model_ranges.find(scene_model_idx);
+            if( it != scene->model_ranges.end() )
+            {
+                const ModelRange& range = it->second;
+                glDrawArrays(GL_TRIANGLES, range.start_vertex, range.vertex_count);
+            }
+        }
+
+        static bool printed_once = false;
+        if( !printed_once )
+        {
+            printf(
+                "Rendering %d models in order (total %d vertices)\n",
+                (int)scene->draw_order.size(),
+                scene->total_vertex_count);
+            printed_once = true;
+        }
+    }
+    else
+    {
+        // Fallback: draw entire scene in a single call (original behavior)
+        glDrawArrays(GL_TRIANGLES, 0, scene->total_vertex_count);
+
+        static bool printed_once = false;
+        if( !printed_once )
+        {
+            printf(
+                "Rendering %d vertices with texture atlas in SINGLE draw call (no order set)!\n",
+                scene->total_vertex_count);
+            printed_once = true;
+        }
+    }
 
     glBindVertexArray(0);
 
     // Re-enable blending for other rendering
     glEnable(GL_BLEND);
-
-    static bool printed_once = false;
-    if( !printed_once )
-    {
-        printf(
-            "Rendering %d vertices with texture atlas in SINGLE draw call!\n",
-            scene->total_vertex_count);
-        printed_once = true;
-    }
 }
 
 extern "C" void

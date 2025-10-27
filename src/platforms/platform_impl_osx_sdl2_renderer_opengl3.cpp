@@ -14,6 +14,7 @@ extern "C" {
 
 #include <SDL.h>
 #include <stdio.h>
+#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -188,6 +189,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
         // Add model geometry directly to static scene buffer (no individual model loading)
         pix3dgl_scene_static_add_model_raw(
             renderer->pix3dgl,
+            scene_model->scene_model_idx,
             scene_model->model->vertices_x,
             scene_model->model->vertices_y,
             scene_model->model->vertices_z,
@@ -230,8 +232,51 @@ render_scene(struct Renderer* renderer, struct Game* game)
         renderer->width,
         renderer->height);
 
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    // Depth testing disabled - using painter's algorithm for draw order
+    glDisable(GL_DEPTH_TEST);
+
+    // Compute scene ops to determine proper draw order (painter's algorithm)
+    renderer->op_count = render_scene_compute_ops(
+        renderer->ops,
+        renderer->op_capacity,
+        game->camera_world_x,
+        game->camera_world_y,
+        game->camera_world_z,
+        game->scene,
+        NULL);
+
+    // Collect model draw order from scene ops
+    static std::vector<int> model_draw_order;
+    model_draw_order.clear();
+
+    struct IterRenderSceneOps iter_render_scene_ops;
+    iter_render_scene_ops_init(
+        &iter_render_scene_ops,
+        game->frustrum_cullmap,
+        game->scene,
+        renderer->ops,
+        renderer->op_count,
+        renderer->op_count,
+        game->camera_pitch,
+        game->camera_yaw,
+        game->camera_world_x / 128,
+        game->camera_world_z / 128);
+
+    while( iter_render_scene_ops_next(&iter_render_scene_ops) )
+    {
+        if( iter_render_scene_ops.value.model_nullable_ )
+        {
+            struct SceneModel* scene_model = iter_render_scene_ops.value.model_nullable_;
+            model_draw_order.push_back(scene_model->scene_model_idx);
+        }
+    }
+
+    // Set the draw order for the static scene
+    if( !model_draw_order.empty() )
+    {
+        pix3dgl_scene_static_set_draw_order(
+            renderer->pix3dgl, model_draw_order.data(), model_draw_order.size());
+    }
 
     // Draw the static scene buffer (contains all scene geometry)
     pix3dgl_scene_static_draw(renderer->pix3dgl);

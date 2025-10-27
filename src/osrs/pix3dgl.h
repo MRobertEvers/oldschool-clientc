@@ -129,6 +129,7 @@ void pix3dgl_scene_static_add_tile(
     int* face_color_hsl_c);
 void pix3dgl_scene_static_add_model_raw(
     struct Pix3DGL* pix3dgl,
+    int scene_model_idx,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
@@ -150,6 +151,8 @@ void pix3dgl_scene_static_add_model_raw(
     float position_z,
     float yaw);
 void pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl);
+void
+pix3dgl_scene_static_set_draw_order(struct Pix3DGL* pix3dgl, int* scene_model_indices, int count);
 void pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl);
 
 void pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
