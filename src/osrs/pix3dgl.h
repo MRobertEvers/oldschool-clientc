@@ -110,6 +110,48 @@ void pix3dgl_begin_frame(
     float screen_width,
     float screen_height);
 void pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
+
+// Static scene batching - for efficiently rendering static geometry
+void pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl);
+void pix3dgl_scene_static_add_tile(
+    struct Pix3DGL* pix3dgl,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int vertex_count,
+    int* faces_a,
+    int* faces_b,
+    int* faces_c,
+    int face_count,
+    int* face_texture_ids,
+    int* face_color_hsl_a,
+    int* face_color_hsl_b,
+    int* face_color_hsl_c);
+void pix3dgl_scene_static_add_model_raw(
+    struct Pix3DGL* pix3dgl,
+    int* vertices_x,
+    int* vertices_y,
+    int* vertices_z,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int face_count,
+    int* face_textures_nullable,
+    int* face_texture_coords_nullable,
+    int* textured_p_coordinate_nullable,
+    int* textured_m_coordinate_nullable,
+    int* textured_n_coordinate_nullable,
+    int* face_colors_hsl_a,
+    int* face_colors_hsl_b,
+    int* face_colors_hsl_c,
+    int* face_infos_nullable,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw);
+void pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl);
+void pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl);
+
 void pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
 
 #ifdef __cplusplus

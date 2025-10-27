@@ -104,6 +104,119 @@ render_imgui(struct Renderer* renderer, struct Game* game)
 }
 
 static void
+load_static_scene(struct Renderer* renderer, struct Game* game)
+{
+    // This function builds a static scene buffer containing all scene geometry
+    // It's called once when the scene is loaded
+
+    printf("Building static scene buffer...\n");
+
+    // Start building the static scene
+    pix3dgl_scene_static_begin(renderer->pix3dgl);
+
+    // Load all scene tiles first
+    for( int i = 0; i < game->scene->scene_tiles_length; i++ )
+    {
+        struct SceneTile* scene_tile = &game->scene->scene_tiles[i];
+
+        // Load tile textures
+        if( scene_tile->face_texture_ids != NULL && scene_tile->face_count > 0 )
+        {
+            for( int face = 0; face < scene_tile->face_count; face++ )
+            {
+                if( scene_tile->face_texture_ids[face] != -1 )
+                {
+                    pix3dgl_load_texture(
+                        renderer->pix3dgl,
+                        scene_tile->face_texture_ids[face],
+                        game->textures_cache,
+                        game->cache);
+                }
+            }
+        }
+
+        // Add tile geometry directly to static scene buffer
+        pix3dgl_scene_static_add_tile(
+            renderer->pix3dgl,
+            scene_tile->vertex_x,
+            scene_tile->vertex_y,
+            scene_tile->vertex_z,
+            scene_tile->vertex_count,
+            scene_tile->faces_a,
+            scene_tile->faces_b,
+            scene_tile->faces_c,
+            scene_tile->face_count,
+            scene_tile->face_texture_ids,
+            scene_tile->face_color_hsl_a,
+            scene_tile->face_color_hsl_b,
+            scene_tile->face_color_hsl_c);
+    }
+
+    // Add all scene models directly to static scene buffer
+    for( int i = 0; i < game->scene->models_length; i++ )
+    {
+        struct SceneModel* scene_model = &game->scene->models[i];
+
+        if( !scene_model->model )
+            continue;
+
+        // Store the scene model index for later use
+        scene_model->scene_model_idx = i;
+
+        // Load model textures (still needed for rendering)
+        if( scene_model->model->face_textures )
+        {
+            for( int face = 0; face < scene_model->model->face_count; face++ )
+            {
+                if( scene_model->model->face_textures[face] != -1 )
+                {
+                    pix3dgl_load_texture(
+                        renderer->pix3dgl,
+                        scene_model->model->face_textures[face],
+                        game->textures_cache,
+                        game->cache);
+                }
+            }
+        }
+
+        // Calculate world position
+        float position_x = scene_model->region_x + scene_model->offset_x;
+        float position_y = scene_model->region_height + scene_model->offset_height;
+        float position_z = scene_model->region_z + scene_model->offset_z;
+        float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
+
+        // Add model geometry directly to static scene buffer (no individual model loading)
+        pix3dgl_scene_static_add_model_raw(
+            renderer->pix3dgl,
+            scene_model->model->vertices_x,
+            scene_model->model->vertices_y,
+            scene_model->model->vertices_z,
+            scene_model->model->face_indices_a,
+            scene_model->model->face_indices_b,
+            scene_model->model->face_indices_c,
+            scene_model->model->face_count,
+            scene_model->model->face_textures,
+            scene_model->model->face_texture_coords,
+            scene_model->model->textured_p_coordinate,
+            scene_model->model->textured_m_coordinate,
+            scene_model->model->textured_n_coordinate,
+            scene_model->lighting->face_colors_hsl_a,
+            scene_model->lighting->face_colors_hsl_b,
+            scene_model->lighting->face_colors_hsl_c,
+            scene_model->model->face_infos,
+            position_x,
+            position_y,
+            position_z,
+            yaw_radians);
+    }
+
+    // Finalize the static scene - uploads to GPU
+    pix3dgl_scene_static_end(renderer->pix3dgl);
+
+    printf("Static scene buffer built successfully\n");
+}
+
+static void
 render_scene(struct Renderer* renderer, struct Game* game)
 {
     // Begin frame with camera setup
@@ -117,116 +230,11 @@ render_scene(struct Renderer* renderer, struct Game* game)
         renderer->width,
         renderer->height);
 
-    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
 
-    struct IterRenderSceneOps iter_render_scene_ops;
-    struct IterRenderModel iter_render_model;
-    struct SceneModel* scene_model = NULL;
-
-    renderer->op_count = render_scene_compute_ops(
-        renderer->ops,
-        renderer->op_capacity,
-        game->camera_world_x,
-        game->camera_world_y,
-        game->camera_world_z,
-        game->scene,
-        NULL);
-
-    iter_render_scene_ops_init(
-        &iter_render_scene_ops,
-        game->frustrum_cullmap,
-        game->scene,
-        renderer->ops,
-        renderer->op_count,
-        renderer->op_count,
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_world_x / 128,
-        game->camera_world_z / 128);
-
-    while( iter_render_scene_ops_next(&iter_render_scene_ops) )
-    {
-        if( iter_render_scene_ops.value.tile_nullable_ )
-        {
-            struct SceneTile* tile = iter_render_scene_ops.value.tile_nullable_;
-            int tile_idx = tile - game->scene->scene_tiles;
-
-            // Just draw the tile - it should already be loaded
-            pix3dgl_tile_draw(renderer->pix3dgl, tile_idx);
-        }
-
-        if( iter_render_scene_ops.value.model_nullable_ )
-        {
-            scene_model = iter_render_scene_ops.value.model_nullable_;
-            if( !scene_model->model )
-                continue;
-
-            pix3dgl_model_draw(
-                renderer->pix3dgl,
-                scene_model->scene_model_idx,
-                scene_model->region_x + scene_model->offset_x,
-                scene_model->region_height + scene_model->offset_height,
-                scene_model->region_z + scene_model->offset_z,
-                scene_model->yaw);
-
-            // for( int face = 0; face < scene_model->model->face_count; face++ )
-            // {
-            //     pix3dgl_model_draw_face(
-            //         renderer->pix3dgl,
-            //         scene_model->scene_model_idx,
-            //         face,
-            //         scene_model->region_x + scene_model->offset_x,
-            //         scene_model->region_height + scene_model->offset_height,
-            //         scene_model->region_z + scene_model->offset_z,
-            //         scene_model->yaw);
-            // }
-
-            // // Calculate world position from region coordinates
-            // float position_x = scene_model->region_x + scene_model->offset_x;
-            // float position_y = scene_model->region_height + scene_model->offset_height;
-            // float position_z = scene_model->region_z + scene_model->offset_z;
-
-            // // Convert yaw from game units to radians
-            // // Game uses 2048 units per full rotation (2π radians)
-            // float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
-
-            // // Initialize the face iterator for painter's algorithm sorting
-            // int yaw_adjust = 0;
-            // iter_render_model_init(
-            //     &iter_render_model,
-            //     scene_model,
-            //     yaw_adjust,
-            //     game->camera_world_x,
-            //     game->camera_world_y,
-            //     game->camera_world_z,
-            //     game->camera_pitch,
-            //     game->camera_yaw,
-            //     game->camera_roll,
-            //     game->camera_fov,
-            //     renderer->width,
-            //     renderer->height,
-            //     50);
-
-            // // Begin drawing - setup the model once (uniforms, VAO/VBOs)
-            // pix3dgl_model_begin_draw(
-            //     renderer->pix3dgl,
-            //     scene_model->scene_model_idx,
-            //     position_x,
-            //     position_y,
-            //     position_z,
-            //     yaw_radians);
-
-            // // Draw each face in painter's algorithm order with minimal overhead
-            // while( iter_render_model_next(&iter_render_model) )
-            // {
-            //     int face = iter_render_model.value_face;
-            //     pix3dgl_model_draw_face_fast(renderer->pix3dgl, face);
-            // }
-
-            // // End drawing - cleanup
-            // pix3dgl_model_end_draw(renderer->pix3dgl);
-        }
-    }
+    // Draw the static scene buffer (contains all scene geometry)
+    pix3dgl_scene_static_draw(renderer->pix3dgl);
 
     pix3dgl_end_frame(renderer->pix3dgl);
 }
@@ -325,6 +333,11 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
         case GAME_GFX_OP_SCENE_DRAW:
         {
             render_scene(renderer, game);
+        }
+        break;
+        case GAME_GFX_OP_SCENE_STATIC_LOAD:
+        {
+            load_static_scene(renderer, game);
         }
         break;
         case GAME_GFX_OP_SCENE_TILE_LOAD:

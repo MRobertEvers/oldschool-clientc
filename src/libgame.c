@@ -22,29 +22,8 @@ scenegfx_scene_load_map(
 
     game->scene = scene_new_from_map(game->cache, chunk_x, chunk_y);
 
-    for( int i = 0; i < game->scene->models_length; i++ )
-    {
-        struct SceneModel* scene_model = &game->scene->models[i];
-        if( scene_model->model )
-        {
-            gfx_op.kind = GAME_GFX_OP_SCENE_MODEL_LOAD;
-            gfx_op._scene_model_load.scene_model_idx = i;
-            gfx_op._scene_model_load.frame_id = 0;
-
-            game_gfx_op_list_push(gfx_op_list, &gfx_op);
-        }
-    }
-
-    for( int i = 0; i < game->scene->scene_tiles_length; i++ )
-    {
-        struct SceneTile* scene_tile = &game->scene->scene_tiles[i];
-        if( scene_tile->face_count > 0 )
-        {
-            gfx_op.kind = GAME_GFX_OP_SCENE_TILE_LOAD;
-            gfx_op._scene_tile_load.scene_tile_idx = i;
-            game_gfx_op_list_push(gfx_op_list, &gfx_op);
-        }
-    }
+    gfx_op.kind = GAME_GFX_OP_SCENE_STATIC_LOAD;
+    game_gfx_op_list_push(gfx_op_list, &gfx_op);
 }
 
 struct GameGfxOpList*

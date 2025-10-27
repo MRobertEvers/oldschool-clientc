@@ -5,6 +5,7 @@
 #include "scene_cache.h"
 #include "shared_tables.h"
 
+#include <algorithm>
 #include <string.h>
 
 #ifndef M_PI
@@ -25,20 +26,22 @@
 
 #include <vector>
 
-// Desktop OpenGL 3.0 Core vertex shader
+// Desktop OpenGL 3.0 Core vertex shader - SIMPLE, no calculations!
+// Atlas UVs are pre-calculated on CPU and stored in aTexCoord
 const char* g_vertex_shader_core = R"(
 #version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aColor;
 layout(location = 2) in vec2 aTexCoord;
+layout(location = 3) in float aTextureId;
 
 uniform mat4 uViewMatrix;       // Precomputed on CPU
 uniform mat4 uProjectionMatrix; // Precomputed on CPU
-uniform mat4 uTextureMatrix;    // Optional texture coordinate transform
 uniform mat4 uModelMatrix;      // Per-model transformation
 
 out vec3 vColor;
 out vec2 vTexCoord;
+flat out float vHasTexture;  // 1.0 if textured, 0.0 if not
 
 void main() {
     // Apply model transformation first, then view transformation
@@ -48,14 +51,10 @@ void main() {
     vec4 viewPos = uViewMatrix * worldPos;
     gl_Position = uProjectionMatrix * viewPos;
     
-    // Pass through vertex color (supports all 3 shading types)
-    // TEXTURED: color modulates texture | GOURAUD: interpolated | FLAT: same for all vertices
+    // Pass through vertex color and atlas UVs (already calculated on CPU!)
     vColor = aColor;
-    
-    // Transform texture coordinates (used only for textured faces)
-    vec4 texCoord = vec4(aTexCoord, 0.0, 1.0);
-    vec4 transformedTexCoord = uTextureMatrix * texCoord;
-    vTexCoord = transformedTexCoord.xy / transformedTexCoord.w;
+    vTexCoord = aTexCoord;
+    vHasTexture = aTextureId >= 0.0 ? 1.0 : 0.0;
 }
 )";
 
@@ -64,25 +63,26 @@ const char* g_fragment_shader_core = R"(
 #version 330 core
 in vec3 vColor;
 in vec2 vTexCoord;
-uniform sampler2D uTexture;
-uniform bool uUseTexture;
+flat in float vHasTexture;
+
+uniform sampler2D uTextureAtlas;
+
 out vec4 FragColor;
 
 void main() {
-    if (uUseTexture) {
-        // TEXTURED shading: texture * vertex color
-        vec4 texColor = texture(uTexture, vTexCoord);
-        // Make black texels transparent, preserve existing alpha
-        float epsilon = 0.001; // Small threshold to account for floating point precision
+    if (vHasTexture > 0.5) {
+        // Textured face - sample from atlas (UVs already in atlas space!)
+        vec4 texColor = texture(uTextureAtlas, vTexCoord);
+        
+        // Make black texels transparent
+        float epsilon = 0.001;
         float luminance = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
         if (luminance < epsilon) {
-            // Discard completely transparent fragments so they don't write to depth buffer
             discard;
         }
         FragColor = vec4(texColor.rgb * vColor, texColor.a);
     } else {
-        // GOURAUD or FLAT shading: interpolated vertex colors
-        // (FLAT = all vertices same color, so no visual interpolation)
+        // Untextured face - use vertex color only
         FragColor = vec4(vColor, 1.0);
     }
 }
@@ -135,6 +135,39 @@ struct DrawBatch
     std::vector<GLsizei> face_counts; // Vertex count for each face (always 3)
 };
 
+// Scene-level batch that includes model/VAO information
+struct SceneDrawBatch
+{
+    int model_idx;
+    GLuint vao;
+    int texture_id;
+    float model_matrix[16]; // Precomputed model matrix
+    std::vector<GLint> face_starts;
+    std::vector<GLsizei> face_counts;
+};
+
+// Static scene buffer for combining multiple models into a single buffer
+struct StaticScene
+{
+    GLuint VAO;
+    GLuint VBO;
+    GLuint colorVBO;
+    GLuint texCoordVBO;
+    GLuint textureIdVBO; // New: stores texture ID per vertex
+
+    int total_vertex_count;
+    std::vector<float> vertices;
+    std::vector<float> colors;
+    std::vector<float> texCoords;
+    std::vector<float> textureIds; // New: texture ID per vertex
+
+    // With texture atlas, we don't need separate batches anymore
+    // but keep for now for gradual migration
+    std::unordered_map<int, DrawBatch> texture_batches;
+
+    bool is_finalized;
+};
+
 struct Pix3DGL
 {
     GLuint vertex_shader_es2;
@@ -155,14 +188,33 @@ struct Pix3DGL
     GLint uniform_projection_matrix;
     GLint uniform_use_texture;
     GLint uniform_texture;
+    GLint uniform_texture_atlas; // New: texture atlas sampler
+    GLint uniform_atlas_size;    // New: atlas size uniform
+    GLint uniform_tile_size;     // New: tile size uniform
     GLint uniform_texture_matrix;
 
     // State tracking to avoid redundant GL calls
     GLuint currently_bound_texture;
     int current_texture_state; // 0 = texture disabled, 1 = texture enabled
 
+    // Texture atlas for batching all textures into one
+    GLuint texture_atlas;
+    int atlas_size;                                     // e.g., 2048
+    int atlas_tile_size;                                // e.g., 128
+    int atlas_tiles_per_row;                            // e.g., 16
+    std::unordered_map<int, int> texture_to_atlas_slot; // Maps texture_id -> atlas_slot
+
     // Batching system - accumulate faces by texture and draw together
     std::unordered_map<int, DrawBatch> draw_batches; // Key: texture_id (-1 for untextured)
+
+    // Scene-level batching - accumulate all draws and render at end of frame
+    std::vector<SceneDrawBatch> scene_batches;
+
+    // Reusable batch structure to avoid allocations
+    std::unordered_map<int, DrawBatch> reusable_batches;
+
+    // Static scene buffer for efficient rendering of static geometry
+    StaticScene* static_scene;
 };
 
 // CPU-side matrix computation functions for performance
@@ -765,6 +817,9 @@ pix3dgl_new()
     pix3dgl->currently_bound_texture = 0;
     pix3dgl->current_texture_state = -1; // -1 = unknown
 
+    // Initialize static scene
+    pix3dgl->static_scene = nullptr;
+
     pix3dgl->program_es2 = create_shader_program(g_vertex_shader_core, g_fragment_shader_core);
 
     if( !pix3dgl->program_es2 )
@@ -781,16 +836,56 @@ pix3dgl_new()
         glGetUniformLocation(pix3dgl->program_es2, "uProjectionMatrix");
     pix3dgl->uniform_use_texture = glGetUniformLocation(pix3dgl->program_es2, "uUseTexture");
     pix3dgl->uniform_texture = glGetUniformLocation(pix3dgl->program_es2, "uTexture");
+    pix3dgl->uniform_texture_atlas = glGetUniformLocation(pix3dgl->program_es2, "uTextureAtlas");
+    pix3dgl->uniform_atlas_size = glGetUniformLocation(pix3dgl->program_es2, "uAtlasSize");
+    pix3dgl->uniform_tile_size = glGetUniformLocation(pix3dgl->program_es2, "uTileSize");
     pix3dgl->uniform_texture_matrix = glGetUniformLocation(pix3dgl->program_es2, "uTextureMatrix");
 
     printf(
         "Cached uniform locations - model_matrix:%d view_matrix:%d projection_matrix:%d "
-        "use_texture:%d texture:%d\n",
+        "use_texture:%d texture:%d atlas:%d\n",
         pix3dgl->uniform_model_matrix,
         pix3dgl->uniform_view_matrix,
         pix3dgl->uniform_projection_matrix,
         pix3dgl->uniform_use_texture,
-        pix3dgl->uniform_texture);
+        pix3dgl->uniform_texture,
+        pix3dgl->uniform_texture_atlas);
+
+    // Initialize texture atlas
+    pix3dgl->atlas_tile_size = 128;
+    pix3dgl->atlas_size = 2048; // 2048x2048 atlas can hold 16x16 = 256 textures of 128x128
+    pix3dgl->atlas_tiles_per_row = pix3dgl->atlas_size / pix3dgl->atlas_tile_size;
+
+    glGenTextures(1, &pix3dgl->texture_atlas);
+    glBindTexture(GL_TEXTURE_2D, pix3dgl->texture_atlas);
+
+    // Create empty atlas texture
+    std::vector<unsigned char> empty_atlas(pix3dgl->atlas_size * pix3dgl->atlas_size * 4, 0);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        pix3dgl->atlas_size,
+        pix3dgl->atlas_size,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        empty_atlas.data());
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    printf(
+        "Created texture atlas: %dx%d (tiles: %dx%d, capacity: %d textures)\n",
+        pix3dgl->atlas_size,
+        pix3dgl->atlas_size,
+        pix3dgl->atlas_tiles_per_row,
+        pix3dgl->atlas_tiles_per_row,
+        pix3dgl->atlas_tiles_per_row * pix3dgl->atlas_tiles_per_row);
 
     // Enable alpha blending
     glEnable(GL_BLEND);
@@ -825,10 +920,24 @@ pix3dgl_load_texture(
     struct TexturesCache* textures_cache,
     struct Cache* cache)
 {
-    // Check if texture is already loaded
-    if( pix3dgl->texture_ids.find(texture_id) != pix3dgl->texture_ids.end() )
+    // Check if texture is already in atlas
+    if( pix3dgl->texture_to_atlas_slot.find(texture_id) != pix3dgl->texture_to_atlas_slot.end() )
     {
-        return; // Texture already loaded
+        return; // Texture already loaded into atlas
+    }
+
+    // Assign next available atlas slot
+    int atlas_slot = pix3dgl->texture_to_atlas_slot.size();
+    int max_slots = pix3dgl->atlas_tiles_per_row * pix3dgl->atlas_tiles_per_row;
+
+    if( atlas_slot >= max_slots )
+    {
+        printf(
+            "ERROR: Texture atlas full! Cannot load texture %d (slot %d >= %d)\n",
+            texture_id,
+            atlas_slot,
+            max_slots);
+        return;
     }
 
     // Load texture from cache
@@ -846,18 +955,7 @@ pix3dgl_load_texture(
         return;
     }
 
-    // Create OpenGL texture
-    GLuint gl_texture_id;
-    glGenTextures(1, &gl_texture_id);
-    glBindTexture(GL_TEXTURE_2D, gl_texture_id);
-
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-    // Upload texture data - convert from RGBA int array to byte array
+    // Convert texture data
     std::vector<unsigned char> texture_bytes(cache_tex->width * cache_tex->height * 4);
     for( int i = 0; i < cache_tex->width * cache_tex->height; i++ )
     {
@@ -868,26 +966,38 @@ pix3dgl_load_texture(
         texture_bytes[i * 4 + 3] = (pixel >> 24) & 0xFF; // A
     }
 
-    glTexImage2D(
+    // Calculate position in atlas
+    int tile_x = atlas_slot % pix3dgl->atlas_tiles_per_row;
+    int tile_y = atlas_slot / pix3dgl->atlas_tiles_per_row;
+    int x_offset = tile_x * pix3dgl->atlas_tile_size;
+    int y_offset = tile_y * pix3dgl->atlas_tile_size;
+
+    // Upload texture to atlas
+    glBindTexture(GL_TEXTURE_2D, pix3dgl->texture_atlas);
+    glTexSubImage2D(
         GL_TEXTURE_2D,
         0,
-        GL_RGBA,
+        x_offset,
+        y_offset,
         cache_tex->width,
         cache_tex->height,
-        0,
         GL_RGBA,
         GL_UNSIGNED_BYTE,
         texture_bytes.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-    // Store texture ID in map
-    pix3dgl->texture_ids[texture_id] = gl_texture_id;
+    // Store mapping from texture_id to atlas_slot
+    pix3dgl->texture_to_atlas_slot[texture_id] = atlas_slot;
+
+    // Also store in old map for compatibility (maps to atlas slot now)
+    pix3dgl->texture_ids[texture_id] = atlas_slot;
 
     printf(
-        "Loaded texture %d as OpenGL texture %u (%dx%d)\n",
+        "Loaded texture %d into atlas slot %d at (%d, %d)\n",
         texture_id,
-        gl_texture_id,
-        cache_tex->width,
-        cache_tex->height);
+        atlas_slot,
+        x_offset,
+        y_offset);
 
     // Clean up cache texture
     textures_cache_checkin(textures_cache, cache_tex);
@@ -1053,6 +1163,7 @@ pix3dgl_begin_frame(
 
     // Clear batching data for new frame
     pix3dgl->draw_batches.clear();
+    pix3dgl->scene_batches.clear();
 
     // Disable texture usage by default (will be enabled for textured models later)
     if( pix3dgl->uniform_use_texture >= 0 )
@@ -1096,82 +1207,54 @@ pix3dgl_model_draw(
                               0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
-    // Set model matrix uniform (using cached location)
-    if( pix3dgl->uniform_model_matrix >= 0 )
-    {
-        glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
-    }
+    // OPTIMIZATION: Use scene-level batching - accumulate draw calls instead of rendering
+    // immediately Group faces by texture and store them for later rendering in pix3dgl_end_frame()
 
-    // Desktop: Use VAO for better performance
-    glBindVertexArray(model.VAO);
+    // Clear reusable batches for this model
+    pix3dgl->reusable_batches.clear();
 
-    // Draw all faces with appropriate shading type (textured, Gouraud, or flat)
+    // Build batches per texture for this model
     for( int face = 0; face < model.face_count; face++ )
     {
         if( !model.face_visible[face] )
             continue;
 
-        // Determine shading type and set texture state accordingly
-        FaceShadingType shading = model.face_shading[face];
+        int face_texture_id = model.face_textures[face];
 
-        if( shading == SHADING_TEXTURED )
+        // Check if texture exists (if textured)
+        if( face_texture_id != -1 )
         {
-            // Textured face - bind texture and enable texturing
-            int face_texture_id = model.face_textures[face];
             auto tex_it = pix3dgl->texture_ids.find(face_texture_id);
-
-            if( tex_it != pix3dgl->texture_ids.end() )
+            if( tex_it == pix3dgl->texture_ids.end() )
             {
-                GLuint gl_texture_id = tex_it->second;
-
-                if( pix3dgl->currently_bound_texture != gl_texture_id )
-                {
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, gl_texture_id);
-                    pix3dgl->currently_bound_texture = gl_texture_id;
-                }
-
-                if( pix3dgl->current_texture_state != 1 )
-                {
-                    if( pix3dgl->uniform_use_texture >= 0 )
-                    {
-                        glUniform1i(pix3dgl->uniform_use_texture, 1);
-                        pix3dgl->current_texture_state = 1;
-                    }
-                }
-            }
-            else
-            {
-                // Texture not loaded, fall back to Gouraud shading
-                if( pix3dgl->current_texture_state != 0 )
-                {
-                    if( pix3dgl->uniform_use_texture >= 0 )
-                    {
-                        glUniform1i(pix3dgl->uniform_use_texture, 0);
-                        pix3dgl->current_texture_state = 0;
-                    }
-                }
-            }
-        }
-        else // SHADING_GOURAUD or SHADING_FLAT
-        {
-            // Gouraud or flat shading - disable texturing, use vertex colors
-            if( pix3dgl->current_texture_state != 0 )
-            {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 0);
-                    pix3dgl->current_texture_state = 0;
-                }
+                // Texture not loaded, treat as untextured
+                face_texture_id = -1;
             }
         }
 
-        // Draw the face
-        glDrawArrays(GL_TRIANGLES, face * 3, 3);
+        // Add face to batch for this texture
+        DrawBatch& batch = pix3dgl->reusable_batches[face_texture_id];
+        batch.texture_id = face_texture_id;
+        batch.face_starts.push_back(face * 3);
+        batch.face_counts.push_back(3);
     }
 
-    // Desktop: Unbind VAO
-    glBindVertexArray(0);
+    // Now create scene batches from the per-texture batches
+    for( auto& [texture_id, batch] : pix3dgl->reusable_batches )
+    {
+        if( batch.face_starts.empty() )
+            continue;
+
+        SceneDrawBatch scene_batch;
+        scene_batch.model_idx = model_idx;
+        scene_batch.vao = model.VAO;
+        scene_batch.texture_id = texture_id;
+        memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
+        scene_batch.face_starts = std::move(batch.face_starts);
+        scene_batch.face_counts = std::move(batch.face_counts);
+
+        pix3dgl->scene_batches.push_back(std::move(scene_batch));
+    }
 
     // Check for OpenGL errors
     // GLenum error = glGetError();
@@ -1712,19 +1795,15 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
 
     GLTile& tile = it->second;
 
-    // Tiles are rendered at world origin (no transformation)
+    // OPTIMIZATION: Use scene-level batching - accumulate draw calls like models
+    // Tiles use identity matrix (no transformation)
     float modelMatrix[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                               0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
 
-    // Set model matrix using cached uniform location
-    if( pix3dgl->uniform_model_matrix >= 0 )
-    {
-        glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
-    }
+    // Clear reusable batches for this tile
+    pix3dgl->reusable_batches.clear();
 
-    glBindVertexArray(tile.VAO);
-
-    // Draw each face (optimized with state tracking)
+    // Build batches per texture for this tile
     for( int face = 0; face < tile.face_count; face++ )
     {
         if( !tile.face_visible[face] )
@@ -1732,49 +1811,86 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
 
         int texture_id = tile.face_textures[face];
 
-        if( texture_id == -1 )
+        // Check if texture exists (if textured)
+        if( texture_id != -1 )
         {
-            // No texture - use Gouraud shading
-            // Only update if state changed (avoid redundant uniform updates)
-            if( pix3dgl->current_texture_state != 0 )
+            auto tex_it = pix3dgl->texture_ids.find(texture_id);
+            if( tex_it == pix3dgl->texture_ids.end() )
             {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 0);
-                    pix3dgl->current_texture_state = 0;
-                }
+                // Texture not loaded, treat as untextured
+                texture_id = -1;
             }
         }
-        else
+
+        // Add face to batch for this texture
+        DrawBatch& batch = pix3dgl->reusable_batches[texture_id];
+        batch.texture_id = texture_id;
+        batch.face_starts.push_back(face * 3);
+        batch.face_counts.push_back(3);
+    }
+
+    // Now create scene batches from the per-texture batches
+    for( auto& [texture_id, batch] : pix3dgl->reusable_batches )
+    {
+        if( batch.face_starts.empty() )
+            continue;
+
+        SceneDrawBatch scene_batch;
+        scene_batch.model_idx = tile_idx;
+        scene_batch.vao = tile.VAO;
+        scene_batch.texture_id = texture_id;
+        memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
+        scene_batch.face_starts = std::move(batch.face_starts);
+        scene_batch.face_counts = std::move(batch.face_counts);
+
+        pix3dgl->scene_batches.push_back(std::move(scene_batch));
+    }
+}
+
+extern "C" void
+pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
+{
+    // OPTIMIZATION: Render all accumulated scene batches
+    // This reduces state changes by sorting batches by texture
+
+    if( pix3dgl->scene_batches.empty() )
+        return;
+
+    // Sort batches by texture ID to minimize texture binding
+    std::sort(
+        pix3dgl->scene_batches.begin(),
+        pix3dgl->scene_batches.end(),
+        [](const SceneDrawBatch& a, const SceneDrawBatch& b) {
+            return a.texture_id < b.texture_id;
+        });
+
+    GLuint last_vao = 0;
+    int last_texture_id = -999; // Invalid value to force first bind
+
+    for( const auto& batch : pix3dgl->scene_batches )
+    {
+        if( batch.face_starts.empty() )
+            continue;
+
+        // Bind VAO only if it changed
+        if( batch.vao != last_vao )
         {
-            // Has texture
-            auto tex_it = pix3dgl->texture_ids.find(texture_id);
-            if( tex_it != pix3dgl->texture_ids.end() )
-            {
-                GLuint gl_texture_id = tex_it->second;
+            glBindVertexArray(batch.vao);
+            last_vao = batch.vao;
+        }
 
-                // Only bind texture if it's different from currently bound (avoid redundant state
-                // changes)
-                if( pix3dgl->currently_bound_texture != gl_texture_id )
-                {
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, gl_texture_id);
-                    pix3dgl->currently_bound_texture = gl_texture_id;
-                }
+        // Set model matrix
+        if( pix3dgl->uniform_model_matrix >= 0 )
+        {
+            glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, batch.model_matrix);
+        }
 
-                // Only enable texture if not already enabled
-                if( pix3dgl->current_texture_state != 1 )
-                {
-                    if( pix3dgl->uniform_use_texture >= 0 )
-                    {
-                        glUniform1i(pix3dgl->uniform_use_texture, 1);
-                        pix3dgl->current_texture_state = 1;
-                    }
-                }
-            }
-            else
+        // Set texture state only if it changed
+        if( batch.texture_id != last_texture_id )
+        {
+            if( batch.texture_id == -1 )
             {
-                // Texture not loaded, fall back to Gouraud shading
+                // Untextured - disable texturing
                 if( pix3dgl->current_texture_state != 0 )
                 {
                     if( pix3dgl->uniform_use_texture >= 0 )
@@ -1784,19 +1900,884 @@ pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx)
                     }
                 }
             }
+            else
+            {
+                // Textured - bind texture
+                auto tex_it = pix3dgl->texture_ids.find(batch.texture_id);
+                if( tex_it != pix3dgl->texture_ids.end() )
+                {
+                    GLuint gl_texture_id = tex_it->second;
+
+                    if( pix3dgl->currently_bound_texture != gl_texture_id )
+                    {
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, gl_texture_id);
+                        pix3dgl->currently_bound_texture = gl_texture_id;
+                    }
+
+                    if( pix3dgl->current_texture_state != 1 )
+                    {
+                        if( pix3dgl->uniform_use_texture >= 0 )
+                        {
+                            glUniform1i(pix3dgl->uniform_use_texture, 1);
+                            pix3dgl->current_texture_state = 1;
+                        }
+                    }
+                }
+            }
+            last_texture_id = batch.texture_id;
         }
 
-        glDrawArrays(GL_TRIANGLES, face * 3, 3);
+        // Render this batch with glMultiDrawArrays
+        glMultiDrawArrays(
+            GL_TRIANGLES,
+            batch.face_starts.data(),
+            batch.face_counts.data(),
+            batch.face_starts.size());
     }
 
-    glBindVertexArray(0);
+    // Unbind VAO
+    if( last_vao != 0 )
+    {
+        glBindVertexArray(0);
+    }
+}
+
+// Static scene building functions - for efficiently rendering static geometry
+extern "C" void
+pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl)
+{
+    if( !pix3dgl )
+    {
+        printf("Pix3DGL not initialized\n");
+        return;
+    }
+
+    // Clean up existing static scene if one exists
+    if( pix3dgl->static_scene )
+    {
+        glDeleteVertexArrays(1, &pix3dgl->static_scene->VAO);
+        glDeleteBuffers(1, &pix3dgl->static_scene->VBO);
+        glDeleteBuffers(1, &pix3dgl->static_scene->colorVBO);
+        glDeleteBuffers(1, &pix3dgl->static_scene->texCoordVBO);
+        glDeleteBuffers(1, &pix3dgl->static_scene->textureIdVBO);
+        delete pix3dgl->static_scene;
+    }
+
+    // Create new static scene
+    pix3dgl->static_scene = new StaticScene();
+    pix3dgl->static_scene->VAO = 0;
+    pix3dgl->static_scene->VBO = 0;
+    pix3dgl->static_scene->colorVBO = 0;
+    pix3dgl->static_scene->texCoordVBO = 0;
+    pix3dgl->static_scene->textureIdVBO = 0;
+    pix3dgl->static_scene->total_vertex_count = 0;
+    pix3dgl->static_scene->is_finalized = false;
+
+    printf("Started building static scene\n");
 }
 
 extern "C" void
-pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
+pix3dgl_scene_static_add_tile(
+    struct Pix3DGL* pix3dgl,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int vertex_count,
+    int* faces_a,
+    int* faces_b,
+    int* faces_c,
+    int face_count,
+    int* face_texture_ids,
+    int* face_color_hsl_a,
+    int* face_color_hsl_b,
+    int* face_color_hsl_c)
 {
-    // Placeholder for any end-of-frame cleanup
-    // Currently nothing to do here
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        printf("Static scene not initialized\n");
+        return;
+    }
+
+    if( pix3dgl->static_scene->is_finalized )
+    {
+        printf("Cannot add tiles to finalized static scene\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+    int current_vertex_index = scene->total_vertex_count;
+
+    // Process each face
+    for( int face = 0; face < face_count; face++ )
+    {
+        int face_start_index = current_vertex_index;
+
+        // Get vertex indices
+        int v_a = faces_a[face];
+        int v_b = faces_b[face];
+        int v_c = faces_c[face];
+
+        // Add the 3 vertices for this face
+        for( int v = 0; v < 3; v++ )
+        {
+            int vertex_idx;
+            if( v == 0 )
+                vertex_idx = v_a;
+            else if( v == 1 )
+                vertex_idx = v_b;
+            else
+                vertex_idx = v_c;
+
+            // Store vertex position (tiles are already in world space)
+            scene->vertices.push_back(vertex_x[vertex_idx]);
+            scene->vertices.push_back(vertex_y[vertex_idx]);
+            scene->vertices.push_back(vertex_z[vertex_idx]);
+        }
+
+        // Get and convert colors
+        int hsl_a = face_color_hsl_a[face];
+        int hsl_b = face_color_hsl_b[face];
+        int hsl_c = face_color_hsl_c[face];
+
+        int rgb_a, rgb_b, rgb_c;
+        if( hsl_c == -1 )
+        {
+            // Flat shading
+            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
+        }
+        else
+        {
+            // Gouraud shading
+            rgb_a = g_hsl16_to_rgb_table[hsl_a];
+            rgb_b = g_hsl16_to_rgb_table[hsl_b];
+            rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        }
+
+        // Store colors
+        scene->colors.push_back(((rgb_a >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_a >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_a & 0xFF) / 255.0f);
+
+        scene->colors.push_back(((rgb_b >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_b >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_b & 0xFF) / 255.0f);
+
+        scene->colors.push_back(((rgb_c >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_c >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_c & 0xFF) / 255.0f);
+
+        // Declare texture variables at face loop scope
+        int texture_id = -1;
+        int atlas_slot = -1;
+
+        // For tiles, we'll compute UVs if needed
+        // For now, just store default UVs (tiles use more complex PNM mapping)
+        if( face_texture_ids && face_texture_ids[face] != -1 )
+        {
+            // Compute UV coordinates using PNM method for tiles
+            // P = vertex 0 (SW corner), M = vertex 1 (NW corner), N = vertex 3 (SE corner)
+            int tp_vertex = 0;
+            int tm_vertex = 1;
+            int tn_vertex = 3;
+
+            float p_x = vertex_x[tp_vertex];
+            float p_y = vertex_y[tp_vertex];
+            float p_z = vertex_z[tp_vertex];
+
+            float m_x = vertex_x[tm_vertex];
+            float m_y = vertex_y[tm_vertex];
+            float m_z = vertex_z[tm_vertex];
+
+            float n_x = vertex_x[tn_vertex];
+            float n_y = vertex_y[tn_vertex];
+            float n_z = vertex_z[tn_vertex];
+
+            float a_x = vertex_x[v_a];
+            float a_y = vertex_y[v_a];
+            float a_z = vertex_z[v_a];
+
+            float b_x = vertex_x[v_b];
+            float b_y = vertex_y[v_b];
+            float b_z = vertex_z[v_b];
+
+            float c_x = vertex_x[v_c];
+            float c_y = vertex_y[v_c];
+            float c_z = vertex_z[v_c];
+
+            struct UVFaceCoords uv_pnm;
+            uv_pnm_compute(
+                &uv_pnm,
+                p_x,
+                p_y,
+                p_z,
+                m_x,
+                m_y,
+                m_z,
+                n_x,
+                n_y,
+                n_z,
+                a_x,
+                a_y,
+                a_z,
+                b_x,
+                b_y,
+                b_z,
+                c_x,
+                c_y,
+                c_z);
+
+            // Get atlas slot for this texture
+            texture_id = face_texture_ids ? face_texture_ids[face] : -1;
+
+            if( texture_id != -1 )
+            {
+                auto tex_it = pix3dgl->texture_ids.find(texture_id);
+                if( tex_it != pix3dgl->texture_ids.end() )
+                {
+                    atlas_slot = tex_it->second;
+                }
+                else
+                {
+                    texture_id = -1;
+                }
+            }
+
+            // Calculate atlas UVs on CPU (once, not per-frame!)
+            if( atlas_slot >= 0 )
+            {
+                float tiles_per_row = (float)pix3dgl->atlas_tiles_per_row;
+                float tile_u = (float)(atlas_slot % pix3dgl->atlas_tiles_per_row);
+                float tile_v = (float)(atlas_slot / pix3dgl->atlas_tiles_per_row);
+                float tile_size = (float)pix3dgl->atlas_tile_size;
+                float atlas_size = (float)pix3dgl->atlas_size;
+
+                // Transform UVs to atlas space
+                scene->texCoords.push_back((tile_u + uv_pnm.u1) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v1) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_u + uv_pnm.u2) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v2) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_u + uv_pnm.u3) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v3) * tile_size / atlas_size);
+            }
+            else
+            {
+                // No valid atlas slot, store dummy UVs
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+            }
+
+            // Store texture ID (atlas slot) for each vertex
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+
+            texture_id = (atlas_slot >= 0) ? texture_id : -1;
+        }
+        else
+        {
+            // Untextured face
+            texture_id = -1;
+            atlas_slot = -1;
+
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+        }
+
+        DrawBatch& batch = scene->texture_batches[texture_id];
+        batch.texture_id = texture_id;
+
+        // Merge contiguous faces: if the last entry in this batch is immediately before this face,
+        // just increase the count instead of adding a new entry
+        if( !batch.face_starts.empty() &&
+            batch.face_starts.back() + batch.face_counts.back() == face_start_index )
+        {
+            // Extend the last batch entry
+            batch.face_counts.back() += 3;
+        }
+        else
+        {
+            // Start a new batch entry
+            batch.face_starts.push_back(face_start_index);
+            batch.face_counts.push_back(3);
+        }
+
+        current_vertex_index += 3;
+    }
+
+    scene->total_vertex_count = current_vertex_index;
+}
+
+extern "C" void
+pix3dgl_scene_static_add_model(
+    struct Pix3DGL* pix3dgl,
+    int model_idx,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        printf("Static scene not initialized\n");
+        return;
+    }
+
+    if( pix3dgl->static_scene->is_finalized )
+    {
+        printf("Cannot add models to finalized static scene\n");
+        return;
+    }
+
+    // Find the model
+    auto it = pix3dgl->models.find(model_idx);
+    if( it == pix3dgl->models.end() )
+    {
+        printf("Model %d not loaded\n", model_idx);
+        return;
+    }
+
+    GLModel& model = it->second;
+    StaticScene* scene = pix3dgl->static_scene;
+
+    // Create transformation matrix for this model instance
+    float cos_yaw = cos(yaw);
+    float sin_yaw = sin(yaw);
+
+    // Get the model's vertex data
+    // We need to read it back from the GPU or we could store it CPU-side
+    // For now, we'll read from the existing VBO
+    std::vector<float> model_vertices(model.face_count * 9);
+    std::vector<float> model_colors(model.face_count * 9);
+    std::vector<float> model_texcoords(model.face_count * 6);
+
+    // Bind the model's buffers and read the data
+    glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
+    glGetBufferSubData(
+        GL_ARRAY_BUFFER, 0, model_vertices.size() * sizeof(float), model_vertices.data());
+
+    glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
+    glGetBufferSubData(
+        GL_ARRAY_BUFFER, 0, model_colors.size() * sizeof(float), model_colors.data());
+
+    glBindBuffer(GL_ARRAY_BUFFER, model.texCoordVBO);
+    glGetBufferSubData(
+        GL_ARRAY_BUFFER, 0, model_texcoords.size() * sizeof(float), model_texcoords.data());
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    // Transform vertices and add to scene buffer
+    int current_vertex_index = scene->total_vertex_count;
+
+    for( int face = 0; face < model.face_count; face++ )
+    {
+        if( !model.face_visible[face] )
+            continue;
+
+        // Record the starting vertex index for this face
+        int face_start_index = current_vertex_index;
+
+        // Transform and append the 3 vertices of this face
+        for( int v = 0; v < 3; v++ )
+        {
+            int src_idx = (face * 3 + v) * 3;
+
+            // Get original vertex position
+            float x = model_vertices[src_idx + 0];
+            float y = model_vertices[src_idx + 1];
+            float z = model_vertices[src_idx + 2];
+
+            // Apply transformation (rotation + translation)
+            float tx = cos_yaw * x + sin_yaw * z + position_x;
+            float ty = y + position_y;
+            float tz = -sin_yaw * x + cos_yaw * z + position_z;
+
+            // Append transformed vertex
+            scene->vertices.push_back(tx);
+            scene->vertices.push_back(ty);
+            scene->vertices.push_back(tz);
+
+            // Copy color data
+            scene->colors.push_back(model_colors[src_idx + 0]);
+            scene->colors.push_back(model_colors[src_idx + 1]);
+            scene->colors.push_back(model_colors[src_idx + 2]);
+        }
+
+        // Copy texture coordinates
+        for( int v = 0; v < 3; v++ )
+        {
+            int src_idx = (face * 3 + v) * 2;
+            scene->texCoords.push_back(model_texcoords[src_idx + 0]);
+            scene->texCoords.push_back(model_texcoords[src_idx + 1]);
+        }
+
+        // Track this face in the appropriate texture batch
+        int texture_id = model.face_textures[face];
+
+        // Check if texture exists
+        if( texture_id != -1 )
+        {
+            auto tex_it = pix3dgl->texture_ids.find(texture_id);
+            if( tex_it == pix3dgl->texture_ids.end() )
+            {
+                texture_id = -1; // Texture not loaded, treat as untextured
+            }
+        }
+
+        DrawBatch& batch = scene->texture_batches[texture_id];
+        batch.texture_id = texture_id;
+
+        // Merge contiguous faces
+        if( !batch.face_starts.empty() &&
+            batch.face_starts.back() + batch.face_counts.back() == face_start_index )
+        {
+            batch.face_counts.back() += 3;
+        }
+        else
+        {
+            batch.face_starts.push_back(face_start_index);
+            batch.face_counts.push_back(3);
+        }
+
+        current_vertex_index += 3;
+    }
+
+    scene->total_vertex_count = current_vertex_index;
+
+    printf(
+        "Added model %d to static scene (now %d vertices)\n", model_idx, scene->total_vertex_count);
+}
+
+extern "C" void
+pix3dgl_scene_static_add_model_raw(
+    struct Pix3DGL* pix3dgl,
+    int* vertices_x,
+    int* vertices_y,
+    int* vertices_z,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int face_count,
+    int* face_textures_nullable,
+    int* face_texture_coords_nullable,
+    int* textured_p_coordinate_nullable,
+    int* textured_m_coordinate_nullable,
+    int* textured_n_coordinate_nullable,
+    int* face_colors_hsl_a,
+    int* face_colors_hsl_b,
+    int* face_colors_hsl_c,
+    int* face_infos_nullable,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        printf("Static scene not initialized\n");
+        return;
+    }
+
+    if( pix3dgl->static_scene->is_finalized )
+    {
+        printf("Cannot add models to finalized static scene\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    // Create transformation matrix for this model instance
+    float cos_yaw = cos(yaw);
+    float sin_yaw = sin(yaw);
+
+    int current_vertex_index = scene->total_vertex_count;
+
+    // Process each face
+    for( int face = 0; face < face_count; face++ )
+    {
+        // Check if face should be drawn
+        bool should_draw = true;
+        if( face_infos_nullable && face_infos_nullable[face] == 2 )
+        {
+            should_draw = false;
+        }
+        if( face_colors_hsl_c && face_colors_hsl_c[face] == -2 )
+        {
+            should_draw = false;
+        }
+
+        if( !should_draw )
+            continue;
+
+        int face_start_index = current_vertex_index;
+
+        // Get vertex indices
+        int v_a = face_indices_a[face];
+        int v_b = face_indices_b[face];
+        int v_c = face_indices_c[face];
+
+        // Transform and add vertices
+        int vertex_indices[] = { v_a, v_b, v_c };
+        for( int v = 0; v < 3; v++ )
+        {
+            int vertex_idx = vertex_indices[v];
+
+            // Get original vertex position
+            float x = vertices_x[vertex_idx];
+            float y = vertices_y[vertex_idx];
+            float z = vertices_z[vertex_idx];
+
+            // Apply transformation (rotation + translation)
+            float tx = cos_yaw * x + sin_yaw * z + position_x;
+            float ty = y + position_y;
+            float tz = -sin_yaw * x + cos_yaw * z + position_z;
+
+            // Append transformed vertex
+            scene->vertices.push_back(tx);
+            scene->vertices.push_back(ty);
+            scene->vertices.push_back(tz);
+        }
+
+        // Get and convert colors
+        int hsl_a = face_colors_hsl_a[face];
+        int hsl_b = face_colors_hsl_b[face];
+        int hsl_c = face_colors_hsl_c[face];
+
+        int rgb_a, rgb_b, rgb_c;
+        if( hsl_c == -1 )
+        {
+            // Flat shading
+            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
+        }
+        else
+        {
+            // Gouraud shading
+            rgb_a = g_hsl16_to_rgb_table[hsl_a];
+            rgb_b = g_hsl16_to_rgb_table[hsl_b];
+            rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        }
+
+        // Store colors
+        scene->colors.push_back(((rgb_a >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_a >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_a & 0xFF) / 255.0f);
+
+        scene->colors.push_back(((rgb_b >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_b >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_b & 0xFF) / 255.0f);
+
+        scene->colors.push_back(((rgb_c >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_c >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_c & 0xFF) / 255.0f);
+
+        // Declare texture variables at face loop scope
+        int texture_id = -1;
+        int atlas_slot = -1;
+
+        // Compute UV coordinates if textured
+        if( face_textures_nullable && face_textures_nullable[face] != -1 )
+        {
+            // Determine texture space vertices (P, M, N)
+            int tp_vertex = v_a;
+            int tm_vertex = v_b;
+            int tn_vertex = v_c;
+
+            if( face_texture_coords_nullable && face_texture_coords_nullable[face] != -1 )
+            {
+                int texture_face = face_texture_coords_nullable[face];
+                tp_vertex = textured_p_coordinate_nullable[texture_face];
+                tm_vertex = textured_m_coordinate_nullable[texture_face];
+                tn_vertex = textured_n_coordinate_nullable[texture_face];
+            }
+
+            // Get PNM vertices
+            float p_x = vertices_x[tp_vertex];
+            float p_y = vertices_y[tp_vertex];
+            float p_z = vertices_z[tp_vertex];
+
+            float m_x = vertices_x[tm_vertex];
+            float m_y = vertices_y[tm_vertex];
+            float m_z = vertices_z[tm_vertex];
+
+            float n_x = vertices_x[tn_vertex];
+            float n_y = vertices_y[tn_vertex];
+            float n_z = vertices_z[tn_vertex];
+
+            // Get face vertices
+            float a_x = vertices_x[v_a];
+            float a_y = vertices_y[v_a];
+            float a_z = vertices_z[v_a];
+
+            float b_x = vertices_x[v_b];
+            float b_y = vertices_y[v_b];
+            float b_z = vertices_z[v_b];
+
+            float c_x = vertices_x[v_c];
+            float c_y = vertices_y[v_c];
+            float c_z = vertices_z[v_c];
+
+            struct UVFaceCoords uv_pnm;
+            uv_pnm_compute(
+                &uv_pnm,
+                p_x,
+                p_y,
+                p_z,
+                m_x,
+                m_y,
+                m_z,
+                n_x,
+                n_y,
+                n_z,
+                a_x,
+                a_y,
+                a_z,
+                b_x,
+                b_y,
+                b_z,
+                c_x,
+                c_y,
+                c_z);
+
+            // Get atlas slot for this texture
+            texture_id = face_textures_nullable ? face_textures_nullable[face] : -1;
+
+            if( texture_id != -1 )
+            {
+                auto tex_it = pix3dgl->texture_ids.find(texture_id);
+                if( tex_it != pix3dgl->texture_ids.end() )
+                {
+                    atlas_slot = tex_it->second;
+                }
+                else
+                {
+                    texture_id = -1;
+                }
+            }
+
+            // Calculate atlas UVs on CPU (once, not per-frame!)
+            if( atlas_slot >= 0 )
+            {
+                float tiles_per_row = (float)pix3dgl->atlas_tiles_per_row;
+                float tile_u = (float)(atlas_slot % pix3dgl->atlas_tiles_per_row);
+                float tile_v = (float)(atlas_slot / pix3dgl->atlas_tiles_per_row);
+                float tile_size = (float)pix3dgl->atlas_tile_size;
+                float atlas_size = (float)pix3dgl->atlas_size;
+
+                // Transform UVs to atlas space
+                scene->texCoords.push_back((tile_u + uv_pnm.u1) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v1) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_u + uv_pnm.u2) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v2) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_u + uv_pnm.u3) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v3) * tile_size / atlas_size);
+            }
+            else
+            {
+                // No valid atlas slot, store dummy UVs
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+            }
+
+            // Store texture ID (atlas slot) for each vertex
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+
+            texture_id = (atlas_slot >= 0) ? texture_id : -1;
+        }
+        else
+        {
+            // Untextured face
+            texture_id = -1;
+            atlas_slot = -1;
+
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+            scene->texCoords.push_back(0.0f);
+
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+        }
+
+        DrawBatch& batch = scene->texture_batches[texture_id];
+        batch.texture_id = texture_id;
+
+        // Merge contiguous faces
+        if( !batch.face_starts.empty() &&
+            batch.face_starts.back() + batch.face_counts.back() == face_start_index )
+        {
+            batch.face_counts.back() += 3;
+        }
+        else
+        {
+            batch.face_starts.push_back(face_start_index);
+            batch.face_counts.push_back(3);
+        }
+
+        current_vertex_index += 3;
+    }
+
+    scene->total_vertex_count = current_vertex_index;
+}
+
+extern "C" void
+pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        printf("Static scene not initialized\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    if( scene->is_finalized )
+    {
+        printf("Static scene already finalized\n");
+        return;
+    }
+
+    // Create and upload the combined buffers
+    glGenVertexArrays(1, &scene->VAO);
+    glBindVertexArray(scene->VAO);
+
+    // Upload vertices
+    glGenBuffers(1, &scene->VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, scene->VBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        scene->vertices.size() * sizeof(float),
+        scene->vertices.data(),
+        GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Upload colors
+    glGenBuffers(1, &scene->colorVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, scene->colorVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        scene->colors.size() * sizeof(float),
+        scene->colors.data(),
+        GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+
+    // Upload texture coordinates
+    glGenBuffers(1, &scene->texCoordVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, scene->texCoordVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        scene->texCoords.size() * sizeof(float),
+        scene->texCoords.data(),
+        GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(2);
+
+    // Upload texture IDs (atlas slots)
+    glGenBuffers(1, &scene->textureIdVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, scene->textureIdVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        scene->textureIds.size() * sizeof(float),
+        scene->textureIds.data(),
+        GL_STATIC_DRAW);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(3);
+
+    glBindVertexArray(0);
+
+    scene->is_finalized = true;
+
+    // Free CPU-side data to save memory (we only need GPU buffers now)
+    scene->vertices.clear();
+    scene->vertices.shrink_to_fit();
+    scene->colors.clear();
+    scene->colors.shrink_to_fit();
+    scene->texCoords.clear();
+    scene->texCoords.shrink_to_fit();
+    scene->textureIds.clear();
+    scene->textureIds.shrink_to_fit();
+
+    printf("Finalized static scene with %d vertices\n", scene->total_vertex_count);
+}
+
+extern "C" void
+pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    if( !scene->is_finalized )
+    {
+        printf("Static scene not finalized, call pix3dgl_scene_static_end() first\n");
+        return;
+    }
+
+    if( scene->total_vertex_count == 0 )
+    {
+        return;
+    }
+
+    // Set identity model matrix (geometry is already transformed)
+    float identity[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                           0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+
+    if( pix3dgl->uniform_model_matrix >= 0 )
+    {
+        glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, identity);
+    }
+
+    // Bind texture atlas (UVs are already in atlas space, pre-calculated on CPU!)
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pix3dgl->texture_atlas);
+    pix3dgl->currently_bound_texture = pix3dgl->texture_atlas;
+
+    if( pix3dgl->uniform_texture_atlas >= 0 )
+    {
+        glUniform1i(pix3dgl->uniform_texture_atlas, 0);
+    }
+
+    // Bind the static scene VAO
+    glBindVertexArray(scene->VAO);
+
+    // Draw entire scene in a single call!
+    glDrawArrays(GL_TRIANGLES, 0, scene->total_vertex_count);
+
+    glBindVertexArray(0);
+
+    static bool printed_once = false;
+    if( !printed_once )
+    {
+        printf(
+            "Rendering %d vertices with texture atlas in SINGLE draw call!\n",
+            scene->total_vertex_count);
+        printed_once = true;
+    }
 }
 
 extern "C" void
@@ -1815,9 +2796,24 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
             glDeleteBuffers(1, &model.EBO);
         }
 
-        for( auto& pair : pix3dgl->texture_ids )
+        // Note: With atlas, individual textures are stored as slots in texture_ids map
+        // but we don't delete them individually anymore - they're part of the atlas
+
+        // Delete texture atlas
+        if( pix3dgl->texture_atlas )
         {
-            glDeleteTextures(1, &pair.second);
+            glDeleteTextures(1, &pix3dgl->texture_atlas);
+        }
+
+        // Clean up static scene if it exists
+        if( pix3dgl->static_scene )
+        {
+            glDeleteVertexArrays(1, &pix3dgl->static_scene->VAO);
+            glDeleteBuffers(1, &pix3dgl->static_scene->VBO);
+            glDeleteBuffers(1, &pix3dgl->static_scene->colorVBO);
+            glDeleteBuffers(1, &pix3dgl->static_scene->texCoordVBO);
+            glDeleteBuffers(1, &pix3dgl->static_scene->textureIdVBO);
+            delete pix3dgl->static_scene;
         }
 
         // Clean up shader program
