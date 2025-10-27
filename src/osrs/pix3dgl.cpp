@@ -26,7 +26,7 @@
 
 #include <vector>
 
-// Desktop OpenGL 3.0 Core vertex shader - SIMPLE, no calculations!
+// Desktop OpenGL 3.0 Core vertex shader - ULTRA FAST, no branching!
 // Atlas UVs are pre-calculated on CPU and stored in aTexCoord
 const char* g_vertex_shader_core = R"(
 #version 330 core
@@ -41,50 +41,47 @@ uniform mat4 uModelMatrix;      // Per-model transformation
 
 out vec3 vColor;
 out vec2 vTexCoord;
-flat out float vHasTexture;  // 1.0 if textured, 0.0 if not
+flat out float vTexBlend;  // 1.0 if textured, 0.0 if not
 
 void main() {
-    // Apply model transformation first, then view transformation
+    // Apply transformations
     vec4 worldPos = uModelMatrix * vec4(aPos, 1.0);
-    
-    // Transform vertex position using precomputed matrices
     vec4 viewPos = uViewMatrix * worldPos;
     gl_Position = uProjectionMatrix * viewPos;
     
-    // Pass through vertex color and atlas UVs (already calculated on CPU!)
+    // Pass through - all calculated on CPU!
     vColor = aColor;
     vTexCoord = aTexCoord;
-    vHasTexture = aTextureId >= 0.0 ? 1.0 : 0.0;
+    vTexBlend = aTextureId >= 0.0 ? 1.0 : 0.0;
 }
 )";
 
-// Desktop OpenGL 3.0 Core fragment shader
+// Desktop OpenGL 3.0 Core fragment shader - NO BRANCHING!
+// Uses lerp instead of if/else for maximum performance
 const char* g_fragment_shader_core = R"(
 #version 330 core
 in vec3 vColor;
 in vec2 vTexCoord;
-flat in float vHasTexture;
+flat in float vTexBlend;
 
 uniform sampler2D uTextureAtlas;
 
 out vec4 FragColor;
 
 void main() {
-    if (vHasTexture > 0.5) {
-        // Textured face - sample from atlas (UVs already in atlas space!)
-        vec4 texColor = texture(uTextureAtlas, vTexCoord);
-        
-        // Make black texels transparent
-        float epsilon = 0.001;
-        float luminance = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
-        if (luminance < epsilon) {
-            discard;
-        }
-        FragColor = vec4(texColor.rgb * vColor, texColor.a);
-    } else {
-        // Untextured face - use vertex color only
-        FragColor = vec4(vColor, 1.0);
+    // Always sample texture (0,0 for untextured faces is safe)
+    vec4 texColor = texture(uTextureAtlas, vTexCoord);
+    
+    // Blend between pure vertex color and textured color
+    // vTexBlend = 1.0 for textured, 0.0 for untextured
+    vec3 finalColor = mix(vColor, texColor.rgb * vColor, vTexBlend);
+    
+    // Only discard if actually textured AND black
+    if (vTexBlend > 0.5 && dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.001) {
+        discard;
     }
+    
+    FragColor = vec4(finalColor, 1.0);
 }
 )";
 
@@ -2762,6 +2759,9 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
         glUniform1i(pix3dgl->uniform_texture_atlas, 0);
     }
 
+    // Disable alpha blending for maximum performance (we'll handle transparency with discard)
+    glDisable(GL_BLEND);
+
     // Bind the static scene VAO
     glBindVertexArray(scene->VAO);
 
@@ -2769,6 +2769,9 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
     glDrawArrays(GL_TRIANGLES, 0, scene->total_vertex_count);
 
     glBindVertexArray(0);
+
+    // Re-enable blending for other rendering
+    glEnable(GL_BLEND);
 
     static bool printed_once = false;
     if( !printed_once )

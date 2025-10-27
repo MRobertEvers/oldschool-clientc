@@ -283,9 +283,9 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(struct Renderer* renderer, struct Pl
         return false;
     }
 
-    // Enable vsync
-    SDL_GL_SetSwapInterval(1);
-    printf("OpenGL context created successfully\n");
+    // Disable vsync for maximum performance
+    SDL_GL_SetSwapInterval(0);
+    printf("OpenGL context created successfully (VSync disabled for max FPS)\n");
 
     // Initialize ImGui
     IMGUI_CHECKVERSION();
