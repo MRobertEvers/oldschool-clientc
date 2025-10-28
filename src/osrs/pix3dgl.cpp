@@ -167,6 +167,7 @@ struct StaticScene
     GLuint colorVBO;
     GLuint texCoordVBO;
     GLuint textureIdVBO; // New: stores texture ID per vertex
+    GLuint dynamicEBO;   // Dynamic index buffer for painter's algorithm ordering
 
     int total_vertex_count;
     std::vector<float> vertices;
@@ -188,7 +189,18 @@ struct StaticScene
     // Maps scene_model_idx -> vector of face indices in draw order
     std::unordered_map<int, std::vector<int>> model_face_order;
 
+    // Dynamic index buffer data (rebuilt each frame based on face order)
+    std::vector<GLuint> sorted_indices;
+    
+    // Track index ranges for each model in the sorted index buffer
+    struct ModelIndexRange {
+        int start_index;  // Starting index in sorted_indices
+        int count;        // Number of indices for this model
+    };
+    std::unordered_map<int, ModelIndexRange> model_index_ranges;
+
     bool is_finalized;
+    bool indices_dirty; // Flag to indicate indices need re-upload
 };
 
 struct Pix3DGL
@@ -1984,6 +1996,10 @@ pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl)
         glDeleteBuffers(1, &pix3dgl->static_scene->colorVBO);
         glDeleteBuffers(1, &pix3dgl->static_scene->texCoordVBO);
         glDeleteBuffers(1, &pix3dgl->static_scene->textureIdVBO);
+        if( pix3dgl->static_scene->dynamicEBO != 0 )
+        {
+            glDeleteBuffers(1, &pix3dgl->static_scene->dynamicEBO);
+        }
         delete pix3dgl->static_scene;
     }
 
@@ -1994,8 +2010,10 @@ pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl)
     pix3dgl->static_scene->colorVBO = 0;
     pix3dgl->static_scene->texCoordVBO = 0;
     pix3dgl->static_scene->textureIdVBO = 0;
+    pix3dgl->static_scene->dynamicEBO = 0;
     pix3dgl->static_scene->total_vertex_count = 0;
     pix3dgl->static_scene->is_finalized = false;
+    pix3dgl->static_scene->indices_dirty = false;
 
     printf("Started building static scene\n");
 }
@@ -2765,9 +2783,22 @@ pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl)
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
     glEnableVertexAttribArray(3);
 
+    // Create dynamic Element Buffer Object for painter's algorithm ordering
+    // Pre-allocate with maximum possible size (total_vertex_count indices)
+    glGenBuffers(1, &scene->dynamicEBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, scene->dynamicEBO);
+    glBufferData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        scene->total_vertex_count * sizeof(GLuint),
+        nullptr,
+        GL_DYNAMIC_DRAW); // Use DYNAMIC_DRAW for frequent updates
+
     glBindVertexArray(0);
 
     scene->is_finalized = true;
+    
+    // Pre-allocate sorted_indices vector for later use
+    scene->sorted_indices.reserve(scene->total_vertex_count);
 
     // Free CPU-side data to save memory (we only need GPU buffers now)
     scene->vertices.clear();
@@ -2843,6 +2874,9 @@ pix3dgl_scene_static_set_model_face_order(
     {
         face_order.push_back(face_indices[i]);
     }
+    
+    // Mark indices as dirty so they'll be rebuilt and re-uploaded on next draw
+    scene->indices_dirty = true;
 }
 
 extern "C" void
@@ -2888,72 +2922,128 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
     // Disable alpha blending for maximum performance (we'll handle transparency with discard)
     glDisable(GL_BLEND);
 
-    // Bind the static scene VAO
+    // Bind the static scene VAO (this also binds the dynamicEBO)
     glBindVertexArray(scene->VAO);
 
     // Draw models in the specified order, or all models if no order is set
     if( !scene->draw_order.empty() )
     {
-        // Draw models in the order specified by draw_order
-        for( int scene_model_idx : scene->draw_order )
+        // Rebuild index buffer if face order has changed (indices_dirty flag)
+        if( scene->indices_dirty )
         {
-            auto it = scene->model_ranges.find(scene_model_idx);
-            if( it != scene->model_ranges.end() )
+            scene->sorted_indices.clear();
+            scene->model_index_ranges.clear();
+
+            // Build sorted index buffer by iterating through draw_order
+            for( int scene_model_idx : scene->draw_order )
             {
-                const ModelRange& range = it->second;
+                auto model_it = scene->model_ranges.find(scene_model_idx);
+                if( model_it == scene->model_ranges.end() )
+                    continue;
+
+                const ModelRange& range = model_it->second;
 
                 // Check if we have a face order for this model
                 auto face_order_it = scene->model_face_order.find(scene_model_idx);
                 if( face_order_it != scene->model_face_order.end() &&
                     !face_order_it->second.empty() )
                 {
-                    // Build arrays for glMultiDrawArrays - draw all faces in a single call
-                    const std::vector<int>& face_order = face_order_it->second;
-                    static std::vector<GLint> face_starts;
-                    static std::vector<GLsizei> face_counts;
-                    face_starts.clear();
-                    face_counts.clear();
+                    // Record where this model's indices start
+                    int start_index = (int)scene->sorted_indices.size();
 
+                    const std::vector<int>& face_order = face_order_it->second;
+
+                    // Add indices for each face in the sorted order
                     for( int face_idx : face_order )
                     {
                         if( face_idx >= 0 && face_idx < (int)range.faces.size() )
                         {
                             const FaceRange& face_range = range.faces[face_idx];
-                            // Only draw if this face was actually added to the buffer
                             if( face_range.start_vertex >= 0 )
                             {
-                                face_starts.push_back(face_range.start_vertex);
-                                face_counts.push_back(3);
+                                // Add the 3 vertex indices for this triangle
+                                GLuint base = face_range.start_vertex;
+                                scene->sorted_indices.push_back(base);
+                                scene->sorted_indices.push_back(base + 1);
+                                scene->sorted_indices.push_back(base + 2);
                             }
                         }
                     }
 
-                    // Draw all faces in a single call
-                    if( !face_starts.empty() )
+                    // Record the index range for this model
+                    int count = (int)scene->sorted_indices.size() - start_index;
+                    if( count > 0 )
                     {
-                        glMultiDrawArrays(
-                            GL_TRIANGLES,
-                            face_starts.data(),
-                            face_counts.data(),
-                            face_starts.size());
+                        scene->model_index_ranges[scene_model_idx] = { start_index, count };
                     }
                 }
                 else
                 {
-                    // No face order specified, draw entire model at once
-                    glDrawArrays(GL_TRIANGLES, range.start_vertex, range.vertex_count);
+                    // No face order specified, add all faces in original order
+                    int start_index = (int)scene->sorted_indices.size();
+
+                    for( size_t face_idx = 0; face_idx < range.faces.size(); face_idx++ )
+                    {
+                        const FaceRange& face_range = range.faces[face_idx];
+                        if( face_range.start_vertex >= 0 )
+                        {
+                            GLuint base = face_range.start_vertex;
+                            scene->sorted_indices.push_back(base);
+                            scene->sorted_indices.push_back(base + 1);
+                            scene->sorted_indices.push_back(base + 2);
+                        }
+                    }
+
+                    int count = (int)scene->sorted_indices.size() - start_index;
+                    if( count > 0 )
+                    {
+                        scene->model_index_ranges[scene_model_idx] = { start_index, count };
+                    }
                 }
+            }
+
+            // Upload sorted indices to GPU using glBufferSubData (FAST!)
+            if( !scene->sorted_indices.empty() )
+            {
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, scene->dynamicEBO);
+                glBufferSubData(
+                    GL_ELEMENT_ARRAY_BUFFER,
+                    0,
+                    scene->sorted_indices.size() * sizeof(GLuint),
+                    scene->sorted_indices.data());
+            }
+
+            scene->indices_dirty = false;
+
+            static bool printed_once = false;
+            if( !printed_once )
+            {
+                printf(
+                    "Built index buffer with %d indices for %d models (painter's algorithm)\n",
+                    (int)scene->sorted_indices.size(),
+                    (int)scene->draw_order.size());
+                printed_once = true;
             }
         }
 
-        static bool printed_once = false;
-        if( !printed_once )
+        // Draw the entire scene in a single glDrawElements call!
+        // This is MUCH faster than glMultiDrawArrays
+        if( !scene->sorted_indices.empty() )
         {
-            printf(
-                "Rendering %d models with per-face ordering (total %d vertices)\n",
-                (int)scene->draw_order.size(),
-                scene->total_vertex_count);
-            printed_once = true;
+            glDrawElements(
+                GL_TRIANGLES,
+                (GLsizei)scene->sorted_indices.size(),
+                GL_UNSIGNED_INT,
+                nullptr); // Offset 0 in the bound EBO
+
+            static bool printed_once = false;
+            if( !printed_once )
+            {
+                printf(
+                    "Rendering %d models with dynamic index buffer (single glDrawElements call)!\n",
+                    (int)scene->draw_order.size());
+                printed_once = true;
+            }
         }
     }
     else
@@ -3010,6 +3100,10 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
             glDeleteBuffers(1, &pix3dgl->static_scene->colorVBO);
             glDeleteBuffers(1, &pix3dgl->static_scene->texCoordVBO);
             glDeleteBuffers(1, &pix3dgl->static_scene->textureIdVBO);
+            if( pix3dgl->static_scene->dynamicEBO != 0 )
+            {
+                glDeleteBuffers(1, &pix3dgl->static_scene->dynamicEBO);
+            }
             delete pix3dgl->static_scene;
         }
 
