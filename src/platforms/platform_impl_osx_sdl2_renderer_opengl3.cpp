@@ -276,11 +276,15 @@ render_scene(struct Renderer* renderer, struct Game* game)
             game->scene,
             NULL);
 
-        // Collect model and tile draw orders from scene ops
-        static std::vector<int> model_draw_order;
-        static std::vector<int> tile_draw_order;
-        model_draw_order.clear();
-        tile_draw_order.clear();
+        // Structure to track unified draw order (models and tiles interleaved)
+        struct DrawItem
+        {
+            bool is_tile;
+            int index; // scene_model_idx or scene_tile_idx
+        };
+
+        static std::vector<DrawItem> unified_draw_order;
+        unified_draw_order.clear();
 
         // START BATCH MODE - defers index buffer rebuild until end
         pix3dgl_scene_static_begin_face_order_batch(renderer->pix3dgl);
@@ -310,7 +314,8 @@ render_scene(struct Renderer* renderer, struct Game* game)
                     continue;
                 }
 
-                model_draw_order.push_back(scene_model->scene_model_idx);
+                // Add model to unified draw order
+                unified_draw_order.push_back({ false, scene_model->scene_model_idx });
 
                 // Compute face order for this model using iter_render_model_init
                 struct IterRenderModel iter_model;
@@ -358,7 +363,8 @@ render_scene(struct Renderer* renderer, struct Game* game)
                 // Safety check: ensure tile index is valid
                 if( tile_idx >= 0 && tile_idx < game->scene->scene_tiles_length )
                 {
-                    tile_draw_order.push_back(tile_idx);
+                    // Add tile to unified draw order
+                    unified_draw_order.push_back({ true, tile_idx });
 
                     // For now, tiles use their default face order
                     // TODO: Implement per-face depth sorting for tiles if needed
@@ -369,18 +375,15 @@ render_scene(struct Renderer* renderer, struct Game* game)
         // END BATCH MODE - triggers single index buffer rebuild for ALL models
         pix3dgl_scene_static_end_face_order_batch(renderer->pix3dgl);
 
-        // Set the draw order for models in the static scene
-        if( !model_draw_order.empty() )
+        // Set the unified draw order (models and tiles interleaved)
+        if( !unified_draw_order.empty() )
         {
-            pix3dgl_scene_static_set_draw_order(
-                renderer->pix3dgl, model_draw_order.data(), model_draw_order.size());
-        }
-
-        // Set the draw order for tiles in the static scene
-        if( !tile_draw_order.empty() )
-        {
-            pix3dgl_scene_static_set_tile_draw_order(
-                renderer->pix3dgl, tile_draw_order.data(), tile_draw_order.size());
+            pix3dgl_scene_static_set_unified_draw_order(
+                renderer->pix3dgl,
+                reinterpret_cast<bool*>(&unified_draw_order[0].is_tile),
+                reinterpret_cast<int*>(&unified_draw_order[0].index),
+                unified_draw_order.size(),
+                sizeof(DrawItem));
         }
 
         // Update last known camera position

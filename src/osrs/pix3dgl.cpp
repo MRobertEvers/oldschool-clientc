@@ -192,6 +192,14 @@ struct StaticScene
     // Draw order for tiles (list of scene_tile_idx values)
     std::vector<int> tile_draw_order;
 
+    // Unified draw order (models and tiles interleaved in correct depth order)
+    struct DrawItem
+    {
+        bool is_tile;
+        int index; // scene_model_idx or scene_tile_idx
+    };
+    std::vector<DrawItem> unified_draw_order;
+
     // Per-model face draw order (computed each frame based on camera)
     // Maps scene_model_idx -> vector of face indices in draw order
     std::unordered_map<int, std::vector<int>> model_face_order;
@@ -3019,6 +3027,35 @@ pix3dgl_scene_static_set_tile_draw_order(
 }
 
 extern "C" void
+pix3dgl_scene_static_set_unified_draw_order(
+    struct Pix3DGL* pix3dgl, bool* is_tile_array, int* index_array, int count, int stride)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        printf("Static scene not initialized\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    // Store unified draw order (models and tiles interleaved)
+    scene->unified_draw_order.clear();
+    scene->unified_draw_order.reserve(count);
+
+    for( int i = 0; i < count; i++ )
+    {
+        bool* is_tile_ptr =
+            reinterpret_cast<bool*>(reinterpret_cast<char*>(is_tile_array) + i * stride);
+        int* index_ptr = reinterpret_cast<int*>(reinterpret_cast<char*>(index_array) + i * stride);
+
+        scene->unified_draw_order.push_back({ *is_tile_ptr, *index_ptr });
+    }
+
+    // Mark indices as dirty so they'll be rebuilt with new order
+    scene->indices_dirty = true;
+}
+
+extern "C" void
 pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->static_scene )
@@ -3065,7 +3102,7 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
     glBindVertexArray(scene->VAO);
 
     // Draw models in the specified order, or all models if no order is set
-    if( !scene->draw_order.empty() )
+    if( !scene->draw_order.empty() || !scene->unified_draw_order.empty() )
     {
         // Rebuild index buffer if face order has changed (indices_dirty flag)
         if( scene->indices_dirty )
@@ -3075,115 +3112,203 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
             int write_idx = 0;
             scene->model_index_ranges.clear();
 
-            // Build sorted index buffer by iterating through draw_order
-            for( int scene_model_idx : scene->draw_order )
+            // Use unified draw order if available (models and tiles interleaved)
+            if( !scene->unified_draw_order.empty() )
             {
-                auto model_it = scene->model_ranges.find(scene_model_idx);
-                if( model_it == scene->model_ranges.end() )
-                    continue;
-
-                const ModelRange& range = model_it->second;
-
-                // Check if we have a face order for this model
-                auto face_order_it = scene->model_face_order.find(scene_model_idx);
-                if( face_order_it != scene->model_face_order.end() &&
-                    !face_order_it->second.empty() )
+                // Iterate through unified order (tiles and models interleaved)
+                for( const auto& draw_item : scene->unified_draw_order )
                 {
-                    // Record where this model's indices start
-                    int start_index = write_idx;
-
-                    const std::vector<int>& face_order = face_order_it->second;
-
-                    // Add indices for each face in the sorted order
-                    for( int face_idx : face_order )
+                    if( draw_item.is_tile )
                     {
-                        if( face_idx >= 0 && face_idx < (int)range.faces.size() )
-                        {
-                            const FaceRange& face_range = range.faces[face_idx];
-                            if( face_range.start_vertex >= 0 )
-                            {
-                                // Add the 3 vertex indices for this triangle
-                                GLuint base = face_range.start_vertex;
+                        // Draw a tile
+                        int scene_tile_idx = draw_item.index;
+                        auto tile_it = scene->tile_ranges.find(scene_tile_idx);
+                        if( tile_it == scene->tile_ranges.end() )
+                            continue;
 
-                                // Resize only if needed (rare after first frame)
-                                if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                        const ModelRange& range = tile_it->second;
+
+                        // Check if we have a face order for this tile
+                        auto face_order_it = scene->tile_face_order.find(scene_tile_idx);
+                        if( face_order_it != scene->tile_face_order.end() &&
+                            !face_order_it->second.empty() )
+                        {
+                            // Use sorted face order
+                            const std::vector<int>& face_order = face_order_it->second;
+                            for( int face_idx : face_order )
+                            {
+                                if( face_idx >= 0 && face_idx < (int)range.faces.size() )
                                 {
-                                    scene->sorted_indices.resize(write_idx + 3);
+                                    const FaceRange& face_range = range.faces[face_idx];
+                                    if( face_range.start_vertex >= 0 )
+                                    {
+                                        GLuint base = face_range.start_vertex;
+                                        if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                                        {
+                                            scene->sorted_indices.resize(write_idx + 3);
+                                        }
+                                        scene->sorted_indices[write_idx++] = base;
+                                        scene->sorted_indices[write_idx++] = base + 1;
+                                        scene->sorted_indices[write_idx++] = base + 2;
+                                    }
                                 }
-
-                                scene->sorted_indices[write_idx++] = base;
-                                scene->sorted_indices[write_idx++] = base + 1;
-                                scene->sorted_indices[write_idx++] = base + 2;
                             }
                         }
-                    }
-
-                    // Record the index range for this model
-                    int count = write_idx - start_index;
-                    if( count > 0 )
-                    {
-                        scene->model_index_ranges[scene_model_idx] = { start_index, count };
-                    }
-                }
-                else
-                {
-                    // No face order specified, add all faces in original order
-                    int start_index = write_idx;
-
-                    for( size_t face_idx = 0; face_idx < range.faces.size(); face_idx++ )
-                    {
-                        const FaceRange& face_range = range.faces[face_idx];
-                        if( face_range.start_vertex >= 0 )
+                        else
                         {
-                            GLuint base = face_range.start_vertex;
-
-                            if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                            // No face order, add all faces in original order
+                            for( size_t face_idx = 0; face_idx < range.faces.size(); face_idx++ )
                             {
-                                scene->sorted_indices.resize(write_idx + 3);
+                                const FaceRange& face_range = range.faces[face_idx];
+                                if( face_range.start_vertex >= 0 )
+                                {
+                                    GLuint base = face_range.start_vertex;
+                                    if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                                    {
+                                        scene->sorted_indices.resize(write_idx + 3);
+                                    }
+                                    scene->sorted_indices[write_idx++] = base;
+                                    scene->sorted_indices[write_idx++] = base + 1;
+                                    scene->sorted_indices[write_idx++] = base + 2;
+                                }
                             }
-
-                            scene->sorted_indices[write_idx++] = base;
-                            scene->sorted_indices[write_idx++] = base + 1;
-                            scene->sorted_indices[write_idx++] = base + 2;
                         }
                     }
-
-                    int count = write_idx - start_index;
-                    if( count > 0 )
+                    else
                     {
-                        scene->model_index_ranges[scene_model_idx] = { start_index, count };
+                        // Draw a model
+                        int scene_model_idx = draw_item.index;
+                        auto model_it = scene->model_ranges.find(scene_model_idx);
+                        if( model_it == scene->model_ranges.end() )
+                            continue;
+
+                        const ModelRange& range = model_it->second;
+
+                        // Check if we have a face order for this model
+                        auto face_order_it = scene->model_face_order.find(scene_model_idx);
+                        if( face_order_it != scene->model_face_order.end() &&
+                            !face_order_it->second.empty() )
+                        {
+                            int start_index = write_idx;
+                            const std::vector<int>& face_order = face_order_it->second;
+
+                            for( int face_idx : face_order )
+                            {
+                                if( face_idx >= 0 && face_idx < (int)range.faces.size() )
+                                {
+                                    const FaceRange& face_range = range.faces[face_idx];
+                                    if( face_range.start_vertex >= 0 )
+                                    {
+                                        GLuint base = face_range.start_vertex;
+                                        if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                                        {
+                                            scene->sorted_indices.resize(write_idx + 3);
+                                        }
+                                        scene->sorted_indices[write_idx++] = base;
+                                        scene->sorted_indices[write_idx++] = base + 1;
+                                        scene->sorted_indices[write_idx++] = base + 2;
+                                    }
+                                }
+                            }
+
+                            int count = write_idx - start_index;
+                            if( count > 0 )
+                            {
+                                scene->model_index_ranges[scene_model_idx] = { start_index, count };
+                            }
+                        }
+                        else
+                        {
+                            int start_index = write_idx;
+                            for( size_t face_idx = 0; face_idx < range.faces.size(); face_idx++ )
+                            {
+                                const FaceRange& face_range = range.faces[face_idx];
+                                if( face_range.start_vertex >= 0 )
+                                {
+                                    GLuint base = face_range.start_vertex;
+                                    if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                                    {
+                                        scene->sorted_indices.resize(write_idx + 3);
+                                    }
+                                    scene->sorted_indices[write_idx++] = base;
+                                    scene->sorted_indices[write_idx++] = base + 1;
+                                    scene->sorted_indices[write_idx++] = base + 2;
+                                }
+                            }
+
+                            int count = write_idx - start_index;
+                            if( count > 0 )
+                            {
+                                scene->model_index_ranges[scene_model_idx] = { start_index, count };
+                            }
+                        }
                     }
                 }
             }
-
-            // Now add tiles in their draw order
-            for( int scene_tile_idx : scene->tile_draw_order )
+            else
             {
-                auto tile_it = scene->tile_ranges.find(scene_tile_idx);
-                if( tile_it == scene->tile_ranges.end() )
-                    continue;
-
-                const ModelRange& range = tile_it->second;
-
-                // Check if we have a face order for this tile
-                auto face_order_it = scene->tile_face_order.find(scene_tile_idx);
-                if( face_order_it != scene->tile_face_order.end() &&
-                    !face_order_it->second.empty() )
+                // Legacy path: Build sorted index buffer by iterating through draw_order
+                for( int scene_model_idx : scene->draw_order )
                 {
-                    // Add indices for each face in the sorted order
-                    const std::vector<int>& face_order = face_order_it->second;
+                    auto model_it = scene->model_ranges.find(scene_model_idx);
+                    if( model_it == scene->model_ranges.end() )
+                        continue;
 
-                    for( int face_idx : face_order )
+                    const ModelRange& range = model_it->second;
+
+                    // Check if we have a face order for this model
+                    auto face_order_it = scene->model_face_order.find(scene_model_idx);
+                    if( face_order_it != scene->model_face_order.end() &&
+                        !face_order_it->second.empty() )
                     {
-                        if( face_idx >= 0 && face_idx < (int)range.faces.size() )
+                        // Record where this model's indices start
+                        int start_index = write_idx;
+
+                        const std::vector<int>& face_order = face_order_it->second;
+
+                        // Add indices for each face in the sorted order
+                        for( int face_idx : face_order )
+                        {
+                            if( face_idx >= 0 && face_idx < (int)range.faces.size() )
+                            {
+                                const FaceRange& face_range = range.faces[face_idx];
+                                if( face_range.start_vertex >= 0 )
+                                {
+                                    // Add the 3 vertex indices for this triangle
+                                    GLuint base = face_range.start_vertex;
+
+                                    // Resize only if needed (rare after first frame)
+                                    if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                                    {
+                                        scene->sorted_indices.resize(write_idx + 3);
+                                    }
+
+                                    scene->sorted_indices[write_idx++] = base;
+                                    scene->sorted_indices[write_idx++] = base + 1;
+                                    scene->sorted_indices[write_idx++] = base + 2;
+                                }
+                            }
+                        }
+
+                        // Record the index range for this model
+                        int count = write_idx - start_index;
+                        if( count > 0 )
+                        {
+                            scene->model_index_ranges[scene_model_idx] = { start_index, count };
+                        }
+                    }
+                    else
+                    {
+                        // No face order specified, add all faces in original order
+                        int start_index = write_idx;
+
+                        for( size_t face_idx = 0; face_idx < range.faces.size(); face_idx++ )
                         {
                             const FaceRange& face_range = range.faces[face_idx];
                             if( face_range.start_vertex >= 0 )
                             {
-                                // Add the 3 vertex indices for this triangle
                                 GLuint base = face_range.start_vertex;
 
-                                // Resize only if needed (rare after first frame)
                                 if( write_idx + 3 > (int)scene->sorted_indices.size() )
                                 {
                                     scene->sorted_indices.resize(write_idx + 3);
@@ -3194,26 +3319,74 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                                 scene->sorted_indices[write_idx++] = base + 2;
                             }
                         }
+
+                        int count = write_idx - start_index;
+                        if( count > 0 )
+                        {
+                            scene->model_index_ranges[scene_model_idx] = { start_index, count };
+                        }
                     }
                 }
-                else
+
+                // Now add tiles in their draw order (legacy path)
+                for( int scene_tile_idx : scene->tile_draw_order )
                 {
-                    // No face order specified, add all faces in original order
-                    for( size_t face_idx = 0; face_idx < range.faces.size(); face_idx++ )
+                    auto tile_it = scene->tile_ranges.find(scene_tile_idx);
+                    if( tile_it == scene->tile_ranges.end() )
+                        continue;
+
+                    const ModelRange& range = tile_it->second;
+
+                    // Check if we have a face order for this tile
+                    auto face_order_it = scene->tile_face_order.find(scene_tile_idx);
+                    if( face_order_it != scene->tile_face_order.end() &&
+                        !face_order_it->second.empty() )
                     {
-                        const FaceRange& face_range = range.faces[face_idx];
-                        if( face_range.start_vertex >= 0 )
+                        // Add indices for each face in the sorted order
+                        const std::vector<int>& face_order = face_order_it->second;
+
+                        for( int face_idx : face_order )
                         {
-                            GLuint base = face_range.start_vertex;
-
-                            if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                            if( face_idx >= 0 && face_idx < (int)range.faces.size() )
                             {
-                                scene->sorted_indices.resize(write_idx + 3);
-                            }
+                                const FaceRange& face_range = range.faces[face_idx];
+                                if( face_range.start_vertex >= 0 )
+                                {
+                                    // Add the 3 vertex indices for this triangle
+                                    GLuint base = face_range.start_vertex;
 
-                            scene->sorted_indices[write_idx++] = base;
-                            scene->sorted_indices[write_idx++] = base + 1;
-                            scene->sorted_indices[write_idx++] = base + 2;
+                                    // Resize only if needed (rare after first frame)
+                                    if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                                    {
+                                        scene->sorted_indices.resize(write_idx + 3);
+                                    }
+
+                                    scene->sorted_indices[write_idx++] = base;
+                                    scene->sorted_indices[write_idx++] = base + 1;
+                                    scene->sorted_indices[write_idx++] = base + 2;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // No face order specified, add all faces in original order
+                        for( size_t face_idx = 0; face_idx < range.faces.size(); face_idx++ )
+                        {
+                            const FaceRange& face_range = range.faces[face_idx];
+                            if( face_range.start_vertex >= 0 )
+                            {
+                                GLuint base = face_range.start_vertex;
+
+                                if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                                {
+                                    scene->sorted_indices.resize(write_idx + 3);
+                                }
+
+                                scene->sorted_indices[write_idx++] = base;
+                                scene->sorted_indices[write_idx++] = base + 1;
+                                scene->sorted_indices[write_idx++] = base + 2;
+                            }
                         }
                     }
                 }
@@ -3241,12 +3414,23 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
             static bool printed_once = false;
             if( !printed_once )
             {
-                printf(
-                    "Built index buffer with %d indices for %d models and %d tiles (painter's "
-                    "algorithm)\n",
-                    (int)scene->sorted_indices.size(),
-                    (int)scene->draw_order.size(),
-                    (int)scene->tile_draw_order.size());
+                if( !scene->unified_draw_order.empty() )
+                {
+                    printf(
+                        "Built index buffer with %d indices for %d items (models + tiles "
+                        "interleaved, painter's algorithm)\n",
+                        (int)scene->sorted_indices.size(),
+                        (int)scene->unified_draw_order.size());
+                }
+                else
+                {
+                    printf(
+                        "Built index buffer with %d indices for %d models and %d tiles (painter's "
+                        "algorithm)\n",
+                        (int)scene->sorted_indices.size(),
+                        (int)scene->draw_order.size(),
+                        (int)scene->tile_draw_order.size());
+                }
                 printed_once = true;
             }
         }

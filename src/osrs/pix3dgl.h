@@ -165,6 +165,8 @@ void pix3dgl_scene_static_set_tile_face_order(
     struct Pix3DGL* pix3dgl, int scene_tile_idx, int* face_indices, int face_count);
 void pix3dgl_scene_static_set_tile_draw_order(
     struct Pix3DGL* pix3dgl, int* scene_tile_indices, int count);
+void pix3dgl_scene_static_set_unified_draw_order(
+    struct Pix3DGL* pix3dgl, bool* is_tile_array, int* index_array, int count, int stride);
 void pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl);
 
 void pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
