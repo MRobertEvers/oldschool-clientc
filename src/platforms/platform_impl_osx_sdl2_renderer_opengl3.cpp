@@ -136,9 +136,10 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
             }
         }
 
-        // Add tile geometry directly to static scene buffer
+        // Add tile geometry directly to static scene buffer with tile index
         pix3dgl_scene_static_add_tile(
             renderer->pix3dgl,
+            i, // Pass tile index for tracking
             scene_tile->vertex_x,
             scene_tile->vertex_y,
             scene_tile->vertex_z,
@@ -275,9 +276,11 @@ render_scene(struct Renderer* renderer, struct Game* game)
             game->scene,
             NULL);
 
-        // Collect model draw order from scene ops
+        // Collect model and tile draw orders from scene ops
         static std::vector<int> model_draw_order;
+        static std::vector<int> tile_draw_order;
         model_draw_order.clear();
+        tile_draw_order.clear();
 
         // START BATCH MODE - defers index buffer rebuild until end
         pix3dgl_scene_static_begin_face_order_batch(renderer->pix3dgl);
@@ -345,16 +348,39 @@ render_scene(struct Renderer* renderer, struct Game* game)
                         face_order.size());
                 }
             }
+            else if( iter_render_scene_ops.value.tile_nullable_ )
+            {
+                struct SceneTile* scene_tile = iter_render_scene_ops.value.tile_nullable_;
+
+                // Determine tile index from scene_tiles array
+                int tile_idx = scene_tile - game->scene->scene_tiles;
+
+                // Safety check: ensure tile index is valid
+                if( tile_idx >= 0 && tile_idx < game->scene->scene_tiles_length )
+                {
+                    tile_draw_order.push_back(tile_idx);
+
+                    // For now, tiles use their default face order
+                    // TODO: Implement per-face depth sorting for tiles if needed
+                }
+            }
         }
 
         // END BATCH MODE - triggers single index buffer rebuild for ALL models
         pix3dgl_scene_static_end_face_order_batch(renderer->pix3dgl);
 
-        // Set the draw order for the static scene
+        // Set the draw order for models in the static scene
         if( !model_draw_order.empty() )
         {
             pix3dgl_scene_static_set_draw_order(
                 renderer->pix3dgl, model_draw_order.data(), model_draw_order.size());
+        }
+
+        // Set the draw order for tiles in the static scene
+        if( !tile_draw_order.empty() )
+        {
+            pix3dgl_scene_static_set_tile_draw_order(
+                renderer->pix3dgl, tile_draw_order.data(), tile_draw_order.size());
         }
 
         // Update last known camera position

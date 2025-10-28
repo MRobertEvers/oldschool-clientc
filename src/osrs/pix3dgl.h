@@ -115,6 +115,7 @@ void pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
 void pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl);
 void pix3dgl_scene_static_add_tile(
     struct Pix3DGL* pix3dgl,
+    int scene_tile_idx,
     int* vertex_x,
     int* vertex_y,
     int* vertex_z,
@@ -160,6 +161,10 @@ void pix3dgl_scene_static_end_face_order_batch(struct Pix3DGL* pix3dgl);
 
 void pix3dgl_scene_static_set_model_face_order(
     struct Pix3DGL* pix3dgl, int scene_model_idx, int* face_indices, int face_count);
+void pix3dgl_scene_static_set_tile_face_order(
+    struct Pix3DGL* pix3dgl, int scene_tile_idx, int* face_indices, int face_count);
+void pix3dgl_scene_static_set_tile_draw_order(
+    struct Pix3DGL* pix3dgl, int* scene_tile_indices, int count);
 void pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl);
 
 void pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
