@@ -191,16 +191,18 @@ struct StaticScene
 
     // Dynamic index buffer data (rebuilt each frame based on face order)
     std::vector<GLuint> sorted_indices;
-    
+
     // Track index ranges for each model in the sorted index buffer
-    struct ModelIndexRange {
-        int start_index;  // Starting index in sorted_indices
-        int count;        // Number of indices for this model
+    struct ModelIndexRange
+    {
+        int start_index; // Starting index in sorted_indices
+        int count;       // Number of indices for this model
     };
     std::unordered_map<int, ModelIndexRange> model_index_ranges;
 
     bool is_finalized;
-    bool indices_dirty; // Flag to indicate indices need re-upload
+    bool indices_dirty;   // Flag to indicate indices need re-upload
+    bool in_batch_update; // True when batching face order updates
 };
 
 struct Pix3DGL
@@ -2014,6 +2016,7 @@ pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl)
     pix3dgl->static_scene->total_vertex_count = 0;
     pix3dgl->static_scene->is_finalized = false;
     pix3dgl->static_scene->indices_dirty = false;
+    pix3dgl->static_scene->in_batch_update = false;
 
     printf("Started building static scene\n");
 }
@@ -2796,7 +2799,7 @@ pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl)
     glBindVertexArray(0);
 
     scene->is_finalized = true;
-    
+
     // Pre-allocate sorted_indices vector for later use
     scene->sorted_indices.reserve(scene->total_vertex_count);
 
@@ -2845,6 +2848,29 @@ pix3dgl_scene_static_set_draw_order(struct Pix3DGL* pix3dgl, int* scene_model_in
         count);
 }
 
+// Begin batching face order updates (delays dirty flag until end_batch)
+extern "C" void
+pix3dgl_scene_static_begin_face_order_batch(struct Pix3DGL* pix3dgl)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        return;
+    }
+    pix3dgl->static_scene->in_batch_update = true;
+}
+
+// End batching and mark indices as dirty (triggers rebuild on next draw)
+extern "C" void
+pix3dgl_scene_static_end_face_order_batch(struct Pix3DGL* pix3dgl)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        return;
+    }
+    pix3dgl->static_scene->in_batch_update = false;
+    pix3dgl->static_scene->indices_dirty = true;
+}
+
 extern "C" void
 pix3dgl_scene_static_set_model_face_order(
     struct Pix3DGL* pix3dgl, int scene_model_idx, int* face_indices, int face_count)
@@ -2874,9 +2900,12 @@ pix3dgl_scene_static_set_model_face_order(
     {
         face_order.push_back(face_indices[i]);
     }
-    
-    // Mark indices as dirty so they'll be rebuilt and re-uploaded on next draw
-    scene->indices_dirty = true;
+
+    // Only mark dirty if not in batch mode (batch mode marks dirty at end)
+    if( !scene->in_batch_update )
+    {
+        scene->indices_dirty = true;
+    }
 }
 
 extern "C" void
@@ -2931,7 +2960,9 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
         // Rebuild index buffer if face order has changed (indices_dirty flag)
         if( scene->indices_dirty )
         {
-            scene->sorted_indices.clear();
+            // OPTIMIZATION: Don't clear, just reset write position
+            // This avoids deallocation and keeps capacity
+            int write_idx = 0;
             scene->model_index_ranges.clear();
 
             // Build sorted index buffer by iterating through draw_order
@@ -2949,7 +2980,7 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                     !face_order_it->second.empty() )
                 {
                     // Record where this model's indices start
-                    int start_index = (int)scene->sorted_indices.size();
+                    int start_index = write_idx;
 
                     const std::vector<int>& face_order = face_order_it->second;
 
@@ -2963,15 +2994,22 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                             {
                                 // Add the 3 vertex indices for this triangle
                                 GLuint base = face_range.start_vertex;
-                                scene->sorted_indices.push_back(base);
-                                scene->sorted_indices.push_back(base + 1);
-                                scene->sorted_indices.push_back(base + 2);
+
+                                // Resize only if needed (rare after first frame)
+                                if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                                {
+                                    scene->sorted_indices.resize(write_idx + 3);
+                                }
+
+                                scene->sorted_indices[write_idx++] = base;
+                                scene->sorted_indices[write_idx++] = base + 1;
+                                scene->sorted_indices[write_idx++] = base + 2;
                             }
                         }
                     }
 
                     // Record the index range for this model
-                    int count = (int)scene->sorted_indices.size() - start_index;
+                    int count = write_idx - start_index;
                     if( count > 0 )
                     {
                         scene->model_index_ranges[scene_model_idx] = { start_index, count };
@@ -2980,7 +3018,7 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                 else
                 {
                     // No face order specified, add all faces in original order
-                    int start_index = (int)scene->sorted_indices.size();
+                    int start_index = write_idx;
 
                     for( size_t face_idx = 0; face_idx < range.faces.size(); face_idx++ )
                     {
@@ -2988,13 +3026,19 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                         if( face_range.start_vertex >= 0 )
                         {
                             GLuint base = face_range.start_vertex;
-                            scene->sorted_indices.push_back(base);
-                            scene->sorted_indices.push_back(base + 1);
-                            scene->sorted_indices.push_back(base + 2);
+
+                            if( write_idx + 3 > (int)scene->sorted_indices.size() )
+                            {
+                                scene->sorted_indices.resize(write_idx + 3);
+                            }
+
+                            scene->sorted_indices[write_idx++] = base;
+                            scene->sorted_indices[write_idx++] = base + 1;
+                            scene->sorted_indices[write_idx++] = base + 2;
                         }
                     }
 
-                    int count = (int)scene->sorted_indices.size() - start_index;
+                    int count = write_idx - start_index;
                     if( count > 0 )
                     {
                         scene->model_index_ranges[scene_model_idx] = { start_index, count };
@@ -3002,7 +3046,13 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                 }
             }
 
-            // Upload sorted indices to GPU using glBufferSubData (FAST!)
+            // Trim to actual size if we over-allocated
+            if( write_idx < (int)scene->sorted_indices.size() )
+            {
+                scene->sorted_indices.resize(write_idx);
+            }
+
+            // Upload sorted indices to GPU using glBufferSubData
             if( !scene->sorted_indices.empty() )
             {
                 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, scene->dynamicEBO);

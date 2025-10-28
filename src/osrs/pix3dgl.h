@@ -153,6 +153,11 @@ void pix3dgl_scene_static_add_model_raw(
 void pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl);
 void
 pix3dgl_scene_static_set_draw_order(struct Pix3DGL* pix3dgl, int* scene_model_indices, int count);
+
+// Batch face order updates (MUCH faster than individual updates)
+void pix3dgl_scene_static_begin_face_order_batch(struct Pix3DGL* pix3dgl);
+void pix3dgl_scene_static_end_face_order_batch(struct Pix3DGL* pix3dgl);
+
 void pix3dgl_scene_static_set_model_face_order(
     struct Pix3DGL* pix3dgl, int scene_model_idx, int* face_indices, int face_count);
 void pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl);

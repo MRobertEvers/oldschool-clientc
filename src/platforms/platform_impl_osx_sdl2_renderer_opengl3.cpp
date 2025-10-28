@@ -221,6 +221,16 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
 static void
 render_scene(struct Renderer* renderer, struct Game* game)
 {
+    // OPTIMIZATION: Track camera state to avoid unnecessary sorting every frame
+    static int last_cam_x = -99999;
+    static int last_cam_y = -99999;
+    static int last_cam_z = -99999;
+    static float last_cam_yaw = -99999.0f;
+    static float last_cam_pitch = -99999.0f;
+    static int frame_count = 0;
+
+    frame_count++;
+
     // Begin frame with camera setup
     pix3dgl_begin_frame(
         renderer->pix3dgl,
@@ -235,101 +245,132 @@ render_scene(struct Renderer* renderer, struct Game* game)
     // Depth testing disabled - using painter's algorithm for draw order
     glDisable(GL_DEPTH_TEST);
 
-    // Compute scene ops to determine proper draw order (painter's algorithm)
-    renderer->op_count = render_scene_compute_ops(
-        renderer->ops,
-        renderer->op_capacity,
-        game->camera_world_x,
-        game->camera_world_y,
-        game->camera_world_z,
-        game->scene,
-        NULL);
+    // Check if camera moved significantly (thresholds: 1280 units ~= 10 tiles, 0.05 radians ~= 3
+    // degrees)
+    int dx = game->camera_world_x - last_cam_x;
+    int dy = game->camera_world_y - last_cam_y;
+    int dz = game->camera_world_z - last_cam_z;
+    int dist_sq = dx * dx + dy * dy + dz * dz;
+    float angle_diff =
+        fabsf(game->camera_yaw - last_cam_yaw) + fabsf(game->camera_pitch - last_cam_pitch);
 
-    // Collect model draw order from scene ops
-    static std::vector<int> model_draw_order;
-    model_draw_order.clear();
+    bool camera_moved = (dist_sq > 1638400 || angle_diff > 0.05f); // 1280*1280 = 1638400
 
-    struct IterRenderSceneOps iter_render_scene_ops;
-    iter_render_scene_ops_init(
-        &iter_render_scene_ops,
-        game->frustrum_cullmap,
-        game->scene,
-        renderer->ops,
-        renderer->op_count,
-        renderer->op_count,
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_world_x / 128,
-        game->camera_world_z / 128);
-
-    while( iter_render_scene_ops_next(&iter_render_scene_ops) )
+    // OPTIMIZATION: Only recompute face order when camera moves significantly
+    if( camera_moved || frame_count == 1 )
     {
-        if( iter_render_scene_ops.value.model_nullable_ )
+        printf(
+            "Frame %d: Resorting faces (dist_sq=%d, angle=%.3f)\n",
+            frame_count,
+            dist_sq,
+            angle_diff);
+
+        // Compute scene ops to determine proper draw order (painter's algorithm)
+        renderer->op_count = render_scene_compute_ops(
+            renderer->ops,
+            renderer->op_capacity,
+            game->camera_world_x,
+            game->camera_world_y,
+            game->camera_world_z,
+            game->scene,
+            NULL);
+
+        // Collect model draw order from scene ops
+        static std::vector<int> model_draw_order;
+        model_draw_order.clear();
+
+        // START BATCH MODE - defers index buffer rebuild until end
+        pix3dgl_scene_static_begin_face_order_batch(renderer->pix3dgl);
+
+        struct IterRenderSceneOps iter_render_scene_ops;
+        iter_render_scene_ops_init(
+            &iter_render_scene_ops,
+            game->frustrum_cullmap,
+            game->scene,
+            renderer->ops,
+            renderer->op_count,
+            renderer->op_count,
+            game->camera_pitch,
+            game->camera_yaw,
+            game->camera_world_x / 128,
+            game->camera_world_z / 128);
+
+        while( iter_render_scene_ops_next(&iter_render_scene_ops) )
         {
-            struct SceneModel* scene_model = iter_render_scene_ops.value.model_nullable_;
-
-            // Safety check: ensure model has valid data
-            if( !scene_model->model || scene_model->model->face_count == 0 )
+            if( iter_render_scene_ops.value.model_nullable_ )
             {
-                continue;
-            }
+                struct SceneModel* scene_model = iter_render_scene_ops.value.model_nullable_;
 
-            model_draw_order.push_back(scene_model->scene_model_idx);
+                // Safety check: ensure model has valid data
+                if( !scene_model->model || scene_model->model->face_count == 0 )
+                {
+                    continue;
+                }
 
-            printf(
-                "Computing face order for model %d (faces: %d, vertices: %d)\n",
-                scene_model->scene_model_idx,
-                scene_model->model->face_count,
-                scene_model->model->vertex_count);
+                model_draw_order.push_back(scene_model->scene_model_idx);
 
-            // Compute face order for this model using iter_render_model_init
-            struct IterRenderModel iter_model;
-            iter_render_model_init(
-                &iter_model,
-                scene_model,
-                iter_render_scene_ops.value.yaw,
-                game->camera_world_x,
-                game->camera_world_y,
-                game->camera_world_z,
-                game->camera_pitch,
-                game->camera_yaw,
-                0,   // camera_roll
-                512, // fov
-                renderer->width,
-                renderer->height,
-                50); // near_plane_z
+                // Compute face order for this model using iter_render_model_init
+                struct IterRenderModel iter_model;
+                iter_render_model_init(
+                    &iter_model,
+                    scene_model,
+                    iter_render_scene_ops.value.yaw,
+                    game->camera_world_x,
+                    game->camera_world_y,
+                    game->camera_world_z,
+                    game->camera_pitch,
+                    game->camera_yaw,
+                    0,   // camera_roll
+                    512, // fov
+                    renderer->width,
+                    renderer->height,
+                    50); // near_plane_z
 
-            printf("  iter_render_model_init completed, valid_faces: %d\n", iter_model.valid_faces);
+                // Collect face indices in render order
+                static std::vector<int> face_order;
+                face_order.clear();
 
-            // Collect face indices in render order
-            static std::vector<int> face_order;
-            face_order.clear();
+                while( iter_render_model_next(&iter_model) )
+                {
+                    face_order.push_back(iter_model.value_face);
+                }
 
-            while( iter_render_model_next(&iter_model) )
-            {
-                face_order.push_back(iter_model.value_face);
-            }
-
-            // Set the face order for this model
-            if( !face_order.empty() )
-            {
-                pix3dgl_scene_static_set_model_face_order(
-                    renderer->pix3dgl,
-                    scene_model->scene_model_idx,
-                    face_order.data(),
-                    face_order.size());
+                // Set the face order for this model (batched - doesn't trigger rebuild yet!)
+                if( !face_order.empty() )
+                {
+                    pix3dgl_scene_static_set_model_face_order(
+                        renderer->pix3dgl,
+                        scene_model->scene_model_idx,
+                        face_order.data(),
+                        face_order.size());
+                }
             }
         }
-    }
 
-    // Set the draw order for the static scene
-    if( !model_draw_order.empty() )
+        // END BATCH MODE - triggers single index buffer rebuild for ALL models
+        pix3dgl_scene_static_end_face_order_batch(renderer->pix3dgl);
+
+        // Set the draw order for the static scene
+        if( !model_draw_order.empty() )
+        {
+            pix3dgl_scene_static_set_draw_order(
+                renderer->pix3dgl, model_draw_order.data(), model_draw_order.size());
+        }
+
+        // Update last known camera position
+        last_cam_x = game->camera_world_x;
+        last_cam_y = game->camera_world_y;
+        last_cam_z = game->camera_world_z;
+        last_cam_yaw = game->camera_yaw;
+        last_cam_pitch = game->camera_pitch;
+    }
+    else
     {
-        pix3dgl_scene_static_set_draw_order(
-            renderer->pix3dgl, model_draw_order.data(), model_draw_order.size());
+        // Camera didn't move - reuse last frame's face ordering (FAST!)
+        printf("Frame %d: Reusing cached face order\n", frame_count);
     }
 
-    // Draw the static scene buffer (contains all scene geometry)
+    // Draw the static scene buffer (reuses cached index buffer if camera didn't move!)
     pix3dgl_scene_static_draw(renderer->pix3dgl);
 
     pix3dgl_end_frame(renderer->pix3dgl);
