@@ -256,6 +256,7 @@ render_scene(struct Renderer* renderer, struct Game* game)
     bool camera_moved =
         (dx > 12 || dy > 12 || dz > 12 ||
          angle_diff > 0.2094f); // 128*128 = 16384, 12° = 0.2094 rad
+    camera_moved = true;
 
     // OPTIMIZATION: Only recompute face order when camera moves significantly
     if( camera_moved || frame_count == 1 )
