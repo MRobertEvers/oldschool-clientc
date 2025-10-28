@@ -40,7 +40,8 @@ PlatformImpl_Emscripten_SDL2_InitForSoft3D(
         SDL_WINDOWPOS_UNDEFINED,
         canvas_width,
         canvas_height,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+        SDL_WINDOW_SHOWN); // Use SHOWN instead of OPENGL for Emscripten - context created
+                           // separately
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -77,7 +78,7 @@ PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIn
         switch( event.type )
         {
         case SDL_QUIT:
-            input->should_quit = true;
+            input->quit = 1;
             break;
 
         case SDL_KEYDOWN:
@@ -86,44 +87,70 @@ PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIn
             switch( key )
             {
             case SDLK_w:
-                input->is_key_w_down = true;
+                input->w_pressed = 1;
                 break;
             case SDLK_a:
-                input->is_key_a_down = true;
+                input->a_pressed = 1;
                 break;
             case SDLK_s:
-                input->is_key_s_down = true;
+                input->s_pressed = 1;
                 break;
             case SDLK_d:
-                input->is_key_d_down = true;
+                input->d_pressed = 1;
                 break;
             case SDLK_q:
-                input->is_key_q_down = true;
+                input->q_pressed = 1;
                 break;
             case SDLK_e:
-                input->is_key_e_down = true;
+                input->e_pressed = 1;
                 break;
             case SDLK_SPACE:
-                input->is_key_space_down = true;
-                break;
-            case SDLK_LSHIFT:
-            case SDLK_RSHIFT:
-                input->is_key_shift_down = true;
+                input->space_pressed = 1;
                 break;
             case SDLK_UP:
-                input->is_key_up_down = true;
+                input->up_pressed = 1;
                 break;
             case SDLK_DOWN:
-                input->is_key_down_down = true;
+                input->down_pressed = 1;
                 break;
             case SDLK_LEFT:
-                input->is_key_left_down = true;
+                input->left_pressed = 1;
                 break;
             case SDLK_RIGHT:
-                input->is_key_right_down = true;
+                input->right_pressed = 1;
+                break;
+            case SDLK_f:
+                input->f_pressed = 1;
+                break;
+            case SDLK_r:
+                input->r_pressed = 1;
+                break;
+            case SDLK_m:
+                input->m_pressed = 1;
+                break;
+            case SDLK_n:
+                input->n_pressed = 1;
+                break;
+            case SDLK_i:
+                input->i_pressed = 1;
+                break;
+            case SDLK_k:
+                input->k_pressed = 1;
+                break;
+            case SDLK_l:
+                input->l_pressed = 1;
+                break;
+            case SDLK_j:
+                input->j_pressed = 1;
+                break;
+            case SDLK_COMMA:
+                input->comma_pressed = 1;
+                break;
+            case SDLK_PERIOD:
+                input->period_pressed = 1;
                 break;
             case SDLK_ESCAPE:
-                input->should_quit = true;
+                input->quit = 1;
                 break;
             default:
                 break;
@@ -137,41 +164,67 @@ PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIn
             switch( key )
             {
             case SDLK_w:
-                input->is_key_w_down = false;
+                input->w_pressed = 0;
                 break;
             case SDLK_a:
-                input->is_key_a_down = false;
+                input->a_pressed = 0;
                 break;
             case SDLK_s:
-                input->is_key_s_down = false;
+                input->s_pressed = 0;
                 break;
             case SDLK_d:
-                input->is_key_d_down = false;
+                input->d_pressed = 0;
                 break;
             case SDLK_q:
-                input->is_key_q_down = false;
+                input->q_pressed = 0;
                 break;
             case SDLK_e:
-                input->is_key_e_down = false;
+                input->e_pressed = 0;
                 break;
             case SDLK_SPACE:
-                input->is_key_space_down = false;
-                break;
-            case SDLK_LSHIFT:
-            case SDLK_RSHIFT:
-                input->is_key_shift_down = false;
+                input->space_pressed = 0;
                 break;
             case SDLK_UP:
-                input->is_key_up_down = false;
+                input->up_pressed = 0;
                 break;
             case SDLK_DOWN:
-                input->is_key_down_down = false;
+                input->down_pressed = 0;
                 break;
             case SDLK_LEFT:
-                input->is_key_left_down = false;
+                input->left_pressed = 0;
                 break;
             case SDLK_RIGHT:
-                input->is_key_right_down = false;
+                input->right_pressed = 0;
+                break;
+            case SDLK_f:
+                input->f_pressed = 0;
+                break;
+            case SDLK_r:
+                input->r_pressed = 0;
+                break;
+            case SDLK_m:
+                input->m_pressed = 0;
+                break;
+            case SDLK_n:
+                input->n_pressed = 0;
+                break;
+            case SDLK_i:
+                input->i_pressed = 0;
+                break;
+            case SDLK_k:
+                input->k_pressed = 0;
+                break;
+            case SDLK_l:
+                input->l_pressed = 0;
+                break;
+            case SDLK_j:
+                input->j_pressed = 0;
+                break;
+            case SDLK_COMMA:
+                input->comma_pressed = 0;
+                break;
+            case SDLK_PERIOD:
+                input->period_pressed = 0;
                 break;
             default:
                 break;
@@ -179,50 +232,8 @@ PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIn
             break;
         }
 
-        case SDL_MOUSEMOTION:
-            input->mouse_x = event.motion.x;
-            input->mouse_y = event.motion.y;
-            input->mouse_dx = event.motion.xrel;
-            input->mouse_dy = event.motion.yrel;
-            break;
-
-        case SDL_MOUSEBUTTONDOWN:
-            if( event.button.button == SDL_BUTTON_LEFT )
-            {
-                input->is_mouse_left_down = true;
-            }
-            else if( event.button.button == SDL_BUTTON_RIGHT )
-            {
-                input->is_mouse_right_down = true;
-            }
-            else if( event.button.button == SDL_BUTTON_MIDDLE )
-            {
-                input->is_mouse_middle_down = true;
-            }
-            break;
-
-        case SDL_MOUSEBUTTONUP:
-            if( event.button.button == SDL_BUTTON_LEFT )
-            {
-                input->is_mouse_left_down = false;
-            }
-            else if( event.button.button == SDL_BUTTON_RIGHT )
-            {
-                input->is_mouse_right_down = false;
-            }
-            else if( event.button.button == SDL_BUTTON_MIDDLE )
-            {
-                input->is_mouse_middle_down = false;
-            }
-            break;
-
-        case SDL_MOUSEWHEEL:
-            input->mouse_wheel_delta = event.wheel.y;
-            break;
-
         default:
             break;
         }
     }
 }
-

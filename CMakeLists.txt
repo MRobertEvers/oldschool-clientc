@@ -605,7 +605,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         test/emscripten_sdl2_webgl1.cpp
         src/libgame.c
         src/libinput.c
-        src/platforms/platform_impl_emscripten_sdl2.c
+        src/platforms/platform_impl_emscripten_sdl2.cpp
         src/platforms/platform_impl_emscripten_sdl2_renderer_webgl1.cpp
         
         src/shared_tables.c
