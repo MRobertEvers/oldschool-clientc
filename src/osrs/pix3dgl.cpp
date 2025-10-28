@@ -143,12 +143,20 @@ struct SceneDrawBatch
     std::vector<GLsizei> face_counts;
 };
 
+// Structure to track where each face of a model is in the static scene buffer
+struct FaceRange
+{
+    int start_vertex; // Starting vertex index for this face (always 3 vertices)
+    int face_index;   // Original face index in the model (for reference)
+};
+
 // Structure to track where each model's faces are in the static scene buffer
 struct ModelRange
 {
-    int scene_model_idx; // Index of the model in the scene
-    int start_vertex;    // Starting vertex index in the buffer
-    int vertex_count;    // Number of vertices for this model
+    int scene_model_idx;          // Index of the model in the scene
+    int start_vertex;             // Starting vertex index in the buffer
+    int vertex_count;             // Number of vertices for this model
+    std::vector<FaceRange> faces; // Position of each face in the buffer
 };
 
 // Static scene buffer for combining multiple models into a single buffer
@@ -175,6 +183,10 @@ struct StaticScene
 
     // Draw order (list of scene_model_idx values in the order they should be drawn)
     std::vector<int> draw_order;
+
+    // Per-model face draw order (computed each frame based on camera)
+    // Maps scene_model_idx -> vector of face indices in draw order
+    std::unordered_map<int, std::vector<int>> model_face_order;
 
     bool is_finalized;
 };
@@ -2417,6 +2429,17 @@ pix3dgl_scene_static_add_model_raw(
     int current_vertex_index = scene->total_vertex_count;
     int start_vertex_index = current_vertex_index;
 
+    // Temporary storage for face positions (will be moved to ModelRange later)
+    // Pre-allocate with size of face_count to maintain face index mapping
+    std::vector<FaceRange> face_ranges(face_count);
+
+    // Initialize all face ranges with invalid start_vertex (-1)
+    for( int i = 0; i < face_count; i++ )
+    {
+        face_ranges[i].start_vertex = -1;
+        face_ranges[i].face_index = i;
+    }
+
     // Process each face
     for( int face = 0; face < face_count; face++ )
     {
@@ -2647,6 +2670,10 @@ pix3dgl_scene_static_add_model_raw(
             batch.face_counts.push_back(3);
         }
 
+        // Track this face's position in the buffer (use original face index)
+        face_ranges[face].start_vertex = face_start_index;
+        face_ranges[face].face_index = face;
+
         current_vertex_index += 3;
     }
 
@@ -2660,13 +2687,15 @@ pix3dgl_scene_static_add_model_raw(
         range.scene_model_idx = scene_model_idx;
         range.start_vertex = start_vertex_index;
         range.vertex_count = vertex_count;
+        range.faces = std::move(face_ranges);
         scene->model_ranges[scene_model_idx] = range;
 
         printf(
-            "Added model %d to static scene: start=%d, count=%d (total %d vertices)\n",
+            "Added model %d to static scene: start=%d, count=%d, faces=%d (total %d vertices)\n",
             scene_model_idx,
             start_vertex_index,
             vertex_count,
+            (int)range.faces.size(),
             scene->total_vertex_count);
     }
 }
@@ -2786,6 +2815,37 @@ pix3dgl_scene_static_set_draw_order(struct Pix3DGL* pix3dgl, int* scene_model_in
 }
 
 extern "C" void
+pix3dgl_scene_static_set_model_face_order(
+    struct Pix3DGL* pix3dgl, int scene_model_idx, int* face_indices, int face_count)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        printf("Static scene not initialized\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    // Check if the model exists
+    auto it = scene->model_ranges.find(scene_model_idx);
+    if( it == scene->model_ranges.end() )
+    {
+        printf("Model %d not found in static scene\n", scene_model_idx);
+        return;
+    }
+
+    // Set the face order for this model
+    std::vector<int>& face_order = scene->model_face_order[scene_model_idx];
+    face_order.clear();
+    face_order.reserve(face_count);
+
+    for( int i = 0; i < face_count; i++ )
+    {
+        face_order.push_back(face_indices[i]);
+    }
+}
+
+extern "C" void
 pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->static_scene )
@@ -2841,7 +2901,32 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
             if( it != scene->model_ranges.end() )
             {
                 const ModelRange& range = it->second;
-                glDrawArrays(GL_TRIANGLES, range.start_vertex, range.vertex_count);
+
+                // Check if we have a face order for this model
+                auto face_order_it = scene->model_face_order.find(scene_model_idx);
+                if( face_order_it != scene->model_face_order.end() &&
+                    !face_order_it->second.empty() )
+                {
+                    // Draw faces in the specified order
+                    const std::vector<int>& face_order = face_order_it->second;
+                    for( int face_idx : face_order )
+                    {
+                        if( face_idx >= 0 && face_idx < (int)range.faces.size() )
+                        {
+                            const FaceRange& face_range = range.faces[face_idx];
+                            // Only draw if this face was actually added to the buffer
+                            if( face_range.start_vertex >= 0 )
+                            {
+                                glDrawArrays(GL_TRIANGLES, face_range.start_vertex, 3);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // No face order specified, draw entire model at once
+                    glDrawArrays(GL_TRIANGLES, range.start_vertex, range.vertex_count);
+                }
             }
         }
 
@@ -2849,7 +2934,7 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
         if( !printed_once )
         {
             printf(
-                "Rendering %d models in order (total %d vertices)\n",
+                "Rendering %d models with per-face ordering (total %d vertices)\n",
                 (int)scene->draw_order.size(),
                 scene->total_vertex_count);
             printed_once = true;

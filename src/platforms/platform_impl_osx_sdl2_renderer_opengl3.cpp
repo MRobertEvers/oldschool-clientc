@@ -267,7 +267,58 @@ render_scene(struct Renderer* renderer, struct Game* game)
         if( iter_render_scene_ops.value.model_nullable_ )
         {
             struct SceneModel* scene_model = iter_render_scene_ops.value.model_nullable_;
+
+            // Safety check: ensure model has valid data
+            if( !scene_model->model || scene_model->model->face_count == 0 )
+            {
+                continue;
+            }
+
             model_draw_order.push_back(scene_model->scene_model_idx);
+
+            printf(
+                "Computing face order for model %d (faces: %d, vertices: %d)\n",
+                scene_model->scene_model_idx,
+                scene_model->model->face_count,
+                scene_model->model->vertex_count);
+
+            // Compute face order for this model using iter_render_model_init
+            struct IterRenderModel iter_model;
+            iter_render_model_init(
+                &iter_model,
+                scene_model,
+                iter_render_scene_ops.value.yaw,
+                game->camera_world_x,
+                game->camera_world_y,
+                game->camera_world_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                0,   // camera_roll
+                512, // fov
+                renderer->width,
+                renderer->height,
+                50); // near_plane_z
+
+            printf("  iter_render_model_init completed, valid_faces: %d\n", iter_model.valid_faces);
+
+            // Collect face indices in render order
+            static std::vector<int> face_order;
+            face_order.clear();
+
+            while( iter_render_model_next(&iter_model) )
+            {
+                face_order.push_back(iter_model.value_face);
+            }
+
+            // Set the face order for this model
+            if( !face_order.empty() )
+            {
+                pix3dgl_scene_static_set_model_face_order(
+                    renderer->pix3dgl,
+                    scene_model->scene_model_idx,
+                    face_order.data(),
+                    face_order.size());
+            }
         }
     }
 
