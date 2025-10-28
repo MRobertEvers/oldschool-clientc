@@ -246,24 +246,26 @@ render_scene(struct Renderer* renderer, struct Game* game)
     // Depth testing disabled - using painter's algorithm for draw order
     glDisable(GL_DEPTH_TEST);
 
-    // Check if camera moved significantly (thresholds: 1280 units ~= 10 tiles, 0.05 radians ~= 3
-    // degrees)
+    // Check if camera moved significantly (thresholds: 128 units = 1 tile, 12 degrees)
     int dx = game->camera_world_x - last_cam_x;
     int dy = game->camera_world_y - last_cam_y;
     int dz = game->camera_world_z - last_cam_z;
-    int dist_sq = dx * dx + dy * dy + dz * dz;
     float angle_diff =
         fabsf(game->camera_yaw - last_cam_yaw) + fabsf(game->camera_pitch - last_cam_pitch);
 
-    bool camera_moved = (dist_sq > 1638400 || angle_diff > 0.05f); // 1280*1280 = 1638400
+    bool camera_moved =
+        (dx > 12 || dy > 12 || dz > 12 ||
+         angle_diff > 0.2094f); // 128*128 = 16384, 12° = 0.2094 rad
 
     // OPTIMIZATION: Only recompute face order when camera moves significantly
     if( camera_moved || frame_count == 1 )
     {
         printf(
-            "Frame %d: Resorting faces (dist_sq=%d, angle=%.3f)\n",
+            "Frame %d: Resorting faces (dx=%d, dy=%d, dz=%d, angle=%.3f)\n",
             frame_count,
-            dist_sq,
+            dx,
+            dy,
+            dz,
             angle_diff);
 
         // Compute scene ops to determine proper draw order (painter's algorithm)
