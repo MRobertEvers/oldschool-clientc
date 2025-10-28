@@ -41,7 +41,8 @@ uniform mat4 uModelMatrix;      // Per-model transformation
 
 out vec3 vColor;
 out vec2 vTexCoord;
-flat out float vTexBlend;  // 1.0 if textured, 0.0 if not
+flat out float vTexBlend;    // 1.0 if textured, 0.0 if not
+flat out float vAtlasSlot;   // Atlas slot ID for wrapping
 
 void main() {
     // Apply transformations
@@ -53,31 +54,59 @@ void main() {
     vColor = aColor;
     vTexCoord = aTexCoord;
     vTexBlend = aTextureId >= 0.0 ? 1.0 : 0.0;
+    vAtlasSlot = aTextureId;
 }
 )";
 
-// Desktop OpenGL 3.0 Core fragment shader - NO BRANCHING!
-// Uses lerp instead of if/else for maximum performance
+// Desktop OpenGL 3.0 Core fragment shader
+// Handles texture wrapping: clamp U, tile V
 const char* g_fragment_shader_core = R"(
 #version 330 core
 in vec3 vColor;
 in vec2 vTexCoord;
 flat in float vTexBlend;
+flat in float vAtlasSlot;
 
 uniform sampler2D uTextureAtlas;
 
 out vec4 FragColor;
 
 void main() {
-    // Always sample texture (0,0 for untextured faces is safe)
-    vec4 texColor = texture(uTextureAtlas, vTexCoord);
+    vec2 finalTexCoord = vTexCoord;
+    
+    // Apply texture wrapping if this is a textured face
+    if (vTexBlend > 0.5 && vAtlasSlot >= 0.0) {
+        // Atlas configuration (must match CPU values)
+        const float atlasSize = 2048.0;
+        const float tileSize = 128.0;
+        const float tilesPerRow = 16.0;
+        const float tileSizeNorm = tileSize / atlasSize;  // Size of one tile in normalized coords
+        
+        // Calculate tile position in atlas
+        float tileU = mod(vAtlasSlot, tilesPerRow);
+        float tileV = floor(vAtlasSlot / tilesPerRow);
+        vec2 tileOrigin = vec2(tileU, tileV) * tileSizeNorm;
+        
+        // Extract local UV within the tile (0 to 1 range within the tile)
+        vec2 localUV = (vTexCoord - tileOrigin) / tileSizeNorm;
+        
+        // Apply wrapping: clamp U, tile V
+        localUV.x = clamp(localUV.x, 0.0, 0.98);  // Clamp U coordinate
+        localUV.y = fract(localUV.y);             // Tile V coordinate (wrap)
+        
+        // Transform back to atlas space
+        finalTexCoord = tileOrigin + localUV * tileSizeNorm;
+    }
+    
+    // Sample texture with wrapped coordinates
+    vec4 texColor = texture(uTextureAtlas, finalTexCoord);
     
     // Blend between pure vertex color and textured color
     // vTexBlend = 1.0 for textured, 0.0 for untextured
     vec3 finalColor = mix(vColor, texColor.rgb * vColor, vTexBlend);
     
     // Only discard if actually textured AND black
-    if (vTexBlend > 0.5 && dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.001) {
+    if (vTexBlend > 0.5 && dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.08) {
         discard;
     }
     
