@@ -43,6 +43,15 @@ render_imgui(struct Renderer* renderer, struct Game* game)
         "Application average %.3f ms/frame (%.1f FPS)",
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
+
+    // Performance metrics
+    ImGui::Separator();
+    ImGui::Text("Performance Metrics");
+    ImGui::Text("Face Order Compute: %.3f ms", renderer->face_order_time_ms);
+    ImGui::Text("Render Time: %.3f ms", renderer->render_time_ms);
+    ImGui::Text(
+        "Total Frame Time: %.3f ms", renderer->face_order_time_ms + renderer->render_time_ms);
+
     Uint64 frequency = SDL_GetPerformanceFrequency();
     // ImGui::Text(
     //     "Render Time: %.3f ms/frame",
@@ -230,6 +239,9 @@ render_scene(struct Renderer* renderer, struct Game* game)
     static float last_cam_pitch = -99999.0f;
     static int frame_count = 0;
 
+    // Performance tracking
+    Uint64 perf_frequency = SDL_GetPerformanceFrequency();
+
     frame_count++;
 
     // Begin frame with camera setup
@@ -261,6 +273,8 @@ render_scene(struct Renderer* renderer, struct Game* game)
     // OPTIMIZATION: Only recompute face order when camera moves significantly
     if( camera_moved || frame_count == 1 )
     {
+        Uint64 face_order_start = SDL_GetPerformanceCounter();
+
         printf(
             "Frame %d: Resorting faces (dx=%d, dy=%d, dz=%d, angle=%.3f)\n",
             frame_count,
@@ -395,15 +409,24 @@ render_scene(struct Renderer* renderer, struct Game* game)
         last_cam_z = game->camera_world_z;
         last_cam_yaw = game->camera_yaw;
         last_cam_pitch = game->camera_pitch;
+
+        Uint64 face_order_end = SDL_GetPerformanceCounter();
+        renderer->face_order_time_ms =
+            (double)(face_order_end - face_order_start) * 1000.0 / (double)perf_frequency;
     }
     else
     {
         // Camera didn't move - reuse last frame's face ordering (FAST!)
         printf("Frame %d: Reusing cached face order\n", frame_count);
+        renderer->face_order_time_ms = 0.0; // No face order computation this frame
     }
 
     // Draw the static scene buffer (reuses cached index buffer if camera didn't move!)
+    Uint64 render_start = SDL_GetPerformanceCounter();
     pix3dgl_scene_static_draw(renderer->pix3dgl);
+    Uint64 render_end = SDL_GetPerformanceCounter();
+    renderer->render_time_ms =
+        (double)(render_end - render_start) * 1000.0 / (double)perf_frequency;
 
     pix3dgl_end_frame(renderer->pix3dgl);
 }

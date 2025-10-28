@@ -29,6 +29,10 @@ struct Renderer
     float time_delta_accumulator;
 
     struct Pix3DGL* pix3dgl;
+
+    // Performance metrics
+    double face_order_time_ms;
+    double render_time_ms;
 };
 
 struct Renderer* PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height);
