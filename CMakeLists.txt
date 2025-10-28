@@ -600,6 +600,82 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         CXX_STANDARD_REQUIRED ON
     )
 
+    # Emscripten SDL2 WebGL1 game executable
+    add_executable(emscripten_sdl2_webgl1
+        test/emscripten_sdl2_webgl1.cpp
+        src/libgame.c
+        src/libinput.c
+        src/platforms/platform_impl_emscripten_sdl2.c
+        src/platforms/platform_impl_emscripten_sdl2_renderer_webgl1.cpp
+        
+        src/shared_tables.c
+        src/string_utils.c
+        src/osrs/frustrum_cullmap.c
+        src/osrs/bounds_cylinder.c
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+        src/osrs/scene_tile.c
+        src/osrs/palette.c
+        src/osrs/cache.c
+        src/osrs/tables/model.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/scene.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_idk.c
+        src/osrs/tables/framemap.c
+        src/osrs/tables/frame.c
+        src/osrs/tables/maps.c
+        src/osrs/filelist.c
+        src/graphics/render.c
+        src/osrs/rsbuf.c
+        src/graphics/lighting.c
+        src/osrs/anim.c
+        src/osrs/model_transforms.c
+        src/osrs/xtea.c
+        src/osrs/archive.c
+        src/osrs/xtea_config.c
+        src/osrs/scene_cache.c
+        src/datastruct/ht.c
+        src/osrs/tables/noise.c
+        src/osrs/pix3dgl_opengles2.cpp
+
+        src/imgui/imgui.cpp
+        src/imgui/imgui_draw.cpp
+        src/imgui/imgui_tables.cpp
+        src/imgui/imgui_widgets.cpp
+        src/imgui/imgui_demo.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_opengl3.cpp
+
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+    )
+
+    set_target_properties(emscripten_sdl2_webgl1 PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    # Override global compile flags for WebGL1
+    target_compile_options(emscripten_sdl2_webgl1 PRIVATE 
+        "SHELL:-s USE_WEBGL2=0" 
+        "SHELL:-s MAX_WEBGL_VERSION=1" 
+        "SHELL:-s MIN_WEBGL_VERSION=1" 
+        "SHELL:-s FULL_ES2=1"
+    )
+
+    target_link_libraries(emscripten_sdl2_webgl1 ${EXTRA_LIBS})
+    # WebGL1-specific link flags - later flags override earlier ones in Emscripten
+    set_target_properties(emscripten_sdl2_webgl1 PROPERTIES 
+        LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=0 -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s MODULARIZE=0 -s EXPORT_ES6=0 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
+    )
+
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")

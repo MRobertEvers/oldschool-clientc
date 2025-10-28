@@ -1,7 +1,7 @@
 #ifndef LIBGAME_U_H
 #define LIBGAME_U_H
 
-#include "cache.h"
+#include "osrs/cache.h"
 #include "osrs/frustrum_cullmap.h"
 #include "osrs/scene.h"
 #include "osrs/scene_cache.h"
