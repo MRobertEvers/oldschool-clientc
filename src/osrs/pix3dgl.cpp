@@ -91,8 +91,8 @@ void main() {
         vec2 localUV = (vTexCoord - tileOrigin) / tileSizeNorm;
         
         // Apply wrapping: clamp U, tile V
-        localUV.x = clamp(localUV.x, 0.0, 0.98);  // Clamp U coordinate
-        localUV.y = fract(localUV.y);             // Tile V coordinate (wrap)
+        localUV.x = clamp(localUV.x, 0.008, 0.992);  // Clamp U coordinate
+        localUV.y = clamp(fract(localUV.y), 0.008, 0.992);             // Tile V coordinate (wrap)
         
         // Transform back to atlas space
         finalTexCoord = tileOrigin + localUV * tileSizeNorm;
@@ -106,7 +106,7 @@ void main() {
     vec3 finalColor = mix(vColor, texColor.rgb * vColor, vTexBlend);
     
     // Only discard if actually textured AND black
-    if (vTexBlend > 0.5 && dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.08) {
+    if (vTexBlend > 0.5 && dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.095) {
         discard;
     }
     
