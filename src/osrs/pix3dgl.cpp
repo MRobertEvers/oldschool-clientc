@@ -2907,8 +2907,13 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                 if( face_order_it != scene->model_face_order.end() &&
                     !face_order_it->second.empty() )
                 {
-                    // Draw faces in the specified order
+                    // Build arrays for glMultiDrawArrays - draw all faces in a single call
                     const std::vector<int>& face_order = face_order_it->second;
+                    static std::vector<GLint> face_starts;
+                    static std::vector<GLsizei> face_counts;
+                    face_starts.clear();
+                    face_counts.clear();
+
                     for( int face_idx : face_order )
                     {
                         if( face_idx >= 0 && face_idx < (int)range.faces.size() )
@@ -2917,9 +2922,20 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                             // Only draw if this face was actually added to the buffer
                             if( face_range.start_vertex >= 0 )
                             {
-                                glDrawArrays(GL_TRIANGLES, face_range.start_vertex, 3);
+                                face_starts.push_back(face_range.start_vertex);
+                                face_counts.push_back(3);
                             }
                         }
+                    }
+
+                    // Draw all faces in a single call
+                    if( !face_starts.empty() )
+                    {
+                        glMultiDrawArrays(
+                            GL_TRIANGLES,
+                            face_starts.data(),
+                            face_counts.data(),
+                            face_starts.size());
                     }
                 }
                 else
