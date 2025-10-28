@@ -112,8 +112,8 @@ void pix3dgl_begin_frame(
 void pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
 
 // Static scene batching - for efficiently rendering static geometry
-void pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl);
-void pix3dgl_scene_static_add_tile(
+void pix3dgl_scene_static_load_begin(struct Pix3DGL* pix3dgl);
+void pix3dgl_scene_static_load_tile(
     struct Pix3DGL* pix3dgl,
     int scene_tile_idx,
     int* vertex_x,
@@ -128,7 +128,7 @@ void pix3dgl_scene_static_add_tile(
     int* face_color_hsl_a,
     int* face_color_hsl_b,
     int* face_color_hsl_c);
-void pix3dgl_scene_static_add_model_raw(
+void pix3dgl_scene_static_load_model(
     struct Pix3DGL* pix3dgl,
     int scene_model_idx,
     int* vertices_x,
@@ -151,7 +151,7 @@ void pix3dgl_scene_static_add_model_raw(
     float position_y,
     float position_z,
     float yaw);
-void pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl);
+void pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl);
 void
 pix3dgl_scene_static_set_draw_order(struct Pix3DGL* pix3dgl, int* scene_model_indices, int count);
 

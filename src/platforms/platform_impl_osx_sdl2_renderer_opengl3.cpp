@@ -113,7 +113,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
     printf("Building static scene buffer...\n");
 
     // Start building the static scene
-    pix3dgl_scene_static_begin(renderer->pix3dgl);
+    pix3dgl_scene_static_load_begin(renderer->pix3dgl);
 
     // Load all scene tiles first
     for( int i = 0; i < game->scene->scene_tiles_length; i++ )
@@ -137,7 +137,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
         }
 
         // Add tile geometry directly to static scene buffer with tile index
-        pix3dgl_scene_static_add_tile(
+        pix3dgl_scene_static_load_tile(
             renderer->pix3dgl,
             i, // Pass tile index for tracking
             scene_tile->vertex_x,
@@ -188,7 +188,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
         float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
 
         // Add model geometry directly to static scene buffer (no individual model loading)
-        pix3dgl_scene_static_add_model_raw(
+        pix3dgl_scene_static_load_model(
             renderer->pix3dgl,
             scene_model->scene_model_idx,
             scene_model->model->vertices_x,
@@ -214,7 +214,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
     }
 
     // Finalize the static scene - uploads to GPU
-    pix3dgl_scene_static_end(renderer->pix3dgl);
+    pix3dgl_scene_static_load_end(renderer->pix3dgl);
 
     printf("Static scene buffer built successfully\n");
 }

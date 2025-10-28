@@ -2001,7 +2001,7 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
 
 // Static scene building functions - for efficiently rendering static geometry
 extern "C" void
-pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl)
+pix3dgl_scene_static_load_begin(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl )
     {
@@ -2041,7 +2041,7 @@ pix3dgl_scene_static_begin(struct Pix3DGL* pix3dgl)
 }
 
 extern "C" void
-pix3dgl_scene_static_add_tile(
+pix3dgl_scene_static_load_tile(
     struct Pix3DGL* pix3dgl,
     int scene_tile_idx,
     int* vertex_x,
@@ -2321,147 +2321,7 @@ pix3dgl_scene_static_add_tile(
 }
 
 extern "C" void
-pix3dgl_scene_static_add_model(
-    struct Pix3DGL* pix3dgl,
-    int model_idx,
-    float position_x,
-    float position_y,
-    float position_z,
-    float yaw)
-{
-    if( !pix3dgl || !pix3dgl->static_scene )
-    {
-        printf("Static scene not initialized\n");
-        return;
-    }
-
-    if( pix3dgl->static_scene->is_finalized )
-    {
-        printf("Cannot add models to finalized static scene\n");
-        return;
-    }
-
-    // Find the model
-    auto it = pix3dgl->models.find(model_idx);
-    if( it == pix3dgl->models.end() )
-    {
-        printf("Model %d not loaded\n", model_idx);
-        return;
-    }
-
-    GLModel& model = it->second;
-    StaticScene* scene = pix3dgl->static_scene;
-
-    // Create transformation matrix for this model instance
-    float cos_yaw = cos(yaw);
-    float sin_yaw = sin(yaw);
-
-    // Get the model's vertex data
-    // We need to read it back from the GPU or we could store it CPU-side
-    // For now, we'll read from the existing VBO
-    std::vector<float> model_vertices(model.face_count * 9);
-    std::vector<float> model_colors(model.face_count * 9);
-    std::vector<float> model_texcoords(model.face_count * 6);
-
-    // Bind the model's buffers and read the data
-    glBindBuffer(GL_ARRAY_BUFFER, model.VBO);
-    glGetBufferSubData(
-        GL_ARRAY_BUFFER, 0, model_vertices.size() * sizeof(float), model_vertices.data());
-
-    glBindBuffer(GL_ARRAY_BUFFER, model.colorVBO);
-    glGetBufferSubData(
-        GL_ARRAY_BUFFER, 0, model_colors.size() * sizeof(float), model_colors.data());
-
-    glBindBuffer(GL_ARRAY_BUFFER, model.texCoordVBO);
-    glGetBufferSubData(
-        GL_ARRAY_BUFFER, 0, model_texcoords.size() * sizeof(float), model_texcoords.data());
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // Transform vertices and add to scene buffer
-    int current_vertex_index = scene->total_vertex_count;
-
-    for( int face = 0; face < model.face_count; face++ )
-    {
-        if( !model.face_visible[face] )
-            continue;
-
-        // Record the starting vertex index for this face
-        int face_start_index = current_vertex_index;
-
-        // Transform and append the 3 vertices of this face
-        for( int v = 0; v < 3; v++ )
-        {
-            int src_idx = (face * 3 + v) * 3;
-
-            // Get original vertex position
-            float x = model_vertices[src_idx + 0];
-            float y = model_vertices[src_idx + 1];
-            float z = model_vertices[src_idx + 2];
-
-            // Apply transformation (rotation + translation)
-            float tx = cos_yaw * x + sin_yaw * z + position_x;
-            float ty = y + position_y;
-            float tz = -sin_yaw * x + cos_yaw * z + position_z;
-
-            // Append transformed vertex
-            scene->vertices.push_back(tx);
-            scene->vertices.push_back(ty);
-            scene->vertices.push_back(tz);
-
-            // Copy color data
-            scene->colors.push_back(model_colors[src_idx + 0]);
-            scene->colors.push_back(model_colors[src_idx + 1]);
-            scene->colors.push_back(model_colors[src_idx + 2]);
-        }
-
-        // Copy texture coordinates
-        for( int v = 0; v < 3; v++ )
-        {
-            int src_idx = (face * 3 + v) * 2;
-            scene->texCoords.push_back(model_texcoords[src_idx + 0]);
-            scene->texCoords.push_back(model_texcoords[src_idx + 1]);
-        }
-
-        // Track this face in the appropriate texture batch
-        int texture_id = model.face_textures[face];
-
-        // Check if texture exists
-        if( texture_id != -1 )
-        {
-            auto tex_it = pix3dgl->texture_ids.find(texture_id);
-            if( tex_it == pix3dgl->texture_ids.end() )
-            {
-                texture_id = -1; // Texture not loaded, treat as untextured
-            }
-        }
-
-        DrawBatch& batch = scene->texture_batches[texture_id];
-        batch.texture_id = texture_id;
-
-        // Merge contiguous faces
-        if( !batch.face_starts.empty() &&
-            batch.face_starts.back() + batch.face_counts.back() == face_start_index )
-        {
-            batch.face_counts.back() += 3;
-        }
-        else
-        {
-            batch.face_starts.push_back(face_start_index);
-            batch.face_counts.push_back(3);
-        }
-
-        current_vertex_index += 3;
-    }
-
-    scene->total_vertex_count = current_vertex_index;
-
-    printf(
-        "Added model %d to static scene (now %d vertices)\n", model_idx, scene->total_vertex_count);
-}
-
-extern "C" void
-pix3dgl_scene_static_add_model_raw(
+pix3dgl_scene_static_load_model(
     struct Pix3DGL* pix3dgl,
     int scene_model_idx,
     int* vertices_x,
@@ -2778,7 +2638,7 @@ pix3dgl_scene_static_add_model_raw(
 }
 
 extern "C" void
-pix3dgl_scene_static_end(struct Pix3DGL* pix3dgl)
+pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->static_scene )
     {
