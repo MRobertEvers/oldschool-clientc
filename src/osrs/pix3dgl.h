@@ -147,6 +147,7 @@ void pix3dgl_scene_static_load_model(
     int* face_colors_hsl_b,
     int* face_colors_hsl_c,
     int* face_infos_nullable,
+    int* face_alphas_nullable,
     float position_x,
     float position_y,
     float position_z,

@@ -146,7 +146,7 @@ static bool g_has_vao_extension = false;
 const char* g_vertex_shader_es2 = R"(
 #version 100
 attribute vec3 aPos;
-attribute vec3 aColor;
+attribute vec4 aColor;
 attribute vec2 aTexCoord;
 attribute float aTextureId;
 
@@ -154,7 +154,7 @@ uniform mat4 uViewMatrix;       // Precomputed on CPU
 uniform mat4 uProjectionMatrix; // Precomputed on CPU
 uniform mat4 uModelMatrix;      // Per-model transformation
 
-varying vec3 vColor;
+varying vec4 vColor;
 varying vec2 vTexCoord;
 varying float vTexBlend;    // 1.0 if textured, 0.0 if not
 varying float vAtlasSlot;   // Atlas slot ID for wrapping
@@ -180,7 +180,7 @@ const char* g_fragment_shader_es2 = R"(
 #version 100
 precision mediump float;
 
-varying vec3 vColor;
+varying vec4 vColor;
 varying vec2 vTexCoord;
 varying float vTexBlend;
 varying float vAtlasSlot;
@@ -219,14 +219,21 @@ void main() {
     
     // Blend between pure vertex color and textured color
     // vTexBlend = 1.0 for textured, 0.0 for untextured
-    vec3 finalColor = mix(vColor, texColor.rgb * vColor, vTexBlend);
+    vec3 finalColor = mix(vColor.rgb, texColor.rgb * vColor.rgb, vTexBlend);
     
-    // Only discard if actually textured AND black
-    if (vTexBlend > 0.5 && dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.05) {
-        discard;
+    // Handle transparency based on texture and face alpha
+    float finalAlpha = vColor.a;
+    
+    if (vTexBlend > 0.5) {
+        // This is a textured face - discard black pixels (for transparency mask)
+        if (dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.05) {
+            discard;
+        }
+        // Use face alpha for transparency
+        finalAlpha = vColor.a;
     }
     
-    gl_FragColor = vec4(finalColor, 1.0);
+    gl_FragColor = vec4(finalColor, finalAlpha);
 }
 )";
 
@@ -316,7 +323,7 @@ struct StaticScene
 
     int total_vertex_count;
     std::vector<float> vertices;
-    std::vector<float> colors;
+    std::vector<float> colors; // RGBA: 4 floats per vertex (RGB + Alpha)
     std::vector<float> texCoords;
     std::vector<float> textureIds; // New: texture ID per vertex
 
@@ -566,7 +573,7 @@ pix3dgl_model_load_textured_pnm(
 
     // Allocate arrays for vertex data
     std::vector<float> vertices(face_count * 9);  // 3 vertices * 3 coordinates per face
-    std::vector<float> colors(face_count * 9);    // 3 vertices * 3 colors per face
+    std::vector<float> colors(face_count * 12);   // 3 vertices * 4 colors (RGBA) per face
     std::vector<float> texCoords(face_count * 6); // 3 vertices * 2 UV coords per face
 
     // Track min/max for debugging
@@ -634,18 +641,39 @@ pix3dgl_model_load_textured_pnm(
             rgb_c = g_hsl16_to_rgb_table[hsl_c];
         }
 
-        // Store colors for this face's vertices
-        colors[face * 9 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 2] = (rgb_a & 0xFF) / 255.0f;
+        // Calculate face alpha (0xFF = fully opaque, 0x00 = fully transparent)
+        // Convert from 0-255 to 0.0-1.0
+        float face_alpha = 1.0f;
+        if( face_alphas )
+        {
+            int alpha_byte = face_alphas[face];
+            // For textured faces, use alpha directly
+            if( face_textures && face_textures[face] != -1 )
+            {
+                face_alpha = (alpha_byte & 0xFF) / 255.0f;
+            }
+            else
+            {
+                // For untextured faces, invert as per render.c
+                face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
+            }
+        }
 
-        colors[face * 9 + 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 4] = ((rgb_b >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 5] = (rgb_b & 0xFF) / 255.0f;
+        // Store colors with alpha (RGBA: 4 floats per vertex)
+        colors[face * 12 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 2] = (rgb_a & 0xFF) / 255.0f;
+        colors[face * 12 + 3] = face_alpha;
 
-        colors[face * 9 + 6] = ((rgb_c >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
+        colors[face * 12 + 4] = ((rgb_b >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 5] = ((rgb_b >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 6] = (rgb_b & 0xFF) / 255.0f;
+        colors[face * 12 + 7] = face_alpha;
+
+        colors[face * 12 + 8] = ((rgb_c >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 9] = ((rgb_c >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 10] = (rgb_c & 0xFF) / 255.0f;
+        colors[face * 12 + 11] = face_alpha;
 
         // Compute UV coordinates using PNM method
         // Determine which vertices define the texture space (P, M, N)
@@ -751,8 +779,8 @@ pix3dgl_model_load_textured_pnm(
     // Upload color data to GPU
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-    // Set up color attributes (location 1 = aColor)
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // Set up color attributes (location 1 = aColor) - RGBA: 4 components
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Upload texture coordinate data to GPU
@@ -887,7 +915,7 @@ pix3dgl_model_load(
     glEnableVertexAttribArray(0);
 
     // Create and setup color buffer - one color per vertex per face
-    std::vector<float> colors(face_count * 9); // 3 vertices * 3 colors per face
+    std::vector<float> colors(face_count * 12); // 3 vertices * 4 colors (RGBA) per face
 
     for( int face = 0; face < face_count; face++ )
     {
@@ -924,27 +952,37 @@ pix3dgl_model_load(
             rgb_c = g_hsl16_to_rgb_table[hsl_c];
         }
 
-        // Store colors for this face's vertices
-        // First vertex color
-        colors[face * 9] = ((rgb_a >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 2] = (rgb_a & 0xFF) / 255.0f;
+        // Calculate face alpha (0xFF = fully opaque, 0x00 = fully transparent)
+        // Convert from 0-255 to 0.0-1.0
+        float face_alpha = 1.0f;
+        if( face_alphas )
+        {
+            int alpha_byte = face_alphas[face];
+            // This function is for untextured models only, so always invert alpha as per render.c
+            face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
+        }
 
-        // Second vertex color
-        colors[face * 9 + 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 4] = ((rgb_b >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 5] = (rgb_b & 0xFF) / 255.0f;
+        // Store colors with alpha (RGBA: 4 floats per vertex)
+        colors[face * 12 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 2] = (rgb_a & 0xFF) / 255.0f;
+        colors[face * 12 + 3] = face_alpha;
 
-        // Third vertex color
-        colors[face * 9 + 6] = ((rgb_c >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
+        colors[face * 12 + 4] = ((rgb_b >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 5] = ((rgb_b >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 6] = (rgb_b & 0xFF) / 255.0f;
+        colors[face * 12 + 7] = face_alpha;
+
+        colors[face * 12 + 8] = ((rgb_c >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 9] = ((rgb_c >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 10] = (rgb_c & 0xFF) / 255.0f;
+        colors[face * 12 + 11] = face_alpha;
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-    // Set up color attributes (location 1 = aColor)
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // Set up color attributes (location 1 = aColor) - RGBA: 4 components
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Unbind VAO to avoid accidental modifications
@@ -1788,13 +1826,6 @@ pix3dgl_model_end_draw(struct Pix3DGL* pix3dgl)
                 }
             }
         }
-
-        // OpenGL ES 2.0 doesn't have glMultiDrawArrays, use individual draws
-        // Note: This is slower but compatible with all ES2 implementations
-        for( size_t i = 0; i < batch.face_starts.size(); i++ )
-        {
-            glDrawArrays(GL_TRIANGLES, batch.face_starts[i], batch.face_counts[i]);
-        }
     }
 
     // Clear batches for next draw
@@ -1840,7 +1871,7 @@ pix3dgl_tile_load(
 
     // Build vertex, color, and texture coordinate data
     std::vector<float> vertices(face_count * 9);  // 3 vertices * 3 coordinates per face
-    std::vector<float> colors(face_count * 9);    // 3 vertices * 3 colors per face
+    std::vector<float> colors(face_count * 12);   // 3 vertices * 4 colors (RGBA) per face
     std::vector<float> texCoords(face_count * 6); // 3 vertices * 2 UV coords per face
 
     // Store face visibility, texture info, and shading type
@@ -1907,18 +1938,22 @@ pix3dgl_tile_load(
             rgb_c = g_hsl16_to_rgb_table[hsl_c];
         }
 
-        // Store colors
-        colors[face * 9 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 2] = (rgb_a & 0xFF) / 255.0f;
+        // Store colors with alpha (RGBA: 4 floats per vertex)
+        // Tiles don't have face alphas, so use 1.0 (fully opaque)
+        colors[face * 12 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 2] = (rgb_a & 0xFF) / 255.0f;
+        colors[face * 12 + 3] = 1.0f;
 
-        colors[face * 9 + 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 4] = ((rgb_b >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 5] = (rgb_b & 0xFF) / 255.0f;
+        colors[face * 12 + 4] = ((rgb_b >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 5] = ((rgb_b >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 6] = (rgb_b & 0xFF) / 255.0f;
+        colors[face * 12 + 7] = 1.0f;
 
-        colors[face * 9 + 6] = ((rgb_c >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
+        colors[face * 12 + 8] = ((rgb_c >> 16) & 0xFF) / 255.0f;
+        colors[face * 12 + 9] = ((rgb_c >> 8) & 0xFF) / 255.0f;
+        colors[face * 12 + 10] = (rgb_c & 0xFF) / 255.0f;
+        colors[face * 12 + 11] = 1.0f;
 
         // Compute UV coordinates using PNM method (like models)
         if( face_texture_ids && face_texture_ids[face] != -1 )
@@ -2009,7 +2044,7 @@ pix3dgl_tile_load(
     // Upload color data
     glBindBuffer(GL_ARRAY_BUFFER, gl_tile.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Upload texture coordinate data
@@ -2176,10 +2211,11 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
             last_texture_id = batch.texture_id;
         }
 
-        // OpenGL ES 2.0 doesn't have glMultiDrawArrays, use individual draws
-        for( size_t i = 0; i < batch.face_starts.size(); i++ )
+        for( int face = 0; face < batch.face_starts.size(); face++ )
         {
-            glDrawArrays(GL_TRIANGLES, batch.face_starts[i], batch.face_counts[i]);
+            int start_index = batch.face_starts[face];
+            int count = batch.face_counts[face];
+            glDrawArrays(GL_TRIANGLES, start_index, count);
         }
     }
 
@@ -2325,18 +2361,22 @@ pix3dgl_scene_static_load_tile(
             rgb_c = g_hsl16_to_rgb_table[hsl_c];
         }
 
-        // Store colors
+        // Store colors with alpha (RGBA: 4 floats per vertex)
+        // Tiles don't have face alphas, so use 1.0 (fully opaque)
         scene->colors.push_back(((rgb_a >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_a >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_a & 0xFF) / 255.0f);
+        scene->colors.push_back(1.0f);
 
         scene->colors.push_back(((rgb_b >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_b >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_b & 0xFF) / 255.0f);
+        scene->colors.push_back(1.0f);
 
         scene->colors.push_back(((rgb_c >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_c >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_c & 0xFF) / 255.0f);
+        scene->colors.push_back(1.0f);
 
         // Declare texture variables at face loop scope
         int texture_id = -1;
@@ -2531,6 +2571,7 @@ pix3dgl_scene_static_load_model(
     int* face_colors_hsl_b,
     int* face_colors_hsl_c,
     int* face_infos_nullable,
+    int* face_alphas_nullable,
     float position_x,
     float position_y,
     float position_z,
@@ -2633,18 +2674,39 @@ pix3dgl_scene_static_load_model(
             rgb_c = g_hsl16_to_rgb_table[hsl_c];
         }
 
-        // Store colors
+        // Calculate face alpha (0xFF = fully opaque, 0x00 = fully transparent)
+        // Convert from 0-255 to 0.0-1.0
+        float face_alpha = 1.0f;
+        if( face_alphas_nullable )
+        {
+            int alpha_byte = face_alphas_nullable[face];
+            // For textured faces, use alpha directly
+            if( face_textures_nullable && face_textures_nullable[face] != -1 )
+            {
+                face_alpha = (alpha_byte & 0xFF) / 255.0f;
+            }
+            else
+            {
+                // For untextured faces, invert as per render.c
+                face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
+            }
+        }
+
+        // Store colors with alpha (RGBA: 4 floats per vertex)
         scene->colors.push_back(((rgb_a >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_a >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_a & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
 
         scene->colors.push_back(((rgb_b >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_b >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_b & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
 
         scene->colors.push_back(((rgb_c >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_c >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_c & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
 
         // Declare texture variables at face loop scope
         int texture_id = -1;
@@ -2868,7 +2930,7 @@ pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl)
         scene->colors.size() * sizeof(float),
         scene->colors.data(),
         GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Upload texture coordinates
@@ -3145,9 +3207,6 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
     {
         glUniform1i(pix3dgl->uniform_texture_atlas, 0);
     }
-
-    // Disable alpha blending for maximum performance (we'll handle transparency with discard)
-    glDisable(GL_BLEND);
 
     // Bind the static scene VAO (this also binds the dynamicEBO)
     BIND_VERTEX_ARRAY(scene->VAO);

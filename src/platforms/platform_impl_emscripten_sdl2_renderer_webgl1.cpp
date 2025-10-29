@@ -201,6 +201,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
             scene_model->lighting->face_colors_hsl_b,
             scene_model->lighting->face_colors_hsl_c,
             scene_model->model->face_infos,
+            scene_model->model->face_alphas,
             position_x,
             position_y,
             position_z,

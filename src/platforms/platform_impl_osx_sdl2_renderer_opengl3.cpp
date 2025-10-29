@@ -216,6 +216,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
             scene_model->lighting->face_colors_hsl_b,
             scene_model->lighting->face_colors_hsl_c,
             scene_model->model->face_infos,
+            scene_model->model->face_alphas,
             position_x,
             position_y,
             position_z,
@@ -258,6 +259,10 @@ render_scene(struct Renderer* renderer, struct Game* game)
     // Depth testing disabled - using painter's algorithm for draw order
     glDisable(GL_DEPTH_TEST);
 
+    // For transparency with painter's algorithm, we should also disable depth writes
+    // This prevents transparent objects from blocking objects behind them
+    glDepthMask(GL_FALSE);
+
     // Check if camera moved significantly (thresholds: 128 units = 1 tile, 12 degrees)
     int dx = game->camera_world_x - last_cam_x;
     int dy = game->camera_world_y - last_cam_y;
@@ -274,14 +279,6 @@ render_scene(struct Renderer* renderer, struct Game* game)
     if( camera_moved || frame_count == 1 )
     {
         Uint64 face_order_start = SDL_GetPerformanceCounter();
-
-        printf(
-            "Frame %d: Resorting faces (dx=%d, dy=%d, dz=%d, angle=%.3f)\n",
-            frame_count,
-            dx,
-            dy,
-            dz,
-            angle_diff);
 
         // Compute scene ops to determine proper draw order (painter's algorithm)
         renderer->op_count = render_scene_compute_ops(
@@ -417,7 +414,6 @@ render_scene(struct Renderer* renderer, struct Game* game)
     else
     {
         // Camera didn't move - reuse last frame's face ordering (FAST!)
-        printf("Frame %d: Reusing cached face order\n", frame_count);
         renderer->face_order_time_ms = 0.0; // No face order computation this frame
     }
 
@@ -516,6 +512,10 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
     // glDisable(GL_DEPTH_TEST);
 
     // glDisable(GL_CULL_FACE);
+
+    // Enable alpha blending for transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     for( int i = 0; i < gfx_op_list->op_count; i++ )
     {

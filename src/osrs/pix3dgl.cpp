@@ -31,7 +31,7 @@
 const char* g_vertex_shader_core = R"(
 #version 330 core
 layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aColor;
+layout(location = 1) in vec4 aColor;
 layout(location = 2) in vec2 aTexCoord;
 layout(location = 3) in float aTextureId;
 layout(location = 4) in float aTextureOpaque;
@@ -40,7 +40,7 @@ uniform mat4 uViewMatrix;       // Precomputed on CPU
 uniform mat4 uProjectionMatrix; // Precomputed on CPU
 uniform mat4 uModelMatrix;      // Per-model transformation
 
-out vec3 vColor;
+out vec4 vColor;
 out vec2 vTexCoord;
 flat out float vTexBlend;       // 1.0 if textured, 0.0 if not
 flat out float vAtlasSlot;      // Atlas slot ID for wrapping
@@ -65,7 +65,7 @@ void main() {
 // Handles texture wrapping: clamp U, tile V
 const char* g_fragment_shader_core = R"(
 #version 330 core
-in vec3 vColor;
+in vec4 vColor;
 in vec2 vTexCoord;
 flat in float vTexBlend;
 flat in float vAtlasSlot;
@@ -107,22 +107,22 @@ void main() {
     
     // Blend between pure vertex color and textured color
     // vTexBlend = 1.0 for textured, 0.0 for untextured
-    vec3 finalColor = mix(vColor, texColor.rgb * vColor, vTexBlend);
+    vec3 finalColor = mix(vColor.rgb, texColor.rgb * vColor.rgb, vTexBlend);
     
-    // Handle transparency based on texture opaque flag
-    float finalAlpha = 1.0;
+    // Handle transparency based on texture opaque flag and face alpha
+    float finalAlpha = vColor.a;
     
     if (vTexBlend > 0.5) {
         // This is a textured face
         if (vTextureOpaque < 0.5) {
-            // Opaque texture: discard black pixels, output alpha = 1.0
+            // Opaque texture: discard black pixels (for transparency mask), use face alpha only
             if (dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.05) {
                 discard;
             }
-            finalAlpha = 1.0;
+            finalAlpha = vColor.a;
         } else {
-            // Transparent texture: use texture's alpha channel, don't discard
-            finalAlpha = texColor.a;
+            // Transparent texture: use texture's alpha channel combined with face alpha
+            finalAlpha = texColor.a * vColor.a;
         }
     }
     
@@ -217,7 +217,7 @@ struct StaticScene
 
     int total_vertex_count;
     std::vector<float> vertices;
-    std::vector<float> colors;
+    std::vector<float> colors; // RGBA: 4 floats per vertex (RGB + Alpha)
     std::vector<float> texCoords;
     std::vector<float> textureIds;     // New: texture ID per vertex
     std::vector<float> textureOpaques; // New: texture opaque flag per vertex
@@ -653,8 +653,8 @@ pix3dgl_model_load_textured_pnm(
     // Upload color data to GPU
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-    // Set up color attributes when using VAO on desktop
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // Set up color attributes when using VAO on desktop (RGBA: 4 floats per vertex)
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Upload texture coordinate data to GPU
@@ -1869,7 +1869,7 @@ pix3dgl_tile_load(
     // Upload color data
     glBindBuffer(GL_ARRAY_BUFFER, gl_tile.colorVBO);
     glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Upload texture coordinate data
@@ -2186,18 +2186,22 @@ pix3dgl_scene_static_load_tile(
             rgb_c = g_hsl16_to_rgb_table[hsl_c];
         }
 
-        // Store colors
+        // Store colors with alpha (RGBA: 4 floats per vertex)
+        // Tiles don't have face alphas, so use 1.0 (fully opaque)
         scene->colors.push_back(((rgb_a >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_a >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_a & 0xFF) / 255.0f);
+        scene->colors.push_back(1.0f);
 
         scene->colors.push_back(((rgb_b >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_b >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_b & 0xFF) / 255.0f);
+        scene->colors.push_back(1.0f);
 
         scene->colors.push_back(((rgb_c >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_c >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_c & 0xFF) / 255.0f);
+        scene->colors.push_back(1.0f);
 
         // Declare texture variables at face loop scope
         int texture_id = -1;
@@ -2411,6 +2415,7 @@ pix3dgl_scene_static_load_model(
     int* face_colors_hsl_b,
     int* face_colors_hsl_c,
     int* face_infos_nullable,
+    int* face_alphas_nullable,
     float position_x,
     float position_y,
     float position_z,
@@ -2513,18 +2518,39 @@ pix3dgl_scene_static_load_model(
             rgb_c = g_hsl16_to_rgb_table[hsl_c];
         }
 
-        // Store colors
+        // Calculate face alpha (0xFF = fully opaque, 0x00 = fully transparent)
+        // Convert from 0-255 to 0.0-1.0
+        float face_alpha = 1.0f;
+        if( face_alphas_nullable )
+        {
+            int alpha_byte = face_alphas_nullable[face];
+            // For textured faces, use alpha directly
+            if( face_textures_nullable && face_textures_nullable[face] != -1 )
+            {
+                face_alpha = (alpha_byte & 0xFF) / 255.0f;
+            }
+            else
+            {
+                // For untextured faces, invert as per render.c
+                face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
+            }
+        }
+
+        // Store colors with alpha (RGBA: 4 floats per vertex)
         scene->colors.push_back(((rgb_a >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_a >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_a & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
 
         scene->colors.push_back(((rgb_b >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_b >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_b & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
 
         scene->colors.push_back(((rgb_c >> 16) & 0xFF) / 255.0f);
         scene->colors.push_back(((rgb_c >> 8) & 0xFF) / 255.0f);
         scene->colors.push_back((rgb_c & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
 
         // Declare texture variables at face loop scope
         int texture_id = -1;
@@ -2767,7 +2793,7 @@ pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl)
         scene->colors.size() * sizeof(float),
         scene->colors.data(),
         GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
 
     // Upload texture coordinates
@@ -3056,8 +3082,9 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
         glUniform1i(pix3dgl->uniform_texture_atlas, 0);
     }
 
-    // Disable alpha blending for maximum performance (we'll handle transparency with discard)
-    glDisable(GL_BLEND);
+    // Enable alpha blending for transparency support
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Bind the static scene VAO (this also binds the dynamicEBO)
     glBindVertexArray(scene->VAO);
