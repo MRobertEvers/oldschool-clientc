@@ -1039,6 +1039,15 @@ create_shader_program(const char* vertex_source, const char* fragment_source)
     GLuint program = glCreateProgram();
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
+
+    // CRITICAL: Bind attribute locations BEFORE linking
+    // ES2/WebGL1 doesn't support layout(location=N) in shaders!
+    glBindAttribLocation(program, 0, "aPos");
+    glBindAttribLocation(program, 1, "aColor");
+    glBindAttribLocation(program, 2, "aTexCoord");
+    glBindAttribLocation(program, 3, "aTextureId");
+    glBindAttribLocation(program, 4, "aTextureOpaque");
+
     glLinkProgram(program);
 
     GLint success;
@@ -1080,6 +1089,27 @@ pix3dgl_new()
         printf("Failed to create ES2/WebGL1 shader program\n");
         delete pix3dgl;
         return nullptr;
+    }
+
+    printf("Shader program created successfully: %u\n", pix3dgl->program_es2);
+
+    // Verify attribute locations
+    GLint aPos = glGetAttribLocation(pix3dgl->program_es2, "aPos");
+    GLint aColor = glGetAttribLocation(pix3dgl->program_es2, "aColor");
+    GLint aTexCoord = glGetAttribLocation(pix3dgl->program_es2, "aTexCoord");
+    GLint aTextureId = glGetAttribLocation(pix3dgl->program_es2, "aTextureId");
+    GLint aTextureOpaque = glGetAttribLocation(pix3dgl->program_es2, "aTextureOpaque");
+
+    printf("Attribute locations:\n");
+    printf("  aPos: %d (expected 0)\n", aPos);
+    printf("  aColor: %d (expected 1)\n", aColor);
+    printf("  aTexCoord: %d (expected 2)\n", aTexCoord);
+    printf("  aTextureId: %d (expected 3)\n", aTextureId);
+    printf("  aTextureOpaque: %d (expected 4)\n", aTextureOpaque);
+
+    if( aPos != 0 || aColor != 1 || aTexCoord != 2 || aTextureId != 3 || aTextureOpaque != 4 )
+    {
+        printf("WARNING: Attribute locations don't match expected values!\n");
     }
 
     // Cache ALL uniform locations for performance (avoids expensive string lookups per-frame)
@@ -1196,7 +1226,11 @@ pix3dgl_new()
     }
     if( !has_uint_indices )
     {
-        printf("WARNING: 32-bit index extension not found - large models may not render\n");
+        printf("========================================\n");
+        printf("CRITICAL ERROR: OES_element_index_uint NOT SUPPORTED!\n");
+        printf("This device cannot render with GL_UNSIGNED_INT indices.\n");
+        printf("Scenes with >65535 vertices will NOT render!\n");
+        printf("========================================\n");
     }
 
     // Check if we're using software rendering (this would be a problem!)
@@ -3614,20 +3648,58 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
         // This is MUCH faster than glMultiDrawArrays
         if( !scene->sorted_indices.empty() )
         {
+            static bool printed_once = false;
+            if( !printed_once )
+            {
+                printf(
+                    "About to call glDrawElements with %d indices (%d triangles)\n",
+                    (int)scene->sorted_indices.size(),
+                    (int)scene->sorted_indices.size() / 3);
+                printf(
+                    "VAO: %u, EBO bound, total vertices in scene: %d\n",
+                    scene->VAO,
+                    scene->total_vertex_count);
+
+                // Check for GL errors before draw
+                GLenum err = glGetError();
+                if( err != GL_NO_ERROR )
+                {
+                    printf("GL ERROR before glDrawElements: 0x%x\n", err);
+                }
+            }
+
             glDrawElements(
                 GL_TRIANGLES,
                 (GLsizei)scene->sorted_indices.size(),
                 GL_UNSIGNED_INT,
                 nullptr); // Offset 0 in the bound EBO
 
-            static bool printed_once = false;
             if( !printed_once )
             {
+                // Check for GL errors after draw
+                GLenum err = glGetError();
+                if( err != GL_NO_ERROR )
+                {
+                    printf("GL ERROR after glDrawElements: 0x%x\n", err);
+                }
+                else
+                {
+                    printf("glDrawElements completed successfully!\n");
+                }
+
                 printf(
-                    "Rendering %d models with dynamic index buffer (single glDrawElements call)!\n",
-                    (int)scene->draw_order.size());
+                    "Rendered %d indices via dynamic index buffer (models: %d, tiles: %d, unified "
+                    "items: %d)\n",
+                    (int)scene->sorted_indices.size(),
+                    (int)scene->draw_order.size(),
+                    (int)scene->tile_draw_order.size(),
+                    (int)scene->unified_draw_order.size());
                 printed_once = true;
             }
+        }
+        else
+        {
+            printf("WARNING: sorted_indices is empty, nothing to draw!\n");
         }
     }
     else

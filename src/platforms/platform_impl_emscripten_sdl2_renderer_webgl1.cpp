@@ -262,14 +262,6 @@ render_scene(struct Renderer* renderer, struct Game* game)
     {
         double face_order_start = emscripten_get_now();
 
-        printf(
-            "Frame %d: Resorting faces (dx=%d, dy=%d, dz=%d, angle=%.3f)\n",
-            frame_count,
-            dx,
-            dy,
-            dz,
-            angle_diff);
-
         // Compute scene ops to determine proper draw order (painter's algorithm)
         renderer->op_count = render_scene_compute_ops(
             renderer->ops,
