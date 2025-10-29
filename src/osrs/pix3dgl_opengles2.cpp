@@ -149,6 +149,7 @@ attribute vec3 aPos;
 attribute vec4 aColor;
 attribute vec2 aTexCoord;
 attribute float aTextureId;
+attribute float aTextureOpaque;
 
 uniform mat4 uViewMatrix;       // Precomputed on CPU
 uniform mat4 uProjectionMatrix; // Precomputed on CPU
@@ -156,8 +157,9 @@ uniform mat4 uModelMatrix;      // Per-model transformation
 
 varying vec4 vColor;
 varying vec2 vTexCoord;
-varying float vTexBlend;    // 1.0 if textured, 0.0 if not
-varying float vAtlasSlot;   // Atlas slot ID for wrapping
+varying float vTexBlend;       // 1.0 if textured, 0.0 if not
+varying float vAtlasSlot;      // Atlas slot ID for wrapping
+varying float vTextureOpaque;  // 1.0 if opaque, 0.0 if transparent
 
 void main() {
     // Apply transformations
@@ -170,6 +172,7 @@ void main() {
     vTexCoord = aTexCoord;
     vTexBlend = aTextureId >= 0.0 ? 1.0 : 0.0;
     vAtlasSlot = aTextureId;
+    vTextureOpaque = aTextureOpaque;
 }
 )";
 
@@ -184,6 +187,7 @@ varying vec4 vColor;
 varying vec2 vTexCoord;
 varying float vTexBlend;
 varying float vAtlasSlot;
+varying float vTextureOpaque;
 
 uniform sampler2D uTextureAtlas;
 
@@ -221,16 +225,21 @@ void main() {
     // vTexBlend = 1.0 for textured, 0.0 for untextured
     vec3 finalColor = mix(vColor.rgb, texColor.rgb * vColor.rgb, vTexBlend);
     
-    // Handle transparency based on texture and face alpha
+    // Handle transparency based on texture opaque flag and face alpha
     float finalAlpha = vColor.a;
     
     if (vTexBlend > 0.5) {
-        // This is a textured face - discard black pixels (for transparency mask)
-        if (dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.05) {
-            discard;
+        // This is a textured face
+        if (vTextureOpaque < 0.5) {
+            // Opaque texture: discard black pixels (for transparency mask), use face alpha only
+            if (dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.05) {
+                discard;
+            }
+            finalAlpha = vColor.a;
+        } else {
+            // Transparent texture: use texture's alpha channel combined with face alpha
+            finalAlpha = texColor.a * vColor.a;
         }
-        // Use face alpha for transparency
-        finalAlpha = vColor.a;
     }
     
     gl_FragColor = vec4(finalColor, finalAlpha);
@@ -318,14 +327,16 @@ struct StaticScene
     GLuint VBO;
     GLuint colorVBO;
     GLuint texCoordVBO;
-    GLuint textureIdVBO; // New: stores texture ID per vertex
-    GLuint dynamicEBO;   // Dynamic index buffer for painter's algorithm ordering
+    GLuint textureIdVBO;     // New: stores texture ID per vertex
+    GLuint textureOpaqueVBO; // New: stores texture opaque flag per vertex
+    GLuint dynamicEBO;       // Dynamic index buffer for painter's algorithm ordering
 
     int total_vertex_count;
     std::vector<float> vertices;
     std::vector<float> colors; // RGBA: 4 floats per vertex (RGB + Alpha)
     std::vector<float> texCoords;
-    std::vector<float> textureIds; // New: texture ID per vertex
+    std::vector<float> textureIds;     // New: texture ID per vertex
+    std::vector<float> textureOpaques; // New: texture opaque flag per vertex
 
     // With texture atlas, we don't need separate batches anymore
     // but keep for now for gradual migration
@@ -383,6 +394,7 @@ struct Pix3DGL
     GLuint program_es2;
 
     std::unordered_map<int, GLuint> texture_ids;
+    std::unordered_map<int, bool> texture_to_opaque; // Maps texture_id -> opaque flag
     std::unordered_map<int, GLModel> models;
     std::unordered_map<int, GLTile> tiles;
 
@@ -2244,6 +2256,7 @@ pix3dgl_scene_static_load_begin(struct Pix3DGL* pix3dgl)
         glDeleteBuffers(1, &pix3dgl->static_scene->colorVBO);
         glDeleteBuffers(1, &pix3dgl->static_scene->texCoordVBO);
         glDeleteBuffers(1, &pix3dgl->static_scene->textureIdVBO);
+        glDeleteBuffers(1, &pix3dgl->static_scene->textureOpaqueVBO);
         if( pix3dgl->static_scene->dynamicEBO != 0 )
         {
             glDeleteBuffers(1, &pix3dgl->static_scene->dynamicEBO);
@@ -2258,6 +2271,7 @@ pix3dgl_scene_static_load_begin(struct Pix3DGL* pix3dgl)
     pix3dgl->static_scene->colorVBO = 0;
     pix3dgl->static_scene->texCoordVBO = 0;
     pix3dgl->static_scene->textureIdVBO = 0;
+    pix3dgl->static_scene->textureOpaqueVBO = 0;
     pix3dgl->static_scene->dynamicEBO = 0;
     pix3dgl->static_scene->total_vertex_count = 0;
     pix3dgl->static_scene->is_finalized = false;
@@ -2487,6 +2501,20 @@ pix3dgl_scene_static_load_tile(
             scene->textureIds.push_back(atlas_slot);
             scene->textureIds.push_back(atlas_slot);
 
+            // Store texture opaque flag for each vertex
+            float is_opaque = 1.0f; // Default to opaque
+            if( texture_id != -1 )
+            {
+                auto opaque_it = pix3dgl->texture_to_opaque.find(texture_id);
+                if( opaque_it != pix3dgl->texture_to_opaque.end() )
+                {
+                    is_opaque = opaque_it->second ? 1.0f : 0.0f;
+                }
+            }
+            scene->textureOpaques.push_back(is_opaque);
+            scene->textureOpaques.push_back(is_opaque);
+            scene->textureOpaques.push_back(is_opaque);
+
             texture_id = (atlas_slot >= 0) ? texture_id : -1;
         }
         else
@@ -2505,6 +2533,11 @@ pix3dgl_scene_static_load_tile(
             scene->textureIds.push_back(atlas_slot);
             scene->textureIds.push_back(atlas_slot);
             scene->textureIds.push_back(atlas_slot);
+
+            // Untextured faces: opaque flag doesn't matter, use 1.0
+            scene->textureOpaques.push_back(1.0f);
+            scene->textureOpaques.push_back(1.0f);
+            scene->textureOpaques.push_back(1.0f);
         }
 
         DrawBatch& batch = scene->texture_batches[texture_id];
@@ -2825,6 +2858,20 @@ pix3dgl_scene_static_load_model(
             scene->textureIds.push_back(atlas_slot);
             scene->textureIds.push_back(atlas_slot);
 
+            // Store texture opaque flag for each vertex
+            float is_opaque = 1.0f; // Default to opaque
+            if( texture_id != -1 )
+            {
+                auto opaque_it = pix3dgl->texture_to_opaque.find(texture_id);
+                if( opaque_it != pix3dgl->texture_to_opaque.end() )
+                {
+                    is_opaque = opaque_it->second ? 1.0f : 0.0f;
+                }
+            }
+            scene->textureOpaques.push_back(is_opaque);
+            scene->textureOpaques.push_back(is_opaque);
+            scene->textureOpaques.push_back(is_opaque);
+
             texture_id = (atlas_slot >= 0) ? texture_id : -1;
         }
         else
@@ -2843,6 +2890,11 @@ pix3dgl_scene_static_load_model(
             scene->textureIds.push_back(atlas_slot);
             scene->textureIds.push_back(atlas_slot);
             scene->textureIds.push_back(atlas_slot);
+
+            // Untextured faces: opaque flag doesn't matter, use 1.0
+            scene->textureOpaques.push_back(1.0f);
+            scene->textureOpaques.push_back(1.0f);
+            scene->textureOpaques.push_back(1.0f);
         }
 
         DrawBatch& batch = scene->texture_batches[texture_id];
@@ -2955,6 +3007,17 @@ pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl)
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
     glEnableVertexAttribArray(3);
 
+    // Upload texture opaque flags
+    glGenBuffers(1, &scene->textureOpaqueVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, scene->textureOpaqueVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        scene->textureOpaques.size() * sizeof(float),
+        scene->textureOpaques.data(),
+        GL_STATIC_DRAW);
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(4);
+
     // Create dynamic Element Buffer Object for painter's algorithm ordering
     // Pre-allocate with maximum possible size (total_vertex_count indices)
     glGenBuffers(1, &scene->dynamicEBO);
@@ -2981,6 +3044,8 @@ pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl)
     scene->texCoords.shrink_to_fit();
     scene->textureIds.clear();
     scene->textureIds.shrink_to_fit();
+    scene->textureOpaques.clear();
+    scene->textureOpaques.shrink_to_fit();
 
     printf("Finalized static scene with %d vertices\n", scene->total_vertex_count);
 }
