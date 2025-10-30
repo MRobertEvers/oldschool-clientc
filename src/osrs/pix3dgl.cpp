@@ -2983,9 +2983,9 @@ pix3dgl_scene_static_load_animated_model_keyframe(
             float y = (float)vertices_y[vi];
             float z = (float)vertices_z[vi];
 
-            // Rotate around Y axis
-            float rx = x * cos_yaw - z * sin_yaw;
-            float rz = x * sin_yaw + z * cos_yaw;
+            // Rotate around Y axis (match reference implementation in projection_simd.u.c)
+            float rx = x * cos_yaw + z * sin_yaw;
+            float rz = z * cos_yaw - x * sin_yaw;
 
             // Translate to world position
             verts_world[v][0] = rx + position_x;
