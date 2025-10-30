@@ -231,6 +231,13 @@ render_scene(struct Renderer* renderer, struct Game* game)
 
     frame_count++;
 
+    // Update animation clock for texture animations at 50fps (20ms per frame)
+    // Quantize time to 50fps intervals for game-accurate animation
+    double current_time_ms = emscripten_get_now();
+    Uint32 frame_ticks = ((Uint32)current_time_ms / 20) * 20; // Round down to nearest 20ms interval
+    float animation_clock = frame_ticks / 1000.0f;
+    pix3dgl_set_animation_clock(renderer->pix3dgl, animation_clock);
+
     // Begin frame with camera setup
     pix3dgl_begin_frame(
         renderer->pix3dgl,

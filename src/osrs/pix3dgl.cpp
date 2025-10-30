@@ -1096,7 +1096,7 @@ pix3dgl_load_texture(
     {
         // Use actual animation speed from texture definition (increase multiplier for faster
         // animation)
-        float speed = cache_tex->animation_speed; // Increased from 128 for faster animation
+        float speed = ((float)cache_tex->animation_speed) / (120.0f / 50.0f);
 
         // Encode direction: U directions use positive, V directions use negative
         if( cache_tex->animation_direction == TEXTURE_DIRECTION_U_DOWN ||
