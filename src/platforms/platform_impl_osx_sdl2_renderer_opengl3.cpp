@@ -245,6 +245,11 @@ render_scene(struct Renderer* renderer, struct Game* game)
 
     frame_count++;
 
+    // Update animation clock for texture animations
+    // Use SDL_GetTicks() to get time in milliseconds, convert to fractional seconds
+    float animation_clock = SDL_GetTicks() / 1000.0f;
+    pix3dgl_set_animation_clock(renderer->pix3dgl, animation_clock);
+
     // Begin frame with camera setup
     pix3dgl_begin_frame(
         renderer->pix3dgl,

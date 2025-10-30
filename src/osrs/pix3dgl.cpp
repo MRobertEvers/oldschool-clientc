@@ -35,16 +35,19 @@ layout(location = 1) in vec4 aColor;
 layout(location = 2) in vec2 aTexCoord;
 layout(location = 3) in float aTextureId;
 layout(location = 4) in float aTextureOpaque;
+layout(location = 5) in float aTextureAnimSpeed;
 
 uniform mat4 uViewMatrix;       // Precomputed on CPU
 uniform mat4 uProjectionMatrix; // Precomputed on CPU
 uniform mat4 uModelMatrix;      // Per-model transformation
+uniform float uClock;           // Animation clock
 
 out vec4 vColor;
 out vec2 vTexCoord;
 flat out float vTexBlend;       // 1.0 if textured, 0.0 if not
 flat out float vAtlasSlot;      // Atlas slot ID for wrapping
 flat out float vTextureOpaque;  // 1.0 if opaque, 0.0 if transparent
+flat out float vTextureAnimSpeed; // Animation speed
 
 void main() {
     // Apply transformations
@@ -58,6 +61,7 @@ void main() {
     vTexBlend = aTextureId >= 0.0 ? 1.0 : 0.0;
     vAtlasSlot = aTextureId;
     vTextureOpaque = aTextureOpaque;
+    vTextureAnimSpeed = aTextureAnimSpeed;
 }
 )";
 
@@ -70,8 +74,10 @@ in vec2 vTexCoord;
 flat in float vTexBlend;
 flat in float vAtlasSlot;
 flat in float vTextureOpaque;
+flat in float vTextureAnimSpeed;
 
 uniform sampler2D uTextureAtlas;
+uniform float uClock;
 
 out vec4 FragColor;
 
@@ -94,9 +100,19 @@ void main() {
         // Extract local UV within the tile (0 to 1 range within the tile)
         vec2 localUV = (vTexCoord - tileOrigin) / tileSizeNorm;
         
-        // Apply wrapping: clamp U, tile V
-        localUV.x = clamp(localUV.x, 0.008, 0.992);  // Clamp U coordinate
-        localUV.y = clamp(fract(localUV.y), 0.008, 0.992);             // Tile V coordinate (wrap)
+        // Apply texture animation based on direction encoded in speed sign
+        // Positive speed = U direction, Negative speed = V direction
+        if (vTextureAnimSpeed > 0.0) {
+            // U direction animation (horizontal)
+            localUV.x = localUV.x + (uClock * vTextureAnimSpeed);
+        } else if (vTextureAnimSpeed < 0.0) {
+            // V direction animation (vertical)
+            localUV.y = localUV.y - (uClock * -vTextureAnimSpeed);
+        }
+        
+        // Apply wrapping: wrap both coordinates for animation
+        localUV.x = clamp(fract(localUV.x), 0.008, 0.992);  // Wrap U coordinate
+        localUV.y = clamp(fract(localUV.y), 0.008, 0.992);  // Wrap V coordinate
         
         // Transform back to atlas space
         finalTexCoord = tileOrigin + localUV * tileSizeNorm;
@@ -211,16 +227,18 @@ struct StaticScene
     GLuint VBO;
     GLuint colorVBO;
     GLuint texCoordVBO;
-    GLuint textureIdVBO;     // New: stores texture ID per vertex
-    GLuint textureOpaqueVBO; // New: stores texture opaque flag per vertex
-    GLuint dynamicEBO;       // Dynamic index buffer for painter's algorithm ordering
+    GLuint textureIdVBO;        // New: stores texture ID per vertex
+    GLuint textureOpaqueVBO;    // New: stores texture opaque flag per vertex
+    GLuint textureAnimSpeedVBO; // New: stores texture animation speed per vertex
+    GLuint dynamicEBO;          // Dynamic index buffer for painter's algorithm ordering
 
     int total_vertex_count;
     std::vector<float> vertices;
     std::vector<float> colors; // RGBA: 4 floats per vertex (RGB + Alpha)
     std::vector<float> texCoords;
-    std::vector<float> textureIds;     // New: texture ID per vertex
-    std::vector<float> textureOpaques; // New: texture opaque flag per vertex
+    std::vector<float> textureIds;        // New: texture ID per vertex
+    std::vector<float> textureOpaques;    // New: texture opaque flag per vertex
+    std::vector<float> textureAnimSpeeds; // New: texture animation speed per vertex
 
     // With texture atlas, we don't need separate batches anymore
     // but keep for now for gradual migration
@@ -295,6 +313,7 @@ struct Pix3DGL
     GLint uniform_atlas_size;    // New: atlas size uniform
     GLint uniform_tile_size;     // New: tile size uniform
     GLint uniform_texture_matrix;
+    GLint uniform_clock; // New: animation clock uniform
 
     // State tracking to avoid redundant GL calls
     GLuint currently_bound_texture;
@@ -302,11 +321,15 @@ struct Pix3DGL
 
     // Texture atlas for batching all textures into one
     GLuint texture_atlas;
-    int atlas_size;                                     // e.g., 2048
-    int atlas_tile_size;                                // e.g., 128
-    int atlas_tiles_per_row;                            // e.g., 16
-    std::unordered_map<int, int> texture_to_atlas_slot; // Maps texture_id -> atlas_slot
-    std::unordered_map<int, bool> texture_to_opaque;    // Maps texture_id -> opaque flag
+    int atlas_size;                                            // e.g., 2048
+    int atlas_tile_size;                                       // e.g., 128
+    int atlas_tiles_per_row;                                   // e.g., 16
+    std::unordered_map<int, int> texture_to_atlas_slot;        // Maps texture_id -> atlas_slot
+    std::unordered_map<int, bool> texture_to_opaque;           // Maps texture_id -> opaque flag
+    std::unordered_map<int, float> texture_to_animation_speed; // Maps texture_id -> animation speed
+
+    // Clock for texture animation
+    float animation_clock;
 
     // Batching system - accumulate faces by texture and draw together
     std::unordered_map<int, DrawBatch> draw_batches; // Key: texture_id (-1 for untextured)
@@ -924,6 +947,9 @@ pix3dgl_new()
     // Initialize static scene
     pix3dgl->static_scene = nullptr;
 
+    // Initialize animation clock
+    pix3dgl->animation_clock = 0.0f;
+
     pix3dgl->program_es2 = create_shader_program(g_vertex_shader_core, g_fragment_shader_core);
 
     if( !pix3dgl->program_es2 )
@@ -944,6 +970,7 @@ pix3dgl_new()
     pix3dgl->uniform_atlas_size = glGetUniformLocation(pix3dgl->program_es2, "uAtlasSize");
     pix3dgl->uniform_tile_size = glGetUniformLocation(pix3dgl->program_es2, "uTileSize");
     pix3dgl->uniform_texture_matrix = glGetUniformLocation(pix3dgl->program_es2, "uTextureMatrix");
+    pix3dgl->uniform_clock = glGetUniformLocation(pix3dgl->program_es2, "uClock");
 
     printf(
         "Cached uniform locations - model_matrix:%d view_matrix:%d projection_matrix:%d "
@@ -1062,6 +1089,28 @@ pix3dgl_load_texture(
     // Store the opaque flag for this texture
     pix3dgl->texture_to_opaque[texture_id] = cache_tex->opaque;
 
+    // Store the animation speed for this texture
+    // Encode direction in the sign: positive for U direction, negative for V direction
+    float anim_speed = 0.0f;
+    if( cache_tex->animation_direction != TEXTURE_DIRECTION_NONE )
+    {
+        // Use actual animation speed from texture definition (increase multiplier for faster
+        // animation)
+        float speed = cache_tex->animation_speed; // Increased from 128 for faster animation
+
+        // Encode direction: U directions use positive, V directions use negative
+        if( cache_tex->animation_direction == TEXTURE_DIRECTION_U_DOWN ||
+            cache_tex->animation_direction == TEXTURE_DIRECTION_U_UP )
+        {
+            anim_speed = speed; // Positive for U direction
+        }
+        else // V_DOWN or V_UP
+        {
+            anim_speed = -speed; // Negative for V direction
+        }
+    }
+    pix3dgl->texture_to_animation_speed[texture_id] = anim_speed;
+
     // Convert texture data
     std::vector<unsigned char> texture_bytes(cache_tex->width * cache_tex->height * 4);
     for( int i = 0; i < cache_tex->width * cache_tex->height; i++ )
@@ -1100,12 +1149,15 @@ pix3dgl_load_texture(
     pix3dgl->texture_ids[texture_id] = atlas_slot;
 
     printf(
-        "Loaded texture %d into atlas slot %d at (%d, %d) [opaque=%d]\n",
+        "Loaded texture %d into atlas slot %d at (%d, %d) [opaque=%d, anim_dir=%d, "
+        "anim_speed=%.3f]\n",
         texture_id,
         atlas_slot,
         x_offset,
         y_offset,
-        cache_tex->opaque);
+        cache_tex->opaque,
+        cache_tex->animation_direction,
+        anim_speed);
 
     // Clean up cache texture
     textures_cache_checkin(textures_cache, cache_tex);
@@ -1263,6 +1315,12 @@ pix3dgl_begin_frame(
         float identity[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                                0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
         glUniformMatrix4fv(pix3dgl->uniform_texture_matrix, 1, GL_FALSE, identity);
+    }
+
+    // Set animation clock uniform
+    if( pix3dgl->uniform_clock >= 0 )
+    {
+        glUniform1f(pix3dgl->uniform_clock, pix3dgl->animation_clock);
     }
 
     // Reset state tracking for new frame
@@ -2326,6 +2384,20 @@ pix3dgl_scene_static_load_tile(
             scene->textureOpaques.push_back(is_opaque);
             scene->textureOpaques.push_back(is_opaque);
 
+            // Store texture animation speed for each vertex
+            float anim_speed = 0.0f; // Default to no animation
+            if( texture_id != -1 )
+            {
+                auto speed_it = pix3dgl->texture_to_animation_speed.find(texture_id);
+                if( speed_it != pix3dgl->texture_to_animation_speed.end() )
+                {
+                    anim_speed = speed_it->second;
+                }
+            }
+            scene->textureAnimSpeeds.push_back(anim_speed);
+            scene->textureAnimSpeeds.push_back(anim_speed);
+            scene->textureAnimSpeeds.push_back(anim_speed);
+
             texture_id = (atlas_slot >= 0) ? texture_id : -1;
         }
         else
@@ -2349,6 +2421,11 @@ pix3dgl_scene_static_load_tile(
             scene->textureOpaques.push_back(1.0f);
             scene->textureOpaques.push_back(1.0f);
             scene->textureOpaques.push_back(1.0f);
+
+            // Untextured faces: no animation
+            scene->textureAnimSpeeds.push_back(0.0f);
+            scene->textureAnimSpeeds.push_back(0.0f);
+            scene->textureAnimSpeeds.push_back(0.0f);
         }
 
         DrawBatch& batch = scene->texture_batches[texture_id];
@@ -2683,6 +2760,20 @@ pix3dgl_scene_static_load_model(
             scene->textureOpaques.push_back(is_opaque);
             scene->textureOpaques.push_back(is_opaque);
 
+            // Store texture animation speed for each vertex
+            float anim_speed = 0.0f; // Default to no animation
+            if( texture_id != -1 )
+            {
+                auto speed_it = pix3dgl->texture_to_animation_speed.find(texture_id);
+                if( speed_it != pix3dgl->texture_to_animation_speed.end() )
+                {
+                    anim_speed = speed_it->second;
+                }
+            }
+            scene->textureAnimSpeeds.push_back(anim_speed);
+            scene->textureAnimSpeeds.push_back(anim_speed);
+            scene->textureAnimSpeeds.push_back(anim_speed);
+
             texture_id = (atlas_slot >= 0) ? texture_id : -1;
         }
         else
@@ -2706,6 +2797,11 @@ pix3dgl_scene_static_load_model(
             scene->textureOpaques.push_back(1.0f);
             scene->textureOpaques.push_back(1.0f);
             scene->textureOpaques.push_back(1.0f);
+
+            // Untextured faces: no animation
+            scene->textureAnimSpeeds.push_back(0.0f);
+            scene->textureAnimSpeeds.push_back(0.0f);
+            scene->textureAnimSpeeds.push_back(0.0f);
         }
 
         DrawBatch& batch = scene->texture_batches[texture_id];
@@ -2828,6 +2924,17 @@ pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl)
         GL_STATIC_DRAW);
     glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
     glEnableVertexAttribArray(4);
+
+    // Texture Animation Speed VBO (attribute location 5)
+    glGenBuffers(1, &scene->textureAnimSpeedVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, scene->textureAnimSpeedVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        scene->textureAnimSpeeds.size() * sizeof(float),
+        scene->textureAnimSpeeds.data(),
+        GL_STATIC_DRAW);
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(5);
 
     // Create dynamic Element Buffer Object for painter's algorithm ordering
     // Pre-allocate with maximum possible size (total_vertex_count indices)
@@ -3462,6 +3569,15 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
 
     // Re-enable blending for other rendering
     glEnable(GL_BLEND);
+}
+
+extern "C" void
+pix3dgl_set_animation_clock(struct Pix3DGL* pix3dgl, float clock_value)
+{
+    if( !pix3dgl )
+        return;
+
+    pix3dgl->animation_clock = clock_value;
 }
 
 extern "C" void
