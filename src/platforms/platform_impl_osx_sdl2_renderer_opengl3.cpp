@@ -451,6 +451,51 @@ render_scene(struct Renderer* renderer, struct Game* game)
                 // Add model to unified draw order
                 unified_draw_order.push_back({ false, scene_model->scene_model_idx });
 
+                // For animated models, query the GPU-side animation frame and apply it
+                // This ensures CPU and GPU are always using the exact same animation state
+                int anim_frame = pix3dgl_scene_static_get_model_animation_frame(
+                    renderer->pix3dgl, scene_model->scene_model_idx);
+
+                if( anim_frame >= 0 )
+                {
+                    // This is an animated model - apply the current GPU-side animation frame
+                    // Copy original vertices to model
+                    memcpy(
+                        scene_model->model->vertices_x,
+                        scene_model->original_vertices_x,
+                        sizeof(int) * scene_model->model->vertex_count);
+                    memcpy(
+                        scene_model->model->vertices_y,
+                        scene_model->original_vertices_y,
+                        sizeof(int) * scene_model->model->vertex_count);
+                    memcpy(
+                        scene_model->model->vertices_z,
+                        scene_model->original_vertices_z,
+                        sizeof(int) * scene_model->model->vertex_count);
+                    if( scene_model->model->face_alphas && scene_model->original_face_alphas )
+                    {
+                        memcpy(
+                            scene_model->model->face_alphas,
+                            scene_model->original_face_alphas,
+                            sizeof(int) * scene_model->model->face_count);
+                    }
+
+                    // Apply the GPU's current animation frame
+                    anim_frame_apply(
+                        scene_model->frames[anim_frame],
+                        scene_model->framemap,
+                        scene_model->model->vertices_x,
+                        scene_model->model->vertices_y,
+                        scene_model->model->vertices_z,
+                        scene_model->model->face_alphas,
+                        scene_model->vertex_bones ? scene_model->vertex_bones->bones_count : 0,
+                        scene_model->vertex_bones ? scene_model->vertex_bones->bones : NULL,
+                        scene_model->vertex_bones ? scene_model->vertex_bones->bones_sizes : NULL,
+                        scene_model->face_bones ? scene_model->face_bones->bones_count : 0,
+                        scene_model->face_bones ? scene_model->face_bones->bones : NULL,
+                        scene_model->face_bones ? scene_model->face_bones->bones_sizes : NULL);
+                }
+
                 // Compute face order for this model using iter_render_model_init
                 struct IterRenderModel iter_model;
                 iter_render_model_init(

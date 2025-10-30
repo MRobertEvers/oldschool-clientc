@@ -4088,6 +4088,25 @@ pix3dgl_set_animation_clock(struct Pix3DGL* pix3dgl, float clock_value)
     pix3dgl->animation_clock = clock_value;
 }
 
+extern "C" int
+pix3dgl_scene_static_get_model_animation_frame(struct Pix3DGL* pix3dgl, int scene_model_idx)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        return -1;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    auto anim_it = scene->animated_models.find(scene_model_idx);
+    if( anim_it != scene->animated_models.end() )
+    {
+        return anim_it->second.current_frame_step;
+    }
+
+    return -1; // Not an animated model
+}
+
 extern "C" void
 pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
 {

@@ -202,6 +202,9 @@ void pix3dgl_scene_static_set_unified_draw_order(
     struct Pix3DGL* pix3dgl, bool* is_tile_array, int* index_array, int count, int stride);
 void pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl);
 
+// Get current animation frame for a model (returns -1 if not animated)
+int pix3dgl_scene_static_get_model_animation_frame(struct Pix3DGL* pix3dgl, int scene_model_idx);
+
 void pix3dgl_set_animation_clock(struct Pix3DGL* pix3dgl, float clock_value);
 
 void pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
