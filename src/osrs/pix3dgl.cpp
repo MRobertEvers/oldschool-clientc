@@ -671,16 +671,6 @@ pix3dgl_model_load_textured_pnm(
         }
     }
 
-    printf(
-        "Textured Model %d bounds: X[%.1f, %.1f] Y[%.1f, %.1f] Z[%.1f, %.1f]\n",
-        idx,
-        min_x,
-        max_x,
-        min_y,
-        max_y,
-        min_z,
-        max_z);
-
     // Upload vertex data to GPU
     glBindBuffer(GL_ARRAY_BUFFER, gl_model.VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
@@ -2615,19 +2605,12 @@ pix3dgl_scene_static_load_model(
         // Calculate face alpha (0xFF = fully opaque, 0x00 = fully transparent)
         // Convert from 0-255 to 0.0-1.0
         float face_alpha = 1.0f;
+        int alpha_byte = 0xFF;
         if( face_alphas_nullable )
         {
-            int alpha_byte = face_alphas_nullable[face];
-            // For textured faces, use alpha directly
-            if( face_textures_nullable && face_textures_nullable[face] != -1 )
-            {
-                face_alpha = (alpha_byte & 0xFF) / 255.0f;
-            }
-            else
-            {
-                // For untextured faces, invert as per render.c
-                face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
-            }
+            alpha_byte = face_alphas_nullable[face];
+            // For untextured faces, invert as per render.c
+            face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
         }
 
         // Store colors with alpha (RGBA: 4 floats per vertex)
@@ -3025,19 +3008,12 @@ pix3dgl_scene_static_load_animated_model_keyframe(
         // Calculate face alpha (0xFF = fully opaque, 0x00 = fully transparent)
         // Convert from 0-255 to 0.0-1.0
         float face_alpha = 1.0f;
+        int alpha_byte = 0xFF;
         if( face_alphas_nullable )
         {
-            int alpha_byte = face_alphas_nullable[face];
-            // For textured faces, use alpha directly
-            if( face_textures_nullable && face_textures_nullable[face] != -1 )
-            {
-                face_alpha = (alpha_byte & 0xFF) / 255.0f;
-            }
-            else
-            {
-                // For untextured faces, invert as per render.c
-                face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
-            }
+            alpha_byte = face_alphas_nullable[face];
+            // For untextured faces, invert as per render.c
+            face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
         }
 
         // Store colors with alpha (RGBA: 4 floats per vertex)
