@@ -287,6 +287,21 @@ struct StaticScene
     bool is_finalized;
     bool indices_dirty;   // Flag to indicate indices need re-upload
     bool in_batch_update; // True when batching face order updates
+
+    // Animation support - track keyframes for animated models
+    struct AnimatedModelData
+    {
+        int scene_model_idx;
+        int frame_count;
+        int current_frame_step;
+        int frame_tick_count;
+        std::vector<int> frame_lengths;          // Duration of each frame in ticks
+        std::vector<ModelRange> keyframe_ranges; // One ModelRange per keyframe
+    };
+    std::unordered_map<int, AnimatedModelData> animated_models; // Key: scene_model_idx
+
+    // Current animated model being built (used during loading)
+    AnimatedModelData* current_animated_model;
 };
 
 struct Pix3DGL
@@ -2147,6 +2162,7 @@ pix3dgl_scene_static_load_begin(struct Pix3DGL* pix3dgl)
     pix3dgl->static_scene->is_finalized = false;
     pix3dgl->static_scene->indices_dirty = false;
     pix3dgl->static_scene->in_batch_update = false;
+    pix3dgl->static_scene->current_animated_model = nullptr;
 
     printf("Started building static scene\n");
 }
@@ -2850,6 +2866,368 @@ pix3dgl_scene_static_load_model(
     }
 }
 
+// Animation support functions
+extern "C" void
+pix3dgl_scene_static_load_animated_model_begin(
+    struct Pix3DGL* pix3dgl, int scene_model_idx, int frame_count)
+{
+    if( !pix3dgl || !pix3dgl->static_scene )
+    {
+        printf("Static scene not initialized\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    if( scene->is_finalized )
+    {
+        printf("Cannot add animated models to finalized static scene\n");
+        return;
+    }
+
+    // Create new animated model data
+    StaticScene::AnimatedModelData anim_data;
+    anim_data.scene_model_idx = scene_model_idx;
+    anim_data.frame_count = frame_count;
+    anim_data.current_frame_step = 0;
+    anim_data.frame_tick_count = 0;
+    anim_data.keyframe_ranges.reserve(frame_count);
+
+    // Store in map and keep pointer for building
+    scene->animated_models[scene_model_idx] = anim_data;
+    scene->current_animated_model = &scene->animated_models[scene_model_idx];
+
+    printf("Started loading animated model %d with %d keyframes\n", scene_model_idx, frame_count);
+}
+
+extern "C" void
+pix3dgl_scene_static_load_animated_model_keyframe(
+    struct Pix3DGL* pix3dgl,
+    int scene_model_idx,
+    int frame_idx,
+    int* vertices_x,
+    int* vertices_y,
+    int* vertices_z,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int face_count,
+    int* face_textures_nullable,
+    int* face_texture_coords_nullable,
+    int* textured_p_coordinate_nullable,
+    int* textured_m_coordinate_nullable,
+    int* textured_n_coordinate_nullable,
+    int* face_colors_hsl_a,
+    int* face_colors_hsl_b,
+    int* face_colors_hsl_c,
+    int* face_infos_nullable,
+    int* face_alphas_nullable,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw)
+{
+    if( !pix3dgl || !pix3dgl->static_scene || !pix3dgl->static_scene->current_animated_model )
+    {
+        printf("Animated model not initialized\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    // Load this keyframe using the same logic as regular models
+    // This reuses all the vertex transformation and color calculation code
+
+    // Create transformation matrix for this model instance
+    float cos_yaw = cos(yaw);
+    float sin_yaw = sin(yaw);
+
+    int current_vertex_index = scene->total_vertex_count;
+    int start_vertex_index = current_vertex_index;
+
+    // Temporary storage for face positions
+    std::vector<FaceRange> face_ranges(face_count);
+    for( int i = 0; i < face_count; i++ )
+    {
+        face_ranges[i].start_vertex = -1;
+        face_ranges[i].face_index = i;
+    }
+
+    // Process each face (same as pix3dgl_scene_static_load_model)
+    for( int face = 0; face < face_count; face++ )
+    {
+        int ia = face_indices_a[face];
+        int ib = face_indices_b[face];
+        int ic = face_indices_c[face];
+
+        // Transform vertices to world space
+        float verts_world[3][3];
+        for( int v = 0; v < 3; v++ )
+        {
+            int vi = (v == 0) ? ia : (v == 1) ? ib : ic;
+            float x = (float)vertices_x[vi];
+            float y = (float)vertices_y[vi];
+            float z = (float)vertices_z[vi];
+
+            // Rotate around Y axis
+            float rx = x * cos_yaw - z * sin_yaw;
+            float rz = x * sin_yaw + z * cos_yaw;
+
+            // Translate to world position
+            verts_world[v][0] = rx + position_x;
+            verts_world[v][1] = y + position_y;
+            verts_world[v][2] = rz + position_z;
+        }
+
+        int face_start_index = current_vertex_index;
+
+        // Add vertices
+        for( int v = 0; v < 3; v++ )
+        {
+            scene->vertices.push_back(verts_world[v][0]);
+            scene->vertices.push_back(verts_world[v][1]);
+            scene->vertices.push_back(verts_world[v][2]);
+        }
+
+        // Calculate face colors (same as static model)
+        int hsl_a = face_colors_hsl_a[face];
+        int hsl_b = face_colors_hsl_b ? face_colors_hsl_b[face] : hsl_a;
+        int hsl_c = face_colors_hsl_c ? face_colors_hsl_c[face] : hsl_a;
+
+        int rgb_a = g_hsl16_to_rgb_table[hsl_a & 0xFFFF];
+        int rgb_b = g_hsl16_to_rgb_table[hsl_b & 0xFFFF];
+        int rgb_c = g_hsl16_to_rgb_table[hsl_c & 0xFFFF];
+
+        float alpha = 1.0f;
+        if( face_alphas_nullable )
+        {
+            alpha = (float)face_alphas_nullable[face] / 255.0f;
+        }
+
+        // Add colors for vertices
+        for( int v = 0; v < 3; v++ )
+        {
+            int rgb = (v == 0) ? rgb_a : (v == 1) ? rgb_b : rgb_c;
+            float r = ((rgb >> 16) & 0xFF) / 255.0f;
+            float g = ((rgb >> 8) & 0xFF) / 255.0f;
+            float b = (rgb & 0xFF) / 255.0f;
+
+            scene->colors.push_back(r);
+            scene->colors.push_back(g);
+            scene->colors.push_back(b);
+            scene->colors.push_back(alpha);
+        }
+
+        // Handle textures (same as static model)
+        int texture_id = -1;
+        int atlas_slot = -1;
+
+        if( face_textures_nullable && face_textures_nullable[face] != -1 )
+        {
+            // Determine texture space vertices (P, M, N)
+            int tp_vertex = ia;
+            int tm_vertex = ib;
+            int tn_vertex = ic;
+
+            if( face_texture_coords_nullable && face_texture_coords_nullable[face] != -1 )
+            {
+                int texture_face = face_texture_coords_nullable[face];
+                tp_vertex = textured_p_coordinate_nullable[texture_face];
+                tm_vertex = textured_m_coordinate_nullable[texture_face];
+                tn_vertex = textured_n_coordinate_nullable[texture_face];
+            }
+
+            // Get PNM vertices
+            float p_x = vertices_x[tp_vertex];
+            float p_y = vertices_y[tp_vertex];
+            float p_z = vertices_z[tp_vertex];
+            float m_x = vertices_x[tm_vertex];
+            float m_y = vertices_y[tm_vertex];
+            float m_z = vertices_z[tm_vertex];
+            float n_x = vertices_x[tn_vertex];
+            float n_y = vertices_y[tn_vertex];
+            float n_z = vertices_z[tn_vertex];
+
+            // Get face vertices
+            float a_x = vertices_x[ia];
+            float a_y = vertices_y[ia];
+            float a_z = vertices_z[ia];
+            float b_x = vertices_x[ib];
+            float b_y = vertices_y[ib];
+            float b_z = vertices_z[ib];
+            float c_x = vertices_x[ic];
+            float c_y = vertices_y[ic];
+            float c_z = vertices_z[ic];
+
+            // Calculate texture coordinates
+            struct UVFaceCoords uv_pnm;
+            uv_pnm_compute(
+                &uv_pnm,
+                p_x,
+                p_y,
+                p_z,
+                m_x,
+                m_y,
+                m_z,
+                n_x,
+                n_y,
+                n_z,
+                a_x,
+                a_y,
+                a_z,
+                b_x,
+                b_y,
+                b_z,
+                c_x,
+                c_y,
+                c_z);
+
+            texture_id = face_textures_nullable[face];
+
+            if( texture_id != -1 )
+            {
+                auto tex_it = pix3dgl->texture_ids.find(texture_id);
+                if( tex_it != pix3dgl->texture_ids.end() )
+                {
+                    atlas_slot = tex_it->second;
+                }
+                else
+                {
+                    texture_id = -1;
+                }
+            }
+
+            // Calculate atlas UVs on CPU (once, not per-frame!)
+            if( atlas_slot >= 0 )
+            {
+                float tiles_per_row = (float)pix3dgl->atlas_tiles_per_row;
+                float tile_u = (float)(atlas_slot % pix3dgl->atlas_tiles_per_row);
+                float tile_v = (float)(atlas_slot / pix3dgl->atlas_tiles_per_row);
+                float tile_size = (float)pix3dgl->atlas_tile_size;
+                float atlas_size = (float)pix3dgl->atlas_size;
+
+                // Transform UVs to atlas space
+                scene->texCoords.push_back((tile_u + uv_pnm.u1) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v1) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_u + uv_pnm.u2) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v2) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_u + uv_pnm.u3) * tile_size / atlas_size);
+                scene->texCoords.push_back((tile_v + uv_pnm.v3) * tile_size / atlas_size);
+            }
+            else
+            {
+                // No valid atlas slot, store dummy UVs
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+                scene->texCoords.push_back(0.0f);
+            }
+
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+            scene->textureIds.push_back(atlas_slot);
+
+            float is_opaque = 1.0f;
+            if( texture_id != -1 )
+            {
+                auto opaque_it = pix3dgl->texture_to_opaque.find(texture_id);
+                if( opaque_it != pix3dgl->texture_to_opaque.end() )
+                {
+                    is_opaque = opaque_it->second ? 1.0f : 0.0f;
+                }
+            }
+            scene->textureOpaques.push_back(is_opaque);
+            scene->textureOpaques.push_back(is_opaque);
+            scene->textureOpaques.push_back(is_opaque);
+
+            float anim_speed = 0.0f;
+            if( texture_id != -1 )
+            {
+                auto speed_it = pix3dgl->texture_to_animation_speed.find(texture_id);
+                if( speed_it != pix3dgl->texture_to_animation_speed.end() )
+                {
+                    anim_speed = speed_it->second;
+                }
+            }
+            scene->textureAnimSpeeds.push_back(anim_speed);
+            scene->textureAnimSpeeds.push_back(anim_speed);
+            scene->textureAnimSpeeds.push_back(anim_speed);
+
+            texture_id = (atlas_slot >= 0) ? texture_id : -1;
+        }
+        else
+        {
+            // Untextured
+            for( int i = 0; i < 6; i++ )
+                scene->texCoords.push_back(0.0f);
+            scene->textureIds.push_back(-1);
+            scene->textureIds.push_back(-1);
+            scene->textureIds.push_back(-1);
+            scene->textureOpaques.push_back(1.0f);
+            scene->textureOpaques.push_back(1.0f);
+            scene->textureOpaques.push_back(1.0f);
+            scene->textureAnimSpeeds.push_back(0.0f);
+            scene->textureAnimSpeeds.push_back(0.0f);
+            scene->textureAnimSpeeds.push_back(0.0f);
+        }
+
+        // Track face position
+        face_ranges[face].start_vertex = face_start_index;
+        face_ranges[face].face_index = face;
+
+        current_vertex_index += 3;
+    }
+
+    scene->total_vertex_count = current_vertex_index;
+
+    // Store this keyframe's range
+    int vertex_count = current_vertex_index - start_vertex_index;
+    if( vertex_count > 0 )
+    {
+        ModelRange range;
+        range.scene_model_idx = scene_model_idx;
+        range.start_vertex = start_vertex_index;
+        range.vertex_count = vertex_count;
+        range.faces = std::move(face_ranges);
+
+        scene->current_animated_model->keyframe_ranges.push_back(range);
+
+        printf(
+            "Added keyframe %d for animated model %d: start=%d, count=%d, faces=%d\n",
+            frame_idx,
+            scene_model_idx,
+            start_vertex_index,
+            vertex_count,
+            face_count);
+    }
+}
+
+extern "C" void
+pix3dgl_scene_static_load_animated_model_end(
+    struct Pix3DGL* pix3dgl, int scene_model_idx, int* frame_lengths, int frame_count)
+{
+    if( !pix3dgl || !pix3dgl->static_scene || !pix3dgl->static_scene->current_animated_model )
+    {
+        printf("Animated model not initialized\n");
+        return;
+    }
+
+    StaticScene* scene = pix3dgl->static_scene;
+
+    // Store frame lengths
+    for( int i = 0; i < frame_count; i++ )
+    {
+        scene->current_animated_model->frame_lengths.push_back(frame_lengths[i]);
+    }
+
+    // Clear current animated model pointer
+    scene->current_animated_model = nullptr;
+
+    printf("Finished loading animated model %d with %d keyframes\n", scene_model_idx, frame_count);
+}
+
 extern "C" void
 pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl)
 {
@@ -3171,6 +3549,32 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
         return;
     }
 
+    // Update animation state for all animated models (assumes 50fps game loop, 20ms per tick)
+    // Animation state advances each frame automatically
+    for( auto& anim_pair : scene->animated_models )
+    {
+        auto& anim_data = anim_pair.second;
+
+        // Advance animation by 1 tick (20ms at 50fps)
+        anim_data.frame_tick_count++;
+
+        // Check if we need to advance to next frame
+        if( anim_data.frame_tick_count >= anim_data.frame_lengths[anim_data.current_frame_step] )
+        {
+            anim_data.frame_tick_count = 0;
+            anim_data.current_frame_step++;
+
+            // Loop animation if we've reached the end
+            if( anim_data.current_frame_step >= anim_data.frame_count )
+            {
+                anim_data.current_frame_step = 0;
+            }
+
+            // Mark indices as dirty since we changed keyframe
+            scene->indices_dirty = true;
+        }
+    }
+
     // Set identity model matrix (geometry is already transformed)
     float identity[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                            0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
@@ -3274,11 +3678,35 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                     {
                         // Draw a model
                         int scene_model_idx = draw_item.index;
-                        auto model_it = scene->model_ranges.find(scene_model_idx);
-                        if( model_it == scene->model_ranges.end() )
+
+                        // Check if this is an animated model
+                        const ModelRange* range_ptr = nullptr;
+                        auto anim_it = scene->animated_models.find(scene_model_idx);
+                        if( anim_it != scene->animated_models.end() )
+                        {
+                            // Use current keyframe for animated model
+                            const auto& anim_data = anim_it->second;
+                            if( anim_data.current_frame_step <
+                                (int)anim_data.keyframe_ranges.size() )
+                            {
+                                range_ptr =
+                                    &anim_data.keyframe_ranges[anim_data.current_frame_step];
+                            }
+                        }
+                        else
+                        {
+                            // Use static model range
+                            auto model_it = scene->model_ranges.find(scene_model_idx);
+                            if( model_it != scene->model_ranges.end() )
+                            {
+                                range_ptr = &model_it->second;
+                            }
+                        }
+
+                        if( !range_ptr )
                             continue;
 
-                        const ModelRange& range = model_it->second;
+                        const ModelRange& range = *range_ptr;
 
                         // Check if we have a face order for this model
                         auto face_order_it = scene->model_face_order.find(scene_model_idx);
@@ -3346,11 +3774,32 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                 // Legacy path: Build sorted index buffer by iterating through draw_order
                 for( int scene_model_idx : scene->draw_order )
                 {
-                    auto model_it = scene->model_ranges.find(scene_model_idx);
-                    if( model_it == scene->model_ranges.end() )
+                    // Check if this is an animated model
+                    const ModelRange* range_ptr = nullptr;
+                    auto anim_it = scene->animated_models.find(scene_model_idx);
+                    if( anim_it != scene->animated_models.end() )
+                    {
+                        // Use current keyframe for animated model
+                        const auto& anim_data = anim_it->second;
+                        if( anim_data.current_frame_step < (int)anim_data.keyframe_ranges.size() )
+                        {
+                            range_ptr = &anim_data.keyframe_ranges[anim_data.current_frame_step];
+                        }
+                    }
+                    else
+                    {
+                        // Use static model range
+                        auto model_it = scene->model_ranges.find(scene_model_idx);
+                        if( model_it != scene->model_ranges.end() )
+                        {
+                            range_ptr = &model_it->second;
+                        }
+                    }
+
+                    if( !range_ptr )
                         continue;
 
-                    const ModelRange& range = model_it->second;
+                    const ModelRange& range = *range_ptr;
 
                     // Check if we have a face order for this model
                     auto face_order_it = scene->model_face_order.find(scene_model_idx);

@@ -153,6 +153,38 @@ void pix3dgl_scene_static_load_model(
     float position_z,
     float yaw);
 void pix3dgl_scene_static_load_end(struct Pix3DGL* pix3dgl);
+
+// Animation support - load models with multiple keyframes
+void pix3dgl_scene_static_load_animated_model_begin(
+    struct Pix3DGL* pix3dgl, int scene_model_idx, int frame_count);
+void pix3dgl_scene_static_load_animated_model_keyframe(
+    struct Pix3DGL* pix3dgl,
+    int scene_model_idx,
+    int frame_idx,
+    int* vertices_x,
+    int* vertices_y,
+    int* vertices_z,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int face_count,
+    int* face_textures_nullable,
+    int* face_texture_coords_nullable,
+    int* textured_p_coordinate_nullable,
+    int* textured_m_coordinate_nullable,
+    int* textured_n_coordinate_nullable,
+    int* face_colors_hsl_a,
+    int* face_colors_hsl_b,
+    int* face_colors_hsl_c,
+    int* face_infos_nullable,
+    int* face_alphas_nullable,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw);
+void pix3dgl_scene_static_load_animated_model_end(
+    struct Pix3DGL* pix3dgl, int scene_model_idx, int* frame_lengths, int frame_count);
+
 void
 pix3dgl_scene_static_set_draw_order(struct Pix3DGL* pix3dgl, int* scene_model_indices, int count);
 
