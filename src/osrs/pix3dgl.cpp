@@ -3001,7 +3001,8 @@ pix3dgl_scene_static_load_animated_model_keyframe(
         float alpha = 1.0f;
         if( face_alphas_nullable )
         {
-            alpha = (float)face_alphas_nullable[face] / 255.0f;
+            int alpha_byte = face_alphas_nullable[face];
+            alpha = (float)(0xFF - (alpha_byte & 0xFF)) / 255.0f;
         }
 
         // Add colors for vertices
@@ -3220,6 +3221,14 @@ pix3dgl_scene_static_load_animated_model_end(
     for( int i = 0; i < frame_count; i++ )
     {
         scene->current_animated_model->frame_lengths.push_back(frame_lengths[i]);
+    }
+
+    // IMPORTANT: Also add the first keyframe to model_ranges so the model can be found during
+    // drawing This allows the model to participate in depth sorting with other models
+    if( !scene->current_animated_model->keyframe_ranges.empty() )
+    {
+        // Use the first keyframe as the base range for depth sorting
+        scene->model_ranges[scene_model_idx] = scene->current_animated_model->keyframe_ranges[0];
     }
 
     // Clear current animated model pointer
@@ -3549,29 +3558,41 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
         return;
     }
 
-    // Update animation state for all animated models (assumes 50fps game loop, 20ms per tick)
-    // Animation state advances each frame automatically
-    for( auto& anim_pair : scene->animated_models )
+    // Update animation state for all animated models
+    // Use the animation clock (set to 50fps game ticks) to advance animations
+    static float last_animation_clock = 0.0f;
+    float current_clock = pix3dgl->animation_clock;
+
+    // Calculate ticks elapsed (animation clock is in seconds, each tick is 0.02 seconds at 50fps)
+    int ticks_elapsed = (int)((current_clock - last_animation_clock) / 0.02f);
+
+    if( ticks_elapsed > 0 )
     {
-        auto& anim_data = anim_pair.second;
+        last_animation_clock = current_clock;
 
-        // Advance animation by 1 tick (20ms at 50fps)
-        anim_data.frame_tick_count++;
-
-        // Check if we need to advance to next frame
-        if( anim_data.frame_tick_count >= anim_data.frame_lengths[anim_data.current_frame_step] )
+        for( auto& anim_pair : scene->animated_models )
         {
-            anim_data.frame_tick_count = 0;
-            anim_data.current_frame_step++;
+            auto& anim_data = anim_pair.second;
 
-            // Loop animation if we've reached the end
-            if( anim_data.current_frame_step >= anim_data.frame_count )
+            // Advance animation by elapsed ticks
+            anim_data.frame_tick_count += ticks_elapsed;
+
+            // Check if we need to advance to next frame(s)
+            while( anim_data.frame_tick_count >=
+                   anim_data.frame_lengths[anim_data.current_frame_step] )
             {
-                anim_data.current_frame_step = 0;
-            }
+                anim_data.frame_tick_count -= anim_data.frame_lengths[anim_data.current_frame_step];
+                anim_data.current_frame_step++;
 
-            // Mark indices as dirty since we changed keyframe
-            scene->indices_dirty = true;
+                // Loop animation if we've reached the end
+                if( anim_data.current_frame_step >= anim_data.frame_count )
+                {
+                    anim_data.current_frame_step = 0;
+                }
+
+                // Mark indices as dirty since we changed keyframe
+                scene->indices_dirty = true;
+            }
         }
     }
 

@@ -282,6 +282,16 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
                     yaw_radians);
             }
 
+            memcpy(anim_vertices_x, scene_model->original_vertices_x, sizeof(int) * vertex_count);
+            memcpy(anim_vertices_y, scene_model->original_vertices_y, sizeof(int) * vertex_count);
+            memcpy(anim_vertices_z, scene_model->original_vertices_z, sizeof(int) * vertex_count);
+
+            if( anim_face_alphas && scene_model->original_face_alphas )
+            {
+                memcpy(
+                    anim_face_alphas, scene_model->original_face_alphas, sizeof(int) * face_count);
+            }
+
             // Finalize animated model with frame timing data
             pix3dgl_scene_static_load_animated_model_end(
                 renderer->pix3dgl,
