@@ -2956,6 +2956,20 @@ pix3dgl_scene_static_load_animated_model_keyframe(
     // Process each face (same as pix3dgl_scene_static_load_model)
     for( int face = 0; face < face_count; face++ )
     {
+        // Check if face should be drawn (same culling logic as static models)
+        bool should_draw = true;
+        if( face_infos_nullable && face_infos_nullable[face] == 2 )
+        {
+            should_draw = false;
+        }
+        if( face_colors_hsl_c && face_colors_hsl_c[face] == -2 )
+        {
+            should_draw = false;
+        }
+
+        if( !should_draw )
+            continue;
+
         int ia = face_indices_a[face];
         int ib = face_indices_b[face];
         int ic = face_indices_c[face];
@@ -2989,35 +3003,58 @@ pix3dgl_scene_static_load_animated_model_keyframe(
             scene->vertices.push_back(verts_world[v][2]);
         }
 
-        // Calculate face colors (same as static model)
+        // Get and convert colors (match static model loader exactly)
         int hsl_a = face_colors_hsl_a[face];
-        int hsl_b = face_colors_hsl_b ? face_colors_hsl_b[face] : hsl_a;
-        int hsl_c = face_colors_hsl_c ? face_colors_hsl_c[face] : hsl_a;
+        int hsl_b = face_colors_hsl_b[face];
+        int hsl_c = face_colors_hsl_c[face];
 
-        int rgb_a = g_hsl16_to_rgb_table[hsl_a & 0xFFFF];
-        int rgb_b = g_hsl16_to_rgb_table[hsl_b & 0xFFFF];
-        int rgb_c = g_hsl16_to_rgb_table[hsl_c & 0xFFFF];
+        int rgb_a, rgb_b, rgb_c;
+        if( hsl_c == -1 )
+        {
+            // Flat shading
+            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
+        }
+        else
+        {
+            // Gouraud shading
+            rgb_a = g_hsl16_to_rgb_table[hsl_a];
+            rgb_b = g_hsl16_to_rgb_table[hsl_b];
+            rgb_c = g_hsl16_to_rgb_table[hsl_c];
+        }
 
-        float alpha = 1.0f;
+        // Calculate face alpha (0xFF = fully opaque, 0x00 = fully transparent)
+        // Convert from 0-255 to 0.0-1.0
+        float face_alpha = 1.0f;
         if( face_alphas_nullable )
         {
             int alpha_byte = face_alphas_nullable[face];
-            alpha = (float)(0xFF - (alpha_byte & 0xFF)) / 255.0f;
+            // For textured faces, use alpha directly
+            if( face_textures_nullable && face_textures_nullable[face] != -1 )
+            {
+                face_alpha = (alpha_byte & 0xFF) / 255.0f;
+            }
+            else
+            {
+                // For untextured faces, invert as per render.c
+                face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
+            }
         }
 
-        // Add colors for vertices
-        for( int v = 0; v < 3; v++ )
-        {
-            int rgb = (v == 0) ? rgb_a : (v == 1) ? rgb_b : rgb_c;
-            float r = ((rgb >> 16) & 0xFF) / 255.0f;
-            float g = ((rgb >> 8) & 0xFF) / 255.0f;
-            float b = (rgb & 0xFF) / 255.0f;
+        // Store colors with alpha (RGBA: 4 floats per vertex)
+        scene->colors.push_back(((rgb_a >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_a >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_a & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
 
-            scene->colors.push_back(r);
-            scene->colors.push_back(g);
-            scene->colors.push_back(b);
-            scene->colors.push_back(alpha);
-        }
+        scene->colors.push_back(((rgb_b >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_b >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_b & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
+
+        scene->colors.push_back(((rgb_c >> 16) & 0xFF) / 255.0f);
+        scene->colors.push_back(((rgb_c >> 8) & 0xFF) / 255.0f);
+        scene->colors.push_back((rgb_c & 0xFF) / 255.0f);
+        scene->colors.push_back(face_alpha);
 
         // Handle textures (same as static model)
         int texture_id = -1;
