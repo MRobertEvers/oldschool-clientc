@@ -2073,29 +2073,6 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
             }
 
             scene->indices_dirty = false;
-
-            static bool printed_once = false;
-            if( !printed_once )
-            {
-                if( !scene->unified_draw_order.empty() )
-                {
-                    printf(
-                        "Built index buffer with %d indices for %d items (models + tiles "
-                        "interleaved, painter's algorithm)\n",
-                        (int)scene->sorted_indices.size(),
-                        (int)scene->unified_draw_order.size());
-                }
-                else
-                {
-                    printf(
-                        "Built index buffer with %d indices for %d models and %d tiles (painter's "
-                        "algorithm)\n",
-                        (int)scene->sorted_indices.size(),
-                        (int)scene->draw_order.size(),
-                        (int)scene->tile_draw_order.size());
-                }
-                printed_once = true;
-            }
         }
 
         // Draw the entire scene in a single glDrawElements call!
@@ -2107,30 +2084,12 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
                 (GLsizei)scene->sorted_indices.size(),
                 GL_UNSIGNED_INT,
                 nullptr); // Offset 0 in the bound EBO
-
-            static bool printed_once = false;
-            if( !printed_once )
-            {
-                printf(
-                    "Rendering %d models with dynamic index buffer (single glDrawElements call)!\n",
-                    (int)scene->draw_order.size());
-                printed_once = true;
-            }
         }
     }
     else
     {
         // Fallback: draw entire scene in a single call (original behavior)
         glDrawArrays(GL_TRIANGLES, 0, scene->core_buffers->total_vertex_count);
-
-        static bool printed_once = false;
-        if( !printed_once )
-        {
-            printf(
-                "Rendering %d vertices with texture atlas in SINGLE draw call (no order set)!\n",
-                scene->core_buffers->total_vertex_count);
-            printed_once = true;
-        }
     }
 
     glBindVertexArray(0);
