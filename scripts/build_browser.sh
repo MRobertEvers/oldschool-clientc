@@ -26,8 +26,8 @@ emcmake cmake ..
 echo "Building scene_tile_test_imgui_browser..."
 emmake make scene_tile_test_imgui_browser
 
-echo "Building model_viewerfx_browser..."
-emmake make model_viewerfx_browser
+echo "Building emscripten_sdl2_webgl1..."
+emmake make emscripten_sdl2_webgl1
 
 # Copy the cache to the public/cache directory
 echo "Copying cache to public/cache directory..."
@@ -38,17 +38,12 @@ cp -r ../cache/* ../public/cache
 echo "Copying files to public/build directory..."
 mkdir -p ../public/build
 
-# Copy ImGui browser version
-cp scene_tile_test_imgui_browser.js ../public/build/
-cp scene_tile_test_imgui_browser.wasm ../public/build/
-cp scene_tile_test_imgui_browser.data ../public/build/
-cp scene_tile_test_imgui_browser.html ../public/build/
 
-# Copy model viewer FX browser version
-cp model_viewerfx_browser.js ../public/build/
-cp model_viewerfx_browser.wasm ../public/build/
-cp model_viewerfx_browser.data ../public/build/
-cp model_viewerfx_browser.html ../public/build/
+# Copy all .js, .wasm, .data, .html files to public/build directory
+cp *.js ../public/build/
+cp *.wasm ../public/build/
+cp *.data ../public/build/
+cp *.html ../public/build/
 
 echo "Build completed successfully!"
 echo "Files copied to public/build/ directory"

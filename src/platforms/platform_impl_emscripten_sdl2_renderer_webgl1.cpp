@@ -3,6 +3,7 @@
 extern "C" {
 #include "graphics/render.h"
 #include "libgame.u.h"
+#include "osrs/anim.h"
 }
 #include "imgui.h"
 #include "imgui_impl_opengl3.h" // ImGui supports ES2/WebGL1 via OpenGL3 backend
@@ -181,31 +182,143 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
         float position_z = scene_model->region_z + scene_model->offset_z;
         float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
 
-        // Add model geometry directly to static scene buffer (no individual model loading)
-        pix3dgl_scene_static_load_model(
-            renderer->pix3dgl,
-            scene_model->scene_model_idx,
-            scene_model->model->vertices_x,
-            scene_model->model->vertices_y,
-            scene_model->model->vertices_z,
-            scene_model->model->face_indices_a,
-            scene_model->model->face_indices_b,
-            scene_model->model->face_indices_c,
-            scene_model->model->face_count,
-            scene_model->model->face_textures,
-            scene_model->model->face_texture_coords,
-            scene_model->model->textured_p_coordinate,
-            scene_model->model->textured_m_coordinate,
-            scene_model->model->textured_n_coordinate,
-            scene_model->lighting->face_colors_hsl_a,
-            scene_model->lighting->face_colors_hsl_b,
-            scene_model->lighting->face_colors_hsl_c,
-            scene_model->model->face_infos,
-            scene_model->model->face_alphas,
-            position_x,
-            position_y,
-            position_z,
-            yaw_radians);
+        // Check if model has animation sequence
+        if( scene_model->sequence && scene_model->frames && scene_model->frame_count > 0 )
+        {
+            // Model has animation - create keyframes
+            printf(
+                "Loading animated model %d with %d keyframes\n",
+                scene_model->scene_model_idx,
+                scene_model->frame_count);
+
+            // Allocate temporary buffers for animated vertices and colors
+            int vertex_count = scene_model->model->vertex_count;
+            int face_count = scene_model->model->face_count;
+
+            int* anim_vertices_x = (int*)malloc(sizeof(int) * vertex_count);
+            int* anim_vertices_y = (int*)malloc(sizeof(int) * vertex_count);
+            int* anim_vertices_z = (int*)malloc(sizeof(int) * vertex_count);
+            int* anim_face_alphas =
+                scene_model->model->face_alphas ? (int*)malloc(sizeof(int) * face_count) : NULL;
+
+            // Begin loading animated model with all keyframes
+            pix3dgl_scene_static_load_animated_model_begin(
+                renderer->pix3dgl, scene_model->scene_model_idx, scene_model->frame_count);
+
+            // Generate and upload each keyframe
+            for( int frame_idx = 0; frame_idx < scene_model->frame_count; frame_idx++ )
+            {
+                // Reset to original vertices
+                memcpy(
+                    anim_vertices_x, scene_model->original_vertices_x, sizeof(int) * vertex_count);
+                memcpy(
+                    anim_vertices_y, scene_model->original_vertices_y, sizeof(int) * vertex_count);
+                memcpy(
+                    anim_vertices_z, scene_model->original_vertices_z, sizeof(int) * vertex_count);
+
+                if( anim_face_alphas && scene_model->original_face_alphas )
+                {
+                    memcpy(
+                        anim_face_alphas,
+                        scene_model->original_face_alphas,
+                        sizeof(int) * face_count);
+                }
+
+                // Apply animation frame transform
+                anim_frame_apply(
+                    scene_model->frames[frame_idx],
+                    scene_model->framemap,
+                    anim_vertices_x,
+                    anim_vertices_y,
+                    anim_vertices_z,
+                    anim_face_alphas,
+                    scene_model->vertex_bones ? scene_model->vertex_bones->bones_count : 0,
+                    scene_model->vertex_bones ? scene_model->vertex_bones->bones : NULL,
+                    scene_model->vertex_bones ? scene_model->vertex_bones->bones_sizes : NULL,
+                    scene_model->face_bones ? scene_model->face_bones->bones_count : 0,
+                    scene_model->face_bones ? scene_model->face_bones->bones : NULL,
+                    scene_model->face_bones ? scene_model->face_bones->bones_sizes : NULL);
+
+                // Upload this keyframe
+                pix3dgl_scene_static_load_animated_model_keyframe(
+                    renderer->pix3dgl,
+                    scene_model->scene_model_idx,
+                    frame_idx,
+                    anim_vertices_x,
+                    anim_vertices_y,
+                    anim_vertices_z,
+                    scene_model->model->face_indices_a,
+                    scene_model->model->face_indices_b,
+                    scene_model->model->face_indices_c,
+                    face_count,
+                    scene_model->model->face_textures,
+                    scene_model->model->face_texture_coords,
+                    scene_model->model->textured_p_coordinate,
+                    scene_model->model->textured_m_coordinate,
+                    scene_model->model->textured_n_coordinate,
+                    scene_model->lighting->face_colors_hsl_a,
+                    scene_model->lighting->face_colors_hsl_b,
+                    scene_model->lighting->face_colors_hsl_c,
+                    scene_model->model->face_infos,
+                    anim_face_alphas,
+                    position_x,
+                    position_y,
+                    position_z,
+                    yaw_radians);
+            }
+
+            memcpy(anim_vertices_x, scene_model->original_vertices_x, sizeof(int) * vertex_count);
+            memcpy(anim_vertices_y, scene_model->original_vertices_y, sizeof(int) * vertex_count);
+            memcpy(anim_vertices_z, scene_model->original_vertices_z, sizeof(int) * vertex_count);
+
+            if( anim_face_alphas && scene_model->original_face_alphas )
+            {
+                memcpy(
+                    anim_face_alphas, scene_model->original_face_alphas, sizeof(int) * face_count);
+            }
+
+            // Finalize animated model with frame timing data
+            pix3dgl_scene_static_load_animated_model_end(
+                renderer->pix3dgl,
+                scene_model->scene_model_idx,
+                scene_model->sequence->frame_lengths,
+                scene_model->frame_count);
+
+            // Free temporary buffers
+            free(anim_vertices_x);
+            free(anim_vertices_y);
+            free(anim_vertices_z);
+            if( anim_face_alphas )
+                free(anim_face_alphas);
+        }
+        else
+        {
+            // Static model - load normally
+            pix3dgl_scene_static_load_model(
+                renderer->pix3dgl,
+                scene_model->scene_model_idx,
+                scene_model->model->vertices_x,
+                scene_model->model->vertices_y,
+                scene_model->model->vertices_z,
+                scene_model->model->face_indices_a,
+                scene_model->model->face_indices_b,
+                scene_model->model->face_indices_c,
+                scene_model->model->face_count,
+                scene_model->model->face_textures,
+                scene_model->model->face_texture_coords,
+                scene_model->model->textured_p_coordinate,
+                scene_model->model->textured_m_coordinate,
+                scene_model->model->textured_n_coordinate,
+                scene_model->lighting->face_colors_hsl_a,
+                scene_model->lighting->face_colors_hsl_b,
+                scene_model->lighting->face_colors_hsl_c,
+                scene_model->model->face_infos,
+                scene_model->model->face_alphas,
+                position_x,
+                position_y,
+                position_z,
+                yaw_radians);
+        }
     }
 
     // Finalize the static scene - uploads to GPU
@@ -251,6 +364,10 @@ render_scene(struct Renderer* renderer, struct Game* game)
 
     // Depth testing disabled - using painter's algorithm for draw order
     glDisable(GL_DEPTH_TEST);
+
+    // For transparency with painter's algorithm, we should also disable depth writes
+    // This prevents transparent objects from blocking objects behind them
+    glDepthMask(GL_FALSE);
 
     // Check if camera moved significantly (thresholds: 128 units = 1 tile, 12 degrees)
     int dx = game->camera_world_x - last_cam_x;
@@ -319,6 +436,51 @@ render_scene(struct Renderer* renderer, struct Game* game)
 
                 // Add model to unified draw order
                 unified_draw_order.push_back({ false, scene_model->scene_model_idx });
+
+                // For animated models, query the GPU-side animation frame and apply it
+                // This ensures CPU and GPU are always using the exact same animation state
+                int anim_frame = pix3dgl_scene_static_get_model_animation_frame(
+                    renderer->pix3dgl, scene_model->scene_model_idx);
+
+                if( anim_frame >= 0 )
+                {
+                    // This is an animated model - apply the current GPU-side animation frame
+                    // Copy original vertices to model
+                    memcpy(
+                        scene_model->model->vertices_x,
+                        scene_model->original_vertices_x,
+                        sizeof(int) * scene_model->model->vertex_count);
+                    memcpy(
+                        scene_model->model->vertices_y,
+                        scene_model->original_vertices_y,
+                        sizeof(int) * scene_model->model->vertex_count);
+                    memcpy(
+                        scene_model->model->vertices_z,
+                        scene_model->original_vertices_z,
+                        sizeof(int) * scene_model->model->vertex_count);
+                    if( scene_model->model->face_alphas && scene_model->original_face_alphas )
+                    {
+                        memcpy(
+                            scene_model->model->face_alphas,
+                            scene_model->original_face_alphas,
+                            sizeof(int) * scene_model->model->face_count);
+                    }
+
+                    // Apply the GPU's current animation frame
+                    anim_frame_apply(
+                        scene_model->frames[anim_frame],
+                        scene_model->framemap,
+                        scene_model->model->vertices_x,
+                        scene_model->model->vertices_y,
+                        scene_model->model->vertices_z,
+                        scene_model->model->face_alphas,
+                        scene_model->vertex_bones ? scene_model->vertex_bones->bones_count : 0,
+                        scene_model->vertex_bones ? scene_model->vertex_bones->bones : NULL,
+                        scene_model->vertex_bones ? scene_model->vertex_bones->bones_sizes : NULL,
+                        scene_model->face_bones ? scene_model->face_bones->bones_count : 0,
+                        scene_model->face_bones ? scene_model->face_bones->bones : NULL,
+                        scene_model->face_bones ? scene_model->face_bones->bones_sizes : NULL);
+                }
 
                 // Compute face order for this model using iter_render_model_init
                 struct IterRenderModel iter_model;
@@ -402,7 +564,6 @@ render_scene(struct Renderer* renderer, struct Game* game)
     else
     {
         // Camera didn't move - reuse last frame's face ordering (FAST!)
-        printf("Frame %d: Reusing cached face order\n", frame_count);
         renderer->face_order_time_ms = 0.0; // No face order computation this frame
     }
 
@@ -563,27 +724,6 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
             break;
         case GAME_GFX_OP_SCENE_MODEL_DRAW:
         {
-            struct SceneModel* scene_model =
-                &game->scene->models[gfx_op->_scene_model_draw.scene_model_idx];
-            if( !scene_model->model )
-                break;
-
-            // Calculate world position from region coordinates
-            float position_x = scene_model->region_x + scene_model->offset_x;
-            float position_y = scene_model->region_height + scene_model->offset_height;
-            float position_z = scene_model->region_z + scene_model->offset_z;
-
-            // Convert yaw from game units to radians
-            float yaw_radians = (scene_model->yaw * 2.0f * M_PI) / 2048.0f;
-
-            // Draw the model
-            pix3dgl_model_draw(
-                renderer->pix3dgl,
-                gfx_op->_scene_model_draw.scene_model_idx,
-                position_x,
-                position_y,
-                position_z,
-                yaw_radians);
         }
         break;
         default:

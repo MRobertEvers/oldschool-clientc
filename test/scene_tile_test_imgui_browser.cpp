@@ -1075,38 +1075,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         0x000000FF,
         0xFF000000);
 
-    if( surface )
-    {
-        // Debug: Log every 60 frames
-        if( debug_frame_count % 60 == 0 )
-        {
-            printf(
-                "DEBUG: Frame %d - Pixel buffer updated, texture size: %dx%d\n",
-                debug_frame_count,
-                SCREEN_WIDTH,
-                SCREEN_HEIGHT);
-
-            // Check if pixel buffer has non-zero content
-            int non_zero_pixels = 0;
-            for( int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++ )
-            {
-                if( pixel_buffer[i] != 0 )
-                {
-                    non_zero_pixels++;
-                }
-            }
-            printf(
-                "DEBUG: Non-zero pixels: %d out of %d total\n",
-                non_zero_pixels,
-                SCREEN_WIDTH * SCREEN_HEIGHT);
-        }
-    }
-    else
-    {
-        printf("ERROR: Failed to create SDL surface from pixel buffer\n");
-        return;
-    }
-
     // Draw debug text for camera position and rotation
     // printf(
     //     "Camera: x=%d y=%d z=%d pitch=%d yaw=%d\n",

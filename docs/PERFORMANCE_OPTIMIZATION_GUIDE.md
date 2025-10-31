@@ -241,8 +241,7 @@ void render_scene_optimized(struct Renderer* renderer, struct Game* game)
     );
 
     if (should_sort) {
-        printf("Frame %d: Resorting (dist=%.2f, angle=%.3f)\n",
-               frame_count, sqrt(dist_sq), angle_diff);
+
 
         // START BATCH
         pix3dgl_scene_static_begin_face_order_batch(renderer->pix3dgl);
