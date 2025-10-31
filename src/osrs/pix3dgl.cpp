@@ -2,6 +2,7 @@
 #include "pix3dgl.h"
 
 #include "graphics/uv_pnm.h"
+#include "pix3dglcore.u.cpp"
 #include "scene_cache.h"
 #include "shared_tables.h"
 
@@ -357,6 +358,9 @@ struct Pix3DGL
 
     // Static scene buffer for efficient rendering of static geometry
     StaticScene* static_scene;
+
+    // Core buffers for the new unified loading system
+    Pix3DGLCoreBuffers* core_buffers;
 };
 
 // CPU-side matrix computation functions for performance
@@ -420,467 +424,6 @@ compute_projection_matrix(float* out_matrix, float fov, float screen_width, floa
     out_matrix[13] = 0.0f;
     out_matrix[14] = -1.0f;
     out_matrix[15] = 0.0f;
-}
-
-extern "C" void
-pix3dgl_model_load_textured_pnm(
-    struct Pix3DGL* pix3dgl,
-    int idx,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int face_count,
-    int* face_infos,
-    int* face_alphas,
-    int* face_textures,
-    int* face_texture_faces_nullable,
-    int* face_p_coordinate_nullable,
-    int* face_m_coordinate_nullable,
-    int* face_n_coordinate_nullable,
-    int* face_colors_a,
-    int* face_colors_b,
-    int* face_colors_c)
-{
-    GLModel gl_model;
-    gl_model.idx = idx;
-    gl_model.face_count = face_count;
-    gl_model.has_textures = true;
-    gl_model.first_texture_id = -1;
-
-    // Store face texture IDs, shading types, and visibility
-    gl_model.face_textures.resize(face_count);
-    gl_model.face_visible.resize(face_count);
-    gl_model.face_shading.resize(face_count);
-    for( int face = 0; face < face_count; face++ )
-    {
-        gl_model.face_textures[face] = face_textures ? face_textures[face] : -1;
-
-        // Check if face should be drawn
-        // Don't draw if face_infos == 2 or face_colors_c == -2
-        bool should_draw = true;
-        if( face_infos && face_infos[face] == 2 )
-        {
-            should_draw = false;
-        }
-        if( face_colors_c && face_colors_c[face] == -2 )
-        {
-            should_draw = false;
-        }
-        gl_model.face_visible[face] = should_draw;
-
-        // Determine shading type based on texture and color data
-        if( face_textures && face_textures[face] != -1 )
-        {
-            gl_model.face_shading[face] = SHADING_TEXTURED;
-        }
-        else if( face_colors_c && face_colors_c[face] == -1 )
-        {
-            // face_colors_c == -1 means flat shading (all vertices same color)
-            gl_model.face_shading[face] = SHADING_FLAT;
-        }
-        else
-        {
-            // Gouraud shading (interpolated vertex colors)
-            gl_model.face_shading[face] = SHADING_GOURAUD;
-        }
-
-        // Find the first valid texture ID
-        if( face_textures && face_textures[face] != -1 && gl_model.first_texture_id == -1 )
-        {
-            gl_model.first_texture_id = face_textures[face];
-        }
-    }
-
-    // Create VAO on desktop platforms for better performance
-    glGenVertexArrays(1, &gl_model.VAO);
-    glBindVertexArray(gl_model.VAO);
-
-    // Create buffers
-    glGenBuffers(1, &gl_model.VBO);
-    glGenBuffers(1, &gl_model.colorVBO);
-    glGenBuffers(1, &gl_model.texCoordVBO);
-    glGenBuffers(1, &gl_model.EBO);
-
-    // Allocate arrays for vertex data
-    std::vector<float> vertices(face_count * 9);  // 3 vertices * 3 coordinates per face
-    std::vector<float> colors(face_count * 9);    // 3 vertices * 3 colors per face
-    std::vector<float> texCoords(face_count * 6); // 3 vertices * 2 UV coords per face
-
-    // Track min/max for debugging
-    float min_x = 1e6, max_x = -1e6, min_y = 1e6, max_y = -1e6, min_z = 1e6, max_z = -1e6;
-
-    // Build vertex, color, and texture coordinate data
-    for( int face = 0; face < face_count; face++ )
-    {
-        // Get the vertex indices for this face
-        int v_a = face_indices_a[face];
-        int v_b = face_indices_b[face];
-        int v_c = face_indices_c[face];
-
-        // Get vertex positions
-        vertices[face * 9 + 0] = vertices_x[v_a];
-        vertices[face * 9 + 1] = vertices_y[v_a];
-        vertices[face * 9 + 2] = vertices_z[v_a];
-
-        vertices[face * 9 + 3] = vertices_x[v_b];
-        vertices[face * 9 + 4] = vertices_y[v_b];
-        vertices[face * 9 + 5] = vertices_z[v_b];
-
-        vertices[face * 9 + 6] = vertices_x[v_c];
-        vertices[face * 9 + 7] = vertices_y[v_c];
-        vertices[face * 9 + 8] = vertices_z[v_c];
-
-        // Track bounds
-        for( int i = 0; i < 3; i++ )
-        {
-            float x = vertices[face * 9 + i * 3];
-            float y = vertices[face * 9 + i * 3 + 1];
-            float z = vertices[face * 9 + i * 3 + 2];
-            if( x < min_x )
-                min_x = x;
-            if( x > max_x )
-                max_x = x;
-            if( y < min_y )
-                min_y = y;
-            if( y > max_y )
-                max_y = y;
-            if( z < min_z )
-                min_z = z;
-            if( z > max_z )
-                max_z = z;
-        }
-
-        // Get vertex colors (HSL to RGB conversion)
-        int hsl_a = face_colors_a[face];
-        int hsl_b = face_colors_b[face];
-        int hsl_c = face_colors_c[face];
-
-        // Check if this is flat shading (face_colors_c == -1)
-        // If so, use face_colors_a for all three vertices
-        int rgb_a, rgb_b, rgb_c;
-        if( hsl_c == -1 )
-        {
-            // Flat shading - all vertices use the same color
-            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
-        }
-        else
-        {
-            // Gouraud shading - each vertex has its own color
-            rgb_a = g_hsl16_to_rgb_table[hsl_a];
-            rgb_b = g_hsl16_to_rgb_table[hsl_b];
-            rgb_c = g_hsl16_to_rgb_table[hsl_c];
-        }
-
-        // Store colors for this face's vertices
-        colors[face * 9 + 0] = ((rgb_a >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 2] = (rgb_a & 0xFF) / 255.0f;
-
-        colors[face * 9 + 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 4] = ((rgb_b >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 5] = (rgb_b & 0xFF) / 255.0f;
-
-        colors[face * 9 + 6] = ((rgb_c >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
-
-        // Compute UV coordinates using PNM method
-        // Determine which vertices define the texture space (P, M, N)
-        int texture_face = -1;
-        int tp_vertex = -1;
-        int tm_vertex = -1;
-        int tn_vertex = -1;
-
-        if( face_textures[face] != -1 )
-        {
-            if( face_texture_faces_nullable && face_texture_faces_nullable[face] != -1 )
-            {
-                // Use custom texture space definition
-                texture_face = face_texture_faces_nullable[face];
-                tp_vertex = face_p_coordinate_nullable[texture_face];
-                tm_vertex = face_m_coordinate_nullable[texture_face];
-                tn_vertex = face_n_coordinate_nullable[texture_face];
-            }
-            else
-            {
-                // Default: use the face's own vertices as texture space
-                tp_vertex = v_a;
-                tm_vertex = v_b;
-                tn_vertex = v_c;
-            }
-
-            // Get the PNM triangle vertices that define texture space
-            float p_x = vertices_x[tp_vertex];
-            float p_y = vertices_y[tp_vertex];
-            float p_z = vertices_z[tp_vertex];
-
-            float m_x = vertices_x[tm_vertex];
-            float m_y = vertices_y[tm_vertex];
-            float m_z = vertices_z[tm_vertex];
-
-            float n_x = vertices_x[tn_vertex];
-            float n_y = vertices_y[tn_vertex];
-            float n_z = vertices_z[tn_vertex];
-
-            // Get the actual face vertices (A, B, C) for UV computation
-            float a_x = vertices_x[v_a];
-            float a_y = vertices_y[v_a];
-            float a_z = vertices_z[v_a];
-
-            float b_x = vertices_x[v_b];
-            float b_y = vertices_y[v_b];
-            float b_z = vertices_z[v_b];
-
-            float c_x = vertices_x[v_c];
-            float c_y = vertices_y[v_c];
-            float c_z = vertices_z[v_c];
-
-            // Compute UV coordinates
-            struct UVFaceCoords uv_pnm;
-            uv_pnm_compute(
-                &uv_pnm,
-                p_x,
-                p_y,
-                p_z,
-                m_x,
-                m_y,
-                m_z,
-                n_x,
-                n_y,
-                n_z,
-                a_x,
-                a_y,
-                a_z,
-                b_x,
-                b_y,
-                b_z,
-                c_x,
-                c_y,
-                c_z);
-
-            // Store UV coordinates
-            texCoords[face * 6 + 0] = uv_pnm.u1;
-            texCoords[face * 6 + 1] = uv_pnm.v1;
-            texCoords[face * 6 + 2] = uv_pnm.u2;
-            texCoords[face * 6 + 3] = uv_pnm.v2;
-            texCoords[face * 6 + 4] = uv_pnm.u3;
-            texCoords[face * 6 + 5] = uv_pnm.v3;
-        }
-    }
-
-    // Upload vertex data to GPU
-    glBindBuffer(GL_ARRAY_BUFFER, gl_model.VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-    // Set up vertex attributes when using VAO on desktop
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Upload color data to GPU
-    glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
-    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-    // Set up color attributes when using VAO on desktop (RGBA: 4 floats per vertex)
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-
-    // Upload texture coordinate data to GPU
-    glBindBuffer(GL_ARRAY_BUFFER, gl_model.texCoordVBO);
-    glBufferData(
-        GL_ARRAY_BUFFER, texCoords.size() * sizeof(float), texCoords.data(), GL_STATIC_DRAW);
-    // Set up texture coordinate attributes when using VAO on desktop
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(2);
-
-    // Unbind VAO to avoid accidental modifications
-    glBindVertexArray(0);
-
-    // Store the model in the map
-    pix3dgl->models[idx] = gl_model;
-}
-
-extern "C" void
-pix3dgl_model_load(
-    struct Pix3DGL* pix3dgl,
-    int idx,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int face_count,
-    int* face_alphas,
-    int* face_colors_a,
-    int* face_colors_b,
-    int* face_colors_c)
-{
-    GLModel gl_model;
-    gl_model.idx = idx;
-    gl_model.face_count = face_count;
-    gl_model.has_textures = false;
-    gl_model.first_texture_id = -1;
-
-    // No textures in this model
-    gl_model.face_textures.resize(face_count, -1);
-
-    // Check which faces should be visible and determine shading type
-    gl_model.face_visible.resize(face_count);
-    gl_model.face_shading.resize(face_count);
-    for( int face = 0; face < face_count; face++ )
-    {
-        gl_model.face_visible[face] = !(face_colors_c && face_colors_c[face] == -2);
-
-        // Determine shading type based on color data
-        if( face_colors_c && face_colors_c[face] == -1 )
-        {
-            // face_colors_c == -1 means flat shading (all vertices same color)
-            gl_model.face_shading[face] = SHADING_FLAT;
-        }
-        else
-        {
-            // Gouraud shading (interpolated vertex colors)
-            gl_model.face_shading[face] = SHADING_GOURAUD;
-        }
-    }
-
-    // Create VAO on desktop platforms for better performance
-    glGenVertexArrays(1, &gl_model.VAO);
-    glBindVertexArray(gl_model.VAO);
-
-    // Create buffers
-    glGenBuffers(1, &gl_model.VBO);
-    glGenBuffers(1, &gl_model.colorVBO);
-    glGenBuffers(1, &gl_model.texCoordVBO);
-    glGenBuffers(1, &gl_model.EBO);
-
-    std::vector<float> vertices(face_count * 9); // 3 vertices * 3 coordinates per face
-
-    // Track min/max for debugging
-    float min_x = 1e6, max_x = -1e6, min_y = 1e6, max_y = -1e6, min_z = 1e6, max_z = -1e6;
-
-    for( int face = 0; face < face_count; face++ )
-    {
-        int v_a = face_indices_a[face];
-        int v_b = face_indices_b[face];
-        int v_c = face_indices_c[face];
-
-        vertices[face * 9] = vertices_x[v_a];
-        vertices[face * 9 + 1] = vertices_y[v_a];
-        vertices[face * 9 + 2] = vertices_z[v_a];
-
-        vertices[face * 9 + 3] = vertices_x[v_b];
-        vertices[face * 9 + 4] = vertices_y[v_b];
-        vertices[face * 9 + 5] = vertices_z[v_b];
-
-        vertices[face * 9 + 6] = vertices_x[v_c];
-        vertices[face * 9 + 7] = vertices_y[v_c];
-        vertices[face * 9 + 8] = vertices_z[v_c];
-
-        // Track bounds
-        for( int i = 0; i < 3; i++ )
-        {
-            float x = vertices[face * 9 + i * 3];
-            float y = vertices[face * 9 + i * 3 + 1];
-            float z = vertices[face * 9 + i * 3 + 2];
-            if( x < min_x )
-                min_x = x;
-            if( x > max_x )
-                max_x = x;
-            if( y < min_y )
-                min_y = y;
-            if( y > max_y )
-                max_y = y;
-            if( z < min_z )
-                min_z = z;
-            if( z > max_z )
-                max_z = z;
-        }
-    }
-
-    printf(
-        "Model %d bounds: X[%.1f, %.1f] Y[%.1f, %.1f] Z[%.1f, %.1f]\n",
-        idx,
-        min_x,
-        max_x,
-        min_y,
-        max_y,
-        min_z,
-        max_z);
-
-    glBindBuffer(GL_ARRAY_BUFFER, gl_model.VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-    // Set up vertex attributes when using VAO on desktop
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Create and setup color buffer - one color per vertex per face
-    std::vector<float> colors(face_count * 9); // 3 vertices * 3 colors per face
-
-    for( int face = 0; face < face_count; face++ )
-    {
-        int a_x = face_indices_a[face];
-        int a_y = face_indices_a[face];
-        int a_z = face_indices_a[face];
-
-        int b_x = face_indices_b[face];
-        int b_y = face_indices_b[face];
-        int b_z = face_indices_b[face];
-
-        int c_x = face_indices_c[face];
-        int c_y = face_indices_c[face];
-        int c_z = face_indices_c[face];
-
-        // Get the HSL colors for each vertex of the face
-        int hsl_a = face_colors_a[face];
-        int hsl_b = face_colors_b[face];
-        int hsl_c = face_colors_c[face];
-
-        // Check if this is flat shading (face_colors_c == -1)
-        // If so, use face_colors_a for all three vertices
-        int rgb_a, rgb_b, rgb_c;
-        if( hsl_c == -1 )
-        {
-            // Flat shading - all vertices use the same color
-            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
-        }
-        else
-        {
-            // Gouraud shading - each vertex has its own color
-            rgb_a = g_hsl16_to_rgb_table[hsl_a];
-            rgb_b = g_hsl16_to_rgb_table[hsl_b];
-            rgb_c = g_hsl16_to_rgb_table[hsl_c];
-        }
-
-        // Store colors for this face's vertices
-        // First vertex color
-        colors[face * 9] = ((rgb_a >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 1] = ((rgb_a >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 2] = (rgb_a & 0xFF) / 255.0f;
-
-        // Second vertex color
-        colors[face * 9 + 3] = ((rgb_b >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 4] = ((rgb_b >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 5] = (rgb_b & 0xFF) / 255.0f;
-
-        // Third vertex color
-        colors[face * 9 + 6] = ((rgb_c >> 16) & 0xFF) / 255.0f;
-        colors[face * 9 + 7] = ((rgb_c >> 8) & 0xFF) / 255.0f;
-        colors[face * 9 + 8] = (rgb_c & 0xFF) / 255.0f;
-    }
-
-    glBindBuffer(GL_ARRAY_BUFFER, gl_model.colorVBO);
-    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
-    // Set up color attributes when using VAO on desktop
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-
-    // Unbind VAO to avoid accidental modifications
-    glBindVertexArray(0);
-
-    // Store the model in the map
-    pix3dgl->models[idx] = gl_model;
 }
 
 // Helper function to compile shaders
@@ -951,6 +494,13 @@ pix3dgl_new()
 
     // Initialize static scene
     pix3dgl->static_scene = nullptr;
+
+    // Initialize core buffers
+    pix3dgl->core_buffers = new Pix3DGLCoreBuffers();
+    pix3dgl->core_buffers->total_vertex_count = 0;
+    pix3dgl->core_buffers->atlas_tiles_per_row = 0;
+    pix3dgl->core_buffers->atlas_tile_size = 0;
+    pix3dgl->core_buffers->atlas_size = 0;
 
     // Initialize animation clock
     pix3dgl->animation_clock = 0.0f;
@@ -2479,6 +2029,7 @@ pix3dgl_scene_static_load_tile(
     }
 }
 
+// Wrapper function that adapts Pix3DGL to work with the core function
 extern "C" void
 pix3dgl_scene_static_load_model(
     struct Pix3DGL* pix3dgl,
@@ -2505,9 +2056,9 @@ pix3dgl_scene_static_load_model(
     float position_z,
     float yaw)
 {
-    if( !pix3dgl || !pix3dgl->static_scene )
+    if( !pix3dgl || !pix3dgl->static_scene || !pix3dgl->core_buffers )
     {
-        printf("Static scene not initialized\n");
+        printf("Static scene or core buffers not initialized\n");
         return;
     }
 
@@ -2518,335 +2069,127 @@ pix3dgl_scene_static_load_model(
     }
 
     StaticScene* scene = pix3dgl->static_scene;
+    Pix3DGLCoreBuffers* buffers = pix3dgl->core_buffers;
 
-    // Create transformation matrix for this model instance
-    float cos_yaw = cos(yaw);
-    float sin_yaw = sin(yaw);
+    // Sync data from scene to core buffers before calling core function
+    buffers->vertices = scene->vertices;
+    buffers->colors = scene->colors;
+    buffers->texCoords = scene->texCoords;
+    buffers->textureIds = scene->textureIds;
+    buffers->textureOpaques = scene->textureOpaques;
+    buffers->textureAnimSpeeds = scene->textureAnimSpeeds;
+    buffers->total_vertex_count = scene->total_vertex_count;
 
-    int current_vertex_index = scene->total_vertex_count;
-    int start_vertex_index = current_vertex_index;
+    // Update atlas info from pix3dgl
+    buffers->texture_to_atlas_slot = pix3dgl->texture_to_atlas_slot;
+    buffers->texture_to_opaque = pix3dgl->texture_to_opaque;
+    buffers->texture_to_animation_speed = pix3dgl->texture_to_animation_speed;
+    buffers->atlas_tiles_per_row = pix3dgl->atlas_tiles_per_row;
+    buffers->atlas_tile_size = pix3dgl->atlas_tile_size;
+    buffers->atlas_size = pix3dgl->atlas_size;
 
-    // Temporary storage for face positions (will be moved to ModelRange later)
-    // Pre-allocate with size of face_count to maintain face index mapping
-    std::vector<FaceRange> face_ranges(face_count);
-
-    // Initialize all face ranges with invalid start_vertex (-1)
-    for( int i = 0; i < face_count; i++ )
+    // Convert texture_batches from DrawBatch to Pix3DGLCoreDrawBatch
+    buffers->texture_batches.clear();
+    for( auto& pair : scene->texture_batches )
     {
-        face_ranges[i].start_vertex = -1;
-        face_ranges[i].face_index = i;
+        Pix3DGLCoreDrawBatch batch;
+        batch.texture_id = pair.second.texture_id;
+        batch.face_starts = pair.second.face_starts;
+        batch.face_counts = pair.second.face_counts;
+        buffers->texture_batches[pair.first] = batch;
     }
 
-    // Process each face
-    for( int face = 0; face < face_count; face++ )
+    // Convert model_ranges from ModelRange to Pix3DGLCoreModelRange
+    buffers->model_ranges.clear();
+    for( auto& pair : scene->model_ranges )
     {
-        // Check if face should be drawn
-        bool should_draw = true;
-        if( face_infos_nullable && face_infos_nullable[face] == 2 )
+        Pix3DGLCoreModelRange range;
+        range.scene_model_idx = pair.second.scene_model_idx;
+        range.start_vertex = pair.second.start_vertex;
+        range.vertex_count = pair.second.vertex_count;
+        range.faces.reserve(pair.second.faces.size());
+        for( const auto& face : pair.second.faces )
         {
-            should_draw = false;
+            Pix3DGLCoreFaceRange core_face;
+            core_face.start_vertex = face.start_vertex;
+            core_face.face_index = face.face_index;
+            range.faces.push_back(core_face);
         }
-        if( face_colors_hsl_c && face_colors_hsl_c[face] == -2 )
-        {
-            should_draw = false;
-        }
-
-        if( !should_draw )
-            continue;
-
-        int face_start_index = current_vertex_index;
-
-        // Get vertex indices
-        int v_a = face_indices_a[face];
-        int v_b = face_indices_b[face];
-        int v_c = face_indices_c[face];
-
-        // Transform and add vertices
-        int vertex_indices[] = { v_a, v_b, v_c };
-        for( int v = 0; v < 3; v++ )
-        {
-            int vertex_idx = vertex_indices[v];
-
-            // Get original vertex position
-            float x = vertices_x[vertex_idx];
-            float y = vertices_y[vertex_idx];
-            float z = vertices_z[vertex_idx];
-
-            // Apply transformation (rotation + translation)
-            float tx = cos_yaw * x + sin_yaw * z + position_x;
-            float ty = y + position_y;
-            float tz = -sin_yaw * x + cos_yaw * z + position_z;
-
-            // Append transformed vertex
-            scene->vertices.push_back(tx);
-            scene->vertices.push_back(ty);
-            scene->vertices.push_back(tz);
-        }
-
-        // Get and convert colors
-        int hsl_a = face_colors_hsl_a[face];
-        int hsl_b = face_colors_hsl_b[face];
-        int hsl_c = face_colors_hsl_c[face];
-
-        int rgb_a, rgb_b, rgb_c;
-        if( hsl_c == -1 )
-        {
-            // Flat shading
-            rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
-        }
-        else
-        {
-            // Gouraud shading
-            rgb_a = g_hsl16_to_rgb_table[hsl_a];
-            rgb_b = g_hsl16_to_rgb_table[hsl_b];
-            rgb_c = g_hsl16_to_rgb_table[hsl_c];
-        }
-
-        // Calculate face alpha (0xFF = fully opaque, 0x00 = fully transparent)
-        // Convert from 0-255 to 0.0-1.0
-        float face_alpha = 1.0f;
-        int alpha_byte = 0xFF;
-        if( face_alphas_nullable )
-        {
-            alpha_byte = face_alphas_nullable[face];
-            // For untextured faces, invert as per render.c
-            face_alpha = (0xFF - (alpha_byte & 0xFF)) / 255.0f;
-        }
-
-        // Store colors with alpha (RGBA: 4 floats per vertex)
-        scene->colors.push_back(((rgb_a >> 16) & 0xFF) / 255.0f);
-        scene->colors.push_back(((rgb_a >> 8) & 0xFF) / 255.0f);
-        scene->colors.push_back((rgb_a & 0xFF) / 255.0f);
-        scene->colors.push_back(face_alpha);
-
-        scene->colors.push_back(((rgb_b >> 16) & 0xFF) / 255.0f);
-        scene->colors.push_back(((rgb_b >> 8) & 0xFF) / 255.0f);
-        scene->colors.push_back((rgb_b & 0xFF) / 255.0f);
-        scene->colors.push_back(face_alpha);
-
-        scene->colors.push_back(((rgb_c >> 16) & 0xFF) / 255.0f);
-        scene->colors.push_back(((rgb_c >> 8) & 0xFF) / 255.0f);
-        scene->colors.push_back((rgb_c & 0xFF) / 255.0f);
-        scene->colors.push_back(face_alpha);
-
-        // Declare texture variables at face loop scope
-        int texture_id = -1;
-        int atlas_slot = -1;
-
-        // Compute UV coordinates if textured
-        if( face_textures_nullable && face_textures_nullable[face] != -1 )
-        {
-            // Determine texture space vertices (P, M, N)
-            int tp_vertex = v_a;
-            int tm_vertex = v_b;
-            int tn_vertex = v_c;
-
-            if( face_texture_coords_nullable && face_texture_coords_nullable[face] != -1 )
-            {
-                int texture_face = face_texture_coords_nullable[face];
-                tp_vertex = textured_p_coordinate_nullable[texture_face];
-                tm_vertex = textured_m_coordinate_nullable[texture_face];
-                tn_vertex = textured_n_coordinate_nullable[texture_face];
-            }
-
-            // Get PNM vertices
-            float p_x = vertices_x[tp_vertex];
-            float p_y = vertices_y[tp_vertex];
-            float p_z = vertices_z[tp_vertex];
-
-            float m_x = vertices_x[tm_vertex];
-            float m_y = vertices_y[tm_vertex];
-            float m_z = vertices_z[tm_vertex];
-
-            float n_x = vertices_x[tn_vertex];
-            float n_y = vertices_y[tn_vertex];
-            float n_z = vertices_z[tn_vertex];
-
-            // Get face vertices
-            float a_x = vertices_x[v_a];
-            float a_y = vertices_y[v_a];
-            float a_z = vertices_z[v_a];
-
-            float b_x = vertices_x[v_b];
-            float b_y = vertices_y[v_b];
-            float b_z = vertices_z[v_b];
-
-            float c_x = vertices_x[v_c];
-            float c_y = vertices_y[v_c];
-            float c_z = vertices_z[v_c];
-
-            struct UVFaceCoords uv_pnm;
-            uv_pnm_compute(
-                &uv_pnm,
-                p_x,
-                p_y,
-                p_z,
-                m_x,
-                m_y,
-                m_z,
-                n_x,
-                n_y,
-                n_z,
-                a_x,
-                a_y,
-                a_z,
-                b_x,
-                b_y,
-                b_z,
-                c_x,
-                c_y,
-                c_z);
-
-            // Get atlas slot for this texture
-            texture_id = face_textures_nullable ? face_textures_nullable[face] : -1;
-
-            if( texture_id != -1 )
-            {
-                auto tex_it = pix3dgl->texture_ids.find(texture_id);
-                if( tex_it != pix3dgl->texture_ids.end() )
-                {
-                    atlas_slot = tex_it->second;
-                }
-                else
-                {
-                    texture_id = -1;
-                }
-            }
-
-            // Calculate atlas UVs on CPU (once, not per-frame!)
-            if( atlas_slot >= 0 )
-            {
-                float tiles_per_row = (float)pix3dgl->atlas_tiles_per_row;
-                float tile_u = (float)(atlas_slot % pix3dgl->atlas_tiles_per_row);
-                float tile_v = (float)(atlas_slot / pix3dgl->atlas_tiles_per_row);
-                float tile_size = (float)pix3dgl->atlas_tile_size;
-                float atlas_size = (float)pix3dgl->atlas_size;
-
-                // Transform UVs to atlas space
-                scene->texCoords.push_back((tile_u + uv_pnm.u1) * tile_size / atlas_size);
-                scene->texCoords.push_back((tile_v + uv_pnm.v1) * tile_size / atlas_size);
-                scene->texCoords.push_back((tile_u + uv_pnm.u2) * tile_size / atlas_size);
-                scene->texCoords.push_back((tile_v + uv_pnm.v2) * tile_size / atlas_size);
-                scene->texCoords.push_back((tile_u + uv_pnm.u3) * tile_size / atlas_size);
-                scene->texCoords.push_back((tile_v + uv_pnm.v3) * tile_size / atlas_size);
-            }
-            else
-            {
-                // No valid atlas slot, store dummy UVs
-                scene->texCoords.push_back(0.0f);
-                scene->texCoords.push_back(0.0f);
-                scene->texCoords.push_back(0.0f);
-                scene->texCoords.push_back(0.0f);
-                scene->texCoords.push_back(0.0f);
-                scene->texCoords.push_back(0.0f);
-            }
-
-            // Store texture ID (atlas slot) for each vertex
-            scene->textureIds.push_back(atlas_slot);
-            scene->textureIds.push_back(atlas_slot);
-            scene->textureIds.push_back(atlas_slot);
-
-            // Store texture opaque flag for each vertex
-            float is_opaque = 1.0f; // Default to opaque
-            if( texture_id != -1 )
-            {
-                auto opaque_it = pix3dgl->texture_to_opaque.find(texture_id);
-                if( opaque_it != pix3dgl->texture_to_opaque.end() )
-                {
-                    is_opaque = opaque_it->second ? 1.0f : 0.0f;
-                }
-            }
-            scene->textureOpaques.push_back(is_opaque);
-            scene->textureOpaques.push_back(is_opaque);
-            scene->textureOpaques.push_back(is_opaque);
-
-            // Store texture animation speed for each vertex
-            float anim_speed = 0.0f; // Default to no animation
-            if( texture_id != -1 )
-            {
-                auto speed_it = pix3dgl->texture_to_animation_speed.find(texture_id);
-                if( speed_it != pix3dgl->texture_to_animation_speed.end() )
-                {
-                    anim_speed = speed_it->second;
-                }
-            }
-            scene->textureAnimSpeeds.push_back(anim_speed);
-            scene->textureAnimSpeeds.push_back(anim_speed);
-            scene->textureAnimSpeeds.push_back(anim_speed);
-
-            texture_id = (atlas_slot >= 0) ? texture_id : -1;
-        }
-        else
-        {
-            // Untextured face
-            texture_id = -1;
-            atlas_slot = -1;
-
-            scene->texCoords.push_back(0.0f);
-            scene->texCoords.push_back(0.0f);
-            scene->texCoords.push_back(0.0f);
-            scene->texCoords.push_back(0.0f);
-            scene->texCoords.push_back(0.0f);
-            scene->texCoords.push_back(0.0f);
-
-            scene->textureIds.push_back(atlas_slot);
-            scene->textureIds.push_back(atlas_slot);
-            scene->textureIds.push_back(atlas_slot);
-
-            // Untextured faces: opaque flag doesn't matter, use 1.0
-            scene->textureOpaques.push_back(1.0f);
-            scene->textureOpaques.push_back(1.0f);
-            scene->textureOpaques.push_back(1.0f);
-
-            // Untextured faces: no animation
-            scene->textureAnimSpeeds.push_back(0.0f);
-            scene->textureAnimSpeeds.push_back(0.0f);
-            scene->textureAnimSpeeds.push_back(0.0f);
-        }
-
-        DrawBatch& batch = scene->texture_batches[texture_id];
-        batch.texture_id = texture_id;
-
-        // Merge contiguous faces
-        if( !batch.face_starts.empty() &&
-            batch.face_starts.back() + batch.face_counts.back() == face_start_index )
-        {
-            batch.face_counts.back() += 3;
-        }
-        else
-        {
-            batch.face_starts.push_back(face_start_index);
-            batch.face_counts.push_back(3);
-        }
-
-        // Track this face's position in the buffer (use original face index)
-        face_ranges[face].start_vertex = face_start_index;
-        face_ranges[face].face_index = face;
-
-        current_vertex_index += 3;
+        buffers->model_ranges[pair.first] = range;
     }
 
-    scene->total_vertex_count = current_vertex_index;
+    // Call the core function
+    pix3dgl_scene_static_load_model_core(
+        buffers,
+        scene_model_idx,
+        vertices_x,
+        vertices_y,
+        vertices_z,
+        face_indices_a,
+        face_indices_b,
+        face_indices_c,
+        face_count,
+        face_textures_nullable,
+        face_texture_coords_nullable,
+        textured_p_coordinate_nullable,
+        textured_m_coordinate_nullable,
+        textured_n_coordinate_nullable,
+        face_colors_hsl_a,
+        face_colors_hsl_b,
+        face_colors_hsl_c,
+        face_infos_nullable,
+        face_alphas_nullable,
+        position_x,
+        position_y,
+        position_z,
+        yaw);
 
-    // Track the model's position in the buffer
-    int vertex_count = current_vertex_index - start_vertex_index;
-    if( vertex_count > 0 )
+    // Sync data back from core buffers to scene
+    scene->vertices = std::move(buffers->vertices);
+    scene->colors = std::move(buffers->colors);
+    scene->texCoords = std::move(buffers->texCoords);
+    scene->textureIds = std::move(buffers->textureIds);
+    scene->textureOpaques = std::move(buffers->textureOpaques);
+    scene->textureAnimSpeeds = std::move(buffers->textureAnimSpeeds);
+    scene->total_vertex_count = buffers->total_vertex_count;
+
+    // Convert back texture_batches
+    scene->texture_batches.clear();
+    for( auto& pair : buffers->texture_batches )
+    {
+        DrawBatch batch;
+        batch.texture_id = pair.second.texture_id;
+        batch.face_starts = std::move(pair.second.face_starts);
+        batch.face_counts = std::move(pair.second.face_counts);
+        scene->texture_batches[pair.first] = std::move(batch);
+    }
+
+    // Convert back model_ranges
+    scene->model_ranges.clear();
+    for( auto& pair : buffers->model_ranges )
     {
         ModelRange range;
-        range.scene_model_idx = scene_model_idx;
-        range.start_vertex = start_vertex_index;
-        range.vertex_count = vertex_count;
-        range.faces = std::move(face_ranges);
-        scene->model_ranges[scene_model_idx] = range;
-
-        printf(
-            "Added model %d to static scene: start=%d, count=%d, faces=%d (total %d vertices)\n",
-            scene_model_idx,
-            start_vertex_index,
-            vertex_count,
-            (int)range.faces.size(),
-            scene->total_vertex_count);
+        range.scene_model_idx = pair.second.scene_model_idx;
+        range.start_vertex = pair.second.start_vertex;
+        range.vertex_count = pair.second.vertex_count;
+        range.faces.reserve(pair.second.faces.size());
+        for( const auto& core_face : pair.second.faces )
+        {
+            FaceRange face;
+            face.start_vertex = core_face.start_vertex;
+            face.face_index = core_face.face_index;
+            range.faces.push_back(face);
+        }
+        scene->model_ranges[pair.first] = std::move(range);
     }
+
+    printf(
+        "Added model %d to static scene: start=%d, count=%d, faces=%d (total %d vertices)\n",
+        scene_model_idx,
+        buffers->model_ranges[scene_model_idx].start_vertex,
+        buffers->model_ranges[scene_model_idx].vertex_count,
+        (int)buffers->model_ranges[scene_model_idx].faces.size(),
+        scene->total_vertex_count);
 }
 
 // Animation support functions
@@ -4127,6 +3470,12 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
         if( pix3dgl->program_es2 )
         {
             glDeleteProgram(pix3dgl->program_es2);
+        }
+
+        // Clean up core buffers
+        if( pix3dgl->core_buffers )
+        {
+            delete pix3dgl->core_buffers;
         }
 
         delete pix3dgl;

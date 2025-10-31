@@ -593,67 +593,7 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
         }
         break;
         case GAME_GFX_OP_SCENE_MODEL_LOAD:
-        {
-            struct SceneModel* scene_model =
-                &game->scene->models[gfx_op->_scene_model_load.scene_model_idx];
-
-            // Check if the model has textures
-            if( scene_model->model->face_textures != NULL &&
-                scene_model->model->textured_face_count > 0 )
-            {
-                // Load all unique textures used by this model
-                for( int face = 0; face < scene_model->model->face_count; face++ )
-                {
-                    if( scene_model->model->face_textures[face] != -1 )
-                    {
-                        int texture_id = scene_model->model->face_textures[face];
-                        pix3dgl_load_texture(
-                            renderer->pix3dgl, texture_id, game->textures_cache, game->cache);
-                    }
-                }
-
-                // Load as textured model
-                pix3dgl_model_load_textured_pnm(
-                    renderer->pix3dgl,
-                    gfx_op->_scene_model_load.scene_model_idx,
-                    scene_model->model->vertices_x,
-                    scene_model->model->vertices_y,
-                    scene_model->model->vertices_z,
-                    scene_model->model->face_indices_a,
-                    scene_model->model->face_indices_b,
-                    scene_model->model->face_indices_c,
-                    scene_model->model->face_count,
-                    scene_model->model->face_infos,
-                    scene_model->model->face_alphas,
-                    scene_model->model->face_textures,
-                    scene_model->model->face_texture_coords,
-                    scene_model->model->textured_p_coordinate,
-                    scene_model->model->textured_m_coordinate,
-                    scene_model->model->textured_n_coordinate,
-                    scene_model->lighting->face_colors_hsl_a,
-                    scene_model->lighting->face_colors_hsl_b,
-                    scene_model->lighting->face_colors_hsl_c);
-            }
-            else
-            {
-                // Load as regular model without textures
-                pix3dgl_model_load(
-                    renderer->pix3dgl,
-                    gfx_op->_scene_model_load.scene_model_idx,
-                    scene_model->model->vertices_x,
-                    scene_model->model->vertices_y,
-                    scene_model->model->vertices_z,
-                    scene_model->model->face_indices_a,
-                    scene_model->model->face_indices_b,
-                    scene_model->model->face_indices_c,
-                    scene_model->model->face_count,
-                    scene_model->model->face_alphas,
-                    scene_model->lighting->face_colors_hsl_a,
-                    scene_model->lighting->face_colors_hsl_b,
-                    scene_model->lighting->face_colors_hsl_c);
-            }
-        }
-        break;
+            break;
         case GAME_GFX_OP_SCENE_MODEL_UNLOAD:
             // Noop
             break;

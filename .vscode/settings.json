@@ -143,6 +143,23 @@
         "scene.h": "c",
         "bounds_cylinder.h": "c",
         "lighting.h": "c",
-        "pix3dgl.h": "cpp"
+        "pix3dgl.h": "cpp",
+        "__tree": "cpp",
+        "list": "cpp",
+        "span": "cpp",
+        "valarray": "cpp",
+        "any": "cpp",
+        "barrier": "cpp",
+        "cfenv": "cpp",
+        "charconv": "cpp",
+        "cinttypes": "cpp",
+        "codecvt": "cpp",
+        "condition_variable": "cpp",
+        "forward_list": "cpp",
+        "fstream": "cpp",
+        "future": "cpp",
+        "iomanip": "cpp",
+        "shared_mutex": "cpp",
+        "strstream": "cpp"
     }
 }

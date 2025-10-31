@@ -1039,23 +1039,6 @@ main(int argc, char* argv[])
     game.scene_model = scene_model_new_lit_from_model(model, 0);
 
     // Load the model into Pix3DGL
-    if( game.scene_model && game.scene_model->model )
-    {
-        pix3dgl_model_load(
-            game.pix3dgl,
-            0, // model index
-            game.scene_model->model->vertices_x,
-            game.scene_model->model->vertices_y,
-            game.scene_model->model->vertices_z,
-            game.scene_model->model->face_indices_a,
-            game.scene_model->model->face_indices_b,
-            game.scene_model->model->face_indices_c,
-            game.scene_model->model->face_count,
-            game.scene_model->model->face_alphas,
-            game.scene_model->lighting->face_colors_hsl_a,
-            game.scene_model->lighting->face_colors_hsl_b,
-            game.scene_model->lighting->face_colors_hsl_c);
-    }
 
     int w_pressed = 0;
     int a_pressed = 0;
