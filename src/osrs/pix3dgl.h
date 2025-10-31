@@ -17,7 +17,6 @@ void pix3dgl_load_texture(
     struct TexturesCache* textures_cache,
     struct Cache* cache);
 
-void pix3dgl_render(struct Pix3DGL* pix3dgl);
 void pix3dgl_render_with_camera(
     struct Pix3DGL* pix3dgl,
     float camera_x,
@@ -27,47 +26,7 @@ void pix3dgl_render_with_camera(
     float camera_yaw,
     float screen_width,
     float screen_height);
-void pix3dgl_model_draw(
-    struct Pix3DGL* pix3dgl,
-    int model_idx,
-    float position_x,
-    float position_y,
-    float position_z,
-    float yaw);
-void pix3dgl_model_draw_face(
-    struct Pix3DGL* pix3dgl,
-    int model_idx,
-    int face_idx,
-    float position_x,
-    float position_y,
-    float position_z,
-    float yaw);
-void pix3dgl_model_begin_draw(
-    struct Pix3DGL* pix3dgl,
-    int model_idx,
-    float position_x,
-    float position_y,
-    float position_z,
-    float yaw);
-void pix3dgl_model_draw_face_fast(struct Pix3DGL* pix3dgl, int face_idx);
-void pix3dgl_model_end_draw(struct Pix3DGL* pix3dgl);
-void pix3dgl_tile_load(
-    struct Pix3DGL* pix3dgl,
-    int idx,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    int vertex_count,
-    int* faces_a,
-    int* faces_b,
-    int* faces_c,
-    int face_count,
-    int* valid_faces,
-    int* face_texture_ids,
-    int* face_color_hsl_a,
-    int* face_color_hsl_b,
-    int* face_color_hsl_c);
-void pix3dgl_tile_draw(struct Pix3DGL* pix3dgl, int tile_idx);
+
 void pix3dgl_begin_frame(
     struct Pix3DGL* pix3dgl,
     float camera_x,

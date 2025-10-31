@@ -583,16 +583,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
         glDisable(GL_DEPTH_TEST);
 
         glDisable(GL_CULL_FACE);
-
-        pix3dgl_render_with_camera(
-            game->pix3dgl,
-            (float)game->camera_x,
-            (float)game->camera_y,
-            (float)game->camera_z,
-            (float)game->camera_pitch,
-            (float)game->camera_yaw,
-            (float)platform->drawable_width,
-            (float)platform->drawable_height);
     }
 
     Uint64 end_ticks = SDL_GetPerformanceCounter();

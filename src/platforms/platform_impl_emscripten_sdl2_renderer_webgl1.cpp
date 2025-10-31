@@ -550,42 +550,6 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
         break;
         case GAME_GFX_OP_SCENE_TILE_LOAD:
         {
-            struct SceneTile* scene_tile =
-                &game->scene->scene_tiles[gfx_op->_scene_tile_load.scene_tile_idx];
-
-            if( scene_tile->face_texture_ids != NULL && scene_tile->face_count > 0 )
-            {
-                // Load all unique textures used by this model
-                for( int face = 0; face < scene_tile->face_count; face++ )
-                {
-                    if( scene_tile->face_texture_ids[face] != -1 )
-                    {
-                        int texture_id = scene_tile->face_texture_ids[face];
-                        pix3dgl_load_texture(
-                            renderer->pix3dgl,
-                            scene_tile->face_texture_ids[face],
-                            game->textures_cache,
-                            game->cache);
-                    }
-                }
-            }
-
-            pix3dgl_tile_load(
-                renderer->pix3dgl,
-                gfx_op->_scene_tile_load.scene_tile_idx,
-                scene_tile->vertex_x,
-                scene_tile->vertex_y,
-                scene_tile->vertex_z,
-                scene_tile->vertex_count,
-                scene_tile->faces_a,
-                scene_tile->faces_b,
-                scene_tile->faces_c,
-                scene_tile->face_count,
-                scene_tile->valid_faces,
-                scene_tile->face_texture_ids,
-                scene_tile->face_color_hsl_a,
-                scene_tile->face_color_hsl_b,
-                scene_tile->face_color_hsl_c);
         }
         break;
         case GAME_GFX_OP_SCENE_TILE_UNLOAD:
