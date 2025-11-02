@@ -3,6 +3,8 @@
 extern "C" {
 #include "graphics/render.h"
 #include "libgame.u.h"
+#include "osrs/anim.h"
+#include "osrs/scene_cache.h"
 }
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
@@ -102,6 +104,14 @@ render_scene(struct Renderer* renderer, struct Game* game)
     struct IterRenderModel iter_render_model;
     struct SceneModel* scene_model = NULL;
 
+    // Animate textures
+    struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
+    while( textures_cache_walk_next(walk) )
+    {
+        texture_animate(walk->texture, 1);
+    }
+    textures_cache_walk_free(walk);
+
     renderer->op_count = render_scene_compute_ops(
         renderer->ops,
         renderer->op_capacity,
@@ -157,6 +167,54 @@ render_scene(struct Renderer* renderer, struct Game* game)
             scene_model = iter_render_scene_ops.value.model_nullable_;
             if( !scene_model->model )
                 continue;
+
+            // Advance animations
+            struct CacheConfigSequence* sequence = scene_model->sequence;
+            if( sequence )
+            {
+                scene_model->anim_frame_count += 1;
+                if( scene_model->anim_frame_count >=
+                    sequence->frame_lengths[scene_model->anim_frame_step] )
+                {
+                    scene_model->anim_frame_count = 0;
+                    scene_model->anim_frame_step += 1;
+                    if( scene_model->anim_frame_step >= sequence->frame_count )
+                    {
+                        scene_model->anim_frame_step = 0;
+                    }
+                }
+                memcpy(
+                    scene_model->model->vertices_x,
+                    scene_model->original_vertices_x,
+                    sizeof(int) * scene_model->model->vertex_count);
+                memcpy(
+                    scene_model->model->vertices_y,
+                    scene_model->original_vertices_y,
+                    sizeof(int) * scene_model->model->vertex_count);
+                memcpy(
+                    scene_model->model->vertices_z,
+                    scene_model->original_vertices_z,
+                    sizeof(int) * scene_model->model->vertex_count);
+                if( scene_model->model->face_alphas )
+                    memcpy(
+                        scene_model->model->face_alphas,
+                        scene_model->original_face_alphas,
+                        sizeof(int) * scene_model->model->face_count);
+
+                anim_frame_apply(
+                    scene_model->frames[scene_model->anim_frame_step],
+                    scene_model->framemap,
+                    scene_model->model->vertices_x,
+                    scene_model->model->vertices_y,
+                    scene_model->model->vertices_z,
+                    scene_model->model->face_alphas,
+                    scene_model->vertex_bones->bones_count,
+                    scene_model->vertex_bones->bones,
+                    scene_model->vertex_bones->bones_sizes,
+                    scene_model->face_bones ? scene_model->face_bones->bones_count : 0,
+                    scene_model->face_bones ? scene_model->face_bones->bones : NULL,
+                    scene_model->face_bones ? scene_model->face_bones->bones_sizes : NULL);
+            }
 
             int yaw_adjust = 0;
             iter_render_model_init(
