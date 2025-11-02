@@ -668,6 +668,21 @@ void
 PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
     struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
+    // Handle window resize: update renderer dimensions
+    int window_width, window_height;
+    SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
+
+    // Only update if size changed
+    if( window_width != renderer->width || window_height != renderer->height )
+    {
+        renderer->width = window_width;
+        renderer->height = window_height;
+        printf("Window resized to %dx%d\n", window_width, window_height);
+    }
+
+    // Set viewport to match window size (important for both 3D rendering and ImGui)
+    glViewport(0, 0, renderer->width, renderer->height);
+
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
