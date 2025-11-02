@@ -688,6 +688,32 @@ extern "C" void
 PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
     struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
+    // Handle canvas resize: sync canvas resolution with CSS size
+    double css_width, css_height;
+    emscripten_get_element_css_size("#canvas", &css_width, &css_height);
+
+    int new_width = (int)css_width;
+    int new_height = (int)css_height;
+
+    // Only update if size changed
+    if( new_width != renderer->width || new_height != renderer->height )
+    {
+        renderer->width = new_width;
+        renderer->height = new_height;
+        emscripten_set_canvas_element_size("#canvas", new_width, new_height);
+
+        // Also update SDL window size so ImGui can pick up the correct dimensions
+        if( renderer->platform && renderer->platform->window )
+        {
+            SDL_SetWindowSize(renderer->platform->window, new_width, new_height);
+        }
+
+        printf("Canvas resized to %dx%d\n", new_width, new_height);
+    }
+
+    // Set viewport to match canvas size (important for both 3D rendering and ImGui)
+    glViewport(0, 0, renderer->width, renderer->height);
+
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

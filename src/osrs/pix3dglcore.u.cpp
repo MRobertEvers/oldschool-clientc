@@ -5,8 +5,8 @@
 #include <unordered_map>
 
 #include <algorithm>
-#include <vector>
 #include <math.h>
+#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -65,6 +65,8 @@ compute_projection_matrix(float* out_matrix, float fov, float screen_width, floa
     float x = y;
 
     // Column-major for OpenGL
+    // The 512.0f / (screen_width/2.0f) and 512.0f / (screen_height/2.0f) scaling
+    // already accounts for aspect ratio correctly for this renderer's coordinate system
     out_matrix[0] = x * 512.0f / (screen_width / 2.0f);
     out_matrix[1] = 0.0f;
     out_matrix[2] = 0.0f;

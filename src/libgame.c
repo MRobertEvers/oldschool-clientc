@@ -118,28 +118,8 @@ game_new(int flags, struct GameGfxOpList* gfx_op_list)
      * Init
      *
      */
-    // struct ModelCache* model_cache = NULL;
-    // struct CacheModel* model = NULL;
-    // model_cache = model_cache_new();
-
-    // model = model_cache_checkout(model_cache, cache, 14816);
 
     scenegfx_scene_load_map(game, 50, 50, gfx_op_list);
-
-    // game->scene_model = scene_model_new_lit_from_model(model, 0);
-
-    // game->textures_cache = textures_cache_new(cache);
-
-    // if( !game->scene_model->bounds_cylinder )
-    // {
-    //     game->scene_model->bounds_cylinder =
-    //         (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
-    //     *game->scene_model->bounds_cylinder = calculate_bounds_cylinder(
-    //         game->scene_model->model->vertex_count,
-    //         game->scene_model->model->vertices_x,
-    //         game->scene_model->model->vertices_y,
-    //         game->scene_model->model->vertices_z);
-    // }
 
     return game;
 }

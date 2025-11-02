@@ -1,42 +1,29 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="utf-8">
+  <head>
+    <meta charset="utf-8" />
     <title>3D Raster - Model Viewer FX</title>
     <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            background-color: #333;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            font-family: Arial, sans-serif;
-        }
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-        canvas {
-            border: 2px solid #666;
-            max-width: 90vw;
-            max-height: 80vh;
-            background-color: #000;
-        }
-        .title {
-            color: #fff;
-            margin-bottom: 10px;
-        }
+      body {
+        margin: 0;
+        background-color: #333;
+        min-height: 100vh;
+        font-family: Arial, sans-serif;
+      }
+
+      canvas {
+        background-color: #000;
+        width: 100%;
+        height: 100%;
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
     </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="title">3D Raster - Model Viewer FX</h1>
-        <canvas id="canvas" width="800" height="600"></canvas>
-    </div>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
     {{{ SCRIPT }}}
-</body>
+  </body>
 </html>

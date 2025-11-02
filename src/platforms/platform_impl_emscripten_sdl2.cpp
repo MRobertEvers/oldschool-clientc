@@ -5,6 +5,11 @@
 #include <stdio.h>
 #include <string.h>
 
+// Include ImGui SDL backend to process events (C++)
+#include "imgui_impl_sdl2.h"
+
+extern "C" {
+
 struct Platform*
 PlatformImpl_Emscripten_SDL2_New(void)
 {
@@ -40,8 +45,9 @@ PlatformImpl_Emscripten_SDL2_InitForSoft3D(
         SDL_WINDOWPOS_UNDEFINED,
         canvas_width,
         canvas_height,
-        SDL_WINDOW_SHOWN); // Use SHOWN instead of OPENGL for Emscripten - context created
-                           // separately
+        SDL_WINDOW_SHOWN |
+            SDL_WINDOW_RESIZABLE); // Use SHOWN instead of OPENGL for Emscripten - context created
+                                   // separately, RESIZABLE allows full-width canvas
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -75,6 +81,9 @@ PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIn
     SDL_Event event;
     while( SDL_PollEvent(&event) )
     {
+        // Forward events to ImGui for processing (mouse, keyboard, etc.)
+        ImGui_ImplSDL2_ProcessEvent(&event);
+
         switch( event.type )
         {
         case SDL_QUIT:
@@ -237,3 +246,5 @@ PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIn
         }
     }
 }
+
+} // extern "C"

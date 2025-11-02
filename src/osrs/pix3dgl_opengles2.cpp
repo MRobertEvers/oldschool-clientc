@@ -517,6 +517,8 @@ compute_projection_matrix(float* out_matrix, float fov, float screen_width, floa
     float x = y;
 
     // Column-major for OpenGL
+    // The 512.0f / (screen_width/2.0f) and 512.0f / (screen_height/2.0f) scaling
+    // already accounts for aspect ratio correctly for this renderer's coordinate system
     out_matrix[0] = x * 512.0f / (screen_width / 2.0f);
     out_matrix[1] = 0.0f;
     out_matrix[2] = 0.0f;
@@ -2852,18 +2854,6 @@ pix3dgl_scene_static_draw(struct Pix3DGL* pix3dgl)
 
     // Calculate ticks elapsed (animation clock is in seconds, each tick is 0.02 seconds at 50fps)
     int ticks_elapsed = (int)((current_clock - last_animation_clock) / 0.02f);
-
-    // Debug: Log clock progression every 60 frames (~1 second)
-    static int frame_counter = 0;
-    frame_counter++;
-    if( frame_counter % 60 == 0 && !scene->animated_models.empty() )
-    {
-        printf(
-            "[DEBUG] Clock: %.3f, Last: %.3f, Ticks: %d\n",
-            current_clock,
-            last_animation_clock,
-            ticks_elapsed);
-    }
 
     if( ticks_elapsed > 0 )
     {
