@@ -4,8 +4,8 @@ extern "C" {
 #include "libinput.h"
 }
 #include "platforms/platform_impl_osx_sdl2.h"
-#include "platforms/platform_impl_osx_sdl2_renderer_opengl3.h"
-// #include "platforms/platform_impl_osx_sdl2_renderer_soft3d.h"
+// #include "platforms/platform_impl_osx_sdl2_renderer_opengl3.h"
+#include "platforms/platform_impl_osx_sdl2_renderer_soft3d.h"
 
 #include <stdio.h>
 
@@ -19,20 +19,32 @@ main(int argc, char* argv[])
         return 1;
     }
 
-    if( !PlatformImpl_OSX_SDL2_InitForOpenGL3(platform, 1024, 768) )
+    // if( !PlatformImpl_OSX_SDL2_InitForOpenGL3(platform, 1024, 768) )
+    // {
+    //     printf("Failed to initialize platform\n");
+    //     return 1;
+    // }
+
+    if( !PlatformImpl_OSX_SDL2_InitForSoft3D(platform, 1024, 768) )
     {
         printf("Failed to initialize platform\n");
         return 1;
     }
 
-    struct Renderer* renderer = PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(1024, 768);
+    // struct Renderer* renderer = PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(1024, 768);
+    struct Renderer* renderer = PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(1024, 768, 1600, 900);
     if( !renderer )
     {
         printf("Failed to create renderer\n");
         return 1;
     }
 
-    if( !PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(renderer, platform) )
+    // if( !PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(renderer, platform) )
+    // {
+    //     printf("Failed to initialize renderer\n");
+    //     return 1;
+    // }
+    if( !PlatformImpl_OSX_SDL2_Renderer_Soft3D_Init(renderer, platform) )
     {
         printf("Failed to initialize renderer\n");
         return 1;
@@ -65,12 +77,14 @@ main(int argc, char* argv[])
 
         game_step_main_loop(game, input, gfx_op_list);
 
-        // PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, gfx_op_list);
-        PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(renderer, game, gfx_op_list);
+        PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, gfx_op_list);
+        // PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(renderer, game, gfx_op_list);
+
+        game_gfx_op_list_reset(gfx_op_list);
     }
 
-    // PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(renderer);
-    // PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(renderer);
+    PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(renderer);
+    PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(renderer);
     PlatformImpl_OSX_SDL2_Shutdown(platform);
     PlatformImpl_OSX_SDL2_Free(platform);
     game_free(game);

@@ -16,9 +16,12 @@ struct Renderer
 {
     SDL_Renderer* renderer;
     SDL_Texture* texture;
+    struct Platform* platform;
     int* pixel_buffer;
     int width;
     int height;
+    int max_width;
+    int max_height;
 
     struct SceneOp* ops;
     int op_count;
@@ -27,7 +30,8 @@ struct Renderer
     float time_delta_accumulator;
 };
 
-struct Renderer* PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height);
+struct Renderer*
+PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height, int max_width, int max_height);
 
 void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(struct Renderer* renderer);
 

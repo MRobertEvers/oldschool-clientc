@@ -323,12 +323,12 @@ render_scene(struct Renderer* renderer, struct Game* game)
 }
 
 struct Renderer*
-PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height)
+PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height, int max_width, int max_height)
 {
     struct Renderer* renderer = (struct Renderer*)malloc(sizeof(struct Renderer));
     memset(renderer, 0, sizeof(struct Renderer));
 
-    renderer->pixel_buffer = (int*)malloc(width * height * sizeof(int));
+    renderer->pixel_buffer = (int*)malloc(max_width * max_height * sizeof(int));
     if( !renderer->pixel_buffer )
     {
         printf("Failed to allocate pixel buffer\n");
@@ -338,6 +338,8 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height)
 
     renderer->width = width;
     renderer->height = height;
+    renderer->max_width = max_width;
+    renderer->max_height = max_height;
 
     renderer->op_capacity = 10900;
     renderer->ops = (struct SceneOp*)malloc(renderer->op_capacity * sizeof(struct SceneOp));
@@ -357,6 +359,8 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(struct Renderer* renderer)
 bool
 PlatformImpl_OSX_SDL2_Renderer_Soft3D_Init(struct Renderer* renderer, struct Platform* platform)
 {
+    renderer->platform = platform;
+
     renderer->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
     if( !renderer->renderer )
     {
@@ -407,7 +411,55 @@ void
 PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
     struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
+    // Handle window resize: update renderer dimensions up to max size
+    int window_width, window_height;
+    SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
+
+    // Clamp to maximum renderer size (pixel buffer allocation limit)
+    int new_width = window_width > renderer->max_width ? renderer->max_width : window_width;
+    int new_height = window_height > renderer->max_height ? renderer->max_height : window_height;
+
+    // Only update if size changed
+    if( new_width != renderer->width || new_height != renderer->height )
+    {
+        renderer->width = new_width;
+        renderer->height = new_height;
+
+        // Recreate texture with new dimensions
+        if( renderer->texture )
+        {
+            SDL_DestroyTexture(renderer->texture);
+        }
+
+        renderer->texture = SDL_CreateTexture(
+            renderer->renderer,
+            SDL_PIXELFORMAT_ARGB8888,
+            SDL_TEXTUREACCESS_STREAMING,
+            renderer->width,
+            renderer->height);
+
+        if( !renderer->texture )
+        {
+            printf(
+                "Failed to recreate texture for new size %dx%d\n",
+                renderer->width,
+                renderer->height);
+        }
+        else
+        {
+            printf(
+                "Window resized to %dx%d (max: %dx%d)\n",
+                renderer->width,
+                renderer->height,
+                renderer->max_width,
+                renderer->max_height);
+        }
+    }
+
     memset(renderer->pixel_buffer, 0, renderer->width * renderer->height * sizeof(int));
+    for( int y = 0; y < renderer->height; y++ )
+        memset(&renderer->pixel_buffer[y * renderer->width], 0, renderer->width * sizeof(int));
+
     SDL_RenderClear(renderer->renderer);
 
     for( int i = 0; i < gfx_op_list->op_count; i++ )
@@ -461,35 +513,45 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
 
     // Unlock the texture so that it may be used elsewhere
     SDL_UnlockTexture(renderer->texture);
-    // Calculate destination rectangle to scale the texture to the current drawable size
+
+    // window_width and window_height already retrieved at the top of function
+    // Calculate destination rectangle to scale the texture to fill the window
     SDL_Rect dst_rect;
     dst_rect.x = 0;
     dst_rect.y = 0;
-    dst_rect.w = renderer->width;
-    dst_rect.h = renderer->height;
+    dst_rect.w = window_width;
+    dst_rect.h = window_height;
 
-    // Use bilinear scaling when copying texture to renderer
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); // Enable bilinear filtering
-
-    // Calculate aspect ratio preserving dimensions
-    float src_aspect = (float)renderer->width / renderer->height;
-    float dst_aspect = (float)renderer->width / renderer->height;
-
-    if( src_aspect > dst_aspect )
+    // Use nearest neighbor (point) filtering when window is larger than rendered size
+    // This maintains crisp pixels when scaling up beyond max renderer size
+    if( window_width > renderer->width || window_height > renderer->height )
     {
-        // Source is wider - fit to width
-        dst_rect.w = renderer->width;
-        dst_rect.h = (int)(renderer->width / src_aspect);
-        dst_rect.x = 0;
-        dst_rect.y = (renderer->height - dst_rect.h) / 2;
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); // Nearest neighbor (point sampling)
     }
     else
     {
-        // Source is taller - fit to height
-        dst_rect.h = renderer->height;
-        dst_rect.w = (int)(renderer->height * src_aspect);
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); // Bilinear when scaling down
+    }
+
+    // Calculate aspect ratio preserving dimensions
+    float src_aspect = (float)renderer->width / (float)renderer->height;
+    float window_aspect = (float)window_width / (float)window_height;
+
+    if( src_aspect > window_aspect )
+    {
+        // Renderer is wider - fit to window width
+        dst_rect.w = window_width;
+        dst_rect.h = (int)(window_width / src_aspect);
+        dst_rect.x = 0;
+        dst_rect.y = (window_height - dst_rect.h) / 2;
+    }
+    else
+    {
+        // Renderer is taller - fit to window height
+        dst_rect.h = window_height;
+        dst_rect.w = (int)(window_height * src_aspect);
         dst_rect.y = 0;
-        dst_rect.x = (renderer->width - dst_rect.w) / 2;
+        dst_rect.x = (window_width - dst_rect.w) / 2;
     }
 
     SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
