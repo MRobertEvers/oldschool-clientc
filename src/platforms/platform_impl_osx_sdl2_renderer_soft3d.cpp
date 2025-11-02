@@ -98,19 +98,22 @@ render_imgui(struct Renderer* renderer, struct Game* game)
 }
 
 static void
-render_scene(struct Renderer* renderer, struct Game* game)
+render_scene(struct Renderer* renderer, struct Game* game, int deltas)
 {
     struct IterRenderSceneOps iter_render_scene_ops;
     struct IterRenderModel iter_render_model;
     struct SceneModel* scene_model = NULL;
 
-    // Animate textures
-    struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
-    while( textures_cache_walk_next(walk) )
+    // Animate textures - only advance for the number of game ticks that have passed
+    for( int i = 0; i < deltas; i++ )
     {
-        texture_animate(walk->texture, 1);
+        struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
+        while( textures_cache_walk_next(walk) )
+        {
+            texture_animate(walk->texture, 1);
+        }
+        textures_cache_walk_free(walk);
     }
-    textures_cache_walk_free(walk);
 
     renderer->op_count = render_scene_compute_ops(
         renderer->ops,
@@ -168,19 +171,22 @@ render_scene(struct Renderer* renderer, struct Game* game)
             if( !scene_model->model )
                 continue;
 
-            // Advance animations
+            // Advance animations - only advance for the number of game ticks that have passed
             struct CacheConfigSequence* sequence = scene_model->sequence;
             if( sequence )
             {
-                scene_model->anim_frame_count += 1;
-                if( scene_model->anim_frame_count >=
-                    sequence->frame_lengths[scene_model->anim_frame_step] )
+                for( int i = 0; i < deltas; i++ )
                 {
-                    scene_model->anim_frame_count = 0;
-                    scene_model->anim_frame_step += 1;
-                    if( scene_model->anim_frame_step >= sequence->frame_count )
+                    scene_model->anim_frame_count += 1;
+                    if( scene_model->anim_frame_count >=
+                        sequence->frame_lengths[scene_model->anim_frame_step] )
                     {
-                        scene_model->anim_frame_step = 0;
+                        scene_model->anim_frame_count = 0;
+                        scene_model->anim_frame_step += 1;
+                        if( scene_model->anim_frame_step >= sequence->frame_count )
+                        {
+                            scene_model->anim_frame_step = 0;
+                        }
                     }
                 }
                 memcpy(
@@ -469,6 +475,26 @@ void
 PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
     struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
+    // Calculate animation deltas - game runs at 50 FPS (20ms per tick)
+    static Uint64 last_frame_time = 0;
+    if( last_frame_time == 0 )
+    {
+        last_frame_time = SDL_GetTicks64();
+    }
+
+    Uint64 current_frame_time = SDL_GetTicks64();
+    const float time_delta_step = 0.02f; // 1/50th of a second = 20ms
+
+    renderer->time_delta_accumulator += (current_frame_time - last_frame_time) / 1000.0f;
+    last_frame_time = current_frame_time;
+
+    int deltas = 0;
+    while( renderer->time_delta_accumulator >= time_delta_step )
+    {
+        deltas += 1;
+        renderer->time_delta_accumulator -= time_delta_step;
+    }
+
     // Handle window resize: update renderer dimensions up to max size
     int window_width, window_height;
     SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
@@ -526,7 +552,7 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
         switch( gfx_op->kind )
         {
         case GAME_GFX_OP_SCENE_DRAW:
-            render_scene(renderer, game);
+            render_scene(renderer, game, deltas);
             break;
         case GAME_GFX_OP_SCENE_MODEL_LOAD:
             // Noop
