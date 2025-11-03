@@ -18,4 +18,7 @@ struct Dat2Archive
 
 int archive_name_hash(char* name);
 
+struct Dat2Archive* archive_new(int archive_id);
+void archive_free(struct Dat2Archive* archive);
+
 #endif

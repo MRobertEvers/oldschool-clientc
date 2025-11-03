@@ -376,13 +376,6 @@ render_scene(struct Renderer* renderer, struct Game* game)
         renderer->width,
         renderer->height);
 
-    // Depth testing disabled - using painter's algorithm for draw order
-    glDisable(GL_DEPTH_TEST);
-
-    // For transparency with painter's algorithm, we should also disable depth writes
-    // This prevents transparent objects from blocking objects behind them
-    glDepthMask(GL_FALSE);
-
     // Check if camera moved significantly (thresholds: 128 units = 1 tile, 12 degrees)
     int dx = game->camera_world_x - last_cam_x;
     int dy = game->camera_world_y - last_cam_y;
