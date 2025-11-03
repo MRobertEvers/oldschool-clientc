@@ -175,6 +175,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/world.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
@@ -230,6 +231,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c
@@ -283,6 +285,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c
@@ -344,6 +347,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c
@@ -426,6 +430,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/world.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
@@ -478,6 +483,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/world.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
@@ -555,6 +561,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c
@@ -618,6 +625,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c
@@ -870,6 +878,7 @@ if(APPLE)
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c

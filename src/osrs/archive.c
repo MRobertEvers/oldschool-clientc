@@ -43,6 +43,7 @@ archive_new(int archive_id)
     archive->data = NULL;
     archive->data_size = 0;
     archive->archive_id = archive_id;
+    return archive;
 }
 
 void

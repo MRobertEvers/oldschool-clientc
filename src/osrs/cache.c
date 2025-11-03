@@ -226,11 +226,11 @@ cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
 
     res = disk_dat2file_read_archive(
         cache->_dat2_file,
-        &dat2_archive,
         index_record.idx_file_id,
         index_record.archive_idx,
         index_record.sector,
-        index_record.length);
+        index_record.length,
+        &dat2_archive);
 
     if( res != 0 )
     {
@@ -325,11 +325,11 @@ cache_archive_new_load_decrypted(
     struct Dat2Archive dat2_archive = { 0 };
     int res = disk_dat2file_read_archive(
         cache->_dat2_file,
-        &dat2_archive,
         index_record.idx_file_id,
         index_record.archive_idx,
         index_record.sector,
-        index_record.length);
+        index_record.length,
+        &dat2_archive);
     if( res != 0 )
     {
         printf("Failed to read dat2 archive for table %d\n", table_id);

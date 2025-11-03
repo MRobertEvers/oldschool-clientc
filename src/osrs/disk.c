@@ -3,6 +3,8 @@
 #include "rsbuf.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define SECTOR_SIZE 520
@@ -105,13 +107,13 @@ write_sector_header(struct SectorHeader* header, uint8_t* data, int data_size)
 int
 disk_dat2file_read_archive(
     FILE* dat2_file,
-    struct Dat2Archive* archive,
     // This is a sanity check. I.e. if you run off the end of the index's dat2 file,
     // this will catch an error.
     int idx_file_id,
     int archive_id,
     int sector,
-    int length)
+    int length,
+    struct Dat2Archive* archive)
 {
     char read_buffer[SECTOR_SIZE];
     int read_buffer_len = 0;

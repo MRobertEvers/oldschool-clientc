@@ -13,7 +13,7 @@ int disk_dat2file_read_archive(
     int archive_id,
     int start_sector,
     int length_bytes,
-    struct Dat2Archive* out);
+    struct Dat2Archive* archive);
 
 int disk_dat2file_append_archive(
     FILE* file, int index_id, int archive_id, uint8_t* data, int data_size);
