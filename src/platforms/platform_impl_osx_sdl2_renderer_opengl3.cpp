@@ -112,9 +112,6 @@ draw_convex_hull_overlay(struct RendererOSX_SDL2OpenGL3* renderer)
         return;
     }
 
-    printf("DEBUG: Drawing convex hull with %d vertices using ImGui\n",
-           renderer->convex_hull_vertex_count);
-
     // Get ImGui's background draw list (renders behind ImGui windows)
     ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
 
@@ -132,8 +129,11 @@ draw_convex_hull_overlay(struct RendererOSX_SDL2OpenGL3* renderer)
 
     // Draw outline (yellow, 80% opacity)
     draw_list->AddPolyline(
-        points.Data, points.Size, IM_COL32(255, 255, 0, 204), // 204 = 80% of 255
-        ImDrawFlags_Closed, 2.0f);
+        points.Data,
+        points.Size,
+        IM_COL32(255, 255, 0, 204), // 204 = 80% of 255
+        ImDrawFlags_Closed,
+        2.0f);
 
     printf("DEBUG: Convex hull drawn using ImGui\n");
 }
@@ -784,8 +784,9 @@ render_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
                 "Computing convex hull for hovered model ID: %d\n",
                 renderer->last_hovered_model->model->_id);
 
-            // Collect all projected vertices of the model
+            // Collect vertices only from visible faces
             std::vector<Point2D> model_vertices;
+            std::vector<bool> vertex_used(renderer->last_hovered_model->model->vertex_count, false);
 
             // Initialize render model iterator for the hovered model
             struct IterRenderModel iter_hull;
@@ -804,28 +805,62 @@ render_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
                 renderer->height,
                 50); // near_plane_z
 
-            // We only need to iterate once to initialize projection, then collect all vertices
-            if( iter_render_model_next(&iter_hull) )
+            // Iterate through all visible faces and collect their vertices
+            while( iter_render_model_next(&iter_hull) )
             {
-                // Now collect all unique vertices in screen space
-                int vertex_count = renderer->last_hovered_model->model->vertex_count;
-                for( int v = 0; v < vertex_count; v++ )
-                {
-                    int screen_x = iter_hull.screen_vertices_x[v] + renderer->width / 2;
-                    int screen_y = iter_hull.screen_vertices_y[v] + renderer->height / 2;
+                int face = iter_hull.value_face;
 
-                    // Skip clipped vertices
-                    if( screen_x != -5000 && screen_y != -5000 )
-                    {
-                        Point2D point;
-                        point.x = (float)screen_x;
-                        point.y = (float)screen_y;
-                        model_vertices.push_back(point);
-                    }
+                // Check if face is invisible based on face_infos and colors
+                // Type 2 faces are hidden (face_infos & 0x3 == 2)
+                int* face_infos = renderer->last_hovered_model->model->face_infos;
+                if( face_infos )
+                {
+                    int face_type = face_infos[face] & 0x3;
+                    if( face_type == 2 )
+                        continue; // Hidden face
+                }
+
+                // Faces with color_c == -2 are invisible
+                int* colors_c = renderer->last_hovered_model->lighting->face_colors_hsl_c;
+                if( colors_c && colors_c[face] == -2 )
+                    continue; // Hidden face
+
+                // Get face vertex indices
+                int face_a = renderer->last_hovered_model->model->face_indices_a[face];
+                int face_b = renderer->last_hovered_model->model->face_indices_b[face];
+                int face_c = renderer->last_hovered_model->model->face_indices_c[face];
+
+                // Get screen coordinates
+                int x1 = iter_hull.screen_vertices_x[face_a] + renderer->width / 2;
+                int y1 = iter_hull.screen_vertices_y[face_a] + renderer->height / 2;
+                int x2 = iter_hull.screen_vertices_x[face_b] + renderer->width / 2;
+                int y2 = iter_hull.screen_vertices_y[face_b] + renderer->height / 2;
+                int x3 = iter_hull.screen_vertices_x[face_c] + renderer->width / 2;
+                int y3 = iter_hull.screen_vertices_y[face_c] + renderer->height / 2;
+
+                // Skip clipped faces
+                if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
+                    continue;
+
+                // Mark vertices as used and add to list if not already added
+                if( !vertex_used[face_a] )
+                {
+                    vertex_used[face_a] = true;
+                    model_vertices.push_back({ (float)x1, (float)y1 });
+                }
+                if( !vertex_used[face_b] )
+                {
+                    vertex_used[face_b] = true;
+                    model_vertices.push_back({ (float)x2, (float)y2 });
+                }
+                if( !vertex_used[face_c] )
+                {
+                    vertex_used[face_c] = true;
+                    model_vertices.push_back({ (float)x3, (float)y3 });
                 }
             }
 
-            // Compute convex hull from model vertices
+            // Compute convex hull from visible vertices only
             std::vector<Point2D> convex_hull = compute_convex_hull(model_vertices);
 
             // Store convex hull for rendering
