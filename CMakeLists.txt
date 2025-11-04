@@ -175,6 +175,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/cache_inet.c
         src/osrs/disk.c
         src/osrs/world.c
         src/osrs/tables/model.c
@@ -231,6 +232,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/cache_inet.c
         src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
@@ -285,6 +287,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/cache_inet.c
         src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
@@ -327,6 +330,33 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     )
 endif()
 
+# Asset server (Linux and macOS only)
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT WIN32)
+    add_executable(asset_server
+        test/asset_server.c
+        src/osrs/cache.c
+        src/osrs/cache_inet.c
+        src/osrs/disk.c
+        src/osrs/archive.c
+        src/osrs/archive_decompress.c
+        src/osrs/reference_table.c
+        src/osrs/rsbuf.c
+        src/osrs/xtea.c
+        src/osrs/xtea_config.c
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+    )
+    
+    # Link pthread
+    find_package(Threads REQUIRED)
+    target_link_libraries(asset_server Threads::Threads)
+    
+    # Link math library on Linux
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(asset_server m)
+    endif()
+endif()
+
 # OSX SDL2 Game executable (macOS only)
 if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(osx_sdl2_game
@@ -348,6 +378,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/palette.c
         src/osrs/cache.c
         src/osrs/disk.c
+        src/osrs/cache_inet.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c
@@ -430,6 +461,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/cache_inet.c
         src/osrs/disk.c
         src/osrs/world.c
         src/osrs/tables/model.c
@@ -483,6 +515,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/cache_inet.c
         src/osrs/disk.c
         src/osrs/world.c
         src/osrs/tables/model.c
@@ -561,6 +594,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/cache_inet.c
         src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
@@ -625,6 +659,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/scene_tile.c
         src/osrs/palette.c
         src/osrs/cache.c
+        src/osrs/cache_inet.c
         src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
@@ -879,6 +914,7 @@ if(APPLE)
         src/osrs/palette.c
         src/osrs/cache.c
         src/osrs/disk.c
+        src/osrs/cache_inet.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
         src/osrs/reference_table.c

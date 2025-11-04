@@ -1,5 +1,7 @@
 #include "archive_decompress.h"
 
+#include "3rd/bzip/bzip.h"
+#include "3rd/miniz/miniz.h"
 #include "archive.h"
 #include "rsbuf.h"
 #include "xtea.h"
@@ -10,11 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "3rd/miniz/miniz.h"
-#include "3rd/bzip/bzip.h"
-
 // Format detection result
-typedef enum {
+typedef enum
+{
     COMPRESSION_FORMAT_UNKNOWN = 0,
     COMPRESSION_FORMAT_GZIP = 1,
     COMPRESSION_FORMAT_ZLIB = 2
@@ -26,41 +26,44 @@ typedef enum {
  * @param size Size of compressed data
  * @return Detected compression format
  */
-static inline compression_format_t detect_compression_format(const uint8_t* data, size_t size)
+static inline compression_format_t
+detect_compression_format(const uint8_t* data, size_t size)
 {
     if( size < 2 )
         return COMPRESSION_FORMAT_UNKNOWN;
-    
+
     // Check for GZIP magic number (0x1f, 0x8b)
     if( data[0] == 0x1f && data[1] == 0x8b )
     {
         return COMPRESSION_FORMAT_GZIP;
     }
-    
+
     // Check for zlib header
     // zlib header: CMF (Compression Method and Flags) + FLG (FLaGs)
     // CMF: bits 0-3 = CM (compression method, 8 = deflate), bits 4-7 = CINFO (window size)
-    // FLG: bits 0-4 = FCHECK (check bits), bits 5-6 = FLEVEL (compression level), bit 7 = FDICT (preset dictionary)
+    // FLG: bits 0-4 = FCHECK (check bits), bits 5-6 = FLEVEL (compression level), bit 7 = FDICT
+    // (preset dictionary)
     uint8_t cmf = data[0];
     uint8_t flg = data[1];
-    
+
     // Check if CMF and FLG form a valid zlib header
     uint16_t header = (cmf << 8) | flg;
     if( (header % 31) == 0 ) // zlib header check
     {
-        uint8_t cm = cmf & 0x0f;  // Compression method
-        uint8_t cinfo = (cmf >> 4) & 0x0f;  // Window size
-        
+        uint8_t cm = cmf & 0x0f;           // Compression method
+        uint8_t cinfo = (cmf >> 4) & 0x0f; // Window size
+
         if( cm == 8 && cinfo <= 7 ) // Valid deflate with reasonable window size
         {
             printf("Detected zlib format (CMF=0x%02x, FLG=0x%02x)\n", cmf, flg);
             return COMPRESSION_FORMAT_ZLIB;
         }
     }
-    
-    printf("Unknown compression format - first 2 bytes: 0x%02x 0x%02x\n", 
-           size > 0 ? data[0] : 0, 
-           size > 1 ? data[1] : 0);
+
+    printf(
+        "Unknown compression format - first 2 bytes: 0x%02x 0x%02x\n",
+        size > 0 ? data[0] : 0,
+        size > 1 ? data[1] : 0);
     return COMPRESSION_FORMAT_UNKNOWN;
 }
 
@@ -72,8 +75,12 @@ static inline compression_format_t detect_compression_format(const uint8_t* data
  * @param uncompressed_length Expected uncompressed length
  * @return Number of bytes decompressed, or 0 on failure
  */
-static inline size_t decompress_gzip_with_miniz(const uint8_t* compressed_data, size_t size, 
-                                               uint8_t* decompressed_data, size_t uncompressed_length)
+static inline size_t
+decompress_gzip_with_miniz(
+    const uint8_t* compressed_data,
+    size_t size,
+    uint8_t* decompressed_data,
+    size_t uncompressed_length)
 {
     // GZIP header structure:
     // Bytes 0-1: Magic number (0x1f, 0x8b) - already verified
@@ -83,10 +90,10 @@ static inline size_t decompress_gzip_with_miniz(const uint8_t* compressed_data, 
     // Byte 8: Extra flags
     // Byte 9: Operating system
     // Optional: Extra field, filename, comment (if flags set)
-    
+
     uint8_t flags = compressed_data[3];
     size_t header_size = 10; // Base header size
-    
+
     // Skip optional fields based on flags
     if( flags & 0x04 ) // Extra field present
     {
@@ -98,7 +105,7 @@ static inline size_t decompress_gzip_with_miniz(const uint8_t* compressed_data, 
         uint16_t extra_len = *(uint16_t*)(compressed_data + header_size);
         header_size += 2 + extra_len;
     }
-    
+
     if( flags & 0x08 ) // Filename present
     {
         // Find null-terminated filename
@@ -106,7 +113,7 @@ static inline size_t decompress_gzip_with_miniz(const uint8_t* compressed_data, 
             header_size++;
         header_size++; // Skip null terminator
     }
-    
+
     if( flags & 0x10 ) // Comment present
     {
         // Find null-terminated comment
@@ -114,38 +121,38 @@ static inline size_t decompress_gzip_with_miniz(const uint8_t* compressed_data, 
             header_size++;
         header_size++; // Skip null terminator
     }
-    
+
     if( flags & 0x02 ) // CRC16 present
     {
         header_size += 2;
     }
-    
+
     // Calculate deflate data size (subtract header and 8-byte footer)
     if( size < header_size + 8 )
     {
         printf("GZIP data too small for header + footer\n");
         return 0;
     }
-    
+
     size_t deflate_size = size - header_size - 8;
     const uint8_t* deflate_data = compressed_data + header_size;
-    
+
     // Use miniz raw deflate decompression
     size_t decompressed_size = tinfl_decompress_mem_to_mem(
-        decompressed_data, uncompressed_length,
-        deflate_data, deflate_size,
-        TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF
-    );
-    
+        decompressed_data,
+        uncompressed_length,
+        deflate_data,
+        deflate_size,
+        TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
+
     if( decompressed_size == TINFL_DECOMPRESS_MEM_TO_MEM_FAILED )
     {
         printf("miniz raw deflate decompression failed\n");
         return 0;
     }
-    
+
     return decompressed_size;
 }
-
 
 /**
  * @brief TODO: CRC and XTEA for archives that need it.
@@ -162,7 +169,7 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
     int compression = g1(&buffer);
     // Uncompressed size
     int size = g4(&buffer);
-    if( xtea_key_nullable )
+    if( xtea_key_nullable && compression != 5 )
         xtea_decrypt(archive->data + buffer.position, size + 4, xtea_key_nullable);
 
     unsigned int crc = 0;
@@ -175,6 +182,8 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
 
     switch( compression )
     {
+    // 5 is a hack for me.
+    case 5:
     case 0:
     {
         // No compression
@@ -238,7 +247,6 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
             return false;
         }
 
-
         // Detect compression format
         compression_format_t format = detect_compression_format(compressed_data, size);
         if( format == COMPRESSION_FORMAT_UNKNOWN )
@@ -261,16 +269,15 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
         {
             // Use miniz for GZIP decompression
             size_t decompressed_size = decompress_gzip_with_miniz(
-                compressed_data, size, decompressed_data, uncompressed_length
-            );
-            
+                compressed_data, size, decompressed_data, uncompressed_length);
+
             if( decompressed_size == 0 )
             {
                 free(decompressed_data);
                 free(compressed_data);
                 return false;
             }
-            
+
             // Update archive with decompressed data
             free(archive->data);
             archive->data = (char*)decompressed_data;

@@ -2,6 +2,7 @@
 
 #include "archive.h"
 #include "archive_decompress.h"
+#include "cache_inet.h"
 #include "disk.h"
 #include "rsbuf.h"
 #include "xtea_config.h"
@@ -14,35 +15,16 @@
 
 #define SECTOR_SIZE 520
 #define INDEX_ENTRY_SIZE 6
+#define CACHE_FILE_NAME_ROOT "main_file_cache"
+
+static char g_sector_data[SECTOR_SIZE];
 
 static FILE*
 fopen_dat2(char const* cache_directory)
 {
     char path[1024];
-    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_directory);
-    return fopen(path, "rb");
-}
-
-static char*
-load_dat2_memory(char const* cache_directory, int* out_size)
-{
-    char* data = NULL;
-    int data_size = 0;
-
-    FILE* dat2_file = fopen_dat2(cache_directory);
-    if( !dat2_file )
-        return NULL;
-
-    fseek(dat2_file, 0, SEEK_END);
-    data_size = ftell(dat2_file);
-    fseek(dat2_file, 0, SEEK_SET);
-
-    data = malloc(data_size);
-    fread(data, data_size, 1, dat2_file);
-    *out_size = data_size;
-    fclose(dat2_file);
-
-    return data;
+    snprintf(path, sizeof(path), "%s/%s.dat2", cache_directory, CACHE_FILE_NAME_ROOT);
+    return fopen(path, "rb+");
 }
 
 bool
@@ -78,23 +60,63 @@ cache_is_valid_table_id(int table_id)
     }
 }
 
-struct Cache*
-cache_new_from_directory(char const* directory)
+static int const g_table_idx_files[] = { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11,
+                                         12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 24 };
+
+static void
+init_dat2(char const* directory)
 {
-    struct Cache* cache = malloc(sizeof(struct Cache));
-    memset(cache, 0, sizeof(struct Cache));
-
-    cache->directory = strdup(directory);
-
-    // cache->_dat2 = load_dat2_memory(cache->directory, &cache->_dat2_size);
-
-    cache->_dat2_file = fopen_dat2(cache->directory);
-    if( !cache->_dat2_file )
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", directory);
+    FILE* file = fopen(path, "rb");
+    if( !file )
     {
-        printf("Failed to open dat2 file\n");
-        goto error;
+        printf("Failed to open dat2 file. Creating new one.\n");
+        file = fopen(path, "wb");
+        if( !file )
+        {
+            printf("Failed to create dat2 file\n");
+            return;
+        }
+        // 0 page
+        fseek(file, 0, SEEK_SET);
+        fwrite(g_sector_data, 1, SECTOR_SIZE, file);
     }
 
+    fclose(file);
+}
+
+static void
+init_files(char const* directory)
+{
+    char path[1024];
+    FILE* file = NULL;
+
+    for( int i = 0; i < sizeof(g_table_idx_files) / sizeof(g_table_idx_files[0]); i++ )
+    {
+        snprintf(
+            path,
+            sizeof(path),
+            "%s/%s.idx%d",
+            directory,
+            CACHE_FILE_NAME_ROOT,
+            g_table_idx_files[i]);
+        file = fopen(path, "rb");
+        if( !file )
+        {
+            file = fopen(path, "wb");
+            assert(file);
+        }
+        else
+            printf("File %s already exists, skipping\n", path);
+
+        fclose(file);
+    }
+}
+
+static void
+init_reference_tables(struct Cache* cache)
+{
     struct CacheArchive* table_archive = NULL;
     struct ReferenceTable* table = NULL;
     for( int i = 0; i < CACHE_TABLE_COUNT; ++i )
@@ -107,7 +129,7 @@ cache_new_from_directory(char const* directory)
         if( !table_archive )
         {
             printf("Failed to load referencetable %d\n", i);
-            goto error;
+            continue;
         }
 
         table = reference_table_new_decode(table_archive->data, table_archive->data_size);
@@ -117,15 +139,128 @@ cache_new_from_directory(char const* directory)
         cache_archive_free(table_archive);
         table_archive = NULL;
     }
+}
+
+struct Cache*
+cache_new_from_directory(char const* directory)
+{
+    struct Cache* cache = malloc(sizeof(struct Cache));
+    memset(cache, 0, sizeof(struct Cache));
+
+    cache->mode = CACHE_MODE_LOCAL_ONLY;
+    cache->directory = strdup(directory);
+
+    cache->_dat2_file = fopen_dat2(cache->directory);
+    if( !cache->_dat2_file )
+    {
+        printf("Failed to open dat2 file\n");
+        goto error;
+    }
+
+    init_reference_tables(cache);
 
     return cache;
+
 error:
-    if( table_archive )
-        cache_archive_free(table_archive);
-    if( table )
-        reference_table_free(table);
     if( cache )
         free(cache);
+    return NULL;
+}
+
+static bool
+idx255_size_is_valid(char const* directory)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/main_file_cache.idx255", directory);
+    FILE* file = fopen(path, "rb");
+    if( !file )
+        return false;
+    fseek(file, 0, SEEK_END);
+    bool is_valid = ftell(file) > INDEX_ENTRY_SIZE;
+    fclose(file);
+    return is_valid;
+}
+
+struct Cache*
+cache_new_inet(char const* directory, char const* ip, int port)
+{
+    struct Cache* cache = malloc(sizeof(struct Cache));
+    memset(cache, 0, sizeof(struct Cache));
+
+    cache->mode = CACHE_MODE_INET;
+    cache->directory = strdup(directory);
+
+    init_dat2(cache->directory);
+    init_files(cache->directory);
+
+    cache->_dat2_file = fopen_dat2(cache->directory);
+    if( !cache->_dat2_file )
+    {
+        printf("Failed to open dat2 file\n");
+        goto error;
+    }
+
+    cache->_inet_nullable = (void*)cache_inet_new_connect(ip, port);
+    if( !cache->_inet_nullable )
+    {
+        printf("Failed to connect to server\n");
+        assert(false);
+        return NULL;
+    }
+
+    int is_valid = idx255_size_is_valid(cache->directory);
+
+    if( !is_valid )
+    {
+        printf("idx255 file is not valid. Requesting from server.\n");
+        struct CacheInetPayload* payload = NULL;
+        struct IndexRecord index_record = { 0 };
+        int sector_start;
+
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx255", cache->directory);
+        FILE* idx255_file = fopen(path, "wb");
+        if( !idx255_file )
+        {
+            printf("Failed to open idx255 file\n");
+            goto error;
+        }
+
+        for( int i = 0; i < sizeof(g_table_idx_files) / sizeof(g_table_idx_files[0]); i++ )
+        {
+            printf("Requesting idx%d metadata from server\n", g_table_idx_files[i]);
+
+            payload = cache_inet_payload_new_request(
+                (struct CacheInet*)cache->_inet_nullable, 255, g_table_idx_files[i]);
+
+            if( !payload )
+            {
+                printf("Failed to request idx%d metadata from server\n", g_table_idx_files[i]);
+                continue;
+            }
+
+            sector_start = disk_dat2file_append_archive(
+                cache->_dat2_file, 255, g_table_idx_files[i], payload->data, payload->data_size);
+
+            index_record.idx_file_id = 255;
+            index_record.archive_idx = g_table_idx_files[i];
+            index_record.sector = sector_start;
+            index_record.length = payload->data_size;
+
+            disk_indexfile_write_record(idx255_file, g_table_idx_files[i], &index_record);
+
+            free(payload);
+        }
+
+        fclose(idx255_file);
+    }
+
+    init_reference_tables(cache);
+
+    return cache;
+
+error:;
+    assert(false);
     return NULL;
 }
 
@@ -142,68 +277,38 @@ cache_free(struct Cache* cache)
             reference_table_free(cache->tables[i]);
     }
 
-    if( cache->_dat2 )
-        free(cache->_dat2);
-
     free(cache);
 }
-
-struct IndexRecord
-{
-    // This is a sanity check. I.e. if you run off the end of the index's dat2 file,
-    // This should match the "table_id" to which the record belongs.
-    // i.e. idx2 is table_id 2.
-    int idx_file_id;
-    int archive_idx;
-    int sector;
-    // length in bytes as it's stored on disk in the dat2 file.
-    int length;
-};
 
 static FILE*
 fopen_index(char const* directory, int table_id)
 {
     char path[1024];
     snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", directory, table_id);
-    return fopen(path, "rb");
+    return fopen(path, "rb+");
 }
 
 static int
 read_index(struct IndexRecord* record, char const* cache_directory, int table_id, int entry_idx)
 {
-    char data[INDEX_ENTRY_SIZE] = { 0 };
-
     FILE* index_file = fopen_index(cache_directory, table_id);
     if( !index_file )
         return -1;
 
-    fseek(index_file, entry_idx * INDEX_ENTRY_SIZE, SEEK_SET);
-    fread(data, INDEX_ENTRY_SIZE, 1, index_file);
+    if( disk_indexfile_read_record(index_file, entry_idx, record) != 0 )
+    {
+        printf("(read_index)Failed to read index record for table %d\n", table_id);
+        goto error;
+    }
 
-    fclose(index_file);
-
-    // 	int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
-    // int sector = ((buffer[3] & 0xFF) << 16) | ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
-
-    // Convert Java:
-    // int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
-    // int sector = ((buffer[3] & 0xFF) << 16) | ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
-
-    // Read 3 bytes for length and 3 bytes for sector
-    // Need to mask with 0xFF to handle sign extension when converting to int
-    int length = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
-
-    int sector = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
-
-    if( length <= 0 || sector <= 0 )
-        return -1;
-
-    record->length = length;
-    record->sector = sector;
-    record->archive_idx = entry_idx;
     record->idx_file_id = table_id;
 
+    fclose(index_file);
     return 0;
+
+error:;
+    fclose(index_file);
+    return -1;
 }
 
 struct CacheArchive*
@@ -220,7 +325,6 @@ cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
     struct IndexRecord index_record = { 0 };
     if( read_index(&index_record, cache->directory, 255, table_id) != 0 )
     {
-        printf("Failed to read index record for table %d\n", table_id);
         goto error;
     }
 
@@ -275,39 +379,6 @@ cache_archive_new_load_decrypted(
     struct CacheArchive* archive = malloc(sizeof(struct CacheArchive));
     memset(archive, 0, sizeof(struct CacheArchive));
 
-    // 1. Consult the reference table for table_id.
-    //  - Read the entry "table_id" in idx255
-    //  - Load the archive specified in the entry from .dat2
-    //  - Decompress the archive if necessary
-    //  - Load the ReferenceTableEntry in the reference table specified by archive_id and file_id.
-    //  - The "archive_id" is the "ArchiveReference" slot, and the "file_id" is the "FileReference"
-    //    = This gives 1. the Number of files in the archive... etc.
-
-    // The reference tables were loaded when the cache was created.
-    struct ReferenceTable* table = cache->tables[table_id];
-
-    assert(archive_id < table->archive_count);
-
-    // int archive_slot = -1;
-    // for( int i = 0; i < table->id_count; ++i )
-    // {
-    //     int id = table->ids[i];
-    //     if( table->archives[id].index == archive_id )
-    //     {
-    //         archive_slot = id;
-    //         break;
-    //     }
-    // }
-
-    // assert(archive_slot == archive_id);
-
-    struct ArchiveReference* archive_reference = &table->archives[archive_id];
-    if( archive_reference->index != archive_id )
-    {
-        printf("Archive reference not found for table %d, archive %d\n", table_id, archive_id);
-        goto error;
-    }
-
     // 2. Consult the index for table_id. Table_id=2 is idx2
     //  - Read the entry "archive_id" in idx2. archive_id is the slot in the idx2 file..
     //  - Load the archive specified in the entry from .dat2
@@ -316,10 +387,44 @@ cache_archive_new_load_decrypted(
 
     // TODO: Read archive_id or archive_slot?
     struct IndexRecord index_record = { 0 };
-    if( read_index(&index_record, cache->directory, table_id, archive_id) != 0 )
+    read_index(&index_record, cache->directory, table_id, archive_id);
+
+    // The archive is not loaded.
+    if( index_record.sector == 0 )
     {
-        printf("Failed to read index record for table %d\n", table_id);
-        goto error;
+        if( cache->mode != CACHE_MODE_INET )
+        {
+            printf("Cache mode is not inet. Cannot request from server.\n");
+            goto error;
+        }
+
+        printf("Archive is not loaded. Requesting from server.\n");
+
+        struct CacheInetPayload* payload = cache_inet_payload_new_request(
+            (struct CacheInet*)cache->_inet_nullable, table_id, archive_id);
+        if( !payload )
+        {
+            printf("Failed to request archive from server\n");
+            goto error;
+        }
+
+        int sector_start = disk_dat2file_append_archive(
+            cache->_dat2_file, table_id, archive_id, payload->data, payload->data_size);
+
+        FILE* index_file = fopen_index(cache->directory, table_id);
+        if( !index_file )
+        {
+            printf("Failed to open index file\n");
+            goto error;
+        }
+        index_record.sector = sector_start;
+        index_record.length = payload->data_size;
+        index_record.idx_file_id = table_id;
+        index_record.archive_idx = archive_id;
+        disk_indexfile_write_record(index_file, archive_id, &index_record);
+        fclose(index_file);
+
+        read_index(&index_record, cache->directory, table_id, archive_id);
     }
 
     struct Dat2Archive dat2_archive = { 0 };
@@ -347,6 +452,26 @@ cache_archive_new_load_decrypted(
     archive->data_size = dat2_archive.data_size;
     archive->archive_id = archive_id;
     archive->table_id = table_id;
+
+    // 1. Consult the reference table for table_id.
+    //  - Read the entry "table_id" in idx255
+    //  - Load the archive specified in the entry from .dat2
+    //  - Decompress the archive if necessary
+    //  - Load the ReferenceTableEntry in the reference table specified by archive_id and file_id.
+    //  - The "archive_id" is the "ArchiveReference" slot, and the "file_id" is the "FileReference"
+    //    = This gives 1. the Number of files in the archive... etc.
+
+    // The reference tables were loaded when the cache was created.
+    struct ReferenceTable* table = cache->tables[table_id];
+
+    assert(archive_id < table->archive_count);
+
+    struct ArchiveReference* archive_reference = &table->archives[archive_id];
+    if( archive_reference->index != archive_id )
+    {
+        printf("Archive reference not found for table %d, archive %d\n", table_id, archive_id);
+        goto error;
+    }
 
     archive->revision = archive_reference->version;
     archive->file_count = archive_reference->children.count;

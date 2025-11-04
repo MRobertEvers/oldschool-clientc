@@ -1292,7 +1292,8 @@ main(int argc, char* argv[])
     printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
 
     printf("Loading cache from directory: %s\n", CACHE_PATH);
-    struct Cache* cache = cache_new_from_directory(CACHE_PATH);
+    struct Cache* cache = cache_new_inet(CACHE_PATH, "127.0.0.1", 4949);
+    // struct Cache* cache = cache_new_from_directory(CACHE_PATH);
     if( !cache )
     {
         printf("Failed to load cache from directory2: %s\n", CACHE_PATH);

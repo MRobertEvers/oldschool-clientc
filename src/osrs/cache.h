@@ -35,19 +35,26 @@ enum CacheTable
 
 bool cache_is_valid_table_id(int table_id);
 
+enum CacheMode
+{
+    CACHE_MODE_LOCAL_ONLY = 0,
+    CACHE_MODE_INET = 1,
+};
+
 struct Cache
 {
     char const* directory;
 
     struct ReferenceTable* tables[CACHE_TABLE_COUNT];
 
-    char* _dat2;
-    int _dat2_size;
-
     FILE* _dat2_file;
+
+    enum CacheMode mode;
+    void* _inet_nullable;
 };
 
 struct Cache* cache_new_from_directory(char const* directory);
+struct Cache* cache_new_inet(char const* directory, char const* ip, int port);
 void cache_free(struct Cache* cache);
 
 struct CacheArchive

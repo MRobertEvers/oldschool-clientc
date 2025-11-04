@@ -8,6 +8,7 @@
 #include <string.h>
 
 #define SECTOR_SIZE 520
+#define INDEX_ENTRY_SIZE 6
 
 struct SectorHeader
 {
@@ -124,7 +125,7 @@ disk_dat2file_read_archive(
     header.archive_id = archive_id;
     header.index_id = idx_file_id;
     header.part_no = 0;
-    header.next_sector_no = sector;
+    header.next_sector_no = 0;
 
     char* out = NULL;
 
@@ -260,27 +261,24 @@ disk_dat2file_append_archive(FILE* file, int index_id, int archive_id, uint8_t* 
     uint8_t sector_data[SECTOR_SIZE];
 
     // Fill file to next SECTOR_SIZE boundary
+    fseek(file, 0, SEEK_END);
     long data_file_size = ftell(file);
-    if( data_file_size < 0 )
-    {
-        printf("ftell failed\n");
-        return -1;
-    }
 
     int padding = 0;
-    int sector_no = data_file_size / SECTOR_SIZE;
 
     if( data_file_size % SECTOR_SIZE != 0 )
     {
-        sector_no++;
         padding = SECTOR_SIZE - (data_file_size % SECTOR_SIZE);
         uint8_t zeros[SECTOR_SIZE] = { 0 };
         if( fwrite(zeros, 1, padding, file) != padding )
         {
             printf("failed to write padding\n");
+            assert(false);
             return -1;
         }
     }
+
+    int sector_no = (data_file_size + padding) / SECTOR_SIZE;
 
     // Determine header size and payload size based on archive_id
     int header_size = header_size_for_archive(archive_id);
@@ -291,8 +289,9 @@ disk_dat2file_append_archive(FILE* file, int index_id, int archive_id, uint8_t* 
     header.archive_id = archive_id;
     header.index_id = index_id;
     header.part_no = 0;
-    header.next_sector_no = sector_no;
+    header.next_sector_no = sector_no + 1;
 
+    fseek(file, sector_no * SECTOR_SIZE, SEEK_SET);
     while( bytes_written < data_size )
     {
         memset(sector_data, 0, SECTOR_SIZE);
@@ -309,9 +308,11 @@ disk_dat2file_append_archive(FILE* file, int index_id, int archive_id, uint8_t* 
         memcpy(sector_data + header_size, data + bytes_written, bytes_to_write);
 
         // Write the sector
-        if( fwrite(sector_data, 1, SECTOR_SIZE, file) != SECTOR_SIZE )
+        int written_bytes = fwrite(sector_data, 1, SECTOR_SIZE, file);
+        if( written_bytes != SECTOR_SIZE )
         {
             printf("failed to write sector\n");
+            assert(false);
             return -1;
         }
 
@@ -320,5 +321,84 @@ disk_dat2file_append_archive(FILE* file, int index_id, int archive_id, uint8_t* 
         header.next_sector_no++;
     }
 
+    return sector_no;
+}
+
+int
+disk_indexfile_read_record(FILE* file, int entry_idx, struct IndexRecord* record)
+{
+    char data[INDEX_ENTRY_SIZE] = { 0 };
+
+    fseek(file, entry_idx * INDEX_ENTRY_SIZE, SEEK_SET);
+    fread(data, INDEX_ENTRY_SIZE, 1, file);
+
+    // 	int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
+    // int sector = ((buffer[3] & 0xFF) << 16) | ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
+
+    // Convert Java:
+    // int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
+    // int sector = ((buffer[3] & 0xFF) << 16) | ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
+
+    // Read 3 bytes for length and 3 bytes for sector
+    // Need to mask with 0xFF to handle sign extension when converting to int
+    int length = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+
+    int sector = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
+
+    if( length <= 0 || sector <= 0 )
+        return -1;
+
+    record->length = length;
+    record->sector = sector;
+    record->archive_idx = entry_idx;
+    record->idx_file_id = -1;
+
+    return 0;
+}
+
+int
+disk_indexfile_write_record(FILE* file, int entry_idx, struct IndexRecord* record)
+{
+    // If the desired write offset is past EOF, fill the gap with zeros.
+    char data[INDEX_ENTRY_SIZE] = { 0 };
+
+    long offset = entry_idx * INDEX_ENTRY_SIZE;
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+
+    if( offset > file_size )
+    {
+        // Need to fill gap with zeros
+        long gap = offset - file_size;
+        if( gap > 0 )
+        {
+            // Seek to end again just to be sure
+            fseek(file, 0, SEEK_END);
+            // Write zeros
+            while( gap > 0 )
+            {
+                size_t to_write = gap > INDEX_ENTRY_SIZE ? INDEX_ENTRY_SIZE : gap;
+                fwrite(data, 1, to_write, file);
+                gap -= to_write;
+            }
+        }
+    }
+
+    data[0] = (record->length >> 16) & 0xFF;
+    data[1] = (record->length >> 8) & 0xFF;
+    data[2] = record->length & 0xFF;
+    data[3] = (record->sector >> 16) & 0xFF;
+    data[4] = (record->sector >> 8) & 0xFF;
+    data[5] = record->sector & 0xFF;
+
+    // seek to end
+    fseek(file, entry_idx * INDEX_ENTRY_SIZE, SEEK_SET);
+    int written_bytes = fwrite(data, INDEX_ENTRY_SIZE, 1, file);
+    if( written_bytes != 1 )
+    {
+        printf("failed to write index record\n");
+        assert(false);
+        return -1;
+    }
     return 0;
 }

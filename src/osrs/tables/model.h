@@ -149,6 +149,4 @@ struct CacheModel* model_new_merge(struct CacheModel** models, int model_count);
 void modelbones_free(struct ModelBones* modelbones);
 void model_free(struct CacheModel* model);
 
-void write_model_separate(const struct CacheModel* model, const char* filename);
-
 #endif

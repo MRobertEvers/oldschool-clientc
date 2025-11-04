@@ -2244,11 +2244,6 @@ model_new_from_cache(struct Cache* cache, int model_id)
         return NULL;
     }
 
-    if( model_id == 5271 )
-    {
-        int i = 0;
-    }
-
     model = model_new_decode(archive->data, archive->data_size);
 
     cache_archive_free(archive);
@@ -2749,79 +2744,6 @@ model_new_merge(struct CacheModel** models, int model_count)
     model->_flags &= ~CMODEL_FLAG_SHARED;
 
     return model;
-}
-
-#include <stdio.h>
-
-void
-write_model_separate(const struct CacheModel* model, const char* filename)
-{
-    char name_buffer[256];
-    FILE* file = NULL;
-
-    // Write vertices file
-    snprintf(name_buffer, sizeof(name_buffer), "%s.vertices", filename);
-    file = fopen(name_buffer, "wb");
-    if( !file )
-    {
-        printf("Failed to open vertices file for writing\n");
-        return;
-    }
-
-    // Write vertex count and vertex data
-    fwrite(&model->vertex_count, sizeof(int), 1, file);
-    fwrite(model->vertices_x, sizeof(int), model->vertex_count, file);
-    fwrite(model->vertices_y, sizeof(int), model->vertex_count, file);
-    fwrite(model->vertices_z, sizeof(int), model->vertex_count, file);
-    if( model->vertex_bone_map )
-    {
-        fwrite(model->vertex_bone_map, sizeof(int), model->vertex_count, file);
-    }
-    fclose(file);
-
-    // Write faces file
-    snprintf(name_buffer, sizeof(name_buffer), "%s.faces", filename);
-    file = fopen(name_buffer, "wb");
-    if( !file )
-    {
-        printf("Failed to open faces file for writing\n");
-        return;
-    }
-
-    // Write face count and face data
-    fwrite(&model->face_count, sizeof(int), 1, file);
-    fwrite(model->face_indices_a, sizeof(int), model->face_count, file);
-    fwrite(model->face_indices_b, sizeof(int), model->face_count, file);
-    fwrite(model->face_indices_c, sizeof(int), model->face_count, file);
-    fclose(file);
-
-    // Write colors file
-    snprintf(name_buffer, sizeof(name_buffer), "%s.colors", filename);
-    file = fopen(name_buffer, "wb");
-    if( !file )
-    {
-        printf("Failed to open colors file for writing\n");
-        return;
-    }
-
-    // Write face count and color data
-    fwrite(&model->face_count, sizeof(int), 1, file);
-    fwrite(model->face_colors, sizeof(int), model->face_count, file);
-    fclose(file);
-
-    // Write priorities file
-    snprintf(name_buffer, sizeof(name_buffer), "%s.priorities", filename);
-    file = fopen(name_buffer, "wb");
-    if( !file )
-    {
-        printf("Failed to open priorities file for writing\n");
-        return;
-    }
-
-    // Write face count and priority data
-    fwrite(&model->face_count, sizeof(int), 1, file);
-    fwrite(model->face_priorities, sizeof(int), model->face_count, file);
-    fclose(file);
 }
 
 void

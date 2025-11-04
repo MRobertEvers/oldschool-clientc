@@ -50,6 +50,18 @@
             "MIMode": "lldb"
         },
         {
+            "name": "(lldb) Launch Asset Server",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/asset_server",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
             "name": "(lldb) Launch Game Test",
             "type": "cppdbg",
             "request": "launch",
