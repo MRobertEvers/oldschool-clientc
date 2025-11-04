@@ -14,7 +14,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-struct Renderer
+struct RendererOSX_SDL2OpenGL3
 {
     SDL_GLContext gl_context;
     struct Platform* platform;
@@ -35,16 +35,16 @@ struct Renderer
     double render_time_ms;
 };
 
-struct Renderer* PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height);
+struct RendererOSX_SDL2OpenGL3* PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height);
 
-void PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Free(struct Renderer* renderer);
+void PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Free(struct RendererOSX_SDL2OpenGL3* renderer);
 
-bool
-PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(struct Renderer* renderer, struct Platform* platform);
+bool PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(
+    struct RendererOSX_SDL2OpenGL3* renderer, struct Platform* platform);
 
-void PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Shutdown(struct Renderer* renderer);
+void PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Shutdown(struct RendererOSX_SDL2OpenGL3* renderer);
 
 void PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
-    struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list);
+    struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list);
 
 #endif

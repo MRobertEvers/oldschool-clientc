@@ -29,7 +29,7 @@ static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
 
 static void
-render_imgui(struct Renderer* renderer, struct Game* game)
+render_imgui(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
@@ -115,7 +115,7 @@ render_imgui(struct Renderer* renderer, struct Game* game)
 }
 
 static void
-load_static_scene(struct Renderer* renderer, struct Game* game)
+load_static_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
 {
     // This function builds a static scene buffer containing all scene geometry
     // It's called once when the scene is loaded
@@ -343,7 +343,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
 }
 
 static void
-render_scene(struct Renderer* renderer, struct Game* game)
+render_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
 {
     // OPTIMIZATION: Track camera state to avoid unnecessary sorting every frame
     static int last_cam_x = -99999;
@@ -585,11 +585,12 @@ render_scene(struct Renderer* renderer, struct Game* game)
     pix3dgl_end_frame(renderer->pix3dgl);
 }
 
-struct Renderer*
+struct RendererOSX_SDL2OpenGL3*
 PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height)
 {
-    struct Renderer* renderer = (struct Renderer*)malloc(sizeof(struct Renderer));
-    memset(renderer, 0, sizeof(struct Renderer));
+    struct RendererOSX_SDL2OpenGL3* renderer =
+        (struct RendererOSX_SDL2OpenGL3*)malloc(sizeof(struct RendererOSX_SDL2OpenGL3));
+    memset(renderer, 0, sizeof(struct RendererOSX_SDL2OpenGL3));
 
     renderer->pixel_buffer = (int*)malloc(width * height * sizeof(int));
     if( !renderer->pixel_buffer )
@@ -612,13 +613,14 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height)
 }
 
 void
-PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Free(struct Renderer* renderer)
+PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Free(struct RendererOSX_SDL2OpenGL3* renderer)
 {
     free(renderer);
 }
 
 bool
-PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(struct Renderer* renderer, struct Platform* platform)
+PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(
+    struct RendererOSX_SDL2OpenGL3* renderer, struct Platform* platform)
 {
     renderer->platform = platform;
     // Create OpenGL context
@@ -652,14 +654,14 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Init(struct Renderer* renderer, struct Pl
 }
 
 void
-PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Shutdown(struct Renderer* renderer)
+PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Shutdown(struct RendererOSX_SDL2OpenGL3* renderer)
 {
     SDL_GL_DeleteContext(renderer->gl_context);
 }
 
 void
 PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
-    struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
+    struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
     // Handle window resize: update renderer dimensions
     int window_width, window_height;
@@ -672,23 +674,6 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
         renderer->height = window_height;
         printf("Window resized to %dx%d\n", window_width, window_height);
     }
-
-    // Set viewport to match window size (important for both 3D rendering and ImGui)
-    glViewport(0, 0, renderer->width, renderer->height);
-
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glEnable(GL_DEPTH_TEST);
-
-    glEnable(GL_CULL_FACE);
-    // glDisable(GL_DEPTH_TEST);
-
-    // glDisable(GL_CULL_FACE);
-
-    // Enable alpha blending for transparency
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     for( int i = 0; i < gfx_op_list->op_count; i++ )
     {

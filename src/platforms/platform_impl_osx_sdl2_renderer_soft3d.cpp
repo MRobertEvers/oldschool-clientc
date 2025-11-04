@@ -21,7 +21,7 @@ static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
 
 static void
-render_imgui(struct Renderer* renderer, struct Game* game)
+render_imgui(struct RendererOSX_SDL2Soft3D* renderer, struct Game* game)
 {
     ImGui_ImplSDLRenderer2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
@@ -98,7 +98,7 @@ render_imgui(struct Renderer* renderer, struct Game* game)
 }
 
 static void
-render_scene(struct Renderer* renderer, struct Game* game, int deltas)
+render_scene(struct RendererOSX_SDL2Soft3D* renderer, struct Game* game, int deltas)
 {
     struct IterRenderSceneOps iter_render_scene_ops;
     struct IterRenderModel iter_render_model;
@@ -386,11 +386,12 @@ render_scene(struct Renderer* renderer, struct Game* game, int deltas)
     //     game->textures_cache);
 }
 
-struct Renderer*
+struct RendererOSX_SDL2Soft3D*
 PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height, int max_width, int max_height)
 {
-    struct Renderer* renderer = (struct Renderer*)malloc(sizeof(struct Renderer));
-    memset(renderer, 0, sizeof(struct Renderer));
+    struct RendererOSX_SDL2Soft3D* renderer =
+        (struct RendererOSX_SDL2Soft3D*)malloc(sizeof(struct RendererOSX_SDL2Soft3D));
+    memset(renderer, 0, sizeof(struct RendererOSX_SDL2Soft3D));
 
     renderer->pixel_buffer = (int*)malloc(max_width * max_height * sizeof(int));
     if( !renderer->pixel_buffer )
@@ -415,13 +416,14 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height, int max_width, 
 }
 
 void
-PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(struct Renderer* renderer)
+PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(struct RendererOSX_SDL2Soft3D* renderer)
 {
     free(renderer);
 }
 
 bool
-PlatformImpl_OSX_SDL2_Renderer_Soft3D_Init(struct Renderer* renderer, struct Platform* platform)
+PlatformImpl_OSX_SDL2_Renderer_Soft3D_Init(
+    struct RendererOSX_SDL2Soft3D* renderer, struct Platform* platform)
 {
     renderer->platform = platform;
 
@@ -465,7 +467,7 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Init(struct Renderer* renderer, struct Pla
 }
 
 void
-PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(struct Renderer* renderer)
+PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(struct RendererOSX_SDL2Soft3D* renderer)
 {
     SDL_DestroyRenderer(renderer->renderer);
     renderer->renderer = NULL;
@@ -473,7 +475,7 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(struct Renderer* renderer)
 
 void
 PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
-    struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
+    struct RendererOSX_SDL2Soft3D* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
 {
     // Calculate animation deltas - game runs at 50 FPS (20ms per tick)
     static Uint64 last_frame_time = 0;

@@ -12,7 +12,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-struct Renderer
+struct RendererOSX_SDL2Soft3D
 {
     SDL_Renderer* renderer;
     SDL_Texture* texture;
@@ -30,17 +30,17 @@ struct Renderer
     float time_delta_accumulator;
 };
 
-struct Renderer*
+struct RendererOSX_SDL2Soft3D*
 PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height, int max_width, int max_height);
 
-void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(struct Renderer* renderer);
+void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Free(struct RendererOSX_SDL2Soft3D* renderer);
 
-bool
-PlatformImpl_OSX_SDL2_Renderer_Soft3D_Init(struct Renderer* renderer, struct Platform* platform);
+bool PlatformImpl_OSX_SDL2_Renderer_Soft3D_Init(
+    struct RendererOSX_SDL2Soft3D* renderer, struct Platform* platform);
 
-void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(struct Renderer* renderer);
+void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Shutdown(struct RendererOSX_SDL2Soft3D* renderer);
 
 void PlatformImpl_OSX_SDL2_Renderer_Soft3D_Render(
-    struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list);
+    struct RendererOSX_SDL2Soft3D* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list);
 
 #endif
