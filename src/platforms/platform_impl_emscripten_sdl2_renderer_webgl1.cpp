@@ -95,18 +95,6 @@ render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
     ImGui::SliderInt("FOV", &game->camera_fov, 64, 768, "%d");
     ImGui::SliderInt("Move Speed", &game->camera_movement_speed, 1, 100, "%d");
     ImGui::SliderInt("Look Speed", &game->camera_rotation_speed, 1, 100, "%d");
-
-    // Up/Down buttons for vertical movement
-    ImVec2 button_size(140, 30);
-    if( ImGui::Button("Move Up", button_size) )
-    {
-        game->camera_world_y -= game->camera_movement_speed * 3;
-    }
-    ImGui::SameLine();
-    if( ImGui::Button("Move Down", button_size) )
-    {
-        game->camera_world_y += game->camera_movement_speed * 3;
-    }
     ImGui::End();
 
     // Render ImGui windows first
@@ -226,6 +214,71 @@ render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
         draw_list->AddRectFilled(label_bg_min, label_bg_max, IM_COL32(0, 0, 0, 150), 4.0f);
         draw_list->AddText(label_pos, IM_COL32(255, 255, 255, 255), label);
     };
+
+    // Helper function to draw holdable buttons
+    auto draw_hold_button = [&](ImVec2 pos, ImVec2 size, const char* label, int button_id) -> bool {
+        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+
+        ImVec2 min = pos;
+        ImVec2 max = ImVec2(pos.x + size.x, pos.y + size.y);
+
+        // Check if mouse is over button
+        bool is_hovered = mouse_pos.x >= min.x && mouse_pos.x <= max.x && mouse_pos.y >= min.y &&
+                          mouse_pos.y <= max.y;
+
+        // Check if button is being held
+        bool is_held = false;
+        if( is_mouse_down && is_hovered && captured_joystick == -1 )
+        {
+            captured_joystick = button_id;
+        }
+
+        if( is_mouse_down && captured_joystick == button_id )
+        {
+            is_held = true;
+        }
+
+        // Draw button
+        ImU32 bg_color = is_held      ? IM_COL32(60, 120, 200, 220)
+                         : is_hovered ? IM_COL32(80, 80, 80, 200)
+                                      : IM_COL32(50, 50, 50, 180);
+        ImU32 border_color = IM_COL32(150, 150, 150, 220);
+
+        draw_list->AddRectFilled(min, max, bg_color, 8.0f);
+        draw_list->AddRect(min, max, border_color, 8.0f, 0, 2.5f);
+
+        // Draw text
+        ImVec2 text_size = ImGui::CalcTextSize(label);
+        ImVec2 text_pos =
+            ImVec2(pos.x + (size.x - text_size.x) * 0.5f, pos.y + (size.y - text_size.y) * 0.5f);
+        draw_list->AddText(text_pos, IM_COL32(255, 255, 255, 255), label);
+
+        return is_held;
+    };
+
+    // Vertical movement buttons - above move joystick
+    float button_width = 70.0f;
+    float button_height = 45.0f;
+    float button_spacing = 8.0f;
+    float buttons_y = screen_size.y - margin - joystick_radius * 2 - 60;
+    float buttons_center_x = margin + joystick_radius - (button_width + button_spacing / 2);
+
+    ImVec2 up_button_pos(buttons_center_x, buttons_y);
+    ImVec2 down_button_pos(buttons_center_x + button_width + button_spacing, buttons_y);
+    ImVec2 button_size(button_width, button_height);
+
+    bool up_held = draw_hold_button(up_button_pos, button_size, "Up", 2);
+    bool down_held = draw_hold_button(down_button_pos, button_size, "Down", 3);
+
+    // Apply vertical movement from buttons
+    if( up_held )
+    {
+        game->camera_world_y -= game->camera_movement_speed * 2;
+    }
+    if( down_held )
+    {
+        game->camera_world_y += game->camera_movement_speed * 2;
+    }
 
     // Movement joystick - bottom left
     ImVec2 move_joystick_center(margin + joystick_radius, screen_size.y - margin - joystick_radius);
