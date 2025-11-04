@@ -12,6 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * Early development of the asset server used this format
+ * to indicate no compression or encryption.
+ */
+#define NON_OSRS_PACKED_ARCHIVE_FORMAT 5
+
 // Format detection result
 typedef enum
 {
@@ -169,7 +175,7 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
     int compression = g1(&buffer);
     // Uncompressed size
     int size = g4(&buffer);
-    if( xtea_key_nullable && compression != 5 )
+    if( xtea_key_nullable && compression != NON_OSRS_PACKED_ARCHIVE_FORMAT )
         xtea_decrypt(archive->data + buffer.position, size + 4, xtea_key_nullable);
 
     unsigned int crc = 0;
@@ -183,7 +189,7 @@ archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nulla
     switch( compression )
     {
     // 5 is a hack for me.
-    case 5:
+    case NON_OSRS_PACKED_ARCHIVE_FORMAT:
     case 0:
     {
         // No compression

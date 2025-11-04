@@ -1,10 +1,13 @@
 /*
- * Asset Server with Work Queue
+ * Asset Server with Multi-Client Workers
  * Cross-platform socket server for Linux and macOS
+ * Each worker thread handles multiple clients using poll()
  * Listens on port 4949
  */
 
 #include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
@@ -26,35 +29,68 @@
 #define PORT 4949
 #define BACKLOG 128
 #define NUM_THREADS 8
-#define MAX_QUEUE_SIZE 256
+#define MAX_CLIENTS_PER_WORKER 128
 #define BUFFER_SIZE 4096
+#define POLL_TIMEOUT_MS 1000
 
 #undef CACHE_PATH
 #define CACHE_PATH "../cache/server"
 
-// Task structure
-typedef struct task
+// Client state enumeration
+typedef enum
 {
-    int client_fd;
-    struct task* next;
-} task_t;
+    CLIENT_STATE_READING_REQUEST_CODE,
+    CLIENT_STATE_READING_REQUEST_DATA,
+    CLIENT_STATE_PROCESSING,
+    CLIENT_STATE_SENDING_STATUS,
+    CLIENT_STATE_SENDING_SIZE,
+    CLIENT_STATE_SENDING_DATA,
+} client_state_t;
 
-// Work queue structure
+// Per-client connection state
 typedef struct
 {
-    task_t* head;
-    task_t* tail;
-    int count;
+    int fd;
+    client_state_t state;
+    struct sockaddr_in addr;
+
+    // Request parsing
+    char request_code;
+    char request_buffer[5];
+    int request_bytes_read;
+
+    uint32_t table_num;
+    uint32_t archive_num;
+
+    // Response data
+    struct CacheArchive* archive;
+    int status_value;
+    uint32_t status_network;
+    uint32_t data_size_network;
+    int response_bytes_sent;
+} client_conn_t;
+
+// Worker thread data
+typedef struct
+{
+    int thread_id;
+    pthread_t thread;
     pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    int shutdown;
-} work_queue_t;
+
+    client_conn_t clients[MAX_CLIENTS_PER_WORKER];
+    struct pollfd poll_fds[MAX_CLIENTS_PER_WORKER + 1]; // +1 for wakeup pipe
+    int num_clients;
+
+    int wakeup_pipe[2]; // Pipe to wake up poll()
+    volatile int shutdown;
+} worker_data_t;
 
 // Thread pool structure
 typedef struct
 {
-    pthread_t threads[NUM_THREADS];
-    work_queue_t queue;
+    worker_data_t workers[NUM_THREADS];
+    int next_worker; // Round-robin assignment
+    pthread_mutex_t assignment_mutex;
 } thread_pool_t;
 
 // Global variables
@@ -64,354 +100,548 @@ static volatile int running = 1;
 static struct Cache* cache = NULL;
 
 // Function prototypes
-void work_queue_init(work_queue_t* queue);
-void work_queue_destroy(work_queue_t* queue);
-int work_queue_push(work_queue_t* queue, int client_fd);
-task_t* work_queue_pop(work_queue_t* queue);
 void* worker_thread(void* arg);
-void handle_client(int client_fd);
+void worker_add_client(worker_data_t* worker, int client_fd, struct sockaddr_in* addr);
+void worker_remove_client(worker_data_t* worker, int index);
+void worker_handle_client_io(worker_data_t* worker, int client_index);
+int set_nonblocking(int fd);
 void thread_pool_init(thread_pool_t* pool);
 void thread_pool_destroy(thread_pool_t* pool);
+int thread_pool_assign_client(thread_pool_t* pool, int client_fd, struct sockaddr_in* addr);
 int create_server_socket(int port);
 void signal_handler(int sig);
 void cleanup_server(void);
 
-// Initialize work queue
-void
-work_queue_init(work_queue_t* queue)
-{
-    queue->head = NULL;
-    queue->tail = NULL;
-    queue->count = 0;
-    queue->shutdown = 0;
-    pthread_mutex_init(&queue->mutex, NULL);
-    pthread_cond_init(&queue->cond, NULL);
-}
-
-// Destroy work queue
-void
-work_queue_destroy(work_queue_t* queue)
-{
-    pthread_mutex_lock(&queue->mutex);
-    queue->shutdown = 1;
-
-    // Free remaining tasks
-    task_t* task = queue->head;
-    while( task )
-    {
-        task_t* next = task->next;
-        if( task->client_fd >= 0 )
-        {
-            close(task->client_fd);
-        }
-        free(task);
-        task = next;
-    }
-
-    pthread_cond_broadcast(&queue->cond);
-    pthread_mutex_unlock(&queue->mutex);
-
-    pthread_mutex_destroy(&queue->mutex);
-    pthread_cond_destroy(&queue->cond);
-}
-
-// Push task to queue
+// Set socket to non-blocking mode
 int
-work_queue_push(work_queue_t* queue, int client_fd)
+set_nonblocking(int fd)
 {
-    pthread_mutex_lock(&queue->mutex);
-
-    if( queue->shutdown )
+    int flags = fcntl(fd, F_GETFL, 0);
+    if( flags < 0 )
     {
-        pthread_mutex_unlock(&queue->mutex);
+        perror("fcntl F_GETFL");
         return -1;
     }
 
-    if( queue->count >= MAX_QUEUE_SIZE )
+    if( fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0 )
     {
-        pthread_mutex_unlock(&queue->mutex);
-        fprintf(stderr, "Work queue is full\n");
+        perror("fcntl F_SETFL");
         return -1;
     }
-
-    task_t* task = (task_t*)malloc(sizeof(task_t));
-    if( !task )
-    {
-        pthread_mutex_unlock(&queue->mutex);
-        return -1;
-    }
-
-    task->client_fd = client_fd;
-    task->next = NULL;
-
-    if( queue->tail )
-    {
-        queue->tail->next = task;
-        queue->tail = task;
-    }
-    else
-    {
-        queue->head = queue->tail = task;
-    }
-
-    queue->count++;
-    pthread_cond_signal(&queue->cond);
-    pthread_mutex_unlock(&queue->mutex);
 
     return 0;
 }
 
-// Pop task from queue
-task_t*
-work_queue_pop(work_queue_t* queue)
-{
-    pthread_mutex_lock(&queue->mutex);
-
-    while( queue->count == 0 && !queue->shutdown )
-    {
-        pthread_cond_wait(&queue->cond, &queue->mutex);
-    }
-
-    if( queue->shutdown && queue->count == 0 )
-    {
-        pthread_mutex_unlock(&queue->mutex);
-        return NULL;
-    }
-
-    task_t* task = queue->head;
-    if( task )
-    {
-        queue->head = task->next;
-        if( !queue->head )
-        {
-            queue->tail = NULL;
-        }
-        queue->count--;
-    }
-
-    pthread_mutex_unlock(&queue->mutex);
-    return task;
-}
-
-// Worker thread function
-void*
-worker_thread(void* arg)
-{
-    work_queue_t* queue = (work_queue_t*)arg;
-
-    printf("Worker thread %lu started\n", (unsigned long)pthread_self());
-
-    while( 1 )
-    {
-        task_t* task = work_queue_pop(queue);
-        if( !task )
-        {
-            break; // Shutdown signal
-        }
-
-        handle_client(task->client_fd);
-        close(task->client_fd);
-        free(task);
-    }
-
-    printf("Worker thread %lu exiting\n", (unsigned long)pthread_self());
-    return NULL;
-}
-
-// Request structure: Table # and Archive #
-typedef struct
-{
-    uint32_t table_num;
-    uint32_t archive_num;
-} asset_request_t;
-
-// Handle client connection
+// Add a client to a worker's client list
 void
-handle_client(int client_fd)
+worker_add_client(worker_data_t* worker, int client_fd, struct sockaddr_in* addr)
 {
-    asset_request_t request;
-    ssize_t bytes_read;
-    char request_code = 0;
+    pthread_mutex_lock(&worker->mutex);
 
-    struct sockaddr_in addr;
-    socklen_t addr_len = sizeof(addr);
-    getpeername(client_fd, (struct sockaddr*)&addr, &addr_len);
-
-    printf("Handling client from %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-
-    // Keep handling requests from the same client until they disconnect
-    while( 1 )
+    if( worker->num_clients >= MAX_CLIENTS_PER_WORKER )
     {
-        // Read request code (1 byte)
-        bytes_read = recv(client_fd, &request_code, sizeof(char), 0);
-        if( bytes_read == 0 )
+        pthread_mutex_unlock(&worker->mutex);
+        fprintf(stderr, "Worker %d: Client limit reached\n", worker->thread_id);
+        close(client_fd);
+        return;
+    }
+
+    // Set socket to non-blocking
+    if( set_nonblocking(client_fd) < 0 )
+    {
+        pthread_mutex_unlock(&worker->mutex);
+        close(client_fd);
+        return;
+    }
+
+    int index = worker->num_clients;
+    client_conn_t* client = &worker->clients[index];
+
+    memset(client, 0, sizeof(client_conn_t));
+    client->fd = client_fd;
+    client->state = CLIENT_STATE_READING_REQUEST_CODE;
+    client->addr = *addr;
+
+    // Set up poll fd
+    worker->poll_fds[index + 1].fd = client_fd; // +1 because index 0 is wakeup pipe
+    worker->poll_fds[index + 1].events = POLLIN;
+    worker->poll_fds[index + 1].revents = 0;
+
+    worker->num_clients++;
+
+    printf(
+        "Worker %d: Added client %s:%d (total: %d)\n",
+        worker->thread_id,
+        inet_ntoa(addr->sin_addr),
+        ntohs(addr->sin_port),
+        worker->num_clients);
+
+    pthread_mutex_unlock(&worker->mutex);
+
+    // Wake up the worker's poll()
+    char wake = 1;
+    if( write(worker->wakeup_pipe[1], &wake, 1) < 0 )
+    {
+        perror("write to wakeup pipe");
+    }
+}
+
+// Remove a client from worker's client list
+void
+worker_remove_client(worker_data_t* worker, int index)
+{
+    client_conn_t* client = &worker->clients[index];
+
+    printf(
+        "Worker %d: Removing client %s:%d\n",
+        worker->thread_id,
+        inet_ntoa(client->addr.sin_addr),
+        ntohs(client->addr.sin_port));
+
+    if( client->archive )
+    {
+        cache_archive_free(client->archive);
+        client->archive = NULL;
+    }
+
+    close(client->fd);
+
+    // Move last client to this slot
+    if( index < worker->num_clients - 1 )
+    {
+        worker->clients[index] = worker->clients[worker->num_clients - 1];
+        worker->poll_fds[index + 1] = worker->poll_fds[worker->num_clients]; // +1 for wakeup pipe
+    }
+
+    worker->num_clients--;
+}
+
+// Handle client I/O for a specific client (non-blocking state machine)
+void
+worker_handle_client_io(worker_data_t* worker, int client_index)
+{
+    client_conn_t* client = &worker->clients[client_index];
+    ssize_t result;
+    int should_remove = 0;
+
+    switch( client->state )
+    {
+    case CLIENT_STATE_READING_REQUEST_CODE:
+    {
+        // Try to read 1 byte request code
+        result = recv(client->fd, &client->request_code, 1, 0);
+        if( result == 0 )
         {
             // Client closed connection
-            printf("Client %s:%d disconnected\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            should_remove = 1;
             break;
         }
-        if( bytes_read != sizeof(char) )
+        if( result < 0 )
         {
-            perror("recv request code");
-            break;
-        }
-
-        if( request_code != 1 )
-        {
-            fprintf(stderr, "Invalid request code: %d\n", request_code);
-            break;
-        }
-
-        char asset_request_buffer[5] = { 0 };
-        bytes_read = recv(client_fd, &asset_request_buffer, sizeof(asset_request_buffer), 0);
-        if( bytes_read == 0 )
-        {
-            // Client closed connection
-            printf("Client %s:%d disconnected\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-            break;
-        }
-        if( bytes_read != sizeof(asset_request_buffer) )
-        {
-            perror("recv request");
-            break;
-        }
-
-        int status = 0;
-
-        request.table_num = asset_request_buffer[0] & 0xff;
-        request.archive_num =
-            (asset_request_buffer[1] & 0xff) << 24 | (asset_request_buffer[2] & 0xff) << 16 |
-            (asset_request_buffer[3] & 0xff) << 8 | (asset_request_buffer[4] & 0xff);
-
-        // Convert from network byte order to host byte order
-        uint32_t table_num = (request.table_num);
-        uint32_t archive_num = (request.archive_num);
-
-        printf("Request: Table=%u, Archive=%u\n", table_num, archive_num);
-
-        // Load archive from cache
-        if( !cache )
-        {
-            fprintf(stderr, "Cache not initialized\n");
-            break;
-        }
-
-        struct CacheArchive* archive = NULL;
-
-        if( table_num == 255 )
-        {
-            // Load the reference table
-            archive = cache_archive_new_reference_table_load(cache, archive_num);
-            if( !archive )
+            if( errno != EAGAIN && errno != EWOULDBLOCK )
             {
-                fprintf(
-                    stderr, "Failed to load reference table: Table=255, Archive=%u\n", archive_num);
-                uint32_t error_status = htonl(0);
-                send(client_fd, &error_status, sizeof(uint32_t), 0);
-                uint32_t error_size = htonl(0);
-                send(client_fd, &error_size, sizeof(uint32_t), 0);
-                continue; // Try to handle next request
+                perror("recv request_code");
+                should_remove = 1;
             }
+            break;
+        }
+
+        if( client->request_code != 1 )
+        {
+            fprintf(
+                stderr,
+                "Worker %d: Invalid request code %d\n",
+                worker->thread_id,
+                client->request_code);
+            should_remove = 1;
+            break;
+        }
+
+        client->state = CLIENT_STATE_READING_REQUEST_DATA;
+        client->request_bytes_read = 0;
+        // Fall through to next state
+    }
+        __attribute__((fallthrough));
+
+    case CLIENT_STATE_READING_REQUEST_DATA:
+    {
+        // Try to read 5 byte request (table + archive)
+        while( client->request_bytes_read < 5 )
+        {
+            result = recv(
+                client->fd,
+                client->request_buffer + client->request_bytes_read,
+                5 - client->request_bytes_read,
+                0);
+
+            if( result == 0 )
+            {
+                should_remove = 1;
+                break;
+            }
+            if( result < 0 )
+            {
+                if( errno != EAGAIN && errno != EWOULDBLOCK )
+                {
+                    perror("recv request_data");
+                    should_remove = 1;
+                }
+                break;
+            }
+
+            client->request_bytes_read += result;
+        }
+
+        if( should_remove || client->request_bytes_read < 5 )
+            break;
+
+        // Parse request
+        client->table_num = client->request_buffer[0] & 0xff;
+        client->archive_num =
+            (client->request_buffer[1] & 0xff) << 24 | (client->request_buffer[2] & 0xff) << 16 |
+            (client->request_buffer[3] & 0xff) << 8 | (client->request_buffer[4] & 0xff);
+
+        printf(
+            "Worker %d: Request from %s:%d - Table=%u, Archive=%u\n",
+            worker->thread_id,
+            inet_ntoa(client->addr.sin_addr),
+            ntohs(client->addr.sin_port),
+            client->table_num,
+            client->archive_num);
+
+        client->state = CLIENT_STATE_PROCESSING;
+        // Fall through to processing
+    }
+        __attribute__((fallthrough));
+
+    case CLIENT_STATE_PROCESSING:
+    {
+        // Load archive from cache
+        if( client->table_num == 255 )
+        {
+            client->archive = cache_archive_new_reference_table_load(cache, client->archive_num);
         }
         else
         {
-            // Check if table_num is valid
-            if( !cache_is_valid_table_id(table_num) )
-            {
-                fprintf(stderr, "Invalid table id: %u\n", table_num);
-                uint32_t error_status = htonl(0);
-                send(client_fd, &error_status, sizeof(uint32_t), 0);
-                uint32_t error_size = htonl(0);
-                send(client_fd, &error_size, sizeof(uint32_t), 0);
-                continue; // Try to handle next request
-            }
-
-            int32_t* xtea_key = NULL;
-            if( table_num == CACHE_MAPS )
-            {
-                xtea_key = cache_archive_xtea_key(cache, table_num, archive_num);
-                if( !xtea_key )
-                {
-                    fprintf(
-                        stderr,
-                        "Failed to load xtea key for table %d, archive %d\n",
-                        table_num,
-                        archive_num);
-                }
-            }
-            // Load the archive
-            archive = cache_archive_new_load_decrypted(cache, table_num, archive_num, xtea_key);
-            if( !archive )
+            if( !cache_is_valid_table_id(client->table_num) )
             {
                 fprintf(
                     stderr,
-                    "Failed to load archive: Table=%u, Archive=%u\n",
-                    table_num,
-                    archive_num);
-                uint32_t error_status = htonl(0);
-                send(client_fd, &error_status, sizeof(uint32_t), 0);
-                uint32_t error_size = htonl(0);
-                send(client_fd, &error_size, sizeof(uint32_t), 0);
-                continue; // Try to handle next request
+                    "Worker %d: Invalid table id: %u\n",
+                    worker->thread_id,
+                    client->table_num);
+                client->archive = NULL;
+            }
+            else
+            {
+                int32_t* xtea_key = NULL;
+                if( client->table_num == CACHE_MAPS )
+                {
+                    xtea_key =
+                        cache_archive_xtea_key(cache, client->table_num, client->archive_num);
+                }
+                client->archive = cache_archive_new_load_decrypted(
+                    cache, client->table_num, client->archive_num, xtea_key);
             }
         }
 
-        printf("Loaded archive: %d bytes\n", archive->data_size);
-
-        status = 1;
-        status = htonl(status);
-        ssize_t bytes_sent = send(client_fd, &status, sizeof(int), 0);
-        if( bytes_sent != sizeof(int) )
+        if( client->archive )
         {
-            perror("send status");
-            cache_archive_free(archive);
-            break;
+            client->status_value = 1;
+            client->status_network = htonl(1);
+            client->data_size_network = htonl(client->archive->data_size);
+            printf(
+                "Worker %d: Loaded archive: %d bytes\n",
+                worker->thread_id,
+                client->archive->data_size);
+        }
+        else
+        {
+            client->status_value = 0;
+            client->status_network = htonl(0);
+            client->data_size_network = htonl(0);
+            fprintf(
+                stderr,
+                "Worker %d: Failed to load archive Table=%u, Archive=%u\n",
+                worker->thread_id,
+                client->table_num,
+                client->archive_num);
         }
 
-        // Send the data size first (4 bytes, network byte order)
-        uint32_t data_size_network = htonl(archive->data_size);
-        bytes_sent = send(client_fd, &data_size_network, sizeof(uint32_t), 0);
-        if( bytes_sent != sizeof(uint32_t) )
-        {
-            perror("send data_size");
-            cache_archive_free(archive);
-            break;
-        }
+        client->response_bytes_sent = 0;
+        client->state = CLIENT_STATE_SENDING_STATUS;
 
-        // Send the actual data
-        bytes_sent = send(client_fd, archive->data, archive->data_size, 0);
-        if( bytes_sent != archive->data_size )
-        {
-            perror("send data");
-            cache_archive_free(archive);
-            break;
-        }
-
-        printf(
-            "Sent %d bytes for Table=%u, Archive=%u\n", archive->data_size, table_num, archive_num);
-
-        cache_archive_free(archive);
-
-        // Continue to wait for the next request from the same client
+        // Update poll to wait for POLLOUT
+        worker->poll_fds[client_index + 1].events = POLLOUT;
+        break;
     }
+
+    case CLIENT_STATE_SENDING_STATUS:
+    {
+        // Send 4-byte status
+        while( client->response_bytes_sent < 4 )
+        {
+            result = send(
+                client->fd,
+                ((char*)&client->status_network) + client->response_bytes_sent,
+                4 - client->response_bytes_sent,
+                0);
+
+            if( result < 0 )
+            {
+                if( errno != EAGAIN && errno != EWOULDBLOCK )
+                {
+                    perror("send status");
+                    should_remove = 1;
+                }
+                break;
+            }
+
+            client->response_bytes_sent += result;
+        }
+
+        if( should_remove || client->response_bytes_sent < 4 )
+            break;
+
+        client->response_bytes_sent = 0;
+        client->state = CLIENT_STATE_SENDING_SIZE;
+        // Fall through
+    }
+        __attribute__((fallthrough));
+
+    case CLIENT_STATE_SENDING_SIZE:
+    {
+        // Send 4-byte data size
+        while( client->response_bytes_sent < 4 )
+        {
+            result = send(
+                client->fd,
+                ((char*)&client->data_size_network) + client->response_bytes_sent,
+                4 - client->response_bytes_sent,
+                0);
+
+            if( result < 0 )
+            {
+                if( errno != EAGAIN && errno != EWOULDBLOCK )
+                {
+                    perror("send data_size");
+                    should_remove = 1;
+                }
+                break;
+            }
+
+            client->response_bytes_sent += result;
+        }
+
+        if( should_remove || client->response_bytes_sent < 4 )
+            break;
+
+        client->response_bytes_sent = 0;
+
+        // If no archive data, go back to reading next request
+        if( !client->archive || client->archive->data_size == 0 )
+        {
+            if( client->archive )
+            {
+                cache_archive_free(client->archive);
+                client->archive = NULL;
+            }
+            client->state = CLIENT_STATE_READING_REQUEST_CODE;
+            worker->poll_fds[client_index + 1].events = POLLIN;
+            break;
+        }
+
+        client->state = CLIENT_STATE_SENDING_DATA;
+        // Fall through
+    }
+        __attribute__((fallthrough));
+
+    case CLIENT_STATE_SENDING_DATA:
+    {
+        // Send archive data
+        while( client->response_bytes_sent < client->archive->data_size )
+        {
+            result = send(
+                client->fd,
+                client->archive->data + client->response_bytes_sent,
+                client->archive->data_size - client->response_bytes_sent,
+                0);
+
+            if( result < 0 )
+            {
+                if( errno != EAGAIN && errno != EWOULDBLOCK )
+                {
+                    perror("send data");
+                    should_remove = 1;
+                }
+                break;
+            }
+
+            client->response_bytes_sent += result;
+        }
+
+        if( should_remove )
+            break;
+
+        if( client->response_bytes_sent >= client->archive->data_size )
+        {
+            printf(
+                "Worker %d: Sent %d bytes for Table=%u, Archive=%u\n",
+                worker->thread_id,
+                client->archive->data_size,
+                client->table_num,
+                client->archive_num);
+
+            cache_archive_free(client->archive);
+            client->archive = NULL;
+
+            // Go back to reading next request
+            client->state = CLIENT_STATE_READING_REQUEST_CODE;
+            worker->poll_fds[client_index + 1].events = POLLIN;
+        }
+        break;
+    }
+    }
+
+    if( should_remove )
+    {
+        worker_remove_client(worker, client_index);
+    }
+}
+
+// Worker thread main loop
+void*
+worker_thread(void* arg)
+{
+    worker_data_t* worker = (worker_data_t*)arg;
+
+    printf("Worker %d: started\n", worker->thread_id);
+
+    while( !worker->shutdown )
+    {
+        pthread_mutex_lock(&worker->mutex);
+        int num_fds = worker->num_clients + 1; // +1 for wakeup pipe
+        pthread_mutex_unlock(&worker->mutex);
+
+        // Poll for events
+        int poll_result = poll(worker->poll_fds, num_fds, POLL_TIMEOUT_MS);
+
+        if( poll_result < 0 )
+        {
+            if( errno != EINTR )
+            {
+                perror("poll");
+            }
+            continue;
+        }
+
+        if( poll_result == 0 )
+        {
+            // Timeout, just loop again
+            continue;
+        }
+
+        pthread_mutex_lock(&worker->mutex);
+
+        // Check wakeup pipe (index 0)
+        if( worker->poll_fds[0].revents & POLLIN )
+        {
+            char buf[256];
+            while( read(worker->wakeup_pipe[0], buf, sizeof(buf)) > 0 )
+                ; // Drain pipe
+        }
+
+        // Handle client events (starting at index 1)
+        for( int i = 0; i < worker->num_clients; )
+        {
+            struct pollfd* pfd = &worker->poll_fds[i + 1];
+
+            if( pfd->revents & (POLLIN | POLLOUT) )
+            {
+                int old_count = worker->num_clients;
+                worker_handle_client_io(worker, i);
+
+                // If client was removed, don't increment i
+                if( worker->num_clients < old_count )
+                {
+                    continue;
+                }
+            }
+            else if( pfd->revents & (POLLERR | POLLHUP | POLLNVAL) )
+            {
+                printf("Worker %d: Client error/hangup\n", worker->thread_id);
+                worker_remove_client(worker, i);
+                continue;
+            }
+
+            i++;
+        }
+
+        pthread_mutex_unlock(&worker->mutex);
+    }
+
+    printf("Worker %d: exiting\n", worker->thread_id);
+    return NULL;
+}
+
+// Assign a client to a worker using round-robin
+int
+thread_pool_assign_client(thread_pool_t* pool, int client_fd, struct sockaddr_in* addr)
+{
+    pthread_mutex_lock(&pool->assignment_mutex);
+
+    int worker_id = pool->next_worker;
+    pool->next_worker = (pool->next_worker + 1) % NUM_THREADS;
+
+    pthread_mutex_unlock(&pool->assignment_mutex);
+
+    worker_add_client(&pool->workers[worker_id], client_fd, addr);
+    return 0;
 }
 
 // Initialize thread pool
 void
 thread_pool_init(thread_pool_t* pool)
 {
-    work_queue_init(&pool->queue);
+    memset(pool, 0, sizeof(thread_pool_t));
+    pthread_mutex_init(&pool->assignment_mutex, NULL);
+    pool->next_worker = 0;
 
     for( int i = 0; i < NUM_THREADS; i++ )
     {
-        if( pthread_create(&pool->threads[i], NULL, worker_thread, &pool->queue) != 0 )
+        worker_data_t* worker = &pool->workers[i];
+
+        worker->thread_id = i;
+        worker->num_clients = 0;
+        worker->shutdown = 0;
+
+        pthread_mutex_init(&worker->mutex, NULL);
+
+        // Create wakeup pipe
+        if( pipe(worker->wakeup_pipe) < 0 )
+        {
+            perror("pipe");
+            exit(EXIT_FAILURE);
+        }
+
+        // Set pipe to non-blocking
+        set_nonblocking(worker->wakeup_pipe[0]);
+        set_nonblocking(worker->wakeup_pipe[1]);
+
+        // Set up poll fd for wakeup pipe (index 0)
+        worker->poll_fds[0].fd = worker->wakeup_pipe[0];
+        worker->poll_fds[0].events = POLLIN;
+        worker->poll_fds[0].revents = 0;
+
+        // Create worker thread
+        if( pthread_create(&worker->thread, NULL, worker_thread, worker) != 0 )
         {
             perror("pthread_create");
             exit(EXIT_FAILURE);
         }
     }
 
-    printf("Thread pool initialized with %d threads\n", NUM_THREADS);
+    printf("Thread pool initialized with %d workers\n", NUM_THREADS);
 }
 
 // Destroy thread pool
@@ -420,17 +650,39 @@ thread_pool_destroy(thread_pool_t* pool)
 {
     printf("Shutting down thread pool...\n");
 
-    pthread_mutex_lock(&pool->queue.mutex);
-    pool->queue.shutdown = 1;
-    pthread_cond_broadcast(&pool->queue.cond);
-    pthread_mutex_unlock(&pool->queue.mutex);
-
+    // Signal all workers to shutdown
     for( int i = 0; i < NUM_THREADS; i++ )
     {
-        pthread_join(pool->threads[i], NULL);
+        pool->workers[i].shutdown = 1;
+
+        // Wake up worker
+        char wake = 1;
+        write(pool->workers[i].wakeup_pipe[1], &wake, 1);
     }
 
-    work_queue_destroy(&pool->queue);
+    // Wait for all workers to exit
+    for( int i = 0; i < NUM_THREADS; i++ )
+    {
+        pthread_join(pool->workers[i].thread, NULL);
+
+        // Cleanup
+        pthread_mutex_destroy(&pool->workers[i].mutex);
+        close(pool->workers[i].wakeup_pipe[0]);
+        close(pool->workers[i].wakeup_pipe[1]);
+
+        // Close any remaining clients
+        for( int j = 0; j < pool->workers[i].num_clients; j++ )
+        {
+            client_conn_t* client = &pool->workers[i].clients[j];
+            if( client->archive )
+            {
+                cache_archive_free(client->archive);
+            }
+            close(client->fd);
+        }
+    }
+
+    pthread_mutex_destroy(&pool->assignment_mutex);
     printf("Thread pool shut down\n");
 }
 
@@ -583,6 +835,11 @@ main(int argc, char* argv[])
     }
 
     printf("Server ready. Press Ctrl+C to stop.\n");
+    printf(
+        "Each of %d workers can handle up to %d clients concurrently\n",
+        NUM_THREADS,
+        MAX_CLIENTS_PER_WORKER);
+    printf("Total capacity: %d concurrent clients\n", NUM_THREADS * MAX_CLIENTS_PER_WORKER);
 
     // Accept loop
     while( running )
@@ -605,12 +862,8 @@ main(int argc, char* argv[])
             inet_ntoa(client_addr.sin_addr),
             ntohs(client_addr.sin_port));
 
-        // Push to work queue
-        if( work_queue_push(&pool.queue, client_fd) < 0 )
-        {
-            fprintf(stderr, "Failed to queue client connection\n");
-            close(client_fd);
-        }
+        // Assign to a worker
+        thread_pool_assign_client(&pool, client_fd, &client_addr);
     }
 
     printf("Server shutting down...\n");
