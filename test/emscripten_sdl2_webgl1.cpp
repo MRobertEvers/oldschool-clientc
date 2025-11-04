@@ -71,12 +71,12 @@ main(int argc, char* argv[])
         return 1;
     }
 
-    if( !PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_InitSoft3D(
-            renderer, 1600, 900, "soft3d-canvas") )
-    {
-        printf("Failed to initialize soft3d renderer\n");
-        return 1;
-    }
+    // if( !PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_InitSoft3D(
+    //         renderer, 1600, 900, "soft3d-canvas") )
+    // {
+    //     printf("Failed to initialize soft3d renderer\n");
+    //     return 1;
+    // }
 
     struct GameGfxOpList* gfx_op_list = game_gfx_op_list_new(1024);
     if( !gfx_op_list )

@@ -807,6 +807,9 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
         renderer->height = new_height;
         emscripten_set_canvas_element_size("#canvas", new_width, new_height);
 
+        // Update WebGL viewport to match new canvas size
+        glViewport(0, 0, new_width, new_height);
+
         // Also update SDL window size so ImGui can pick up the correct dimensions
         if( renderer->platform && renderer->platform->window )
         {

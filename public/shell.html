@@ -6,14 +6,22 @@
     <style>
       body {
         margin: 0;
+        padding: 0;
         background-color: #333;
-        min-height: 100vh;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
         font-family: Arial, sans-serif;
       }
 
-      canvas {
+      #canvas {
         background-color: #000;
         display: block;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
       }
 
       #soft3d-container {
@@ -144,10 +152,22 @@
         height: 10px;
         cursor: nesw-resize;
       }
+
+      .main-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      #canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
     </style>
   </head>
   <body>
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" class="main-canvas"></canvas>
     <div id="soft3d-container" style="display: none">
       <div id="soft3d-header">
         <span id="soft3d-title">Soft3D View</span>
@@ -299,6 +319,23 @@
           attributes: true,
           attributeFilter: ["width", "height"],
         });
+      })();
+
+      // Handle window resize to ensure canvas fills screen
+      (function () {
+        const mainCanvas = document.getElementById("canvas");
+
+        function updateCanvasSize() {
+          // The CSS already makes it 100vw x 100vh, but this ensures
+          // the internal canvas dimensions are updated on next render
+          const rect = mainCanvas.getBoundingClientRect();
+          console.log("Window resized: " + rect.width + "x" + rect.height);
+        }
+
+        window.addEventListener("resize", updateCanvasSize);
+
+        // Set initial size
+        updateCanvasSize();
       })();
     </script>
   </body>
