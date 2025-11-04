@@ -33,6 +33,12 @@ struct RendererOSX_SDL2OpenGL3
     // Performance metrics
     double face_order_time_ms;
     double render_time_ms;
+
+    // Mouse hover detection
+    int mouse_x;
+    int mouse_y;
+    struct SceneModel* last_hovered_model;
+    int last_hovered_yaw;
 };
 
 struct RendererOSX_SDL2OpenGL3* PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height);

@@ -16,6 +16,7 @@ extern "C" {
 #include <SDL.h>
 #include <stdio.h>
 #include <vector>
+#include <algorithm>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -27,6 +28,140 @@ static int g_screen_vertices_z[20];
 static int g_ortho_vertices_x[20];
 static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
+
+// Structures for convex hull computation
+struct Point2D
+{
+    float x;
+    float y;
+};
+
+struct Rectangle
+{
+    Point2D corners[4];
+};
+
+// Sutherland-Hodgman clipping algorithm for computing convex hull
+// Clips a polygon against a single edge
+static void
+clip_polygon_against_edge(
+    const std::vector<Point2D>& input,
+    std::vector<Point2D>& output,
+    const Point2D& edge_start,
+    const Point2D& edge_end)
+{
+    output.clear();
+
+    if( input.empty() )
+        return;
+
+    // Edge vector
+    float edge_dx = edge_end.x - edge_start.x;
+    float edge_dy = edge_end.y - edge_start.y;
+
+    for( size_t i = 0; i < input.size(); i++ )
+    {
+        const Point2D& current = input[i];
+        const Point2D& next = input[(i + 1) % input.size()];
+
+        // Check which side of the edge each point is on
+        // Cross product: (edge_end - edge_start) x (point - edge_start)
+        float current_cross =
+            edge_dx * (current.y - edge_start.y) - edge_dy * (current.x - edge_start.x);
+        float next_cross = edge_dx * (next.y - edge_start.y) - edge_dy * (next.x - edge_start.x);
+
+        // Inside is defined as the left side of the edge (positive cross product)
+        bool current_inside = current_cross >= 0;
+        bool next_inside = next_cross >= 0;
+
+        if( current_inside && next_inside )
+        {
+            // Both inside - add next point
+            output.push_back(next);
+        }
+        else if( current_inside && !next_inside )
+        {
+            // Leaving - add intersection point
+            float t = current_cross / (current_cross - next_cross);
+            Point2D intersection;
+            intersection.x = current.x + t * (next.x - current.x);
+            intersection.y = current.y + t * (next.y - current.y);
+            output.push_back(intersection);
+        }
+        else if( !current_inside && next_inside )
+        {
+            // Entering - add intersection point and next point
+            float t = current_cross / (current_cross - next_cross);
+            Point2D intersection;
+            intersection.x = current.x + t * (next.x - current.x);
+            intersection.y = current.y + t * (next.y - current.y);
+            output.push_back(intersection);
+            output.push_back(next);
+        }
+        // else both outside - add nothing
+    }
+}
+
+// Compute convex hull of rectangles using Sutherland-Hodgman
+static std::vector<Point2D>
+compute_convex_hull_of_rectangles(const std::vector<Rectangle>& rectangles)
+{
+    if( rectangles.empty() )
+        return std::vector<Point2D>();
+
+    // Start with the first rectangle as the initial polygon
+    std::vector<Point2D> polygon;
+    for( int i = 0; i < 4; i++ )
+    {
+        polygon.push_back(rectangles[0].corners[i]);
+    }
+
+    // Clip against each edge of each subsequent rectangle
+    for( size_t rect_idx = 1; rect_idx < rectangles.size(); rect_idx++ )
+    {
+        const Rectangle& rect = rectangles[rect_idx];
+
+        // Clip against all 4 edges of this rectangle
+        for( int edge = 0; edge < 4; edge++ )
+        {
+            std::vector<Point2D> temp;
+            clip_polygon_against_edge(
+                polygon, temp, rect.corners[edge], rect.corners[(edge + 1) % 4]);
+
+            if( temp.empty() )
+            {
+                // No intersection - polygon is empty
+                return std::vector<Point2D>();
+            }
+
+            polygon = temp;
+        }
+    }
+
+    return polygon;
+}
+
+// Compute bounding rectangle for a triangle face in screen space
+static Rectangle
+compute_face_bounding_rectangle(
+    int x1, int y1, int x2, int y2, int x3, int y3)
+{
+    Rectangle rect;
+
+    // Find min/max coordinates
+    int min_x = std::min({ x1, x2, x3 });
+    int max_x = std::max({ x1, x2, x3 });
+    int min_y = std::min({ y1, y2, y3 });
+    int max_y = std::max({ y1, y2, y3 });
+
+    // Create rectangle corners (clockwise from top-left)
+    rect.corners[0] = { (float)min_x, (float)min_y };
+    rect.corners[1] = { (float)max_x, (float)min_y };
+    rect.corners[2] = { (float)max_x, (float)max_y };
+    rect.corners[3] = { (float)min_x, (float)max_y };
+
+    return rect;
+}
 
 static void
 render_imgui(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
@@ -558,6 +693,181 @@ render_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
                 sizeof(DrawItem));
         }
 
+        // ============= HOVER DETECTION AND CONVEX HULL COMPUTATION =============
+        // Reset last hovered model
+        renderer->last_hovered_model = NULL;
+
+        // Iterate through scene again to detect hover
+        struct IterRenderSceneOps iter_hover;
+        iter_render_scene_ops_init(
+            &iter_hover,
+            game->frustrum_cullmap,
+            game->scene,
+            renderer->ops,
+            renderer->op_count,
+            renderer->op_count,
+            game->camera_pitch,
+            game->camera_yaw,
+            game->camera_world_x / 128,
+            game->camera_world_z / 128);
+
+        while( iter_render_scene_ops_next(&iter_hover) )
+        {
+            if( !iter_hover.value.model_nullable_ )
+                continue;
+
+            struct SceneModel* scene_model = iter_hover.value.model_nullable_;
+
+            if( !scene_model->model || scene_model->model->face_count == 0 )
+                continue;
+
+            // Initialize render model iterator
+            struct IterRenderModel iter_model;
+            iter_render_model_init(
+                &iter_model,
+                scene_model,
+                iter_hover.value.yaw,
+                game->camera_world_x,
+                game->camera_world_y,
+                game->camera_world_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                0,   // camera_roll
+                512, // fov
+                renderer->width,
+                renderer->height,
+                50); // near_plane_z
+
+            bool model_intersected = false;
+
+            // Iterate through all faces of this model
+            while( iter_render_model_next(&iter_model) )
+            {
+                int face = iter_model.value_face;
+
+                // Check if mouse is in the bounding box first
+                bool is_in_bb = false;
+                if( renderer->mouse_x > 0 && renderer->mouse_x >= iter_model.aabb_min_screen_x &&
+                    renderer->mouse_x <= iter_model.aabb_max_screen_x &&
+                    renderer->mouse_y >= iter_model.aabb_min_screen_y &&
+                    renderer->mouse_y <= iter_model.aabb_max_screen_y )
+                {
+                    is_in_bb = true;
+                }
+
+                if( !model_intersected && is_in_bb )
+                {
+                    // Get face vertex indices
+                    int face_a = scene_model->model->face_indices_a[face];
+                    int face_b = scene_model->model->face_indices_b[face];
+                    int face_c = scene_model->model->face_indices_c[face];
+
+                    // Get screen coordinates of the triangle vertices
+                    int x1 = iter_model.screen_vertices_x[face_a] + renderer->width / 2;
+                    int y1 = iter_model.screen_vertices_y[face_a] + renderer->height / 2;
+                    int x2 = iter_model.screen_vertices_x[face_b] + renderer->width / 2;
+                    int y2 = iter_model.screen_vertices_y[face_b] + renderer->height / 2;
+                    int x3 = iter_model.screen_vertices_x[face_c] + renderer->width / 2;
+                    int y3 = iter_model.screen_vertices_y[face_c] + renderer->height / 2;
+
+                    // Check if mouse is inside the triangle using barycentric coordinates
+                    bool mouse_in_triangle = false;
+                    if( x1 != -5000 && x2 != -5000 && x3 != -5000 )
+                    { // Skip clipped triangles
+                        int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+                        if( denominator != 0 )
+                        {
+                            float a = ((y2 - y3) * (renderer->mouse_x - x3) +
+                                       (x3 - x2) * (renderer->mouse_y - y3)) /
+                                      (float)denominator;
+                            float b = ((y3 - y1) * (renderer->mouse_x - x3) +
+                                       (x1 - x3) * (renderer->mouse_y - y3)) /
+                                      (float)denominator;
+                            float c = 1 - a - b;
+                            mouse_in_triangle = (a >= 0 && b >= 0 && c >= 0);
+                        }
+                    }
+
+                    if( mouse_in_triangle )
+                    {
+                        renderer->last_hovered_model = scene_model;
+                        renderer->last_hovered_yaw = scene_model->yaw + iter_hover.value.yaw;
+                        model_intersected = true;
+                        break; // Found hover, stop checking this model
+                    }
+                }
+            }
+        }
+
+        // If we have a hovered model, compute its convex hull
+        if( renderer->last_hovered_model )
+        {
+            printf("Computing convex hull for hovered model ID: %d\n",
+                   renderer->last_hovered_model->model->_id);
+
+            // Collect all face bounding rectangles
+            std::vector<Rectangle> face_rectangles;
+
+            // Initialize render model iterator for the hovered model
+            struct IterRenderModel iter_hull;
+            iter_render_model_init(
+                &iter_hull,
+                renderer->last_hovered_model,
+                renderer->last_hovered_yaw,
+                game->camera_world_x,
+                game->camera_world_y,
+                game->camera_world_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                0,   // camera_roll
+                512, // fov
+                renderer->width,
+                renderer->height,
+                50); // near_plane_z
+
+            // Collect bounding rectangles for all visible faces
+            while( iter_render_model_next(&iter_hull) )
+            {
+                int face = iter_hull.value_face;
+
+                // Get face vertex indices
+                int face_a = renderer->last_hovered_model->model->face_indices_a[face];
+                int face_b = renderer->last_hovered_model->model->face_indices_b[face];
+                int face_c = renderer->last_hovered_model->model->face_indices_c[face];
+
+                // Get screen coordinates of the triangle vertices
+                int x1 = iter_hull.screen_vertices_x[face_a] + renderer->width / 2;
+                int y1 = iter_hull.screen_vertices_y[face_a] + renderer->height / 2;
+                int x2 = iter_hull.screen_vertices_x[face_b] + renderer->width / 2;
+                int y2 = iter_hull.screen_vertices_y[face_b] + renderer->height / 2;
+                int x3 = iter_hull.screen_vertices_x[face_c] + renderer->width / 2;
+                int y3 = iter_hull.screen_vertices_y[face_c] + renderer->height / 2;
+
+                // Skip clipped triangles
+                if( x1 != -5000 && x2 != -5000 && x3 != -5000 )
+                {
+                    Rectangle rect = compute_face_bounding_rectangle(x1, y1, x2, y2, x3, y3);
+                    face_rectangles.push_back(rect);
+                }
+            }
+
+            // Compute convex hull using Sutherland-Hodgman
+            std::vector<Point2D> convex_hull = compute_convex_hull_of_rectangles(face_rectangles);
+
+            if( !convex_hull.empty() )
+            {
+                printf("Convex hull computed with %zu vertices:\n", convex_hull.size());
+                for( size_t i = 0; i < convex_hull.size(); i++ )
+                {
+                    printf("  Vertex %zu: (%.2f, %.2f)\n", i, convex_hull[i].x, convex_hull[i].y);
+                }
+            }
+            else
+            {
+                printf("Convex hull is empty\n");
+            }
+        }
+
         // Update last known camera position
         last_cam_x = game->camera_world_x;
         last_cam_y = game->camera_world_y;
@@ -608,6 +918,12 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height)
     memset(renderer->ops, 0, renderer->op_capacity * sizeof(struct SceneOp));
 
     renderer->op_count = 0;
+
+    // Initialize mouse tracking
+    renderer->mouse_x = 0;
+    renderer->mouse_y = 0;
+    renderer->last_hovered_model = NULL;
+    renderer->last_hovered_yaw = 0;
 
     return renderer;
 }
@@ -674,6 +990,9 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Render(
         renderer->height = window_height;
         printf("Window resized to %dx%d\n", window_width, window_height);
     }
+
+    // Update mouse position from SDL
+    SDL_GetMouseState(&renderer->mouse_x, &renderer->mouse_y);
 
     for( int i = 0; i < gfx_op_list->op_count; i++ )
     {
