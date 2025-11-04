@@ -2324,8 +2324,8 @@ render_scene_compute_ops(
                                 .level = loc->chunk_pos_level,
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
-                                                .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE,
+                                                .__rotation = loc->_wall_decor.side,    
+                                                .wall_yaw_adjust = loc->_wall_decor.model_a_yaw_adjust,
                                                },
                             };
                         }
@@ -2341,7 +2341,7 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE,
+                                                .wall_yaw_adjust = loc->_wall_decor.model_b_yaw_adjust,
                                            },
                             };
                         }
@@ -2700,7 +2700,7 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE,
+                                                .wall_yaw_adjust = loc->_wall_decor.model_a_yaw_adjust,
                                           },
                             };
                         }
@@ -2715,7 +2715,7 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE,
+                                                .wall_yaw_adjust = loc->_wall_decor.model_b_yaw_adjust,
                                           },
                             };
                         }

@@ -279,6 +279,9 @@ struct WallDecor
     // In this case, "side" represents the side of the wall that model_a is facing.
     // model_b faces the opposite side.
     int through_wall_flags;
+
+    int model_a_yaw_adjust;
+    int model_b_yaw_adjust;
 };
 
 struct Loc
