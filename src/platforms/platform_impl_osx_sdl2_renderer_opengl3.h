@@ -39,6 +39,10 @@ struct RendererOSX_SDL2OpenGL3
     int mouse_y;
     struct SceneModel* last_hovered_model;
     int last_hovered_yaw;
+
+    // Convex hull for hovered model (stored as vertex buffer)
+    float* convex_hull_vertices;
+    int convex_hull_vertex_count;
 };
 
 struct RendererOSX_SDL2OpenGL3* PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height);

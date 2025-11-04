@@ -14,9 +14,9 @@ extern "C" {
 #include <OpenGL/gl3.h>
 
 #include <SDL.h>
+#include <algorithm>
 #include <stdio.h>
 #include <vector>
-#include <algorithm>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -36,131 +36,106 @@ struct Point2D
     float y;
 };
 
-struct Rectangle
-{
-    Point2D corners[4];
-};
-
-// Sutherland-Hodgman clipping algorithm for computing convex hull
-// Clips a polygon against a single edge
-static void
-clip_polygon_against_edge(
-    const std::vector<Point2D>& input,
-    std::vector<Point2D>& output,
-    const Point2D& edge_start,
-    const Point2D& edge_end)
-{
-    output.clear();
-
-    if( input.empty() )
-        return;
-
-    // Edge vector
-    float edge_dx = edge_end.x - edge_start.x;
-    float edge_dy = edge_end.y - edge_start.y;
-
-    for( size_t i = 0; i < input.size(); i++ )
-    {
-        const Point2D& current = input[i];
-        const Point2D& next = input[(i + 1) % input.size()];
-
-        // Check which side of the edge each point is on
-        // Cross product: (edge_end - edge_start) x (point - edge_start)
-        float current_cross =
-            edge_dx * (current.y - edge_start.y) - edge_dy * (current.x - edge_start.x);
-        float next_cross = edge_dx * (next.y - edge_start.y) - edge_dy * (next.x - edge_start.x);
-
-        // Inside is defined as the left side of the edge (positive cross product)
-        bool current_inside = current_cross >= 0;
-        bool next_inside = next_cross >= 0;
-
-        if( current_inside && next_inside )
-        {
-            // Both inside - add next point
-            output.push_back(next);
-        }
-        else if( current_inside && !next_inside )
-        {
-            // Leaving - add intersection point
-            float t = current_cross / (current_cross - next_cross);
-            Point2D intersection;
-            intersection.x = current.x + t * (next.x - current.x);
-            intersection.y = current.y + t * (next.y - current.y);
-            output.push_back(intersection);
-        }
-        else if( !current_inside && next_inside )
-        {
-            // Entering - add intersection point and next point
-            float t = current_cross / (current_cross - next_cross);
-            Point2D intersection;
-            intersection.x = current.x + t * (next.x - current.x);
-            intersection.y = current.y + t * (next.y - current.y);
-            output.push_back(intersection);
-            output.push_back(next);
-        }
-        // else both outside - add nothing
-    }
-}
-
-// Compute convex hull of rectangles using Sutherland-Hodgman
+// Compute convex hull using Graham scan algorithm
+// Returns points in counter-clockwise order
 static std::vector<Point2D>
-compute_convex_hull_of_rectangles(const std::vector<Rectangle>& rectangles)
+compute_convex_hull(std::vector<Point2D> points)
 {
-    if( rectangles.empty() )
-        return std::vector<Point2D>();
+    if( points.size() < 3 )
+        return points;
 
-    // Start with the first rectangle as the initial polygon
-    std::vector<Point2D> polygon;
-    for( int i = 0; i < 4; i++ )
+    // Find the point with lowest y-coordinate (and leftmost if tie)
+    size_t min_idx = 0;
+    for( size_t i = 1; i < points.size(); i++ )
     {
-        polygon.push_back(rectangles[0].corners[i]);
-    }
-
-    // Clip against each edge of each subsequent rectangle
-    for( size_t rect_idx = 1; rect_idx < rectangles.size(); rect_idx++ )
-    {
-        const Rectangle& rect = rectangles[rect_idx];
-
-        // Clip against all 4 edges of this rectangle
-        for( int edge = 0; edge < 4; edge++ )
+        if( points[i].y < points[min_idx].y ||
+            (points[i].y == points[min_idx].y && points[i].x < points[min_idx].x) )
         {
-            std::vector<Point2D> temp;
-            clip_polygon_against_edge(
-                polygon, temp, rect.corners[edge], rect.corners[(edge + 1) % 4]);
-
-            if( temp.empty() )
-            {
-                // No intersection - polygon is empty
-                return std::vector<Point2D>();
-            }
-
-            polygon = temp;
+            min_idx = i;
         }
     }
 
-    return polygon;
+    // Swap minimum point to front
+    std::swap(points[0], points[min_idx]);
+    Point2D pivot = points[0];
+
+    // Sort points by polar angle with respect to pivot
+    std::sort(points.begin() + 1, points.end(), [&pivot](const Point2D& a, const Point2D& b) {
+        // Cross product to determine which point has smaller polar angle
+        float cross = (a.x - pivot.x) * (b.y - pivot.y) - (a.y - pivot.y) * (b.x - pivot.x);
+        if( cross == 0 )
+        {
+            // Collinear - closer point should come first
+            float dist_a = (a.x - pivot.x) * (a.x - pivot.x) + (a.y - pivot.y) * (a.y - pivot.y);
+            float dist_b = (b.x - pivot.x) * (b.x - pivot.x) + (b.y - pivot.y) * (b.y - pivot.y);
+            return dist_a < dist_b;
+        }
+        return cross > 0;
+    });
+
+    // Build convex hull
+    std::vector<Point2D> hull;
+    hull.push_back(points[0]);
+    hull.push_back(points[1]);
+
+    for( size_t i = 2; i < points.size(); i++ )
+    {
+        // Remove points that make clockwise turn
+        while( hull.size() > 1 )
+        {
+            Point2D p1 = hull[hull.size() - 2];
+            Point2D p2 = hull[hull.size() - 1];
+            Point2D p3 = points[i];
+
+            // Cross product to check turn direction
+            float cross = (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
+            if( cross > 0 )
+            {
+                // Counter-clockwise turn - good
+                break;
+            }
+            // Clockwise or collinear - remove p2
+            hull.pop_back();
+        }
+        hull.push_back(points[i]);
+    }
+
+    return hull;
 }
 
-// Compute bounding rectangle for a triangle face in screen space
-static Rectangle
-compute_face_bounding_rectangle(
-    int x1, int y1, int x2, int y2, int x3, int y3)
+// Draw convex hull overlay using ImGui draw list (works with modern OpenGL)
+static void
+draw_convex_hull_overlay(struct RendererOSX_SDL2OpenGL3* renderer)
 {
-    Rectangle rect;
+    if( !renderer->convex_hull_vertices || renderer->convex_hull_vertex_count < 3 )
+    {
+        return;
+    }
 
-    // Find min/max coordinates
-    int min_x = std::min({ x1, x2, x3 });
-    int max_x = std::max({ x1, x2, x3 });
-    int min_y = std::min({ y1, y2, y3 });
-    int max_y = std::max({ y1, y2, y3 });
+    printf("DEBUG: Drawing convex hull with %d vertices using ImGui\n",
+           renderer->convex_hull_vertex_count);
 
-    // Create rectangle corners (clockwise from top-left)
-    rect.corners[0] = { (float)min_x, (float)min_y };
-    rect.corners[1] = { (float)max_x, (float)min_y };
-    rect.corners[2] = { (float)max_x, (float)max_y };
-    rect.corners[3] = { (float)min_x, (float)max_y };
+    // Get ImGui's background draw list (renders behind ImGui windows)
+    ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
 
-    return rect;
+    // Convert vertices to ImVec2 format
+    ImVector<ImVec2> points;
+    for( int i = 0; i < renderer->convex_hull_vertex_count; i++ )
+    {
+        points.push_back(ImVec2(
+            renderer->convex_hull_vertices[i * 2 + 0], renderer->convex_hull_vertices[i * 2 + 1]));
+    }
+
+    // Draw filled convex polygon with transparency (yellow, 30% opacity)
+    draw_list->AddConvexPolyFilled(
+        points.Data, points.Size, IM_COL32(255, 255, 0, 76)); // 76 = 30% of 255
+
+    // Draw outline (yellow, 80% opacity)
+    draw_list->AddPolyline(
+        points.Data, points.Size, IM_COL32(255, 255, 0, 204), // 204 = 80% of 255
+        ImDrawFlags_Closed, 2.0f);
+
+    printf("DEBUG: Convex hull drawn using ImGui\n");
 }
 
 static void
@@ -244,6 +219,9 @@ render_imgui(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
     ImGui::Text("Camera Controls");
     ImGui::SliderInt("FOV", &game->camera_fov, 64, 768, "%d");
     ImGui::End();
+
+    // Draw convex hull overlay BEFORE ImGui::Render()
+    draw_convex_hull_overlay(renderer);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -802,11 +780,12 @@ render_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
         // If we have a hovered model, compute its convex hull
         if( renderer->last_hovered_model )
         {
-            printf("Computing convex hull for hovered model ID: %d\n",
-                   renderer->last_hovered_model->model->_id);
+            printf(
+                "Computing convex hull for hovered model ID: %d\n",
+                renderer->last_hovered_model->model->_id);
 
-            // Collect all face bounding rectangles
-            std::vector<Rectangle> face_rectangles;
+            // Collect all projected vertices of the model
+            std::vector<Point2D> model_vertices;
 
             // Initialize render model iterator for the hovered model
             struct IterRenderModel iter_hull;
@@ -825,35 +804,31 @@ render_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
                 renderer->height,
                 50); // near_plane_z
 
-            // Collect bounding rectangles for all visible faces
-            while( iter_render_model_next(&iter_hull) )
+            // We only need to iterate once to initialize projection, then collect all vertices
+            if( iter_render_model_next(&iter_hull) )
             {
-                int face = iter_hull.value_face;
-
-                // Get face vertex indices
-                int face_a = renderer->last_hovered_model->model->face_indices_a[face];
-                int face_b = renderer->last_hovered_model->model->face_indices_b[face];
-                int face_c = renderer->last_hovered_model->model->face_indices_c[face];
-
-                // Get screen coordinates of the triangle vertices
-                int x1 = iter_hull.screen_vertices_x[face_a] + renderer->width / 2;
-                int y1 = iter_hull.screen_vertices_y[face_a] + renderer->height / 2;
-                int x2 = iter_hull.screen_vertices_x[face_b] + renderer->width / 2;
-                int y2 = iter_hull.screen_vertices_y[face_b] + renderer->height / 2;
-                int x3 = iter_hull.screen_vertices_x[face_c] + renderer->width / 2;
-                int y3 = iter_hull.screen_vertices_y[face_c] + renderer->height / 2;
-
-                // Skip clipped triangles
-                if( x1 != -5000 && x2 != -5000 && x3 != -5000 )
+                // Now collect all unique vertices in screen space
+                int vertex_count = renderer->last_hovered_model->model->vertex_count;
+                for( int v = 0; v < vertex_count; v++ )
                 {
-                    Rectangle rect = compute_face_bounding_rectangle(x1, y1, x2, y2, x3, y3);
-                    face_rectangles.push_back(rect);
+                    int screen_x = iter_hull.screen_vertices_x[v] + renderer->width / 2;
+                    int screen_y = iter_hull.screen_vertices_y[v] + renderer->height / 2;
+
+                    // Skip clipped vertices
+                    if( screen_x != -5000 && screen_y != -5000 )
+                    {
+                        Point2D point;
+                        point.x = (float)screen_x;
+                        point.y = (float)screen_y;
+                        model_vertices.push_back(point);
+                    }
                 }
             }
 
-            // Compute convex hull using Sutherland-Hodgman
-            std::vector<Point2D> convex_hull = compute_convex_hull_of_rectangles(face_rectangles);
+            // Compute convex hull from model vertices
+            std::vector<Point2D> convex_hull = compute_convex_hull(model_vertices);
 
+            // Store convex hull for rendering
             if( !convex_hull.empty() )
             {
                 printf("Convex hull computed with %zu vertices:\n", convex_hull.size());
@@ -861,11 +836,42 @@ render_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
                 {
                     printf("  Vertex %zu: (%.2f, %.2f)\n", i, convex_hull[i].x, convex_hull[i].y);
                 }
+
+                // Allocate and store vertices for rendering
+                if( renderer->convex_hull_vertices )
+                {
+                    free(renderer->convex_hull_vertices);
+                }
+                renderer->convex_hull_vertex_count = convex_hull.size();
+                renderer->convex_hull_vertices =
+                    (float*)malloc(sizeof(float) * 2 * convex_hull.size());
+                for( size_t i = 0; i < convex_hull.size(); i++ )
+                {
+                    renderer->convex_hull_vertices[i * 2 + 0] = convex_hull[i].x;
+                    renderer->convex_hull_vertices[i * 2 + 1] = convex_hull[i].y;
+                }
             }
             else
             {
                 printf("Convex hull is empty\n");
+                // Clear convex hull
+                if( renderer->convex_hull_vertices )
+                {
+                    free(renderer->convex_hull_vertices);
+                    renderer->convex_hull_vertices = NULL;
+                }
+                renderer->convex_hull_vertex_count = 0;
             }
+        }
+        else
+        {
+            // No hovered model - clear convex hull
+            if( renderer->convex_hull_vertices )
+            {
+                free(renderer->convex_hull_vertices);
+                renderer->convex_hull_vertices = NULL;
+            }
+            renderer->convex_hull_vertex_count = 0;
         }
 
         // Update last known camera position
@@ -924,6 +930,8 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height)
     renderer->mouse_y = 0;
     renderer->last_hovered_model = NULL;
     renderer->last_hovered_yaw = 0;
+    renderer->convex_hull_vertices = NULL;
+    renderer->convex_hull_vertex_count = 0;
 
     return renderer;
 }
@@ -931,6 +939,10 @@ PlatformImpl_OSX_SDL2_Renderer_OpenGL3_New(int width, int height)
 void
 PlatformImpl_OSX_SDL2_Renderer_OpenGL3_Free(struct RendererOSX_SDL2OpenGL3* renderer)
 {
+    if( renderer->convex_hull_vertices )
+    {
+        free(renderer->convex_hull_vertices);
+    }
     free(renderer);
 }
 
