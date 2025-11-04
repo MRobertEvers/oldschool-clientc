@@ -230,7 +230,7 @@ cache_new_inet(char const* directory, char const* ip, int port)
         {
             printf("Requesting idx%d metadata from server\n", g_table_idx_files[i]);
 
-            payload = cache_inet_payload_new_request(
+            payload = cache_inet_payload_new_archive_request(
                 (struct CacheInet*)cache->_inet_nullable, 255, g_table_idx_files[i]);
 
             if( !payload )
@@ -400,7 +400,7 @@ cache_archive_new_load_decrypted(
 
         printf("Archive is not loaded. Requesting from server.\n");
 
-        struct CacheInetPayload* payload = cache_inet_payload_new_request(
+        struct CacheInetPayload* payload = cache_inet_payload_new_archive_request(
             (struct CacheInet*)cache->_inet_nullable, table_id, archive_id);
         if( !payload )
         {

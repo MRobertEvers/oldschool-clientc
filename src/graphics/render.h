@@ -117,38 +117,8 @@ void render_scene_tile(
     struct TexturesCache* textures_cache_nullable,
     int* color_override_hsl16_nullable);
 
-void render_scene_tiles(
-    int* pixel_buffer,
-    int width,
-    int height,
-    int near_plane_z,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    int camera_yaw,
-    int camera_pitch,
-    int camera_roll,
-    int fov,
-    struct SceneTile* tiles,
-    int tile_count,
-    struct SceneTextures* textures);
-
 struct CacheMapTerrain;
 struct SceneLocs;
-void render_scene_locs(
-    int* pixel_buffer,
-    int width,
-    int height,
-    int near_plane_z,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    int camera_yaw,
-    int camera_pitch,
-    int camera_roll,
-    int fov,
-    struct SceneLocs* locs,
-    struct SceneTextures* textures);
 
 enum ElementStep
 {

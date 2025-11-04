@@ -13,17 +13,293 @@
 
       canvas {
         background-color: #000;
+        display: block;
+      }
+
+      #soft3d-container {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 400px;
+        height: 300px;
+        border: 2px solid #ff0000;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        background-color: #000;
+        z-index: 1000;
+        min-width: 200px;
+        min-height: 150px;
+      }
+
+      #soft3d-container.dragging {
+        cursor: move;
+        opacity: 0.8;
+      }
+
+      #soft3d-canvas {
         width: 100%;
         height: 100%;
         display: block;
+      }
+
+      #soft3d-header {
         position: absolute;
         top: 0;
         left: 0;
+        right: 0;
+        height: 30px;
+        background-color: rgba(255, 0, 0, 0.8);
+        cursor: move;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        box-sizing: border-box;
+        user-select: none;
+      }
+
+      #soft3d-title {
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+      }
+
+      #soft3d-close {
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0 5px;
+      }
+
+      #soft3d-close:hover {
+        color: #ffcccc;
+      }
+
+      .resize-handle {
+        position: absolute;
+        background-color: rgba(255, 0, 0, 0.5);
+        z-index: 10;
+      }
+
+      .resize-handle-n {
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        cursor: ns-resize;
+      }
+
+      .resize-handle-s {
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        cursor: ns-resize;
+      }
+
+      .resize-handle-e {
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 5px;
+        cursor: ew-resize;
+      }
+
+      .resize-handle-w {
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 5px;
+        cursor: ew-resize;
+      }
+
+      .resize-handle-ne {
+        top: 0;
+        right: 0;
+        width: 10px;
+        height: 10px;
+        cursor: nesw-resize;
+      }
+
+      .resize-handle-nw {
+        top: 0;
+        left: 0;
+        width: 10px;
+        height: 10px;
+        cursor: nwse-resize;
+      }
+
+      .resize-handle-se {
+        bottom: 0;
+        right: 0;
+        width: 10px;
+        height: 10px;
+        cursor: nwse-resize;
+      }
+
+      .resize-handle-sw {
+        bottom: 0;
+        left: 0;
+        width: 10px;
+        height: 10px;
+        cursor: nesw-resize;
       }
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
+    <div id="soft3d-container" style="display: none">
+      <div id="soft3d-header">
+        <span id="soft3d-title">Soft3D View</span>
+        <span id="soft3d-close">×</span>
+      </div>
+      <canvas id="soft3d-canvas"></canvas>
+      <div class="resize-handle resize-handle-n"></div>
+      <div class="resize-handle resize-handle-s"></div>
+      <div class="resize-handle resize-handle-e"></div>
+      <div class="resize-handle resize-handle-w"></div>
+      <div class="resize-handle resize-handle-ne"></div>
+      <div class="resize-handle resize-handle-nw"></div>
+      <div class="resize-handle resize-handle-se"></div>
+      <div class="resize-handle resize-handle-sw"></div>
+    </div>
     {{{ SCRIPT }}}
+    <script>
+      (function () {
+        const container = document.getElementById("soft3d-container");
+        const header = document.getElementById("soft3d-header");
+        const closeBtn = document.getElementById("soft3d-close");
+        const canvas = document.getElementById("soft3d-canvas");
+
+        let isDragging = false;
+        let isResizing = false;
+        let currentHandle = null;
+        let startX = 0;
+        let startY = 0;
+        let startLeft = 0;
+        let startTop = 0;
+        let startWidth = 0;
+        let startHeight = 0;
+
+        // Close button
+        closeBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          container.style.display = "none";
+        });
+
+        // Dragging functionality
+        header.addEventListener("mousedown", function (e) {
+          if (e.target === closeBtn) return;
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          const rect = container.getBoundingClientRect();
+          startLeft = rect.left;
+          startTop = rect.top;
+          container.classList.add("dragging");
+          e.preventDefault();
+        });
+
+        // Resizing functionality
+        const resizeHandles = document.querySelectorAll(".resize-handle");
+        resizeHandles.forEach((handle) => {
+          handle.addEventListener("mousedown", function (e) {
+            isResizing = true;
+            currentHandle = handle;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = container.getBoundingClientRect();
+            startLeft = rect.left;
+            startTop = rect.top;
+            startWidth = rect.width;
+            startHeight = rect.height;
+            e.preventDefault();
+            e.stopPropagation();
+          });
+        });
+
+        document.addEventListener("mousemove", function (e) {
+          if (isDragging) {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            container.style.left = startLeft + deltaX + "px";
+            container.style.top = startTop + deltaY + "px";
+            container.style.right = "auto";
+          } else if (isResizing && currentHandle) {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+
+            const classList = currentHandle.classList;
+            let newWidth = startWidth;
+            let newHeight = startHeight;
+            let newLeft = startLeft;
+            let newTop = startTop;
+
+            if (
+              classList.contains("resize-handle-e") ||
+              classList.contains("resize-handle-ne") ||
+              classList.contains("resize-handle-se")
+            ) {
+              newWidth = Math.max(200, startWidth + deltaX);
+            }
+            if (
+              classList.contains("resize-handle-w") ||
+              classList.contains("resize-handle-nw") ||
+              classList.contains("resize-handle-sw")
+            ) {
+              newWidth = Math.max(200, startWidth - deltaX);
+              newLeft = startLeft + deltaX;
+            }
+            if (
+              classList.contains("resize-handle-s") ||
+              classList.contains("resize-handle-se") ||
+              classList.contains("resize-handle-sw")
+            ) {
+              newHeight = Math.max(150, startHeight + deltaY);
+            }
+            if (
+              classList.contains("resize-handle-n") ||
+              classList.contains("resize-handle-ne") ||
+              classList.contains("resize-handle-nw")
+            ) {
+              newHeight = Math.max(150, startHeight - deltaY);
+              newTop = startTop + deltaY;
+            }
+
+            container.style.width = newWidth + "px";
+            container.style.height = newHeight + "px";
+            container.style.left = newLeft + "px";
+            container.style.top = newTop + "px";
+            container.style.right = "auto";
+          }
+        });
+
+        document.addEventListener("mouseup", function () {
+          if (isDragging) {
+            isDragging = false;
+            container.classList.remove("dragging");
+          }
+          if (isResizing) {
+            isResizing = false;
+            currentHandle = null;
+          }
+        });
+
+        // Show container when soft3d-canvas is created/updated
+        const observer = new MutationObserver(function (mutations) {
+          if (
+            canvas.width > 0 &&
+            canvas.height > 0 &&
+            container.style.display === "none"
+          ) {
+            container.style.display = "block";
+          }
+        });
+        observer.observe(canvas, {
+          attributes: true,
+          attributeFilter: ["width", "height"],
+        });
+      })();
+    </script>
   </body>
 </html>

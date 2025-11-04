@@ -36,6 +36,10 @@ bool PlatformImpl_Emscripten_SDL2_InitForSoft3D(
     int canvas_height,
     int max_canvas_width,
     int max_canvas_height);
+
+bool PlatformImpl_Emscripten_SDL2_InitForWebGL1(
+    struct Platform* platform, int canvas_width, int canvas_height);
+
 void PlatformImpl_Emscripten_SDL2_Shutdown(struct Platform* platform);
 
 void PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameInput* input);

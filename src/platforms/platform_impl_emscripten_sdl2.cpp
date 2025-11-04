@@ -59,6 +59,36 @@ PlatformImpl_Emscripten_SDL2_InitForSoft3D(
     return true;
 }
 
+bool
+PlatformImpl_Emscripten_SDL2_InitForWebGL1(
+    struct Platform* platform, int canvas_width, int canvas_height)
+{
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->window = SDL_CreateWindow(
+        "3D Raster - WebGL1",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        canvas_width,
+        canvas_height,
+        SDL_WINDOW_SHOWN |
+            SDL_WINDOW_RESIZABLE); // Use SHOWN instead of OPENGL for Emscripten - context created
+                                   // separately, RESIZABLE allows full-width canvas
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->last_frame_time_ticks = SDL_GetTicks64();
+
+    return true;
+}
+
 void
 PlatformImpl_Emscripten_SDL2_Shutdown(struct Platform* platform)
 {

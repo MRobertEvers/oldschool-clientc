@@ -13,7 +13,7 @@ extern "C" {
 struct GameState
 {
     struct Platform* platform;
-    struct Renderer* renderer;
+    struct RendererEmscripten_SDL2WebGL1* renderer;
     struct Game* game;
     struct GameInput* input;
     struct GameGfxOpList* gfx_op_list;
@@ -51,13 +51,14 @@ main(int argc, char* argv[])
     }
 
     // Initialize for WebGL1 - note: InitForSoft3D actually just initializes SDL2
-    if( !PlatformImpl_Emscripten_SDL2_InitForSoft3D(platform, 1024, 768, 1920, 1080) )
+    if( !PlatformImpl_Emscripten_SDL2_InitForWebGL1(platform, 1024, 768) )
     {
         printf("Failed to initialize platform\n");
         return 1;
     }
 
-    struct Renderer* renderer = PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_New(1024, 768);
+    struct RendererEmscripten_SDL2WebGL1* renderer =
+        PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_New(1024, 768);
     if( !renderer )
     {
         printf("Failed to create renderer\n");
@@ -67,6 +68,13 @@ main(int argc, char* argv[])
     if( !PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Init(renderer, platform) )
     {
         printf("Failed to initialize renderer\n");
+        return 1;
+    }
+
+    if( !PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_InitSoft3D(
+            renderer, 1600, 900, "soft3d-canvas") )
+    {
+        printf("Failed to initialize soft3d renderer\n");
         return 1;
     }
 

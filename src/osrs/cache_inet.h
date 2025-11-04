@@ -21,7 +21,7 @@ struct CacheInetPayload
 };
 
 struct CacheInetPayload*
-cache_inet_payload_new_request(struct CacheInet* cache_inet, int table_id, int archive_id);
+cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_id, int archive_id);
 void cache_inet_payload_free(struct CacheInetPayload* payload);
 
 #endif

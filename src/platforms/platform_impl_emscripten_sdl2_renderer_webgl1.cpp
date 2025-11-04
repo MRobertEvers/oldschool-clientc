@@ -30,7 +30,7 @@ static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
 
 static void
-render_imgui(struct Renderer* renderer, struct Game* game)
+render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
@@ -100,7 +100,7 @@ render_imgui(struct Renderer* renderer, struct Game* game)
 }
 
 static void
-load_static_scene(struct Renderer* renderer, struct Game* game)
+load_static_scene(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
 {
     // This function builds a static scene buffer containing all scene geometry
     // It's called once when the scene is loaded
@@ -328,7 +328,7 @@ load_static_scene(struct Renderer* renderer, struct Game* game)
 }
 
 static void
-render_scene(struct Renderer* renderer, struct Game* game)
+render_scene(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
 {
     // OPTIMIZATION: Track camera state to avoid unnecessary sorting every frame
     static int last_cam_x = -99999;
@@ -361,13 +361,6 @@ render_scene(struct Renderer* renderer, struct Game* game)
         game->camera_yaw,
         renderer->width,
         renderer->height);
-
-    // Depth testing disabled - using painter's algorithm for draw order
-    glDisable(GL_DEPTH_TEST);
-
-    // For transparency with painter's algorithm, we should also disable depth writes
-    // This prevents transparent objects from blocking objects behind them
-    glDepthMask(GL_FALSE);
 
     // Check if camera moved significantly (thresholds: 128 units = 1 tile, 12 degrees)
     int dx = game->camera_world_x - last_cam_x;
@@ -483,6 +476,10 @@ render_scene(struct Renderer* renderer, struct Game* game)
                 }
 
                 // Compute face order for this model using iter_render_model_init
+                int screen_width = renderer->soft3d_pixel_buffer_nullable ? renderer->soft3d_width
+                                                                          : renderer->width;
+                int screen_height = renderer->soft3d_pixel_buffer_nullable ? renderer->soft3d_height
+                                                                           : renderer->height;
                 struct IterRenderModel iter_model;
                 iter_render_model_init(
                     &iter_model,
@@ -495,17 +492,61 @@ render_scene(struct Renderer* renderer, struct Game* game)
                     game->camera_yaw,
                     0,   // camera_roll
                     512, // fov
-                    renderer->width,
-                    renderer->height,
+                    screen_width,
+                    screen_height,
                     50); // near_plane_z
 
                 // Collect face indices in render order
                 static std::vector<int> face_order;
                 face_order.clear();
 
-                while( iter_render_model_next(&iter_model) )
+                if( renderer->soft3d_pixel_buffer_nullable )
                 {
-                    face_order.push_back(iter_model.value_face);
+                    while( iter_render_model_next(&iter_model) )
+                    {
+                        face_order.push_back(iter_model.value_face);
+
+                        model_draw_face(
+                            renderer->soft3d_pixel_buffer_nullable,
+                            iter_model.value_face,
+                            scene_model->model->face_infos,
+                            scene_model->model->face_indices_a,
+                            scene_model->model->face_indices_b,
+                            scene_model->model->face_indices_c,
+                            scene_model->model->face_count,
+                            iter_model.screen_vertices_x,
+                            iter_model.screen_vertices_y,
+                            iter_model.screen_vertices_z,
+                            iter_model.ortho_vertices_x,
+                            iter_model.ortho_vertices_y,
+                            iter_model.ortho_vertices_z,
+                            scene_model->model->vertex_count,
+                            scene_model->model->face_textures,
+                            scene_model->model->face_texture_coords,
+                            scene_model->model->textured_face_count,
+                            scene_model->model->textured_p_coordinate,
+                            scene_model->model->textured_m_coordinate,
+                            scene_model->model->textured_n_coordinate,
+                            scene_model->model->textured_face_count,
+                            scene_model->lighting->face_colors_hsl_a,
+                            scene_model->lighting->face_colors_hsl_b,
+                            scene_model->lighting->face_colors_hsl_c,
+                            scene_model->model->face_alphas,
+                            renderer->soft3d_width / 2,
+                            renderer->soft3d_height / 2,
+                            50,
+                            renderer->soft3d_width,
+                            renderer->soft3d_height,
+                            game->camera_fov,
+                            game->textures_cache);
+                    }
+                }
+                else
+                {
+                    while( iter_render_model_next(&iter_model) )
+                    {
+                        face_order.push_back(iter_model.value_face);
+                    }
                 }
 
                 // Set the face order for this model (batched - doesn't trigger rebuild yet!)
@@ -533,6 +574,32 @@ render_scene(struct Renderer* renderer, struct Game* game)
 
                     // For now, tiles use their default face order
                     // TODO: Implement per-face depth sorting for tiles if needed
+                    if( renderer->soft3d_pixel_buffer_nullable )
+                    {
+                        render_scene_tile(
+                            renderer->soft3d_pixel_buffer_nullable,
+                            g_screen_vertices_x,
+                            g_screen_vertices_y,
+                            g_screen_vertices_z,
+                            g_ortho_vertices_x,
+                            g_ortho_vertices_y,
+                            g_ortho_vertices_z,
+                            renderer->soft3d_width,
+                            renderer->soft3d_height,
+                            // Had to use 100 here because of the scale, near plane z was resulting
+                            // in triangles extremely close to the camera.
+                            50,
+                            game->camera_world_x,
+                            game->camera_world_y,
+                            game->camera_world_z,
+                            game->camera_pitch,
+                            game->camera_yaw,
+                            game->camera_roll,
+                            game->camera_fov,
+                            scene_tile,
+                            game->textures_cache,
+                            NULL);
+                    }
                 }
             }
         }
@@ -576,19 +643,12 @@ render_scene(struct Renderer* renderer, struct Game* game)
     pix3dgl_end_frame(renderer->pix3dgl);
 }
 
-extern "C" struct Renderer*
+extern "C" struct RendererEmscripten_SDL2WebGL1*
 PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_New(int width, int height)
 {
-    struct Renderer* renderer = (struct Renderer*)malloc(sizeof(struct Renderer));
-    memset(renderer, 0, sizeof(struct Renderer));
-
-    renderer->pixel_buffer = (int*)malloc(width * height * sizeof(int));
-    if( !renderer->pixel_buffer )
-    {
-        printf("Failed to allocate pixel buffer\n");
-        return NULL;
-    }
-    memset(renderer->pixel_buffer, 0, width * height * sizeof(int));
+    struct RendererEmscripten_SDL2WebGL1* renderer =
+        (struct RendererEmscripten_SDL2WebGL1*)malloc(sizeof(struct RendererEmscripten_SDL2WebGL1));
+    memset(renderer, 0, sizeof(struct RendererEmscripten_SDL2WebGL1));
 
     renderer->width = width;
     renderer->height = height;
@@ -603,14 +663,14 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_New(int width, int height)
 }
 
 extern "C" void
-PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Free(struct Renderer* renderer)
+PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Free(struct RendererEmscripten_SDL2WebGL1* renderer)
 {
     free(renderer);
 }
 
 extern "C" bool
 PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Init(
-    struct Renderer* renderer, struct Platform* platform)
+    struct RendererEmscripten_SDL2WebGL1* renderer, struct Platform* platform)
 {
     renderer->platform = platform;
 
@@ -674,8 +734,39 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Init(
     return true;
 }
 
+bool
+PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_InitSoft3D(
+    struct RendererEmscripten_SDL2WebGL1* renderer,
+    int max_width,
+    int max_height,
+    const char* canvas_id)
+{
+    renderer->soft3d_max_width = max_width;
+    renderer->soft3d_max_height = max_height;
+
+    strncpy(renderer->soft3d_canvas_id, canvas_id, sizeof(renderer->soft3d_canvas_id));
+
+    renderer->soft3d_pixel_buffer_nullable = (int*)malloc(max_width * max_height * sizeof(int));
+    if( !renderer->soft3d_pixel_buffer_nullable )
+    {
+        printf("Failed to allocate soft3d pixel buffer\n");
+        return false;
+    }
+    memset(renderer->soft3d_pixel_buffer_nullable, 0, max_width * max_height * sizeof(int));
+
+    renderer->soft3d_width = max_width;
+    renderer->soft3d_height = max_height;
+
+    // Simple approach: Just use Canvas 2D API via JavaScript
+    // Emscripten will let us blit pixels directly to canvas via EM_ASM
+    printf("Initialized soft3d pixel buffer (%dx%d)\n", max_width, max_height);
+
+    return true;
+}
+
 extern "C" void
-PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Shutdown(struct Renderer* renderer)
+PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Shutdown(
+    struct RendererEmscripten_SDL2WebGL1* renderer)
 {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
@@ -686,11 +777,25 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Shutdown(struct Renderer* renderer)
 
 extern "C" void
 PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
-    struct Renderer* renderer, struct Game* game, struct GameGfxOpList* gfx_op_list)
+    struct RendererEmscripten_SDL2WebGL1* renderer,
+    struct Game* game,
+    struct GameGfxOpList* gfx_op_list)
 {
     // Handle canvas resize: sync canvas resolution with CSS size
     double css_width, css_height;
     emscripten_get_element_css_size("#canvas", &css_width, &css_height);
+
+    // Clear soft3d pixel buffer if it exists
+    if( renderer->soft3d_pixel_buffer_nullable )
+    {
+        for( int i = 0; i < renderer->soft3d_height; i++ )
+        {
+            memset(
+                &renderer->soft3d_pixel_buffer_nullable[i * renderer->soft3d_width],
+                0,
+                renderer->soft3d_width * sizeof(int));
+        }
+    }
 
     int new_width = (int)css_width;
     int new_height = (int)css_height;
@@ -710,15 +815,6 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
 
         printf("Canvas resized to %dx%d\n", new_width, new_height);
     }
-
-    // Set viewport to match canvas size (important for both 3D rendering and ImGui)
-    glViewport(0, 0, renderer->width, renderer->height);
-
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
 
     for( int i = 0; i < gfx_op_list->op_count; i++ )
     {
@@ -755,6 +851,84 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
         default:
             break;
         }
+    }
+
+    // Render soft3d buffer if it exists - blit to a separate canvas
+    if( renderer->soft3d_pixel_buffer_nullable )
+    {
+        // Use Emscripten's EM_ASM to blit pixel buffer to a separate soft3d canvas
+        // clang-format off
+        EM_ASM(
+            {
+                var width = $0;
+                var height = $1;
+                var pixelPtr = $2;
+                var canvasIdPtr = $3;
+
+                // Convert C string pointer to JavaScript string
+                var canvasId = UTF8ToString(canvasIdPtr);
+
+                // Get the soft3d canvas (already exists in the HTML)
+                var soft3dCanvas = document.getElementById(canvasId);
+                if( !soft3dCanvas )
+                {
+                    console.error('soft3d-canvas not found in DOM!', canvasId);
+                    return;
+                }
+                
+                // Show the container if it's hidden
+                var container = document.getElementById('soft3d-container');
+                if (container && container.style.display === 'none') {
+                    container.style.display = 'block';
+                }
+
+
+                // Update canvas size if it changed
+                if (soft3dCanvas.width !== width || soft3dCanvas.height !== height) {
+                    soft3dCanvas.width = width;
+                    soft3dCanvas.height = height;
+                }
+
+                var ctx = soft3dCanvas.getContext('2d');
+                if (!ctx) return;
+
+                // Create or reuse ImageData
+                if (!Module._soft3dImageData || Module._soft3dImageData.width !== width ||
+                    Module._soft3dImageData.height !== height)
+                {
+                    Module._soft3dImageData = ctx.createImageData(width, height);
+                }
+
+                var imageData = Module._soft3dImageData;
+                var data = imageData.data;
+
+                // Copy pixel data from WASM memory (ARGB8888) to ImageData (RGBA)
+                var srcView = new Uint32Array(HEAPU8.buffer, pixelPtr, width * height);
+                
+                var nonZeroCount = 0;
+                for (var i = 0; i < width * height; i++)
+                {
+                    var pixel = srcView[i];
+                    if (pixel !== 0) nonZeroCount++;
+                    
+                    var idx = i * 4;
+                    // Convert ARGB to RGBA (force alpha to 255 if it's 0)
+                    data[idx + 0] = (pixel >> 16) & 0xFF; // R
+                    data[idx + 1] = (pixel >> 8) & 0xFF;  // G
+                    data[idx + 2] = (pixel >> 0) & 0xFF;  // B
+                    var alpha = (pixel >> 24) & 0xFF;
+                    data[idx + 3] = alpha === 0 ? 255 : alpha; // A (default to opaque if 0)
+                }
+
+
+                // Put the image data on the soft3d canvas
+                ctx.putImageData(imageData, 0, 0);
+            },
+            renderer->soft3d_width,
+            renderer->soft3d_height,
+            renderer->soft3d_pixel_buffer_nullable,
+            renderer->soft3d_canvas_id);
+        // clang-format on
     }
 
     render_imgui(renderer, game);
