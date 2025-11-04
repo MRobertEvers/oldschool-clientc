@@ -93,8 +93,193 @@ render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
     ImGui::Separator();
     ImGui::Text("Camera Controls");
     ImGui::SliderInt("FOV", &game->camera_fov, 64, 768, "%d");
+    ImGui::SliderInt("Move Speed", &game->camera_movement_speed, 1, 100, "%d");
+    ImGui::SliderInt("Look Speed", &game->camera_rotation_speed, 1, 100, "%d");
+
+    // Up/Down buttons for vertical movement
+    ImVec2 button_size(140, 30);
+    if( ImGui::Button("Move Up", button_size) )
+    {
+        game->camera_world_y -= game->camera_movement_speed * 3;
+    }
+    ImGui::SameLine();
+    if( ImGui::Button("Move Down", button_size) )
+    {
+        game->camera_world_y += game->camera_movement_speed * 3;
+    }
     ImGui::End();
 
+    // Render ImGui windows first
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    // Now draw virtual joysticks directly over the 3D scene using a new ImGui frame
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    // Static state to track which joystick (if any) has captured input
+    static int captured_joystick = -1; // -1 = none, 0 = move, 1 = look
+    static bool was_mouse_down = false;
+
+    // Get screen dimensions
+    ImVec2 screen_size = ImGui::GetIO().DisplaySize;
+    float joystick_radius = 80.0f;
+    float margin = 30.0f;
+
+    // Check mouse state
+    bool is_mouse_down = ImGui::IsMouseDown(0);
+    ImVec2 mouse_pos = ImGui::GetIO().MousePos;
+
+    // Reset capture when mouse is released
+    if( !is_mouse_down && was_mouse_down )
+    {
+        captured_joystick = -1;
+    }
+    was_mouse_down = is_mouse_down;
+
+    // Virtual Joystick helper function with capture support
+    auto draw_virtual_joystick = [&](ImVec2 center,
+                                     float outer_radius,
+                                     ImVec2& out_delta,
+                                     const char* label,
+                                     bool& is_touching,
+                                     int joystick_id) -> void {
+        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+
+        // Draw outer circle (joystick boundary)
+        draw_list->AddCircleFilled(center, outer_radius, IM_COL32(40, 40, 40, 180));
+        draw_list->AddCircle(center, outer_radius, IM_COL32(150, 150, 150, 220), 32, 3.0f);
+
+        // Check if mouse/touch is in the joystick area
+        float dx = mouse_pos.x - center.x;
+        float dy = mouse_pos.y - center.y;
+        float dist = sqrtf(dx * dx + dy * dy);
+
+        is_touching = false;
+        ImVec2 stick_offset(0, 0);
+
+        // Capture logic: start capture if mouse pressed inside joystick and nothing else captured
+        if( is_mouse_down && dist < outer_radius && captured_joystick == -1 )
+        {
+            captured_joystick = joystick_id;
+        }
+
+        // Process input if this joystick is captured or mouse is inside and nothing is captured
+        if( is_mouse_down && (captured_joystick == joystick_id) )
+        {
+            is_touching = true;
+            // Clamp to radius
+            if( dist > outer_radius * 0.85f )
+            {
+                float scale = (outer_radius * 0.85f) / dist;
+                stick_offset.x = dx * scale;
+                stick_offset.y = dy * scale;
+            }
+            else
+            {
+                stick_offset.x = dx;
+                stick_offset.y = dy;
+            }
+        }
+
+        // Draw inner circle (stick position)
+        ImVec2 stick_pos = ImVec2(center.x + stick_offset.x, center.y + stick_offset.y);
+        float inner_radius = outer_radius * 0.35f;
+        draw_list->AddCircleFilled(
+            stick_pos,
+            inner_radius,
+            is_touching ? IM_COL32(80, 160, 255, 255) : IM_COL32(100, 100, 100, 200));
+        draw_list->AddCircle(stick_pos, inner_radius, IM_COL32(200, 200, 200, 255), 32, 2.5f);
+
+        // Draw center cross
+        float cross_size = 8.0f;
+        draw_list->AddLine(
+            ImVec2(center.x - cross_size, center.y),
+            ImVec2(center.x + cross_size, center.y),
+            IM_COL32(120, 120, 120, 180),
+            1.5f);
+        draw_list->AddLine(
+            ImVec2(center.x, center.y - cross_size),
+            ImVec2(center.x, center.y + cross_size),
+            IM_COL32(120, 120, 120, 180),
+            1.5f);
+
+        // Normalize output to -1 to 1 range
+        if( is_touching && dist > 1.0f )
+        {
+            out_delta.x = stick_offset.x / (outer_radius * 0.85f);
+            out_delta.y = stick_offset.y / (outer_radius * 0.85f);
+        }
+        else
+        {
+            out_delta.x = 0;
+            out_delta.y = 0;
+        }
+
+        // Draw label with background for better visibility
+        ImVec2 label_size = ImGui::CalcTextSize(label);
+        ImVec2 label_pos = ImVec2(center.x - label_size.x * 0.5f, center.y - outer_radius - 25);
+        ImVec2 label_bg_min = ImVec2(label_pos.x - 5, label_pos.y - 2);
+        ImVec2 label_bg_max =
+            ImVec2(label_pos.x + label_size.x + 5, label_pos.y + label_size.y + 2);
+        draw_list->AddRectFilled(label_bg_min, label_bg_max, IM_COL32(0, 0, 0, 150), 4.0f);
+        draw_list->AddText(label_pos, IM_COL32(255, 255, 255, 255), label);
+    };
+
+    // Movement joystick - bottom left
+    ImVec2 move_joystick_center(margin + joystick_radius, screen_size.y - margin - joystick_radius);
+    ImVec2 move_delta(0, 0);
+    bool move_touching = false;
+    draw_virtual_joystick(
+        move_joystick_center, joystick_radius, move_delta, "Move", move_touching, 0);
+
+    // Look joystick - bottom right
+    ImVec2 look_joystick_center(
+        screen_size.x - margin - joystick_radius, screen_size.y - margin - joystick_radius);
+    ImVec2 look_delta(0, 0);
+    bool look_touching = false;
+    draw_virtual_joystick(
+        look_joystick_center, joystick_radius, look_delta, "Look", look_touching, 1);
+
+    // Apply movement joystick input
+    if( move_delta.x != 0 || move_delta.y != 0 )
+    {
+        float yaw_radians = (game->camera_yaw * 2.0f * M_PI) / 2048.0f;
+
+        // Forward/backward (Y axis - inverted because screen Y goes down)
+        float forward_amount = move_delta.y;
+        int forward_dx = (int)(-sinf(yaw_radians) * forward_amount * game->camera_movement_speed);
+        int forward_dz = (int)(-cosf(yaw_radians) * forward_amount * game->camera_movement_speed);
+
+        // Strafe left/right (X axis)
+        float strafe_amount = move_delta.x;
+        int strafe_dx = (int)(cosf(yaw_radians) * strafe_amount * game->camera_movement_speed);
+        int strafe_dz = (int)(-sinf(yaw_radians) * strafe_amount * game->camera_movement_speed);
+
+        game->camera_world_x += forward_dx + strafe_dx;
+        game->camera_world_z += forward_dz + strafe_dz;
+    }
+
+    // Apply look joystick input
+    if( look_delta.x != 0 || look_delta.y != 0 )
+    {
+        // Yaw (horizontal looking - X axis) - inverted for natural feel
+        game->camera_yaw -= (int)(look_delta.x * game->camera_rotation_speed);
+        if( game->camera_yaw < 0 )
+            game->camera_yaw += 2048;
+        if( game->camera_yaw >= 2048 )
+            game->camera_yaw -= 2048;
+
+        // Pitch (vertical looking - Y axis) - inverted for natural feel
+        game->camera_pitch += (int)(look_delta.y * game->camera_rotation_speed);
+        if( game->camera_pitch < 0 )
+            game->camera_pitch += 2048;
+        if( game->camera_pitch >= 2048 )
+            game->camera_pitch -= 2048;
+    }
+
+    // Render the joysticks overlay
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
