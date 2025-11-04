@@ -256,6 +256,9 @@ render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
         return is_held;
     };
 
+    // Get delta time for framerate-independent movement
+    float delta_time = ImGui::GetIO().DeltaTime;
+
     // Vertical movement buttons - above move joystick
     float button_width = 70.0f;
     float button_height = 45.0f;
@@ -270,14 +273,14 @@ render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
     bool up_held = draw_hold_button(up_button_pos, button_size, "Up", 2);
     bool down_held = draw_hold_button(down_button_pos, button_size, "Down", 3);
 
-    // Apply vertical movement from buttons
+    // Apply vertical movement from buttons (framerate independent)
     if( up_held )
     {
-        game->camera_world_y -= game->camera_movement_speed * 2;
+        game->camera_world_y -= (int)(game->camera_movement_speed * 2 * delta_time * 60.0f);
     }
     if( down_held )
     {
-        game->camera_world_y += game->camera_movement_speed * 2;
+        game->camera_world_y += (int)(game->camera_movement_speed * 2 * delta_time * 60.0f);
     }
 
     // Movement joystick - bottom left
@@ -295,7 +298,7 @@ render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
     draw_virtual_joystick(
         look_joystick_center, joystick_radius, look_delta, "Look", look_touching, 1);
 
-    // Apply movement joystick input
+    // Apply movement joystick input (framerate independent)
     if( move_delta.x != 0 || move_delta.y != 0 )
     {
         // Convert yaw to radians for sin/cos (yaw is in 0-2047 range)
@@ -315,27 +318,28 @@ render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
 
         int dx =
             (int)((-sinf(yaw_radians) * forward_component + cosf(yaw_radians) * strafe_component) *
-                  game->camera_movement_speed);
+                  game->camera_movement_speed * delta_time * 60.0f);
         int dz =
             (int)((cosf(yaw_radians) * forward_component + sinf(yaw_radians) * strafe_component) *
-                  game->camera_movement_speed);
+                  game->camera_movement_speed * delta_time * 60.0f);
 
         game->camera_world_x += dx;
         game->camera_world_z += dz;
     }
 
-    // Apply look joystick input
+    // Apply look joystick input (framerate independent)
     if( look_delta.x != 0 || look_delta.y != 0 )
     {
         // Yaw (horizontal looking - X axis) - inverted for natural feel
-        game->camera_yaw -= (int)(look_delta.x * game->camera_rotation_speed);
+        game->camera_yaw -= (int)(look_delta.x * game->camera_rotation_speed * delta_time * 60.0f);
         if( game->camera_yaw < 0 )
             game->camera_yaw += 2048;
         if( game->camera_yaw >= 2048 )
             game->camera_yaw -= 2048;
 
         // Pitch (vertical looking - Y axis) - inverted for natural feel
-        game->camera_pitch += (int)(look_delta.y * game->camera_rotation_speed);
+        game->camera_pitch +=
+            (int)(look_delta.y * game->camera_rotation_speed * delta_time * 60.0f);
         if( game->camera_pitch < 0 )
             game->camera_pitch += 2048;
         if( game->camera_pitch >= 2048 )
