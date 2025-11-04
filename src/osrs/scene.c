@@ -442,11 +442,6 @@ loc_load_model(
     scene_model->model = model;
     scene_model->model_id = model_ids[0];
 
-    if( scene_model->model->_id == 14816 )
-    {
-        int iii = 0;
-    }
-
     scene_model->light_ambient = loc_config->ambient;
     scene_model->light_contrast = loc_config->contrast;
     scene_model->sharelight = loc_config->sharelight;
@@ -1430,6 +1425,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         break;
         case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
         {
+            break;
             int model_index = vec_model_push(scene);
             scene_model = vec_model_back(scene);
             loc_load_model(
@@ -1439,7 +1435,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
-                map->orientation + 4,
+                0,
                 height_sw,
                 height_se,
                 height_ne,
@@ -1478,6 +1474,8 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         {
             int model_index = vec_model_push(scene);
             scene_model = vec_model_back(scene);
+            int orientation = map->orientation;
+            orientation = (orientation + 2) % 4;
             loc_load_model(
                 scene_model,
                 loc_config,
@@ -1485,7 +1483,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
-                map->orientation,
+                map->orientation + 3,
                 height_sw,
                 height_se,
                 height_ne,
@@ -1495,7 +1493,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
             int offset = 45;
             calculate_wall_decor_offset(
-                scene_model, map->orientation, offset, true // diagonal
+                scene_model, orientation, offset, true // diagonal
             );
 
             // Add the loc
@@ -1509,7 +1507,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             loc->_wall_decor.model_a = model_index;
             assert(map->orientation >= 0);
             assert(map->orientation < 4);
-            loc->_wall_decor.side = ROTATION_WALL_CORNER_TYPE[map->orientation];
+            loc->_wall_decor.side = ROTATION_WALL_CORNER_TYPE[orientation];
             loc->_wall_decor.through_wall_flags = THROUGHWALL;
 
             grid_tile->wall_decor = loc_index;
@@ -1529,23 +1527,22 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 model_cache,
                 config_sequence_table,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
-                outside_orientation,
+                outside_orientation + 1,
                 height_sw,
                 height_se,
                 height_ne,
                 height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
-            // scene_model->yaw += 256;
 
             // TODO: Get this from the wall offset??
             // This needs to be taken from the wall offset.
             // Lumbridge walls are 16 thick.
             // Walls in al kharid are 8 thick.
             // int offset = 53;
-            int offset = 53;
+            int offset = 61;
             calculate_wall_decor_offset(
-                scene_model, outside_orientation, offset, true // diagonal
+                scene_model, (outside_orientation) & 0x3, offset, true // diagonal
             );
 
             int model_index_b = vec_model_push(scene);
@@ -1564,7 +1561,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                 height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
-            scene_model->yaw += 1024;
 
             // TODO: Get this from the wall offset??
             offset = 45;

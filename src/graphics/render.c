@@ -1911,6 +1911,9 @@ near_wall_flags(int camera_tile_x, int camera_tile_z, int loc_x, int loc_y)
     return flags;
 }
 
+#define WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE 256
+#define WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE (768 + 1024)
+
 /**
  * Painters algorithm
  *
@@ -2322,7 +2325,7 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = 256,
+                                                .wall_yaw_adjust = WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE,
                                                },
                             };
                         }
@@ -2338,7 +2341,7 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = 1280,
+                                                .wall_yaw_adjust = WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE,
                                            },
                             };
                         }
@@ -2697,7 +2700,7 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = 256,
+                                                .wall_yaw_adjust = WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE,
                                           },
                             };
                         }
@@ -2712,7 +2715,7 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = 1280,
+                                                .wall_yaw_adjust = WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE,
                                           },
                             };
                         }
@@ -3360,8 +3363,8 @@ next:
         model = &iter->scene->models[model_index];
 
         iter->value.model_nullable_ = model;
-        iter->value.x = op->x;
-        iter->value.z = op->z;
+        iter->value.x = op->x + 64;
+        iter->value.z = op->z + 64;
         iter->value.level = op->level;
         iter->value.yaw = op->_wall_decor.wall_yaw_adjust;
         iter->has_value = true;
