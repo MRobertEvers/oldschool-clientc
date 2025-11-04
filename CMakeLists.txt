@@ -106,6 +106,10 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "")
     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "")
     
+    # Remove debug info from Release builds to avoid binaryen optimization warning
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+    
     set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s USE_WEBGL2=1")
     set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=2 -s FULL_ES3=1")
     set(PRELOAD_FLAGS "--preload-file ../cache@/cache")

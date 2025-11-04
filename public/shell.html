@@ -164,10 +164,33 @@
         height: 100%;
         display: block;
       }
+
+      #fullscreen-btn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        border-radius: 5px;
+        padding: 10px 15px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+        z-index: 2000;
+        transition: all 0.3s ease;
+      }
+
+      #fullscreen-btn:hover {
+        background-color: rgba(0, 0, 0, 0.9);
+        border-color: rgba(255, 255, 255, 0.8);
+        transform: scale(1.05);
+      }
     </style>
   </head>
   <body>
     <canvas id="canvas" class="main-canvas"></canvas>
+    <button id="fullscreen-btn">⛶ Fullscreen</button>
     <div id="soft3d-container" style="display: none">
       <div id="soft3d-header">
         <span id="soft3d-title">Soft3D View</span>
@@ -336,6 +359,65 @@
 
         // Set initial size
         updateCanvasSize();
+      })();
+
+      // Fullscreen functionality
+      (function () {
+        const canvas = document.getElementById("canvas");
+        const fullscreenBtn = document.getElementById("fullscreen-btn");
+
+        function toggleFullscreen() {
+          if (!document.fullscreenElement) {
+            // Request fullscreen
+            if (canvas.requestFullscreen) {
+              canvas.requestFullscreen();
+            } else if (canvas.webkitRequestFullscreen) {
+              // Safari
+              canvas.webkitRequestFullscreen();
+            } else if (canvas.mozRequestFullScreen) {
+              // Firefox
+              canvas.mozRequestFullScreen();
+            } else if (canvas.msRequestFullscreen) {
+              // IE/Edge
+              canvas.msRequestFullscreen();
+            }
+          } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+              document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+              document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+              document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) {
+              document.msExitFullscreen();
+            }
+          }
+        }
+
+        // Update button text based on fullscreen state
+        function updateFullscreenButton() {
+          if (document.fullscreenElement) {
+            fullscreenBtn.textContent = "⛶ Exit Fullscreen";
+          } else {
+            fullscreenBtn.textContent = "⛶ Fullscreen";
+          }
+        }
+
+        // Button click handler
+        fullscreenBtn.addEventListener("click", toggleFullscreen);
+
+        // Listen for fullscreen changes (including ESC key)
+        document.addEventListener("fullscreenchange", updateFullscreenButton);
+        document.addEventListener(
+          "webkitfullscreenchange",
+          updateFullscreenButton
+        );
+        document.addEventListener(
+          "mozfullscreenchange",
+          updateFullscreenButton
+        );
+        document.addEventListener("msfullscreenchange", updateFullscreenButton);
       })();
     </script>
   </body>

@@ -298,20 +298,30 @@ render_imgui(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
     // Apply movement joystick input
     if( move_delta.x != 0 || move_delta.y != 0 )
     {
+        // Convert yaw to radians for sin/cos (yaw is in 0-2047 range)
         float yaw_radians = (game->camera_yaw * 2.0f * M_PI) / 2048.0f;
 
-        // Forward/backward (Y axis - inverted because screen Y goes down)
-        float forward_amount = move_delta.y;
-        int forward_dx = (int)(-sinf(yaw_radians) * forward_amount * game->camera_movement_speed);
-        int forward_dz = (int)(-cosf(yaw_radians) * forward_amount * game->camera_movement_speed);
+        // Joystick deltas: negative y = forward, positive y = backward
+        //                  positive x = right, negative x = left
+        // Invert y so that forward is positive
+        float forward_component = -move_delta.y;
+        float strafe_component = move_delta.x;
 
-        // Strafe left/right (X axis)
-        float strafe_amount = move_delta.x;
-        int strafe_dx = (int)(cosf(yaw_radians) * strafe_amount * game->camera_movement_speed);
-        int strafe_dz = (int)(-sinf(yaw_radians) * strafe_amount * game->camera_movement_speed);
+        // Match the movement from libgame.c:
+        // Forward (W): x -= sin, z += cos
+        // Backward (S): x += sin, z -= cos
+        // Strafe Right (D): x += cos, z += sin
+        // Strafe Left (A): x -= cos, z -= sin
 
-        game->camera_world_x += forward_dx + strafe_dx;
-        game->camera_world_z += forward_dz + strafe_dz;
+        int dx =
+            (int)((-sinf(yaw_radians) * forward_component + cosf(yaw_radians) * strafe_component) *
+                  game->camera_movement_speed);
+        int dz =
+            (int)((cosf(yaw_radians) * forward_component + sinf(yaw_radians) * strafe_component) *
+                  game->camera_movement_speed);
+
+        game->camera_world_x += dx;
+        game->camera_world_z += dz;
     }
 
     // Apply look joystick input

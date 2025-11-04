@@ -145,6 +145,8 @@ static bool g_has_vao_extension = false;
 // Atlas UVs are pre-calculated on CPU and stored in aTexCoord
 const char* g_vertex_shader_es2 = R"(
 #version 100
+precision mediump float;
+
 attribute vec3 aPos;
 attribute vec4 aColor;
 attribute vec2 aTexCoord;
@@ -155,7 +157,7 @@ attribute float aTextureAnimSpeed;
 uniform mat4 uViewMatrix;       // Precomputed on CPU
 uniform mat4 uProjectionMatrix; // Precomputed on CPU
 uniform mat4 uModelMatrix;      // Per-model transformation
-uniform float uClock;           // Animation clock
+uniform mediump float uClock;   // Animation clock
 
 varying vec4 vColor;
 varying vec2 vTexCoord;
@@ -195,7 +197,7 @@ varying float vTextureOpaque;
 varying float vTextureAnimSpeed;
 
 uniform sampler2D uTextureAtlas;
-uniform float uClock;
+uniform mediump float uClock;
 
 void main() {
     vec2 finalTexCoord = vTexCoord;
