@@ -491,6 +491,7 @@ render_scene_model(
     // {
     //     yaw += 1536;
     // }
+    yaw += model->yaw;
     yaw %= 2048;
 
     scene_x += model->offset_x;
@@ -598,7 +599,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
 
     int last_model_hit = -1;
     struct SceneModel* last_model_hit_model = NULL;
-    int last_model_hit_yaw = 0;
     int min_z = 2;
     int max_z = 4;
     int min_x = 2;
@@ -696,7 +696,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
                         ? iter.value.model_nullable_->face_bones->bones_sizes
                         : NULL);
             }
-            int yaw_adjust = iter.value.yaw;
             // if( game->hover_loc_x == iter.value.model_nullable_->_chunk_pos_x &&
             //     game->hover_loc_y == iter.value.model_nullable_->_chunk_pos_y &&
             //     game->hover_loc_level == iter.value.model_nullable_->_chunk_pos_level &&
@@ -713,7 +712,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
                 iter.value.model_nullable_,
                 // TODO: For wall decor, this should probably be set on the model->yaw rather than
                 // on the op.
-                yaw_adjust,
+                0,
                 game->camera_x,
                 game->camera_y,
                 game->camera_z,
@@ -780,7 +779,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
                         game->hover_loc_yaw = iter_model.model->yaw;
 
                         last_model_hit_model = iter.value.model_nullable_;
-                        last_model_hit_yaw = iter.value.model_nullable_->yaw + iter.value.yaw;
 
                         model_intersected = true;
                     }
@@ -859,7 +857,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
             // Had to use 100 here because of the scale, near plane z was resulting in
             // extremely close to the camera.
             100,
-            last_model_hit_yaw,
+            0,
             game->camera_x,
             game->camera_y,
             game->camera_z,

@@ -193,7 +193,6 @@ struct SceneOp
             int loc_index;
             int is_wall_a;
             int __rotation;
-            int wall_yaw_adjust;
         } _wall_decor;
 
         struct
@@ -250,8 +249,6 @@ struct IterRenderSceneOps
         int x;
         int z;
         int level;
-
-        int yaw;
 
         struct SceneModel* model_nullable_;
         struct SceneTile* tile_nullable_;

@@ -2325,7 +2325,6 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,    
-                                                .wall_yaw_adjust = loc->_wall_decor.model_a_yaw_adjust,
                                                },
                             };
                         }
@@ -2341,7 +2340,6 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = loc->_wall_decor.model_b_yaw_adjust,
                                            },
                             };
                         }
@@ -2700,7 +2698,6 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = true,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = loc->_wall_decor.model_a_yaw_adjust,
                                           },
                             };
                         }
@@ -2715,7 +2712,6 @@ render_scene_compute_ops(
                                 ._wall_decor = { .loc_index = grid_tile->wall_decor,
                                                 .is_wall_a = false,
                                                 .__rotation = loc->_wall_decor.side,
-                                                .wall_yaw_adjust = loc->_wall_decor.model_b_yaw_adjust,
                                           },
                             };
                         }
@@ -3366,7 +3362,6 @@ next:
         iter->value.x = op->x + 64;
         iter->value.z = op->z + 64;
         iter->value.level = op->level;
-        iter->value.yaw = op->_wall_decor.wall_yaw_adjust;
         iter->has_value = true;
     }
     break;
