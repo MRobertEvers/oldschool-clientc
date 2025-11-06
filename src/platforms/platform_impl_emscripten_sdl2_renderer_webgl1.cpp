@@ -736,7 +736,7 @@ render_scene(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
                 iter_render_model_init(
                     &iter_model,
                     scene_model,
-                    iter_render_scene_ops.value.yaw,
+                    0,
                     game->camera_world_x,
                     game->camera_world_y,
                     game->camera_world_z,

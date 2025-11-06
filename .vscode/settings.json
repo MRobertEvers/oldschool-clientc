@@ -160,6 +160,7 @@
         "future": "cpp",
         "iomanip": "cpp",
         "shared_mutex": "cpp",
-        "strstream": "cpp"
+        "strstream": "cpp",
+        "dash3d.h": "c"
     }
 }

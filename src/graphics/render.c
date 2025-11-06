@@ -1911,9 +1911,6 @@ near_wall_flags(int camera_tile_x, int camera_tile_z, int loc_x, int loc_y)
     return flags;
 }
 
-#define WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE 256
-#define WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE (768 + 1024)
-
 /**
  * Painters algorithm
  *

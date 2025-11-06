@@ -71,8 +71,9 @@ sort_by_polar_angle(
 // Returns points in counter-clockwise order
 // out_x and out_y must be pre-allocated with at least num_points capacity
 // Returns the number of points in the convex hull
-static size_t
-compute_convex_hull(float* x_coords, float* y_coords, size_t num_points, float* out_x, float* out_y)
+static inline size_t
+convex_hull_graham_scan(
+    float* x_coords, float* y_coords, size_t num_points, float* out_x, float* out_y)
 {
     if( num_points < 3 )
     {
@@ -111,10 +112,7 @@ compute_convex_hull(float* x_coords, float* y_coords, size_t num_points, float* 
     float pivot_y = y_coords[indices[0]];
 
     // Sort points by polar angle with respect to pivot
-    if( num_points > 2 )
-    {
-        sort_by_polar_angle(indices, 1, num_points - 1, x_coords, y_coords, pivot_x, pivot_y);
-    }
+    sort_by_polar_angle(indices, 1, num_points - 1, x_coords, y_coords, pivot_x, pivot_y);
 
     // Build convex hull using output arrays
     size_t hull_size = 0;
@@ -155,6 +153,105 @@ compute_convex_hull(float* x_coords, float* y_coords, size_t num_points, float* 
 
     free(indices);
     return hull_size;
+}
+
+// Jarvis march (gift wrapping) algorithm - O(nh) where h is hull size
+// Simpler than Graham scan, no sorting required
+// Returns points in counter-clockwise order
+// out_x and out_y must be pre-allocated with at least num_points capacity
+// Returns the number of points in the convex hull
+static inline size_t
+convex_hull_jarvis(float* x_coords, float* y_coords, size_t num_points, float* out_x, float* out_y)
+{
+    if( num_points < 3 )
+    {
+        for( size_t i = 0; i < num_points; i++ )
+        {
+            out_x[i] = x_coords[i];
+            out_y[i] = y_coords[i];
+        }
+        return num_points;
+    }
+
+    // Find the leftmost point (lowest x, then lowest y for tiebreak)
+    size_t left = 0;
+    for( size_t i = 1; i < num_points; i++ )
+    {
+        if( x_coords[i] < x_coords[left] ||
+            (x_coords[i] == x_coords[left] && y_coords[i] < y_coords[left]) )
+        {
+            left = i;
+        }
+    }
+
+    // Current point we are on
+    size_t current = left;
+    size_t hull_size = 0;
+
+    do
+    {
+        float cx = x_coords[current];
+        float cy = y_coords[current];
+
+        out_x[hull_size] = cx;
+        out_y[hull_size] = cy;
+        hull_size++;
+
+        // Safety check to prevent infinite loops
+        if( hull_size > num_points )
+        {
+            return 0; // Invalid hull
+        }
+
+        // Find the next point - all points are to the right of the
+        // line between current and next
+        size_t next = 0;
+        float nx = x_coords[next];
+        float ny = y_coords[next];
+
+        for( size_t i = 1; i < num_points; i++ )
+        {
+            float ix = x_coords[i];
+            float iy = y_coords[i];
+
+            // Cross product: (q - p) × (r - q)
+            // Positive = counter-clockwise turn (i is to the left of current->next)
+            // Negative = clockwise turn (i is to the right of current->next)
+            long long cross = (long long)(iy - cy) * (nx - ix) - (long long)(ix - cx) * (ny - iy);
+
+            // If positive cross product, or collinear but farther away, update next
+            if( cross > 0 )
+            {
+                next = i;
+                nx = ix;
+                ny = iy;
+            }
+            else if( cross == 0 )
+            {
+                // Collinear - pick the farther point
+                long long dist_i =
+                    (long long)(cx - ix) * (cx - ix) + (long long)(cy - iy) * (cy - iy);
+                long long dist_next =
+                    (long long)(cx - nx) * (cx - nx) + (long long)(cy - ny) * (cy - ny);
+                if( dist_i > dist_next )
+                {
+                    next = i;
+                    nx = ix;
+                    ny = iy;
+                }
+            }
+        }
+
+        current = next;
+    } while( current != left );
+
+    return hull_size;
+}
+
+static inline size_t
+compute_convex_hull(float* x_coords, float* y_coords, size_t num_points, float* out_x, float* out_y)
+{
+    return convex_hull_graham_scan(x_coords, y_coords, num_points, out_x, out_y);
 }
 
 #endif

@@ -824,7 +824,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                         ? iter.value.model_nullable_->face_bones->bones_sizes
                         : NULL);
             }
-            int yaw_adjust = iter.value.yaw;
             // if( game->hover_loc_x == iter.value.model_nullable_->_chunk_pos_x &&
             //     game->hover_loc_y == iter.value.model_nullable_->_chunk_pos_y &&
             //     game->hover_loc_level == iter.value.model_nullable_->_chunk_pos_level &&
@@ -838,7 +837,7 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                 iter.value.model_nullable_,
                 // TODO: For wall decor, this should probably be set on the model->yaw rather than
                 // on the op.
-                yaw_adjust,
+                0,
                 game->camera_x,
                 game->camera_y,
                 game->camera_z,
@@ -897,7 +896,6 @@ game_render_sdl2(struct Game* game, struct PlatformSDL2* platform)
                         game->hover_loc_yaw = iter_model.model->yaw;
 
                         last_model_hit_model = iter.value.model_nullable_;
-                        last_model_hit_yaw = iter.value.model_nullable_->yaw + iter.value.yaw;
 
                         model_intersected = true;
                     }
