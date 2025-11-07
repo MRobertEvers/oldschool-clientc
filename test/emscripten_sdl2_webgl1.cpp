@@ -2,12 +2,16 @@ extern "C" {
 #include "libgame.h"
 #include "libgame.u.h"
 #include "libinput.h"
+#include "osrs/cache.h"
+#include "osrs/xtea_config.h"
+#include "shared_tables.h"
 }
 #include "platforms/platform_impl_emscripten_sdl2.h"
 #include "platforms/platform_impl_emscripten_sdl2_renderer_webgl1.h"
 
 #include <emscripten.h>
 #include <stdio.h>
+#include <string.h>
 
 // Global state for Emscripten main loop
 struct GameState
@@ -20,6 +24,20 @@ struct GameState
 };
 
 static struct GameState* g_game_state = nullptr;
+
+// Verify xteas.json is in virtual filesystem (preloaded via --preload-file)
+// clang-format off
+EM_JS(void, verify_xteas_loaded, (), {
+    console.log("=== Verifying xteas.json in virtual filesystem ===");
+    try {
+        const stat = FS.stat("/cache/xteas.json");
+        console.log("✓ xteas.json found in virtual FS - size:", stat.size, "bytes");
+    } catch (err) {
+        console.error("✗ xteas.json NOT found in virtual FS:", err);
+        console.error("  Make sure the build includes: --preload-file cache/xteas.json@/cache/xteas.json");
+    }
+});
+// clang-format on
 
 // Main loop callback for Emscripten
 void
@@ -42,6 +60,29 @@ main(int argc, char* argv[])
     printf("===================================\n");
     printf("Emscripten WebGL1 / OpenGL ES 2.0\n");
     printf("===================================\n");
+
+    // Verify xteas.json is in virtual filesystem
+    // xteas.json is preloaded at build time via --preload-file (included in .data file)
+    // This is a small file (~few KB) that contains XTEA encryption keys
+    //
+    // REQUIRED SETUP FOR WEBSOCKET CACHE CONNECTION:
+    // 1. Start the asset_server (TCP server on port 4949):
+    //    $ ./build/asset_server
+    //
+    // 2. Start websockify to bridge WebSocket (8080) to TCP (4949):
+    //    $ ./scripts/start_websockify_bridge.sh
+    //    (or manually: python -m websockify 8080 localhost:4949)
+    //
+    // 3. Serve the app:
+    //    $ ./scripts/serve_emscripten.py
+    //    (or: cd build.em && python3 -m http.server 8000)
+    //
+    // With ASYNCIFY enabled, Emscripten transforms blocking POSIX socket calls
+    // (connect, send, recv) into async operations using WebSocket.
+    // The websockify bridge forwards WebSocket connections to the TCP asset_server.
+    // Cache files are loaded on-demand via WebSocket (NOT preloaded in .data file).
+    printf("Verifying xteas.json in virtual filesystem...\n");
+    verify_xteas_loaded();
 
     struct Platform* platform = PlatformImpl_Emscripten_SDL2_New();
     if( !platform )

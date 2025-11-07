@@ -5,11 +5,16 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 struct CacheInet
 {
@@ -66,15 +71,28 @@ cache_inet_new_connect(char const* ip, int port)
         return NULL;
     }
 
-    // // Set socket to non-blocking mode
-    // int flags = fcntl(cache_inet->sockfd, F_GETFL, 0);
-    // if( flags < 0 || fcntl(cache_inet->sockfd, F_SETFL, flags | O_NONBLOCK) < 0 )
-    // {
-    //     perror("Failed to set non-blocking mode");
-    //     close(cache_inet->sockfd);
-    //     free(cache_inet);
-    //     return NULL;
-    // }
+#ifdef __EMSCRIPTEN__
+    // For Emscripten: WebSocket connection needs time to establish
+    // The POSIX socket is a wrapper over WebSocket, which is async
+    printf("Emscripten: Waiting for WebSocket connection to stabilize...\n");
+    emscripten_sleep(100); // Wait 100ms for WebSocket to fully connect
+
+    // Set socket to blocking mode (though Emscripten may not fully honor this)
+    int flags = fcntl(cache_inet->sockfd, F_GETFL, 0);
+    if( flags >= 0 )
+    {
+        fcntl(cache_inet->sockfd, F_SETFL, flags & ~O_NONBLOCK);
+    }
+
+    // Set socket receive timeout to work around non-blocking issues
+    struct timeval tv;
+    tv.tv_sec = 5; // 5 second timeout
+    tv.tv_usec = 0;
+    setsockopt(cache_inet->sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(cache_inet->sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    printf("Emscripten: Socket configured (blocking mode + timeouts)\n");
+#endif
 
     return cache_inet;
 }
@@ -121,6 +139,7 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
     int status_received = 0;
     while( status_received < sizeof(status_buffer) )
     {
+    sleep_poll_status:
         int n = recv(
             cache_inet->sockfd,
             status_buffer + status_received,
@@ -128,7 +147,15 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
             0);
         if( n <= 0 )
         {
-            printf("Failed to receive status\n");
+#ifdef __EMSCRIPTEN__
+            if( errno == EAGAIN || errno == EWOULDBLOCK )
+            {
+                // WebSocket data not ready yet, wait and retry
+                emscripten_sleep(10); // Wait 10ms for data (ASYNCIFY-compatible)
+                goto sleep_poll_status;
+            }
+#endif
+            printf("Failed to receive status (n: %d, errno: %d/%s)\n", n, errno, strerror(errno));
             free(payload);
             return NULL;
         }
@@ -148,6 +175,7 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
     int size_received = 0;
     while( size_received < sizeof(payload_size_buffer) )
     {
+    sleep_poll_payload_size:
         int n = recv(
             cache_inet->sockfd,
             payload_size_buffer + size_received,
@@ -155,7 +183,15 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
             0);
         if( n <= 0 )
         {
-            printf("Error receiving payload size\n");
+#ifdef __EMSCRIPTEN__
+            if( errno == EAGAIN || errno == EWOULDBLOCK )
+            {
+                // WebSocket data not ready yet, wait and retry
+                emscripten_sleep(10); // Wait 10ms for data (ASYNCIFY-compatible)
+                goto sleep_poll_payload_size;
+            }
+#endif
+            printf("Failed to receive status (n: %d, errno: %d/%s)\n", n, errno, strerror(errno));
             free(payload);
             return NULL;
         }
@@ -183,6 +219,7 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
     int total_received = 0;
     while( total_received < payload_size )
     {
+    recv_poll:
         int recved_bytes = recv(
             cache_inet->sockfd,
             payload->data + 5 + total_received,
@@ -191,6 +228,13 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
 
         if( recved_bytes < 0 )
         {
+#ifdef __EMSCRIPTEN__
+            if( errno == EAGAIN || errno == EWOULDBLOCK )
+            {
+                emscripten_sleep(10); // Wait 10ms for data (ASYNCIFY-compatible)
+                goto recv_poll;
+            }
+#endif
             printf("Error receiving payload data: recv failed\n");
             free(payload->data);
             free(payload);

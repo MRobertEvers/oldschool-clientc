@@ -113,7 +113,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     
     set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s USE_WEBGL2=1 -msimd128")
     set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=2 -s FULL_ES3=1 -msimd128")
-    set(PRELOAD_FLAGS "--preload-file ../cache@/cache")
+    set(PRELOAD_FLAGS "--preload-file ../cache/xteas.json@/cache/xteas.json")
     set(DATA_FILE_PATH "build/scene_tile_test_browser.data")
     add_compile_definitions(CACHE_PATH="/cache")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMPILE_FLAGS}")
@@ -581,7 +581,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
             "${CMAKE_BINARY_DIR}/main.html"
             "${CMAKE_BINARY_DIR}/main.js"
             "${CMAKE_BINARY_DIR}/main.wasm"
-            "${CMAKE_BINARY_DIR}/main.data"
             "${CMAKE_SOURCE_DIR}/public/build/"
         COMMENT "Copying main Emscripten build files to public/build directory"
     )
@@ -720,8 +719,17 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     target_link_libraries(emscripten_sdl2_webgl1 ${EXTRA_LIBS})
     # WebGL1-specific link flags - later flags override earlier ones in Emscripten
+    # NOTE: Cannot use PROXY_TO_PTHREAD because WebGL requires main browser thread
+    # ASYNCIFY allows blocking socket operations by unwinding/rewinding the call stack
+    # For cache_inet to work in browser, we need websockify to bridge WS to TCP:
+    #   Run: python -m websockify 8080 localhost:4949
+    # ASYNCIFY_IMPORTS tells Emscripten which imports can cause async behavior (socket operations)
+    # Preload ONLY xteas.json (not the entire cache) - cache files loaded on-demand via WebSocket
+    # ASYNCIFY=1: Enable async transformation for blocking operations
+    # ASYNCIFY_IGNORE_INDIRECT: Improve performance by not instrumenting indirect calls
+    # WEBSOCKET_URL: WebSocket endpoint (websockify bridges to TCP)
     set_target_properties(emscripten_sdl2_webgl1 PROPERTIES 
-        LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=0 -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s MODULARIZE=0 -s EXPORT_ES6=0 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
+        LINK_FLAGS "${LINK_FLAGS} --preload-file ${CMAKE_SOURCE_DIR}/cache/xteas.json@/cache/xteas.json -s USE_WEBGL2=0 -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s MODULARIZE=0 -s EXPORT_ES6=0 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s ASYNCIFY=1 -s ASYNCIFY_IGNORE_INDIRECT=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32','FS'] -s WEBSOCKET_SUBPROTOCOL='binary' -s WEBSOCKET_URL='ws://localhost:8080/' --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
     )
 
 endif()

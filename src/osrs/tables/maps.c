@@ -207,21 +207,21 @@ map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
 
     if( archive_id == -1 )
     {
-        printf("Failed to load map terrain %d, %d\n", map_x, map_y);
+        printf("Failed to load map terrain %d, %d (archive_id: %d)\n", map_x, map_y, archive_id);
         return NULL;
     }
 
     archive = cache_archive_new_load(cache, CACHE_MAPS, archive_id);
     if( !archive )
     {
-        printf("Failed to load map terrain %d, %d\n", map_x, map_y);
+        printf("Failed to load map terrain %d, %d cache_load\n", map_x, map_y);
         return NULL;
     }
 
     map_terrain = map_terrain_new_from_decode(archive->data, archive->data_size);
     if( !map_terrain )
     {
-        printf("Failed to load map terrain %d, %d\n", map_x, map_y);
+        printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_y);
         return NULL;
     }
 

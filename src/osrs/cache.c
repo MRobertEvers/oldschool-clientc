@@ -141,6 +141,32 @@ init_reference_tables(struct Cache* cache)
     }
 }
 
+// Load a single reference table on-demand (lazy loading)
+static struct ReferenceTable*
+cache_ensure_reference_table_loaded(struct Cache* cache, int table_id)
+{
+    // If already loaded, return it
+    if( cache->tables[table_id] )
+        return cache->tables[table_id];
+
+    // Load it now
+    printf("Lazy-loading reference table %d\n", table_id);
+    struct CacheArchive* table_archive = cache_archive_new_reference_table_load(cache, table_id);
+    if( !table_archive )
+    {
+        printf("Failed to load reference table %d\n", table_id);
+        return NULL;
+    }
+
+    struct ReferenceTable* table =
+        reference_table_new_decode(table_archive->data, table_archive->data_size);
+    cache->tables[table_id] = table;
+
+    cache_archive_free(table_archive);
+
+    return table;
+}
+
 struct Cache*
 cache_new_from_directory(char const* directory)
 {
@@ -208,6 +234,7 @@ cache_new_inet(char const* directory, char const* ip, int port)
         return NULL;
     }
 
+    // For native builds: Load idx255 metadata upfront if needed
     int is_valid = idx255_size_is_valid(cache->directory);
 
     if( !is_valid )
@@ -255,6 +282,7 @@ cache_new_inet(char const* directory, char const* ip, int port)
         fclose(idx255_file);
     }
 
+    // For native builds, load all reference tables upfront
     init_reference_tables(cache);
 
     return cache;
@@ -461,8 +489,13 @@ cache_archive_new_load_decrypted(
     //  - The "archive_id" is the "ArchiveReference" slot, and the "file_id" is the "FileReference"
     //    = This gives 1. the Number of files in the archive... etc.
 
-    // The reference tables were loaded when the cache was created.
-    struct ReferenceTable* table = cache->tables[table_id];
+    // Get reference table (load on-demand if not yet loaded)
+    struct ReferenceTable* table = cache_ensure_reference_table_loaded(cache, table_id);
+    if( !table )
+    {
+        printf("Failed to load reference table for table %d\n", table_id);
+        goto error;
+    }
 
     assert(archive_id < table->archive_count);
 

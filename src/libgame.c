@@ -6,7 +6,13 @@
 #include "osrs/scene_cache.h"
 #include "osrs/xtea_config.h"
 #include "shared_tables.h"
+
+// CACHE_PATH is defined by CMake:
+// - Emscripten: "/cache" (uses virtual filesystem)
+// - Native: "../cache" (relative path)
+#ifndef CACHE_PATH
 #define CACHE_PATH "../cache"
+#endif
 
 #include "libgame.u.h"
 
@@ -101,14 +107,19 @@ game_new(int flags, struct GameGfxOpList* gfx_op_list)
     printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
 
     printf("Loading cache from directory: %s\n", CACHE_PATH);
-    struct Cache* cache = cache_new_from_directory(CACHE_PATH);
+    // For Emscripten builds, cache_new_inet uses lazy loading:
+    // - Reference tables are NOT loaded at startup
+    // - They are loaded on-demand when archives are first accessed
+    // - This minimizes initial network traffic and startup time
+    struct Cache* cache = cache_new_inet(CACHE_PATH, "127.0.0.1", 4949);
+    // struct Cache* cache = cache_new_from_directory(CACHE_PATH);
     if( !cache )
     {
         printf("Failed to load cache from directory: %s\n", CACHE_PATH);
 
         return 0;
     }
-    printf("Cache loaded successfully\n");
+    printf("Cache loaded successfully (lazy loading enabled for Emscripten)\n");
 
     game->cache = cache;
     game->frustrum_cullmap = frustrum_cullmap_new_nocull(25);
