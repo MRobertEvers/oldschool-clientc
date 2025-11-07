@@ -13,6 +13,8 @@
 #include <unistd.h>
 
 #ifdef __EMSCRIPTEN__
+#include "cache_inet_indexeddb.h"
+
 #include <emscripten.h>
 #endif
 
@@ -72,6 +74,9 @@ cache_inet_new_connect(char const* ip, int port)
     }
 
 #ifdef __EMSCRIPTEN__
+    // Initialize IndexedDB for caching archives
+    indexeddb_init();
+
     // For Emscripten: WebSocket connection needs time to establish
     // The POSIX socket is a wrapper over WebSocket, which is async
     printf("Emscripten: Waiting for WebSocket connection to stabilize...\n");
@@ -119,6 +124,23 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
     memset(payload, 0, sizeof(struct CacheInetPayload));
     payload->table_id = table_id;
     payload->archive_id = archive_id;
+
+#ifdef __EMSCRIPTEN__
+    // Try to load from IndexedDB first
+    char* cached_data = NULL;
+    int cached_size = 0;
+    int cache_result = indexeddb_get_archive(table_id, archive_id, &cached_data, &cached_size);
+
+    if( cache_result == 1 && cached_data && cached_size > 0 )
+    {
+        // Cache hit! Use the cached data
+        payload->data = cached_data;
+        payload->data_size = cached_size;
+        return payload;
+    }
+
+    // Cache miss or error - fetch from network
+#endif
 
     char status_buffer[4] = { 0 };
     char payload_size_buffer[4] = { 0 };
@@ -260,6 +282,11 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
     payload->data[2] = (payload_size >> 16) & 0xFF;
     payload->data[3] = (payload_size >> 8) & 0xFF;
     payload->data[4] = payload_size & 0xFF;
+
+#ifdef __EMSCRIPTEN__
+    // Store the downloaded archive in IndexedDB for future use (fire-and-forget)
+    indexeddb_put_archive(table_id, archive_id, payload->data, payload->data_size);
+#endif
 
     return payload;
 }

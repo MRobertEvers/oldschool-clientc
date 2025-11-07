@@ -467,6 +467,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/palette.c
         src/osrs/cache.c
         src/osrs/cache_inet.c
+        src/osrs/cache_inet_indexeddb.c
         src/osrs/disk.c
         src/osrs/world.c
         src/osrs/tables/model.c
@@ -521,6 +522,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/palette.c
         src/osrs/cache.c
         src/osrs/cache_inet.c
+        src/osrs/cache_inet_indexeddb.c
         src/osrs/disk.c
         src/osrs/world.c
         src/osrs/tables/model.c
@@ -599,6 +601,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/palette.c
         src/osrs/cache.c
         src/osrs/cache_inet.c
+        src/osrs/cache_inet_indexeddb.c
         src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
@@ -664,6 +667,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/palette.c
         src/osrs/cache.c
         src/osrs/cache_inet.c
+        src/osrs/cache_inet_indexeddb.c
         src/osrs/disk.c
         src/osrs/tables/model.c
         src/osrs/archive_decompress.c
