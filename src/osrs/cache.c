@@ -339,6 +339,21 @@ error:;
     return -1;
 }
 
+enum CachePreloadKind
+cache_archive_preload_check(struct Cache* cache, int table_id, int archive_id)
+{
+    struct IndexRecord index_record = { 0 };
+    if( read_index(&index_record, cache->directory, table_id, archive_id) != 0 )
+    {
+        return CACHE_PRELOAD_FAILED;
+    }
+
+    if( index_record.sector == 0 )
+        return CACHE_PRELOAD_NEEDLOAD;
+    else
+        return CACHE_PRELOAD_READY;
+}
+
 struct CacheArchive*
 cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
 {

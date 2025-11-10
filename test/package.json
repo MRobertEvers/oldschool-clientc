@@ -1,0 +1,19 @@
+{
+  "name": "3d-raster-proxy-server",
+  "version": "1.0.0",
+  "description": "HTTP and WebSocket proxy server",
+  "main": "proxy-server.js",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "dev": "node proxy-server.js"
+  },
+  "dependencies": {
+    "http-proxy": "^1.18.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
+
+
+

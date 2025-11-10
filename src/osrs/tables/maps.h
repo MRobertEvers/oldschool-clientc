@@ -91,9 +91,11 @@ struct CacheMapTerrain
 
 #define MAP_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z))
 
+enum CachePreloadKind map_terrain_preload_check(struct Cache* cache, int map_x, int map_y);
 struct CacheMapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
 struct CacheMapTerrain* map_terrain_new_from_decode(char* data, int data_size);
 
+enum CachePreloadKind map_locs_preload_check(struct Cache* cache, int map_x, int map_y);
 struct CacheMapLocs* map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
 struct CacheMapLocs* map_locs_new_from_decode(char* data, int data_size);
 

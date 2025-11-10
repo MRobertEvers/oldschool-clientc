@@ -32,7 +32,7 @@ client.connect(PORT, HOST, () => {
 client.on("data", (data) => {
   // Decode the first 4 bytes as the data size (big-endian)
   if (data.length >= 4) {
-    const status = data.readUInt32BE(0);
+    const status = data.readUInt32BE`(0);
     console.log("Status from server:", status);
   }
 

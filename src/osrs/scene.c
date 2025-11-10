@@ -901,6 +901,7 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     struct SceneModel* other_model = NULL;
     struct CacheMapLocsIter* iter = NULL;
     struct CacheConfigLocation* loc_config = NULL;
+    enum CachePreloadKind preload_kind = CACHE_PRELOAD_NEEDLOAD;
 
     struct Scene* scene = malloc(sizeof(struct Scene));
     memset(scene, 0, sizeof(struct Scene));
@@ -966,13 +967,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
     if( !config_locs_table )
     {
         printf("Failed to load config locs table\n");
-        goto error;
-    }
-
-    config_object_table = config_object_table_new(cache);
-    if( !config_object_table )
-    {
-        printf("Failed to load config object table\n");
         goto error;
     }
 
@@ -1793,6 +1787,13 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
 
     // TODO: Remove
     {
+        config_object_table = config_object_table_new(cache);
+        if( !config_object_table )
+        {
+            printf("Failed to load config object table\n");
+            goto error;
+        }
+
         // int const abyssal_whip = 4151;
         // Infernal cape
         int const abyssal_whip = 21295;
@@ -2047,11 +2048,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         if( scene_model->model == NULL )
             continue;
 
-        if( scene_model->model->_id == 14816 )
-        {
-            int iii = 0;
-        }
-
         struct CacheModel* cache_model = scene_model->model;
 
         struct ModelNormals* normals =
@@ -2133,12 +2129,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
                     other_model = adjacent_sharelight_models[k];
                     assert(other_model->sharelight);
 
-                    // If the other loc is a wall, treat it as if it is one off.
-                    if( scene_model->_chunk_pos_x == 48 && scene_model->_chunk_pos_y == 10 )
-                    {
-                        int iii = 0;
-                    }
-
                     int check_offset_x =
                         (other_model->_chunk_pos_x - scene_model->_chunk_pos_x) * 128 +
                         (other_model->_size_x - scene_model->_size_x) * 64;
@@ -2171,11 +2161,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
         if( scene_model->model == NULL )
             continue;
 
-        if( scene_model->model->_id == 14816 )
-        {
-            int iii = 0;
-        }
-
         struct ModelLighting* lighting = model_lighting_new(scene_model->model->face_count);
 
         scene_model->lighting = lighting;
@@ -2191,12 +2176,6 @@ scene_new_from_map(struct Cache* cache, int chunk_x, int chunk_y)
             // 2004Scape multiplies contrast by 5.
             // Later versions do not.
             light_attenuation += scene_model->light_contrast;
-        }
-
-        if( scene_model->_chunk_pos_x == 48 && scene_model->_chunk_pos_y == 10 &&
-            scene_model->model->face_count == 10 )
-        {
-            int iii = 0;
         }
 
         int light_magnitude =

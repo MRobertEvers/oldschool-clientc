@@ -162,11 +162,6 @@ model_cache_checkout(struct ModelCache* model_cache, struct Cache* cache, int mo
         return item->model;
     }
 
-    if( model_id == 1263 )
-    {
-        int iiii = 0;
-    }
-
     model = model_new_from_cache(cache, model_id);
     if( !model )
         return NULL;

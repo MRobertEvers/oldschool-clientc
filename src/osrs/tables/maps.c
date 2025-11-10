@@ -152,6 +152,15 @@ dat2_map_npc_id(struct Cache* cache, int map_x, int map_y)
     return -1;
 }
 
+enum CachePreloadKind
+map_terrain_preload_check(struct Cache* cache, int map_x, int map_y)
+{
+    int archive_id = dat2_map_terrain_id(cache, map_x, map_y);
+    if( archive_id == -1 )
+        return CACHE_PRELOAD_FAILED;
+    return cache_archive_preload_check(cache, CACHE_MAPS, archive_id);
+}
+
 // private void loadTerrain(MapDefinition map, byte[] buf)
 // 	{
 // 		Tile[][][] tiles = map.getTiles();
@@ -293,6 +302,16 @@ map_terrain_free(struct CacheMapTerrain* map_terrain)
 {
     if( map_terrain )
         free(map_terrain);
+}
+
+enum CachePreloadKind
+map_locs_preload_check(struct Cache* cache, int map_x, int map_y)
+{
+    int archive_id = dat2_map_loc_id(cache, map_x, map_y);
+    if( archive_id == -1 )
+        return CACHE_PRELOAD_FAILED;
+
+    return cache_archive_preload_check(cache, CACHE_MAPS, archive_id);
 }
 
 struct CacheMapLocs*

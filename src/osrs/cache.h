@@ -69,6 +69,15 @@ struct CacheArchive
     int file_count;
 };
 
+enum CachePreloadKind
+{
+    CACHE_PRELOAD_NEEDLOAD,
+    CACHE_PRELOAD_READY,
+    CACHE_PRELOAD_FAILED,
+};
+
+enum CachePreloadKind
+cache_archive_preload_check(struct Cache* cache, int table_id, int archive_id);
 struct CacheArchive* cache_archive_new_reference_table_load(struct Cache* cache, int table_id);
 struct CacheArchive* cache_archive_new_load(struct Cache* cache, int table_id, int archive_id);
 struct CacheArchive* cache_archive_new_load_decrypted(
