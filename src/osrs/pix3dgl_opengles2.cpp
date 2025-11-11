@@ -1983,14 +1983,6 @@ pix3dgl_scene_static_load_tile(
         range.vertex_count = vertex_count_total;
         range.faces = std::move(face_ranges);
         scene->tile_ranges[scene_tile_idx] = range;
-
-        printf(
-            "Added tile %d to static scene: start=%d, count=%d, faces=%d (total %d vertices)\n",
-            scene_tile_idx,
-            start_vertex_index,
-            vertex_count_total,
-            face_count,
-            scene->total_vertex_count);
     }
 }
 
@@ -2360,14 +2352,6 @@ pix3dgl_scene_static_load_model(
         range.vertex_count = vertex_count;
         range.faces = std::move(face_ranges);
         scene->model_ranges[scene_model_idx] = range;
-
-        printf(
-            "Added model %d to static scene: start=%d, count=%d, faces=%d (total %d vertices)\n",
-            scene_model_idx,
-            start_vertex_index,
-            vertex_count,
-            (int)range.faces.size(),
-            scene->total_vertex_count);
     }
 }
 
@@ -2401,8 +2385,6 @@ pix3dgl_scene_static_load_animated_model_begin(
     // Store in map and keep pointer for building
     scene->animated_models[scene_model_idx] = anim_data;
     scene->current_animated_model = &scene->animated_models[scene_model_idx];
-
-    printf("Started loading animated model %d with %d keyframes\n", scene_model_idx, frame_count);
 }
 
 extern "C" void
@@ -2480,14 +2462,6 @@ pix3dgl_scene_static_load_animated_model_keyframe(
 
         // Restore model_ranges backup (we'll set the proper range in _end)
         scene->model_ranges = model_ranges_backup;
-
-        printf(
-            "Added keyframe %d for animated model %d: start=%d, count=%d, faces=%d\n",
-            frame_idx,
-            scene_model_idx,
-            start_vertex_index,
-            vertex_count,
-            face_count);
     }
 }
 
@@ -2519,8 +2493,6 @@ pix3dgl_scene_static_load_animated_model_end(
 
     // Clear current animated model pointer
     scene->current_animated_model = nullptr;
-
-    printf("Finished loading animated model %d with %d keyframes\n", scene_model_idx, frame_count);
 }
 
 extern "C" void

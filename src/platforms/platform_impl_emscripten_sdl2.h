@@ -42,7 +42,7 @@ bool PlatformImpl_Emscripten_SDL2_InitForWebGL1(
 
 void PlatformImpl_Emscripten_SDL2_Shutdown(struct Platform* platform);
 
-void PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameInput* input);
+void PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIO* gameio);
 
 #ifdef __cplusplus
 }

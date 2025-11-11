@@ -69,6 +69,12 @@ struct CacheArchive
     int file_count;
 };
 
+struct CacheArchiveTuple
+{
+    int table_id;
+    int archive_id;
+};
+
 enum CachePreloadKind
 {
     CACHE_PRELOAD_NEEDLOAD,

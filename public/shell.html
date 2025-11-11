@@ -207,6 +207,205 @@
       <div class="resize-handle resize-handle-sw"></div>
     </div>
     {{{ SCRIPT }}}
+
+    <!-- GameIO Integration -->
+    <script type="module">
+      import { GameIO, RequestStatus } from "./GameIO.js";
+
+      // Create global GameIO instance
+      window.gameIO = null;
+      window.gameIOInitialized = false;
+
+      // Initialize GameIO
+      async function initGameIO(wsUrl = "ws://localhost:8080/") {
+        try {
+          console.log(`Initializing GameIO with URL: ${wsUrl}`);
+          window.gameIO = new GameIO(wsUrl);
+          await window.gameIO.initialize();
+          window.gameIOInitialized = true;
+          console.log("GameIO initialized successfully");
+          return 1; // Success
+        } catch (error) {
+          console.error("Failed to initialize GameIO:", error);
+          window.gameIOInitialized = false;
+          return 0; // Failure
+        }
+      }
+
+      // Expose GameIO API to Emscripten/Module
+      // This will be attached to Module.requestArchive and Module.requestArchiveRead
+      window.Module = window.Module || {};
+
+      // Hook to detect when Module is fully loaded
+      const originalOnRuntimeInitialized = window.Module.onRuntimeInitialized;
+      window.Module.onRuntimeInitialized = function () {
+        if (originalOnRuntimeInitialized) {
+          originalOnRuntimeInitialized();
+        }
+
+        // Set WASM module reference on GameIO
+        if (window.gameIO) {
+          window.gameIO.setWasmModule(window.Module);
+          console.log(
+            "WASM Module reference set on GameIO (from onRuntimeInitialized)"
+          );
+        } else {
+          // GameIO not ready yet, store module for later
+          console.log("WASM Module loaded, waiting for GameIO initialization");
+          window.wasmModuleReady = true;
+        }
+      };
+
+      window.Module.requestArchive = function (requestId, tableId, archiveId) {
+        if (!window.gameIOInitialized || !window.gameIO) {
+          console.error("GameIO not initialized");
+          return;
+        }
+        window.gameIO.requestArchive(requestId, tableId, archiveId);
+      };
+
+      window.Module.requestArchiveRead = function (requestId) {
+        if (!window.gameIOInitialized || !window.gameIO) {
+          console.error("GameIO not initialized");
+          return 0;
+        }
+        return window.gameIO.requestArchiveRead(requestId);
+      };
+
+      window.GameIOAPI = {
+        // Initialize GameIO
+        init: initGameIO,
+
+        // Set WASM module reference (call this after WASM module is loaded)
+        setWasmModule: function (module) {
+          if (window.gameIO) {
+            window.gameIO.setWasmModule(module);
+          }
+        },
+
+        // Get request status
+        getRequestStatus: function (requestId) {
+          if (!window.gameIOInitialized || !window.gameIO) {
+            return null;
+          }
+          if (requestId === 0) {
+            return "cached";
+          }
+          const status = window.gameIO.getRequestStatus(requestId);
+          return status || "unknown";
+        },
+
+        // Check if a specific archive request is pending
+        isRequestPending: function (tableId, archiveId) {
+          if (!window.gameIOInitialized || !window.gameIO) {
+            return false;
+          }
+          return window.gameIO.isRequestPending(tableId, archiveId);
+        },
+
+        // Get queue length
+        getQueueLength: function () {
+          if (!window.gameIOInitialized || !window.gameIO) {
+            return 0;
+          }
+          return window.gameIO.getQueueLength();
+        },
+
+        // Get current request
+        getCurrentRequest: function () {
+          if (!window.gameIOInitialized || !window.gameIO) {
+            return null;
+          }
+          return window.gameIO.getCurrentRequest();
+        },
+
+        // Get all active requests
+        getActiveRequests: function () {
+          if (!window.gameIOInitialized || !window.gameIO) {
+            return [];
+          }
+          return window.gameIO.getActiveRequests();
+        },
+
+        // Check connection status
+        isConnected: function () {
+          if (!window.gameIOInitialized || !window.gameIO) {
+            return false;
+          }
+          return window.gameIO.isConnected();
+        },
+
+        // Get archive data
+        getArchiveData: function (tableId, archiveId) {
+          if (!window.gameIOData) {
+            return null;
+          }
+          const key = `${tableId}_${archiveId}`;
+          return window.gameIOData.get(key) || null;
+        },
+
+        // Get archive data size
+        getArchiveDataSize: function (tableId, archiveId) {
+          const data = this.getArchiveData(tableId, archiveId);
+          return data ? data.byteLength : 0;
+        },
+
+        // Copy archive data to WASM heap (for C++ access)
+        copyArchiveDataToHeap: function (tableId, archiveId, heapPtr, maxSize) {
+          const data = this.getArchiveData(tableId, archiveId);
+          if (!data || !Module.HEAPU8) {
+            return 0;
+          }
+          const size = Math.min(data.byteLength, maxSize);
+          const srcArray = new Uint8Array(data);
+          Module.HEAPU8.set(srcArray.subarray(0, size), heapPtr);
+          return size;
+        },
+
+        // Clear cached archive data
+        clearArchiveData: function (tableId, archiveId) {
+          if (!window.gameIOData) {
+            return;
+          }
+          const key = `${tableId}_${archiveId}`;
+          window.gameIOData.delete(key);
+        },
+      };
+
+      // Auto-initialize on load
+      window.addEventListener("load", async () => {
+        await initGameIO();
+
+        // Set WASM module reference if Module is already loaded
+        if (window.Module && window.Module._malloc && window.gameIO) {
+          window.gameIO.setWasmModule(window.Module);
+          console.log("WASM Module reference set on GameIO (from load event)");
+        } else if (window.wasmModuleReady && window.gameIO) {
+          window.gameIO.setWasmModule(window.Module);
+          console.log(
+            "WASM Module reference set on GameIO (deferred from onRuntimeInitialized)"
+          );
+        } else {
+          console.log("Waiting for WASM module to be ready...");
+          // Poll for WASM module to be ready
+          const checkInterval = setInterval(() => {
+            if (window.Module && window.Module._malloc && window.gameIO) {
+              window.gameIO.setWasmModule(window.Module);
+              console.log("WASM Module reference set on GameIO (from polling)");
+              clearInterval(checkInterval);
+            }
+          }, 100);
+
+          // Clear interval after 10 seconds to prevent infinite polling
+          setTimeout(() => clearInterval(checkInterval), 10000);
+        }
+      });
+
+      console.log(
+        "GameIO API exposed to Module.requestArchive and Module.requestArchiveRead"
+      );
+    </script>
+
     <script>
       (function () {
         const container = document.getElementById("soft3d-container");

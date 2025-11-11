@@ -2,6 +2,7 @@
 
 #include "libinput.h"
 #include "osrs/cache.h"
+#include "osrs/gametask.h"
 #include "osrs/scene.h"
 #include "osrs/scene_cache.h"
 #include "osrs/xtea_config.h"
@@ -130,9 +131,15 @@ game_new(int flags, struct GameGfxOpList* gfx_op_list)
      *
      */
 
-    scenegfx_scene_load_map(game, 50, 50, gfx_op_list);
+    // scenegfx_scene_load_map(game, 50, 50, gfx_op_list);
 
     return game;
+}
+
+void
+game_init(struct Game* game, struct GameIO* input)
+{
+    gametask_scene_load(&game->tasks_nullable, input, game->cache, 50, 50);
 }
 
 void
@@ -142,7 +149,7 @@ game_free(struct Game* game)
 }
 
 void
-game_step_main_loop(struct Game* game, struct GameInput* input, struct GameGfxOpList* gfx_op_list)
+game_step_main_loop(struct Game* game, struct GameIO* input, struct GameGfxOpList* gfx_op_list)
 {
     const int target_input_fps = 50;
     const float time_delta_step = 1.0f / target_input_fps;
@@ -152,6 +159,42 @@ game_step_main_loop(struct Game* game, struct GameInput* input, struct GameGfxOp
     {
         time_quanta++;
         input->time_delta_accumulator_seconds -= time_delta_step;
+    }
+
+    struct GameIORequest* request_nullable = NULL;
+
+    struct GameAsyncTask* task_nullable = NULL;
+
+    if( game->tasks_nullable )
+    {
+        enum GameIOStatus status = E_GAMEIO_STATUS_ERROR;
+        task_nullable = game->tasks_nullable;
+        switch( task_nullable->kind )
+        {
+        case E_GAME_TASK_SCENE_LOAD:
+            status = gametask_scene_load_send(task_nullable->_scene_load);
+            break;
+        }
+
+        printf("GameIO Status: %d\n", status);
+    }
+
+    // while( gameio_next(input, E_GAMEIO_STATUS_OK, &request_nullable) )
+    // {
+    //     switch( request_nullable->kind )
+    //     {
+    //     case E_GAMEIO_REQUEST_ARCHIVE_LOAD:
+    //         gametask_scene_load_send(game->tasks_nullable->_scene_load);
+    //         break;
+    //     }
+
+    //     gameio_remove(input, request_nullable->request_id);
+    // }
+
+    if( !gameio_is_idle(input) )
+    {
+        printf("GameIO is not idle\n");
+        return;
     }
 
     for( int i = 0; i < time_quanta; i++ )

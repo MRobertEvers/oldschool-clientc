@@ -965,14 +965,6 @@ pix3dgl_scene_static_load_tile(
             range.faces.push_back(face);
         }
         scene->tile_ranges[scene_tile_idx] = range;
-
-        printf(
-            "Added tile %d to static scene: start=%d, count=%d, faces=%d (total %d vertices)\n",
-            scene_tile_idx,
-            start_vertex_index,
-            vertex_count_total,
-            face_count,
-            buffers->total_vertex_count);
     }
 }
 
@@ -1050,14 +1042,6 @@ pix3dgl_scene_static_load_model(
         position_y,
         position_z,
         yaw);
-
-    printf(
-        "Added model %d to static scene: start=%d, count=%d, faces=%d (total %d vertices)\n",
-        scene_model_idx,
-        buffers->model_ranges[scene_model_idx].start_vertex,
-        buffers->model_ranges[scene_model_idx].vertex_count,
-        (int)buffers->model_ranges[scene_model_idx].faces.size(),
-        buffers->total_vertex_count);
 }
 
 // Animation support functions
@@ -1090,8 +1074,6 @@ pix3dgl_scene_static_load_animated_model_begin(
     // Store in map and keep pointer for building
     scene->animated_models[scene_model_idx] = anim_data;
     scene->current_animated_model = &scene->animated_models[scene_model_idx];
-
-    printf("Started loading animated model %d with %d keyframes\n", scene_model_idx, frame_count);
 }
 
 extern "C" void
@@ -1186,14 +1168,6 @@ pix3dgl_scene_static_load_animated_model_keyframe(
         }
 
         scene->current_animated_model->keyframe_ranges.push_back(range);
-
-        printf(
-            "Added keyframe %d for animated model %d: start=%d, count=%d, faces=%d\n",
-            frame_idx,
-            scene_model_idx,
-            start_vertex_index,
-            vertex_count,
-            face_count);
     }
 }
 
@@ -1239,8 +1213,6 @@ pix3dgl_scene_static_load_animated_model_end(
 
     // Clear current animated model pointer
     scene->current_animated_model = nullptr;
-
-    printf("Finished loading animated model %d with %d keyframes\n", scene_model_idx, frame_count);
 }
 
 extern "C" void

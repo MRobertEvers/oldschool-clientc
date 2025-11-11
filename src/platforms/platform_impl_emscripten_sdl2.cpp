@@ -100,13 +100,73 @@ PlatformImpl_Emscripten_SDL2_Shutdown(struct Platform* platform)
     SDL_Quit();
 }
 
+// clang-format off
+EM_JS(
+    void,
+    emscripten_request_archive,
+    (int request_id, int table_id, int archive_id),
+    {
+        console.log(
+            "emscripten_request_archive: request_id=",
+            request_id,
+            "table_id=",
+            table_id,
+            "archive_id=",
+            archive_id);
+        Module.requestArchive(request_id, table_id, archive_id);
+    });
+
+EM_JS(uint8_t*, emscripten_request_archive_read, (int request_id), {
+    console.log("emscripten_request_archive_read: request_id=", request_id);
+    return Module.requestArchiveRead(request_id);
+});
+//  clang-format on
+
+static struct GameIORequest* g_request_nullable = NULL;
 void
-PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameInput* input)
+PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIO* input)
 {
     uint64_t current_frame_time = SDL_GetTicks64();
     input->time_delta_accumulator_seconds +=
         (double)(current_frame_time - platform->last_frame_time_ticks) / 1000.0f;
     platform->last_frame_time_ticks = current_frame_time;
+
+
+    while( gameio_next(input, E_GAMEIO_STATUS_PENDING, &g_request_nullable) )
+    {
+        if( !g_request_nullable )
+            break;
+
+        
+        switch( g_request_nullable->kind )
+        {
+        case E_GAMEIO_REQUEST_ARCHIVE_LOAD:
+            emscripten_request_archive(
+                g_request_nullable->request_id,
+                g_request_nullable->_archive_load.table_id,
+                g_request_nullable->_archive_load.archive_id);
+            g_request_nullable->status = E_GAMEIO_STATUS_WAIT;
+            break;
+        }
+    }
+
+    uint8_t* data = NULL;
+    g_request_nullable = NULL;
+    while( gameio_next(input, E_GAMEIO_STATUS_WAIT, &g_request_nullable) )
+    {
+        switch( g_request_nullable->kind )
+        {
+        case E_GAMEIO_REQUEST_ARCHIVE_LOAD:
+            data = emscripten_request_archive_read(g_request_nullable->request_id);
+            if( data )
+            {
+                printf("Archive data: %p\n", data);
+                g_request_nullable->status = E_GAMEIO_STATUS_OK;
+            }
+            break;
+        }
+    }
+
 
     SDL_Event event;
     while( SDL_PollEvent(&event) )

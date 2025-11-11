@@ -325,7 +325,6 @@ read_index(struct IndexRecord* record, char const* cache_directory, int table_id
 
     if( disk_indexfile_read_record(index_file, entry_idx, record) != 0 )
     {
-        printf("(read_index)Failed to read index record for table %d\n", table_id);
         goto error;
     }
 
@@ -440,8 +439,6 @@ cache_archive_new_load_decrypted(
             printf("Cache mode is not inet. Cannot request from server.\n");
             goto error;
         }
-
-        printf("Archive is not loaded. Requesting from server.\n");
 
         struct CacheInetPayload* payload = cache_inet_payload_new_archive_request(
             (struct CacheInet*)cache->_inet_nullable, table_id, archive_id);

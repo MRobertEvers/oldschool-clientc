@@ -1,0 +1,27 @@
+{
+  "name": "browser",
+  "version": "1.0.0",
+  "description": "WebSocket-based archive loader with IndexedDB caching for game assets",
+  "type": "module",
+  "main": "dist/GameIO.js",
+  "types": "dist/GameIO.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "build:deploy": "./build.sh",
+    "deploy": "npm run build && cp -v dist/GameIO.js* dist/GameIO.d.ts ../../../public/build/ 2>/dev/null || cp -v dist/GameIO.js ../../../public/build/"
+  },
+  "keywords": [
+    "websocket",
+    "indexeddb",
+    "cache",
+    "game",
+    "assets"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

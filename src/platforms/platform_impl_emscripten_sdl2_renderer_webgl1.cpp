@@ -438,10 +438,6 @@ load_static_scene(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* g
         if( scene_model->sequence && scene_model->frames && scene_model->frame_count > 0 )
         {
             // Model has animation - create keyframes
-            printf(
-                "Loading animated model %d with %d keyframes\n",
-                scene_model->scene_model_idx,
-                scene_model->frame_count);
 
             // Allocate temporary buffers for animated vertices and colors
             int vertex_count = scene_model->model->vertex_count;
@@ -1033,6 +1029,8 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
     struct Game* game,
     struct GameGfxOpList* gfx_op_list)
 {
+    game_gfx_op_list_reset(gfx_op_list);
+    return;
     // Handle canvas resize: sync canvas resolution with CSS size
     double css_width, css_height;
     emscripten_get_element_css_size("#canvas", &css_width, &css_height);

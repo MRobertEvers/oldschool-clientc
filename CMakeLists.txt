@@ -9,7 +9,7 @@ project(RSClient
 # set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
 # set(PROFILING_FLAGS "-fsanitize=address -g -fno-omit-frame-pointer")
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 # Fix: Use C flags instead of C++ flags for C project
@@ -653,6 +653,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         test/emscripten_sdl2_webgl1.cpp
         src/libgame.c
         src/libinput.c
+        src/osrs/gameio.c
+        src/osrs/gametask.c
+        src/osrs/async/gametask_scene_load.c
         src/platforms/platform_impl_emscripten_sdl2.cpp
         src/platforms/platform_impl_emscripten_sdl2_renderer_webgl1.cpp
         
@@ -733,7 +736,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # ASYNCIFY_IGNORE_INDIRECT: Improve performance by not instrumenting indirect calls
     # WEBSOCKET_URL: WebSocket endpoint (websockify bridges to TCP)
     set_target_properties(emscripten_sdl2_webgl1 PROPERTIES 
-        LINK_FLAGS "${LINK_FLAGS} --preload-file ${CMAKE_SOURCE_DIR}/cache/xteas.json@/cache/xteas.json -s USE_WEBGL2=0 -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s MODULARIZE=0 -s EXPORT_ES6=0 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s ASYNCIFY=1 -s ASYNCIFY_IGNORE_INDIRECT=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32','FS'] -s WEBSOCKET_SUBPROTOCOL='binary' -s WEBSOCKET_URL='ws://localhost:8080/' --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
+        LINK_FLAGS "${LINK_FLAGS} --preload-file ${CMAKE_SOURCE_DIR}/cache/xteas.json@/cache/xteas.json -s USE_WEBGL2=0 -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s MODULARIZE=0 -s EXPORT_ES6=0 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s ASYNCIFY=1 -s ASYNCIFY_IGNORE_INDIRECT=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32','FS'] -s EXPORTED_FUNCTIONS=['_main','_malloc','_free'] -s WEBSOCKET_SUBPROTOCOL='binary' -s WEBSOCKET_URL='ws://localhost:8080/' --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
     )
 
 endif()

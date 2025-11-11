@@ -2,6 +2,7 @@
 #define MAPS_H
 
 #include "osrs/cache.h"
+#include "osrs/gameio.h"
 #include "osrs/rsbuf.h"
 
 #include <assert.h>
@@ -92,6 +93,8 @@ struct CacheMapTerrain
 #define MAP_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z))
 
 enum CachePreloadKind map_terrain_preload_check(struct Cache* cache, int map_x, int map_y);
+
+void map_terrain_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out);
 struct CacheMapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
 struct CacheMapTerrain* map_terrain_new_from_decode(char* data, int data_size);
 

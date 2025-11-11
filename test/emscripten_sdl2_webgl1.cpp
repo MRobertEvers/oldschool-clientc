@@ -19,7 +19,7 @@ struct GameState
     struct Platform* platform;
     struct RendererEmscripten_SDL2WebGL1* renderer;
     struct Game* game;
-    struct GameInput* input;
+    struct GameIO* input;
     struct GameGfxOpList* gfx_op_list;
 };
 
@@ -133,12 +133,14 @@ main(int argc, char* argv[])
         return 1;
     }
 
-    struct GameInput* input = GameInput_New();
+    struct GameIO* input = gameio_new();
     if( !input )
     {
         printf("Failed to create input\n");
         return 1;
     }
+
+    game_init(game, input);
 
     // Set up global state for Emscripten main loop
     g_game_state = new GameState();
@@ -159,7 +161,7 @@ main(int argc, char* argv[])
     PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Free(renderer);
     PlatformImpl_Emscripten_SDL2_Shutdown(platform);
     game_free(game);
-    GameInput_Free(input);
+    gameio_free(input);
     game_gfx_op_list_free(gfx_op_list);
     delete g_game_state;
 

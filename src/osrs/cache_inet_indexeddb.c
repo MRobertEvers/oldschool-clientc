@@ -217,14 +217,6 @@ indexeddb_get_archive(int table_id, int archive_id, char** data_out, int* size_o
 
     // Get the result
     int result = js_indexeddb_get_result(request_id, data_out, size_out);
-    if( result == 1 )
-    {
-        printf("IndexedDB cache HIT: table=%d, archive=%d\n", table_id, archive_id);
-    }
-    else if( result == 0 )
-    {
-        printf("IndexedDB cache MISS: table=%d, archive=%d\n", table_id, archive_id);
-    }
 
     return result;
 }

@@ -161,6 +161,13 @@ map_terrain_preload_check(struct Cache* cache, int map_x, int map_y)
     return cache_archive_preload_check(cache, CACHE_MAPS, archive_id);
 }
 
+void
+map_terrain_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out)
+{
+    out->table_id = CACHE_MAPS;
+    out->archive_id = dat2_map_terrain_id(cache, map_x, map_y);
+}
+
 // private void loadTerrain(MapDefinition map, byte[] buf)
 // 	{
 // 		Tile[][][] tiles = map.getTiles();

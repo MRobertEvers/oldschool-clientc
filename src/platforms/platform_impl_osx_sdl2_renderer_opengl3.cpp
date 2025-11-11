@@ -243,10 +243,6 @@ load_static_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
         if( scene_model->sequence && scene_model->frames && scene_model->frame_count > 0 )
         {
             // Model has animation - create keyframes
-            printf(
-                "Loading animated model %d with %d keyframes\n",
-                scene_model->scene_model_idx,
-                scene_model->frame_count);
 
             // Allocate temporary buffers for animated vertices and colors
             int vertex_count = scene_model->model->vertex_count;

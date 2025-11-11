@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameIO Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #e8f4f8;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #log {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>GameIO WebSocket Archive Loader</h1>
+    
+    <div class="status" id="status">
+        <strong>Status:</strong> <span id="statusText">Not initialized</span>
+    </div>
+
+    <div>
+        <h2>Initialize Connection</h2>
+        <input type="text" id="wsUrl" placeholder="WebSocket URL" value="ws://localhost:8080/">
+        <button onclick="initializeGameIO()">Initialize</button>
+    </div>
+
+    <div>
+        <h2>Request Archive</h2>
+        <input type="number" id="tableId" placeholder="Table ID" value="5" min="0" max="255">
+        <input type="number" id="archiveId" placeholder="Archive ID" value="0" min="0">
+        <button onclick="requestArchive()">Request Archive</button>
+        <button onclick="requestReferenceTable()">Request Reference Table</button>
+    </div>
+
+    <div>
+        <h2>Cache Management</h2>
+        <button onclick="getCacheStats()">Get Cache Stats</button>
+        <button onclick="clearCache()">Clear Cache</button>
+    </div>
+
+    <div>
+        <h2>Console Log</h2>
+        <div id="log"></div>
+    </div>
+
+    <script type="module">
+        import { GameIO } from './src/GameIO.js';
+
+        let gameIO = null;
+
+        // Logging
+        const logDiv = document.getElementById('log');
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.color = type === 'error' ? '#c62828' : type === 'success' ? '#2e7d32' : '#000';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            addLog(args.join(' '), 'info');
+        };
+
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+
+        // Status update
+        function updateStatus(text, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = text;
+            
+            statusDiv.className = 'status';
+            if (type === 'error') {
+                statusDiv.className += ' error';
+            } else if (type === 'success') {
+                statusDiv.className += ' success';
+            }
+        }
+
+        // Initialize GameIO
+        window.initializeGameIO = async function() {
+            try {
+                const wsUrl = document.getElementById('wsUrl').value;
+                updateStatus('Initializing...', 'info');
+                
+                gameIO = new GameIO(wsUrl);
+                await gameIO.initialize();
+                
+                updateStatus('Connected and ready', 'success');
+                console.log('GameIO initialized successfully');
+            } catch (error) {
+                updateStatus('Failed to initialize: ' + error.message, 'error');
+                console.error('Initialization error:', error);
+            }
+        };
+
+        // Request archive
+        window.requestArchive = async function() {
+            if (!gameIO) {
+                alert('Please initialize GameIO first');
+                return;
+            }
+
+            try {
+                const tableId = parseInt(document.getElementById('tableId').value);
+                const archiveId = parseInt(document.getElementById('archiveId').value);
+                
+                updateStatus(`Requesting archive table=${tableId}, archive=${archiveId}...`, 'info');
+                console.log(`Requesting archive: table=${tableId}, archive=${archiveId}`);
+                
+                const data = await gameIO.requestArchive(tableId, archiveId);
+                
+                if (data) {
+                    updateStatus(`Archive received: ${data.byteLength} bytes`, 'success');
+                    console.log(`Archive received: ${data.byteLength} bytes`);
+                    
+                    // Show first 32 bytes as hex
+                    const view = new Uint8Array(data, 0, Math.min(32, data.byteLength));
+                    const hex = Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                    console.log(`First bytes (hex): ${hex}`);
+                } else {
+                    updateStatus('Archive not found', 'error');
+                    console.error('Archive not found');
+                }
+            } catch (error) {
+                updateStatus('Request failed: ' + error.message, 'error');
+                console.error('Request error:', error);
+            }
+        };
+
+        // Request reference table
+        window.requestReferenceTable = async function() {
+            if (!gameIO) {
+                alert('Please initialize GameIO first');
+                return;
+            }
+
+            try {
+                const tableId = parseInt(document.getElementById('tableId').value);
+                
+                updateStatus(`Requesting reference table for table ${tableId}...`, 'info');
+                console.log(`Requesting reference table: ${tableId}`);
+                
+                const data = await gameIO.requestReferenceTable(tableId);
+                
+                if (data) {
+                    updateStatus(`Reference table received: ${data.byteLength} bytes`, 'success');
+                    console.log(`Reference table received: ${data.byteLength} bytes`);
+                } else {
+                    updateStatus('Reference table not found', 'error');
+                    console.error('Reference table not found');
+                }
+            } catch (error) {
+                updateStatus('Request failed: ' + error.message, 'error');
+                console.error('Request error:', error);
+            }
+        };
+
+        // Get cache stats
+        window.getCacheStats = async function() {
+            if (!gameIO) {
+                alert('Please initialize GameIO first');
+                return;
+            }
+
+            try {
+                const stats = await gameIO.getCacheStats();
+                
+                updateStatus(`Cache: ${stats.count} archives`, 'success');
+                console.log(`Cache statistics: ${stats.count} total archives`);
+                
+                for (const [tableId, count] of stats.tables.entries()) {
+                    console.log(`  Table ${tableId}: ${count} archives`);
+                }
+            } catch (error) {
+                updateStatus('Failed to get stats: ' + error.message, 'error');
+                console.error('Stats error:', error);
+            }
+        };
+
+        // Clear cache
+        window.clearCache = async function() {
+            if (!gameIO) {
+                alert('Please initialize GameIO first');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to clear the entire cache?')) {
+                return;
+            }
+
+            try {
+                await gameIO.clearCache();
+                updateStatus('Cache cleared', 'success');
+                console.log('Cache cleared successfully');
+            } catch (error) {
+                updateStatus('Failed to clear cache: ' + error.message, 'error');
+                console.error('Clear cache error:', error);
+            }
+        };
+
+        // Log initial state
+        console.log('Example page loaded. Click "Initialize" to connect to the asset server.');
+    </script>
+</body>
+</html>
+

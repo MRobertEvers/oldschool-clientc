@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameIO Test Suite</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #2196F3;
+            padding-bottom: 10px;
+        }
+        .test-suite {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #ccc;
+            background: #fafafa;
+        }
+        .test-case.running {
+            border-left-color: #FFC107;
+            background: #fff9e6;
+        }
+        .test-case.pass {
+            border-left-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        .test-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .test-result {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .test-error {
+            color: #c62828;
+            font-family: monospace;
+            font-size: 11px;
+            background: white;
+            padding: 8px;
+            margin-top: 5px;
+            border-radius: 3px;
+        }
+        button {
+            padding: 12px 24px;
+            margin: 5px;
+            cursor: pointer;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .summary {
+            font-size: 18px;
+            font-weight: bold;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .summary.pass {
+            color: #4CAF50;
+            border-left: 4px solid #4CAF50;
+        }
+        .summary.fail {
+            color: #f44336;
+            border-left: 4px solid #f44336;
+        }
+        #console {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .console-entry {
+            margin: 2px 0;
+        }
+        .console-error {
+            color: #ff5252;
+        }
+        .console-warn {
+            color: #ffd54f;
+        }
+        .console-info {
+            color: #4fc3f7;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 GameIO Test Suite</h1>
+    
+    <div>
+        <button onclick="runAllTests()" id="runButton">Run All Tests</button>
+        <button onclick="clearConsole()">Clear Console</button>
+        <button onclick="clearTestResults()">Clear Results</button>
+    </div>
+
+    <div id="summary"></div>
+    <div id="tests"></div>
+    <div id="console"></div>
+
+    <script type="module">
+        import { GameIO } from './src/GameIO.js';
+
+        let gameIO = null;
+        let testResults = [];
+
+        // Console capture
+        const consoleDiv = document.getElementById('console');
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        const originalConsoleWarn = console.warn;
+
+        window.clearConsole = function() {
+            consoleDiv.innerHTML = '';
+        };
+
+        function addConsoleEntry(message, type = 'log') {
+            const entry = document.createElement('div');
+            entry.className = `console-entry console-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            consoleDiv.appendChild(entry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            addConsoleEntry(args.join(' '), 'info');
+        };
+
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            addConsoleEntry(args.join(' '), 'error');
+        };
+
+        console.warn = function(...args) {
+            originalConsoleWarn.apply(console, args);
+            addConsoleEntry(args.join(' '), 'warn');
+        };
+
+        // Test framework
+        class TestCase {
+            constructor(name, testFn) {
+                this.name = name;
+                this.testFn = testFn;
+                this.status = 'pending'; // pending, running, pass, fail
+                this.result = '';
+                this.error = null;
+                this.element = null;
+            }
+
+            render() {
+                const div = document.createElement('div');
+                div.className = 'test-case';
+                div.id = `test-${testResults.length}`;
+                
+                const title = document.createElement('div');
+                title.className = 'test-title';
+                title.textContent = this.name;
+                div.appendChild(title);
+
+                const result = document.createElement('div');
+                result.className = 'test-result';
+                result.textContent = 'Pending...';
+                div.appendChild(result);
+
+                this.element = div;
+                this.resultElement = result;
+                document.getElementById('tests').appendChild(div);
+            }
+
+            updateStatus(status, result, error = null) {
+                this.status = status;
+                this.result = result;
+                this.error = error;
+
+                if (this.element) {
+                    this.element.className = `test-case ${status}`;
+                    this.resultElement.textContent = result;
+
+                    if (error) {
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'test-error';
+                        errorDiv.textContent = error.toString();
+                        this.element.appendChild(errorDiv);
+                    }
+                }
+            }
+
+            async run() {
+                this.updateStatus('running', 'Running...');
+                console.log(`\n--- Running: ${this.name} ---`);
+                
+                try {
+                    await this.testFn();
+                    this.updateStatus('pass', 'PASS ✓');
+                    console.log(`✓ ${this.name} passed`);
+                    return true;
+                } catch (error) {
+                    this.updateStatus('fail', `FAIL ✗ - ${error.message}`, error);
+                    console.error(`✗ ${this.name} failed:`, error);
+                    return false;
+                }
+            }
+        }
+
+        // Test assertions
+        function assert(condition, message) {
+            if (!condition) {
+                throw new Error(message || 'Assertion failed');
+            }
+        }
+
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(message || `Expected ${expected}, got ${actual}`);
+            }
+        }
+
+        function assertNotNull(value, message) {
+            if (value === null || value === undefined) {
+                throw new Error(message || 'Value is null or undefined');
+            }
+        }
+
+        // Test cases
+        const tests = [
+            new TestCase('Initialize GameIO', async () => {
+                gameIO = new GameIO('ws://localhost:8080/');
+                await gameIO.initialize();
+                assertNotNull(gameIO, 'GameIO should be initialized');
+                console.log('GameIO initialized successfully');
+            }),
+
+            new TestCase('Request reference table (table 5)', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                const refTable = await gameIO.requestReferenceTable(5);
+                assertNotNull(refTable, 'Reference table should not be null');
+                assert(refTable.byteLength > 0, 'Reference table should have data');
+                
+                console.log(`Reference table size: ${refTable.byteLength} bytes`);
+            }),
+
+            new TestCase('Request map archive (table 5, archive 0)', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                const archive = await gameIO.requestArchive(5, 0);
+                assertNotNull(archive, 'Archive should not be null');
+                assert(archive.byteLength > 0, 'Archive should have data');
+                
+                console.log(`Map archive size: ${archive.byteLength} bytes`);
+                
+                // Show first 16 bytes as hex
+                const view = new Uint8Array(archive, 0, Math.min(16, archive.byteLength));
+                const hex = Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                console.log(`First bytes: ${hex}`);
+            }),
+
+            new TestCase('Verify cache working (request same archive again)', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                const startTime = performance.now();
+                const archive = await gameIO.requestArchive(5, 0);
+                const endTime = performance.now();
+                
+                assertNotNull(archive, 'Archive should not be null');
+                assert(archive.byteLength > 0, 'Archive should have data');
+                
+                const duration = endTime - startTime;
+                console.log(`Request took ${duration.toFixed(2)}ms (should be fast from cache)`);
+                
+                // Cached requests should be very fast (< 50ms)
+                assert(duration < 50, `Cache lookup should be fast, took ${duration.toFixed(2)}ms`);
+            }),
+
+            new TestCase('Request multiple archives sequentially', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                const archives = [];
+                for (let i = 0; i < 3; i++) {
+                    const archive = await gameIO.requestArchive(5, i);
+                    assertNotNull(archive, `Archive ${i} should not be null`);
+                    archives.push(archive);
+                    console.log(`Archive ${i}: ${archive.byteLength} bytes`);
+                }
+                
+                assertEqual(archives.length, 3, 'Should have received 3 archives');
+            }),
+
+            new TestCase('Request multiple archives concurrently', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                // Clear cache first to ensure fresh requests
+                await gameIO.clearCache();
+                console.log('Cache cleared for concurrent test');
+                
+                const promises = [];
+                for (let i = 10; i < 13; i++) {
+                    promises.push(gameIO.requestArchive(5, i));
+                }
+                
+                const archives = await Promise.all(promises);
+                assertEqual(archives.length, 3, 'Should have received 3 archives');
+                
+                for (let i = 0; i < archives.length; i++) {
+                    assertNotNull(archives[i], `Archive ${i + 10} should not be null`);
+                    console.log(`Archive ${i + 10}: ${archives[i].byteLength} bytes`);
+                }
+            }),
+
+            new TestCase('Get cache statistics', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                const stats = await gameIO.getCacheStats();
+                assertNotNull(stats, 'Stats should not be null');
+                assert(stats.count > 0, 'Cache should contain archives');
+                
+                console.log(`Cache contains ${stats.count} archives`);
+                for (const [tableId, count] of stats.tables.entries()) {
+                    console.log(`  Table ${tableId}: ${count} archives`);
+                }
+            }),
+
+            new TestCase('Request non-existent archive', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                // Request an archive that likely doesn't exist
+                const archive = await gameIO.requestArchive(5, 999999);
+                
+                // Should return null for non-existent archives
+                assert(archive === null, 'Non-existent archive should return null');
+                console.log('Non-existent archive correctly returned null');
+            }),
+
+            new TestCase('Clear cache', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                await gameIO.clearCache();
+                
+                const stats = await gameIO.getCacheStats();
+                assertEqual(stats.count, 0, 'Cache should be empty after clearing');
+                
+                console.log('Cache cleared successfully');
+            }),
+
+            new TestCase('Request after cache clear (refetch from server)', async () => {
+                assertNotNull(gameIO, 'GameIO must be initialized');
+                
+                const archive = await gameIO.requestArchive(5, 0);
+                assertNotNull(archive, 'Archive should be fetched from server');
+                assert(archive.byteLength > 0, 'Archive should have data');
+                
+                console.log('Archive successfully refetched from server');
+            })
+        ];
+
+        // Test runner
+        window.runAllTests = async function() {
+            const runButton = document.getElementById('runButton');
+            runButton.disabled = true;
+            
+            document.getElementById('tests').innerHTML = '';
+            document.getElementById('summary').innerHTML = '';
+            testResults = [];
+
+            // Render all tests
+            tests.forEach(test => {
+                test.render();
+                testResults.push(test);
+            });
+
+            // Run all tests
+            let passed = 0;
+            let failed = 0;
+
+            for (const test of tests) {
+                const result = await test.run();
+                if (result) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+            }
+
+            // Show summary
+            const summary = document.getElementById('summary');
+            summary.className = 'summary ' + (failed === 0 ? 'pass' : 'fail');
+            summary.innerHTML = `
+                Tests Complete: ${passed} passed, ${failed} failed
+                <br>
+                Total: ${tests.length} tests
+            `;
+
+            runButton.disabled = false;
+            
+            if (failed === 0) {
+                console.log('\n🎉 All tests passed!');
+            } else {
+                console.error(`\n❌ ${failed} test(s) failed`);
+            }
+        };
+
+        window.clearTestResults = function() {
+            document.getElementById('tests').innerHTML = '';
+            document.getElementById('summary').innerHTML = '';
+            testResults = [];
+        };
+
+        // Initialize on load
+        console.log('Test suite loaded. Click "Run All Tests" to begin.');
+        console.log('Make sure the asset server and WebSocket bridge are running.');
+    </script>
+</body>
+</html>
+
