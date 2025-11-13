@@ -23,6 +23,7 @@ struct GameIORequest
     enum GameIORequestKind kind;
     enum GameIOStatus status;
     int request_id;
+    int consumed;
 
     void* sidecar_nullable;
 
@@ -83,7 +84,7 @@ void gameio_free(struct GameIO* gameio);
 enum GameIOStatus gameio_request_new_archive_load(
     struct GameIO* io, int table_id, int archive_id, struct GameIORequest** out);
 
-struct CacheArchive* gameio_request_archive(struct GameIORequest* request);
+struct CacheArchive* gameio_request_free_archive_receive(struct GameIORequest** request);
 
 bool gameio_next(struct GameIO* io, enum GameIOStatus status, struct GameIORequest** out);
 void gameio_remove(struct GameIO* io, int request_id);

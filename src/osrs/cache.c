@@ -292,6 +292,15 @@ error:;
     return NULL;
 }
 
+struct Cache*
+cache_new_uninitialized(void)
+{
+    struct Cache* cache = malloc(sizeof(struct Cache));
+    memset(cache, 0, sizeof(struct Cache));
+    cache->mode = CACHE_MODE_LOCAL_ONLY;
+    return cache;
+}
+
 void
 cache_free(struct Cache* cache)
 {

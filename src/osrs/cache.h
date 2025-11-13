@@ -55,6 +55,7 @@ struct Cache
 
 struct Cache* cache_new_from_directory(char const* directory);
 struct Cache* cache_new_inet(char const* directory, char const* ip, int port);
+struct Cache* cache_new_uninitialized(void);
 void cache_free(struct Cache* cache);
 
 struct CacheArchive

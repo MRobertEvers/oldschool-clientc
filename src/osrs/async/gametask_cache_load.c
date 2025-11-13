@@ -74,7 +74,7 @@ tables:;
         if( !gameio_resolved(status) )
             return status;
 
-        table_archive = gameio_request_archive(task->request);
+        table_archive = gameio_request_free_archive_receive(&task->request);
 
         table = reference_table_new_decode(table_archive->data, table_archive->data_size);
         cache->tables[task->table_id] = table;

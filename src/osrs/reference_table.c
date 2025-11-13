@@ -23,9 +23,7 @@ reference_table_new_decode(char* data, int data_size)
 {
     struct ReferenceTable* table = malloc(sizeof(struct ReferenceTable));
     if( !table )
-    {
         return NULL;
-    }
     memset(table, 0, sizeof(struct ReferenceTable));
 
     struct RSBuffer buffer = { .data = data, .position = 0, .size = data_size };

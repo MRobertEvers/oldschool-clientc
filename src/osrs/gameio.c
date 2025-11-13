@@ -91,12 +91,16 @@ gameio_request_new_archive_load(
 }
 
 struct CacheArchive*
-gameio_request_archive(struct GameIORequest* request)
+gameio_request_free_archive_receive(struct GameIORequest** request)
 {
-    assert(request->kind == E_GAMEIO_REQUEST_ARCHIVE_LOAD);
-    assert(request->status == E_GAMEIO_STATUS_OK);
+    assert((*request)->kind == E_GAMEIO_REQUEST_ARCHIVE_LOAD);
+    assert((*request)->status == E_GAMEIO_STATUS_OK);
 
-    return request->_archive_load.out_archive_nullable;
+    struct CacheArchive* archive = (*request)->_archive_load.out_archive_nullable;
+    free(*request);
+    *request = NULL;
+
+    return archive;
 }
 
 bool
