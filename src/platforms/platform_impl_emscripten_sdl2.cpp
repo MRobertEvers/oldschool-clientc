@@ -1,8 +1,11 @@
 #include "platform_impl_emscripten_sdl2.h"
 
+#include "platform_impl_emscripten_asyncio.u.cpp"
+
 #include <SDL.h>
 #include <emscripten.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // Include ImGui SDL backend to process events (C++)
@@ -104,8 +107,9 @@ PlatformImpl_Emscripten_SDL2_Shutdown(struct Platform* platform)
 EM_JS(
     void,
     emscripten_request_archive,
-    (int request_id, int table_id, int archive_id),
+    ( int request_id, int table_id, int archive_id),
     {
+        
         console.log(
             "emscripten_request_archive: request_id=",
             request_id,
@@ -116,13 +120,13 @@ EM_JS(
         Module.requestArchive(request_id, table_id, archive_id);
     });
 
-EM_JS(uint8_t*, emscripten_request_archive_read, (int request_id), {
+EM_JS(int, emscripten_request_archive_read, (void* buffer, int request_id), {
     console.log("emscripten_request_archive_read: request_id=", request_id);
-    return Module.requestArchiveRead(request_id);
+    return Module.requestArchiveRead(buffer, request_id);
 });
 //  clang-format on
 
-static struct GameIORequest* g_request_nullable = NULL;
+
 void
 PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIO* input)
 {
@@ -132,38 +136,73 @@ PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIO
     platform->last_frame_time_ticks = current_frame_time;
 
 
-    while( gameio_next(input, E_GAMEIO_STATUS_PENDING, &g_request_nullable) )
+    struct GameIORequest* request_nullable = NULL;
+    while( gameio_next(input, E_GAMEIO_STATUS_PENDING, &request_nullable) )
     {
-        if( !g_request_nullable )
+        if( !request_nullable )
             break;
 
         
-        switch( g_request_nullable->kind )
+        switch( request_nullable->kind )
         {
         case E_GAMEIO_REQUEST_ARCHIVE_LOAD:
+        {
+            void* buffer = javascript_archive_request_new_buffer();
+            request_nullable->sidecar_nullable = buffer;
+
             emscripten_request_archive(
-                g_request_nullable->request_id,
-                g_request_nullable->_archive_load.table_id,
-                g_request_nullable->_archive_load.archive_id);
-            g_request_nullable->status = E_GAMEIO_STATUS_WAIT;
+                request_nullable->request_id,
+                request_nullable->_archive_load.table_id,
+                request_nullable->_archive_load.archive_id);
+            request_nullable->status = E_GAMEIO_STATUS_WAIT;
             break;
+        }
         }
     }
 
-    uint8_t* data = NULL;
-    g_request_nullable = NULL;
-    while( gameio_next(input, E_GAMEIO_STATUS_WAIT, &g_request_nullable) )
+    int success = 0;
+    request_nullable = NULL;
+    while( gameio_next(input, E_GAMEIO_STATUS_WAIT, &request_nullable) )
     {
-        switch( g_request_nullable->kind )
+
+        if (request_nullable == NULL)
+            break;
+
+        switch( request_nullable->kind )
         {
         case E_GAMEIO_REQUEST_ARCHIVE_LOAD:
-            data = emscripten_request_archive_read(g_request_nullable->request_id);
-            if( data )
+        {
+            success = emscripten_request_archive_read(request_nullable->sidecar_nullable, request_nullable->request_id);
+            printf("emscripten_request_archive_read: success=%d\n", success);
+            if( success == 1 )
             {
-                printf("Archive data: %p\n", data);
-                g_request_nullable->status = E_GAMEIO_STATUS_OK;
+                struct JavascriptArchiveRequest deserialized = {0};
+                javascript_archive_request_deserialize(&deserialized, request_nullable->sidecar_nullable);
+                assert(deserialized.magic == JAVASCRIPT_ARCHIVE_REQUEST_MAGIC);
+
+                struct CacheArchive* archive = (struct CacheArchive*)malloc(sizeof(struct CacheArchive));
+                archive->data = (char*)deserialized.data;
+                archive->data_size = deserialized.size;
+                archive->archive_id = deserialized.archive_id;
+                archive->table_id = deserialized.table_id;
+                archive->revision = 0;
+                archive->file_count = 0;
+                
+                request_nullable->_archive_load.out_archive_nullable = archive;
+                request_nullable->status = E_GAMEIO_STATUS_OK;
+            }
+            else if (success == -1)
+            {
+                request_nullable->status = E_GAMEIO_STATUS_ERROR;
+            }
+
+            if( success != 0 )
+            {
+                javascript_archive_request_free_buffer(request_nullable->sidecar_nullable);
+                request_nullable->sidecar_nullable = NULL;
             }
             break;
+        }
         }
     }
 

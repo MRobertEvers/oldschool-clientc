@@ -107,24 +107,24 @@ game_new(int flags, struct GameGfxOpList* gfx_op_list)
     }
     printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
 
-    printf("Loading cache from directory: %s\n", CACHE_PATH);
-    // For Emscripten builds, cache_new_inet uses lazy loading:
-    // - Reference tables are NOT loaded at startup
-    // - They are loaded on-demand when archives are first accessed
-    // - This minimizes initial network traffic and startup time
-    struct Cache* cache = cache_new_inet(CACHE_PATH, "127.0.0.1", 4949);
-    // struct Cache* cache = cache_new_from_directory(CACHE_PATH);
-    if( !cache )
-    {
-        printf("Failed to load cache from directory: %s\n", CACHE_PATH);
+    // printf("Loading cache from directory: %s\n", CACHE_PATH);
+    // // For Emscripten builds, cache_new_inet uses lazy loading:
+    // // - Reference tables are NOT loaded at startup
+    // // - They are loaded on-demand when archives are first accessed
+    // // - This minimizes initial network traffic and startup time
+    // struct Cache* cache = cache_new_inet(CACHE_PATH, "127.0.0.1", 4949);
+    // // struct Cache* cache = cache_new_from_directory(CACHE_PATH);
+    // if( !cache )
+    // {
+    //     printf("Failed to load cache from directory: %s\n", CACHE_PATH);
 
-        return 0;
-    }
-    printf("Cache loaded successfully (lazy loading enabled for Emscripten)\n");
+    //     return 0;
+    // }
+    // printf("Cache loaded successfully (lazy loading enabled for Emscripten)\n");
 
-    game->cache = cache;
+    game->cache = NULL;
     game->frustrum_cullmap = frustrum_cullmap_new_nocull(25);
-    game->textures_cache = textures_cache_new(cache);
+    // game->textures_cache = textures_cache_new(cache);
 
     /**
      * Init
@@ -139,7 +139,8 @@ game_new(int flags, struct GameGfxOpList* gfx_op_list)
 void
 game_init(struct Game* game, struct GameIO* input)
 {
-    gametask_scene_load(&game->tasks_nullable, input, game->cache, 50, 50);
+    gametask_new_cache_load(&game->tasks_nullable, input, game->cache);
+    gametask_new_scene_load(&game->tasks_nullable, input, game->cache, 50, 50);
 }
 
 void
@@ -163,33 +164,36 @@ game_step_main_loop(struct Game* game, struct GameIO* input, struct GameGfxOpLis
 
     struct GameIORequest* request_nullable = NULL;
 
-    struct GameAsyncTask* task_nullable = NULL;
+    struct GameTask* task_nullable = NULL;
 
     if( game->tasks_nullable )
     {
         enum GameIOStatus status = E_GAMEIO_STATUS_ERROR;
         task_nullable = game->tasks_nullable;
-        switch( task_nullable->kind )
+
+        status = gametask_send(task_nullable);
+        if( gameio_resolved(status) )
         {
-        case E_GAME_TASK_SCENE_LOAD:
-            status = gametask_scene_load_send(task_nullable->_scene_load);
-            break;
+            switch( task_nullable->kind )
+            {
+            case E_GAME_TASK_SCENE_LOAD:
+                break;
+            case E_GAME_TASK_CACHE_LOAD:
+            {
+                printf("Cache loaded successfully\n");
+                game->cache = gametask_cache_value(task_nullable->_cache_load);
+                game->textures_cache = textures_cache_new(game->cache);
+
+                break;
+            }
+            }
+
+            game->tasks_nullable = game->tasks_nullable->next;
+            gametask_free(task_nullable);
         }
 
-        printf("GameIO Status: %d\n", status);
+        printf("GameIO Status: %s\n", gameio_status_cstr(status));
     }
-
-    // while( gameio_next(input, E_GAMEIO_STATUS_OK, &request_nullable) )
-    // {
-    //     switch( request_nullable->kind )
-    //     {
-    //     case E_GAMEIO_REQUEST_ARCHIVE_LOAD:
-    //         gametask_scene_load_send(game->tasks_nullable->_scene_load);
-    //         break;
-    //     }
-
-    //     gameio_remove(input, request_nullable->request_id);
-    // }
 
     if( !gameio_is_idle(input) )
     {

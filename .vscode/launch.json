@@ -5,6 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug WASM (Launch with User Profile)",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost:8000/emscripten_sdl2_webgl1.html",
+            "webRoot": "${workspaceFolder}",
+            "userDataDir": true,
+            "pathMapping": {
+                "/": "${workspaceFolder}",
+                "/src": "${workspaceFolder}/src",
+                "/test": "${workspaceFolder}/test",
+                "/build.em": "${workspaceFolder}/build.em"
+            },
+            "sourceMapPathOverrides": {
+                "/*": "${workspaceFolder}/*"
+            },
+            "trace": false,
+            "timeout": 30000,
+            "runtimeArgs": [
+                "--enable-features=SharedArrayBuffer"
+            ]
+        },
+        {
             "name": "(Windows) Launch",
             "type": "cppvsdbg",
             "request": "launch",

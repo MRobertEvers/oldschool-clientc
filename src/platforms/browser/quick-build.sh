@@ -8,3 +8,4 @@ cp -f dist/GameIO.js* dist/GameIO.d.ts ../../../public/build/ 2>/dev/null || cp 
 echo "✓ GameIO built and deployed to public/build/"
 
 
+

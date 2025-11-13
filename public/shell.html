@@ -206,7 +206,6 @@
       <div class="resize-handle resize-handle-se"></div>
       <div class="resize-handle resize-handle-sw"></div>
     </div>
-    {{{ SCRIPT }}}
 
     <!-- GameIO Integration -->
     <script type="module">
@@ -221,7 +220,7 @@
         try {
           console.log(`Initializing GameIO with URL: ${wsUrl}`);
           window.gameIO = new GameIO(wsUrl);
-          await window.gameIO.initialize();
+          window.gameIO.initialize();
           window.gameIOInitialized = true;
           console.log("GameIO initialized successfully");
           return 1; // Success
@@ -264,12 +263,12 @@
         window.gameIO.requestArchive(requestId, tableId, archiveId);
       };
 
-      window.Module.requestArchiveRead = function (requestId) {
+      window.Module.requestArchiveRead = function (buffer, requestId) {
         if (!window.gameIOInitialized || !window.gameIO) {
           console.error("GameIO not initialized");
           return 0;
         }
-        return window.gameIO.requestArchiveRead(requestId);
+        return window.gameIO.requestArchiveRead(buffer, requestId);
       };
 
       window.GameIOAPI = {
@@ -405,6 +404,8 @@
         "GameIO API exposed to Module.requestArchive and Module.requestArchiveRead"
       );
     </script>
+
+    {{{ SCRIPT }}}
 
     <script>
       (function () {

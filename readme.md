@@ -15,7 +15,6 @@ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make VERBOSE=1
 ```
 
-
 ### Presets
 
 ```
@@ -1168,6 +1167,7 @@ powershell -ExecutionPolicy Bypass -File scripts/copy_browser_files.ps1
 Then copy the output to public/build
 
 `python3 -m http.server -b 0.0.0.0 -d public/build 8000 `
+`python3 -m http.server -b 0.0.0.0 -d . 8010 `
 
 `http://localhost:8000/main.html`
 
@@ -1329,8 +1329,6 @@ At Startup:
 - idx2...
 
 Loading an archive
-
-
 
 ## For each target
 

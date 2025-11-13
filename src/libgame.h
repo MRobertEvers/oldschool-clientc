@@ -17,9 +17,6 @@ struct Game* game_new(int flags, struct GameGfxOpList* gfx_op_list);
 void game_init(struct Game* game, struct GameIO* input);
 void game_free(struct Game* game);
 
-void game_scene_load_enqueue(
-    struct Game* game, struct GameIO* input, struct Cache* cache, int chunk_x, int chunk_y);
-
 void
 game_step_main_loop(struct Game* game, struct GameIO* input, struct GameGfxOpList* out_commands);
 

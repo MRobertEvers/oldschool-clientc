@@ -164,6 +164,7 @@
         "dash3d.h": "c",
         "rsbuf.h": "c",
         "gameio.h": "c",
-        "cache.h": "c"
+        "cache.h": "c",
+        "reference_table.h": "c"
     }
 }

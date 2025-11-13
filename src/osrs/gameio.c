@@ -1,5 +1,6 @@
 #include "gameio.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -35,7 +36,6 @@ gameio_remove(struct GameIO* io, int request_id)
                 previous->next = current->next;
             else
                 io->requests = current->next;
-            free(current);
             return;
         }
         previous = current;
@@ -61,10 +61,18 @@ enum GameIOStatus
 gameio_request_new_archive_load(
     struct GameIO* io, int table_id, int archive_id, struct GameIORequest** out)
 {
+    enum GameIOStatus status = E_GAMEIO_STATUS_ERROR;
+    struct GameIORequest* request = NULL;
     if( *out )
-        return (*out)->status;
+    {
+        status = (*out)->status;
+        if( gameio_resolved(status) )
+            gameio_remove(io, (*out)->request_id);
 
-    struct GameIORequest* request = malloc(sizeof(struct GameIORequest));
+        return status;
+    }
+
+    request = malloc(sizeof(struct GameIORequest));
     memset(request, 0, sizeof(struct GameIORequest));
     request->kind = E_GAMEIO_REQUEST_ARCHIVE_LOAD;
     request->status = E_GAMEIO_STATUS_PENDING;
@@ -80,6 +88,15 @@ gameio_request_new_archive_load(
     *out = request;
 
     return E_GAMEIO_STATUS_PENDING;
+}
+
+struct CacheArchive*
+gameio_request_archive(struct GameIORequest* request)
+{
+    assert(request->kind == E_GAMEIO_REQUEST_ARCHIVE_LOAD);
+    assert(request->status == E_GAMEIO_STATUS_OK);
+
+    return request->_archive_load.out_archive_nullable;
 }
 
 bool
@@ -117,4 +134,20 @@ bool
 gameio_resolved(enum GameIOStatus status)
 {
     return status == E_GAMEIO_STATUS_OK;
+}
+
+char const*
+gameio_status_cstr(enum GameIOStatus status)
+{
+    switch( status )
+    {
+    case E_GAMEIO_STATUS_OK:
+        return "OK";
+    case E_GAMEIO_STATUS_ERROR:
+        return "ERROR";
+    case E_GAMEIO_STATUS_WAIT:
+        return "WAIT";
+    case E_GAMEIO_STATUS_PENDING:
+        return "PENDING";
+    }
 }

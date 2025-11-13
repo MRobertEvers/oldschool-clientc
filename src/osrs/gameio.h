@@ -24,6 +24,8 @@ struct GameIORequest
     enum GameIOStatus status;
     int request_id;
 
+    void* sidecar_nullable;
+
     struct
     {
         int table_id;
@@ -31,6 +33,12 @@ struct GameIORequest
 
         struct CacheArchive* out_archive_nullable;
     } _archive_load;
+
+    struct
+    {
+        int table_id;
+        struct ReferenceTable* out_table_nullable;
+    } _cache_load;
 };
 
 struct GameIO
@@ -75,9 +83,13 @@ void gameio_free(struct GameIO* gameio);
 enum GameIOStatus gameio_request_new_archive_load(
     struct GameIO* io, int table_id, int archive_id, struct GameIORequest** out);
 
+struct CacheArchive* gameio_request_archive(struct GameIORequest* request);
+
 bool gameio_next(struct GameIO* io, enum GameIOStatus status, struct GameIORequest** out);
 void gameio_remove(struct GameIO* io, int request_id);
 bool gameio_is_idle(struct GameIO* io);
 bool gameio_resolved(enum GameIOStatus status);
+
+char const* gameio_status_cstr(enum GameIOStatus status);
 
 #endif

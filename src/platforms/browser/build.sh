@@ -31,8 +31,13 @@ echo -e "${YELLOW}Cleaning previous build...${NC}"
 npm run clean 2>/dev/null || rm -rf dist
 
 # Build TypeScript
-echo -e "${YELLOW}Compiling TypeScript...${NC}"
-npm run build
+if [ "$BUILD_MODE" = "debug" ]; then
+    echo -e "${YELLOW}Compiling TypeScript with DEBUG info...${NC}"
+    npm run build -- --inlineSourceMap --inlineSources
+else
+    echo -e "${YELLOW}Compiling TypeScript...${NC}"
+    npm run build
+fi
 
 # Check if build succeeded
 if [ ! -f "dist/GameIO.js" ]; then
@@ -63,5 +68,6 @@ fi
 if [ -f "$PUBLIC_BUILD_DIR/GameIO.d.ts" ]; then
     ls -lh "$PUBLIC_BUILD_DIR/GameIO.d.ts" | awk '{print "  GameIO.d.ts: " $5}'
 fi
+
 
 

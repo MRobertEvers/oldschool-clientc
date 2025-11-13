@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Convenience script to build GameIO.ts from project root
+# Convenience script to build GameIO.ts from project root with debug info
 # This script can be run from anywhere in the project
 
 set -e  # Exit on error
@@ -12,7 +12,11 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 # Change to browser platform directory and run build
 cd "$PROJECT_ROOT/src/platforms/browser"
 
-echo "Building GameIO from: $PWD"
+echo "Building GameIO with debug info from: $PWD"
+
+# Set debug environment variable for build script
+export BUILD_MODE="debug"
 ./build.sh
+
 
 

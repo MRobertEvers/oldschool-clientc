@@ -4,6 +4,7 @@
 #include "osrs/async/gametask_scene_load.h"
 #include "osrs/cache.h"
 #include "osrs/frustrum_cullmap.h"
+#include "osrs/gametask.h"
 #include "osrs/scene.h"
 #include "osrs/scene_cache.h"
 
@@ -60,23 +61,6 @@ struct GameGfxOpList
     int op_capacity;
 };
 
-enum GameAsyncTaskKind
-{
-    E_GAME_ASYNC_TASK_SCENE_LOAD,
-};
-
-struct GameAsyncTask
-{
-    struct GameAsyncTask* next;
-
-    enum GameAsyncTaskKind kind;
-
-    union
-    {
-        struct GameTaskSceneLoad* _scene_load;
-    };
-};
-
 struct Game
 {
     bool running;
@@ -99,7 +83,7 @@ struct Game
     struct TexturesCache* textures_cache;
     struct FrustrumCullmap* frustrum_cullmap;
 
-    struct GameAsyncTask* tasks_nullable;
+    struct GameTask* tasks_nullable;
 };
 
 #endif

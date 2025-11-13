@@ -9,7 +9,7 @@ project(RSClient
 # set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
 # set(PROFILING_FLAGS "-fsanitize=address -g -fno-omit-frame-pointer")
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+    set(CMAKE_BUILD_TYPE Debug2)
 endif()
 
 # Fix: Use C flags instead of C++ flags for C project
@@ -42,20 +42,22 @@ if(WIN32 AND MSVC)
 else()
     # GCC/MinGW and other compilers
     set(CMAKE_C_FLAGS "-Wall -Wextra -Wno-unused-parameter -Werror=implicit-function-declaration -Werror=return-type")
-    set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
+    # set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
     
     set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wno-unused-parameter -Werror=return-type")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
+    # set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
     
     # Set architecture-specific flags
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
         # x86_64 specific optimizations
-        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -g -O3 -DNDEBUG")
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -O3 -DNDEBUG")
+        # set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -g -O0 -DNDEBUG")
+        # set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -O3 -DNDEBUG")
     else()
         # ARM64 and other architectures - use generic optimizations
-        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -g -O3 -DNDEBUG")
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -O3 -DNDEBUG")
+        # set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -g -O3 -DNDEBUG")
+        # set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -O3 -DNDEBUG")
+        # set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -g -O0")
+        # set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -O0")
     endif()
     
     # Enable C99 features
@@ -100,21 +102,21 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # Override ASan flags for Emscripten - ASan is not supported
-    set(CMAKE_C_FLAGS_DEBUG "-g -O0")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
+    # set(CMAKE_C_FLAGS_DEBUG "-g")
+    # set(CMAKE_CXX_FLAGS_DEBUG "-g ")
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG "")
     set(CMAKE_MODULE_LINKER_FLAGS_DEBUG "")
     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "")
     
     # Remove debug info from Release builds to avoid binaryen optimization warning
     # Enable WASM SIMD for better performance
-    set(CMAKE_C_FLAGS_RELEASE "-O3 -D__ARM_NEON -DNDEBUG -msimd128")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -D__ARM_NEON -DNDEBUG -msimd128")
-    
-    set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s USE_WEBGL2=1 -msimd128")
-    set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=2 -s FULL_ES3=1 -msimd128")
+    # set(CMAKE_C_FLAGS_RELEASE "-O3 -D__ARM_NEON -DNDEBUG -msimd128")
+    # set(CMAKE_CXX_FLAGS_RELEASE "-O3 -D__ARM_NEON -DNDEBUG -msimd128")
+
+    set(COMPILE_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1")
+    set(LINK_FLAGS "-s USE_SDL=2 -s USE_FREETYPE=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1")
     set(PRELOAD_FLAGS "--preload-file ../cache/xteas.json@/cache/xteas.json")
-    set(DATA_FILE_PATH "build/scene_tile_test_browser.data")
+    # set(DATA_FILE_PATH "build/scene_tile_test_browser.data")
     add_compile_definitions(CACHE_PATH="/cache")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMPILE_FLAGS}")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMPILE_FLAGS}")
@@ -656,6 +658,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/gameio.c
         src/osrs/gametask.c
         src/osrs/async/gametask_scene_load.c
+        src/osrs/async/gametask_cache_load.c
         src/platforms/platform_impl_emscripten_sdl2.cpp
         src/platforms/platform_impl_emscripten_sdl2_renderer_webgl1.cpp
         
@@ -716,14 +719,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         CXX_STANDARD_REQUIRED ON
     )
 
-    # Override global compile flags for WebGL1
-    target_compile_options(emscripten_sdl2_webgl1 PRIVATE 
-        "SHELL:-s USE_WEBGL2=0" 
-        "SHELL:-s MAX_WEBGL_VERSION=1" 
-        "SHELL:-s MIN_WEBGL_VERSION=1" 
-        "SHELL:-s FULL_ES2=1"
-    )
-
     target_link_libraries(emscripten_sdl2_webgl1 ${EXTRA_LIBS})
     # WebGL1-specific link flags - later flags override earlier ones in Emscripten
     # NOTE: Cannot use PROXY_TO_PTHREAD because WebGL requires main browser thread
@@ -735,10 +730,27 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # ASYNCIFY=1: Enable async transformation for blocking operations
     # ASYNCIFY_IGNORE_INDIRECT: Improve performance by not instrumenting indirect calls
     # WEBSOCKET_URL: WebSocket endpoint (websockify bridges to TCP)
-    set_target_properties(emscripten_sdl2_webgl1 PROPERTIES 
-        LINK_FLAGS "${LINK_FLAGS} --preload-file ${CMAKE_SOURCE_DIR}/cache/xteas.json@/cache/xteas.json -s USE_WEBGL2=0 -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s MODULARIZE=0 -s EXPORT_ES6=0 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s ASYNCIFY=1 -s ASYNCIFY_IGNORE_INDIRECT=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32','FS'] -s EXPORTED_FUNCTIONS=['_main','_malloc','_free'] -s WEBSOCKET_SUBPROTOCOL='binary' -s WEBSOCKET_URL='ws://localhost:8080/' --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
+    # Comprehensive Emscripten debugging configuration
+    # -g: Debug info with DWARF symbols
+    # -gsource-map: Generate source maps for browser debugging
+    # -O0: No optimization for easier debugging
+    # -fdebug-compilation-dir: Use relative paths in debug info
+    # -s ASSERTIONS=2: Enable maximum runtime assertions
+    # -s STACK_OVERFLOW_CHECK=2: Maximum stack overflow detection
+    # -s SAFE_HEAP=1: Memory safety checks (can be commented out if too slow)
+    target_compile_options(emscripten_sdl2_webgl1 PRIVATE 
+        -O0
+        -g
     )
-
+    
+    # Debug link flags with source map support
+    # -g: Debug info
+    # -gsource-map: Generate .wasm.map source map file
+    # --source-map-base: Base URL for loading source files in browser
+    # Make sure to serve files from the project root with a local web server
+    set_target_properties(emscripten_sdl2_webgl1 PROPERTIES 
+        LINK_FLAGS "${LINK_FLAGS}  -O0 -g --preload-file ${CMAKE_SOURCE_DIR}/cache/xteas.json@/cache/xteas.json -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32','FS'] -s EXPORTED_FUNCTIONS=['_main','_malloc','_free'] -s WEBSOCKET_SUBPROTOCOL='binary' -s WEBSOCKET_URL='ws://localhost:8080/' --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
+    )
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -799,10 +811,10 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test_imgui_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32']")
 
     target_link_libraries(main ${EXTRA_LIBS})
-    set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=1 -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
+    set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
 
     target_link_libraries(model_viewerfx_browser ${EXTRA_LIBS})
-    set_target_properties(model_viewerfx_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s USE_WEBGL2=0 -s MAX_WEBGL_VERSION=1 -s MODULARIZE=0 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s EXPORT_ES6=0 -s WASM=1 -s -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
+    set_target_properties(model_viewerfx_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s MAX_WEBGL_VERSION=1 -s MODULARIZE=0 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s EXPORT_ES6=0 -s WASM=1 -s -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
