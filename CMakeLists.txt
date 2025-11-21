@@ -370,6 +370,10 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         test/osx_sdl2.cpp
         src/libgame.c
         src/libinput.c
+        src/osrs/gameio.c
+        src/osrs/gametask.c
+        src/osrs/async/gametask_cache_load.c
+        src/osrs/async/gametask_scene_load.c
         src/platforms/platform_impl_osx_sdl2.cpp
         src/platforms/platform_impl_osx_sdl2_renderer_soft3d.cpp
         src/platforms/platform_impl_osx_sdl2_renderer_opengl3.cpp

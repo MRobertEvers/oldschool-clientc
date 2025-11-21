@@ -91,7 +91,7 @@ PlatformImpl_OSX_SDL2_Shutdown(struct Platform* platform)
 }
 
 void
-PlatformImpl_OSX_SDL2_PollEvents(struct Platform* platform, struct GameInput* input)
+PlatformImpl_OSX_SDL2_PollEvents(struct Platform* platform, struct GameIO* input)
 {
     uint64_t current_frame_time = SDL_GetTicks64();
     input->time_delta_accumulator_seconds +=
