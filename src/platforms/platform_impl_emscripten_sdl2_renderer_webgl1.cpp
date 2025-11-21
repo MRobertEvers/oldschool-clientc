@@ -1029,8 +1029,6 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
     struct Game* game,
     struct GameGfxOpList* gfx_op_list)
 {
-    game_gfx_op_list_reset(gfx_op_list);
-    return;
     // Handle canvas resize: sync canvas resolution with CSS size
     double css_width, css_height;
     emscripten_get_element_css_size("#canvas", &css_width, &css_height);

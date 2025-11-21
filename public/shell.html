@@ -214,6 +214,9 @@
       // Create global GameIO instance
       window.gameIO = null;
       window.gameIOInitialized = false;
+      window.gameIORequestBuffer = []; // Buffer for requests made before initialization
+
+
 
       // Initialize GameIO
       async function initGameIO(wsUrl = "ws://localhost:8080/") {
@@ -223,6 +226,29 @@
           window.gameIO.initialize();
           window.gameIOInitialized = true;
           console.log("GameIO initialized successfully");
+
+          // Process any buffered requests
+          if (window.gameIORequestBuffer.length > 0) {
+            console.log(`Processing ${window.gameIORequestBuffer.length} buffered requests`);
+            window.gameIORequestBuffer.forEach(request => {
+              try {
+                if (request.type === 'requestArchive') {
+                  console.log("Processing buffered requestArchive:", request.args);
+                  window.gameIO.requestArchive(...request.args);
+                } else if (request.type === 'requestArchiveRead') {
+                  console.log("Processing buffered requestArchiveRead:", request.args[1]); // requestId
+                  const result = window.gameIO.requestArchiveRead(...request.args);
+                  request.returnValue = result;
+                }
+              } catch (error) {
+                console.error(`Error processing buffered ${request.type}:`, error);
+              }
+            });
+            // Clear the buffer after processing
+            window.gameIORequestBuffer.length = 0;
+            console.log("Finished processing buffered requests");
+          }
+
           return 1; // Success
         } catch (error) {
           console.error("Failed to initialize GameIO:", error);
@@ -257,7 +283,11 @@
 
       window.Module.requestArchive = function (requestId, tableId, archiveId) {
         if (!window.gameIOInitialized || !window.gameIO) {
-          console.error("GameIO not initialized");
+          console.log("GameIO not initialized, buffering requestArchive:", requestId, tableId, archiveId);
+          window.gameIORequestBuffer.push({
+            type: 'requestArchive',
+            args: [requestId, tableId, archiveId]
+          });
           return;
         }
         window.gameIO.requestArchive(requestId, tableId, archiveId);
@@ -265,8 +295,13 @@
 
       window.Module.requestArchiveRead = function (buffer, requestId) {
         if (!window.gameIOInitialized || !window.gameIO) {
-          console.error("GameIO not initialized");
-          return 0;
+          console.log("GameIO not initialized, buffering requestArchiveRead:", requestId);
+          window.gameIORequestBuffer.push({
+            type: 'requestArchiveRead',
+            args: [buffer, requestId],
+            returnValue: null // Will be set when processed
+          });
+          return 0; // Return 0 for now, will be processed later
         }
         return window.gameIO.requestArchiveRead(buffer, requestId);
       };

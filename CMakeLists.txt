@@ -752,8 +752,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # -gsource-map: Generate .wasm.map source map file
     # --source-map-base: Base URL for loading source files in browser
     # Make sure to serve files from the project root with a local web server
-    set_target_properties(emscripten_sdl2_webgl1 PROPERTIES 
+    set_target_properties(emscripten_sdl2_webgl1 PROPERTIES
         LINK_FLAGS "${LINK_FLAGS}  -O0 -g --preload-file ${CMAKE_SOURCE_DIR}/cache/xteas.json@/cache/xteas.json -s MAX_WEBGL_VERSION=1 -s MIN_WEBGL_VERSION=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32','FS'] -s EXPORTED_FUNCTIONS=['_main','_malloc','_free'] -s WEBSOCKET_SUBPROTOCOL='binary' -s WEBSOCKET_URL='ws://localhost:8080/' --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
+        OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/public/shell.html"
     )
 endif()
 
@@ -815,10 +816,16 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set_target_properties(scene_tile_test_imgui_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s EXPORTED_FUNCTIONS=['_main','_get_pixel_buffer','_get_screen_width','_get_screen_height','_render_frame','_set_camera_position','_set_camera_rotation','_set_camera_fov'] -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32']")
 
     target_link_libraries(main ${EXTRA_LIBS})
-    set_target_properties(main PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
+    set_target_properties(main PROPERTIES
+        LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s MAX_WEBGL_VERSION=2 -s MIN_WEBGL_VERSION=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s FULL_ES3=1 -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
+        OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/public/shell.html"
+    )
 
     target_link_libraries(model_viewerfx_browser ${EXTRA_LIBS})
-    set_target_properties(model_viewerfx_browser PROPERTIES LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s MAX_WEBGL_VERSION=1 -s MODULARIZE=0 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s EXPORT_ES6=0 -s WASM=1 -s -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html")
+    set_target_properties(model_viewerfx_browser PROPERTIES
+        LINK_FLAGS "${LINK_FLAGS} ${PRELOAD_FLAGS} -s MAX_WEBGL_VERSION=1 -s MODULARIZE=0 -s MIN_WEBGL_VERSION=1 -s FULL_ES2=1 -s EXPORT_ES6=0 -s WASM=1 -s -s ALLOW_MEMORY_GROWTH=1 -s NO_EXIT_RUNTIME=1 -s NO_DISABLE_EXCEPTION_CATCHING -s USE_SDL=2 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU32'] --shell-file ${CMAKE_SOURCE_DIR}/public/shell.html"
+        OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/public/shell.html"
+    )
 elseif(WIN32)
     target_link_libraries(scene_tile_test SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})
     target_link_libraries(model_viewer SDL2::SDL2 ${WINDOWS_LIBS} ${EXTRA_LIBS})

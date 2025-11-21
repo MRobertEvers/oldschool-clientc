@@ -166,38 +166,41 @@ game_step_main_loop(struct Game* game, struct GameIO* input, struct GameGfxOpLis
 
     struct GameTask* task_nullable = NULL;
 
-    if( game->tasks_nullable )
+    enum GameIOStatus status = E_GAMEIO_STATUS_OK;
+
+    task_nullable = game->tasks_nullable;
+    while( task_nullable )
     {
-        enum GameIOStatus status = E_GAMEIO_STATUS_ERROR;
-        task_nullable = game->tasks_nullable;
-
         status = gametask_send(task_nullable);
-        if( gameio_resolved(status) )
+
+        if( !gameio_resolved(status) )
+            break;
+
+        switch( task_nullable->kind )
         {
-            switch( task_nullable->kind )
-            {
-            case E_GAME_TASK_SCENE_LOAD:
-                break;
-            case E_GAME_TASK_CACHE_LOAD:
-            {
-                printf("Cache loaded successfully\n");
-                game->cache = gametask_cache_value(task_nullable->_cache_load);
-                game->textures_cache = textures_cache_new(game->cache);
+        case E_GAME_TASK_SCENE_LOAD:
+            break;
+        case E_GAME_TASK_CACHE_LOAD:
+        {
+            printf("Cache loaded successfully\n");
+            game->cache = gametask_cache_value(task_nullable->_cache_load);
+            game->textures_cache = textures_cache_new(game->cache);
 
-                break;
-            }
-            }
-
-            game->tasks_nullable = game->tasks_nullable->next;
-            gametask_free(task_nullable);
+            break;
+        }
         }
 
+        game->tasks_nullable = game->tasks_nullable->next;
+        gametask_free(task_nullable);
+
         printf("GameIO Status: %s\n", gameio_status_cstr(status));
+
+        task_nullable = game->tasks_nullable;
     }
 
-    if( !gameio_is_idle(input) )
+    if( game->tasks_nullable )
     {
-        printf("GameIO is not idle\n");
+        printf("Tasks are not idle\n");
         return;
     }
 

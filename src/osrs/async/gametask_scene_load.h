@@ -13,4 +13,7 @@ void gametask_scene_load_free(struct GameTaskSceneLoad* task);
 
 enum GameIOStatus gametask_scene_load_send(struct GameTaskSceneLoad* task);
 
+struct Scene;
+struct Scene* gametask_scene_value(struct GameTaskSceneLoad* task);
+
 #endif
