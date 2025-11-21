@@ -72,6 +72,8 @@ struct CacheConfigSequenceTable
 };
 
 struct CacheConfigSequenceTable* config_sequence_table_new(struct Cache* cache);
+struct CacheConfigSequenceTable*
+config_sequence_table_new_from_archive(struct CacheArchive* archive);
 void config_sequence_table_free(struct CacheConfigSequenceTable* table);
 
 struct CacheConfigSequence*

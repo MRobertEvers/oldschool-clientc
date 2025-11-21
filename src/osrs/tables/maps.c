@@ -168,6 +168,13 @@ map_terrain_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTup
     out->archive_id = dat2_map_terrain_id(cache, map_x, map_y);
 }
 
+void
+map_locs_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out)
+{
+    out->table_id = CACHE_MAPS;
+    out->archive_id = dat2_map_loc_id(cache, map_x, map_y);
+}
+
 // private void loadTerrain(MapDefinition map, byte[] buf)
 // 	{
 // 		Tile[][][] tiles = map.getTiles();
@@ -250,6 +257,22 @@ map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
     cache_archive_free(archive);
     map_terrain_free(map_terrain);
     return NULL;
+}
+
+struct CacheMapTerrain*
+map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y)
+{
+    struct CacheMapTerrain* map_terrain =
+        map_terrain_new_from_decode(archive->data, archive->data_size);
+    if( !map_terrain )
+    {
+        printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_y);
+        return NULL;
+    }
+
+    fixup_terrain(map_terrain, map_x, map_y);
+
+    return map_terrain;
 }
 
 struct CacheMapTerrain*
@@ -527,6 +550,22 @@ map_locs_iter_new(struct Cache* cache, int map_x, int map_y)
 error:
     map_locs_iter_free(iter);
     return NULL;
+}
+
+struct CacheMapLocsIter*
+map_locs_iter_new_from_archive(struct CacheArchive* archive)
+{
+    struct CacheMapLocsIter* iter = malloc(sizeof(struct CacheMapLocsIter));
+    if( !iter )
+        return NULL;
+
+    memset(iter, 0, sizeof(struct CacheMapLocsIter));
+    iter->_id = -1;
+    iter->_archive = archive; // Take ownership of the archive
+
+    rsbuf_init(&iter->_buffer, iter->_archive->data, iter->_archive->data_size);
+
+    return iter;
 }
 
 void

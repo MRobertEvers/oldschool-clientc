@@ -42,6 +42,7 @@ struct CacheConfigIdkTable
 };
 
 struct CacheConfigIdkTable* config_idk_table_new(struct Cache* cache);
+struct CacheConfigIdkTable* config_idk_table_new_from_archive(struct CacheArchive* archive);
 void config_idk_table_free(struct CacheConfigIdkTable* table);
 
 struct CacheConfigIdk* config_idk_table_get(struct CacheConfigIdkTable* table, int id);

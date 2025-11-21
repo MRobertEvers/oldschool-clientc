@@ -2254,6 +2254,15 @@ model_new_from_cache(struct Cache* cache, int model_id)
 }
 
 struct CacheModel*
+model_new_from_archive(struct CacheArchive* archive, int model_id)
+{
+    struct CacheModel* model = model_new_decode(archive->data, archive->data_size);
+    if( model )
+        model->_id = model_id;
+    return model;
+}
+
+struct CacheModel*
 model_new_decode(const unsigned char* inputData, int inputLength)
 {
     struct CacheModel* model = NULL;

@@ -95,7 +95,9 @@ struct CacheMapTerrain
 enum CachePreloadKind map_terrain_preload_check(struct Cache* cache, int map_x, int map_y);
 
 void map_terrain_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out);
+void map_locs_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out);
 struct CacheMapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
+struct CacheMapTerrain* map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y);
 struct CacheMapTerrain* map_terrain_new_from_decode(char* data, int data_size);
 
 enum CachePreloadKind map_locs_preload_check(struct Cache* cache, int map_x, int map_y);
@@ -119,6 +121,7 @@ struct CacheMapLocsIter
 };
 
 struct CacheMapLocsIter* map_locs_iter_new(struct Cache* cache, int map_x, int map_y);
+struct CacheMapLocsIter* map_locs_iter_new_from_archive(struct CacheArchive* archive);
 void map_locs_iter_free(struct CacheMapLocsIter* iter);
 
 struct CacheMapLoc* map_locs_iter_next(struct CacheMapLocsIter* iter);

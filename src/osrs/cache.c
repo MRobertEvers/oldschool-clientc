@@ -423,6 +423,22 @@ cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
     return cache_archive_new_load_decrypted(cache, table_id, archive_id, NULL);
 }
 
+void
+cache_archive_init_metadata(struct Cache* cache, struct CacheArchive* archive)
+{
+    struct ReferenceTable* table = cache_ensure_reference_table_loaded(cache, archive->table_id);
+    if( !table )
+    {
+        printf("Failed to load reference table for table %d\n", archive->table_id);
+        return;
+    }
+
+    assert(archive->archive_id < table->archive_count);
+    struct ArchiveReference* archive_reference = &table->archives[archive->archive_id];
+    archive->revision = archive_reference->version;
+    archive->file_count = archive_reference->children.count;
+}
+
 struct CacheArchive*
 cache_archive_new_load_decrypted(
     struct Cache* cache, int table_id, int archive_id, int32_t* xtea_key_nullable)

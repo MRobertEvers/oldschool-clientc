@@ -151,6 +151,11 @@ struct SceneModel
     bool __drawn;
 
     int __loc_id;
+
+    // Async loading fields
+    int _pending_transform_orientation;
+    struct CacheConfigLocation* _pending_loc_config;
+    int _pending_shape_select;
 };
 
 enum GridTileFlags

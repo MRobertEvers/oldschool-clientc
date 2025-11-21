@@ -138,6 +138,29 @@ error:
     return NULL;
 }
 
+struct CacheConfigIdkTable*
+config_idk_table_new_from_archive(struct CacheArchive* archive)
+{
+    struct CacheConfigIdkTable* table = malloc(sizeof(struct CacheConfigIdkTable));
+    if( !table )
+    {
+        printf("config_idk_table_new_from_archive: Failed to allocate table\n");
+        return NULL;
+    }
+    memset(table, 0, sizeof(struct CacheConfigIdkTable));
+
+    table->archive = archive; // Take ownership of the archive
+    table->file_list = filelist_new_from_cache_archive(table->archive);
+    if( !table->file_list )
+    {
+        printf("config_idk_table_new_from_archive: Failed to load file list\n");
+        config_idk_table_free(table);
+        return NULL;
+    }
+
+    return table;
+}
+
 void
 config_idk_table_free(struct CacheConfigIdkTable* table)
 {

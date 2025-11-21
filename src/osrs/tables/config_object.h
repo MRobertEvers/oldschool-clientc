@@ -133,6 +133,7 @@ struct CacheConfigObjectTable
 };
 
 struct CacheConfigObjectTable* config_object_table_new(struct Cache* cache);
+struct CacheConfigObjectTable* config_object_table_new_from_archive(struct CacheArchive* archive);
 void config_object_table_free(struct CacheConfigObjectTable* table);
 
 struct CacheConfigObject* config_object_table_get_new(struct CacheConfigObjectTable* table, int id);

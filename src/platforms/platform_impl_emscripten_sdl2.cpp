@@ -185,6 +185,7 @@ PlatformImpl_Emscripten_SDL2_PollEvents(struct Platform* platform, struct GameIO
                 archive->data_size = deserialized.size;
                 archive->archive_id = deserialized.archive_id;
                 archive->table_id = deserialized.table_id;
+
                 archive->revision = 0;
                 archive->file_count = 0;
                 

@@ -924,6 +924,31 @@ error:
     return NULL;
 }
 
+struct CacheConfigSequenceTable*
+config_sequence_table_new_from_archive(struct CacheArchive* archive)
+{
+    struct CacheConfigSequenceTable* table = malloc(sizeof(struct CacheConfigSequenceTable));
+    if( !table )
+    {
+        printf("config_sequence_table_new_from_archive: Failed to allocate table\n");
+        return NULL;
+    }
+
+    memset(table, 0, sizeof(struct CacheConfigSequenceTable));
+
+    table->archive = archive;
+
+    table->file_list = filelist_new_from_cache_archive(archive);
+    if( !table->file_list )
+    {
+        printf("config_sequence_table_new_from_archive: Failed to load file list\n");
+        free(table);
+        return NULL;
+    }
+
+    return table;
+}
+
 void
 config_sequence_table_free(struct CacheConfigSequenceTable* table)
 {

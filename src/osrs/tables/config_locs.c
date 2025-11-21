@@ -679,6 +679,32 @@ error:
     return NULL;
 }
 
+struct CacheConfigLocationTable*
+config_locs_table_new_from_archive(struct CacheArchive* archive)
+{
+    assert(archive->table_id == CACHE_CONFIGS);
+    assert(archive->archive_id == CONFIG_LOCS);
+
+    struct CacheConfigLocationTable* table = malloc(sizeof(struct CacheConfigLocationTable));
+    if( !table )
+    {
+        printf("config_locs_table_new_from_archive: Failed to allocate table\n");
+        return NULL;
+    }
+    memset(table, 0, sizeof(struct CacheConfigLocationTable));
+
+    table->archive = archive; // Take ownership of the archive
+    table->file_list = filelist_new_from_cache_archive(table->archive);
+    if( !table->file_list )
+    {
+        printf("config_locs_table_new_from_archive: Failed to load file list\n");
+        config_locs_table_free(table);
+        return NULL;
+    }
+
+    return table;
+}
+
 void
 config_locs_table_free(struct CacheConfigLocationTable* table)
 {

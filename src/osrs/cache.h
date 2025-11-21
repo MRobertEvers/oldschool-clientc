@@ -87,6 +87,8 @@ enum CachePreloadKind
 cache_archive_preload_check(struct Cache* cache, int table_id, int archive_id);
 struct CacheArchive* cache_archive_new_reference_table_load(struct Cache* cache, int table_id);
 struct CacheArchive* cache_archive_new_load(struct Cache* cache, int table_id, int archive_id);
+void cache_archive_init_metadata(struct Cache* cache, struct CacheArchive* archive);
+
 struct CacheArchive* cache_archive_new_load_decrypted(
     struct Cache* cache, int table_id, int archive_id, int32_t* xtea_key_nullable);
 uint32_t* cache_archive_xtea_key(struct Cache* cache, int table_id, int archive_id);
