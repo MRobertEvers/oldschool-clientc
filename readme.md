@@ -80,6 +80,12 @@ Install SDL2.
 brew install sdl2
 ```
 
+### Debugging - WASM
+
+When building to debug wasm, you need to make sure there is no `.wasm.map` file in the output build folder. For some reason, that causes chrome to mess up line numbers and dwarf info. You need only to install the chrome debug extension here https://chromewebstore.google.com/detail/cc++-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb
+
+and compile with `-O0 -g`.
+
 ### TODOS
 
 3. Consolodate sprite pixel loading.

@@ -45,7 +45,7 @@ cp *.wasm ../public/build/
 cp *.data ../public/build/
 cp *.html ../public/build/
 # Copy debug files for DWARF debugging (if they exist)
-cp *.dwarf ../public/build/ 2>/dev/null || echo "No .dwarf files found"
+cp *.dwp ../public/build/ 2>/dev/null || echo "No .dwp files found"
 cp *.map ../public/build/ 2>/dev/null || echo "No .map files found"
 
 echo "Build completed successfully!"

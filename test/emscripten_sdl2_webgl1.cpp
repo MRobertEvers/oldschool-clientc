@@ -23,8 +23,6 @@ struct GameState
     struct GameGfxOpList* gfx_op_list;
 };
 
-static struct GameState* g_game_state = nullptr;
-
 // Verify xteas.json is in virtual filesystem (preloaded via --preload-file)
 // clang-format off
 EM_JS(void, verify_xteas_loaded, (), {
@@ -41,17 +39,19 @@ EM_JS(void, verify_xteas_loaded, (), {
 
 // Main loop callback for Emscripten
 void
-emscripten_main_loop()
+emscripten_main_loop(void* arg)
 {
-    if( !g_game_state )
+    struct GameState* game_state = (struct GameState*)arg;
+
+    if( !game_state )
         return;
 
-    PlatformImpl_Emscripten_SDL2_PollEvents(g_game_state->platform, g_game_state->input);
+    PlatformImpl_Emscripten_SDL2_PollEvents(game_state->platform, game_state->input);
 
-    game_step_main_loop(g_game_state->game, g_game_state->input, g_game_state->gfx_op_list);
+    game_step_main_loop(game_state->game, game_state->input, game_state->gfx_op_list);
 
     PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Render(
-        g_game_state->renderer, g_game_state->game, g_game_state->gfx_op_list);
+        game_state->renderer, game_state->game, game_state->gfx_op_list);
 }
 
 int
@@ -143,18 +143,18 @@ main(int argc, char* argv[])
     game_init(game, input);
 
     // Set up global state for Emscripten main loop
-    g_game_state = new GameState();
-    g_game_state->platform = platform;
-    g_game_state->renderer = renderer;
-    g_game_state->game = game;
-    g_game_state->input = input;
-    g_game_state->gfx_op_list = gfx_op_list;
+    struct GameState* game_state = new GameState();
+    game_state->platform = platform;
+    game_state->renderer = renderer;
+    game_state->game = game;
+    game_state->input = input;
+    game_state->gfx_op_list = gfx_op_list;
 
     printf("Starting Emscripten main loop...\n");
 
     // Start the Emscripten main loop
     // 0 = run at browser's refresh rate, 1 = simulate infinite loop
-    emscripten_set_main_loop(emscripten_main_loop, 0, 1);
+    emscripten_set_main_loop_arg(emscripten_main_loop, game_state, 0, 1);
 
     // Cleanup (will only run if main loop exits, which shouldn't happen)
     PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Shutdown(renderer);
@@ -163,7 +163,7 @@ main(int argc, char* argv[])
     game_free(game);
     gameio_free(input);
     game_gfx_op_list_free(gfx_op_list);
-    delete g_game_state;
+    delete game_state;
 
     return 0;
 }
