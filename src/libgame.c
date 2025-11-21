@@ -131,13 +131,11 @@ game_new(int flags, struct GameGfxOpList* gfx_op_list)
      *
      */
 
-    // scenegfx_scene_load_map(game, 50, 50, gfx_op_list);
-
     return game;
 }
 
 void
-game_init(struct Game* game, struct GameIO* input)
+game_init(struct Game* game, struct GameIO* input, struct GameGfxOpList* gfx_op_list)
 {
     gametask_new_cache_load(&game->tasks_nullable, input, game->cache);
     gametask_new_scene_load(&game->tasks_nullable, input, game->cache, 50, 50);
@@ -181,6 +179,10 @@ game_step_main_loop(struct Game* game, struct GameIO* input, struct GameGfxOpLis
         case E_GAME_TASK_SCENE_LOAD:
         {
             game->scene = gametask_scene_value(task_nullable->_scene_load);
+            struct GameGfxOp gfx_op;
+
+            gfx_op.kind = GAME_GFX_OP_SCENE_STATIC_LOAD;
+            game_gfx_op_list_push(gfx_op_list, &gfx_op);
             break;
         }
         case E_GAME_TASK_CACHE_LOAD:

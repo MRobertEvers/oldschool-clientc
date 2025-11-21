@@ -6,6 +6,7 @@
 #include "osrs/filelist.h"
 #include "osrs/model_transforms.h"
 #include "osrs/scene.h"
+#include "osrs/tables/config_floortype.h"
 #include "osrs/tables/config_idk.h"
 #include "osrs/tables/config_locs.h"
 #include "osrs/tables/config_object.h"
@@ -190,6 +191,9 @@ enum SceneLoadStep
     E_SCENE_LOAD_STEP_LOAD_MODELS,
     E_SCENE_LOAD_STEP_COMPLETE_MODELS,
     E_SCENE_LOAD_STEP_BUILD_LIGHTING,
+    E_SCENE_LOAD_STEP_LOAD_CONFIG_UNDERLAY,
+    E_SCENE_LOAD_STEP_LOAD_CONFIG_OVERLAY,
+    E_SCENE_LOAD_STEP_LOAD_TILES,
     E_SCENE_LOAD_STEP_DONE,
 };
 
@@ -215,6 +219,14 @@ struct GameTaskSceneLoad
     int* shade_map;
     struct CacheArchiveTuple locs_archive_tuple;
     struct CacheArchive* locs_archive;
+
+    // Tile config loading
+    int underlay_count;
+    int* underlay_ids;
+    struct CacheConfigUnderlay* underlays;
+    int overlay_count;
+    int* overlay_ids;
+    struct CacheConfigOverlay* overlays;
 
     // Async model loading
     struct CacheModel** loaded_models; // Array of loaded models
@@ -1152,6 +1164,12 @@ gametask_scene_load_send(struct GameTaskSceneLoad* task)
         goto complete_models;
     case E_SCENE_LOAD_STEP_BUILD_LIGHTING:
         goto build_lighting;
+    case E_SCENE_LOAD_STEP_LOAD_CONFIG_UNDERLAY:
+        goto load_config_underlay;
+    case E_SCENE_LOAD_STEP_LOAD_CONFIG_OVERLAY:
+        goto load_config_overlay;
+    case E_SCENE_LOAD_STEP_LOAD_TILES:
+        goto load_tiles;
     default:
         goto error;
     }
@@ -1282,7 +1300,7 @@ load_config_object:
         cache_archive_free(archive);
         goto error;
     }
-    cache_archive_free(archive);
+    // cache_archive_free(archive);
     archive = NULL;
 
     // Transition to next step
@@ -1312,7 +1330,7 @@ load_config_idk:
         cache_archive_free(archive);
         goto error;
     }
-    cache_archive_free(archive);
+    // cache_archive_free(archive);
     archive = NULL;
 
     // Transition to next step
@@ -1380,6 +1398,11 @@ process_locs:
     memset(task->shade_map, 0, sizeof(int) * MAP_TILE_COUNT);
     task->scene->_shade_map = task->shade_map;
     task->scene->_shade_map_length = MAP_TILE_COUNT;
+
+    // Allocate scene tiles
+    task->scene->scene_tiles = malloc(sizeof(struct SceneTile) * MAP_TILE_COUNT);
+    memset(task->scene->scene_tiles, 0, sizeof(struct SceneTile) * MAP_TILE_COUNT);
+    task->scene->scene_tiles_length = MAP_TILE_COUNT;
 
     // Initialize grid tiles
     for( int level = 0; level < MAP_TERRAIN_Z; level++ )
@@ -2146,16 +2169,135 @@ complete_models:
         }
     }
 
-    task->step = E_SCENE_LOAD_STEP_BUILD_LIGHTING;
-    goto build_lighting;
+    task->step = E_SCENE_LOAD_STEP_LOAD_CONFIG_UNDERLAY;
+    goto load_config_underlay;
 }
 
-build_lighting:
+load_config_underlay:
 {
-    struct GridTile* grid_tile = NULL;
-    struct CacheMapTerrain* map_terrain = task->map_terrain;
-    struct Scene* scene = task->scene;
+    status = gameio_request_new_archive_load(io, CACHE_CONFIGS, CONFIG_UNDERLAY, &task->request);
+    if( !gameio_resolved(status) )
+        return status;
 
+    archive = gameio_request_free_archive_receive(&task->request);
+    if( !archive )
+    {
+        printf("Failed to receive config underlay archive\n");
+        goto error;
+    }
+    cache_archive_init_metadata(task->cache, archive);
+
+    struct FileList* filelist = filelist_new_from_cache_archive(archive);
+    if( !filelist )
+    {
+        printf("Failed to create filelist from underlay archive\n");
+        cache_archive_free(archive);
+        goto error;
+    }
+
+    task->underlay_count = filelist->file_count;
+    task->underlay_ids = (int*)malloc(task->underlay_count * sizeof(int));
+    task->underlays = (struct CacheConfigUnderlay*)malloc(
+        task->underlay_count * sizeof(struct CacheConfigUnderlay));
+
+    for( int i = 0; i < task->underlay_count; i++ )
+    {
+        struct CacheConfigUnderlay* underlay = &task->underlays[i];
+        struct ArchiveReference* archives = task->cache->tables[CACHE_CONFIGS]->archives;
+
+        config_floortype_underlay_decode_inplace(
+            underlay, filelist->files[i], filelist->file_sizes[i]);
+
+        int file_id =
+            archives[task->cache->tables[CACHE_CONFIGS]->ids[CONFIG_UNDERLAY]].children.files[i].id;
+        task->underlay_ids[i] = file_id;
+    }
+
+    filelist_free(filelist);
+    cache_archive_free(archive);
+    archive = NULL;
+
+    // Transition to next step
+    task->step = E_SCENE_LOAD_STEP_LOAD_CONFIG_OVERLAY;
+    goto load_config_overlay;
+}
+
+load_config_overlay:
+{
+    status = gameio_request_new_archive_load(io, CACHE_CONFIGS, CONFIG_OVERLAY, &task->request);
+    if( !gameio_resolved(status) )
+        return status;
+
+    archive = gameio_request_free_archive_receive(&task->request);
+    if( !archive )
+    {
+        printf("Failed to receive config overlay archive\n");
+        goto error;
+    }
+    cache_archive_init_metadata(task->cache, archive);
+
+    struct FileList* filelist = filelist_new_from_cache_archive(archive);
+    if( !filelist )
+    {
+        printf("Failed to create filelist from overlay archive\n");
+        cache_archive_free(archive);
+        goto error;
+    }
+
+    task->overlay_count = filelist->file_count;
+    task->overlay_ids = (int*)malloc(task->overlay_count * sizeof(int));
+    task->overlays =
+        (struct CacheConfigOverlay*)malloc(task->overlay_count * sizeof(struct CacheConfigOverlay));
+
+    for( int i = 0; i < task->overlay_count; i++ )
+    {
+        struct CacheConfigOverlay* overlay = &task->overlays[i];
+        struct ArchiveReference* archives = task->cache->tables[CACHE_CONFIGS]->archives;
+
+        config_floortype_overlay_decode_inplace(
+            overlay, filelist->files[i], filelist->file_sizes[i]);
+
+        int file_id =
+            archives[task->cache->tables[CACHE_CONFIGS]->ids[CONFIG_OVERLAY]].children.files[i].id;
+        task->overlay_ids[i] = file_id;
+    }
+
+    filelist_free(filelist);
+    cache_archive_free(archive);
+    archive = NULL;
+
+    // Transition to next step
+    task->step = E_SCENE_LOAD_STEP_LOAD_TILES;
+    goto load_tiles;
+}
+
+load_tiles:
+{
+    // Create the actual scene tiles using the loaded configs
+    struct SceneTile* tiles = scene_tiles_new_from_map_terrain(
+        task->map_terrain,
+        task->shade_map,
+        task->overlays,
+        task->overlay_ids,
+        task->overlay_count,
+        task->underlays,
+        task->underlay_ids,
+        task->underlay_count);
+
+    if( !tiles )
+    {
+        printf("Failed to create scene tiles\n");
+        goto error;
+    }
+
+    // Copy the created tiles to the scene
+    memcpy(task->scene->scene_tiles, tiles, sizeof(struct SceneTile) * MAP_TILE_COUNT);
+
+    // Free the temporary tiles array (but not the individual tile data which was moved)
+    free(tiles);
+
+    // Assign tiles to grid tiles
+    struct GridTile* grid_tile = NULL;
     for( int i = 0; i < MAP_TILE_COUNT; i++ )
     {
         struct SceneTile* scene_tile = &task->scene->scene_tiles[i];
@@ -2163,6 +2305,15 @@ build_lighting:
             scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
         grid_tile->ground = i;
     }
+
+    task->step = E_SCENE_LOAD_STEP_BUILD_LIGHTING;
+    goto build_lighting;
+}
+
+build_lighting:
+{
+    struct Scene* scene = task->scene;
+    struct CacheMapTerrain* map_terrain = task->map_terrain;
 
     // Adjust bridges.
     // This MUST occur after the tiles are assigned to the grid tiles.
@@ -2188,6 +2339,7 @@ build_lighting:
      */
     struct CacheMapFloor* floor = NULL;
     struct GridTile bridge_tile = { 0 };
+    struct GridTile* grid_tile = NULL;
     for( int x = 0; x < MAP_TERRAIN_X; x++ )
     {
         for( int y = 0; y < MAP_TERRAIN_Y; y++ )
@@ -2441,6 +2593,12 @@ gametask_scene_load_free(struct GameTaskSceneLoad* task)
             map_terrain_free(task->scene->terrain);
         free(task->scene);
     }
+
+    // Clean up tile config data
+    free(task->underlay_ids);
+    free(task->underlays);
+    free(task->overlay_ids);
+    free(task->overlays);
 
     // Clean up model arrays
     free(task->loaded_models);

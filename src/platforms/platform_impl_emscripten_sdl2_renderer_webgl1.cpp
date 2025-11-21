@@ -357,6 +357,22 @@ load_static_scene(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* g
     // This function builds a static scene buffer containing all scene geometry
     // It's called once when the scene is loaded
 
+    printf("load_static_scene called\n");
+
+    // Check if Pix3DGL is initialized
+    if( !renderer->pix3dgl )
+    {
+        printf("Pix3DGL not initialized\n");
+        return;
+    }
+
+    // Check if we have a valid scene to load
+    if( !game->scene || !game->scene->scene_tiles )
+    {
+        printf("Scene not ready for static loading\n");
+        return;
+    }
+
     printf("Building static scene buffer...\n");
 
     // Start building the static scene
@@ -978,6 +994,11 @@ PlatformImpl_Emscripten_SDL2_Renderer_WebGL1_Init(
 
     // Initialize pix3dgl (uses pix3dgl_opengles2.cpp implementation)
     renderer->pix3dgl = pix3dgl_new();
+    if( !renderer->pix3dgl )
+    {
+        printf("Failed to initialize Pix3DGL\n");
+        return false;
+    }
 
     return true;
 }

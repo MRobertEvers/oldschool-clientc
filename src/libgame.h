@@ -14,7 +14,7 @@ void game_gfx_op_list_reset(struct GameGfxOpList* list);
 int game_gfx_op_list_push(struct GameGfxOpList* list, struct GameGfxOp* op);
 
 struct Game* game_new(int flags, struct GameGfxOpList* gfx_op_list);
-void game_init(struct Game* game, struct GameIO* input);
+void game_init(struct Game* game, struct GameIO* input, struct GameGfxOpList* gfx_op_list);
 void game_free(struct Game* game);
 
 void

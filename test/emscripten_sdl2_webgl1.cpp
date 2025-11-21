@@ -140,7 +140,7 @@ main(int argc, char* argv[])
         return 1;
     }
 
-    game_init(game, input);
+    game_init(game, input, gfx_op_list);
 
     // Set up global state for Emscripten main loop
     struct GameState* game_state = new GameState();
