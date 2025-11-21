@@ -74,8 +74,11 @@ struct GameTaskSceneLoad
     struct CacheArchive* locs_archive;
 
     // Async model loading
-    struct HashTable loaded_models; // Maps model_id -> CacheModel*
-    int* queued_model_ids;          // Array of model IDs to load
+    struct CacheModel** loaded_models; // Array of loaded models
+    int* model_ids;                    // Corresponding model IDs
+    int loaded_models_count;
+    int loaded_models_capacity;
+    int* queued_model_ids; // Array of model IDs to load
     int queued_model_count;
     int queued_model_capacity;
 
@@ -85,17 +88,41 @@ struct GameTaskSceneLoad
 
 // Forward declarations for async model functions
 static void io_queue_model(struct GameTaskSceneLoad* task, int model_id);
-static struct CacheModel* get_model_async(struct HashTable* loaded_models, int model_id);
+static struct CacheModel* get_model_async(struct GameTaskSceneLoad* task, int model_id);
+static void
+add_loaded_model(struct GameTaskSceneLoad* task, int model_id, struct CacheModel* model);
 
 static struct CacheModel*
-get_model_async(struct HashTable* loaded_models, int model_id)
+get_model_async(struct GameTaskSceneLoad* task, int model_id)
 {
-    struct CacheModel** model = ht_lookup(loaded_models, (char const*)&model_id, sizeof(int));
-    if( model )
-        return *model;
+    // Search through the loaded models list
+    for( int i = 0; i < task->loaded_models_count; i++ )
+    {
+        if( task->model_ids[i] == model_id )
+        {
+            return task->loaded_models[i];
+        }
+    }
 
-    assert(false);
-    return NULL;
+    return NULL; // Model not found
+}
+
+static void
+add_loaded_model(struct GameTaskSceneLoad* task, int model_id, struct CacheModel* model)
+{
+    // Expand arrays if needed
+    if( task->loaded_models_count >= task->loaded_models_capacity )
+    {
+        task->loaded_models_capacity =
+            task->loaded_models_capacity == 0 ? 16 : task->loaded_models_capacity * 2;
+        task->loaded_models =
+            realloc(task->loaded_models, sizeof(struct CacheModel*) * task->loaded_models_capacity);
+        task->model_ids = realloc(task->model_ids, sizeof(int) * task->loaded_models_capacity);
+    }
+
+    task->loaded_models[task->loaded_models_count] = model;
+    task->model_ids[task->loaded_models_count] = model_id;
+    task->loaded_models_count++;
 }
 
 static void
@@ -388,7 +415,7 @@ complete_scene_model_loading(
             int model_id = model_id_sets[0][i];
             if( model_id )
             {
-                struct CacheModel* model = get_model_async(&task->loaded_models, model_id);
+                struct CacheModel* model = get_model_async(task, model_id);
                 if( model )
                 {
                     models[model_count] = model;
@@ -417,7 +444,7 @@ complete_scene_model_loading(
                     int model_id = model_id_sets[i][j];
                     if( model_id )
                     {
-                        struct CacheModel* model = get_model_async(&task->loaded_models, model_id);
+                        struct CacheModel* model = get_model_async(task, model_id);
                         if( model )
                         {
                             models[model_count] = model;
@@ -496,13 +523,11 @@ gametask_scene_load_new(struct GameIO* io, struct Cache* cache, int chunk_x, int
     task->config_idk_table = NULL;
     task->shade_map = NULL;
 
-    ht_init(
-        &task->loaded_models,
-        (struct HashTableInit){
-            .element_size = sizeof(struct CacheModel*),
-            .capacity_hint = 200,
-            .key_size = sizeof(int),
-        });
+    // Initialize loaded models array
+    task->loaded_models = NULL;
+    task->model_ids = NULL;
+    task->loaded_models_count = 0;
+    task->loaded_models_capacity = 0;
 
     // Initialize queued models array
     task->queued_model_ids = NULL;
@@ -1416,9 +1441,16 @@ load_models:
         int model_id = task->queued_model_ids[task->queue_index];
 
         // Check if this model is already loaded
-        struct CacheModel** loaded =
-            ht_lookup(&task->loaded_models, (char const*)&model_id, sizeof(int));
-        if( loaded )
+        bool already_loaded = false;
+        for( int i = 0; i < task->loaded_models_count; i++ )
+        {
+            if( task->model_ids[i] == model_id )
+            {
+                already_loaded = true;
+                break;
+            }
+        }
+        if( already_loaded )
             continue;
 
         status = gameio_request_new_archive_load(task->io, CACHE_MODELS, model_id, &task->request);
@@ -1433,9 +1465,7 @@ load_models:
         cache_model = model_new_from_archive(archive, model_id);
         if( cache_model )
         {
-            struct CacheModel** stored =
-                ht_emplace(&task->loaded_models, (char const*)&model_id, sizeof(int));
-            *stored = cache_model;
+            add_loaded_model(task, model_id, cache_model);
             cache_model->_flags |= CMODEL_FLAG_SHARED;
         }
         cache_archive_free(archive);
@@ -1485,7 +1515,9 @@ gametask_scene_value(struct GameTaskSceneLoad* task)
 {
     assert(task->step == E_SCENE_LOAD_STEP_DONE);
     assert(task->scene != NULL);
-    return task->scene;
+    struct Scene* scene = task->scene;
+    task->scene = NULL;
+    return scene;
 }
 
 void
@@ -1507,7 +1539,9 @@ gametask_scene_load_free(struct GameTaskSceneLoad* task)
         free(task->scene);
     }
 
-    ht_cleanup(&task->loaded_models);
+    // Clean up model arrays
+    free(task->loaded_models);
+    free(task->model_ids);
 
     // Clean up queued models array
     free(task->queued_model_ids);

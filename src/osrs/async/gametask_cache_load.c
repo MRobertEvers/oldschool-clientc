@@ -39,6 +39,11 @@ gametask_cache_load_new(struct GameIO* io, struct Cache* cache)
 void
 gametask_cache_load_free(struct GameTaskCacheLoad* task)
 {
+    if( task->cache )
+    {
+        cache_free(task->cache);
+        task->cache = NULL;
+    }
     free(task);
 }
 
@@ -97,5 +102,7 @@ gametask_cache_value(struct GameTaskCacheLoad* task)
 {
     assert(task->step == E_CACHE_LOAD_STEP_DONE);
     assert(task->cache != NULL);
-    return task->cache;
+    struct Cache* cache = task->cache;
+    task->cache = NULL;
+    return cache;
 }

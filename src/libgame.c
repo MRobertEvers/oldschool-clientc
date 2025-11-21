@@ -179,7 +179,10 @@ game_step_main_loop(struct Game* game, struct GameIO* input, struct GameGfxOpLis
         switch( task_nullable->kind )
         {
         case E_GAME_TASK_SCENE_LOAD:
+        {
+            game->scene = gametask_scene_value(task_nullable->_scene_load);
             break;
+        }
         case E_GAME_TASK_CACHE_LOAD:
         {
             printf("Cache loaded successfully\n");
