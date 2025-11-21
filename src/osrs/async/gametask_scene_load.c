@@ -34,6 +34,149 @@ static const int WALL_DECOR_ROTATION_OFFSET_Z[] = { 0, -1, 0, 1 };
 static const int WALL_DECOR_ROTATION_DIAGONAL_OFFSET_X[] = { 1, -1, -1, 1 };
 static const int WALL_DECOR_ROTATION_DIAGONAL_OFFSET_Z[] = { -1, -1, 1, 1 };
 
+// Copied from scene.c for async loading
+static struct ModelNormals*
+model_normals_new(int vertex_count, int face_count)
+{
+    struct ModelNormals* normals = malloc(sizeof(struct ModelNormals));
+    memset(normals, 0, sizeof(struct ModelNormals));
+
+    normals->lighting_vertex_normals = malloc(sizeof(struct LightingNormal) * vertex_count);
+    memset(normals->lighting_vertex_normals, 0, sizeof(struct LightingNormal) * vertex_count);
+
+    normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
+    memset(normals->lighting_face_normals, 0, sizeof(struct LightingNormal) * face_count);
+
+    normals->lighting_vertex_normals_count = vertex_count;
+    normals->lighting_face_normals_count = face_count;
+
+    return normals;
+}
+
+static struct ModelNormals*
+model_normals_new_copy(struct ModelNormals* normals)
+{
+    struct ModelNormals* aliased_normals = malloc(sizeof(struct ModelNormals));
+    memset(aliased_normals, 0, sizeof(struct ModelNormals));
+
+    int vertex_count = normals->lighting_vertex_normals_count;
+    int face_count = normals->lighting_face_normals_count;
+
+    aliased_normals->lighting_vertex_normals = malloc(sizeof(struct LightingNormal) * vertex_count);
+    memcpy(
+        aliased_normals->lighting_vertex_normals,
+        normals->lighting_vertex_normals,
+        sizeof(struct LightingNormal) * vertex_count);
+
+    aliased_normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
+    memcpy(
+        aliased_normals->lighting_face_normals,
+        normals->lighting_face_normals,
+        sizeof(struct LightingNormal) * face_count);
+
+    aliased_normals->lighting_vertex_normals_count = vertex_count;
+    aliased_normals->lighting_face_normals_count = face_count;
+
+    return aliased_normals;
+}
+
+static struct ModelLighting*
+model_lighting_new(int face_count)
+{
+    struct ModelLighting* lighting = malloc(sizeof(struct ModelLighting));
+    memset(lighting, 0, sizeof(struct ModelLighting));
+
+    lighting->face_colors_hsl_a = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_a, 0, sizeof(int) * face_count);
+
+    lighting->face_colors_hsl_b = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_b, 0, sizeof(int) * face_count);
+
+    lighting->face_colors_hsl_c = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_c, 0, sizeof(int) * face_count);
+
+    return lighting;
+}
+
+static struct ModelLighting*
+model_lighting_new_default(
+    struct CacheModel* model,
+    struct ModelNormals* normals,
+    int model_contrast,
+    int model_attenuation)
+{
+    struct ModelLighting* lighting = model_lighting_new(model->face_count);
+
+    int light_ambient = 64;
+    int light_attenuation = 768;
+    int lightsrc_x = -50;
+    int lightsrc_y = -10;
+    int lightsrc_z = -50;
+
+    light_ambient += model_contrast;
+    light_attenuation += model_attenuation;
+
+    int light_magnitude =
+        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+    int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+    apply_lighting(
+        lighting->face_colors_hsl_a,
+        lighting->face_colors_hsl_b,
+        lighting->face_colors_hsl_c,
+        normals->lighting_vertex_normals,
+        normals->lighting_face_normals,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        model->face_count,
+        model->face_colors,
+        model->face_alphas,
+        model->face_textures,
+        model->face_infos,
+        light_ambient,
+        attenuation,
+        lightsrc_x,
+        lightsrc_y,
+        lightsrc_z);
+
+    return lighting;
+}
+
+// Copied from scene.c for animation support
+static void
+scene_model_vertices_create_original(struct SceneModel* scene_model)
+{
+    scene_model->original_vertices_x = (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
+    scene_model->original_vertices_y = (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
+    scene_model->original_vertices_z = (int*)malloc(sizeof(int) * scene_model->model->vertex_count);
+
+    memcpy(
+        scene_model->original_vertices_x,
+        scene_model->model->vertices_x,
+        sizeof(int) * scene_model->model->vertex_count);
+
+    memcpy(
+        scene_model->original_vertices_y,
+        scene_model->model->vertices_y,
+        sizeof(int) * scene_model->model->vertex_count);
+
+    memcpy(
+        scene_model->original_vertices_z,
+        scene_model->model->vertices_z,
+        sizeof(int) * scene_model->model->vertex_count);
+}
+
+static void
+scene_model_face_alphas_create_original(struct SceneModel* scene_model)
+{
+    scene_model->original_face_alphas = malloc(sizeof(int) * scene_model->model->face_count);
+    memcpy(
+        scene_model->original_face_alphas,
+        scene_model->model->face_alphas,
+        sizeof(int) * scene_model->model->face_count);
+}
+
 enum SceneLoadStep
 {
     E_SCENE_LOAD_STEP_INITIAL = 0,
@@ -317,7 +460,11 @@ loc_load_model_async(
     struct SceneModel* scene_model,
     struct CacheConfigLocation* loc_config,
     int shape_select,
-    int orientation)
+    int orientation,
+    int height_sw,
+    int height_se,
+    int height_ne,
+    int height_nw)
 {
     int* shapes = loc_config->shapes;
     int** model_id_sets = loc_config->models;
@@ -360,6 +507,16 @@ loc_load_model_async(
         }
     }
 
+    // Handle sequences - sequences don't account for rotations, so models must be rotated AFTER the
+    // animation is applied
+    if( loc_config->seq_id != -1 )
+    {
+        // Apply rotation to yaw instead of using orientation
+        scene_model->yaw = 512 * orientation;
+        scene_model->yaw %= 2048;
+        orientation = 0; // Reset orientation since it's now in yaw
+    }
+
     // Store metadata for later when models are actually loaded
     scene_model->model = NULL;  // Will be set when models are loaded
     scene_model->model_id = -1; // Will be set later
@@ -371,6 +528,325 @@ loc_load_model_async(
     scene_model->_pending_transform_orientation = orientation;
     scene_model->_pending_loc_config = loc_config;
     scene_model->_pending_shape_select = shape_select;
+    scene_model->_pending_height_sw = height_sw;
+    scene_model->_pending_height_se = height_se;
+    scene_model->_pending_height_ne = height_ne;
+    scene_model->_pending_height_nw = height_nw;
+}
+
+static int g_merge_index = 0;
+static int g_vertex_a_merge_index[10000] = { 0 };
+static int g_vertex_b_merge_index[10000] = { 0 };
+
+static void
+merge_normals(
+    struct CacheModel* model,
+    struct LightingNormal* vertex_normals,
+    struct LightingNormal* lighting_vertex_normals,
+    struct CacheModel* other_model,
+    struct LightingNormal* other_vertex_normals,
+    struct LightingNormal* other_lighting_vertex_normals,
+    int check_offset_x,
+    int check_offset_y,
+    int check_offset_z)
+{
+    g_merge_index++;
+
+    struct LightingNormal* model_a_normal = NULL;
+    struct LightingNormal* model_b_normal = NULL;
+    struct LightingNormal* model_a_lighting_normal = NULL;
+    struct LightingNormal* model_b_lighting_normal = NULL;
+    int x, y, z;
+    int other_x, other_y, other_z;
+
+    int merged_vertex_count = 0;
+
+    for( int vertex = 0; vertex < model->vertex_count; vertex++ )
+    {
+        x = model->vertices_x[vertex] - check_offset_x;
+        y = model->vertices_y[vertex] - check_offset_y;
+        z = model->vertices_z[vertex] - check_offset_z;
+
+        model_a_normal = &vertex_normals[vertex];
+        model_a_lighting_normal = &lighting_vertex_normals[vertex];
+
+        for( int other_vertex = 0; other_vertex < other_model->vertex_count; other_vertex++ )
+        {
+            other_x = other_model->vertices_x[other_vertex];
+            other_y = other_model->vertices_y[other_vertex];
+            other_z = other_model->vertices_z[other_vertex];
+
+            model_b_normal = &other_vertex_normals[other_vertex];
+            model_b_lighting_normal = &other_lighting_vertex_normals[other_vertex];
+
+            if( x == other_x && y == other_y && z == other_z && model_b_normal->face_count > 0 &&
+                model_a_normal->face_count > 0 )
+            {
+                model_a_lighting_normal->x += model_b_normal->x;
+                model_a_lighting_normal->y += model_b_normal->y;
+                model_a_lighting_normal->z += model_b_normal->z;
+                model_a_lighting_normal->face_count += model_b_normal->face_count;
+                model_a_lighting_normal->merged++;
+
+                model_b_lighting_normal->x += model_a_normal->x;
+                model_b_lighting_normal->y += model_a_normal->y;
+                model_b_lighting_normal->z += model_a_normal->z;
+                model_b_lighting_normal->face_count += model_a_normal->face_count;
+                model_b_lighting_normal->merged++;
+
+                merged_vertex_count++;
+
+                g_vertex_a_merge_index[vertex] = g_merge_index;
+                g_vertex_b_merge_index[other_vertex] = g_merge_index;
+            }
+        }
+    }
+
+    /**
+     * Normals that are merged are assumed to be abutting each other and their faces not visible.
+     * Hide them.
+     */
+
+    // TODO: This isn't allow for locs. Only ground decor.
+    if( merged_vertex_count < 3 || true )
+        return;
+
+    // Can't have two faces with the same 3 points, so only need to check two.
+    for( int face = 0; face < model->face_count; face++ )
+    {
+        if( g_vertex_a_merge_index[model->face_indices_a[face]] == g_merge_index &&
+            g_vertex_a_merge_index[model->face_indices_b[face]] == g_merge_index &&
+            g_vertex_a_merge_index[model->face_indices_c[face]] == g_merge_index )
+        {
+            // OS1 initializes face infos to 0 here.
+            if( !model->face_infos )
+            {
+                model->face_infos = malloc(sizeof(int) * model->face_count);
+                memset(model->face_infos, 0, sizeof(int) * model->face_count);
+            }
+            // Hidden face (facetype 2 is hidden)
+            model->face_infos[face] = 2;
+            break;
+        }
+    }
+    for( int face = 0; face < other_model->face_count; face++ )
+    {
+        if( g_vertex_b_merge_index[other_model->face_indices_a[face]] == g_merge_index &&
+            g_vertex_b_merge_index[other_model->face_indices_b[face]] == g_merge_index &&
+            g_vertex_b_merge_index[other_model->face_indices_c[face]] == g_merge_index )
+        {
+            // OS1 initializes face infos to 0 here.
+            if( !other_model->face_infos )
+            {
+                other_model->face_infos = malloc(sizeof(int) * other_model->face_count);
+                memset(other_model->face_infos, 0, sizeof(int) * other_model->face_count);
+            }
+            // Hidden face (facetype 2 is hidden)
+            other_model->face_infos[face] = 2;
+        }
+    }
+}
+
+struct IterGrid
+{
+    int x;
+    int y;
+    int level;
+
+    int max_x;
+    int min_x;
+    int max_y;
+    int min_y;
+    int max_level;
+    int min_level;
+};
+
+static struct IterGrid
+iter_grid_init2(int x, int max_x, int y, int max_y, int level, int max_level)
+{
+    struct IterGrid iter_grid;
+    iter_grid.x = x;
+    iter_grid.y = y;
+    iter_grid.level = level;
+    iter_grid.max_x = max_x;
+    iter_grid.min_x = x;
+    iter_grid.max_y = max_y;
+    iter_grid.min_y = y;
+    iter_grid.max_level = max_level;
+    iter_grid.min_level = level;
+    return iter_grid;
+}
+
+static struct IterGrid
+iter_grid_init(int x, int y, int z)
+{
+    return iter_grid_init2(x, MAP_TERRAIN_X, y, MAP_TERRAIN_Y, z, MAP_TERRAIN_Z);
+}
+
+static void
+iter_grid_next(struct IterGrid* iter_grid)
+{
+    iter_grid->x++;
+    if( iter_grid->x >= iter_grid->max_x )
+    {
+        iter_grid->x = iter_grid->min_x;
+        iter_grid->y++;
+    }
+
+    if( iter_grid->y >= iter_grid->max_y )
+    {
+        iter_grid->y = iter_grid->min_y;
+        iter_grid->level++;
+    }
+}
+
+static bool
+iter_grid_done(struct IterGrid* iter_grid)
+{
+    return iter_grid->level >= iter_grid->max_level;
+}
+
+static int
+gather_adjacent_tiles(
+    int* out,
+    int out_size,
+    struct GridTile* grid,
+    int tile_x,
+    int tile_y,
+    int tile_level,
+    int tile_size_x,
+    int tile_size_y)
+{
+    int min_tile_x = tile_x;
+    int max_tile_x = tile_x + tile_size_x;
+    int min_tile_y = tile_y - 1;
+    int max_tile_y = tile_y + tile_size_y;
+
+    int count = 0;
+    for( int level = 0; level <= tile_level + 1; level++ )
+    {
+        for( int x = min_tile_x; x <= max_tile_x; x++ )
+        {
+            for( int y = min_tile_y; y <= max_tile_y; y++ )
+            {
+                if( (x == tile_x && y == tile_y && level == tile_level) )
+                    continue;
+                if( x < 0 || y < 0 || x >= MAP_TERRAIN_X || y >= MAP_TERRAIN_Y || level < 0 ||
+                    level >= MAP_TERRAIN_Z )
+                    continue;
+
+                assert(count < out_size);
+                out[count++] = MAP_TILE_COORD(x, y, level);
+            }
+        }
+    }
+
+    return count;
+}
+
+static struct SceneModel*
+tile_scenery_model_nullable(struct SceneModel* models, struct Loc* loc)
+{
+    if( loc->type == LOC_TYPE_SCENERY )
+    {
+        assert(loc->_scenery.model >= 0);
+        return &models[loc->_scenery.model];
+    }
+
+    return NULL;
+}
+
+static struct SceneModel*
+tile_wall_model_nullable(struct SceneModel* models, struct Loc* loc, int a)
+{
+    if( loc->type == LOC_TYPE_WALL )
+    {
+        if( a )
+            return &models[loc->_wall.model_a];
+        else if( loc->_wall.model_b >= 0 )
+            return &models[loc->_wall.model_b];
+        else
+            return NULL;
+    }
+
+    return NULL;
+}
+
+static struct SceneModel*
+tile_ground_decor_model_nullable(struct SceneModel* models, struct Loc* loc)
+{
+    if( loc->type == LOC_TYPE_GROUND_DECOR )
+    {
+        if( loc->_ground_decor.model >= 0 )
+            return &models[loc->_ground_decor.model];
+        else
+            return NULL;
+    }
+
+    return NULL;
+}
+
+static int
+gather_sharelight_models(
+    struct SceneModel** out,
+    int out_size,
+    struct GridTile* tile,
+    struct Loc* loc_pool,
+    int loc_pool_size,
+    struct SceneModel* models,
+    int models_size)
+{
+    int count = 0;
+    struct Loc* loc = NULL;
+    struct SceneModel* model = NULL;
+
+    if( tile->wall != -1 )
+    {
+        assert(tile->wall >= 0);
+        assert(tile->wall < loc_pool_size);
+        loc = &loc_pool[tile->wall];
+
+        model = tile_wall_model_nullable(models, loc, 1);
+        if( model && model->sharelight )
+            out[count++] = model;
+
+        model = tile_wall_model_nullable(models, loc, 0);
+        if( model && model->sharelight )
+            out[count++] = model;
+    }
+
+    // if( tile->ground_decor != -1 )
+    // {
+    //     assert(tile->ground_decor < loc_pool_size);
+    //     loc = &loc_pool[tile->ground_decor];
+
+    //     model = tile_ground_decor_model_nullable(models, loc);
+    //     if( model && model->sharelight )
+    //         out[count++] = model;
+    // }
+
+    for( int i = 0; i < tile->locs_length; i++ )
+    {
+        loc = &loc_pool[tile->locs[i]];
+        model = tile_scenery_model_nullable(models, loc);
+        if( model && model->sharelight )
+            out[count++] = model;
+
+        model = tile_wall_model_nullable(models, loc, 1);
+        if( model && model->sharelight )
+            out[count++] = model;
+
+        model = tile_wall_model_nullable(models, loc, 0);
+        if( model && model->sharelight )
+            out[count++] = model;
+
+        model = tile_ground_decor_model_nullable(models, loc);
+        if( model && model->sharelight )
+            out[count++] = model;
+    }
+
+    assert(count <= out_size);
+    return count;
 }
 
 // Called when all models are loaded to complete the scene model setup
@@ -487,6 +963,33 @@ complete_scene_model_loading(
         ne_height,
         nw_height);
 
+    // Create normals
+    scene_model->normals = model_normals_new(final_model->vertex_count, final_model->face_count);
+
+    calculate_vertex_normals(
+        scene_model->normals->lighting_vertex_normals,
+        scene_model->normals->lighting_face_normals,
+        final_model->vertex_count,
+        final_model->face_indices_a,
+        final_model->face_indices_b,
+        final_model->face_indices_c,
+        final_model->vertices_x,
+        final_model->vertices_y,
+        final_model->vertices_z,
+        final_model->face_count);
+
+    // Handle sharelight
+    if( scene_model->sharelight )
+        scene_model->aliased_lighting_normals = model_normals_new_copy(scene_model->normals);
+
+    // Create lighting
+    scene_model->lighting = model_lighting_new_default(
+        final_model,
+        scene_model->sharelight ? scene_model->aliased_lighting_normals : scene_model->normals,
+        scene_model->light_contrast,
+        0);
+
+    // Handle bones
     if( final_model->vertex_bone_map )
         scene_model->vertex_bones =
             modelbones_new_decode(final_model->vertex_bone_map, final_model->vertex_count);
@@ -494,7 +997,39 @@ complete_scene_model_loading(
         scene_model->face_bones =
             modelbones_new_decode(final_model->face_bone_map, final_model->face_count);
 
-    scene_model->sequence = NULL;
+    // Handle sequences
+    if( loc_config->seq_id != -1 )
+    {
+        // Create original vertices for animation
+        scene_model_vertices_create_original(scene_model);
+
+        if( final_model->face_alphas )
+            scene_model_face_alphas_create_original(scene_model);
+
+        // Load the sequence
+        struct CacheConfigSequence* sequence =
+            config_sequence_table_get_new(task->config_sequence_table, loc_config->seq_id);
+        if( sequence )
+        {
+            scene_model->sequence = sequence;
+
+            // Set up frames array
+            scene_model->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
+            memset(scene_model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+
+            // TODO: Load frame data - this is complex and involves archive loading
+            // For now, just set up the structure
+            scene_model->anim_frame_count = sequence->frame_count;
+        }
+        else
+        {
+            scene_model->sequence = NULL;
+        }
+    }
+    else
+    {
+        scene_model->sequence = NULL;
+    }
 
     free(models);
     free(model_ids);
@@ -919,7 +1454,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, map->shape_select, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -952,7 +1495,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, map->shape_select, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1015,14 +1566,30 @@ process_locs:
             int model_a_index = vec_model_push(task->scene);
             scene_model = vec_model_back(task->scene);
             loc_load_model_async(
-                task, scene_model, loc_config, LOC_SHAPE_WALL_TWO_SIDES, map->orientation + 4);
+                task,
+                scene_model,
+                loc_config,
+                LOC_SHAPE_WALL_TWO_SIDES,
+                map->orientation + 4,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Load model B
             int model_b_index = vec_model_push(task->scene);
             scene_model = vec_model_back(task->scene);
             loc_load_model_async(
-                task, scene_model, loc_config, LOC_SHAPE_WALL_TWO_SIDES, next_orientation);
+                task,
+                scene_model,
+                loc_config,
+                LOC_SHAPE_WALL_TWO_SIDES,
+                next_orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
             // Add the loc
@@ -1053,7 +1620,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, map->shape_select, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1116,7 +1691,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, map->shape_select, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1139,7 +1722,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, LOC_SHAPE_WALL_DECOR_NOOFFSET, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1165,7 +1756,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, LOC_SHAPE_WALL_DECOR_NOOFFSET, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1204,7 +1803,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, LOC_SHAPE_WALL_DECOR_NOOFFSET, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1243,7 +1850,15 @@ process_locs:
             int orientation = map->orientation;
             orientation = (orientation + 2) % 4;
             loc_load_model_async(
-                task, scene_model, loc_config, LOC_SHAPE_WALL_DECOR_NOOFFSET, map->orientation + 3);
+                task,
+                scene_model,
+                loc_config,
+                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                map->orientation + 3,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1280,7 +1895,11 @@ process_locs:
                 scene_model,
                 loc_config,
                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
-                outside_orientation + 1);
+                outside_orientation + 1,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1293,7 +1912,15 @@ process_locs:
             int model_index_b = vec_model_push(task->scene);
             scene_model = vec_model_back(task->scene);
             loc_load_model_async(
-                task, scene_model, loc_config, LOC_SHAPE_WALL_DECOR_NOOFFSET, inside_orientation);
+                task,
+                scene_model,
+                loc_config,
+                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                inside_orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1327,7 +1954,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, map->shape_select, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1359,7 +1994,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, map->shape_select, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             init_scene_model_1x1(scene_model, tile_x, tile_y, height_center);
 
@@ -1383,7 +2026,15 @@ process_locs:
             scene_model = vec_model_back(task->scene);
 
             loc_load_model_async(
-                task, scene_model, loc_config, map->shape_select, map->orientation);
+                task,
+                scene_model,
+                loc_config,
+                map->shape_select,
+                map->orientation,
+                height_sw,
+                height_se,
+                height_ne,
+                height_nw);
 
             int size_x = loc_config->size_x;
             int size_y = loc_config->size_y;
@@ -1486,7 +2137,12 @@ complete_models:
         {
             // This scene model needs to be completed
             complete_scene_model_loading(
-                task, scene_model, 0, 0, 0, 0); // TODO: Pass proper height values
+                task,
+                scene_model,
+                scene_model->_pending_height_sw,
+                scene_model->_pending_height_se,
+                scene_model->_pending_height_ne,
+                scene_model->_pending_height_nw);
         }
     }
 
@@ -1496,8 +2152,255 @@ complete_models:
 
 build_lighting:
 {
-    // TODO: Implement full lighting calculation from scene.c
-    // For now, just mark as done
+    struct GridTile* grid_tile = NULL;
+    struct CacheMapTerrain* map_terrain = task->map_terrain;
+    struct Scene* scene = task->scene;
+
+    for( int i = 0; i < MAP_TILE_COUNT; i++ )
+    {
+        struct SceneTile* scene_tile = &task->scene->scene_tiles[i];
+        grid_tile = &task->scene->grid_tiles[MAP_TILE_COORD(
+            scene_tile->chunk_pos_x, scene_tile->chunk_pos_y, scene_tile->chunk_pos_level)];
+        grid_tile->ground = i;
+    }
+
+    // Adjust bridges.
+    // This MUST occur after the tiles are assigned to the grid tiles.
+    /**
+     * Bridges are adjusted from an upper level.
+     *
+     * The "bridge_tile" is actually the tiles below the bridge.
+     * The bridge itself is taken from the level above.
+     *
+     * E.g.
+     *
+     * Level 0: Tile := (Water and Bridge Walls), Bridge := Nothing
+     * Level 1: Tile := (Bridge Walking Surface and Walls)
+     * Level 2: Nothing
+     * Level 3: Nothing
+     *
+     * After this adjustment,
+     *
+     * Level 0: Tile := (Previous Level 1), Bridge := (Previous Level 0)
+     * Level 1: Nothing
+     * Level 2: Nothing
+     * Level 3: Nothing.
+     */
+    struct CacheMapFloor* floor = NULL;
+    struct GridTile bridge_tile = { 0 };
+    for( int x = 0; x < MAP_TERRAIN_X; x++ )
+    {
+        for( int y = 0; y < MAP_TERRAIN_Y; y++ )
+        {
+            floor = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, y, 1)];
+            if( (floor->settings & FLOFLAG_BRIDGE) != 0 )
+            {
+                bridge_tile = scene->grid_tiles[MAP_TILE_COORD(x, y, 0)];
+                for( int level = 0; level < MAP_TERRAIN_Z - 1; level++ )
+                {
+                    scene->grid_tiles[MAP_TILE_COORD(x, y, level)] =
+                        scene->grid_tiles[MAP_TILE_COORD(x, y, level + 1)];
+
+                    scene->grid_tiles[MAP_TILE_COORD(x, y, level)].level--;
+                }
+
+                // Use the newly unused tile on level 3 as the bridge slot.
+                scene->grid_tiles[MAP_TILE_COORD(x, y, 0)].bridge_tile = MAP_TILE_COORD(x, y, 3);
+
+                bridge_tile.level = 3;
+                bridge_tile.flags |= GRID_TILE_FLAG_BRIDGE;
+                scene->grid_tiles[MAP_TILE_COORD(x, y, 3)] = bridge_tile;
+            }
+        }
+    }
+
+    // Here:
+    // Build model lighting
+    // 1. Assign and share normals for SceneModels
+    // 2. Scene merge normals of abutting locs.
+    // 3. Compute lighting
+
+    struct SceneModel* scene_model = NULL;
+    struct SceneModel* other_model = NULL;
+    for( int i = 0; i < scene->models_length; i++ )
+    {
+        scene_model = &scene->models[i];
+
+        if( scene_model->model == NULL )
+            continue;
+
+        struct CacheModel* cache_model = scene_model->model;
+
+        struct ModelNormals* normals =
+            model_normals_new(cache_model->vertex_count, cache_model->face_count);
+
+        calculate_vertex_normals(
+            normals->lighting_vertex_normals,
+            normals->lighting_face_normals,
+            cache_model->vertex_count,
+            cache_model->face_indices_a,
+            cache_model->face_indices_b,
+            cache_model->face_indices_c,
+            cache_model->vertices_x,
+            cache_model->vertices_y,
+            cache_model->vertices_z,
+            cache_model->face_count);
+
+        scene_model->normals = normals;
+
+        // Make a copy of the normals so sharelight can mutate them.
+        if( scene_model->sharelight )
+            scene_model->aliased_lighting_normals = model_normals_new_copy(normals);
+    }
+
+    struct IterGrid iter_grid = iter_grid_init(0, 0, 0);
+    int adjacent_tiles[40] = { 0 };
+    struct SceneModel* sharelight_models[40] = { 0 };
+    struct SceneModel* adjacent_sharelight_models[40] = { 0 };
+    struct GridTile* adjacent_tile = NULL;
+
+    // sharelight
+    // for each tile
+    //   each walla, wallb, loc[n], ground_decor,        => gather_sharelight_models
+    //     each adjacent tile                            => gather_adjacent_tiles
+    //       each walla, wallb, loc[n], ground_decor,    => gather_sharelight_models
+
+    while( !iter_grid_done(&iter_grid) )
+    {
+        grid_tile = &scene->grid_tiles[MAP_TILE_COORD(iter_grid.x, iter_grid.y, iter_grid.level)];
+
+        int sharelight_models_count = gather_sharelight_models(
+            sharelight_models,
+            sizeof(sharelight_models) / sizeof(sharelight_models[0]),
+            grid_tile,
+            scene->locs,
+            scene->locs_length,
+            scene->models,
+            scene->models_length);
+
+        for( int i = 0; i < sharelight_models_count; i++ )
+        {
+            scene_model = sharelight_models[i];
+            assert(scene_model->sharelight);
+
+            int adjacent_tiles_count = gather_adjacent_tiles(
+                adjacent_tiles,
+                sizeof(adjacent_tiles) / sizeof(adjacent_tiles[0]),
+                scene->grid_tiles,
+                iter_grid.x,
+                iter_grid.y,
+                iter_grid.level,
+                scene_model->_size_x,
+                scene_model->_size_y);
+
+            for( int j = 0; j < adjacent_tiles_count; j++ )
+            {
+                adjacent_tile = &scene->grid_tiles[adjacent_tiles[j]];
+
+                int adjacent_sharelight_models_count = gather_sharelight_models(
+                    adjacent_sharelight_models,
+                    sizeof(adjacent_sharelight_models) / sizeof(adjacent_sharelight_models[0]),
+                    adjacent_tile,
+                    scene->locs,
+                    scene->locs_length,
+                    scene->models,
+                    scene->models_length);
+
+                for( int k = 0; k < adjacent_sharelight_models_count; k++ )
+                {
+                    other_model = adjacent_sharelight_models[k];
+                    assert(other_model->sharelight);
+
+                    int check_offset_x =
+                        (other_model->_chunk_pos_x - scene_model->_chunk_pos_x) * 128 +
+                        (other_model->_size_x - scene_model->_size_x) * 64;
+                    int check_offset_y =
+                        (other_model->_chunk_pos_y - scene_model->_chunk_pos_y) * 128 +
+                        (other_model->_size_y - scene_model->_size_y) * 64;
+                    int check_offset_level =
+                        other_model->region_height - scene_model->region_height;
+
+                    merge_normals(
+                        scene_model->model,
+                        scene_model->normals->lighting_vertex_normals,
+                        scene_model->aliased_lighting_normals->lighting_vertex_normals,
+                        other_model->model,
+                        other_model->normals->lighting_vertex_normals,
+                        other_model->aliased_lighting_normals->lighting_vertex_normals,
+                        check_offset_x,
+                        check_offset_level,
+                        check_offset_y);
+                }
+            }
+        }
+
+        iter_grid_next(&iter_grid);
+    }
+
+    for( int i = 0; i < task->scene->models_length; i++ )
+    {
+        struct SceneModel* scene_model = &task->scene->models[i];
+        if( scene_model->model == NULL )
+            continue;
+
+        struct ModelLighting* lighting = model_lighting_new(scene_model->model->face_count);
+
+        scene_model->lighting = lighting;
+
+        int light_ambient = 64;
+        int light_attenuation = 768;
+        int lightsrc_x = -50;
+        int lightsrc_y = -10;
+        int lightsrc_z = -50;
+
+        {
+            light_ambient += scene_model->light_ambient;
+            // 2004Scape multiplies contrast by 5.
+            // Later versions do not.
+            light_attenuation += scene_model->light_contrast;
+        }
+
+        int light_magnitude =
+            (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+        int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+        apply_lighting(
+            lighting->face_colors_hsl_a,
+            lighting->face_colors_hsl_b,
+            lighting->face_colors_hsl_c,
+            scene_model->aliased_lighting_normals
+                ? scene_model->aliased_lighting_normals->lighting_vertex_normals
+                : scene_model->normals->lighting_vertex_normals,
+            scene_model->normals->lighting_face_normals,
+            scene_model->model->face_indices_a,
+            scene_model->model->face_indices_b,
+            scene_model->model->face_indices_c,
+            scene_model->model->face_count,
+            scene_model->model->face_colors,
+            scene_model->model->face_alphas,
+            scene_model->model->face_textures,
+            scene_model->model->face_infos,
+            light_ambient,
+            attenuation,
+            lightsrc_x,
+            lightsrc_y,
+            lightsrc_z);
+    }
+
+    task->scene->terrain = task->map_terrain;
+
+    // Free config tables
+    if( task->config_locs_table )
+        config_locs_table_free(task->config_locs_table);
+    if( task->config_object_table )
+        config_object_table_free(task->config_object_table);
+    if( task->config_sequence_table )
+        config_sequence_table_free(task->config_sequence_table);
+    if( task->config_idk_table )
+        config_idk_table_free(task->config_idk_table);
+
+    // Free shade map is handled in scene struct
+
     task->step = E_SCENE_LOAD_STEP_DONE;
     goto done;
 }

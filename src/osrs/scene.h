@@ -156,6 +156,10 @@ struct SceneModel
     int _pending_transform_orientation;
     struct CacheConfigLocation* _pending_loc_config;
     int _pending_shape_select;
+    int _pending_height_sw;
+    int _pending_height_se;
+    int _pending_height_ne;
+    int _pending_height_nw;
 };
 
 enum GridTileFlags
