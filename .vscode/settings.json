@@ -165,6 +165,9 @@
         "rsbuf.h": "c",
         "gameio.h": "c",
         "cache.h": "c",
-        "reference_table.h": "c"
+        "reference_table.h": "c",
+        "string.h": "c",
+        "config_object.h": "c",
+        "model_transforms.h": "c"
     }
 }
