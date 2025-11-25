@@ -168,6 +168,7 @@
         "reference_table.h": "c",
         "string.h": "c",
         "config_object.h": "c",
-        "model_transforms.h": "c"
+        "model_transforms.h": "c",
+        "config_idk.h": "c"
     }
 }

@@ -23,6 +23,33 @@
 #include "../sceneload.u.c"
 // clang-format on
 
+/**
+ * Data Dependencies
+ *
+ * Map Locs
+ *   -> Log Configs
+ *      -> Models
+ *         -> Textures
+ *      -> Sequences
+ *         -> Animations
+ *             -> Framemaps
+ *
+ * Map Terrain
+ *   -> Underlay
+ *      -> Textures
+ *   -> Overlay
+ *      -> Textures
+ *
+ * Don't need:
+ * IDK, Object
+ */
+
+struct ArchiveList
+{
+    struct Archive* archive;
+    struct ArchiveList* next;
+};
+
 enum SceneLoadStep
 {
     E_SCENE_LOAD_STEP_INITIAL = 0,
@@ -729,28 +756,7 @@ process_locs:
     task->scene->scene_tiles_length = MAP_TILE_COUNT;
 
     // Initialize grid tiles
-    for( int level = 0; level < MAP_TERRAIN_Z; level++ )
-    {
-        for( int x = 0; x < MAP_TERRAIN_X; x++ )
-        {
-            for( int y = 0; y < MAP_TERRAIN_Y; y++ )
-            {
-                struct GridTile* grid_tile = &task->scene->grid_tiles[MAP_TILE_COORD(x, y, level)];
-                grid_tile->x = x;
-                grid_tile->z = y;
-                grid_tile->level = level;
-                grid_tile->spans = 0;
-                grid_tile->ground = -1;
-                grid_tile->wall = -1;
-                grid_tile->ground_decor = -1;
-                grid_tile->wall_decor = -1;
-                grid_tile->bridge_tile = -1;
-                grid_tile->ground_object_bottom = -1;
-                grid_tile->ground_object_middle = -1;
-                grid_tile->ground_object_top = -1;
-            }
-        }
-    }
+    init_grid_tiles(task->scene->grid_tiles);
 
     // Process locs - actual implementation
     struct CacheMapLoc* map = NULL;
@@ -770,6 +776,13 @@ process_locs:
     int height_nw = 0;
     int height_center = 0;
 
+    /**
+     * Data dependencies:
+     * Map Locs archive
+     * Config locs archive
+     *
+     *
+     */
     while( (map = map_locs_iter_next(task->map_locs_iter)) != NULL )
     {
         loc_count++;
@@ -800,7 +813,7 @@ process_locs:
             int model_index = vec_model_push(task->scene);
             scene_model = vec_model_back(task->scene);
 
-            loc_load_model_async(
+            io_queue_model_load(
                 task,
                 scene_model,
                 loc_config,
@@ -989,7 +1002,7 @@ process_locs:
             // Load model B
             int model_b_index = vec_model_push(task->scene);
             scene_model = vec_model_back(task->scene);
-            loc_load_model_async(
+            io_queue_model_load(
                 task,
                 scene_model,
                 loc_config,
@@ -1286,7 +1299,7 @@ process_locs:
             // Load outside model
             int model_index_a = vec_model_push(task->scene);
             scene_model = vec_model_back(task->scene);
-            loc_load_model_async(
+            io_queue_model_load(
                 task,
                 scene_model,
                 loc_config,
