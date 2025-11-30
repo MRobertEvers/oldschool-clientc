@@ -31,6 +31,12 @@ config_locs_free(struct CacheConfigLocation* loc)
     free_loc(loc);
 }
 
+void
+config_locs_decode_inplace(struct CacheConfigLocation* loc, char* data, int data_size)
+{
+    decode_loc(loc, data, data_size);
+}
+
 static void
 init_loc(struct CacheConfigLocation* loc)
 {
@@ -728,11 +734,6 @@ config_locs_table_get_new(struct CacheConfigLocationTable* table, int id)
     {
         // free_loc(table->value);
         table->value = NULL;
-    }
-
-    if( id == 14876 )
-    {
-        int iii = 0;
     }
 
     table->value = malloc(sizeof(struct CacheConfigLocation));

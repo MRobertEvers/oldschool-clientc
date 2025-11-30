@@ -169,6 +169,8 @@
         "string.h": "c",
         "config_object.h": "c",
         "model_transforms.h": "c",
-        "config_idk.h": "c"
+        "config_idk.h": "c",
+        "hmap.h": "c",
+        "configs.h": "c"
     }
 }

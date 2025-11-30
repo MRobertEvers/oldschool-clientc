@@ -20,11 +20,11 @@ cd build.em
 
 # Configure with CMake
 echo "Configuring with CMake..."
-emcmake cmake ..
+emcmake cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 # Build the browser targets
-echo "Building scene_tile_test_imgui_browser..."
-emmake make scene_tile_test_imgui_browser
+# echo "Building scene_tile_test_imgui_browser..."
+# emmake make scene_tile_test_imgui_browser
 
 echo "Building emscripten_sdl2_webgl1..."
 emmake make emscripten_sdl2_webgl1

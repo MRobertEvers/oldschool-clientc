@@ -1,7 +1,7 @@
 #ifndef CONFIGS_H
 #define CONFIGS_H
 
-enum CONFIG_ENTRY
+enum ConfigKind
 {
     // From Runelite
     // UNDERLAY(1),

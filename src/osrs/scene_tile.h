@@ -33,8 +33,7 @@ struct SceneTile
     int chunk_pos_level;
 };
 
-struct CacheConfigOverlay;
-struct CacheConfigUnderlay;
+struct ConfigMap;
 struct CacheMapTerrain;
 struct Cache;
 
@@ -44,12 +43,8 @@ struct SceneTile* scene_tiles_new_from_map_terrain_cache(
 struct SceneTile* scene_tiles_new_from_map_terrain(
     struct CacheMapTerrain* map_terrain,
     int* shade_map_nullable,
-    struct CacheConfigOverlay* overlays,
-    int* overlay_ids,
-    int overlays_count,
-    struct CacheConfigUnderlay* underlays,
-    int* underlay_ids,
-    int underlays_count);
+    struct ConfigMap* config_underlay_map,
+    struct ConfigMap* config_overlay_map);
 
 void free_tiles(struct SceneTile* tiles, int tile_count);
 

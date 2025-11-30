@@ -2,10 +2,13 @@
 
 #include "blend_underlays.h"
 #include "cache.h"
+#include "configmap.h"
 #include "filelist.h"
 #include "palette.h"
 #include "tables/config_floortype.h"
 #include "tables/configs.h"
+
+struct ConfigMap;
 
 #define SMOOTH_UNDERLAYS 0
 
@@ -608,7 +611,7 @@ decode_tile(
     tile->face_color_hsl_b = face_colors_hsl_b;
     tile->face_color_hsl_c = face_colors_hsl_c;
     return true;
-// error:;
+    // error:;
     free(valid_faces);
     free(vertex_x);
     free(vertex_y);
@@ -775,9 +778,10 @@ struct SceneTile*
 scene_tiles_new_from_map_terrain_cache(
     struct CacheMapTerrain* map_terrain, int* shade_map_nullable, struct Cache* cache)
 {
-    struct FileList* filelist = NULL;
     struct CacheArchive* archive = NULL;
     struct SceneTile* tiles = NULL;
+    struct ConfigMap* config_underlay_map = NULL;
+    struct ConfigMap* config_overlay_map = NULL;
 
     /**
      * Config/Underlay
@@ -790,33 +794,18 @@ scene_tiles_new_from_map_terrain_cache(
         return NULL;
     }
 
-    filelist = filelist_new_from_cache_archive(archive);
-
-    int underlay_count = filelist->file_count;
-    int* underlay_ids = (int*)malloc(underlay_count * sizeof(int));
-    struct CacheConfigUnderlay* underlays =
-        (struct CacheConfigUnderlay*)malloc(underlay_count * sizeof(struct CacheConfigUnderlay));
-    for( int i = 0; i < underlay_count; i++ )
+    config_underlay_map = configmap_new_from_archive(cache, archive);
+    if( !config_underlay_map )
     {
-        struct CacheConfigUnderlay* underlay = &underlays[i];
-
-        struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
-
-        config_floortype_underlay_decode_inplace(
-            underlay, filelist->files[i], filelist->file_sizes[i]);
-
-        int file_id =
-            archives[cache->tables[CACHE_CONFIGS]->ids[CONFIG_UNDERLAY]].children.files[i].id;
-        underlay_ids[i] = file_id;
+        printf("Failed to load underlay map\n");
+        return NULL;
     }
 
-    filelist_free(filelist);
     cache_archive_free(archive);
 
     /**
      * Config/Overlay
      */
-
     archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_OVERLAY);
     if( !archive )
     {
@@ -824,42 +813,19 @@ scene_tiles_new_from_map_terrain_cache(
         return NULL;
     }
 
-    filelist = filelist_new_from_cache_archive(archive);
-
-    int overlay_count = filelist->file_count;
-    int* overlay_ids = (int*)malloc(overlay_count * sizeof(int));
-    struct CacheConfigOverlay* overlays =
-        (struct CacheConfigOverlay*)malloc(overlay_count * sizeof(struct CacheConfigOverlay));
-    for( int i = 0; i < overlay_count; i++ )
+    config_overlay_map = configmap_new_from_archive(cache, archive);
+    if( !config_overlay_map )
     {
-        struct CacheConfigOverlay* overlay = &overlays[i];
-
-        struct ArchiveReference* archives = cache->tables[CACHE_CONFIGS]->archives;
-
-        config_floortype_overlay_decode_inplace(
-            overlay, filelist->files[i], filelist->file_sizes[i]);
-        int file_id =
-            archives[cache->tables[CACHE_CONFIGS]->ids[CONFIG_OVERLAY]].children.files[i].id;
-        overlay_ids[i] = file_id;
+        printf("Failed to load overlay map\n");
+        return NULL;
     }
-
-    filelist_free(filelist);
     cache_archive_free(archive);
 
     tiles = scene_tiles_new_from_map_terrain(
-        map_terrain,
-        shade_map_nullable,
-        overlays,
-        overlay_ids,
-        overlay_count,
-        underlays,
-        underlay_ids,
-        underlay_count);
+        map_terrain, shade_map_nullable, config_underlay_map, config_overlay_map);
 
-    free(underlay_ids);
-    free(underlays);
-    free(overlay_ids);
-    free(overlays);
+    configmap_free(config_underlay_map);
+    configmap_free(config_overlay_map);
 
     return tiles;
 }
@@ -870,12 +836,8 @@ struct SceneTile*
 scene_tiles_new_from_map_terrain(
     struct CacheMapTerrain* map_terrain,
     int* shade_map_nullable,
-    struct CacheConfigOverlay* overlays,
-    int* overlay_ids,
-    int overlays_count,
-    struct CacheConfigUnderlay* underlays,
-    int* underlay_ids,
-    int underlays_count)
+    struct ConfigMap* config_underlay_map,
+    struct ConfigMap* config_overlay_map)
 {
     struct CacheConfigUnderlay* underlay = NULL;
     struct CacheConfigOverlay* overlay = NULL;
@@ -895,8 +857,7 @@ scene_tiles_new_from_map_terrain(
 
     for( int z = 0; z < MAP_TERRAIN_Z; z++ )
     {
-        int* blended_underlays =
-            blend_underlays(map_terrain, underlays, underlay_ids, underlays_count, z);
+        int* blended_underlays = blend_underlays(map_terrain, config_underlay_map, z);
         int* lights = calculate_lights(map_terrain, z);
 
         if( shade_map_nullable )
@@ -942,10 +903,10 @@ scene_tiles_new_from_map_terrain(
 
                 if( underlay_id != -1 )
                 {
-                    int underlay_index = get_index(underlay_ids, underlays_count, underlay_id);
-                    assert(underlay_index != -1);
+                    underlay = (struct CacheConfigUnderlay*)configmap_get(
+                        config_underlay_map, underlay_id - 1);
+                    assert(underlay != NULL);
 
-                    underlay = &underlays[underlay_index];
                     underlay_hsl = blended_underlays[COLOR_COORD(x, y)];
 
                     /**
@@ -979,10 +940,9 @@ scene_tiles_new_from_map_terrain(
 
                 if( overlay_id != -1 )
                 {
-                    int overlay_index = get_index(overlay_ids, overlays_count, overlay_id);
-                    assert(overlay_index != -1);
-
-                    overlay = &overlays[overlay_index];
+                    overlay = (struct CacheConfigOverlay*)configmap_get(
+                        config_overlay_map, overlay_id - 1);
+                    assert(overlay != NULL);
 
                     if( overlay->texture != -1 )
                         overlay_hsl = -1;

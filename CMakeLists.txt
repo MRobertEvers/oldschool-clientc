@@ -9,7 +9,7 @@ project(RSClient
 # set(PROFILING_FLAGS -fsanitize-trap=all -fsanitize=undefined)
 # set(PROFILING_FLAGS "-fsanitize=address -g -fno-omit-frame-pointer")
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug2)
+    set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 # Fix: Use C flags instead of C++ flags for C project
@@ -42,10 +42,10 @@ if(WIN32 AND MSVC)
 else()
     # GCC/MinGW and other compilers
     set(CMAKE_C_FLAGS "-Wall -Wextra -Wno-unused-parameter -Werror=implicit-function-declaration -Werror=return-type")
-    # set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
+    # set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fno-omit-frame-pointer")
     
     set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wno-unused-parameter -Werror=return-type")
-    # set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fsanitize=address -fno-omit-frame-pointer")
+    # set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fno-omit-frame-pointer")
     
     # Set architecture-specific flags
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
@@ -659,6 +659,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         test/emscripten_sdl2_webgl1.cpp
         src/libgame.c
         src/libinput.c
+        src/osrs/configmap.c
+        src/datastruct/hmap.c
         src/osrs/gameio.c
         src/osrs/gametask.c
         src/osrs/async/gametask_scene_load.c
