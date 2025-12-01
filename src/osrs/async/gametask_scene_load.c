@@ -96,10 +96,10 @@ struct GameTaskSceneLoad
     struct CacheMapLocsIter* map_locs_iter;
     struct CacheMapLoc* current_map_loc;
     struct ModelCache* model_cache;
-    struct CacheConfigLocationTable* config_locs_table;
+    // struct CacheConfigLocationTable* config_locs_table;
     struct ConfigMap* config_locs_map;
     // struct CacheConfigObjectTable* config_object_table;
-    struct CacheConfigSequenceTable* config_sequence_table;
+    // struct CacheConfigSequenceTable* config_sequence_table;
     struct ConfigMap* config_sequence_map;
     // struct CacheConfigIdkTable* config_idk_table;
     int* shade_map;
@@ -401,8 +401,8 @@ complete_scene_model_loading(
             scene_model_face_alphas_create_original(scene_model);
 
         // Load the sequence
-        struct CacheConfigSequence* sequence =
-            config_sequence_table_get_new(task->config_sequence_table, loc_config->seq_id);
+        struct CacheConfigSequence* sequence = (struct CacheConfigSequence*)configmap_get(
+            task->config_sequence_map, loc_config->seq_id);
         if( sequence )
         {
             scene_model->sequence = sequence;
@@ -446,9 +446,9 @@ gametask_scene_load_new(struct GameIO* io, struct Cache* cache, int chunk_x, int
     task->map_locs_iter = NULL;
     task->current_map_loc = NULL;
     task->model_cache = NULL;
-    task->config_locs_table = NULL;
+    // task->config_locs_table = NULL;
     // task->config_object_table = NULL;
-    task->config_sequence_table = NULL;
+    // task->config_sequence_table = NULL;
     // task->config_idk_table = NULL;
     task->shade_map = NULL;
 
@@ -594,7 +594,6 @@ load_config_sequence:
     }
     cache_archive_free(archive);
     archive = NULL;
-    // Transition to next step
 
 load_config_locs:
     task->step = E_SCENE_LOAD_STEP_LOAD_CONFIG_LOCS;
@@ -619,7 +618,6 @@ load_config_locs:
     }
     cache_archive_free(archive);
     archive = NULL;
-    // Transition to next stepf
 
 map_locs:
     task->step = E_SCENE_LOAD_STEP_MAP_LOCS;
@@ -654,13 +652,13 @@ map_locs:
 process_locs:
     task->step = E_SCENE_LOAD_STEP_PROCESS_LOCS;
 
-    task->scene->_shade_map = malloc(sizeof(int) * MAP_TILE_COUNT);
-    memset(task->scene->_shade_map, 0, sizeof(int) * MAP_TILE_COUNT);
-    ;
-    task->scene->_shade_map_length = MAP_TILE_COUNT;
     // Initialize the scene structure
     task->scene = malloc(sizeof(struct Scene));
     memset(task->scene, 0, sizeof(struct Scene));
+
+    task->scene->_shade_map = malloc(sizeof(int) * MAP_TILE_COUNT);
+    memset(task->scene->_shade_map, 0, sizeof(int) * MAP_TILE_COUNT);
+    task->scene->_shade_map_length = MAP_TILE_COUNT;
 
     task->scene->grid_tiles = malloc(sizeof(struct GridTile) * MAP_TILE_COUNT);
     memset(task->scene->grid_tiles, 0, sizeof(struct GridTile) * MAP_TILE_COUNT);
@@ -734,7 +732,7 @@ process_locs:
         height_nw = tile_heights.nw_height;
         height_center = tile_heights.height_center;
 
-        loc_config = config_locs_table_get_new(task->config_locs_table, map->loc_id);
+        loc_config = configmap_get(task->config_locs_map, map->loc_id);
         if( !loc_config )
             continue;
 
@@ -1019,7 +1017,6 @@ process_locs:
             assert(map->orientation < 4);
             loc->_wall.side_a = ROTATION_WALL_CORNER_TYPE[map->orientation];
 
-            assert(scene_model->model_id != 0);
             grid_tile->wall = loc_index;
 
             if( loc_config->shadowed )
@@ -1552,12 +1549,11 @@ load_config_underlay:
         goto error;
     }
     cache_archive_init_metadata(task->cache, archive);
+
     task->config_underlay_map = configmap_new_from_archive(task->cache, archive);
 
     cache_archive_free(archive);
     archive = NULL;
-
-    // Transition to next step
 
 load_config_overlay:
     task->step = E_SCENE_LOAD_STEP_LOAD_CONFIG_OVERLAY;
@@ -1577,8 +1573,6 @@ load_config_overlay:
 
     cache_archive_free(archive);
     archive = NULL;
-
-    // Transition to next step
 
 load_tiles:
     task->step = E_SCENE_LOAD_STEP_LOAD_TILES;
@@ -1841,12 +1835,12 @@ build_lighting:
     task->scene->terrain = task->map_terrain;
 
     // Free config tables
-    if( task->config_locs_table )
-        config_locs_table_free(task->config_locs_table);
+    // if( task->config_locs_table )
+    //     config_locs_table_free(task->config_locs_table);
     // if( task->config_object_table )
     //     config_object_table_free(task->config_object_table);
-    if( task->config_sequence_table )
-        config_sequence_table_free(task->config_sequence_table);
+    // if( task->config_sequence_table )
+    //     config_sequence_table_free(task->config_sequence_table);
     // if( task->config_idk_table )
     //     config_idk_table_free(task->config_idk_table);
 

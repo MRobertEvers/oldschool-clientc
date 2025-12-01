@@ -554,6 +554,7 @@ pix3dgl_load_texture(
         return;
     }
 
+    return;
     // Load texture from cache
     struct Texture* cache_tex = textures_cache_checkout(
         textures_cache,

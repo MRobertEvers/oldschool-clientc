@@ -9,6 +9,14 @@
 #include <stdio.h>
 #include <string.h>
 
+// For synchronous archive loading
+extern "C" {
+#include "osrs/cache.h"
+#include "osrs/gameio.h"
+#include "osrs/tables/maps.h"
+#include "osrs/xtea_config.h"
+}
+
 struct Platform*
 PlatformImpl_OSX_SDL2_New(void)
 {
@@ -91,12 +99,62 @@ PlatformImpl_OSX_SDL2_Shutdown(struct Platform* platform)
 }
 
 void
-PlatformImpl_OSX_SDL2_PollEvents(struct Platform* platform, struct GameIO* input)
+PlatformImpl_OSX_SDL2_PollEvents(
+    struct Platform* platform, struct GameIO* input, struct Cache* cache)
 {
     uint64_t current_frame_time = SDL_GetTicks64();
     input->time_delta_accumulator_seconds +=
         (double)(current_frame_time - platform->last_frame_time_ticks) / 1000.0f;
     platform->last_frame_time_ticks = current_frame_time;
+
+    struct CacheArchive* archive = NULL;
+    // Process pending GameIO requests synchronously (OSX io pump)
+    struct GameIORequest* request_nullable = NULL;
+    CacheArchiveTuple archive_tuple = { 0 };
+    int archive_id = -1;
+    int table_id = -1;
+    uint32_t* xteas_key = NULL;
+    while( gameio_next(input, E_GAMEIO_STATUS_PENDING, &request_nullable) )
+    {
+        if( !request_nullable )
+            break;
+
+        switch( request_nullable->kind )
+        {
+        case E_GAMEIO_REQUEST_ARCHIVE_LOAD:
+        {
+            xteas_key = cache_archive_xtea_key(
+                cache,
+                request_nullable->_archive_load.table_id,
+                request_nullable->_archive_load.archive_id);
+
+            archive_id = request_nullable->_archive_load.archive_id;
+            table_id = request_nullable->_archive_load.table_id;
+
+            archive = cache_archive_new_load_decrypted(cache, table_id, archive_id, xteas_key);
+
+            if( archive )
+            {
+                request_nullable->_archive_load.out_archive_nullable = archive;
+                request_nullable->status = E_GAMEIO_STATUS_OK;
+                printf(
+                    "Loaded archive synchronously: table=%d, archive=%d, size=%d\n",
+                    request_nullable->_archive_load.table_id,
+                    request_nullable->_archive_load.archive_id,
+                    archive->data_size);
+            }
+            else
+            {
+                request_nullable->status = E_GAMEIO_STATUS_ERROR;
+                printf(
+                    "Failed to load archive: table=%d, archive=%d\n",
+                    request_nullable->_archive_load.table_id,
+                    request_nullable->_archive_load.archive_id);
+            }
+            break;
+        }
+        }
+    }
 
     SDL_Event event;
     while( SDL_PollEvent(&event) )

@@ -420,7 +420,9 @@ error:
 struct CacheArchive*
 cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
 {
-    return cache_archive_new_load_decrypted(cache, table_id, archive_id, NULL);
+    struct CacheArchive* archive =
+        cache_archive_new_load_decrypted(cache, table_id, archive_id, NULL);
+    return archive;
 }
 
 void
@@ -441,8 +443,10 @@ cache_archive_init_metadata(struct Cache* cache, struct CacheArchive* archive)
 
 struct CacheArchive*
 cache_archive_new_load_decrypted(
-    struct Cache* cache, int table_id, int archive_id, int32_t* xtea_key_nullable)
+    struct Cache* cache, int table_id, int archive_id, uint32_t* xtea_key_nullable)
 {
+    struct CacheInetPayload* payload = NULL;
+    struct Dat2Archive dat2_archive = { 0 };
     struct CacheArchive* archive = malloc(sizeof(struct CacheArchive));
     memset(archive, 0, sizeof(struct CacheArchive));
 
@@ -465,7 +469,7 @@ cache_archive_new_load_decrypted(
             goto error;
         }
 
-        struct CacheInetPayload* payload = cache_inet_payload_new_archive_request(
+        payload = cache_inet_payload_new_archive_request(
             (struct CacheInet*)cache->_inet_nullable, table_id, archive_id);
         if( !payload )
         {
@@ -492,7 +496,6 @@ cache_archive_new_load_decrypted(
         read_index(&index_record, cache->directory, table_id, archive_id);
     }
 
-    struct Dat2Archive dat2_archive = { 0 };
     int res = disk_dat2file_read_archive(
         cache->_dat2_file,
         index_record.idx_file_id,
@@ -517,34 +520,6 @@ cache_archive_new_load_decrypted(
     archive->data_size = dat2_archive.data_size;
     archive->archive_id = archive_id;
     archive->table_id = table_id;
-
-    // 1. Consult the reference table for table_id.
-    //  - Read the entry "table_id" in idx255
-    //  - Load the archive specified in the entry from .dat2
-    //  - Decompress the archive if necessary
-    //  - Load the ReferenceTableEntry in the reference table specified by archive_id and file_id.
-    //  - The "archive_id" is the "ArchiveReference" slot, and the "file_id" is the "FileReference"
-    //    = This gives 1. the Number of files in the archive... etc.
-
-    // Get reference table (load on-demand if not yet loaded)
-    struct ReferenceTable* table = cache_ensure_reference_table_loaded(cache, table_id);
-    if( !table )
-    {
-        printf("Failed to load reference table for table %d\n", table_id);
-        goto error;
-    }
-
-    assert(archive_id < table->archive_count);
-
-    struct ArchiveReference* archive_reference = &table->archives[archive_id];
-    if( archive_reference->index != archive_id )
-    {
-        printf("Archive reference not found for table %d, archive %d\n", table_id, archive_id);
-        goto error;
-    }
-
-    archive->revision = archive_reference->version;
-    archive->file_count = archive_reference->children.count;
 
     return archive;
 

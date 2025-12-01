@@ -34,12 +34,6 @@ struct GameIORequest
 
         struct CacheArchive* out_archive_nullable;
     } _archive_load;
-
-    struct
-    {
-        int table_id;
-        struct ReferenceTable* out_table_nullable;
-    } _cache_load;
 };
 
 struct GameIO

@@ -3,6 +3,11 @@
 
 #include <stdbool.h>
 
+enum GameFlags
+{
+    GF_CACHE_LOCAL = 1 << 0,
+};
+
 struct GameGfxOpList;
 struct GameGfxOp;
 struct Game;

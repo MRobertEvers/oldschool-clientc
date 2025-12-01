@@ -122,7 +122,15 @@ game_new(int flags, struct GameGfxOpList* gfx_op_list)
     // }
     // printf("Cache loaded successfully (lazy loading enabled for Emscripten)\n");
 
-    game->cache = cache_new_uninitialized();
+    if( flags & GF_CACHE_LOCAL )
+    {
+        game->cache = cache_new_from_directory(CACHE_PATH);
+    }
+    else
+    {
+        // game->cache = cache_new_inet(CACHE_PATH, "127.0.0.1", 4949);
+        game->cache = cache_new_uninitialized();
+    }
     game->frustrum_cullmap = frustrum_cullmap_new_nocull(25);
     // game->textures_cache = textures_cache_new(cache);
 

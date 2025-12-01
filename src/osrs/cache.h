@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum CacheTable
 {
     CACHE_ANIMATIONS = 0,
@@ -87,11 +91,17 @@ enum CachePreloadKind
 cache_archive_preload_check(struct Cache* cache, int table_id, int archive_id);
 struct CacheArchive* cache_archive_new_reference_table_load(struct Cache* cache, int table_id);
 struct CacheArchive* cache_archive_new_load(struct Cache* cache, int table_id, int archive_id);
-void cache_archive_init_metadata(struct Cache* cache, struct CacheArchive* archive);
-
 struct CacheArchive* cache_archive_new_load_decrypted(
-    struct Cache* cache, int table_id, int archive_id, int32_t* xtea_key_nullable);
-uint32_t* cache_archive_xtea_key(struct Cache* cache, int table_id, int archive_id);
+    struct Cache* cache, int table_id, int archive_id, uint32_t* xtea_key_nullable);
+struct CacheArchive*
+cache_archive_new_load_uninitialized_metadata(struct Cache* cache, int table_id, int archive_id);
+
+void cache_archive_init_metadata(struct Cache* cache, struct CacheArchive* archive);
 void cache_archive_free(struct CacheArchive* archive);
 
+uint32_t* cache_archive_xtea_key(struct Cache* cache, int table_id, int archive_id);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

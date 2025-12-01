@@ -594,7 +594,6 @@ load_static_scene(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* g
 static void
 render_scene(struct RendererEmscripten_SDL2WebGL1* renderer, struct Game* game)
 {
-    return;
     // OPTIMIZATION: Track camera state to avoid unnecessary sorting every frame
     static int last_cam_x = -99999;
     static int last_cam_y = -99999;

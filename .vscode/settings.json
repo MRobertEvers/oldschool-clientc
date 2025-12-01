@@ -171,6 +171,9 @@
         "model_transforms.h": "c",
         "config_idk.h": "c",
         "hmap.h": "c",
-        "configs.h": "c"
+        "configs.h": "c",
+        "archive.h": "c",
+        "stdint.h": "c",
+        "xtea_config.h": "c"
     }
 }
