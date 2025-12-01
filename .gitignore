@@ -1,2 +1,16 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
-*
+build/
+cache/
+.DS_Store
+runelite
+all_tiles.json
+symbols.txt
+build*/
+public/cache/
+.cache/
+emsdk/
+android/.idea/
+
+debug.keystore
+gradle.properties
+
+lib/python*
