@@ -904,7 +904,7 @@ scene_tiles_new_from_map_terrain(
                 if( underlay_id != -1 )
                 {
                     underlay = (struct CacheConfigUnderlay*)configmap_get(
-                        config_underlay_map, underlay_id - 1);
+                        config_underlay_map, underlay_id);
                     assert(underlay != NULL);
 
                     underlay_hsl = blended_underlays[COLOR_COORD(x, y)];
@@ -940,8 +940,12 @@ scene_tiles_new_from_map_terrain(
 
                 if( overlay_id != -1 )
                 {
-                    overlay = (struct CacheConfigOverlay*)configmap_get(
-                        config_overlay_map, overlay_id - 1);
+                    if( overlay_id == 21 )
+                    {
+                        printf("Found id 21\n");
+                    }
+                    overlay =
+                        (struct CacheConfigOverlay*)configmap_get(config_overlay_map, overlay_id);
                     assert(overlay != NULL);
 
                     if( overlay->texture != -1 )
