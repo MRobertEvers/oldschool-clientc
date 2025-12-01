@@ -1577,7 +1577,6 @@ load_config_overlay:
 load_tiles:
     task->step = E_SCENE_LOAD_STEP_LOAD_TILES;
 
-    // Create the actual scene tiles using the loaded configs
     struct SceneTile* tiles = scene_tiles_new_from_map_terrain(
         task->map_terrain, task->shade_map, task->config_underlay_map, task->config_overlay_map);
 
