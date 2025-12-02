@@ -49,6 +49,7 @@ struct CacheConfigSequence
 
 struct CacheConfigSequence* config_sequence_new_decode(int revision, char* buffer, int buffer_size);
 void config_sequence_free(struct CacheConfigSequence* sequence);
+void config_sequence_free_inplace(struct CacheConfigSequence* sequence);
 
 void config_sequence_decode_inplace(
     struct CacheConfigSequence* sequence, int revision, char* buffer, int buffer_size);

@@ -251,7 +251,8 @@ test_iteration(void)
     struct HMapIter* it = hmap_iter_new(&m);
     int seen = 0;
 
-    for( Entry* e = hmap_iter_begin(it); e; e = hmap_iter_next(it) )
+    Entry* e = NULL;
+    while( (e = hmap_iter_next(it)) )
     {
         assert(e->value == e->key * 3);
         seen++;
@@ -419,7 +420,8 @@ test_resize_preserves_iteration(void)
     struct HMapIter* it = hmap_iter_new(&m);
     int seen = 0;
 
-    for( Entry* e = hmap_iter_begin(it); e; e = hmap_iter_next(it) )
+    Entry* e = NULL;
+    while( (e = hmap_iter_next(it)) )
     {
         assert(e->value == e->key * 10);
         seen++;

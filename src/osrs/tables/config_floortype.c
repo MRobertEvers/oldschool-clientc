@@ -135,6 +135,13 @@ config_floortype_overlay_free(struct CacheConfigOverlay* overlay)
     free(overlay);
 }
 
+void
+config_floortype_overlay_free_inplace(struct CacheConfigOverlay* overlay)
+{
+    if( !overlay )
+        return;
+}
+
 struct CacheConfigUnderlay*
 config_floortype_underlay_new_decode(char* data, int data_size)
 {
@@ -192,4 +199,20 @@ config_floortype_underlay_decode_inplace(
     }
 }
 
-void config_floortype_underlay_free(struct CacheConfigUnderlay* underlay);
+void
+config_floortype_underlay_free(struct CacheConfigUnderlay* underlay)
+{
+    if( !underlay )
+        return;
+
+    config_floortype_underlay_free_inplace(underlay);
+
+    free(underlay);
+}
+
+void
+config_floortype_underlay_free_inplace(struct CacheConfigUnderlay* underlay)
+{
+    if( !underlay )
+        return;
+}

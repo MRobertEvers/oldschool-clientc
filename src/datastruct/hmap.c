@@ -536,37 +536,6 @@ hmap_iter_free(struct HMapIter* it)
 }
 
 /*
- * Initialize iterator.
- * Returns:
- *   - pointer to first FULL entry
- *   - NULL if map is empty or invalid
- *
- * Usage:
- *   HMapIter it;
- *   MyEntry *e = hmap_iter_begin(&map, &it);
- *   for (; e; e = hmap_iter_next(&map, &it)) {
- *       ... use e ...
- *   }
- */
-void*
-hmap_iter_begin(struct HMapIter* it)
-{
-    if( !it || !it->m || !it->m->entries )
-        return NULL;
-    it->idx = 0;
-    while( it->idx < it->m->capacity )
-    {
-        HMapSlotHeader* h = hmap_slot_header_at(it->m, it->idx);
-        if( h->state == HMAP_SLOT_FULL )
-        {
-            return hmap_slot_entry_ptr(it->m, it->idx);
-        }
-        it->idx++;
-    }
-    return NULL;
-}
-
-/*
  * Advance iterator.
  * Returns:
  *   - pointer to next FULL entry

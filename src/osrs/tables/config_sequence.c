@@ -732,6 +732,17 @@ config_sequence_free(struct CacheConfigSequence* def)
     if( !def )
         return;
 
+    config_sequence_free_inplace(def);
+
+    free(def);
+}
+
+void
+config_sequence_free_inplace(struct CacheConfigSequence* def)
+{
+    if( !def )
+        return;
+
     if( def->frame_ids )
     {
         free(def->frame_ids);
@@ -764,8 +775,6 @@ config_sequence_free(struct CacheConfigSequence* def)
     {
         free(def->frame_sounds.sounds);
     }
-
-    free(def);
 }
 
 void

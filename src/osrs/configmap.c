@@ -67,6 +67,35 @@ configalign(enum ConfigKind kind)
 }
 
 void
+configfree(enum ConfigKind kind, void* ptr)
+{
+    switch( kind )
+    {
+    case CONFIG_UNDERLAY:
+        config_floortype_underlay_free_inplace((struct CacheConfigUnderlay*)ptr);
+        break;
+    case CONFIG_OVERLAY:
+        config_floortype_overlay_free_inplace((struct CacheConfigOverlay*)ptr);
+        break;
+    case CONFIG_OBJECT:
+        // config_object_free((struct CacheConfigObject*)ptr);
+        break;
+    case CONFIG_SEQUENCE:
+        config_sequence_free_inplace((struct CacheConfigSequence*)ptr);
+        break;
+    case CONFIG_NPC:
+        // config_npctype_free((struct CacheConfigNPCType*)ptr);
+        break;
+    case CONFIG_LOCS:
+        config_locs_free_inplace((struct CacheConfigLocation*)ptr);
+        break;
+    default:
+        assert(false);
+        break;
+    }
+}
+
+void
 configdecode(enum ConfigKind kind, void* ptr, int id, int revision, char* data, int data_size)
 {
     switch( kind )
@@ -170,6 +199,12 @@ configmap_new_from_archive(struct Cache* cache, struct CacheArchive* archive)
 void
 configmap_free(struct ConfigMap* configmap)
 {
+    struct HMapIter* iter = hmap_iter_new(configmap->hmap);
+    void* ptr = NULL;
+    while( (ptr = hmap_iter_next(iter)) )
+        configfree(configmap->kind, ptr);
+    hmap_iter_free(iter);
+
     free(hmap_buffer_ptr(configmap->hmap));
     hmap_free(configmap->hmap);
     free(configmap);

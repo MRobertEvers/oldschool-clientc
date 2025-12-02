@@ -28,7 +28,49 @@ config_locs_new_decode(char* buffer, int buffer_size)
 void
 config_locs_free(struct CacheConfigLocation* loc)
 {
-    free_loc(loc);
+    if( !loc )
+        return;
+
+    config_locs_free_inplace(loc);
+
+    free(loc);
+}
+
+void
+config_locs_free_inplace(struct CacheConfigLocation* loc)
+{
+    if( !loc )
+        return;
+
+    for( int i = 0; i < 5; i++ )
+        free(loc->actions[i]);
+    free(loc->name);
+    free(loc->desc);
+
+    // Free allocated arrays
+    free(loc->shapes);
+    if( loc->models )
+    {
+        for( int i = 0; i < loc->shapes_and_model_count; i++ )
+        {
+            free(loc->models[i]);
+        }
+        free(loc->models);
+    }
+
+    free(loc->lengths);
+
+    free(loc->recolors_from);
+    free(loc->recolors_to);
+    free(loc->retextures_from);
+    free(loc->retextures_to);
+    free(loc->transforms);
+    free(loc->ambient_sound_ids);
+    free(loc->random_seq_ids);
+    free(loc->random_seq_delays);
+    free(loc->campaign_ids);
+    free(loc->param_keys);
+    free(loc->param_values);
 }
 
 void
@@ -599,42 +641,6 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             break;
         }
     }
-}
-
-void
-free_loc(struct CacheConfigLocation* loc)
-{
-    for( int i = 0; i < 5; i++ )
-        free(loc->actions[i]);
-    free(loc->name);
-    free(loc->desc);
-
-    // Free allocated arrays
-    free(loc->shapes);
-    if( loc->models )
-    {
-        for( int i = 0; i < loc->shapes_and_model_count; i++ )
-        {
-            free(loc->models[i]);
-        }
-        free(loc->models);
-    }
-
-    free(loc->lengths);
-
-    free(loc->recolors_from);
-    free(loc->recolors_to);
-    free(loc->retextures_from);
-    free(loc->retextures_to);
-    free(loc->transforms);
-    free(loc->ambient_sound_ids);
-    free(loc->random_seq_ids);
-    free(loc->random_seq_delays);
-    free(loc->campaign_ids);
-    free(loc->param_keys);
-    free(loc->param_values);
-
-    free(loc);
 }
 
 void

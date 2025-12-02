@@ -65,7 +65,6 @@ struct HMapIter;
 
 struct HMapIter* hmap_iter_new(struct HMap* h);
 void hmap_iter_free(struct HMapIter* it);
-void* hmap_iter_begin(struct HMapIter* it);
 void* hmap_iter_next(struct HMapIter* it);
 
 #endif

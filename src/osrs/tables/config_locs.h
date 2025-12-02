@@ -162,10 +162,10 @@ struct CacheConfigLocation
 
 struct CacheConfigLocation* config_locs_new_decode(char* buffer, int buffer_size);
 void config_locs_free(struct CacheConfigLocation* loc);
+void config_locs_free_inplace(struct CacheConfigLocation* loc);
 
 void config_locs_decode_inplace(struct CacheConfigLocation* loc, char* data, int data_size);
 void decode_loc(struct CacheConfigLocation* loc, char* buffer, int buffer_size);
-void free_loc(struct CacheConfigLocation* loc);
 
 struct CacheConfigLocationTable
 {
