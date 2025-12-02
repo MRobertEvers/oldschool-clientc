@@ -80,7 +80,6 @@ struct Game
 
     struct Scene* scene;
 
-    struct TexturesCache* textures_cache;
     struct FrustrumCullmap* frustrum_cullmap;
 
     struct GameTask* tasks_nullable;

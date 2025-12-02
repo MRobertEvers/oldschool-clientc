@@ -343,9 +343,9 @@ struct Scene
     struct SceneTile* scene_tiles;
     int scene_tiles_length;
 
-    struct ModelCache* _model_cache;
-
     struct CacheMapTerrain* terrain;
+
+    struct TexturesCache* textures_cache;
 
     int* _shade_map;
     int _shade_map_length;

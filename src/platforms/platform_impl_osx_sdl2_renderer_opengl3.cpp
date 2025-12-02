@@ -182,7 +182,7 @@ load_static_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
                     pix3dgl_load_texture(
                         renderer->pix3dgl,
                         scene_tile->face_texture_ids[face],
-                        game->textures_cache,
+                        game->scene->textures_cache,
                         game->cache);
                 }
             }
@@ -227,7 +227,7 @@ load_static_scene(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
                     pix3dgl_load_texture(
                         renderer->pix3dgl,
                         scene_model->model->face_textures[face],
-                        game->textures_cache,
+                        game->scene->textures_cache,
                         game->cache);
                 }
             }

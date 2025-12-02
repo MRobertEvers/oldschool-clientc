@@ -941,7 +941,7 @@ model_draw_face(
     {
         texture_id = face_textures[face];
         // gamma 0.8 is the default in os1
-        texture = textures_cache_checkout(textures_cache, NULL, texture_id, 128, 0.8);
+        texture = textures_cache_get(textures_cache, texture_id);
         assert(texture != NULL);
         texels = texture->texels;
         texture_size = texture->width;
@@ -1673,8 +1673,7 @@ render_scene_tile(
         }
         else
         {
-            struct Texture* texture =
-                textures_cache_checkout(textures_cache_nullable, NULL, texture_id, 128, 0.8);
+            struct Texture* texture = textures_cache_get(textures_cache_nullable, texture_id);
             assert(texture != NULL);
 
             // Tile vertexes are wrapped ccw.

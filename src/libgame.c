@@ -27,7 +27,7 @@ scenegfx_scene_load_map(
 {
     struct GameGfxOp gfx_op;
 
-    game->scene = scene_new_from_map(game->cache, chunk_x, chunk_y);
+    // game->scene = scene_new_from_map(game->cache, chunk_x, chunk_y);
 
     gfx_op.kind = GAME_GFX_OP_SCENE_STATIC_LOAD;
     game_gfx_op_list_push(gfx_op_list, &gfx_op);

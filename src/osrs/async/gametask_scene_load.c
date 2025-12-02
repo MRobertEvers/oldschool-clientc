@@ -656,6 +656,13 @@ process_locs:
     task->scene = malloc(sizeof(struct Scene));
     memset(task->scene, 0, sizeof(struct Scene));
 
+    task->scene->textures_cache = textures_cache_new(task->cache);
+    if( !task->scene->textures_cache )
+    {
+        printf("Failed to create textures cache\n");
+        goto error;
+    }
+
     task->scene->_shade_map = malloc(sizeof(int) * MAP_TILE_COUNT);
     memset(task->scene->_shade_map, 0, sizeof(int) * MAP_TILE_COUNT);
     task->scene->_shade_map_length = MAP_TILE_COUNT;
@@ -663,8 +670,6 @@ process_locs:
     task->scene->grid_tiles = malloc(sizeof(struct GridTile) * MAP_TILE_COUNT);
     memset(task->scene->grid_tiles, 0, sizeof(struct GridTile) * MAP_TILE_COUNT);
     task->scene->grid_tiles_length = MAP_TILE_COUNT;
-    task->model_cache = model_cache_new();
-    task->scene->_model_cache = task->model_cache;
 
     task->scene->models = malloc(sizeof(struct SceneModel) * 1024);
     memset(task->scene->models, 0, sizeof(struct SceneModel) * 1024);

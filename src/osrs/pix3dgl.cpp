@@ -554,15 +554,8 @@ pix3dgl_load_texture(
         return;
     }
 
-    return;
     // Load texture from cache
-    struct Texture* cache_tex = textures_cache_checkout(
-        textures_cache,
-        cache,
-        texture_id,
-        128, // Size
-        0.8  // Default gamma
-    );
+    struct Texture* cache_tex = textures_cache_get(textures_cache, texture_id);
 
     if( !cache_tex )
     {
@@ -645,7 +638,6 @@ pix3dgl_load_texture(
         anim_speed);
 
     // Clean up cache texture
-    textures_cache_checkin(textures_cache, cache_tex);
 
     // Check for OpenGL errors
     GLenum error = glGetError();
