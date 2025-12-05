@@ -103,7 +103,7 @@ texture_animate(struct Texture* texture, int time_delta)
 }
 
 struct TexturesCache*
-textures_cache_new()
+textures_cache_new(struct Cache* cache)
 {
     struct TexturesCache* textures_cache =
         (struct TexturesCache*)malloc(sizeof(struct TexturesCache));

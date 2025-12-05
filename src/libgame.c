@@ -197,7 +197,6 @@ game_step_main_loop(struct Game* game, struct GameIO* input, struct GameGfxOpLis
         {
             printf("Cache loaded successfully\n");
             game->cache = gametask_cache_value(task_nullable->_cache_load);
-            game->textures_cache = textures_cache_new(game->cache);
 
             break;
         }

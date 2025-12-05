@@ -107,7 +107,7 @@ render_scene(struct RendererOSX_SDL2Soft3D* renderer, struct Game* game, int del
     // Animate textures - only advance for the number of game ticks that have passed
     for( int i = 0; i < deltas; i++ )
     {
-        struct TexWalk* walk = textures_cache_walk_new(game->textures_cache);
+        struct TexWalk* walk = textures_cache_walk_new(game->scene->textures_cache);
         while( textures_cache_walk_next(walk) )
         {
             texture_animate(walk->texture, 1);
@@ -161,7 +161,7 @@ render_scene(struct RendererOSX_SDL2Soft3D* renderer, struct Game* game, int del
                 game->camera_roll,
                 game->camera_fov,
                 iter_render_scene_ops.value.tile_nullable_,
-                game->textures_cache,
+                game->scene->textures_cache,
                 NULL);
         }
 
@@ -333,7 +333,7 @@ render_scene(struct RendererOSX_SDL2Soft3D* renderer, struct Game* game, int del
                     renderer->width,
                     renderer->height,
                     game->camera_fov,
-                    game->textures_cache);
+                    game->scene->textures_cache);
             }
 
             // render_scene_model(

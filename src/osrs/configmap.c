@@ -227,3 +227,32 @@ configmap_get(struct ConfigMap* configmap, int id)
     // Only return the user data.
     return ((int8_t*)ptr) + 16;
 }
+
+struct ConfigMapIter*
+configmap_iter_new(struct ConfigMap* configmap)
+{
+    struct ConfigMapIter* iter = malloc(sizeof(struct ConfigMapIter));
+    iter->hmap_iter = hmap_iter_new(configmap->hmap);
+    return iter;
+}
+
+void
+configmap_iter_free(struct ConfigMapIter* iter)
+{
+    if( iter )
+    {
+        hmap_iter_free(iter->hmap_iter);
+        free(iter);
+    }
+}
+
+void*
+configmap_iter_next(struct ConfigMapIter* iter)
+{
+    void* ptr = hmap_iter_next(iter->hmap_iter);
+    if( !ptr )
+        return NULL;
+
+    // Only return the user data, skip the internal key.
+    return ((int8_t*)ptr) + 16;
+}

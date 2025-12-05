@@ -1,6 +1,7 @@
 #include "textures.h"
 
 #include "../cache.h"
+#include "../datastruct/hmap.h"
 #include "../filelist.h"
 #include "../rsbuf.h"
 
@@ -11,15 +12,18 @@
 struct CacheTexture*
 texture_definition_new_from_cache(struct Cache* cache, int id)
 {
+    struct FileList* filelist = NULL;
+    struct ArchiveReference* reference = NULL;
+    struct CacheTexture* def = NULL;
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_TEXTURES, 0);
     if( !archive )
         return NULL;
 
-    struct FileList* filelist = filelist_new_from_cache_archive(archive);
+    filelist = filelist_new_from_cache_archive(archive);
     if( !filelist )
         return NULL;
 
-    struct ArchiveReference* reference = &cache->tables[CACHE_TEXTURES]->archives[0];
+    reference = &cache->tables[CACHE_TEXTURES]->archives[0];
     if( !reference )
         return NULL;
 
@@ -33,7 +37,6 @@ texture_definition_new_from_cache(struct Cache* cache, int id)
     if( file_index >= 54 )
         file_index--;
 
-    struct CacheTexture* def = NULL;
     def = texture_definition_new_decode(
         filelist->files[file_index], filelist->file_sizes[file_index]);
 
@@ -129,4 +132,143 @@ error:
     free(def->transforms);
     free(def);
     return NULL;
+}
+
+struct CacheTextureMap
+{
+    struct HMap* map;
+};
+
+struct CacheTextureMapLoader
+{
+    struct CacheArchive* archive;
+    struct FileList* filelist;
+
+    struct CacheTextureMap* map;
+};
+
+struct CacheTextureMapEntry
+{
+    int id;
+    struct CacheTexture* texture;
+};
+
+struct CacheTextureMapLoader*
+texture_definition_map_loader_new_from_archive(struct CacheArchive* archive)
+{
+    struct CacheTextureMap* map = NULL;
+    struct HashConfig config;
+    struct CacheTextureMapLoader* loader = malloc(sizeof(struct CacheTextureMapLoader));
+    if( !loader )
+        return NULL;
+
+    memset(loader, 0, sizeof(struct CacheTextureMapEntry));
+
+    loader->archive = archive;
+    loader->filelist = filelist_new_from_cache_archive(archive);
+    if( !loader->filelist )
+        return NULL;
+
+    config = (struct HashConfig){
+        .buffer = NULL,
+        .buffer_size = 0,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct CacheTextureMapEntry),
+    };
+
+    map = malloc(sizeof(struct CacheTextureMap));
+    memset(map, 0, sizeof(struct CacheTextureMap));
+    if( !map )
+        return NULL;
+
+    map->map = hmap_new(&config, 0);
+    if( !map->map )
+        return NULL;
+
+    loader->map = map;
+
+    return loader;
+}
+
+void
+texture_definition_map_loader_load(struct CacheTextureMapLoader* loader, int id)
+{
+    struct FileList* filelist = loader->filelist;
+
+    struct CacheTexture* def = NULL;
+    struct CacheTextureMapEntry* item = NULL;
+
+    /**
+     * Texture definition ids are mostly contiguous but id=54 is missing.
+     * So files[54].id = 55.
+     *
+     * This is a quick workaround
+     */
+    int file_index = id;
+    if( file_index >= 54 )
+        file_index--;
+
+    def = texture_definition_new_decode(
+        filelist->files[file_index], filelist->file_sizes[file_index]);
+
+    assert(def->sprite_ids);
+
+    item = hmap_search(loader->map, &id, HMAP_INSERT);
+    if( !item )
+        return;
+
+    item->id = id;
+    item->texture = def;
+}
+
+void
+texture_definition_map_loader_free(struct CacheTextureMapLoader* loader)
+{
+    if( loader )
+    {
+        if( loader->archive )
+            cache_archive_free(loader->archive);
+        filelist_free(loader->filelist);
+        free(loader);
+    }
+}
+
+struct CacheTextureMap*
+texture_definition_map_new_from_loader(struct CacheTextureMapLoader* loader)
+{
+    assert(loader->map);
+
+    struct CacheTextureMap* map = loader->map;
+
+    loader->map = NULL;
+
+    return map;
+}
+
+struct CacheTexture*
+texture_definition_map_get(struct CacheTextureMap* map, int id)
+{
+    struct CacheTextureMapEntry* item = hmap_search(map->map, &id, HMAP_FIND);
+    if( !item )
+        return NULL;
+
+    return item->texture;
+}
+
+void
+texture_definition_map_free(struct CacheTextureMap* map)
+{
+    if( map )
+    {
+        struct HMapIter* iter = hmap_iter_new(map->map);
+        struct CacheTextureMapEntry* item = NULL;
+        while( (item = (struct CacheTextureMapEntry*)hmap_iter_next(iter)) != NULL )
+        {
+            texture_definition_free(item->texture);
+        }
+        hmap_iter_free(iter);
+
+        hmap_free(map->map);
+        free(map);
+    }
 }

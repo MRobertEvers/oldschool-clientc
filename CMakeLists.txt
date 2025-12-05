@@ -380,6 +380,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/platforms/platform_impl_osx_sdl2_renderer_soft3d.cpp
         src/platforms/platform_impl_osx_sdl2_renderer_opengl3.cpp
         
+        src/osrs/texture.c
         src/shared_tables.c
         src/string_utils.c
         src/osrs/frustrum_cullmap.c

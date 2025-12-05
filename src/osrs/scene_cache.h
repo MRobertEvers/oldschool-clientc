@@ -25,7 +25,7 @@ struct Texture
 
 void texture_animate(struct Texture* texture, int time_delta);
 
-struct TexturesCache* textures_cache_new();
+struct TexturesCache* textures_cache_new(struct Cache* cache);
 void textures_cache_free(struct TexturesCache* textures_cache);
 
 struct TexWalk

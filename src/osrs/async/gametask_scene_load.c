@@ -13,6 +13,7 @@
 #include "osrs/tables/config_object.h"
 #include "osrs/tables/configs.h"
 #include "osrs/tables/maps.h"
+#include "osrs/texture.h"
 
 #include <assert.h>
 #include <math.h>
@@ -31,6 +32,7 @@
  *   -> Log Configs
  *      -> Models
  *         -> Textures
+ *           -> Sprite Packs
  *      -> Sequences
  *         -> Animations
  *             -> Framemaps
@@ -38,8 +40,10 @@
  * Map Terrain
  *   -> Underlay
  *      -> Textures
+ *        -> Sprite Packs
  *   -> Overlay
  *      -> Textures
+ *        -> Sprite Packs
  *
  * Flattened:
  * Map Locs
@@ -52,6 +56,7 @@
  * Underlays
  * Overlay
  * Textures
+ * Sprite Packs
  *
  *
  * Don't need:
@@ -74,6 +79,9 @@ enum SceneLoadStep
     E_SCENE_LOAD_STEP_PROCESS_LOCS,
     E_SCENE_LOAD_STEP_LOAD_MODELS,
     E_SCENE_LOAD_STEP_COMPLETE_MODELS,
+    E_SCENE_LOAD_STEP_LOAD_TEXTURE_DEFINITIONS,
+    E_SCENE_LOAD_STEP_LOAD_SPRITEPACKS,
+    E_SCENE_LOAD_STEP_COMPLETE_TEXTURES,
     E_SCENE_LOAD_STEP_BUILD_LIGHTING,
     E_SCENE_LOAD_STEP_LOAD_CONFIG_UNDERLAY,
     E_SCENE_LOAD_STEP_LOAD_CONFIG_OVERLAY,
@@ -121,6 +129,24 @@ struct GameTaskSceneLoad
 
     int queue_index;
     bool models_requested; // Whether queued models have been requested
+
+    // Async texture loading
+    int* queued_texture_ids; // Array of texture IDs to load
+    int queued_texture_count;
+    int queued_texture_capacity;
+
+    // Async spritepack loading for textures
+    struct CacheTexture** texture_definitions; // Array of loaded texture definitions
+    int* texture_def_ids;                      // Corresponding texture IDs
+    int texture_definitions_count;
+    int texture_definitions_capacity;
+    int* queued_spritepack_ids; // Array of spritepack IDs to load
+    int queued_spritepack_count;
+    int queued_spritepack_capacity;
+    struct CacheSpritePack** loaded_spritepacks; // Array of loaded spritepacks
+    int* spritepack_ids;                         // Corresponding spritepack IDs
+    int loaded_spritepacks_count;
+    int loaded_spritepacks_capacity;
 };
 
 // Forward declarations for async model functions
@@ -128,6 +154,13 @@ static void io_queue_model(struct GameTaskSceneLoad* task, int model_id);
 static struct CacheModel* get_model_async(struct GameTaskSceneLoad* task, int model_id);
 static void
 add_loaded_model(struct GameTaskSceneLoad* task, int model_id, struct CacheModel* model);
+
+// Forward declarations for async spritepack functions
+static void io_queue_spritepack(struct GameTaskSceneLoad* task, int spritepack_id);
+static struct CacheSpritePack*
+get_spritepack_async(struct GameTaskSceneLoad* task, int spritepack_id);
+static void add_loaded_spritepack(
+    struct GameTaskSceneLoad* task, int spritepack_id, struct CacheSpritePack* spritepack);
 
 static struct CacheModel*
 get_model_async(struct GameTaskSceneLoad* task, int model_id)
@@ -463,6 +496,28 @@ gametask_scene_load_new(struct GameIO* io, struct Cache* cache, int chunk_x, int
     task->queued_model_count = 0;
     task->queued_model_capacity = 0;
 
+    // Initialize queued textures array
+    task->queued_texture_ids = NULL;
+    task->queued_texture_count = 0;
+    task->queued_texture_capacity = 0;
+
+    // Initialize texture definitions array
+    task->texture_definitions = NULL;
+    task->texture_def_ids = NULL;
+    task->texture_definitions_count = 0;
+    task->texture_definitions_capacity = 0;
+
+    // Initialize queued spritepacks array
+    task->queued_spritepack_ids = NULL;
+    task->queued_spritepack_count = 0;
+    task->queued_spritepack_capacity = 0;
+
+    // Initialize loaded spritepacks array
+    task->loaded_spritepacks = NULL;
+    task->spritepack_ids = NULL;
+    task->loaded_spritepacks_count = 0;
+    task->loaded_spritepacks_capacity = 0;
+
     return task;
 }
 
@@ -487,6 +542,109 @@ io_queue_model(struct GameTaskSceneLoad* task, int model_id)
     }
 
     task->queued_model_ids[task->queued_model_count++] = model_id;
+}
+
+// Async texture loading functions
+static void
+io_queue_texture(struct GameTaskSceneLoad* task, int texture_id)
+{
+    // Skip invalid texture IDs
+    if( texture_id == -1 )
+        return;
+
+    // Check if already queued
+    for( int i = 0; i < task->queued_texture_count; i++ )
+    {
+        if( task->queued_texture_ids[i] == texture_id )
+            return;
+    }
+
+    // Add to queue
+    if( task->queued_texture_count >= task->queued_texture_capacity )
+    {
+        task->queued_texture_capacity =
+            task->queued_texture_capacity == 0 ? 16 : task->queued_texture_capacity * 2;
+        task->queued_texture_ids =
+            realloc(task->queued_texture_ids, sizeof(int) * task->queued_texture_capacity);
+    }
+
+    task->queued_texture_ids[task->queued_texture_count++] = texture_id;
+}
+
+// Async spritepack loading functions
+static void
+io_queue_spritepack(struct GameTaskSceneLoad* task, int spritepack_id)
+{
+    // Skip invalid spritepack IDs
+    if( spritepack_id == -1 )
+        return;
+
+    // Check if already queued
+    for( int i = 0; i < task->queued_spritepack_count; i++ )
+    {
+        if( task->queued_spritepack_ids[i] == spritepack_id )
+            return;
+    }
+
+    // Add to queue
+    if( task->queued_spritepack_count >= task->queued_spritepack_capacity )
+    {
+        task->queued_spritepack_capacity =
+            task->queued_spritepack_capacity == 0 ? 16 : task->queued_spritepack_capacity * 2;
+        task->queued_spritepack_ids =
+            realloc(task->queued_spritepack_ids, sizeof(int) * task->queued_spritepack_capacity);
+    }
+
+    task->queued_spritepack_ids[task->queued_spritepack_count++] = spritepack_id;
+}
+
+static struct CacheSpritePack*
+get_spritepack_async(struct GameTaskSceneLoad* task, int spritepack_id)
+{
+    // Search through the loaded spritepacks list
+    for( int i = 0; i < task->loaded_spritepacks_count; i++ )
+    {
+        if( task->spritepack_ids[i] == spritepack_id )
+            return task->loaded_spritepacks[i];
+    }
+    return NULL;
+}
+
+static void
+add_loaded_spritepack(
+    struct GameTaskSceneLoad* task, int spritepack_id, struct CacheSpritePack* spritepack)
+{
+    // Ensure capacity
+    if( task->loaded_spritepacks_count >= task->loaded_spritepacks_capacity )
+    {
+        task->loaded_spritepacks_capacity =
+            task->loaded_spritepacks_capacity == 0 ? 16 : task->loaded_spritepacks_capacity * 2;
+        task->loaded_spritepacks = realloc(
+            task->loaded_spritepacks,
+            sizeof(struct CacheSpritePack*) * task->loaded_spritepacks_capacity);
+        task->spritepack_ids =
+            realloc(task->spritepack_ids, sizeof(int) * task->loaded_spritepacks_capacity);
+    }
+
+    task->loaded_spritepacks[task->loaded_spritepacks_count] = spritepack;
+    task->spritepack_ids[task->loaded_spritepacks_count] = spritepack_id;
+    task->loaded_spritepacks_count++;
+}
+
+static void
+io_queue_model_textures(struct GameTaskSceneLoad* task, struct CacheModel* model)
+{
+    if( !model || !model->face_textures )
+        return;
+
+    // Queue all textures referenced by this model's faces
+    for( int i = 0; i < model->face_count; i++ )
+    {
+        if( model->face_textures[i] != -1 )
+        {
+            io_queue_texture(task, model->face_textures[i]);
+        }
+    }
 }
 
 enum GameIOStatus
@@ -524,6 +682,12 @@ gametask_scene_load_send(struct GameTaskSceneLoad* task)
         goto load_models;
     case E_SCENE_LOAD_STEP_COMPLETE_MODELS:
         goto complete_models;
+    case E_SCENE_LOAD_STEP_LOAD_TEXTURE_DEFINITIONS:
+        goto load_texture_definitions;
+    case E_SCENE_LOAD_STEP_LOAD_SPRITEPACKS:
+        goto load_spritepacks;
+    case E_SCENE_LOAD_STEP_COMPLETE_TEXTURES:
+        goto complete_textures;
     case E_SCENE_LOAD_STEP_BUILD_LIGHTING:
         goto build_lighting;
     case E_SCENE_LOAD_STEP_LOAD_CONFIG_UNDERLAY:
@@ -1514,6 +1678,9 @@ load_models:
         {
             add_loaded_model(task, model_id, cache_model);
             cache_model->_flags |= CMODEL_FLAG_SHARED;
+
+            // Queue textures used by this model
+            io_queue_model_textures(task, cache_model);
         }
         cache_archive_free(archive);
         archive = NULL;
@@ -1539,6 +1706,185 @@ complete_models:
                 scene_model->_pending_height_nw);
         }
     }
+
+load_texture_definitions:
+    task->step = E_SCENE_LOAD_STEP_LOAD_TEXTURE_DEFINITIONS;
+
+    status = gameio_request_new_archive_load(task->io, CACHE_TEXTURES, 0, &task->request);
+    if( !gameio_resolved(status) )
+        return status;
+
+    archive = gameio_request_free_archive_receive(&task->request);
+    if( !archive )
+        return E_GAMEIO_STATUS_ERROR;
+    cache_archive_init_metadata(task->cache, archive);
+
+    struct CacheTexture* texture_def = NULL;
+    struct CacheTextureMapLoader* loader = texture_definition_map_loader_new_from_archive(archive);
+    if( !loader )
+        return E_GAMEIO_STATUS_ERROR;
+
+    // Load all queued texture definitions and extract sprite IDs
+    for( int i = 0; i < task->queued_texture_count; i++ )
+    {
+        int texture_id = task->queued_texture_ids[i];
+
+        // Check if texture is already in cache
+        if( textures_cache_contains(task->scene->textures_cache, texture_id) )
+            continue;
+
+        // Load texture definition
+        texture_definition_map_loader_load(loader, texture_id);
+
+        // Queue all spritepacks needed by this texture
+        for( int j = 0; j < texture_def->sprite_ids_count; j++ )
+        {
+            io_queue_spritepack(task, texture_def->sprite_ids[j]);
+        }
+    }
+
+load_spritepacks:
+
+load_spritepacks:
+    task->step = E_SCENE_LOAD_STEP_LOAD_SPRITEPACKS;
+
+    // Load queued spritepacks asynchronously one by one
+    if( task->queue_index < task->queued_spritepack_count )
+    {
+        int spritepack_id = task->queued_spritepack_ids[task->queue_index];
+
+        // Check if already loaded (skip to next)
+        if( get_spritepack_async(task, spritepack_id) )
+        {
+            task->queue_index++;
+            // Continue processing next spritepack
+            if( task->queue_index < task->queued_spritepack_count )
+                return E_GAMEIO_STATUS_PENDING;
+        }
+        else
+        {
+            // Request the spritepack archive
+            status =
+                gameio_request_new_archive_load(io, CACHE_SPRITES, spritepack_id, &task->request);
+            if( !gameio_resolved(status) )
+                return status;
+
+            struct CacheArchive* archive = gameio_request_free_archive_receive(&task->request);
+            if( !archive )
+            {
+                printf("Failed to load spritepack archive %d\n", spritepack_id);
+                task->queue_index++;
+                // Continue processing next spritepack
+                if( task->queue_index < task->queued_spritepack_count )
+                    return E_GAMEIO_STATUS_PENDING;
+            }
+            else
+            {
+                // Decode the spritepack
+                struct CacheSpritePack* spritepack = sprite_pack_new_decode(
+                    archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
+                cache_archive_free(archive);
+
+                if( spritepack )
+                {
+                    add_loaded_spritepack(task, spritepack_id, spritepack);
+                }
+                else
+                {
+                    printf("Failed to decode spritepack %d\n", spritepack_id);
+                }
+
+                task->queue_index++;
+                // Continue processing next spritepack
+                if( task->queue_index < task->queued_spritepack_count )
+                    return E_GAMEIO_STATUS_PENDING;
+            }
+        }
+    }
+
+    // All spritepacks loaded, reset queue index for next phase
+    task->queue_index = 0;
+
+complete_textures:
+    task->step = E_SCENE_LOAD_STEP_COMPLETE_TEXTURES;
+
+    // Create textures from loaded spritepacks
+    int completed_textures = 0;
+    for( int i = 0; i < task->texture_definitions_count; i++ )
+    {
+        int texture_id = task->texture_def_ids[i];
+        struct CacheTexture* texture_def = task->texture_definitions[i];
+
+        // Skip already processed textures
+        if( !texture_def )
+        {
+            completed_textures++;
+            continue;
+        }
+
+        // Check if texture is already in cache (might have been added by another path)
+        if( textures_cache_contains(task->scene->textures_cache, texture_id) )
+        {
+            texture_definition_free(texture_def);
+            task->texture_definitions[i] = NULL;
+            completed_textures++;
+            continue;
+        }
+
+        // Check if all required spritepacks are loaded
+        bool all_spritepacks_loaded = true;
+        for( int j = 0; j < texture_def->sprite_ids_count; j++ )
+        {
+            if( !get_spritepack_async(task, texture_def->sprite_ids[j]) )
+            {
+                all_spritepacks_loaded = false;
+                break;
+            }
+        }
+
+        if( !all_spritepacks_loaded )
+        {
+            // Not all spritepacks loaded yet, skip for now
+            continue;
+        }
+
+        // All spritepacks loaded, create the texture
+        struct CacheSpritePack** spritepacks = (struct CacheSpritePack**)malloc(
+            texture_def->sprite_ids_count * sizeof(struct CacheSpritePack*));
+        if( !spritepacks )
+        {
+            printf("Failed to allocate spritepack array for texture %d\n", texture_id);
+            continue;
+        }
+
+        // Collect the loaded spritepacks
+        for( int j = 0; j < texture_def->sprite_ids_count; j++ )
+        {
+            spritepacks[j] = get_spritepack_async(task, texture_def->sprite_ids[j]);
+        }
+
+        struct Texture* texture =
+            texture_new_from_definition_with_spritepacks(texture_def, spritepacks);
+        free(spritepacks); // Don't free the spritepacks themselves, just the array
+
+        if( texture )
+        {
+            textures_cache_add(task->scene->textures_cache, texture_id, texture);
+        }
+        else
+        {
+            printf("Failed to create texture %d\n", texture_id);
+        }
+
+        // Free the texture definition
+        texture_definition_free(texture_def);
+        task->texture_definitions[i] = NULL; // Mark as freed
+        completed_textures++;
+    }
+
+    // If not all textures are completed, stay in this step
+    if( completed_textures < task->texture_definitions_count )
+        return E_GAMEIO_STATUS_PENDING;
 
 load_config_underlay:
     task->step = E_SCENE_LOAD_STEP_LOAD_CONFIG_UNDERLAY;
@@ -1575,6 +1921,21 @@ load_config_overlay:
     }
     cache_archive_init_metadata(task->cache, archive);
     task->config_overlay_map = configmap_new_from_archive(task->cache, archive);
+
+    // Queue textures from all overlays
+    if( task->config_overlay_map )
+    {
+        struct ConfigMapIter* iter = configmap_iter_new(task->config_overlay_map);
+        struct CacheConfigOverlay* overlay = NULL;
+        while( (overlay = (struct CacheConfigOverlay*)configmap_iter_next(iter)) )
+        {
+            if( overlay->texture != -1 )
+            {
+                io_queue_texture(task, overlay->texture);
+            }
+        }
+        configmap_iter_free(iter);
+    }
 
     cache_archive_free(archive);
     archive = NULL;
@@ -1898,6 +2259,30 @@ gametask_scene_load_free(struct GameTaskSceneLoad* task)
 
     // Clean up queued models array
     free(task->queued_model_ids);
+
+    // Clean up queued textures array
+    free(task->queued_texture_ids);
+
+    // Clean up texture definitions
+    for( int i = 0; i < task->texture_definitions_count; i++ )
+    {
+        if( task->texture_definitions[i] )
+            texture_definition_free(task->texture_definitions[i]);
+    }
+    free(task->texture_definitions);
+    free(task->texture_def_ids);
+
+    // Clean up queued spritepacks array
+    free(task->queued_spritepack_ids);
+
+    // Clean up loaded spritepacks
+    for( int i = 0; i < task->loaded_spritepacks_count; i++ )
+    {
+        if( task->loaded_spritepacks[i] )
+            sprite_pack_free(task->loaded_spritepacks[i]);
+    }
+    free(task->loaded_spritepacks);
+    free(task->spritepack_ids);
 
     free(task);
 }
