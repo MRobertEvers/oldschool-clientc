@@ -48,6 +48,18 @@
             "type": "node"
         },
         {
+            "name": "(lldb) Launch OSX",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/osx",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
             "name": "(lldb) Launch Harness",
             "type": "cppdbg",
             "request": "launch",

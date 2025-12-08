@@ -39,8 +39,6 @@
  *
  * Map Terrain
  *   -> Underlay
- *      -> Textures
- *        -> Sprite Packs
  *   -> Overlay
  *      -> Textures
  *        -> Sprite Packs

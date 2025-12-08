@@ -33,6 +33,8 @@ struct GInput
 
     int comma_pressed;
     int period_pressed;
+
+    double time_delta_accumulator_seconds;
 };
 
 #endif

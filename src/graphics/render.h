@@ -1,6 +1,10 @@
 #ifndef OSRS_RENDER_H
 #define OSRS_RENDER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "../osrs/bounds_cylinder.h"
 #include "lighting.h"
 
@@ -323,5 +327,9 @@ void iter_render_model_init(
     int near_plane_z);
 
 bool iter_render_model_next(struct IterRenderModel* iter);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

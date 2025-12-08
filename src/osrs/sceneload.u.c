@@ -1,10 +1,12 @@
 #ifndef SCENELOAD_U_C
 #define SCENELOAD_U_C
 
+#include "model_transforms.h"
 #include "scene.h"
 #include "tables/config_locs.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 

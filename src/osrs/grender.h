@@ -24,4 +24,14 @@ struct GRenderCommand
     };
 };
 
+struct GRenderCommandBuffer
+{
+    struct GRenderCommand* commands;
+    int command_count;
+    int command_capacity;
+};
+
+struct GRenderCommandBuffer* grendercb_new(int capacity);
+void grendercb_free(struct GRenderCommandBuffer* buffer);
+
 #endif

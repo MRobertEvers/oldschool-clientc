@@ -7,7 +7,28 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct GGame;
+struct GGame
+{
+    bool running;
+
+    int camera_world_x;
+    int camera_world_y;
+    int camera_world_z;
+    int camera_yaw;
+    int camera_pitch;
+    int camera_roll;
+    int camera_fov;
+    int camera_movement_speed;
+    int camera_rotation_speed;
+
+    void* cache;
+    struct CacheModel* model;
+    struct ModelNormals* normals;
+    struct ModelLighting* lighting;
+    struct BoundsCylinder* bounds_cylinder;
+
+    struct GIOQueue* queue;
+};
 
 struct GGame* libg_game_new(void);
 void libg_game_free(struct GGame* game);

@@ -15,6 +15,27 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/libg.c
         src/osrs/gio.c
         src/datastruct/list.c
+        src/shared_tables.c
+        src/graphics/lighting.c
+        src/graphics/render.c
+        src/osrs/tables/model.c
+
+        src/osrs/cache.c
+        src/osrs/bounds_cylinder.c
+        src/osrs/frustrum_cullmap.c
+        src/osrs/palette.c
+        src/osrs/scene_cache.c
+        src/osrs/archive_decompress.c
+        src/osrs/cache_inet.c
+        src/osrs/disk.c
+        src/datastruct/hmap.c
+        src/datastruct/ht.c
+        src/osrs/reference_table.c
+        src/osrs/xtea_config.c
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+        src/osrs/rsbuf.c
+        src/osrs/xtea.c
 
         src/platforms/platform_impl2_osx_sdl2.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp

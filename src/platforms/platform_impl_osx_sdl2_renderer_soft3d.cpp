@@ -393,6 +393,25 @@ PlatformImpl_OSX_SDL2_Renderer_Soft3D_New(int width, int height, int max_width, 
         (struct RendererOSX_SDL2Soft3D*)malloc(sizeof(struct RendererOSX_SDL2Soft3D));
     memset(renderer, 0, sizeof(struct RendererOSX_SDL2Soft3D));
 
+    renderer->pixel_buffer = (int*)malloc(max_width * max_height * sizeof(int));
+    if( !renderer->pixel_buffer )
+    {
+        printf("Failed to allocate pixel buffer\n");
+        return NULL;
+    }
+    memset(renderer->pixel_buffer, 0, width * height * sizeof(int));
+
+    renderer->width = width;
+    renderer->height = height;
+    renderer->max_width = max_width;
+    renderer->max_height = max_height;
+
+    renderer->op_capacity = 10900;
+    renderer->ops = (struct SceneOp*)malloc(renderer->op_capacity * sizeof(struct SceneOp));
+    memset(renderer->ops, 0, renderer->op_capacity * sizeof(struct SceneOp));
+
+    renderer->op_count = 0;
+
     return renderer;
 }
 
