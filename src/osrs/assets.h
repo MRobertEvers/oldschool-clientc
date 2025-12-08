@@ -3,12 +3,31 @@
 
 #include "cache.h"
 
-struct Assets;
-
-struct Assets* assets_new_inet(char const* ip, int port);
-void assets_free(struct Assets* assets);
-
-struct CacheArchive* assets_cache_archive_new_load(
-    struct Assets* assets, struct Cache* cache, int table_id, int archive_id);
+enum AssetKind
+{
+    ASSET_ANIMATIONS = 0,
+    ASSET_SKELETONS = 1,
+    ASSET_CONFIGS = 2,
+    ASSET_INTERFACES = 3,
+    ASSET_SOUNDEFFECTS = 4,
+    ASSET_MAPS = 5,
+    ASSET_MUSIC_TRACKS = 6,
+    ASSET_MODELS = 7,
+    ASSET_SPRITES = 8,
+    ASSET_TEXTURES = 9,
+    ASSET_BINARY = 10,
+    ASSET_MUSIC_JINGLES = 11,
+    ASSET_CLIENTSCRIPT = 12,
+    ASSET_FONTS = 13,
+    ASSET_MUSIC_SAMPLES = 14,
+    ASSET_MUSIC_PATCHES = 15,
+    ASSET_WORLDMAP_GEOGRAPHY = 18,
+    ASSET_WORLDMAP = 19,
+    ASSET_WORLDMAP_GROUND = 20,
+    ASSET_DBTABLEINDEX = 21,
+    ASSET_ANIMAYAS = 22,
+    ASSET_GAMEVALS = 24,
+    ASSET_TABLE_COUNT
+};
 
 #endif

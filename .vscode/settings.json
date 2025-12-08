@@ -174,6 +174,7 @@
         "configs.h": "c",
         "archive.h": "c",
         "stdint.h": "c",
-        "xtea_config.h": "c"
+        "xtea_config.h": "c",
+        "list_macros.h": "c"
     }
 }

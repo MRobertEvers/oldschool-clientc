@@ -155,3 +155,35 @@ gameio_status_cstr(enum GameIOStatus status)
         return "PENDING";
     }
 }
+
+struct GameIO2
+{
+    struct List* requests;
+};
+
+struct GameIO2*
+gameio2_new(void)
+{
+    struct GameIO2* io = malloc(sizeof(struct GameIO2));
+    memset(io, 0, sizeof(struct GameIO2));
+    io->requests = list_make(LIST_PTR);
+    return io;
+}
+
+void
+gameio2_free(struct GameIO2* io)
+{
+    list_free(io->requests);
+    free(io);
+}
+
+void
+gameio2_queue_archive_load(struct GameIO2* io, int table_id, int archive_id)
+{
+    struct GameIORequest* request = malloc(sizeof(struct GameIORequest));
+    memset(request, 0, sizeof(struct GameIORequest));
+    request->kind = E_GAMEIO_REQUEST_ARCHIVE_LOAD;
+    request->status = E_GAMEIO_STATUS_PENDING;
+    request->next = NULL;
+    request->request_id = io->request_counter++;
+}

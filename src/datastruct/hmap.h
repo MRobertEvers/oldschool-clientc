@@ -61,6 +61,9 @@ int hmap_resize(
     size_t new_capacity,
     void** old_buffer);
 
+/**
+ * Iterate map elements
+ */
 struct HMapIter;
 
 struct HMapIter* hmap_iter_new(struct HMap* h);
