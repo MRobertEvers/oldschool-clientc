@@ -2,6 +2,7 @@
 
 extern "C" {
 #include "osrs/gio.h"
+#include "osrs/grender.h"
 }
 
 #define IMGUI_DEFINE_MATH_OPERATORS

@@ -32,7 +32,6 @@ void PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(
 void PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game,
-    struct GRenderCommand* commands,
-    int command_count);
+    struct GRenderCommandBuffer* render_command_buffer);
 
 #endif

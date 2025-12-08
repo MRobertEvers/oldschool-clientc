@@ -2,6 +2,7 @@ extern "C" {
 #include "libg.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
+#include "osrs/grender.h"
 }
 
 #include "platforms/platform_impl2_osx_sdl2.h"
@@ -56,6 +57,7 @@ main(int argc, char* argv[])
     struct GGame* game = libg_game_new();
     struct GInput input = { 0 };
     struct GIOQueue* io = gioq_new();
+    struct GRenderCommandBuffer* render_command_buffer = grendercb_new(1024);
     struct GIOMessage message = { 0 };
     struct Platform2_OSX_SDL2* platform = Platform2_OSX_SDL2_New();
     if( !platform )
@@ -88,9 +90,9 @@ main(int argc, char* argv[])
         Platform2_OSX_SDL2_PollIO(platform, io);
         Platform2_OSX_SDL2_PollEvents(platform, &input);
 
-        libg_game_step(game, io, &input);
+        libg_game_step(game, io, &input, render_command_buffer);
 
-        PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, NULL, 0);
+        PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, render_command_buffer);
     }
 
     return 0;

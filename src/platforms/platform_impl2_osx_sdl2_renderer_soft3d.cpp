@@ -5,6 +5,9 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
 #include "libg.h"
+extern "C" {
+#include "osrs/grender.h"
+}
 
 #include <SDL.h>
 #include <stdio.h>
@@ -136,8 +139,7 @@ void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game,
-    struct GRenderCommand* commands,
-    int command_count)
+    struct GRenderCommandBuffer* render_command_buffer)
 {
     // Handle window resize: update renderer dimensions up to max size
     int window_width, window_height;
@@ -189,29 +191,42 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         memset(&renderer->pixel_buffer[y * renderer->width], 0, renderer->width * sizeof(int));
 
     struct AABB aabb;
-    render_model_frame(
-        renderer->pixel_buffer,
-        renderer->width,
-        renderer->height,
-        50,
-        0,
-        0,
-        0,
-        game->camera_world_x,
-        game->camera_world_y,
-        game->camera_world_z,
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_roll,
-        512,
-        &aabb,
-        game->model,
-        game->lighting,
-        game->bounds_cylinder,
-        NULL,
-        NULL,
-        NULL,
-        NULL);
+    struct GRenderCommand* command = NULL;
+
+    for( int i = 0; i < grendercb_count(render_command_buffer); i++ )
+    {
+        command = grendercb_at(render_command_buffer, i);
+        switch( command->kind )
+        {
+        case GRENDER_CMD_MODEL_DRAW:
+        {
+            render_model_frame(
+                renderer->pixel_buffer,
+                renderer->width,
+                renderer->height,
+                50,
+                0,
+                0,
+                0,
+                game->camera_world_x,
+                game->camera_world_y,
+                game->camera_world_z,
+                game->camera_pitch,
+                game->camera_yaw,
+                game->camera_roll,
+                512,
+                &aabb,
+                game->model,
+                game->lighting,
+                game->bounds_cylinder,
+                NULL,
+                NULL,
+                NULL,
+                NULL);
+        }
+        break;
+        }
+    }
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,

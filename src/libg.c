@@ -2,6 +2,7 @@
 
 #include "osrs/cache.h"
 #include "osrs/gio.h"
+#include "osrs/grender.h"
 #include "osrs/sceneload.u.c"
 #include "shared_tables.h"
 
@@ -109,7 +110,11 @@ libg_game_free(struct GGame* game)
 }
 
 void
-libg_game_step(struct GGame* game, struct GIOQueue* queue, struct GInput* input)
+libg_game_step(
+    struct GGame* game,
+    struct GIOQueue* queue,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer)
 {
     // IO
     struct GIOMessage message = { 0 };
@@ -204,6 +209,12 @@ libg_game_step(struct GGame* game, struct GIOQueue* queue, struct GInput* input)
             game->running = false;
         }
     }
+
+    grendercb_reset(render_command_buffer);
+    struct GRenderCommand command = {
+        .kind = GRENDER_CMD_MODEL_DRAW,
+    };
+    grendercb_add_command(render_command_buffer, command);
 
     return;
 }

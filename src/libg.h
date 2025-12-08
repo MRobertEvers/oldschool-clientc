@@ -3,6 +3,7 @@
 
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
+#include "osrs/grender.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -32,7 +33,11 @@ struct GGame
 
 struct GGame* libg_game_new(void);
 void libg_game_free(struct GGame* game);
-void libg_game_step(struct GGame* game, struct GIOQueue* queue, struct GInput* input);
+void libg_game_step(
+    struct GGame* game,
+    struct GIOQueue* queue,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer);
 
 bool libg_game_is_running(struct GGame* game);
 

@@ -1,8 +1,10 @@
 #ifndef PLATFORM_IMPL2_OSX_SDL2_H
 #define PLATFORM_IMPL2_OSX_SDL2_H
 
+extern "C" {
 #include "osrs/ginput.h"
-
+#include "osrs/grender.h"
+}
 #include <SDL.h>
 #include <stdbool.h>
 #include <stdint.h>
