@@ -9,6 +9,49 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void
+render_imgui(struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer, struct GGame* game)
+{
+    ImGui_ImplSDLRenderer2_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    // Info window
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 150), ImGuiCond_FirstUseEver);
+
+    ImGui::Begin("Info");
+    ImGui::Text(
+        "Application average %.3f ms/frame (%.1f FPS)",
+        1000.0f / ImGui::GetIO().Framerate,
+        ImGui::GetIO().Framerate);
+    Uint64 frequency = SDL_GetPerformanceFrequency();
+    // ImGui::Text(
+    //     "Render Time: %.3f ms/frame",
+    //     (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
+    // ImGui::Text(
+    //     "Average Render Time: %.3f ms/frame, %.3f ms/frame, %.3f ms/frame",
+    //     (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency,
+    //     (double)(game->painters_time_sum / game->frame_count) * 1000.0 / (double)frequency,
+    //     (double)(game->texture_upload_time_sum / game->frame_count) * 1000.0 /
+    //     (double)frequency);
+    // ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+
+    // ImGui::Text("Hover model: %d, %d", game->hover_model, game->hover_loc_yaw);
+    // ImGui::Text(
+    //     "Hover loc: %d, %d, %d", game->hover_loc_x, game->hover_loc_y, game->hover_loc_level);
+
+    // Camera position with copy button
+
+    // Camera rotation with copy button
+    // Add camera speed slider
+    ImGui::Separator();
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer->renderer);
+}
+
 struct Platform2_OSX_SDL2_Renderer_Soft3D*
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(int width, int height, int max_width, int max_height)
 {
@@ -90,7 +133,11 @@ void PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
-    struct Game* game,
+    struct GGame* game,
     struct GRenderCommand* commands,
     int command_count)
-{}
+{
+    render_imgui(renderer, game);
+
+    SDL_RenderPresent(renderer->renderer);
+}

@@ -89,6 +89,8 @@ main(int argc, char* argv[])
         Platform2_OSX_SDL2_PollEvents(platform, &input);
 
         libg_game_step(game, io, &input);
+
+        PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, NULL, 0);
     }
 
     return 0;
