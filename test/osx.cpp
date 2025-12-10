@@ -84,6 +84,7 @@ main(int argc, char* argv[])
         return 1;
     }
 
+    libg_game_step_tasks(game, io, &input, render_command_buffer);
     while( libg_game_is_running(game) )
     {
         // Poll backend

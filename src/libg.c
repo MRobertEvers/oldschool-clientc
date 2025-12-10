@@ -113,18 +113,12 @@ libg_game_free(struct GGame* game)
 }
 
 void
-libg_game_step(
+libg_game_step_tasks(
     struct GGame* game,
     struct GIOQueue* queue,
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer)
 {
-    if( input->quit )
-    {
-        game->running = false;
-        return;
-    }
-
     struct GTask* task = game->tasks_nullable;
     while( task )
     {
@@ -140,7 +134,26 @@ libg_game_step(
             break;
         }
     }
+}
 
+void
+libg_game_step(
+    struct GGame* game,
+    struct GIOQueue* queue,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer)
+{
+    struct GTask* task = NULL;
+    struct GIOMessage message = { 0 };
+
+    if( input->quit )
+    {
+        game->running = false;
+        return;
+    }
+
+    libg_game_step_tasks(game, queue, input, render_command_buffer);
+    task = game->tasks_nullable;
     if( task && task->status != GTASK_STATUS_COMPLETED )
     {
         printf("Tasks Inflight: %d\n", task->status);
@@ -148,8 +161,6 @@ libg_game_step(
     }
 
     // IO
-    struct GIOMessage message = { 0 };
-
     const int target_input_fps = 50;
     const float time_delta_step = 1.0f / target_input_fps;
 

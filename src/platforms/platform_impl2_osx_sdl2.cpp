@@ -251,7 +251,74 @@ Platform2_OSX_SDL2_PollEvents(struct Platform2_OSX_SDL2* platform, struct GInput
     }
 }
 
-// TODO: Clean this up?
+static void
+on_gio_req_init(
+    struct Platform2_OSX_SDL2* platform, struct GIOQueue* io, struct GIOMessage* message)
+{
+    assert(message->command == GIO_REQ_INIT);
+    switch( message->status )
+    {
+    case GIO_STATUS_PENDING:
+        platform->cache = gioqb_cache_new();
+        gioqb_mark_done(
+            io, message->message_id, message->command, message->param_b, message->param_a, NULL, 0);
+        break;
+    case GIO_STATUS_DONE:
+        break;
+    case GIO_STATUS_INFLIGHT:
+        break;
+    case GIO_STATUS_FINALIZED:
+        gioqb_remove(io, message);
+        break;
+    case GIO_STATUS_ERROR:
+        assert(false && "GIO_STATUS_ERROR in on_gio_req_init");
+        gioqb_remove(io, message);
+        break;
+    }
+}
+
+static void
+on_gio_req_asset(
+    struct Platform2_OSX_SDL2* platform, struct GIOQueue* io, struct GIOMessage* message)
+{
+    assert(message->command == GIO_REQ_ASSET);
+
+    switch( message->status )
+    {
+    case GIO_STATUS_PENDING:
+    {
+        if( message->command == ASSET_MODELS )
+        {
+            struct CacheModel* model =
+                gioqb_cache_model_new_load(platform->cache, message->param_b);
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                message->param_b,
+                message->param_a,
+                model,
+                sizeof(struct CacheModel));
+        }
+        else
+        {
+            printf("Unknown asset command: %d\n", message->command);
+            assert(false && "Unknown asset command");
+        }
+        break;
+    }
+    case GIO_STATUS_DONE:
+        break;
+    case GIO_STATUS_INFLIGHT:
+        break;
+    case GIO_STATUS_FINALIZED:
+        gioqb_remove(io, message);
+        break;
+    case GIO_STATUS_ERROR:
+        gioqb_remove(io, message);
+        break;
+    }
+}
 
 void
 Platform2_OSX_SDL2_PollIO(struct Platform2_OSX_SDL2* platform, struct GIOQueue* queue)
@@ -262,75 +329,14 @@ Platform2_OSX_SDL2_PollIO(struct Platform2_OSX_SDL2* platform, struct GIOQueue* 
         switch( message.kind )
         {
         case GIO_REQ_INIT:
-        {
-            switch( message.status )
-            {
-            case GIO_STATUS_PENDING:
-                platform->cache = gioqb_cache_new();
-                gioqb_mark_done(
-                    queue,
-                    message.message_id,
-                    message.command,
-                    message.param_b,
-                    message.param_a,
-                    NULL,
-                    0);
-                break;
-            case GIO_STATUS_DONE:
-                break;
-            case GIO_STATUS_INFLIGHT:
-                break;
-            case GIO_STATUS_FINALIZED:
-                gioqb_remove(queue, &message);
-                break;
-            case GIO_STATUS_ERROR:
-                gioqb_remove(queue, &message);
-                break;
-            }
-        }
-        break;
-        case GIO_REQ_ASSET:
-        {
-            switch( message.status )
-            {
-            case GIO_STATUS_PENDING:
-            {
-                if( message.command == ASSET_MODELS )
-                {
-                    struct CacheModel* model =
-                        gioqb_cache_model_new_load(platform->cache, message.param_b);
-                    gioqb_mark_done(
-                        queue,
-                        message.message_id,
-                        message.command,
-                        message.param_b,
-                        message.param_a,
-                        model,
-                        sizeof(struct CacheModel));
-                }
-                else
-                {
-                    printf("Unknown asset command: %d\n", message.command);
-                    assert(false && "Unknown asset command");
-                }
-
-                break;
-            }
+            on_gio_req_init(platform, queue, &message);
             break;
-            case GIO_STATUS_DONE:
-                break;
-            case GIO_STATUS_INFLIGHT:
-                break;
-            case GIO_STATUS_FINALIZED:
-                gioqb_remove(queue, &message);
-                break;
-            case GIO_STATUS_ERROR:
-                gioqb_remove(queue, &message);
-                break;
-            }
-        }
-
-        break;
+        case GIO_REQ_ASSET:
+            on_gio_req_asset(platform, queue, &message);
+            break;
+        default:
+            assert(false && "Unknown GIO request kind");
+            break;
         }
     }
 }
