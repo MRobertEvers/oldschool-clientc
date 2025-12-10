@@ -2,6 +2,8 @@
 
 extern "C" {
 #include "osrs/gio.h"
+#include "osrs/gio_assets.h"
+#include "osrs/gio_cache.h"
 #include "osrs/grender.h"
 }
 
@@ -259,9 +261,75 @@ Platform2_OSX_SDL2_PollIO(struct Platform2_OSX_SDL2* platform, struct GIOQueue* 
     {
         switch( message.kind )
         {
+        case GIO_REQ_INIT:
+        {
+            switch( message.status )
+            {
+            case GIO_STATUS_PENDING:
+                platform->cache = gioqb_cache_new();
+                gioqb_mark_done(
+                    queue,
+                    message.message_id,
+                    message.command,
+                    message.param_b,
+                    message.param_a,
+                    NULL,
+                    0);
+                break;
+            case GIO_STATUS_DONE:
+                break;
+            case GIO_STATUS_INFLIGHT:
+                break;
+            case GIO_STATUS_FINALIZED:
+                gioqb_remove(queue, &message);
+                break;
+            case GIO_STATUS_ERROR:
+                gioqb_remove(queue, &message);
+                break;
+            }
+        }
+        break;
         case GIO_REQ_ASSET:
         {
+            switch( message.status )
+            {
+            case GIO_STATUS_PENDING:
+            {
+                if( message.command == ASSET_MODELS )
+                {
+                    struct CacheModel* model =
+                        gioqb_cache_model_new_load(platform->cache, message.param_b);
+                    gioqb_mark_done(
+                        queue,
+                        message.message_id,
+                        message.command,
+                        message.param_b,
+                        message.param_a,
+                        model,
+                        sizeof(struct CacheModel));
+                }
+                else
+                {
+                    printf("Unknown asset command: %d\n", message.command);
+                    assert(false && "Unknown asset command");
+                }
+
+                break;
+            }
+            break;
+            case GIO_STATUS_DONE:
+                break;
+            case GIO_STATUS_INFLIGHT:
+                break;
+            case GIO_STATUS_FINALIZED:
+                gioqb_remove(queue, &message);
+                break;
+            case GIO_STATUS_ERROR:
+                gioqb_remove(queue, &message);
+                break;
+            }
         }
+
         break;
         }
     }

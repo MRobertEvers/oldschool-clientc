@@ -11,6 +11,7 @@ extern "C" {
 #include <stdio.h>
 #include <string.h>
 
+struct Cache;
 struct Platform2_OSX_SDL2
 {
     SDL_Window* window;
@@ -23,6 +24,8 @@ struct Platform2_OSX_SDL2
     int drawable_height;
 
     uint64_t last_frame_time_ticks;
+
+    struct Cache* cache;
 };
 
 struct Platform2_OSX_SDL2* Platform2_OSX_SDL2_New(void);

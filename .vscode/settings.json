@@ -175,6 +175,7 @@
         "archive.h": "c",
         "stdint.h": "c",
         "xtea_config.h": "c",
-        "list_macros.h": "c"
+        "list_macros.h": "c",
+        "gio_assets.h": "c"
     }
 }

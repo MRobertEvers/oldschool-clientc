@@ -13,13 +13,18 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(osx
         test/osx.cpp
         src/libg.c
-        src/osrs/gio.c
         src/datastruct/list.c
         src/shared_tables.c
         src/graphics/lighting.c
         src/graphics/render.c
         src/osrs/tables/model.c
         src/osrs/grender.c
+        src/osrs/gio.c
+        src/osrs/gio_assets.c
+        src/osrs/gio_cache.c
+        src/osrs/gtask.c
+        src/osrs/gtask_init_io.c
+        src/osrs/gtask_init_scene.c
 
         src/osrs/cache.c
         src/osrs/bounds_cylinder.c

@@ -2,17 +2,9 @@
 
 #include "datastruct/list_macros.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
-enum GIOStatus
-{
-    GIO_STATUS_PENDING,
-    GIO_STATUS_DONE,
-    GIO_STATUS_INFLIGHT,
-    GIO_STATUS_FINALIZED,
-    GIO_STATUS_ERROR,
-};
 
 struct GIORequest
 {
@@ -110,6 +102,33 @@ gioq_release(struct GIOQueue* q, struct GIOMessage* message)
     }
 }
 
+void*
+gioq_adopt(struct GIOQueue* q, struct GIOMessage* message, int* out_data_size)
+{
+    void* data = NULL;
+    int data_size = 0;
+
+    struct GIORequest* iter = NULL;
+    ll_foreach(q->requests_list, iter)
+    {
+        if( iter->message_id == message->message_id )
+        {
+            iter->status = GIO_STATUS_FINALIZED;
+            data = iter->data;
+            data_size = iter->data_size;
+
+            iter->data = NULL;
+            iter->data_size = 0;
+            break;
+        }
+    }
+
+    if( out_data_size )
+        *out_data_size = data_size;
+
+    return data;
+}
+
 bool
 gioq_poll(struct GIOQueue* q, struct GIOMessage* out)
 {
@@ -120,6 +139,7 @@ gioq_poll(struct GIOQueue* q, struct GIOMessage* out)
         if( iter->status == GIO_STATUS_DONE )
         {
             out->message_id = iter->message_id;
+            out->status = iter->status;
             out->kind = iter->kind;
             out->command = iter->command;
             out->param_b = iter->param_b;
@@ -157,8 +177,12 @@ gioqb_read_next(struct GIOQueue* q, struct GIOMessage* out)
         }
     }
 
+    if( iter == NULL )
+        goto not_found;
+
 found:
     out->message_id = iter->message_id;
+    out->status = iter->status;
     out->kind = iter->kind;
     out->command = iter->command;
     out->param_b = iter->param_b;
@@ -216,4 +240,36 @@ gioqb_mark_done(
     }
 
     return false;
+}
+
+void
+gioqb_remove(struct GIOQueue* q, struct GIOMessage* message)
+{
+    struct GIORequest* iter = q->requests_list;
+    struct GIORequest* previous = NULL;
+
+    struct GIORequest* item = NULL;
+
+    ll_foreach(q->requests_list, iter)
+    {
+        if( iter->message_id == message->message_id )
+        {
+            item = iter;
+            if( previous )
+                previous->next = iter->next;
+            else
+                q->requests_list = iter->next;
+            break;
+        }
+        previous = iter;
+        iter = iter->next;
+    }
+
+    if( item )
+    {
+        assert(item->status == GIO_STATUS_FINALIZED);
+
+        free(item->data);
+        free(item);
+    }
 }

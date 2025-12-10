@@ -12,7 +12,7 @@
 #include <string.h>
 
 struct GGame*
-libg_game_new(void)
+libg_game_new(struct GIOQueue* io)
 {
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
@@ -23,7 +23,7 @@ libg_game_new(void)
     init_tan_table();
     init_reciprocal16();
 
-    game->queue = gioq_new();
+    game->io = io;
     game->running = true;
     game->camera_world_x = 0;
     game->camera_world_y = -100;
@@ -99,13 +99,16 @@ libg_game_new(void)
         game->model->vertices_y,
         game->model->vertices_z);
 
+    game->tasks_nullable = gtask_new_init_io(game->io);
+    game->tasks_nullable->next = gtask_new_init_scene(game->io, 50, 50);
+
     return game;
 }
 
 void
 libg_game_free(struct GGame* game)
 {
-    gioq_free(game->queue);
+    gioq_free(game->io);
     free(game);
 }
 
@@ -116,22 +119,36 @@ libg_game_step(
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer)
 {
-    // IO
-    struct GIOMessage message = { 0 };
-    while( gioq_poll(game->queue, &message) )
-    {
-        switch( message.kind )
-        {
-        case GIO_REQ_ASSET:
-            break;
-        }
-    }
-
     if( input->quit )
     {
         game->running = false;
         return;
     }
+
+    struct GTask* task = game->tasks_nullable;
+    while( task )
+    {
+        enum GTaskStatus status = gtask_step(task);
+        if( status == GTASK_STATUS_COMPLETED )
+        {
+            game->tasks_nullable = game->tasks_nullable->next;
+            gtask_free(task);
+            task = game->tasks_nullable;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    if( task && task->status != GTASK_STATUS_COMPLETED )
+    {
+        printf("Tasks Inflight: %d\n", task->status);
+        return;
+    }
+
+    // IO
+    struct GIOMessage message = { 0 };
 
     const int target_input_fps = 50;
     const float time_delta_step = 1.0f / target_input_fps;

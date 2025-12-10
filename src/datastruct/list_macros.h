@@ -11,8 +11,9 @@
 // clang-format off
 #define ll_last(head, iter)                        \
     ({                                             \
-        if( head && iter )                         \
+        if( head )                         \
         {                                          \
+            iter = head;                           \
             while( iter->next != NULL )            \
                 iter = iter->next;                 \
         }                                          \

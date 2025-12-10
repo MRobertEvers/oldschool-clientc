@@ -54,9 +54,9 @@ main(int argc, char* argv[])
     printf("Hello, World!\n");
 
     bool has_message = false;
-    struct GGame* game = libg_game_new();
-    struct GInput input = { 0 };
     struct GIOQueue* io = gioq_new();
+    struct GGame* game = libg_game_new(io);
+    struct GInput input = { 0 };
     struct GRenderCommandBuffer* render_command_buffer = grendercb_new(1024);
     struct GIOMessage message = { 0 };
     struct Platform2_OSX_SDL2* platform = Platform2_OSX_SDL2_New();

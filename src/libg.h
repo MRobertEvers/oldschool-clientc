@@ -4,6 +4,7 @@
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/grender.h"
+#include "osrs/gtask.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -28,10 +29,12 @@ struct GGame
     struct ModelLighting* lighting;
     struct BoundsCylinder* bounds_cylinder;
 
-    struct GIOQueue* queue;
+    struct GIOQueue* io;
+    struct GTask* tasks_nullable;
 };
 
-struct GGame* libg_game_new(void);
+struct GGame* libg_game_new(struct GIOQueue* io);
+
 void libg_game_free(struct GGame* game);
 void libg_game_step(
     struct GGame* game,

@@ -8,15 +8,25 @@ struct GIOQueue;
 
 enum GIORequestKind
 {
+    GIO_REQ_INIT,
     GIO_REQ_ASSET,
 };
 
-/* Submission */
+enum GIOStatus
+{
+    GIO_STATUS_PENDING,
+    GIO_STATUS_DONE,
+    GIO_STATUS_INFLIGHT,
+    GIO_STATUS_FINALIZED,
+    GIO_STATUS_ERROR,
+};
+
 struct GIOMessage
 {
     uint32_t message_id;
-
+    enum GIOStatus status;
     enum GIORequestKind kind;
+
     uint32_t command;
     uint64_t param_b;
     uint64_t param_a;
@@ -36,6 +46,7 @@ uint32_t gioq_submit(
     uint64_t param_b,
     uint64_t param_a);
 
+void* gioq_adopt(struct GIOQueue* q, struct GIOMessage* message, int* out_data_size);
 void gioq_release(struct GIOQueue* q, struct GIOMessage* message);
 
 /* Poll a single request */
@@ -51,5 +62,7 @@ bool gioqb_mark_done(
     uint64_t param_a,
     void* data,
     int data_size);
+
+void gioqb_remove(struct GIOQueue* q, struct GIOMessage* message);
 
 #endif
