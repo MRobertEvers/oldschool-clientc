@@ -1,10 +1,12 @@
 #include "platform_impl2_osx_sdl2.h"
 
 extern "C" {
+#include "osrs/configmap.h"
 #include "osrs/gio.h"
 #include "osrs/gio_assets.h"
 #include "osrs/gio_cache.h"
 #include "osrs/grender.h"
+#include "osrs/xtea_config.h"
 }
 
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -259,20 +261,31 @@ on_gio_req_init(
     switch( message->status )
     {
     case GIO_STATUS_PENDING:
+    {
+        printf("Loading XTEA keys from: ../cache/xteas.json\n");
+        // printf("Loading XTEA keys from: ../cache/xteas.json\n");
+        int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
+        if( xtea_keys_count == -1 )
+        {
+            printf("Failed to load xtea keys from: ../cache/xteas.json\n");
+            printf("Make sure the xteas.json file exists in the cache directory\n");
+            assert(false && "Failed to load xtea keys");
+        }
+        printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
+
         platform->cache = gioqb_cache_new();
         gioqb_mark_done(
             io, message->message_id, message->command, message->param_b, message->param_a, NULL, 0);
-        break;
+    }
+    break;
     case GIO_STATUS_DONE:
         break;
     case GIO_STATUS_INFLIGHT:
         break;
     case GIO_STATUS_FINALIZED:
-        gioqb_remove(io, message);
         break;
     case GIO_STATUS_ERROR:
         assert(false && "GIO_STATUS_ERROR in on_gio_req_init");
-        gioqb_remove(io, message);
         break;
     }
 }
@@ -281,7 +294,8 @@ static void
 on_gio_req_asset(
     struct Platform2_OSX_SDL2* platform, struct GIOQueue* io, struct GIOMessage* message)
 {
-    assert(message->command == GIO_REQ_ASSET);
+    struct CacheArchive* archive = NULL;
+    struct ConfigMapPacked* config_map_packed = NULL;
 
     switch( message->status )
     {
@@ -289,16 +303,54 @@ on_gio_req_asset(
     {
         if( message->command == ASSET_MODELS )
         {
-            struct CacheModel* model =
-                gioqb_cache_model_new_load(platform->cache, message->param_b);
+            archive = gioqb_cache_model_new_load(platform->cache, message->param_b);
             gioqb_mark_done(
                 io,
                 message->message_id,
                 message->command,
-                message->param_b,
-                message->param_a,
-                model,
-                sizeof(struct CacheModel));
+                archive->revision,
+                0,
+                archive->data,
+                archive->data_size);
+            archive->data = NULL;
+            archive->data_size = 0;
+            cache_archive_free(archive);
+            archive = NULL;
+        }
+        else if( message->command == ASSET_MAP_SCENERY )
+        {
+            archive = gioqb_cache_map_scenery_new_load(
+                platform->cache, message->param_a, message->param_b);
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                0,
+                archive->data,
+                archive->data_size);
+            archive->data = NULL;
+            archive->data_size = 0;
+            cache_archive_free(archive);
+            archive = NULL;
+        }
+        else if( message->command == ASSET_CONFIG_SCENERY )
+        {
+            archive = gioqb_cache_config_scenery_new_load(platform->cache);
+            config_map_packed = configmap_packed_new(platform->cache, archive);
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                0,
+                config_map_packed->data,
+                config_map_packed->data_size);
+            config_map_packed->data = NULL;
+            config_map_packed->data_size = 0;
+            configmap_packed_free(config_map_packed);
+            cache_archive_free(archive);
+            archive = NULL;
         }
         else
         {
@@ -312,10 +364,8 @@ on_gio_req_asset(
     case GIO_STATUS_INFLIGHT:
         break;
     case GIO_STATUS_FINALIZED:
-        gioqb_remove(io, message);
         break;
     case GIO_STATUS_ERROR:
-        gioqb_remove(io, message);
         break;
     }
 }
@@ -339,4 +389,6 @@ Platform2_OSX_SDL2_PollIO(struct Platform2_OSX_SDL2* platform, struct GIOQueue* 
             break;
         }
     }
+
+    gioqb_remove_finalized(queue);
 }

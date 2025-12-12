@@ -16,12 +16,22 @@
 
 struct ConfigMap;
 
+struct ConfigMapPacked
+{
+    void* data;
+    int data_size;
+};
+
 struct ConfigMapIter
 {
     struct HMapIter* hmap_iter;
 };
 
+struct ConfigMapPacked* configmap_packed_new(struct Cache* cache, struct CacheArchive* archive);
 struct ConfigMap* configmap_new_from_archive(struct Cache* cache, struct CacheArchive* archive);
+struct ConfigMap*
+configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_size);
+void configmap_packed_free(struct ConfigMapPacked* packed);
 void configmap_free(struct ConfigMap* configmap);
 
 enum ConfigKind configmap_kind(struct ConfigMap* configmap);

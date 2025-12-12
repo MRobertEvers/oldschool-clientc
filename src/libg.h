@@ -35,6 +35,7 @@ struct GGame
 
 struct GGame* libg_game_new(struct GIOQueue* io);
 
+void libg_game_process_input(struct GGame* game, struct GInput* input);
 void libg_game_step_tasks(
     struct GGame* game,
     struct GIOQueue* queue,

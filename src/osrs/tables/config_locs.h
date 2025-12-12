@@ -165,21 +165,5 @@ void config_locs_free(struct CacheConfigLocation* loc);
 void config_locs_free_inplace(struct CacheConfigLocation* loc);
 
 void config_locs_decode_inplace(struct CacheConfigLocation* loc, char* data, int data_size);
-void decode_loc(struct CacheConfigLocation* loc, char* buffer, int buffer_size);
-
-struct CacheConfigLocationTable
-{
-    struct CacheConfigLocation* value;
-
-    struct FileList* file_list;
-    struct CacheArchive* archive;
-};
-
-struct CacheConfigLocationTable* config_locs_table_new(struct Cache* cache);
-struct CacheConfigLocationTable* config_locs_table_new_from_archive(struct CacheArchive* archive);
-void config_locs_table_free(struct CacheConfigLocationTable* table);
-
-struct CacheConfigLocation*
-config_locs_table_get_new(struct CacheConfigLocationTable* table, int id);
 
 #endif

@@ -54,30 +54,4 @@ void config_sequence_free_inplace(struct CacheConfigSequence* sequence);
 void config_sequence_decode_inplace(
     struct CacheConfigSequence* sequence, int revision, char* buffer, int buffer_size);
 
-/**
- * @deprecated
- */
-void print_sequence(struct CacheConfigSequence* def);
-
-/**
- * @deprecated
- */
-void free_sequence(struct CacheConfigSequence* def);
-
-struct CacheConfigSequenceTable
-{
-    struct CacheConfigSequence* value;
-
-    struct FileList* file_list;
-    struct CacheArchive* archive;
-};
-
-struct CacheConfigSequenceTable* config_sequence_table_new(struct Cache* cache);
-struct CacheConfigSequenceTable*
-config_sequence_table_new_from_archive(struct CacheArchive* archive);
-void config_sequence_table_free(struct CacheConfigSequenceTable* table);
-
-struct CacheConfigSequence*
-config_sequence_table_get_new(struct CacheConfigSequenceTable* table, int id);
-
 #endif // SEQUENCE_H

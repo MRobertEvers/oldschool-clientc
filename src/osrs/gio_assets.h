@@ -9,10 +9,12 @@ enum AssetKind
     ASSET_MODELS,
     ASSET_MAP_SCENERY,
     ASSET_MAP_TERRAIN,
+    ASSET_CONFIG_SCENERY,
     ASSET_TABLE_COUNT
 };
 
 uint32_t gio_assets_model_load(struct GIOQueue* q, int model_id);
 uint32_t gio_assets_map_scenery_load(struct GIOQueue* q, int chunk_x, int chunk_y);
+uint32_t gio_assets_config_scenery_load(struct GIOQueue* q);
 
 #endif

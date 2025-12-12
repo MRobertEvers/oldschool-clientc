@@ -133,6 +133,8 @@ bool
 gioq_poll(struct GIOQueue* q, struct GIOMessage* out)
 {
     struct GIORequest* iter = NULL;
+    memset(out, 0, sizeof(struct GIOMessage));
+    out->status = GIO_STATUS_PENDING;
 
     ll_foreach(q->requests_list, iter)
     {
@@ -243,33 +245,57 @@ gioqb_mark_done(
 }
 
 void
-gioqb_remove(struct GIOQueue* q, struct GIOMessage* message)
+gioqb_remove_finalized(struct GIOQueue* q)
 {
     struct GIORequest* iter = q->requests_list;
     struct GIORequest* previous = NULL;
 
-    struct GIORequest* item = NULL;
-
-    ll_foreach(q->requests_list, iter)
+    while( iter )
     {
-        if( iter->message_id == message->message_id )
+        if( iter->status == GIO_STATUS_FINALIZED )
         {
-            item = iter;
             if( previous )
                 previous->next = iter->next;
             else
                 q->requests_list = iter->next;
-            break;
+            free(iter->data);
+            free(iter);
+            iter = previous ? previous->next : q->requests_list;
+            continue;
         }
         previous = iter;
         iter = iter->next;
     }
-
-    if( item )
-    {
-        assert(item->status == GIO_STATUS_FINALIZED);
-
-        free(item->data);
-        free(item);
-    }
 }
+
+// void
+// gioqb_remove(struct GIOQueue* q, struct GIOMessage* message)
+// {
+//     struct GIORequest* iter = q->requests_list;
+//     struct GIORequest* previous = NULL;
+
+//     struct GIORequest* item = NULL;
+
+//     ll_foreach(q->requests_list, iter)
+//     {
+//         if( iter->message_id == message->message_id )
+//         {
+//             item = iter;
+//             if( previous )
+//                 previous->next = iter->next;
+//             else
+//                 q->requests_list = iter->next;
+//             break;
+//         }
+//         previous = iter;
+//         iter = iter->next;
+//     }
+
+//     if( item )
+//     {
+//         assert(item->status == GIO_STATUS_FINALIZED);
+
+//         free(item->data);
+//         free(item);
+//     }
+// }

@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 
+static void decode_loc(struct CacheConfigLocation* loc, char* data, int data_size);
+
 struct CacheConfigLocation*
 config_locs_new_decode(char* buffer, int buffer_size)
 {
@@ -183,7 +185,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->param_values = NULL;
 }
 
-void
+static void
 decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
 {
     struct RSBuffer buffer = { .data = (uint8_t*)data, .size = data_size, .position = 0 };
@@ -641,113 +643,4 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             break;
         }
     }
-}
-
-void
-print_loc(struct CacheConfigLocation* loc)
-{
-    printf("Loc: %s\n", loc->name ? loc->name : "NULL");
-    if( loc->desc )
-    {
-        printf("Desc: %s\n", loc->desc);
-    }
-
-    for( int i = 0; i < 5; i++ )
-    {
-        if( loc->actions[i] )
-            printf("Action %d: %s\n", i, loc->actions[i]);
-    }
-}
-
-struct CacheConfigLocationTable*
-config_locs_table_new(struct Cache* cache)
-{
-    struct CacheConfigLocationTable* table = malloc(sizeof(struct CacheConfigLocationTable));
-    if( !table )
-    {
-        printf("config_locs_table_new: Failed to allocate table\n");
-        return NULL;
-    }
-    memset(table, 0, sizeof(struct CacheConfigLocationTable));
-
-    table->archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_LOCS);
-    if( !table->archive )
-    {
-        printf("config_locs_table_new: Failed to load archive\n");
-        goto error;
-    }
-
-    table->file_list = filelist_new_from_cache_archive(table->archive);
-    if( !table->file_list )
-    {
-        printf("config_locs_table_new: Failed to load file list\n");
-        goto error;
-    }
-
-    return table;
-
-error:
-    config_locs_table_free(table);
-    return NULL;
-}
-
-struct CacheConfigLocationTable*
-config_locs_table_new_from_archive(struct CacheArchive* archive)
-{
-    assert(archive->table_id == CACHE_CONFIGS);
-    assert(archive->archive_id == CONFIG_LOCS);
-
-    struct CacheConfigLocationTable* table = malloc(sizeof(struct CacheConfigLocationTable));
-    if( !table )
-    {
-        printf("config_locs_table_new_from_archive: Failed to allocate table\n");
-        return NULL;
-    }
-    memset(table, 0, sizeof(struct CacheConfigLocationTable));
-
-    table->archive = archive; // Take ownership of the archive
-    table->file_list = filelist_new_from_cache_archive(table->archive);
-    if( !table->file_list )
-    {
-        printf("config_locs_table_new_from_archive: Failed to load file list\n");
-        config_locs_table_free(table);
-        return NULL;
-    }
-
-    return table;
-}
-
-void
-config_locs_table_free(struct CacheConfigLocationTable* table)
-{
-    if( table->file_list )
-        filelist_free(table->file_list);
-    if( table->archive )
-        cache_archive_free(table->archive);
-    free(table);
-}
-
-struct CacheConfigLocation*
-config_locs_table_get_new(struct CacheConfigLocationTable* table, int id)
-{
-    if( id < 0 || id > table->file_list->file_count )
-    {
-        printf("config_locs_table_get: Invalid id %d\n", id);
-        return NULL;
-    }
-
-    if( table->value )
-    {
-        // free_loc(table->value);
-        table->value = NULL;
-    }
-
-    table->value = malloc(sizeof(struct CacheConfigLocation));
-    memset(table->value, 0, sizeof(struct CacheConfigLocation));
-
-    decode_loc(table->value, table->file_list->files[id], table->file_list->file_sizes[id]);
-
-    table->value->_id = id;
-
-    return table->value;
 }

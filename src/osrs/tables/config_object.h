@@ -124,18 +124,4 @@ void config_object_free(struct CacheConfigObject* object);
 
 void config_object_decode_inplace(struct CacheConfigObject* object, char* buffer, int buffer_size);
 
-struct CacheConfigObjectTable
-{
-    struct CacheConfigObject* value;
-
-    struct FileList* file_list;
-    struct CacheArchive* archive;
-};
-
-struct CacheConfigObjectTable* config_object_table_new(struct Cache* cache);
-struct CacheConfigObjectTable* config_object_table_new_from_archive(struct CacheArchive* archive);
-void config_object_table_free(struct CacheConfigObjectTable* table);
-
-struct CacheConfigObject* config_object_table_get_new(struct CacheConfigObjectTable* table, int id);
-
 #endif

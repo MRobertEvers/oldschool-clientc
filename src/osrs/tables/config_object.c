@@ -1,7 +1,7 @@
 #include "config_object.h"
 
-#include "../rsbuf.h"
 #include "../../string_utils.h"
+#include "../rsbuf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -500,94 +500,4 @@ config_object_decode_inplace(struct CacheConfigObject* object, char* data, int d
         }
         }
     }
-}
-
-struct CacheConfigObjectTable*
-config_object_table_new(struct Cache* cache)
-{
-    struct CacheConfigObjectTable* table = malloc(sizeof(struct CacheConfigObjectTable));
-    if( !table )
-    {
-        printf("config_object_table_new: Failed to allocate table\n");
-        return NULL;
-    }
-    memset(table, 0, sizeof(struct CacheConfigObjectTable));
-
-    table->archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_OBJECT);
-    if( !table->archive )
-    {
-        printf("config_object_table_new: Failed to load archive\n");
-        goto error;
-    }
-
-    table->file_list = filelist_new_from_cache_archive(table->archive);
-    if( !table->file_list )
-    {
-        printf("config_object_table_new: Failed to load file list\n");
-        goto error;
-    }
-
-    return table;
-error:
-    free(table);
-    return NULL;
-}
-
-struct CacheConfigObjectTable*
-config_object_table_new_from_archive(struct CacheArchive* archive)
-{
-    struct CacheConfigObjectTable* table = malloc(sizeof(struct CacheConfigObjectTable));
-    if( !table )
-    {
-        printf("config_object_table_new_from_archive: Failed to allocate table\n");
-        return NULL;
-    }
-    memset(table, 0, sizeof(struct CacheConfigObjectTable));
-
-    table->archive = archive; // Take ownership of the archive
-    table->file_list = filelist_new_from_cache_archive(table->archive);
-    if( !table->file_list )
-    {
-        printf("config_object_table_new_from_archive: Failed to load file list\n");
-        config_object_table_free(table);
-        return NULL;
-    }
-
-    return table;
-}
-
-void
-config_object_table_free(struct CacheConfigObjectTable* table)
-{
-    if( table->file_list )
-        filelist_free(table->file_list);
-    if( table->archive )
-        cache_archive_free(table->archive);
-    free(table);
-}
-
-struct CacheConfigObject*
-config_object_table_get_new(struct CacheConfigObjectTable* table, int id)
-{
-    if( id < 0 || id > table->file_list->file_count )
-    {
-        printf("config_object_table_get: Invalid id %d\n", id);
-        return NULL;
-    }
-
-    if( table->value )
-    {
-        // config_object_free(table->value);
-        table->value = NULL;
-    }
-
-    table->value = malloc(sizeof(struct CacheConfigObject));
-    memset(table->value, 0, sizeof(struct CacheConfigObject));
-
-    config_object_decode_inplace(
-        table->value, table->file_list->files[id], table->file_list->file_sizes[id]);
-
-    table->value->_id = id;
-
-    return table->value;
 }

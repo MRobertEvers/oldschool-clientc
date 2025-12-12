@@ -14,17 +14,28 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         test/osx.cpp
         src/libg.c
         src/datastruct/list.c
+        src/datastruct/vec.c
         src/shared_tables.c
         src/graphics/lighting.c
         src/graphics/render.c
         src/osrs/tables/model.c
+        src/osrs/tables/maps.c
+        src/osrs/tables/config_locs.c
+        src/osrs/tables/config_floortype.c
+        src/osrs/tables/config_object.c
+        src/osrs/tables/config_sequence.c
+        src/osrs/tables/config_npctype.c
+        src/osrs/tables/noise.c
+        src/osrs/filelist.c
         src/osrs/grender.c
+        src/osrs/archive.c
         src/osrs/gio.c
         src/osrs/gio_assets.c
         src/osrs/gio_cache.c
         src/osrs/gtask.c
         src/osrs/gtask_init_io.c
         src/osrs/gtask_init_scene.c
+        src/osrs/configmap.c
 
         src/osrs/cache.c
         src/osrs/bounds_cylinder.c

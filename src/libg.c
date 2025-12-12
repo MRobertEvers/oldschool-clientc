@@ -27,7 +27,7 @@ libg_game_new(struct GIOQueue* io)
     game->running = true;
     game->camera_world_x = 0;
     game->camera_world_y = -100;
-    game->camera_world_z = 500;
+    game->camera_world_z = -500;
     game->camera_yaw = 0;
     game->camera_pitch = 128;
     game->camera_roll = 0;
@@ -113,53 +113,8 @@ libg_game_free(struct GGame* game)
 }
 
 void
-libg_game_step_tasks(
-    struct GGame* game,
-    struct GIOQueue* queue,
-    struct GInput* input,
-    struct GRenderCommandBuffer* render_command_buffer)
+libg_game_process_input(struct GGame* game, struct GInput* input)
 {
-    struct GTask* task = game->tasks_nullable;
-    while( task )
-    {
-        enum GTaskStatus status = gtask_step(task);
-        if( status == GTASK_STATUS_COMPLETED )
-        {
-            game->tasks_nullable = game->tasks_nullable->next;
-            gtask_free(task);
-            task = game->tasks_nullable;
-        }
-        else
-        {
-            break;
-        }
-    }
-}
-
-void
-libg_game_step(
-    struct GGame* game,
-    struct GIOQueue* queue,
-    struct GInput* input,
-    struct GRenderCommandBuffer* render_command_buffer)
-{
-    struct GTask* task = NULL;
-    struct GIOMessage message = { 0 };
-
-    if( input->quit )
-    {
-        game->running = false;
-        return;
-    }
-
-    libg_game_step_tasks(game, queue, input, render_command_buffer);
-    task = game->tasks_nullable;
-    if( task && task->status != GTASK_STATUS_COMPLETED )
-    {
-        printf("Tasks Inflight: %d\n", task->status);
-        return;
-    }
-
     // IO
     const int target_input_fps = 50;
     const float time_delta_step = 1.0f / target_input_fps;
@@ -237,6 +192,74 @@ libg_game_step(
             game->running = false;
         }
     }
+}
+
+static void
+on_completed_task(
+    struct GGame* game,
+    struct GIOQueue* queue,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer,
+    struct GTask* task)
+{
+    switch( task->kind )
+    {
+    case GTASK_KIND_INIT_IO:
+        break;
+    case GTASK_KIND_INIT_SCENE:
+        // game->model = gtask_init_scene_value(task->_init_scene);
+        break;
+    }
+}
+
+void
+libg_game_step_tasks(
+    struct GGame* game,
+    struct GIOQueue* queue,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer)
+{
+    struct GTask* task = game->tasks_nullable;
+    enum GTaskStatus status = GTASK_STATUS_FAILED;
+    while( task )
+    {
+        status = gtask_step(task);
+        if( status != GTASK_STATUS_COMPLETED )
+            break;
+
+        on_completed_task(game, queue, input, render_command_buffer, task);
+
+        game->tasks_nullable = game->tasks_nullable->next;
+        gtask_free(task);
+        task = game->tasks_nullable;
+    }
+}
+
+void
+libg_game_step(
+    struct GGame* game,
+    struct GIOQueue* queue,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer)
+{
+    struct GTask* task = NULL;
+    struct GIOMessage message = { 0 };
+
+    if( input->quit )
+    {
+        game->running = false;
+        return;
+    }
+
+    libg_game_step_tasks(game, queue, input, render_command_buffer);
+    task = game->tasks_nullable;
+    if( task && task->status != GTASK_STATUS_COMPLETED )
+    {
+        printf("Tasks Inflight: %d\n", task->status);
+        return;
+    }
+
+    libg_game_process_input(game, input);
 
     grendercb_reset(render_command_buffer);
     struct GRenderCommand command = {

@@ -1,5 +1,8 @@
 #include "gio_cache.h"
 
+#include "tables/configs.h"
+#include "tables/maps.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,15 +22,41 @@ gioqb_cache_new(void)
     return cache;
 }
 
-struct CacheModel*
+struct CacheArchive*
 gioqb_cache_model_new_load(struct Cache* cache, int model_id)
 {
-    struct CacheModel* model = model_new_from_cache(cache, model_id);
-    if( !model )
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_MODELS, model_id);
+    if( !archive )
     {
-        printf("Failed to load model %d\n", model_id);
+        printf("Failed to load archive for model %d\n", model_id);
         return NULL;
     }
 
-    return model;
+    return archive;
+}
+
+struct CacheArchive*
+gioqb_cache_map_scenery_new_load(struct Cache* cache, int chunk_x, int chunk_y)
+{
+    struct CacheArchive* archive = map_locs_archive_new_load(cache, chunk_x, chunk_y);
+    if( !archive )
+    {
+        printf("Failed to load archive for map scenery %d, %d\n", chunk_x, chunk_y);
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive*
+gioqb_cache_config_scenery_new_load(struct Cache* cache)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_LOCS);
+    if( !archive )
+    {
+        printf("Failed to load archive for config scenery\n");
+        return NULL;
+    }
+
+    return archive;
 }

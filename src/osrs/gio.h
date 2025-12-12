@@ -46,7 +46,6 @@ uint32_t gioq_submit(
     uint64_t param_b,
     uint64_t param_a);
 
-void* gioq_adopt(struct GIOQueue* q, struct GIOMessage* message, int* out_data_size);
 void gioq_release(struct GIOQueue* q, struct GIOMessage* message);
 
 /* Poll a single request */
@@ -63,6 +62,6 @@ bool gioqb_mark_done(
     void* data,
     int data_size);
 
-void gioqb_remove(struct GIOQueue* q, struct GIOMessage* message);
+void gioqb_remove_finalized(struct GIOQueue* q);
 
 #endif

@@ -34,6 +34,7 @@ map_tile_coord_to_chunk_coord(int x, int y, int z)
 
 struct CacheMapLoc
 {
+    // This is the config id.
     int loc_id;
     /**
      * Some locs have multiple models associated with them.
@@ -97,7 +98,8 @@ enum CachePreloadKind map_terrain_preload_check(struct Cache* cache, int map_x, 
 void map_terrain_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out);
 void map_locs_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out);
 struct CacheMapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
-struct CacheMapTerrain* map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y);
+struct CacheMapTerrain*
+map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y);
 struct CacheMapTerrain* map_terrain_new_from_decode(char* data, int data_size);
 
 enum CachePreloadKind map_locs_preload_check(struct Cache* cache, int map_x, int map_y);
@@ -110,20 +112,18 @@ void map_locs_free(struct CacheMapLocs* map_locs);
 struct CacheMapLocsIter
 {
     int is_populated;
-    struct CacheMapLoc value;
 
-    struct CacheArchive* _archive;
-    struct RSBuffer _buffer;
-
-    int _pos;
-    int _id;
-    int _state;
+    struct CacheMapLocs* _map_locs;
+    int _index;
 };
 
+struct CacheArchive* map_locs_archive_new_load(struct Cache* cache, int map_x, int map_y);
 struct CacheMapLocsIter* map_locs_iter_new(struct Cache* cache, int map_x, int map_y);
+struct CacheMapLocsIter* map_locs_iter_new_decode(uint8_t* data, int data_size);
 struct CacheMapLocsIter* map_locs_iter_new_from_archive(struct CacheArchive* archive);
 void map_locs_iter_free(struct CacheMapLocsIter* iter);
 
+void map_locs_iter_begin(struct CacheMapLocsIter* iter);
 struct CacheMapLoc* map_locs_iter_next(struct CacheMapLocsIter* iter);
 
 #endif

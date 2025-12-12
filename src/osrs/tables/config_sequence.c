@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void free_sequence(struct CacheConfigSequence* def);
+
 // package net.runelite.cache.definitions.loaders;
 
 // import lombok.Data;
@@ -802,7 +804,7 @@ decode_sequence(struct CacheConfigSequence* def, int revision, struct RSBuffer* 
     }
 }
 
-void
+static void
 print_sequence(struct CacheConfigSequence* def)
 {
     printf("Sequence %d:\n", def->id);
@@ -865,7 +867,7 @@ print_sequence(struct CacheConfigSequence* def)
     }
 }
 
-void
+static void
 free_sequence(struct CacheConfigSequence* def)
 {
     if( def->frame_ids )
@@ -900,99 +902,4 @@ free_sequence(struct CacheConfigSequence* def)
     {
         free(def->frame_sounds.sounds);
     }
-}
-
-struct CacheConfigSequenceTable*
-config_sequence_table_new(struct Cache* cache)
-{
-    struct CacheConfigSequenceTable* table = malloc(sizeof(struct CacheConfigSequenceTable));
-    if( !table )
-    {
-        printf("config_sequence_table_new: Failed to allocate table\n");
-        return NULL;
-    }
-    memset(table, 0, sizeof(struct CacheConfigSequenceTable));
-
-    table->archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_SEQUENCE);
-    if( !table->archive )
-    {
-        printf("config_sequence_table_new: Failed to load archive\n");
-        goto error;
-    }
-
-    table->file_list = filelist_new_from_cache_archive(table->archive);
-    if( !table->file_list )
-    {
-        printf("config_sequence_table_new: Failed to load file list\n");
-        goto error;
-    }
-
-    return table;
-error:
-    free(table);
-    return NULL;
-}
-
-struct CacheConfigSequenceTable*
-config_sequence_table_new_from_archive(struct CacheArchive* archive)
-{
-    struct CacheConfigSequenceTable* table = malloc(sizeof(struct CacheConfigSequenceTable));
-    if( !table )
-    {
-        printf("config_sequence_table_new_from_archive: Failed to allocate table\n");
-        return NULL;
-    }
-
-    memset(table, 0, sizeof(struct CacheConfigSequenceTable));
-
-    table->archive = archive;
-
-    table->file_list = filelist_new_from_cache_archive(archive);
-    if( !table->file_list )
-    {
-        printf("config_sequence_table_new_from_archive: Failed to load file list\n");
-        free(table);
-        return NULL;
-    }
-
-    return table;
-}
-
-void
-config_sequence_table_free(struct CacheConfigSequenceTable* table)
-{
-    if( table->file_list )
-        filelist_free(table->file_list);
-    if( table->archive )
-        cache_archive_free(table->archive);
-    free(table);
-}
-
-struct CacheConfigSequence*
-config_sequence_table_get_new(struct CacheConfigSequenceTable* table, int id)
-{
-    if( id < 0 || id > table->file_list->file_count )
-    {
-        printf("config_sequence_table_get_new: Invalid id %d\n", id);
-        return NULL;
-    }
-
-    if( table->value )
-    {
-        // config_sequence_free(table->value);
-        table->value = NULL;
-    }
-
-    table->value = malloc(sizeof(struct CacheConfigSequence));
-    memset(table->value, 0, sizeof(struct CacheConfigSequence));
-
-    config_sequence_decode_inplace(
-        table->value,
-        table->archive->revision,
-        table->file_list->files[id],
-        table->file_list->file_sizes[id]);
-
-    table->value->id = id;
-
-    return table->value;
 }
