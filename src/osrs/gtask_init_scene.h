@@ -45,12 +45,14 @@ enum GTaskInitSceneStep
     STEP_INIT_SCENE_ONE_LOAD_SCENERY,
     STEP_INIT_SCENE_TWO_LOAD_SCENERY_CONFIG,
     STEP_INIT_SCENE_THREE_LOAD_SCENERY_MODELS,
+    STEP_INIT_SCENE_FOUR_LOAD_TERRAIN,
     STEP_INIT_SCENE_FOUR_BUILD_WORLD,
     STEP_INIT_SCENE_DONE,
 };
 
 struct GTaskInitScene;
-struct GTaskInitScene* gtask_init_scene_new(struct GIOQueue* io, int chunk_x, int chunk_y);
+struct GTaskInitScene*
+gtask_init_scene_new(struct GIOQueue* io, int world_x, int world_z, int scene_size);
 void gtask_init_scene_free(struct GTaskInitScene* task);
 
 enum GTaskStatus gtask_init_scene_step(struct GTaskInitScene* task);

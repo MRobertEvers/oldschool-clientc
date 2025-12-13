@@ -10,11 +10,11 @@
 // clang-format on
 
 static inline void
-init_painter_tile(struct PaintersTile* tile, int wx, int wz, int wlevel)
+init_painter_tile(struct PaintersTile* tile, int sx, int sz, int slevel)
 {
-    tile->wx = wx;
-    tile->wz = wz;
-    tile->wlevel = wlevel;
+    tile->sx = sx;
+    tile->sz = sz;
+    tile->slevel = slevel;
     tile->spans = 0;
     tile->wall_a = -1;
     tile->wall_b = -1;
@@ -90,16 +90,16 @@ painter_push_element(struct Painter* painter)
 }
 
 static inline int
-painter_coord_idx(struct Painter* painter, int wx, int wz, int wlevel)
+painter_coord_idx(struct Painter* painter, int sx, int sz, int slevel)
 {
-    assert(wx >= 0);
-    assert(wz >= 0);
-    assert(wlevel >= 0);
-    assert(wx < painter->width);
-    assert(wz < painter->height);
-    assert(wlevel < painter->levels);
+    assert(sx >= 0);
+    assert(sz >= 0);
+    assert(slevel >= 0);
+    assert(sx < painter->width);
+    assert(sz < painter->height);
+    assert(slevel < painter->levels);
 
-    return MAP_TILE_COORD(wx, wz, wlevel);
+    return MAP_TILE_COORD(sx, sz, slevel);
 }
 
 struct Painter*
@@ -119,11 +119,11 @@ painter_new(int width, int height, int levels)
     painter->tile_count = 0;
     painter->tile_capacity = tile_count;
 
-    for( int wx = 0; wx < width; wx++ )
+    for( int sx = 0; sx < width; sx++ )
     {
-        for( int wz = 0; wz < height; wz++ )
-            for( int wlevel = 0; wlevel < levels; wlevel++ )
-                init_painter_tile(painter_tile_at(painter, wx, wz, wlevel), wx, wz, wlevel);
+        for( int sz = 0; sz < height; sz++ )
+            for( int slevel = 0; slevel < levels; slevel++ )
+                init_painter_tile(painter_tile_at(painter, sx, sz, slevel), sx, sz, slevel);
     }
 
     painter->tile_paints = malloc(tile_count * sizeof(struct TilePaint));
@@ -150,9 +150,9 @@ painter_free(struct Painter* painter)
 }
 
 struct PaintersTile*
-painter_tile_at(struct Painter* painter, int wx, int wz, int wlevel)
+painter_tile_at(struct Painter* painter, int sx, int sz, int slevel)
 {
-    int coord = MAP_TILE_COORD(wx, wz, wlevel);
+    int coord = MAP_TILE_COORD(sx, sz, slevel);
     assert(coord < painter->tile_capacity);
     return &painter->tiles[coord];
 }
@@ -168,9 +168,9 @@ painter_element_at(
 
 void
 painter_add_normal_scenery(
-    struct Painter* painter, int wx, int wz, int wlevel, int entity, int size_x, int size_y)
+    struct Painter* painter, int sx, int sz, int slevel, int entity, int size_x, int size_y)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, wx, wz, wlevel);
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
     assert(tile->scenery_count < 10);
@@ -178,18 +178,18 @@ painter_add_normal_scenery(
 
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_SCENERY,
-        .wx = wx,
-        .wz = wz,
-        .wlevel = wlevel,
+        .sx = sx,
+        .sz = sz,
+        .slevel = slevel,
         ._scenery = { .entity = entity, .size_x = size_x, .size_y = size_y },
     };
 }
 
 void
 painter_add_wall(
-    struct Painter* painter, int wx, int wz, int wlevel, int entity, int wall_ab, int side)
+    struct Painter* painter, int sx, int sz, int slevel, int entity, int wall_ab, int side)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, wx, wz, wlevel);
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
     assert(tile->wall_a == -1);
@@ -211,9 +211,9 @@ painter_add_wall(
 
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_WALL_A,
-        .wx = wx,
-        .wz = wz,
-        .wlevel = wlevel,
+        .sx = sx,
+        .sz = sz,
+        .slevel = slevel,
         ._wall = { .entity = entity, .side = side },
     };
 }
@@ -221,15 +221,15 @@ painter_add_wall(
 void
 painter_add_wall_decor(
     struct Painter* painter,
-    int wx,
-    int wz,
-    int wlevel,
+    int sx,
+    int sz,
+    int slevel,
     int entity,
     int wall_ab,
     int side,
     int through_wall_flags)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, wx, wz, wlevel);
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
     assert(tile->wall_decor_a == -1);
@@ -249,9 +249,9 @@ painter_add_wall_decor(
 
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_WALL_DECOR,
-        .wx = wx,
-        .wz = wz,
-        .wlevel = wlevel,
+        .sx = sx,
+        .sz = sz,
+        .slevel = slevel,
         ._wall_decor = { //
             .entity = entity, //
             ._bf_side = side,
@@ -261,9 +261,9 @@ painter_add_wall_decor(
 }
 
 void
-painter_add_ground_decor(struct Painter* painter, int wx, int wz, int wlevel, int entity)
+painter_add_ground_decor(struct Painter* painter, int sx, int sz, int slevel, int entity)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, wx, wz, wlevel);
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
     assert(tile->ground_decor == -1);
@@ -271,18 +271,18 @@ painter_add_ground_decor(struct Painter* painter, int wx, int wz, int wlevel, in
 
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_GROUND_DECOR,
-        .wx = wx,
-        .wz = wz,
-        .wlevel = wlevel,
+        .sx = sx,
+        .sz = sz,
+        .slevel = slevel,
         ._ground_decor = { .entity = entity },
     };
 }
 
 void
 painter_add_ground_object(
-    struct Painter* painter, int wx, int wz, int wlevel, int entity, int bottom_middle_top)
+    struct Painter* painter, int sx, int sz, int slevel, int entity, int bottom_middle_top)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, wx, wz, wlevel);
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
     switch( bottom_middle_top )
@@ -305,9 +305,9 @@ painter_add_ground_object(
 
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_GROUND_OBJECT,
-        .wx = wx,
-        .wz = wz,
-        .wlevel = wlevel,
+        .sx = sx,
+        .sz = sz,
+        .slevel = slevel,
         ._ground_object = { .entity = entity },
     };
 }
@@ -342,26 +342,26 @@ push_command_entity(struct PaintersBuffer* buffer, int entity)
 }
 
 static inline void
-push_command_terrain(struct PaintersBuffer* buffer, int wx, int wz, int wlevel)
+push_command_terrain(struct PaintersBuffer* buffer, int sx, int sz, int slevel)
 {
     ensure_command_capacity(buffer, 1);
     buffer->commands[buffer->command_count++] = (struct PaintersElementCommand){
         ._terrain = {
             ._bf_kind = PNTR_CMD_TERRAIN,
-            ._bf_terrain_x = wx,
-            ._bf_terrain_y = wz,
-            ._bf_terrain_z = wlevel,
+            ._bf_terrain_x = sx,
+            ._bf_terrain_y = sz,
+            ._bf_terrain_z = slevel,
         },
     };
 }
 
 static inline int
-near_wall_flags(int camera_wx, int camera_wz, int wx, int wz)
+near_wall_flags(int camera_sx, int camera_sz, int sx, int sz)
 {
     int flags = 0;
 
-    int camera_is_north = wz < camera_wz;
-    int camera_is_east = wx < camera_wx;
+    int camera_is_north = sz < camera_sz;
+    int camera_is_east = sx < camera_sx;
 
     if( camera_is_north )
         flags |= WALL_SIDE_NORTH | WALL_CORNER_NORTHWEST | WALL_CORNER_NORTHEAST;
@@ -382,9 +382,9 @@ int
 painter_paint(
     struct Painter* painter, //
     struct PaintersBuffer* buffer,
-    int camera_wx,
-    int camera_wz,
-    int camera_wlevel)
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel)
 {
     struct PaintersTile* tile = NULL;
     struct PaintersElement* element = NULL;
@@ -407,8 +407,8 @@ painter_paint(
 
     int coord_list_length = 0;
 
-    int max_draw_x = camera_wx + radius;
-    int max_draw_z = camera_wz + radius;
+    int max_draw_x = camera_sx + radius;
+    int max_draw_z = camera_sz + radius;
     if( max_draw_x >= painter->width )
         max_draw_x = painter->width;
     if( max_draw_z >= painter->height )
@@ -418,8 +418,8 @@ painter_paint(
     if( max_draw_z < 0 )
         max_draw_z = 0;
 
-    int min_draw_x = camera_wx - radius;
-    int min_draw_z = camera_wz - radius;
+    int min_draw_x = camera_sx - radius;
+    int min_draw_z = camera_sz - radius;
     if( min_draw_x < 0 )
         min_draw_x = 0;
     if( min_draw_z < 0 )
@@ -451,15 +451,15 @@ painter_paint(
     // Starting at the corners
     for( int i = 0; i < coord_list_length; i++ )
     {
-        int coord_wx = coord_list_x[i];
-        int coord_wz = coord_list_z[i];
+        int coord_sx = coord_list_x[i];
+        int coord_sz = coord_list_z[i];
 
-        assert(coord_wx >= min_draw_x);
-        assert(coord_wx < max_draw_x);
-        assert(coord_wz >= min_draw_z);
-        assert(coord_wz < max_draw_z);
+        assert(coord_sx >= min_draw_x);
+        assert(coord_sx < max_draw_x);
+        assert(coord_sz >= min_draw_z);
+        assert(coord_sz < max_draw_z);
 
-        int coord_idx = painter_coord_idx(painter, coord_wx, coord_wz, 0);
+        int coord_idx = painter_coord_idx(painter, coord_sx, coord_sz, 0);
         int_queue_push_wrap(&painter->queue, coord_idx);
 
         tile_paint = &painter->tile_paints[coord_idx];
@@ -478,9 +478,9 @@ painter_paint(
 
             tile = &painter->tiles[tile_idx];
 
-            int tile_wx = tile->wx;
-            int tile_wz = tile->wz;
-            int tile_wlevel = tile->wlevel;
+            int tile_sx = tile->sx;
+            int tile_sz = tile->sz;
+            int tile_slevel = tile->slevel;
 
             tile_paint = &painter->tile_paints[tile_idx];
             tile_paint->queue_count -= 1;
@@ -499,16 +499,16 @@ painter_paint(
             if( tile_paint->queue_count > 0 )
                 continue;
 
-            if( (tile->flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 || tile_wlevel > max_level )
+            if( (tile->flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 || tile_slevel > max_level )
             {
                 tile_paint->step = PAINT_STEP_DONE;
                 continue;
             }
 
-            assert(tile_wx >= min_draw_x);
-            assert(tile_wx < max_draw_x);
-            assert(tile_wz >= min_draw_z);
-            assert(tile_wz < max_draw_z);
+            assert(tile_sx >= min_draw_x);
+            assert(tile_sx < max_draw_x);
+            assert(tile_sz >= min_draw_z);
+            assert(tile_sz < max_draw_z);
 
             /**
              * If this is a loc revisit, then we need to verify adjacent tiles are done.
@@ -520,11 +520,11 @@ painter_paint(
 
             if( tile_paint->step == PAINT_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED )
             {
-                if( tile_wlevel > 0 )
+                if( tile_slevel > 0 )
                 {
                     other_paint =
                         &painter
-                             ->tiles[painter_coord_idx(painter, tile_wx, tile_wz, tile_wlevel - 1)];
+                             ->tiles[painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel - 1)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -532,12 +532,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wx >= camera_wx && tile_wx < max_draw_x )
+                if( tile_sx >= camera_sx && tile_sx < max_draw_x )
                 {
-                    if( tile_wx + 1 < max_draw_x )
+                    if( tile_sx + 1 < max_draw_x )
                     {
                         other_paint = &painter->tiles[painter_coord_idx(
-                            painter, tile_wx + 1, tile_wz, tile_wlevel)];
+                            painter, tile_sx + 1, tile_sz, tile_slevel)];
 
                         // If we are not spanned by the tile, then we need to verify it is done.
                         if( other_paint->step != PAINT_STEP_DONE )
@@ -551,12 +551,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wx <= camera_wx && tile_wx > min_draw_x )
+                if( tile_sx <= camera_sx && tile_sx > min_draw_x )
                 {
-                    if( tile_wx - 1 >= min_draw_x )
+                    if( tile_sx - 1 >= min_draw_x )
                     {
                         other_paint = &painter->tiles[painter_coord_idx(
-                            painter, tile_wx - 1, tile_wz, tile_wlevel)];
+                            painter, tile_sx - 1, tile_sz, tile_slevel)];
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
                             if( (tile->spans & SPAN_FLAG_WEST) == 0 ||
@@ -568,12 +568,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wz >= camera_wz && tile_wz < max_draw_z )
+                if( tile_sz >= camera_sz && tile_sz < max_draw_z )
                 {
-                    if( tile_wz + 1 < max_draw_z )
+                    if( tile_sz + 1 < max_draw_z )
                     {
                         other_paint = &painter->tiles[painter_coord_idx(
-                            painter, tile_wx, tile_wz + 1, tile_wlevel)];
+                            painter, tile_sx, tile_sz + 1, tile_slevel)];
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
                             if( (tile->spans & SPAN_FLAG_NORTH) == 0 ||
@@ -584,12 +584,12 @@ painter_paint(
                         }
                     }
                 }
-                if( tile_wz <= camera_wz && tile_wz > min_draw_z )
+                if( tile_sz <= camera_sz && tile_sz > min_draw_z )
                 {
-                    if( tile_wz - 1 >= min_draw_z )
+                    if( tile_sz - 1 >= min_draw_z )
                     {
                         other_paint = &painter->tiles[painter_coord_idx(
-                            painter, tile_wx, tile_wz - 1, tile_wlevel)];
+                            painter, tile_sx, tile_sz - 1, tile_slevel)];
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
                             if( (tile->spans & SPAN_FLAG_SOUTH) == 0 ||
@@ -608,7 +608,7 @@ painter_paint(
             {
                 tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
 
-                int near_walls = near_wall_flags(camera_wx, camera_wz, tile_wx, tile_wz);
+                int near_walls = near_wall_flags(camera_sx, camera_sz, tile_sx, tile_sz);
                 int far_walls = ~near_walls;
                 tile_paint->near_wall_flags |= near_walls;
 
@@ -616,7 +616,7 @@ painter_paint(
                 {
                     bridge_underpass_tile = &painter->tiles[tile->bridge_tile];
 
-                    push_command_terrain(buffer, tile_wx, tile_wz, tile_wlevel);
+                    push_command_terrain(buffer, tile_sx, tile_sz, tile_slevel);
 
                     if( bridge_underpass_tile->wall_a != -1 )
                     {
@@ -634,7 +634,7 @@ painter_paint(
                     }
                 }
 
-                push_command_terrain(buffer, tile_wx, tile_wz, tile_wlevel);
+                push_command_terrain(buffer, tile_sx, tile_sz, tile_slevel);
 
                 if( tile->wall_a != -1 )
                 {
@@ -674,8 +674,8 @@ painter_paint(
                     assert(element->kind == PNTRELEM_WALL_DECOR);
                     if( element->_wall_decor._bf_through_wall_flags != 0 )
                     {
-                        int x_diff = element->wx - camera_wx;
-                        int z_diff = element->wz - camera_wz;
+                        int x_diff = element->sx - camera_sx;
+                        int z_diff = element->sz - camera_sz;
 
                         // TODO: Document what this is doing.
                         int x_near = x_diff;
@@ -710,12 +710,12 @@ painter_paint(
                     assert(tile->wall_decor_b == -1);
                 }
 
-                if( tile_wx < camera_wx )
+                if( tile_sx < camera_sx )
                 {
-                    if( tile_wx + 1 < max_draw_x )
+                    if( tile_sx + 1 < max_draw_x )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, tile_wx + 1, tile_wz, tile_wlevel);
+                            painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel);
                         other_paint = &painter->tiles[other_idx];
 
                         if( other_paint->step != PAINT_STEP_DONE &&
@@ -732,12 +732,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wx > camera_wx )
+                if( tile_sx > camera_sx )
                 {
-                    if( tile_wx - 1 >= min_draw_x )
+                    if( tile_sx - 1 >= min_draw_x )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, tile_wx - 1, tile_wz, tile_wlevel);
+                            painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel);
                         other_paint = &painter->tiles[other_idx];
 
                         if( other_paint->step != PAINT_STEP_DONE &&
@@ -754,12 +754,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wz < camera_wz )
+                if( tile_sz < camera_sz )
                 {
-                    if( tile_wz + 1 < max_draw_z )
+                    if( tile_sz + 1 < max_draw_z )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, tile_wx, tile_wz + 1, tile_wlevel);
+                            painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel);
                         other_paint = &painter->tiles[other_idx];
 
                         if( other_paint->step != PAINT_STEP_DONE &&
@@ -776,12 +776,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wz > camera_wz )
+                if( tile_sz > camera_sz )
                 {
-                    if( tile_wz - 1 >= min_draw_z )
+                    if( tile_sz - 1 >= min_draw_z )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, tile_wx, tile_wz - 1, tile_wlevel);
+                            painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel);
                         other_paint = &painter->tiles[other_idx];
 
                         if( other_paint->step != PAINT_STEP_DONE &&
@@ -817,8 +817,8 @@ painter_paint(
                     element = &painter->elements[scenery_element];
                     assert(element->kind == PNTRELEM_SCENERY);
 
-                    int min_tile_x = element->wx;
-                    int min_tile_z = element->wz;
+                    int min_tile_x = element->sx;
+                    int min_tile_z = element->sz;
                     int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
                     int max_tile_z = min_tile_z + element->_scenery.size_y - 1;
 
@@ -837,7 +837,7 @@ painter_paint(
                              other_tile_z++ )
                         {
                             other_paint = &painter->tiles[painter_coord_idx(
-                                painter, other_tile_x, other_tile_z, tile_wlevel)];
+                                painter, other_tile_x, other_tile_z, tile_slevel)];
                             if( other_paint->step <= PAINT_STEP_GROUND )
                             {
                                 waiting_spanning_scenery = true;
@@ -868,8 +868,8 @@ painter_paint(
 
                         push_command_entity(buffer, element->_scenery.entity);
 
-                        int min_tile_x = element->wx;
-                        int min_tile_z = element->wz;
+                        int min_tile_x = element->sx;
+                        int min_tile_z = element->sz;
                         int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
                         int max_tile_z = min_tile_z + element->_scenery.size_y - 1;
 
@@ -890,8 +890,8 @@ painter_paint(
                         if( min_tile_z < min_draw_z )
                             min_tile_z = min_draw_z;
 
-                        int step_x = element->wx <= camera_wx ? 1 : -1;
-                        int step_z = element->wz <= camera_wz ? 1 : -1;
+                        int step_x = element->sx <= camera_sx ? 1 : -1;
+                        int step_z = element->sz <= camera_sz ? 1 : -1;
 
                         int start_x = min_tile_x;
                         int start_z = min_tile_z;
@@ -919,9 +919,9 @@ painter_paint(
                                  other_tile_z += step_z )
                             {
                                 int other_idx = painter_coord_idx(
-                                    painter, other_tile_x, other_tile_z, tile_wlevel);
+                                    painter, other_tile_x, other_tile_z, tile_slevel);
                                 other_paint = &painter->tiles[other_idx];
-                                if( other_tile_x != tile_wx || other_tile_z != tile_wz )
+                                if( other_tile_x != tile_sx || other_tile_z != tile_sz )
                                 {
                                     other_paint->queue_count++;
                                     if( next_prio == 0 )
@@ -944,9 +944,9 @@ painter_paint(
             // Move towards camera if farther away tiles are done.
             if( tile_paint->step == PAINT_STEP_NOTIFY_ADJACENT_TILES )
             {
-                if( tile_wlevel < painter->levels - 1 )
+                if( tile_slevel < painter->levels - 1 )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_wx, tile_wz, tile_wlevel + 1);
+                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1);
                     other_paint = &painter->tiles[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE )
@@ -959,12 +959,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wx < camera_wx )
+                if( tile_sx < camera_sx )
                 {
-                    if( tile_wx + 1 < max_draw_x )
+                    if( tile_sx + 1 < max_draw_x )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, tile_wx + 1, tile_wz, tile_wlevel);
+                            painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel);
                         other_paint = &painter->tiles[other_idx];
 
                         if( other_paint->step != PAINT_STEP_DONE )
@@ -978,12 +978,12 @@ painter_paint(
                         }
                     }
                 }
-                if( tile_wx > camera_wx )
+                if( tile_sx > camera_sx )
                 {
-                    if( tile_wx - 1 >= min_draw_x )
+                    if( tile_sx - 1 >= min_draw_x )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, tile_wx - 1, tile_wz, tile_wlevel);
+                            painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel);
                         other_paint = &painter->tiles[other_idx];
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
@@ -997,12 +997,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wz < camera_wz )
+                if( tile_sz < camera_sz )
                 {
-                    if( tile_wz + 1 < max_draw_z )
+                    if( tile_sz + 1 < max_draw_z )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, tile_wx, tile_wz + 1, tile_wlevel);
+                            painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel);
                         other_paint = &painter->tiles[other_idx];
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
@@ -1016,12 +1016,12 @@ painter_paint(
                     }
                 }
 
-                if( tile_wz > camera_wz )
+                if( tile_sz > camera_sz )
                 {
-                    if( tile_wz - 1 >= min_draw_z )
+                    if( tile_sz - 1 >= min_draw_z )
                     {
                         int other_idx =
-                            painter_coord_idx(painter, tile_wx, tile_wz - 1, tile_wlevel);
+                            painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel);
                         other_paint = &painter->tiles[other_idx];
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
@@ -1047,8 +1047,8 @@ painter_paint(
 
                     if( element->_wall_decor._bf_through_wall_flags != 0 )
                     {
-                        int x_diff = element->wx - camera_wx;
-                        int z_diff = element->wz - camera_wz;
+                        int x_diff = element->sx - camera_sx;
+                        int z_diff = element->sz - camera_sz;
 
                         // TODO: Document what this is doing.
                         int x_near = x_diff;

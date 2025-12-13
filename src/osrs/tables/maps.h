@@ -109,18 +109,20 @@ struct CacheMapLocs* map_locs_new_from_decode(char* data, int data_size);
 void map_terrain_free(struct CacheMapTerrain* map_terrain);
 void map_locs_free(struct CacheMapLocs* map_locs);
 
+struct CacheArchive* map_locs_archive_new_load(struct Cache* cache, int map_x, int map_y);
+
 struct CacheMapLocsIter
 {
-    int is_populated;
+    struct CacheMapLocs* chunks;
+    int chunks_count;
 
-    struct CacheMapLocs* _map_locs;
-    int _index;
+    int width;
+
+    int index;
 };
 
-struct CacheArchive* map_locs_archive_new_load(struct Cache* cache, int map_x, int map_y);
-struct CacheMapLocsIter* map_locs_iter_new(struct Cache* cache, int map_x, int map_y);
-struct CacheMapLocsIter* map_locs_iter_new_decode(uint8_t* data, int data_size);
-struct CacheMapLocsIter* map_locs_iter_new_from_archive(struct CacheArchive* archive);
+struct CacheMapLocsIter* map_locs_iter_new(struct CacheMapLocs* chunks, int count, int width);
+
 void map_locs_iter_free(struct CacheMapLocsIter* iter);
 
 void map_locs_iter_begin(struct CacheMapLocsIter* iter);

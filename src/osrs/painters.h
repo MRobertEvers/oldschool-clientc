@@ -2,6 +2,13 @@
 #define PAINTERS_H
 
 #include <stdint.h>
+/**
+ * Coordinate naming convention:
+ * c := chunk -> relative to the map chunk, 0-63
+ * s := scene -> relative to the scene, however big the scene is
+ * w := world -> relative to the world, 0-16k. This is the world coordinate system.
+ * m := model -> model coordinates for rendering.
+ */
 
 /**
  * Tells the renderer to defer drawing locs until
@@ -66,9 +73,9 @@ struct PaintersTile
 
     // These are stored on the tile. Sometimes to tile coordinates do not match the
     // index in the array coordinate (e.g. bridges)
-    uint16_t wx;
-    uint16_t wz;
-    uint8_t wlevel;
+    uint16_t sx;
+    uint16_t sz;
+    uint8_t slevel;
 
     uint16_t flags;
 };
@@ -155,9 +162,9 @@ struct PaintersElement
 
     // These are stored on the element because sometimes tiles refer to elements that are not on the
     // same tile.
-    uint16_t wx;
-    uint16_t wz;
-    uint8_t wlevel;
+    uint16_t sx;
+    uint16_t sz;
+    uint8_t slevel;
 
     union
     {
@@ -229,9 +236,9 @@ void painter_free(
 
 struct PaintersTile* painter_tile_at(
     struct Painter* painter, //
-    int wx,
-    int wz,
-    int wlevel);
+    int sx,
+    int sz,
+    int slevel);
 
 struct PaintersElement* painter_element_at(
     struct Painter* painter, //
@@ -239,9 +246,9 @@ struct PaintersElement* painter_element_at(
 
 void painter_add_normal_scenery(
     struct Painter* painter, //
-    int wx,
-    int wz,
-    int wlevel,
+    int sx,
+    int sz,
+    int slevel,
     int entity,
     int size_x,
     int size_y);
@@ -251,18 +258,18 @@ void painter_add_normal_scenery(
 
 void painter_add_wall(
     struct Painter* painter, //
-    int wx,
-    int wz,
-    int wlevel,
+    int sx,
+    int sz,
+    int slevel,
     int entity,
     int wall_ab,
     int side);
 
 void painter_add_wall_decor(
     struct Painter* painter,
-    int wx,
-    int wz,
-    int wlevel,
+    int sx,
+    int sz,
+    int slevel,
     int entity,
     int wall_ab,
     int side,
@@ -270,9 +277,9 @@ void painter_add_wall_decor(
 
 void painter_add_ground_decor(
     struct Painter* painter, //
-    int wx,
-    int wz,
-    int wlevel,
+    int sx,
+    int sz,
+    int slevel,
     int entity);
 
 #define GROUND_OBJECT_BOTTOM 0
@@ -281,9 +288,9 @@ void painter_add_ground_decor(
 
 void painter_add_ground_object(
     struct Painter* painter, //
-    int wx,
-    int wz,
-    int wlevel,
+    int sx,
+    int sz,
+    int slevel,
     int entity,
     int bottom_middle_top);
 
@@ -297,8 +304,8 @@ struct PaintersBuffer
 int painter_paint(
     struct Painter* painter, //
     struct PaintersBuffer* buffer,
-    int camera_wx,
-    int camera_wz,
-    int camera_wlevel);
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel);
 
 #endif

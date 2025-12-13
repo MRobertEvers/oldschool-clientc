@@ -546,54 +546,16 @@ error:
 }
 
 struct CacheMapLocsIter*
-map_locs_iter_new(struct Cache* cache, int map_x, int map_y)
-{
-    struct CacheArchive* archive = NULL;
-    struct CacheMapLocsIter* iter = malloc(sizeof(struct CacheMapLocsIter));
-    if( !iter )
-        return NULL;
-
-    memset(iter, 0, sizeof(struct CacheMapLocsIter));
-
-    archive = map_locs_archive_new_load(cache, map_x, map_y);
-    if( !archive )
-    {
-        printf("Failed to load map %d, %d\n", map_x, map_y);
-        goto error;
-    }
-
-    iter = map_locs_iter_new_decode(archive->data, archive->data_size);
-    cache_archive_free(archive);
-
-    return iter;
-
-error:
-    map_locs_iter_free(iter);
-    return NULL;
-}
-
-struct CacheMapLocsIter*
-map_locs_iter_new_decode(uint8_t* data, int data_size)
+map_locs_iter_new(struct CacheMapLocs* chunks, int count, int width)
 {
     struct CacheMapLocsIter* iter = malloc(sizeof(struct CacheMapLocsIter));
     if( !iter )
         return NULL;
-
     memset(iter, 0, sizeof(struct CacheMapLocsIter));
-    iter->_map_locs = map_locs_new_from_decode(data, data_size);
-    if( !iter->_map_locs )
-    {
-        free(iter);
-        return NULL;
-    }
-    iter->_index = 0;
-    return iter;
-}
-
-struct CacheMapLocsIter*
-map_locs_iter_new_from_archive(struct CacheArchive* archive)
-{
-    struct CacheMapLocsIter* iter = map_locs_iter_new_decode(archive->data, archive->data_size);
+    iter->chunks = chunks;
+    iter->chunks_count = count;
+    iter->width = width;
+    iter->index = 0;
     return iter;
 }
 
@@ -602,8 +564,6 @@ map_locs_iter_free(struct CacheMapLocsIter* iter)
 {
     if( iter )
     {
-        if( iter->_map_locs )
-            map_locs_free(iter->_map_locs);
         free(iter);
     }
 }
@@ -611,16 +571,27 @@ map_locs_iter_free(struct CacheMapLocsIter* iter)
 void
 map_locs_iter_begin(struct CacheMapLocsIter* iter)
 {
-    iter->_index = 0;
+    iter->index = 0;
 }
 
 struct CacheMapLoc*
 map_locs_iter_next(struct CacheMapLocsIter* iter)
 {
-    if( iter->_index >= iter->_map_locs->locs_count )
-        return NULL;
+    int chunk_side = MAP_CHUNK_SIZE;
+    int stride = iter->width * chunk_side;
 
-    return &iter->_map_locs->locs[iter->_index++];
+    int y = iter->index / stride;
+    int chunk_y = y / chunk_side;
+
+    int x = iter->index % stride;
+    int chunk_x = x / chunk_side;
+
+    int elem_idx = (y % chunk_side) * chunk_side + (x % chunk_side);
+    int chunk_idx = chunk_y * iter->width + chunk_x;
+
+    iter->index++;
+
+    return &iter->chunks[chunk_idx].locs[elem_idx];
 }
 
 // struct CacheMapLoc*
