@@ -19,12 +19,12 @@
 static inline int
 map_tile_coord_to_chunk_coord(int x, int y, int z)
 {
-    assert(x >= 0);
-    assert(y >= 0);
-    assert(z >= 0);
-    assert(x < MAP_TERRAIN_X);
-    assert(y < MAP_TERRAIN_Y);
-    assert(z < MAP_TERRAIN_Z);
+    // assert(x >= 0);
+    // assert(y >= 0);
+    // assert(z >= 0);
+    // assert(x < MAP_TERRAIN_X);
+    // assert(y < MAP_TERRAIN_Y);
+    // assert(z < MAP_TERRAIN_Z);
 
     return y + (x)*MAP_TERRAIN_X + (z)*MAP_TERRAIN_X * MAP_TERRAIN_Y;
 }

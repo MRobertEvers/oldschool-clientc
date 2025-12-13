@@ -2,6 +2,7 @@
 #define GTASK_INIT_SCENE_U_C
 #include "gtask_init_scene.h"
 
+#include "datastruct/hmap.h"
 #include "datastruct/list.h"
 #include "datastruct/vec.h"
 #include "gtask.h"
@@ -22,6 +23,7 @@ struct GTaskInitScene
 
     struct CacheMapLocsIter* scenery_iter;
     struct ConfigMap* scenery_configmap;
+    struct HMap* models_hmap;
     struct Vec* queued_scenery_models_ids;
 
     int chunk_x;
@@ -34,6 +36,12 @@ struct GTaskInitScene
     uint32_t reqid_model_inflight;
     uint32_t* reqid_models;
 };
+
+static void
+build_world(struct GTaskInitScene* task)
+{
+    task->step = STEP_INIT_SCENE_FOUR_BUILD_WORLD;
+}
 
 static void
 queue_model_unique(struct GTaskInitScene* task, int model_id)
@@ -121,6 +129,13 @@ gtask_init_scene_new(struct GIOQueue* io, int chunk_x, int chunk_y)
     task->chunk_y = chunk_y;
 
     task->queued_scenery_models_ids = vec_new(sizeof(int), 512);
+    struct HashConfig config = {
+        .buffer = NULL,
+        .buffer_size = 0,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct CacheModel*),
+    };
+    task->models_hmap = hmap_new(&config, 0);
     return task;
 }
 
@@ -142,6 +157,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     struct CacheMapLoc* loc;
     struct CacheConfigLocation* config_loc;
     struct CacheModel* model = NULL;
+    struct CacheModel** model_ptr = NULL;
     bool status = false;
 
     switch( task->step )
@@ -220,11 +236,28 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         while( gioq_poll(task->io, &message) )
         {
             task->reqid_model_inflight--;
+
             model = model_new_decode(message.data, message.data_size);
+            model_ptr = hmap_search(task->models_hmap, &model->_id, HMAP_INSERT);
+            *model_ptr = model;
+
             gioq_release(task->io, &message);
         }
         if( task->reqid_model_inflight != 0 )
             return GTASK_STATUS_PENDING;
+    }
+    case STEP_INIT_SCENE_FOUR_BUILD_WORLD:
+    {
+        loc = NULL;
+        config_loc = NULL;
+        map_locs_iter_begin(task->scenery_iter);
+        while( (loc = map_locs_iter_next(task->scenery_iter)) )
+        {
+            config_loc = configmap_get(task->scenery_configmap, loc->loc_id);
+            assert(config_loc && "Scenery configuration must be loaded");
+        }
+
+        task->step = STEP_INIT_SCENE_DONE;
     }
     case STEP_INIT_SCENE_DONE:
     {

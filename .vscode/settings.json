@@ -178,6 +178,7 @@
         "list_macros.h": "c",
         "gio_assets.h": "c",
         "gtask.h": "c",
-        "configmap.h": "c"
+        "configmap.h": "c",
+        "scene_cache.h": "c"
     }
 }

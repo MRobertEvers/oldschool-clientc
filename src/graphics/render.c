@@ -2108,7 +2108,6 @@ render_scene_compute_ops(
 
             /**
              * If this is a loc revisit, then we need to verify adjacent tiles are done.
-             *
              */
 
             if( element->step == E_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED )
@@ -2232,7 +2231,7 @@ render_scene_compute_ops(
                             .x = loc->chunk_pos_x,
                             .z = loc->chunk_pos_y,
                             .level = loc->chunk_pos_level,
-                            ._ground_decor = { .loc_index = loc_index },
+                            ._loc = { .loc_index = loc_index },
                         };
                     }
                 }
