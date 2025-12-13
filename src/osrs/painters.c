@@ -47,6 +47,11 @@ struct TilePaint
     uint8_t near_wall_flags;
 };
 
+struct ElementPaint
+{
+    uint8_t drawn;
+};
+
 struct Painter
 {
     int width;
@@ -59,6 +64,7 @@ struct Painter
     int tile_capacity;
 
     struct PaintersElement* elements;
+    struct ElementPaint* element_paints;
     int element_count;
     int element_capacity;
 
@@ -75,6 +81,9 @@ painter_push_element(struct Painter* painter)
         painter->element_capacity *= 2;
         painter->elements =
             realloc(painter->elements, painter->element_capacity * sizeof(struct PaintersElement));
+
+        painter->element_paints = realloc(
+            painter->element_paints, painter->element_capacity * sizeof(struct ElementPaint));
     }
     memset(&painter->elements[element], 0, sizeof(struct PaintersElement));
     return element;
@@ -123,6 +132,9 @@ painter_new(int width, int height, int levels)
     painter->elements = malloc(128 * sizeof(struct PaintersElement));
     painter->element_count = 0;
     painter->element_capacity = 128;
+
+    painter->element_paints = malloc(128 * sizeof(struct ElementPaint));
+    memset(painter->element_paints, 0, 128 * sizeof(struct ElementPaint));
 
     int_queue_init(&painter->queue, 512);
     int_queue_init(&painter->catchup_queue, 512);
@@ -379,8 +391,13 @@ painter_paint(
     struct TilePaint* tile_paint = NULL;
     struct TilePaint* other_paint = NULL;
     struct PaintersTile* bridge_underpass_tile = NULL;
+    struct ElementPaint* element_paint = NULL;
+
+    int scenery_queue[100];
+    int scenery_queue_length = 0;
 
     memset(painter->tile_paints, 0, painter->tile_count * sizeof(struct TilePaint));
+    memset(painter->element_paints, 0, painter->element_count * sizeof(struct ElementPaint));
 
     // Generate painter's algorithm coordinate list - farthest to nearest
     int radius = 25;
@@ -714,6 +731,7 @@ painter_paint(
                         }
                     }
                 }
+
                 if( tile_wx > camera_wx )
                 {
                     if( tile_wx - 1 >= min_draw_x )
@@ -779,6 +797,315 @@ painter_paint(
                         }
                     }
                 }
+            }
+
+            bool waiting_spanning_scenery = false;
+            scenery_queue_length = 0;
+            if( tile_paint->step == PAINT_STEP_WAIT_ADJACENT_GROUND )
+            {
+                tile_paint->step = PAINT_STEP_LOCS;
+
+                // Check if all locs are drawable.
+                for( int j = 0; j < tile->scenery_count; j++ )
+                {
+                    int scenery_element = tile->scenery[j];
+
+                    element_paint = &painter->element_paints[scenery_element];
+                    if( element_paint->drawn )
+                        continue;
+
+                    element = &painter->elements[scenery_element];
+                    assert(element->kind == PNTRELEM_SCENERY);
+
+                    int min_tile_x = element->wx;
+                    int min_tile_z = element->wz;
+                    int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
+                    int max_tile_z = min_tile_z + element->_scenery.size_y - 1;
+
+                    if( max_tile_x > max_draw_x - 1 )
+                        max_tile_x = max_draw_x - 1;
+                    if( max_tile_z > max_draw_z - 1 )
+                        max_tile_z = max_draw_z - 1;
+                    if( min_tile_x < min_draw_x )
+                        min_tile_x = min_draw_x;
+                    if( min_tile_z < min_draw_z )
+                        min_tile_z = min_draw_z;
+
+                    for( int other_tile_x = min_tile_x; other_tile_x <= max_tile_x; other_tile_x++ )
+                    {
+                        for( int other_tile_z = min_tile_z; other_tile_z <= max_tile_z;
+                             other_tile_z++ )
+                        {
+                            other_paint = &painter->tiles[painter_coord_idx(
+                                painter, other_tile_x, other_tile_z, tile_wlevel)];
+                            if( other_paint->step <= PAINT_STEP_GROUND )
+                            {
+                                waiting_spanning_scenery = true;
+                                goto step_scenery;
+                            }
+                        }
+                    }
+
+                    scenery_queue[scenery_queue_length++] = scenery_element;
+
+                step_scenery:;
+                }
+
+                if( tile_paint->step == PAINT_STEP_LOCS )
+                {
+                    for( int j = 0; j < scenery_queue_length; j++ )
+                    {
+                        int scenery_element = tile->scenery[j];
+
+                        element_paint = &painter->element_paints[scenery_element];
+                        if( element_paint->drawn )
+                            continue;
+
+                        element_paint->drawn = true;
+
+                        element = &painter->elements[scenery_element];
+                        assert(element->kind == PNTRELEM_SCENERY);
+
+                        push_command_entity(buffer, element->_scenery.entity);
+
+                        int min_tile_x = element->wx;
+                        int min_tile_z = element->wz;
+                        int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
+                        int max_tile_z = min_tile_z + element->_scenery.size_y - 1;
+
+                        int next_prio = 0;
+                        if( element->_scenery.size_x > 1 || element->_scenery.size_y > 1 )
+                        {
+                            next_prio = element->_scenery.size_x > element->_scenery.size_y
+                                            ? element->_scenery.size_x
+                                            : element->_scenery.size_y;
+                        }
+
+                        if( max_tile_x > max_draw_x - 1 )
+                            max_tile_x = max_draw_x - 1;
+                        if( max_tile_z > max_draw_z - 1 )
+                            max_tile_z = max_draw_z - 1;
+                        if( min_tile_x < min_draw_x )
+                            min_tile_x = min_draw_x;
+                        if( min_tile_z < min_draw_z )
+                            min_tile_z = min_draw_z;
+
+                        int step_x = element->wx <= camera_wx ? 1 : -1;
+                        int step_z = element->wz <= camera_wz ? 1 : -1;
+
+                        int start_x = min_tile_x;
+                        int start_z = min_tile_z;
+                        int end_x = max_tile_x;
+                        int end_z = max_tile_z;
+
+                        if( step_x < 0 )
+                        {
+                            int tmp = start_x;
+                            start_x = end_x;
+                            end_x = tmp;
+                        }
+
+                        if( step_z < 0 )
+                        {
+                            int tmp = start_z;
+                            start_z = end_z;
+                            end_z = tmp;
+                        }
+
+                        for( int other_tile_x = start_x; other_tile_x != end_x + step_x;
+                             other_tile_x += step_x )
+                        {
+                            for( int other_tile_z = start_z; other_tile_z != end_z + step_z;
+                                 other_tile_z += step_z )
+                            {
+                                int other_idx = painter_coord_idx(
+                                    painter, other_tile_x, other_tile_z, tile_wlevel);
+                                other_paint = &painter->tiles[other_idx];
+                                if( other_tile_x != tile_wx || other_tile_z != tile_wz )
+                                {
+                                    other_paint->queue_count++;
+                                    if( next_prio == 0 )
+                                        int_queue_push_wrap(&painter->queue, other_idx);
+                                    else
+                                        int_queue_push_wrap_prio(
+                                            &painter->catchup_queue, other_idx, next_prio - 1);
+                                }
+                            }
+                        }
+                    }
+
+                    if( !waiting_spanning_scenery )
+                        tile_paint->step = PAINT_STEP_NOTIFY_ADJACENT_TILES;
+                    else
+                        tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
+                }
+            }
+
+            // Move towards camera if farther away tiles are done.
+            if( tile_paint->step == PAINT_STEP_NOTIFY_ADJACENT_TILES )
+            {
+                if( tile_wlevel < painter->levels - 1 )
+                {
+                    int other_idx = painter_coord_idx(painter, tile_wx, tile_wz, tile_wlevel + 1);
+                    other_paint = &painter->tiles[other_idx];
+
+                    if( other_paint->step != PAINT_STEP_DONE )
+                    {
+                        other_paint->queue_count++;
+                        if( prio == 0 )
+                            int_queue_push_wrap(&painter->queue, other_idx);
+                        else
+                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                    }
+                }
+
+                if( tile_wx < camera_wx )
+                {
+                    if( tile_wx + 1 < max_draw_x )
+                    {
+                        int other_idx =
+                            painter_coord_idx(painter, tile_wx + 1, tile_wz, tile_wlevel);
+                        other_paint = &painter->tiles[other_idx];
+
+                        if( other_paint->step != PAINT_STEP_DONE )
+                        {
+                            other_paint->queue_count++;
+                            if( prio == 0 )
+                                int_queue_push_wrap(&painter->queue, other_idx);
+                            else
+                                int_queue_push_wrap_prio(
+                                    &painter->catchup_queue, other_idx, prio - 1);
+                        }
+                    }
+                }
+                if( tile_wx > camera_wx )
+                {
+                    if( tile_wx - 1 >= min_draw_x )
+                    {
+                        int other_idx =
+                            painter_coord_idx(painter, tile_wx - 1, tile_wz, tile_wlevel);
+                        other_paint = &painter->tiles[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                        {
+                            other_paint->queue_count++;
+                            if( prio == 0 )
+                                int_queue_push_wrap(&painter->queue, other_idx);
+                            else
+                                int_queue_push_wrap_prio(
+                                    &painter->catchup_queue, other_idx, prio - 1);
+                        }
+                    }
+                }
+
+                if( tile_wz < camera_wz )
+                {
+                    if( tile_wz + 1 < max_draw_z )
+                    {
+                        int other_idx =
+                            painter_coord_idx(painter, tile_wx, tile_wz + 1, tile_wlevel);
+                        other_paint = &painter->tiles[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                        {
+                            other_paint->queue_count++;
+                            if( prio == 0 )
+                                int_queue_push_wrap(&painter->queue, other_idx);
+                            else
+                                int_queue_push_wrap_prio(
+                                    &painter->catchup_queue, other_idx, prio - 1);
+                        }
+                    }
+                }
+
+                if( tile_wz > camera_wz )
+                {
+                    if( tile_wz - 1 >= min_draw_z )
+                    {
+                        int other_idx =
+                            painter_coord_idx(painter, tile_wx, tile_wz - 1, tile_wlevel);
+                        other_paint = &painter->tiles[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                        {
+                            other_paint->queue_count++;
+                            if( prio == 0 )
+                                int_queue_push_wrap(&painter->queue, other_idx);
+                            else
+                                int_queue_push_wrap_prio(
+                                    &painter->catchup_queue, other_idx, prio - 1);
+                        }
+                    }
+                }
+
+                tile_paint->step = PAINT_STEP_NEAR_WALL;
+            }
+
+            if( tile_paint->step == PAINT_STEP_NEAR_WALL )
+            {
+                if( tile->wall_decor_a != -1 )
+                {
+                    element = &painter->elements[tile->wall_decor_a];
+                    assert(element->kind == PNTRELEM_WALL_DECOR);
+
+                    if( element->_wall_decor._bf_through_wall_flags != 0 )
+                    {
+                        int x_diff = element->wx - camera_wx;
+                        int z_diff = element->wz - camera_wz;
+
+                        // TODO: Document what this is doing.
+                        int x_near = x_diff;
+                        if( element->_wall_decor._bf_side == WALL_CORNER_NORTHEAST ||
+                            element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST )
+                            x_near = -x_diff;
+
+                        int z_near = z_diff;
+                        if( element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST ||
+                            element->_wall_decor._bf_side == WALL_CORNER_SOUTHWEST )
+                            z_near = -z_diff;
+
+                        // The deobs and official clients calculate the nearest quadrant.
+                        // Notice a line goes from SW to NE with y = x.
+                        if( z_near >= x_near )
+                        {
+                            // Draw model a
+                            push_command_entity(buffer, element->_wall_decor.entity);
+                        }
+                        else if( tile->wall_decor_b != -1 )
+                        {
+                            element = &painter->elements[tile->wall_decor_b];
+                            assert(element->kind == PNTRELEM_WALL_DECOR);
+
+                            // Draw model b
+                            push_command_entity(buffer, element->_wall_decor.entity);
+                        }
+                    }
+                    else if( (element->_wall_decor._bf_side & tile_paint->near_wall_flags) != 0 )
+                    {
+                        push_command_entity(buffer, element->_wall_decor.entity);
+                    }
+                }
+
+                if( tile->wall_a != -1 )
+                {
+                    element = &painter->elements[tile->wall_a];
+                    assert(element->kind == PNTRELEM_WALL_A);
+
+                    if( (element->_wall.side & tile_paint->near_wall_flags) != 0 )
+                        push_command_entity(buffer, element->_wall.entity);
+                }
+
+                if( tile->wall_b != -1 )
+                {
+                    element = &painter->elements[tile->wall_b];
+                    assert(element->kind == PNTRELEM_WALL_B);
+
+                    if( (element->_wall.side & tile_paint->near_wall_flags) != 0 )
+                        push_command_entity(buffer, element->_wall.entity);
+                }
+
+                tile_paint->step = PAINT_STEP_DONE;
+            }
+
+            if( tile_paint->step == PAINT_STEP_DONE )
+            {
             }
 
         done:;
