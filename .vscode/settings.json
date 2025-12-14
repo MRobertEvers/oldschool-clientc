@@ -179,6 +179,10 @@
         "gio_assets.h": "c",
         "gtask.h": "c",
         "configmap.h": "c",
-        "scene_cache.h": "c"
+        "scene_cache.h": "c",
+        "textures.h": "c",
+        "config_floortype.h": "c",
+        "blend_underlays.h": "c",
+        "scene_tile.h": "c"
     }
 }

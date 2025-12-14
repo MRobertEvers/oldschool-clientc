@@ -9,9 +9,14 @@
 #include "osrs/configmap.h"
 #include "osrs/gio_assets.h"
 #include "osrs/painters.h"
+#include "osrs/tables/config_floortype.h"
 #include "osrs/tables/config_locs.h"
 #include "osrs/tables/maps.h"
 #include "osrs/tables/model.h"
+#include "osrs/tables/sprites.h"
+#include "osrs/tables/textures.h"
+#include "osrs/terrain.h"
+#include "osrs/texture.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -26,15 +31,27 @@ struct GTaskInitScene
     struct GIOQueue* io;
 
     struct CacheMapLocsIter* scenery_iter;
-    struct CacheMapLocs scenery_locs[9];
+    struct CacheMapTerrainIter* terrain_iter;
+
+    struct CacheMapLocs* scenery_locs[9];
+    struct CacheMapTerrain* terrain_definitions[9];
     int scenery_locs_count;
+    int terrain_count;
 
     struct ConfigMap* scenery_configmap;
+    struct ConfigMap* underlay_configmap;
+    struct ConfigMap* overlay_configmap;
     struct HMap* models_hmap;
+    struct HMap* texture_definitions_hmap;
+    struct HMap* spritepacks_hmap;
+    struct HMap* textures_hmap;
     struct Vec* queued_scenery_models_ids;
+    struct Vec* queued_texture_ids;
 
     struct Chunk chunks[9];
     int chunks_count;
+    int chunks_width;
+
     int world_x;
     int world_z;
     int scene_size;
@@ -53,13 +70,35 @@ struct GTaskInitScene
     uint32_t reqid_model_inflight;
     uint32_t* reqid_models;
 
+    uint32_t reqid_texture_count;
+    uint32_t reqid_texture_inflight;
+    uint32_t* reqid_textures;
+
+    uint32_t reqid_spritepack_count;
+    uint32_t reqid_spritepack_inflight;
+    uint32_t* reqid_spritepacks;
+
+    uint32_t reqid_underlay;
+    uint32_t reqid_overlay;
+
     struct Painter* painter;
+    struct Terrain* terrain;
 };
 
 static void
-build_world(struct GTaskInitScene* task)
+vec_push_unique(struct Vec* vec, int* element)
 {
-    task->step = STEP_INIT_SCENE_FOUR_BUILD_WORLD;
+    struct VecIter* iter = vec_iter_new(vec);
+    int* element = NULL;
+    while( (element = (int*)vec_iter_next(iter)) )
+    {
+        if( *element == element )
+            goto done;
+    }
+    vec_push(vec, element);
+
+done:;
+    vec_iter_free(iter);
 }
 
 static void
@@ -130,7 +169,8 @@ gather_scenery_ids_vec_new(struct CacheMapLocsIter* iter)
 {
     struct CacheMapLoc* loc;
     struct Vec* vec = vec_new(sizeof(int), 128);
-    while( loc = map_locs_iter_next(iter) )
+    map_locs_iter_begin(iter);
+    while( (loc = map_locs_iter_next(iter)) )
     {
         vec_push(vec, &loc->loc_id);
     }
@@ -140,6 +180,8 @@ gather_scenery_ids_vec_new(struct CacheMapLocsIter* iter)
 struct GTaskInitScene*
 gtask_init_scene_new(struct GIOQueue* io, int world_x, int world_z, int scene_size)
 {
+    struct ChunksInView chunks = { 0 };
+    struct HashConfig config = { 0 };
     struct GTaskInitScene* task = malloc(sizeof(struct GTaskInitScene));
     memset(task, 0, sizeof(struct GTaskInitScene));
     task->step = STEP_INIT_SCENE_INITIAL;
@@ -147,16 +189,47 @@ gtask_init_scene_new(struct GIOQueue* io, int world_x, int world_z, int scene_si
     task->world_x = world_x;
     task->world_z = world_z;
     task->scene_size = scene_size;
-    task->chunks_count = chunks_inview(task->chunks, world_x, world_z, scene_size);
+
+    chunks_inview(task->chunks, world_x, world_z, scene_size, &chunks_inview);
+
+    task->chunks_count = chunks.count;
+    task->chunks_width = chunks.width;
 
     task->queued_scenery_models_ids = vec_new(sizeof(int), 512);
-    struct HashConfig config = {
-        .buffer = NULL,
-        .buffer_size = 0,
+    task->queued_texture_ids = vec_new(sizeof(int), 512);
+    int buffer_size = 1024 * 32;
+    config = (struct HashConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = sizeof(struct CacheModel*),
     };
     task->models_hmap = hmap_new(&config, 0);
+
+    config = (struct HashConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct Texture*),
+    };
+    task->textures_hmap = hmap_new(&config, 0);
+
+    config = (struct HashConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct CacheSpritePack*),
+    };
+    task->spritepacks_hmap = hmap_new(&config, 0);
+
+    config = (struct HashConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct CacheTextureDefinition*),
+    };
+    task->texture_definitions_hmap = hmap_new(&config, 0);
+
     return task;
 }
 
@@ -164,8 +237,23 @@ void
 gtask_init_scene_free(struct GTaskInitScene* task)
 {
     vec_free(task->queued_scenery_models_ids);
+    vec_free(task->queued_texture_ids);
+
+    free(hmap_buffer_ptr(task->models_hmap));
+    free(hmap_buffer_ptr(task->textures_hmap));
+    free(hmap_buffer_ptr(task->spritepacks_hmap));
+
+    hmap_free(task->models_hmap);
+    hmap_free(task->textures_hmap);
+    hmap_free(task->spritepacks_hmap);
+
     configmap_free(task->scenery_configmap);
+    configmap_free(task->underlay_configmap);
+    configmap_free(task->overlay_configmap);
+
     map_locs_iter_free(task->scenery_iter);
+    map_terrain_iter_free(task->terrain_iter);
+
     free(task);
 }
 
@@ -176,18 +264,25 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     struct ConfigMapIter* iter = NULL;
     struct CacheMapLocsIter* map_locs_iter;
     struct CacheMapLoc* loc;
+    struct CacheMapLocs* locs;
     struct CacheConfigLocation* config_loc;
     struct CacheModel* model = NULL;
     struct CacheModel** model_ptr = NULL;
+    struct CacheSpritePack* spritepack = NULL;
+    struct CacheSpritePack** spritepack_ptr = NULL;
+    struct CacheTexture* texture_definition = NULL;
+    struct CacheTexture** texture_definition_ptr = NULL;
+    struct Texture* texture = NULL;
+    struct Texture** texture_ptr = NULL;
     bool status = false;
 
     switch( task->step )
     {
     case STEP_INIT_SCENE_INITIAL:
     {
-        task->step = STEP_INIT_SCENE_ONE_LOAD_SCENERY;
+        task->step = STEP_INIT_SCENE_1_LOAD_SCENERY;
     }
-    case STEP_INIT_SCENE_ONE_LOAD_SCENERY:
+    case STEP_INIT_SCENE_1_LOAD_SCENERY:
     {
         if( task->reqid_scenery_count == 0 )
         {
@@ -202,19 +297,23 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         while( gioq_poll(task->io, &message) )
         {
             task->reqid_scenery_inflight--;
-            task->scenery_iter = map_locs_iter_new_decode(message.data, message.data_size);
+
+            locs = map_locs_new_from_decode(message.data, message.data_size);
+            task->scenery_locs[task->scenery_locs_count++] = locs;
+            locs->_chunk_mapx = message.param_b >> 16;
+            locs->_chunk_mapz = message.param_b & 0xFFFF;
+
             gioq_release(task->io, &message);
         }
         if( task->reqid_scenery_inflight != 0 )
             return GTASK_STATUS_PENDING;
 
-        task->scenery_iter = map_locs_iter_new_decode(message.data, message.data_size);
+        task->scenery_iter = map_locs_iter_new_from_ptrs(
+            task->scenery_locs, task->scenery_locs_count, task->chunks_width);
 
-        gioq_release(task->io, &message);
-
-        task->step = STEP_INIT_SCENE_TWO_LOAD_SCENERY_CONFIG;
+        task->step = STEP_INIT_SCENE_2_LOAD_SCENERY_CONFIG;
     }
-    case STEP_INIT_SCENE_TWO_LOAD_SCENERY_CONFIG:
+    case STEP_INIT_SCENE_2_LOAD_SCENERY_CONFIG:
     {
         struct Vec* scenery_ids = NULL;
         if( task->reqid_scenery_config == 0 )
@@ -235,19 +334,16 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         /**
          * Process Scenery, Queue Model Ids
          */
-
         iter = configmap_iter_new(task->scenery_configmap);
 
         while( (config_loc = configmap_iter_next(iter)) )
-        {
             queue_scenery_models(task, config_loc, loc->shape_select);
-        }
 
         configmap_iter_free(iter);
 
-        task->step = STEP_INIT_SCENE_THREE_LOAD_SCENERY_MODELS;
+        task->step = STEP_INIT_SCENE_3_LOAD_SCENERY_MODELS;
     }
-    case STEP_INIT_SCENE_THREE_LOAD_SCENERY_MODELS:
+    case STEP_INIT_SCENE_3_LOAD_SCENERY_MODELS:
     {
         if( task->reqid_model_count == 0 )
         {
@@ -271,29 +367,59 @@ gtask_init_scene_step(struct GTaskInitScene* task)
 
             model = model_new_decode(message.data, message.data_size);
             model_ptr = hmap_search(task->models_hmap, &model->_id, HMAP_INSERT);
+            assert(model_ptr && "Model must be inserted into hmap");
             *model_ptr = model;
 
             gioq_release(task->io, &message);
         }
         if( task->reqid_model_inflight != 0 )
             return GTASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_4_LOAD_TERRAIN;
     }
-    case STEP_INIT_SCENE_FOUR_LOAD_TERRAIN:
+    case STEP_INIT_SCENE_4_LOAD_TERRAIN:
     {
-        if( task->reqid_terrain == 0 )
-            task->reqid_terrain =
-                gio_assets_map_terrain_load(task->io, task->chunk_x, task->chunk_y);
+        if( task->reqid_terrain_count == 0 )
+        {
+            for( int i = 0; i < task->chunks_count; i++ )
+            {
+                task->reqid_terrain[i] =
+                    gio_assets_map_terrain_load(task->io, task->chunks[i].x, task->chunks[i].z);
+            }
+            task->reqid_terrain_count = task->chunks_count;
+        }
+
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_terrain_inflight--;
+            task->terrain_definitions[task->terrain_count++] =
+                map_terrain_new_from_decode(message.data, message.data_size);
+            gioq_release(task->io, &message);
+        }
+
+        if( task->reqid_terrain_inflight != 0 )
+            return GTASK_STATUS_PENDING;
+
+        task->terrain_iter = map_terrain_iter_new_from_ptrs(
+            task->terrain_definitions, task->terrain_count, task->chunks_width);
+
+        task->step = STEP_INIT_SCENE_5_LOAD_UNDERLAY;
+    }
+    break;
+    case STEP_INIT_SCENE_5_LOAD_UNDERLAY:
+    {
+        if( task->reqid_underlay == 0 )
+            task->reqid_underlay = gio_assets_config_underlay_load(task->io);
 
         if( !gioq_poll(task->io, &message) )
             return GTASK_STATUS_PENDING;
-        assert(message.message_id == task->reqid_terrain);
+        assert(message.message_id == task->reqid_underlay);
 
-        task->terrain = terrain_new_decode(message.data, message.data_size);
+        task->underlay_configmap =
+            configmap_new_from_packed(message.data, message.data_size, NULL, 0);
+
         gioq_release(task->io, &message);
-    }
-    break;
-    case STEP_INIT_SCENE_FOUR_BUILD_WORLD:
-    {
+
         // loc = NULL;
         // config_loc = NULL;
         // map_locs_iter_begin(task->scenery_iter);
@@ -329,7 +455,144 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         //     }
         // }
 
+        task->step = STEP_INIT_SCENE_6_LOAD_OVERLAY;
+    }
+    case STEP_INIT_SCENE_6_LOAD_OVERLAY:
+    {
+        if( task->reqid_overlay == 0 )
+            task->reqid_overlay = gio_assets_config_overlay_load(task->io);
+
+        if( !gioq_poll(task->io, &message) )
+            return GTASK_STATUS_PENDING;
+        assert(message.message_id == task->reqid_overlay);
+
+        task->overlay_configmap =
+            configmap_new_from_packed(message.data, message.data_size, NULL, 0);
+
+        gioq_release(task->io, &message);
+
+        /**
+         * Queue Textures
+         */
+
+        struct CacheConfigOverlay* config_overlay = NULL;
+        iter = configmap_iter_new(task->overlay_configmap);
+        while( (config_overlay = configmap_iter_next(iter)) )
+            vec_push_unique(task->queued_texture_ids, &config_overlay->texture);
+        configmap_iter_free(iter);
+
+        struct HMapIter* iter = hmap_iter_new(task->models_hmap);
+        while( (model = (struct CacheModel*)hmap_iter_next(iter)) )
+        {
+            for( int i = 0; i < model->face_count; i++ )
+            {
+                if( !model->face_textures )
+                    continue;
+                int face_texture = model->face_textures[i];
+                if( face_texture != -1 )
+                    vec_push_unique(task->queued_texture_ids, &face_texture);
+            }
+        }
+        hmap_iter_free(iter);
+
+        task->step = STEP_INIT_SCENE_7_LOAD_TEXTURES;
+    }
+    case STEP_INIT_SCENE_7_LOAD_TEXTURES:
+    {
+        if( task->reqid_texture_count == 0 )
+        {
+            int count = vec_size(task->queued_texture_ids);
+            int* reqids = (int*)malloc(sizeof(int) * count);
+
+            for( int i = 0; i < count; i++ )
+            {
+                reqids[i] = gio_assets_texture_load(
+                    task->io, ((int*)vec_data(task->queued_texture_ids))[i]);
+            }
+
+            task->reqid_texture_count = count;
+            task->reqid_texture_inflight = count;
+            task->reqid_textures = reqids;
+        }
+
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_texture_inflight--;
+            texture_definition = texture_definition_new_decode(message.data, message.data_size);
+            texture_definition->_id = message.param_b;
+
+            texture_definition_ptr =
+                hmap_search(task->texture_definitions_hmap, &message.param_b, HMAP_INSERT);
+            assert(texture_definition_ptr && "Texture definition must be inserted into hmap");
+            *texture_definition_ptr = texture_definition;
+        }
+
+        if( task->reqid_texture_inflight != 0 )
+            return GTASK_STATUS_PENDING;
+
         task->step = STEP_INIT_SCENE_DONE;
+    }
+    case STEP_INIT_SCENE_8_LOAD_SPRITEPACKS:
+    {
+        if( task->reqid_spritepack_count == 0 )
+        {
+            struct Vec* sprite_pack_ids = vec_new(sizeof(int), 512);
+            struct HMapIter* iter = hmap_iter_new(task->textures_hmap);
+            while( (texture_definition = (struct CacheTexture*)hmap_iter_next(iter)) )
+            {
+                for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
+                    vec_push_unique(sprite_pack_ids, &texture_definition->sprite_ids[i]);
+            }
+            hmap_iter_free(iter);
+
+            int count = vec_size(task->queued_texture_ids);
+            int* reqids = (int*)malloc(sizeof(int) * count);
+
+            for( int i = 0; i < count; i++ )
+            {
+                reqids[i] = gio_assets_texture_load(
+                    task->io, ((int*)vec_data(task->queued_texture_ids))[i]);
+            }
+
+            task->reqid_texture_count = count;
+            task->reqid_texture_inflight = count;
+            task->reqid_textures = reqids;
+        }
+
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_spritepack_inflight--;
+            spritepack =
+                sprite_pack_new_decode(message.data, message.data_size, SPRITELOAD_FLAG_NORMALIZE);
+            spritepack_ptr = hmap_search(task->spritepacks_hmap, &message.param_b, HMAP_INSERT);
+            assert(spritepack_ptr && "Spritepack must be inserted into hmap");
+            *spritepack_ptr = spritepack;
+            gioq_release(task->io, &message);
+        }
+
+        if( task->reqid_spritepack_inflight != 0 )
+            return GTASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_9_BUILD_TEXTURES;
+    }
+    case STEP_INIT_SCENE_9_BUILD_TEXTURES:
+    {
+        struct HMapIter* iter = hmap_iter_new(task->texture_definitions_hmap);
+        while( (texture_definition = (struct CacheTexture*)hmap_iter_next(iter)) )
+        {
+            texture = texture_new_from_definition(texture_definition, task->spritepacks_hmap);
+            texture_ptr = hmap_search(task->textures_hmap, &texture_definition->_id, HMAP_INSERT);
+            assert(texture_ptr && "Texture must be inserted into hmap");
+            *texture_ptr = texture;
+        }
+        hmap_iter_free(iter);
+        task->step = STEP_INIT_SCENE_10_BUILD_WORLD3D;
+    }
+    case STEP_INIT_SCENE_10_BUILD_WORLD3D:
+    {
+        task->terrain = terrain_new_from_map_terrain(
+            task->terrain_iter, NULL, task->underlay_configmap, task->overlay_configmap);
+        task->step = STEP_INIT_SCENE_11_BUILD_TERRAIN3D;
     }
     case STEP_INIT_SCENE_DONE:
     {

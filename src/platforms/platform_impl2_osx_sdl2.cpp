@@ -309,7 +309,7 @@ on_gio_req_asset(
                 message->message_id,
                 message->command,
                 archive->revision,
-                0,
+                message->param_b,
                 archive->data,
                 archive->data_size);
             archive->data = NULL;
@@ -317,10 +317,9 @@ on_gio_req_asset(
             cache_archive_free(archive);
             archive = NULL;
         }
-        else if( message->command == ASSET_MAP_SCENERY )
+        else if( message->command == ASSET_TEXTURES )
         {
-            archive = gioqb_cache_map_scenery_new_load(
-                platform->cache, message->param_a, message->param_b);
+            archive = gioqb_cache_texture_new_load(platform->cache, message->param_b);
             gioqb_mark_done(
                 io,
                 message->message_id,
@@ -334,9 +333,64 @@ on_gio_req_asset(
             cache_archive_free(archive);
             archive = NULL;
         }
+        else if( message->command == ASSET_MAP_SCENERY )
+        {
+            archive = gioqb_cache_map_scenery_new_load(
+                platform->cache, message->param_a, message->param_b);
+
+            int param_b_mapxz = (message->param_a << 16) | message->param_b;
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                param_b_mapxz,
+                archive->data,
+                archive->data_size);
+            archive->data = NULL;
+            archive->data_size = 0;
+            cache_archive_free(archive);
+            archive = NULL;
+        }
         else if( message->command == ASSET_CONFIG_SCENERY )
         {
             archive = gioqb_cache_config_scenery_new_load(platform->cache);
+            config_map_packed = configmap_packed_new(platform->cache, archive);
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                0,
+                config_map_packed->data,
+                config_map_packed->data_size);
+            config_map_packed->data = NULL;
+            config_map_packed->data_size = 0;
+            configmap_packed_free(config_map_packed);
+            cache_archive_free(archive);
+            archive = NULL;
+        }
+        else if( message->command == ASSET_CONFIG_UNDERLAY )
+        {
+            archive = gioqb_cache_config_underlay_new_load(platform->cache);
+            config_map_packed = configmap_packed_new(platform->cache, archive);
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                0,
+                config_map_packed->data,
+                config_map_packed->data_size);
+            config_map_packed->data = NULL;
+            config_map_packed->data_size = 0;
+            configmap_packed_free(config_map_packed);
+            cache_archive_free(archive);
+            archive = NULL;
+        }
+        else if( message->command == ASSET_CONFIG_OVERLAY )
+        {
+            archive = gioqb_cache_config_overlay_new_load(platform->cache);
             config_map_packed = configmap_packed_new(platform->cache, archive);
             gioqb_mark_done(
                 io,

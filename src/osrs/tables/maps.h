@@ -8,8 +8,8 @@
 #include <assert.h>
 
 #define MAP_TERRAIN_X 64
-#define MAP_TERRAIN_Y 64
-#define MAP_TERRAIN_Z 4
+#define MAP_TERRAIN_Z 64
+#define MAP_TERRAIN_LEVELS 4
 #define MAP_CHUNK_SIZE 64
 
 // From meteor-client deob and from rs map viewer
@@ -17,7 +17,7 @@
 #define MAP_UNITS_TILE_HEIGHT_BASIS 8
 
 static inline int
-map_tile_coord_to_chunk_coord(int x, int y, int z)
+map_tile_coord_to_chunk_coord(int x, int z, int level)
 {
     // assert(x >= 0);
     // assert(y >= 0);
@@ -26,11 +26,11 @@ map_tile_coord_to_chunk_coord(int x, int y, int z)
     // assert(y < MAP_TERRAIN_Y);
     // assert(z < MAP_TERRAIN_Z);
 
-    return y + (x)*MAP_TERRAIN_X + (z)*MAP_TERRAIN_X * MAP_TERRAIN_Y;
+    return x + (z)*MAP_TERRAIN_X + (level) * (MAP_TERRAIN_X * MAP_TERRAIN_Z);
 }
 
 // #define MAP_TILE_COORD(x, y, z) (y + (x) * MAP_TERRAIN_X + (z) * MAP_TERRAIN_X * MAP_TERRAIN_Y)
-#define MAP_TILE_COORD(x, y, z) (map_tile_coord_to_chunk_coord(x, y, z))
+#define MAP_TILE_COORD(x, z, level) (map_tile_coord_to_chunk_coord(x, z, level))
 
 struct CacheMapLoc
 {
@@ -62,6 +62,9 @@ struct CacheMapLoc
 
 struct CacheMapLocs
 {
+    int _chunk_mapx;
+    int _chunk_mapz;
+
     struct CacheMapLoc* locs;
     int locs_count;
 };
@@ -88,32 +91,76 @@ struct CacheMapTerrain
     bool _is_fixedup;
     int map_x;
     int map_y;
-    struct CacheMapFloor tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z];
+    struct CacheMapFloor tiles_xyz[MAP_TERRAIN_X * MAP_TERRAIN_Z * MAP_TERRAIN_LEVELS];
 };
 
-#define MAP_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Y * MAP_TERRAIN_Z))
+#define CHUNK_TILE_COUNT ((MAP_TERRAIN_X * MAP_TERRAIN_Z * MAP_TERRAIN_LEVELS))
 
-enum CachePreloadKind map_terrain_preload_check(struct Cache* cache, int map_x, int map_y);
+struct CacheMapTerrain* //
+map_terrain_new_from_cache( //
+    struct Cache* cache, int map_x, int map_y);
 
-void map_terrain_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out);
-void map_locs_io(struct Cache* cache, int map_x, int map_y, struct CacheArchiveTuple* out);
-struct CacheMapTerrain* map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y);
 struct CacheMapTerrain*
-map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y);
-struct CacheMapTerrain* map_terrain_new_from_decode(char* data, int data_size);
+map_terrain_new_from_archive( //
+    struct CacheArchive* archive, int map_x, int map_y);
 
-enum CachePreloadKind map_locs_preload_check(struct Cache* cache, int map_x, int map_y);
-struct CacheMapLocs* map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
-struct CacheMapLocs* map_locs_new_from_decode(char* data, int data_size);
+struct CacheMapTerrain* //
+map_terrain_new_from_decode( //
+    char* data, int data_size);
 
-void map_terrain_free(struct CacheMapTerrain* map_terrain);
-void map_locs_free(struct CacheMapLocs* map_locs);
+struct CacheMapTerrainIter
+{
+    struct CacheMapTerrain** chunks_ptrs;
+    int chunks_count;
+    int chunks_width;
 
-struct CacheArchive* map_locs_archive_new_load(struct Cache* cache, int map_x, int map_y);
+    int index;
+};
+
+struct CacheMapTerrainIter*
+map_terrain_iter_new_from_ptrs(struct CacheMapTerrain** chunks, int count, int width);
+void //
+map_terrain_iter_free(struct CacheMapTerrainIter* iter);
+
+void //
+map_terrain_iter_begin(struct CacheMapTerrainIter* iter);
+struct CacheMapFloor* //
+map_terrain_iter_next(struct CacheMapTerrainIter* iter);
+struct CacheMapFloor*
+map_terrain_iter_at(struct CacheMapTerrainIter* iter, int sx, int sz, int slevel);
+
+int //
+map_terrain_iter_tiles_size(struct CacheMapTerrainIter* iter);
+int //
+map_terrain_iter_bound_x(struct CacheMapTerrainIter* iter);
+int //
+map_terrain_iter_bound_z(struct CacheMapTerrainIter* iter);
+
+struct CacheMapLocs* //
+map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
+
+struct CacheMapLocs* //
+map_locs_new_from_decode(char* data, int data_size);
+
+void //
+map_terrain_free(struct CacheMapTerrain* map_terrain);
+void //
+map_locs_free(struct CacheMapLocs* map_locs);
+
+struct CacheArchive* //
+map_locs_archive_new_load(
+    struct Cache* cache, //
+    int map_x,
+    int map_z);
 
 struct CacheMapLocsIter
 {
-    struct CacheMapLocs* chunks;
+    bool is_ptrs;
+    union
+    {
+        struct CacheMapLocs* _chunks;
+        struct CacheMapLocs** _chunks_ptrs;
+    };
     int chunks_count;
 
     int width;
@@ -121,11 +168,31 @@ struct CacheMapLocsIter
     int index;
 };
 
-struct CacheMapLocsIter* map_locs_iter_new(struct CacheMapLocs* chunks, int count, int width);
+struct ScenePosition
+{
+    int chunk_idx;
+    int sx;
+    int sz;
+};
 
-void map_locs_iter_free(struct CacheMapLocsIter* iter);
+struct CacheMapLocsIter* //
+map_locs_iter_new_from_ptrs(
+    struct CacheMapLocs** chunks, //
+    int count,
+    int width);
 
-void map_locs_iter_begin(struct CacheMapLocsIter* iter);
-struct CacheMapLoc* map_locs_iter_next(struct CacheMapLocsIter* iter);
+void //
+map_locs_iter_free(
+    struct CacheMapLocsIter* iter //
+);
+
+void //
+map_locs_iter_begin(
+    struct CacheMapLocsIter* iter //
+);
+
+struct CacheMapLoc* //
+map_locs_iter_next( //
+    struct CacheMapLocsIter* iter);
 
 #endif

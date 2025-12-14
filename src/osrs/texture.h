@@ -1,54 +1,26 @@
 #ifndef TEXTURE_H
 #define TEXTURE_H
 
+#include "datastruct/hmap.h"
 #include "scene_cache.h"
-#include "tables/sprites.h"
+#include "tables/textures.h"
 
 #include <stdbool.h>
 
-struct SpritePackItem
+struct Texture
 {
-    int id;
-    int ref_count;
-    struct CacheSpritePack* sprite_pack;
+    int* texels;
+    int width;
+    int height;
 
-    struct SpritePackItem* next;
-    struct SpritePackItem* prev;
+    int animation_direction;
+    int animation_speed;
+
+    bool opaque;
 };
-
-struct SpritePacksCache
-{
-    struct HMap* map;
-
-    struct SpritePackItem root;
-};
-
-struct SpritePackWalk
-{
-    void* item;
-    struct CacheSpritePack* sprite_pack;
-};
-
-struct SpritePacksCache* spritepacks_cache_new();
-void spritepacks_cache_free(struct SpritePacksCache* spritepacks_cache);
-
-void spritepacks_cache_add(
-    struct SpritePacksCache* spritepacks_cache,
-    int sprite_pack_id,
-    struct CacheSpritePack* sprite_pack);
-bool spritepacks_cache_contains(struct SpritePacksCache* spritepacks_cache, int sprite_pack_id);
-struct CacheSpritePack*
-spritepacks_cache_get(struct SpritePacksCache* spritepacks_cache, int sprite_pack_id);
-struct CacheSpritePack*
-spritepacks_cache_remove(struct SpritePacksCache* spritepacks_cache, int sprite_pack_id);
-
-struct SpritePackWalk* spritepacks_cache_walk_new(struct SpritePacksCache* spritepacks_cache);
-void spritepacks_cache_walk_free(struct SpritePackWalk* walk);
-struct CacheSpritePack* spritepacks_cache_walk_next(struct SpritePackWalk* walk);
 
 struct Texture*
-texture_new_from_definition(struct CacheTexture* texture_definition, struct Cache* cache);
-struct Texture* texture_new_from_definition_with_spritepacks(
-    struct CacheTexture* texture_definition, struct CacheSpritePack** spritepacks);
+texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap* sprites_hmap);
 
+void texture_free(struct Texture* texture);
 #endif

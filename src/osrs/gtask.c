@@ -38,7 +38,7 @@ gtask_new_init_scene(struct GIOQueue* io, int chunk_x, int chunk_y)
     memset(task, 0, sizeof(struct GTask));
     task->status = GTASK_STATUS_PENDING;
     task->kind = GTASK_KIND_INIT_SCENE;
-    task->_init_scene = gtask_init_scene_new(io, chunk_x, chunk_y);
+    task->_init_scene = gtask_init_scene_new(io, chunk_x, chunk_y, 104);
     return task;
 }
 

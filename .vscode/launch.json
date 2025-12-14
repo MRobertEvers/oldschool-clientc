@@ -47,6 +47,19 @@
             ],
             "type": "node"
         },
+        
+        {
+            "name": "(lldb) Launch osrs/a.out",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/osrs/a.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/src/osrs",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
         {
             "name": "(lldb) Launch OSX",
             "type": "cppdbg",

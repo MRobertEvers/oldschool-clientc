@@ -1986,8 +1986,8 @@ render_scene_compute_ops(
     int max_draw_z = camera_tile_z + radius;
     if( max_draw_x >= MAP_TERRAIN_X )
         max_draw_x = MAP_TERRAIN_X;
-    if( max_draw_z >= MAP_TERRAIN_Y )
-        max_draw_z = MAP_TERRAIN_Y;
+    if( max_draw_z >= MAP_TERRAIN_Z )
+        max_draw_z = MAP_TERRAIN_Z;
     if( max_draw_x < 0 )
         max_draw_x = 0;
     if( max_draw_z < 0 )
@@ -2001,8 +2001,8 @@ render_scene_compute_ops(
         min_draw_z = 0;
     if( min_draw_x > MAP_TERRAIN_X )
         min_draw_x = MAP_TERRAIN_X;
-    if( min_draw_z > MAP_TERRAIN_Y )
-        min_draw_z = MAP_TERRAIN_Y;
+    if( min_draw_z > MAP_TERRAIN_Z )
+        min_draw_z = MAP_TERRAIN_Z;
 
     if( min_draw_x >= max_draw_x )
         return 0;

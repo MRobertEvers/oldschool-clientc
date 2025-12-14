@@ -10,8 +10,19 @@ struct Chunk
     int z;
 };
 
+struct ChunksInView
+{
+    int count;
+    int width;
+};
+
 int
-chunks_inview(struct Chunk* chunks, int world_x, int world_z, int scene_size)
+chunks_inview(
+    struct Chunk* chunks,
+    int world_x,
+    int world_z,
+    int scene_size,
+    struct ChunksInView* out_nullable)
 {
     assert(scene_size < 128);
 
@@ -30,6 +41,12 @@ chunks_inview(struct Chunk* chunks, int world_x, int world_z, int scene_size)
             chunks[i].z = z;
             i++;
         }
+    }
+
+    if( out_nullable )
+    {
+        out_nullable->count = i;
+        out_nullable->width = max_chunk_x - min_chunk_x + 1;
     }
 
     return i;

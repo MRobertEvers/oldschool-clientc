@@ -220,8 +220,8 @@ gioqb_mark_done(
     struct GIOQueue* q,
     uint32_t message_id,
     uint32_t command,
-    uint64_t param_b,
     uint64_t param_a,
+    uint64_t param_b,
     void* data,
     int data_size)
 {
@@ -233,8 +233,8 @@ gioqb_mark_done(
         {
             iter->status = GIO_STATUS_DONE;
             iter->command = command;
-            iter->param_b = param_b;
             iter->param_a = param_a;
+            iter->param_b = param_b;
             iter->data = data;
             iter->data_size = data_size;
             return true;

@@ -20,6 +20,8 @@ static const int TEXTURE_V_DIRECTION[] = { 0, -1, 0, 1, 0 };
 
 struct CacheTexture
 {
+    int _id;
+
     int average_hsl;
     bool opaque;
     int* sprite_ids;
@@ -43,20 +45,5 @@ void texture_definition_free(struct CacheTexture* texture_definition);
 struct CacheTexture* texture_definition_new_decode(const unsigned char* inputData, int inputLength);
 struct CacheTexture* texture_definition_decode_inplace(
     struct CacheTexture*, const unsigned char* inputData, int inputLength);
-
-struct CacheTextureMapLoader;
-struct CacheTextureMapLoader*
-texture_definition_map_loader_new_from_archive(struct CacheArchive* archive);
-
-void texture_definition_map_loader_load(struct CacheTextureMapLoader* loader, int id);
-
-void texture_definition_map_loader_free(struct CacheTextureMapLoader* loader);
-
-struct CacheTextureMap;
-struct CacheTextureMap*
-texture_definition_map_new_from_loader(struct CacheTextureMapLoader* loader);
-
-struct CacheTexture* texture_definition_map_get(struct CacheTextureMap* loader, int id);
-void texture_definition_map_free(struct CacheTextureMap* map);
 
 #endif

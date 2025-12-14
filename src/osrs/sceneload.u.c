@@ -211,24 +211,30 @@ calculate_wall_decor_offset(struct SceneModel* decor, int orientation, int offse
 
 static void
 compute_normal_scenery_spans(
-    struct GridTile* grid, int loc_x, int loc_y, int loc_z, int size_x, int size_y, int loc_index)
+    struct GridTile* grid,
+    int loc_x,
+    int loc_z,
+    int loc_level,
+    int size_x,
+    int size_z,
+    int loc_index)
 {
     struct GridTile* grid_tile = NULL;
 
     int min_tile_x = loc_x;
-    int min_tile_y = loc_y;
+    int min_tile_z = loc_z;
 
     // The max tile is not actually included in the span
     int max_tile_exclusive_x = loc_x + size_x - 1;
-    int max_tile_exclusive_y = loc_y + size_y - 1;
+    int max_tile_exclusive_z = loc_z + size_z - 1;
     if( max_tile_exclusive_x > MAP_TERRAIN_X - 1 )
         max_tile_exclusive_x = MAP_TERRAIN_X - 1;
-    if( max_tile_exclusive_y > MAP_TERRAIN_Y - 1 )
-        max_tile_exclusive_y = MAP_TERRAIN_Y - 1;
+    if( max_tile_exclusive_z > MAP_TERRAIN_Z - 1 )
+        max_tile_exclusive_z = MAP_TERRAIN_Z - 1;
 
     for( int x = min_tile_x; x <= max_tile_exclusive_x; x++ )
     {
-        for( int y = min_tile_y; y <= max_tile_exclusive_y; y++ )
+        for( int z = min_tile_z; z <= max_tile_exclusive_z; z++ )
         {
             int span_flags = 0;
             if( x > min_tile_x )
@@ -243,19 +249,19 @@ compute_normal_scenery_spans(
                 span_flags |= SPAN_FLAG_EAST;
             }
 
-            if( y > min_tile_y )
+            if( z > min_tile_z )
             {
                 // Block until the south tile underlay is drawn.
                 span_flags |= SPAN_FLAG_SOUTH;
             }
 
-            if( y < max_tile_exclusive_y )
+            if( z < max_tile_exclusive_z )
             {
                 // Block until the north tile underlay is drawn.
                 span_flags |= SPAN_FLAG_NORTH;
             }
 
-            grid_tile = &grid[MAP_TILE_COORD(x, y, loc_z)];
+            grid_tile = &grid[MAP_TILE_COORD(x, z, loc_level)];
             grid_tile->spans |= span_flags;
             grid_tile->locs[grid_tile->locs_length++] = loc_index;
         }
@@ -470,37 +476,37 @@ merge_normals(
 struct IterGrid
 {
     int x;
-    int y;
+    int z;
     int level;
 
     int max_x;
     int min_x;
-    int max_y;
-    int min_y;
+    int max_z;
+    int min_z;
     int max_level;
     int min_level;
 };
 
 static struct IterGrid
-iter_grid_init2(int x, int max_x, int y, int max_y, int level, int max_level)
+iter_grid_init2(int x, int max_x, int z, int max_z, int level, int max_level)
 {
     struct IterGrid iter_grid;
     iter_grid.x = x;
-    iter_grid.y = y;
+    iter_grid.z = z;
     iter_grid.level = level;
     iter_grid.max_x = max_x;
     iter_grid.min_x = x;
-    iter_grid.max_y = max_y;
-    iter_grid.min_y = y;
+    iter_grid.max_z = max_z;
+    iter_grid.min_z = z;
     iter_grid.max_level = max_level;
     iter_grid.min_level = level;
     return iter_grid;
 }
 
 static struct IterGrid
-iter_grid_init(int x, int y, int z)
+iter_grid_init(int x, int z, int level)
 {
-    return iter_grid_init2(x, MAP_TERRAIN_X, y, MAP_TERRAIN_Y, z, MAP_TERRAIN_Z);
+    return iter_grid_init2(x, MAP_TERRAIN_X, z, MAP_TERRAIN_Z, level, MAP_TERRAIN_LEVELS);
 }
 
 static void
@@ -510,12 +516,12 @@ iter_grid_next(struct IterGrid* iter_grid)
     if( iter_grid->x >= iter_grid->max_x )
     {
         iter_grid->x = iter_grid->min_x;
-        iter_grid->y++;
+        iter_grid->z++;
     }
 
-    if( iter_grid->y >= iter_grid->max_y )
+    if( iter_grid->z >= iter_grid->max_z )
     {
-        iter_grid->y = iter_grid->min_y;
+        iter_grid->z = iter_grid->min_z;
         iter_grid->level++;
     }
 }
@@ -532,31 +538,31 @@ gather_adjacent_tiles(
     int out_size,
     struct GridTile* grid,
     int tile_x,
-    int tile_y,
+    int tile_z,
     int tile_level,
     int tile_size_x,
-    int tile_size_y)
+    int tile_size_z)
 {
     int min_tile_x = tile_x;
     int max_tile_x = tile_x + tile_size_x;
-    int min_tile_y = tile_y - 1;
-    int max_tile_y = tile_y + tile_size_y;
+    int min_tile_z = tile_z - 1;
+    int max_tile_z = tile_z + tile_size_z;
 
     int count = 0;
     for( int level = 0; level <= tile_level + 1; level++ )
     {
         for( int x = min_tile_x; x <= max_tile_x; x++ )
         {
-            for( int y = min_tile_y; y <= max_tile_y; y++ )
+            for( int z = min_tile_z; z <= max_tile_z; z++ )
             {
-                if( (x == tile_x && y == tile_y && level == tile_level) )
+                if( (x == tile_x && z == tile_z && level == tile_level) )
                     continue;
-                if( x < 0 || y < 0 || x >= MAP_TERRAIN_X || y >= MAP_TERRAIN_Y || level < 0 ||
+                if( x < 0 || z < 0 || x >= MAP_TERRAIN_X || z >= MAP_TERRAIN_Z || level < 0 ||
                     level >= MAP_TERRAIN_Z )
                     continue;
 
                 assert(count < out_size);
-                out[count++] = MAP_TILE_COORD(x, y, level);
+                out[count++] = MAP_TILE_COORD(x, z, level);
             }
         }
     }
@@ -733,21 +739,21 @@ tile_heights_init_from_floor(
     struct TileHeights* tile_heights,
     struct CacheMapFloor* floor,
     int tile_x,
-    int tile_y,
+    int tile_z,
     int tile_level)
 {
-    int height_sw = floor[MAP_TILE_COORD(tile_x, tile_y, tile_level)].height;
+    int height_sw = floor[MAP_TILE_COORD(tile_x, tile_z, tile_level)].height;
     int height_se = height_sw;
     if( tile_x + 1 < MAP_TERRAIN_X )
-        height_se = floor[MAP_TILE_COORD(tile_x + 1, tile_y, tile_level)].height;
+        height_se = floor[MAP_TILE_COORD(tile_x + 1, tile_z, tile_level)].height;
 
     int height_ne = height_sw;
-    if( tile_y + 1 < MAP_TERRAIN_Y && tile_x + 1 < MAP_TERRAIN_X )
-        height_ne = floor[MAP_TILE_COORD(tile_x + 1, tile_y + 1, tile_level)].height;
+    if( tile_z + 1 < MAP_TERRAIN_Z && tile_x + 1 < MAP_TERRAIN_X )
+        height_ne = floor[MAP_TILE_COORD(tile_x + 1, tile_z + 1, tile_level)].height;
 
     int height_nw = height_sw;
-    if( tile_y + 1 < MAP_TERRAIN_Y )
-        height_nw = floor[MAP_TILE_COORD(tile_x, tile_y + 1, tile_level)].height;
+    if( tile_z + 1 < MAP_TERRAIN_Z )
+        height_nw = floor[MAP_TILE_COORD(tile_x, tile_z + 1, tile_level)].height;
 
     int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
 
@@ -779,16 +785,16 @@ static void
 init_grid_tiles(struct GridTile* grid_tiles)
 {
     struct GridTile* grid_tile = NULL;
-    memset(grid_tiles, 0, sizeof(struct GridTile) * MAP_TILE_COUNT);
+    memset(grid_tiles, 0, sizeof(struct GridTile) * CHUNK_TILE_COUNT);
 
     for( int level = 0; level < MAP_TERRAIN_Z; level++ )
     {
         for( int x = 0; x < MAP_TERRAIN_X; x++ )
         {
-            for( int y = 0; y < MAP_TERRAIN_Y; y++ )
+            for( int z = 0; z < MAP_TERRAIN_Z; z++ )
             {
-                grid_tile = &grid_tiles[MAP_TILE_COORD(x, y, level)];
-                init_grid_tile(grid_tile, x, y, level);
+                grid_tile = &grid_tiles[MAP_TILE_COORD(x, z, level)];
+                init_grid_tile(grid_tile, x, z, level);
             }
         }
     }

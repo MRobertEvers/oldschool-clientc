@@ -43,7 +43,7 @@ blend_underlays_runelite(
     int level)
 {
     int size_x = MAP_TERRAIN_X;
-    int size_y = MAP_TERRAIN_Y;
+    int size_y = MAP_TERRAIN_Z;
     int max_size = size_x > size_y ? size_x : size_y;
 
     // Allocate arrays for color information
@@ -134,31 +134,31 @@ blend_underlays_runelite(
         int running_chroma = 0;
 
         // Process each row
-        for( int yi = blend_start_y; yi < blend_end_y; yi++ )
+        for( int zi = blend_start_y; zi < blend_end_y; zi++ )
         {
             // Check north boundary
-            int y_north = yi + BLEND_RADIUS;
-            if( y_north >= 0 && y_north < size_y )
+            int z_north = zi + BLEND_RADIUS;
+            if( z_north >= 0 && z_north < size_y )
             {
-                running_chroma += chroma[y_north + BLEND_RADIUS];
-                running_sat += sats[y_north + BLEND_RADIUS];
-                running_light += light[y_north + BLEND_RADIUS];
-                running_luminance += luminance[y_north + BLEND_RADIUS];
-                running_number += counts[y_north + BLEND_RADIUS];
+                running_chroma += chroma[z_north + BLEND_RADIUS];
+                running_sat += sats[z_north + BLEND_RADIUS];
+                running_light += light[z_north + BLEND_RADIUS];
+                running_luminance += luminance[z_north + BLEND_RADIUS];
+                running_number += counts[z_north + BLEND_RADIUS];
             }
 
             // Check south boundary
-            int y_south = yi - BLEND_RADIUS;
-            if( y_south >= 0 && y_south < size_y )
+            int z_south = zi - BLEND_RADIUS;
+            if( z_south >= 0 && z_south < size_y )
             {
-                running_chroma -= chroma[yi];
-                running_sat -= sats[yi];
-                running_light -= light[yi];
-                running_luminance -= luminance[yi];
-                running_number -= counts[yi];
+                running_chroma -= chroma[z_south];
+                running_sat -= sats[z_south];
+                running_light -= light[z_south];
+                running_luminance -= luminance[z_south];
+                running_number -= counts[z_south];
             }
 
-            if( yi < 0 || yi >= size_y )
+            if( zi < 0 || zi >= size_y )
                 continue;
 
             int avg_hue = (running_chroma * 256 / running_luminance) & 0xFF;
@@ -172,7 +172,7 @@ blend_underlays_runelite(
 
             int hsl = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
 
-            colors[COLOR_COORD(xi, yi)] = hsl;
+            colors[COLOR_COORD(xi, zi)] = hsl;
         }
     }
 
@@ -189,12 +189,14 @@ blend_underlays_runelite(
 
 int*
 blend_underlays(
-    struct CacheMapTerrain* map_terrain, struct ConfigMap* config_underlay_map, int level)
+    struct CacheMapTerrainIter* terrain, struct ConfigMap* config_underlay_map, int level)
 {
     struct CacheConfigUnderlay* entry = NULL;
+    struct CacheMapFloor* tile = NULL;
+
     struct HSL hsl;
-    int size_x = MAP_TERRAIN_X;
-    int size_y = MAP_TERRAIN_Y;
+    int size_x = terrain->chunks_width * MAP_TERRAIN_X;
+    int size_y = terrain->chunks_count / terrain->chunks_width;
     int max_size = size_x > size_y ? size_x : size_y;
 
     // Allocate arrays for color information
@@ -232,7 +234,9 @@ blend_underlays(
             int x_east = xi + BLEND_RADIUS;
             if( x_east >= 0 && x_east < size_x )
             {
-                underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(x_east, yi, level)].underlay_id;
+                tile = map_terrain_iter_at(terrain, x_east, yi, level);
+                assert(tile != NULL);
+                underlay_id = tile->underlay_id;
                 if( underlay_id > 0 )
                 {
                     entry = (struct CacheConfigUnderlay*)configmap_get(
@@ -254,7 +258,10 @@ blend_underlays(
             int x_west = xi - BLEND_RADIUS;
             if( x_west >= 0 && x_west < size_x )
             {
-                underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(x_west, yi, level)].underlay_id;
+                tile = map_terrain_iter_at(terrain, x_west, yi, level);
+                assert(tile != NULL);
+
+                underlay_id = tile->underlay_id;
                 if( underlay_id > 0 )
                 {
                     entry = (struct CacheConfigUnderlay*)configmap_get(
@@ -284,34 +291,36 @@ blend_underlays(
         int running_chroma = 0;
 
         // Process each row
-        for( int yi = blend_start_y; yi < blend_end_y; yi++ )
+        for( int zi = blend_start_y; zi < blend_end_y; zi++ )
         {
             // Check north boundary
-            int y_north = yi + BLEND_RADIUS;
-            if( y_north >= 0 && y_north < size_y )
+            int z_north = zi + BLEND_RADIUS;
+            if( z_north >= 0 && z_north < size_y )
             {
-                running_chroma += chroma[y_north];
-                running_sat += sats[y_north];
-                running_light += light[y_north];
-                running_luminance += luminance[y_north];
-                running_number += counts[y_north];
+                running_chroma += chroma[z_north];
+                running_sat += sats[z_north];
+                running_light += light[z_north];
+                running_luminance += luminance[z_north];
+                running_number += counts[z_north];
             }
 
             // Check south boundary
-            int y_south = yi - BLEND_RADIUS;
-            if( y_south >= 0 && y_south < size_y )
+            int z_south = zi - BLEND_RADIUS;
+            if( z_south >= 0 && z_south < size_y )
             {
-                running_chroma -= chroma[y_south];
-                running_sat -= sats[y_south];
-                running_light -= light[y_south];
-                running_luminance -= luminance[y_south];
-                running_number -= counts[y_south];
+                running_chroma -= chroma[z_south];
+                running_sat -= sats[z_south];
+                running_light -= light[z_south];
+                running_luminance -= luminance[z_south];
+                running_number -= counts[z_south];
             }
 
-            if( yi < 0 || yi >= size_y )
+            if( zi < 0 || zi >= size_y )
                 continue;
 
-            underlay_id = map_terrain->tiles_xyz[MAP_TILE_COORD(xi, yi, level)].underlay_id;
+            tile = map_terrain_iter_at(terrain, xi, zi, level);
+            assert(tile != NULL);
+            underlay_id = tile->underlay_id;
             if( underlay_id > 0 )
             {
                 int avg_hue = (running_chroma / running_number) & 0xFF;
@@ -325,7 +334,7 @@ blend_underlays(
 
                 int hsl = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
 
-                colors[COLOR_COORD(xi, yi)] = hsl;
+                colors[COLOR_COORD(xi, zi)] = hsl;
             }
         }
     }

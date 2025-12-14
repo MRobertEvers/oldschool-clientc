@@ -5,7 +5,7 @@
 #include "scene_tile.h"
 #include "tables/maps.h"
 
-#define COLOR_COORD(x, y) ((x) * MAP_TERRAIN_Y + (y))
+#define COLOR_COORD(x, z) ((x) * MAP_TERRAIN_Z + (z))
 
 // int* blend_underlays_runelite(
 //     struct CacheMapTerrain* map_terrain,
@@ -15,6 +15,6 @@
 //     int level);
 
 int* blend_underlays(
-    struct CacheMapTerrain* map_terrain, struct ConfigMap* config_underlay_map, int level);
+    struct CacheMapTerrainIter* terrain, struct ConfigMap* config_underlay_map, int level);
 
 #endif

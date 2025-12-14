@@ -36,12 +36,25 @@ gioqb_cache_model_new_load(struct Cache* cache, int model_id)
 }
 
 struct CacheArchive*
-gioqb_cache_map_scenery_new_load(struct Cache* cache, int chunk_x, int chunk_y)
+gioqb_cache_texture_new_load(struct Cache* cache, int texture_id)
 {
-    struct CacheArchive* archive = map_locs_archive_new_load(cache, chunk_x, chunk_y);
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_TEXTURES, texture_id);
     if( !archive )
     {
-        printf("Failed to load archive for map scenery %d, %d\n", chunk_x, chunk_y);
+        printf("Failed to load archive for texture %d\n", texture_id);
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive*
+gioqb_cache_map_scenery_new_load(struct Cache* cache, int chunk_mapx, int chunk_mapz)
+{
+    struct CacheArchive* archive = map_locs_archive_new_load(cache, chunk_mapx, chunk_mapz);
+    if( !archive )
+    {
+        printf("Failed to load archive for map scenery %d, %d\n", chunk_mapx, chunk_mapz);
         return NULL;
     }
 
@@ -55,6 +68,32 @@ gioqb_cache_config_scenery_new_load(struct Cache* cache)
     if( !archive )
     {
         printf("Failed to load archive for config scenery\n");
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive*
+gioqb_cache_config_underlay_new_load(struct Cache* cache)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_UNDERLAY);
+    if( !archive )
+    {
+        printf("Failed to load archive for config underlay\n");
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive*
+gioqb_cache_config_overlay_new_load(struct Cache* cache)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_OVERLAY);
+    if( !archive )
+    {
+        printf("Failed to load archive for config overlay\n");
         return NULL;
     }
 
