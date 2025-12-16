@@ -100,6 +100,10 @@ struct CacheMapTerrain* //
 map_terrain_new_from_cache( //
     struct Cache* cache, int map_x, int map_y);
 
+struct CacheArchive* //
+map_terrain_archive_new_load( //
+    struct Cache* cache, int map_x, int map_y);
+
 struct CacheMapTerrain*
 map_terrain_new_from_archive( //
     struct CacheArchive* archive, int map_x, int map_y);

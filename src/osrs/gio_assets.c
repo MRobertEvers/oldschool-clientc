@@ -7,15 +7,27 @@ gio_assets_model_load(struct GIOQueue* q, int model_id)
 }
 
 uint32_t
-gio_assets_texture_load(struct GIOQueue* q, int texture_id)
+gio_assets_texture_definitions_load(struct GIOQueue* q)
 {
-    return gioq_submit(q, GIO_REQ_ASSET, ASSET_TEXTURES, texture_id, 0);
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_TEXTURES, 0, 0);
+}
+
+uint32_t
+gio_assets_spritepack_load(struct GIOQueue* q, int spritepack_id)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_SPRITEPACKS, spritepack_id, 0);
 }
 
 uint32_t
 gio_assets_map_scenery_load(struct GIOQueue* q, int chunk_x, int chunk_y)
 {
     return gioq_submit(q, GIO_REQ_ASSET, ASSET_MAP_SCENERY, chunk_x, chunk_y);
+}
+
+uint32_t
+gio_assets_map_terrain_load(struct GIOQueue* q, int chunk_x, int chunk_z)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_MAP_TERRAIN, chunk_x, chunk_z);
 }
 
 uint32_t

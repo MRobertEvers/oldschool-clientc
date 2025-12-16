@@ -1,12 +1,12 @@
 #include "platform_impl2_osx_sdl2_renderer_soft3d.h"
 
-#include "graphics/render.h"
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
-#include "libg.h"
+
 extern "C" {
-#include "osrs/grender.h"
+#include "graphics/dash.h"
+#include "libg.h"
 }
 
 #include <SDL.h>
@@ -190,7 +190,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     for( int y = 0; y < renderer->height; y++ )
         memset(&renderer->pixel_buffer[y * renderer->width], 0, renderer->width * sizeof(int));
 
-    struct AABB aabb;
+    // struct AABB aabb;
     struct GRenderCommand* command = NULL;
 
     for( int i = 0; i < grendercb_count(render_command_buffer); i++ )
@@ -200,29 +200,36 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         {
         case GRENDER_CMD_MODEL_DRAW:
         {
-            render_model_frame(
-                renderer->pixel_buffer,
-                renderer->width,
-                renderer->height,
-                50,
-                0,
-                0,
-                0,
-                -game->camera_world_x,
-                -game->camera_world_y,
-                -game->camera_world_z,
-                game->camera_pitch,
-                game->camera_yaw,
-                game->camera_roll,
-                512,
-                &aabb,
+            dash3d_render_model(
+                game->dash,
                 game->model,
-                game->lighting,
-                game->bounds_cylinder,
-                NULL,
-                NULL,
-                NULL,
-                NULL);
+                game->position,
+                game->view_port,
+                game->camera,
+                renderer->pixel_buffer);
+            // render_model_frame(
+            //     renderer->pixel_buffer,
+            //     renderer->width,
+            //     renderer->height,
+            //     50,
+            //     0,
+            //     0,
+            //     0,
+            //     -game->camera_world_x,
+            //     -game->camera_world_y,
+            //     -game->camera_world_z,
+            //     game->camera_pitch,
+            //     game->camera_yaw,
+            //     game->camera_roll,
+            //     512,
+            //     &aabb,
+            //     game->model,
+            //     game->lighting,
+            //     game->bounds_cylinder,
+            //     NULL,
+            //     NULL,
+            //     NULL,
+            //     NULL);
         }
         break;
         }

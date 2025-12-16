@@ -1,3 +1,4 @@
+
 #include "texture.h"
 
 #include "tables/sprites.h"
@@ -19,6 +20,7 @@ gamma_blend(int rgb, float gamma)
 struct Texture*
 texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap* sprites_hmap)
 {
+    struct SpritePackEntry* spritepack_entry = NULL;
     struct CacheSpritePack* sprite_pack = NULL;
     struct CacheSprite* sprite = NULL;
     if( !texture_definition || !sprites_hmap )
@@ -39,7 +41,9 @@ texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap
     for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
     {
         int sprite_id = texture_definition->sprite_ids[i];
-        sprite_pack = (struct CacheSpritePack*)hmap_search(sprites_hmap, &sprite_id, HMAP_FIND);
+        spritepack_entry =
+            (struct SpritePackEntry*)hmap_search(sprites_hmap, &sprite_id, HMAP_FIND);
+        sprite_pack = spritepack_entry->spritepack;
         assert(sprite_pack && "Texture SpritePacks must be loaded prior to texture creation");
         if( !sprite_pack )
             continue;

@@ -18,6 +18,18 @@ struct Framemap;
 struct TexturesCache;
 struct ModelLighting;
 
+struct Texture
+{
+    int* texels;
+    int width;
+    int height;
+
+    int animation_direction;
+    int animation_speed;
+
+    bool opaque;
+};
+
 struct AABB
 {
     int min_screen_x;

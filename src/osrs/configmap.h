@@ -25,6 +25,7 @@ struct ConfigMapPacked
 struct ConfigMapIter
 {
     struct HMapIter* hmap_iter;
+    struct ConfigMap* configmap;
 };
 
 struct ConfigMapPacked* configmap_packed_new(struct Cache* cache, struct CacheArchive* archive);

@@ -9,117 +9,266 @@
 #include "tables/config_object.h"
 #include "tables/config_sequence.h"
 #include "tables/configs.h"
+#include "tables/textures.h"
 
 #include <assert.h>
 #include <stdalign.h>
 
+struct ConfigUnderlayEntry
+{
+    int id;
+    struct CacheConfigUnderlay underlay;
+};
+
+struct ConfigOverlayEntry
+{
+    int id;
+    struct CacheConfigOverlay overlay;
+};
+
+struct ConfigObjectEntry
+{
+    int id;
+    struct CacheConfigObject object;
+};
+
+struct ConfigSequenceEntry
+{
+    int id;
+    struct CacheConfigSequence sequence;
+};
+
+struct ConfigNPCEntry
+{
+    int id;
+    struct CacheConfigNPCType npc;
+};
+
+struct ConfigLocsEntry
+{
+    int id;
+    struct CacheConfigLocation loc;
+};
+
+struct ConfigTexturesEntry
+{
+    int id;
+    struct CacheTexture texture;
+};
 struct ConfigMap
 {
     struct HMap* hmap;
 
-    enum ConfigKind kind;
+    int table_id;
+    int archive_id;
 };
 
 static size_t
-configsize(enum ConfigKind kind)
+configsize(int table_id, int archive_id)
 {
-    switch( kind )
+    if( table_id == CACHE_CONFIGS )
     {
-    case CONFIG_UNDERLAY:
-        return sizeof(struct CacheConfigUnderlay);
-    case CONFIG_OVERLAY:
-        return sizeof(struct CacheConfigOverlay);
-    case CONFIG_OBJECT:
-        return sizeof(struct CacheConfigObject);
-    case CONFIG_SEQUENCE:
-        return sizeof(struct CacheConfigSequence);
-    case CONFIG_NPC:
-        return sizeof(struct CacheConfigNPCType);
-    case CONFIG_LOCS:
-        return sizeof(struct CacheConfigLocation);
-    default:
+        switch( archive_id )
+        {
+        case CONFIG_UNDERLAY:
+            return sizeof(struct ConfigUnderlayEntry);
+        case CONFIG_OVERLAY:
+            return sizeof(struct ConfigOverlayEntry);
+        case CONFIG_OBJECT:
+            return sizeof(struct ConfigObjectEntry);
+        case CONFIG_SEQUENCE:
+            return sizeof(struct ConfigSequenceEntry);
+        case CONFIG_NPC:
+            return sizeof(struct ConfigNPCEntry);
+        case CONFIG_LOCS:
+            return sizeof(struct ConfigLocsEntry);
+        default:
+            assert(false);
+            return 0;
+        }
+    }
+    else if( table_id == CACHE_TEXTURES )
+    {
+        return sizeof(struct ConfigTexturesEntry);
+    }
+    else
+    {
         assert(false);
         return 0;
     }
 }
 
 static int
-configalign(enum ConfigKind kind)
+configalign(int table_id, int archive_id)
 {
-    switch( kind )
+    if( table_id == CACHE_CONFIGS )
     {
-    case CONFIG_UNDERLAY:
-        return alignof(struct CacheConfigUnderlay);
-    case CONFIG_OVERLAY:
-        return alignof(struct CacheConfigOverlay);
-    case CONFIG_OBJECT:
-        return alignof(struct CacheConfigObject);
-    case CONFIG_SEQUENCE:
-        return alignof(struct CacheConfigSequence);
-    case CONFIG_NPC:
-        return alignof(struct CacheConfigNPCType);
-    case CONFIG_LOCS:
-        return alignof(struct CacheConfigLocation);
-    default:
+        switch( archive_id )
+        {
+        case CONFIG_UNDERLAY:
+            return alignof(struct CacheConfigUnderlay);
+        case CONFIG_OVERLAY:
+            return alignof(struct CacheConfigOverlay);
+        case CONFIG_OBJECT:
+            return alignof(struct CacheConfigObject);
+        case CONFIG_SEQUENCE:
+            return alignof(struct CacheConfigSequence);
+        case CONFIG_NPC:
+            return alignof(struct CacheConfigNPCType);
+        case CONFIG_LOCS:
+            return alignof(struct CacheConfigLocation);
+        default:
+            assert(false);
+            return 0;
+        }
+    }
+    else if( table_id == CACHE_TEXTURES )
+    {
+        return alignof(struct CacheTexture);
+    }
+    else
+    {
         assert(false);
         return 0;
     }
 }
 
 static void
-configfree(enum ConfigKind kind, void* ptr)
+configfree(int table_id, int archive_id, void* ptr)
 {
-    switch( kind )
+    if( table_id == CACHE_CONFIGS )
     {
-    case CONFIG_UNDERLAY:
-        config_floortype_underlay_free_inplace((struct CacheConfigUnderlay*)ptr);
-        break;
-    case CONFIG_OVERLAY:
-        config_floortype_overlay_free_inplace((struct CacheConfigOverlay*)ptr);
-        break;
-    case CONFIG_OBJECT:
-        // config_object_free((struct CacheConfigObject*)ptr);
-        break;
-    case CONFIG_SEQUENCE:
-        config_sequence_free_inplace((struct CacheConfigSequence*)ptr);
-        break;
-    case CONFIG_NPC:
-        // config_npctype_free((struct CacheConfigNPCType*)ptr);
-        break;
-    case CONFIG_LOCS:
-        config_locs_free_inplace((struct CacheConfigLocation*)ptr);
-        break;
-    default:
+        switch( archive_id )
+        {
+        case CONFIG_UNDERLAY:
+            config_floortype_underlay_free_inplace(&((struct ConfigUnderlayEntry*)ptr)->underlay);
+            break;
+        case CONFIG_OVERLAY:
+            config_floortype_overlay_free_inplace(&((struct ConfigOverlayEntry*)ptr)->overlay);
+            break;
+        case CONFIG_OBJECT:
+            // config_object_free((struct CacheConfigObject*)ptr);
+            break;
+        case CONFIG_SEQUENCE:
+            config_sequence_free_inplace(&((struct ConfigSequenceEntry*)ptr)->sequence);
+            break;
+        case CONFIG_NPC:
+            // config_npctype_free((struct CacheConfigNPCType*)ptr);
+            break;
+        case CONFIG_LOCS:
+            config_locs_free_inplace(&((struct ConfigLocsEntry*)ptr)->loc);
+            break;
+        default:
+            assert(false);
+            break;
+        }
+    }
+    else if( table_id == CACHE_TEXTURES )
+    {
+        texture_definition_free_inplace(&((struct ConfigTexturesEntry*)ptr)->texture);
+    }
+    else
+    {
         assert(false);
-        break;
     }
 }
 
 static void
-configdecode(enum ConfigKind kind, void* ptr, int id, int revision, char* data, int data_size)
+configdecode(
+    int table_id, int archive_id, void* ptr, int id, int revision, char* data, int data_size)
 {
-    switch( kind )
+    if( table_id == CACHE_CONFIGS )
     {
-    case CONFIG_UNDERLAY:
-        config_floortype_underlay_decode_inplace((struct CacheConfigUnderlay*)ptr, data, data_size);
+        switch( archive_id )
+        {
+        case CONFIG_UNDERLAY:
+        {
+            struct ConfigUnderlayEntry* entry = (struct ConfigUnderlayEntry*)ptr;
+            entry->id = id;
+            config_floortype_underlay_decode_inplace(&entry->underlay, data, data_size);
+        }
         break;
-    case CONFIG_OVERLAY:
-        config_floortype_overlay_decode_inplace((struct CacheConfigOverlay*)ptr, data, data_size);
+        case CONFIG_OVERLAY:
+        {
+            struct ConfigOverlayEntry* entry = (struct ConfigOverlayEntry*)ptr;
+            entry->id = id;
+            config_floortype_overlay_decode_inplace(&entry->overlay, data, data_size);
+        }
         break;
-    case CONFIG_OBJECT:
-        config_object_decode_inplace((struct CacheConfigObject*)ptr, data, data_size);
+        case CONFIG_OBJECT:
+        {
+            struct ConfigObjectEntry* entry = (struct ConfigObjectEntry*)ptr;
+            entry->id = id;
+            config_object_decode_inplace(&entry->object, data, data_size);
+        }
         break;
-    case CONFIG_SEQUENCE:
-        config_sequence_decode_inplace((struct CacheConfigSequence*)ptr, revision, data, data_size);
+        case CONFIG_SEQUENCE:
+        {
+            struct ConfigSequenceEntry* entry = (struct ConfigSequenceEntry*)ptr;
+            entry->id = id;
+            config_sequence_decode_inplace(&entry->sequence, revision, data, data_size);
+        }
         break;
-    case CONFIG_LOCS:
-        config_locs_decode_inplace((struct CacheConfigLocation*)ptr, data, data_size);
+        case CONFIG_LOCS:
+        {
+            struct ConfigLocsEntry* entry = (struct ConfigLocsEntry*)ptr;
+            entry->id = id;
+            config_locs_decode_inplace(&entry->loc, data, data_size);
+        }
         break;
 
-    case CONFIG_NPC:
-        assert(false);
+        case CONFIG_NPC:
+        {
+            assert(false);
+        }
         break;
+        }
     }
+    else if( table_id == CACHE_TEXTURES )
+    {
+        struct ConfigTexturesEntry* entry = (struct ConfigTexturesEntry*)ptr;
+        entry->id = id;
+        texture_definition_decode_inplace(&entry->texture, data, data_size);
+    }
+    else
+    {
+        assert(false);
+    }
+}
+
+void*
+configvalue(int table_id, int archive_id, void* ptr)
+{
+    if( table_id == CACHE_CONFIGS )
+    {
+        switch( archive_id )
+        {
+        case CONFIG_UNDERLAY:
+            return &((struct ConfigUnderlayEntry*)ptr)->underlay;
+        case CONFIG_OVERLAY:
+            return &((struct ConfigOverlayEntry*)ptr)->overlay;
+        case CONFIG_OBJECT:
+            return &((struct ConfigObjectEntry*)ptr)->object;
+        case CONFIG_SEQUENCE:
+            return &((struct ConfigSequenceEntry*)ptr)->sequence;
+        case CONFIG_NPC:
+            return &((struct ConfigNPCEntry*)ptr)->npc;
+        case CONFIG_LOCS:
+            return &((struct ConfigLocsEntry*)ptr)->loc;
+        default:
+            assert(false);
+            return NULL;
+        }
+    }
+    else if( table_id == CACHE_TEXTURES )
+    {
+        return &((struct ConfigTexturesEntry*)ptr)->texture;
+    }
+    else
+    {
+        assert(false);
+    }
+    return ptr;
 }
 
 static int
@@ -138,7 +287,7 @@ configmap_packed_new(struct Cache* cache, struct CacheArchive* archive)
     struct ConfigMapPacked* packed = malloc(sizeof(struct ConfigMapPacked));
     memset(packed, 0, sizeof(struct ConfigMapPacked));
 
-    archive_reference = &cache->tables[CACHE_CONFIGS]->archives[archive->archive_id];
+    archive_reference = &cache->tables[archive->table_id]->archives[archive->archive_id];
     filelist_reference_size =
         archive_reference->children.count * sizeof(archive_reference->children.files[0]);
 
@@ -146,6 +295,7 @@ configmap_packed_new(struct Cache* cache, struct CacheArchive* archive)
     data_size += sizeof(int); // revision
     data_size += sizeof(int); // file count
     data_size += sizeof(int); // archive id
+    data_size += sizeof(int); // table id
     data_size += filelist_reference_size;
     data_size += archive->data_size;
 
@@ -160,6 +310,8 @@ configmap_packed_new(struct Cache* cache, struct CacheArchive* archive)
     memcpy((uint8_t*)packed->data + offset, &archive_reference->children.count, sizeof(int));
     offset += sizeof(int);
     memcpy((uint8_t*)packed->data + offset, &archive->archive_id, sizeof(int));
+    offset += sizeof(int);
+    memcpy((uint8_t*)packed->data + offset, &archive->table_id, sizeof(int));
     offset += sizeof(int);
     memcpy(
         (uint8_t*)packed->data + offset,
@@ -187,7 +339,7 @@ configmap_new_from_archive(struct Cache* cache, struct CacheArchive* archive)
         /**
          * Add 16 bytes to the entry size for the key and ensure it's aligned to 16 bytes.
          */
-        .entry_size = alignup(configsize(archive->archive_id) + 4, 16),
+        .entry_size = configsize(archive->table_id, archive->archive_id),
     };
     struct ConfigMap* configmap = NULL;
 
@@ -197,7 +349,7 @@ configmap_new_from_archive(struct Cache* cache, struct CacheArchive* archive)
 
     int target_capacity = file_list->file_count < 1024 ? 1024 : file_list->file_count * 2;
 
-    int buffer_size = target_capacity * (configsize(archive->archive_id) + 32);
+    int buffer_size = target_capacity * (configsize(archive->table_id, archive->archive_id) + 32);
     config.buffer = malloc(buffer_size);
     memset(config.buffer, 0, buffer_size);
 
@@ -216,15 +368,8 @@ configmap_new_from_archive(struct Cache* cache, struct CacheArchive* archive)
 
         assert(ptr);
 
-        if( id == 21 )
-        {
-            printf("Found id 179\n");
-            printf("ptr: %p\n", ptr);
-        }
-
-        ptr = ((int8_t*)ptr) + 16;
-
         configdecode(
+            archive->table_id,
             archive->archive_id,
             ptr,
             id,
@@ -233,7 +378,8 @@ configmap_new_from_archive(struct Cache* cache, struct CacheArchive* archive)
             file_list->file_sizes[i]);
     }
 
-    configmap->kind = archive->archive_id;
+    configmap->table_id = archive->table_id;
+    configmap->archive_id = archive->archive_id;
 
     filelist_free(file_list);
 
@@ -266,6 +412,7 @@ configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_
     int revision = 0;
     int file_count = 0;
     int archive_id = 0;
+    int table_id = 0;
 
     memcpy(&filelist_reference_size, (uint8_t*)data + offset, sizeof(int));
     offset += sizeof(int);
@@ -274,6 +421,8 @@ configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_
     memcpy(&file_count, (uint8_t*)data + offset, sizeof(int));
     offset += sizeof(int);
     memcpy(&archive_id, (uint8_t*)data + offset, sizeof(int));
+    offset += sizeof(int);
+    memcpy(&table_id, (uint8_t*)data + offset, sizeof(int));
     offset += sizeof(int);
 
     archive_file_references = (struct ArchiveFileReference*)((uint8_t*)data + offset);
@@ -287,13 +436,13 @@ configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_
     int count = ids_nullable ? ids_size : file_list->file_count;
     int target_capacity = count < 512 ? 1024 : count * 2;
 
-    int buffer_size = target_capacity * (configsize(archive_id) + 32);
+    int buffer_size = target_capacity * (configsize(table_id, archive_id) + 32);
     config.buffer = malloc(buffer_size);
     memset(config.buffer, 0, buffer_size);
 
     config.buffer_size = buffer_size;
     config.key_size = sizeof(int);
-    config.entry_size = alignup(configsize(archive_id) + 4, 16);
+    config.entry_size = configsize(table_id, archive_id);
 
     configmap->hmap = hmap_new(&config, 0);
 
@@ -309,12 +458,12 @@ configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_
 
         assert(ptr);
 
-        ptr = ((int8_t*)ptr) + 16;
-
-        configdecode(archive_id, ptr, id, revision, file_list->files[i], file_list->file_sizes[i]);
+        configdecode(
+            table_id, archive_id, ptr, id, revision, file_list->files[i], file_list->file_sizes[i]);
     }
 
-    configmap->kind = archive_id;
+    configmap->table_id = table_id;
+    configmap->archive_id = archive_id;
 
     filelist_free(file_list);
 
@@ -337,7 +486,7 @@ configmap_free(struct ConfigMap* configmap)
     struct HMapIter* iter = hmap_iter_new(configmap->hmap);
     void* ptr = NULL;
     while( (ptr = hmap_iter_next(iter)) )
-        configfree(configmap->kind, ptr);
+        configfree(configmap->table_id, configmap->archive_id, ptr);
     hmap_iter_free(iter);
 
     free(hmap_buffer_ptr(configmap->hmap));
@@ -348,7 +497,7 @@ configmap_free(struct ConfigMap* configmap)
 enum ConfigKind
 configmap_kind(struct ConfigMap* configmap)
 {
-    return configmap->kind;
+    return configmap->archive_id;
 }
 
 void*
@@ -368,6 +517,7 @@ configmap_iter_new(struct ConfigMap* configmap)
 {
     struct ConfigMapIter* iter = malloc(sizeof(struct ConfigMapIter));
     iter->hmap_iter = hmap_iter_new(configmap->hmap);
+    iter->configmap = configmap;
     return iter;
 }
 
@@ -389,5 +539,5 @@ configmap_iter_next(struct ConfigMapIter* iter)
         return NULL;
 
     // Only return the user data, skip the internal key.
-    return ((int8_t*)ptr) + 16;
+    return configvalue(iter->configmap->table_id, iter->configmap->archive_id, ptr);
 }

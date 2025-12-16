@@ -1,7 +1,9 @@
 #ifndef TERRAIN_H
 #define TERRAIN_H
 
+#include "configmap.h"
 #include "datastruct/hmap.h"
+#include "tables/maps.h"
 
 struct TerrainTileModel
 {
@@ -56,9 +58,9 @@ terrain_tile_heights_at(struct CacheMapTerrainIter* terrain, int x, int z, int l
 struct CacheMapTerrain;
 struct Terrain* terrain_new_from_map_terrain(
     struct CacheMapTerrainIter* terrain,
-    int* shade_map,
-    struct HMap* overlay_hmap,
-    struct HMap* underlay_hmap);
+    int* shade_map_nullable,
+    struct ConfigMap* config_overlay_map,
+    struct ConfigMap* config_underlay_map);
 
 void terrain_free(struct Terrain* terrain);
 

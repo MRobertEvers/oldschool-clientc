@@ -9,6 +9,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct DashGraphics;
+struct DashModel;
+struct DashPosition;
+struct DashViewPort;
+struct DashCamera;
+
 struct GGame
 {
     bool running;
@@ -23,12 +29,11 @@ struct GGame
     int camera_movement_speed;
     int camera_rotation_speed;
 
-    void* cache;
-    struct CacheModel* model;
-    struct ModelNormals* normals;
-    struct ModelLighting* lighting;
-    struct BoundsCylinder* bounds_cylinder;
-
+    struct DashGraphics* dash;
+    struct DashModel* model;
+    struct DashPosition* position;
+    struct DashViewPort* view_port;
+    struct DashCamera* camera;
     struct GIOQueue* io;
     struct GTask* tasks_nullable;
 };

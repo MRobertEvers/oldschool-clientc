@@ -2,13 +2,14 @@
 #define TEXTURE_H
 
 #include "datastruct/hmap.h"
-#include "scene_cache.h"
 #include "tables/textures.h"
 
 #include <stdbool.h>
 
 struct Texture
 {
+    int id;
+
     int* texels;
     int width;
     int height;
@@ -17,6 +18,12 @@ struct Texture
     int animation_speed;
 
     bool opaque;
+};
+
+struct SpritePackEntry
+{
+    int id;
+    struct CacheSpritePack* spritepack;
 };
 
 struct Texture*

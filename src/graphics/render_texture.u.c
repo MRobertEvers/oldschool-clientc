@@ -1,4 +1,3 @@
-#include "osrs/scene_cache.h"
 
 #include <assert.h>
 #include <stdlib.h>

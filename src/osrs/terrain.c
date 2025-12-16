@@ -1,6 +1,7 @@
 #include "terrain.h"
 
 #include "blend_underlays.h"
+#include "palette.h"
 #include "tables/config_floortype.h"
 #include "tables/maps.h"
 

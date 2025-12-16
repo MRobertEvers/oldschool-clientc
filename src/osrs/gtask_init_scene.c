@@ -25,6 +25,19 @@
 // clang-format off
 #include "chunks.u.c"
 // clang-format on
+
+struct ModelEntry
+{
+    int id;
+    struct CacheModel* model;
+};
+
+struct TextureEntry
+{
+    int id;
+    struct Texture* texture;
+};
+
 struct GTaskInitScene
 {
     enum GTaskInitSceneStep step;
@@ -41,8 +54,8 @@ struct GTaskInitScene
     struct ConfigMap* scenery_configmap;
     struct ConfigMap* underlay_configmap;
     struct ConfigMap* overlay_configmap;
+    struct ConfigMap* texture_definitions_hmap;
     struct HMap* models_hmap;
-    struct HMap* texture_definitions_hmap;
     struct HMap* spritepacks_hmap;
     struct HMap* textures_hmap;
     struct Vec* queued_scenery_models_ids;
@@ -78,6 +91,7 @@ struct GTaskInitScene
     uint32_t reqid_spritepack_inflight;
     uint32_t* reqid_spritepacks;
 
+    uint32_t reqid_texture_definitions;
     uint32_t reqid_underlay;
     uint32_t reqid_overlay;
 
@@ -89,10 +103,10 @@ static void
 vec_push_unique(struct Vec* vec, int* element)
 {
     struct VecIter* iter = vec_iter_new(vec);
-    int* element = NULL;
-    while( (element = (int*)vec_iter_next(iter)) )
+    int* element_iter = NULL;
+    while( (element_iter = (int*)vec_iter_next(iter)) )
     {
-        if( *element == element )
+        if( *element_iter == *element )
             goto done;
     }
     vec_push(vec, element);
@@ -190,7 +204,7 @@ gtask_init_scene_new(struct GIOQueue* io, int world_x, int world_z, int scene_si
     task->world_z = world_z;
     task->scene_size = scene_size;
 
-    chunks_inview(task->chunks, world_x, world_z, scene_size, &chunks_inview);
+    chunks_inview(task->chunks, world_x, world_z, scene_size, &chunks);
 
     task->chunks_count = chunks.count;
     task->chunks_width = chunks.width;
@@ -202,7 +216,7 @@ gtask_init_scene_new(struct GIOQueue* io, int world_x, int world_z, int scene_si
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
-        .entry_size = sizeof(struct CacheModel*),
+        .entry_size = sizeof(struct ModelEntry),
     };
     task->models_hmap = hmap_new(&config, 0);
 
@@ -210,7 +224,7 @@ gtask_init_scene_new(struct GIOQueue* io, int world_x, int world_z, int scene_si
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
-        .entry_size = sizeof(struct Texture*),
+        .entry_size = sizeof(struct TextureEntry),
     };
     task->textures_hmap = hmap_new(&config, 0);
 
@@ -218,17 +232,9 @@ gtask_init_scene_new(struct GIOQueue* io, int world_x, int world_z, int scene_si
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
-        .entry_size = sizeof(struct CacheSpritePack*),
+        .entry_size = sizeof(struct SpritePackEntry),
     };
     task->spritepacks_hmap = hmap_new(&config, 0);
-
-    config = (struct HashConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct CacheTextureDefinition*),
-    };
-    task->texture_definitions_hmap = hmap_new(&config, 0);
 
     return task;
 }
@@ -250,6 +256,7 @@ gtask_init_scene_free(struct GTaskInitScene* task)
     configmap_free(task->scenery_configmap);
     configmap_free(task->underlay_configmap);
     configmap_free(task->overlay_configmap);
+    configmap_free(task->texture_definitions_hmap);
 
     map_locs_iter_free(task->scenery_iter);
     map_terrain_iter_free(task->terrain_iter);
@@ -269,11 +276,10 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     struct CacheModel* model = NULL;
     struct CacheModel** model_ptr = NULL;
     struct CacheSpritePack* spritepack = NULL;
-    struct CacheSpritePack** spritepack_ptr = NULL;
     struct CacheTexture* texture_definition = NULL;
-    struct CacheTexture** texture_definition_ptr = NULL;
     struct Texture* texture = NULL;
-    struct Texture** texture_ptr = NULL;
+    struct TextureEntry* texture_entry = NULL;
+    struct SpritePackEntry* spritepack_entry = NULL;
     bool status = false;
 
     switch( task->step )
@@ -292,6 +298,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
                     gio_assets_map_scenery_load(task->io, task->chunks[i].x, task->chunks[i].z);
             }
             task->reqid_scenery_count = task->chunks_count;
+            task->reqid_scenery_inflight = task->chunks_count;
         }
 
         while( gioq_poll(task->io, &message) )
@@ -387,6 +394,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
                     gio_assets_map_terrain_load(task->io, task->chunks[i].x, task->chunks[i].z);
             }
             task->reqid_terrain_count = task->chunks_count;
+            task->reqid_terrain_inflight = task->chunks_count;
         }
 
         while( gioq_poll(task->io, &message) )
@@ -405,7 +413,6 @@ gtask_init_scene_step(struct GTaskInitScene* task)
 
         task->step = STEP_INIT_SCENE_5_LOAD_UNDERLAY;
     }
-    break;
     case STEP_INIT_SCENE_5_LOAD_UNDERLAY:
     {
         if( task->reqid_underlay == 0 )
@@ -478,12 +485,15 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         struct CacheConfigOverlay* config_overlay = NULL;
         iter = configmap_iter_new(task->overlay_configmap);
         while( (config_overlay = configmap_iter_next(iter)) )
-            vec_push_unique(task->queued_texture_ids, &config_overlay->texture);
+            if( config_overlay->texture != -1 )
+                vec_push_unique(task->queued_texture_ids, &config_overlay->texture);
+
         configmap_iter_free(iter);
 
         struct HMapIter* iter = hmap_iter_new(task->models_hmap);
-        while( (model = (struct CacheModel*)hmap_iter_next(iter)) )
+        while( (model_ptr = (struct CacheModel**)hmap_iter_next(iter)) )
         {
+            model = *model_ptr;
             for( int i = 0; i < model->face_count; i++ )
             {
                 if( !model->face_textures )
@@ -499,64 +509,50 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     }
     case STEP_INIT_SCENE_7_LOAD_TEXTURES:
     {
-        if( task->reqid_texture_count == 0 )
+        if( task->reqid_texture_definitions == 0 )
         {
-            int count = vec_size(task->queued_texture_ids);
-            int* reqids = (int*)malloc(sizeof(int) * count);
-
-            for( int i = 0; i < count; i++ )
-            {
-                reqids[i] = gio_assets_texture_load(
-                    task->io, ((int*)vec_data(task->queued_texture_ids))[i]);
-            }
-
-            task->reqid_texture_count = count;
-            task->reqid_texture_inflight = count;
-            task->reqid_textures = reqids;
+            task->reqid_texture_definitions = gio_assets_texture_definitions_load(task->io);
         }
-
-        while( gioq_poll(task->io, &message) )
-        {
-            task->reqid_texture_inflight--;
-            texture_definition = texture_definition_new_decode(message.data, message.data_size);
-            texture_definition->_id = message.param_b;
-
-            texture_definition_ptr =
-                hmap_search(task->texture_definitions_hmap, &message.param_b, HMAP_INSERT);
-            assert(texture_definition_ptr && "Texture definition must be inserted into hmap");
-            *texture_definition_ptr = texture_definition;
-        }
-
-        if( task->reqid_texture_inflight != 0 )
+        if( !gioq_poll(task->io, &message) )
             return GTASK_STATUS_PENDING;
+        assert(message.message_id == task->reqid_texture_definitions);
 
-        task->step = STEP_INIT_SCENE_DONE;
+        task->texture_definitions_hmap = configmap_new_from_packed(
+            message.data,
+            message.data_size,
+            (int*)vec_data(task->queued_texture_ids),
+            vec_size(task->queued_texture_ids));
+
+        gioq_release(task->io, &message);
+
+        task->step = STEP_INIT_SCENE_8_LOAD_SPRITEPACKS;
     }
     case STEP_INIT_SCENE_8_LOAD_SPRITEPACKS:
     {
         if( task->reqid_spritepack_count == 0 )
         {
             struct Vec* sprite_pack_ids = vec_new(sizeof(int), 512);
-            struct HMapIter* iter = hmap_iter_new(task->textures_hmap);
-            while( (texture_definition = (struct CacheTexture*)hmap_iter_next(iter)) )
+            struct ConfigMapIter* iter = configmap_iter_new(task->texture_definitions_hmap);
+            while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter)) )
             {
                 for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
                     vec_push_unique(sprite_pack_ids, &texture_definition->sprite_ids[i]);
             }
-            hmap_iter_free(iter);
+            configmap_iter_free(iter);
 
-            int count = vec_size(task->queued_texture_ids);
+            int count = vec_size(sprite_pack_ids);
             int* reqids = (int*)malloc(sizeof(int) * count);
+            int* ids = (int*)vec_data(sprite_pack_ids);
 
             for( int i = 0; i < count; i++ )
             {
-                reqids[i] = gio_assets_texture_load(
-                    task->io, ((int*)vec_data(task->queued_texture_ids))[i]);
+                reqids[i] = gio_assets_spritepack_load(task->io, ids[i]);
             }
 
-            task->reqid_texture_count = count;
-            task->reqid_texture_inflight = count;
-            task->reqid_textures = reqids;
+            task->reqid_spritepack_count = count;
+            task->reqid_spritepack_inflight = count;
+
+            vec_free(sprite_pack_ids);
         }
 
         while( gioq_poll(task->io, &message) )
@@ -564,9 +560,11 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             task->reqid_spritepack_inflight--;
             spritepack =
                 sprite_pack_new_decode(message.data, message.data_size, SPRITELOAD_FLAG_NORMALIZE);
-            spritepack_ptr = hmap_search(task->spritepacks_hmap, &message.param_b, HMAP_INSERT);
-            assert(spritepack_ptr && "Spritepack must be inserted into hmap");
-            *spritepack_ptr = spritepack;
+            spritepack_entry = hmap_search(task->spritepacks_hmap, &message.param_b, HMAP_INSERT);
+            assert(spritepack_entry && "Spritepack must be inserted into hmap");
+            spritepack_entry->id = message.param_b;
+            spritepack_entry->spritepack = spritepack;
+
             gioq_release(task->io, &message);
         }
 
@@ -577,15 +575,17 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     }
     case STEP_INIT_SCENE_9_BUILD_TEXTURES:
     {
-        struct HMapIter* iter = hmap_iter_new(task->texture_definitions_hmap);
-        while( (texture_definition = (struct CacheTexture*)hmap_iter_next(iter)) )
+        struct ConfigMapIter* iter = configmap_iter_new(task->texture_definitions_hmap);
+        while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter)) )
         {
             texture = texture_new_from_definition(texture_definition, task->spritepacks_hmap);
-            texture_ptr = hmap_search(task->textures_hmap, &texture_definition->_id, HMAP_INSERT);
-            assert(texture_ptr && "Texture must be inserted into hmap");
-            *texture_ptr = texture;
+            texture_entry = (struct TextureEntry*)hmap_search(
+                task->textures_hmap, &texture_definition->_id, HMAP_INSERT);
+            assert(texture_entry && "Texture must be inserted into hmap");
+            texture_entry->id = texture_definition->_id;
+            texture_entry->texture = texture;
         }
-        hmap_iter_free(iter);
+        configmap_iter_free(iter);
         task->step = STEP_INIT_SCENE_10_BUILD_WORLD3D;
     }
     case STEP_INIT_SCENE_10_BUILD_WORLD3D:

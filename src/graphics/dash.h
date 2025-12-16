@@ -1,0 +1,198 @@
+#ifndef DASH_H
+#define DASH_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+struct DashBoundsCylinder
+{
+    int center_to_top_edge;
+    int center_to_bottom_edge;
+    int min_y;
+    int max_y;
+    int radius;
+
+    // TODO: Name?
+    // - Max extent from model origin.
+    // - Distance to farthest vertex?
+    int min_z_depth_any_rotation;
+};
+
+struct DashAABB
+{
+    int min_screen_x;
+    int min_screen_y;
+    int max_screen_x;
+    int max_screen_y;
+};
+
+struct DashModelLighting
+{
+    // TODO: These can be shorts (hsl16)
+    int* face_colors_hsl_a;
+
+    // null if mode is LIGHTING_FLAT
+    int* face_colors_hsl_b;
+
+    // null if mode is LIGHTING_FLAT
+    int* face_colors_hsl_c;
+};
+
+/**
+ * Shared lighting normals are used for roofs and
+ * other locs that represent a single surface.
+ *
+ * See sharelight.\
+ *
+ * Sharelight "shares" lighting info between all models of
+ * a particular "bitset", the bitset is calculated based on
+ * the loc rotation, index, etc.
+ *
+ * When sharelight is true, normals of abutting locs that
+ * share vertexes
+ * are merged into a single normal.
+ *
+ * Consider two roof locs that are next to each other.
+ * They are aligned such that the inner edges have coinciding vertexes.
+ * Sharelight will take the coinciding vertexes and add the normals together.
+ *
+ * AB AB
+ * CD CD
+ *
+ * Normal 1 points Up and to the Right,
+ * Normal 2 points Up and to the Left.
+ *
+ * They will be merged into a single normal that points upward only.
+ *
+ * This removes the influence of the face on the sides of the roof models.
+ *
+ * world3d_merge_locnormals looks at adjacent locs and merges normals if
+ * vertexes coincide.
+ *
+ *
+ * Sharelight forces locs to use the same lighting normals, so their lighting
+ * will be the same. When the normals are mutated or merged, they will all be
+ * affected.
+ */
+
+// Each model needs it's own normals, and then sharelight models
+// will have shared normals.
+struct DashModelNormals
+{
+    struct LightingNormal* lighting_vertex_normals;
+    int lighting_vertex_normals_count;
+
+    struct LightingNormal* lighting_face_normals;
+    int lighting_face_normals_count;
+};
+
+struct DashModelBones
+{
+    int bones_count;
+    // Array of arrays vertices... AKA arrays of bones.
+    int** bones;
+    int* bones_sizes;
+};
+
+struct DashModel
+{
+    int vertex_count;
+    int* vertices_x;
+    int* vertices_y;
+    int* vertices_z;
+
+    /**
+     * Only used if animated.
+     */
+    int* original_vertices_x;
+    int* original_vertices_y;
+    int* original_vertices_z;
+
+    int face_count;
+    int* face_indices_a;
+    int* face_indices_b;
+    int* face_indices_c;
+    int* face_alphas;
+    int* face_infos;
+    int* face_priorities;
+
+    int textured_face_count;
+
+    // Used in type 2 >
+    int* textured_p_coordinate;
+    int* textured_m_coordinate;
+    int* textured_n_coordinate;
+    int* face_textures;
+    int* face_texture_coords;
+
+    struct DashModelNormals* normals;
+    struct DashModelLighting* lighting;
+    struct DashModelBones* vertex_bones;
+    struct DashModelBones* face_bones;
+    struct DashBoundsCylinder* bounds_cylinder;
+};
+
+struct DashTexture
+{
+    int* texels;
+    int width;
+    int height;
+
+    int animation_direction;
+    int animation_speed;
+
+    bool opaque;
+};
+
+struct DashViewPort
+{
+    int stride;
+
+    int width;
+    int height;
+
+    int x_center;
+    int y_center;
+};
+
+struct DashCamera
+{
+    int fov_rpi2048;
+    int near_plane_z;
+
+    int pitch;
+    int yaw;
+    int roll;
+};
+
+struct DashPosition
+{
+    int x;
+    int y;
+    int z;
+    int pitch;
+    int yaw;
+    int roll;
+};
+
+struct DashGraphics;
+struct DashGraphics* //
+dash_new(void);
+
+void //
+dash_free(struct DashGraphics* dash);
+
+void //
+dash3d_render_model( //
+    struct DashGraphics* dash, 
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera,
+    int* pixel_buffer
+);
+
+struct DashBoundsCylinder
+dash3d_calculate_bounds_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z);
+
+#endif

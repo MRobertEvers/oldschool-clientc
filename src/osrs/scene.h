@@ -7,7 +7,7 @@
 #include "osrs/anim.h"
 #include "osrs/tables/config_sequence.h"
 #include "osrs/tables/maps.h"
-#include "scene_cache.h"
+// #include "scene_cache.h"
 #include "scene_tile.h"
 
 /**

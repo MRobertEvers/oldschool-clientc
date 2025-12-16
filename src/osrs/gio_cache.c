@@ -36,12 +36,25 @@ gioqb_cache_model_new_load(struct Cache* cache, int model_id)
 }
 
 struct CacheArchive*
-gioqb_cache_texture_new_load(struct Cache* cache, int texture_id)
+gioqb_cache_texture_new_load(struct Cache* cache)
 {
-    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_TEXTURES, texture_id);
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_TEXTURES, 0);
     if( !archive )
     {
-        printf("Failed to load archive for texture %d\n", texture_id);
+        printf("Failed to load archive for texture definitions\n");
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive*
+gioqb_cache_spritepack_new_load(struct Cache* cache, int spritepack_id)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_SPRITES, spritepack_id);
+    if( !archive )
+    {
+        printf("Failed to load archive for spritepack %d\n", spritepack_id);
         return NULL;
     }
 
@@ -55,6 +68,19 @@ gioqb_cache_map_scenery_new_load(struct Cache* cache, int chunk_mapx, int chunk_
     if( !archive )
     {
         printf("Failed to load archive for map scenery %d, %d\n", chunk_mapx, chunk_mapz);
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive*
+gioqb_cache_map_terrain_new_load(struct Cache* cache, int chunk_x, int chunk_z)
+{
+    struct CacheArchive* archive = map_terrain_archive_new_load(cache, chunk_x, chunk_z);
+    if( !archive )
+    {
+        printf("Failed to load archive for map terrain %d, %d\n", chunk_x, chunk_z);
         return NULL;
     }
 

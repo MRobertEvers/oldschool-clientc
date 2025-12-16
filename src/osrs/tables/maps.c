@@ -236,6 +236,34 @@ map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
     return NULL;
 }
 
+struct CacheArchive* //
+map_terrain_archive_new_load( //
+    struct Cache* cache, int map_x, int map_y)
+{
+    struct CacheArchive* archive = NULL;
+    struct CacheMapTerrain* map_terrain = NULL;
+    int archive_id = dat2_map_terrain_id(cache, map_x, map_y);
+
+    if( archive_id == -1 )
+    {
+        printf("Failed to load map terrain %d, %d (archive_id: %d)\n", map_x, map_y, archive_id);
+        return NULL;
+    }
+
+    archive = cache_archive_new_load(cache, CACHE_MAPS, archive_id);
+    if( !archive )
+    {
+        printf("Failed to load map terrain %d, %d cache_load\n", map_x, map_y);
+        return NULL;
+    }
+
+    return archive;
+
+error:
+    cache_archive_free(archive);
+    return NULL;
+}
+
 struct CacheMapTerrain*
 map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y)
 {
@@ -627,6 +655,9 @@ map_locs_iter_next(struct CacheMapLocsIter* iter)
     {
         index -= iter->_chunks_ptrs[chunk]->locs_count;
         chunk++;
+
+        if( chunk >= iter->chunks_count )
+            return NULL;
     }
 
     return &iter->_chunks_ptrs[chunk]->locs[index];

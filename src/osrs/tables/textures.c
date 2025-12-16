@@ -55,10 +55,19 @@ texture_definition_new_from_cache(struct Cache* cache, int id)
 void
 texture_definition_free(struct CacheTexture* texture_definition)
 {
+    texture_definition_free_inplace(texture_definition);
+    free(texture_definition);
+}
+
+void
+texture_definition_free_inplace(struct CacheTexture* texture_definition)
+{
+    if( !texture_definition )
+        return;
+
     free(texture_definition->sprite_ids);
     free(texture_definition->sprite_types);
     free(texture_definition->transforms);
-    free(texture_definition);
 }
 
 struct CacheTexture*

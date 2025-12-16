@@ -8,6 +8,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+# Enable AddressSanitizer for Debug builds
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address)
+endif()
+
 # OSX SDL2 Game executable (macOS only)
 if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(osx
@@ -17,7 +23,6 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/datastruct/vec.c
         src/shared_tables.c
         src/graphics/lighting.c
-        src/graphics/render.c
         src/osrs/tables/model.c
         src/osrs/tables/maps.c
         src/osrs/tables/config_locs.c
@@ -26,6 +31,15 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/config_sequence.c
         src/osrs/tables/config_npctype.c
         src/osrs/tables/noise.c
+        src/osrs/tables/textures.c
+        src/osrs/tables/sprites.c
+        src/osrs/blend_underlays.c
+
+        src/graphics/dash.c
+        src/graphics/dashmap.c
+
+        src/osrs/texture.c
+        src/osrs/terrain.c
         src/osrs/filelist.c
         src/osrs/grender.c
         src/osrs/archive.c
@@ -41,7 +55,6 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/bounds_cylinder.c
         src/osrs/frustrum_cullmap.c
         src/osrs/palette.c
-        src/osrs/scene_cache.c
         src/osrs/archive_decompress.c
         src/osrs/cache_inet.c
         src/osrs/disk.c

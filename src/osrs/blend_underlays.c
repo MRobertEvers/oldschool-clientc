@@ -196,12 +196,12 @@ blend_underlays(
 
     struct HSL hsl;
     int size_x = terrain->chunks_width * MAP_TERRAIN_X;
-    int size_y = terrain->chunks_count / terrain->chunks_width;
-    int max_size = size_x > size_y ? size_x : size_y;
+    int size_z = (terrain->chunks_count / terrain->chunks_width) * MAP_TERRAIN_Z;
+    int max_size = size_x > size_z ? size_x : size_z;
 
     // Allocate arrays for color information
-    int* colors = malloc(size_x * size_y * sizeof(int));
-    for( int i = 0; i < size_x * size_y; i++ )
+    int* colors = malloc(size_x * size_z * sizeof(int));
+    for( int i = 0; i < size_x * size_z; i++ )
         colors[i] = -1;
 
     // Allocate arrays for HSL calculations
@@ -220,7 +220,7 @@ blend_underlays(
     int blend_start_x = -BLEND_RADIUS;
     int blend_start_y = -BLEND_RADIUS;
     int blend_end_x = size_x + BLEND_RADIUS;
-    int blend_end_y = size_y + BLEND_RADIUS;
+    int blend_end_y = size_z + BLEND_RADIUS;
 
     int underlay_id;
 
@@ -228,13 +228,13 @@ blend_underlays(
     for( int xi = blend_start_x; xi < blend_end_x; xi++ )
     {
         // Process each row in the column
-        for( int yi = 0; yi < size_y; yi++ )
+        for( int zi = 0; zi < size_z; zi++ )
         {
             // Check east boundary
             int x_east = xi + BLEND_RADIUS;
             if( x_east >= 0 && x_east < size_x )
             {
-                tile = map_terrain_iter_at(terrain, x_east, yi, level);
+                tile = map_terrain_iter_at(terrain, x_east, zi, level);
                 assert(tile != NULL);
                 underlay_id = tile->underlay_id;
                 if( underlay_id > 0 )
@@ -245,12 +245,12 @@ blend_underlays(
 
                     hsl = palette_rgb_to_hsl24(entry->rgb_color);
 
-                    chroma[yi] += hsl.chroma * 256 / hsl.luminance;
-                    sats[yi] += hsl.sat;
-                    light[yi] += hsl.light;
-                    luminance[yi] += hsl.luminance;
+                    chroma[zi] += hsl.chroma * 256 / hsl.luminance;
+                    sats[zi] += hsl.sat;
+                    light[zi] += hsl.light;
+                    luminance[zi] += hsl.luminance;
 
-                    counts[yi]++;
+                    counts[zi]++;
                 }
             }
 
@@ -258,7 +258,7 @@ blend_underlays(
             int x_west = xi - BLEND_RADIUS;
             if( x_west >= 0 && x_west < size_x )
             {
-                tile = map_terrain_iter_at(terrain, x_west, yi, level);
+                tile = map_terrain_iter_at(terrain, x_west, zi, level);
                 assert(tile != NULL);
 
                 underlay_id = tile->underlay_id;
@@ -270,12 +270,12 @@ blend_underlays(
 
                     hsl = palette_rgb_to_hsl24(entry->rgb_color);
 
-                    chroma[yi] -= hsl.chroma * 256 / hsl.luminance;
-                    sats[yi] -= hsl.sat;
-                    light[yi] -= hsl.light;
-                    luminance[yi] -= hsl.luminance;
+                    chroma[zi] -= hsl.chroma * 256 / hsl.luminance;
+                    sats[zi] -= hsl.sat;
+                    light[zi] -= hsl.light;
+                    luminance[zi] -= hsl.luminance;
 
-                    counts[yi]--;
+                    counts[zi]--;
                 }
             }
         }
@@ -295,7 +295,7 @@ blend_underlays(
         {
             // Check north boundary
             int z_north = zi + BLEND_RADIUS;
-            if( z_north >= 0 && z_north < size_y )
+            if( z_north >= 0 && z_north < size_z )
             {
                 running_chroma += chroma[z_north];
                 running_sat += sats[z_north];
@@ -306,7 +306,7 @@ blend_underlays(
 
             // Check south boundary
             int z_south = zi - BLEND_RADIUS;
-            if( z_south >= 0 && z_south < size_y )
+            if( z_south >= 0 && z_south < size_z )
             {
                 running_chroma -= chroma[z_south];
                 running_sat -= sats[z_south];
@@ -315,7 +315,7 @@ blend_underlays(
                 running_number -= counts[z_south];
             }
 
-            if( zi < 0 || zi >= size_y )
+            if( zi < 0 || zi >= size_z )
                 continue;
 
             tile = map_terrain_iter_at(terrain, xi, zi, level);
