@@ -47,9 +47,9 @@ struct DashMapConfig
     void* arg_nullable;
 };
 
-struct HMap;
+struct DashMap;
 
-void* hmap_buffer_ptr(struct HMap* h);
+void* dashmap_buffer_ptr(struct DashMap* h);
 
 struct DashMap* dashmap_new(const struct DashMapConfig* config, uint32_t flags);
 void dashmap_free(struct DashMap* h);

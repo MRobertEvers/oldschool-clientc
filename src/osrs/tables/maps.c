@@ -556,7 +556,7 @@ map_locs_new_from_decode(char* data, int data_size)
         {
             position += pos_offset - 1;
 
-            int local_y = position & 0x3F;
+            int local_z = position & 0x3F;
             int local_x = (position >> 6) & 0x3F;
             int height = (position >> 12) & 0x3;
 
@@ -568,7 +568,7 @@ map_locs_new_from_decode(char* data, int data_size)
             map_locs->locs[loc_idx].shape_select = shape_select;
             map_locs->locs[loc_idx].orientation = orientation;
             map_locs->locs[loc_idx].chunk_pos_x = local_x;
-            map_locs->locs[loc_idx].chunk_pos_y = local_y;
+            map_locs->locs[loc_idx].chunk_pos_z = local_z;
             map_locs->locs[loc_idx].chunk_pos_level = height;
 
             loc_idx++;
@@ -647,7 +647,7 @@ map_locs_iter_begin(struct CacheMapLocsIter* iter)
 }
 
 struct CacheMapLoc*
-map_locs_iter_next(struct CacheMapLocsIter* iter)
+map_locs_iter_next(struct CacheMapLocsIter* iter, struct ChunkOffset* out_offset_nullable)
 {
     int index = iter->index++;
     int chunk = 0;
@@ -658,6 +658,12 @@ map_locs_iter_next(struct CacheMapLocsIter* iter)
 
         if( chunk >= iter->chunks_count )
             return NULL;
+    }
+
+    if( out_offset_nullable )
+    {
+        out_offset_nullable->x = (chunk % iter->width) * MAP_CHUNK_SIZE;
+        out_offset_nullable->z = (chunk / iter->width) * MAP_CHUNK_SIZE;
     }
 
     return &iter->_chunks_ptrs[chunk]->locs[index];

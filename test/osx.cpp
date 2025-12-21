@@ -84,14 +84,14 @@ main(int argc, char* argv[])
         return 1;
     }
 
-    libg_game_step_tasks(game, io, &input, render_command_buffer);
+    libg_game_step_tasks(game, &input, render_command_buffer);
     while( libg_game_is_running(game) )
     {
         // Poll backend
         Platform2_OSX_SDL2_PollIO(platform, io);
         Platform2_OSX_SDL2_PollEvents(platform, &input);
 
-        libg_game_step(game, io, &input, render_command_buffer);
+        libg_game_step(game, &input, render_command_buffer);
 
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, render_command_buffer);
     }

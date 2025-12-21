@@ -77,7 +77,7 @@ struct CacheConfigLocation
     char* desc;
 
     int size_x;
-    int size_y;
+    int size_z;
 
     // TODO: This is blockwalk.
     int clip_type;

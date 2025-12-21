@@ -183,6 +183,11 @@
         "textures.h": "c",
         "config_floortype.h": "c",
         "blend_underlays.h": "c",
-        "scene_tile.h": "c"
+        "scene_tile.h": "c",
+        "config_locs.h": "c",
+        "filelist.h": "c",
+        "painters.h": "c",
+        "dashlib.h": "c",
+        "dash.h": "c"
     }
 }

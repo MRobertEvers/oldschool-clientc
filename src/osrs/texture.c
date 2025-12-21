@@ -133,7 +133,8 @@ texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap
     free(sprite_packs);
 
     // Create texture structure
-    struct Texture* texture = (struct Texture*)malloc(sizeof(struct Texture));
+    struct DashTexture* texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
+    memset(texture, 0, sizeof(struct DashTexture));
     if( !texture )
     {
         free(pixels);

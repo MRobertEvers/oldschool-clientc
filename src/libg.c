@@ -1,9 +1,10 @@
 #include "libg.h"
 
 #include "graphics/dash.h"
+#include "graphics/lighting.h"
+#include "osrs/dashlib.h"
 #include "osrs/gio.h"
 #include "osrs/grender.h"
-#include "osrs/sceneload.u.c"
 #include "shared_tables.h"
 
 // clang-format off
@@ -13,6 +14,7 @@
 
 #define CACHE_PATH "../cache"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -48,7 +50,7 @@ dashmodel_new_from_cache(struct Cache* cache, int model_id)
     dashmodel->face_textures = model->face_textures;
     dashmodel->face_texture_coords = model->face_texture_coords;
 
-    dashmodel->normals = model_normals_new(model->vertex_count, model->face_count);
+    dashmodel->normals = dashmodel_normals_new(model->vertex_count, model->face_count);
 
     calculate_vertex_normals(
         dashmodel->normals->lighting_vertex_normals,
@@ -63,7 +65,7 @@ dashmodel_new_from_cache(struct Cache* cache, int model_id)
         dashmodel->face_count);
 
     struct DashModelLighting* lighting =
-        (struct DashModelLighting*)model_lighting_new(dashmodel->face_count);
+        (struct DashModelLighting*)dashmodel_lighting_new(dashmodel->face_count);
     dashmodel->lighting = lighting;
 
     int light_ambient = 64;
@@ -134,7 +136,13 @@ libg_game_new(struct GIOQueue* io)
     game->camera_movement_speed = 20;
     game->camera_rotation_speed = 20;
 
-    game->dash = dash_new();
+    game->sys_dash = dash_new();
+    game->sys_painter = painter_new(104, 104, 4);
+
+    game->entity_dashmodels = vec_new(sizeof(int), 1024);
+    game->entity_painters = vec_new(sizeof(int), 1024);
+
+    game->models = vec_new(sizeof(struct DashModel*), 1024);
 
     struct Cache* cache = cache_new_from_directory(CACHE_PATH);
     if( !cache )
@@ -333,7 +341,6 @@ libg_game_process_input(struct GGame* game, struct GInput* input)
 static void
 on_completed_task(
     struct GGame* game,
-    struct GIOQueue* queue,
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer,
     struct GTask* task)
@@ -350,10 +357,7 @@ on_completed_task(
 
 void
 libg_game_step_tasks(
-    struct GGame* game,
-    struct GIOQueue* queue,
-    struct GInput* input,
-    struct GRenderCommandBuffer* render_command_buffer)
+    struct GGame* game, struct GInput* input, struct GRenderCommandBuffer* render_command_buffer)
 {
     struct GTask* task = game->tasks_nullable;
     enum GTaskStatus status = GTASK_STATUS_FAILED;
@@ -363,7 +367,7 @@ libg_game_step_tasks(
         if( status != GTASK_STATUS_COMPLETED )
             break;
 
-        on_completed_task(game, queue, input, render_command_buffer, task);
+        on_completed_task(game, input, render_command_buffer, task);
 
         game->tasks_nullable = game->tasks_nullable->next;
         gtask_free(task);
@@ -373,10 +377,7 @@ libg_game_step_tasks(
 
 void
 libg_game_step(
-    struct GGame* game,
-    struct GIOQueue* queue,
-    struct GInput* input,
-    struct GRenderCommandBuffer* render_command_buffer)
+    struct GGame* game, struct GInput* input, struct GRenderCommandBuffer* render_command_buffer)
 {
     struct GTask* task = NULL;
     struct GIOMessage message = { 0 };
@@ -387,7 +388,7 @@ libg_game_step(
         return;
     }
 
-    libg_game_step_tasks(game, queue, input, render_command_buffer);
+    libg_game_step_tasks(game, input, render_command_buffer);
     task = game->tasks_nullable;
     if( task && task->status != GTASK_STATUS_COMPLETED )
     {

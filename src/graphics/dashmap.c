@@ -255,9 +255,9 @@ dashmap_init(
 }
 
 void*
-dashmap_buffer_ptr(struct DashMap* h)
+dashmap_buffer_ptr(struct DashMap* m)
 {
-    return h->entries;
+    return m->entries;
 }
 
 struct DashMap*

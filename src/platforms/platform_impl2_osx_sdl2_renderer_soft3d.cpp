@@ -201,7 +201,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         case GRENDER_CMD_MODEL_DRAW:
         {
             dash3d_render_model(
-                game->dash,
+                game->sys_dash,
                 game->model,
                 game->position,
                 game->view_port,

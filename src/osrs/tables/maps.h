@@ -56,7 +56,7 @@ struct CacheMapLoc
      */
     int orientation;
     int chunk_pos_x;
-    int chunk_pos_y;
+    int chunk_pos_z;
     int chunk_pos_level;
 };
 
@@ -195,8 +195,15 @@ map_locs_iter_begin(
     struct CacheMapLocsIter* iter //
 );
 
+struct ChunkOffset
+{
+    int x;
+    int z;
+};
+
 struct CacheMapLoc* //
 map_locs_iter_next( //
-    struct CacheMapLocsIter* iter);
+    struct CacheMapLocsIter* iter, //
+    struct ChunkOffset* out_offset_nullable);
 
 #endif

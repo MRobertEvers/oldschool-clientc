@@ -166,7 +166,7 @@ painter_element_at(
     return &painter->elements[element];
 }
 
-void
+int
 painter_add_normal_scenery(
     struct Painter* painter, int sx, int sz, int slevel, int entity, int size_x, int size_y)
 {
@@ -183,9 +183,10 @@ painter_add_normal_scenery(
         .slevel = slevel,
         ._scenery = { .entity = entity, .size_x = size_x, .size_y = size_y },
     };
+    return element;
 }
 
-void
+int
 painter_add_wall(
     struct Painter* painter, int sx, int sz, int slevel, int entity, int wall_ab, int side)
 {
@@ -216,9 +217,10 @@ painter_add_wall(
         .slevel = slevel,
         ._wall = { .entity = entity, .side = side },
     };
+    return element;
 }
 
-void
+int
 painter_add_wall_decor(
     struct Painter* painter,
     int sx,
@@ -258,9 +260,10 @@ painter_add_wall_decor(
             ._bf_through_wall_flags = through_wall_flags,
         },
     };
+    return element;
 }
 
-void
+int
 painter_add_ground_decor(struct Painter* painter, int sx, int sz, int slevel, int entity)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
@@ -276,9 +279,10 @@ painter_add_ground_decor(struct Painter* painter, int sx, int sz, int slevel, in
         .slevel = slevel,
         ._ground_decor = { .entity = entity },
     };
+    return element;
 }
 
-void
+int
 painter_add_ground_object(
     struct Painter* painter, int sx, int sz, int slevel, int entity, int bottom_middle_top)
 {
@@ -310,6 +314,7 @@ painter_add_ground_object(
         .slevel = slevel,
         ._ground_object = { .entity = entity },
     };
+    return element;
 }
 
 /**

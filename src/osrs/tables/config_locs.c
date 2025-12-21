@@ -128,7 +128,7 @@ init_loc(struct CacheConfigLocation* loc)
 
     loc->name = NULL;
     loc->size_x = 1;
-    loc->size_y = 1;
+    loc->size_z = 1;
     loc->clip_type = 2;
     loc->blocks_projectiles = 1;
     loc->is_interactive = -1;
@@ -272,7 +272,7 @@ decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
             loc->size_x = rsbuf_g1(&buffer);
             break;
         case 15:
-            loc->size_y = rsbuf_g1(&buffer);
+            loc->size_z = rsbuf_g1(&buffer);
             break;
         case 17:
             loc->clip_type = 0;

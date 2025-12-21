@@ -192,7 +192,20 @@ dash3d_render_model( //
     int* pixel_buffer
 );
 
-struct DashBoundsCylinder
-dash3d_calculate_bounds_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z);
+struct DashBoundsCylinder //
+dash3d_calculate_bounds_cylinder( //
+    int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z);
+
+void //
+dash3d_add_texture(
+    struct DashGraphics* dash,
+    int texture_id, //
+    struct DashTexture* texture);
+
+struct DashModelNormals* //
+dashmodel_normals_new(int vertex_count, int face_count);
+
+struct DashModelLighting* //
+dashmodel_lighting_new(int face_count);
 
 #endif

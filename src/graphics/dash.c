@@ -16,6 +16,12 @@
 #include "projection_simd.u.c"
 // clang-format on
 
+struct DashTextureEntry
+{
+    int id;
+    struct DashTexture* texture;
+};
+
 struct DashGraphics
 {
     int screen_vertices_x[4096];
@@ -50,6 +56,15 @@ dash_new()
     if( dash == NULL )
         return NULL;
     memset(dash, 0, sizeof(struct DashGraphics));
+
+    struct DashMapConfig config = {
+        .buffer = malloc(4096),
+        .buffer_size = 4096,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct DashTextureEntry),
+    };
+    dash->textures_hmap = dashmap_new(&config, 0);
+
     return dash;
 }
 
@@ -1251,4 +1266,23 @@ dash3d_calculate_bounds_cylinder(int num_vertices, int* vertex_x, int* vertex_y,
         center_to_top_edge > center_to_bottom_edge ? center_to_top_edge : center_to_bottom_edge;
 
     return bounds_cylinder;
+}
+
+void //
+dash3d_add_texture(
+    struct DashGraphics* dash,
+    int texture_id, //
+    struct DashTexture* texture)
+{
+    struct DashTextureEntry* entry =
+        (struct DashTextureEntry*)dashmap_search(dash->textures_hmap, &texture_id, DASHMAP_INSERT);
+
+    if( !entry )
+    {
+        // TODO: Resize;
+        assert(false && "Handle resize textures hashmap");
+    }
+
+    entry->id = texture_id;
+    entry->texture = texture;
 }

@@ -244,7 +244,7 @@ struct PaintersElement* painter_element_at(
     struct Painter* painter, //
     int element);
 
-void painter_add_normal_scenery(
+int painter_add_normal_scenery(
     struct Painter* painter, //
     int sx,
     int sz,
@@ -256,7 +256,7 @@ void painter_add_normal_scenery(
 #define WALL_A 0
 #define WALL_B 1
 
-void painter_add_wall(
+int painter_add_wall(
     struct Painter* painter, //
     int sx,
     int sz,
@@ -265,7 +265,7 @@ void painter_add_wall(
     int wall_ab,
     int side);
 
-void painter_add_wall_decor(
+int painter_add_wall_decor(
     struct Painter* painter,
     int sx,
     int sz,
@@ -275,7 +275,7 @@ void painter_add_wall_decor(
     int side,
     int through_wall_flags);
 
-void painter_add_ground_decor(
+int painter_add_ground_decor(
     struct Painter* painter, //
     int sx,
     int sz,
@@ -286,7 +286,7 @@ void painter_add_ground_decor(
 #define GROUND_OBJECT_MIDDLE 1
 #define GROUND_OBJECT_TOP 2
 
-void painter_add_ground_object(
+int painter_add_ground_object(
     struct Painter* painter, //
     int sx,
     int sz,

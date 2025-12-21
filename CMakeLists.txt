@@ -33,6 +33,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/noise.c
         src/osrs/tables/textures.c
         src/osrs/tables/sprites.c
+        src/osrs/painters.c
         src/osrs/blend_underlays.c
 
         src/graphics/dash.c

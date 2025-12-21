@@ -2,23 +2,10 @@
 #define TEXTURE_H
 
 #include "datastruct/hmap.h"
+#include "graphics/dash.h"
 #include "tables/textures.h"
 
 #include <stdbool.h>
-
-struct Texture
-{
-    int id;
-
-    int* texels;
-    int width;
-    int height;
-
-    int animation_direction;
-    int animation_speed;
-
-    bool opaque;
-};
 
 struct SpritePackEntry
 {

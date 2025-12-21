@@ -15,22 +15,22 @@
 // clang-format on
 
 struct TileHeights
-terrain_tile_heights_at(struct CacheMapTerrainIter* terrain, int x, int z, int level)
+terrain_tile_heights_at(struct CacheMapTerrainIter* terrain, int sx, int sz, int level)
 {
     struct TileHeights tile_heights;
 
-    int height_sw = map_terrain_iter_at(terrain, x, z, level)->height;
+    int height_sw = map_terrain_iter_at(terrain, sx, sz, level)->height;
     int height_se = height_sw;
-    if( x + 1 < map_terrain_iter_bound_x(terrain) )
-        height_se = map_terrain_iter_at(terrain, x + 1, z, level)->height;
+    if( sx + 1 < map_terrain_iter_bound_x(terrain) )
+        height_se = map_terrain_iter_at(terrain, sx + 1, sz, level)->height;
 
     int height_ne = height_sw;
-    if( z + 1 < map_terrain_iter_bound_z(terrain) && x + 1 < map_terrain_iter_bound_x(terrain) )
-        height_ne = map_terrain_iter_at(terrain, x + 1, z + 1, level)->height;
+    if( sz + 1 < map_terrain_iter_bound_z(terrain) && sx + 1 < map_terrain_iter_bound_x(terrain) )
+        height_ne = map_terrain_iter_at(terrain, sx + 1, sz + 1, level)->height;
 
     int height_nw = height_sw;
-    if( z + 1 < map_terrain_iter_bound_z(terrain) )
-        height_nw = map_terrain_iter_at(terrain, x, z + 1, level)->height;
+    if( sz + 1 < map_terrain_iter_bound_z(terrain) )
+        height_nw = map_terrain_iter_at(terrain, sx, sz + 1, level)->height;
 
     int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
 

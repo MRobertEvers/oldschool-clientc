@@ -1,6 +1,7 @@
 #ifndef GTASK_INIT_SCENE_H
 #define GTASK_INIT_SCENE_H
 
+#include "libg.h"
 #include "osrs/gio.h"
 #include "osrs/tables/model.h"
 
@@ -60,7 +61,7 @@ enum GTaskInitSceneStep
 
 struct GTaskInitScene;
 struct GTaskInitScene*
-gtask_init_scene_new(struct GIOQueue* io, int world_x, int world_z, int scene_size);
+gtask_init_scene_new(struct GGame* game, int world_x, int world_z, int scene_size);
 void gtask_init_scene_free(struct GTaskInitScene* task);
 
 enum GTaskStatus gtask_init_scene_step(struct GTaskInitScene* task);

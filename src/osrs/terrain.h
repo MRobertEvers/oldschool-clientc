@@ -53,7 +53,7 @@ struct TileHeights
 };
 
 struct TileHeights
-terrain_tile_heights_at(struct CacheMapTerrainIter* terrain, int x, int z, int level);
+terrain_tile_heights_at(struct CacheMapTerrainIter* terrain, int sx, int sz, int level);
 
 struct CacheMapTerrain;
 struct Terrain* terrain_new_from_map_terrain(
