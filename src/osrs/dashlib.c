@@ -1,5 +1,11 @@
 #include "dashlib.h"
 
+#include "graphics/lighting.h"
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
 struct DashModel*
 dashmodel_new_from_cache_model(struct CacheModel* model)
 {
@@ -29,8 +35,10 @@ dashmodel_new_from_cache_model(struct CacheModel* model)
 
     dash_model->normals = dashmodel_normals_new(model->vertex_count, model->face_count);
     dash_model->lighting = dashmodel_lighting_new(model->face_count);
-    dash_model->vertex_bones = dashmodel_bones_new(model->vertex_bone_map, model->vertex_count);
-    dash_model->face_bones = dashmodel_bones_new(model->face_bone_map, model->face_count);
+    if( model->vertex_bone_map )
+        dash_model->vertex_bones = dashmodel_bones_new(model->vertex_bone_map, model->vertex_count);
+    if( model->face_bone_map )
+        dash_model->face_bones = dashmodel_bones_new(model->face_bone_map, model->face_count);
 
     dash_model->bounds_cylinder =
         (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
@@ -43,4 +51,84 @@ dashmodel_new_from_cache_model(struct CacheModel* model)
         dash_model->vertices_z);
 
     return dash_model;
+}
+
+struct DashModelBones*
+dashmodel_bones_new(int* bone_map, int bone_count)
+{
+    struct DashModelBones* bones = (struct DashModelBones*)malloc(sizeof(struct DashModelBones));
+    memset(bones, 0, sizeof(struct DashModelBones));
+
+    struct ModelBones* model_bones = modelbones_new_decode(bone_map, bone_count);
+    bones->bones_count = model_bones->bones_count;
+    bones->bones = model_bones->bones;
+    bones->bones_sizes = model_bones->bones_sizes;
+    memset(bones->bones, 0, sizeof(int*) * bones->bones_count);
+
+    modelbones_free(model_bones);
+
+    return bones;
+}
+
+static struct DashModelLighting*
+model_lighting_new(int face_count)
+{
+    struct DashModelLighting* lighting = malloc(sizeof(struct DashModelLighting));
+    memset(lighting, 0, sizeof(struct DashModelLighting));
+
+    lighting->face_colors_hsl_a = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_a, 0, sizeof(int) * face_count);
+
+    lighting->face_colors_hsl_b = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_b, 0, sizeof(int) * face_count);
+
+    lighting->face_colors_hsl_c = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_c, 0, sizeof(int) * face_count);
+
+    return lighting;
+}
+
+struct DashModelLighting*
+dashmodel_lighting_new_default(
+    struct CacheModel* model,
+    struct DashModelNormals* normals,
+    int model_contrast,
+    int model_attenuation)
+{
+    struct DashModelLighting* lighting = dashmodel_lighting_new(model->face_count);
+
+    int light_ambient = 64;
+    int light_attenuation = 768;
+    int lightsrc_x = -50;
+    int lightsrc_y = -10;
+    int lightsrc_z = -50;
+
+    light_ambient += model_contrast;
+    light_attenuation += model_attenuation;
+
+    int light_magnitude =
+        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+    int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+    apply_lighting(
+        lighting->face_colors_hsl_a,
+        lighting->face_colors_hsl_b,
+        lighting->face_colors_hsl_c,
+        normals->lighting_vertex_normals,
+        normals->lighting_face_normals,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        model->face_count,
+        model->face_colors,
+        model->face_alphas,
+        model->face_textures,
+        model->face_infos,
+        light_ambient,
+        attenuation,
+        lightsrc_x,
+        lightsrc_y,
+        lightsrc_z);
+
+    return lighting;
 }

@@ -254,7 +254,10 @@ configvalue(int table_id, int archive_id, void* ptr)
         case CONFIG_NPC:
             return &((struct ConfigNPCEntry*)ptr)->npc;
         case CONFIG_LOCS:
-            return &((struct ConfigLocsEntry*)ptr)->loc;
+        {
+            struct ConfigLocsEntry* entry = (struct ConfigLocsEntry*)ptr;
+            return &entry->loc;
+        }
         default:
             assert(false);
             return NULL;
@@ -509,7 +512,7 @@ configmap_get(struct ConfigMap* configmap, int id)
         return NULL;
 
     // Only return the user data.
-    return ((int8_t*)ptr) + 16;
+    return configvalue(configmap->table_id, configmap->archive_id, ptr);
 }
 
 struct ConfigMapIter*

@@ -1286,3 +1286,36 @@ dash3d_add_texture(
     entry->id = texture_id;
     entry->texture = texture;
 }
+
+struct DashModelNormals*
+dashmodel_normals_new(int vertex_count, int face_count)
+{
+    struct DashModelNormals* normals =
+        (struct DashModelNormals*)malloc(sizeof(struct DashModelNormals));
+    memset(normals, 0, sizeof(struct DashModelNormals));
+    normals->lighting_vertex_normals = malloc(sizeof(struct LightingNormal) * vertex_count);
+    memset(normals->lighting_vertex_normals, 0, sizeof(struct LightingNormal) * vertex_count);
+    normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
+    memset(normals->lighting_face_normals, 0, sizeof(struct LightingNormal) * face_count);
+    normals->lighting_vertex_normals_count = vertex_count;
+    normals->lighting_face_normals_count = face_count;
+    return normals;
+}
+
+struct DashModelLighting*
+dashmodel_lighting_new(int face_count)
+{
+    struct DashModelLighting* lighting =
+        (struct DashModelLighting*)malloc(sizeof(struct DashModelLighting));
+    memset(lighting, 0, sizeof(struct DashModelLighting));
+    lighting->face_colors_hsl_a = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_a, 0, sizeof(int) * face_count);
+
+    lighting->face_colors_hsl_b = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_b, 0, sizeof(int) * face_count);
+
+    lighting->face_colors_hsl_c = malloc(sizeof(int) * face_count);
+    memset(lighting->face_colors_hsl_c, 0, sizeof(int) * face_count);
+
+    return lighting;
+}

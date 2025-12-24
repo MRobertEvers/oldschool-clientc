@@ -37,18 +37,18 @@ struct PaintersTile
     uint16_t scenery[10];
     uint16_t scenery_count;
 
-    uint16_t wall_a;
-    uint16_t wall_b;
-    uint16_t wall_decor_a;
-    uint16_t wall_decor_b;
+    int16_t wall_a;
+    int16_t wall_b;
+    int16_t wall_decor_a;
+    int16_t wall_decor_b;
 
-    uint16_t ground_decor;
+    int16_t ground_decor;
 
-    uint16_t bridge_tile;
+    int16_t bridge_tile;
 
-    uint16_t ground_object_bottom;
-    uint16_t ground_object_middle;
-    uint16_t ground_object_top;
+    int16_t ground_object_bottom;
+    int16_t ground_object_middle;
+    int16_t ground_object_top;
 
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.

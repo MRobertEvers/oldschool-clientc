@@ -393,7 +393,7 @@ load_model(
             int model_id = model_id_sets[0][i];
             assert(model_id);
 
-            model_entry = hmap_search(models_hmap, &model_id, HMAP_FIND);
+            model_entry = (struct ModelEntry*)hmap_search(models_hmap, &model_id, HMAP_FIND);
             assert(model_entry);
             model = model_entry->model;
 
@@ -426,7 +426,8 @@ load_model(
                     int model_id = model_id_sets[i][j];
                     assert(model_id);
 
-                    model_entry = hmap_search(models_hmap, &model_id, HMAP_FIND);
+                    model_entry =
+                        (struct ModelEntry*)hmap_search(models_hmap, &model_id, HMAP_FIND);
                     assert(model_entry);
                     model = model_entry->model;
 
@@ -614,6 +615,7 @@ queue_scenery_models(
             int model_id = model_id_sets[0][i];
             if( model_id )
             {
+                printf("Queueing model %d\n", model_id);
                 queue_model_unique(task, model_id);
             }
         }
@@ -631,6 +633,7 @@ queue_scenery_models(
                     int model_id = model_id_sets[i][j];
                     if( model_id )
                     {
+                        printf("Queueing model %d\n", model_id);
                         queue_model_unique(task, model_id);
                     }
                 }
@@ -669,7 +672,10 @@ gtask_init_scene_new(struct GGame* game, int world_x, int world_z, int scene_siz
 
     chunks_inview(task->chunks, world_x, world_z, scene_size, &chunks);
 
-    task->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    game->sys_painter = painter_new(
+        chunks.width * CHUNK_TILE_SIZE, chunks.width * CHUNK_TILE_SIZE, MAP_TERRAIN_LEVELS);
+
+    task->painter = game->sys_painter;
 
     task->chunks_count = chunks.count;
     task->chunks_width = chunks.width;
@@ -739,7 +745,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     struct CacheMapLocs* locs;
     struct CacheConfigLocation* config_loc;
     struct CacheModel* model = NULL;
-    struct CacheModel** model_ptr = NULL;
+    struct ModelEntry* model_entry = NULL;
     struct CacheSpritePack* spritepack = NULL;
     struct CacheTexture* texture_definition = NULL;
     struct Texture* texture = NULL;
@@ -807,12 +813,13 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         /**
          * Process Scenery, Queue Model Ids
          */
-        iter = configmap_iter_new(task->scenery_configmap);
+        map_locs_iter_begin(task->scenery_iter);
+        while( (loc = map_locs_iter_next(task->scenery_iter, &chunk_offset)) )
+        {
+            config_loc = configmap_get(task->scenery_configmap, loc->loc_id);
 
-        while( (config_loc = configmap_iter_next(iter)) )
             queue_scenery_models(task, config_loc, loc->shape_select);
-
-        configmap_iter_free(iter);
+        }
 
         task->step = STEP_INIT_SCENE_3_LOAD_SCENERY_MODELS;
     }
@@ -825,8 +832,9 @@ gtask_init_scene_step(struct GTaskInitScene* task)
 
             for( int i = 0; i < count; i++ )
             {
-                reqids[i] = gio_assets_model_load(
-                    task->io, ((int*)vec_data(task->queued_scenery_models_ids))[i]);
+                int model_id = *(int*)vec_get(task->queued_scenery_models_ids, i);
+
+                reqids[i] = gio_assets_model_load(task->io, model_id);
             }
 
             task->reqid_model_count = count;
@@ -839,12 +847,15 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             task->reqid_model_inflight--;
 
             model = model_new_decode(message.data, message.data_size);
-            model_ptr = hmap_search(task->models_hmap, &model->_id, HMAP_INSERT);
-            assert(model_ptr && "Model must be inserted into hmap");
-            *model_ptr = model;
+            model_entry =
+                (struct ModelEntry*)hmap_search(task->models_hmap, &message.param_b, HMAP_INSERT);
+            assert(model_entry && "Model must be inserted into hmap");
+            model_entry->id = message.param_b;
+            model_entry->model = model;
 
             gioq_release(task->io, &message);
         }
+
         if( task->reqid_model_inflight != 0 )
             return GTASK_STATUS_PENDING;
 
@@ -957,9 +968,9 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         configmap_iter_free(iter);
 
         struct HMapIter* iter = hmap_iter_new(task->models_hmap);
-        while( (model_ptr = (struct CacheModel**)hmap_iter_next(iter)) )
+        while( (model_entry = (struct ModelEntry*)hmap_iter_next(iter)) )
         {
-            model = *model_ptr;
+            model = model_entry->model;
             for( int i = 0; i < model->face_count; i++ )
             {
                 if( !model->face_textures )
@@ -1069,7 +1080,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             config_loc = configmap_get(task->scenery_configmap, loc->loc_id);
             assert(config_loc && "Scenery configuration must be loaded");
 
-            tile_heights = terrain_tile_heights_at(task->terrain, sx, sz, slevel);
+            tile_heights = terrain_tile_heights_at(task->terrain_iter, sx, sz, slevel);
 
             // int entity = entity_new(task->game);
 

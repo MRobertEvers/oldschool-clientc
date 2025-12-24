@@ -35,6 +35,8 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/sprites.c
         src/osrs/painters.c
         src/osrs/blend_underlays.c
+        src/osrs/dashlib.c
+        src/osrs/model_transforms.c
 
         src/graphics/dash.c
         src/graphics/dashmap.c

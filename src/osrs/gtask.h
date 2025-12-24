@@ -1,6 +1,7 @@
 #ifndef GTASK_H
 #define GTASK_H
 
+#include "libg.h"
 #include "osrs/gio.h"
 
 enum GTaskStatus
@@ -34,7 +35,7 @@ struct GTask
 };
 
 struct GTask* gtask_new_init_io(struct GIOQueue* io);
-struct GTask* gtask_new_init_scene(struct GIOQueue* io, int chunk_x, int chunk_y);
+struct GTask* gtask_new_init_scene(struct GGame* game, int chunk_x, int chunk_y);
 
 enum GTaskStatus gtask_step(struct GTask* task);
 

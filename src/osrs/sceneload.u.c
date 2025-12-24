@@ -680,6 +680,8 @@ vec_model_back(struct Scene* scene)
     return model;
 }
 
+
+
 static struct ModelLighting*
 model_lighting_new_default(
     struct CacheModel* model,

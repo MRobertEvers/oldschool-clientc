@@ -137,7 +137,7 @@ libg_game_new(struct GIOQueue* io)
     game->camera_rotation_speed = 20;
 
     game->sys_dash = dash_new();
-    game->sys_painter = painter_new(104, 104, 4);
+    // game->sys_painter = painter_new(104, 104, 4);
 
     game->entity_dashmodels = vec_new(sizeof(int), 1024);
     game->entity_painters = vec_new(sizeof(int), 1024);
@@ -244,7 +244,7 @@ libg_game_new(struct GIOQueue* io)
     //     game->model->vertices_z);
 
     game->tasks_nullable = gtask_new_init_io(game->io);
-    game->tasks_nullable->next = gtask_new_init_scene(game->io, 50 * 64, 50 * 64);
+    game->tasks_nullable->next = gtask_new_init_scene(game, 50 * 64, 50 * 64);
 
     return game;
 }
