@@ -33,6 +33,13 @@ struct Entity
     int view_port;
 };
 
+struct SceneElement
+{
+    int idx;
+    struct DashModel* model;
+    struct DashPosition* position;
+};
+
 struct GGame
 {
     bool running;
@@ -50,7 +57,7 @@ struct GGame
     struct Vec* entity_dashmodels;
     struct Vec* entity_painters;
 
-    struct Vec* models;
+    struct Vec* scene_elements;
 
     struct DashGraphics* sys_dash;
     struct Painter* sys_painter;

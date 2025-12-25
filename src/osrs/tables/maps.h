@@ -110,7 +110,7 @@ map_terrain_new_from_archive( //
 
 struct CacheMapTerrain* //
 map_terrain_new_from_decode( //
-    char* data, int data_size);
+    char* data, int data_size, int map_x, int map_y);
 
 struct CacheMapTerrainIter
 {

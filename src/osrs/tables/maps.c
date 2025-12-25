@@ -35,8 +35,7 @@ generate_height(int x, int y)
  * src/rs/scene/SceneBuilder.ts decodeTerrainTile
  */
 static void
-fixup_terrain(
-    struct CacheMapTerrain* map_terrain, int world_scene_origin_x, int world_scene_origin_y)
+fixup_terrain(struct CacheMapTerrain* map_terrain, int map_x, int map_z)
 {
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
@@ -49,12 +48,12 @@ fixup_terrain(
                 // generate_height.
                 if( map->height == 0 )
                 {
-                    if( z == 0 )
+                    if( level == 0 )
                     {
-                        int worldX = world_scene_origin_x + (-58) + 932731;
-                        int worldY = world_scene_origin_y + (-58) + 556238;
+                        int world_x = map_x + (-58) + 932731;
+                        int world_z = map_z + (-58) + 556238;
                         map->height =
-                            -generate_height(worldX, worldY) * MAP_UNITS_TILE_HEIGHT_BASIS;
+                            -generate_height(world_x, world_z) * MAP_UNITS_TILE_HEIGHT_BASIS;
                     }
                     else
                     {
@@ -67,7 +66,7 @@ fixup_terrain(
                     if( map->height == 1 )
                         map->height = 0;
 
-                    if( z == 0 )
+                    if( level == 0 )
                     {
                         map->height = -map->height * MAP_UNITS_TILE_HEIGHT_BASIS;
                     }
@@ -218,14 +217,12 @@ map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
         return NULL;
     }
 
-    map_terrain = map_terrain_new_from_decode(archive->data, archive->data_size);
+    map_terrain = map_terrain_new_from_decode(archive->data, archive->data_size, map_x, map_y);
     if( !map_terrain )
     {
         printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_y);
         return NULL;
     }
-
-    fixup_terrain(map_terrain, map_x, map_y);
 
     cache_archive_free(archive);
 
@@ -268,20 +265,18 @@ struct CacheMapTerrain*
 map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y)
 {
     struct CacheMapTerrain* map_terrain =
-        map_terrain_new_from_decode(archive->data, archive->data_size);
+        map_terrain_new_from_decode(archive->data, archive->data_size, map_x, map_y);
     if( !map_terrain )
     {
         printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_y);
         return NULL;
     }
 
-    fixup_terrain(map_terrain, map_x, map_y);
-
     return map_terrain;
 }
 
 struct CacheMapTerrain*
-map_terrain_new_from_decode(char* data, int data_size)
+map_terrain_new_from_decode(char* data, int data_size, int map_x, int map_z)
 {
     struct CacheMapTerrain* map_terrain = malloc(sizeof(struct CacheMapTerrain));
     memset(map_terrain, 0, sizeof(struct CacheMapTerrain));
@@ -328,6 +323,8 @@ map_terrain_new_from_decode(char* data, int data_size)
             }
         }
     }
+
+    fixup_terrain(map_terrain, map_x, map_z);
 
     return map_terrain;
 }

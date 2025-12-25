@@ -17,7 +17,7 @@ gamma_blend(int rgb, float gamma)
     return rgb;
 }
 
-struct Texture*
+struct DashTexture*
 texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap* sprites_hmap)
 {
     struct SpritePackEntry* spritepack_entry = NULL;

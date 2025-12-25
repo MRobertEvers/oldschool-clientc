@@ -13,8 +13,8 @@ struct SpritePackEntry
     struct CacheSpritePack* spritepack;
 };
 
-struct Texture*
+struct DashTexture*
 texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap* sprites_hmap);
 
-void texture_free(struct Texture* texture);
+void texture_free(struct DashTexture* texture);
 #endif

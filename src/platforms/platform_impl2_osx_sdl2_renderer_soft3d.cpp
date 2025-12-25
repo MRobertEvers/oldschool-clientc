@@ -186,13 +186,36 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
-    memset(renderer->pixel_buffer, 0, renderer->width * renderer->height * sizeof(int));
+    // memset(renderer->pixel_buffer, 0x00FF00FF, renderer->width * renderer->height * sizeof(int));
     for( int y = 0; y < renderer->height; y++ )
-        memset(&renderer->pixel_buffer[y * renderer->width], 0, renderer->width * sizeof(int));
+        memset(
+            &renderer->pixel_buffer[y * renderer->width],
+            0x00FF00FF,
+            renderer->width * sizeof(int));
 
     // struct AABB aabb;
     struct GRenderCommand* command = NULL;
 
+    struct DashPosition position = { 0 };
+    for( int i = 0; i < vec_size(game->scene_elements); i++ )
+    {
+        struct SceneElement* scene_element = (struct SceneElement*)vec_get(game->scene_elements, i);
+        memcpy(&position, scene_element->position, sizeof(struct DashPosition));
+        position.x = position.x - game->camera_world_x;
+        position.y = position.y - game->camera_world_y;
+        position.z = position.z - game->camera_world_z;
+        dash3d_render_model(
+            game->sys_dash,
+            scene_element->model,
+            &position,
+            game->view_port,
+            game->camera,
+            renderer->pixel_buffer);
+    }
+
+    game->camera->pitch = game->camera_pitch;
+    game->camera->yaw = game->camera_yaw;
+    game->camera->roll = game->camera_roll;
     for( int i = 0; i < grendercb_count(render_command_buffer); i++ )
     {
         command = grendercb_at(render_command_buffer, i);
@@ -200,10 +223,14 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         {
         case GRENDER_CMD_MODEL_DRAW:
         {
+            position = *game->position;
+            position.x = position.x - game->camera_world_x;
+            position.y = position.y - game->camera_world_y;
+            position.z = position.z - game->camera_world_z;
             dash3d_render_model(
                 game->sys_dash,
                 game->model,
-                game->position,
+                &position,
                 game->view_port,
                 game->camera,
                 renderer->pixel_buffer);

@@ -343,6 +343,7 @@ dash3d_raster_model_face(
     int camera_fov,
     struct DashMap* textures_hmap)
 {
+    struct DashTextureEntry* texture_entry = NULL;
     struct Texture* texture = NULL;
 
     // TODO: FaceTYpe is wrong, type 2 is hidden, 3 is black, 0 is gouraud, 1 is flat.
@@ -414,8 +415,11 @@ dash3d_raster_model_face(
     {
         texture_id = face_textures[face];
         // gamma 0.8 is the default in os1
-        texture = (struct DashTexture*)dashmap_search(textures_hmap, &texture_id, DASHMAP_FIND);
-        assert(texture != NULL);
+        texture_entry =
+            (struct DashTextureEntry*)dashmap_search(textures_hmap, &texture_id, DASHMAP_FIND);
+        assert(texture_entry != NULL);
+        texture = texture_entry->texture;
+
         texels = texture->texels;
         texture_size = texture->width;
         texture_opaque = texture->opaque;
@@ -1276,6 +1280,8 @@ dash3d_add_texture(
 {
     struct DashTextureEntry* entry =
         (struct DashTextureEntry*)dashmap_search(dash->textures_hmap, &texture_id, DASHMAP_INSERT);
+
+    printf("Adding Texture %d\n", texture_id);
 
     if( !entry )
     {

@@ -126,9 +126,15 @@ libg_game_new(struct GIOQueue* io)
 
     game->io = io;
     game->running = true;
-    game->camera_world_x = 0;
-    game->camera_world_y = -100;
-    game->camera_world_z = -500;
+
+    // x =
+    // 7616
+    // z =
+    // 8100
+
+    game->camera_world_x = 7616;
+    game->camera_world_y = -500;
+    game->camera_world_z = 8000;
     game->camera_yaw = 0;
     game->camera_pitch = 128;
     game->camera_roll = 0;
@@ -139,10 +145,9 @@ libg_game_new(struct GIOQueue* io)
     game->sys_dash = dash_new();
     // game->sys_painter = painter_new(104, 104, 4);
 
+    game->scene_elements = vec_new(sizeof(struct SceneElement), 1024);
     game->entity_dashmodels = vec_new(sizeof(int), 1024);
     game->entity_painters = vec_new(sizeof(int), 1024);
-
-    game->models = vec_new(sizeof(struct DashModel*), 1024);
 
     struct Cache* cache = cache_new_from_directory(CACHE_PATH);
     if( !cache )

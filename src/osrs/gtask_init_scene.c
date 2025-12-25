@@ -241,7 +241,7 @@ struct ModelEntry
 struct TextureEntry
 {
     int id;
-    struct Texture* texture;
+    struct DashTexture* texture;
 };
 
 struct GTaskInitScene
@@ -356,6 +356,55 @@ apply_transforms(
         model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
 }
 
+static void
+light_model_default(struct DashModel* dash_model, int model_contrast, int model_attenuation)
+{
+    int light_ambient = 64;
+    int light_attenuation = 768;
+    int lightsrc_x = -50;
+    int lightsrc_y = -10;
+    int lightsrc_z = -50;
+
+    light_ambient += model_contrast;
+    light_attenuation += model_attenuation;
+
+    int light_magnitude =
+        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+    int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+    calculate_vertex_normals(
+        dash_model->normals->lighting_vertex_normals,
+        dash_model->normals->lighting_face_normals,
+        dash_model->vertex_count,
+        dash_model->face_indices_a,
+        dash_model->face_indices_b,
+        dash_model->face_indices_c,
+        dash_model->vertices_x,
+        dash_model->vertices_y,
+        dash_model->vertices_z,
+        dash_model->face_count);
+
+    apply_lighting(
+        dash_model->lighting->face_colors_hsl_a,
+        dash_model->lighting->face_colors_hsl_b,
+        dash_model->lighting->face_colors_hsl_c,
+        dash_model->normals->lighting_vertex_normals,
+        dash_model->normals->lighting_face_normals,
+        dash_model->face_indices_a,
+        dash_model->face_indices_b,
+        dash_model->face_indices_c,
+        dash_model->face_count,
+        dash_model->face_colors,
+        dash_model->face_alphas,
+        dash_model->face_textures,
+        dash_model->face_infos,
+        light_ambient,
+        attenuation,
+        lightsrc_x,
+        lightsrc_y,
+        lightsrc_z);
+}
+
 static struct DashModel*
 load_model(
     struct CacheConfigLocation* loc_config,
@@ -405,22 +454,19 @@ load_model(
     }
     else
     {
-        int count = shapes_and_model_count;
-
-        models = malloc(sizeof(struct CacheModel*) * count);
-        memset(models, 0, sizeof(struct CacheModel*) * count);
-        model_ids = malloc(sizeof(int) * count);
-        memset(model_ids, 0, sizeof(int) * count);
+        models = malloc(sizeof(struct CacheModel*) * shapes_and_model_count);
+        memset(models, 0, sizeof(struct CacheModel*) * shapes_and_model_count);
+        model_ids = malloc(sizeof(int) * shapes_and_model_count);
+        memset(model_ids, 0, sizeof(int) * shapes_and_model_count);
 
         bool found = false;
-        for( int i = 0; i < count; i++ )
+        for( int i = 0; i < shapes_and_model_count; i++ )
         {
             int count_inner = lengths[i];
 
             int loc_type = shapes[i];
             if( loc_type == shape_select )
             {
-                assert(count_inner <= count);
                 for( int j = 0; j < count_inner; j++ )
                 {
                     int model_id = model_id_sets[i][j];
@@ -453,6 +499,14 @@ load_model(
         model = model_new_copy(models[0]);
     }
 
+    // printf("face textures: ");
+    // if( model->face_textures )
+    //     for( int f = 0; f < model->face_count; f++ )
+    //     {
+    //         printf("%d; ", model->face_textures[f]);
+    //     }
+    // printf("\n");
+
     apply_transforms(
         loc_config,
         model,
@@ -464,6 +518,12 @@ load_model(
 
     struct DashModel* dash_model = NULL;
     dash_model = dashmodel_new_from_cache_model(model);
+    model_free(model);
+
+    //     scene_model->light_ambient = loc_config->ambient;
+    //     scene_model->light_contrast = loc_config->contrast;
+
+    light_model_default(dash_model, loc_config->contrast, loc_config->ambient);
 
     // Sequences don't account for rotations, so models must be rotated AFTER the animation is
     // applied.
@@ -561,6 +621,20 @@ load_model(
     return dash_model;
 }
 
+static int
+game_add_scene_element(struct GGame* game, struct DashModel* model, struct DashPosition* position)
+{
+    struct SceneElement scene_element = {
+        .model = model,
+        .position = position,
+    };
+    vec_push(game->scene_elements, &scene_element);
+
+    int idx = vec_size(game->scene_elements) - 1;
+
+    return idx;
+}
+
 static void
 vec_push_unique(struct Vec* vec, int* element)
 {
@@ -615,7 +689,6 @@ queue_scenery_models(
             int model_id = model_id_sets[0][i];
             if( model_id )
             {
-                printf("Queueing model %d\n", model_id);
                 queue_model_unique(task, model_id);
             }
         }
@@ -633,7 +706,6 @@ queue_scenery_models(
                     int model_id = model_id_sets[i][j];
                     if( model_id )
                     {
-                        printf("Queueing model %d\n", model_id);
                         queue_model_unique(task, model_id);
                     }
                 }
@@ -748,7 +820,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     struct ModelEntry* model_entry = NULL;
     struct CacheSpritePack* spritepack = NULL;
     struct CacheTexture* texture_definition = NULL;
-    struct Texture* texture = NULL;
+    struct DashTexture* texture = NULL;
     struct TextureEntry* texture_entry = NULL;
     struct SpritePackEntry* spritepack_entry = NULL;
     struct ChunkOffset chunk_offset;
@@ -876,9 +948,12 @@ gtask_init_scene_step(struct GTaskInitScene* task)
 
         while( gioq_poll(task->io, &message) )
         {
+            int map_x = (message.param_b >> 16) & 0xFFFF;
+            int map_z = message.param_b & 0xFFFF;
             task->reqid_terrain_inflight--;
             task->terrain_definitions[task->terrain_count++] =
-                map_terrain_new_from_decode(message.data, message.data_size);
+                map_terrain_new_from_decode(message.data, message.data_size, map_x, map_z);
+
             gioq_release(task->io, &message);
         }
 
@@ -970,17 +1045,37 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         struct HMapIter* iter = hmap_iter_new(task->models_hmap);
         while( (model_entry = (struct ModelEntry*)hmap_iter_next(iter)) )
         {
+            // There is a face texture that is not getting loaded.
             model = model_entry->model;
+            if( !model->face_textures )
+                continue;
+            if( model->face_count == 10 )
+            {
+                printf("model->face_textures: %d\n", model->face_textures[9]);
+            }
             for( int i = 0; i < model->face_count; i++ )
             {
-                if( !model->face_textures )
-                    continue;
                 int face_texture = model->face_textures[i];
                 if( face_texture != -1 )
+                {
                     vec_push_unique(task->queued_texture_ids, &face_texture);
+                }
             }
         }
         hmap_iter_free(iter);
+
+        map_locs_iter_begin(task->scenery_iter);
+        while( (loc = map_locs_iter_next(task->scenery_iter, &chunk_offset)) )
+        {
+            config_loc = configmap_get(task->scenery_configmap, loc->loc_id);
+            assert(config_loc && "Scenery configuration must be loaded");
+
+            if( config_loc->retexture_count && config_loc->retextures_to )
+            {
+                for( int i = 0; i < config_loc->retexture_count; i++ )
+                    vec_push_unique(task->queued_texture_ids, &config_loc->retextures_to[i]);
+            }
+        }
 
         task->step = STEP_INIT_SCENE_7_LOAD_TEXTURES;
     }
@@ -1056,11 +1151,14 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter)) )
         {
             texture = texture_new_from_definition(texture_definition, task->spritepacks_hmap);
+            assert(texture);
             texture_entry = (struct TextureEntry*)hmap_search(
                 task->textures_hmap, &texture_definition->_id, HMAP_INSERT);
             assert(texture_entry && "Texture must be inserted into hmap");
             texture_entry->id = texture_definition->_id;
             texture_entry->texture = texture;
+
+            dash3d_add_texture(task->game->sys_dash, texture_definition->_id, texture);
         }
         configmap_iter_free(iter);
         task->step = STEP_INIT_SCENE_10_BUILD_WORLD3D;
@@ -1099,14 +1197,14 @@ gtask_init_scene_step(struct GTaskInitScene* task)
                     loc->orientation,
                     &tile_heights);
                 // TODO: Load animations.
-                vec_push(task->game->models, &dash_model);
-                int model_index = vec_size(task->game->models) - 1;
 
-                struct DashPosition position = {
-                    .x = sx * TILE_SIZE + config_loc->size_x * 64,
-                    .y = sz * TILE_SIZE + config_loc->size_z * 64,
-                    .z = tile_heights.height_center,
-                };
+                struct DashPosition* position = malloc(sizeof(struct DashPosition));
+                memset(position, 0, sizeof(struct DashPosition));
+                position->x = sx * TILE_SIZE + config_loc->size_x * 64;
+                position->z = sz * TILE_SIZE + config_loc->size_z * 64;
+                position->y = tile_heights.height_center;
+
+                int model_index = game_add_scene_element(task->game, dash_model, position);
                 // model->region_x = tile_x * TILE_SIZE + size_x * 64;
                 // model->region_z = tile_y * TILE_SIZE + size_y * 64;
                 // model->region_height = height_center;

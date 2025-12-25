@@ -115,6 +115,7 @@ struct DashModel
     int* face_alphas;
     int* face_infos;
     int* face_priorities;
+    int* face_colors;
 
     int textured_face_count;
 

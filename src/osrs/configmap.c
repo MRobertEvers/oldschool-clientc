@@ -229,6 +229,7 @@ configdecode(
         struct ConfigTexturesEntry* entry = (struct ConfigTexturesEntry*)ptr;
         entry->id = id;
         texture_definition_decode_inplace(&entry->texture, data, data_size);
+        entry->texture._id = id;
     }
     else
     {

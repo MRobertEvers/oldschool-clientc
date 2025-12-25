@@ -383,7 +383,7 @@ on_gio_req_asset(
                 message->message_id,
                 message->command,
                 archive->revision,
-                0,
+                param_b_mapxz,
                 archive->data,
                 archive->data_size);
             archive->data = NULL;
