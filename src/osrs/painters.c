@@ -21,6 +21,7 @@ init_painter_tile(struct PaintersTile* tile, int sx, int sz, int slevel)
     tile->wall_decor_a = -1;
     tile->wall_decor_b = -1;
     tile->bridge_tile = -1;
+    tile->ground_decor = -1;
     tile->ground_object_bottom = -1;
     tile->ground_object_middle = -1;
     tile->ground_object_top = -1;
@@ -31,7 +32,7 @@ enum TilePaintStep
 {
     // Do not draw ground until adjacent tiles are done,
     // unless we are spanned by that tile.
-    PAINT_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED,
+    PAINT_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED = 0,
     PAINT_STEP_GROUND,
     PAINT_STEP_WAIT_ADJACENT_GROUND,
     PAINT_STEP_LOCS,
@@ -381,6 +382,18 @@ near_wall_flags(int camera_sx, int camera_sz, int sx, int sz)
     return flags;
 }
 
+struct PaintersBuffer*
+painter_buffer_new()
+{
+    struct PaintersBuffer* buffer = (struct PaintersBuffer*)malloc(sizeof(struct PaintersBuffer));
+
+    memset(buffer, 0x00, sizeof(struct PaintersBuffer));
+
+    buffer->command_capacity = 512;
+    buffer->commands = malloc(sizeof(struct PaintersElementCommand) * 512);
+    return buffer;
+}
+
 int
 painter_paint(
     struct Painter* painter, //
@@ -398,9 +411,10 @@ painter_paint(
 
     int scenery_queue[100];
     int scenery_queue_length = 0;
+    buffer->command_count = 0;
 
-    memset(painter->tile_paints, 0, painter->tile_count * sizeof(struct TilePaint));
-    memset(painter->element_paints, 0, painter->element_count * sizeof(struct ElementPaint));
+    memset(painter->tile_paints, 0x00, painter->tile_capacity * sizeof(struct TilePaint));
+    memset(painter->element_paints, 0x00, painter->element_count * sizeof(struct ElementPaint));
 
     // Generate painter's algorithm coordinate list - farthest to nearest
     int radius = 25;

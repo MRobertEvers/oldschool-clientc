@@ -746,6 +746,7 @@ gtask_init_scene_new(struct GGame* game, int world_x, int world_z, int scene_siz
 
     game->sys_painter = painter_new(
         chunks.width * CHUNK_TILE_SIZE, chunks.width * CHUNK_TILE_SIZE, MAP_TERRAIN_LEVELS);
+    game->sys_painter_buffer = painter_buffer_new();
 
     task->painter = game->sys_painter;
 

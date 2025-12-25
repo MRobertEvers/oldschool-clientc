@@ -61,6 +61,7 @@ struct GGame
 
     struct DashGraphics* sys_dash;
     struct Painter* sys_painter;
+    struct PaintersBuffer* sys_painter_buffer;
 
     struct DashModel* model;
     struct DashPosition* position;

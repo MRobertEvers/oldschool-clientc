@@ -196,22 +196,58 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     // struct AABB aabb;
     struct GRenderCommand* command = NULL;
 
+    painter_paint(
+        game->sys_painter,
+        game->sys_painter_buffer,
+        game->camera_world_x / 128,
+        game->camera_world_z / 128,
+        game->camera_world_y / 240);
+
     struct DashPosition position = { 0 };
-    for( int i = 0; i < vec_size(game->scene_elements); i++ )
+
+    for( int i = 0; i < game->sys_painter_buffer->command_count; i++ )
     {
-        struct SceneElement* scene_element = (struct SceneElement*)vec_get(game->scene_elements, i);
-        memcpy(&position, scene_element->position, sizeof(struct DashPosition));
-        position.x = position.x - game->camera_world_x;
-        position.y = position.y - game->camera_world_y;
-        position.z = position.z - game->camera_world_z;
-        dash3d_render_model(
-            game->sys_dash,
-            scene_element->model,
-            &position,
-            game->view_port,
-            game->camera,
-            renderer->pixel_buffer);
+        struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
+
+        switch( cmd->_bf_kind )
+        {
+        case PNTR_CMD_ELEMENT:
+        {
+            struct SceneElement* scene_element =
+                (struct SceneElement*)vec_get(game->scene_elements, cmd->_entity._bf_entity);
+            memcpy(&position, scene_element->position, sizeof(struct DashPosition));
+            position.x = position.x - game->camera_world_x;
+            position.y = position.y - game->camera_world_y;
+            position.z = position.z - game->camera_world_z;
+            dash3d_render_model(
+                game->sys_dash,
+                scene_element->model,
+                &position,
+                game->view_port,
+                game->camera,
+                renderer->pixel_buffer);
+        }
+        break;
+        case PNTR_CMD_TERRAIN:
+            break;
+        default:
+            break;
+        }
     }
+    // for( int i = 0; i < vec_size(game->scene_elements); i++ )
+    // {
+    //     struct SceneElement* scene_element = (struct SceneElement*)vec_get(game->scene_elements,
+    //     i); memcpy(&position, scene_element->position, sizeof(struct DashPosition)); position.x =
+    //     position.x - game->camera_world_x; position.y = position.y - game->camera_world_y;
+    //     position.z = position.z - game->camera_world_z;
+    //     dash3d_render_model(
+    //         game->sys_dash,
+    //         scene_element->model,
+    //         &position,
+    //         game->view_port,
+    //         game->camera,
+    //         renderer->pixel_buffer);
+    // }
 
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;

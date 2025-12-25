@@ -217,8 +217,8 @@ struct PaintersElementCommand
         {
             uint32_t _bf_kind : 4;
             uint32_t _bf_terrain_x : 9;
-            uint32_t _bf_terrain_y : 9;
-            uint32_t _bf_terrain_z : 4;
+            uint32_t _bf_terrain_z : 9;
+            uint32_t _bf_terrain_y : 4;
         } _terrain;
     };
 };
@@ -300,6 +300,8 @@ struct PaintersBuffer
     int command_count;
     int command_capacity;
 };
+
+struct PaintersBuffer* painter_buffer_new();
 
 int painter_paint(
     struct Painter* painter, //

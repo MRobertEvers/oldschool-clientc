@@ -143,7 +143,6 @@ libg_game_new(struct GIOQueue* io)
     game->camera_rotation_speed = 20;
 
     game->sys_dash = dash_new();
-    // game->sys_painter = painter_new(104, 104, 4);
 
     game->scene_elements = vec_new(sizeof(struct SceneElement), 1024);
     game->entity_dashmodels = vec_new(sizeof(int), 1024);
