@@ -19,6 +19,14 @@
 #define LIGHT_ATTENUATION 768
 #define HEIGHT_SCALE 65536
 
+static inline int
+terrain_tile_coord(int width, int sx, int sz, int slevel)
+{
+    int tile_coord =
+        sx + sz * width * MAP_TERRAIN_X + slevel * width * width * MAP_TERRAIN_X * MAP_TERRAIN_Z;
+    return tile_coord;
+}
+
 static int*
 calculate_lights(struct CacheMapTerrainIter* terrain, int level)
 {
@@ -26,7 +34,7 @@ calculate_lights(struct CacheMapTerrainIter* terrain, int level)
     memset(lights, 0, map_terrain_iter_tiles_size(terrain) * sizeof(int));
 
     int max_x = terrain->chunks_width * MAP_TERRAIN_X;
-    int max_z = terrain->chunks_count / terrain->chunks_width;
+    int max_z = (terrain->chunks_count / terrain->chunks_width) * MAP_TERRAIN_X;
 
     int magnitude =
         sqrt(LIGHT_DIR_X * LIGHT_DIR_X + LIGHT_DIR_Y * LIGHT_DIR_Y + LIGHT_DIR_Z * LIGHT_DIR_Z);
@@ -90,7 +98,7 @@ calculate_lights(struct CacheMapTerrainIter* terrain, int level)
                       normalized_tile_normal_z * LIGHT_DIR_Z;
             int sunlight = (dot / intensity + LIGHT_AMBIENT);
 
-            lights[MAP_TILE_COORD(x, z, 0)] = sunlight;
+            lights[terrain_tile_coord(terrain->chunks_width, x, z, level)] = sunlight;
         }
     }
 
@@ -100,7 +108,7 @@ calculate_lights(struct CacheMapTerrainIter* terrain, int level)
 static void
 apply_shade(
     int* lightmap,
-    int* shade_map,
+    int* shademap_nullable,
     int level,
     int xboundmin,
     int xboundmax,
@@ -111,6 +119,7 @@ apply_shade(
     int zmin,
     int zmax)
 {
+    return;
     assert(xboundmin <= xmin);
     assert(xboundmax >= xmax);
     assert(zboundmin <= zmin);
@@ -130,23 +139,26 @@ apply_shade(
             shade_north = 0;
             shade_south = 0;
 
-            if( x > xboundmin + 1 )
-                shade_west = shade_map[MAP_TILE_COORD(x - 1, z, level)];
-            if( x < xboundmax - 1 )
-                shade_east = shade_map[MAP_TILE_COORD(x + 1, z, level)];
-            if( z < zboundmax - 1 )
-                shade_north = shade_map[MAP_TILE_COORD(x, z + 1, level)];
-            if( z > zboundmin + 1 )
-                shade_south = shade_map[MAP_TILE_COORD(x, z - 1, level)];
+            int shade = 0;
+            if( shademap_nullable )
+            {
+                if( x > xboundmin + 1 )
+                    shade_west = shademap_nullable[MAP_TILE_COORD(x - 1, z, level)];
+                if( x < xboundmax - 1 )
+                    shade_east = shademap_nullable[MAP_TILE_COORD(x + 1, z, level)];
+                if( z < zboundmax - 1 )
+                    shade_north = shademap_nullable[MAP_TILE_COORD(x, z + 1, level)];
+                if( z > zboundmin + 1 )
+                    shade_south = shademap_nullable[MAP_TILE_COORD(x, z - 1, level)];
 
-            int shade_center = shade_map[MAP_TILE_COORD(x, z, level)];
+                int shade_center = shademap_nullable[MAP_TILE_COORD(x, z, level)];
 
-            int shade = shade_center >> 1;
-            shade += shade_west >> 2;
-            shade += shade_east >> 3;
-            shade += shade_north >> 3;
-            shade += shade_south >> 2;
-
+                shade = shade_center >> 1;
+                shade += shade_west >> 2;
+                shade += shade_east >> 3;
+                shade += shade_north >> 3;
+                shade += shade_south >> 2;
+            }
             int light = lightmap[MAP_TILE_COORD(x, z, 0)];
 
             lightmap[MAP_TILE_COORD(x, z, 0)] = light - shade;

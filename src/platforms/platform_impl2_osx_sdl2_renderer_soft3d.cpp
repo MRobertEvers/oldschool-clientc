@@ -196,12 +196,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     // struct AABB aabb;
     struct GRenderCommand* command = NULL;
 
-    painter_paint(
-        game->sys_painter,
-        game->sys_painter_buffer,
-        game->camera_world_x / 128,
-        game->camera_world_z / 128,
-        game->camera_world_y / 240);
+    if( game->tasks_nullable == NULL )
+        painter_paint(
+            game->sys_painter,
+            game->sys_painter_buffer,
+            game->camera_world_x / 128,
+            game->camera_world_z / 128,
+            game->camera_world_y / 240);
 
     struct DashPosition position = { 0 };
 
@@ -229,7 +230,24 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
         break;
         case PNTR_CMD_TERRAIN:
-            break;
+        {
+            struct TerrainTileModel* tile_model = NULL;
+            int sx = cmd->_terrain._bf_terrain_x;
+            int sz = cmd->_terrain._bf_terrain_z;
+            int slevel = cmd->_terrain._bf_terrain_y;
+            tile_model = terrain_tile_model_at(game->terrain, sx, sz, slevel);
+            position.x = sx * 128 - game->camera_world_x;
+            position.z = sz * 128 - game->camera_world_z;
+            position.y = slevel * 240 - game->camera_world_y;
+            dash3d_render_model(
+                game->sys_dash,
+                &tile_model->dash_model,
+                &position,
+                game->view_port,
+                game->camera,
+                renderer->pixel_buffer);
+        }
+        break;
         default:
             break;
         }

@@ -192,10 +192,22 @@ dash3d_render_model( //
     struct DashCamera* camera,
     int* pixel_buffer
 );
-
-struct DashBoundsCylinder //
+void //
 dash3d_calculate_bounds_cylinder( //
+    struct DashBoundsCylinder* bounds_cylinder,
     int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z);
+
+void //
+dash3d_calculate_vertex_normals(
+    struct DashModelNormals* normals,
+    int face_count,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int vertex_count,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z);
 
 void //
 dash3d_add_texture(
@@ -208,5 +220,11 @@ dashmodel_normals_new(int vertex_count, int face_count);
 
 struct DashModelLighting* //
 dashmodel_lighting_new(int face_count);
+
+struct DashBoundsCylinder* //
+dashmodel_bounds_cylinder_new(void);
+
+bool //
+dashmodel_valid(struct DashModel* model);
 
 #endif

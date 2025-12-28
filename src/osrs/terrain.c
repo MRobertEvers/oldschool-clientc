@@ -1,6 +1,7 @@
 #include "terrain.h"
 
 #include "blend_underlays.h"
+#include "graphics/dash.h"
 #include "palette.h"
 #include "tables/config_floortype.h"
 #include "tables/maps.h"
@@ -43,22 +44,39 @@ terrain_tile_heights_at(struct CacheMapTerrainIter* terrain, int sx, int sz, int
     return tile_heights;
 }
 
+struct TerrainTileModel*
+terrain_tile_model_at(struct Terrain* terrain, int sx, int sz, int slevel)
+{
+    int tile_coord = terrain_tile_coord(terrain->side, sx, sz, slevel);
+    assert(tile_coord < terrain->tile_count);
+    return &terrain->tiles[tile_coord];
+}
+
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/Scene.java
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/class481.java
 struct Terrain*
 terrain_new_from_map_terrain(
-    struct CacheMapTerrainIter* terrain,
+    struct CacheMapTerrainIter* terrain_iter,
     int* shade_map_nullable,
     struct ConfigMap* config_underlay_map,
     struct ConfigMap* config_overlay_map)
 {
+    struct Terrain* terrain = (struct Terrain*)malloc(sizeof(struct Terrain));
+    memset(terrain, 0, sizeof(struct Terrain));
+
     struct CacheConfigUnderlay* underlay = NULL;
     struct CacheConfigOverlay* overlay = NULL;
     struct TerrainTileModel* chunk_tiles = NULL;
     int max_z = MAP_TERRAIN_Z;
     int max_x = MAP_TERRAIN_X;
-    struct TerrainTileModel* tiles = (struct TerrainTileModel*)malloc(
-        CHUNK_TILE_COUNT * terrain->chunks_count * sizeof(struct TerrainTileModel));
+    int tile_count = CHUNK_TILE_COUNT * terrain_iter->chunks_count;
+    struct TerrainTileModel* tiles =
+        (struct TerrainTileModel*)malloc(tile_count * sizeof(struct TerrainTileModel));
+    memset(tiles, 0, tile_count * sizeof(struct TerrainTileModel));
+
+    terrain->tiles = tiles;
+    terrain->tile_count = tile_count;
+    terrain->side = terrain_iter->chunks_width;
 
     if( !tiles )
     {
@@ -66,7 +84,7 @@ terrain_new_from_map_terrain(
         return NULL;
     }
 
-    for( int chunk_index = 0; chunk_index < terrain->chunks_count; chunk_index++ )
+    for( int chunk_index = 0; chunk_index < terrain_iter->chunks_count; chunk_index++ )
     {
         chunk_tiles = &tiles[chunk_index * CHUNK_TILE_COUNT];
 
@@ -77,30 +95,18 @@ terrain_new_from_map_terrain(
 
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
-        int* blended_underlays = blend_underlays(terrain, config_underlay_map, level);
-        int* lights = calculate_lights(terrain, level);
+        int* blended_underlays = blend_underlays(terrain_iter, config_underlay_map, level);
+        int* lights = calculate_lights(terrain_iter, level);
 
-        if( shade_map_nullable )
-            apply_shade(
-                lights,
-                shade_map_nullable,
-                level,
-                0,
-                MAP_TERRAIN_X,
-                0,
-                MAP_TERRAIN_Z,
-                0,
-                MAP_TERRAIN_X,
-                0,
-                MAP_TERRAIN_Z);
+        apply_shade(lights, shade_map_nullable, level, 0, max_x, 0, max_z, 0, max_x, 0, max_z);
 
         for( int z = 1; z < max_z - 1; z++ )
         {
             for( int x = 1; x < max_x - 1; x++ )
             {
-                struct CacheMapFloor* map = map_terrain_iter_at(terrain, x, z, level);
+                struct CacheMapFloor* map = map_terrain_iter_at(terrain_iter, x, z, level);
 
-                struct TerrainTileModel* tile = &tiles[MAP_TILE_COORD(x, z, level)];
+                struct TerrainTileModel* tile = terrain_tile_model_at(terrain, x, z, level);
                 int underlay_id = map->underlay_id - 1;
 
                 int overlay_id = map->overlay_id - 1;
@@ -108,10 +114,10 @@ terrain_new_from_map_terrain(
                 if( underlay_id == -1 && overlay_id == -1 )
                     continue;
 
-                int height_sw = map_terrain_iter_at(terrain, x, z, level)->height;
-                int height_se = map_terrain_iter_at(terrain, x + 1, z, level)->height;
-                int height_ne = map_terrain_iter_at(terrain, x + 1, z + 1, level)->height;
-                int height_nw = map_terrain_iter_at(terrain, x, z + 1, level)->height;
+                int height_sw = map_terrain_iter_at(terrain_iter, x, z, level)->height;
+                int height_se = map_terrain_iter_at(terrain_iter, x + 1, z, level)->height;
+                int height_ne = map_terrain_iter_at(terrain_iter, x + 1, z + 1, level)->height;
+                int height_nw = map_terrain_iter_at(terrain_iter, x, z + 1, level)->height;
 
                 int light_sw = lights[MAP_TILE_COORD(x, z, 0)];
                 int light_se = lights[MAP_TILE_COORD(x + 1, z, 0)];
@@ -175,9 +181,9 @@ terrain_new_from_map_terrain(
                 int rotation = overlay_id == -1 ? 0 : map->rotation;
                 int texture_id = overlay_id == -1 ? -1 : overlay->texture;
 
-                tile->chunk_pos_x = x;
-                tile->chunk_pos_z = z;
-                tile->chunk_pos_level = level;
+                tile->cx = x;
+                tile->cz = z;
+                tile->clevel = level;
 
                 bool success = decode_tile(
                     tile,
@@ -206,5 +212,5 @@ terrain_new_from_map_terrain(
         free(lights);
     }
 
-    return tiles;
+    return terrain;
 }

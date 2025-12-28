@@ -303,7 +303,6 @@ struct GTaskInitScene
     uint32_t reqid_overlay;
 
     struct Painter* painter;
-    struct Terrain* terrain;
 };
 
 /**
@@ -1225,7 +1224,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             }
         }
 
-        task->terrain = terrain_new_from_map_terrain(
+        task->game->terrain = terrain_new_from_map_terrain(
             task->terrain_iter, NULL, task->underlay_configmap, task->overlay_configmap);
         task->step = STEP_INIT_SCENE_11_BUILD_TERRAIN3D;
     }

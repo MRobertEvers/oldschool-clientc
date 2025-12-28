@@ -60,7 +60,8 @@ dashmodel_new_from_cache_model(struct CacheModel* model)
         (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
     memset(dash_model->bounds_cylinder, 0, sizeof(struct DashBoundsCylinder));
 
-    *dash_model->bounds_cylinder = dash3d_calculate_bounds_cylinder(
+    dash3d_calculate_bounds_cylinder(
+        dash_model->bounds_cylinder,
         dash_model->vertex_count,
         dash_model->vertices_x,
         dash_model->vertices_y,

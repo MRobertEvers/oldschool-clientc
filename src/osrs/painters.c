@@ -353,8 +353,8 @@ push_command_terrain(struct PaintersBuffer* buffer, int sx, int sz, int slevel)
         ._terrain = {
             ._bf_kind = PNTR_CMD_TERRAIN,
             ._bf_terrain_x = sx,
-            ._bf_terrain_y = sz,
-            ._bf_terrain_z = slevel,
+            ._bf_terrain_z = sz,
+            ._bf_terrain_y = slevel,
         },
     };
 }

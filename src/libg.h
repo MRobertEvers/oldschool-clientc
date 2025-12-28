@@ -7,6 +7,7 @@
 #include "osrs/grender.h"
 #include "osrs/gtask.h"
 #include "osrs/painters.h"
+#include "osrs/terrain.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -58,6 +59,7 @@ struct GGame
     struct Vec* entity_painters;
 
     struct Vec* scene_elements;
+    struct Terrain* terrain;
 
     struct DashGraphics* sys_dash;
     struct Painter* sys_painter;

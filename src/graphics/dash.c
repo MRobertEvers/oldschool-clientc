@@ -498,15 +498,16 @@ dash3d_raster_model_face(
             break;
         case FACE_TYPE_TEXTURED:
         textured:;
-            assert(face_p_coordinate_nullable != NULL);
-            assert(face_m_coordinate_nullable != NULL);
-            assert(face_n_coordinate_nullable != NULL);
             assert(orthographic_vertex_x_nullable != NULL);
             assert(orthographic_vertex_y_nullable != NULL);
             assert(orthographic_vertex_z_nullable != NULL);
 
             if( face_texture_coords && face_texture_coords[face] != -1 )
             {
+                assert(face_p_coordinate_nullable != NULL);
+                assert(face_m_coordinate_nullable != NULL);
+                assert(face_n_coordinate_nullable != NULL);
+
                 texture_face = face_texture_coords[face];
 
                 tp_vertex = face_p_coordinate_nullable[texture_face];
@@ -1231,10 +1232,15 @@ dash3d_render_model( //
     }
 }
 
-struct DashBoundsCylinder
-dash3d_calculate_bounds_cylinder(int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z)
+void
+dash3d_calculate_bounds_cylinder(
+    struct DashBoundsCylinder* bounds_cylinder,
+    int num_vertices,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z)
 {
-    struct DashBoundsCylinder bounds_cylinder = { 0 };
+    memset(bounds_cylinder, 0, sizeof(struct DashBoundsCylinder));
 
     int min_y = INT_MAX;
     int max_y = INT_MIN;
@@ -1257,19 +1263,45 @@ dash3d_calculate_bounds_cylinder(int num_vertices, int* vertex_x, int* vertex_y,
     // Reminder, +y is down on the screen.
     int center_to_bottom_edge = (int)sqrt(radius_squared + min_y * min_y) + 1;
     int center_to_top_edge = (int)sqrt(radius_squared + max_y * max_y) + 1;
-    bounds_cylinder.center_to_bottom_edge = center_to_bottom_edge;
-    bounds_cylinder.center_to_top_edge = center_to_top_edge;
-    bounds_cylinder.min_y = min_y;
-    bounds_cylinder.max_y = max_y;
+    bounds_cylinder->center_to_bottom_edge = center_to_bottom_edge;
+    bounds_cylinder->center_to_top_edge = center_to_top_edge;
+    bounds_cylinder->min_y = min_y;
+    bounds_cylinder->max_y = max_y;
 
-    bounds_cylinder.radius = (int)sqrt(radius_squared);
+    bounds_cylinder->radius = (int)sqrt(radius_squared);
 
     // Use max of the two here because OSRS assumes the camera is always above the model,
     // which may not be the case for us.
-    bounds_cylinder.min_z_depth_any_rotation =
+    bounds_cylinder->min_z_depth_any_rotation =
         center_to_top_edge > center_to_bottom_edge ? center_to_top_edge : center_to_bottom_edge;
+}
 
-    return bounds_cylinder;
+void
+dash3d_calculate_vertex_normals(
+    struct DashModelNormals* normals,
+    int face_count,
+    int* face_indices_a,
+    int* face_indices_b,
+    int* face_indices_c,
+    int vertex_count,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z)
+{
+    calculate_vertex_normals(
+        normals->lighting_vertex_normals,
+        normals->lighting_face_normals,
+        vertex_count,
+        face_indices_a,
+        face_indices_b,
+        face_indices_c,
+        vertex_x,
+        vertex_y,
+        vertex_z,
+        face_count);
+
+    normals->lighting_vertex_normals_count = vertex_count;
+    normals->lighting_face_normals_count = face_count;
 }
 
 void //
@@ -1324,4 +1356,26 @@ dashmodel_lighting_new(int face_count)
     memset(lighting->face_colors_hsl_c, 0, sizeof(int) * face_count);
 
     return lighting;
+}
+
+struct DashBoundsCylinder* //
+dashmodel_bounds_cylinder_new(void)
+{
+    struct DashBoundsCylinder* bounds_cylinder =
+        (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
+    memset(bounds_cylinder, 0, sizeof(struct DashBoundsCylinder));
+    return bounds_cylinder;
+}
+
+bool //
+dashmodel_valid(struct DashModel* model)
+{
+    if( model->lighting == NULL )
+        return false;
+    // if( model->normals == NULL )
+    //     return false;
+    if( model->bounds_cylinder == NULL )
+        return false;
+
+    return true;
 }

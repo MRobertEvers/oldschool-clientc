@@ -199,15 +199,15 @@ decode_tile(
     int overlay_hsl16)
 {
     // memset(tile, 0, sizeof(struct SceneTile));
-    int tile_x = tile_coord_x * TILE_SIZE;
-    int tile_z = tile_coord_z * TILE_SIZE;
+    int tile_x = 0; // tile_coord_x * TILE_SIZE;
+    int tile_z = 0; // tile_coord_z * TILE_SIZE;
 
     int* vertex_indices = g_tile_shape_vertex_indices[shape];
     int vertex_count = g_tile_shape_vertex_indices_lengths[shape];
 
-    int* vertex_x = (int*)malloc(vertex_count * sizeof(int));
-    int* vertex_y = (int*)malloc(vertex_count * sizeof(int));
-    int* vertex_z = (int*)malloc(vertex_count * sizeof(int));
+    int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
+    int* vertices_y = (int*)malloc(vertex_count * sizeof(int));
+    int* vertices_z = (int*)malloc(vertex_count * sizeof(int));
 
     int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
     int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
@@ -398,9 +398,9 @@ decode_tile(
         }
 
         // TODO: For the target level, subtract LEVEL_HEIGHT from the vertex y.
-        vertex_x[i] = vert_x;
-        vertex_y[i] = vert_y;
-        vertex_z[i] = vert_z;
+        vertices_x[i] = vert_x;
+        vertices_y[i] = vert_y;
+        vertices_z[i] = vert_z;
 
         underlay_colors_hsl[i] = vert_underlay_color_hsl;
         overlay_colors_hsl[i] = vert_overlay_color_hsl;
@@ -420,21 +420,21 @@ decode_tile(
     int* face_colors_hsl_c = (int*)malloc(face_count * sizeof(int));
 
     int* face_texture_ids = NULL;
-    int* face_texture_u_a = NULL;
-    int* face_texture_v_a = NULL;
-    int* face_texture_u_b = NULL;
-    int* face_texture_v_b = NULL;
-    int* face_texture_u_c = NULL;
-    int* face_texture_v_c = NULL;
+    // int* face_texture_u_a = NULL;
+    // int* face_texture_v_a = NULL;
+    // int* face_texture_u_b = NULL;
+    // int* face_texture_v_b = NULL;
+    // int* face_texture_u_c = NULL;
+    // int* face_texture_v_c = NULL;
     if( texture_id != -1 )
     {
         face_texture_ids = (int*)malloc(face_count * sizeof(int));
-        face_texture_u_a = (int*)malloc(face_count * sizeof(int));
-        face_texture_v_a = (int*)malloc(face_count * sizeof(int));
-        face_texture_u_b = (int*)malloc(face_count * sizeof(int));
-        face_texture_v_b = (int*)malloc(face_count * sizeof(int));
-        face_texture_u_c = (int*)malloc(face_count * sizeof(int));
-        face_texture_v_c = (int*)malloc(face_count * sizeof(int));
+        //     face_texture_u_a = (int*)malloc(face_count * sizeof(int));
+        //     face_texture_v_a = (int*)malloc(face_count * sizeof(int));
+        //     face_texture_u_b = (int*)malloc(face_count * sizeof(int));
+        //     face_texture_v_b = (int*)malloc(face_count * sizeof(int));
+        //     face_texture_u_c = (int*)malloc(face_count * sizeof(int));
+        //     face_texture_v_c = (int*)malloc(face_count * sizeof(int));
     }
 
     for( int i = 0; i < face_count; i++ )
@@ -497,58 +497,61 @@ decode_tile(
         else
             valid_faces[i] = 1;
 
-        int u0 = (vertex_x[a] - tile_x) / TILE_SIZE;
-        int v0 = (vertex_z[a] - tile_z) / TILE_SIZE;
+        // int u0 = (vertex_x[a] - tile_x) / TILE_SIZE;
+        // int v0 = (vertex_z[a] - tile_z) / TILE_SIZE;
 
-        int u1 = (vertex_x[b] - tile_x) / TILE_SIZE;
-        int v1 = (vertex_z[b] - tile_z) / TILE_SIZE;
+        // int u1 = (vertex_x[b] - tile_x) / TILE_SIZE;
+        // int v1 = (vertex_z[b] - tile_z) / TILE_SIZE;
 
-        int u2 = (vertex_x[c] - tile_x) / TILE_SIZE;
-        int v2 = (vertex_z[c] - tile_z) / TILE_SIZE;
+        // int u2 = (vertex_x[c] - tile_x) / TILE_SIZE;
+        // int v2 = (vertex_z[c] - tile_z) / TILE_SIZE;
 
-        if( texture_id != -1 )
-        {
-            face_texture_u_a[i] = u0;
-            face_texture_v_a[i] = v0;
+        // if( texture_id != -1 )
+        // {
+        //     face_texture_u_a[i] = u0;
+        //     face_texture_v_a[i] = v0;
 
-            face_texture_u_b[i] = u1;
-            face_texture_v_b[i] = v1;
+        //     face_texture_u_b[i] = u1;
+        //     face_texture_v_b[i] = v1;
 
-            face_texture_u_c[i] = u2;
-            face_texture_v_c[i] = v2;
-        }
+        //     face_texture_u_c[i] = u2;
+        //     face_texture_v_c[i] = v2;
+        // }
     }
 
     free(underlay_colors_hsl);
     free(overlay_colors_hsl);
 
-    tile->vertex_count = vertex_count;
-    tile->vertex_x = vertex_x;
-    tile->vertex_y = vertex_y;
-    tile->vertex_z = vertex_z;
-    tile->face_count = face_count;
-    tile->faces_a = faces_a;
-    tile->faces_b = faces_b;
-    tile->faces_c = faces_c;
+    tile->dash_model.vertex_count = vertex_count;
+    tile->dash_model.vertices_x = vertices_x;
+    tile->dash_model.vertices_y = vertices_y;
+    tile->dash_model.vertices_z = vertices_z;
+    tile->dash_model.face_count = face_count;
+    tile->dash_model.face_indices_a = faces_a;
+    tile->dash_model.face_indices_b = faces_b;
+    tile->dash_model.face_indices_c = faces_c;
 
-    tile->face_texture_ids = face_texture_ids;
-    tile->face_texture_u_a = face_texture_u_a;
-    tile->face_texture_v_a = face_texture_v_a;
-    tile->face_texture_u_b = face_texture_u_b;
-    tile->face_texture_v_b = face_texture_v_b;
-    tile->face_texture_u_c = face_texture_u_c;
-    tile->face_texture_v_c = face_texture_v_c;
+    tile->dash_model.face_textures = face_texture_ids;
 
-    tile->valid_faces = valid_faces;
-    tile->face_color_hsl_a = face_colors_hsl_a;
-    tile->face_color_hsl_b = face_colors_hsl_b;
-    tile->face_color_hsl_c = face_colors_hsl_c;
+    tile->dash_model.face_alphas = valid_faces;
+    tile->dash_model.face_colors = face_colors_hsl_a;
+
+    tile->dash_model.lighting = dashmodel_lighting_new(face_count);
+    tile->dash_model.lighting->face_colors_hsl_a = face_colors_hsl_a;
+    tile->dash_model.lighting->face_colors_hsl_b = face_colors_hsl_b;
+    tile->dash_model.lighting->face_colors_hsl_c = face_colors_hsl_c;
+
+    tile->dash_model.bounds_cylinder = dashmodel_bounds_cylinder_new();
+
+    dash3d_calculate_bounds_cylinder(
+        tile->dash_model.bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
+
     return true;
     // error:;
     free(valid_faces);
-    free(vertex_x);
-    free(vertex_y);
-    free(vertex_z);
+    free(vertices_x);
+    free(vertices_y);
+    free(vertices_z);
     free(underlay_colors_hsl);
     free(overlay_colors_hsl);
     free(faces_a);
@@ -558,12 +561,6 @@ decode_tile(
     free(face_colors_hsl_b);
     free(face_colors_hsl_c);
     free(face_texture_ids);
-    free(face_texture_u_a);
-    free(face_texture_v_a);
-    free(face_texture_u_b);
-    free(face_texture_v_b);
-    free(face_texture_u_c);
-    free(face_texture_v_c);
     return false;
 }
 

@@ -3,36 +3,16 @@
 
 #include "configmap.h"
 #include "datastruct/hmap.h"
+#include "graphics/dash.h"
 #include "tables/maps.h"
 
 struct TerrainTileModel
 {
-    int vertex_count;
-    int* vertex_x;
-    int* vertex_y;
-    int* vertex_z;
+    struct DashModel dash_model;
 
-    int face_count;
-    int* faces_a;
-    int* faces_b;
-    int* faces_c;
-    int* valid_faces;
-
-    int* face_texture_ids;
-    int* face_texture_u_a;
-    int* face_texture_v_a;
-    int* face_texture_u_b;
-    int* face_texture_v_b;
-    int* face_texture_u_c;
-    int* face_texture_v_c;
-
-    int* face_color_hsl_a;
-    int* face_color_hsl_b;
-    int* face_color_hsl_c;
-
-    int chunk_pos_x;
-    int chunk_pos_z;
-    int chunk_pos_level;
+    int cx;
+    int cz;
+    int clevel;
 };
 
 struct Terrain
@@ -54,6 +34,9 @@ struct TileHeights
 
 struct TileHeights
 terrain_tile_heights_at(struct CacheMapTerrainIter* terrain, int sx, int sz, int level);
+
+struct TerrainTileModel* //
+terrain_tile_model_at(struct Terrain* terrain, int sx, int sz, int slevel);
 
 struct CacheMapTerrain;
 struct Terrain* terrain_new_from_map_terrain(
