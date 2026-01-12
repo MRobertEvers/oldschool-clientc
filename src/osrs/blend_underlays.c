@@ -5,6 +5,10 @@
 #include "tables/config_floortype.h"
 #include "tables/maps.h"
 
+// clang-format off
+#include "terrain.u.c"
+// clang-format on
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -334,7 +338,7 @@ blend_underlays(
 
                 int hsl = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
 
-                colors[COLOR_COORD(xi, zi)] = hsl;
+                colors[terrain_tile_coord(terrain->chunks_width, xi, zi, 0)] = hsl;
             }
         }
     }

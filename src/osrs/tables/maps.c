@@ -41,7 +41,7 @@ fixup_terrain(struct CacheMapTerrain* map_terrain, int map_x, int map_z)
     {
         for( int z = 0; z < MAP_TERRAIN_Z; z++ )
         {
-            for( int x = 0; x < MAP_TERRAIN_X - 1; x++ )
+            for( int x = 0; x < MAP_TERRAIN_X; x++ )
             {
                 struct CacheMapFloor* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, z, level)];
                 // If the height is unset, then the terrain is procedurally generated with
@@ -384,8 +384,8 @@ map_terrain_iter_at(struct CacheMapTerrainIter* iter, int sx, int sz, int slevel
     assert(slevel >= 0 && slevel < MAP_TERRAIN_LEVELS);
 
     int chunk_idx_x = sx / MAP_CHUNK_SIZE;
-    int chunk_idx_y = sz / MAP_CHUNK_SIZE;
-    int chunk_idx = chunk_idx_y + chunk_idx_x * iter->chunks_width;
+    int chunk_idx_z = sz / MAP_CHUNK_SIZE;
+    int chunk_idx = chunk_idx_z * iter->chunks_width + chunk_idx_x;
 
     int tile_idx_x = sx % MAP_CHUNK_SIZE;
     int tile_idx_y = sz % MAP_CHUNK_SIZE;

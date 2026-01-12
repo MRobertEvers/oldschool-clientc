@@ -67,8 +67,8 @@ terrain_new_from_map_terrain(
     struct CacheConfigUnderlay* underlay = NULL;
     struct CacheConfigOverlay* overlay = NULL;
     struct TerrainTileModel* chunk_tiles = NULL;
-    int max_z = MAP_TERRAIN_Z;
-    int max_x = MAP_TERRAIN_X;
+    int max_z = terrain_iter->chunks_count / terrain_iter->chunks_width * MAP_TERRAIN_Z;
+    int max_x = terrain_iter->chunks_width * MAP_TERRAIN_X;
     int tile_count = CHUNK_TILE_COUNT * terrain_iter->chunks_count;
     struct TerrainTileModel* tiles =
         (struct TerrainTileModel*)malloc(tile_count * sizeof(struct TerrainTileModel));
@@ -119,10 +119,11 @@ terrain_new_from_map_terrain(
                 int height_ne = map_terrain_iter_at(terrain_iter, x + 1, z + 1, level)->height;
                 int height_nw = map_terrain_iter_at(terrain_iter, x, z + 1, level)->height;
 
-                int light_sw = lights[MAP_TILE_COORD(x, z, 0)];
-                int light_se = lights[MAP_TILE_COORD(x + 1, z, 0)];
-                int light_ne = lights[MAP_TILE_COORD(x + 1, z + 1, 0)];
-                int light_nw = lights[MAP_TILE_COORD(x, z + 1, 0)];
+                int light_sw = lights[terrain_tile_coord(terrain_iter->chunks_width, x, z, 0)];
+                int light_se = lights[terrain_tile_coord(terrain_iter->chunks_width, x + 1, z, 0)];
+                int light_ne =
+                    lights[terrain_tile_coord(terrain_iter->chunks_width, x + 1, z + 1, 0)];
+                int light_nw = lights[terrain_tile_coord(terrain_iter->chunks_width, x, z + 1, 0)];
 
                 int underlay_hsl = -1;
                 int overlay_hsl = 0;
@@ -133,7 +134,8 @@ terrain_new_from_map_terrain(
                         config_underlay_map, underlay_id);
                     assert(underlay != NULL);
 
-                    underlay_hsl = blended_underlays[COLOR_COORD(x, z)];
+                    underlay_hsl =
+                        blended_underlays[terrain_tile_coord(terrain_iter->chunks_width, x, z, 0)];
 
                     /**
                      * This is confusing.

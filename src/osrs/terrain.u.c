@@ -20,10 +20,10 @@
 #define HEIGHT_SCALE 65536
 
 static inline int
-terrain_tile_coord(int width, int sx, int sz, int slevel)
+terrain_tile_coord(int chunk_width, int sx, int sz, int slevel)
 {
-    int tile_coord =
-        sx + sz * width * MAP_TERRAIN_X + slevel * width * width * MAP_TERRAIN_X * MAP_TERRAIN_Z;
+    int tile_coord = sx + sz * chunk_width * MAP_TERRAIN_X +
+                     slevel * chunk_width * chunk_width * MAP_TERRAIN_X * MAP_TERRAIN_Z;
     return tile_coord;
 }
 

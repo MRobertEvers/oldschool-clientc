@@ -236,6 +236,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             int sz = cmd->_terrain._bf_terrain_z;
             int slevel = cmd->_terrain._bf_terrain_y;
             tile_model = terrain_tile_model_at(game->terrain, sx, sz, slevel);
+            if (sx >= 64)
+                printf("sx: %d\n", sx);
             position.x = sx * 128 - game->camera_world_x;
             position.z = sz * 128 - game->camera_world_z;
             position.y = slevel * 240 - game->camera_world_y;

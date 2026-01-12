@@ -7,6 +7,14 @@
     "cpp.default.browse.limitSymbolsToIncludedHeaders": true,
     "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
     "editor.formatOnSave": true,
+    "C_Cpp.clang_format_path": "/opt/homebrew/bin/clang-format",
+    "C_Cpp.clang_format_style": "file",
+    "[c]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
+    },
     "terminal.integrated.profiles.windows": {
         "PowerShell": {
             "source": "PowerShell",

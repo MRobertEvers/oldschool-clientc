@@ -253,8 +253,8 @@ struct GTaskInitScene
     struct CacheMapLocsIter* scenery_iter;
     struct CacheMapTerrainIter* terrain_iter;
 
-    struct CacheMapLocs* scenery_locs[9];
     struct CacheMapTerrain* terrain_definitions[9];
+    struct CacheMapLocs* scenery_locs[9];
     int scenery_locs_count;
     int terrain_count;
 
@@ -304,6 +304,28 @@ struct GTaskInitScene
 
     struct Painter* painter;
 };
+
+static int
+compare_terrain_by_z_x(const void* a, const void* b)
+{
+    struct CacheMapTerrain* terrain_a = *(struct CacheMapTerrain**)a;
+    struct CacheMapTerrain* terrain_b = *(struct CacheMapTerrain**)b;
+
+    // First compare by z coordinate (map_z)
+    if( terrain_a->map_z != terrain_b->map_z )
+    {
+        return terrain_a->map_z - terrain_b->map_z;
+    }
+    // Then compare by x coordinate (map_x)
+    return terrain_a->map_x - terrain_b->map_x;
+}
+
+static void
+sort_terrain_definitions(struct CacheMapTerrain** terrain_definitions, int size)
+{
+    // Sort by lowest z, then lowest x.
+    qsort(terrain_definitions, size, sizeof(struct CacheMapTerrain*), compare_terrain_by_z_x);
+}
 
 /**
  * Transforms must be applied here so that hillskew is correctly applied.
@@ -959,6 +981,8 @@ gtask_init_scene_step(struct GTaskInitScene* task)
 
         if( task->reqid_terrain_inflight != 0 )
             return GTASK_STATUS_PENDING;
+
+        sort_terrain_definitions(task->terrain_definitions, task->terrain_count);
 
         task->terrain_iter = map_terrain_iter_new_from_ptrs(
             task->terrain_definitions, task->terrain_count, task->chunks_width);
