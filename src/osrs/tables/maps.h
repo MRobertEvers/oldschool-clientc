@@ -17,7 +17,10 @@
 #define MAP_UNITS_TILE_HEIGHT_BASIS 8
 
 static inline int
-map_tile_coord_to_chunk_coord(int x, int z, int level)
+map_tile_coord_to_chunk_coord(
+    int x,
+    int z,
+    int level)
 {
     // assert(x >= 0);
     // assert(y >= 0);
@@ -122,7 +125,10 @@ struct CacheMapTerrainIter
 };
 
 struct CacheMapTerrainIter*
-map_terrain_iter_new_from_ptrs(struct CacheMapTerrain** chunks, int count, int width);
+map_terrain_iter_new_from_ptrs(
+    struct CacheMapTerrain** chunks,
+    int count,
+    int width);
 void //
 map_terrain_iter_free(struct CacheMapTerrainIter* iter);
 
@@ -131,7 +137,11 @@ map_terrain_iter_begin(struct CacheMapTerrainIter* iter);
 struct CacheMapFloor* //
 map_terrain_iter_next(struct CacheMapTerrainIter* iter);
 struct CacheMapFloor*
-map_terrain_iter_at(struct CacheMapTerrainIter* iter, int sx, int sz, int slevel);
+map_terrain_iter_at(
+    struct CacheMapTerrainIter* iter,
+    int sx,
+    int sz,
+    int slevel);
 
 int //
 map_terrain_iter_tiles_size(struct CacheMapTerrainIter* iter);
@@ -141,10 +151,15 @@ int //
 map_terrain_iter_bound_z(struct CacheMapTerrainIter* iter);
 
 struct CacheMapLocs* //
-map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y);
+map_locs_new_from_cache(
+    struct Cache* cache,
+    int map_x,
+    int map_y);
 
 struct CacheMapLocs* //
-map_locs_new_from_decode(char* data, int data_size);
+map_locs_new_from_decode(
+    char* data,
+    int data_size);
 
 void //
 map_terrain_free(struct CacheMapTerrain* map_terrain);
@@ -159,12 +174,7 @@ map_locs_archive_new_load(
 
 struct CacheMapLocsIter
 {
-    bool is_ptrs;
-    union
-    {
-        struct CacheMapLocs* _chunks;
-        struct CacheMapLocs** _chunks_ptrs;
-    };
+    struct CacheMapLocs** chunks_ptrs;
     int chunks_count;
 
     int width;

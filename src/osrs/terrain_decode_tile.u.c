@@ -1,7 +1,7 @@
 #ifndef TERRAIN_DECODE_TILE_U_C
 #define TERRAIN_DECODE_TILE_U_C
 
-#include "terrain.h"
+#include "graphics/dash.h"
 
 #include <assert.h>
 #include <math.h>
@@ -55,7 +55,9 @@ static int g_tile_shape_face_counts[15] = {
 #define INVALID_HSL_COLOR 12345678
 
 static int
-multiply_lightness(int hsl, int light)
+multiply_lightness(
+    int hsl,
+    int light)
 {
     if( hsl == -1 )
         return INVALID_HSL_COLOR;
@@ -93,7 +95,9 @@ multiply_lightness(int hsl, int light)
 // }
 
 static int
-adjust_lightness(int hsl, int light)
+adjust_lightness(
+    int hsl,
+    int light)
 {
     if( hsl == -2 )
         return INVALID_HSL_COLOR;
@@ -147,7 +151,9 @@ adjust_lightness(int hsl, int light)
 // }
 
 static int
-mix_hsl(int hsl_a, int hsl_b)
+mix_hsl(
+    int hsl_a,
+    int hsl_b)
 {
     return (hsl_a + hsl_b) >> 1;
     // if( hsl_a == INVALID_HSL_COLOR || hsl_b == INVALID_HSL_COLOR )
@@ -178,9 +184,8 @@ mix_hsl(int hsl_a, int hsl_b)
 }
 
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/SceneTileModel.java
-static bool
+static struct DashModel*
 decode_tile(
-    struct TerrainTileModel* tile,
     int shape,
     int rotation,
     int texture_id,
@@ -522,31 +527,34 @@ decode_tile(
     free(underlay_colors_hsl);
     free(overlay_colors_hsl);
 
-    tile->dash_model.vertex_count = vertex_count;
-    tile->dash_model.vertices_x = vertices_x;
-    tile->dash_model.vertices_y = vertices_y;
-    tile->dash_model.vertices_z = vertices_z;
-    tile->dash_model.face_count = face_count;
-    tile->dash_model.face_indices_a = faces_a;
-    tile->dash_model.face_indices_b = faces_b;
-    tile->dash_model.face_indices_c = faces_c;
+    struct DashModel* dash_model = (struct DashModel*)malloc(sizeof(struct DashModel));
+    memset(dash_model, 0, sizeof(struct DashModel));
 
-    tile->dash_model.face_textures = face_texture_ids;
+    dash_model->vertex_count = vertex_count;
+    dash_model->vertices_x = vertices_x;
+    dash_model->vertices_y = vertices_y;
+    dash_model->vertices_z = vertices_z;
+    dash_model->face_count = face_count;
+    dash_model->face_indices_a = faces_a;
+    dash_model->face_indices_b = faces_b;
+    dash_model->face_indices_c = faces_c;
 
-    tile->dash_model.face_alphas = valid_faces;
-    tile->dash_model.face_colors = face_colors_hsl_a;
+    dash_model->face_textures = face_texture_ids;
 
-    tile->dash_model.lighting = dashmodel_lighting_new(face_count);
-    tile->dash_model.lighting->face_colors_hsl_a = face_colors_hsl_a;
-    tile->dash_model.lighting->face_colors_hsl_b = face_colors_hsl_b;
-    tile->dash_model.lighting->face_colors_hsl_c = face_colors_hsl_c;
+    dash_model->face_alphas = valid_faces;
+    dash_model->face_colors = face_colors_hsl_a;
 
-    tile->dash_model.bounds_cylinder = dashmodel_bounds_cylinder_new();
+    dash_model->lighting = dashmodel_lighting_new(face_count);
+    dash_model->lighting->face_colors_hsl_a = face_colors_hsl_a;
+    dash_model->lighting->face_colors_hsl_b = face_colors_hsl_b;
+    dash_model->lighting->face_colors_hsl_c = face_colors_hsl_c;
+
+    dash_model->bounds_cylinder = dashmodel_bounds_cylinder_new();
 
     dash3d_calculate_bounds_cylinder(
-        tile->dash_model.bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
+        dash_model->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
 
-    return true;
+    return dash_model;
     // error:;
     free(valid_faces);
     free(vertices_x);
@@ -561,7 +569,7 @@ decode_tile(
     free(face_colors_hsl_b);
     free(face_colors_hsl_c);
     free(face_texture_ids);
-    return false;
+    return NULL;
 }
 
 #endif

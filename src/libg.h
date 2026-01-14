@@ -7,7 +7,7 @@
 #include "osrs/grender.h"
 #include "osrs/gtask.h"
 #include "osrs/painters.h"
-#include "osrs/terrain.h"
+#include "osrs/scene.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -34,13 +34,6 @@ struct Entity
     int view_port;
 };
 
-struct SceneElement
-{
-    int idx;
-    struct DashModel* model;
-    struct DashPosition* position;
-};
-
 struct GGame
 {
     bool running;
@@ -59,7 +52,7 @@ struct GGame
     struct Vec* entity_painters;
 
     struct Vec* scene_elements;
-    struct Terrain* terrain;
+    struct Scene* scene;
 
     struct DashGraphics* sys_dash;
     struct Painter* sys_painter;
@@ -73,16 +66,28 @@ struct GGame
     struct GTask* tasks_nullable;
 };
 
-struct GGame* libg_game_new(struct GIOQueue* io);
+struct GGame*
+libg_game_new(struct GIOQueue* io);
 
-void libg_game_process_input(struct GGame* game, struct GInput* input);
-void libg_game_step_tasks(
-    struct GGame* game, struct GInput* input, struct GRenderCommandBuffer* render_command_buffer);
+void
+libg_game_process_input(
+    struct GGame* game,
+    struct GInput* input);
+void
+libg_game_step_tasks(
+    struct GGame* game,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer);
 
-void libg_game_free(struct GGame* game);
-void libg_game_step(
-    struct GGame* game, struct GInput* input, struct GRenderCommandBuffer* render_command_buffer);
+void
+libg_game_free(struct GGame* game);
+void
+libg_game_step(
+    struct GGame* game,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer);
 
-bool libg_game_is_running(struct GGame* game);
+bool
+libg_game_is_running(struct GGame* game);
 
 #endif

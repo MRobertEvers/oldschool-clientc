@@ -17,7 +17,10 @@
 #define BLEND_RADIUS 5
 
 static int
-get_index(int* ids, int count, int id)
+get_index(
+    int* ids,
+    int count,
+    int id)
 {
     for( int i = 0; i < count; i++ )
     {
@@ -193,7 +196,9 @@ blend_underlays_runelite(
 
 int*
 blend_underlays(
-    struct CacheMapTerrainIter* terrain, struct ConfigMap* config_underlay_map, int level)
+    struct CacheMapTerrainIter* terrain,
+    struct ConfigMap* config_underlay_map,
+    int level)
 {
     struct CacheConfigUnderlay* entry = NULL;
     struct CacheMapFloor* tile = NULL;
@@ -338,7 +343,7 @@ blend_underlays(
 
                 int hsl = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
 
-                colors[terrain_tile_coord(terrain->chunks_width, xi, zi, 0)] = hsl;
+                colors[grid_coord(terrain_grid_x_width(terrain_grid), xi, zi, 0)] = hsl;
             }
         }
     }

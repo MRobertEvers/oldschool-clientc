@@ -18,13 +18,20 @@
  *
  * Must never return 0; if so, the table will map it to 1.
  */
-typedef uint64_t (*hmap_hash_fn)(const void* key, size_t key_size, void* arg);
+typedef uint64_t (*hmap_hash_fn)(
+    const void* key,
+    size_t key_size,
+    void* arg);
 
 /*
  * Equality callback:
  *   - return nonzero if equal
  */
-typedef int (*hmap_eq_fn)(const void* a, const void* b, size_t key_size, void* arg);
+typedef int (*hmap_eq_fn)(
+    const void* a,
+    const void* b,
+    size_t key_size,
+    void* arg);
 
 enum HMapAction
 {
@@ -49,12 +56,25 @@ struct HashConfig
 
 struct HMap;
 
-void* hmap_buffer_ptr(struct HMap* h);
+void*
+hmap_buffer_ptr(struct HMap* h);
 
-struct HMap* hmap_new(const struct HashConfig* config, uint32_t flags);
-void hmap_free(struct HMap* h);
-void* hmap_search(struct HMap* h, const void* key, enum HMapAction action);
-int hmap_resize(
+struct HMap*
+hmap_new(
+    const struct HashConfig* config,
+    uint32_t flags);
+
+void*
+hmap_free(struct HMap* h);
+
+void*
+hmap_search(
+    struct HMap* h,
+    const void* key,
+    enum HMapAction action);
+
+int
+hmap_resize(
     struct HMap* h,
     void* new_buffer,
     size_t new_buffer_size,
@@ -66,8 +86,11 @@ int hmap_resize(
  */
 struct HMapIter;
 
-struct HMapIter* hmap_iter_new(struct HMap* h);
-void hmap_iter_free(struct HMapIter* it);
-void* hmap_iter_next(struct HMapIter* it);
+struct HMapIter*
+hmap_iter_new(struct HMap* h);
+void
+hmap_iter_free(struct HMapIter* it);
+void*
+hmap_iter_next(struct HMapIter* it);
 
 #endif

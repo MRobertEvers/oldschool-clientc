@@ -7,25 +7,25 @@ AllowShortCaseLabelsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: InlineOnly
 AllowShortIfStatementsOnASingleLine: Never
 AlignArrayOfStructures: Left
-AlwaysBreakAfterReturnType: TopLevelDefinitions
-AlwaysBreakTemplateDeclarations: Yes
+BreakAfterReturnType: All
 BinPackArguments: false
-BinPackParameters: false
+BinPackParameters: AlwaysOnePerLine
+AlwaysBreakTemplateDeclarations: Yes
 BreakBeforeBraces: Custom
 BraceWrapping:
-  AfterClass:      true
+  AfterClass: true
   AfterControlStatement: true
-  AfterEnum:       true
-  AfterFunction:   true
-  AfterCaseLabel:  true
-  AfterNamespace:  true
+  AfterEnum: true
+  AfterFunction: true
+  AfterCaseLabel: true
+  AfterNamespace: true
   AfterObjCDeclaration: true
-  AfterStruct:     true
-  AfterUnion:      true
+  AfterStruct: true
+  AfterUnion: true
   AfterExternBlock: false
-  BeforeCatch:     true
-  BeforeElse:      true
-  IndentBraces:    false
+  BeforeCatch: true
+  BeforeElse: true
+  IndentBraces: false
   SplitEmptyFunction: false
   SplitEmptyRecord: false
   SplitEmptyNamespace: false
@@ -34,10 +34,10 @@ ColumnLimit: 100
 ContinuationIndentWidth: 4
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex:           '<[[:alnum:].]+>'
-    Priority:        4
-  - Regex:           '.*'
-    Priority:        2
+  - Regex: "<[[:alnum:].]+>"
+    Priority: 4
+  - Regex: ".*"
+    Priority: 2
 IndentPPDirectives: None
 IndentWrappedFunctionNames: false
 KeepEmptyLinesAtTheStartOfBlocks: false

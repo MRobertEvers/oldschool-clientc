@@ -88,7 +88,9 @@ struct HMap
  *----------------------------------------------------------*/
 
 static inline size_t
-hmap_align_up_size(size_t x, size_t align)
+hmap_align_up_size(
+    size_t x,
+    size_t align)
 {
     if( align == 0 )
         return x;
@@ -99,7 +101,9 @@ hmap_align_up_size(size_t x, size_t align)
 }
 
 static inline unsigned char*
-hmap_align_up_ptr(unsigned char* p, size_t align)
+hmap_align_up_ptr(
+    unsigned char* p,
+    size_t align)
 {
     uintptr_t ip = (uintptr_t)p;
     uintptr_t aligned = (ip + (uintptr_t)(align - 1)) & ~(uintptr_t)(align - 1);
@@ -107,26 +111,34 @@ hmap_align_up_ptr(unsigned char* p, size_t align)
 }
 
 static inline unsigned char*
-hmap_slot_base_at(const struct HMap* m, size_t idx)
+hmap_slot_base_at(
+    const struct HMap* m,
+    size_t idx)
 {
     return m->entries + m->stride * idx;
 }
 
 static inline HMapSlotHeader*
-hmap_slot_header_at(const struct HMap* m, size_t idx)
+hmap_slot_header_at(
+    const struct HMap* m,
+    size_t idx)
 {
     return (HMapSlotHeader*)hmap_slot_base_at(m, idx);
 }
 
 static inline void*
-hmap_slot_entry_ptr(const struct HMap* m, size_t idx)
+hmap_slot_entry_ptr(
+    const struct HMap* m,
+    size_t idx)
 {
     return (void*)(hmap_slot_base_at(m, idx) + m->entry_offset);
 }
 
 /* key pointer inside an entry */
 static inline void*
-hmap_entry_key_ptr(const struct HMap* m, void* entry)
+hmap_entry_key_ptr(
+    const struct HMap* m,
+    void* entry)
 {
     return (unsigned char*)entry;
 }
@@ -136,7 +148,10 @@ hmap_entry_key_ptr(const struct HMap* m, void* entry)
  *----------------------------------------------------------*/
 
 uint64_t
-hmap_hash_bytes(const void* key, size_t len, void* arg)
+hmap_hash_bytes(
+    const void* key,
+    size_t len,
+    void* arg)
 {
     (void)arg;
     const unsigned char* p = (const unsigned char*)key;
@@ -152,7 +167,11 @@ hmap_hash_bytes(const void* key, size_t len, void* arg)
 }
 
 int
-hmap_eq_bytes(const void* a, const void* b, size_t len, void* arg)
+hmap_eq_bytes(
+    const void* a,
+    const void* b,
+    size_t len,
+    void* arg)
 {
     (void)arg;
     return memcmp(a, b, len) == 0;
@@ -261,7 +280,9 @@ hmap_buffer_ptr(struct HMap* h)
 }
 
 struct HMap*
-hmap_new(const struct HashConfig* config, uint32_t flags)
+hmap_new(
+    const struct HashConfig* config,
+    uint32_t flags)
 {
     int status;
     struct HMap* m = malloc(sizeof(struct HMap));
@@ -287,10 +308,13 @@ hmap_new(const struct HashConfig* config, uint32_t flags)
     return m;
 }
 
-void
+void*
 hmap_free(struct HMap* m)
 {
+    void* buffer = hmap_buffer_ptr(m);
     free(m);
+
+    return buffer;
 }
 
 /*
@@ -321,7 +345,10 @@ hmap_free(struct HMap* m)
  *    insertion/clear/destroy affecting that slot.
  */
 void*
-hmap_search(struct HMap* m, const void* key, enum HMapAction action)
+hmap_search(
+    struct HMap* m,
+    const void* key,
+    enum HMapAction action)
 {
     if( !m || !m->entries || !key )
         return NULL;

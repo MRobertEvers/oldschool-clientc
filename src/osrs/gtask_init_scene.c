@@ -12,13 +12,14 @@
 #include "osrs/dashlib.h"
 #include "osrs/gio_assets.h"
 #include "osrs/painters.h"
+#include "osrs/scenebuilder.h"
 #include "osrs/tables/config_floortype.h"
 #include "osrs/tables/config_locs.h"
 #include "osrs/tables/maps.h"
 #include "osrs/tables/model.h"
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/textures.h"
-#include "osrs/terrain.h"
+// #include "osrs/terrain.h"
 #include "osrs/texture.h"
 
 #include <assert.h>
@@ -258,6 +259,8 @@ struct GTaskInitScene
     int scenery_locs_count;
     int terrain_count;
 
+    struct SceneBuilder* scene_builder;
+
     struct ConfigMap* scenery_configmap;
     struct ConfigMap* underlay_configmap;
     struct ConfigMap* overlay_configmap;
@@ -306,7 +309,9 @@ struct GTaskInitScene
 };
 
 static int
-compare_terrain_by_z_x(const void* a, const void* b)
+compare_terrain_by_z_x(
+    const void* a,
+    const void* b)
 {
     struct CacheMapTerrain* terrain_a = *(struct CacheMapTerrain**)a;
     struct CacheMapTerrain* terrain_b = *(struct CacheMapTerrain**)b;
@@ -321,7 +326,9 @@ compare_terrain_by_z_x(const void* a, const void* b)
 }
 
 static void
-sort_terrain_definitions(struct CacheMapTerrain** terrain_definitions, int size)
+sort_terrain_definitions(
+    struct CacheMapTerrain** terrain_definitions,
+    int size)
 {
     // Sort by lowest z, then lowest x.
     qsort(terrain_definitions, size, sizeof(struct CacheMapTerrain*), compare_terrain_by_z_x);
@@ -378,7 +385,10 @@ apply_transforms(
 }
 
 static void
-light_model_default(struct DashModel* dash_model, int model_contrast, int model_attenuation)
+light_model_default(
+    struct DashModel* dash_model,
+    int model_contrast,
+    int model_attenuation)
 {
     int light_ambient = 64;
     int light_attenuation = 768;
@@ -426,238 +436,244 @@ light_model_default(struct DashModel* dash_model, int model_contrast, int model_
         lightsrc_z);
 }
 
-static struct DashModel*
-load_model(
-    struct CacheConfigLocation* loc_config,
-    struct HMap* models_hmap,
-    int shape_select,
-    int orientation,
-    struct TileHeights* tile_heights)
-{
-    struct ModelEntry* model_entry = NULL;
-    int* shapes = loc_config->shapes;
-    int** model_id_sets = loc_config->models;
-    int* lengths = loc_config->lengths;
-    int shapes_and_model_count = loc_config->shapes_and_model_count;
+// static struct DashModel*
+// load_model(
+//     struct CacheConfigLocation* loc_config,
+//     struct HMap* models_hmap,
+//     int shape_select,
+//     int orientation,
+//     struct TileHeights* tile_heights)
+// {
+//     struct ModelEntry* model_entry = NULL;
+//     int* shapes = loc_config->shapes;
+//     int** model_id_sets = loc_config->models;
+//     int* lengths = loc_config->lengths;
+//     int shapes_and_model_count = loc_config->shapes_and_model_count;
 
-    struct CacheModel** models = NULL;
-    int model_count = 0;
-    int* model_ids = NULL;
+//     struct CacheModel** models = NULL;
+//     int model_count = 0;
+//     int* model_ids = NULL;
 
-    struct CacheModel* model = NULL;
+//     struct CacheModel* model = NULL;
 
-    if( !model_id_sets )
-        return NULL;
+//     if( !model_id_sets )
+//         return NULL;
 
-    if( !shapes )
-    {
-        int count = lengths[0];
+//     if( !shapes )
+//     {
+//         int count = lengths[0];
 
-        models = malloc(sizeof(struct CacheModel) * count);
-        memset(models, 0, sizeof(struct CacheModel) * count);
-        model_ids = malloc(sizeof(int) * count);
-        memset(model_ids, 0, sizeof(int) * count);
+//         models = malloc(sizeof(struct CacheModel) * count);
+//         memset(models, 0, sizeof(struct CacheModel) * count);
+//         model_ids = malloc(sizeof(int) * count);
+//         memset(model_ids, 0, sizeof(int) * count);
 
-        for( int i = 0; i < count; i++ )
-        {
-            int model_id = model_id_sets[0][i];
-            assert(model_id);
+//         for( int i = 0; i < count; i++ )
+//         {
+//             int model_id = model_id_sets[0][i];
+//             assert(model_id);
 
-            model_entry = (struct ModelEntry*)hmap_search(models_hmap, &model_id, HMAP_FIND);
-            assert(model_entry);
-            model = model_entry->model;
+//             model_entry = (struct ModelEntry*)hmap_search(models_hmap, &model_id, HMAP_FIND);
+//             assert(model_entry);
+//             model = model_entry->model;
 
-            assert(model);
-            models[model_count] = model;
-            model_ids[model_count] = model_id;
-            model_count++;
-        }
-    }
-    else
-    {
-        models = malloc(sizeof(struct CacheModel*) * shapes_and_model_count);
-        memset(models, 0, sizeof(struct CacheModel*) * shapes_and_model_count);
-        model_ids = malloc(sizeof(int) * shapes_and_model_count);
-        memset(model_ids, 0, sizeof(int) * shapes_and_model_count);
+//             assert(model);
+//             models[model_count] = model;
+//             model_ids[model_count] = model_id;
+//             model_count++;
+//         }
+//     }
+//     else
+//     {
+//         models = malloc(sizeof(struct CacheModel*) * shapes_and_model_count);
+//         memset(models, 0, sizeof(struct CacheModel*) * shapes_and_model_count);
+//         model_ids = malloc(sizeof(int) * shapes_and_model_count);
+//         memset(model_ids, 0, sizeof(int) * shapes_and_model_count);
 
-        bool found = false;
-        for( int i = 0; i < shapes_and_model_count; i++ )
-        {
-            int count_inner = lengths[i];
+//         bool found = false;
+//         for( int i = 0; i < shapes_and_model_count; i++ )
+//         {
+//             int count_inner = lengths[i];
 
-            int loc_type = shapes[i];
-            if( loc_type == shape_select )
-            {
-                for( int j = 0; j < count_inner; j++ )
-                {
-                    int model_id = model_id_sets[i][j];
-                    assert(model_id);
+//             int loc_type = shapes[i];
+//             if( loc_type == shape_select )
+//             {
+//                 for( int j = 0; j < count_inner; j++ )
+//                 {
+//                     int model_id = model_id_sets[i][j];
+//                     assert(model_id);
 
-                    model_entry =
-                        (struct ModelEntry*)hmap_search(models_hmap, &model_id, HMAP_FIND);
-                    assert(model_entry);
-                    model = model_entry->model;
+//                     model_entry =
+//                         (struct ModelEntry*)hmap_search(models_hmap, &model_id, HMAP_FIND);
+//                     assert(model_entry);
+//                     model = model_entry->model;
 
-                    assert(model);
-                    models[model_count] = model;
-                    model_ids[model_count] = model_id;
-                    model_count++;
-                    found = true;
-                }
-            }
-        }
-        assert(found);
-    }
+//                     assert(model);
+//                     models[model_count] = model;
+//                     model_ids[model_count] = model_id;
+//                     model_count++;
+//                     found = true;
+//                 }
+//             }
+//         }
+//         assert(found);
+//     }
 
-    assert(model_count > 0);
+//     assert(model_count > 0);
 
-    if( model_count > 1 )
-    {
-        model = model_new_merge(models, model_count);
-    }
-    else
-    {
-        model = model_new_copy(models[0]);
-    }
+//     if( model_count > 1 )
+//     {
+//         model = model_new_merge(models, model_count);
+//     }
+//     else
+//     {
+//         model = model_new_copy(models[0]);
+//     }
 
-    // printf("face textures: ");
-    // if( model->face_textures )
-    //     for( int f = 0; f < model->face_count; f++ )
-    //     {
-    //         printf("%d; ", model->face_textures[f]);
-    //     }
-    // printf("\n");
+//     // printf("face textures: ");
+//     // if( model->face_textures )
+//     //     for( int f = 0; f < model->face_count; f++ )
+//     //     {
+//     //         printf("%d; ", model->face_textures[f]);
+//     //     }
+//     // printf("\n");
 
-    apply_transforms(
-        loc_config,
-        model,
-        orientation,
-        tile_heights->sw_height,
-        tile_heights->se_height,
-        tile_heights->ne_height,
-        tile_heights->nw_height);
+//     apply_transforms(
+//         loc_config,
+//         model,
+//         orientation,
+//         tile_heights->sw_height,
+//         tile_heights->se_height,
+//         tile_heights->ne_height,
+//         tile_heights->nw_height);
 
-    struct DashModel* dash_model = NULL;
-    dash_model = dashmodel_new_from_cache_model(model);
-    model_free(model);
+//     struct DashModel* dash_model = NULL;
+//     dash_model = dashmodel_new_from_cache_model(model);
+//     model_free(model);
 
-    //     scene_model->light_ambient = loc_config->ambient;
-    //     scene_model->light_contrast = loc_config->contrast;
+//     //     scene_model->light_ambient = loc_config->ambient;
+//     //     scene_model->light_contrast = loc_config->contrast;
 
-    light_model_default(dash_model, loc_config->contrast, loc_config->ambient);
+//     light_model_default(dash_model, loc_config->contrast, loc_config->ambient);
 
-    // Sequences don't account for rotations, so models must be rotated AFTER the animation is
-    // applied.
-    if( loc_config->seq_id != -1 )
-    {
-        // TODO: account for transforms.
-        // Also, I believe this is the only overridden transform.
-        //         const isEntity =
-        // seqId !== -1 ||
-        // locType.transforms !== undefined ||
-        // locLoadType === LocLoadType.NO_MODELS;
+//     // Sequences don't account for rotations, so models must be rotated AFTER the animation is
+//     // applied.
+//     if( loc_config->seq_id != -1 )
+//     {
+//         // TODO: account for transforms.
+//         // Also, I believe this is the only overridden transform.
+//         //         const isEntity =
+//         // seqId !== -1 ||
+//         // locType.transforms !== undefined ||
+//         // locLoadType === LocLoadType.NO_MODELS;
 
-        // scene_model->yaw = 512 * orientation;
-        // scene_model->yaw %= 2048;
-        // orientation = 0;
-    }
+//         // scene_model->yaw = 512 * orientation;
+//         // scene_model->yaw %= 2048;
+//         // orientation = 0;
+//     }
 
-    // scene_model->model = model;
-    // scene_model->model_id = model_ids[0];
+//     // scene_model->model = model;
+//     // scene_model->model_id = model_ids[0];
 
-    // scene_model->light_ambient = loc_config->ambient;
-    // scene_model->light_contrast = loc_config->contrast;
-    // scene_model->sharelight = loc_config->sharelight;
+//     // scene_model->light_ambient = loc_config->ambient;
+//     // scene_model->light_contrast = loc_config->contrast;
+//     // scene_model->sharelight = loc_config->sharelight;
 
-    // scene_model->__loc_id = loc_config->_id;
+//     // scene_model->__loc_id = loc_config->_id;
 
-    // if( model->vertex_bone_map )
-    //     scene_model->vertex_bones =
-    //         modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
-    // if( model->face_bone_map )
-    //     scene_model->face_bones = modelbones_new_decode(model->face_bone_map, model->face_count);
+//     // if( model->vertex_bone_map )
+//     //     scene_model->vertex_bones =
+//     //         modelbones_new_decode(model->vertex_bone_map, model->vertex_count);
+//     // if( model->face_bone_map )
+//     //     scene_model->face_bones = modelbones_new_decode(model->face_bone_map,
+//     model->face_count);
 
-    // scene_model->sequence = NULL;
-    // if( loc_config->seq_id != -1 )
-    // {
-    //     scene_model_vertices_create_original(scene_model);
+//     // scene_model->sequence = NULL;
+//     // if( loc_config->seq_id != -1 )
+//     // {
+//     //     scene_model_vertices_create_original(scene_model);
 
-    //     if( model->face_alphas )
-    //         scene_model_face_alphas_create_original(scene_model);
+//     //     if( model->face_alphas )
+//     //         scene_model_face_alphas_create_original(scene_model);
 
-    //     sequence = config_sequence_table_get_new(sequence_table, loc_config->seq_id);
-    //     assert(sequence);
-    //     assert(sequence->frame_lengths);
-    //     scene_model->sequence = sequence;
+//     //     sequence = config_sequence_table_get_new(sequence_table, loc_config->seq_id);
+//     //     assert(sequence);
+//     //     assert(sequence->frame_lengths);
+//     //     scene_model->sequence = sequence;
 
-    //     assert(scene_model->frames == NULL);
-    //     scene_model->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
-    //     memset(scene_model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
+//     //     assert(scene_model->frames == NULL);
+//     //     scene_model->frames = malloc(sizeof(struct CacheFrame*) * sequence->frame_count);
+//     //     memset(scene_model->frames, 0, sizeof(struct CacheFrame*) * sequence->frame_count);
 
-    //     int frame_id = sequence->frame_ids[0];
-    //     int frame_archive_id = (frame_id >> 16) & 0xFFFF;
-    //     // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
-    //     //     first 2 bytes are the sequence ID,
-    //     //     the second 2 bytes are the frame archive ID
+//     //     int frame_id = sequence->frame_ids[0];
+//     //     int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+//     //     // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
+//     //     //     first 2 bytes are the sequence ID,
+//     //     //     the second 2 bytes are the frame archive ID
 
-    //     frame_archive = cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
-    //     frame_filelist = filelist_new_from_cache_archive(frame_archive);
-    //     for( int i = 0; i < sequence->frame_count; i++ )
-    //     {
-    //         assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
-    //         // assert(i < frame_filelist->file_count);
+//     //     frame_archive = cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_archive_id);
+//     //     frame_filelist = filelist_new_from_cache_archive(frame_archive);
+//     //     for( int i = 0; i < sequence->frame_count; i++ )
+//     //     {
+//     //         assert(((sequence->frame_ids[i] >> 16) & 0xFFFF) == frame_archive_id);
+//     //         // assert(i < frame_filelist->file_count);
 
-    //         int frame_id = sequence->frame_ids[i];
-    //         int frame_archive_id = (frame_id >> 16) & 0xFFFF;
-    //         int frame_file_id = frame_id & 0xFFFF;
+//     //         int frame_id = sequence->frame_ids[i];
+//     //         int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+//     //         int frame_file_id = frame_id & 0xFFFF;
 
-    //         assert(frame_file_id > 0);
-    //         assert(frame_file_id - 1 < frame_filelist->file_count);
+//     //         assert(frame_file_id > 0);
+//     //         assert(frame_file_id - 1 < frame_filelist->file_count);
 
-    //         char* frame_data = frame_filelist->files[frame_file_id - 1];
-    //         int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
-    //         int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
+//     //         char* frame_data = frame_filelist->files[frame_file_id - 1];
+//     //         int frame_data_size = frame_filelist->file_sizes[frame_file_id - 1];
+//     //         int framemap_id = framemap_id_from_frame_archive(frame_data, frame_data_size);
 
-    //         if( !scene_model->framemap )
-    //         {
-    //             framemap = framemap_new_from_cache(cache, framemap_id);
-    //             scene_model->framemap = framemap;
-    //         }
+//     //         if( !scene_model->framemap )
+//     //         {
+//     //             framemap = framemap_new_from_cache(cache, framemap_id);
+//     //             scene_model->framemap = framemap;
+//     //         }
 
-    //         frame = frame_new_decode2(frame_id, scene_model->framemap, frame_data,
-    //         frame_data_size);
+//     //         frame = frame_new_decode2(frame_id, scene_model->framemap, frame_data,
+//     //         frame_data_size);
 
-    //         scene_model->frames[scene_model->frame_count++] = frame;
-    //     }
+//     //         scene_model->frames[scene_model->frame_count++] = frame;
+//     //     }
 
-    //     cache_archive_free(frame_archive);
-    //     frame_archive = NULL;
-    //     filelist_free(frame_filelist);
-    //     frame_filelist = NULL;
-    // }
+//     //     cache_archive_free(frame_archive);
+//     //     frame_archive = NULL;
+//     //     filelist_free(frame_filelist);
+//     //     frame_filelist = NULL;
+//     // }
 
-    free(models);
-    free(model_ids);
+//     free(models);
+//     free(model_ids);
 
-    return dash_model;
-}
+//     return dash_model;
+// }
 
-static int
-game_add_scene_element(struct GGame* game, struct DashModel* model, struct DashPosition* position)
-{
-    struct SceneElement scene_element = {
-        .model = model,
-        .position = position,
-    };
-    vec_push(game->scene_elements, &scene_element);
+// static int
+// game_add_scene_element(
+//     struct GGame* game,
+//     struct DashModel* model,
+//     struct DashPosition* position)
+// {
+//     struct SceneElement scene_element = {
+//         .model = model,
+//         .position = position,
+//     };
+//     vec_push(game->scene_elements, &scene_element);
 
-    int idx = vec_size(game->scene_elements) - 1;
+//     int idx = vec_size(game->scene_elements) - 1;
 
-    return idx;
-}
+//     return idx;
+// }
 
 static void
-vec_push_unique(struct Vec* vec, int* element)
+vec_push_unique(
+    struct Vec* vec,
+    int* element)
 {
     struct VecIter* iter = vec_iter_new(vec);
     int* element_iter = NULL;
@@ -673,7 +689,9 @@ done:;
 }
 
 static void
-queue_model_unique(struct GTaskInitScene* task, int model_id)
+queue_model_unique(
+    struct GTaskInitScene* task,
+    int model_id)
 {
     struct VecIter* iter = vec_iter_new(task->queued_scenery_models_ids);
     int* element = NULL;
@@ -691,7 +709,9 @@ done:;
 
 static void
 queue_scenery_models(
-    struct GTaskInitScene* task, struct CacheConfigLocation* scenery_config, int shape_select)
+    struct GTaskInitScene* task,
+    struct CacheConfigLocation* scenery_config,
+    int shape_select)
 {
     int* shapes = scenery_config->shapes;
     int** model_id_sets = scenery_config->models;
@@ -749,7 +769,11 @@ gather_scenery_ids_vec_new(struct CacheMapLocsIter* iter)
 }
 
 struct GTaskInitScene*
-gtask_init_scene_new(struct GGame* game, int world_x, int world_z, int scene_size)
+gtask_init_scene_new(
+    struct GGame* game,
+    int world_x,
+    int world_z,
+    int scene_size)
 {
     struct ChunksInView chunks = { 0 };
     struct HashConfig config = { 0 };
@@ -770,6 +794,8 @@ gtask_init_scene_new(struct GGame* game, int world_x, int world_z, int scene_siz
     game->sys_painter_buffer = painter_buffer_new();
 
     task->painter = game->sys_painter;
+
+    task->scene_builder = scenebuilder_new_painter(task->painter, 49, 49, 50, 50);
 
     task->chunks_count = chunks.count;
     task->chunks_width = chunks.width;
@@ -876,6 +902,9 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             locs->_chunk_mapx = message.param_b >> 16;
             locs->_chunk_mapz = message.param_b & 0xFFFF;
 
+            scenebuilder_cache_map_locs(
+                task->scene_builder, locs->_chunk_mapx, locs->_chunk_mapz, locs);
+
             gioq_release(task->io, &message);
         }
         if( task->reqid_scenery_inflight != 0 )
@@ -975,6 +1004,12 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             task->reqid_terrain_inflight--;
             task->terrain_definitions[task->terrain_count++] =
                 map_terrain_new_from_decode(message.data, message.data_size, map_x, map_z);
+
+            scenebuilder_cache_map_terrain(
+                task->scene_builder,
+                map_x,
+                map_z,
+                task->terrain_definitions[task->terrain_count - 1]);
 
             gioq_release(task->io, &message);
         }
@@ -1189,67 +1224,116 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     }
     case STEP_INIT_SCENE_10_BUILD_WORLD3D:
     {
-        struct TileHeights tile_heights;
+        // struct TileHeights tile_heights;
         struct DashModel* dash_model = NULL;
         loc = NULL;
-        map_locs_iter_begin(task->scenery_iter);
-        while( (loc = map_locs_iter_next(task->scenery_iter, &chunk_offset)) )
-        {
-            int sx = chunk_offset.x + loc->chunk_pos_x;
-            int sz = chunk_offset.z + loc->chunk_pos_z;
-            int slevel = loc->chunk_pos_level;
+        // map_locs_iter_begin(task->scenery_iter);
+        // while( (loc = map_locs_iter_next(task->scenery_iter, &chunk_offset)) )
+        // {
+        //     int sx = chunk_offset.x + loc->chunk_pos_x;
+        //     int sz = chunk_offset.z + loc->chunk_pos_z;
+        //     int slevel = loc->chunk_pos_level;
 
-            config_loc = configmap_get(task->scenery_configmap, loc->loc_id);
-            assert(config_loc && "Scenery configuration must be loaded");
+        //     config_loc = configmap_get(task->scenery_configmap, loc->loc_id);
+        //     assert(config_loc && "Scenery configuration must be loaded");
 
-            tile_heights = terrain_tile_heights_at(task->terrain_iter, sx, sz, slevel);
+        //     tile_heights = terrain_tile_heights_at(task->terrain_iter, sx, sz, slevel);
 
-            // int entity = entity_new(task->game);
+        //     // int entity = entity_new(task->game);
 
-            switch( loc->shape_select )
-            {
-            case LOC_SHAPE_WALL_SINGLE_SIDE:
-                // Create the model.
-                // Add model to game entity
-                // Get the model number
-                // Add to painter
-                // Add painter to game entity
-                dash_model = load_model(
-                    config_loc,
-                    task->models_hmap,
-                    loc->shape_select,
-                    loc->orientation,
-                    &tile_heights);
-                // TODO: Load animations.
+        //     switch( loc->shape_select )
+        //     {
+        //     case LOC_SHAPE_WALL_SINGLE_SIDE:
+        //     {
+        //         // Create the model.
+        //         // Add model to game entity
+        //         // Get the model number
+        //         // Add to painter
+        //         // Add painter to game entity
+        //         dash_model = load_model(
+        //             config_loc,
+        //             task->models_hmap,
+        //             loc->shape_select,
+        //             loc->orientation,
+        //             &tile_heights);
+        //         // TODO: Load animations.
 
-                struct DashPosition* position = malloc(sizeof(struct DashPosition));
-                memset(position, 0, sizeof(struct DashPosition));
-                position->x = sx * TILE_SIZE + config_loc->size_x * 64;
-                position->z = sz * TILE_SIZE + config_loc->size_z * 64;
-                position->y = tile_heights.height_center;
+        //         struct DashPosition* position = malloc(sizeof(struct DashPosition));
+        //         memset(position, 0, sizeof(struct DashPosition));
+        //         position->x = sx * TILE_SIZE + config_loc->size_x * 64;
+        //         position->z = sz * TILE_SIZE + config_loc->size_z * 64;
+        //         position->y = tile_heights.height_center;
 
-                int model_index = game_add_scene_element(task->game, dash_model, position);
-                // model->region_x = tile_x * TILE_SIZE + size_x * 64;
-                // model->region_z = tile_y * TILE_SIZE + size_y * 64;
-                // model->region_height = height_center;
+        //         int model_index = game_add_scene_element(task->game, dash_model, position);
+        //         // model->region_x = tile_x * TILE_SIZE + size_x * 64;
+        //         // model->region_z = tile_y * TILE_SIZE + size_y * 64;
+        //         // model->region_height = height_center;
 
-                // Push to game.
-                //
+        //         // Push to game.
+        //         //
 
-                painter_add_wall(
-                    task->game->sys_painter,
-                    sx,
-                    sz,
-                    slevel,
-                    model_index,
-                    WALL_A,
-                    ROTATION_WALL_TYPE[loc->orientation]);
-                break;
-            }
-        }
+        //         painter_add_wall(
+        //             task->game->sys_painter,
+        //             sx,
+        //             sz,
+        //             slevel,
+        //             model_index,
+        //             WALL_A,
+        //             ROTATION_WALL_TYPE[loc->orientation]);
 
-        task->game->terrain = terrain_new_from_map_terrain(
-            task->terrain_iter, NULL, task->underlay_configmap, task->overlay_configmap);
+        //         // Update shademap
+        //         // Update collisionmap
+        //     }
+        //     break;
+        //     case LOC_SHAPE_WALL_TRI_CORNER:
+        //     {
+        //         // Create the model.
+        //         // Add model to game entity
+        //         // Get the model number
+        //         // Add to painter
+        //         // Add painter to game entity
+        //         dash_model = load_model(
+        //             config_loc,
+        //             task->models_hmap,
+        //             loc->shape_select,
+        //             loc->orientation,
+        //             &tile_heights);
+        //         // TODO: Load animations.
+
+        //         struct DashPosition* position = malloc(sizeof(struct DashPosition));
+        //         memset(position, 0, sizeof(struct DashPosition));
+        //         position->x = sx * TILE_SIZE + config_loc->size_x * 64;
+        //         position->z = sz * TILE_SIZE + config_loc->size_z * 64;
+        //         position->y = tile_heights.height_center;
+
+        //         int model_index = game_add_scene_element(task->game, dash_model, position);
+        //         // model->region_x = tile_x * TILE_SIZE + size_x * 64;
+        //         // model->region_z = tile_y * TILE_SIZE + size_y * 64;
+        //         // model->region_height = height_center;
+
+        //         // Push to game.
+        //         //
+
+        //         painter_add_wall(
+        //             task->game->sys_painter,
+        //             sx,
+        //             sz,
+        //             slevel,
+        //             model_index,
+        //             WALL_A,
+        //             ROTATION_WALL_TYPE[loc->orientation]);
+
+        //         // Update shademap
+        //         // Update collisionmap
+        //     }
+        //     break;
+        //     }
+        // }
+
+        scenebuilder_cache_configmap_underlay(task->scene_builder, task->underlay_configmap);
+        scenebuilder_cache_configmap_overlay(task->scene_builder, task->overlay_configmap);
+        task->game->scene = scenebuilder_load(task->scene_builder);
+
         task->step = STEP_INIT_SCENE_11_BUILD_TERRAIN3D;
     }
     case STEP_INIT_SCENE_DONE:

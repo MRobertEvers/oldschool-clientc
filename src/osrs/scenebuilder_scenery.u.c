@@ -1,0 +1,4 @@
+#ifndef SCENE_BUILDER_SCENERY_U_C
+#define SCENE_BUILDER_SCENERY_U_C
+
+#endif

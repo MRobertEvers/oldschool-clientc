@@ -11,7 +11,9 @@
 #include <string.h>
 
 static int
-generate_height(int x, int y)
+generate_height(
+    int x,
+    int y)
 {
     int n = perlin_noise(x + 45365, y + 91923, 4) - 128 +
             ((perlin_noise(x + 10294, y + 37821, 2) - 128) >> 1) +
@@ -35,7 +37,10 @@ generate_height(int x, int y)
  * src/rs/scene/SceneBuilder.ts decodeTerrainTile
  */
 static void
-fixup_terrain(struct CacheMapTerrain* map_terrain, int map_x, int map_z)
+fixup_terrain(
+    struct CacheMapTerrain* map_terrain,
+    int map_x,
+    int map_z)
 {
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
@@ -82,13 +87,18 @@ fixup_terrain(struct CacheMapTerrain* map_terrain, int map_x, int map_z)
 }
 
 static int
-dat_map_square_id(int map_x, int map_y)
+dat_map_square_id(
+    int map_x,
+    int map_y)
 {
     return map_x << 8 + map_y;
 }
 
 static int
-dat2_map_terrain_id(struct Cache* cache, int map_x, int map_y)
+dat2_map_terrain_id(
+    struct Cache* cache,
+    int map_x,
+    int map_y)
 {
     char name[13];
 
@@ -110,7 +120,10 @@ dat2_map_terrain_id(struct Cache* cache, int map_x, int map_y)
 }
 
 static int
-dat2_map_loc_id(struct Cache* cache, int map_x, int map_y)
+dat2_map_loc_id(
+    struct Cache* cache,
+    int map_x,
+    int map_y)
 {
     char name[13];
     snprintf(name, sizeof(name), "l%d_%d", map_x, map_y);
@@ -131,7 +144,10 @@ dat2_map_loc_id(struct Cache* cache, int map_x, int map_y)
 }
 
 static int
-dat2_map_npc_id(struct Cache* cache, int map_x, int map_y)
+dat2_map_npc_id(
+    struct Cache* cache,
+    int map_x,
+    int map_y)
 {
     char name[13];
     snprintf(name, sizeof(name), "n%d_%d", map_x, map_y);
@@ -198,7 +214,10 @@ dat2_map_npc_id(struct Cache* cache, int map_x, int map_y)
 // 		}
 // 	}
 struct CacheMapTerrain*
-map_terrain_new_from_cache(struct Cache* cache, int map_x, int map_y)
+map_terrain_new_from_cache(
+    struct Cache* cache,
+    int map_x,
+    int map_y)
 {
     struct CacheArchive* archive = NULL;
     struct CacheMapTerrain* map_terrain = NULL;
@@ -262,7 +281,10 @@ error:
 }
 
 struct CacheMapTerrain*
-map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y)
+map_terrain_new_from_archive(
+    struct CacheArchive* archive,
+    int map_x,
+    int map_y)
 {
     struct CacheMapTerrain* map_terrain =
         map_terrain_new_from_decode(archive->data, archive->data_size, map_x, map_y);
@@ -276,7 +298,11 @@ map_terrain_new_from_archive(struct CacheArchive* archive, int map_x, int map_y)
 }
 
 struct CacheMapTerrain*
-map_terrain_new_from_decode(char* data, int data_size, int map_x, int map_z)
+map_terrain_new_from_decode(
+    char* data,
+    int data_size,
+    int map_x,
+    int map_z)
 {
     struct CacheMapTerrain* map_terrain = malloc(sizeof(struct CacheMapTerrain));
     memset(map_terrain, 0, sizeof(struct CacheMapTerrain));
@@ -337,7 +363,10 @@ map_terrain_free(struct CacheMapTerrain* map_terrain)
 }
 
 struct CacheMapTerrainIter*
-map_terrain_iter_new_from_ptrs(struct CacheMapTerrain** chunks, int count, int width)
+map_terrain_iter_new_from_ptrs(
+    struct CacheMapTerrain** chunks,
+    int count,
+    int width)
 {
     struct CacheMapTerrainIter* iter = malloc(sizeof(struct CacheMapTerrainIter));
     if( !iter )
@@ -377,7 +406,11 @@ map_terrain_iter_next(struct CacheMapTerrainIter* iter)
 }
 
 struct CacheMapFloor*
-map_terrain_iter_at(struct CacheMapTerrainIter* iter, int sx, int sz, int slevel)
+map_terrain_iter_at(
+    struct CacheMapTerrainIter* iter,
+    int sx,
+    int sz,
+    int slevel)
 {
     assert(sx >= 0 && sx < map_terrain_iter_bound_x(iter));
     assert(sz >= 0 && sz < map_terrain_iter_bound_z(iter));
@@ -413,7 +446,10 @@ map_terrain_iter_bound_z(struct CacheMapTerrainIter* iter)
 }
 
 struct CacheMapLocs*
-map_locs_new_from_cache(struct Cache* cache, int map_x, int map_y)
+map_locs_new_from_cache(
+    struct Cache* cache,
+    int map_x,
+    int map_y)
 {
     int archive_id = dat2_map_loc_id(cache, map_x, map_y);
     struct CacheMapLocs* map_locs = NULL;
@@ -497,7 +533,9 @@ error:
 // }
 
 struct CacheMapLocs*
-map_locs_new_from_decode(char* data, int data_size)
+map_locs_new_from_decode(
+    char* data,
+    int data_size)
 {
     struct CacheMapLocs* map_locs = malloc(sizeof(struct CacheMapLocs));
     if( !map_locs )
@@ -586,7 +624,10 @@ map_locs_free(struct CacheMapLocs* map_locs)
 }
 
 struct CacheArchive*
-map_locs_archive_new_load(struct Cache* cache, int map_x, int map_y)
+map_locs_archive_new_load(
+    struct Cache* cache,
+    int map_x,
+    int map_y)
 {
     int* xtea_key = NULL;
     struct CacheArchive* archive = NULL;
@@ -614,14 +655,16 @@ error:
 }
 
 struct CacheMapLocsIter*
-map_locs_iter_new_from_ptrs(struct CacheMapLocs** chunks, int count, int width)
+map_locs_iter_new_from_ptrs(
+    struct CacheMapLocs** chunks,
+    int count,
+    int width)
 {
     struct CacheMapLocsIter* iter = malloc(sizeof(struct CacheMapLocsIter));
     if( !iter )
         return NULL;
     memset(iter, 0, sizeof(struct CacheMapLocsIter));
-    iter->is_ptrs = true;
-    iter->_chunks_ptrs = chunks;
+    iter->chunks_ptrs = chunks;
     iter->chunks_count = count;
     iter->width = width;
     iter->index = 0;
@@ -644,13 +687,15 @@ map_locs_iter_begin(struct CacheMapLocsIter* iter)
 }
 
 struct CacheMapLoc*
-map_locs_iter_next(struct CacheMapLocsIter* iter, struct ChunkOffset* out_offset_nullable)
+map_locs_iter_next(
+    struct CacheMapLocsIter* iter,
+    struct ChunkOffset* out_offset_nullable)
 {
     int index = iter->index++;
     int chunk = 0;
-    while( index >= iter->_chunks_ptrs[chunk]->locs_count )
+    while( index >= iter->chunks_ptrs[chunk]->locs_count )
     {
-        index -= iter->_chunks_ptrs[chunk]->locs_count;
+        index -= iter->chunks_ptrs[chunk]->locs_count;
         chunk++;
 
         if( chunk >= iter->chunks_count )
@@ -663,7 +708,7 @@ map_locs_iter_next(struct CacheMapLocsIter* iter, struct ChunkOffset* out_offset
         out_offset_nullable->z = (chunk / iter->width) * MAP_CHUNK_SIZE;
     }
 
-    return &iter->_chunks_ptrs[chunk]->locs[index];
+    return &iter->chunks_ptrs[chunk]->locs[index];
 
     // int chunk_side = MAP_CHUNK_SIZE;
     // int stride = iter->width * chunk_side;

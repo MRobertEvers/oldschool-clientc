@@ -34,7 +34,6 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/tables/textures.c
         src/osrs/tables/sprites.c
         src/osrs/painters.c
-        src/osrs/blend_underlays.c
         src/osrs/dashlib.c
         src/osrs/model_transforms.c
 
@@ -42,7 +41,8 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/graphics/dashmap.c
 
         src/osrs/texture.c
-        src/osrs/terrain.c
+        src/osrs/scene.c
+        src/osrs/scenebuilder.c
         src/osrs/filelist.c
         src/osrs/grender.c
         src/osrs/archive.c

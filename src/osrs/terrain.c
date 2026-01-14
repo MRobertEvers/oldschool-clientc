@@ -1,8 +1,8 @@
-#include "terrain.h"
 
 #include "blend_underlays.h"
 #include "graphics/dash.h"
 #include "palette.h"
+#include "scene2.h"
 #include "tables/config_floortype.h"
 #include "tables/maps.h"
 
@@ -12,64 +12,30 @@
 
 // clang-format off
 #include "terrain.u.c"
+#include "terrain_grid.u.c"
 #include "terrain_decode_tile.u.c"
 // clang-format on
 
-struct TileHeights
-terrain_tile_heights_at(struct CacheMapTerrainIter* terrain, int sx, int sz, int level)
-{
-    struct TileHeights tile_heights;
-
-    int height_sw = map_terrain_iter_at(terrain, sx, sz, level)->height;
-    int height_se = height_sw;
-    if( sx + 1 < map_terrain_iter_bound_x(terrain) )
-        height_se = map_terrain_iter_at(terrain, sx + 1, sz, level)->height;
-
-    int height_ne = height_sw;
-    if( sz + 1 < map_terrain_iter_bound_z(terrain) && sx + 1 < map_terrain_iter_bound_x(terrain) )
-        height_ne = map_terrain_iter_at(terrain, sx + 1, sz + 1, level)->height;
-
-    int height_nw = height_sw;
-    if( sz + 1 < map_terrain_iter_bound_z(terrain) )
-        height_nw = map_terrain_iter_at(terrain, sx, sz + 1, level)->height;
-
-    int height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
-
-    tile_heights.sw_height = height_sw;
-    tile_heights.se_height = height_se;
-    tile_heights.ne_height = height_ne;
-    tile_heights.nw_height = height_nw;
-    tile_heights.height_center = height_center;
-
-    return tile_heights;
-}
-
-struct TerrainTileModel*
-terrain_tile_model_at(struct Terrain* terrain, int sx, int sz, int slevel)
-{
-    int tile_coord = terrain_tile_coord(terrain->side, sx, sz, slevel);
-    assert(tile_coord < terrain->tile_count);
-    return &terrain->tiles[tile_coord];
-}
-
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/Scene.java
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/class481.java
-struct Terrain*
+static struct SceneTerrain*
 terrain_new_from_map_terrain(
-    struct CacheMapTerrainIter* terrain_iter,
+    struct TerrainGrid* terrain_grid,
     int* shade_map_nullable,
     struct ConfigMap* config_underlay_map,
     struct ConfigMap* config_overlay_map)
 {
-    struct Terrain* terrain = (struct Terrain*)malloc(sizeof(struct Terrain));
-    memset(terrain, 0, sizeof(struct Terrain));
+    struct SceneTerrain* terrain = (struct SceneTerrain*)malloc(sizeof(struct SceneTerrain));
+    memset(terrain, 0, sizeof(struct SceneTerrain));
 
+    struct DashModel* model = NULL;
     struct CacheConfigUnderlay* underlay = NULL;
     struct CacheConfigOverlay* overlay = NULL;
     struct TerrainTileModel* chunk_tiles = NULL;
-    int max_z = terrain_iter->chunks_count / terrain_iter->chunks_width * MAP_TERRAIN_Z;
-    int max_x = terrain_iter->chunks_width * MAP_TERRAIN_X;
-    int tile_count = CHUNK_TILE_COUNT * terrain_iter->chunks_count;
+    int max_z = terrain_grid_z_height(terrain_grid);
+    int max_x = terrain_grid_x_width(terrain_grid);
+    int tile_count = terrain_grid_size(terrain_grid);
+
     struct TerrainTileModel* tiles =
         (struct TerrainTileModel*)malloc(tile_count * sizeof(struct TerrainTileModel));
     memset(tiles, 0, tile_count * sizeof(struct TerrainTileModel));
@@ -187,7 +153,7 @@ terrain_new_from_map_terrain(
                 tile->cz = z;
                 tile->clevel = level;
 
-                bool success = decode_tile(
+                model = decode_tile(
                     tile,
                     shape,
                     rotation,

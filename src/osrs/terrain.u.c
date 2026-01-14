@@ -1,8 +1,6 @@
 #ifndef TERRAIN_U_C
 #define TERRAIN_U_C
 
-#include "terrain.h"
-
 #include "tables/maps.h"
 
 #include <assert.h>
@@ -10,6 +8,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// clang-format off
+#include "terrain_grid.u.c"
+#include "terrain_decode_tile.u.c"
+// clang-format on
 
 #define LIGHT_DIR_X -50
 #define LIGHT_DIR_Y -10
@@ -20,21 +23,29 @@
 #define HEIGHT_SCALE 65536
 
 static inline int
-terrain_tile_coord(int chunk_width, int sx, int sz, int slevel)
+grid_coord(
+    int width,
+    int sx,
+    int sz,
+    int slevel)
 {
-    int tile_coord = sx + sz * chunk_width * MAP_TERRAIN_X +
-                     slevel * chunk_width * chunk_width * MAP_TERRAIN_X * MAP_TERRAIN_Z;
+    int tile_coord =                 //
+        sx +                         //
+        sz * width * MAP_TERRAIN_X + //
+        slevel * width * width * MAP_TERRAIN_X * MAP_TERRAIN_Z;
     return tile_coord;
 }
 
 static int*
-calculate_lights(struct CacheMapTerrainIter* terrain, int level)
+calculate_lights(
+    struct TerrainGrid* terrain_grid,
+    int level)
 {
-    int* lights = (int*)malloc(map_terrain_iter_tiles_size(terrain) * sizeof(int));
-    memset(lights, 0, map_terrain_iter_tiles_size(terrain) * sizeof(int));
+    int* lights = (int*)malloc(terrain_grid_size(terrain_grid) * sizeof(int));
+    memset(lights, 0, terrain_grid_size(terrain_grid) * sizeof(int));
 
-    int max_x = terrain->chunks_width * MAP_TERRAIN_X;
-    int max_z = (terrain->chunks_count / terrain->chunks_width) * MAP_TERRAIN_X;
+    int max_x = terrain_grid_x_width(terrain_grid);
+    int max_z = terrain_grid_z_height(terrain_grid);
 
     int magnitude =
         sqrt(LIGHT_DIR_X * LIGHT_DIR_X + LIGHT_DIR_Y * LIGHT_DIR_Y + LIGHT_DIR_Z * LIGHT_DIR_Z);
@@ -49,10 +60,10 @@ calculate_lights(struct CacheMapTerrainIter* terrain, int level)
             // derived from the differences in height between adjacent tiles. The code below seems
             // to be calculating the normals directly by skipping the cross product.
 
-            int height_delta_x = map_terrain_iter_at(terrain, x + 1, z, level)->height -
-                                 map_terrain_iter_at(terrain, x - 1, z, level)->height;
-            int height_delta_z = map_terrain_iter_at(terrain, x, z + 1, level)->height -
-                                 map_terrain_iter_at(terrain, x, z - 1, level)->height;
+            int height_delta_x = tile_from_sw_origin(terrain_grid, x + 1, z, level)->height -
+                                 tile_from_sw_origin(terrain_grid, x - 1, z, level)->height;
+            int height_delta_z = tile_from_sw_origin(terrain_grid, x, z + 1, level)->height -
+                                 tile_from_sw_origin(terrain_grid, x, z - 1, level)->height;
             // const tileNormalLength =
             //                 Math.sqrt(
             //                     heightDeltaY * heightDeltaY + heightDeltaX * heightDeltaX +
@@ -98,7 +109,7 @@ calculate_lights(struct CacheMapTerrainIter* terrain, int level)
                       normalized_tile_normal_z * LIGHT_DIR_Z;
             int sunlight = (dot / intensity + LIGHT_AMBIENT);
 
-            lights[terrain_tile_coord(terrain->chunks_width, x, z, level)] = sunlight;
+            lights[grid_coord(terrain_grid_x_width(terrain_grid), x, z, level)] = sunlight;
         }
     }
 
