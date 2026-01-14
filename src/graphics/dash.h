@@ -1,6 +1,8 @@
 #ifndef DASH_H
 #define DASH_H
 
+#include "dashmap.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -216,7 +218,9 @@ dash3d_add_texture(
     struct DashTexture* texture);
 
 struct DashModelNormals* //
-dashmodel_normals_new(int vertex_count, int face_count);
+dashmodel_normals_new(
+    int vertex_count,
+    int face_count);
 
 struct DashModelLighting* //
 dashmodel_lighting_new(int face_count);

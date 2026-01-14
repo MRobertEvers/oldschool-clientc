@@ -3,6 +3,7 @@
 
 #include "archive.h"
 #include "cache.h"
+#include "graphics/dash.h"
 #include "tables/configs.h"
 
 /**
@@ -13,33 +14,35 @@
  * Note: Archives in the config table map to a single container.
  *
  */
-
-struct ConfigMap;
-
 struct ConfigMapPacked
 {
     void* data;
     int data_size;
 };
 
-struct ConfigMapIter
-{
-    struct HMapIter* hmap_iter;
-    struct ConfigMap* configmap;
-};
+struct ConfigMapPacked*
+configmap_packed_new(
+    struct Cache* cache,
+    struct CacheArchive* archive);
 
-struct ConfigMapPacked* configmap_packed_new(struct Cache* cache, struct CacheArchive* archive);
-struct ConfigMap* configmap_new_from_archive(struct Cache* cache, struct CacheArchive* archive);
-struct ConfigMap*
-configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_size);
-void configmap_packed_free(struct ConfigMapPacked* packed);
-void configmap_free(struct ConfigMap* configmap);
+void
+configmap_packed_free(struct ConfigMapPacked* packed);
 
-enum ConfigKind configmap_kind(struct ConfigMap* configmap);
-void* configmap_get(struct ConfigMap* configmap, int id);
+struct DashMap*
+configmap_new_from_packed(
+    void* data,
+    int data_size,
+    int* ids_nullable,
+    int ids_size);
 
-struct ConfigMapIter* configmap_iter_new(struct ConfigMap* configmap);
-void configmap_iter_free(struct ConfigMapIter* iter);
-void* configmap_iter_next(struct ConfigMapIter* iter);
+void
+configmap_free(struct DashMap* configmap);
 
+void*
+configmap_get(
+    struct DashMap* configmap,
+    int id);
+
+void*
+configmap_iter_next(struct DashMapIter* iter);
 #endif

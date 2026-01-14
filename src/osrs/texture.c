@@ -10,7 +10,9 @@
 
 // Gamma blending function (simplified)
 static int
-gamma_blend(int rgb, float gamma)
+gamma_blend(
+    int rgb,
+    float gamma)
 {
     // Simple gamma correction - for now just return the rgb as-is
     // This should be implemented properly for full texture support
@@ -18,7 +20,9 @@ gamma_blend(int rgb, float gamma)
 }
 
 struct DashTexture*
-texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap* sprites_hmap)
+texture_new_from_definition(
+    struct CacheTexture* texture_definition,
+    struct DashMap* sprites_hmap)
 {
     struct SpritePackEntry* spritepack_entry = NULL;
     struct CacheSpritePack* sprite_pack = NULL;
@@ -42,7 +46,7 @@ texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap
     {
         int sprite_id = texture_definition->sprite_ids[i];
         spritepack_entry =
-            (struct SpritePackEntry*)hmap_search(sprites_hmap, &sprite_id, HMAP_FIND);
+            (struct SpritePackEntry*)dashmap_search(sprites_hmap, &sprite_id, DASHMAP_FIND);
         sprite_pack = spritepack_entry->spritepack;
         assert(sprite_pack && "Texture SpritePacks must be loaded prior to texture creation");
         if( !sprite_pack )

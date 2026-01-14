@@ -19,7 +19,9 @@
 #include <string.h>
 
 static struct DashModel*
-dashmodel_new_from_cache(struct Cache* cache, int model_id)
+dashmodel_new_from_cache(
+    struct Cache* cache,
+    int model_id)
 {
     struct CacheModel* model = model_new_from_cache(cache, model_id);
     if( !model )
@@ -265,7 +267,9 @@ libg_game_free(struct GGame* game)
 }
 
 void
-libg_game_process_input(struct GGame* game, struct GInput* input)
+libg_game_process_input(
+    struct GGame* game,
+    struct GInput* input)
 {
     // IO
     const int target_input_fps = 50;
@@ -365,7 +369,9 @@ on_completed_task(
 
 void
 libg_game_step_tasks(
-    struct GGame* game, struct GInput* input, struct GRenderCommandBuffer* render_command_buffer)
+    struct GGame* game,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer)
 {
     struct GTask* task = game->tasks_nullable;
     enum GTaskStatus status = GTASK_STATUS_FAILED;
@@ -385,7 +391,9 @@ libg_game_step_tasks(
 
 void
 libg_game_step(
-    struct GGame* game, struct GInput* input, struct GRenderCommandBuffer* render_command_buffer)
+    struct GGame* game,
+    struct GInput* input,
+    struct GRenderCommandBuffer* render_command_buffer)
 {
     struct GTask* task = NULL;
     struct GIOMessage message = { 0 };
@@ -400,7 +408,6 @@ libg_game_step(
     task = game->tasks_nullable;
     if( task && task->status != GTASK_STATUS_COMPLETED )
     {
-        printf("Tasks Inflight: %d\n", task->status);
         return;
     }
 

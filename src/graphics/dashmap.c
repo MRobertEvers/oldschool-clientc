@@ -80,6 +80,7 @@ struct DashMap
 
     dashmap_hash_fn hash_fn;
     dashmap_eq_fn eq_fn;
+    dashmap_iterable_fn iterable_fn;
     void* arg; /* user data passed to hash/eq */
 };
 
@@ -88,7 +89,9 @@ struct DashMap
  *----------------------------------------------------------*/
 
 static inline size_t
-hmap_align_up_size(size_t x, size_t align)
+hmap_align_up_size(
+    size_t x,
+    size_t align)
 {
     if( align == 0 )
         return x;
@@ -99,7 +102,9 @@ hmap_align_up_size(size_t x, size_t align)
 }
 
 static inline unsigned char*
-hmap_align_up_ptr(unsigned char* p, size_t align)
+hmap_align_up_ptr(
+    unsigned char* p,
+    size_t align)
 {
     uintptr_t ip = (uintptr_t)p;
     uintptr_t aligned = (ip + (uintptr_t)(align - 1)) & ~(uintptr_t)(align - 1);
@@ -107,26 +112,34 @@ hmap_align_up_ptr(unsigned char* p, size_t align)
 }
 
 static inline unsigned char*
-hmap_slot_base_at(const struct DashMap* m, size_t idx)
+hmap_slot_base_at(
+    const struct DashMap* m,
+    size_t idx)
 {
     return m->entries + m->stride * idx;
 }
 
 static inline HMapSlotHeader*
-hmap_slot_header_at(const struct DashMap* m, size_t idx)
+hmap_slot_header_at(
+    const struct DashMap* m,
+    size_t idx)
 {
     return (HMapSlotHeader*)hmap_slot_base_at(m, idx);
 }
 
 static inline void*
-hmap_slot_entry_ptr(const struct DashMap* m, size_t idx)
+hmap_slot_entry_ptr(
+    const struct DashMap* m,
+    size_t idx)
 {
     return (void*)(hmap_slot_base_at(m, idx) + m->entry_offset);
 }
 
 /* key pointer inside an entry */
 static inline void*
-hmap_entry_key_ptr(const struct HMap* m, void* entry)
+hmap_entry_key_ptr(
+    const struct HMap* m,
+    void* entry)
 {
     return (unsigned char*)entry;
 }
@@ -135,8 +148,11 @@ hmap_entry_key_ptr(const struct HMap* m, void* entry)
  * Simple default hash / eq for arbitrary byte keys (FNV-1a)
  *----------------------------------------------------------*/
 
-uint64_t
-dashmap_hash_bytes(const void* key, size_t len, void* arg)
+static uint64_t
+dashmap_hash_bytes(
+    const void* key,
+    size_t len,
+    void* arg)
 {
     (void)arg;
     const unsigned char* p = (const unsigned char*)key;
@@ -151,8 +167,12 @@ dashmap_hash_bytes(const void* key, size_t len, void* arg)
     return h;
 }
 
-int
-dashmap_eq_bytes(const void* a, const void* b, size_t len, void* arg)
+static int
+dashmap_eq_bytes(
+    const void* a,
+    const void* b,
+    size_t len,
+    void* arg)
 {
     (void)arg;
     return memcmp(a, b, len) == 0;
@@ -185,6 +205,7 @@ dashmap_init(
     size_t capacity,
     dashmap_hash_fn hash_fn,
     dashmap_eq_fn eq_fn,
+    dashmap_iterable_fn iterable_fn,
     void* arg)
 {
     if( !m || !buffer || entry_size == 0 || key_size == 0 )
@@ -241,6 +262,7 @@ dashmap_init(
     m->size = 0;
     m->hash_fn = hash_fn;
     m->eq_fn = eq_fn;
+    m->iterable_fn = iterable_fn;
     m->arg = arg;
 
     /* Initialize headers */
@@ -261,7 +283,9 @@ dashmap_buffer_ptr(struct DashMap* m)
 }
 
 struct DashMap*
-dashmap_new(const struct DashMapConfig* config, uint32_t flags)
+dashmap_new(
+    const struct DashMapConfig* config,
+    uint32_t flags)
 {
     int status;
     struct DashMap* m = malloc(sizeof(struct DashMap));
@@ -277,6 +301,7 @@ dashmap_new(const struct DashMapConfig* config, uint32_t flags)
         config->capacity,
         config->hash_fn_nullable,
         config->eq_fn_nullable,
+        config->iterable_fn_nullable,
         config->arg_nullable);
 
     if( status != DASHMAP_OK )
@@ -321,7 +346,10 @@ dashmap_free(struct DashMap* m)
  *    insertion/clear/destroy affecting that slot.
  */
 void*
-dashmap_search(struct DashMap* m, const void* key, enum DashMapAction action)
+dashmap_search(
+    struct DashMap* m,
+    const void* key,
+    enum DashMapAction action)
 {
     if( !m || !m->entries || !key )
         return NULL;
@@ -474,6 +502,7 @@ dashmap_resize(
         new_capacity,
         old.hash_fn,
         old.eq_fn,
+        old.iterable_fn,
         old.arg);
 
     if( rc != DASHMAP_OK )
@@ -518,6 +547,12 @@ struct DashMapIter
     struct DashMap* m;
 };
 
+struct DashMap*
+dashmap_iter_get_map(struct DashMapIter* it)
+{
+    return it->m;
+}
+
 struct DashMapIter*
 dashmap_iter_new(struct DashMap* m)
 {
@@ -555,7 +590,9 @@ dashmap_iter_next(struct DashMapIter* it)
         HMapSlotHeader* h = hmap_slot_header_at(it->m, it->idx);
         if( h->state == DASHMAP_SLOT_FULL )
         {
-            return hmap_slot_entry_ptr(it->m, it->idx);
+            void* entry = hmap_slot_entry_ptr(it->m, it->idx);
+            if( !it->m->iterable_fn || it->m->iterable_fn(entry, it->m->arg) != 0 )
+                return entry;
         }
         it->idx++;
     }

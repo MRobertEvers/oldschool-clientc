@@ -26,12 +26,12 @@ scenebuilder_free(struct SceneBuilder* scene_builder);
 void
 scenebuilder_cache_configmap_underlay(
     struct SceneBuilder* scene_builder,
-    struct ConfigMap* config_underlay_map);
+    struct DashMap* config_underlay_map);
 
 void
 scenebuilder_cache_configmap_overlay(
     struct SceneBuilder* scene_builder,
-    struct ConfigMap* config_overlay_map);
+    struct DashMap* config_overlay_map);
 
 void
 scenebuilder_cache_model(

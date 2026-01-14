@@ -61,8 +61,6 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/archive_decompress.c
         src/osrs/cache_inet.c
         src/osrs/disk.c
-        src/datastruct/hmap.c
-        src/datastruct/ht.c
         src/osrs/reference_table.c
         src/osrs/xtea_config.c
         src/3rd/bzip/bzip.c

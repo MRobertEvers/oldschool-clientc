@@ -2,6 +2,7 @@
 #define SCENEBUILDER_U_C
 
 #include "configmap.h"
+#include "graphics/dash.h"
 
 struct ModelEntry
 {
@@ -38,12 +39,12 @@ struct SceneBuilder
     int mapx_ne;
     int mapz_ne;
 
-    struct HMap* models_hmap;
-    struct HMap* map_terrains_hmap;
-    struct HMap* map_locs_hmap;
-    struct HMap* config_locs_hmap;
-    struct ConfigMap* config_underlay_hmap;
-    struct ConfigMap* config_overlay_hmap;
+    struct DashMap* models_hmap;
+    struct DashMap* map_terrains_hmap;
+    struct DashMap* map_locs_hmap;
+    struct DashMap* config_locs_hmap;
+    struct DashMap* config_underlay_hmap;
+    struct DashMap* config_overlay_hmap;
 };
 
 #endif

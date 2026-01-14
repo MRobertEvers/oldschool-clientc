@@ -1,6 +1,5 @@
 #include "configmap.h"
 
-#include "datastruct/hmap.h"
 #include "filelist.h"
 #include "tables/config_floortype.h"
 #include "tables/config_idk.h"
@@ -12,7 +11,37 @@
 #include "tables/textures.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdalign.h>
+
+static const int METADATA_ID = 0xDEADBEEF;
+
+static inline int
+imax(
+    int a,
+    int b)
+{
+    return a > b ? a : b;
+}
+
+struct MetadataEntry
+{
+    int id;
+
+    int table_id;
+    int archive_id;
+};
+
+static int
+iterable(
+    void* entry,
+    void* arg)
+{
+    struct MetadataEntry* metadata = (struct MetadataEntry*)entry;
+    if( metadata->id == METADATA_ID )
+        return 0;
+    return 1;
+}
 
 struct ConfigUnderlayEntry
 {
@@ -55,16 +84,11 @@ struct ConfigTexturesEntry
     int id;
     struct CacheTexture texture;
 };
-struct ConfigMap
-{
-    struct HMap* hmap;
-
-    int table_id;
-    int archive_id;
-};
 
 static size_t
-configsize(int table_id, int archive_id)
+configsize(
+    int table_id,
+    int archive_id)
 {
     if( table_id == CACHE_CONFIGS )
     {
@@ -99,7 +123,9 @@ configsize(int table_id, int archive_id)
 }
 
 static int
-configalign(int table_id, int archive_id)
+configalign(
+    int table_id,
+    int archive_id)
 {
     if( table_id == CACHE_CONFIGS )
     {
@@ -134,7 +160,10 @@ configalign(int table_id, int archive_id)
 }
 
 static void
-configfree(int table_id, int archive_id, void* ptr)
+configfree(
+    int table_id,
+    int archive_id,
+    void* ptr)
 {
     if( table_id == CACHE_CONFIGS )
     {
@@ -175,7 +204,13 @@ configfree(int table_id, int archive_id, void* ptr)
 
 static void
 configdecode(
-    int table_id, int archive_id, void* ptr, int id, int revision, char* data, int data_size)
+    int table_id,
+    int archive_id,
+    void* ptr,
+    int id,
+    int revision,
+    char* data,
+    int data_size)
 {
     if( table_id == CACHE_CONFIGS )
     {
@@ -238,7 +273,10 @@ configdecode(
 }
 
 void*
-configvalue(int table_id, int archive_id, void* ptr)
+configvalue(
+    int table_id,
+    int archive_id,
+    void* ptr)
 {
     if( table_id == CACHE_CONFIGS )
     {
@@ -276,13 +314,17 @@ configvalue(int table_id, int archive_id, void* ptr)
 }
 
 static int
-alignup(int size, int alignment)
+alignup(
+    int size,
+    int alignment)
 {
     return (size + alignment - 1) & ~(alignment - 1);
 }
 
 struct ConfigMapPacked*
-configmap_packed_new(struct Cache* cache, struct CacheArchive* archive)
+configmap_packed_new(
+    struct Cache* cache,
+    struct CacheArchive* archive)
 {
     int data_size = 0;
     int offset = 0;
@@ -328,70 +370,18 @@ configmap_packed_new(struct Cache* cache, struct CacheArchive* archive)
     return packed;
 }
 
-struct ConfigMap*
-configmap_new_from_archive(struct Cache* cache, struct CacheArchive* archive)
+void
+configmap_packed_free(struct ConfigMapPacked* packed)
 {
-    assert(archive->table_id == CACHE_CONFIGS);
-
-    struct ArchiveReference* archive_reference = NULL;
-    struct FileList* file_list = NULL;
-
-    struct HashConfig config = {
-        .buffer = NULL,
-        .buffer_size = 0,
-        .key_size = sizeof(int),
-        /**
-         * Add 16 bytes to the entry size for the key and ensure it's aligned to 16 bytes.
-         */
-        .entry_size = configsize(archive->table_id, archive->archive_id),
-    };
-    struct ConfigMap* configmap = NULL;
-
-    file_list = filelist_new_from_cache_archive(archive);
-    configmap = malloc(sizeof(struct ConfigMap));
-    memset(configmap, 0, sizeof(struct ConfigMap));
-
-    int target_capacity = file_list->file_count < 1024 ? 1024 : file_list->file_count * 2;
-
-    int buffer_size = target_capacity * (configsize(archive->table_id, archive->archive_id) + 32);
-    config.buffer = malloc(buffer_size);
-    memset(config.buffer, 0, buffer_size);
-
-    config.buffer_size = buffer_size;
-
-    configmap->hmap = hmap_new(&config, 0);
-
-    archive_reference = &cache->tables[CACHE_CONFIGS]->archives[archive->archive_id];
-
-    void* ptr = NULL;
-    for( int i = 0; i < file_list->file_count; i++ )
-    {
-        int id = archive_reference->children.files[i].id;
-
-        ptr = hmap_search(configmap->hmap, &id, HMAP_INSERT);
-
-        assert(ptr);
-
-        configdecode(
-            archive->table_id,
-            archive->archive_id,
-            ptr,
-            id,
-            archive_reference->version,
-            file_list->files[i],
-            file_list->file_sizes[i]);
-    }
-
-    configmap->table_id = archive->table_id;
-    configmap->archive_id = archive->archive_id;
-
-    filelist_free(file_list);
-
-    return configmap;
+    free(packed->data);
+    free(packed);
 }
 
 static bool
-ids_contains(int* ids_nullable, int ids_size, int id)
+ids_contains(
+    int* ids_nullable,
+    int ids_size,
+    int id)
 {
     for( int i = 0; i < ids_size; i++ )
     {
@@ -401,14 +391,19 @@ ids_contains(int* ids_nullable, int ids_size, int id)
     return false;
 }
 
-struct ConfigMap*
-configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_size)
+struct DashMap*
+configmap_new_from_packed(
+    void* data,
+    int data_size,
+    int* ids_nullable,
+    int ids_size)
 {
     struct ArchiveReference* archive_reference = NULL;
     struct FileList* file_list = NULL;
 
-    struct HashConfig config = { 0 };
-    struct ConfigMap* configmap = NULL;
+    struct DashMapConfig config = { 0 };
+    struct DashMap* dashmap = NULL;
+    struct MetadataEntry* metadata = NULL;
     struct ArchiveFileReference* archive_file_references = NULL;
 
     int offset = 0;
@@ -434,21 +429,19 @@ configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_
 
     file_list = filelist_new_from_decode((uint8_t*)data + offset, data_size - offset, file_count);
 
-    configmap = malloc(sizeof(struct ConfigMap));
-    memset(configmap, 0, sizeof(struct ConfigMap));
-
     int count = ids_nullable ? ids_size : file_list->file_count;
     int target_capacity = count < 512 ? 1024 : count * 2;
 
-    int buffer_size = target_capacity * (configsize(table_id, archive_id) + 32);
+    int element_size = imax(sizeof(struct MetadataEntry), configsize(table_id, archive_id));
+    int buffer_size = target_capacity * (element_size + 32);
     config.buffer = malloc(buffer_size);
-    memset(config.buffer, 0, buffer_size);
-
     config.buffer_size = buffer_size;
     config.key_size = sizeof(int);
-    config.entry_size = configsize(table_id, archive_id);
+    config.entry_size = element_size;
+    config.iterable_fn_nullable = iterable;
 
-    configmap->hmap = hmap_new(&config, 0);
+    memset(config.buffer, 0, buffer_size);
+    dashmap = dashmap_new(&config, 0);
 
     void* ptr = NULL;
     for( int i = 0; i < file_list->file_count; i++ )
@@ -458,7 +451,7 @@ configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_
         if( ids_nullable && !ids_contains(ids_nullable, ids_size, id) )
             continue;
 
-        ptr = hmap_search(configmap->hmap, &id, HMAP_INSERT);
+        ptr = dashmap_search(dashmap, &id, DASHMAP_INSERT);
 
         assert(ptr);
 
@@ -466,82 +459,65 @@ configmap_new_from_packed(void* data, int data_size, int* ids_nullable, int ids_
             table_id, archive_id, ptr, id, revision, file_list->files[i], file_list->file_sizes[i]);
     }
 
-    configmap->table_id = table_id;
-    configmap->archive_id = archive_id;
-
     filelist_free(file_list);
 
-    return configmap;
+    // Insert metadata
+
+    metadata = (struct MetadataEntry*)dashmap_search(dashmap, &METADATA_ID, DASHMAP_INSERT);
+    assert(metadata);
+
+    metadata->id = METADATA_ID;
+    metadata->table_id = table_id;
+    metadata->archive_id = archive_id;
+
+    return dashmap;
+}
+
+static inline struct MetadataEntry*
+configmap_metadata_get(struct DashMap* dashmap)
+{
+    return (struct MetadataEntry*)dashmap_search(dashmap, &METADATA_ID, DASHMAP_FIND);
 }
 
 void
-configmap_packed_free(struct ConfigMapPacked* packed)
+configmap_free(struct DashMap* dashmap)
 {
-    free(packed->data);
-    free(packed);
-}
-
-void
-configmap_free(struct ConfigMap* configmap)
-{
-    if( !configmap )
+    if( !dashmap )
         return;
 
-    struct HMapIter* iter = hmap_iter_new(configmap->hmap);
+    struct MetadataEntry* metadata = configmap_metadata_get(dashmap);
+
+    struct DashMapIter* iter = dashmap_iter_new(dashmap);
     void* ptr = NULL;
-    while( (ptr = hmap_iter_next(iter)) )
-        configfree(configmap->table_id, configmap->archive_id, ptr);
-    hmap_iter_free(iter);
+    while( (ptr = dashmap_iter_next(iter)) )
+        configfree(metadata->table_id, metadata->archive_id, ptr);
 
-    free(hmap_buffer_ptr(configmap->hmap));
-    hmap_free(configmap->hmap);
-    free(configmap);
-}
+    dashmap_iter_free(iter);
 
-enum ConfigKind
-configmap_kind(struct ConfigMap* configmap)
-{
-    return configmap->archive_id;
+    free(dashmap_buffer_ptr(dashmap));
+    dashmap_free(dashmap);
 }
 
 void*
-configmap_get(struct ConfigMap* configmap, int id)
+configmap_get(
+    struct DashMap* configmap,
+    int id)
 {
-    void* ptr = hmap_search(configmap->hmap, &id, HMAP_FIND);
+    struct MetadataEntry* metadata = configmap_metadata_get(configmap);
+    void* ptr = dashmap_search(configmap, &id, DASHMAP_FIND);
+    assert(metadata);
+    assert(ptr);
 
-    if( !ptr )
-        return NULL;
-
-    // Only return the user data.
-    return configvalue(configmap->table_id, configmap->archive_id, ptr);
-}
-
-struct ConfigMapIter*
-configmap_iter_new(struct ConfigMap* configmap)
-{
-    struct ConfigMapIter* iter = malloc(sizeof(struct ConfigMapIter));
-    iter->hmap_iter = hmap_iter_new(configmap->hmap);
-    iter->configmap = configmap;
-    return iter;
-}
-
-void
-configmap_iter_free(struct ConfigMapIter* iter)
-{
-    if( iter )
-    {
-        hmap_iter_free(iter->hmap_iter);
-        free(iter);
-    }
+    return configvalue(metadata->table_id, metadata->archive_id, ptr);
 }
 
 void*
-configmap_iter_next(struct ConfigMapIter* iter)
+configmap_iter_next(struct DashMapIter* iter)
 {
-    void* ptr = hmap_iter_next(iter->hmap_iter);
+    void* ptr = dashmap_iter_next(iter);
     if( !ptr )
         return NULL;
 
-    // Only return the user data, skip the internal key.
-    return configvalue(iter->configmap->table_id, iter->configmap->archive_id, ptr);
+    struct MetadataEntry* metadata = configmap_metadata_get(dashmap_iter_get_map(iter));
+    return configvalue(metadata->table_id, metadata->archive_id, ptr);
 }

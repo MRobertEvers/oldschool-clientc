@@ -2,7 +2,6 @@
 #define GTASK_INIT_SCENE_U_C
 #include "gtask_init_scene.h"
 
-#include "datastruct/hmap.h"
 #include "datastruct/list.h"
 #include "datastruct/vec.h"
 #include "graphics/dash.h"
@@ -261,13 +260,13 @@ struct GTaskInitScene
 
     struct SceneBuilder* scene_builder;
 
-    struct ConfigMap* scenery_configmap;
-    struct ConfigMap* underlay_configmap;
-    struct ConfigMap* overlay_configmap;
-    struct ConfigMap* texture_definitions_hmap;
-    struct HMap* models_hmap;
-    struct HMap* spritepacks_hmap;
-    struct HMap* textures_hmap;
+    struct DashMap* scenery_configmap;
+    struct DashMap* underlay_configmap;
+    struct DashMap* overlay_configmap;
+    struct DashMap* texture_definitions_configmap;
+    struct DashMap* models_hmap;
+    struct DashMap* spritepacks_hmap;
+    struct DashMap* textures_hmap;
     struct Vec* queued_scenery_models_ids;
     struct Vec* queued_texture_ids;
 
@@ -776,7 +775,7 @@ gtask_init_scene_new(
     int scene_size)
 {
     struct ChunksInView chunks = { 0 };
-    struct HashConfig config = { 0 };
+    struct DashMapConfig config = { 0 };
     struct GTaskInitScene* task = malloc(sizeof(struct GTaskInitScene));
     memset(task, 0, sizeof(struct GTaskInitScene));
     task->step = STEP_INIT_SCENE_INITIAL;
@@ -803,29 +802,29 @@ gtask_init_scene_new(
     task->queued_scenery_models_ids = vec_new(sizeof(int), 512);
     task->queued_texture_ids = vec_new(sizeof(int), 512);
     int buffer_size = 1024 * 32;
-    config = (struct HashConfig){
+    config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = sizeof(struct ModelEntry),
     };
-    task->models_hmap = hmap_new(&config, 0);
+    task->models_hmap = dashmap_new(&config, 0);
 
-    config = (struct HashConfig){
+    config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = sizeof(struct TextureEntry),
     };
-    task->textures_hmap = hmap_new(&config, 0);
+    task->textures_hmap = dashmap_new(&config, 0);
 
-    config = (struct HashConfig){
+    config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = sizeof(struct SpritePackEntry),
     };
-    task->spritepacks_hmap = hmap_new(&config, 0);
+    task->spritepacks_hmap = dashmap_new(&config, 0);
 
     return task;
 }
@@ -836,18 +835,18 @@ gtask_init_scene_free(struct GTaskInitScene* task)
     vec_free(task->queued_scenery_models_ids);
     vec_free(task->queued_texture_ids);
 
-    free(hmap_buffer_ptr(task->models_hmap));
-    free(hmap_buffer_ptr(task->textures_hmap));
-    free(hmap_buffer_ptr(task->spritepacks_hmap));
+    free(dashmap_buffer_ptr(task->models_hmap));
+    free(dashmap_buffer_ptr(task->textures_hmap));
+    free(dashmap_buffer_ptr(task->spritepacks_hmap));
 
-    hmap_free(task->models_hmap);
-    hmap_free(task->textures_hmap);
-    hmap_free(task->spritepacks_hmap);
+    dashmap_free(task->models_hmap);
+    dashmap_free(task->textures_hmap);
+    dashmap_free(task->spritepacks_hmap);
 
     configmap_free(task->scenery_configmap);
     configmap_free(task->underlay_configmap);
     configmap_free(task->overlay_configmap);
-    configmap_free(task->texture_definitions_hmap);
+    configmap_free(task->texture_definitions_configmap);
 
     map_locs_iter_free(task->scenery_iter);
     map_terrain_iter_free(task->terrain_iter);
@@ -859,7 +858,7 @@ enum GTaskStatus
 gtask_init_scene_step(struct GTaskInitScene* task)
 {
     struct GIOMessage message;
-    struct ConfigMapIter* iter = NULL;
+    struct DashMapIter* iter = NULL;
     struct CacheMapLocsIter* map_locs_iter;
     struct CacheMapLoc* loc;
     struct CacheMapLocs* locs;
@@ -970,8 +969,8 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             task->reqid_model_inflight--;
 
             model = model_new_decode(message.data, message.data_size);
-            model_entry =
-                (struct ModelEntry*)hmap_search(task->models_hmap, &message.param_b, HMAP_INSERT);
+            model_entry = (struct ModelEntry*)dashmap_search(
+                task->models_hmap, &message.param_b, DASHMAP_INSERT);
             assert(model_entry && "Model must be inserted into hmap");
             model_entry->id = message.param_b;
             model_entry->model = model;
@@ -1094,24 +1093,21 @@ gtask_init_scene_step(struct GTaskInitScene* task)
          */
 
         struct CacheConfigOverlay* config_overlay = NULL;
-        iter = configmap_iter_new(task->overlay_configmap);
+        iter = dashmap_iter_new(task->overlay_configmap);
         while( (config_overlay = configmap_iter_next(iter)) )
             if( config_overlay->texture != -1 )
                 vec_push_unique(task->queued_texture_ids, &config_overlay->texture);
 
-        configmap_iter_free(iter);
+        dashmap_iter_free(iter);
 
-        struct HMapIter* iter = hmap_iter_new(task->models_hmap);
-        while( (model_entry = (struct ModelEntry*)hmap_iter_next(iter)) )
+        struct DashMapIter* iter = dashmap_iter_new(task->models_hmap);
+        while( (model_entry = (struct ModelEntry*)dashmap_iter_next(iter)) )
         {
             // There is a face texture that is not getting loaded.
             model = model_entry->model;
             if( !model->face_textures )
                 continue;
-            if( model->face_count == 10 )
-            {
-                printf("model->face_textures: %d\n", model->face_textures[9]);
-            }
+
             for( int i = 0; i < model->face_count; i++ )
             {
                 int face_texture = model->face_textures[i];
@@ -1121,7 +1117,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
                 }
             }
         }
-        hmap_iter_free(iter);
+        dashmap_iter_free(iter);
 
         map_locs_iter_begin(task->scenery_iter);
         while( (loc = map_locs_iter_next(task->scenery_iter, &chunk_offset)) )
@@ -1148,7 +1144,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             return GTASK_STATUS_PENDING;
         assert(message.message_id == task->reqid_texture_definitions);
 
-        task->texture_definitions_hmap = configmap_new_from_packed(
+        task->texture_definitions_configmap = configmap_new_from_packed(
             message.data,
             message.data_size,
             (int*)vec_data(task->queued_texture_ids),
@@ -1163,13 +1159,13 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         if( task->reqid_spritepack_count == 0 )
         {
             struct Vec* sprite_pack_ids = vec_new(sizeof(int), 512);
-            struct ConfigMapIter* iter = configmap_iter_new(task->texture_definitions_hmap);
+            struct DashMapIter* iter = dashmap_iter_new(task->texture_definitions_configmap);
             while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter)) )
             {
                 for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
                     vec_push_unique(sprite_pack_ids, &texture_definition->sprite_ids[i]);
             }
-            configmap_iter_free(iter);
+            dashmap_iter_free(iter);
 
             int count = vec_size(sprite_pack_ids);
             int* reqids = (int*)malloc(sizeof(int) * count);
@@ -1191,7 +1187,8 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             task->reqid_spritepack_inflight--;
             spritepack =
                 sprite_pack_new_decode(message.data, message.data_size, SPRITELOAD_FLAG_NORMALIZE);
-            spritepack_entry = hmap_search(task->spritepacks_hmap, &message.param_b, HMAP_INSERT);
+            spritepack_entry =
+                dashmap_search(task->spritepacks_hmap, &message.param_b, DASHMAP_INSERT);
             assert(spritepack_entry && "Spritepack must be inserted into hmap");
             spritepack_entry->id = message.param_b;
             spritepack_entry->spritepack = spritepack;
@@ -1206,20 +1203,20 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     }
     case STEP_INIT_SCENE_9_BUILD_TEXTURES:
     {
-        struct ConfigMapIter* iter = configmap_iter_new(task->texture_definitions_hmap);
+        struct DashMapIter* iter = dashmap_iter_new(task->texture_definitions_configmap);
         while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter)) )
         {
             texture = texture_new_from_definition(texture_definition, task->spritepacks_hmap);
             assert(texture);
-            texture_entry = (struct TextureEntry*)hmap_search(
-                task->textures_hmap, &texture_definition->_id, HMAP_INSERT);
+            texture_entry = (struct TextureEntry*)dashmap_search(
+                task->textures_hmap, &texture_definition->_id, DASHMAP_INSERT);
             assert(texture_entry && "Texture must be inserted into hmap");
             texture_entry->id = texture_definition->_id;
             texture_entry->texture = texture;
 
             dash3d_add_texture(task->game->sys_dash, texture_definition->_id, texture);
         }
-        configmap_iter_free(iter);
+        dashmap_iter_free(iter);
         task->step = STEP_INIT_SCENE_10_BUILD_WORLD3D;
     }
     case STEP_INIT_SCENE_10_BUILD_WORLD3D:

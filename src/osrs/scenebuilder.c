@@ -237,7 +237,7 @@ scenebuilder_new_painter(
     int mapx_ne,
     int mapz_ne)
 {
-    struct HashConfig config;
+    struct DashMapConfig config;
     struct SceneBuilder* scene_builder = malloc(sizeof(struct SceneBuilder));
     memset(scene_builder, 0, sizeof(struct SceneBuilder));
 
@@ -247,40 +247,40 @@ scenebuilder_new_painter(
     scene_builder->mapz_ne = mapz_ne;
 
     int buffer_size = 1024 * sizeof(struct ModelEntry);
-    config = (struct HashConfig){
+    config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = sizeof(struct ModelEntry),
     };
-    scene_builder->models_hmap = hmap_new(&config, 0);
+    scene_builder->models_hmap = dashmap_new(&config, 0);
 
     buffer_size = 1024 * sizeof(struct MapLocsEntry);
-    config = (struct HashConfig){
+    config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = sizeof(struct MapLocsEntry),
     };
-    scene_builder->map_locs_hmap = hmap_new(&config, 0);
+    scene_builder->map_locs_hmap = dashmap_new(&config, 0);
 
     buffer_size = 1024 * sizeof(struct MapTerrainEntry);
-    config = (struct HashConfig){
+    config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = sizeof(struct MapTerrainEntry),
     };
-    scene_builder->map_terrains_hmap = hmap_new(&config, 0);
+    scene_builder->map_terrains_hmap = dashmap_new(&config, 0);
 
     buffer_size = 1024 * sizeof(struct ConfigLocEntry);
-    config = (struct HashConfig){
+    config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
         .key_size = sizeof(int),
         .entry_size = sizeof(struct ConfigLocEntry),
     };
-    scene_builder->config_locs_hmap = hmap_new(&config, 0);
+    scene_builder->config_locs_hmap = dashmap_new(&config, 0);
 
     return scene_builder;
 }
@@ -288,17 +288,17 @@ scenebuilder_new_painter(
 void
 scenebuilder_free(struct SceneBuilder* scene_builder)
 {
-    free(hmap_buffer_ptr(scene_builder->models_hmap));
-    hmap_free(scene_builder->models_hmap);
+    free(dashmap_buffer_ptr(scene_builder->models_hmap));
+    dashmap_free(scene_builder->models_hmap);
 
-    free(hmap_buffer_ptr(scene_builder->map_locs_hmap));
-    hmap_free(scene_builder->map_locs_hmap);
+    free(dashmap_buffer_ptr(scene_builder->map_locs_hmap));
+    dashmap_free(scene_builder->map_locs_hmap);
 
-    free(hmap_buffer_ptr(scene_builder->map_terrains_hmap));
-    hmap_free(scene_builder->map_terrains_hmap);
+    free(dashmap_buffer_ptr(scene_builder->map_terrains_hmap));
+    dashmap_free(scene_builder->map_terrains_hmap);
 
-    free(hmap_buffer_ptr(scene_builder->config_locs_hmap));
-    hmap_free(scene_builder->config_locs_hmap);
+    free(dashmap_buffer_ptr(scene_builder->config_locs_hmap));
+    dashmap_free(scene_builder->config_locs_hmap);
 
     free(scene_builder);
 }
@@ -306,7 +306,7 @@ scenebuilder_free(struct SceneBuilder* scene_builder)
 void
 scenebuilder_cache_configmap_underlay(
     struct SceneBuilder* scene_builder,
-    struct ConfigMap* config_underlay_map)
+    struct DashMap* config_underlay_map)
 {
     scene_builder->config_underlay_hmap = config_underlay_map;
 }
@@ -314,7 +314,7 @@ scenebuilder_cache_configmap_underlay(
 void
 scenebuilder_cache_configmap_overlay(
     struct SceneBuilder* scene_builder,
-    struct ConfigMap* config_overlay_map)
+    struct DashMap* config_overlay_map)
 {
     scene_builder->config_overlay_hmap = config_overlay_map;
 }
@@ -328,7 +328,7 @@ scenebuilder_cache_model(
     struct ModelEntry* model_entry = NULL;
 
     model_entry =
-        (struct ModelEntry*)hmap_search(scene_builder->models_hmap, &model_id, HMAP_INSERT);
+        (struct ModelEntry*)dashmap_search(scene_builder->models_hmap, &model_id, DASHMAP_INSERT);
     assert(model_entry && "Model must be inserted into hmap");
     model_entry->id = model_id;
     model_entry->model = model;
@@ -346,7 +346,7 @@ scenebuilder_cache_map_locs(
     int mapxz = MAPXZ(mapx, mapz);
 
     loc_entry =
-        (struct MapLocsEntry*)hmap_search(scene_builder->map_locs_hmap, &mapxz, HMAP_INSERT);
+        (struct MapLocsEntry*)dashmap_search(scene_builder->map_locs_hmap, &mapxz, DASHMAP_INSERT);
     assert(loc_entry && "Loc must be inserted into hmap");
     loc_entry->id = mapxz;
     loc_entry->mapx = mapx;
@@ -365,8 +365,8 @@ scenebuilder_cache_map_terrain(
 
     int mapxz = MAPXZ(mapx, mapz);
 
-    map_entry =
-        (struct MapTerrainEntry*)hmap_search(scene_builder->map_terrains_hmap, &mapxz, HMAP_INSERT);
+    map_entry = (struct MapTerrainEntry*)dashmap_search(
+        scene_builder->map_terrains_hmap, &mapxz, DASHMAP_INSERT);
     assert(map_entry && "Map must be inserted into hmap");
     map_entry->id = mapxz;
     map_entry->mapx = mapx;
@@ -382,8 +382,8 @@ scenebuilder_cache_config_loc(
 {
     struct ConfigLocEntry* config_loc_entry = NULL;
 
-    config_loc_entry = (struct ConfigLocEntry*)hmap_search(
-        scene_builder->config_locs_hmap, &config_loc_id, HMAP_INSERT);
+    config_loc_entry = (struct ConfigLocEntry*)dashmap_search(
+        scene_builder->config_locs_hmap, &config_loc_id, DASHMAP_INSERT);
     assert(config_loc_entry && "Config loc must be inserted into hmap");
     config_loc_entry->id = config_loc_id;
     config_loc_entry->config_loc = config_loc;
@@ -412,8 +412,8 @@ add_loc(
     struct CacheConfigLocation* config_loc = NULL;
     struct TileHeights tile_heights;
 
-    config_loc_entry = (struct ConfigLocEntry*)hmap_search(
-        scene_builder->config_locs_hmap, &map_loc->loc_id, HMAP_FIND);
+    config_loc_entry = (struct ConfigLocEntry*)dashmap_search(
+        scene_builder->config_locs_hmap, &map_loc->loc_id, DASHMAP_FIND);
     assert(config_loc_entry && "Config loc must be found in hmap");
 
     config_loc = config_loc_entry->config_loc;
@@ -455,8 +455,8 @@ init_terrain_grid(
             struct CacheMapTerrain* map_terrain = NULL;
 
             mapxz = MAPXZ(mapx, mapz);
-            map_terrain_entry = (struct MapTerrainEntry*)hmap_search(
-                scene_builder->map_terrains_hmap, &mapxz, HMAP_FIND);
+            map_terrain_entry = (struct MapTerrainEntry*)dashmap_search(
+                scene_builder->map_terrains_hmap, &mapxz, DASHMAP_FIND);
             assert(map_terrain_entry && "Map terrain must be found in hmap");
             map_terrain = map_terrain_entry->map_terrain;
 
@@ -474,12 +474,12 @@ scenebuilder_load(struct SceneBuilder* scene_builder)
     struct CacheMapLoc* map_loc = NULL;
     int mapxz = 0;
     struct TerrainGrid terrain_grid;
-    struct HMapIter* iter = hmap_iter_new(scene_builder->map_terrains_hmap);
+    struct DashMapIter* iter = dashmap_iter_new(scene_builder->map_terrains_hmap);
     struct Scene* scene = scene_new();
 
     init_terrain_grid(scene_builder, &terrain_grid);
 
-    while( (map_locs_entry = (struct MapLocsEntry*)hmap_iter_next(iter)) )
+    while( (map_locs_entry = (struct MapLocsEntry*)dashmap_iter_next(iter)) )
     {
         map_locs = map_locs_entry->locs;
 

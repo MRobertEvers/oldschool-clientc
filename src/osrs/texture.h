@@ -1,7 +1,6 @@
 #ifndef TEXTURE_H
 #define TEXTURE_H
 
-#include "datastruct/hmap.h"
 #include "graphics/dash.h"
 #include "tables/textures.h"
 
@@ -14,7 +13,10 @@ struct SpritePackEntry
 };
 
 struct DashTexture*
-texture_new_from_definition(struct CacheTexture* texture_definition, struct HMap* sprites_hmap);
+texture_new_from_definition(
+    struct CacheTexture* texture_definition,
+    struct DashMap* sprites_hmap);
 
-void texture_free(struct DashTexture* texture);
+void
+texture_free(struct DashTexture* texture);
 #endif

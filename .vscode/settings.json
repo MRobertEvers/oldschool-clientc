@@ -200,6 +200,9 @@
         "scenebuilder.h": "c",
         "terrain.h": "c",
         "libg.h": "c",
-        "palette.h": "c"
+        "palette.h": "c",
+        "chrono": "c",
+        "random": "c",
+        "dashmap.h": "c"
     }
 }
