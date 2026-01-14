@@ -139,15 +139,15 @@ tile_heights_at(
     }
 
     tile_heights->ne_height = tile_heights->sw_height;
-    if( tile_in_bounds(terrain_grid, mapx, mapz, cx, cz + 1) )
+    if( tile_in_bounds(terrain_grid, mapx, mapz, cx + 1, cz + 1) )
     {
-        tile_heights->ne_height = tile_at(terrain_grid, mapx, mapz, cx, cz + 1, clevel)->height;
+        tile_heights->ne_height = tile_at(terrain_grid, mapx, mapz, cx + 1, cz + 1, clevel)->height;
     }
 
     tile_heights->nw_height = tile_heights->sw_height;
-    if( tile_in_bounds(terrain_grid, mapx, mapz, cx + 1, cz + 1) )
+    if( tile_in_bounds(terrain_grid, mapx, mapz, cx, cz + 1) )
     {
-        tile_heights->nw_height = tile_at(terrain_grid, mapx, mapz, cx + 1, cz + 1, clevel)->height;
+        tile_heights->nw_height = tile_at(terrain_grid, mapx, mapz, cx, cz + 1, clevel)->height;
     }
 
     int height_center = (tile_heights->sw_height + tile_heights->se_height +

@@ -554,6 +554,21 @@ decode_tile(
     dash3d_calculate_bounds_cylinder(
         dash_model->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
 
+    // // sw
+    // int tp_vertex = 0;
+    // // nw
+    // int tm_vertex = 1;
+    // // se
+    // int tn_vertex = 3;
+    dash_model->face_texture_coords = (int*)malloc(face_count * sizeof(int));
+    memset(dash_model->face_texture_coords, 0, face_count * sizeof(int));
+    dash_model->textured_p_coordinate = (int*)malloc(1 * sizeof(int));
+    dash_model->textured_m_coordinate = (int*)malloc(1 * sizeof(int));
+    dash_model->textured_n_coordinate = (int*)malloc(1 * sizeof(int));
+    dash_model->textured_p_coordinate[0] = 0;
+    dash_model->textured_m_coordinate[0] = 1;
+    dash_model->textured_n_coordinate[0] = 3;
+
     return dash_model;
     // error:;
     free(valid_faces);

@@ -174,7 +174,10 @@ dash3d_fast_cull(
 }
 
 static int
-dash3d_aabb_cull(struct DashAABB* aabb, struct DashViewPort* view_port, struct DashCamera* camera)
+dash3d_aabb_cull(
+    struct DashAABB* aabb,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
 {
     int screen_width = view_port->width;
     int screen_height = view_port->height;
@@ -1326,7 +1329,9 @@ dash3d_add_texture(
 }
 
 struct DashModelNormals*
-dashmodel_normals_new(int vertex_count, int face_count)
+dashmodel_normals_new(
+    int vertex_count,
+    int face_count)
 {
     struct DashModelNormals* normals =
         (struct DashModelNormals*)malloc(sizeof(struct DashModelNormals));
