@@ -1,9 +1,21 @@
 #ifndef SCENE2_H
 #define SCENE2_H
 
+#include "graphics/dash.h"
+
 struct SceneElement
 {
     int id;
+
+    struct DashModel* dash_model;
+    struct DashPosition* dash_position;
+};
+
+struct SceneScenery
+{
+    struct SceneElement* elements;
+    int elements_length;
+    int elements_capacity;
 };
 
 struct SceneTerrainTile
@@ -30,24 +42,21 @@ struct SceneTerrain
 struct Scene
 {
     struct SceneTerrain* terrain;
-
-    struct SceneElement* elements;
-    int elements_length;
-    int elements_capacity;
+    struct SceneScenery* scenery;
 };
 
 struct Scene*
-scene_new();
+scene_new(
+    int tile_width_x,
+    int tile_width_z,
+    int element_count_hint);
 void
 scene_free(struct Scene* scene);
 
-struct SceneTerrain*
-scene_terrain_new_sized(
-    int tile_width_x,
-    int tile_width_z);
-
-void
-scene_terrain_free(struct SceneTerrain* terrain);
+int
+scene_scenery_push_element_move(
+    struct SceneScenery* scenery,
+    struct SceneElement* element);
 
 struct SceneTerrainTile*
 scene_terrain_tile_at(

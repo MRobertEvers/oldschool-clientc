@@ -521,3 +521,10 @@ configmap_iter_next(struct DashMapIter* iter)
     struct MetadataEntry* metadata = configmap_metadata_get(dashmap_iter_get_map(iter));
     return configvalue(metadata->table_id, metadata->archive_id, ptr);
 }
+
+bool
+configmap_valid(struct DashMap* configmap)
+{
+    struct MetadataEntry* metadata = configmap_metadata_get(configmap);
+    return metadata != NULL;
+}

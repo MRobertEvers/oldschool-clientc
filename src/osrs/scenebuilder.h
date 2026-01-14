@@ -34,6 +34,11 @@ scenebuilder_cache_configmap_overlay(
     struct DashMap* config_overlay_map);
 
 void
+scenebuilder_cache_configmap_locs(
+    struct SceneBuilder* scene_builder,
+    struct DashMap* config_locs_configmap);
+
+void
 scenebuilder_cache_model(
     struct SceneBuilder* scene_builder,
     int model_id,
@@ -52,12 +57,6 @@ scenebuilder_cache_map_terrain(
     int mapx,
     int mapz,
     struct CacheMapTerrain* map_terrain);
-
-void
-scenebuilder_cache_config_loc(
-    struct SceneBuilder* scene_builder,
-    int config_loc_id,
-    struct CacheConfigLocation* config_loc);
 
 struct Scene*
 scenebuilder_load(struct SceneBuilder* scene_builder);

@@ -333,108 +333,6 @@ sort_terrain_definitions(
     qsort(terrain_definitions, size, sizeof(struct CacheMapTerrain*), compare_terrain_by_z_x);
 }
 
-/**
- * Transforms must be applied here so that hillskew is correctly applied.
- * (As opposed to passing in rendering offsets/other params.)
- */
-static void
-apply_transforms(
-    struct CacheConfigLocation* loc,
-    struct CacheModel* model,
-    int orientation,
-    int sw_height,
-    int se_height,
-    int ne_height,
-    int nw_height)
-{
-    // This should never be called on a shared model.
-    assert((model->_flags & CMODEL_FLAG_SHARED) == 0);
-
-    for( int i = 0; i < loc->recolor_count; i++ )
-    {
-        model_transform_recolor(model, loc->recolors_from[i], loc->recolors_to[i]);
-    }
-
-    for( int i = 0; i < loc->retexture_count; i++ )
-    {
-        model_transform_retexture(model, loc->retextures_from[i], loc->retextures_to[i]);
-    }
-
-    bool mirrored = (loc->mirrored != (orientation > 3));
-    bool oriented = orientation != 0;
-    bool scaled = loc->resize_x != 128 || loc->resize_y != 128 || loc->resize_z != 128;
-    bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_z != 0;
-    // TODO: handle the other contoured ground types.
-    bool hillskewed = loc->contour_ground_type == 1;
-
-    if( mirrored )
-        model_transform_mirror(model);
-
-    if( oriented )
-        model_transform_orient(model, orientation);
-
-    if( scaled )
-        model_transform_scale(model, loc->resize_x, loc->resize_y, loc->resize_z);
-
-    if( translated )
-        model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_z);
-
-    if( hillskewed )
-        model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
-}
-
-static void
-light_model_default(
-    struct DashModel* dash_model,
-    int model_contrast,
-    int model_attenuation)
-{
-    int light_ambient = 64;
-    int light_attenuation = 768;
-    int lightsrc_x = -50;
-    int lightsrc_y = -10;
-    int lightsrc_z = -50;
-
-    light_ambient += model_contrast;
-    light_attenuation += model_attenuation;
-
-    int light_magnitude =
-        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    int attenuation = (light_attenuation * light_magnitude) >> 8;
-
-    calculate_vertex_normals(
-        dash_model->normals->lighting_vertex_normals,
-        dash_model->normals->lighting_face_normals,
-        dash_model->vertex_count,
-        dash_model->face_indices_a,
-        dash_model->face_indices_b,
-        dash_model->face_indices_c,
-        dash_model->vertices_x,
-        dash_model->vertices_y,
-        dash_model->vertices_z,
-        dash_model->face_count);
-
-    apply_lighting(
-        dash_model->lighting->face_colors_hsl_a,
-        dash_model->lighting->face_colors_hsl_b,
-        dash_model->lighting->face_colors_hsl_c,
-        dash_model->normals->lighting_vertex_normals,
-        dash_model->normals->lighting_face_normals,
-        dash_model->face_indices_a,
-        dash_model->face_indices_b,
-        dash_model->face_indices_c,
-        dash_model->face_count,
-        dash_model->face_colors,
-        dash_model->face_alphas,
-        dash_model->face_textures,
-        dash_model->face_infos,
-        light_ambient,
-        attenuation,
-        lightsrc_x,
-        lightsrc_y,
-        lightsrc_z);
-}
-
 // static struct DashModel*
 // load_model(
 //     struct CacheConfigLocation* loc_config,
@@ -739,7 +637,8 @@ queue_scenery_models(
         {
             int count_inner = lengths[i];
             int loc_type = shapes[i];
-            if( loc_type == shape_select )
+            // Ignore shape select because some locs don't use the shape select stored.
+            // if( loc_type == shape_select )
             {
                 for( int j = 0; j < count_inner; j++ )
                 {
@@ -974,6 +873,8 @@ gtask_init_scene_step(struct GTaskInitScene* task)
             assert(model_entry && "Model must be inserted into hmap");
             model_entry->id = message.param_b;
             model_entry->model = model;
+
+            scenebuilder_cache_model(task->scene_builder, message.param_b, model);
 
             gioq_release(task->io, &message);
         }
@@ -1327,6 +1228,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         //     }
         // }
 
+        scenebuilder_cache_configmap_locs(task->scene_builder, task->scenery_configmap);
         scenebuilder_cache_configmap_underlay(task->scene_builder, task->underlay_configmap);
         scenebuilder_cache_configmap_overlay(task->scene_builder, task->overlay_configmap);
         task->game->scene = scenebuilder_load(task->scene_builder);

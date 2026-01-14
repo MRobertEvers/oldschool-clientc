@@ -10,20 +10,26 @@
 
 // Helper function to read a byte from the buffer
 static uint8_t
-read_byte(const char* buffer, int* offset)
+read_byte(
+    const char* buffer,
+    int* offset)
 {
     return buffer[(*offset)++] & 0xFF;
 }
 
 static uint8_t
-read_unsigned_byte(const unsigned char* buffer, int* offset)
+read_unsigned_byte(
+    const unsigned char* buffer,
+    int* offset)
 {
     return buffer[(*offset)++] & 0xFF;
 }
 
 // Helper function to read a short from the buffer
 static short
-read_short(const unsigned char* buffer, int* offset)
+read_short(
+    const unsigned char* buffer,
+    int* offset)
 {
     short value = (buffer[*offset] << 8) | buffer[*offset + 1];
     *offset += 2;
@@ -32,7 +38,9 @@ read_short(const unsigned char* buffer, int* offset)
 
 // Helper function to read an unsigned short from the buffer
 static unsigned short
-read_unsigned_short(const unsigned char* buffer, int* offset)
+read_unsigned_short(
+    const unsigned char* buffer,
+    int* offset)
 {
     unsigned short value = (buffer[*offset] << 8) | buffer[*offset + 1];
     *offset += 2;
@@ -41,7 +49,9 @@ read_unsigned_short(const unsigned char* buffer, int* offset)
 
 // Helper function to read a smart short (variable length)
 static int
-read_short_smart(const unsigned char* buffer, int* offset)
+read_short_smart(
+    const unsigned char* buffer,
+    int* offset)
 {
     int value = buffer[*offset] & 0xFF;
     if( value < 128 )
@@ -57,7 +67,9 @@ read_short_smart(const unsigned char* buffer, int* offset)
 }
 
 static int
-read_int(const unsigned char* buffer, int* offset)
+read_int(
+    const unsigned char* buffer,
+    int* offset)
 {
     int value = (buffer[*offset] << 24) | (buffer[*offset + 1] << 16) | (buffer[*offset + 2] << 8) |
                 buffer[*offset + 3];
@@ -68,7 +80,9 @@ read_int(const unsigned char* buffer, int* offset)
 // computeAnimationTables
 //
 struct ModelBones*
-modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
+modelbones_new_decode(
+    int* vertex_bone_map,
+    int vertex_bone_map_count)
 {
     struct ModelBones* bones = (struct ModelBones*)malloc(sizeof(struct ModelBones));
     if( !bones )
@@ -122,7 +136,9 @@ modelbones_new_decode(int* vertex_bone_map, int vertex_bone_map_count)
 }
 
 struct CacheModel*
-decodeOldFormat(const unsigned char* inputData, int inputLength)
+decodeOldFormat(
+    const unsigned char* inputData,
+    int inputLength)
 {
     struct CacheModel* model = (struct CacheModel*)malloc(sizeof(struct CacheModel));
     memset(model, 0, sizeof(struct CacheModel));
@@ -730,7 +746,9 @@ decodeOldFormat(const unsigned char* inputData, int inputLength)
 // 	}
 
 struct CacheModel*
-decodeType1(const unsigned char* var1, int var1_length)
+decodeType1(
+    const unsigned char* var1,
+    int var1_length)
 
 {
     struct CacheModel* def = (struct CacheModel*)malloc(sizeof(struct CacheModel));
@@ -1115,7 +1133,9 @@ decodeType1(const unsigned char* var1, int var1_length)
 }
 
 struct CacheModel*
-decodeType2(const unsigned char* var1, int var1_length)
+decodeType2(
+    const unsigned char* var1,
+    int var1_length)
 {
     struct CacheModel* def = (struct CacheModel*)malloc(sizeof(struct CacheModel));
     if( !def )
@@ -1827,7 +1847,9 @@ decodeType2(const unsigned char* var1, int var1_length)
 //     }
 
 struct CacheModel*
-decodeType3(const unsigned char* var1, int var1_length)
+decodeType3(
+    const unsigned char* var1,
+    int var1_length)
 {
     struct CacheModel* def = (struct CacheModel*)malloc(sizeof(struct CacheModel));
     memset(def, 0, sizeof(struct CacheModel));
@@ -2234,7 +2256,9 @@ decodeType3(const unsigned char* var1, int var1_length)
 }
 
 struct CacheModel*
-model_new_from_cache(struct Cache* cache, int model_id)
+model_new_from_cache(
+    struct Cache* cache,
+    int model_id)
 {
     struct CacheModel* model = NULL;
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_MODELS, model_id);
@@ -2254,7 +2278,9 @@ model_new_from_cache(struct Cache* cache, int model_id)
 }
 
 struct CacheModel*
-model_new_from_archive(struct CacheArchive* archive, int model_id)
+model_new_from_archive(
+    struct CacheArchive* archive,
+    int model_id)
 {
     struct CacheModel* model = model_new_decode(archive->data, archive->data_size);
     if( model )
@@ -2263,7 +2289,9 @@ model_new_from_archive(struct CacheArchive* archive, int model_id)
 }
 
 struct CacheModel*
-model_new_decode(const unsigned char* inputData, int inputLength)
+model_new_decode(
+    const unsigned char* inputData,
+    int inputLength)
 {
     struct CacheModel* model = NULL;
     // Check the last two bytes to determine model type
@@ -2458,7 +2486,10 @@ model_new_copy(struct CacheModel* model)
 }
 
 static int
-copy_vertex(struct CacheModel* model, struct CacheModel* other, int vertex_index)
+copy_vertex(
+    struct CacheModel* model,
+    struct CacheModel* other,
+    int vertex_index)
 {
     int new_vertex_count = -1;
     int vert_x = other->vertices_x[vertex_index];
@@ -2483,7 +2514,7 @@ copy_vertex(struct CacheModel* model, struct CacheModel* other, int vertex_index
         model->vertices_z[new_vertex_count] = vert_z;
 
         // TODO: Vertex skins
-        if( model->vertex_bone_map )
+        if( model->vertex_bone_map && other->vertex_bone_map )
         {
             model->vertex_bone_map[new_vertex_count] = other->vertex_bone_map[vertex_index];
         }
@@ -2495,7 +2526,9 @@ copy_vertex(struct CacheModel* model, struct CacheModel* other, int vertex_index
 }
 
 struct CacheModel*
-model_new_merge(struct CacheModel** models, int model_count)
+model_new_merge(
+    struct CacheModel** models,
+    int model_count)
 {
     struct CacheModel* model = (struct CacheModel*)malloc(sizeof(struct CacheModel));
     memset(model, 0, sizeof(struct CacheModel));

@@ -6,6 +6,8 @@
 #include "graphics/dash.h"
 #include "tables/configs.h"
 
+#include <stdbool.h>
+
 /**
  * Entries in the config table are files with an id.
  *
@@ -45,4 +47,7 @@ configmap_get(
 
 void*
 configmap_iter_next(struct DashMapIter* iter);
+
+bool
+configmap_valid(struct DashMap* configmap);
 #endif

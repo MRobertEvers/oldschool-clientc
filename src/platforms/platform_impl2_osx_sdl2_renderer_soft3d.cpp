@@ -7,6 +7,7 @@
 extern "C" {
 #include "graphics/dash.h"
 #include "libg.h"
+#include "osrs/scene.h"
 }
 
 #include <SDL.h>
@@ -222,19 +223,20 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         {
         case PNTR_CMD_ELEMENT:
         {
-            // struct SceneElement* scene_element =
-            //     (struct SceneElement*)vec_get(game->scene_elements, cmd->_entity._bf_entity);
-            // memcpy(&position, scene_element->position, sizeof(struct DashPosition));
-            // position.x = position.x - game->camera_world_x;
-            // position.y = position.y - game->camera_world_y;
-            // position.z = position.z - game->camera_world_z;
-            // dash3d_render_model(
-            //     game->sys_dash,
-            //     scene_element->model,
-            //     &position,
-            //     game->view_port,
-            //     game->camera,
-            //     renderer->pixel_buffer);
+            memcpy(
+                &position,
+                scene_element_position(game->scene, cmd->_entity._bf_entity),
+                sizeof(struct DashPosition));
+            position.x = position.x - game->camera_world_x;
+            position.y = position.y - game->camera_world_y;
+            position.z = position.z - game->camera_world_z;
+            dash3d_render_model(
+                game->sys_dash,
+                scene_element_model(game->scene, cmd->_entity._bf_entity),
+                &position,
+                game->view_port,
+                game->camera,
+                renderer->pixel_buffer);
         }
         break;
         case PNTR_CMD_TERRAIN:

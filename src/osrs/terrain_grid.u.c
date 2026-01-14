@@ -21,6 +21,13 @@ struct TileHeights
     int height_center;
 };
 
+struct TerrainGridOffsetFromSW
+{
+    int x;
+    int z;
+    int level;
+};
+
 static int
 terrain_grid_x_width(struct TerrainGrid* terrain_grid)
 {
@@ -148,6 +155,31 @@ tile_heights_at(
                         2;
 
     tile_heights->height_center = height_center;
+}
+
+static void
+terrain_grid_offset_from_sw(
+    struct TerrainGrid* terrain_grid,
+    int mapx,
+    int mapz,
+    int cx,
+    int cz,
+    int clevel,
+    struct TerrainGridOffsetFromSW* offset)
+{
+    assert(cx < MAP_TERRAIN_X && cx >= 0);
+    assert(cz < MAP_TERRAIN_Z && cz >= 0);
+    assert(clevel < MAP_TERRAIN_LEVELS && clevel >= 0);
+
+    assert(mapx >= terrain_grid->mapx_sw && mapx <= terrain_grid->mapx_ne);
+    assert(mapz >= terrain_grid->mapz_sw && mapz <= terrain_grid->mapz_ne);
+
+    mapx -= terrain_grid->mapx_sw;
+    mapz -= terrain_grid->mapz_sw;
+
+    offset->x = mapx * MAP_TERRAIN_X + cx;
+    offset->z = mapz * MAP_TERRAIN_Z + cz;
+    offset->level = clevel;
 }
 
 #endif

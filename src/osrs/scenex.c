@@ -1,8 +1,7 @@
-#include "scene.h"
-
 #include "filelist.h"
 #include "graphics/lighting.h"
 #include "model_transforms.h"
+#include "scene.h"
 #include "tables/config_idk.h"
 #include "tables/config_locs.h"
 #include "tables/config_object.h"
@@ -1648,7 +1647,12 @@ scene_clear_entities(struct Scene* scene)
 }
 
 void
-scene_add_player_entity(struct Scene* scene, int x, int z, int level, struct SceneModel* model)
+scene_add_player_entity(
+    struct Scene* scene,
+    int x,
+    int z,
+    int level,
+    struct SceneModel* model)
 {
     struct GridTile* tile = NULL;
     struct Loc* loc = NULL;
@@ -1703,7 +1707,9 @@ scene_add_player_entity(struct Scene* scene, int x, int z, int level, struct Sce
 }
 
 struct SceneModel*
-scene_model_new_lit_from_model(struct CacheModel* model, int sharelight)
+scene_model_new_lit_from_model(
+    struct CacheModel* model,
+    int sharelight)
 {
     struct SceneModel* scene_model = (struct SceneModel*)malloc(sizeof(struct SceneModel));
     memset(scene_model, 0, sizeof(struct SceneModel));

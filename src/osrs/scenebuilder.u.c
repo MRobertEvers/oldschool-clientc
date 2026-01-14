@@ -3,6 +3,7 @@
 
 #include "configmap.h"
 #include "graphics/dash.h"
+#include "osrs/painters.h"
 
 struct ModelEntry
 {
@@ -26,14 +27,9 @@ struct MapTerrainEntry
     struct CacheMapTerrain* map_terrain;
 };
 
-struct ConfigLocEntry
-{
-    int id;
-    struct CacheConfigLocation* config_loc;
-};
-
 struct SceneBuilder
 {
+    struct Painter* painter;
     int mapx_sw;
     int mapz_sw;
     int mapx_ne;
@@ -42,9 +38,9 @@ struct SceneBuilder
     struct DashMap* models_hmap;
     struct DashMap* map_terrains_hmap;
     struct DashMap* map_locs_hmap;
-    struct DashMap* config_locs_hmap;
-    struct DashMap* config_underlay_hmap;
-    struct DashMap* config_overlay_hmap;
+    struct DashMap* config_locs_configmap;
+    struct DashMap* config_underlay_configmap;
+    struct DashMap* config_overlay_configmap;
 };
 
 #endif

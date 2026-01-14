@@ -30,7 +30,9 @@ static const int ROTATION_WALL_CORNER_TYPE[] = {
 };
 
 static struct ModelNormals*
-model_normals_new(int vertex_count, int face_count)
+model_normals_new(
+    int vertex_count,
+    int face_count)
 {
     struct ModelNormals* normals = malloc(sizeof(struct ModelNormals));
     memset(normals, 0, sizeof(struct ModelNormals));
@@ -153,7 +155,12 @@ init_wall_decor_default(struct WallDecor* wall_decor)
 
 static void
 init_scene_model_wxh(
-    struct SceneModel* model, int tile_x, int tile_y, int height_center, int size_x, int size_y)
+    struct SceneModel* model,
+    int tile_x,
+    int tile_y,
+    int height_center,
+    int size_x,
+    int size_y)
 {
     model->region_x = tile_x * TILE_SIZE + size_x * 64;
     model->region_z = tile_y * TILE_SIZE + size_y * 64;
@@ -167,13 +174,21 @@ init_scene_model_wxh(
 }
 
 static void
-init_scene_model_1x1(struct SceneModel* model, int tile_x, int tile_y, int height_center)
+init_scene_model_1x1(
+    struct SceneModel* model,
+    int tile_x,
+    int tile_y,
+    int height_center)
 {
     init_scene_model_wxh(model, tile_x, tile_y, height_center, 1, 1);
 }
 
 static void
-init_loc_1x1(struct Loc* loc, int tile_x, int tile_y, int tile_z)
+init_loc_1x1(
+    struct Loc* loc,
+    int tile_x,
+    int tile_y,
+    int tile_z)
 {
     loc->size_x = 1;
     loc->size_y = 1;
@@ -193,7 +208,11 @@ init_loc_1x1(struct Loc* loc, int tile_x, int tile_y, int tile_z)
  * @param offset
  */
 static void
-calculate_wall_decor_offset(struct SceneModel* decor, int orientation, int offset, bool diagonal)
+calculate_wall_decor_offset(
+    struct SceneModel* decor,
+    int orientation,
+    int offset,
+    bool diagonal)
 {
     assert(orientation >= 0);
     assert(orientation < 4);
@@ -319,7 +338,9 @@ loc_apply_transforms(
 }
 
 static struct SceneModel*
-tile_scenery_model_nullable(struct SceneModel* models, struct Loc* loc)
+tile_scenery_model_nullable(
+    struct SceneModel* models,
+    struct Loc* loc)
 {
     if( loc->type == LOC_TYPE_SCENERY )
     {
@@ -331,7 +352,10 @@ tile_scenery_model_nullable(struct SceneModel* models, struct Loc* loc)
 }
 
 static struct SceneModel*
-tile_wall_model_nullable(struct SceneModel* models, struct Loc* loc, int a)
+tile_wall_model_nullable(
+    struct SceneModel* models,
+    struct Loc* loc,
+    int a)
 {
     if( loc->type == LOC_TYPE_WALL )
     {
@@ -347,7 +371,9 @@ tile_wall_model_nullable(struct SceneModel* models, struct Loc* loc, int a)
 }
 
 static struct SceneModel*
-tile_ground_decor_model_nullable(struct SceneModel* models, struct Loc* loc)
+tile_ground_decor_model_nullable(
+    struct SceneModel* models,
+    struct Loc* loc)
 {
     if( loc->type == LOC_TYPE_GROUND_DECOR )
     {
@@ -488,7 +514,13 @@ struct IterGrid
 };
 
 static struct IterGrid
-iter_grid_init2(int x, int max_x, int z, int max_z, int level, int max_level)
+iter_grid_init2(
+    int x,
+    int max_x,
+    int z,
+    int max_z,
+    int level,
+    int max_level)
 {
     struct IterGrid iter_grid;
     iter_grid.x = x;
@@ -504,7 +536,10 @@ iter_grid_init2(int x, int max_x, int z, int max_z, int level, int max_level)
 }
 
 static struct IterGrid
-iter_grid_init(int x, int z, int level)
+iter_grid_init(
+    int x,
+    int z,
+    int level)
 {
     return iter_grid_init2(x, MAP_TERRAIN_X, z, MAP_TERRAIN_Z, level, MAP_TERRAIN_LEVELS);
 }
@@ -680,8 +715,6 @@ vec_model_back(struct Scene* scene)
     return model;
 }
 
-
-
 static struct ModelLighting*
 model_lighting_new_default(
     struct CacheModel* model,
@@ -767,7 +800,11 @@ tile_heights_init_from_floor(
 }
 
 static void
-init_grid_tile(struct GridTile* grid_tile, int x, int y, int level)
+init_grid_tile(
+    struct GridTile* grid_tile,
+    int x,
+    int y,
+    int level)
 {
     grid_tile->x = x;
     grid_tile->z = y;

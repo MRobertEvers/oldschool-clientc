@@ -10,7 +10,11 @@
 // clang-format on
 
 static inline void
-init_painter_tile(struct PaintersTile* tile, int sx, int sz, int slevel)
+init_painter_tile(
+    struct PaintersTile* tile,
+    int sx,
+    int sz,
+    int slevel)
 {
     tile->sx = sx;
     tile->sz = sz;
@@ -91,7 +95,11 @@ painter_push_element(struct Painter* painter)
 }
 
 static inline int
-painter_coord_idx(struct Painter* painter, int sx, int sz, int slevel)
+painter_coord_idx(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel)
 {
     assert(sx >= 0);
     assert(sz >= 0);
@@ -104,7 +112,10 @@ painter_coord_idx(struct Painter* painter, int sx, int sz, int slevel)
 }
 
 struct Painter*
-painter_new(int width, int height, int levels)
+painter_new(
+    int width,
+    int height,
+    int levels)
 {
     struct Painter* painter = malloc(sizeof(struct Painter));
     memset(painter, 0, sizeof(struct Painter));
@@ -151,7 +162,11 @@ painter_free(struct Painter* painter)
 }
 
 struct PaintersTile*
-painter_tile_at(struct Painter* painter, int sx, int sz, int slevel)
+painter_tile_at(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel)
 {
     return &painter->tiles[painter_coord_idx(painter, sx, sz, slevel)];
 }
@@ -165,15 +180,78 @@ painter_element_at(
     return &painter->elements[element];
 }
 
+static void
+compute_normal_scenery_spans(
+    struct Painter* painter,
+    int loc_x,
+    int loc_z,
+    int loc_level,
+    int size_x,
+    int size_z,
+    int element)
+{
+    int min_tile_x = loc_x;
+    int min_tile_z = loc_z;
+
+    // The max tile is not actually included in the span
+    int max_tile_exclusive_x = loc_x + size_x - 1;
+    int max_tile_exclusive_z = loc_z + size_z - 1;
+    if( max_tile_exclusive_x > painter->width - 1 )
+        max_tile_exclusive_x = painter->width - 1;
+    if( max_tile_exclusive_z > painter->height - 1 )
+        max_tile_exclusive_z = painter->height - 1;
+
+    for( int x = min_tile_x; x <= max_tile_exclusive_x; x++ )
+    {
+        for( int z = min_tile_z; z <= max_tile_exclusive_z; z++ )
+        {
+            int span_flags = 0;
+            if( x > min_tile_x )
+            {
+                // Block until the west tile underlay is drawn.
+                span_flags |= SPAN_FLAG_WEST;
+            }
+
+            if( x < max_tile_exclusive_x )
+            {
+                // Block until the east tile underlay is drawn.
+                span_flags |= SPAN_FLAG_EAST;
+            }
+
+            if( z > min_tile_z )
+            {
+                // Block until the south tile underlay is drawn.
+                span_flags |= SPAN_FLAG_SOUTH;
+            }
+
+            if( z < max_tile_exclusive_z )
+            {
+                // Block until the north tile underlay is drawn.
+                span_flags |= SPAN_FLAG_NORTH;
+            }
+
+            painter_tile_at(painter, x, z, loc_level)->spans |= span_flags;
+        }
+    }
+}
+
 int
 painter_add_normal_scenery(
-    struct Painter* painter, int sx, int sz, int slevel, int entity, int size_x, int size_y)
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int size_x,
+    int size_y)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
     assert(tile->scenery_count < 10);
     tile->scenery[tile->scenery_count++] = element;
+
+    compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_y, element);
 
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_SCENERY,
@@ -187,22 +265,28 @@ painter_add_normal_scenery(
 
 int
 painter_add_wall(
-    struct Painter* painter, int sx, int sz, int slevel, int entity, int wall_ab, int side)
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int wall_ab,
+    int side)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    enum PaintersElementKind kind;
     int element = painter_push_element(painter);
-
-    assert(tile->wall_a == -1);
-    assert(tile->wall_b == -1);
 
     switch( wall_ab )
     {
     case WALL_A:
         assert(tile->wall_a == -1);
+        kind = PNTRELEM_WALL_A;
         tile->wall_a = element;
         break;
     case WALL_B:
         assert(tile->wall_b == -1);
+        kind = PNTRELEM_WALL_B;
         tile->wall_b = element;
         break;
     default:
@@ -210,12 +294,13 @@ painter_add_wall(
     }
 
     painter->elements[element] = (struct PaintersElement){
-        .kind = PNTRELEM_WALL_A,
+        .kind = kind,
         .sx = sx,
         .sz = sz,
         .slevel = slevel,
         ._wall = { .entity = entity, .side = side },
     };
+
     return element;
 }
 
@@ -233,15 +318,14 @@ painter_add_wall_decor(
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
-    assert(tile->wall_decor_a == -1);
-    assert(tile->wall_decor_b == -1);
-
     switch( wall_ab )
     {
     case WALL_A:
+        assert(tile->wall_decor_a == -1);
         tile->wall_decor_a = element;
         break;
     case WALL_B:
+        assert(tile->wall_decor_b == -1);
         tile->wall_decor_b = element;
         break;
     default:
@@ -263,7 +347,12 @@ painter_add_wall_decor(
 }
 
 int
-painter_add_ground_decor(struct Painter* painter, int sx, int sz, int slevel, int entity)
+painter_add_ground_decor(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
@@ -283,7 +372,12 @@ painter_add_ground_decor(struct Painter* painter, int sx, int sz, int slevel, in
 
 int
 painter_add_ground_object(
-    struct Painter* painter, int sx, int sz, int slevel, int entity, int bottom_middle_top)
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity,
+    int bottom_middle_top)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
@@ -323,7 +417,9 @@ painter_add_ground_object(
  */
 
 static inline void
-ensure_command_capacity(struct PaintersBuffer* buffer, int count)
+ensure_command_capacity(
+    struct PaintersBuffer* buffer,
+    int count)
 {
     if( buffer->command_count + count > buffer->command_capacity )
     {
@@ -334,7 +430,9 @@ ensure_command_capacity(struct PaintersBuffer* buffer, int count)
 }
 
 static inline void
-push_command_entity(struct PaintersBuffer* buffer, int entity)
+push_command_entity(
+    struct PaintersBuffer* buffer,
+    int entity)
 {
     ensure_command_capacity(buffer, 1);
     buffer->commands[buffer->command_count++] = (struct PaintersElementCommand){
@@ -346,7 +444,11 @@ push_command_entity(struct PaintersBuffer* buffer, int entity)
 }
 
 static inline void
-push_command_terrain(struct PaintersBuffer* buffer, int sx, int sz, int slevel)
+push_command_terrain(
+    struct PaintersBuffer* buffer,
+    int sx,
+    int sz,
+    int slevel)
 {
     ensure_command_capacity(buffer, 1);
     buffer->commands[buffer->command_count++] = (struct PaintersElementCommand){
@@ -360,7 +462,11 @@ push_command_terrain(struct PaintersBuffer* buffer, int sx, int sz, int slevel)
 }
 
 static inline int
-near_wall_flags(int camera_sx, int camera_sz, int sx, int sz)
+near_wall_flags(
+    int camera_sx,
+    int camera_sz,
+    int sx,
+    int sz)
 {
     int flags = 0;
 

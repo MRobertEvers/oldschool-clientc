@@ -347,17 +347,17 @@ apply_shade(
     }
 }
 
-static struct SceneTerrain*
+static void
 build_scene_terrain(
     struct SceneBuilder* scene_builder,
     struct TerrainGrid* terrain_grid,
-    int* shade_map_nullable)
+    int* shade_map_nullable,
+    struct SceneTerrain* terrain)
 {
-    struct ConfigMap* config_underlay_map = scene_builder->config_underlay_hmap;
-    struct ConfigMap* config_overlay_map = scene_builder->config_overlay_hmap;
-
-    struct SceneTerrain* terrain = scene_terrain_new_sized(
-        terrain_grid_x_width(terrain_grid), terrain_grid_z_height(terrain_grid));
+    struct ConfigMap* config_underlay_map = scene_builder->config_underlay_configmap;
+    struct ConfigMap* config_overlay_map = scene_builder->config_overlay_configmap;
+    assert(configmap_valid(config_underlay_map) && "Config underlay map must be valid");
+    assert(configmap_valid(config_overlay_map) && "Config overlay map must be valid");
 
     struct DashModel* model = NULL;
     struct CacheConfigUnderlay* underlay = NULL;
@@ -491,8 +491,6 @@ build_scene_terrain(
         free(blended_underlays);
         free(lights);
     }
-
-    return terrain;
 }
 
 #endif
