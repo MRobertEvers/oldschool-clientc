@@ -215,7 +215,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
     struct DashPosition position = { 0 };
 
-    for( int i = 0; i < game->sys_painter_buffer->command_count; i++ )
+    for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
     {
         struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
 

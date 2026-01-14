@@ -180,6 +180,16 @@ painter_element_at(
     return &painter->elements[element];
 }
 
+static struct TilePaint*
+tile_paint_at(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel)
+{
+    return &painter->tile_paints[painter_coord_idx(painter, sx, sz, slevel)];
+}
+
 static void
 compute_normal_scenery_spans(
     struct Painter* painter,
@@ -190,6 +200,7 @@ compute_normal_scenery_spans(
     int size_z,
     int element)
 {
+    struct PaintersTile* tile = NULL;
     int min_tile_x = loc_x;
     int min_tile_z = loc_z;
 
@@ -230,7 +241,10 @@ compute_normal_scenery_spans(
                 span_flags |= SPAN_FLAG_NORTH;
             }
 
-            painter_tile_at(painter, x, z, loc_level)->spans |= span_flags;
+            tile = painter_tile_at(painter, x, z, loc_level);
+            tile->spans |= span_flags;
+            assert(tile->scenery_count < MAX_SCENERY_COUNT);
+            tile->scenery[tile->scenery_count++] = element;
         }
     }
 }
@@ -247,9 +261,6 @@ painter_add_normal_scenery(
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
-
-    assert(tile->scenery_count < 10);
-    tile->scenery[tile->scenery_count++] = element;
 
     compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_y, element);
 
@@ -645,8 +656,7 @@ painter_paint(
             {
                 if( tile_slevel > 0 )
                 {
-                    other_paint = &painter->tile_paints[painter_coord_idx(
-                        painter, tile_sx, tile_sz, tile_slevel - 1)];
+                    other_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel - 1);
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -658,8 +668,7 @@ painter_paint(
                 {
                     if( tile_sx + 1 < max_draw_x )
                     {
-                        other_paint = &painter->tile_paints[painter_coord_idx(
-                            painter, tile_sx + 1, tile_sz, tile_slevel)];
+                        other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
 
                         // If we are not spanned by the tile, then we need to verify it is done.
                         if( other_paint->step != PAINT_STEP_DONE )
@@ -677,8 +686,8 @@ painter_paint(
                 {
                     if( tile_sx - 1 >= min_draw_x )
                     {
-                        other_paint = &painter->tile_paints[painter_coord_idx(
-                            painter, tile_sx - 1, tile_sz, tile_slevel)];
+                        other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
+
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
                             if( (tile->spans & SPAN_FLAG_WEST) == 0 ||
@@ -694,8 +703,8 @@ painter_paint(
                 {
                     if( tile_sz + 1 < max_draw_z )
                     {
-                        other_paint = &painter->tile_paints[painter_coord_idx(
-                            painter, tile_sx, tile_sz + 1, tile_slevel)];
+                        other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
+
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
                             if( (tile->spans & SPAN_FLAG_NORTH) == 0 ||
@@ -710,8 +719,8 @@ painter_paint(
                 {
                     if( tile_sz - 1 >= min_draw_z )
                     {
-                        other_paint = &painter->tile_paints[painter_coord_idx(
-                            painter, tile_sx, tile_sz - 1, tile_slevel)];
+                        other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
+
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
                             if( (tile->spans & SPAN_FLAG_SOUTH) == 0 ||
@@ -958,8 +967,9 @@ painter_paint(
                         for( int other_tile_z = min_tile_z; other_tile_z <= max_tile_z;
                              other_tile_z++ )
                         {
-                            other_paint = &painter->tile_paints[painter_coord_idx(
-                                painter, other_tile_x, other_tile_z, tile_slevel)];
+                            other_paint =
+                                tile_paint_at(painter, other_tile_x, other_tile_z, tile_slevel);
+
                             if( other_paint->step <= PAINT_STEP_GROUND )
                             {
                                 waiting_spanning_scenery = true;
@@ -972,95 +982,95 @@ painter_paint(
 
                 step_scenery:;
                 }
+            }
 
-                if( tile_paint->step == PAINT_STEP_LOCS )
+            if( tile_paint->step == PAINT_STEP_LOCS )
+            {
+                for( int j = 0; j < scenery_queue_length; j++ )
                 {
-                    for( int j = 0; j < scenery_queue_length; j++ )
+                    int scenery_element = tile->scenery[j];
+
+                    element_paint = &painter->element_paints[scenery_element];
+                    if( element_paint->drawn )
+                        continue;
+
+                    element_paint->drawn = true;
+
+                    element = &painter->elements[scenery_element];
+                    assert(element->kind == PNTRELEM_SCENERY);
+
+                    push_command_entity(buffer, element->_scenery.entity);
+
+                    int min_tile_x = element->sx;
+                    int min_tile_z = element->sz;
+                    int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
+                    int max_tile_z = min_tile_z + element->_scenery.size_y - 1;
+
+                    int next_prio = 0;
+                    if( element->_scenery.size_x > 1 || element->_scenery.size_y > 1 )
                     {
-                        int scenery_element = tile->scenery[j];
+                        next_prio = element->_scenery.size_x > element->_scenery.size_y
+                                        ? element->_scenery.size_x
+                                        : element->_scenery.size_y;
+                    }
 
-                        element_paint = &painter->element_paints[scenery_element];
-                        if( element_paint->drawn )
-                            continue;
+                    if( max_tile_x > max_draw_x - 1 )
+                        max_tile_x = max_draw_x - 1;
+                    if( max_tile_z > max_draw_z - 1 )
+                        max_tile_z = max_draw_z - 1;
+                    if( min_tile_x < min_draw_x )
+                        min_tile_x = min_draw_x;
+                    if( min_tile_z < min_draw_z )
+                        min_tile_z = min_draw_z;
 
-                        element_paint->drawn = true;
+                    int step_x = element->sx <= camera_sx ? 1 : -1;
+                    int step_z = element->sz <= camera_sz ? 1 : -1;
 
-                        element = &painter->elements[scenery_element];
-                        assert(element->kind == PNTRELEM_SCENERY);
+                    int start_x = min_tile_x;
+                    int start_z = min_tile_z;
+                    int end_x = max_tile_x;
+                    int end_z = max_tile_z;
 
-                        push_command_entity(buffer, element->_scenery.entity);
+                    if( step_x < 0 )
+                    {
+                        int tmp = start_x;
+                        start_x = end_x;
+                        end_x = tmp;
+                    }
 
-                        int min_tile_x = element->sx;
-                        int min_tile_z = element->sz;
-                        int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
-                        int max_tile_z = min_tile_z + element->_scenery.size_y - 1;
+                    if( step_z < 0 )
+                    {
+                        int tmp = start_z;
+                        start_z = end_z;
+                        end_z = tmp;
+                    }
 
-                        int next_prio = 0;
-                        if( element->_scenery.size_x > 1 || element->_scenery.size_y > 1 )
+                    for( int other_tile_x = start_x; other_tile_x != end_x + step_x;
+                         other_tile_x += step_x )
+                    {
+                        for( int other_tile_z = start_z; other_tile_z != end_z + step_z;
+                             other_tile_z += step_z )
                         {
-                            next_prio = element->_scenery.size_x > element->_scenery.size_y
-                                            ? element->_scenery.size_x
-                                            : element->_scenery.size_y;
-                        }
-
-                        if( max_tile_x > max_draw_x - 1 )
-                            max_tile_x = max_draw_x - 1;
-                        if( max_tile_z > max_draw_z - 1 )
-                            max_tile_z = max_draw_z - 1;
-                        if( min_tile_x < min_draw_x )
-                            min_tile_x = min_draw_x;
-                        if( min_tile_z < min_draw_z )
-                            min_tile_z = min_draw_z;
-
-                        int step_x = element->sx <= camera_sx ? 1 : -1;
-                        int step_z = element->sz <= camera_sz ? 1 : -1;
-
-                        int start_x = min_tile_x;
-                        int start_z = min_tile_z;
-                        int end_x = max_tile_x;
-                        int end_z = max_tile_z;
-
-                        if( step_x < 0 )
-                        {
-                            int tmp = start_x;
-                            start_x = end_x;
-                            end_x = tmp;
-                        }
-
-                        if( step_z < 0 )
-                        {
-                            int tmp = start_z;
-                            start_z = end_z;
-                            end_z = tmp;
-                        }
-
-                        for( int other_tile_x = start_x; other_tile_x != end_x + step_x;
-                             other_tile_x += step_x )
-                        {
-                            for( int other_tile_z = start_z; other_tile_z != end_z + step_z;
-                                 other_tile_z += step_z )
+                            int other_idx =
+                                painter_coord_idx(painter, other_tile_x, other_tile_z, tile_slevel);
+                            other_paint = &painter->tile_paints[other_idx];
+                            if( other_tile_x != tile_sx || other_tile_z != tile_sz )
                             {
-                                int other_idx = painter_coord_idx(
-                                    painter, other_tile_x, other_tile_z, tile_slevel);
-                                other_paint = &painter->tile_paints[other_idx];
-                                if( other_tile_x != tile_sx || other_tile_z != tile_sz )
-                                {
-                                    other_paint->queue_count++;
-                                    if( next_prio == 0 )
-                                        int_queue_push_wrap(&painter->queue, other_idx);
-                                    else
-                                        int_queue_push_wrap_prio(
-                                            &painter->catchup_queue, other_idx, next_prio - 1);
-                                }
+                                other_paint->queue_count++;
+                                if( next_prio == 0 )
+                                    int_queue_push_wrap(&painter->queue, other_idx);
+                                else
+                                    int_queue_push_wrap_prio(
+                                        &painter->catchup_queue, other_idx, next_prio - 1);
                             }
                         }
                     }
-
-                    if( !waiting_spanning_scenery )
-                        tile_paint->step = PAINT_STEP_NOTIFY_ADJACENT_TILES;
-                    else
-                        tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
                 }
+
+                if( !waiting_spanning_scenery )
+                    tile_paint->step = PAINT_STEP_NOTIFY_ADJACENT_TILES;
+                else
+                    tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
             }
 
             // Move towards camera if farther away tiles are done.

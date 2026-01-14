@@ -38,6 +38,8 @@ struct GGame
 {
     bool running;
 
+    int cc;
+
     int camera_world_x;
     int camera_world_y;
     int camera_world_z;

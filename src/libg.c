@@ -147,6 +147,7 @@ libg_game_new(struct GIOQueue* io)
     game->camera_fov = 512;
     game->camera_movement_speed = 20;
     game->camera_rotation_speed = 20;
+    game->cc = 100000;
 
     game->sys_dash = dash_new();
 
@@ -280,6 +281,7 @@ libg_game_process_input(
     {
         time_quanta++;
         input->time_delta_accumulator_seconds -= time_delta_step;
+        game->cc++;
     }
 
     for( int i = 0; i < time_quanta; i++ )
@@ -346,6 +348,11 @@ libg_game_process_input(
         if( input->quit )
         {
             game->running = false;
+        }
+
+        if( input->space_pressed )
+        {
+            game->cc = 0;
         }
     }
 }

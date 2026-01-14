@@ -31,10 +31,11 @@ enum PaintersTileFlags
     PAINTERS_TILE_FLAG_BRIDGE = 1 << 0,
 };
 
+#define MAX_SCENERY_COUNT 10
 struct PaintersTile
 {
     // These are only used for normal locs
-    uint16_t scenery[10];
+    uint16_t scenery[MAX_SCENERY_COUNT];
     uint16_t scenery_count;
 
     int16_t wall_a;
@@ -225,26 +226,31 @@ struct PaintersElementCommand
 
 struct Painter;
 
-struct Painter* painter_new(
+struct Painter*
+painter_new(
     int width, //
     int height,
     int levels);
 
-void painter_free(
+void
+painter_free(
     struct Painter* painter //
 );
 
-struct PaintersTile* painter_tile_at(
+struct PaintersTile*
+painter_tile_at(
     struct Painter* painter, //
     int sx,
     int sz,
     int slevel);
 
-struct PaintersElement* painter_element_at(
+struct PaintersElement*
+painter_element_at(
     struct Painter* painter, //
     int element);
 
-int painter_add_normal_scenery(
+int
+painter_add_normal_scenery(
     struct Painter* painter, //
     int sx,
     int sz,
@@ -256,7 +262,8 @@ int painter_add_normal_scenery(
 #define WALL_A 0
 #define WALL_B 1
 
-int painter_add_wall(
+int
+painter_add_wall(
     struct Painter* painter, //
     int sx,
     int sz,
@@ -265,7 +272,8 @@ int painter_add_wall(
     int wall_ab,
     int side);
 
-int painter_add_wall_decor(
+int
+painter_add_wall_decor(
     struct Painter* painter,
     int sx,
     int sz,
@@ -275,7 +283,8 @@ int painter_add_wall_decor(
     int side,
     int through_wall_flags);
 
-int painter_add_ground_decor(
+int
+painter_add_ground_decor(
     struct Painter* painter, //
     int sx,
     int sz,
@@ -286,7 +295,8 @@ int painter_add_ground_decor(
 #define GROUND_OBJECT_MIDDLE 1
 #define GROUND_OBJECT_TOP 2
 
-int painter_add_ground_object(
+int
+painter_add_ground_object(
     struct Painter* painter, //
     int sx,
     int sz,
@@ -301,9 +311,11 @@ struct PaintersBuffer
     int command_capacity;
 };
 
-struct PaintersBuffer* painter_buffer_new();
+struct PaintersBuffer*
+painter_buffer_new();
 
-int painter_paint(
+int
+painter_paint(
     struct Painter* painter, //
     struct PaintersBuffer* buffer,
     int camera_sx,
