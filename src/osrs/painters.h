@@ -97,7 +97,7 @@ struct NormalScenery
 {
     uint16_t entity;
     uint8_t size_x : 4;
-    uint8_t size_y : 4;
+    uint8_t size_z : 4;
 };
 
 struct GroundObject

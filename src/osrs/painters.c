@@ -257,19 +257,23 @@ painter_add_normal_scenery(
     int slevel,
     int entity,
     int size_x,
-    int size_y)
+    int size_z)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
-    compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_y, element);
+    compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);
 
+    assert(size_x > 0);
+    assert(size_z > 0);
+    assert(size_x < 16);
+    assert(size_z < 16);
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_SCENERY,
         .sx = sx,
         .sz = sz,
         .slevel = slevel,
-        ._scenery = { .entity = entity, .size_x = size_x, .size_y = size_y },
+        ._scenery = { .entity = entity, .size_x = size_x, .size_z = size_z },
     };
     return element;
 }
@@ -951,7 +955,7 @@ painter_paint(
                     int min_tile_x = element->sx;
                     int min_tile_z = element->sz;
                     int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
-                    int max_tile_z = min_tile_z + element->_scenery.size_y - 1;
+                    int max_tile_z = min_tile_z + element->_scenery.size_z - 1;
 
                     if( max_tile_x > max_draw_x - 1 )
                         max_tile_x = max_draw_x - 1;
@@ -988,7 +992,7 @@ painter_paint(
             {
                 for( int j = 0; j < scenery_queue_length; j++ )
                 {
-                    int scenery_element = tile->scenery[j];
+                    int scenery_element = scenery_queue[j];
 
                     element_paint = &painter->element_paints[scenery_element];
                     if( element_paint->drawn )
@@ -1004,14 +1008,14 @@ painter_paint(
                     int min_tile_x = element->sx;
                     int min_tile_z = element->sz;
                     int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
-                    int max_tile_z = min_tile_z + element->_scenery.size_y - 1;
+                    int max_tile_z = min_tile_z + element->_scenery.size_z - 1;
 
                     int next_prio = 0;
-                    if( element->_scenery.size_x > 1 || element->_scenery.size_y > 1 )
+                    if( element->_scenery.size_x > 1 || element->_scenery.size_z > 1 )
                     {
-                        next_prio = element->_scenery.size_x > element->_scenery.size_y
+                        next_prio = element->_scenery.size_x > element->_scenery.size_z
                                         ? element->_scenery.size_x
-                                        : element->_scenery.size_y;
+                                        : element->_scenery.size_z;
                     }
 
                     if( max_tile_x > max_draw_x - 1 )
