@@ -65,6 +65,7 @@ scenebuilder_new_painter(
     int width = (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X;
 
     scene_builder->build_grid = build_grid_new(width, height);
+    scene_builder->shademap = shademap_new(width, height, MAP_TERRAIN_LEVELS);
 
     return scene_builder;
 }
@@ -80,6 +81,9 @@ scenebuilder_free(struct SceneBuilder* scene_builder)
 
     free(dashmap_buffer_ptr(scene_builder->map_terrains_hmap));
     dashmap_free(scene_builder->map_terrains_hmap);
+
+    build_grid_free(scene_builder->build_grid);
+    shademap_free(scene_builder->shademap);
 
     free(scene_builder);
 }
@@ -313,7 +317,7 @@ scenebuilder_load(struct SceneBuilder* scene_builder)
         scene_new(terrain_grid_x_width(&terrain_grid), terrain_grid_z_height(&terrain_grid), 1024);
 
     build_scene_scenery(scene_builder, &terrain_grid, scene);
-    build_scene_terrain(scene_builder, &terrain_grid, NULL, scene->terrain);
+    build_scene_terrain(scene_builder, &terrain_grid, scene->terrain);
 
     return scene;
 }

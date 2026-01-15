@@ -282,7 +282,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
             position.x = sx * 128 - game->camera_world_x;
             position.z = sz * 128 - game->camera_world_z;
-            position.y = slevel * 240 - game->camera_world_y;
+            position.y = -game->camera_world_y;
             dash3d_render_model(
                 game->sys_dash,
                 tile_model->dash_model,

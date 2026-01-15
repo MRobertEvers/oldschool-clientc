@@ -541,7 +541,12 @@ decode_tile(
 
     dash_model->face_textures = face_texture_ids;
 
-    dash_model->face_alphas = valid_faces;
+    // Hide faces with color_c == -2.
+    for( int i = 0; i < face_count; i++ )
+    {
+        if( !valid_faces[i] )
+            face_colors_hsl_c[i] = -2;
+    }
     dash_model->face_colors = face_colors_hsl_a;
 
     dash_model->lighting = dashmodel_lighting_new(face_count);

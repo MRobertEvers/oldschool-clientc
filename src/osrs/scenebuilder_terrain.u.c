@@ -16,6 +16,7 @@
 // clang-format off
 #include "terrain_grid.u.c"
 #include "terrain_decode_tile.u.c"
+#include "scenebuilder_shademap.u.c"
 #include "scenebuilder.u.c"
 // clang-format on
 
@@ -279,7 +280,7 @@ calculate_lights(
                       normalized_tile_normal_z * LIGHT_DIR_Z;
             int sunlight = (dot / intensity + LIGHT_AMBIENT);
 
-            lights[grid_coord(terrain_grid_x_width(terrain_grid), x, z, level)] = sunlight;
+            lights[grid_coord(terrain_grid_x_width(terrain_grid), x, z, 0)] = sunlight;
         }
     }
 
@@ -289,7 +290,8 @@ calculate_lights(
 static void
 apply_shade(
     int* lightmap,
-    int* shademap_nullable,
+    int map_width,
+    struct Shademap* shademap_nullable,
     int level,
     int xboundmin,
     int xboundmax,
@@ -300,7 +302,9 @@ apply_shade(
     int zmin,
     int zmax)
 {
-    return;
+    if( shademap_nullable == NULL )
+        return;
+
     assert(xboundmin <= xmin);
     assert(xboundmax >= xmax);
     assert(zboundmin <= zmin);
@@ -323,16 +327,16 @@ apply_shade(
             int shade = 0;
             if( shademap_nullable )
             {
-                if( x > xboundmin + 1 )
-                    shade_west = shademap_nullable[MAP_TILE_COORD(x - 1, z, level)];
-                if( x < xboundmax - 1 )
-                    shade_east = shademap_nullable[MAP_TILE_COORD(x + 1, z, level)];
-                if( z < zboundmax - 1 )
-                    shade_north = shademap_nullable[MAP_TILE_COORD(x, z + 1, level)];
-                if( z > zboundmin + 1 )
-                    shade_south = shademap_nullable[MAP_TILE_COORD(x, z - 1, level)];
+                if( shademap_in_bounds(shademap_nullable, x - 1, z, level) )
+                    shade_west = shademap_get(shademap_nullable, x - 1, z, level);
+                if( shademap_in_bounds(shademap_nullable, x + 1, z, level) )
+                    shade_east = shademap_get(shademap_nullable, x + 1, z, level);
+                if( shademap_in_bounds(shademap_nullable, x, z + 1, level) )
+                    shade_north = shademap_get(shademap_nullable, x, z + 1, level);
+                if( shademap_in_bounds(shademap_nullable, x, z - 1, level) )
+                    shade_south = shademap_get(shademap_nullable, x, z - 1, level);
 
-                int shade_center = shademap_nullable[MAP_TILE_COORD(x, z, level)];
+                int shade_center = shademap_get(shademap_nullable, x, z, level);
 
                 shade = shade_center >> 1;
                 shade += shade_west >> 2;
@@ -340,9 +344,9 @@ apply_shade(
                 shade += shade_north >> 3;
                 shade += shade_south >> 2;
             }
-            int light = lightmap[MAP_TILE_COORD(x, z, 0)];
+            int light = lightmap[grid_coord(map_width, x, z, 0)];
 
-            lightmap[MAP_TILE_COORD(x, z, 0)] = light - shade;
+            lightmap[grid_coord(map_width, x, z, 0)] = light - shade;
         }
     }
 }
@@ -351,7 +355,6 @@ static void
 build_scene_terrain(
     struct SceneBuilder* scene_builder,
     struct TerrainGrid* terrain_grid,
-    int* shade_map_nullable,
     struct SceneTerrain* terrain)
 {
     struct DashMap* config_underlay_map = scene_builder->config_underlay_configmap;
@@ -375,7 +378,8 @@ build_scene_terrain(
         int* blended_underlays = blend_underlays(terrain_grid, config_underlay_map, level);
         int* lights = calculate_lights(terrain_grid, level);
 
-        apply_shade(lights, shade_map_nullable, level, 0, max_x, 0, max_z, 0, max_x, 0, max_z);
+        apply_shade(
+            lights, max_x, scene_builder->shademap, level, 0, max_x, 0, max_z, 0, max_x, 0, max_z);
 
         for( int z = 1; z < max_z - 1; z++ )
         {

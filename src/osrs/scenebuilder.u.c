@@ -7,6 +7,7 @@
 
 // clang-format off
 #include "scenebuilder_buildgrid.u.c"
+#include "scenebuilder_shademap.u.c"
 // clang-format on
 
 struct ModelEntry
@@ -47,6 +48,7 @@ struct SceneBuilder
     struct DashMap* config_overlay_configmap;
 
     struct BuildGrid* build_grid;
+    struct Shademap* shademap;
 };
 
 #endif
