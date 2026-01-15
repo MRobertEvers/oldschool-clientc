@@ -828,7 +828,7 @@ scenery_add_wall_decor_diagonal_outside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
 
     dash_model = load_model(
@@ -847,6 +847,10 @@ scenery_add_wall_decor_diagonal_outside(
     // scene_model->yaw %= 2048;
     // scene_element.dash_position->yaw = 512 * map_loc->orientation;
     scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
+    if( config_loc->seq_id != -1 )
+    {
+        scene_element.dash_position->yaw += 512 * orientation;
+    }
     scene_element.dash_position->yaw %= 2048;
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
@@ -879,6 +883,7 @@ scenery_add_wall_decor_diagonal_outside(
 }
 
 // Lumbridge sconce
+// Support beams in lumbridge general store along wall.
 static int
 scenery_add_wall_decor_diagonal_inside(
     struct SceneBuilder* scene_builder,
@@ -893,7 +898,7 @@ scenery_add_wall_decor_diagonal_inside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
 
     dash_model = load_model(
@@ -911,8 +916,10 @@ scenery_add_wall_decor_diagonal_inside(
     scene_element.dash_position = dash_position;
     // scene_model->yaw = 512 * orientation;
     // scene_model->yaw %= 2048;
-    scene_element.dash_position->yaw = 512 * (orientation);
     scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE;
+
+    if( config_loc->seq_id != -1 )
+        scene_element.dash_position->yaw = 512 * (orientation);
     scene_element.dash_position->yaw %= 2048;
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
@@ -1102,7 +1109,7 @@ scenery_add_normal(
         size_z = temp;
     }
 
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
 
     dash_model = load_model(
@@ -1115,6 +1122,12 @@ scenery_add_normal(
     scene_element.dash_position = dash_position;
     if( map_loc->shape_select == LOC_SHAPE_SCENERY_DIAGIONAL )
         dash_position->yaw = 256;
+
+    if( config_loc->seq_id != -1 )
+    {
+        scene_element.dash_position->yaw += 512 * orientation;
+        scene_element.dash_position->yaw %= 2048;
+    }
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
