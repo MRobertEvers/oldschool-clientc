@@ -445,12 +445,14 @@ dash_position_from_offset_1x1(
 static void
 init_build_element_from_config_loc(
     struct BuildElement* build_element,
-    struct CacheConfigLocation* config_loc)
+    struct CacheConfigLocation* config_loc,
+    int orientation)
 {
     build_element->size_x = config_loc->size_x;
     build_element->size_z = config_loc->size_z;
     build_element->wall_offset = config_loc->wall_width;
     build_element->sharelight = config_loc->sharelight;
+    build_element->rotation = orientation;
     build_element->light_ambient = config_loc->ambient;
     build_element->light_attenuation = config_loc->contrast;
     build_element->aliased_lighting_normals = NULL;
@@ -821,6 +823,10 @@ scenery_add_wall_decor_diagonal_offset(
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
 
+    // The southwest facing lumbridge shield is orientation 1.
+    // This is the shield on the north side of the castle exit.
+    // However orientation 1 shows the northeast side...
+    // I think the painter has things backwards.
     painter_add_wall_decor(
         scene_builder->painter,
         offset->x,
@@ -1229,7 +1235,7 @@ scenery_add(
 
         build_element = build_grid_element_at(scene_builder->build_grid, element_idx);
 
-        init_build_element_from_config_loc(build_element, config_loc);
+        init_build_element_from_config_loc(build_element, config_loc, map_loc->orientation);
 
         scenery_set_wall_offsets(build_element, map_loc->shape_select);
     }
@@ -1672,7 +1678,7 @@ apply_wall_offsets(
         if( build_element->wall_offset != 0 )
             calculate_wall_decor_offset(
                 scene_element->dash_position,
-                build_element->wall_offset_type,
+                build_element->rotation,
                 build_element->wall_offset + 45,
                 build_element->wall_offset_type == WALL_OFFSET_TYPE_DIAGONAL);
     }

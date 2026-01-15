@@ -131,7 +131,8 @@ struct GroundDecor
 
 enum ThroughWallFlags
 {
-    THROUGHWALL = 0x100,
+    THROUGHWALL = 0x01,
+    // THROUGHWALL = 0x100,
     // In OS1 and later, this is removed; only present in 2004scape.
     // THROUGHWALL_OUTSIDE = 0x200,
 };
