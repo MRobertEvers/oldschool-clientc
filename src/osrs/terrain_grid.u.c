@@ -57,12 +57,12 @@ tile_in_bounds(
     int cx_unbounded,
     int cz_unbounded)
 {
-    if( cx_unbounded > MAP_TERRAIN_X )
+    if( cx_unbounded >= MAP_TERRAIN_X )
     {
         cx_unbounded -= MAP_TERRAIN_X;
         mapx++;
     }
-    if( cz_unbounded > MAP_TERRAIN_Z )
+    if( cz_unbounded >= MAP_TERRAIN_Z )
     {
         cz_unbounded -= MAP_TERRAIN_Z;
         mapz++;
@@ -84,12 +84,12 @@ tile_at(
     mapx -= terrain_grid->mapx_sw;
     mapz -= terrain_grid->mapz_sw;
 
-    if( cx_unbounded > MAP_TERRAIN_X )
+    if( cx_unbounded >= MAP_TERRAIN_X )
     {
         cx_unbounded -= MAP_TERRAIN_X;
         mapx++;
     }
-    if( cz_unbounded > MAP_TERRAIN_Z )
+    if( cz_unbounded >= MAP_TERRAIN_Z )
     {
         cz_unbounded -= MAP_TERRAIN_Z;
         mapz++;
@@ -101,6 +101,10 @@ tile_at(
 
     int tile_idx = MAP_TILE_COORD(cx_unbounded, cz_unbounded, clevel);
 
+    assert(tile_idx < CHUNK_TILE_COUNT);
+    assert(
+        chunk_idx < (terrain_grid->mapx_ne - terrain_grid->mapx_sw + 1) *
+                        (terrain_grid->mapz_ne - terrain_grid->mapz_sw + 1));
     return &terrain_grid->map_terrain[chunk_idx]->tiles_xyz[tile_idx];
 }
 

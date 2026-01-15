@@ -43,7 +43,7 @@ grid_coord(
 static int*
 blend_underlays(
     struct TerrainGrid* terrain_grid,
-    struct ConfigMap* config_underlay_map,
+    struct DashMap* config_underlay_map,
     int level)
 {
     struct CacheConfigUnderlay* entry = NULL;
@@ -354,8 +354,8 @@ build_scene_terrain(
     int* shade_map_nullable,
     struct SceneTerrain* terrain)
 {
-    struct ConfigMap* config_underlay_map = scene_builder->config_underlay_configmap;
-    struct ConfigMap* config_overlay_map = scene_builder->config_overlay_configmap;
+    struct DashMap* config_underlay_map = scene_builder->config_underlay_configmap;
+    struct DashMap* config_overlay_map = scene_builder->config_overlay_configmap;
     assert(configmap_valid(config_underlay_map) && "Config underlay map must be valid");
     assert(configmap_valid(config_overlay_map) && "Config overlay map must be valid");
 

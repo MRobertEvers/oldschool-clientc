@@ -218,6 +218,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
     {
         struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
+        memset(&position, 0, sizeof(struct DashPosition));
 
         switch( cmd->_bf_kind )
         {
@@ -230,6 +231,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             position.x = position.x - game->camera_world_x;
             position.y = position.y - game->camera_world_y;
             position.z = position.z - game->camera_world_z;
+
             dash3d_render_model(
                 game->sys_dash,
                 scene_element_model(game->scene, cmd->_entity._bf_entity),
@@ -246,6 +248,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             int sz = cmd->_terrain._bf_terrain_z;
             int slevel = cmd->_terrain._bf_terrain_y;
             tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
+
             position.x = sx * 128 - game->camera_world_x;
             position.z = sz * 128 - game->camera_world_z;
             position.y = slevel * 240 - game->camera_world_y;

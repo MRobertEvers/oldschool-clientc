@@ -5,15 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void
-init_scenery_tile(struct SceneSceneryTile* tile)
-{
-    memset(tile, 0, sizeof(struct SceneSceneryTile));
-
-    tile->wall_a_element_idx = -1;
-    tile->wall_b_element_idx = -1;
-}
-
 static struct SceneScenery*
 scene_scenery_new(
     int tile_width_x,
@@ -25,12 +16,6 @@ scene_scenery_new(
     scenery->elements = malloc(element_count_hint * sizeof(struct SceneElement));
     scenery->elements_capacity = element_count_hint;
     memset(scenery->elements, 0, element_count_hint * sizeof(struct SceneElement));
-
-    int tile_count = tile_width_x * tile_width_z * MAP_TERRAIN_LEVELS;
-
-    scenery->tiles = malloc(tile_count * sizeof(struct SceneSceneryTile));
-    for( int i = 0; i < tile_count; i++ )
-        init_scenery_tile(&scenery->tiles[i]);
 
     scenery->tile_width_x = tile_width_x;
     scenery->tile_width_z = tile_width_z;
@@ -126,18 +111,6 @@ scene_scenery_push_element_move(
     scenery->elements_length++;
 
     return scenery->elements_length - 1;
-}
-
-struct SceneSceneryTile*
-scene_scenery_tile_at(
-    struct SceneScenery* scenery,
-    int sx,
-    int sz,
-    int slevel)
-{
-    int index =
-        sx + sz * scenery->tile_width_x + slevel * scenery->tile_width_x * scenery->tile_width_z;
-    return &scenery->tiles[index];
 }
 
 struct SceneElement*
