@@ -5,18 +5,25 @@
 #include "tables/textures.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-// Gamma blending function (simplified)
 static int
 gamma_blend(
     int rgb,
-    float gamma)
+    double gamma)
 {
-    // Simple gamma correction - for now just return the rgb as-is
-    // This should be implemented properly for full texture support
-    return rgb;
+    double r = (rgb >> 16) / 256.0;
+    double g = ((rgb >> 8) & 255) / 256.0;
+    double b = (rgb & 255) / 256.0;
+    r = pow(r, gamma);
+    g = pow(g, gamma);
+    b = pow(b, gamma);
+    int new_r = (int)(r * 256.0);
+    int new_g = (int)(g * 256.0);
+    int new_b = (int)(b * 256.0);
+    return (new_r << 16) | (new_g << 8) | new_b;
 }
 
 struct DashTexture*
