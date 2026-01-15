@@ -422,6 +422,8 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
         ImGui::SetClipboardText(camera_pos_text);
     }
 
+    ImGui::Text("Camera tile: %d, %d", game->camera_x / 128, game->camera_y / 128);
+
     // Camera rotation with copy button
     char camera_rot_text[256];
     snprintf(

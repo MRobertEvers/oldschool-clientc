@@ -126,6 +126,8 @@ render_imgui(struct RendererOSX_SDL2OpenGL3* renderer, struct Game* game)
         ImGui::SetClipboardText(camera_pos_text);
     }
 
+    ImGui::Text("Camera tile: %d, %d", game->camera_world_x / 128, game->camera_world_y / 128);
+
     // Camera rotation with copy button
     char camera_rot_text[256];
     snprintf(

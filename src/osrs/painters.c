@@ -857,7 +857,6 @@ painter_paint(
                             (tile->spans & SPAN_FLAG_EAST) != 0 )
                         {
                             other_paint->queue_count++;
-
                             if( prio == 0 )
                                 int_queue_push_wrap(&painter->queue, other_idx);
                             else
@@ -1010,6 +1009,11 @@ painter_paint(
                     int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
                     int max_tile_z = min_tile_z + element->_scenery.size_z - 1;
 
+                    if( min_tile_x == 199 && min_tile_z == 108 )
+                    {
+                        int booger = 0;
+                    }
+
                     int next_prio = 0;
                     if( element->_scenery.size_x > 1 || element->_scenery.size_z > 1 )
                     {
@@ -1062,6 +1066,7 @@ painter_paint(
                             if( other_tile_x != tile_sx || other_tile_z != tile_sz )
                             {
                                 other_paint->queue_count++;
+
                                 if( next_prio == 0 )
                                     int_queue_push_wrap(&painter->queue, other_idx);
                                 else
@@ -1089,6 +1094,7 @@ painter_paint(
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         other_paint->queue_count++;
+
                         if( prio == 0 )
                             int_queue_push_wrap(&painter->queue, other_idx);
                         else
@@ -1107,6 +1113,7 @@ painter_paint(
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
                             other_paint->queue_count++;
+
                             if( prio == 0 )
                                 int_queue_push_wrap(&painter->queue, other_idx);
                             else
@@ -1125,6 +1132,7 @@ painter_paint(
                         if( other_paint->step != PAINT_STEP_DONE )
                         {
                             other_paint->queue_count++;
+
                             if( prio == 0 )
                                 int_queue_push_wrap(&painter->queue, other_idx);
                             else

@@ -50,12 +50,14 @@ extern "C" int g_tan_table[2048];
 int g_blit_buffer[SCREEN_WIDTH * SCREEN_HEIGHT] = { 0 };
 
 static inline int
-min(int a, int b)
+min(int a,
+    int b)
 {
     return a < b ? a : b;
 }
 static inline int
-max(int a, int b)
+max(int a,
+    int b)
 {
     return a > b ? a : b;
 }
@@ -364,7 +366,9 @@ transform_mouse_coordinates(
 }
 
 static void
-game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
+game_render_imgui(
+    struct Game* game,
+    struct PlatformSDL2* platform)
 {
     ImGui_ImplSDLRenderer2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
@@ -411,6 +415,8 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
     {
         ImGui::SetClipboardText(camera_pos_text);
     }
+
+    ImGui::Text("Camera tile: %d, %d", game->camera_x / 128, game->camera_y / 128);
 
     // Camera rotation with copy button
     char camera_rot_text[256];
@@ -534,7 +540,10 @@ static int g_ortho_vertices_y[20];
 static int g_ortho_vertices_z[20];
 
 static void
-game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
+game_render_sdl2(
+    struct Game* game,
+    struct PlatformSDL2* platform,
+    int deltas)
 {
     SDL_Texture* texture = platform->texture;
     SDL_Renderer* renderer = platform->renderer;
@@ -1203,7 +1212,10 @@ emscripten_main_loop()
 extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void
-set_camera_position(int x, int y, int z)
+set_camera_position(
+    int x,
+    int y,
+    int z)
 {
     if( g_game )
     {
@@ -1215,7 +1227,10 @@ set_camera_position(int x, int y, int z)
 
 EMSCRIPTEN_KEEPALIVE
 void
-set_camera_rotation(int pitch, int yaw, int roll)
+set_camera_rotation(
+    int pitch,
+    int yaw,
+    int roll)
 {
     if( g_game )
     {
@@ -1269,7 +1284,9 @@ render_frame()
 #endif
 
 int
-main(int argc, char* argv[])
+main(
+    int argc,
+    char* argv[])
 {
     std::cout << "SDL_main" << std::endl;
     init_hsl16_to_rgb_table();
