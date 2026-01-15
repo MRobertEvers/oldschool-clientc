@@ -870,9 +870,6 @@ scenery_add_wall_decor_diagonal_nooffset(
     scene_element.dash_position = dash_position;
     // scene_model->yaw = 512 * orientation;
     // scene_model->yaw %= 2048;
-    int orientation = map_loc->orientation;
-    orientation = (orientation + 2) % 4;
-
     scene_element.dash_position->yaw = 512 * (map_loc->orientation);
     scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE;
     scene_element.dash_position->yaw %= 2048;
@@ -1120,6 +1117,59 @@ scenery_add_floor_decoration(
     return 1;
 }
 
+static int
+orientation_mirror(
+    int shape_select,
+    int orientation,
+    int* out)
+{
+    switch( shape_select )
+    {
+    case LOC_SHAPE_WALL_SINGLE_SIDE:
+    case LOC_SHAPE_WALL_TRI_CORNER:
+    case LOC_SHAPE_WALL_TWO_SIDES:
+    case LOC_SHAPE_WALL_RECT_CORNER:
+        out[0] = orientation;
+        return 1;
+    // case LOC_SHAPE_WALL_DECOR_NOOFFSET:
+    //     elements_pushed = scenery_add_wall_decor_nooffset(
+    //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+    //     break;
+    // case LOC_SHAPE_WALL_DECOR_OFFSET:
+    //     elements_pushed = scenery_add_wall_decor_offset(
+    //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+    //     break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
+        out[0] = orientation;
+        return 1;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
+        out[0] = (orientation + 2) % 4;
+        return 1;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
+        out[0] = orientation;
+        out[1] = (orientation + 2) % 4;
+        return 2;
+    case LOC_SHAPE_WALL_DIAGONAL:
+    case LOC_SHAPE_SCENERY:
+    case LOC_SHAPE_SCENERY_DIAGIONAL:
+    case LOC_SHAPE_ROOF_SLOPED:
+    case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+    case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+    case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+    case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+    case LOC_SHAPE_ROOF_FLAT:
+    case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+    case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+    case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+    case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
+    case LOC_SHAPE_FLOOR_DECORATION:
+        out[0] = orientation;
+        return 1;
+    }
+
+    return 0;
+}
+
 static void
 scenery_add(
     struct SceneBuilder* scene_builder,
@@ -1192,10 +1242,10 @@ scenery_add(
         elements_pushed = scenery_add_wall_decor_diagonal_offset(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
         break;
-    // case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
-    //     elements_pushed = scenery_add_wall_decor_diagonal_nooffset(
-    //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-    //     break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
+        elements_pushed = scenery_add_wall_decor_diagonal_nooffset(
+            scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+        break;
     // case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
     //     elements_pushed = scenery_add_wall_decor_diagonal_double(
     //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
@@ -1228,6 +1278,8 @@ scenery_add(
         break;
     }
 
+    int orientations[2] = { 0 };
+    orientation_mirror(map_loc->shape_select, map_loc->orientation, orientations);
     for( int i = 0; i < elements_pushed; i++ )
     {
         int element_idx = scenery->elements_length - elements_pushed + i;
@@ -1235,7 +1287,7 @@ scenery_add(
 
         build_element = build_grid_element_at(scene_builder->build_grid, element_idx);
 
-        init_build_element_from_config_loc(build_element, config_loc, map_loc->orientation);
+        init_build_element_from_config_loc(build_element, config_loc, orientations[i]);
 
         scenery_set_wall_offsets(build_element, map_loc->shape_select);
     }

@@ -138,9 +138,9 @@ libg_game_new(struct GIOQueue* io)
     // z =
     // 8100
 
-    game->camera_world_x = 7616;
-    game->camera_world_y = -500;
-    game->camera_world_z = 8000;
+    game->camera_world_x = 12016;
+    game->camera_world_y = -800;
+    game->camera_world_z = 10000;
     game->camera_yaw = 0;
     game->camera_pitch = 128;
     game->camera_roll = 0;
@@ -177,7 +177,7 @@ libg_game_new(struct GIOQueue* io)
     memset(game->camera, 0, sizeof(struct DashCamera));
 
     game->position->x = 0;
-    game->position->y = 0;
+    game->position->y = 1000;
     game->position->z = 200;
     game->position->pitch = 0;
     game->position->yaw = 0;
