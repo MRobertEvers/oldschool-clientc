@@ -415,55 +415,6 @@ dash_position_from_offset_1x1(
     return dash_position_from_offset_wxh(offset, height_center, 1, 1);
 }
 
-// static struct DashModelNormals*
-// model_normals_new_copy(struct DashModelNormals* normals)
-// {
-//     struct DashModelNormals* aliased_normals = malloc(sizeof(struct DashModelNormals));
-//     memset(aliased_normals, 0, sizeof(struct DashModelNormals));
-
-//     int vertex_count = normals->lighting_vertex_normals_count;
-//     int face_count = normals->lighting_face_normals_count;
-
-//     aliased_normals->lighting_vertex_normals = malloc(sizeof(struct LightingNormal) *
-//     vertex_count); memcpy(
-//         aliased_normals->lighting_vertex_normals,
-//         normals->lighting_vertex_normals,
-//         sizeof(struct LightingNormal) * vertex_count);
-
-//     aliased_normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
-//     memcpy(
-//         aliased_normals->lighting_face_normals,
-//         normals->lighting_face_normals,
-//         sizeof(struct LightingNormal) * face_count);
-
-//     aliased_normals->lighting_vertex_normals_count = vertex_count;
-//     aliased_normals->lighting_face_normals_count = face_count;
-
-//     return aliased_normals;
-// }
-
-static void
-init_build_element_from_config_loc(
-    struct BuildElement* build_element,
-    struct CacheConfigLocation* config_loc,
-    struct TerrainGridOffsetFromSW* offset,
-    int orientation)
-{
-    build_element->size_x = config_loc->size_x;
-    build_element->size_z = config_loc->size_z;
-    build_element->wall_offset = config_loc->wall_width;
-    build_element->sharelight = config_loc->sharelight;
-    build_element->rotation = orientation;
-    build_element->light_ambient = config_loc->ambient;
-    build_element->light_attenuation = config_loc->contrast;
-    build_element->aliased_lighting_normals = NULL;
-    build_element->__config_loc = config_loc;
-
-    build_element->sx = offset->x;
-    build_element->sz = offset->z;
-    build_element->slevel = offset->level;
-}
-
 static void
 scenery_set_wall_offsets(
     struct BuildElement* build_element,
@@ -529,12 +480,10 @@ scenery_add_wall_single(
 
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
     dash_model = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        map_loc->shape_select,
-        map_loc->orientation,
-        tile_heights);
+        config_loc, scene_builder->models_hmap, map_loc->shape_select, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -555,7 +504,16 @@ scenery_add_wall_single(
         offset->level,
         element_id,
         WALL_A,
-        ROTATION_WALL_TYPE[map_loc->orientation]);
+        ROTATION_WALL_TYPE[orientation]);
+
+    /**
+     * Build grid
+     */
+    build_grid_tile_add_wall(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_id);
+
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
 
     return 1;
 }
@@ -575,12 +533,10 @@ scenery_add_wall_tri_corner(
 
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
     dash_model = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        map_loc->shape_select,
-        map_loc->orientation,
-        tile_heights);
+        config_loc, scene_builder->models_hmap, map_loc->shape_select, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -597,7 +553,13 @@ scenery_add_wall_tri_corner(
         offset->level,
         element_id,
         WALL_A,
-        ROTATION_WALL_CORNER_TYPE[map_loc->orientation]);
+        ROTATION_WALL_CORNER_TYPE[orientation]);
+
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
 
     return 1;
 }
@@ -672,6 +634,17 @@ scenery_add_wall_two_sides(
         WALL_B,
         ROTATION_WALL_TYPE[next_orientation]);
 
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_one_id, config_loc, offset, map_loc->orientation, 1, 1);
+    build_grid_set_element(
+        scene_builder->build_grid, element_two_id, config_loc, offset, next_orientation, 1, 1);
+
+    build_grid_tile_add_wall(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_one_id);
+
     return 2;
 }
 
@@ -689,12 +662,10 @@ scenery_add_wall_rect_corner(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
     dash_model = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        LOC_SHAPE_WALL_RECT_CORNER,
-        map_loc->orientation,
-        tile_heights);
+        config_loc, scene_builder->models_hmap, LOC_SHAPE_WALL_RECT_CORNER, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -711,7 +682,13 @@ scenery_add_wall_rect_corner(
         offset->level,
         element_id,
         WALL_A,
-        ROTATION_WALL_CORNER_TYPE[map_loc->orientation]);
+        ROTATION_WALL_CORNER_TYPE[orientation]);
+
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
 
     return 1;
 }
@@ -730,11 +707,14 @@ scenery_add_wall_decor_inside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
+
     dash_model = load_model(
         config_loc,
         scene_builder->models_hmap,
         LOC_SHAPE_WALL_DECOR_INSIDE,
-        map_loc->orientation,
+        rotation,
         tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
@@ -752,8 +732,16 @@ scenery_add_wall_decor_inside(
         offset->level,
         element_id,
         WALL_A,
-        ROTATION_WALL_TYPE[map_loc->orientation],
+        ROTATION_WALL_TYPE[orientation],
         0);
+
+    /**
+     *  Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
+
+    build_grid_set_decor(scene_builder->build_grid, element_id, DECOR_DISPLACEMENT_KIND_STRAIGHT);
 
     return 1;
 }
@@ -772,12 +760,14 @@ scenery_add_wall_decor_outside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
     dash_model = load_model(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
-        map_loc->orientation,
+        rotation,
         tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
@@ -795,8 +785,17 @@ scenery_add_wall_decor_outside(
         offset->level,
         element_id,
         WALL_A,
-        ROTATION_WALL_TYPE[map_loc->orientation],
+        ROTATION_WALL_TYPE[orientation],
         0);
+
+    /**
+     *  Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
+
+    build_grid_set_decor(
+        scene_builder->build_grid, element_id, DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET);
 
     return 1;
 }
@@ -816,15 +815,15 @@ scenery_add_wall_decor_diagonal_outside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
-    orientation = (orientation) & 0x3;
 
     dash_model = load_model(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
-        map_loc->orientation,
+        rotation,
         tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
@@ -854,6 +853,15 @@ scenery_add_wall_decor_diagonal_outside(
         ROTATION_WALL_CORNER_TYPE[orientation],
         THROUGHWALL);
 
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
+
+    build_grid_set_decor(
+        scene_builder->build_grid, element_id, DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
+
     return 1;
 }
 
@@ -872,12 +880,15 @@ scenery_add_wall_decor_diagonal_inside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
+
     dash_model = load_model(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
-        map_loc->orientation,
+        rotation,
         // 0,
         tile_heights);
 
@@ -887,7 +898,7 @@ scenery_add_wall_decor_diagonal_inside(
     scene_element.dash_position = dash_position;
     // scene_model->yaw = 512 * orientation;
     // scene_model->yaw %= 2048;
-    scene_element.dash_position->yaw = 512 * (map_loc->orientation);
+    scene_element.dash_position->yaw = 512 * (orientation);
     scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE;
     scene_element.dash_position->yaw %= 2048;
 
@@ -901,8 +912,16 @@ scenery_add_wall_decor_diagonal_inside(
         offset->level,
         element_id,
         WALL_A,
-        ROTATION_WALL_CORNER_TYPE[map_loc->orientation],
+        ROTATION_WALL_CORNER_TYPE[orientation],
         0);
+
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, (orientation + 2) & 0x3, 1, 1);
+
+    build_grid_set_decor(scene_builder->build_grid, element_id, DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
     return 1;
 }
@@ -986,6 +1005,20 @@ scenery_add_wall_decor_diagonal_double(
         ROTATION_WALL_CORNER_TYPE[inside_orientation],
         THROUGHWALL);
 
+    /**
+     *
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_one_id, config_loc, offset, outside_orientation, 1, 1);
+
+    build_grid_set_element(
+        scene_builder->build_grid, element_two_id, config_loc, offset, inside_orientation, 1, 1);
+
+    build_grid_set_decor(
+        scene_builder->build_grid, element_one_id, DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
+    build_grid_set_decor(
+        scene_builder->build_grid, element_two_id, DECOR_DISPLACEMENT_KIND_DIAGONAL);
+
     return 2;
 }
 
@@ -1021,6 +1054,15 @@ scenery_add_wall_diagonal(
     painter_add_normal_scenery(
         scene_builder->painter, offset->x, offset->z, offset->level, element_id, 1, 1);
 
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, map_loc->orientation, 1, 1);
+
+    build_grid_tile_add_wall(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_id);
+
     return 1;
 }
 
@@ -1047,12 +1089,11 @@ scenery_add_normal(
         size_z = temp;
     }
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
+
     dash_model = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        LOC_SHAPE_SCENERY,
-        map_loc->orientation,
-        tile_heights);
+        config_loc, scene_builder->models_hmap, LOC_SHAPE_SCENERY, rotation, tile_heights);
 
     dash_position =
         dash_position_from_offset_wxh(offset, tile_heights->height_center, size_x, size_z);
@@ -1067,6 +1108,12 @@ scenery_add_normal(
 
     painter_add_normal_scenery(
         scene_builder->painter, offset->x, offset->z, offset->level, element_id, size_x, size_z);
+
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, size_x, size_z);
 
     return 1;
 }
@@ -1085,12 +1132,11 @@ scenery_add_roof(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
+
     dash_model = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        map_loc->shape_select,
-        map_loc->orientation,
-        tile_heights);
+        config_loc, scene_builder->models_hmap, map_loc->shape_select, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -1102,6 +1148,12 @@ scenery_add_roof(
 
     painter_add_normal_scenery(
         scene_builder->painter, offset->x, offset->z, offset->level, element_id, 1, 1);
+
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
 
     return 1;
 }
@@ -1120,12 +1172,10 @@ scenery_add_floor_decoration(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
+    int rotation = map_loc->orientation;
+    int orientation = map_loc->orientation;
     dash_model = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        map_loc->shape_select,
-        map_loc->orientation,
-        tile_heights);
+        config_loc, scene_builder->models_hmap, map_loc->shape_select, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -1138,59 +1188,65 @@ scenery_add_floor_decoration(
     painter_add_ground_decor(
         scene_builder->painter, offset->x, offset->z, offset->level, element_id);
 
+    /**
+     * Build grid
+     */
+    build_grid_set_element(
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
+
     return 1;
 }
 
-static int
-orientation_mirror(
-    int shape_select,
-    int orientation,
-    int* out)
-{
-    switch( shape_select )
-    {
-    case LOC_SHAPE_WALL_SINGLE_SIDE:
-    case LOC_SHAPE_WALL_TRI_CORNER:
-    case LOC_SHAPE_WALL_TWO_SIDES:
-    case LOC_SHAPE_WALL_RECT_CORNER:
-        out[0] = orientation;
-        return 1;
-    case LOC_SHAPE_WALL_DECOR_INSIDE:
-        out[0] = orientation;
-        return 1;
-    case LOC_SHAPE_WALL_DECOR_OUTSIDE:
-        out[0] = orientation;
-        return 1;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
-        out[0] = orientation;
-        return 1;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
-        out[0] = (orientation + 2) % 4;
-        return 1;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
-        out[0] = orientation;
-        out[1] = (orientation + 2) % 4;
-        return 2;
-    case LOC_SHAPE_WALL_DIAGONAL:
-    case LOC_SHAPE_SCENERY:
-    case LOC_SHAPE_SCENERY_DIAGIONAL:
-    case LOC_SHAPE_ROOF_SLOPED:
-    case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
-    case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
-    case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
-    case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
-    case LOC_SHAPE_ROOF_FLAT:
-    case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
-    case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
-    case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
-    case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
-    case LOC_SHAPE_FLOOR_DECORATION:
-        out[0] = orientation;
-        return 1;
-    }
+// static int
+// orientation_mirror(
+//     int shape_select,
+//     int orientation,
+//     int* out)
+// {
+//     switch( shape_select )
+//     {
+//     case LOC_SHAPE_WALL_SINGLE_SIDE:
+//     case LOC_SHAPE_WALL_TRI_CORNER:
+//     case LOC_SHAPE_WALL_TWO_SIDES:
+//     case LOC_SHAPE_WALL_RECT_CORNER:
+//         out[0] = orientation;
+//         return 1;
+//     case LOC_SHAPE_WALL_DECOR_INSIDE:
+//         out[0] = orientation;
+//         return 1;
+//     case LOC_SHAPE_WALL_DECOR_OUTSIDE:
+//         out[0] = orientation;
+//         return 1;
+//     case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
+//         out[0] = orientation;
+//         return 1;
+//     case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
+//         out[0] = (orientation + 2) % 4;
+//         return 1;
+//     case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
+//         out[0] = orientation;
+//         out[1] = (orientation + 2) % 4;
+//         return 2;
+//     case LOC_SHAPE_WALL_DIAGONAL:
+//     case LOC_SHAPE_SCENERY:
+//     case LOC_SHAPE_SCENERY_DIAGIONAL:
+//     case LOC_SHAPE_ROOF_SLOPED:
+//     case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+//     case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+//     case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+//     case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+//     case LOC_SHAPE_ROOF_FLAT:
+//     case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+//     case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+//     case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+//     case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
+//     case LOC_SHAPE_FLOOR_DECORATION:
+//         out[0] = orientation;
+//         return 1;
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
 static void
 scenery_add(
@@ -1208,8 +1264,6 @@ scenery_add(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneSceneryTile* scenery_tile = NULL;
-    struct BuildTile* build_tile = NULL;
-    struct BuildElement* build_element = NULL;
     int elements_pushed = 0;
 
     config_loc = (struct CacheConfigLocation*)configmap_get(
@@ -1225,8 +1279,6 @@ scenery_add(
         map_loc->chunk_pos_level,
         &offset);
 
-    build_tile = build_grid_tile_at(scene_builder->build_grid, offset.x, offset.z, offset.level);
-
     tile_heights_at(
         terrain_grid,
         mapx,
@@ -1241,10 +1293,6 @@ scenery_add(
     case LOC_SHAPE_WALL_SINGLE_SIDE:
         elements_pushed = scenery_add_wall_single(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-        if( elements_pushed > 0 )
-        {
-            build_tile->wall_element_idx = scenery->elements_length - 1;
-        }
         break;
     case LOC_SHAPE_WALL_TRI_CORNER:
         elements_pushed = scenery_add_wall_tri_corner(
@@ -1253,10 +1301,6 @@ scenery_add(
     case LOC_SHAPE_WALL_TWO_SIDES:
         elements_pushed = scenery_add_wall_two_sides(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-        if( elements_pushed > 0 )
-        {
-            build_tile->wall_element_idx = scenery->elements_length - 1;
-        }
         break;
     case LOC_SHAPE_WALL_RECT_CORNER:
         elements_pushed = scenery_add_wall_rect_corner(
@@ -1285,16 +1329,11 @@ scenery_add(
     case LOC_SHAPE_WALL_DIAGONAL:
         elements_pushed = scenery_add_wall_diagonal(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-        if( elements_pushed > 0 )
-        {
-            build_tile->wall_element_idx = scenery->elements_length - 1;
-        }
         break;
     case LOC_SHAPE_SCENERY:
     case LOC_SHAPE_SCENERY_DIAGIONAL:
         elements_pushed =
             scenery_add_normal(scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-
         break;
     case LOC_SHAPE_ROOF_SLOPED:
     case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
@@ -1313,22 +1352,6 @@ scenery_add(
         elements_pushed = scenery_add_floor_decoration(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
         break;
-    }
-
-    int orientations[2] = { 0 };
-    orientation_mirror(map_loc->shape_select, map_loc->orientation, orientations);
-    for( int i = 0; i < elements_pushed; i++ )
-    {
-        int element_idx = scenery->elements_length - elements_pushed + i;
-        scene_element = scene_element_at(scenery, element_idx);
-
-        build_element = build_grid_element_at(scene_builder->build_grid, element_idx);
-
-        init_build_element_from_config_loc(build_element, config_loc, &offset, orientations[i]);
-
-        // diagonal does outside first.
-        int inside = i != 0;
-        scenery_set_wall_offsets(build_element, map_loc->shape_select, inside);
     }
 }
 

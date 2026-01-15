@@ -50,8 +50,39 @@ render_imgui(
     //     "Hover loc: %d, %d, %d", game->hover_loc_x, game->hover_loc_y, game->hover_loc_level);
 
     // Camera position with copy button
+    char camera_pos_text[256];
+    snprintf(
+        camera_pos_text,
+        sizeof(camera_pos_text),
+        "Camera (x, y, z): %d, %d, %d : %d, %d",
+        game->camera_world_x,
+        game->camera_world_y,
+        game->camera_world_z,
+        game->camera_world_x / 128,
+        game->camera_world_z / 128);
+    ImGui::Text("%s", camera_pos_text);
+    ImGui::SameLine();
+    if( ImGui::SmallButton("Copy##pos") )
+    {
+        ImGui::SetClipboardText(camera_pos_text);
+    }
 
     // Camera rotation with copy button
+    char camera_rot_text[256];
+    snprintf(
+        camera_rot_text,
+        sizeof(camera_rot_text),
+        "Camera (pitch, yaw, roll): %d, %d, %d",
+        game->camera_pitch,
+        game->camera_yaw,
+        game->camera_roll);
+    ImGui::Text("%s", camera_rot_text);
+    ImGui::SameLine();
+    if( ImGui::SmallButton("Copy##rot") )
+    {
+        ImGui::SetClipboardText(camera_rot_text);
+    }
+
     // Add camera speed slider
     ImGui::Separator();
     ImGui::End();

@@ -8,6 +8,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// clang-format off
+#include "terrain_grid.u.c"
+// clang-format on
+
+#define BUILDGRID_WALL_A 0
+#define BUILDGRID_WALL_B 1
+
 enum DecorDisplacementKind
 {
     DECOR_DISPLACEMENT_KIND_NONE = 0,
@@ -176,4 +183,54 @@ build_grid_tile_at(
     return &build_grid->tiles[index];
 }
 
+static void
+build_grid_set_element(
+    struct BuildGrid* build_grid,
+    int element_idx,
+    struct CacheConfigLocation* config_loc,
+    struct TerrainGridOffsetFromSW* offset,
+    int orientation,
+    int size_x,
+    int size_z)
+{
+    struct BuildElement* build_element = build_grid_element_at(build_grid, element_idx);
+
+    build_element->size_x = size_x;
+    build_element->size_z = size_z;
+    build_element->wall_offset = config_loc->wall_width;
+    build_element->sharelight = config_loc->sharelight;
+    build_element->rotation = orientation;
+    build_element->light_ambient = config_loc->ambient;
+    build_element->light_attenuation = config_loc->contrast;
+    build_element->aliased_lighting_normals = NULL;
+
+    build_element->sx = offset->x;
+    build_element->sz = offset->z;
+    build_element->slevel = offset->level;
+
+    build_element->__config_loc = config_loc;
+}
+
+static void
+build_grid_set_decor(
+    struct BuildGrid* build_grid,
+    int element_idx,
+    enum DecorDisplacementKind decor_displacement_kind)
+{
+    struct BuildElement* build_element = build_grid_element_at(build_grid, element_idx);
+    build_element->decor_displacement_kind = decor_displacement_kind;
+}
+
+static void
+build_grid_tile_add_wall(
+    struct BuildGrid* build_grid,
+    int sx,
+    int sz,
+    int slevel,
+    int wall_ab,
+    int wall_element_idx)
+{
+    struct BuildTile* tile = build_grid_tile_at(build_grid, sx, sz, slevel);
+    tile->wall_element_idx = wall_element_idx;
+}
 #endif
