@@ -129,6 +129,7 @@ struct DashModel
     int* face_texture_coords;
 
     struct DashModelNormals* normals;
+
     struct DashModelLighting* lighting;
     struct DashModelBones* vertex_bones;
     struct DashModelBones* face_bones;
@@ -221,6 +222,9 @@ struct DashModelNormals* //
 dashmodel_normals_new(
     int vertex_count,
     int face_count);
+
+struct DashModelNormals* //
+dashmodel_normals_new_copy(struct DashModelNormals* normals);
 
 struct DashModelLighting* //
 dashmodel_lighting_new(int face_count);

@@ -15,7 +15,9 @@ int g_reciprocal16[4096];
 int g_reciprocal16_simd[8192];
 
 int
-pix3d_set_gamma(int rgb, double gamma)
+pix3d_set_gamma(
+    int rgb,
+    double gamma)
 {
     double r = (double)(rgb >> 16) / 256.0;
     double g = (double)(rgb >> 8 & 0xff) / 256.0;
@@ -30,7 +32,9 @@ pix3d_set_gamma(int rgb, double gamma)
 }
 
 static void
-pix3d_init_palette(int* palette, double brightness)
+pix3d_init_palette(
+    int* palette,
+    double brightness)
 {
     double random_brightness = brightness;
     int offset = 0;

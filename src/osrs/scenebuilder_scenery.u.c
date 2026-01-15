@@ -5,9 +5,13 @@
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
 #include "model_transforms.h"
+#include "osrs/tables/config_locs.h"
+#include "painters.h"
+#include "scene.h"
 #include "tables/model.h"
 
 // clang-format off
+#include "scenebuilder.u.c"
 #include "terrain_grid.u.c"
 // clang-format on
 
@@ -379,6 +383,29 @@ dash_position_from_offset_1x1(
 }
 
 static void
+init_element_from_config_loc(
+    struct SceneElement* scene_element,
+    struct TerrainGridOffsetFromSW* offset,
+    struct TileHeights* tile_heights,
+    struct CacheConfigLocation* config_loc)
+{
+    memset(scene_element, 0, sizeof(struct SceneElement));
+
+    scene_element->light_ambient = config_loc->ambient;
+    scene_element->light_attenuation = config_loc->contrast;
+
+    scene_element->sharelight = config_loc->sharelight;
+    scene_element->wall_offset = config_loc->wall_width;
+    scene_element->size_x = config_loc->size_x;
+    scene_element->size_z = config_loc->size_z;
+
+    scene_element->sx = offset->x;
+    scene_element->sz = offset->z;
+    scene_element->slevel = offset->level;
+    scene_element->height_center = tile_heights->height_center;
+}
+
+static void
 scenery_add_wall_single(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
@@ -390,6 +417,8 @@ scenery_add_wall_single(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element;
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
+
     int element_id = -1;
 
     dash_model = load_model(
@@ -405,6 +434,7 @@ scenery_add_wall_single(
     scene_element.dash_position = dash_position;
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
+
     assert(element_id != -1);
 
     painter_add_wall(
@@ -429,6 +459,8 @@ scenery_add_wall_tri_corner(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element;
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
+
     int element_id = -1;
 
     dash_model = load_model(
@@ -470,6 +502,7 @@ scenery_add_wall_two_sides(
     struct DashPosition* dash_position_one = NULL;
     struct DashPosition* dash_position_two = NULL;
     struct SceneElement scene_element;
+
     int element_one_id = -1;
     int element_two_id = -1;
 
@@ -484,6 +517,7 @@ scenery_add_wall_two_sides(
 
     dash_position_one = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     scene_element.dash_model = dash_model_one;
     scene_element.dash_position = dash_position_one;
 
@@ -499,8 +533,10 @@ scenery_add_wall_two_sides(
 
     dash_position_two = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     scene_element.dash_model = dash_model_two;
     scene_element.dash_position = dash_position_two;
+
     element_two_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_two_id != -1);
 
@@ -535,6 +571,7 @@ scenery_add_wall_rect_corner(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element;
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     int element_id = -1;
 
     dash_model = load_model(
@@ -574,6 +611,7 @@ scenery_add_wall_decor_nooffset(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element;
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     int element_id = -1;
 
     dash_model = load_model(
@@ -614,6 +652,7 @@ scenery_add_wall_decor_offset(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element;
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     int element_id = -1;
 
     dash_model = load_model(
@@ -655,6 +694,7 @@ scenery_add_wall_decor_diagonal_offset(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element;
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     int element_id = -1;
 
     int orientation = map_loc->orientation;
@@ -699,6 +739,7 @@ scenery_add_wall_decor_diagonal_nooffset(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element;
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     int element_id = -1;
 
     dash_model = load_model(
@@ -711,6 +752,7 @@ scenery_add_wall_decor_diagonal_nooffset(
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
 
@@ -758,6 +800,7 @@ scenery_add_wall_decor_diagonal_double(
 
     dash_position_one = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     scene_element.dash_model = dash_model_one;
     scene_element.dash_position = dash_position_one;
 
@@ -774,6 +817,7 @@ scenery_add_wall_decor_diagonal_double(
 
     dash_position_two = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     scene_element.dash_model = dash_model_two;
     scene_element.dash_position = dash_position_two;
 
@@ -824,6 +868,7 @@ scenery_add_wall_diagonal(
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
 
@@ -867,6 +912,7 @@ scenery_add_normal(
     dash_position =
         dash_position_from_offset_wxh(offset, tile_heights->height_center, size_x, size_z);
 
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
 
@@ -900,6 +946,7 @@ scenery_add_roof(
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
+    init_element_from_config_loc(&scene_element, offset, tile_heights, config_loc);
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
 
@@ -954,11 +1001,11 @@ scenery_add(
 {
     struct CacheConfigLocation* config_loc = NULL;
     struct TileHeights tile_heights;
-    struct SceneElement scene_element;
+    struct SceneElement* scene_element = NULL;
     struct TerrainGridOffsetFromSW offset;
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
-    int element_id = -1;
+    struct SceneSceneryTile* scenery_tile = NULL;
 
     config_loc = (struct CacheConfigLocation*)configmap_get(
         scene_builder->config_locs_configmap, map_loc->loc_id);
@@ -987,6 +1034,9 @@ scenery_add(
     case LOC_SHAPE_WALL_SINGLE_SIDE:
         scenery_add_wall_single(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+
+        scenery_tile = scene_scenery_tile_at(scenery, offset.x, offset.z, offset.level);
+        scenery_tile->wall_a_element_idx = scenery->elements_length - 1;
         break;
     case LOC_SHAPE_WALL_TRI_CORNER:
         scenery_add_wall_tri_corner(

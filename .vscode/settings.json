@@ -203,6 +203,7 @@
         "palette.h": "c",
         "chrono": "c",
         "random": "c",
-        "dashmap.h": "c"
+        "dashmap.h": "c",
+        "texture.h": "c"
     }
 }

@@ -1345,6 +1345,22 @@ dashmodel_normals_new(
     return normals;
 }
 
+struct DashModelNormals* //
+dashmodel_normals_new_copy(struct DashModelNormals* normals)
+{
+    struct DashModelNormals* aliased_normals = dashmodel_normals_new(
+        normals->lighting_vertex_normals_count, normals->lighting_face_normals_count);
+    memcpy(
+        aliased_normals->lighting_vertex_normals,
+        normals->lighting_vertex_normals,
+        sizeof(struct LightingNormal) * normals->lighting_vertex_normals_count);
+    memcpy(
+        aliased_normals->lighting_face_normals,
+        normals->lighting_face_normals,
+        sizeof(struct LightingNormal) * normals->lighting_face_normals_count);
+    return aliased_normals;
+}
+
 struct DashModelLighting*
 dashmodel_lighting_new(int face_count)
 {

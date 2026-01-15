@@ -5,13 +5,35 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void
+init_scenery_tile(struct SceneSceneryTile* tile)
+{
+    memset(tile, 0, sizeof(struct SceneSceneryTile));
+
+    tile->wall_a_element_idx = -1;
+    tile->wall_b_element_idx = -1;
+}
+
 static struct SceneScenery*
-scene_scenery_new(int element_count_hint)
+scene_scenery_new(
+    int tile_width_x,
+    int tile_width_z,
+    int element_count_hint)
 {
     struct SceneScenery* scenery = (struct SceneScenery*)malloc(sizeof(struct SceneScenery));
     memset(scenery, 0, sizeof(struct SceneScenery));
     scenery->elements = malloc(element_count_hint * sizeof(struct SceneElement));
     scenery->elements_capacity = element_count_hint;
+    memset(scenery->elements, 0, element_count_hint * sizeof(struct SceneElement));
+
+    int tile_count = tile_width_x * tile_width_z * MAP_TERRAIN_LEVELS;
+
+    scenery->tiles = malloc(tile_count * sizeof(struct SceneSceneryTile));
+    for( int i = 0; i < tile_count; i++ )
+        init_scenery_tile(&scenery->tiles[i]);
+
+    scenery->tile_width_x = tile_width_x;
+    scenery->tile_width_z = tile_width_z;
     return scenery;
 }
 
@@ -60,7 +82,10 @@ scene_new(
     struct Scene* scene = (struct Scene*)malloc(sizeof(struct Scene));
     memset(scene, 0, sizeof(struct Scene));
 
-    scene->scenery = scene_scenery_new(element_count_hint);
+    scene->tile_width_x = tile_width_x;
+    scene->tile_width_z = tile_width_z;
+
+    scene->scenery = scene_scenery_new(tile_width_x, tile_width_z, element_count_hint);
     scene->terrain = scene_terrain_new_sized(tile_width_x, tile_width_z);
 
     return scene;
@@ -96,14 +121,32 @@ scene_scenery_push_element_move(
         scenery->elements =
             realloc(scenery->elements, scenery->elements_capacity * sizeof(struct SceneElement));
     }
-    scenery->elements[scenery->elements_length] = *element;
-
-    element->id = scenery->elements_length;
+    memcpy(&scenery->elements[scenery->elements_length], element, sizeof(struct SceneElement));
+    scenery->elements[scenery->elements_length].id = scenery->elements_length;
     scenery->elements_length++;
 
-    memset(element, 0, sizeof(struct SceneElement));
-
     return scenery->elements_length - 1;
+}
+
+struct SceneSceneryTile*
+scene_scenery_tile_at(
+    struct SceneScenery* scenery,
+    int sx,
+    int sz,
+    int slevel)
+{
+    int index =
+        sx + sz * scenery->tile_width_x + slevel * scenery->tile_width_x * scenery->tile_width_z;
+    return &scenery->tiles[index];
+}
+
+struct SceneElement*
+scene_element_at(
+    struct SceneScenery* scenery,
+    int element_idx)
+{
+    assert(element_idx >= 0 && element_idx < scenery->elements_length);
+    return &scenery->elements[element_idx];
 }
 
 struct DashModel*

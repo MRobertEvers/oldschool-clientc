@@ -16,6 +16,7 @@
         },
         {
             "name": "Mac",
+            "compilerPath": "/usr/bin/clang",
             "includePath": [
                 "${workspaceFolder}/**",
                 "/opt/homebrew/include/SDL2"
