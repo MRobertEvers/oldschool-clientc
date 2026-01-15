@@ -667,7 +667,7 @@
 //             }
 //         }
 //         break;
-//         case LOC_SHAPE_WALL_DECOR_NOOFFSET:
+//         case LOC_SHAPE_WALL_DECOR_INSIDE:
 //         {
 //             int model_index = vec_model_push(scene);
 //             scene_model = vec_model_back(scene);
@@ -677,7 +677,7 @@
 //                 cache,
 //                 model_cache,
 //                 config_sequence_table,
-//                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
+//                 LOC_SHAPE_WALL_DECOR_INSIDE,
 //                 map->orientation,
 //                 height_sw,
 //                 height_se,
@@ -700,7 +700,7 @@
 //             grid_tile->wall_decor = loc_index;
 //         }
 //         break;
-//         case LOC_SHAPE_WALL_DECOR_OFFSET:
+//         case LOC_SHAPE_WALL_DECOR_OUTSIDE:
 //         {
 //             int model_index = vec_model_push(scene);
 //             scene_model = vec_model_back(scene);
@@ -710,7 +710,7 @@
 //                 cache,
 //                 model_cache,
 //                 config_sequence_table,
-//                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
+//                 LOC_SHAPE_WALL_DECOR_INSIDE,
 //                 map->orientation,
 //                 height_sw,
 //                 height_se,
@@ -748,7 +748,7 @@
 //             grid_tile->wall_decor = loc_index;
 //         }
 //         break;
-//         case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
+//         case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
 //         {
 //             int model_index = vec_model_push(scene);
 //             scene_model = vec_model_back(scene);
@@ -758,7 +758,7 @@
 //                 cache,
 //                 model_cache,
 //                 config_sequence_table,
-//                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
+//                 LOC_SHAPE_WALL_DECOR_INSIDE,
 //                 map->orientation,
 //                 height_sw,
 //                 height_se,
@@ -797,7 +797,7 @@
 //             grid_tile->wall_decor = loc_index;
 //         }
 //         break;
-//         case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
+//         case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
 //         {
 //             int model_index = vec_model_push(scene);
 //             scene_model = vec_model_back(scene);
@@ -809,7 +809,7 @@
 //                 cache,
 //                 model_cache,
 //                 config_sequence_table,
-//                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
+//                 LOC_SHAPE_WALL_DECOR_INSIDE,
 //                 map->orientation + 3,
 //                 height_sw,
 //                 height_se,
@@ -855,7 +855,7 @@
 //                 cache,
 //                 model_cache,
 //                 config_sequence_table,
-//                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
+//                 LOC_SHAPE_WALL_DECOR_INSIDE,
 //                 outside_orientation + 1,
 //                 height_sw,
 //                 height_se,
@@ -883,7 +883,7 @@
 //                 cache,
 //                 model_cache,
 //                 config_sequence_table,
-//                 LOC_SHAPE_WALL_DECOR_NOOFFSET,
+//                 LOC_SHAPE_WALL_DECOR_INSIDE,
 //                 inside_orientation,
 //                 height_sw,
 //                 height_se,

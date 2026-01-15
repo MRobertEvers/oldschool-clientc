@@ -97,7 +97,7 @@ texture_new_from_definition(
                 alpha = 0;
                 opaque = false;
             }
-            adjusted_palette[pi] = (alpha << 24) | gamma_blend(palette[pi], 1.0f);
+            adjusted_palette[pi] = (alpha << 24) | gamma_blend(palette[pi], 0.8f);
         }
 
         // Determine sprite type index

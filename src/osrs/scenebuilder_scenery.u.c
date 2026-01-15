@@ -174,7 +174,7 @@ load_model(
     struct CacheConfigLocation* loc_config,
     struct DashMap* models_hmap,
     int shape_select,
-    int orientation,
+    int rotation,
     struct TileHeights* tile_heights)
 {
     struct ModelEntry* model_entry = NULL;
@@ -287,13 +287,13 @@ load_model(
 
         // scene_model->yaw = 512 * orientation;
         // scene_model->yaw %= 2048;
-        orientation = 0;
+        rotation = 0;
     }
 
     apply_transforms(
         loc_config,
         model,
-        orientation,
+        rotation,
         tile_heights->sw_height,
         tile_heights->se_height,
         tile_heights->ne_height,
@@ -446,6 +446,7 @@ static void
 init_build_element_from_config_loc(
     struct BuildElement* build_element,
     struct CacheConfigLocation* config_loc,
+    struct TerrainGridOffsetFromSW* offset,
     int orientation)
 {
     build_element->size_x = config_loc->size_x;
@@ -456,13 +457,21 @@ init_build_element_from_config_loc(
     build_element->light_ambient = config_loc->ambient;
     build_element->light_attenuation = config_loc->contrast;
     build_element->aliased_lighting_normals = NULL;
+    build_element->__config_loc = config_loc;
+
+    build_element->sx = offset->x;
+    build_element->sz = offset->z;
+    build_element->slevel = offset->level;
 }
 
 static void
 scenery_set_wall_offsets(
     struct BuildElement* build_element,
-    int shape_select)
+    int shape_select,
+    int inside)
 {
+    build_element->decor_displacement_kind = DECOR_DISPLACEMENT_KIND_NONE;
+
     switch( shape_select )
     {
     case LOC_SHAPE_WALL_SINGLE_SIDE:
@@ -470,14 +479,22 @@ scenery_set_wall_offsets(
     case LOC_SHAPE_WALL_TWO_SIDES:
     case LOC_SHAPE_WALL_RECT_CORNER:
         break;
-    case LOC_SHAPE_WALL_DECOR_NOOFFSET:
-    case LOC_SHAPE_WALL_DECOR_OFFSET:
-        build_element->wall_offset_type = WALL_OFFSET_TYPE_STRAIGHT;
+    case LOC_SHAPE_WALL_DECOR_INSIDE:
+        build_element->decor_displacement_kind = DECOR_DISPLACEMENT_KIND_STRAIGHT;
         break;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
+    case LOC_SHAPE_WALL_DECOR_OUTSIDE:
+        build_element->decor_displacement_kind = DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET;
+        break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
+        build_element->decor_displacement_kind = DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET;
+        break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
+        build_element->decor_displacement_kind = DECOR_DISPLACEMENT_KIND_DIAGONAL;
+        break;
     case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
-        build_element->wall_offset_type = WALL_OFFSET_TYPE_DIAGONAL;
+        build_element->decor_displacement_kind =
+            inside ? DECOR_DISPLACEMENT_KIND_DIAGONAL
+                   : DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET;
         break;
     case LOC_SHAPE_WALL_DIAGONAL:
     case LOC_SHAPE_SCENERY:
@@ -700,7 +717,7 @@ scenery_add_wall_rect_corner(
 }
 
 static int
-scenery_add_wall_decor_nooffset(
+scenery_add_wall_decor_inside(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
@@ -716,7 +733,7 @@ scenery_add_wall_decor_nooffset(
     dash_model = load_model(
         config_loc,
         scene_builder->models_hmap,
-        LOC_SHAPE_WALL_DECOR_NOOFFSET,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
         map_loc->orientation,
         tile_heights);
 
@@ -742,7 +759,7 @@ scenery_add_wall_decor_nooffset(
 }
 
 static int
-scenery_add_wall_decor_offset(
+scenery_add_wall_decor_outside(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
@@ -759,7 +776,7 @@ scenery_add_wall_decor_offset(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
-        LOC_SHAPE_WALL_DECOR_NOOFFSET,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
         map_loc->orientation,
         tile_heights);
 
@@ -786,7 +803,7 @@ scenery_add_wall_decor_offset(
 
 // Lumbridge shield
 static int
-scenery_add_wall_decor_diagonal_offset(
+scenery_add_wall_decor_diagonal_outside(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
@@ -806,7 +823,7 @@ scenery_add_wall_decor_diagonal_offset(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
-        LOC_SHAPE_WALL_DECOR_NOOFFSET,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
         map_loc->orientation,
         tile_heights);
 
@@ -842,7 +859,7 @@ scenery_add_wall_decor_diagonal_offset(
 
 // Lumbridge sconce
 static int
-scenery_add_wall_decor_diagonal_nooffset(
+scenery_add_wall_decor_diagonal_inside(
     struct SceneBuilder* scene_builder,
     struct TerrainGridOffsetFromSW* offset,
     struct TileHeights* tile_heights,
@@ -859,7 +876,7 @@ scenery_add_wall_decor_diagonal_nooffset(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
-        LOC_SHAPE_WALL_DECOR_NOOFFSET,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
         map_loc->orientation,
         // 0,
         tile_heights);
@@ -890,6 +907,7 @@ scenery_add_wall_decor_diagonal_nooffset(
     return 1;
 }
 
+// lumbridge windows in castle courtyard walls
 static int
 scenery_add_wall_decor_diagonal_double(
     struct SceneBuilder* scene_builder,
@@ -914,14 +932,17 @@ scenery_add_wall_decor_diagonal_double(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
-        LOC_SHAPE_WALL_DECOR_NOOFFSET,
-        outside_orientation + 1,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
+        outside_orientation,
         tile_heights);
 
     dash_position_one = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
     scene_element.dash_model = dash_model_one;
     scene_element.dash_position = dash_position_one;
+
+    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
+    scene_element.dash_position->yaw %= 2048;
 
     element_one_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_one_id != -1);
@@ -930,7 +951,7 @@ scenery_add_wall_decor_diagonal_double(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
-        LOC_SHAPE_WALL_DECOR_NOOFFSET,
+        LOC_SHAPE_WALL_DECOR_INSIDE,
         inside_orientation,
         tile_heights);
 
@@ -938,6 +959,9 @@ scenery_add_wall_decor_diagonal_double(
 
     scene_element.dash_model = dash_model_two;
     scene_element.dash_position = dash_position_two;
+
+    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
+    scene_element.dash_position->yaw %= 2048;
 
     element_two_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_two_id != -1);
@@ -1131,18 +1155,16 @@ orientation_mirror(
     case LOC_SHAPE_WALL_RECT_CORNER:
         out[0] = orientation;
         return 1;
-    // case LOC_SHAPE_WALL_DECOR_NOOFFSET:
-    //     elements_pushed = scenery_add_wall_decor_nooffset(
-    //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-    //     break;
-    // case LOC_SHAPE_WALL_DECOR_OFFSET:
-    //     elements_pushed = scenery_add_wall_decor_offset(
-    //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-    //     break;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
+    case LOC_SHAPE_WALL_DECOR_INSIDE:
         out[0] = orientation;
         return 1;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
+    case LOC_SHAPE_WALL_DECOR_OUTSIDE:
+        out[0] = orientation;
+        return 1;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
+        out[0] = orientation;
+        return 1;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
         out[0] = (orientation + 2) % 4;
         return 1;
     case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
@@ -1186,7 +1208,7 @@ scenery_add(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneSceneryTile* scenery_tile = NULL;
-    struct BuildTile* build_ile = NULL;
+    struct BuildTile* build_tile = NULL;
     struct BuildElement* build_element = NULL;
     int elements_pushed = 0;
 
@@ -1203,6 +1225,8 @@ scenery_add(
         map_loc->chunk_pos_level,
         &offset);
 
+    build_tile = build_grid_tile_at(scene_builder->build_grid, offset.x, offset.z, offset.level);
+
     tile_heights_at(
         terrain_grid,
         mapx,
@@ -1217,6 +1241,10 @@ scenery_add(
     case LOC_SHAPE_WALL_SINGLE_SIDE:
         elements_pushed = scenery_add_wall_single(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+        if( elements_pushed > 0 )
+        {
+            build_tile->wall_element_idx = scenery->elements_length - 1;
+        }
         break;
     case LOC_SHAPE_WALL_TRI_CORNER:
         elements_pushed = scenery_add_wall_tri_corner(
@@ -1225,39 +1253,48 @@ scenery_add(
     case LOC_SHAPE_WALL_TWO_SIDES:
         elements_pushed = scenery_add_wall_two_sides(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+        if( elements_pushed > 0 )
+        {
+            build_tile->wall_element_idx = scenery->elements_length - 1;
+        }
         break;
     case LOC_SHAPE_WALL_RECT_CORNER:
         elements_pushed = scenery_add_wall_rect_corner(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
         break;
-    // case LOC_SHAPE_WALL_DECOR_NOOFFSET:
-    //     elements_pushed = scenery_add_wall_decor_nooffset(
-    //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-    //     break;
-    // case LOC_SHAPE_WALL_DECOR_OFFSET:
-    //     elements_pushed = scenery_add_wall_decor_offset(
-    //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-    //     break;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
-        elements_pushed = scenery_add_wall_decor_diagonal_offset(
+    case LOC_SHAPE_WALL_DECOR_INSIDE:
+        elements_pushed = scenery_add_wall_decor_inside(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
         break;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
-        elements_pushed = scenery_add_wall_decor_diagonal_nooffset(
+    case LOC_SHAPE_WALL_DECOR_OUTSIDE:
+        elements_pushed = scenery_add_wall_decor_outside(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
         break;
-    // case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
-    //     elements_pushed = scenery_add_wall_decor_diagonal_double(
-    //         scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
-    //     break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
+        elements_pushed = scenery_add_wall_decor_diagonal_outside(
+            scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+        break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
+        elements_pushed = scenery_add_wall_decor_diagonal_inside(
+            scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+        break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
+        elements_pushed = scenery_add_wall_decor_diagonal_double(
+            scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+        break;
     case LOC_SHAPE_WALL_DIAGONAL:
         elements_pushed = scenery_add_wall_diagonal(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+        if( elements_pushed > 0 )
+        {
+            build_tile->wall_element_idx = scenery->elements_length - 1;
+        }
         break;
     case LOC_SHAPE_SCENERY:
     case LOC_SHAPE_SCENERY_DIAGIONAL:
         elements_pushed =
             scenery_add_normal(scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
+
         break;
     case LOC_SHAPE_ROOF_SLOPED:
     case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
@@ -1287,9 +1324,11 @@ scenery_add(
 
         build_element = build_grid_element_at(scene_builder->build_grid, element_idx);
 
-        init_build_element_from_config_loc(build_element, config_loc, orientations[i]);
+        init_build_element_from_config_loc(build_element, config_loc, &offset, orientations[i]);
 
-        scenery_set_wall_offsets(build_element, map_loc->shape_select);
+        // diagonal does outside first.
+        int inside = i != 0;
+        scenery_set_wall_offsets(build_element, map_loc->shape_select, inside);
     }
 }
 
@@ -1347,23 +1386,23 @@ gather_sharelight_models(
 {
     int count = 0;
     struct BuildElement* build_element = NULL;
-    if( build_tile->wall_a_element_idx != -1 )
+    if( build_tile->wall_element_idx != -1 )
     {
-        build_element = build_grid_element_at(build_grid, build_tile->wall_a_element_idx);
+        build_element = build_grid_element_at(build_grid, build_tile->wall_element_idx);
         assert(build_element && "Element must be valid");
 
         if( build_element->sharelight )
-            out[count++] = build_tile->wall_a_element_idx;
+            out[count++] = build_tile->wall_element_idx;
     }
 
-    if( build_tile->wall_b_element_idx != -1 )
-    {
-        build_element = build_grid_element_at(build_grid, build_tile->wall_b_element_idx);
-        assert(build_element && "Element must be valid");
+    // if( build_tile->wall_b_element_idx != -1 )
+    // {
+    //     build_element = build_grid_element_at(build_grid, build_tile->wall_b_element_idx);
+    //     assert(build_element && "Element must be valid");
 
-        if( build_element->sharelight )
-            out[count++] = build_tile->wall_b_element_idx;
-    }
+    //     if( build_element->sharelight )
+    //         out[count++] = build_tile->wall_b_element_idx;
+    // }
 
     // if( tile->ground_decor != -1 )
     // {
@@ -1557,7 +1596,6 @@ build_lighting(
     struct Scene* scene)
 {
 #define SHARELIGHT_MODELS_COUNT 40
-    struct BuildTile* build_tile = NULL;
     struct TileCoord adjacent_tiles[SHARELIGHT_MODELS_COUNT] = { 0 };
     struct BuildElement* sharelight_build_element = NULL;
     struct BuildElement* adjacent_build_element = NULL;
@@ -1575,12 +1613,13 @@ build_lighting(
         {
             for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
             {
-                build_tile = build_grid_tile_at(scene_builder->build_grid, sx, sz, slevel);
-                assert(build_tile && "Build tile must be valid");
+                sharelight_build_tile =
+                    build_grid_tile_at(scene_builder->build_grid, sx, sz, slevel);
+                assert(sharelight_build_tile && "Build tile must be valid");
 
                 sharelight_models_count = gather_sharelight_models(
                     scene_builder->build_grid,
-                    build_tile,
+                    sharelight_build_tile,
                     sharelight_elements,
                     SHARELIGHT_MODELS_COUNT);
 
@@ -1588,6 +1627,9 @@ build_lighting(
                 {
                     sharelight_build_element =
                         build_grid_element_at(scene_builder->build_grid, sharelight_elements[i]);
+                    sharelight_scene_element =
+                        scene_element_at(scene->scenery, sharelight_elements[i]);
+                    assert(sharelight_scene_element && "Sharelight scene element must be valid");
 
                     int adjacent_tiles_count = gather_adjacent_tiles(
                         adjacent_tiles,
@@ -1620,6 +1662,10 @@ build_lighting(
                                 scene_builder->build_grid, adjacent_sharelight_elements[k]);
                             assert(
                                 adjacent_build_element && "Adjacent build element must be valid");
+                            adjacent_scene_element =
+                                scene_element_at(scene->scenery, adjacent_sharelight_elements[k]);
+                            assert(
+                                adjacent_scene_element && "Adjacent scene element must be valid");
 
                             int check_offset_x = (adjacent_tile_coord.x - sx) * 128 +
                                                  (adjacent_build_element->size_x -
@@ -1724,15 +1770,42 @@ apply_wall_offsets(
         struct BuildElement* build_element = build_grid_element_at(scene_builder->build_grid, i);
         assert(scene_element && "Element must be valid");
 
-        if( !scene_element->dash_model || build_element->wall_offset_type == WALL_OFFSET_TYPE_NONE )
+        if( !scene_element->dash_model ||
+            build_element->decor_displacement_kind == DECOR_DISPLACEMENT_KIND_NONE )
             continue;
 
-        if( build_element->wall_offset != 0 )
-            calculate_wall_decor_offset(
-                scene_element->dash_position,
-                build_element->rotation,
-                build_element->wall_offset + 45,
-                build_element->wall_offset_type == WALL_OFFSET_TYPE_DIAGONAL);
+        struct BuildTile* tile = build_grid_tile_at(
+            scene_builder->build_grid, build_element->sx, build_element->sz, build_element->slevel);
+
+        if( tile->wall_element_idx == -1 )
+            continue;
+
+        struct BuildElement* wall_element =
+            build_grid_element_at(scene_builder->build_grid, tile->wall_element_idx);
+        // INSIDE is unaffected by wall offset.
+        int offset = 0;
+        int diagonal = false;
+        switch( build_element->decor_displacement_kind )
+        {
+        case DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET:
+            offset += wall_element->wall_offset;
+            break;
+        case DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET:
+            // I'm not sure why this math is like this but it works.
+            offset += (wall_element->wall_offset / 16) * 8 + (45);
+            diagonal = true;
+            break;
+        case DECOR_DISPLACEMENT_KIND_STRAIGHT:
+            offset += 0;
+            break;
+        case DECOR_DISPLACEMENT_KIND_DIAGONAL:
+            offset += 45;
+            diagonal = true;
+            break;
+        }
+
+        calculate_wall_decor_offset(
+            scene_element->dash_position, build_element->rotation, offset, diagonal);
     }
 }
 

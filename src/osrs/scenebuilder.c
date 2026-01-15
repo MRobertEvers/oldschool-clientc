@@ -13,6 +13,8 @@
 
 #define MAPXZ(mapx, mapz) ((mapx << 16) | mapz)
 
+#define ENTRYS 4096
+
 struct SceneBuilder*
 scenebuilder_new_painter(
     struct Painter* painter,
@@ -32,7 +34,7 @@ scenebuilder_new_painter(
     scene_builder->mapx_ne = mapx_ne;
     scene_builder->mapz_ne = mapz_ne;
 
-    int buffer_size = 1024 * sizeof(struct ModelEntry);
+    int buffer_size = ENTRYS * sizeof(struct ModelEntry);
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
@@ -41,7 +43,7 @@ scenebuilder_new_painter(
     };
     scene_builder->models_hmap = dashmap_new(&config, 0);
 
-    buffer_size = 1024 * sizeof(struct MapLocsEntry);
+    buffer_size = ENTRYS * sizeof(struct MapLocsEntry);
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
@@ -50,7 +52,7 @@ scenebuilder_new_painter(
     };
     scene_builder->map_locs_hmap = dashmap_new(&config, 0);
 
-    buffer_size = 1024 * sizeof(struct MapTerrainEntry);
+    buffer_size = ENTRYS * sizeof(struct MapTerrainEntry);
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,

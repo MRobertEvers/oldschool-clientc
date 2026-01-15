@@ -9,10 +9,16 @@
 #include <stdio.h>
 #include <string.h>
 
-static void decode_loc(struct CacheConfigLocation* loc, char* data, int data_size);
+static void
+decode_loc(
+    struct CacheConfigLocation* loc,
+    char* data,
+    int data_size);
 
 struct CacheConfigLocation*
-config_locs_new_decode(char* buffer, int buffer_size)
+config_locs_new_decode(
+    char* buffer,
+    int buffer_size)
 {
     struct CacheConfigLocation* loc = malloc(sizeof(struct CacheConfigLocation));
     if( !loc )
@@ -76,7 +82,10 @@ config_locs_free_inplace(struct CacheConfigLocation* loc)
 }
 
 void
-config_locs_decode_inplace(struct CacheConfigLocation* loc, char* data, int data_size)
+config_locs_decode_inplace(
+    struct CacheConfigLocation* loc,
+    char* data,
+    int data_size)
 {
     decode_loc(loc, data, data_size);
 }
@@ -186,7 +195,10 @@ init_loc(struct CacheConfigLocation* loc)
 }
 
 static void
-decode_loc(struct CacheConfigLocation* loc, char* data, int data_size)
+decode_loc(
+    struct CacheConfigLocation* loc,
+    char* data,
+    int data_size)
 {
     struct RSBuffer buffer = { .data = (uint8_t*)data, .size = data_size, .position = 0 };
 

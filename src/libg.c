@@ -138,14 +138,14 @@ libg_game_new(struct GIOQueue* io)
     // z =
     // 8100
 
-    game->camera_world_x = 12016;
+    game->camera_world_x = 29016;
     game->camera_world_y = -800;
-    game->camera_world_z = 10000;
+    game->camera_world_z = 16000;
     game->camera_yaw = 0;
     game->camera_pitch = 128;
     game->camera_roll = 0;
     game->camera_fov = 512;
-    game->camera_movement_speed = 20;
+    game->camera_movement_speed = 70;
     game->camera_rotation_speed = 20;
     game->cc = 100000;
 

@@ -24,8 +24,6 @@ chunks_inview(
     int scene_size,
     struct ChunksInView* out_nullable)
 {
-    assert(scene_size < 128);
-
     int radius = (scene_size >> 1);
     int min_chunk_x = (world_x - radius) / CHUNK_TILE_SIZE;
     int max_chunk_x = (world_x + radius) / CHUNK_TILE_SIZE;

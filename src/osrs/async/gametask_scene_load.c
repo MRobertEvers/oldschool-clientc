@@ -148,20 +148,39 @@ struct GameTaskSceneLoad
 };
 
 // Forward declarations for async model functions
-static void io_queue_model(struct GameTaskSceneLoad* task, int model_id);
-static struct CacheModel* get_model_async(struct GameTaskSceneLoad* task, int model_id);
 static void
-add_loaded_model(struct GameTaskSceneLoad* task, int model_id, struct CacheModel* model);
+io_queue_model(
+    struct GameTaskSceneLoad* task,
+    int model_id);
+static struct CacheModel*
+get_model_async(
+    struct GameTaskSceneLoad* task,
+    int model_id);
+static void
+add_loaded_model(
+    struct GameTaskSceneLoad* task,
+    int model_id,
+    struct CacheModel* model);
 
 // Forward declarations for async spritepack functions
-static void io_queue_spritepack(struct GameTaskSceneLoad* task, int spritepack_id);
+static void
+io_queue_spritepack(
+    struct GameTaskSceneLoad* task,
+    int spritepack_id);
 static struct CacheSpritePack*
-get_spritepack_async(struct GameTaskSceneLoad* task, int spritepack_id);
-static void add_loaded_spritepack(
-    struct GameTaskSceneLoad* task, int spritepack_id, struct CacheSpritePack* spritepack);
+get_spritepack_async(
+    struct GameTaskSceneLoad* task,
+    int spritepack_id);
+static void
+add_loaded_spritepack(
+    struct GameTaskSceneLoad* task,
+    int spritepack_id,
+    struct CacheSpritePack* spritepack);
 
 static struct CacheModel*
-get_model_async(struct GameTaskSceneLoad* task, int model_id)
+get_model_async(
+    struct GameTaskSceneLoad* task,
+    int model_id)
 {
     // Search through the loaded models list
     for( int i = 0; i < task->loaded_models_count; i++ )
@@ -176,7 +195,10 @@ get_model_async(struct GameTaskSceneLoad* task, int model_id)
 }
 
 static void
-add_loaded_model(struct GameTaskSceneLoad* task, int model_id, struct CacheModel* model)
+add_loaded_model(
+    struct GameTaskSceneLoad* task,
+    int model_id,
+    struct CacheModel* model)
 {
     // Expand arrays if needed
     if( task->loaded_models_count >= task->loaded_models_capacity )
@@ -461,7 +483,11 @@ complete_scene_model_loading(
 }
 
 struct GameTaskSceneLoad*
-gametask_scene_load_new(struct GameIO* io, struct Cache* cache, int chunk_x, int chunk_y)
+gametask_scene_load_new(
+    struct GameIO* io,
+    struct Cache* cache,
+    int chunk_x,
+    int chunk_y)
 {
     struct GameTaskSceneLoad* task = malloc(sizeof(struct GameTaskSceneLoad));
     memset(task, 0, sizeof(struct GameTaskSceneLoad));
@@ -521,7 +547,9 @@ gametask_scene_load_new(struct GameIO* io, struct Cache* cache, int chunk_x, int
 
 // Async model loading functions
 static void
-io_queue_model(struct GameTaskSceneLoad* task, int model_id)
+io_queue_model(
+    struct GameTaskSceneLoad* task,
+    int model_id)
 {
     // Check if already queued
     for( int i = 0; i < task->queued_model_count; i++ )
@@ -544,7 +572,9 @@ io_queue_model(struct GameTaskSceneLoad* task, int model_id)
 
 // Async texture loading functions
 static void
-io_queue_texture(struct GameTaskSceneLoad* task, int texture_id)
+io_queue_texture(
+    struct GameTaskSceneLoad* task,
+    int texture_id)
 {
     // Skip invalid texture IDs
     if( texture_id == -1 )
@@ -571,7 +601,9 @@ io_queue_texture(struct GameTaskSceneLoad* task, int texture_id)
 
 // Async spritepack loading functions
 static void
-io_queue_spritepack(struct GameTaskSceneLoad* task, int spritepack_id)
+io_queue_spritepack(
+    struct GameTaskSceneLoad* task,
+    int spritepack_id)
 {
     // Skip invalid spritepack IDs
     if( spritepack_id == -1 )
@@ -597,7 +629,9 @@ io_queue_spritepack(struct GameTaskSceneLoad* task, int spritepack_id)
 }
 
 static struct CacheSpritePack*
-get_spritepack_async(struct GameTaskSceneLoad* task, int spritepack_id)
+get_spritepack_async(
+    struct GameTaskSceneLoad* task,
+    int spritepack_id)
 {
     // Search through the loaded spritepacks list
     for( int i = 0; i < task->loaded_spritepacks_count; i++ )
@@ -610,7 +644,9 @@ get_spritepack_async(struct GameTaskSceneLoad* task, int spritepack_id)
 
 static void
 add_loaded_spritepack(
-    struct GameTaskSceneLoad* task, int spritepack_id, struct CacheSpritePack* spritepack)
+    struct GameTaskSceneLoad* task,
+    int spritepack_id,
+    struct CacheSpritePack* spritepack)
 {
     // Ensure capacity
     if( task->loaded_spritepacks_count >= task->loaded_spritepacks_capacity )
@@ -630,7 +666,9 @@ add_loaded_spritepack(
 }
 
 static void
-io_queue_model_textures(struct GameTaskSceneLoad* task, struct CacheModel* model)
+io_queue_model_textures(
+    struct GameTaskSceneLoad* task,
+    struct CacheModel* model)
 {
     if( !model || !model->face_textures )
         return;
@@ -1222,7 +1260,7 @@ process_locs:
         }
         break;
 
-        case LOC_SHAPE_WALL_DECOR_NOOFFSET:
+        case LOC_SHAPE_WALL_DECOR_INSIDE:
         {
             int model_index = vec_model_push(task->scene);
             scene_model = vec_model_back(task->scene);
@@ -1231,7 +1269,7 @@ process_locs:
                 task,
                 scene_model,
                 loc_config,
-                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                LOC_SHAPE_WALL_DECOR_INSIDE,
                 map->orientation,
                 height_sw,
                 height_se,
@@ -1255,7 +1293,7 @@ process_locs:
         }
         break;
 
-        case LOC_SHAPE_WALL_DECOR_OFFSET:
+        case LOC_SHAPE_WALL_DECOR_OUTSIDE:
         {
             // Load model
             int model_index = vec_model_push(task->scene);
@@ -1265,7 +1303,7 @@ process_locs:
                 task,
                 scene_model,
                 loc_config,
-                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                LOC_SHAPE_WALL_DECOR_INSIDE,
                 map->orientation,
                 height_sw,
                 height_se,
@@ -1302,7 +1340,7 @@ process_locs:
         }
         break;
 
-        case LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET:
+        case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
         {
             // Load model
             int model_index = vec_model_push(task->scene);
@@ -1312,7 +1350,7 @@ process_locs:
                 task,
                 scene_model,
                 loc_config,
-                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                LOC_SHAPE_WALL_DECOR_INSIDE,
                 map->orientation,
                 height_sw,
                 height_se,
@@ -1347,7 +1385,7 @@ process_locs:
         }
         break;
 
-        case LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET:
+        case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
         {
             // Load model
             int model_index = vec_model_push(task->scene);
@@ -1359,7 +1397,7 @@ process_locs:
                 task,
                 scene_model,
                 loc_config,
-                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                LOC_SHAPE_WALL_DECOR_INSIDE,
                 map->orientation + 3,
                 height_sw,
                 height_se,
@@ -1400,7 +1438,7 @@ process_locs:
                 task,
                 scene_model,
                 loc_config,
-                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                LOC_SHAPE_WALL_DECOR_INSIDE,
                 outside_orientation + 1,
                 height_sw,
                 height_se,
@@ -1421,7 +1459,7 @@ process_locs:
                 task,
                 scene_model,
                 loc_config,
-                LOC_SHAPE_WALL_DECOR_NOOFFSET,
+                LOC_SHAPE_WALL_DECOR_INSIDE,
                 inside_orientation,
                 height_sw,
                 height_se,

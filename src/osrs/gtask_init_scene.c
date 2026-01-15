@@ -244,6 +244,7 @@ struct TextureEntry
     struct DashTexture* texture;
 };
 
+#define CHUNKS_COUNT 36
 struct GTaskInitScene
 {
     enum GTaskInitSceneStep step;
@@ -253,8 +254,8 @@ struct GTaskInitScene
     struct CacheMapLocsIter* scenery_iter;
     struct CacheMapTerrainIter* terrain_iter;
 
-    struct CacheMapTerrain* terrain_definitions[9];
-    struct CacheMapLocs* scenery_locs[9];
+    struct CacheMapTerrain* terrain_definitions[CHUNKS_COUNT];
+    struct CacheMapLocs* scenery_locs[CHUNKS_COUNT];
     int scenery_locs_count;
     int terrain_count;
 
@@ -270,7 +271,7 @@ struct GTaskInitScene
     struct Vec* queued_scenery_models_ids;
     struct Vec* queued_texture_ids;
 
-    struct Chunk chunks[9];
+    struct Chunk chunks[CHUNKS_COUNT];
     int chunks_count;
     int chunks_width;
 
@@ -278,11 +279,11 @@ struct GTaskInitScene
     int world_z;
     int scene_size;
 
-    uint32_t reqid_scenery[9];
+    uint32_t reqid_scenery[CHUNKS_COUNT];
     uint32_t reqid_scenery_count;
     uint32_t reqid_scenery_inflight;
 
-    uint32_t reqid_terrain[9];
+    uint32_t reqid_terrain[CHUNKS_COUNT];
     uint32_t reqid_terrain_count;
     uint32_t reqid_terrain_inflight;
 
@@ -686,6 +687,8 @@ gtask_init_scene_new(
     task->scene_size = scene_size;
 
     chunks_inview(task->chunks, world_x, world_z, scene_size, &chunks);
+    task->chunks_count = chunks.count;
+    task->chunks_width = chunks.width;
 
     game->sys_painter = painter_new(
         chunks.width * CHUNK_TILE_SIZE, chunks.width * CHUNK_TILE_SIZE, MAP_TERRAIN_LEVELS);
@@ -693,7 +696,23 @@ gtask_init_scene_new(
 
     task->painter = game->sys_painter;
 
-    task->scene_builder = scenebuilder_new_painter(task->painter, 49, 49, 50, 50);
+    int minz = 1000;
+    int maxz = 0;
+    int minx = 1000;
+    int maxx = 0;
+    for( int i = 0; i < task->chunks_count; i++ )
+    {
+        if( task->chunks[i].x < minx )
+            minx = task->chunks[i].x;
+        if( task->chunks[i].x > maxx )
+            maxx = task->chunks[i].x;
+        if( task->chunks[i].z < minz )
+            minz = task->chunks[i].z;
+        if( task->chunks[i].z > maxz )
+            maxz = task->chunks[i].z;
+    }
+
+    task->scene_builder = scenebuilder_new_painter(task->painter, minx, minz, maxx, maxz);
 
     task->chunks_count = chunks.count;
     task->chunks_width = chunks.width;

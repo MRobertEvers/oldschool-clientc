@@ -16,10 +16,12 @@ enum LocShape
     LOC_SHAPE_WALL_TWO_SIDES = 2,
     LOC_SHAPE_WALL_RECT_CORNER = 3,
 
-    LOC_SHAPE_WALL_DECOR_NOOFFSET = 4,
-    LOC_SHAPE_WALL_DECOR_OFFSET = 5,
-    LOC_SHAPE_WALL_DECOR_DIAGONAL_OFFSET = 6,
-    LOC_SHAPE_WALL_DECOR_DIAGONAL_NOOFFSET = 7,
+    // Inside decor is not moved by wall offset.
+    LOC_SHAPE_WALL_DECOR_INSIDE = 4,
+    // Outside decor is moved by wall offset.
+    LOC_SHAPE_WALL_DECOR_OUTSIDE = 5,
+    LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE = 6,
+    LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE = 7,
     LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE = 8,
 
     LOC_SHAPE_WALL_DIAGONAL = 9,
@@ -160,10 +162,19 @@ struct CacheConfigLocation
     struct CacheConfigLocationParam* param_values;
 };
 
-struct CacheConfigLocation* config_locs_new_decode(char* buffer, int buffer_size);
-void config_locs_free(struct CacheConfigLocation* loc);
-void config_locs_free_inplace(struct CacheConfigLocation* loc);
+struct CacheConfigLocation*
+config_locs_new_decode(
+    char* buffer,
+    int buffer_size);
+void
+config_locs_free(struct CacheConfigLocation* loc);
+void
+config_locs_free_inplace(struct CacheConfigLocation* loc);
 
-void config_locs_decode_inplace(struct CacheConfigLocation* loc, char* data, int data_size);
+void
+config_locs_decode_inplace(
+    struct CacheConfigLocation* loc,
+    char* data,
+    int data_size);
 
 #endif

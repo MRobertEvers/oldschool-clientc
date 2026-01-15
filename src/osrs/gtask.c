@@ -32,13 +32,16 @@ gtask_step(struct GTask* task)
 }
 
 struct GTask*
-gtask_new_init_scene(struct GGame* game, int chunk_x, int chunk_y)
+gtask_new_init_scene(
+    struct GGame* game,
+    int chunk_x,
+    int chunk_y)
 {
     struct GTask* task = malloc(sizeof(struct GTask));
     memset(task, 0, sizeof(struct GTask));
     task->status = GTASK_STATUS_PENDING;
     task->kind = GTASK_KIND_INIT_SCENE;
-    task->_init_scene = gtask_init_scene_new(game, chunk_x, chunk_y, 104);
+    task->_init_scene = gtask_init_scene_new(game, chunk_x, chunk_y, 180);
     return task;
 }
 

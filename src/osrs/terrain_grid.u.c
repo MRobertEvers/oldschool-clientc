@@ -5,7 +5,7 @@
 
 struct TerrainGrid
 {
-    struct CacheMapTerrain* map_terrain[9];
+    struct CacheMapTerrain* map_terrain[36];
     int mapx_sw;
     int mapz_sw;
     int mapx_ne;
