@@ -447,6 +447,10 @@ build_scene_terrain(
                     //     underlay_hsl_nw = underlay_hsl_sw;
                 }
 
+                int shape = overlay_id == -1 ? 0 : (map->shape + 1);
+                int rotation = overlay_id == -1 ? 0 : map->rotation;
+                int texture_id = -1;
+
                 if( overlay_id != -1 )
                 {
                     overlay =
@@ -454,15 +458,23 @@ build_scene_terrain(
                     assert(overlay != NULL);
 
                     if( overlay->texture != -1 )
+                    {
                         overlay_hsl = -1;
+                        texture_id = overlay->texture;
+                    }
+                    // Magenta is transparent 16711935
+                    else if( overlay->rgb_color == 0xFF00FF )
+                    {
+                        overlay_hsl = -2;
+                        texture_id = -1;
+                    }
                     else
-                        overlay_hsl =
-                            adjust_lightness(palette_rgb_to_hsl16(overlay->rgb_color), 96);
+                    {
+                        // overlay_hsl = 0xFF00FF;
+                        int hsl = palette_rgb_to_hsl16(overlay->rgb_color);
+                        overlay_hsl = adjust_lightness(hsl, 96);
+                    }
                 }
-
-                int shape = overlay_id == -1 ? 0 : (map->shape + 1);
-                int rotation = overlay_id == -1 ? 0 : map->rotation;
-                int texture_id = overlay_id == -1 ? -1 : overlay->texture;
 
                 tile->sx = x;
                 tile->sz = z;

@@ -507,8 +507,9 @@ scenery_add_wall_single(
         ROTATION_WALL_TYPE[orientation]);
 
     /* Shademap */
-    shademap_set_wall(
-        scene_builder->shademap, offset->x, offset->z, offset->level, orientation, 50);
+    if( config_loc->shadowed )
+        shademap_set_wall(
+            scene_builder->shademap, offset->x, offset->z, offset->level, orientation, 50);
     /**
      * Build grid
      */
@@ -559,8 +560,9 @@ scenery_add_wall_tri_corner(
         ROTATION_WALL_CORNER_TYPE[orientation]);
 
     /* Shademap */
-    shademap_set_wall_corner(
-        scene_builder->shademap, offset->x, offset->z, offset->level, orientation, 50);
+    if( config_loc->shadowed )
+        shademap_set_wall_corner(
+            scene_builder->shademap, offset->x, offset->z, offset->level, orientation, 50);
 
     /**
      * Build grid
@@ -692,8 +694,9 @@ scenery_add_wall_rect_corner(
         ROTATION_WALL_CORNER_TYPE[orientation]);
 
     /* Shademap */
-    shademap_set_wall_corner(
-        scene_builder->shademap, offset->x, offset->z, offset->level, orientation, 50);
+    if( config_loc->shadowed )
+        shademap_set_wall_corner(
+            scene_builder->shademap, offset->x, offset->z, offset->level, orientation, 50);
 
     /**
      * Build grid
@@ -1150,8 +1153,9 @@ scenery_add_normal(
     int shade = size_x * size_z * 11;
     if( shade > 30 )
         shade = 30;
-    shademap_set_sized(
-        scene_builder->shademap, offset->x, offset->z, offset->level, size_x, size_z, shade);
+    if( config_loc->shadowed )
+        shademap_set_sized(
+            scene_builder->shademap, offset->x, offset->z, offset->level, size_x, size_z, shade);
 
     /**
      * Build grid
