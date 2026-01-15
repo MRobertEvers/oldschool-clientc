@@ -707,7 +707,7 @@ scenery_add_wall_decor_inside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
 
     dash_model = load_model(
@@ -721,6 +721,12 @@ scenery_add_wall_decor_inside(
 
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
+
+    if( config_loc->seq_id != -1 )
+    {
+        scene_element.dash_position->yaw += 512 * orientation;
+        scene_element.dash_position->yaw %= 2048;
+    }
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
@@ -760,8 +766,9 @@ scenery_add_wall_decor_outside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
+
     dash_model = load_model(
         config_loc,
         scene_builder->models_hmap,
@@ -774,6 +781,12 @@ scenery_add_wall_decor_outside(
 
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
+
+    if( config_loc->seq_id != -1 )
+    {
+        scene_element.dash_position->yaw += 512 * orientation;
+        scene_element.dash_position->yaw %= 2048;
+    }
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
