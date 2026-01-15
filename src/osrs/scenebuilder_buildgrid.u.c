@@ -52,6 +52,9 @@ struct BuildElement
 
 struct BuildTile
 {
+    int elements[10];
+    int elements_length;
+
     int wall_element_idx;
 
     uint8_t sx;
@@ -233,4 +236,19 @@ build_grid_tile_add_wall(
     struct BuildTile* tile = build_grid_tile_at(build_grid, sx, sz, slevel);
     tile->wall_element_idx = wall_element_idx;
 }
+
+static void
+build_grid_tile_add_element(
+    struct BuildGrid* build_grid,
+    int sx,
+    int sz,
+    int slevel,
+    int element_idx)
+{
+    struct BuildTile* tile = build_grid_tile_at(build_grid, sx, sz, slevel);
+    assert(tile->elements_length < 10);
+    tile->elements[tile->elements_length] = element_idx;
+    tile->elements_length++;
+}
+
 #endif

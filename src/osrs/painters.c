@@ -1013,9 +1013,10 @@ painter_paint(
                     int next_prio = 0;
                     if( element->_scenery.size_x > 1 || element->_scenery.size_z > 1 )
                     {
-                        next_prio = element->_scenery.size_x > element->_scenery.size_z
-                                        ? element->_scenery.size_x
-                                        : element->_scenery.size_z;
+                        next_prio =
+                            (element->_scenery.size_x > element->_scenery.size_z
+                                 ? element->_scenery.size_x
+                                 : element->_scenery.size_z);
                     }
 
                     if( max_tile_x > max_draw_x - 1 )

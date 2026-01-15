@@ -1163,6 +1163,9 @@ scenery_add_normal(
     build_grid_set_element(
         scene_builder->build_grid, element_id, config_loc, offset, orientation, size_x, size_z);
 
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_id);
+
     return 1;
 }
 
@@ -1203,6 +1206,8 @@ scenery_add_roof(
     build_grid_set_element(
         scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
 
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_id);
     return 1;
 }
 
@@ -1505,6 +1510,15 @@ gather_sharelight_models(
     //         out[count++] = model;
     // }
 
+    for( int i = 0; i < build_tile->elements_length; i++ )
+    {
+        build_element = build_grid_element_at(build_grid, build_tile->elements[i]);
+        assert(build_element && "Element must be valid");
+
+        if( build_element->sharelight )
+            out[count++] = build_tile->elements[i];
+    }
+
     assert(count <= out_size);
     return count;
 }
@@ -1666,7 +1680,7 @@ build_lighting(
     struct TerrainGrid* terrain_grid,
     struct Scene* scene)
 {
-#define SHARELIGHT_MODELS_COUNT 40
+#define SHARELIGHT_MODELS_COUNT 80
     struct TileCoord adjacent_tiles[SHARELIGHT_MODELS_COUNT] = { 0 };
     struct BuildElement* sharelight_build_element = NULL;
     struct BuildElement* adjacent_build_element = NULL;
@@ -1701,6 +1715,9 @@ build_lighting(
                     sharelight_scene_element =
                         scene_element_at(scene->scenery, sharelight_elements[i]);
                     assert(sharelight_scene_element && "Sharelight scene element must be valid");
+
+                    if( !sharelight_scene_element->dash_model )
+                        continue;
 
                     int adjacent_tiles_count = gather_adjacent_tiles(
                         adjacent_tiles,
