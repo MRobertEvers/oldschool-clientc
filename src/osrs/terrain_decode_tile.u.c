@@ -497,6 +497,13 @@ decode_tile(
             valid_faces[i] = 0;
             continue;
         }
+        else if(
+            color_a == INVALID_HSL_COLOR || color_b == INVALID_HSL_COLOR ||
+            color_c == INVALID_HSL_COLOR )
+        {
+            valid_faces[i] = 0;
+            continue;
+        }
         else
             valid_faces[i] = 1;
 

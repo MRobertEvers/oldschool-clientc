@@ -19,7 +19,11 @@ extern int g_cos_table[2048];
 //    return(y1*(1-mu2)+y2*mu2);
 // }
 static int
-cosine_interpolate(int x, int y, int fraction, int freq)
+cosine_interpolate(
+    int x,
+    int y,
+    int fraction,
+    int freq)
 {
     int cos_interp = (65536 - g_cos_table[(fraction * 1024) / freq]) >> 1;
     return ((cos_interp * y) >> 16) + (((65536 - cos_interp) * x) >> 16);
@@ -78,7 +82,9 @@ fade(int n)
  * Fades x,y and returns a value between 0 and 255.
  */
 static inline int
-fadexy(int x, int y)
+fadexy(
+    int x,
+    int y)
 {
     return (fade(y * 57 + x) >> 19) & 0xff;
 }
@@ -92,19 +98,24 @@ fadexy(int x, int y)
  * @return int
  */
 static int
-smooth_fadexy(int x, int y)
+smooth_fadexy(
+    int x,
+    int y)
 {
     int corners =
         fadexy(x - 1, y - 1) + fadexy(x + 1, y - 1) + fadexy(x - 1, y + 1) + fadexy(x + 1, y + 1);
     int sides = fadexy(x - 1, y) + fadexy(x + 1, y) + fadexy(x, y - 1) + fadexy(x, y + 1);
     int center = fadexy(x, y);
-    return (corners * 1 / 16) + (sides * 4 / 16) + (center * 1 / 16);
+    return (corners / 16) + (sides / 8) + (center / 4);
 }
 
 // https://mrl.cs.nyu.edu/~perlin/noise/
 // https://adrianb.io/2014/08/09/perlinnoise.html
 int
-perlin_noise(int x, int y, int freq)
+perlin_noise(
+    int x,
+    int y,
+    int freq)
 {
     assert(freq > 0);
     // Freq should be a power of 2.
@@ -119,5 +130,6 @@ perlin_noise(int x, int y, int freq)
     int v4 = smooth_fadexy(period_x + 1, period_y + 1);
     int i1 = cosine_interpolate(v1, v2, frac_x, freq);
     int i2 = cosine_interpolate(v3, v4, frac_x, freq);
-    return cosine_interpolate(i1, i2, frac_y, freq);
+    int value = cosine_interpolate(i1, i2, frac_y, freq);
+    return value;
 }

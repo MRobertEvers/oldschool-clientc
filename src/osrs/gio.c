@@ -62,8 +62,8 @@ gioq_submit(
     struct GIOQueue* q,
     enum GIORequestKind kind,
     uint32_t command,
-    uint64_t param_b,
-    uint64_t param_a)
+    uint64_t param_a,
+    uint64_t param_b)
 {
     struct GIORequest* request_buffer = NULL;
     struct GIORequest* last = NULL;
@@ -74,8 +74,8 @@ gioq_submit(
     request_buffer->message_id = q->queue_counter++;
     request_buffer->kind = kind;
     request_buffer->command = command;
-    request_buffer->param_b = param_b;
     request_buffer->param_a = param_a;
+    request_buffer->param_b = param_b;
 
     last = NULL;
     ll_last(q->requests_list, last);
@@ -88,7 +88,9 @@ gioq_submit(
 }
 
 void
-gioq_release(struct GIOQueue* q, struct GIOMessage* message)
+gioq_release(
+    struct GIOQueue* q,
+    struct GIOMessage* message)
 {
     // Remove from list.
     struct GIORequest* iter = NULL;
@@ -103,7 +105,10 @@ gioq_release(struct GIOQueue* q, struct GIOMessage* message)
 }
 
 void*
-gioq_adopt(struct GIOQueue* q, struct GIOMessage* message, int* out_data_size)
+gioq_adopt(
+    struct GIOQueue* q,
+    struct GIOMessage* message,
+    int* out_data_size)
 {
     void* data = NULL;
     int data_size = 0;
@@ -130,7 +135,9 @@ gioq_adopt(struct GIOQueue* q, struct GIOMessage* message, int* out_data_size)
 }
 
 bool
-gioq_poll(struct GIOQueue* q, struct GIOMessage* out)
+gioq_poll(
+    struct GIOQueue* q,
+    struct GIOMessage* out)
 {
     struct GIORequest* iter = NULL;
     memset(out, 0, sizeof(struct GIOMessage));
@@ -156,7 +163,9 @@ gioq_poll(struct GIOQueue* q, struct GIOMessage* out)
 }
 
 bool
-gioqb_read_next(struct GIOQueue* q, struct GIOMessage* out)
+gioqb_read_next(
+    struct GIOQueue* q,
+    struct GIOMessage* out)
 {
     struct GIORequest* iter = q->requests_list;
     if( out->message_id == 0 )
@@ -199,7 +208,9 @@ not_found:;
 }
 
 bool
-gioqb_mark_inflight(struct GIOQueue* q, uint32_t message_id)
+gioqb_mark_inflight(
+    struct GIOQueue* q,
+    uint32_t message_id)
 {
     struct GIORequest* iter = q->requests_list;
 

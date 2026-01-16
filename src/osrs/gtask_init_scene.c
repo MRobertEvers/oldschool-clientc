@@ -670,11 +670,11 @@ gather_scenery_ids_vec_new(struct CacheMapLocsIter* iter)
 struct GTaskInitScene*
 gtask_init_scene_new(
     struct GGame* game,
-    int world_x,
-    int world_z,
-    int scene_size)
+    int map_sw_x,
+    int map_sw_z,
+    int map_ne_x,
+    int map_ne_z)
 {
-    struct ChunksInView chunks = { 0 };
     struct DashMapConfig config = { 0 };
     struct GTaskInitScene* task = malloc(sizeof(struct GTaskInitScene));
     memset(task, 0, sizeof(struct GTaskInitScene));
@@ -682,40 +682,34 @@ gtask_init_scene_new(
     task->game = game;
     task->io = game->io;
 
-    task->world_x = world_x;
-    task->world_z = world_z;
-    task->scene_size = scene_size;
+    task->world_x = map_sw_x;
+    task->world_z = map_sw_z;
+    task->scene_size = map_ne_x - map_sw_x;
 
-    chunks_inview(task->chunks, world_x, world_z, scene_size, &chunks);
-    task->chunks_count = chunks.count;
-    task->chunks_width = chunks.width;
+    int chunk_idx = 0;
+    for( int i = map_sw_x; i <= map_ne_x; i++ )
+    {
+        for( int j = map_sw_z; j <= map_ne_z; j++ )
+        {
+            task->chunks[chunk_idx].x = i;
+            task->chunks[chunk_idx].z = j;
+            chunk_idx++;
+        }
+    }
+
+    task->chunks_width = (map_ne_x - map_sw_x + 1);
+    task->chunks_count = (map_ne_z - map_sw_z + 1) * (map_ne_x - map_sw_x + 1);
 
     game->sys_painter = painter_new(
-        chunks.width * CHUNK_TILE_SIZE, chunks.width * CHUNK_TILE_SIZE, MAP_TERRAIN_LEVELS);
+        task->chunks_width * CHUNK_TILE_SIZE,
+        task->chunks_width * CHUNK_TILE_SIZE,
+        MAP_TERRAIN_LEVELS);
     game->sys_painter_buffer = painter_buffer_new();
 
     task->painter = game->sys_painter;
 
-    int minz = 1000;
-    int maxz = 0;
-    int minx = 1000;
-    int maxx = 0;
-    for( int i = 0; i < task->chunks_count; i++ )
-    {
-        if( task->chunks[i].x < minx )
-            minx = task->chunks[i].x;
-        if( task->chunks[i].x > maxx )
-            maxx = task->chunks[i].x;
-        if( task->chunks[i].z < minz )
-            minz = task->chunks[i].z;
-        if( task->chunks[i].z > maxz )
-            maxz = task->chunks[i].z;
-    }
-
-    task->scene_builder = scenebuilder_new_painter(task->painter, minx, minz, maxx, maxz);
-
-    task->chunks_count = chunks.count;
-    task->chunks_width = chunks.width;
+    task->scene_builder =
+        scenebuilder_new_painter(task->painter, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 
     task->queued_scenery_models_ids = vec_new(sizeof(int), 512);
     task->queued_texture_ids = vec_new(sizeof(int), 512);
@@ -1015,8 +1009,11 @@ gtask_init_scene_step(struct GTaskInitScene* task)
         struct CacheConfigOverlay* config_overlay = NULL;
         iter = dashmap_iter_new(task->overlay_configmap);
         while( (config_overlay = configmap_iter_next(iter)) )
-            if( config_overlay->texture != -1 )
-                vec_push_unique(task->queued_texture_ids, &config_overlay->texture);
+            if( config_overlay->texture > 0 )
+            {
+                int texture_id = config_overlay->texture;
+                vec_push_unique(task->queued_texture_ids, &texture_id);
+            }
 
         dashmap_iter_free(iter);
 

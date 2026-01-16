@@ -34,11 +34,20 @@ struct GTask
     struct GTask* next;
 };
 
-struct GTask* gtask_new_init_io(struct GIOQueue* io);
-struct GTask* gtask_new_init_scene(struct GGame* game, int chunk_x, int chunk_y);
+struct GTask*
+gtask_new_init_io(struct GIOQueue* io);
+struct GTask*
+gtask_new_init_scene(
+    struct GGame* game,
+    int map_sw_x,
+    int map_sw_z,
+    int map_ne_x,
+    int map_ne_z);
 
-enum GTaskStatus gtask_step(struct GTask* task);
+enum GTaskStatus
+gtask_step(struct GTask* task);
 
-void gtask_free(struct GTask* task);
+void
+gtask_free(struct GTask* task);
 
 #endif

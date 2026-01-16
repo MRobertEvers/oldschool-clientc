@@ -36,7 +36,9 @@ Platform2_OSX_SDL2_Free(struct Platform2_OSX_SDL2* platform)
 
 bool
 Platform2_OSX_SDL2_InitForSoft3D(
-    struct Platform2_OSX_SDL2* platform, int screen_width, int screen_height)
+    struct Platform2_OSX_SDL2* platform,
+    int screen_width,
+    int screen_height)
 {
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
@@ -62,7 +64,9 @@ Platform2_OSX_SDL2_InitForSoft3D(
 }
 
 void
-Platform2_OSX_SDL2_PollEvents(struct Platform2_OSX_SDL2* platform, struct GInput* input)
+Platform2_OSX_SDL2_PollEvents(
+    struct Platform2_OSX_SDL2* platform,
+    struct GInput* input)
 {
     uint64_t current_frame_time = SDL_GetTicks64();
     input->time_delta_accumulator_seconds +=
@@ -255,7 +259,9 @@ Platform2_OSX_SDL2_PollEvents(struct Platform2_OSX_SDL2* platform, struct GInput
 
 static void
 on_gio_req_init(
-    struct Platform2_OSX_SDL2* platform, struct GIOQueue* io, struct GIOMessage* message)
+    struct Platform2_OSX_SDL2* platform,
+    struct GIOQueue* io,
+    struct GIOMessage* message)
 {
     assert(message->command == GIO_REQ_INIT);
     switch( message->status )
@@ -292,7 +298,9 @@ on_gio_req_init(
 
 static void
 on_gio_req_asset(
-    struct Platform2_OSX_SDL2* platform, struct GIOQueue* io, struct GIOMessage* message)
+    struct Platform2_OSX_SDL2* platform,
+    struct GIOQueue* io,
+    struct GIOMessage* message)
 {
     struct CacheArchive* archive = NULL;
     struct ConfigMapPacked* config_map_packed = NULL;
@@ -303,13 +311,13 @@ on_gio_req_asset(
     {
         if( message->command == ASSET_MODELS )
         {
-            archive = gioqb_cache_model_new_load(platform->cache, message->param_b);
+            archive = gioqb_cache_model_new_load(platform->cache, message->param_a);
             gioqb_mark_done(
                 io,
                 message->message_id,
                 message->command,
                 archive->revision,
-                message->param_b,
+                message->param_a,
                 archive->data,
                 archive->data_size);
             archive->data = NULL;
@@ -338,14 +346,14 @@ on_gio_req_asset(
         }
         else if( message->command == ASSET_SPRITEPACKS )
         {
-            archive = gioqb_cache_spritepack_new_load(platform->cache, message->param_b);
+            archive = gioqb_cache_spritepack_new_load(platform->cache, message->param_a);
             assert(archive && "Failed to load spritepack archive");
             gioqb_mark_done(
                 io,
                 message->message_id,
                 message->command,
                 archive->revision,
-                message->param_b,
+                message->param_a,
                 archive->data,
                 archive->data_size);
             archive->data = NULL;
@@ -464,7 +472,9 @@ on_gio_req_asset(
 }
 
 void
-Platform2_OSX_SDL2_PollIO(struct Platform2_OSX_SDL2* platform, struct GIOQueue* queue)
+Platform2_OSX_SDL2_PollIO(
+    struct Platform2_OSX_SDL2* platform,
+    struct GIOQueue* queue)
 {
     struct GIOMessage message = { 0 };
     while( gioqb_read_next(queue, &message) )

@@ -61,11 +61,19 @@ enum GTaskInitSceneStep
 
 struct GTaskInitScene;
 struct GTaskInitScene*
-gtask_init_scene_new(struct GGame* game, int world_x, int world_z, int scene_size);
-void gtask_init_scene_free(struct GTaskInitScene* task);
+gtask_init_scene_new(
+    struct GGame* game,
+    int map_sw_x,
+    int map_sw_z,
+    int map_ne_x,
+    int map_ne_z);
+void
+gtask_init_scene_free(struct GTaskInitScene* task);
 
-enum GTaskStatus gtask_init_scene_step(struct GTaskInitScene* task);
+enum GTaskStatus
+gtask_init_scene_step(struct GTaskInitScene* task);
 
-struct CacheModel* gtask_init_scene_value(struct GTaskInitScene* task);
+struct CacheModel*
+gtask_init_scene_value(struct GTaskInitScene* task);
 
 #endif

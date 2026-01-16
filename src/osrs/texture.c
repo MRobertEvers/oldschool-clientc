@@ -54,6 +54,7 @@ texture_new_from_definition(
         int sprite_id = texture_definition->sprite_ids[i];
         spritepack_entry =
             (struct SpritePackEntry*)dashmap_search(sprites_hmap, &sprite_id, DASHMAP_FIND);
+        assert(spritepack_entry && "Spritepack must be inserted into hmap");
         sprite_pack = spritepack_entry->spritepack;
         assert(sprite_pack && "Texture SpritePacks must be loaded prior to texture creation");
         if( !sprite_pack )

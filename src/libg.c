@@ -138,9 +138,9 @@ libg_game_new(struct GIOQueue* io)
     // z =
     // 8100
 
-    game->camera_world_x = 29016;
+    game->camera_world_x = 0;
     game->camera_world_y = -800;
-    game->camera_world_z = 16000;
+    game->camera_world_z = 0;
     game->camera_yaw = 0;
     game->camera_pitch = 128;
     game->camera_roll = 0;
@@ -256,7 +256,7 @@ libg_game_new(struct GIOQueue* io)
     //     game->model->vertices_z);
 
     game->tasks_nullable = gtask_new_init_io(game->io);
-    game->tasks_nullable->next = gtask_new_init_scene(game, 50 * 64, 50 * 64);
+    game->tasks_nullable->next = gtask_new_init_scene(game, 50, 49, 50, 49);
 
     return game;
 }

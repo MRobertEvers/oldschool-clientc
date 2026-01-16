@@ -42,6 +42,8 @@ fixup_terrain(
     int map_x,
     int map_z)
 {
+    int base_x = map_x * 64;
+    int base_z = map_z * 64;
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
         for( int z = 0; z < MAP_TERRAIN_Z; z++ )
@@ -55,8 +57,8 @@ fixup_terrain(
                 {
                     if( level == 0 )
                     {
-                        int world_x = map_x + (-58) + 932731;
-                        int world_z = map_z + (-58) + 556238;
+                        int world_x = base_x + x + (-58) + 932731;
+                        int world_z = base_z + z + (-58) + 556238;
                         map->height =
                             -generate_height(world_x, world_z) * MAP_UNITS_TILE_HEIGHT_BASIS;
                     }

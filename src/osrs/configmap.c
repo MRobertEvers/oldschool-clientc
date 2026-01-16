@@ -288,9 +288,16 @@ configvalue(
         switch( archive_id )
         {
         case CONFIG_UNDERLAY:
-            return &((struct ConfigUnderlayEntry*)ptr)->underlay;
+        {
+            struct ConfigUnderlayEntry* entry = (struct ConfigUnderlayEntry*)ptr;
+            return &entry->underlay;
+        }
         case CONFIG_OVERLAY:
-            return &((struct ConfigOverlayEntry*)ptr)->overlay;
+        {
+            struct ConfigOverlayEntry* entry = (struct ConfigOverlayEntry*)ptr;
+            entry->overlay._id = entry->id;
+            return &entry->overlay;
+        }
         case CONFIG_OBJECT:
             return &((struct ConfigObjectEntry*)ptr)->object;
         case CONFIG_SEQUENCE:
@@ -309,7 +316,9 @@ configvalue(
     }
     else if( table_id == CACHE_TEXTURES )
     {
-        return &((struct ConfigTexturesEntry*)ptr)->texture;
+        struct ConfigTexturesEntry* entry = (struct ConfigTexturesEntry*)ptr;
+        entry->texture._id = entry->id;
+        return &entry->texture;
     }
     else
     {
