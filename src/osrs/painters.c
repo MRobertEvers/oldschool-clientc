@@ -79,6 +79,36 @@ struct Painter
     struct IntQueue catchup_queue;
 };
 
+static inline void
+painter_push_queue(
+    struct Painter* painter,
+    int tile_idx,
+    int prio)
+{
+    struct TilePaint* tile_paint = &painter->tile_paints[tile_idx];
+    tile_paint->queue_count++;
+
+    if( prio == 0 )
+        int_queue_push_wrap(&painter->queue, tile_idx);
+    else
+        int_queue_push_wrap_prio(&painter->catchup_queue, tile_idx, prio - 1);
+}
+
+static inline bool
+painter_queue_is_empty(struct Painter* painter)
+{
+    return painter->queue.length == 0 && painter->catchup_queue.length == 0;
+}
+
+static inline int
+painter_queue_pop(struct Painter* painter)
+{
+    if( painter->catchup_queue.length > 0 )
+        return int_queue_pop(&painter->catchup_queue);
+    else
+        return int_queue_pop(&painter->queue);
+}
+
 static inline int
 painter_push_element(struct Painter* painter)
 {
@@ -532,7 +562,7 @@ painter_paint(
     struct PaintersTile* bridge_underpass_tile = NULL;
     struct ElementPaint* element_paint = NULL;
 
-    int scenery_queue[100] = { 0 };
+    int scenery_queue[100];
     int scenery_queue_length = 0;
     buffer->command_count = 0;
 
@@ -540,7 +570,7 @@ painter_paint(
     memset(painter->element_paints, 0x00, painter->element_count * sizeof(struct ElementPaint));
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 4;
+    int radius = 25;
     int coord_list_x[4];
     int coord_list_z[4];
     int max_level = 0;
@@ -685,13 +715,9 @@ painter_paint(
         tile_paint->queue_count += 1;
     } // for( int i = 0; i < coord_list_length; i++ )
 
-    while( painter->queue.length > 0 || painter->catchup_queue.length > 0 )
+    while( !painter_queue_is_empty(painter) )
     {
-        int val;
-        if( painter->catchup_queue.length > 0 )
-            val = int_queue_pop(&painter->catchup_queue);
-        else
-            val = int_queue_pop(&painter->queue);
+        int val = painter_queue_pop(painter);
 
         int tile_idx = val >> 8;
         int prio = val & 0xFF;
@@ -933,11 +959,7 @@ painter_paint(
                     if( other_paint->step != PAINT_STEP_DONE &&
                         (tile->spans & SPAN_FLAG_EAST) != 0 )
                     {
-                        other_paint->queue_count++;
-                        if( prio == 0 )
-                            int_queue_push_wrap(&painter->queue, other_idx);
-                        else
-                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                        painter_push_queue(painter, other_idx, prio);
                     }
                 }
             }
@@ -952,12 +974,7 @@ painter_paint(
                     if( other_paint->step != PAINT_STEP_DONE &&
                         (tile->spans & SPAN_FLAG_WEST) != 0 )
                     {
-                        other_paint->queue_count++;
-
-                        if( prio == 0 )
-                            int_queue_push_wrap(&painter->queue, other_idx);
-                        else
-                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                        painter_push_queue(painter, other_idx, prio);
                     }
                 }
             }
@@ -972,12 +989,7 @@ painter_paint(
                     if( other_paint->step != PAINT_STEP_DONE &&
                         (tile->spans & SPAN_FLAG_NORTH) != 0 )
                     {
-                        other_paint->queue_count++;
-
-                        if( prio == 0 )
-                            int_queue_push_wrap(&painter->queue, other_idx);
-                        else
-                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                        painter_push_queue(painter, other_idx, prio);
                     }
                 }
             }
@@ -992,12 +1004,7 @@ painter_paint(
                     if( other_paint->step != PAINT_STEP_DONE &&
                         (tile->spans & SPAN_FLAG_SOUTH) != 0 )
                     {
-                        other_paint->queue_count++;
-
-                        if( prio == 0 )
-                            int_queue_push_wrap(&painter->queue, other_idx);
-                        else
-                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                        painter_push_queue(painter, other_idx, prio);
                     }
                 }
             }
@@ -1127,16 +1134,8 @@ painter_paint(
                         int other_idx =
                             painter_coord_idx(painter, other_tile_x, other_tile_z, tile_slevel);
                         other_paint = &painter->tile_paints[other_idx];
-                        // if( other_tile_x != tile_sx || other_tile_z != tile_sz )
-                        {
-                            other_paint->queue_count++;
 
-                            if( next_prio == 0 )
-                                int_queue_push_wrap(&painter->queue, other_idx);
-                            else
-                                int_queue_push_wrap_prio(
-                                    &painter->catchup_queue, other_idx, next_prio - 1);
-                        }
+                        painter_push_queue(painter, other_idx, next_prio);
                     }
                 }
             }
@@ -1162,12 +1161,7 @@ painter_paint(
 
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
-                    other_paint->queue_count++;
-
-                    if( prio == 0 )
-                        int_queue_push_wrap(&painter->queue, other_idx);
-                    else
-                        int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                    painter_push_queue(painter, other_idx, prio);
                 }
             }
 
@@ -1180,12 +1174,7 @@ painter_paint(
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
-                        other_paint->queue_count++;
-
-                        if( prio == 0 )
-                            int_queue_push_wrap(&painter->queue, other_idx);
-                        else
-                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                        painter_push_queue(painter, other_idx, prio);
                     }
                 }
             }
@@ -1197,12 +1186,7 @@ painter_paint(
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
-                        other_paint->queue_count++;
-
-                        if( prio == 0 )
-                            int_queue_push_wrap(&painter->queue, other_idx);
-                        else
-                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                        painter_push_queue(painter, other_idx, prio);
                     }
                 }
             }
@@ -1215,11 +1199,7 @@ painter_paint(
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
-                        other_paint->queue_count++;
-                        if( prio == 0 )
-                            int_queue_push_wrap(&painter->queue, other_idx);
-                        else
-                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                        painter_push_queue(painter, other_idx, prio);
                     }
                 }
             }
@@ -1232,11 +1212,7 @@ painter_paint(
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
-                        other_paint->queue_count++;
-                        if( prio == 0 )
-                            int_queue_push_wrap(&painter->queue, other_idx);
-                        else
-                            int_queue_push_wrap_prio(&painter->catchup_queue, other_idx, prio - 1);
+                        painter_push_queue(painter, other_idx, prio);
                     }
                 }
             }
