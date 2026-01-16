@@ -532,7 +532,7 @@ painter_paint(
     struct PaintersTile* bridge_underpass_tile = NULL;
     struct ElementPaint* element_paint = NULL;
 
-    int scenery_queue[100];
+    int scenery_queue[100] = { 0 };
     int scenery_queue_length = 0;
     buffer->command_count = 0;
 
@@ -540,11 +540,10 @@ painter_paint(
     memset(painter->element_paints, 0x00, painter->element_count * sizeof(struct ElementPaint));
 
     // Generate painter's algorithm coordinate list - farthest to nearest
-    int radius = 25;
-    static int coord_list_x[20000];
-    static int coord_list_z[20000];
-    static int coord_list_level[20000] = { 0 };
-    static int max_level = 0;
+    int radius = 4;
+    int coord_list_x[4];
+    int coord_list_z[4];
+    int max_level = 0;
 
     int coord_list_length = 0;
 
@@ -686,7 +685,7 @@ painter_paint(
         tile_paint->queue_count += 1;
     } // for( int i = 0; i < coord_list_length; i++ )
 
-    while( painter->queue.length > 0 )
+    while( painter->queue.length > 0 || painter->catchup_queue.length > 0 )
     {
         int val;
         if( painter->catchup_queue.length > 0 )
@@ -1317,6 +1316,9 @@ painter_paint(
 
     done:;
     } //  while( painter->queue.length > 0 )
+
+    assert(painter->queue.length == 0);
+    assert(painter->catchup_queue.length == 0);
 
     return 0;
 }
