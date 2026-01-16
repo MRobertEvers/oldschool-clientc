@@ -21,7 +21,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/libg.c
         src/datastruct/list.c
         src/datastruct/vec.c
-        src/shared_tables.c
+        src/graphics/shared_tables.c
         src/graphics/lighting.c
         src/osrs/tables/model.c
         src/osrs/tables/maps.c

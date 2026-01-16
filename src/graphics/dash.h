@@ -180,6 +180,18 @@ struct DashPosition
     int roll;
 };
 
+void
+dash_init(void);
+
+int
+dash_cos(int angle_r2pi2048);
+
+int
+dash_sin(int angle_r2pi2048);
+
+int
+dash_reciprocal16(int value_12bit);
+
 struct DashGraphics;
 struct DashGraphics* //
 dash_new(void);

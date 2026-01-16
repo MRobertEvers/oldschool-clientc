@@ -42,15 +42,40 @@ struct DashGraphics
     struct DashMap* textures_hmap;
 };
 
-struct DashGraphics*
-dash_new()
+void
+dash_init(void)
 {
     init_hsl16_to_rgb_table();
     init_sin_table();
     init_cos_table();
     init_tan_table();
     init_reciprocal16();
+}
 
+int
+dash_cos(int angle_r2pi2048)
+{
+    assert(angle_r2pi2048 >= 0 && angle_r2pi2048 < 2048);
+    return g_cos_table[angle_r2pi2048];
+}
+
+int
+dash_sin(int angle_r2pi2048)
+{
+    assert(angle_r2pi2048 >= 0 && angle_r2pi2048 < 2048);
+    return g_sin_table[angle_r2pi2048];
+}
+
+int
+dash_reciprocal16(int value_12bit)
+{
+    assert(value_12bit >= 1 && value_12bit < 4096);
+    return g_reciprocal16[value_12bit];
+}
+
+struct DashGraphics*
+dash_new()
+{
     struct DashGraphics* dash = (struct DashGraphics*)malloc(sizeof(struct DashGraphics));
     if( dash == NULL )
         return NULL;
@@ -1314,8 +1339,6 @@ dash3d_add_texture(
 {
     struct DashTextureEntry* entry =
         (struct DashTextureEntry*)dashmap_search(dash->textures_hmap, &texture_id, DASHMAP_INSERT);
-
-    printf("Adding Texture %d\n", texture_id);
 
     if( !entry )
     {

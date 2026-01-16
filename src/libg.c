@@ -5,7 +5,6 @@
 #include "osrs/dashlib.h"
 #include "osrs/gio.h"
 #include "osrs/grender.h"
-#include "shared_tables.h"
 
 // clang-format off
 #include "osrs/cache.h"
@@ -124,11 +123,7 @@ libg_game_new(struct GIOQueue* io)
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
 
-    init_hsl16_to_rgb_table();
-    init_sin_table();
-    init_cos_table();
-    init_tan_table();
-    init_reciprocal16();
+    dash_init();
 
     game->io = io;
     game->running = true;
@@ -229,33 +224,33 @@ libg_game_process_input(
         if( input->w_pressed )
         {
             game->camera_world_x -=
-                (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+                (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
             game->camera_world_z +=
-                (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+                (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
         if( input->s_pressed )
         {
             game->camera_world_x +=
-                (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+                (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
             game->camera_world_z -=
-                (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+                (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
         if( input->a_pressed )
         {
             game->camera_world_x -=
-                (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+                (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
             game->camera_world_z -=
-                (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+                (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
         if( input->d_pressed )
         {
             game->camera_world_x +=
-                (g_cos_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+                (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
             game->camera_world_z +=
-                (g_sin_table[game->camera_yaw] * game->camera_movement_speed) >> 16;
+                (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
         if( input->r_pressed )

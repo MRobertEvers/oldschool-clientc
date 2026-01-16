@@ -2,7 +2,16 @@
 
 #include <assert.h>
 
-extern int g_cos_table[2048];
+// clang-format off
+#include "noise_cos_table.h"
+// clang-format on
+
+static inline int
+cosine2048(int index)
+{
+    assert(index >= 0 && index < 2048);
+    return g_cos_table[index];
+}
 
 // https://paulbourke.net/miscellaneous/interpolation/
 // Linear interpolation results in discontinuities at each point. Often a smoother interpolating
@@ -25,7 +34,7 @@ cosine_interpolate(
     int fraction,
     int freq)
 {
-    int cos_interp = (65536 - g_cos_table[(fraction * 1024) / freq]) >> 1;
+    int cos_interp = (65536 - cosine2048((fraction * 1024) / freq)) >> 1;
     return ((cos_interp * y) >> 16) + (((65536 - cos_interp) * x) >> 16);
 }
 
