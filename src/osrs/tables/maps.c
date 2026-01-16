@@ -57,10 +57,10 @@ fixup_terrain(
                 {
                     if( level == 0 )
                     {
-                        int world_x = base_x + x + (-58) + 932731;
-                        int world_z = base_z + z + (-58) + 556238;
-                        map->height =
-                            -generate_height(world_x, world_z) * MAP_UNITS_TILE_HEIGHT_BASIS;
+                        int world_x = base_x + x + 932731;
+                        int world_z = base_z + z + 556238;
+                        int height = generate_height(world_x, world_z);
+                        map->height = -height * MAP_UNITS_TILE_HEIGHT_BASIS;
                     }
                     else
                     {
@@ -329,6 +329,7 @@ map_terrain_new_from_decode(
                     else if( attribute == 1 )
                     {
                         int height = g1(&buffer);
+                        assert(tile->height == 0);
                         tile->height = height;
                         break;
                     }

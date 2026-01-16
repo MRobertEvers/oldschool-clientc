@@ -256,7 +256,7 @@ libg_game_new(struct GIOQueue* io)
     //     game->model->vertices_z);
 
     game->tasks_nullable = gtask_new_init_io(game->io);
-    game->tasks_nullable->next = gtask_new_init_scene(game, 50, 49, 50, 49);
+    game->tasks_nullable->next = gtask_new_init_scene(game, 50, 49, 51, 50);
 
     return game;
 }
