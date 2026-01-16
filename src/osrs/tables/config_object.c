@@ -1,7 +1,7 @@
 #include "config_object.h"
 
-#include "../../string_utils.h"
-#include "../rsbuf.h"
+#include "osrs/rsbuf.h"
+#include "string_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -140,7 +140,9 @@ init_object(struct CacheConfigObject* object)
 }
 
 struct CacheConfigObject*
-config_object_new_decode(char* buffer, int buffer_size)
+config_object_new_decode(
+    char* buffer,
+    int buffer_size)
 {
     struct CacheConfigObject* object = malloc(sizeof(struct CacheConfigObject));
     init_object(object);
@@ -157,7 +159,10 @@ config_object_free(struct CacheConfigObject* object)
 }
 
 void
-config_object_decode_inplace(struct CacheConfigObject* object, char* data, int data_size)
+config_object_decode_inplace(
+    struct CacheConfigObject* object,
+    char* data,
+    int data_size)
 {
     struct RSBuffer buffer = { .data = data, .size = data_size };
 
