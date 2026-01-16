@@ -30,7 +30,11 @@ model_transform_mirror(struct CacheModel* model)
 
 void
 model_transform_hillskew(
-    struct CacheModel* model, int sw_height, int se_height, int ne_height, int nw_height)
+    struct CacheModel* model,
+    int sw_height,
+    int se_height,
+    int ne_height,
+    int nw_height)
 {
     int average_height = (sw_height + se_height + ne_height + nw_height) / 4;
 
@@ -48,7 +52,10 @@ model_transform_hillskew(
 }
 
 void
-model_transform_recolor(struct CacheModel* model, int color_src, int color_dst)
+model_transform_recolor(
+    struct CacheModel* model,
+    int color_src,
+    int color_dst)
 {
     int* face_colors_alias = model->face_colors;
 
@@ -70,7 +77,10 @@ model_transform_rotate(struct CacheModel* model)
 }
 
 void
-model_transform_retexture(struct CacheModel* model, int texture_src, int texture_dst)
+model_transform_retexture(
+    struct CacheModel* model,
+    int texture_src,
+    int texture_dst)
 {
     int* face_textures_alias = model->face_textures;
 
@@ -87,7 +97,11 @@ model_transform_retexture(struct CacheModel* model, int texture_src, int texture
 }
 
 void
-model_transform_scale(struct CacheModel* model, int x, int y, int z)
+model_transform_scale(
+    struct CacheModel* model,
+    int x,
+    int z,
+    int height)
 {
     int* vertices_x_alias = model->vertices_x;
     int* vertices_y_alias = model->vertices_y;
@@ -96,13 +110,15 @@ model_transform_scale(struct CacheModel* model, int x, int y, int z)
     for( int i = 0; i < model->vertex_count; i++ )
     {
         vertices_x_alias[i] = vertices_x_alias[i] * x / 128;
-        vertices_y_alias[i] = vertices_y_alias[i] * y / 128;
+        vertices_y_alias[i] = vertices_y_alias[i] * height / 128;
         vertices_z_alias[i] = vertices_z_alias[i] * z / 128;
     }
 }
 
 void
-model_transform_orient(struct CacheModel* model, int orientation)
+model_transform_orient(
+    struct CacheModel* model,
+    int orientation)
 {
     orientation &= 3;
     while( orientation-- > 0 )
@@ -118,7 +134,11 @@ model_transform_orient(struct CacheModel* model, int orientation)
 }
 
 void
-model_transform_translate(struct CacheModel* model, int x, int y, int z)
+model_transform_translate(
+    struct CacheModel* model,
+    int x,
+    int y,
+    int z)
 {
     int* vertices_x_alias = model->vertices_x;
     int* vertices_y_alias = model->vertices_y;

@@ -97,7 +97,7 @@ apply_transforms(
 
     bool mirrored = (loc->mirrored != (orientation > 3));
     bool oriented = orientation != 0;
-    bool scaled = loc->resize_x != 128 || loc->resize_y != 128 || loc->resize_z != 128;
+    bool scaled = loc->resize_x != 128 || loc->resize_height != 128 || loc->resize_z != 128;
     bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_z != 0;
     // TODO: handle the other contoured ground types.
     bool hillskewed = loc->contour_ground_type == 1;
@@ -109,7 +109,7 @@ apply_transforms(
         model_transform_orient(model, orientation);
 
     if( scaled )
-        model_transform_scale(model, loc->resize_x, loc->resize_y, loc->resize_z);
+        model_transform_scale(model, loc->resize_x, loc->resize_z, loc->resize_height);
 
     if( translated )
         model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_z);
@@ -622,6 +622,11 @@ scenery_add_wall_rect_corner(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
+    if( offset->x == 161 )
+    {
+        printf("scenery_add_wall_rect_corner: %d, %d\n", offset->x, offset->z);
+    }
+
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
     dash_model = load_model(
@@ -631,6 +636,10 @@ scenery_add_wall_rect_corner(
 
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
+
+    // scene_element.dash_position->x += config_loc->offset_x;
+    // scene_element.dash_position->z += config_loc->offset_z;
+    // scene_element.dash_position->y += config_loc->offset_y;
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
@@ -1392,7 +1401,6 @@ build_scene_scenery(
     }
 
     // Adjust bridges.
-    // This MUST occur after the tiles are assigned to the grid tiles.
     /**
      * Bridges are adjusted from an upper level.
      *
@@ -1401,17 +1409,17 @@ build_scene_scenery(
      *
      * E.g.
      *
-     * Level 0: Tile := (Water and Bridge Walls), Bridge := Nothing
-     * Level 1: Tile := (Bridge Walking Surface and Walls)
-     * Level 2: Nothing
-     * Level 3: Nothing
+     * Buffer Level 0: Tile := (Water and Bridge Walls), Bridge := Nothing
+     * Buffer Level 1: Tile := (Bridge Walking Surface and Walls)
+     * Buffer Level 2: Nothing
+     * Buffer Level 3: Nothing
      *
      * After this adjustment,
      *
-     * Level 0: Tile := (Previous Level 1), Bridge := (Previous Level 0)
-     * Level 1: Nothing
-     * Level 2: Nothing
-     * Level 3: Nothing.
+     * Buffer Level 0: Tile := (Previous Level 1),
+     * Buffer Level 1: Nothing
+     * Buffer Level 2: Nothing
+     * Buffer Level 3: Tile := (Previous Level 0)
      */
     struct CacheMapFloor* floor = NULL;
     struct PaintersTile bridge_tile_tmp = { 0 };

@@ -248,7 +248,12 @@ configdecode(
         {
             struct ConfigLocsEntry* entry = (struct ConfigLocsEntry*)ptr;
             entry->id = id;
+            if( id == 3125 )
+            {
+                printf("config_locs_decode_inplace: %d\n", id);
+            }
             config_locs_decode_inplace(&entry->loc, data, data_size);
+            entry->loc._id = id;
         }
         break;
 

@@ -77,8 +77,8 @@ config_locs_free_inplace(struct CacheConfigLocation* loc)
     free(loc->random_seq_ids);
     free(loc->random_seq_delays);
     free(loc->campaign_ids);
-    free(loc->param_keys);
-    free(loc->param_values);
+    // free(loc->param_keys);
+    // free(loc->param_values);
 }
 
 void
@@ -153,7 +153,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->wall_width = 16;
     loc->resize_x = 128;
     loc->resize_z = 128;
-    loc->resize_y = 128;
+    loc->resize_height = 128;
     loc->offset_x = 0;
     loc->offset_z = 0;
     loc->offset_y = 0;
@@ -185,13 +185,13 @@ init_loc(struct CacheConfigLocation* loc)
     loc->random_seq_delays = NULL;
     loc->campaign_id_count = 0;
     loc->campaign_ids = NULL;
-    loc->param_keys = NULL;
-    loc->param_values = NULL;
+    // loc->param_keys = NULL;
+    // loc->param_values = NULL;
 
     loc->mirrored = 0;
     loc->campaign_ids = NULL;
-    loc->param_keys = NULL;
-    loc->param_values = NULL;
+    // loc->param_keys = NULL;
+    // loc->param_values = NULL;
 }
 
 static void
@@ -407,10 +407,10 @@ decode_loc(
             loc->resize_x = rsbuf_g2(&buffer);
             break;
         case 66:
-            loc->resize_z = rsbuf_g2(&buffer);
+            loc->resize_height = rsbuf_g2(&buffer);
             break;
         case 67:
-            loc->resize_y = rsbuf_g2(&buffer);
+            loc->resize_z = rsbuf_g2(&buffer);
             break;
         case 68:
             loc->map_scene_id = rsbuf_g2(&buffer);
@@ -649,8 +649,10 @@ decode_loc(
         }
         case 249:
             // TODO: Implement params reading
+            rsbuf_read_params(&buffer, &loc->param_values);
             break;
         default:
+
             printf("LocType: Opcode %d not implemented\n", opcode);
             break;
         }

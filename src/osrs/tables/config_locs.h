@@ -3,6 +3,7 @@
 
 #include "osrs/cache.h"
 #include "osrs/filelist.h"
+#include "osrs/rsbuf.h"
 #include "osrs/tables/configs.h"
 
 #include <stdbool.h>
@@ -47,16 +48,6 @@ enum LocParamType
 {
     LOC_PARAM_TYPE_INT = 0,
     LOC_PARAM_TYPE_STRING = 1,
-};
-
-struct CacheConfigLocationParam
-{
-    int type;
-    union
-    {
-        int int_value;
-        char* string_value;
-    };
 };
 
 struct CacheConfigLocation
@@ -121,7 +112,7 @@ struct CacheConfigLocation
     int shadowed;
 
     int resize_x;
-    int resize_y;
+    int resize_height;
     int resize_z;
 
     int map_scene_id;
@@ -157,9 +148,7 @@ struct CacheConfigLocation
     int* campaign_ids;
     int campaign_id_count;
 
-    int param_count;
-    int* param_keys;
-    struct CacheConfigLocationParam* param_values;
+    struct Params param_values;
 };
 
 struct CacheConfigLocation*
