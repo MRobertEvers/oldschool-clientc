@@ -19,6 +19,7 @@ init_painter_tile(
     tile->sx = sx;
     tile->sz = sz;
     tile->slevel = slevel;
+    tile->terrain_slevel = slevel;
     tile->spans = 0;
     tile->wall_a = -1;
     tile->wall_b = -1;
@@ -38,11 +39,9 @@ enum TilePaintStep
     // unless we are spanned by that tile.
     // PAINT_STEP_UNREACHABLE = 0,
     PAINT_STEP_READY,
-    // PAINT_STEP_VERIFY_FURTHER_TILES_DONE_UNLESS_SPANNED = 0,
     PAINT_STEP_GROUND,
     PAINT_STEP_WAIT_ADJACENT_GROUND,
     PAINT_STEP_LOCS,
-    PAINT_STEP_NOTIFY_ADJACENT_TILES,
     PAINT_STEP_NEAR_WALL,
     PAINT_STEP_DONE,
 };
@@ -193,6 +192,12 @@ painter_free(struct Painter* painter)
     free(painter);
 }
 
+int
+painter_max_levels(struct Painter* painter)
+{
+    return painter->levels;
+}
+
 struct PaintersTile*
 painter_tile_at(
     struct Painter* painter,
@@ -210,6 +215,69 @@ painter_element_at(
 {
     assert(element < painter->element_count);
     return &painter->elements[element];
+}
+
+void
+painter_tile_set_bridge(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int bridge_tile_sx,
+    int bridge_tile_sz,
+    int bridge_tile_slevel)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    tile->bridge_tile =
+        painter_coord_idx(painter, bridge_tile_sx, bridge_tile_sz, bridge_tile_slevel);
+
+    struct PaintersTile* bridge_tile =
+        painter_tile_at(painter, bridge_tile_sx, bridge_tile_sz, bridge_tile_slevel);
+    bridge_tile->flags |= PAINTERS_TILE_FLAG_BRIDGE;
+}
+
+void
+painter_tile_copyto(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int dest_sx,
+    int dest_sz,
+    int dest_slevel)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    struct PaintersTile* dest_tile = painter_tile_at(painter, dest_sx, dest_sz, dest_slevel);
+
+    *dest_tile = *tile;
+}
+
+void
+painter_tile_set_draw_level(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int draw_level)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    assert(draw_level >= 0);
+    assert(draw_level < painter->levels);
+    tile->slevel = draw_level;
+}
+
+void
+painter_tile_set_terrain_level(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int terrain_slevel)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    assert(terrain_slevel >= 0);
+    assert(terrain_slevel < painter->levels);
+    tile->terrain_slevel = terrain_slevel;
 }
 
 static struct TilePaint*
@@ -729,6 +797,7 @@ painter_paint(
         int tile_slevel = tile->slevel;
 
         tile_paint = &painter->tile_paints[tile_idx];
+        assert(tile_paint->queue_count > 0);
         tile_paint->queue_count -= 1;
 
         // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
@@ -855,7 +924,12 @@ painter_paint(
             {
                 bridge_underpass_tile = &painter->tiles[tile->bridge_tile];
 
-                push_command_terrain(buffer, tile_sx, tile_sz, tile_slevel);
+                // The bridge floor is always stored on level 3.
+                push_command_terrain(
+                    buffer,
+                    bridge_underpass_tile->sx,
+                    bridge_underpass_tile->sz,
+                    bridge_underpass_tile->terrain_slevel);
 
                 if( bridge_underpass_tile->wall_a != -1 )
                 {
@@ -873,7 +947,7 @@ painter_paint(
                 }
             }
 
-            push_command_terrain(buffer, tile_sx, tile_sz, tile_slevel);
+            push_command_terrain(buffer, tile_sx, tile_sz, tile->terrain_slevel);
 
             if( tile->wall_a != -1 )
             {
@@ -1146,14 +1220,11 @@ painter_paint(
             }
 
             if( waiting_spanning_scenery )
+            {
                 tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
-            else
-                tile_paint->step = PAINT_STEP_NOTIFY_ADJACENT_TILES;
-        }
+                goto done;
+            }
 
-        // Move towards camera if farther away tiles are done.
-        if( tile_paint->step == PAINT_STEP_NOTIFY_ADJACENT_TILES )
-        {
             if( tile_slevel < painter->levels - 1 )
             {
                 int other_idx = painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1);

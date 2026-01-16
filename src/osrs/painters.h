@@ -45,7 +45,7 @@ struct PaintersTile
 
     int16_t ground_decor;
 
-    int16_t bridge_tile;
+    int32_t bridge_tile;
 
     int16_t ground_object_bottom;
     int16_t ground_object_middle;
@@ -77,6 +77,8 @@ struct PaintersTile
     uint16_t sx;
     uint16_t sz;
     uint8_t slevel;
+
+    uint8_t terrain_slevel;
 
     uint16_t flags;
 };
@@ -238,6 +240,9 @@ painter_free(
     struct Painter* painter //
 );
 
+int
+painter_max_levels(struct Painter* painter);
+
 struct PaintersTile*
 painter_tile_at(
     struct Painter* painter, //
@@ -249,6 +254,42 @@ struct PaintersElement*
 painter_element_at(
     struct Painter* painter, //
     int element);
+
+void
+painter_tile_set_bridge(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int bridge_tile_sx,
+    int bridge_tile_sz,
+    int bridge_tile_slevel);
+
+void
+painter_tile_set_draw_level(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int draw_level);
+
+void
+painter_tile_set_terrain_level(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int terrain_slevel);
+
+void
+painter_tile_copyto(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int dest_sx,
+    int dest_sz,
+    int dest_slevel);
 
 int
 painter_add_normal_scenery(
