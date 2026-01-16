@@ -1079,13 +1079,13 @@ painter_paint(
                 int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
                 int max_tile_z = min_tile_z + element->_scenery.size_z - 1;
 
-                int next_prio = 0;
+                int next_prio = tile_slevel;
                 if( element->_scenery.size_x > 1 || element->_scenery.size_z > 1 )
                 {
-                    next_prio =
-                        (element->_scenery.size_x > element->_scenery.size_z
-                             ? element->_scenery.size_x
-                             : element->_scenery.size_z);
+                    next_prio = (element->_scenery.size_x > element->_scenery.size_z
+                                     ? element->_scenery.size_x
+                                     : element->_scenery.size_z) +
+                                tile_slevel;
                 }
 
                 if( max_tile_x > max_draw_x - 1 )
@@ -1128,7 +1128,7 @@ painter_paint(
                         int other_idx =
                             painter_coord_idx(painter, other_tile_x, other_tile_z, tile_slevel);
                         other_paint = &painter->tile_paints[other_idx];
-                        if( other_tile_x != tile_sx || other_tile_z != tile_sz )
+                        // if( other_tile_x != tile_sx || other_tile_z != tile_sz )
                         {
                             other_paint->queue_count++;
 
@@ -1140,6 +1140,11 @@ painter_paint(
                         }
                     }
                 }
+            }
+            if( scenery_queue_length != 0 )
+            {
+                tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
+                goto done;
             }
 
             if( waiting_spanning_scenery )
