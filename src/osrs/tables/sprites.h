@@ -43,7 +43,10 @@ struct CacheSpritePack
 };
 
 struct Cache;
-struct CacheSpritePack* sprite_pack_new_from_cache(struct Cache* cache, int id);
+struct CacheSpritePack*
+sprite_pack_new_from_cache(
+    struct Cache* cache,
+    int id);
 
 /**
  * Not all sprites are 128x128 or 64x64 (or variations of the two), so we need to normalize them to
@@ -57,10 +60,23 @@ enum SpiteLoaderFlags
 };
 
 struct CacheSpritePack*
-sprite_pack_new_decode(const unsigned char* data, int length, enum SpiteLoaderFlags flags);
-void sprite_pack_free(struct CacheSpritePack* pack);
+sprite_pack_new_decode(
+    const unsigned char* data,
+    int length,
+    enum SpiteLoaderFlags flags);
+void
+sprite_pack_free(struct CacheSpritePack* pack);
 
-int* sprite_get_pixels(struct CacheSprite* sprite, int* palette, int brightness);
-int* sprite_texture_get_pixels(struct CacheSprite* sprite, int* palette, int size, int brightness);
+int*
+sprite_get_pixels(
+    struct CacheSprite* sprite,
+    int* palette,
+    int brightness);
+int*
+sprite_texture_get_pixels(
+    struct CacheSprite* sprite,
+    int* palette,
+    int size,
+    int brightness);
 
 #endif

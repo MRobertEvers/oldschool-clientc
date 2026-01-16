@@ -181,13 +181,6 @@ struct CacheMapLocsIter
     int index;
 };
 
-struct ScenePosition
-{
-    int chunk_idx;
-    int sx;
-    int sz;
-};
-
 struct CacheMapLocsIter* //
 map_locs_iter_new_from_ptrs(
     struct CacheMapLocs** chunks, //

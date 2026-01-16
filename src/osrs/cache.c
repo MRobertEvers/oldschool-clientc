@@ -143,7 +143,9 @@ init_reference_tables(struct Cache* cache)
 
 // Load a single reference table on-demand (lazy loading)
 static struct ReferenceTable*
-cache_ensure_reference_table_loaded(struct Cache* cache, int table_id)
+cache_ensure_reference_table_loaded(
+    struct Cache* cache,
+    int table_id)
 {
     // If already loaded, return it
     if( cache->tables[table_id] )
@@ -208,7 +210,10 @@ idx255_size_is_valid(char const* directory)
 }
 
 struct Cache*
-cache_new_inet(char const* directory, char const* ip, int port)
+cache_new_inet(
+    char const* directory,
+    char const* ip,
+    int port)
 {
     struct Cache* cache = malloc(sizeof(struct Cache));
     memset(cache, 0, sizeof(struct Cache));
@@ -318,7 +323,9 @@ cache_free(struct Cache* cache)
 }
 
 static FILE*
-fopen_index(char const* directory, int table_id)
+fopen_index(
+    char const* directory,
+    int table_id)
 {
     char path[1024];
     snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", directory, table_id);
@@ -326,7 +333,11 @@ fopen_index(char const* directory, int table_id)
 }
 
 static int
-read_index(struct IndexRecord* record, char const* cache_directory, int table_id, int entry_idx)
+read_index(
+    struct IndexRecord* record,
+    char const* cache_directory,
+    int table_id,
+    int entry_idx)
 {
     FILE* index_file = fopen_index(cache_directory, table_id);
     if( !index_file )
@@ -347,23 +358,10 @@ error:;
     return -1;
 }
 
-enum CachePreloadKind
-cache_archive_preload_check(struct Cache* cache, int table_id, int archive_id)
-{
-    struct IndexRecord index_record = { 0 };
-    if( read_index(&index_record, cache->directory, table_id, archive_id) != 0 )
-    {
-        return CACHE_PRELOAD_FAILED;
-    }
-
-    if( index_record.sector == 0 )
-        return CACHE_PRELOAD_NEEDLOAD;
-    else
-        return CACHE_PRELOAD_READY;
-}
-
 struct CacheArchive*
-cache_archive_new_reference_table_load(struct Cache* cache, int table_id)
+cache_archive_new_reference_table_load(
+    struct Cache* cache,
+    int table_id)
 {
     int res = 0;
     bool decompressed = false;
@@ -418,7 +416,10 @@ error:
 }
 
 struct CacheArchive*
-cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
+cache_archive_new_load(
+    struct Cache* cache,
+    int table_id,
+    int archive_id)
 {
     struct CacheArchive* archive =
         cache_archive_new_load_decrypted(cache, table_id, archive_id, NULL);
@@ -426,7 +427,9 @@ cache_archive_new_load(struct Cache* cache, int table_id, int archive_id)
 }
 
 void
-cache_archive_init_metadata(struct Cache* cache, struct CacheArchive* archive)
+cache_archive_init_metadata(
+    struct Cache* cache,
+    struct CacheArchive* archive)
 {
     struct ReferenceTable* table = cache_ensure_reference_table_loaded(cache, archive->table_id);
     if( !table )
@@ -443,7 +446,10 @@ cache_archive_init_metadata(struct Cache* cache, struct CacheArchive* archive)
 
 struct CacheArchive*
 cache_archive_new_load_decrypted(
-    struct Cache* cache, int table_id, int archive_id, uint32_t* xtea_key_nullable)
+    struct Cache* cache,
+    int table_id,
+    int archive_id,
+    uint32_t* xtea_key_nullable)
 {
     struct CacheInetPayload* payload = NULL;
     struct Dat2Archive dat2_archive = { 0 };
@@ -531,7 +537,10 @@ error:
 }
 
 uint32_t*
-cache_archive_xtea_key(struct Cache* cache, int table_id, int archive_id)
+cache_archive_xtea_key(
+    struct Cache* cache,
+    int table_id,
+    int archive_id)
 {
     return xtea_config_find_key(table_id, archive_id);
 }

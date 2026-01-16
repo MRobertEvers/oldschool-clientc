@@ -3,8 +3,13 @@
 
 struct CacheInet;
 
-struct CacheInet* cache_inet_new_connect(char const* ip, int port);
-void cache_inet_free(struct CacheInet* cache_inet);
+struct CacheInet*
+cache_inet_new_connect(
+    char const* ip,
+    int port);
+
+void
+cache_inet_free(struct CacheInet* cache_inet);
 
 enum CacheInetRequestType
 {
@@ -21,7 +26,12 @@ struct CacheInetPayload
 };
 
 struct CacheInetPayload*
-cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_id, int archive_id);
-void cache_inet_payload_free(struct CacheInetPayload* payload);
+cache_inet_payload_new_archive_request(
+    struct CacheInet* cache_inet,
+    int table_id,
+    int archive_id);
+
+void
+cache_inet_payload_free(struct CacheInetPayload* payload);
 
 #endif

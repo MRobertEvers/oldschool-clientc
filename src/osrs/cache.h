@@ -37,7 +37,8 @@ enum CacheTable
     CACHE_TABLE_COUNT
 };
 
-bool cache_is_valid_table_id(int table_id);
+bool
+cache_is_valid_table_id(int table_id);
 
 enum CacheMode
 {
@@ -57,10 +58,17 @@ struct Cache
     void* _inet_nullable;
 };
 
-struct Cache* cache_new_from_directory(char const* directory);
-struct Cache* cache_new_inet(char const* directory, char const* ip, int port);
-struct Cache* cache_new_uninitialized(void);
-void cache_free(struct Cache* cache);
+struct Cache*
+cache_new_from_directory(char const* directory);
+struct Cache*
+cache_new_inet(
+    char const* directory,
+    char const* ip,
+    int port);
+struct Cache*
+cache_new_uninitialized(void);
+void
+cache_free(struct Cache* cache);
 
 struct CacheArchive
 {
@@ -80,26 +88,40 @@ struct CacheArchiveTuple
     int archive_id;
 };
 
-enum CachePreloadKind
-{
-    CACHE_PRELOAD_NEEDLOAD,
-    CACHE_PRELOAD_READY,
-    CACHE_PRELOAD_FAILED,
-};
-
-enum CachePreloadKind
-cache_archive_preload_check(struct Cache* cache, int table_id, int archive_id);
-struct CacheArchive* cache_archive_new_reference_table_load(struct Cache* cache, int table_id);
-struct CacheArchive* cache_archive_new_load(struct Cache* cache, int table_id, int archive_id);
-struct CacheArchive* cache_archive_new_load_decrypted(
-    struct Cache* cache, int table_id, int archive_id, uint32_t* xtea_key_nullable);
 struct CacheArchive*
-cache_archive_new_load_uninitialized_metadata(struct Cache* cache, int table_id, int archive_id);
+cache_archive_new_reference_table_load(
+    struct Cache* cache,
+    int table_id);
 
-void cache_archive_init_metadata(struct Cache* cache, struct CacheArchive* archive);
-void cache_archive_free(struct CacheArchive* archive);
+struct CacheArchive*
+cache_archive_new_load(
+    struct Cache* cache,
+    int table_id,
+    int archive_id);
+struct CacheArchive*
+cache_archive_new_load_decrypted(
+    struct Cache* cache,
+    int table_id,
+    int archive_id,
+    uint32_t* xtea_key_nullable);
+struct CacheArchive*
+cache_archive_new_load_uninitialized_metadata(
+    struct Cache* cache,
+    int table_id,
+    int archive_id);
 
-uint32_t* cache_archive_xtea_key(struct Cache* cache, int table_id, int archive_id);
+void
+cache_archive_init_metadata(
+    struct Cache* cache,
+    struct CacheArchive* archive);
+void
+cache_archive_free(struct CacheArchive* archive);
+
+uint32_t*
+cache_archive_xtea_key(
+    struct Cache* cache,
+    int table_id,
+    int archive_id);
 
 #ifdef __cplusplus
 }

@@ -1,7 +1,5 @@
 #include "frustrum_cullmap.h"
 
-#include "screen.h"
-
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -18,7 +16,12 @@ extern int g_sin_table[2048];
 extern int g_cos_table[2048];
 
 static inline int
-coord_for_grid(int x, int y, int radius, int pitch, int yaw)
+coord_for_grid(
+    int x,
+    int y,
+    int radius,
+    int pitch,
+    int yaw)
 {
     int gridsize = (radius * radius) << 2;
     int pitchyaw_offset = (gridsize) * ((yaw * PITCH_STEPS) + pitch);
@@ -26,7 +29,13 @@ coord_for_grid(int x, int y, int radius, int pitch, int yaw)
 }
 
 static inline void
-cullmap_set(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw, int visible)
+cullmap_set(
+    struct FrustrumCullmap* frustrum_cullmap,
+    int x,
+    int y,
+    int pitch,
+    int yaw,
+    int visible)
 {
     int index = coord_for_grid(x, y, frustrum_cullmap->radius, pitch, yaw);
 
@@ -34,7 +43,12 @@ cullmap_set(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, i
 }
 
 static inline int
-cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw)
+cullmap_get(
+    struct FrustrumCullmap* frustrum_cullmap,
+    int x,
+    int y,
+    int pitch,
+    int yaw)
 {
     int index = coord_for_grid(x, y, frustrum_cullmap->radius, pitch, yaw);
 
@@ -42,7 +56,12 @@ cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, i
 }
 
 int
-frustrum_cullmap_get(struct FrustrumCullmap* frustrum_cullmap, int x, int y, int pitch, int yaw)
+frustrum_cullmap_get(
+    struct FrustrumCullmap* frustrum_cullmap,
+    int x,
+    int y,
+    int pitch,
+    int yaw)
 {
     pitch = pitch / (128 / 4);
     yaw = yaw / (2048 / YAW_STEPS);
@@ -78,7 +97,15 @@ pitch_height(int pitch)
 }
 
 static bool
-test_point_in_frustrum(int x, int z, int y, int pitch, int yaw, int near_clip_z)
+test_point_in_frustrum(
+    int x,
+    int z,
+    int y,
+    int pitch,
+    int yaw,
+    int near_clip_z,
+    int screen_width,
+    int screen_height)
 {
     struct ProjectedVertex projected_vertex;
     project_fast(
@@ -94,17 +121,17 @@ test_point_in_frustrum(int x, int z, int y, int pitch, int yaw, int near_clip_z)
         yaw,
         512,
         near_clip_z,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT);
+        screen_width,
+        screen_height);
 
     if( projected_vertex.clipped || projected_vertex.z > 3500 )
         return false;
 
-    projected_vertex.x = (projected_vertex.x + (SCREEN_WIDTH >> 1));
-    projected_vertex.y = (projected_vertex.y + (SCREEN_HEIGHT >> 1));
+    projected_vertex.x = (projected_vertex.x + (screen_width >> 1));
+    projected_vertex.y = (projected_vertex.y + (screen_height >> 1));
 
-    return projected_vertex.x >= 0 && projected_vertex.x < SCREEN_WIDTH &&
-           projected_vertex.y >= 0 && projected_vertex.y < SCREEN_HEIGHT;
+    return projected_vertex.x >= 0 && projected_vertex.x < screen_width &&
+           projected_vertex.y >= 0 && projected_vertex.y < screen_height;
     // int px = (z * g_sin_table[yaw] + x * g_cos_table[yaw]) >> 16;
     // int tmp = (z * g_cos_table[yaw] - x * g_sin_table[yaw]) >> 16;
     // int pz = (y * g_sin_table[pitch] + tmp * g_cos_table[pitch]) >> 16;
@@ -145,7 +172,11 @@ frustrum_cullmap_new_nocull(int radius)
 }
 
 struct FrustrumCullmap*
-frustrum_cullmap_new(int radius, int near_clip_z)
+frustrum_cullmap_new(
+    int radius,
+    int near_clip_z,
+    int screen_width,
+    int screen_height)
 {
     struct FrustrumCullmap* frustrum_cullmap =
         (struct FrustrumCullmap*)malloc(sizeof(struct FrustrumCullmap));
@@ -183,11 +214,25 @@ frustrum_cullmap_new(int radius, int near_clip_z)
                         int screen_z = to_tile_z * 128;
 
                         visible = test_point_in_frustrum(
-                            screen_x, screen_z, to_tile_y, pitch_rad, yaw_rad, near_clip_z);
+                            screen_x,
+                            screen_z,
+                            to_tile_y,
+                            pitch_rad,
+                            yaw_rad,
+                            near_clip_z,
+                            screen_width,
+                            screen_height);
                         if( visible )
                             break;
                         visible = test_point_in_frustrum(
-                            screen_x + 128, screen_z, to_tile_y, pitch_rad, yaw_rad, near_clip_z);
+                            screen_x + 128,
+                            screen_z,
+                            to_tile_y,
+                            pitch_rad,
+                            yaw_rad,
+                            near_clip_z,
+                            screen_width,
+                            screen_height);
                         if( visible )
                             break;
                         visible = test_point_in_frustrum(
@@ -196,11 +241,20 @@ frustrum_cullmap_new(int radius, int near_clip_z)
                             to_tile_y,
                             pitch_rad,
                             yaw_rad,
-                            near_clip_z);
+                            near_clip_z,
+                            screen_width,
+                            screen_height);
                         if( visible )
                             break;
                         visible = test_point_in_frustrum(
-                            screen_x, screen_z + 128, to_tile_y, pitch_rad, yaw_rad, near_clip_z);
+                            screen_x,
+                            screen_z + 128,
+                            to_tile_y,
+                            pitch_rad,
+                            yaw_rad,
+                            near_clip_z,
+                            screen_width,
+                            screen_height);
                         if( visible )
                             break;
                     }

@@ -140,16 +140,34 @@ struct ModelBones
     int* bones_sizes;
 };
 
-struct ModelBones* modelbones_new_decode(int* packed_bone_groups, int packed_bone_groups_count);
+struct ModelBones*
+modelbones_new_decode(
+    int* packed_bone_groups,
+    int packed_bone_groups_count);
 
 struct Cache;
-struct CacheModel* model_new_from_cache(struct Cache* cache, int model_id);
-struct CacheModel* model_new_from_archive(struct CacheArchive* archive, int model_id);
-struct CacheModel* model_new_decode(const unsigned char* inputData, int inputLength);
-struct CacheModel* model_new_copy(struct CacheModel* model);
-struct CacheModel* model_new_merge(struct CacheModel** models, int model_count);
+struct CacheModel*
+model_new_from_cache(
+    struct Cache* cache,
+    int model_id);
+struct CacheModel*
+model_new_from_archive(
+    struct CacheArchive* archive,
+    int model_id);
+struct CacheModel*
+model_new_decode(
+    const unsigned char* inputData,
+    int inputLength);
+struct CacheModel*
+model_new_copy(struct CacheModel* model);
+struct CacheModel*
+model_new_merge(
+    struct CacheModel** models,
+    int model_count);
 
-void modelbones_free(struct ModelBones* modelbones);
-void model_free(struct CacheModel* model);
+void
+modelbones_free(struct ModelBones* modelbones);
+void
+model_free(struct CacheModel* model);
 
 #endif

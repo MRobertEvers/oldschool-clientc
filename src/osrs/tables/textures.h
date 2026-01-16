@@ -36,13 +36,24 @@ struct CacheTexture
 };
 
 struct Cache;
-struct CacheTexture* texture_definition_new_from_cache(struct Cache* cache, int id);
+struct CacheTexture*
+texture_definition_new_from_cache(
+    struct Cache* cache,
+    int id);
 
-void texture_definition_free(struct CacheTexture* texture_definition);
+void
+texture_definition_free(struct CacheTexture* texture_definition);
 
-void texture_definition_free_inplace(struct CacheTexture* texture_definition);
-struct CacheTexture* texture_definition_new_decode(const unsigned char* inputData, int inputLength);
-struct CacheTexture* texture_definition_decode_inplace(
-    struct CacheTexture*, const unsigned char* inputData, int inputLength);
+void
+texture_definition_free_inplace(struct CacheTexture* texture_definition);
+struct CacheTexture*
+texture_definition_new_decode(
+    const unsigned char* inputData,
+    int inputLength);
+struct CacheTexture*
+texture_definition_decode_inplace(
+    struct CacheTexture*,
+    const unsigned char* inputData,
+    int inputLength);
 
 #endif

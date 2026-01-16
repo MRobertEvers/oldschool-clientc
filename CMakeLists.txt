@@ -56,7 +56,6 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
         src/osrs/cache.c
         src/osrs/scene.c
-        src/osrs/bounds_cylinder.c
         src/osrs/frustrum_cullmap.c
         src/osrs/palette.c
         src/osrs/archive_decompress.c
