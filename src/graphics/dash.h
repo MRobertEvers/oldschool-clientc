@@ -98,6 +98,8 @@ struct DashModelBones
     int* bones_sizes;
 };
 
+struct DashModelAnimation
+{};
 struct DashModel
 {
     int vertex_count;
