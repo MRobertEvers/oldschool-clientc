@@ -193,68 +193,6 @@ libg_game_new(struct GIOQueue* io)
     game->camera->fov_rpi2048 = 512;
     game->camera->near_plane_z = 50;
 
-    // game->model = model_new_from_cache(game->cache, 0);
-    // game->normals = model_normals_new(game->model->vertex_count, game->model->face_count);
-    // calculate_vertex_normals(
-    //     game->normals->lighting_vertex_normals,
-    //     game->normals->lighting_face_normals,
-    //     game->model->vertex_count,
-    //     game->model->face_indices_a,
-    //     game->model->face_indices_b,
-    //     game->model->face_indices_c,
-    //     game->model->vertices_x,
-    //     game->model->vertices_y,
-    //     game->model->vertices_z,
-    //     game->model->face_count);
-
-    // struct ModelLighting* lighting = model_lighting_new(game->model->face_count);
-
-    // game->lighting = lighting;
-
-    // int light_ambient = 64;
-    // int light_attenuation = 768;
-    // int lightsrc_x = -50;
-    // int lightsrc_y = -10;
-    // int lightsrc_z = -50;
-
-    // {
-    //     light_ambient += 0;
-    //     // 2004Scape multiplies contrast by 5.
-    //     // Later versions do not.
-    //     light_attenuation += 0;
-    // }
-
-    // int light_magnitude =
-    //     (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    // int attenuation = (light_attenuation * light_magnitude) >> 8;
-
-    // apply_lighting(
-    //     lighting->face_colors_hsl_a,
-    //     lighting->face_colors_hsl_b,
-    //     lighting->face_colors_hsl_c,
-    //     game->normals->lighting_vertex_normals,
-    //     game->normals->lighting_face_normals,
-    //     game->model->face_indices_a,
-    //     game->model->face_indices_b,
-    //     game->model->face_indices_c,
-    //     game->model->face_count,
-    //     game->model->face_colors,
-    //     game->model->face_alphas,
-    //     game->model->face_textures,
-    //     game->model->face_infos,
-    //     light_ambient,
-    //     attenuation,
-    //     lightsrc_x,
-    //     lightsrc_y,
-    //     lightsrc_z);
-
-    // game->bounds_cylinder = (struct BoundsCylinder*)malloc(sizeof(struct BoundsCylinder));
-    // *game->bounds_cylinder = calculate_bounds_cylinder(
-    //     game->model->vertex_count,
-    //     game->model->vertices_x,
-    //     game->model->vertices_y,
-    //     game->model->vertices_z);
-
     game->tasks_nullable = gtask_new_init_io(game->io);
     game->tasks_nullable->next = gtask_new_init_scene(game, 50, 49, 51, 50);
 

@@ -1,7 +1,6 @@
 #include "dash.h"
 
 #include "dashmap.h"
-#include "render.h"
 #include "shared_tables.h"
 
 #include <assert.h>
@@ -347,7 +346,7 @@ dash3d_raster_model_face(
     struct DashMap* textures_hmap)
 {
     struct DashTextureEntry* texture_entry = NULL;
-    struct Texture* texture = NULL;
+    struct DashTexture* texture = NULL;
 
     // TODO: FaceTYpe is wrong, type 2 is hidden, 3 is black, 0 is gouraud, 1 is flat.
     enum FaceType type = face_infos ? (face_infos[face] & 0x3) : FACE_TYPE_GOURAUD;

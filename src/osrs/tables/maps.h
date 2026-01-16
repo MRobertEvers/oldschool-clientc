@@ -2,7 +2,6 @@
 #define MAPS_H
 
 #include "osrs/cache.h"
-#include "osrs/gameio.h"
 #include "osrs/rsbuf.h"
 
 #include <assert.h>

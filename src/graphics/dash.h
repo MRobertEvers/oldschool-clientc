@@ -2,6 +2,7 @@
 #define DASH_H
 
 #include "dashmap.h"
+#include "lighting.h"
 
 #include <stdbool.h>
 #include <stdint.h>

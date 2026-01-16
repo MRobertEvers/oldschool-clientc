@@ -27,7 +27,7 @@
 
 // clang-format off
 #include "chunks.u.c"
-#include "scene_builder.u.c"
+
 // clang-format on
 
 // static void
