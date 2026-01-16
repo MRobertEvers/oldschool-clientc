@@ -63,13 +63,22 @@ gather_sharelight_models(
 {
     int count = 0;
     struct BuildElement* build_element = NULL;
-    if( build_tile->wall_element_idx != -1 )
+    if( build_tile->wall_element_a_idx != -1 )
     {
-        build_element = build_grid_element_at(build_grid, build_tile->wall_element_idx);
+        build_element = build_grid_element_at(build_grid, build_tile->wall_element_a_idx);
         assert(build_element && "Element must be valid");
 
         if( build_element->sharelight )
-            out[count++] = build_tile->wall_element_idx;
+            out[count++] = build_tile->wall_element_a_idx;
+    }
+
+    if( build_tile->wall_element_b_idx != -1 )
+    {
+        build_element = build_grid_element_at(build_grid, build_tile->wall_element_b_idx);
+        assert(build_element && "Element must be valid");
+
+        if( build_element->sharelight )
+            out[count++] = build_tile->wall_element_b_idx;
     }
 
     // if( build_tile->wall_b_element_idx != -1 )

@@ -156,31 +156,31 @@ mix_hsl(
     int hsl_b)
 {
     return (hsl_a + hsl_b) >> 1;
-    // if( hsl_a == INVALID_HSL_COLOR || hsl_b == INVALID_HSL_COLOR )
-    //     return INVALID_HSL_COLOR;
+    if( hsl_a == INVALID_HSL_COLOR || hsl_b == INVALID_HSL_COLOR )
+        return INVALID_HSL_COLOR;
 
-    // if( hsl_a == INVALID_HSL_COLOR )
-    //     return hsl_b;
-    // else if( hsl_b == INVALID_HSL_COLOR )
-    //     return hsl_a;
+    if( hsl_a == INVALID_HSL_COLOR )
+        return hsl_b;
+    else if( hsl_b == INVALID_HSL_COLOR )
+        return hsl_a;
 
-    // int hue = (hsl_a >> 10) & 0x3f;
-    // int saturation = (hsl_a >> 7) & 0x7;
-    // int lightness = hsl_a & 0x7f;
+    int hue = (hsl_a >> 10) & 0x3f;
+    int saturation = (hsl_a >> 7) & 0x7;
+    int lightness = hsl_a & 0x7f;
 
-    // int hue_b = (hsl_b >> 10) & 0x3f;
-    // int saturation_b = (hsl_b >> 7) & 0x7;
-    // int lightness_b = hsl_b & 0x7f;
+    int hue_b = (hsl_b >> 10) & 0x3f;
+    int saturation_b = (hsl_b >> 7) & 0x7;
+    int lightness_b = hsl_b & 0x7f;
 
-    // hue += hue_b;
-    // saturation += saturation_b;
-    // lightness += lightness_b;
+    hue += hue_b;
+    saturation += saturation_b;
+    lightness += lightness_b;
 
-    // hue >>= 1;
-    // saturation >>= 1;
-    // lightness >>= 1;
+    hue >>= 1;
+    saturation >>= 1;
+    lightness >>= 1;
 
-    // return (hue << 10) + (saturation << 7) + lightness;
+    return (hue << 10) + (saturation << 7) + lightness;
 }
 
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/SceneTileModel.java
@@ -444,7 +444,7 @@ decode_tile(
 
     for( int i = 0; i < face_count; i++ )
     {
-        bool is_overlay = face_indices[i * 4] == 1;
+        bool is_textured = face_indices[i * 4] == 1;
         int a = face_indices[i * 4 + 1];
         int b = face_indices[i * 4 + 2];
         int c = face_indices[i * 4 + 3];
@@ -467,7 +467,7 @@ decode_tile(
         int color_c;
         int face_texture_id = -1;
 
-        if( is_overlay )
+        if( is_textured )
         {
             color_a = overlay_colors_hsl[a];
             color_b = overlay_colors_hsl[b];
@@ -491,8 +491,6 @@ decode_tile(
         face_colors_hsl_a[i] = color_a;
         face_colors_hsl_b[i] = color_b;
         face_colors_hsl_c[i] = color_c;
-
-        // TODO: Skip texture rendering right now
 
         if( color_a == INVALID_HSL_COLOR && face_texture_id == -1 )
         {

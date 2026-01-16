@@ -56,8 +56,19 @@
 //     underlay->block_shadow = true;
 // }
 
+static void
+init_overlay(struct CacheConfigOverlay* overlay)
+{
+    overlay->rgb_color = 0;
+    overlay->texture = -1;
+    overlay->secondary_rgb_color = -1;
+    overlay->hide_underlay = true;
+}
+
 struct CacheConfigOverlay*
-config_floortype_overlay_new_decode(char* data, int data_size)
+config_floortype_overlay_new_decode(
+    char* data,
+    int data_size)
 {
     struct RSBuffer buffer = {
         .data = data,
@@ -80,13 +91,13 @@ config_floortype_overlay_new_decode(char* data, int data_size)
 
 void
 config_floortype_overlay_decode_inplace(
-    struct CacheConfigOverlay* overlay, char* data, int data_size)
+    struct CacheConfigOverlay* overlay,
+    char* data,
+    int data_size)
 {
     memset(overlay, 0, sizeof(struct CacheConfigOverlay));
 
-    overlay->texture = -1;
-    overlay->hide_underlay = true;
-    overlay->secondary_rgb_color = -1;
+    init_overlay(overlay);
 
     struct RSBuffer buffer = {
         .data = data,
@@ -143,7 +154,9 @@ config_floortype_overlay_free_inplace(struct CacheConfigOverlay* overlay)
 }
 
 struct CacheConfigUnderlay*
-config_floortype_underlay_new_decode(char* data, int data_size)
+config_floortype_underlay_new_decode(
+    char* data,
+    int data_size)
 {
     // for (;;)
     // {
@@ -175,7 +188,9 @@ config_floortype_underlay_new_decode(char* data, int data_size)
 
 void
 config_floortype_underlay_decode_inplace(
-    struct CacheConfigUnderlay* underlay, char* data, int data_size)
+    struct CacheConfigUnderlay* underlay,
+    char* data,
+    int data_size)
 {
     memset(underlay, 0, sizeof(struct CacheConfigUnderlay));
 

@@ -520,6 +520,8 @@ scenery_add_wall_tri_corner(
      */
     build_grid_set_element(
         scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
+    build_grid_tile_add_wall(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_id);
 
     return 1;
 }
@@ -604,6 +606,8 @@ scenery_add_wall_two_sides(
 
     build_grid_tile_add_wall(
         scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_one_id);
+    build_grid_tile_add_wall(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_B, element_two_id);
 
     return 2;
 }
@@ -663,6 +667,9 @@ scenery_add_wall_rect_corner(
      */
     build_grid_set_element(
         scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
+
+    build_grid_tile_add_wall(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_id);
 
     return 1;
 }
@@ -1336,11 +1343,11 @@ apply_wall_offsets(
         struct BuildTile* tile = build_grid_tile_at(
             scene_builder->build_grid, build_element->sx, build_element->sz, build_element->slevel);
 
-        if( tile->wall_element_idx == -1 )
+        if( tile->wall_element_a_idx == -1 )
             continue;
 
         struct BuildElement* wall_element =
-            build_grid_element_at(scene_builder->build_grid, tile->wall_element_idx);
+            build_grid_element_at(scene_builder->build_grid, tile->wall_element_a_idx);
         // INSIDE is unaffected by wall offset.
         int offset = 0;
         int diagonal = false;

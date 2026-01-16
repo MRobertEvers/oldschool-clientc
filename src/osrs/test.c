@@ -1,77 +1,12 @@
-#include "palette.h"
-
-#include <assert.h>
-
-int
-palette_rgb_to_hsl16(int rgb)
+#include <stdio.h>
+struct HSL
 {
-    struct HSL hsl = palette_rgb_to_hsl24(rgb);
-    return palette_hsl24_to_hsl16(hsl.hue, hsl.sat, hsl.light);
-}
-
-//  const r = ((rgb >> 16) & 0xff) / 256.0;
-//         const g = ((rgb >> 8) & 0xff) / 256.0;
-//         const b = (rgb & 0xff) / 256.0;
-
-//         let minRgb = r;
-//         if (g < minRgb) {
-//             minRgb = g;
-//         }
-//         if (b < minRgb) {
-//             minRgb = b;
-//         }
-
-//         let maxRgb = r;
-//         if (g > maxRgb) {
-//             maxRgb = g;
-//         }
-//         if (b > maxRgb) {
-//             maxRgb = b;
-//         }
-
-//         let hue = 0.0;
-//         let sat = 0.0;
-//         const light = (maxRgb + minRgb) / 2.0;
-
-//         if (maxRgb !== minRgb) {
-//             if (light < 0.5) {
-//                 sat = (maxRgb - minRgb) / (maxRgb + minRgb);
-//             }
-
-//             if (light >= 0.5) {
-//                 sat = (maxRgb - minRgb) / (2.0 - maxRgb - minRgb);
-//             }
-
-//             if (maxRgb === r) {
-//                 hue = (g - b) / (maxRgb - minRgb);
-//             } else if (maxRgb === g) {
-//                 hue = 2.0 + (b - r) / (maxRgb - minRgb);
-//             } else if (maxRgb === b) {
-//                 hue = 4.0 + (r - g) / (maxRgb - minRgb);
-//             }
-//         }
-//         hue /= 6.0;
-//         this.saturation = (sat * 256.0) | 0;
-//         this.lightness = (light * 256.0) | 0;
-//         if (this.saturation < 0) {
-//             this.saturation = 0;
-//         } else if (this.saturation > 255) {
-//             this.saturation = 255;
-//         }
-//         if (this.lightness < 0) {
-//             this.lightness = 0;
-//         } else if (this.lightness > 255) {
-//             this.lightness = 255;
-//         }
-//         if (light > 0.5) {
-//             this.hueMultiplier = (512.0 * (sat * (1.0 - light))) | 0;
-//         } else {
-//             this.hueMultiplier = (512.0 * (sat * light)) | 0;
-//         }
-//         if (this.hueMultiplier < 1) {
-//             this.hueMultiplier = 1;
-//         }
-//         this.hue = (this.hueMultiplier * hue) | 0;
+    int hue;
+    int sat;
+    int light;
+    int luminance;
+    int chroma;
+};
 
 struct HSL
 palette_rgb_to_hsl24(int rgb)
@@ -188,7 +123,6 @@ palette_rgb_to_hsl24(int rgb)
 
     int sat_int = (int)(saturation * 256.0);
     int light_int = (int)(lightness * 256.0);
-    int hue_int = (int)(hue * 256.0);
 
     if( sat_int < 0 )
         sat_int = 0;
@@ -210,7 +144,7 @@ palette_rgb_to_hsl24(int rgb)
         luminance = 1;
 
     struct HSL hsl;
-    hsl.hue = hue_int;
+    hsl.hue = (int)(hue);
     hsl.sat = sat_int;
     hsl.light = light_int;
     hsl.luminance = luminance;
@@ -219,31 +153,12 @@ palette_rgb_to_hsl24(int rgb)
 }
 
 int
-palette_hsl24_to_hsl16(
-    int hue,
-    int saturation,
-    int lightness)
+main(
+    int argc,
+    char** argv)
 {
-    if( lightness > 179 )
-        saturation >>= 1;
-
-    if( lightness > 192 )
-        saturation >>= 1;
-
-    if( lightness > 217 )
-        saturation >>= 1;
-
-    if( lightness > 243 )
-        saturation >>= 1;
-
-    return ((hue / 4) << 10) + ((saturation / 32) << 7) + ((lightness / 2));
-}
-
-int
-palette_pack_hsl24(
-    int hue,
-    int saturation,
-    int lightness)
-{
-    return (hue << 16) | (saturation << 8) | lightness;
+    int rgb = 4008715;
+    struct HSL hsl = palette_rgb_to_hsl24(rgb);
+    printf("hsl: %d, %d, %d, %d, %d\n", hsl.hue, hsl.sat, hsl.light, hsl.luminance, hsl.chroma);
+    return 0;
 }

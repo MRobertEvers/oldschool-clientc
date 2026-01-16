@@ -55,7 +55,8 @@ struct BuildTile
     int elements[10];
     int elements_length;
 
-    int wall_element_idx;
+    int wall_element_a_idx;
+    int wall_element_b_idx;
 
     uint8_t sx;
     uint8_t sz;
@@ -98,7 +99,8 @@ init_build_tile(
     int height_center)
 {
     memset(build_tile, 0, sizeof(struct BuildTile));
-    build_tile->wall_element_idx = -1;
+    build_tile->wall_element_a_idx = -1;
+    build_tile->wall_element_b_idx = -1;
 
     build_tile->sx = sx;
     build_tile->sz = sz;
@@ -234,7 +236,10 @@ build_grid_tile_add_wall(
     int wall_element_idx)
 {
     struct BuildTile* tile = build_grid_tile_at(build_grid, sx, sz, slevel);
-    tile->wall_element_idx = wall_element_idx;
+    if( wall_ab == WALL_A )
+        tile->wall_element_a_idx = wall_element_idx;
+    else
+        tile->wall_element_b_idx = wall_element_idx;
 }
 
 static void

@@ -60,12 +60,18 @@ blend_underlays(
     for( int i = 0; i < size_x * size_z; i++ )
         colors[i] = -1;
 
-    // Allocate arrays for HSL calculations
-    int* sats = calloc(max_size, sizeof(int));
-    int* light = calloc(max_size, sizeof(int));
-    int* luminance = calloc(max_size, sizeof(int));
-    int* chroma = calloc(max_size, sizeof(int));
-    int* counts = calloc(max_size, sizeof(int));
+    // // Allocate arrays for HSL calculations
+    // int* sats = calloc(max_size, sizeof(int));
+    // int* light = calloc(max_size, sizeof(int));
+    // int* luminance = calloc(max_size, sizeof(int));
+    // int* chroma = calloc(max_size, sizeof(int));
+    // int* counts = calloc(max_size, sizeof(int));
+
+    int sats[512] = { 0 };
+    int light[512] = { 0 };
+    int luminance[512] = { 0 };
+    int chroma[512] = { 0 };
+    int counts[512] = { 0 };
 
     memset(sats, 0, max_size * sizeof(int));
     memset(light, 0, max_size * sizeof(int));
@@ -93,6 +99,7 @@ blend_underlays(
                 tile = tile_from_sw_origin(terrain_grid, x_east, zi, level);
                 assert(tile != NULL);
                 underlay_id = tile->underlay_id;
+
                 if( underlay_id > 0 )
                 {
                     entry = (struct CacheConfigUnderlay*)configmap_get(
@@ -101,7 +108,7 @@ blend_underlays(
 
                     hsl = palette_rgb_to_hsl24(entry->rgb_color);
 
-                    chroma[zi] += hsl.chroma * 256 / hsl.luminance;
+                    chroma[zi] += hsl.chroma;
                     sats[zi] += hsl.sat;
                     light[zi] += hsl.light;
                     luminance[zi] += hsl.luminance;
@@ -126,7 +133,7 @@ blend_underlays(
 
                     hsl = palette_rgb_to_hsl24(entry->rgb_color);
 
-                    chroma[zi] -= hsl.chroma * 256 / hsl.luminance;
+                    chroma[zi] -= hsl.chroma;
                     sats[zi] -= hsl.sat;
                     light[zi] -= hsl.light;
                     luminance[zi] -= hsl.luminance;
@@ -149,7 +156,7 @@ blend_underlays(
         // Process each row
         for( int zi = blend_start_y; zi < blend_end_y; zi++ )
         {
-            // Check north boundary
+               // Check north boundary
             int z_north = zi + BLEND_RADIUS;
             if( z_north >= 0 && z_north < size_z )
             {
@@ -179,7 +186,7 @@ blend_underlays(
             underlay_id = tile->underlay_id;
             if( underlay_id > 0 )
             {
-                int avg_hue = (running_chroma / running_number) & 0xFF;
+                int avg_hue = ((running_chroma * 256) / running_luminance) & 0xFF;
                 int avg_sat = (running_sat / running_number) & 0xFF;
                 int avg_light = (running_light / running_number) & 0xFF;
 
@@ -188,21 +195,21 @@ blend_underlays(
                 if( avg_light < 0 )
                     avg_light = 0;
 
-                int hsl = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
+                int hsl16 = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
 
                 int idx = grid_coord(terrain_grid_x_width(terrain_grid), xi, zi, 0);
-                colors[idx] = hsl;
+                colors[idx] = hsl16;
             }
         }
     }
 
     // Free allocated memory
 
-    free(sats);
-    free(light);
-    free(luminance);
-    free(chroma);
-    free(counts);
+    // free(sats);
+    // free(light);
+    // free(luminance);
+    // free(chroma);
+    // free(counts);
 
     return colors;
 }
@@ -415,6 +422,12 @@ build_scene_terrain(
                         config_underlay_map, underlay_id);
                     assert(underlay != NULL);
 
+                    if( x == 183 && z == 103 )
+                    {
+                        printf("underlay_hsl: %d\n", underlay_hsl);
+                    }
+
+                    // underlay_hsl = palette_rgb_to_hsl16(underlay->rgb_color);
                     underlay_hsl =
                         blended_underlays[grid_coord(terrain_grid_x_width(terrain_grid), x, z, 0)];
 
@@ -470,8 +483,11 @@ build_scene_terrain(
                     }
                     else
                     {
+                        int from_rgb = overlay->secondary_rgb_color != -1
+                                           ? overlay->secondary_rgb_color
+                                           : overlay->rgb_color;
                         // overlay_hsl = 0xFF00FF;
-                        int hsl = palette_rgb_to_hsl16(overlay->rgb_color);
+                        int hsl = palette_rgb_to_hsl16(from_rgb);
                         overlay_hsl = adjust_lightness(hsl, 96);
                     }
                 }
@@ -479,6 +495,8 @@ build_scene_terrain(
                 tile->sx = x;
                 tile->sz = z;
                 tile->slevel = level;
+
+                assert(tile->dash_model == NULL);
 
                 model = decode_tile(
                     shape,

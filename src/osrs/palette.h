@@ -12,7 +12,8 @@
 #define HSL_SAT(x) (((x) >> 7) & 0x7)
 #define HSL_LIGHT(x) ((x) & 0x7F)
 
-int palette_rgb_to_hsl16(int rgb);
+int
+palette_rgb_to_hsl16(int rgb);
 
 struct HSL
 {
@@ -25,8 +26,17 @@ struct HSL
     int chroma;
 };
 
-struct HSL palette_rgb_to_hsl24(int rgb);
+struct HSL
+palette_rgb_to_hsl24(int rgb);
 
-int palette_hsl24_to_hsl16(int hue, int saturation, int lightness);
-int palette_pack_hsl24(int hue, int saturation, int lightness);
+int
+palette_hsl24_to_hsl16(
+    int hue,
+    int saturation,
+    int lightness);
+int
+palette_pack_hsl24(
+    int hue,
+    int saturation,
+    int lightness);
 #endif

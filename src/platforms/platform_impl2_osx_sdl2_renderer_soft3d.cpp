@@ -278,11 +278,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             int sx = cmd->_terrain._bf_terrain_x;
             int sz = cmd->_terrain._bf_terrain_z;
             int slevel = cmd->_terrain._bf_terrain_y;
+
             tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
-            if( tile_model->dash_model && slevel == 3 )
-            {
-                printf("Bridge tile: %d, %d, %d\n", sx, sz, slevel);
-            }
 
             position.x = sx * 128 - game->camera_world_x;
             position.z = sz * 128 - game->camera_world_z;
