@@ -1,6 +1,7 @@
 #ifndef DASH_H
 #define DASH_H
 
+#include "dash_math.h"
 #include "dashmap.h"
 #include "lighting.h"
 
@@ -182,15 +183,6 @@ struct DashPosition
 
 void
 dash_init(void);
-
-int
-dash_cos(int angle_r2pi2048);
-
-int
-dash_sin(int angle_r2pi2048);
-
-int
-dash_reciprocal16(int value_12bit);
 
 struct DashGraphics;
 struct DashGraphics* //
