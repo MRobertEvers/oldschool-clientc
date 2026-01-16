@@ -1,10 +1,20 @@
-#include "anim.h"
+#ifndef ANIM_U_C
+#define ANIM_U_C
+
+#include "dash_anim.h"
 
 #include <string.h>
 
 extern int g_cos_table[2048];
 extern int g_sin_table[2048];
 extern int g_tan_table[2048];
+
+struct Transformation
+{
+    int origin_x;
+    int origin_y;
+    int origin_z;
+};
 
 static void
 animate(
@@ -242,8 +252,8 @@ animate(
 
 void
 anim_frame_apply(
-    struct CacheFrame* frame,
-    struct CacheFramemap* framemap,
+    struct DashFrame* frame,
+    struct DashFramemap* framemap,
     int* vertices_x,
     int* vertices_y,
     int* vertices_z,
@@ -290,3 +300,5 @@ anim_frame_apply(
             face_alphas);
     }
 }
+
+#endif

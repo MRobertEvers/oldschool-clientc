@@ -204,6 +204,7 @@
         "chrono": "c",
         "random": "c",
         "dashmap.h": "c",
-        "texture.h": "c"
+        "texture.h": "c",
+        "dash_anim.h": "c"
     }
 }
