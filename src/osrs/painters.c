@@ -544,7 +544,7 @@ painter_paint(
     static int coord_list_x[20000];
     static int coord_list_z[20000];
     static int coord_list_level[20000] = { 0 };
-    static int max_level = 4;
+    static int max_level = 0;
 
     int coord_list_length = 0;
 

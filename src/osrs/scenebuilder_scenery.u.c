@@ -912,8 +912,8 @@ scenery_add_wall_decor_diagonal_inside(
     struct SceneElement scene_element = { 0 };
     int element_id = -1;
 
-    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
-    int orientation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : (map_loc->orientation);
+    int orientation = (map_loc->orientation + 2) & 0x3;
 
     dash_model = load_model(
         config_loc,
@@ -947,13 +947,13 @@ scenery_add_wall_decor_diagonal_inside(
         element_id,
         WALL_A,
         ROTATION_WALL_CORNER_TYPE[orientation],
-        0);
+        THROUGHWALL);
 
     /**
      * Build grid
      */
     build_grid_set_element(
-        scene_builder->build_grid, element_id, config_loc, offset, (orientation + 2) & 0x3, 1, 1);
+        scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
 
     build_grid_set_decor(scene_builder->build_grid, element_id, DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
