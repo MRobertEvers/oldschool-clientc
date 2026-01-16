@@ -539,9 +539,10 @@ painter_paint(
 
     // Generate painter's algorithm coordinate list - farthest to nearest
     int radius = 25;
-    int coord_list_x[4];
-    int coord_list_z[4];
-    int max_level = 4;
+    static int coord_list_x[20000];
+    static int coord_list_z[20000];
+    static int coord_list_level[20000] = { 0 };
+    static int max_level = 4;
 
     int coord_list_length = 0;
 
@@ -572,7 +573,6 @@ painter_paint(
     if( min_draw_z >= max_draw_z )
         return 0;
 
-    coord_list_length = 4;
     coord_list_x[0] = min_draw_x;
     coord_list_z[0] = min_draw_z;
 
@@ -584,6 +584,58 @@ painter_paint(
 
     coord_list_x[3] = max_draw_x - 1;
     coord_list_z[3] = max_draw_z - 1;
+    coord_list_length = 4;
+
+    // for( int level = 0; level < painter->levels; level++ )
+    // {
+    //     for( int dx = -radius; dx <= 0; dx++ )
+    //     {
+    //         int xleft = camera_sx + dx;
+    //         int xright = camera_sx - dx;
+    //         if( xleft < min_draw_x && xright > max_draw_x )
+    //             continue;
+    //         for( int dz = -radius; dz <= 0; dz++ )
+    //         {
+    //             int ztop = camera_sz + dz;
+    //             int zbottom = camera_sz - dz;
+
+    //             if( xleft >= min_draw_x && xleft < max_draw_x )
+    //             {
+    //                 if( ztop >= min_draw_z && ztop < max_draw_z )
+    //                 {
+    //                     coord_list_x[coord_list_length] = xleft;
+    //                     coord_list_z[coord_list_length] = ztop;
+    //                     coord_list_level[coord_list_length] = level;
+    //                     coord_list_length++;
+    //                 }
+    //                 if( zbottom >= min_draw_z && zbottom < max_draw_z )
+    //                 {
+    //                     coord_list_x[coord_list_length] = xleft;
+    //                     coord_list_z[coord_list_length] = zbottom;
+    //                     coord_list_level[coord_list_length] = level;
+    //                     coord_list_length++;
+    //                 }
+    //             }
+    //             if( xright >= min_draw_x && xright < max_draw_x )
+    //             {
+    //                 if( ztop >= min_draw_z && ztop < max_draw_z )
+    //                 {
+    //                     coord_list_x[coord_list_length] = xright;
+    //                     coord_list_z[coord_list_length] = ztop;
+    //                     coord_list_level[coord_list_length] = level;
+    //                     coord_list_length++;
+    //                 }
+    //                 if( zbottom >= min_draw_z && zbottom < max_draw_z )
+    //                 {
+    //                     coord_list_x[coord_list_length] = xright;
+    //                     coord_list_z[coord_list_length] = zbottom;
+    //                     coord_list_level[coord_list_length] = level;
+    //                     coord_list_length++;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     // Render tiles in painter's algorithm order (farthest to nearest)
     // Starting at the corners
@@ -591,13 +643,14 @@ painter_paint(
     {
         int coord_sx = coord_list_x[i];
         int coord_sz = coord_list_z[i];
+        int coord_level = coord_list_level[i];
 
         assert(coord_sx >= min_draw_x);
         assert(coord_sx < max_draw_x);
         assert(coord_sz >= min_draw_z);
         assert(coord_sz < max_draw_z);
 
-        int coord_idx = painter_coord_idx(painter, coord_sx, coord_sz, 0);
+        int coord_idx = painter_coord_idx(painter, coord_sx, coord_sz, coord_level);
         int_queue_push_wrap(&painter->queue, coord_idx);
 
         tile_paint = &painter->tile_paints[coord_idx];
@@ -1009,12 +1062,7 @@ painter_paint(
                     int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
                     int max_tile_z = min_tile_z + element->_scenery.size_z - 1;
 
-                    if( min_tile_x == 199 && min_tile_z == 108 )
-                    {
-                        int booger = 0;
-                    }
-
-                    int next_prio = 0;
+                    int next_prio = 50;
                     if( element->_scenery.size_x > 1 || element->_scenery.size_z > 1 )
                     {
                         next_prio =
@@ -1071,16 +1119,16 @@ painter_paint(
                                     int_queue_push_wrap(&painter->queue, other_idx);
                                 else
                                     int_queue_push_wrap_prio(
-                                        &painter->catchup_queue, other_idx, next_prio - 1);
+                                        &painter->catchup_queue, other_idx, next_prio);
                             }
                         }
                     }
                 }
 
-                if( !waiting_spanning_scenery )
-                    tile_paint->step = PAINT_STEP_NOTIFY_ADJACENT_TILES;
-                else
+                if( waiting_spanning_scenery )
                     tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
+                else
+                    tile_paint->step = PAINT_STEP_NOTIFY_ADJACENT_TILES;
             }
 
             // Move towards camera if farther away tiles are done.
