@@ -5,11 +5,13 @@
 
 struct SceneAnimation
 {
-    struct DashFrame* dash_frames;
+    struct DashFrame** dash_frames;
     int frame_count;
     int frame_capacity;
 
     struct DashFramemap* dash_framemap;
+
+    int frame_index;
 };
 
 struct SceneElement

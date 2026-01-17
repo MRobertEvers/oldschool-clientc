@@ -74,6 +74,7 @@ frame_new_decode(
 
     def->_id = id;
     def->framemap_id = framemap->id;
+    def->_framemap = framemap;
     def->showing = false;
 
     // Read the framemap archive index and length

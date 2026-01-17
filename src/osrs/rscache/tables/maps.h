@@ -142,9 +142,4 @@ struct ChunkOffset
     int z;
 };
 
-struct CacheMapLoc* //
-map_locs_iter_next( //
-    struct CacheMapLocsIter* iter, //
-    struct ChunkOffset* out_offset_nullable);
-
 #endif

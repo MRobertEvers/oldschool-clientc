@@ -1409,6 +1409,19 @@ dashmodel_animate(
     struct DashFrame* frame,
     struct DashFramemap* framemap)
 {
+    if( model->original_vertices_x == NULL )
+    {
+        model->original_vertices_x = malloc(sizeof(int) * model->vertex_count);
+        model->original_vertices_y = malloc(sizeof(int) * model->vertex_count);
+        model->original_vertices_z = malloc(sizeof(int) * model->vertex_count);
+        memcpy(model->original_vertices_x, model->vertices_x, sizeof(int) * model->vertex_count);
+        memcpy(model->original_vertices_y, model->vertices_y, sizeof(int) * model->vertex_count);
+        memcpy(model->original_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
+    }
+
+    memcpy(model->original_vertices_x, model->vertices_x, sizeof(int) * model->vertex_count);
+    memcpy(model->original_vertices_y, model->vertices_y, sizeof(int) * model->vertex_count);
+    memcpy(model->original_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
     assert(model->original_vertices_x != NULL);
     anim_frame_apply(
         frame,
@@ -1420,7 +1433,7 @@ dashmodel_animate(
         model->vertex_bones->bones_count,
         model->vertex_bones->bones,
         model->vertex_bones->bones_sizes,
-        model->face_bones->bones_count,
-        model->face_bones->bones,
-        model->face_bones->bones_sizes);
+        model->face_bones ? model->face_bones->bones_count : 0,
+        model->face_bones ? model->face_bones->bones : NULL,
+        model->face_bones ? model->face_bones->bones_sizes : NULL);
 }

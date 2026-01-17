@@ -5,6 +5,7 @@
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
 #include "model_transforms.h"
+#include "osrs/dash_utils.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
@@ -392,9 +393,9 @@ load_model(
 static struct SceneAnimation*
 load_model_animations(
     struct CacheConfigLocation* loc_config,
+
     struct DashMap* sequences_configmap,
-    struct DashMap* frames_hmap,
-    struct DashMap* framemaps_hmap)
+    struct DashMap* frames_hmap)
 {
     struct SceneAnimation* scene_animation = NULL;
     struct FrameEntry* frame_entry = NULL;
@@ -419,18 +420,18 @@ load_model_animations(
         // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
         //     first 2 bytes are the sequence ID,
         //     the second 2 bytes are the frame file ID
-        int frame_id = sequence->frame_ids[i] & 0xFFFF;
+        int frame_id = sequence->frame_ids[i];
 
         frame_entry = (struct FrameEntry*)dashmap_search(frames_hmap, &frame_id, DASHMAP_FIND);
         assert(frame_entry);
 
-        int framemap_id = frame_entry->frame->framemap_id;
-
-        framemap_entry =
-            (struct FramemapEntry*)dashmap_search(framemaps_hmap, &framemap_id, DASHMAP_FIND);
-
-        scene_animation_push_frame(scene_animation, frame_entry->frame, framemap_entry->framemap);
+        scene_animation_push_frame(
+            scene_animation,
+            dashframe_new_from_cache_frame(frame_entry->frame),
+            dashframemap_new_from_cache_framemap(frame_entry->frame->_framemap));
     }
+
+    return scene_animation;
 }
 
 static struct DashPosition*
@@ -744,6 +745,11 @@ scenery_add_wall_decor_inside(
         rotation,
         tile_heights);
 
+    struct SceneAnimation* scene_animation = load_model_animations(
+        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+
+    scene_element.animation = scene_animation;
+
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
     scene_element.dash_model = dash_model;
@@ -808,6 +814,11 @@ scenery_add_wall_decor_outside(
 
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
+
+    struct SceneAnimation* scene_animation = load_model_animations(
+        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+
+    scene_element.animation = scene_animation;
 
     if( config_loc->seq_id != -1 )
     {
@@ -880,6 +891,11 @@ scenery_add_wall_decor_diagonal_outside(
     }
     scene_element.dash_position->yaw %= 2048;
 
+    struct SceneAnimation* scene_animation = load_model_animations(
+        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+
+    scene_element.animation = scene_animation;
+
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
 
@@ -948,6 +964,11 @@ scenery_add_wall_decor_diagonal_inside(
     if( config_loc->seq_id != -1 )
         scene_element.dash_position->yaw = 512 * (orientation);
     scene_element.dash_position->yaw %= 2048;
+
+    struct SceneAnimation* scene_animation = load_model_animations(
+        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+
+    scene_element.animation = scene_animation;
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
@@ -1155,6 +1176,11 @@ scenery_add_normal(
         scene_element.dash_position->yaw += 512 * orientation;
         scene_element.dash_position->yaw %= 2048;
     }
+
+    struct SceneAnimation* scene_animation = load_model_animations(
+        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+
+    scene_element.animation = scene_animation;
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);

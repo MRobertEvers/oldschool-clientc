@@ -266,6 +266,8 @@ anim_frame_apply(
     int** face_bones,
     int* face_bones_sizes)
 {
+    assert(vertex_bones != NULL);
+    assert(vertex_bones_sizes != NULL);
     struct Transformation transformation = { 0 };
     for( int i = 0; i < frame->translator_count; i++ )
     {

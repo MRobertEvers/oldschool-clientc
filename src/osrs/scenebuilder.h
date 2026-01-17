@@ -5,6 +5,7 @@
 #include "datastruct/hmap.h"
 #include "libg.h"
 #include "osrs/rscache/tables/config_locs.h"
+#include "osrs/rscache/tables/frame.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
 #include "painters.h"
@@ -39,6 +40,18 @@ void
 scenebuilder_cache_configmap_locs(
     struct SceneBuilder* scene_builder,
     struct DashMap* config_locs_configmap);
+
+void
+scenebuilder_cache_configmap_sequences(
+    struct SceneBuilder* scene_builder,
+    struct DashMap* config_sequences_configmap);
+
+void
+scenebuilder_cache_frame(
+    struct SceneBuilder* scene_builder,
+    // frame_file
+    int frame_anim_id,
+    struct CacheFrame* frame);
 
 void
 scenebuilder_cache_model(

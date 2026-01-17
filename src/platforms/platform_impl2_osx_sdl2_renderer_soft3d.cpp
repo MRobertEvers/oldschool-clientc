@@ -245,6 +245,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             game->camera_world_y / 240);
 
     struct DashPosition position = { 0 };
+    struct SceneElement* element = NULL;
 
     for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
     {
@@ -255,6 +256,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         {
         case PNTR_CMD_ELEMENT:
         {
+            element = scene_element_at(game->scene->scenery, cmd->_entity._bf_entity);
             memcpy(
                 &position,
                 scene_element_position(game->scene, cmd->_entity._bf_entity),
@@ -262,6 +264,18 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             position.x = position.x - game->camera_world_x;
             position.y = position.y - game->camera_world_y;
             position.z = position.z - game->camera_world_z;
+
+            if( element->dash_model && element->animation && element->animation->frame_count > 0 )
+            {
+                dashmodel_animate(
+                    scene_element_model(game->scene, cmd->_entity._bf_entity),
+                    element->animation->dash_frames[element->animation->frame_index],
+                    element->animation->dash_framemap);
+
+                element->animation->frame_index++;
+                if( element->animation->frame_index >= element->animation->frame_count )
+                    element->animation->frame_index = 0;
+            }
 
             dash3d_render_model(
                 game->sys_dash,

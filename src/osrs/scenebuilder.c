@@ -59,6 +59,15 @@ scenebuilder_new_painter(
     };
     scene_builder->map_terrains_hmap = dashmap_new(&config, 0);
 
+    buffer_size = ENTRYS * sizeof(struct FrameAnimEntry);
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct FrameAnimEntry),
+    };
+    scene_builder->frames_hmap = dashmap_new(&config, 0);
+
     int height = (mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z;
     int width = (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X;
 
@@ -111,6 +120,30 @@ scenebuilder_cache_configmap_locs(
 {
     assert(configmap_valid(config_locs_configmap) && "Config locs map must be valid");
     scene_builder->config_locs_configmap = config_locs_configmap;
+}
+
+void
+scenebuilder_cache_configmap_sequences(
+    struct SceneBuilder* scene_builder,
+    struct DashMap* config_sequences_configmap)
+{
+    assert(configmap_valid(config_sequences_configmap) && "Config sequences map must be valid");
+    scene_builder->sequences_configmap = config_sequences_configmap;
+}
+
+void
+scenebuilder_cache_frame(
+    struct SceneBuilder* scene_builder,
+    // frame_file
+    int frame_anim_id,
+    struct CacheFrame* frame)
+{
+    struct FrameAnimEntry* frame_anim_entry = (struct FrameAnimEntry*)dashmap_search(
+        scene_builder->frames_hmap, &frame_anim_id, DASHMAP_INSERT);
+    assert(frame_anim_entry && "Frame anim must be inserted into hmap");
+
+    frame_anim_entry->id = frame_anim_id;
+    frame_anim_entry->frame = frame;
 }
 
 void

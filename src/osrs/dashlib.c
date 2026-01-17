@@ -71,7 +71,9 @@ dashmodel_new_from_cache_model(struct CacheModel* model)
 }
 
 struct DashModelBones*
-dashmodel_bones_new(int* bone_map, int bone_count)
+dashmodel_bones_new(
+    int* bone_map,
+    int bone_count)
 {
     struct DashModelBones* bones = (struct DashModelBones*)malloc(sizeof(struct DashModelBones));
     memset(bones, 0, sizeof(struct DashModelBones));
@@ -80,9 +82,6 @@ dashmodel_bones_new(int* bone_map, int bone_count)
     bones->bones_count = model_bones->bones_count;
     bones->bones = model_bones->bones;
     bones->bones_sizes = model_bones->bones_sizes;
-    memset(bones->bones, 0, sizeof(int*) * bones->bones_count);
-
-    modelbones_free(model_bones);
 
     return bones;
 }

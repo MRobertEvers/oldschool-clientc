@@ -1413,9 +1413,12 @@ step_framemaps_load(struct GTaskInitScene* task)
 
                 frame_anim_entry->id = frame_id;
                 frame_anim_entry->frame = cache_frame;
+
+                scenebuilder_cache_frame(task->scene_builder, frame_id, cache_frame);
             }
         }
 
+        step_stage->step = TS_DONE;
         break;
     case TS_DONE:
         break;
@@ -1534,6 +1537,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     case STEP_INIT_SCENE_13_BUILD_WORLD3D:
     {
         scenebuilder_cache_configmap_locs(task->scene_builder, task->scenery_configmap);
+        scenebuilder_cache_configmap_sequences(task->scene_builder, task->sequences_configmap);
 
         task->game->scene = scenebuilder_load(task->scene_builder);
 

@@ -15,6 +15,13 @@
 #include "scenebuilder_shademap.u.c"
 // clang-format on
 
+struct FrameAnimEntry
+{
+    // frame_file
+    int id;
+    struct CacheFrame* frame;
+};
+
 struct ModelEntry
 {
     int id;

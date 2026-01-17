@@ -31,14 +31,15 @@ scene_animation_push_frame(
 {
     if( animation->frame_count >= animation->frame_capacity )
     {
+        if( animation->frame_capacity == 0 )
+            animation->frame_capacity = 8;
         animation->frame_capacity *= 2;
         animation->dash_frames =
-            realloc(animation->dash_frames, animation->frame_capacity * sizeof(struct DashFrame));
+            realloc(animation->dash_frames, animation->frame_capacity * sizeof(struct DashFrame*));
     }
-    memcpy(&animation->dash_frames[animation->frame_count], dash_frame, sizeof(struct DashFrame));
+    animation->dash_frames[animation->frame_count] = dash_frame;
     animation->frame_count++;
 
-    assert(animation->dash_framemap == NULL || animation->dash_framemap == dash_framemap);
     animation->dash_framemap = dash_framemap;
 
     return animation;
