@@ -250,7 +250,7 @@ animate(
     }
 }
 
-void
+static inline void
 anim_frame_apply(
     struct DashFrame* frame,
     struct DashFramemap* framemap,

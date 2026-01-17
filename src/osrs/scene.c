@@ -5,6 +5,52 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct SceneAnimation*
+scene_animation_new(int frame_count_hint)
+{
+    struct SceneAnimation* animation =
+        (struct SceneAnimation*)malloc(sizeof(struct SceneAnimation));
+    memset(animation, 0, sizeof(struct SceneAnimation));
+
+    animation->dash_frames = malloc(frame_count_hint * sizeof(struct DashFrame));
+    memset(animation->dash_frames, 0, frame_count_hint * sizeof(struct DashFrame));
+
+    animation->frame_capacity = frame_count_hint;
+
+    animation->dash_framemap = NULL;
+    animation->frame_count = 0;
+
+    return animation;
+}
+
+struct SceneAnimation*
+scene_animation_push_frame(
+    struct SceneAnimation* animation,
+    struct DashFrame* dash_frame,
+    struct DashFramemap* dash_framemap)
+{
+    if( animation->frame_count >= animation->frame_capacity )
+    {
+        animation->frame_capacity *= 2;
+        animation->dash_frames =
+            realloc(animation->dash_frames, animation->frame_capacity * sizeof(struct DashFrame));
+    }
+    memcpy(&animation->dash_frames[animation->frame_count], dash_frame, sizeof(struct DashFrame));
+    animation->frame_count++;
+
+    assert(animation->dash_framemap == NULL || animation->dash_framemap == dash_framemap);
+    animation->dash_framemap = dash_framemap;
+
+    return animation;
+}
+
+void
+scene_animation_free(struct SceneAnimation* animation)
+{
+    free(animation->dash_frames);
+    free(animation);
+}
+
 static struct SceneScenery*
 scene_scenery_new(
     int tile_width_x,

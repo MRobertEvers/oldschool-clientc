@@ -17,6 +17,8 @@
 #include "terrain_grid.u.c"
 // clang-format on
 
+#include <assert.h>
+
 #define TILE_SIZE 128
 #define WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE 256
 // #define WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE (768 + 1024)
@@ -385,6 +387,50 @@ load_model(
     free(model_ids);
 
     return dash_model;
+}
+
+static struct SceneAnimation*
+load_model_animations(
+    struct CacheConfigLocation* loc_config,
+    struct DashMap* sequences_configmap,
+    struct DashMap* frames_hmap,
+    struct DashMap* framemaps_hmap)
+{
+    struct SceneAnimation* scene_animation = NULL;
+    struct FrameEntry* frame_entry = NULL;
+    struct FramemapEntry* framemap_entry = NULL;
+
+    struct DashFrame* dash_frame = NULL;
+    struct DashFramemap* dash_framemap = NULL;
+
+    if( loc_config->seq_id == -1 )
+        return NULL;
+
+    scene_animation = malloc(sizeof(struct SceneAnimation));
+    memset(scene_animation, 0, sizeof(struct SceneAnimation));
+
+    struct CacheConfigSequence* sequence =
+        (struct CacheConfigSequence*)configmap_get(sequences_configmap, loc_config->seq_id);
+    assert(sequence);
+    assert(sequence->frame_lengths);
+
+    for( int i = 0; i < sequence->frame_count; i++ )
+    {
+        // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
+        //     first 2 bytes are the sequence ID,
+        //     the second 2 bytes are the frame file ID
+        int frame_id = sequence->frame_ids[i] & 0xFFFF;
+
+        frame_entry = (struct FrameEntry*)dashmap_search(frames_hmap, &frame_id, DASHMAP_FIND);
+        assert(frame_entry);
+
+        int framemap_id = frame_entry->frame->framemap_id;
+
+        framemap_entry =
+            (struct FramemapEntry*)dashmap_search(framemaps_hmap, &framemap_id, DASHMAP_FIND);
+
+        scene_animation_push_frame(scene_animation, frame_entry->frame, framemap_entry->framemap);
+    }
 }
 
 static struct DashPosition*

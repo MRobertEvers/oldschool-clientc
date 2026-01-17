@@ -205,6 +205,9 @@
         "random": "c",
         "dashmap.h": "c",
         "texture.h": "c",
-        "dash_anim.h": "c"
-    }
+        "dash_anim.h": "c",
+        "framemap.h": "c",
+        "config_sequence.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

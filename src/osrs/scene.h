@@ -3,12 +3,23 @@
 
 #include "graphics/dash.h"
 
+struct SceneAnimation
+{
+    struct DashFrame* dash_frames;
+    int frame_count;
+    int frame_capacity;
+
+    struct DashFramemap* dash_framemap;
+};
+
 struct SceneElement
 {
     int id;
 
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
+
+    struct SceneAnimation* animation;
 };
 
 struct SceneScenery
@@ -59,6 +70,18 @@ scene_new(
 
 void
 scene_free(struct Scene* scene);
+
+struct SceneAnimation*
+scene_animation_new(int frame_count_hint);
+
+struct SceneAnimation*
+scene_animation_push_frame(
+    struct SceneAnimation* animation,
+    struct DashFrame* dash_frame,
+    struct DashFramemap* dash_framemap);
+
+void
+scene_animation_free(struct SceneAnimation* animation);
 
 int
 scene_scenery_push_element_move(

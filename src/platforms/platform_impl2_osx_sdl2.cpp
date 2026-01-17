@@ -403,6 +403,7 @@ on_gio_req_asset(
         {
             archive = gioqb_cache_config_scenery_new_load(platform->cache);
             config_map_packed = configmap_packed_new(platform->cache, archive);
+            assert(config_map_packed && "Failed to create config map packed");
             gioqb_mark_done(
                 io,
                 message->message_id,
@@ -450,6 +451,58 @@ on_gio_req_asset(
             config_map_packed->data = NULL;
             config_map_packed->data_size = 0;
             configmap_packed_free(config_map_packed);
+            cache_archive_free(archive);
+            archive = NULL;
+        }
+        else if( message->command == ASSET_CONFIG_SEQUENCES )
+        {
+            archive = gioqb_cache_config_sequences_new_load(platform->cache);
+            config_map_packed = configmap_packed_new(platform->cache, archive);
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                0,
+                config_map_packed->data,
+                config_map_packed->data_size);
+            config_map_packed->data = NULL;
+            config_map_packed->data_size = 0;
+            configmap_packed_free(config_map_packed);
+            cache_archive_free(archive);
+            archive = NULL;
+        }
+        else if( message->command == ASSET_ANIMATION )
+        {
+            archive = gioqb_cache_animation_new_load(platform->cache, message->param_a);
+            assert(archive && "Failed to load animation archive");
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                message->param_a,
+                archive->data,
+                archive->data_size);
+            archive->data = NULL;
+            archive->data_size = 0;
+            cache_archive_free(archive);
+            archive = NULL;
+        }
+        else if( message->command == ASSET_FRAMEMAP )
+        {
+            archive = gioqb_cache_framemap_new_load(platform->cache, message->param_a);
+            assert(archive && "Failed to load framemap archive");
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                message->param_a,
+                archive->data,
+                archive->data_size);
+            archive->data = NULL;
+            archive->data_size = 0;
             cache_archive_free(archive);
             archive = NULL;
         }

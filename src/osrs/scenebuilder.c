@@ -11,8 +11,6 @@
 #include "scenebuilder.u.c"
 // clang-format on
 
-#define MAPXZ(mapx, mapz) ((mapx << 16) | mapz)
-
 #define ENTRYS 4096
 
 struct SceneBuilder*

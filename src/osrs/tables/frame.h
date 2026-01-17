@@ -32,11 +32,32 @@ struct CacheFrame
 
 struct Cache;
 struct CacheFrame*
-frame_new_from_cache(struct Cache* cache, int frame_id, struct CacheFramemap* framemap);
+frame_new_from_cache(
+    struct Cache* cache,
+    int frame_id,
+    struct CacheFramemap* framemap);
 
 struct CacheFrame*
-frame_new_decode2(int frame_id, struct CacheFramemap* framemap, char* data, int data_size);
+frame_new_decode2(
+    int frame_id,
+    struct CacheFramemap* framemap,
+    char* data,
+    int data_size);
 
-void frame_free(struct CacheFrame* frame);
+/**
+ * The frame map is required to parse the frame,
+ * the framemap id is the first short stored in the frame's buffer.
+ *
+ * @param data
+ * @param data_size
+ * @return int
+ */
+int
+frame_framemap_id_from_archive(
+    char* data,
+    int data_size);
+
+void
+frame_free(struct CacheFrame* frame);
 
 #endif // FRAME_H

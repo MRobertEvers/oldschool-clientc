@@ -3,6 +3,7 @@
 #include "osrs/cache.h"
 #include "osrs/rsbuf.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +25,10 @@ read_short_smart(struct RSBuffer* buffer)
 }
 
 struct CacheFrame*
-frame_new_from_cache(struct Cache* cache, int frame_id, struct CacheFramemap* framemap)
+frame_new_from_cache(
+    struct Cache* cache,
+    int frame_id,
+    struct CacheFramemap* framemap)
 {
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_ANIMATIONS, frame_id);
     if( !archive )
@@ -42,17 +46,27 @@ frame_new_from_cache(struct Cache* cache, int frame_id, struct CacheFramemap* fr
 }
 
 static struct CacheFrame*
-frame_new_decode(int id, struct CacheFramemap* framemap, struct RSBuffer* buffer);
+frame_new_decode(
+    int id,
+    struct CacheFramemap* framemap,
+    struct RSBuffer* buffer);
 
 struct CacheFrame*
-frame_new_decode2(int id, struct CacheFramemap* framemap, char* data, int data_size)
+frame_new_decode2(
+    int id,
+    struct CacheFramemap* framemap,
+    char* data,
+    int data_size)
 {
     struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
     return frame_new_decode(id, framemap, &buffer);
 }
 
 static struct CacheFrame*
-frame_new_decode(int id, struct CacheFramemap* framemap, struct RSBuffer* buffer)
+frame_new_decode(
+    int id,
+    struct CacheFramemap* framemap,
+    struct RSBuffer* buffer)
 {
     // Initialize the frame definition
     struct CacheFrame* def = malloc(sizeof(struct CacheFrame));
@@ -64,6 +78,7 @@ frame_new_decode(int id, struct CacheFramemap* framemap, struct RSBuffer* buffer
 
     // Read the framemap archive index and length
     int framemap_archive_index = g2(buffer);
+    assert(framemap_archive_index == framemap->id);
     int length = g1(buffer);
 
     // Skip the framemap archive index and length in the data buffer
@@ -186,6 +201,15 @@ frame_new_decode(int id, struct CacheFramemap* framemap, struct RSBuffer* buffer
     free(scratch_translator_z);
 
     return def;
+}
+
+int
+frame_framemap_id_from_archive(
+    char* data,
+    int data_size)
+{
+    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    return g2(&buffer);
 }
 
 void

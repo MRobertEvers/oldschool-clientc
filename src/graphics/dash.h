@@ -1,6 +1,7 @@
 #ifndef DASH_H
 #define DASH_H
 
+#include "dash_anim.h"
 #include "dash_math.h"
 #include "dashmap.h"
 #include "lighting.h"
@@ -241,5 +242,11 @@ dashmodel_bounds_cylinder_new(void);
 
 bool //
 dashmodel_valid(struct DashModel* model);
+
+void
+dashmodel_animate(
+    struct DashModel* model,
+    struct DashFrame* frame,
+    struct DashFramemap* framemap);
 
 #endif

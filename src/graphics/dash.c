@@ -13,6 +13,7 @@
 #include "render_texture.u.c"
 #include "projection.u.c"
 #include "projection_simd.u.c"
+#include "anim.u.c"
 // clang-format on
 
 struct DashTextureEntry
@@ -1400,4 +1401,26 @@ dashmodel_valid(struct DashModel* model)
         return false;
 
     return true;
+}
+
+void
+dashmodel_animate(
+    struct DashModel* model,
+    struct DashFrame* frame,
+    struct DashFramemap* framemap)
+{
+    assert(model->original_vertices_x != NULL);
+    anim_frame_apply(
+        frame,
+        framemap,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
+        model->face_alphas,
+        model->vertex_bones->bones_count,
+        model->vertex_bones->bones,
+        model->vertex_bones->bones_sizes,
+        model->face_bones->bones_count,
+        model->face_bones->bones,
+        model->face_bones->bones_sizes);
 }

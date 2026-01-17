@@ -145,8 +145,10 @@ gioq_poll(
 
     ll_foreach(q->requests_list, iter)
     {
+        assert(iter->status != GIO_STATUS_STALE);
         if( iter->status == GIO_STATUS_DONE )
         {
+            iter->status = GIO_STATUS_STALE;
             out->message_id = iter->message_id;
             out->status = iter->status;
             out->kind = iter->kind;

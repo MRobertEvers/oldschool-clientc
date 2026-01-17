@@ -23,7 +23,9 @@ gioqb_cache_new(void)
 }
 
 struct CacheArchive*
-gioqb_cache_model_new_load(struct Cache* cache, int model_id)
+gioqb_cache_model_new_load(
+    struct Cache* cache,
+    int model_id)
 {
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_MODELS, model_id);
     if( !archive )
@@ -49,7 +51,9 @@ gioqb_cache_texture_new_load(struct Cache* cache)
 }
 
 struct CacheArchive*
-gioqb_cache_spritepack_new_load(struct Cache* cache, int spritepack_id)
+gioqb_cache_spritepack_new_load(
+    struct Cache* cache,
+    int spritepack_id)
 {
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_SPRITES, spritepack_id);
     if( !archive )
@@ -62,7 +66,10 @@ gioqb_cache_spritepack_new_load(struct Cache* cache, int spritepack_id)
 }
 
 struct CacheArchive*
-gioqb_cache_map_scenery_new_load(struct Cache* cache, int chunk_mapx, int chunk_mapz)
+gioqb_cache_map_scenery_new_load(
+    struct Cache* cache,
+    int chunk_mapx,
+    int chunk_mapz)
 {
     struct CacheArchive* archive = map_locs_archive_new_load(cache, chunk_mapx, chunk_mapz);
     if( !archive )
@@ -75,7 +82,10 @@ gioqb_cache_map_scenery_new_load(struct Cache* cache, int chunk_mapx, int chunk_
 }
 
 struct CacheArchive*
-gioqb_cache_map_terrain_new_load(struct Cache* cache, int chunk_x, int chunk_z)
+gioqb_cache_map_terrain_new_load(
+    struct Cache* cache,
+    int chunk_x,
+    int chunk_z)
 {
     struct CacheArchive* archive = map_terrain_archive_new_load(cache, chunk_x, chunk_z);
     if( !archive )
@@ -120,6 +130,54 @@ gioqb_cache_config_overlay_new_load(struct Cache* cache)
     if( !archive )
     {
         printf("Failed to load archive for config overlay\n");
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive* //
+gioqb_cache_config_sequences_new_load(struct Cache* cache)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_CONFIGS, CONFIG_SEQUENCE);
+    if( !archive )
+    {
+        printf("Failed to load archive for config sequences\n");
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive* //
+gioqb_cache_animation_new_load(
+    struct Cache* cache,
+    int animation_aka_archive_id)
+{
+    if( animation_aka_archive_id == 8402 )
+    {
+        printf("animation_aka_archive_id: %d\n", animation_aka_archive_id);
+    }
+    struct CacheArchive* archive =
+        cache_archive_new_load(cache, CACHE_ANIMATIONS, animation_aka_archive_id);
+    if( !archive )
+    {
+        printf("Failed to load archive for animation %d\n", animation_aka_archive_id);
+        return NULL;
+    }
+
+    return archive;
+}
+
+struct CacheArchive* //
+gioqb_cache_framemap_new_load(
+    struct Cache* cache,
+    int framemap_id)
+{
+    struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_SKELETONS, framemap_id);
+    if( !archive )
+    {
+        printf("Failed to load archive for framemap %d\n", framemap_id);
         return NULL;
     }
 

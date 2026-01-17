@@ -8,6 +8,7 @@
 #include "tables/config_object.h"
 #include "tables/config_sequence.h"
 #include "tables/configs.h"
+#include "tables/frame.h"
 #include "tables/textures.h"
 
 #include <assert.h>
@@ -83,6 +84,12 @@ struct ConfigTexturesEntry
 {
     int id;
     struct CacheTexture texture;
+};
+
+struct FrameEntry
+{
+    int id;
+    struct CacheFrame frame;
 };
 
 static size_t
@@ -242,6 +249,7 @@ configdecode(
             struct ConfigSequenceEntry* entry = (struct ConfigSequenceEntry*)ptr;
             entry->id = id;
             config_sequence_decode_inplace(&entry->sequence, revision, data, data_size);
+            entry->sequence.id = id;
         }
         break;
         case CONFIG_LOCS:
@@ -270,6 +278,13 @@ configdecode(
         entry->id = id;
         texture_definition_decode_inplace(&entry->texture, data, data_size);
         entry->texture._id = id;
+    }
+    else if( table_id == CACHE_ANIMATIONS )
+    {
+        struct FrameEntry* entry = (struct FrameEntry*)ptr;
+        entry->id = id;
+        // frame_decode_inplace(&entry->frame, revision, data, data_size);
+        entry->frame._id = id;
     }
     else
     {
@@ -319,6 +334,12 @@ configvalue(
         struct ConfigTexturesEntry* entry = (struct ConfigTexturesEntry*)ptr;
         entry->texture._id = entry->id;
         return &entry->texture;
+    }
+    else if( table_id == CACHE_ANIMATIONS )
+    {
+        struct FrameEntry* entry = (struct FrameEntry*)ptr;
+        entry->frame._id = entry->id;
+        return &entry->frame;
     }
     else
     {

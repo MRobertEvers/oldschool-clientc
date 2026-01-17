@@ -4,6 +4,11 @@
 #include "configmap.h"
 #include "graphics/dash.h"
 #include "osrs/painters.h"
+#include "osrs/tables/config_sequence.h"
+#include "osrs/tables/frame.h"
+#include "osrs/tables/framemap.h"
+#include "osrs/tables/maps.h"
+#include "osrs/tables/model.h"
 
 // clang-format off
 #include "scenebuilder_buildgrid.u.c"
@@ -32,6 +37,18 @@ struct MapTerrainEntry
     struct CacheMapTerrain* map_terrain;
 };
 
+struct FrameEntry
+{
+    int id;
+    struct CacheFrame* frame;
+};
+
+struct FramemapEntry
+{
+    int id;
+    struct CacheFramemap* framemap;
+};
+
 struct SceneBuilder
 {
     struct Painter* painter;
@@ -43,6 +60,9 @@ struct SceneBuilder
     struct DashMap* models_hmap;
     struct DashMap* map_terrains_hmap;
     struct DashMap* map_locs_hmap;
+    struct DashMap* frames_hmap;
+    struct DashMap* framemaps_hmap;
+    struct DashMap* sequences_configmap;
     struct DashMap* config_locs_configmap;
     struct DashMap* config_underlay_configmap;
     struct DashMap* config_overlay_configmap;
