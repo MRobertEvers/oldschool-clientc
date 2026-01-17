@@ -1,5 +1,6 @@
 #include "configmap.h"
 
+#include "filepack.h"
 #include "rscache/filelist.h"
 #include "rscache/tables/config_floortype.h"
 #include "rscache/tables/config_idk.h"
@@ -385,28 +386,18 @@ configmap_new_from_filepack(
     struct MetadataEntry* metadata = NULL;
     struct ArchiveFileReference* archive_file_references = NULL;
 
-    int offset = 0;
-    int filelist_reference_size = 0;
-    int revision = 0;
-    int file_count = 0;
-    int archive_id = 0;
-    int table_id = 0;
+    struct FileMetadata file_metadata = { 0 };
+    struct FilePack filepack = { .data = data, .data_size = data_size };
+    filepack_metadata(&filepack, &file_metadata);
 
-    memcpy(&filelist_reference_size, (uint8_t*)data + offset, sizeof(int));
-    offset += sizeof(int);
-    memcpy(&revision, (uint8_t*)data + offset, sizeof(int));
-    offset += sizeof(int);
-    memcpy(&file_count, (uint8_t*)data + offset, sizeof(int));
-    offset += sizeof(int);
-    memcpy(&archive_id, (uint8_t*)data + offset, sizeof(int));
-    offset += sizeof(int);
-    memcpy(&table_id, (uint8_t*)data + offset, sizeof(int));
-    offset += sizeof(int);
+    int table_id = file_metadata.table_id;
+    int archive_id = file_metadata.archive_id;
+    int revision = file_metadata.revision;
 
-    archive_file_references = (struct ArchiveFileReference*)((uint8_t*)data + offset);
-    offset += filelist_reference_size;
+    archive_file_references = (struct ArchiveFileReference*)(file_metadata.filelist_reference_ptr_);
 
-    file_list = filelist_new_from_decode((uint8_t*)data + offset, data_size - offset, file_count);
+    file_list = filelist_new_from_decode(
+        file_metadata.data_ptr_, file_metadata.data_size, file_metadata.file_count);
 
     int count = ids_nullable ? ids_size : file_list->file_count;
     int target_capacity = count < 512 ? 1024 : count * 2;

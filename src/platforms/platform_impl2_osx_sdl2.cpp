@@ -302,16 +302,11 @@ on_gio_req_asset(
     struct GIOQueue* io,
     struct GIOMessage* message)
 {
-    struct CacheArchive* archive = NULL;
-    struct FilePack* filepack = NULL;
-
     switch( message->status )
     {
     case GIO_STATUS_PENDING:
-    {
         gioqb_cache_fullfill(io, platform->cache, message);
         break;
-    }
     case GIO_STATUS_DONE:
         break;
     case GIO_STATUS_INFLIGHT:

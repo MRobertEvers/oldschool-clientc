@@ -58,3 +58,44 @@ filepack_free(struct FilePack* filepack)
     free(filepack->data);
     free(filepack);
 }
+
+void
+filepack_metadata(
+    struct FilePack* filepack,
+    struct FileMetadata* out)
+{
+    memset(out, 0, sizeof(struct FileMetadata));
+
+    void* data = filepack->data;
+    int data_size = filepack->data_size;
+
+    int offset = 0;
+    int filelist_reference_size = 0;
+    int revision = 0;
+    int file_count = 0;
+    int archive_id = 0;
+    int table_id = 0;
+
+    memcpy(&filelist_reference_size, (uint8_t*)data + offset, sizeof(int));
+    offset += sizeof(int);
+    memcpy(&revision, (uint8_t*)data + offset, sizeof(int));
+    offset += sizeof(int);
+    memcpy(&file_count, (uint8_t*)data + offset, sizeof(int));
+    offset += sizeof(int);
+    memcpy(&archive_id, (uint8_t*)data + offset, sizeof(int));
+    offset += sizeof(int);
+    memcpy(&table_id, (uint8_t*)data + offset, sizeof(int));
+    offset += sizeof(int);
+
+    out->filelist_reference_ptr_ = (uint8_t*)filepack->data + offset;
+    out->filelist_reference_size = filelist_reference_size;
+    offset += filelist_reference_size;
+
+    out->data_ptr_ = (uint8_t*)filepack->data + offset;
+    out->data_size = filepack->data_size - offset;
+
+    out->revision = revision;
+    out->file_count = file_count;
+    out->archive_id = archive_id;
+    out->table_id = table_id;
+}

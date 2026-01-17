@@ -360,16 +360,18 @@ gioqb_cache_fullfill(
     {
         archive = gioqb_cache_animation_new_load(cache, message->param_a);
         assert(archive && "Failed to load animation archive");
+        filepack = filepack_new(cache, archive);
         gioqb_mark_done(
             io,
             message->message_id,
             message->command,
             archive->revision,
             message->param_a,
-            archive->data,
-            archive->data_size);
-        archive->data = NULL;
-        archive->data_size = 0;
+            filepack->data,
+            filepack->data_size);
+        filepack->data = NULL;
+        filepack->data_size = 0;
+        filepack_free(filepack);
         cache_archive_free(archive);
         archive = NULL;
     }

@@ -53,7 +53,7 @@ frame_new_decode2(
  * @return int
  */
 int
-frame_framemap_id_from_archive(
+frame_framemap_id_from_file(
     char* data,
     int data_size);
 

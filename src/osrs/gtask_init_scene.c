@@ -7,6 +7,7 @@
 #include "graphics/dash.h"
 #include "gtask.h"
 #include "libg.h"
+#include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
 #include "osrs/dashlib.h"
 #include "osrs/gio_assets.h"
@@ -64,6 +65,13 @@ struct TextureEntry
 struct FrameEntry
 {
     int id;
+    struct FileList* frame;
+};
+
+struct FrameAnimEntry
+{
+    // anim_file
+    int id;
     struct CacheFrame* frame;
 };
 
@@ -113,22 +121,6 @@ framepack_free(struct FramePack* framepack)
     free(framepack);
 }
 
-static int
-framepack_framemap_id(
-    struct FramePack* framepack,
-    int animation_id)
-{
-    struct FramePack* current = framepack;
-    while( current != NULL )
-    {
-        if( current->animation_id_aka_archive_id == animation_id )
-            return frame_framemap_id_from_archive(current->data, current->data_size);
-        current = current->next;
-    }
-
-    assert(false);
-}
-
 struct GTaskInitScene
 {
     enum GTaskInitSceneStep step;
@@ -148,7 +140,8 @@ struct GTaskInitScene
     struct DashMap* models_hmap;
     struct DashMap* spritepacks_hmap;
     struct DashMap* textures_hmap;
-    struct DashMap* frames_hmap;
+    struct DashMap* frame_blob_hmap;
+    struct DashMap* frame_anim_hmap;
     struct DashMap* framemaps_hmap;
 
     struct DashMap* scenery_hmap;
@@ -452,19 +445,6 @@ done:;
 }
 
 static void
-copy_framemaps_ids(struct GTaskInitScene* task)
-{
-    struct FramePack* current = task->framepacks_list;
-    while( current != NULL )
-    {
-        int framemap_id = frame_framemap_id_from_archive(current->data, current->data_size);
-
-        vec_push_unique(task->queued_framemap_ids_vec, &framemap_id);
-        current = current->next;
-    }
-}
-
-static void
 queue_sequence(
     struct GTaskInitScene* task,
     struct CacheConfigLocation* scenery_config)
@@ -617,7 +597,15 @@ gtask_init_scene_new(
         .key_size = sizeof(int),
         .entry_size = sizeof(struct FrameEntry),
     };
-    task->frames_hmap = dashmap_new(&config, 0);
+    task->frame_blob_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct FrameAnimEntry),
+    };
+    task->frame_anim_hmap = dashmap_new(&config, 0);
 
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
@@ -1212,6 +1200,8 @@ step_sequences_load(struct GTaskInitScene* task)
         reqid = gio_assets_config_sequences_load(task->io);
         vec_push(task->reqid_queue_vec, &reqid);
 
+        task->reqid_queue_inflight_count = 1;
+
         step_stage->step = TS_POLL;
     case TS_POLL:
         while( gioq_poll(task->io, &message) )
@@ -1234,6 +1224,199 @@ step_sequences_load(struct GTaskInitScene* task)
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
         step_stage->step = TS_DONE;
+    case TS_DONE:
+        break;
+    }
+
+    return GTASK_STATUS_COMPLETED;
+}
+
+static enum GTaskStatus
+step_frames_load(struct GTaskInitScene* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_11_LOAD_FRAMES];
+
+    struct DashMapIter* iter = NULL;
+    struct CacheConfigSequence* sequence = NULL;
+    struct FileList* frame = NULL;
+    struct FrameEntry* frame_entry = NULL;
+    int reqid = 0;
+    struct Vec* queued_frame_ids_vec = NULL;
+    struct GIOMessage message = { 0 };
+
+    switch( step_stage->step )
+    {
+    case TS_GATHER:
+        queued_frame_ids_vec = vec_new(sizeof(int), 512);
+        vec_clear(task->reqid_queue_vec);
+        iter = dashmap_iter_new(task->sequences_configmap);
+        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter)) )
+        {
+            for( int i = 0; i < sequence->frame_count; i++ )
+            {
+                int frame_id = sequence->frame_ids[i];
+                int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+                int frame_file_id = frame_id & 0xFFFF;
+                if( frame_id == 811597825 )
+                {
+                    printf("frame_id: %d\n", frame_id);
+                }
+                vec_push_unique(queued_frame_ids_vec, &frame_archive_id);
+            }
+        }
+
+        for( int i = 0; i < vec_size(queued_frame_ids_vec); i++ )
+        {
+            int frame_id = *(int*)vec_get(queued_frame_ids_vec, i);
+            reqid = gio_assets_animation_load(task->io, frame_id);
+            vec_push(task->reqid_queue_vec, &reqid);
+        }
+        vec_free(queued_frame_ids_vec);
+
+        task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
+
+        step_stage->step = TS_POLL;
+    case TS_POLL:
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_queue_inflight_count--;
+
+            frame_entry = (struct FrameEntry*)dashmap_search(
+                task->frame_blob_hmap, &message.param_b, DASHMAP_INSERT);
+            assert(frame_entry && "Frame must be inserted into hmap");
+            frame_entry->id = message.param_b;
+            frame_entry->frame = cu_filelist_new_from_filepack(message.data, message.data_size);
+
+            gioq_release(task->io, &message);
+        }
+
+        if( task->reqid_queue_inflight_count != 0 )
+            return GTASK_STATUS_PENDING;
+
+        step_stage->step = TS_PROCESS;
+    case TS_PROCESS:
+        break;
+    }
+
+    return GTASK_STATUS_COMPLETED;
+}
+
+static enum GTaskStatus
+step_framemaps_load(struct GTaskInitScene* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_12_LOAD_FRAMEMAPS];
+
+    struct DashMapIter* iter = NULL;
+    struct FrameEntry* frame_entry = NULL;
+    struct FramemapEntry* framemap_entry = NULL;
+    struct Vec* queued_framemap_ids_vec = NULL;
+    struct CacheConfigSequence* sequence = NULL;
+    struct FrameAnimEntry* frame_anim_entry = NULL;
+    struct FileList* frame_anim = NULL;
+    struct CacheFrame* cache_frame = NULL;
+    int reqid = 0;
+    struct GIOMessage message = { 0 };
+
+    switch( step_stage->step )
+    {
+    case TS_GATHER:
+        queued_framemap_ids_vec = vec_new(sizeof(int), 512);
+        vec_clear(task->reqid_queue_vec);
+        iter = dashmap_iter_new(task->sequences_configmap);
+        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter)) )
+        {
+            for( int i = 0; i < sequence->frame_count; i++ )
+            {
+                int frame_id = sequence->frame_ids[i];
+                int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+                int frame_file_id = frame_id & 0xFFFF;
+
+                frame_entry = (struct FrameEntry*)dashmap_search(
+                    task->frame_blob_hmap, &frame_archive_id, DASHMAP_FIND);
+                assert(frame_entry && "Frame must be found");
+
+                assert(frame_file_id > 0);
+                assert(frame_file_id - 1 < frame_entry->frame->file_count);
+
+                char* file_data = frame_entry->frame->files[frame_file_id - 1];
+                int file_data_size = frame_entry->frame->file_sizes[frame_file_id - 1];
+
+                int framemap_id = frame_framemap_id_from_file(file_data, file_data_size);
+
+                vec_push_unique(queued_framemap_ids_vec, &framemap_id);
+            }
+        }
+
+        for( int i = 0; i < vec_size(queued_framemap_ids_vec); i++ )
+        {
+            int framemap_id = *(int*)vec_get(queued_framemap_ids_vec, i);
+            reqid = gio_assets_framemap_load(task->io, framemap_id);
+            vec_push(task->reqid_queue_vec, &reqid);
+        }
+        vec_free(queued_framemap_ids_vec);
+
+        task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
+
+        step_stage->step = TS_POLL;
+    case TS_POLL:
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_queue_inflight_count--;
+
+            framemap_entry = (struct FramemapEntry*)dashmap_search(
+                task->framemaps_hmap, &message.param_b, DASHMAP_INSERT);
+            assert(framemap_entry && "Framemap must be inserted into hmap");
+
+            framemap_entry->id = message.param_b;
+            framemap_entry->framemap =
+                framemap_new_decode2(message.param_b, message.data, message.data_size);
+
+            gioq_release(task->io, &message);
+        }
+
+        if( task->reqid_queue_inflight_count != 0 )
+            return GTASK_STATUS_PENDING;
+
+        step_stage->step = TS_PROCESS;
+    case TS_PROCESS:
+        iter = dashmap_iter_new(task->sequences_configmap);
+        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter)) )
+        {
+            for( int i = 0; i < sequence->frame_count; i++ )
+            {
+                int frame_id = sequence->frame_ids[i];
+                int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+                int frame_file_id = frame_id & 0xFFFF;
+
+                frame_entry = (struct FrameEntry*)dashmap_search(
+                    task->frame_blob_hmap, &frame_archive_id, DASHMAP_FIND);
+                assert(frame_entry && "Frame must be found");
+
+                assert(frame_file_id > 0);
+                assert(frame_file_id - 1 < frame_entry->frame->file_count);
+
+                char* file_data = frame_entry->frame->files[frame_file_id - 1];
+                int file_data_size = frame_entry->frame->file_sizes[frame_file_id - 1];
+
+                int framemap_id = frame_framemap_id_from_file(file_data, file_data_size);
+
+                framemap_entry = (struct FramemapEntry*)dashmap_search(
+                    task->framemaps_hmap, &framemap_id, DASHMAP_FIND);
+                assert(framemap_entry && "Framemap must be found");
+
+                frame_anim_entry = (struct FrameAnimEntry*)dashmap_search(
+                    task->frame_anim_hmap, &frame_id, DASHMAP_INSERT);
+                assert(frame_anim_entry && "Frame anim must be inserted into hmap");
+
+                cache_frame = frame_new_decode2(
+                    frame_id, framemap_entry->framemap, file_data, file_data_size);
+
+                frame_anim_entry->id = frame_id;
+                frame_anim_entry->frame = cache_frame;
+            }
+        }
+
+        break;
     case TS_DONE:
         break;
     }
@@ -1336,134 +1519,15 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     }
     case STEP_INIT_SCENE_11_LOAD_FRAMES:
     {
-        // if( task->reqid_animation_count == 0 )
-        // {
-        //     iter = dashmap_iter_new(task->sequences_configmap);
-
-        //     struct Vec* queued_animation_ids = vec_new(sizeof(int), 512);
-        //     while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter)) )
-        //     {
-        //         for( int i = 0; i < sequence->frame_count; i++ )
-        //         {
-        //             if( sequence->frame_ids[i] == 550633473 )
-        //             {
-        //                 printf("frame_ids[i]: %d\n", sequence->frame_ids[i]);
-        //             }
-        //             int animation_id = (sequence->frame_ids[i] >> 16) & 0xFFFF;
-        //             vec_push_unique(queued_animation_ids, &animation_id);
-        //         }
-        //     }
-        //     dashmap_iter_free(iter);
-
-        //     int count = vec_size(queued_animation_ids);
-        //     int* reqids = (int*)malloc(sizeof(int) * count);
-        //     int* ids = (int*)vec_data(queued_animation_ids);
-
-        //     for( int i = 0; i < count; i++ )
-        //     {
-        //         int id = ids[i];
-        //         reqids[i] = gio_assets_animation_load(task->io, id);
-        //     }
-        //     task->reqid_animation_count = count;
-        //     task->reqid_animation_inflight = count;
-        //     task->reqid_animations = reqids;
-
-        //     vec_free(queued_animation_ids);
-        // }
-
-        // while( gioq_poll(task->io, &message) )
-        // {
-        //     assert(task->reqid_animation_inflight > 0);
-        //     task->reqid_animation_inflight--;
-        //     // parse animation into configmap and put into list
-
-        //     framepack_push_buffer(task, message.param_b, message.data, message.data_size);
-
-        //     gioq_release(task->io, &message);
-        // }
-
-        // if( task->reqid_animation_inflight != 0 )
-        //     return GTASK_STATUS_PENDING;
-
-        // copy_framemaps_ids(task);
+        if( step_frames_load(task) != GTASK_STATUS_COMPLETED )
+            return GTASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_12_LOAD_FRAMEMAPS;
     }
     case STEP_INIT_SCENE_12_LOAD_FRAMEMAPS:
     {
-        // if( task->reqid_framemap_count == 0 )
-        // {
-        //     int* framemap_ids = (int*)vec_data(task->queued_framemap_ids);
-        //     int count = vec_size(task->queued_framemap_ids);
-        //     task->reqid_framemap_count = count;
-        //     task->reqid_framemap_inflight = count;
-        //     task->reqid_framemaps = (int*)malloc(sizeof(int) * count);
-        //     for( int i = 0; i < count; i++ )
-        //     {
-        //         task->reqid_framemaps[i] = gio_assets_framemap_load(task->io, framemap_ids[i]);
-        //     }
-        //     vec_free(task->queued_framemap_ids);
-        //     task->queued_framemap_ids = NULL;
-        // }
-
-        // struct CacheFramemap* framemap = NULL;
-        // while( gioq_poll(task->io, &message) )
-        // {
-        //     assert(task->reqid_framemap_inflight > 0);
-        //     task->reqid_framemap_inflight--;
-
-        //     framemap = framemap_new_decode2(message.param_b, message.data, message.data_size);
-
-        //     if( message.param_b == 719 )
-        //         printf("message.param_b: %d\n", message.param_b);
-
-        //     framemap_entry = (struct FramemapEntry*)dashmap_search(
-        //         task->framemaps_hmap, &message.param_b, DASHMAP_INSERT);
-        //     assert(framemap_entry && "Framemap must be inserted into hmap");
-        //     framemap_entry->id = message.param_b;
-        //     framemap_entry->framemap = framemap;
-
-        //     gioq_release(task->io, &message);
-        // }
-
-        // if( task->reqid_framemap_inflight != 0 )
-        //     return GTASK_STATUS_PENDING;
-
-        // struct FramePack* current = task->framepacks_list;
-        // struct CacheFrame* frame = NULL;
-        // while( current != NULL )
-        // {
-        //     if( current->animation_id_aka_archive_id != 8402 )
-        //     {
-        //         printf(
-        //             "current->animation_id_aka_archive_id: %d\n",
-        //             current->animation_id_aka_archive_id);
-        //         current = current->next;
-        //         continue;
-        //     }
-        //     int framemap_id = framepack_framemap_id(current,
-        //     current->animation_id_aka_archive_id); framemap_entry = (struct
-        //     FramemapEntry*)dashmap_search(
-        //         task->framemaps_hmap, &framemap_id, DASHMAP_INSERT);
-        //     assert(framemap_entry && "Framemap must be inserted into hmap");
-
-        //     // Cant decode the framepack with a frame.
-        //     // It needs to be converted to a filelist first.
-        //     frame = frame_new_decode2(
-        //         current->animation_id_aka_archive_id,
-        //         framemap_entry->framemap,
-        //         current->data,
-        //         current->data_size);
-        //     assert(frame && "Frame must be decoded");
-
-        //     frame_entry = (struct FrameEntry*)dashmap_search(
-        //         task->frames_hmap, &current->animation_id_aka_archive_id, DASHMAP_INSERT);
-        //     assert(frame_entry && "Frame must be inserted into hmap");
-        //     frame_entry->id = current->animation_id_aka_archive_id;
-        //     frame_entry->frame = frame;
-
-        //     current = current->next;
-        // }
+        if( step_framemaps_load(task) != GTASK_STATUS_COMPLETED )
+            return GTASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_13_BUILD_WORLD3D;
     }
