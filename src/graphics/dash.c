@@ -1419,9 +1419,19 @@ dashmodel_animate(
         memcpy(model->original_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
     }
 
-    memcpy(model->original_vertices_x, model->vertices_x, sizeof(int) * model->vertex_count);
-    memcpy(model->original_vertices_y, model->vertices_y, sizeof(int) * model->vertex_count);
-    memcpy(model->original_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
+    if( model->face_alphas && model->original_face_alphas == NULL )
+    {
+        model->original_face_alphas = malloc(sizeof(int) * model->face_count);
+        memcpy(model->original_face_alphas, model->face_alphas, sizeof(int) * model->face_count);
+    }
+
+    memcpy(model->vertices_x, model->original_vertices_x, sizeof(int) * model->vertex_count);
+    memcpy(model->vertices_y, model->original_vertices_y, sizeof(int) * model->vertex_count);
+    memcpy(model->vertices_z, model->original_vertices_z, sizeof(int) * model->vertex_count);
+    if( model->face_alphas && model->original_face_alphas )
+    {
+        memcpy(model->face_alphas, model->original_face_alphas, sizeof(int) * model->face_count);
+    }
     assert(model->original_vertices_x != NULL);
     anim_frame_apply(
         frame,

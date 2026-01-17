@@ -120,6 +120,7 @@ struct DashModel
     int* face_indices_b;
     int* face_indices_c;
     int* face_alphas;
+    int* original_face_alphas;
     int* face_infos;
     int* face_priorities;
     int* face_colors;
