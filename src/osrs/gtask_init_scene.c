@@ -150,12 +150,13 @@ struct GTaskInitScene
     struct DashMap* textures_hmap;
     struct DashMap* frames_hmap;
     struct DashMap* framemaps_hmap;
-    struct Vec* queued_texture_ids;
-    struct Vec* queued_frame_ids;
-    struct Vec* queued_framemap_ids;
 
     struct DashMap* scenery_hmap;
     struct Vec* scenery_ids_vec;
+
+    struct Vec* queued_texture_ids_vec;
+    struct Vec* queued_frame_ids_vec;
+    struct Vec* queued_framemap_ids_vec;
 
     struct Chunk chunks[CHUNKS_COUNT];
     int chunks_count;
@@ -458,7 +459,7 @@ copy_framemaps_ids(struct GTaskInitScene* task)
     {
         int framemap_id = frame_framemap_id_from_archive(current->data, current->data_size);
 
-        vec_push_unique(task->queued_framemap_ids, &framemap_id);
+        vec_push_unique(task->queued_framemap_ids_vec, &framemap_id);
         current = current->next;
     }
 }
@@ -573,9 +574,9 @@ gtask_init_scene_new(
 
     task->scenery_ids_vec = vec_new(sizeof(int), 512);
 
-    task->queued_texture_ids = vec_new(sizeof(int), 512);
-    task->queued_frame_ids = vec_new(sizeof(int), 512);
-    task->queued_framemap_ids = vec_new(sizeof(int), 512);
+    task->queued_texture_ids_vec = vec_new(sizeof(int), 512);
+    task->queued_frame_ids_vec = vec_new(sizeof(int), 512);
+    task->queued_framemap_ids_vec = vec_new(sizeof(int), 512);
 
     int buffer_size = 1024 * sizeof(struct ModelEntry) * 4;
     config = (struct DashMapConfig){
@@ -633,7 +634,9 @@ void
 gtask_init_scene_free(struct GTaskInitScene* task)
 {
     vec_free(task->queued_scenery_models_vec);
-    vec_free(task->queued_texture_ids);
+    vec_free(task->queued_texture_ids_vec);
+    vec_free(task->queued_frame_ids_vec);
+    vec_free(task->queued_framemap_ids_vec);
 
     free(dashmap_buffer_ptr(task->models_hmap));
     free(dashmap_buffer_ptr(task->textures_hmap));
@@ -1011,7 +1014,7 @@ step_textures_load(struct GTaskInitScene* task)
             if( config_overlay->texture > 0 )
             {
                 int texture_id = config_overlay->texture;
-                vec_push_unique(task->queued_texture_ids, &texture_id);
+                vec_push_unique(task->queued_texture_ids_vec, &texture_id);
             }
 
         dashmap_iter_free(iter);
@@ -1029,7 +1032,7 @@ step_textures_load(struct GTaskInitScene* task)
                 int face_texture = model->face_textures[i];
                 if( face_texture != -1 )
                 {
-                    vec_push_unique(task->queued_texture_ids, &face_texture);
+                    vec_push_unique(task->queued_texture_ids_vec, &face_texture);
                 }
             }
         }
@@ -1050,7 +1053,8 @@ step_textures_load(struct GTaskInitScene* task)
                 if( config_loc->retexture_count && config_loc->retextures_to )
                 {
                     for( int i = 0; i < config_loc->retexture_count; i++ )
-                        vec_push_unique(task->queued_texture_ids, &config_loc->retextures_to[i]);
+                        vec_push_unique(
+                            task->queued_texture_ids_vec, &config_loc->retextures_to[i]);
                 }
             }
         }
@@ -1072,8 +1076,8 @@ step_textures_load(struct GTaskInitScene* task)
             task->texture_definitions_configmap = configmap_new_from_packed(
                 message.data,
                 message.data_size,
-                (int*)vec_data(task->queued_texture_ids),
-                vec_size(task->queued_texture_ids));
+                (int*)vec_data(task->queued_texture_ids_vec),
+                vec_size(task->queued_texture_ids_vec));
 
             gioq_release(task->io, &message);
         }
