@@ -55,4 +55,10 @@ gioqb_cache_framemap_new_load(
     struct Cache* cache,
     int framemap_id);
 
+void
+gioqb_cache_fullfill(
+    struct GIOQueue* io,
+    struct Cache* cache,
+    struct GIOMessage* message);
+
 #endif

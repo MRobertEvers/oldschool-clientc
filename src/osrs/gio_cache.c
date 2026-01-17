@@ -1,5 +1,7 @@
 #include "gio_cache.h"
 
+#include "filepack.h"
+#include "gio_assets.h"
 #include "rscache/tables/configs.h"
 #include "rscache/tables/maps.h"
 
@@ -182,4 +184,215 @@ gioqb_cache_framemap_new_load(
     }
 
     return archive;
+}
+
+void
+gioqb_cache_fullfill(
+    struct GIOQueue* io,
+    struct Cache* cache,
+    struct GIOMessage* message)
+{
+    struct CacheArchive* archive = NULL;
+    struct FilePack* filepack = NULL;
+
+    if( message->command == ASSET_MODELS )
+    {
+        archive = gioqb_cache_model_new_load(cache, message->param_a);
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            message->param_a,
+            archive->data,
+            archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_TEXTURES )
+    {
+        archive = gioqb_cache_texture_new_load(cache);
+        assert(archive && "Failed to load texture archive");
+        filepack = filepack_new(cache, archive);
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            0,
+            filepack->data,
+            filepack->data_size);
+        filepack->data = NULL;
+        filepack->data_size = 0;
+        filepack_free(filepack);
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_SPRITEPACKS )
+    {
+        archive = gioqb_cache_spritepack_new_load(cache, message->param_a);
+        assert(archive && "Failed to load spritepack archive");
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            message->param_a,
+            archive->data,
+            archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_MAP_SCENERY )
+    {
+        archive = gioqb_cache_map_scenery_new_load(cache, message->param_a, message->param_b);
+
+        int param_b_mapxz = (message->param_a << 16) | message->param_b;
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            param_b_mapxz,
+            archive->data,
+            archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_MAP_TERRAIN )
+    {
+        archive = gioqb_cache_map_terrain_new_load(cache, message->param_a, message->param_b);
+
+        int param_b_mapxz = (message->param_a << 16) | message->param_b;
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            param_b_mapxz,
+            archive->data,
+            archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_CONFIG_SCENERY )
+    {
+        archive = gioqb_cache_config_scenery_new_load(cache);
+        filepack = filepack_new(cache, archive);
+        assert(filepack && "Failed to create filepack");
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            0,
+            filepack->data,
+            filepack->data_size);
+        filepack->data = NULL;
+        filepack->data_size = 0;
+        filepack_free(filepack);
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_CONFIG_UNDERLAY )
+    {
+        archive = gioqb_cache_config_underlay_new_load(cache);
+        filepack = filepack_new(cache, archive);
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            0,
+            filepack->data,
+            filepack->data_size);
+        filepack->data = NULL;
+        filepack->data_size = 0;
+        filepack_free(filepack);
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_CONFIG_OVERLAY )
+    {
+        archive = gioqb_cache_config_overlay_new_load(cache);
+        filepack = filepack_new(cache, archive);
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            0,
+            filepack->data,
+            filepack->data_size);
+        filepack->data = NULL;
+        filepack->data_size = 0;
+        filepack_free(filepack);
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_CONFIG_SEQUENCES )
+    {
+        archive = gioqb_cache_config_sequences_new_load(cache);
+        filepack = filepack_new(cache, archive);
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            0,
+            filepack->data,
+            filepack->data_size);
+        filepack->data = NULL;
+        filepack->data_size = 0;
+        filepack_free(filepack);
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_ANIMATION )
+    {
+        archive = gioqb_cache_animation_new_load(cache, message->param_a);
+        assert(archive && "Failed to load animation archive");
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            message->param_a,
+            archive->data,
+            archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_FRAMEMAP )
+    {
+        archive = gioqb_cache_framemap_new_load(cache, message->param_a);
+        assert(archive && "Failed to load framemap archive");
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            message->param_a,
+            archive->data,
+            archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_archive_free(archive);
+        archive = NULL;
+    }
+    else
+    {
+        printf("Unknown asset command: %d\n", message->command);
+        assert(false && "Unknown asset command");
+    }
 }
