@@ -114,41 +114,6 @@ struct CacheMapTerrain* //
 map_terrain_new_from_decode( //
     char* data, int data_size, int map_x, int map_y);
 
-struct CacheMapTerrainIter
-{
-    struct CacheMapTerrain** chunks_ptrs;
-    int chunks_count;
-    int chunks_width;
-
-    int index;
-};
-
-struct CacheMapTerrainIter*
-map_terrain_iter_new_from_ptrs(
-    struct CacheMapTerrain** chunks,
-    int count,
-    int width);
-void //
-map_terrain_iter_free(struct CacheMapTerrainIter* iter);
-
-void //
-map_terrain_iter_begin(struct CacheMapTerrainIter* iter);
-struct CacheMapFloor* //
-map_terrain_iter_next(struct CacheMapTerrainIter* iter);
-struct CacheMapFloor*
-map_terrain_iter_at(
-    struct CacheMapTerrainIter* iter,
-    int sx,
-    int sz,
-    int slevel);
-
-int //
-map_terrain_iter_tiles_size(struct CacheMapTerrainIter* iter);
-int //
-map_terrain_iter_bound_x(struct CacheMapTerrainIter* iter);
-int //
-map_terrain_iter_bound_z(struct CacheMapTerrainIter* iter);
-
 struct CacheMapLocs* //
 map_locs_new_from_cache(
     struct Cache* cache,
@@ -170,32 +135,6 @@ map_locs_archive_new_load(
     struct Cache* cache, //
     int map_x,
     int map_z);
-
-struct CacheMapLocsIter
-{
-    struct CacheMapLocs** chunks_ptrs;
-    int chunks_count;
-
-    int width;
-
-    int index;
-};
-
-struct CacheMapLocsIter* //
-map_locs_iter_new_from_ptrs(
-    struct CacheMapLocs** chunks, //
-    int count,
-    int width);
-
-void //
-map_locs_iter_free(
-    struct CacheMapLocsIter* iter //
-);
-
-void //
-map_locs_iter_begin(
-    struct CacheMapLocsIter* iter //
-);
 
 struct ChunkOffset
 {

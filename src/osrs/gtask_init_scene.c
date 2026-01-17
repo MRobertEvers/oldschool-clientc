@@ -137,13 +137,6 @@ struct GTaskInitScene
 
     struct TaskStep task_steps[STEP_INIT_SCENE_STEP_COUNT];
 
-    struct CacheMapTerrainIter* terrain_iter;
-
-    struct CacheMapTerrain* terrain_definitions[CHUNKS_COUNT];
-    struct CacheMapLocs* scenery_locs[CHUNKS_COUNT];
-    int scenery_locs_count;
-    int terrain_count;
-
     struct SceneBuilder* scene_builder;
 
     struct FramePack* framepacks_list;
@@ -529,19 +522,6 @@ queue_scenery_models(
             }
         }
     }
-}
-
-static struct Vec*
-gather_scenery_ids_vec_new(struct CacheMapLocsIter* iter)
-{
-    struct CacheMapLoc* loc;
-    struct Vec* vec = vec_new(sizeof(int), 128);
-    map_locs_iter_begin(iter);
-    while( (loc = map_locs_iter_next(iter, NULL)) )
-    {
-        vec_push(vec, &loc->loc_id);
-    }
-    return vec;
 }
 
 struct GTaskInitScene*
@@ -1262,22 +1242,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
 {
     struct GIOMessage message;
     struct DashMapIter* iter = NULL;
-    struct CacheMapLocsIter* map_locs_iter;
-    struct CacheMapLoc* loc;
-    struct CacheMapLocs* locs;
-    struct CacheConfigLocation* config_loc;
-    struct CacheModel* model = NULL;
-    struct ModelEntry* model_entry = NULL;
-    struct CacheSpritePack* spritepack = NULL;
-    struct CacheTexture* texture_definition = NULL;
-    struct DashTexture* texture = NULL;
-    struct TextureEntry* texture_entry = NULL;
-    struct SpritePackEntry* spritepack_entry = NULL;
-    struct FrameEntry* frame_entry = NULL;
-    struct FramemapEntry* framemap_entry = NULL;
     struct CacheConfigSequence* sequence = NULL;
-    struct ChunkOffset chunk_offset;
-    bool status = false;
 
     switch( task->step )
     {
