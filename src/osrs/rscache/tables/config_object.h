@@ -2,9 +2,9 @@
 #define CONFIG_OBJECT_H
 
 #include "../cache.h"
+#include "../filelist.h"
 #include "../rsbuf.h"
-#include "osrs/filelist.h"
-#include "osrs/tables/configs.h"
+#include "configs.h"
 
 #include <stdbool.h>
 
@@ -119,9 +119,17 @@ struct CacheConfigObject
     struct Params params;
 };
 
-struct CacheConfigObject* config_object_new_decode(char* buffer, int buffer_size);
-void config_object_free(struct CacheConfigObject* object);
+struct CacheConfigObject*
+config_object_new_decode(
+    char* buffer,
+    int buffer_size);
+void
+config_object_free(struct CacheConfigObject* object);
 
-void config_object_decode_inplace(struct CacheConfigObject* object, char* buffer, int buffer_size);
+void
+config_object_decode_inplace(
+    struct CacheConfigObject* object,
+    char* buffer,
+    int buffer_size);
 
 #endif

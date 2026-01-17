@@ -3,9 +3,9 @@
 
 #include "configmap.h"
 #include "palette.h"
+#include "rscache/tables/config_floortype.h"
+#include "rscache/tables/maps.h"
 #include "scene.h"
-#include "tables/config_floortype.h"
-#include "tables/maps.h"
 
 #include <assert.h>
 #include <math.h>
@@ -156,7 +156,7 @@ blend_underlays(
         // Process each row
         for( int zi = blend_start_y; zi < blend_end_y; zi++ )
         {
-               // Check north boundary
+            // Check north boundary
             int z_north = zi + BLEND_RADIUS;
             if( z_north >= 0 && z_north < size_z )
             {

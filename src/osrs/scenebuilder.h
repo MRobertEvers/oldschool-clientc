@@ -4,9 +4,9 @@
 #include "configmap.h"
 #include "datastruct/hmap.h"
 #include "libg.h"
-#include "osrs/tables/config_locs.h"
-#include "osrs/tables/maps.h"
-#include "osrs/tables/model.h"
+#include "osrs/rscache/tables/config_locs.h"
+#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/tables/model.h"
 #include "painters.h"
 #include "scene.h"
 

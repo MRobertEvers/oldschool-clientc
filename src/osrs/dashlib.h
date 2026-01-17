@@ -2,7 +2,7 @@
 #define DASHLIB_H
 
 #include "graphics/dash.h"
-#include "osrs/tables/model.h"
+#include "osrs/rscache/tables/model.h"
 
 struct DashModel*
 dashmodel_new_from_cache_model(struct CacheModel* model);

@@ -1,10 +1,10 @@
 #include "maps.h"
 
+#include "../archive.h"
+#include "../archive_decompress.h"
+#include "../cache.h"
+#include "../rsbuf.h"
 #include "noise.h"
-#include "osrs/archive.h"
-#include "osrs/archive_decompress.h"
-#include "osrs/cache.h"
-#include "osrs/rsbuf.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,12 +1,12 @@
 #include "platform_impl2_osx_sdl2.h"
 
 extern "C" {
-#include "osrs/configmap.h"
+#include "osrs/filepack.h"
 #include "osrs/gio.h"
 #include "osrs/gio_assets.h"
 #include "osrs/gio_cache.h"
 #include "osrs/grender.h"
-#include "osrs/xtea_config.h"
+#include "osrs/rscache/xtea_config.h"
 }
 
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -303,7 +303,7 @@ on_gio_req_asset(
     struct GIOMessage* message)
 {
     struct CacheArchive* archive = NULL;
-    struct ConfigMapPacked* config_map_packed = NULL;
+    struct FilePack* filepack = NULL;
 
     switch( message->status )
     {
@@ -329,18 +329,18 @@ on_gio_req_asset(
         {
             archive = gioqb_cache_texture_new_load(platform->cache);
             assert(archive && "Failed to load texture archive");
-            config_map_packed = configmap_packed_new(platform->cache, archive);
+            filepack = filepack_new(platform->cache, archive);
             gioqb_mark_done(
                 io,
                 message->message_id,
                 message->command,
                 archive->revision,
                 0,
-                config_map_packed->data,
-                config_map_packed->data_size);
-            config_map_packed->data = NULL;
-            config_map_packed->data_size = 0;
-            configmap_packed_free(config_map_packed);
+                filepack->data,
+                filepack->data_size);
+            filepack->data = NULL;
+            filepack->data_size = 0;
+            filepack_free(filepack);
             cache_archive_free(archive);
             archive = NULL;
         }
@@ -402,73 +402,73 @@ on_gio_req_asset(
         else if( message->command == ASSET_CONFIG_SCENERY )
         {
             archive = gioqb_cache_config_scenery_new_load(platform->cache);
-            config_map_packed = configmap_packed_new(platform->cache, archive);
-            assert(config_map_packed && "Failed to create config map packed");
+            filepack = filepack_new(platform->cache, archive);
+            assert(filepack && "Failed to create filepack");
             gioqb_mark_done(
                 io,
                 message->message_id,
                 message->command,
                 archive->revision,
                 0,
-                config_map_packed->data,
-                config_map_packed->data_size);
-            config_map_packed->data = NULL;
-            config_map_packed->data_size = 0;
-            configmap_packed_free(config_map_packed);
+                filepack->data,
+                filepack->data_size);
+            filepack->data = NULL;
+            filepack->data_size = 0;
+            filepack_free(filepack);
             cache_archive_free(archive);
             archive = NULL;
         }
         else if( message->command == ASSET_CONFIG_UNDERLAY )
         {
             archive = gioqb_cache_config_underlay_new_load(platform->cache);
-            config_map_packed = configmap_packed_new(platform->cache, archive);
+            filepack = filepack_new(platform->cache, archive);
             gioqb_mark_done(
                 io,
                 message->message_id,
                 message->command,
                 archive->revision,
                 0,
-                config_map_packed->data,
-                config_map_packed->data_size);
-            config_map_packed->data = NULL;
-            config_map_packed->data_size = 0;
-            configmap_packed_free(config_map_packed);
+                filepack->data,
+                filepack->data_size);
+            filepack->data = NULL;
+            filepack->data_size = 0;
+            filepack_free(filepack);
             cache_archive_free(archive);
             archive = NULL;
         }
         else if( message->command == ASSET_CONFIG_OVERLAY )
         {
             archive = gioqb_cache_config_overlay_new_load(platform->cache);
-            config_map_packed = configmap_packed_new(platform->cache, archive);
+            filepack = filepack_new(platform->cache, archive);
             gioqb_mark_done(
                 io,
                 message->message_id,
                 message->command,
                 archive->revision,
                 0,
-                config_map_packed->data,
-                config_map_packed->data_size);
-            config_map_packed->data = NULL;
-            config_map_packed->data_size = 0;
-            configmap_packed_free(config_map_packed);
+                filepack->data,
+                filepack->data_size);
+            filepack->data = NULL;
+            filepack->data_size = 0;
+            filepack_free(filepack);
             cache_archive_free(archive);
             archive = NULL;
         }
         else if( message->command == ASSET_CONFIG_SEQUENCES )
         {
             archive = gioqb_cache_config_sequences_new_load(platform->cache);
-            config_map_packed = configmap_packed_new(platform->cache, archive);
+            filepack = filepack_new(platform->cache, archive);
             gioqb_mark_done(
                 io,
                 message->message_id,
                 message->command,
                 archive->revision,
                 0,
-                config_map_packed->data,
-                config_map_packed->data_size);
-            config_map_packed->data = NULL;
-            config_map_packed->data_size = 0;
-            configmap_packed_free(config_map_packed);
+                filepack->data,
+                filepack->data_size);
+            filepack->data = NULL;
+            filepack->data_size = 0;
+            filepack_free(filepack);
             cache_archive_free(archive);
             archive = NULL;
         }

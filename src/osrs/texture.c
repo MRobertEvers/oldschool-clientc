@@ -1,8 +1,8 @@
 
 #include "texture.h"
 
-#include "tables/sprites.h"
-#include "tables/textures.h"
+#include "rscache/tables/sprites.h"
+#include "rscache/tables/textures.h"
 
 #include <assert.h>
 #include <math.h>

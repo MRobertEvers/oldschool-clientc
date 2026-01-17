@@ -1,6 +1,6 @@
 #include "config_object.h"
 
-#include "osrs/rsbuf.h"
+#include "../rsbuf.h"
 #include "string_utils.h"
 
 #include <stdio.h>

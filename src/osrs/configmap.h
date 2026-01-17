@@ -1,10 +1,8 @@
 #ifndef CONFIGMAP_H
 #define CONFIGMAP_H
 
-#include "archive.h"
 #include "cache.h"
 #include "graphics/dash.h"
-#include "tables/configs.h"
 
 #include <stdbool.h>
 
@@ -16,22 +14,8 @@
  * Note: Archives in the config table map to a single container.
  *
  */
-struct ConfigMapPacked
-{
-    void* data;
-    int data_size;
-};
-
-struct ConfigMapPacked*
-configmap_packed_new(
-    struct Cache* cache,
-    struct CacheArchive* archive);
-
-void
-configmap_packed_free(struct ConfigMapPacked* packed);
-
 struct DashMap*
-configmap_new_from_packed(
+configmap_new_from_filepack(
     void* data,
     int data_size,
     int* ids_nullable,

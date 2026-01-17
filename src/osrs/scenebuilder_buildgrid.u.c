@@ -1,8 +1,8 @@
 #ifndef SCENEBUILDER_BUILDGRID_U_C
 #define SCENEBUILDER_BUILDGRID_U_C
 
-#include "tables/config_locs.h"
-#include "tables/maps.h"
+#include "rscache/tables/config_locs.h"
+#include "rscache/tables/maps.h"
 
 #include <assert.h>
 #include <stdbool.h>

@@ -2,7 +2,7 @@
 
 #include "gtask.h"
 #include "osrs/gio_assets.h"
-#include "osrs/tables/model.h"
+#include "osrs/rscache/tables/model.h"
 
 #include <assert.h>
 #include <stdlib.h>

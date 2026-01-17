@@ -23,18 +23,18 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/datastruct/vec.c
         src/graphics/shared_tables.c
         src/graphics/lighting.c
-        src/osrs/tables/model.c
-        src/osrs/tables/maps.c
-        src/osrs/tables/config_locs.c
-        src/osrs/tables/config_floortype.c
-        src/osrs/tables/config_object.c
-        src/osrs/tables/config_sequence.c
-        src/osrs/tables/config_npctype.c
-        src/osrs/tables/noise.c
-        src/osrs/tables/framemap.c
-        src/osrs/tables/frame.c
-        src/osrs/tables/textures.c
-        src/osrs/tables/sprites.c
+        src/osrs/rscache/tables/model.c
+        src/osrs/rscache/tables/maps.c
+        src/osrs/rscache/tables/config_locs.c
+        src/osrs/rscache/tables/config_floortype.c
+        src/osrs/rscache/tables/config_object.c
+        src/osrs/rscache/tables/config_sequence.c
+        src/osrs/rscache/tables/config_npctype.c
+        src/osrs/rscache/tables/noise.c
+        src/osrs/rscache/tables/framemap.c
+        src/osrs/rscache/tables/frame.c
+        src/osrs/rscache/tables/textures.c
+        src/osrs/rscache/tables/sprites.c
         src/osrs/painters.c
         src/osrs/dashlib.c
         src/osrs/model_transforms.c
@@ -45,9 +45,9 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/texture.c
         src/osrs/scene.c
         src/osrs/scenebuilder.c
-        src/osrs/filelist.c
+        src/osrs/rscache/filelist.c
         src/osrs/grender.c
-        src/osrs/archive.c
+        src/osrs/rscache/archive.c
         src/osrs/gio.c
         src/osrs/gio_assets.c
         src/osrs/gio_cache.c
@@ -55,20 +55,21 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/gtask_init_io.c
         src/osrs/gtask_init_scene.c
         src/osrs/configmap.c
+        src/osrs/filepack.c
 
-        src/osrs/cache.c
+        src/osrs/rscache/cache.c
         src/osrs/scene.c
         src/osrs/frustrum_cullmap.c
         src/osrs/palette.c
-        src/osrs/archive_decompress.c
-        src/osrs/cache_inet.c
-        src/osrs/disk.c
-        src/osrs/reference_table.c
-        src/osrs/xtea_config.c
+        src/osrs/rscache/archive_decompress.c
+        src/osrs/rscache/cache_inet.c
+        src/osrs/rscache/disk.c
+        src/osrs/rscache/reference_table.c
+        src/osrs/rscache/xtea_config.c
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
-        src/osrs/rsbuf.c
-        src/osrs/xtea.c
+        src/osrs/rscache/rsbuf.c
+        src/osrs/rscache/xtea.c
 
         src/platforms/platform_impl2_osx_sdl2.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp

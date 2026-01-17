@@ -1,7 +1,7 @@
 #ifndef TERRAIN_GRID_U_C
 #define TERRAIN_GRID_U_C
 
-#include "osrs/tables/maps.h"
+#include "osrs/rscache/tables/maps.h"
 
 struct TerrainGrid
 {

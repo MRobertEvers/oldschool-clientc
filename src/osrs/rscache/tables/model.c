@@ -1,6 +1,6 @@
 #include "model.h"
 
-#include "osrs/cache.h"
+#include "../cache.h"
 
 #include <assert.h>
 #include <stdint.h>

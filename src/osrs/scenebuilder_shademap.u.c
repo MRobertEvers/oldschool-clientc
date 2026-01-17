@@ -1,7 +1,7 @@
 #ifndef SCENEBUILDER_SHADEDMAP_U_C
 #define SCENEBUILDER_SHADEDMAP_U_C
 
-#include "tables/maps.h"
+#include "rscache/tables/maps.h"
 
 #include <assert.h>
 #include <stdbool.h>

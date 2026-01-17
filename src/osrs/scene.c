@@ -1,6 +1,6 @@
 #include "scene.h"
 
-#include "tables/maps.h"
+#include "rscache/tables/maps.h"
 
 #include <stdlib.h>
 #include <string.h>

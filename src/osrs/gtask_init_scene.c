@@ -11,16 +11,16 @@
 #include "osrs/dashlib.h"
 #include "osrs/gio_assets.h"
 #include "osrs/painters.h"
+#include "osrs/rscache/tables/config_floortype.h"
+#include "osrs/rscache/tables/config_locs.h"
+#include "osrs/rscache/tables/config_sequence.h"
+#include "osrs/rscache/tables/frame.h"
+#include "osrs/rscache/tables/framemap.h"
+#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/tables/sprites.h"
+#include "osrs/rscache/tables/textures.h"
 #include "osrs/scenebuilder.h"
-#include "osrs/tables/config_floortype.h"
-#include "osrs/tables/config_locs.h"
-#include "osrs/tables/config_sequence.h"
-#include "osrs/tables/frame.h"
-#include "osrs/tables/framemap.h"
-#include "osrs/tables/maps.h"
-#include "osrs/tables/model.h"
-#include "osrs/tables/sprites.h"
-#include "osrs/tables/textures.h"
 // #include "osrs/terrain.h"
 #include "osrs/texture.h"
 
@@ -752,7 +752,7 @@ step_scenery_config_load(struct GTaskInitScene* task)
             task->reqid_queue_inflight_count--;
             assert(task->reqid_queue_inflight_count == 0);
 
-            task->scenery_configmap = configmap_new_from_packed(
+            task->scenery_configmap = configmap_new_from_filepack(
                 message.data,
                 message.data_size,
                 (int*)vec_data(task->scenery_ids_vec),
@@ -924,7 +924,7 @@ step_underlay_load(struct GTaskInitScene* task)
             task->reqid_queue_inflight_count--;
             assert(task->reqid_queue_inflight_count == 0);
 
-            configmap = configmap_new_from_packed(message.data, message.data_size, NULL, 0);
+            configmap = configmap_new_from_filepack(message.data, message.data_size, NULL, 0);
             scenebuilder_cache_configmap_underlay(task->scene_builder, configmap);
 
             gioq_release(task->io, &message);
@@ -967,7 +967,7 @@ step_overlay_load(struct GTaskInitScene* task)
             task->reqid_queue_inflight_count--;
             assert(task->reqid_queue_inflight_count == 0);
 
-            configmap = configmap_new_from_packed(message.data, message.data_size, NULL, 0);
+            configmap = configmap_new_from_filepack(message.data, message.data_size, NULL, 0);
 
             task->overlay_configmap = configmap;
             scenebuilder_cache_configmap_overlay(task->scene_builder, configmap);
@@ -1073,7 +1073,7 @@ step_textures_load(struct GTaskInitScene* task)
             task->reqid_queue_inflight_count--;
             assert(task->reqid_queue_inflight_count == 0);
 
-            task->texture_definitions_configmap = configmap_new_from_packed(
+            task->texture_definitions_configmap = configmap_new_from_filepack(
                 message.data,
                 message.data_size,
                 (int*)vec_data(task->queued_texture_ids_vec),
@@ -1219,7 +1219,7 @@ step_sequences_load(struct GTaskInitScene* task)
             task->reqid_queue_inflight_count--;
             assert(task->reqid_queue_inflight_count == 0);
 
-            task->sequences_configmap = configmap_new_from_packed(
+            task->sequences_configmap = configmap_new_from_filepack(
                 message.data,
                 message.data_size,
                 (int*)vec_data(task->queued_sequences_vec),

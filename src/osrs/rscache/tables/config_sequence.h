@@ -1,7 +1,7 @@
 #ifndef SEQUENCE_H
 #define SEQUENCE_H
 
-#include "osrs/filelist.h"
+#include "../filelist.h"
 
 #include <stdbool.h>
 
@@ -47,11 +47,21 @@ struct CacheConfigSequence
     struct CacheConfigFrameSoundMap frame_sounds; // Map of frame index to sound data
 };
 
-struct CacheConfigSequence* config_sequence_new_decode(int revision, char* buffer, int buffer_size);
-void config_sequence_free(struct CacheConfigSequence* sequence);
-void config_sequence_free_inplace(struct CacheConfigSequence* sequence);
+struct CacheConfigSequence*
+config_sequence_new_decode(
+    int revision,
+    char* buffer,
+    int buffer_size);
+void
+config_sequence_free(struct CacheConfigSequence* sequence);
+void
+config_sequence_free_inplace(struct CacheConfigSequence* sequence);
 
-void config_sequence_decode_inplace(
-    struct CacheConfigSequence* sequence, int revision, char* buffer, int buffer_size);
+void
+config_sequence_decode_inplace(
+    struct CacheConfigSequence* sequence,
+    int revision,
+    char* buffer,
+    int buffer_size);
 
 #endif // SEQUENCE_H

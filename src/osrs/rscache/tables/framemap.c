@@ -1,14 +1,16 @@
 #include "framemap.h"
 
-#include "osrs/cache.h"
-#include "osrs/rsbuf.h"
+#include "../cache.h"
+#include "../rsbuf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 struct CacheFramemap*
-framemap_new_from_cache(struct Cache* cache, int framemap_id)
+framemap_new_from_cache(
+    struct Cache* cache,
+    int framemap_id)
 {
     struct CacheArchive* archive = cache_archive_new_load(cache, CACHE_SKELETONS, framemap_id);
     if( !archive )
@@ -26,22 +28,32 @@ framemap_new_from_cache(struct Cache* cache, int framemap_id)
 }
 
 int
-framemap_id_from_frame_archive(char* data, int data_size)
+framemap_id_from_frame_archive(
+    char* data,
+    int data_size)
 {
     int framemap_id = (data[0] & 0xFF) << 8 | (data[1] & 0xFF);
     return framemap_id;
 }
-static struct CacheFramemap* framemap_new_decode(int id, struct RSBuffer* buffer);
+static struct CacheFramemap*
+framemap_new_decode(
+    int id,
+    struct RSBuffer* buffer);
 
 struct CacheFramemap*
-framemap_new_decode2(int id, char* data, int data_size)
+framemap_new_decode2(
+    int id,
+    char* data,
+    int data_size)
 {
     struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
     return framemap_new_decode(id, &buffer);
 }
 
 static struct CacheFramemap*
-framemap_new_decode(int id, struct RSBuffer* buffer)
+framemap_new_decode(
+    int id,
+    struct RSBuffer* buffer)
 {
     struct CacheFramemap* def = malloc(sizeof(struct CacheFramemap));
     memset(def, 0, sizeof(struct CacheFramemap));

@@ -1,4 +1,4 @@
-#include "osrs/filelist.h"
+#include "filelist.h"
 
 #include "rsbuf.h"
 
@@ -18,7 +18,10 @@ filelist_new_from_cache_archive(struct CacheArchive* archive)
 }
 
 struct FileList*
-filelist_new_from_decode(char* data, int data_size, int num_files)
+filelist_new_from_decode(
+    char* data,
+    int data_size,
+    int num_files)
 {
     struct FileList* filelist = malloc(sizeof(struct FileList));
     if( !filelist )

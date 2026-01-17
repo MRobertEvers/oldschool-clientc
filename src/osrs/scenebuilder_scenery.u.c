@@ -5,11 +5,11 @@
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
 #include "model_transforms.h"
-#include "osrs/tables/config_locs.h"
-#include "osrs/tables/maps.h"
+#include "osrs/rscache/tables/config_locs.h"
+#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/tables/model.h"
 #include "painters.h"
 #include "scene.h"
-#include "tables/model.h"
 
 // clang-format off
 #include "scenebuilder.u.c"

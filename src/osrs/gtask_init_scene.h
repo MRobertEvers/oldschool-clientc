@@ -3,7 +3,7 @@
 
 #include "libg.h"
 #include "osrs/gio.h"
-#include "osrs/tables/model.h"
+#include "osrs/rscache/tables/model.h"
 
 /**
  * Data Dependencies

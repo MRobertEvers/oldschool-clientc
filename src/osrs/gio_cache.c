@@ -1,7 +1,7 @@
 #include "gio_cache.h"
 
-#include "tables/configs.h"
-#include "tables/maps.h"
+#include "rscache/tables/configs.h"
+#include "rscache/tables/maps.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -7,8 +7,8 @@
 #include "osrs/grender.h"
 
 // clang-format off
-#include "osrs/cache.h"
-#include "osrs/tables/model.h"
+#include "osrs/rscache/cache.h"
+#include "osrs/rscache/tables/model.h"
 // clang-format on
 
 #define CACHE_PATH "../cache"

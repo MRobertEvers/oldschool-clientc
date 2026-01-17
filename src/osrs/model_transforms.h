@@ -1,7 +1,7 @@
 #ifndef GAME_MODEL_H
 #define GAME_MODEL_H
 
-#include "osrs/tables/model.h"
+#include "osrs/rscache/tables/model.h"
 
 enum TransformFlag
 {
@@ -13,19 +13,46 @@ enum TransformFlag
     F_TRANSFORM_ROTATE = 1 << 5,
 };
 
-void model_transform_mirror(struct CacheModel* model);
+void
+model_transform_mirror(struct CacheModel* model);
 
-void model_transform_hillskew(
-    struct CacheModel* model, int sw_height, int se_height, int ne_height, int nw_height);
+void
+model_transform_hillskew(
+    struct CacheModel* model,
+    int sw_height,
+    int se_height,
+    int ne_height,
+    int nw_height);
 
-void model_transform_recolor(struct CacheModel* model, int color_src, int color_dst);
+void
+model_transform_recolor(
+    struct CacheModel* model,
+    int color_src,
+    int color_dst);
 
-void model_transform_retexture(struct CacheModel* model, int texture_src, int texture_dst);
+void
+model_transform_retexture(
+    struct CacheModel* model,
+    int texture_src,
+    int texture_dst);
 
-void model_transform_scale(struct CacheModel* model, int x, int y, int z);
+void
+model_transform_scale(
+    struct CacheModel* model,
+    int x,
+    int y,
+    int z);
 
-void model_transform_orient(struct CacheModel* model, int orientation);
+void
+model_transform_orient(
+    struct CacheModel* model,
+    int orientation);
 
-void model_transform_translate(struct CacheModel* model, int x, int y, int z);
+void
+model_transform_translate(
+    struct CacheModel* model,
+    int x,
+    int y,
+    int z);
 
 #endif

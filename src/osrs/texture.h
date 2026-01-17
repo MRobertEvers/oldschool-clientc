@@ -2,7 +2,7 @@
 #define TEXTURE_H
 
 #include "graphics/dash.h"
-#include "tables/textures.h"
+#include "rscache/tables/textures.h"
 
 #include <stdbool.h>
 

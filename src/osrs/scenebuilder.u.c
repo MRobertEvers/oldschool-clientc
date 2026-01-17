@@ -4,11 +4,11 @@
 #include "configmap.h"
 #include "graphics/dash.h"
 #include "osrs/painters.h"
-#include "osrs/tables/config_sequence.h"
-#include "osrs/tables/frame.h"
-#include "osrs/tables/framemap.h"
-#include "osrs/tables/maps.h"
-#include "osrs/tables/model.h"
+#include "osrs/rscache/tables/config_sequence.h"
+#include "osrs/rscache/tables/frame.h"
+#include "osrs/rscache/tables/framemap.h"
+#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/tables/model.h"
 
 // clang-format off
 #include "scenebuilder_buildgrid.u.c"

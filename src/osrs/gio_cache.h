@@ -1,9 +1,9 @@
 #ifndef GIO_CACHE_H
 #define GIO_CACHE_H
 
-#include "osrs/cache.h"
 #include "osrs/gio.h"
-#include "osrs/tables/model.h"
+#include "osrs/rscache/cache.h"
+#include "osrs/rscache/tables/model.h"
 
 struct Cache*
 gioqb_cache_new(void);

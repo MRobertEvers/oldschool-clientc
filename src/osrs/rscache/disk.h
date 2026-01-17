@@ -1,13 +1,14 @@
 #ifndef DISK_H
 #define DISK_H
 
-#include "osrs/archive.h"
+#include "archive.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
-int disk_dat2file_read_archive(
+int
+disk_dat2file_read_archive(
     FILE* file,
     int index_id,
     int archive_id,
@@ -15,8 +16,13 @@ int disk_dat2file_read_archive(
     int length_bytes,
     struct Dat2Archive* archive);
 
-int disk_dat2file_append_archive(
-    FILE* file, int index_id, int archive_id, uint8_t* data, int data_size);
+int
+disk_dat2file_append_archive(
+    FILE* file,
+    int index_id,
+    int archive_id,
+    uint8_t* data,
+    int data_size);
 
 struct IndexRecord
 {
@@ -30,8 +36,16 @@ struct IndexRecord
     int length;
 };
 
-int disk_indexfile_read_record(FILE* file, int entry_idx, struct IndexRecord* record);
+int
+disk_indexfile_read_record(
+    FILE* file,
+    int entry_idx,
+    struct IndexRecord* record);
 
-int disk_indexfile_write_record(FILE* file, int entry_idx, struct IndexRecord* record);
+int
+disk_indexfile_write_record(
+    FILE* file,
+    int entry_idx,
+    struct IndexRecord* record);
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef OSRS_CACHE_H_
 #define OSRS_CACHE_H_
 
-#include "reference_table.h"
+#include "osrs/rscache/reference_table.h"
 
 #include <stdint.h>
 #include <stdio.h>

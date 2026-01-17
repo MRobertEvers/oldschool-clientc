@@ -1,8 +1,8 @@
 #ifndef MAPS_H
 #define MAPS_H
 
-#include "osrs/cache.h"
-#include "osrs/rsbuf.h"
+#include "../cache.h"
+#include "../rsbuf.h"
 
 #include <assert.h>
 

@@ -1,6 +1,6 @@
 #include "config_npctype.h"
 
-#include "osrs/rsbuf.h"
+#include "../rsbuf.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -9,10 +9,17 @@
 
 #define REV_210_NPC_ARCHIVE_REV 1493
 
-static void decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct RSBuffer* buffer);
+static void
+decode_npc_type(
+    struct CacheConfigNPCType* npc,
+    int revision,
+    struct RSBuffer* buffer);
 
 struct CacheConfigNPCType*
-config_npctype_new_decode(int revision, char* data, int data_size)
+config_npctype_new_decode(
+    int revision,
+    char* data,
+    int data_size)
 {
     struct CacheConfigNPCType* npc = malloc(sizeof(struct CacheConfigNPCType));
     if( !npc )
@@ -75,7 +82,10 @@ config_npctype_free(struct CacheConfigNPCType* npc)
  * @param buffer
  */
 static void
-decode_npc_type(struct CacheConfigNPCType* npc, int revision, struct RSBuffer* buffer)
+decode_npc_type(
+    struct CacheConfigNPCType* npc,
+    int revision,
+    struct RSBuffer* buffer)
 {
     if( !npc || !buffer || !buffer->data )
     {

@@ -1,15 +1,15 @@
 #include "configmap.h"
 
-#include "filelist.h"
-#include "tables/config_floortype.h"
-#include "tables/config_idk.h"
-#include "tables/config_locs.h"
-#include "tables/config_npctype.h"
-#include "tables/config_object.h"
-#include "tables/config_sequence.h"
-#include "tables/configs.h"
-#include "tables/frame.h"
-#include "tables/textures.h"
+#include "rscache/filelist.h"
+#include "rscache/tables/config_floortype.h"
+#include "rscache/tables/config_idk.h"
+#include "rscache/tables/config_locs.h"
+#include "rscache/tables/config_npctype.h"
+#include "rscache/tables/config_object.h"
+#include "rscache/tables/config_sequence.h"
+#include "rscache/tables/configs.h"
+#include "rscache/tables/frame.h"
+#include "rscache/tables/textures.h"
 
 #include <assert.h>
 #include <math.h>
@@ -356,62 +356,6 @@ alignup(
     return (size + alignment - 1) & ~(alignment - 1);
 }
 
-struct ConfigMapPacked*
-configmap_packed_new(
-    struct Cache* cache,
-    struct CacheArchive* archive)
-{
-    int data_size = 0;
-    int offset = 0;
-    int filelist_reference_size = 0;
-    struct ArchiveReference* archive_reference = NULL;
-    struct ConfigMapPacked* packed = malloc(sizeof(struct ConfigMapPacked));
-    memset(packed, 0, sizeof(struct ConfigMapPacked));
-
-    archive_reference = &cache->tables[archive->table_id]->archives[archive->archive_id];
-    filelist_reference_size =
-        archive_reference->children.count * sizeof(archive_reference->children.files[0]);
-
-    data_size += sizeof(int); // filelist reference size
-    data_size += sizeof(int); // revision
-    data_size += sizeof(int); // file count
-    data_size += sizeof(int); // archive id
-    data_size += sizeof(int); // table id
-    data_size += filelist_reference_size;
-    data_size += archive->data_size;
-
-    packed->data = malloc(data_size);
-    packed->data_size = data_size;
-    memset(packed->data, 0, packed->data_size);
-
-    memcpy((uint8_t*)packed->data + offset, &filelist_reference_size, sizeof(int));
-    offset += sizeof(int);
-    memcpy((uint8_t*)packed->data + offset, &archive_reference->version, sizeof(int));
-    offset += sizeof(int);
-    memcpy((uint8_t*)packed->data + offset, &archive_reference->children.count, sizeof(int));
-    offset += sizeof(int);
-    memcpy((uint8_t*)packed->data + offset, &archive->archive_id, sizeof(int));
-    offset += sizeof(int);
-    memcpy((uint8_t*)packed->data + offset, &archive->table_id, sizeof(int));
-    offset += sizeof(int);
-    memcpy(
-        (uint8_t*)packed->data + offset,
-        archive_reference->children.files,
-        filelist_reference_size);
-    offset += filelist_reference_size;
-    memcpy((uint8_t*)packed->data + offset, archive->data, archive->data_size);
-    offset += archive->data_size;
-
-    return packed;
-}
-
-void
-configmap_packed_free(struct ConfigMapPacked* packed)
-{
-    free(packed->data);
-    free(packed);
-}
-
 static bool
 ids_contains(
     int* ids_nullable,
@@ -427,7 +371,7 @@ ids_contains(
 }
 
 struct DashMap*
-configmap_new_from_packed(
+configmap_new_from_filepack(
     void* data,
     int data_size,
     int* ids_nullable,

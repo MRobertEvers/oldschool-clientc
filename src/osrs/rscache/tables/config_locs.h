@@ -1,10 +1,10 @@
 #ifndef CONFIG_LOCS_H
 #define CONFIG_LOCS_H
 
-#include "osrs/cache.h"
-#include "osrs/filelist.h"
-#include "osrs/rsbuf.h"
-#include "osrs/tables/configs.h"
+#include "../cache.h"
+#include "../filelist.h"
+#include "../rsbuf.h"
+#include "configs.h"
 
 #include <stdbool.h>
 #include <stdlib.h>

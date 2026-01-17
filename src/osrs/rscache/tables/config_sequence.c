@@ -1,14 +1,15 @@
 #include "config_sequence.h"
 
+#include "../cache.h"
+#include "../rsbuf.h"
 #include "configs.h"
-#include "osrs/cache.h"
-#include "osrs/rsbuf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static void free_sequence(struct CacheConfigSequence* def);
+static void
+free_sequence(struct CacheConfigSequence* def);
 
 // package net.runelite.cache.definitions.loaders;
 
@@ -235,7 +236,10 @@ static void free_sequence(struct CacheConfigSequence* def);
 #define REV_226_SEQ_ARCHIVE_REV 1268
 
 static void
-add_frame_sound(struct CacheConfigFrameSoundMap* map, int frame, struct CacheConfigFrameSound sound)
+add_frame_sound(
+    struct CacheConfigFrameSoundMap* map,
+    int frame,
+    struct CacheConfigFrameSound sound)
 {
     if( map->count >= map->capacity )
     {
@@ -250,7 +254,9 @@ add_frame_sound(struct CacheConfigFrameSoundMap* map, int frame, struct CacheCon
 }
 
 static void
-decode_pre_220_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer* buffer)
+decode_pre_220_frame_sound(
+    struct CacheConfigFrameSound* sound,
+    struct RSBuffer* buffer)
 {
     // Old format: 24-bit int with packed fields
     int bits = g3(buffer);
@@ -262,7 +268,9 @@ decode_pre_220_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer*
 }
 
 static void
-decode_220_226_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer* buffer)
+decode_220_226_frame_sound(
+    struct CacheConfigFrameSound* sound,
+    struct RSBuffer* buffer)
 {
     // New format: separate fields
     sound->id = g2(buffer);
@@ -273,7 +281,9 @@ decode_220_226_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer*
 }
 
 static void
-decode_226_plus_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer* buffer)
+decode_226_plus_frame_sound(
+    struct CacheConfigFrameSound* sound,
+    struct RSBuffer* buffer)
 {
     // New format: frame sounds with weights
     sound->id = g2(buffer);
@@ -284,7 +294,9 @@ decode_226_plus_frame_sound(struct CacheConfigFrameSound* sound, struct RSBuffer
 }
 
 static void
-handle_frame_sounds_pre_220(struct CacheConfigSequence* def, struct RSBuffer* buffer)
+handle_frame_sounds_pre_220(
+    struct CacheConfigSequence* def,
+    struct RSBuffer* buffer)
 {
     int var3 = g1(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
@@ -299,7 +311,9 @@ handle_frame_sounds_pre_220(struct CacheConfigSequence* def, struct RSBuffer* bu
 }
 
 static void
-handle_frame_sounds_220_226(struct CacheConfigSequence* def, struct RSBuffer* buffer)
+handle_frame_sounds_220_226(
+    struct CacheConfigSequence* def,
+    struct RSBuffer* buffer)
 {
     int var3 = g1(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
@@ -314,7 +328,9 @@ handle_frame_sounds_220_226(struct CacheConfigSequence* def, struct RSBuffer* bu
 }
 
 static void
-handle_frame_sounds_226_plus(struct CacheConfigSequence* def, struct RSBuffer* buffer)
+handle_frame_sounds_226_plus(
+    struct CacheConfigSequence* def,
+    struct RSBuffer* buffer)
 {
     int var3 = g2(buffer);
     for( int var4 = 0; var4 < var3; ++var4 )
@@ -330,7 +346,9 @@ handle_frame_sounds_226_plus(struct CacheConfigSequence* def, struct RSBuffer* b
 }
 
 static void
-decode_sequence_pre_220(struct CacheConfigSequence* def, struct RSBuffer* buffer)
+decode_sequence_pre_220(
+    struct CacheConfigSequence* def,
+    struct RSBuffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -459,7 +477,9 @@ decode_sequence_pre_220(struct CacheConfigSequence* def, struct RSBuffer* buffer
 }
 
 static void
-decode_sequence_220_226(struct CacheConfigSequence* def, struct RSBuffer* buffer)
+decode_sequence_220_226(
+    struct CacheConfigSequence* def,
+    struct RSBuffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -588,7 +608,9 @@ decode_sequence_220_226(struct CacheConfigSequence* def, struct RSBuffer* buffer
 }
 
 static void
-decode_sequence_226_plus(struct CacheConfigSequence* def, struct RSBuffer* buffer)
+decode_sequence_226_plus(
+    struct CacheConfigSequence* def,
+    struct RSBuffer* buffer)
 {
     // Initialize frame sounds map
     def->frame_sounds.frames = NULL;
@@ -713,10 +735,17 @@ decode_sequence_226_plus(struct CacheConfigSequence* def, struct RSBuffer* buffe
     }
 }
 
-static void decode_sequence(struct CacheConfigSequence* def, int revision, struct RSBuffer* buffer);
+static void
+decode_sequence(
+    struct CacheConfigSequence* def,
+    int revision,
+    struct RSBuffer* buffer);
 
 struct CacheConfigSequence*
-config_sequence_new_decode(int revision, char* data, int data_size)
+config_sequence_new_decode(
+    int revision,
+    char* data,
+    int data_size)
 {
     struct CacheConfigSequence* def = malloc(sizeof(struct CacheConfigSequence));
     memset(def, 0, sizeof(struct CacheConfigSequence));
@@ -781,14 +810,20 @@ config_sequence_free_inplace(struct CacheConfigSequence* def)
 
 void
 config_sequence_decode_inplace(
-    struct CacheConfigSequence* sequence, int revision, char* data, int buffer_size)
+    struct CacheConfigSequence* sequence,
+    int revision,
+    char* data,
+    int buffer_size)
 {
     struct RSBuffer buffer = { .data = data, .size = buffer_size, .position = 0 };
     decode_sequence(sequence, revision, &buffer);
 }
 
 static void
-decode_sequence(struct CacheConfigSequence* def, int revision, struct RSBuffer* buffer)
+decode_sequence(
+    struct CacheConfigSequence* def,
+    int revision,
+    struct RSBuffer* buffer)
 {
     if( revision <= REV_220_SEQ_ARCHIVE_REV )
     {

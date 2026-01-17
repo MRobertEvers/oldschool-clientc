@@ -1,6 +1,6 @@
 #include "config_floortype.h"
 
-#include "osrs/rsbuf.h"
+#include "../rsbuf.h"
 
 #include <assert.h>
 #include <stdbool.h>
