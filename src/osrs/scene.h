@@ -22,6 +22,8 @@ struct SceneElement
 {
     int id;
 
+    bool interactable;
+
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
 
@@ -105,6 +107,11 @@ struct SceneElement*
 scene_element_at(
     struct SceneScenery* scenery,
     int element_idx);
+
+bool
+scene_element_interactable(
+    struct Scene* scene,
+    int element);
 
 struct DashModel*
 scene_element_model(

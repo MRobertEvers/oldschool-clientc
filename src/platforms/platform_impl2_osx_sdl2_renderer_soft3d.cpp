@@ -307,7 +307,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             if( cull != DASHCULL_VISIBLE )
                 break;
 
-            if( dash3d_projected_model_contains(
+            if( scene_element_interactable(game->scene, cmd->_entity._bf_entity) &&
+                dash3d_projected_model_contains(
                     game->sys_dash,
                     scene_element_model(game->scene, cmd->_entity._bf_entity),
                     game->view_port,

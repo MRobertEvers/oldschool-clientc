@@ -657,4 +657,21 @@ decode_loc(
             break;
         }
     }
+    // if (interactable == -1) {
+    //     this.interactable = (modelIDs != null) && ((modelKinds == null) || (modelKinds[0] ==
+    //     10));
+
+    //     if (options != null) {
+    //         this.interactable = true;
+    //     }
+    // }
+    if( loc->is_interactive == -1 )
+    {
+        loc->is_interactive =
+            (loc->models != NULL) && ((loc->shapes == NULL) || (loc->shapes[0] == 10));
+    }
+    if( loc->actions != NULL )
+    {
+    }
+    loc->is_interactive = true;
 }

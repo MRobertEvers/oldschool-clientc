@@ -476,6 +476,18 @@ dash_position_from_offset_1x1(
     return dash_position_from_offset_wxh(offset, height_center, 1, 1);
 }
 
+static void
+init_scene_element(
+    struct SceneElement* scene_element,
+    struct CacheConfigLocation* config_loc)
+{
+    memset(scene_element, 0, sizeof(struct SceneElement));
+    scene_element->interactable = config_loc->is_interactive;
+    scene_element->dash_model = NULL;
+    scene_element->dash_position = NULL;
+    scene_element->animation = NULL;
+}
+
 static int
 scenery_add_wall_single(
     struct SceneBuilder* scene_builder,
@@ -488,6 +500,7 @@ scenery_add_wall_single(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
 
     int element_id = -1;
 
@@ -545,6 +558,7 @@ scenery_add_wall_tri_corner(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
 
     int element_id = -1;
 
@@ -599,8 +613,9 @@ scenery_add_wall_two_sides(
     struct DashModel* dash_model_two = NULL;
     struct DashPosition* dash_position_one = NULL;
     struct DashPosition* dash_position_two = NULL;
-    struct SceneElement scene_element = { 0 };
     struct BuildElement* build_element = NULL;
+    struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
 
     int element_one_id = -1;
     int element_two_id = -1;
@@ -684,6 +699,7 @@ scenery_add_wall_rect_corner(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     if( offset->x == 161 )
@@ -746,6 +762,7 @@ scenery_add_wall_decor_inside(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
@@ -810,6 +827,7 @@ scenery_add_wall_decor_outside(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
@@ -877,6 +895,7 @@ scenery_add_wall_decor_diagonal_outside(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
@@ -952,6 +971,7 @@ scenery_add_wall_decor_diagonal_inside(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     int rotation = config_loc->seq_id != -1 ? 0 : (map_loc->orientation);
@@ -1022,6 +1042,7 @@ scenery_add_wall_decor_diagonal_double(
     struct DashPosition* dash_position_one = NULL;
     struct DashPosition* dash_position_two = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_one_id = -1;
     int element_two_id = -1;
 
@@ -1115,6 +1136,7 @@ scenery_add_wall_diagonal(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     dash_model = load_model(
@@ -1159,6 +1181,7 @@ scenery_add_normal(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     int size_x = config_loc->size_x;
@@ -1233,6 +1256,7 @@ scenery_add_roof(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     int rotation = map_loc->orientation;
@@ -1275,6 +1299,7 @@ scenery_add_floor_decoration(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
     int rotation = map_loc->orientation;

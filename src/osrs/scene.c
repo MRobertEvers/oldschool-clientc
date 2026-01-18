@@ -169,6 +169,15 @@ scene_element_at(
     return &scenery->elements[element_idx];
 }
 
+bool
+scene_element_interactable(
+    struct Scene* scene,
+    int element)
+{
+    assert(element >= 0 && element < scene->scenery->elements_length);
+    return scene->scenery->elements[element].interactable;
+}
+
 struct DashModel*
 scene_element_model(
     struct Scene* scene,
