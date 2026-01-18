@@ -2,6 +2,7 @@
 #define SCENE2_H
 
 #include "graphics/dash.h"
+#include "rscache/tables/config_sequence.h"
 
 struct SceneAnimation
 {
@@ -9,9 +10,12 @@ struct SceneAnimation
     int frame_count;
     int frame_capacity;
 
+    struct CacheConfigSequence* config_sequence;
+
     struct DashFramemap* dash_framemap;
 
     int frame_index;
+    int cycle;
 };
 
 struct SceneElement

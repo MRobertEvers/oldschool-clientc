@@ -41,6 +41,8 @@ struct GGame
     int cc;
     bool latched;
 
+    int cycles;
+
     int camera_world_x;
     int camera_world_y;
     int camera_world_z;

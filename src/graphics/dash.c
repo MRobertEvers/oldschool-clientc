@@ -1403,11 +1403,8 @@ dashmodel_valid(struct DashModel* model)
     return true;
 }
 
-void
-dashmodel_animate(
-    struct DashModel* model,
-    struct DashFrame* frame,
-    struct DashFramemap* framemap)
+static void
+reset_original_values(struct DashModel* model)
 {
     if( model->original_vertices_x == NULL )
     {
@@ -1432,6 +1429,15 @@ dashmodel_animate(
     {
         memcpy(model->face_alphas, model->original_face_alphas, sizeof(int) * model->face_count);
     }
+}
+
+void
+dashmodel_animate(
+    struct DashModel* model,
+    struct DashFrame* frame,
+    struct DashFramemap* framemap)
+{
+    reset_original_values(model);
     assert(model->original_vertices_x != NULL);
     anim_frame_apply(
         frame,

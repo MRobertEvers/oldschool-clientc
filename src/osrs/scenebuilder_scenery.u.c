@@ -415,6 +415,19 @@ load_model_animations(
     assert(sequence);
     assert(sequence->frame_lengths);
 
+    scene_animation->config_sequence = sequence;
+    if( loc_config->seq_random_start )
+    {
+        int frame_index = rand() % sequence->frame_count;
+        int cycle_start = rand() % sequence->frame_lengths[frame_index];
+        scene_animation->frame_index = frame_index;
+        scene_animation->cycle = cycle_start;
+    }
+    else
+    {
+        scene_animation->frame_index = 0;
+    }
+
     for( int i = 0; i < sequence->frame_count; i++ )
     {
         // Get the frame definition ID from the second 2 bytes of the sequence frame ID The

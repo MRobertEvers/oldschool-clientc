@@ -272,9 +272,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     element->animation->dash_frames[element->animation->frame_index],
                     element->animation->dash_framemap);
 
-                element->animation->frame_index++;
-                if( element->animation->frame_index >= element->animation->frame_count )
-                    element->animation->frame_index = 0;
+                // element->animation->frame_index++;
+                // if( element->animation->frame_index >= element->animation->frame_count )
+                //     element->animation->frame_index = 0;
             }
 
             dash3d_render_model(

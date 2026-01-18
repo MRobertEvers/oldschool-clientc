@@ -215,6 +215,7 @@ libg_game_process_input(
     {
         time_quanta++;
         input->time_delta_accumulator_seconds -= time_delta_step;
+        game->cycles++;
         if( !game->latched )
             game->cc++;
     }
@@ -379,6 +380,31 @@ libg_game_step(
     }
 
     libg_game_process_input(game, input);
+
+    while( game->cycles > 0 )
+    {
+        game->cycles--;
+        for( int i = 0; i < game->scene->scenery->elements_length; i++ )
+        {
+            struct SceneElement* element = scene_element_at(game->scene->scenery, i);
+            if( element->animation && element->animation->config_sequence )
+            {
+                element->animation->cycle++;
+                if( element->animation->cycle >=
+                    element->animation->config_sequence
+                        ->frame_lengths[element->animation->frame_index] )
+                {
+                    element->animation->cycle = 0;
+                    element->animation->frame_index++;
+                    if( element->animation->frame_index >=
+                        element->animation->config_sequence->frame_count )
+                    {
+                        element->animation->frame_index = 0;
+                    }
+                }
+            }
+        }
+    }
 
     grendercb_reset(render_command_buffer);
     struct GRenderCommand command = {

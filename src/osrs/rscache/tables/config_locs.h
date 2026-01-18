@@ -139,7 +139,7 @@ struct CacheConfigLocation
     int* ambient_sound_ids;
     int ambient_sound_id_count;
 
-    int seq_random_start;
+    bool seq_random_start;
 
     int* random_seq_ids;
     int* random_seq_delays;

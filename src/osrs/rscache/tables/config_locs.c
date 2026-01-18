@@ -167,7 +167,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->ambient_sound_ticks_min = 0;
     loc->ambient_sound_ticks_max = 0;
     loc->ambient_sound_retain = 0;
-    loc->seq_random_start = 1;
+    loc->seq_random_start = true;
     loc->contour_ground_type = 0;
     loc->contour_ground_param = -1;
     loc->recolor_count = 0;
@@ -531,7 +531,7 @@ decode_loc(
             // Boolean flags - skip for now
             break;
         case 89:
-            loc->seq_random_start = 0;
+            loc->seq_random_start = false;
             break;
         case 93:
         {
