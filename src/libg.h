@@ -43,6 +43,9 @@ struct GGame
 
     int cycles;
 
+    int mouse_x;
+    int mouse_y;
+
     int camera_world_x;
     int camera_world_y;
     int camera_world_z;

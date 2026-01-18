@@ -28,14 +28,26 @@ struct Platform2_OSX_SDL2
     struct Cache* cache;
 };
 
-struct Platform2_OSX_SDL2* Platform2_OSX_SDL2_New(void);
-void Platform2_OSX_SDL2_Free(struct Platform2_OSX_SDL2* platform);
+struct Platform2_OSX_SDL2*
+Platform2_OSX_SDL2_New(void);
+void
+Platform2_OSX_SDL2_Free(struct Platform2_OSX_SDL2* platform);
 
-bool Platform2_OSX_SDL2_InitForSoft3D(
-    struct Platform2_OSX_SDL2* platform, int screen_width, int screen_height);
-void Platform2_OSX_SDL2_Shutdown(struct Platform2_OSX_SDL2* platform);
+bool
+Platform2_OSX_SDL2_InitForSoft3D(
+    struct Platform2_OSX_SDL2* platform,
+    int screen_width,
+    int screen_height);
+void
+Platform2_OSX_SDL2_Shutdown(struct Platform2_OSX_SDL2* platform);
 
-void Platform2_OSX_SDL2_PollEvents(struct Platform2_OSX_SDL2* platform, struct GInput* input);
-void Platform2_OSX_SDL2_PollIO(struct Platform2_OSX_SDL2* platform, struct GIOQueue* queue);
+void
+Platform2_OSX_SDL2_PollEvents(
+    struct Platform2_OSX_SDL2* platform,
+    struct GInput* input);
+void
+Platform2_OSX_SDL2_PollIO(
+    struct Platform2_OSX_SDL2* platform,
+    struct GIOQueue* queue);
 
 #endif

@@ -13,6 +13,9 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+#define SCREEN_WIDTH 1024
+#define SCREEN_HEIGHT 768
+
 void
 test_gio(void)
 {
@@ -49,7 +52,9 @@ test_gio(void)
 }
 
 int
-main(int argc, char* argv[])
+main(
+    int argc,
+    char* argv[])
 {
     printf("Hello, World!\n");
 
@@ -65,14 +70,14 @@ main(int argc, char* argv[])
         printf("Failed to create platform\n");
         return 1;
     }
-    if( !Platform2_OSX_SDL2_InitForSoft3D(platform, 1024, 768) )
+    if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
     {
         printf("Failed to initialize platform\n");
         return 1;
     }
 
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer =
-        PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(1024, 768, 1600, 900);
+        PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(SCREEN_WIDTH, SCREEN_HEIGHT, 1600, 900);
     if( !renderer )
     {
         printf("Failed to create renderer\n");

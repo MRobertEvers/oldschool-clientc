@@ -185,6 +185,12 @@ struct DashPosition
     int roll;
 };
 
+struct DashPoint2D
+{
+    int x;
+    int y;
+};
+
 void
 dash_init(void);
 
@@ -195,7 +201,12 @@ dash_new(void);
 void //
 dash_free(struct DashGraphics* dash);
 
-void //
+#define DASHCULL_VISIBLE 0
+#define DASHCULL_CULLED_FAST 1
+#define DASHCULL_CULLED_AABB 2
+#define DASHCULL_ERROR 3
+
+int //
 dash3d_render_model( //
     struct DashGraphics* dash, 
     struct DashModel* model,
@@ -204,6 +215,32 @@ dash3d_render_model( //
     struct DashCamera* camera,
     int* pixel_buffer
 );
+
+int
+dash3d_project_model(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera);
+
+void
+dash3d_raster_projected_model(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera,
+    int* pixel_buffer);
+
+bool
+dash3d_projected_model_contains(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashViewPort* view_port,
+    int screen_x,
+    int screen_y);
+
 void //
 dash3d_calculate_bounds_cylinder( //
     struct DashBoundsCylinder* bounds_cylinder,

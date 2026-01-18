@@ -220,6 +220,9 @@ libg_game_process_input(
             game->cc++;
     }
 
+    game->mouse_x = input->mouse_x;
+    game->mouse_y = input->mouse_y;
+
     for( int i = 0; i < time_quanta; i++ )
     {
         if( input->w_pressed )

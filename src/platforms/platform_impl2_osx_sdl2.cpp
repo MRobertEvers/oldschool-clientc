@@ -19,6 +19,59 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+static void
+transform_mouse_coordinates(
+    int window_mouse_x,
+    int window_mouse_y,
+    int* game_mouse_x,
+    int* game_mouse_y,
+    int game_screen_width,
+    int game_screen_height,
+    struct Platform2_OSX_SDL2* platform)
+{
+    // Calculate the same scaling transformation as the rendering
+    float src_aspect = (float)game_screen_width / game_screen_height;
+    float dst_aspect = (float)platform->drawable_width / platform->drawable_height;
+
+    int dst_x, dst_y, dst_w, dst_h;
+
+    if( src_aspect > dst_aspect )
+    {
+        // Source is wider - fit to width
+        dst_w = platform->drawable_width;
+        dst_h = (int)(platform->drawable_width / src_aspect);
+        dst_x = 0;
+        dst_y = (platform->drawable_height - dst_h) / 2;
+    }
+    else
+    {
+        // Source is taller - fit to height
+        dst_h = platform->drawable_height;
+        dst_w = (int)(platform->drawable_height * src_aspect);
+        dst_y = 0;
+        dst_x = (platform->drawable_width - dst_w) / 2;
+    }
+
+    // Transform window coordinates to game coordinates
+    // Account for the offset and scaling of the game rendering area
+    if( window_mouse_x < dst_x || window_mouse_x >= dst_x + dst_w || window_mouse_y < dst_y ||
+        window_mouse_y >= dst_y + dst_h )
+    {
+        // Mouse is outside the game rendering area
+        *game_mouse_x = -1;
+        *game_mouse_y = -1;
+    }
+    else
+    {
+        // Transform from window coordinates to game coordinates
+        float relative_x = (float)(window_mouse_x - dst_x) / dst_w;
+        float relative_y = (float)(window_mouse_y - dst_y) / dst_h;
+
+        *game_mouse_x = (int)(relative_x * game_screen_width);
+        *game_mouse_y = (int)(relative_y * game_screen_height);
+    }
+}
+
 struct Platform2_OSX_SDL2*
 Platform2_OSX_SDL2_New(void)
 {
@@ -59,6 +112,16 @@ Platform2_OSX_SDL2_InitForSoft3D(
         return false;
     }
 
+    platform->window_width = screen_width;
+    platform->window_height = screen_height;
+    // Store game screen dimensions in drawable_width/drawable_height
+    // (these represent the game's logical screen size, not the actual drawable size)
+    platform->drawable_width = screen_width;
+    platform->drawable_height = screen_height;
+
+    // Store game screen dimensions: use window_width/window_height to preserve
+    // the original game screen dimensions (they get updated on resize for window tracking)
+
     platform->last_frame_time_ticks = SDL_GetTicks64();
     return true;
 }
@@ -79,13 +142,18 @@ Platform2_OSX_SDL2_PollEvents(
         // Process ImGui events first
         ImGui_ImplSDL2_ProcessEvent(&event);
 
+        // Check if ImGui wants to capture mouse input
+        ImGuiIO& io = ImGui::GetIO();
+        bool imgui_wants_mouse = io.WantCaptureMouse;
+
         if( event.type == SDL_QUIT )
         {
             input->quit = true;
         }
         else if( event.type == SDL_WINDOWEVENT )
         {
-            if( event.window.event == SDL_WINDOWEVENT_RESIZED )
+            if( event.window.event == SDL_WINDOWEVENT_RESIZED ||
+                event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED )
             {
                 SDL_GetWindowSize(
                     platform->window, &platform->window_width, &platform->window_height);
@@ -94,24 +162,57 @@ Platform2_OSX_SDL2_PollEvents(
                 platform->drawable_height = platform->window_height;
 
                 // Update ImGui display size for proper scaling
-                ImGuiIO& io = ImGui::GetIO();
                 io.DisplaySize =
                     ImVec2((float)platform->drawable_width, (float)platform->drawable_height);
+
+                // Recalculate mouse coordinates after resize
+                int current_mouse_x, current_mouse_y;
+                SDL_GetMouseState(&current_mouse_x, &current_mouse_y);
+                transform_mouse_coordinates(
+                    current_mouse_x,
+                    current_mouse_y,
+                    &input->mouse_x,
+                    &input->mouse_y,
+                    platform->window_width,
+                    platform->window_height,
+                    platform);
             }
         }
         else if( event.type == SDL_MOUSEMOTION )
         {
-            // transform_mouse_coordinates(
-            //     event.motion.x, event.motion.y, &input->mouse_x, &input->mouse_y, platform);
+            if( !imgui_wants_mouse )
+            {
+                transform_mouse_coordinates(
+                    event.motion.x,
+                    event.motion.y,
+                    &input->mouse_x,
+                    &input->mouse_y,
+                    platform->window_width,
+                    platform->window_height,
+                    platform);
+            }
+            else
+            {
+                // Mouse is over ImGui, mark as outside game area
+                input->mouse_x = -1;
+                input->mouse_y = -1;
+            }
         }
         else if( event.type == SDL_MOUSEBUTTONDOWN )
         {
-            // int transformed_x, transformed_y;
-            // transform_mouse_coordinates(
-            //     event.button.x, event.button.y, &transformed_x, &transformed_y, &platform);
-            // input->mouse_click_x = transformed_x;
-            // input->mouse_click_y = transformed_y;
-            // input->mouse_click_cycle = 0;
+            if( !imgui_wants_mouse )
+            {
+                // Mouse click coordinates are stored in input if needed
+                // For now, we just update the mouse position
+                transform_mouse_coordinates(
+                    event.button.x,
+                    event.button.y,
+                    &input->mouse_x,
+                    &input->mouse_y,
+                    platform->window_width,
+                    platform->window_height,
+                    platform);
+            }
         }
         else if( event.type == SDL_KEYDOWN )
         {

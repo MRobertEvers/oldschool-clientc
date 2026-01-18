@@ -26,7 +26,7 @@ render_imgui(
 
     // Info window
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 150), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
 
     ImGui::Begin("Info");
     ImGui::Text(
@@ -43,7 +43,17 @@ render_imgui(
     //     (double)(game->painters_time_sum / game->frame_count) * 1000.0 / (double)frequency,
     //     (double)(game->texture_upload_time_sum / game->frame_count) * 1000.0 /
     //     (double)frequency);
-    // ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+
+    // Display mouse position (game screen coordinates)
+    ImGui::Text("Mouse (game x, y): %d, %d", game->mouse_x, game->mouse_y);
+
+    // Also show window mouse position for debugging
+    if( renderer->platform && renderer->platform->window )
+    {
+        int window_mouse_x, window_mouse_y;
+        SDL_GetMouseState(&window_mouse_x, &window_mouse_y);
+        ImGui::Text("Mouse (window x, y): %d, %d", window_mouse_x, window_mouse_y);
+    }
 
     // ImGui::Text("Hover model: %d, %d", game->hover_model, game->hover_loc_yaw);
     // ImGui::Text(
@@ -277,7 +287,26 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 //     element->animation->frame_index = 0;
             }
 
-            dash3d_render_model(
+            int cull = dash3d_project_model(
+                game->sys_dash,
+                scene_element_model(game->scene, cmd->_entity._bf_entity),
+                &position,
+                game->view_port,
+                game->camera);
+            if( cull != DASHCULL_VISIBLE )
+                break;
+
+            if( dash3d_projected_model_contains(
+                    game->sys_dash,
+                    scene_element_model(game->scene, cmd->_entity._bf_entity),
+                    game->view_port,
+                    game->mouse_x,
+                    game->mouse_y) )
+            {
+                printf("Model contains point\n");
+            }
+
+            dash3d_raster_projected_model(
                 game->sys_dash,
                 scene_element_model(game->scene, cmd->_entity._bf_entity),
                 &position,

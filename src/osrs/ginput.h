@@ -8,6 +8,9 @@ struct GInput
 {
     int quit;
 
+    int mouse_x;
+    int mouse_y;
+
     int w_pressed;
     int a_pressed;
     int s_pressed;

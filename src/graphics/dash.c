@@ -24,6 +24,8 @@ struct DashTextureEntry
 
 struct DashGraphics
 {
+    struct DashAABB aabb;
+
     int screen_vertices_x[4096];
     int screen_vertices_y[4096];
     int screen_vertices_z[4096];
@@ -78,9 +80,6 @@ dash_free(struct DashGraphics* dash)
     free(dash);
 }
 
-#define DASHCULL_VISIBLE 1
-#define DASHCULL_NOT_VISIBLE 0
-
 static int
 dash3d_fast_cull(
     struct DashViewPort* view_port,
@@ -116,13 +115,13 @@ dash3d_fast_cull(
     if( max_z < near_plane_z )
     {
         // The edge of the model that is farthest from the camera is too close to the near plane.
-        return DASHCULL_NOT_VISIBLE;
+        return DASHCULL_CULLED_FAST;
     }
 
     if( mid_z > 3500 )
     {
         // Model too far away.
-        return DASHCULL_NOT_VISIBLE;
+        return DASHCULL_CULLED_FAST;
     }
 
     int mid_x = projected_vertex->x;
@@ -143,7 +142,7 @@ dash3d_fast_cull(
     if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
     {
         // All parts of the model left or right edges are projected off screen.
-        return DASHCULL_NOT_VISIBLE;
+        return DASHCULL_CULLED_FAST;
     }
 
     // compute_screen_y_aabb(
@@ -171,7 +170,7 @@ dash3d_fast_cull(
     if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
     {
         // All parts of the model top or bottom edges are projected off screen.
-        return DASHCULL_NOT_VISIBLE;
+        return DASHCULL_CULLED_FAST;
     }
 
     return DASHCULL_VISIBLE;
@@ -187,13 +186,13 @@ dash3d_aabb_cull(
     int screen_height = view_port->height;
 
     if( aabb->min_screen_x >= screen_width )
-        return DASHCULL_NOT_VISIBLE;
+        return DASHCULL_CULLED_AABB;
     if( aabb->min_screen_y >= screen_height )
-        return DASHCULL_NOT_VISIBLE;
+        return DASHCULL_CULLED_AABB;
     if( aabb->max_screen_x < 0 )
-        return DASHCULL_NOT_VISIBLE;
+        return DASHCULL_CULLED_AABB;
     if( aabb->max_screen_y < 0 )
-        return DASHCULL_NOT_VISIBLE;
+        return DASHCULL_CULLED_AABB;
 
     return DASHCULL_VISIBLE;
 }
@@ -1053,54 +1052,14 @@ sort_face_draw_order(
     return order_index;
 }
 
-void //
-dash3d_render_model( //
-    struct DashGraphics* dash, 
+static inline void
+dash3d_raster(
+    struct DashGraphics* dash,
     struct DashModel* model,
-    struct DashPosition* position,
     struct DashViewPort* view_port,
     struct DashCamera* camera,
-    int* pixel_buffer
-)
+    int* pixel_buffer)
 {
-    struct DashAABB aabb;
-    struct ProjectedVertex center_projection;
-    int cull = DASHCULL_VISIBLE;
-
-    if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
-        return;
-
-    cull = dash3d_fast_cull(view_port, model, position, camera, &center_projection);
-    if( cull == DASHCULL_NOT_VISIBLE )
-        return;
-
-    dash3d_calculate_aabb(&aabb, model, position, view_port, camera);
-
-    cull = dash3d_aabb_cull(&aabb, view_port, camera);
-    if( cull == DASHCULL_NOT_VISIBLE )
-        return;
-
-    project_vertices_array(
-        dash->orthographic_vertices_x,
-        dash->orthographic_vertices_y,
-        dash->orthographic_vertices_z,
-        dash->screen_vertices_x,
-        dash->screen_vertices_y,
-        dash->screen_vertices_z,
-        model->vertices_x,
-        model->vertices_y,
-        model->vertices_z,
-        model->vertex_count,
-        position->yaw,
-        center_projection.z,
-        position->x,
-        position->y,
-        position->z,
-        camera->near_plane_z,
-        camera->fov_rpi2048,
-        camera->pitch,
-        camera->yaw);
-
     int model_min_depth = model->bounds_cylinder->min_z_depth_any_rotation;
     memset(
         dash->tmp_depth_face_count,
@@ -1237,6 +1196,179 @@ dash3d_render_model( //
                 dash->textures_hmap);
         }
     }
+}
+
+static inline int
+dash3d_project(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    struct ProjectedVertex center_projection;
+    int cull = DASHCULL_VISIBLE;
+
+    if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
+        return DASHCULL_ERROR;
+
+    cull = dash3d_fast_cull(view_port, model, position, camera, &center_projection);
+    if( cull != DASHCULL_VISIBLE )
+        return cull;
+
+    dash3d_calculate_aabb(&dash->aabb, model, position, view_port, camera);
+
+    cull = dash3d_aabb_cull(&dash->aabb, view_port, camera);
+    if( cull != DASHCULL_VISIBLE )
+        return cull;
+
+    project_vertices_array(
+        dash->orthographic_vertices_x,
+        dash->orthographic_vertices_y,
+        dash->orthographic_vertices_z,
+        dash->screen_vertices_x,
+        dash->screen_vertices_y,
+        dash->screen_vertices_z,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
+        model->vertex_count,
+        position->yaw,
+        center_projection.z,
+        position->x,
+        position->y,
+        position->z,
+        camera->near_plane_z,
+        camera->fov_rpi2048,
+        camera->pitch,
+        camera->yaw);
+
+    return DASHCULL_VISIBLE;
+}
+
+int
+dash3d_project_model(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    int cull = dash3d_project(dash, model, position, view_port, camera);
+    return cull;
+}
+
+void
+dash3d_raster_projected_model(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera,
+    int* pixel_buffer)
+{
+    dash3d_raster(dash, model, view_port, camera, pixel_buffer);
+}
+
+static inline bool
+dash3d_projected_model_contains_aabb(
+    struct DashGraphics* dash,
+    int screen_x,
+    int screen_y)
+{
+    return screen_x >= dash->aabb.min_screen_x && screen_x <= dash->aabb.max_screen_x &&
+           screen_y >= dash->aabb.min_screen_y && screen_y <= dash->aabb.max_screen_y;
+}
+
+static inline bool
+triangle_contains_point(
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    int x3,
+    int y3,
+    int x,
+    int y)
+{
+    int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+    if( denominator != 0 )
+    {
+        float a = ((y2 - y3) * (x - x3) + (x3 - x2) * (y - y3)) / (float)denominator;
+        float b = ((y3 - y1) * (x - x3) + (x1 - x3) * (y - y3)) / (float)denominator;
+        float c = 1 - a - b;
+        return (a >= 0 && b >= 0 && c >= 0);
+    }
+    return false;
+}
+
+static inline bool
+projected_model_contains(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    int screen_x,
+    int screen_y)
+{
+    bool contains = false;
+
+    for( int i = 0; i < model->face_count; i++ )
+    {
+        int face_a = model->face_indices_a[i];
+        int face_b = model->face_indices_b[i];
+        int face_c = model->face_indices_c[i];
+
+        int x1 = dash->screen_vertices_x[face_a];
+        int y1 = dash->screen_vertices_y[face_a];
+        int x2 = dash->screen_vertices_x[face_b];
+        int y2 = dash->screen_vertices_y[face_b];
+        int x3 = dash->screen_vertices_x[face_c];
+        int y3 = dash->screen_vertices_y[face_c];
+
+        bool contains_face = triangle_contains_point(x1, y1, x2, y2, x3, y3, screen_x, screen_y);
+        if( contains_face )
+        {
+            contains = true;
+            break;
+        }
+    }
+
+    return contains;
+}
+
+bool
+dash3d_projected_model_contains(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashViewPort* view_port,
+    int screen_x,
+    int screen_y)
+{
+    assert(view_port->x_center != 0);
+    assert(view_port->y_center != 0);
+    int adjusted_screen_x = screen_x - view_port->x_center;
+    int adjusted_screen_y = screen_y - view_port->y_center;
+    if( !dash3d_projected_model_contains_aabb(&dash->aabb, adjusted_screen_x, adjusted_screen_y) )
+        return false;
+
+    return projected_model_contains(dash, model, adjusted_screen_x, adjusted_screen_y);
+}
+
+int //
+dash3d_render_model( //
+    struct DashGraphics* dash, 
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera,
+    int* pixel_buffer
+)
+{
+    int cull = dash3d_project_model(dash, model, position, view_port, camera);
+    if( cull != DASHCULL_VISIBLE )
+        return cull;
+
+    dash3d_raster(dash, model, view_port, camera, pixel_buffer);
+    return DASHCULL_VISIBLE;
 }
 
 void
