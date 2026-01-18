@@ -202,6 +202,8 @@ decode_loc(
 {
     struct RSBuffer buffer = { .data = (uint8_t*)data, .size = data_size, .position = 0 };
 
+    int actions_count = 0;
+
     init_loc(loc);
 
     while( true )
@@ -212,14 +214,14 @@ decode_loc(
                 "decode_loc: Buffer position %d exceeded data size %d\n",
                 buffer.position,
                 buffer.size);
-            return;
+            break;
         }
 
         int opcode = rsbuf_g1(&buffer) & 0xFF;
         if( opcode == 0 )
         {
             // printf("decode_npc_type: Reached end of data (opcode 0)\n");
-            return;
+            break;
         }
 
         switch( opcode )
@@ -340,6 +342,7 @@ decode_loc(
         {
             int action_index = opcode - 30;
             char* action = rsbuf_read_string(&buffer);
+            actions_count++;
             // Check if action is "hidden" (case insensitive)
             if( action && strcasecmp(action, "hidden") == 0 )
             {
@@ -669,9 +672,9 @@ decode_loc(
     {
         loc->is_interactive =
             (loc->models != NULL) && ((loc->shapes == NULL) || (loc->shapes[0] == 10));
+        if( actions_count > 0 )
+        {
+            loc->is_interactive = true;
+        }
     }
-    if( loc->actions != NULL )
-    {
-    }
-    loc->is_interactive = true;
 }

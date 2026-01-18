@@ -477,15 +477,61 @@ dash_position_from_offset_1x1(
 }
 
 static void
+push_scene_action(
+    struct SceneElement* scene_element,
+    char* action)
+{
+    assert(action != NULL);
+    struct SceneAction* scene_action = malloc(sizeof(struct SceneAction));
+    memset(scene_action, 0, sizeof(struct SceneAction));
+
+    assert(strlen(action) < sizeof(scene_action->action) - 1);
+    memset(scene_action->action, 0, sizeof(scene_action->action));
+
+    memcpy(scene_action->action, action, strlen(action));
+
+    if( !scene_element->actions )
+    {
+        scene_element->actions = scene_action;
+    }
+    else
+    {
+        struct SceneAction* current = scene_element->actions;
+        while( current->next )
+        {
+            current = current->next;
+        }
+        current->next = scene_action;
+    }
+}
+
+static void
 init_scene_element(
     struct SceneElement* scene_element,
     struct CacheConfigLocation* config_loc)
 {
     memset(scene_element, 0, sizeof(struct SceneElement));
     scene_element->interactable = config_loc->is_interactive;
+    scene_element->config_loc = config_loc;
     scene_element->dash_model = NULL;
     scene_element->dash_position = NULL;
     scene_element->animation = NULL;
+
+    if( config_loc->name )
+    {
+        assert(strlen(config_loc->name) < sizeof(scene_element->_dbg_name) - 1);
+
+        memset(scene_element->_dbg_name, 0, sizeof(scene_element->_dbg_name));
+        memcpy(scene_element->_dbg_name, config_loc->name, strlen(config_loc->name));
+    }
+
+    for( int i = 0; i < 10; i++ )
+    {
+        if( config_loc->actions[i] )
+        {
+            push_scene_action(scene_element, config_loc->actions[i]);
+        }
+    }
 }
 
 static int

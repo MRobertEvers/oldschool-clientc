@@ -4,6 +4,13 @@
 #include "graphics/dash.h"
 #include "rscache/tables/config_sequence.h"
 
+struct SceneAction
+{
+    struct SceneAction* next;
+
+    char action[32];
+};
+
 struct SceneAnimation
 {
     struct DashFrame** dash_frames;
@@ -28,6 +35,11 @@ struct SceneElement
     struct DashPosition* dash_position;
 
     struct SceneAnimation* animation;
+    struct SceneAction* actions;
+
+    struct CacheConfigLocation* config_loc;
+
+    char _dbg_name[32];
 };
 
 struct SceneScenery
@@ -120,6 +132,11 @@ scene_element_model(
 
 struct DashPosition*
 scene_element_position(
+    struct Scene* scene,
+    int element);
+
+char*
+scene_element_name(
     struct Scene* scene,
     int element);
 

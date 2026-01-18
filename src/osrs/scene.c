@@ -195,3 +195,12 @@ scene_element_position(
     assert(element >= 0 && element < scene->scenery->elements_length);
     return scene->scenery->elements[element].dash_position;
 }
+
+char*
+scene_element_name(
+    struct Scene* scene,
+    int element)
+{
+    assert(element >= 0 && element < scene->scenery->elements_length);
+    return scene->scenery->elements[element]._dbg_name;
+}

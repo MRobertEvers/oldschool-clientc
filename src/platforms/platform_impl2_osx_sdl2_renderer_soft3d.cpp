@@ -315,6 +315,18 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     game->mouse_x,
                     game->mouse_y) )
             {
+                if( !scene_element_name(game->scene, cmd->_entity._bf_entity)[0] )
+                {
+                    printf("No name\n");
+                }
+                printf(
+                    "Interactable: %s\n", scene_element_name(game->scene, cmd->_entity._bf_entity));
+
+                for( struct SceneAction* action = element->actions; action; action = action->next )
+                {
+                    printf("Action: %s\n", action->action);
+                }
+
                 // Draw AABB rectangle outline
                 // AABB coordinates are in screen space relative to viewport center
                 // Convert to pixel buffer coordinates
