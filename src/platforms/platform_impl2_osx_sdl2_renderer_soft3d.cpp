@@ -303,7 +303,58 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     game->mouse_x,
                     game->mouse_y) )
             {
-                printf("Model contains point\n");
+                // Draw AABB rectangle outline
+                // AABB coordinates are in screen space relative to viewport center
+                // Convert to pixel buffer coordinates
+                struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+
+                // Convert from viewport-relative coordinates to absolute screen coordinates
+                // AABB coordinates are already adjusted by screen_edge_width/height in
+                // dash3d_calculate_aabb So they're in viewport space (0 to viewport->width, 0 to
+                // viewport->height) Scale to pixel buffer coordinates
+                float scale_x = (float)renderer->width / (float)game->view_port->width;
+                float scale_y = (float)renderer->height / (float)game->view_port->height;
+
+                int pb_min_x = (int)(aabb->min_screen_x * scale_x);
+                int pb_min_y = (int)(aabb->min_screen_y * scale_y);
+                int pb_max_x = (int)(aabb->max_screen_x * scale_x);
+                int pb_max_y = (int)(aabb->max_screen_y * scale_y);
+
+                // Draw top and bottom horizontal lines
+                for( int x = pb_min_x; x <= pb_max_x; x++ )
+                {
+                    if( x >= 0 && x < renderer->width )
+                    {
+                        // Top line
+                        if( pb_min_y >= 0 && pb_min_y < renderer->height )
+                        {
+                            renderer->pixel_buffer[pb_min_y * renderer->width + x] = 0xFFFFFF;
+                        }
+                        // Bottom line
+                        if( pb_max_y >= 0 && pb_max_y < renderer->height )
+                        {
+                            renderer->pixel_buffer[pb_max_y * renderer->width + x] = 0xFFFFFF;
+                        }
+                    }
+                }
+
+                // Draw left and right vertical lines
+                for( int y = pb_min_y; y <= pb_max_y; y++ )
+                {
+                    if( y >= 0 && y < renderer->height )
+                    {
+                        // Left line
+                        if( pb_min_x >= 0 && pb_min_x < renderer->width )
+                        {
+                            renderer->pixel_buffer[y * renderer->width + pb_min_x] = 0xFFFFFF;
+                        }
+                        // Right line
+                        if( pb_max_x >= 0 && pb_max_x < renderer->width )
+                        {
+                            renderer->pixel_buffer[y * renderer->width + pb_max_x] = 0xFFFFFF;
+                        }
+                    }
+                }
             }
 
             dash3d_raster_projected_model(
@@ -340,6 +391,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             break;
         }
     }
+done_draw:;
     // for( int i = 0; i < vec_size(game->scene_elements); i++ )
     // {
     //     struct SceneElement* scene_element = (struct SceneElement*)vec_get(game->scene_elements,

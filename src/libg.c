@@ -189,7 +189,7 @@ libg_game_new(struct GIOQueue* io)
     game->camera->near_plane_z = 50;
 
     game->tasks_nullable = gtask_new_init_io(game->io);
-    game->tasks_nullable->next = gtask_new_init_scene(game, 50, 49, 51, 50);
+    game->tasks_nullable->next = gtask_new_init_scene(game, 50, 50, 50, 50);
 
     return game;
 }

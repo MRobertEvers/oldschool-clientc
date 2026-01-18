@@ -1246,6 +1246,12 @@ dash3d_project(
     return DASHCULL_VISIBLE;
 }
 
+struct DashAABB*
+dash3d_projected_model_aabb(struct DashGraphics* dash)
+{
+    return &dash->aabb;
+}
+
 int
 dash3d_project_model(
     struct DashGraphics* dash,
@@ -1306,10 +1312,14 @@ static inline bool
 projected_model_contains(
     struct DashGraphics* dash,
     struct DashModel* model,
+    struct DashViewPort* view_port,
     int screen_x,
     int screen_y)
 {
     bool contains = false;
+
+    int adjusted_screen_x = screen_x - view_port->x_center;
+    int adjusted_screen_y = screen_y - view_port->y_center;
 
     for( int i = 0; i < model->face_count; i++ )
     {
@@ -1324,7 +1334,8 @@ projected_model_contains(
         int x3 = dash->screen_vertices_x[face_c];
         int y3 = dash->screen_vertices_y[face_c];
 
-        bool contains_face = triangle_contains_point(x1, y1, x2, y2, x3, y3, screen_x, screen_y);
+        bool contains_face =
+            triangle_contains_point(x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y);
         if( contains_face )
         {
             contains = true;
@@ -1345,12 +1356,10 @@ dash3d_projected_model_contains(
 {
     assert(view_port->x_center != 0);
     assert(view_port->y_center != 0);
-    int adjusted_screen_x = screen_x - view_port->x_center;
-    int adjusted_screen_y = screen_y - view_port->y_center;
-    if( !dash3d_projected_model_contains_aabb(&dash->aabb, adjusted_screen_x, adjusted_screen_y) )
+    if( !dash3d_projected_model_contains_aabb(&dash->aabb, screen_x, screen_y) )
         return false;
 
-    return projected_model_contains(dash, model, adjusted_screen_x, adjusted_screen_y);
+    return projected_model_contains(dash, model, view_port, screen_x, screen_y);
 }
 
 int //

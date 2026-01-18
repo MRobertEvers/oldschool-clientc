@@ -216,6 +216,9 @@ dash3d_render_model( //
     int* pixel_buffer
 );
 
+struct DashAABB*
+dash3d_projected_model_aabb(struct DashGraphics* dash);
+
 int
 dash3d_project_model(
     struct DashGraphics* dash,
