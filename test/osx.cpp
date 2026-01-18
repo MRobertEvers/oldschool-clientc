@@ -89,6 +89,16 @@ main(
         return 1;
     }
 
+    // Ensure viewport matches renderer dimensions
+    if( game->view_port )
+    {
+        game->view_port->width = renderer->width;
+        game->view_port->height = renderer->height;
+        game->view_port->x_center = renderer->width / 2;
+        game->view_port->y_center = renderer->height / 2;
+        game->view_port->stride = renderer->width;
+    }
+
     libg_game_step_tasks(game, &input, render_command_buffer);
     while( libg_game_is_running(game) )
     {

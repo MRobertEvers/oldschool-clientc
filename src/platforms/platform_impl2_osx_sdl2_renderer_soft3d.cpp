@@ -205,6 +205,17 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         renderer->width = new_width;
         renderer->height = new_height;
 
+        // Update viewport to match renderer dimensions
+        if( game->view_port )
+        {
+            game->view_port->width = renderer->width;
+            game->view_port->height = renderer->height;
+            game->view_port->x_center = renderer->width / 2;
+            game->view_port->y_center = renderer->height / 2;
+            // Keep stride aligned to renderer width for pixel buffer access
+            game->view_port->stride = renderer->width;
+        }
+
         // Recreate texture with new dimensions
         if( renderer->texture )
         {
