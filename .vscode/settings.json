@@ -215,7 +215,8 @@
         "cache_utils.h": "c",
         "gtask_init_scene.h": "c",
         "gamestream.h": "c",
-        "gametask.h": "c"
+        "gametask.h": "c",
+        "gameproto.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

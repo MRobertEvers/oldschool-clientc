@@ -1,4 +1,5 @@
-#include "gamestream.h"
+#ifndef GAMEPROTO_PACKETS_U_C
+#define GAMEPROTO_PACKETS_U_C
 
 #include "osrs/gametask.h"
 #include "packetin.h"
@@ -6,8 +7,8 @@
 
 #define SCENE_TILE_WIDTH 104
 
-static void
-pktin_rebuild_region(
+static inline void
+gameproto_packet_maprebuild8_z16_x16(
     struct GGame* game,
     uint8_t* data,
     int data_size)
@@ -33,20 +34,4 @@ pktin_rebuild_region(
     gametask_new_init_scene(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 }
 
-void
-gamestream_process(
-    struct GGame* game,
-    int packet_type,
-    uint8_t* data,
-    int data_size)
-{
-    assert(data_size == packetin_size(packet_type));
-    switch( packet_type )
-    {
-    case PKTIN_REBUILD_REGION:
-        pktin_rebuild_region(game, data, data_size);
-        break;
-    default:
-        break;
-    }
-}
+#endif

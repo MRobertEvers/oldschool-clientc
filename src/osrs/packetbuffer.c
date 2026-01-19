@@ -50,7 +50,7 @@ packetbuffer_read(
         {
         case PKTBUF_AWAITING_PACKET:
             packet_type = g1(&buffer);
-            packet_size = packetin_size(packet_type);
+            packet_size = packetin_size_lc254(packet_type);
             packetbuffer->packet_type = packet_type;
 
             if( packet_size == PKTIN_LENGTH_VARU8 )

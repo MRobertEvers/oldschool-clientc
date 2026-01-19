@@ -3,14 +3,17 @@
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
 #include "osrs/dashlib.h"
-#include "osrs/gamestream.h"
+#include "osrs/gameproto.h"
 #include "osrs/gametask.h"
 #include "osrs/gio.h"
 #include "osrs/grender.h"
+#include "osrs/packetbuffer.h"
+#include "osrs/packetin.h"
 
 // clang-format off
 #include "osrs/rscache/cache.h"
 #include "osrs/rscache/tables/model.h"
+#include "osrs/gameproto_packets_write.u.c"
 // clang-format on
 
 #define CACHE_PATH "../cache"
@@ -197,13 +200,18 @@ libg_game_new(struct GIOQueue* io)
     struct PacketBuffer packetbuffer;
     packetbuffer_init(&packetbuffer);
 
-    packetin_write_rebuild_region(data, sizeof(data), 50 * 8, 50 * 8);
+    gameproto_packet_write_maprebuild8_z16_x16(
+        data, PKTIN_LC254_REBUILD_NORMAL, sizeof(data), 50 * 8, 50 * 8);
 
     packetbuffer_read(&packetbuffer, data, sizeof(data));
     assert(packetbuffer_ready(&packetbuffer));
 
-    gamestream_process(game, packetbuffer.packet_type, packetbuffer.data, packetbuffer.data_size);
-    // gametask_new_init_scene(game, 50, 50, 50, 50);
+    gameproto_process(
+        game,
+        GAMEPROTO_REVISION_LC254,
+        packetbuffer.packet_type,
+        packetbuffer.data,
+        packetbuffer.data_size);
 
     packetbuffer_reset(&packetbuffer);
 
