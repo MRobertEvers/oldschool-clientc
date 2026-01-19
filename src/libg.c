@@ -3,6 +3,8 @@
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
 #include "osrs/dashlib.h"
+#include "osrs/gamestream.h"
+#include "osrs/gametask.h"
 #include "osrs/gio.h"
 #include "osrs/grender.h"
 
@@ -188,17 +190,24 @@ libg_game_new(struct GIOQueue* io)
     game->camera->fov_rpi2048 = 512;
     game->camera->near_plane_z = 50;
 
-    game->tasks_nullable = gtask_new_init_io(game->io);
-    game->tasks_nullable->next = gtask_new_init_scene(game, 50, 50, 50, 50);
+    char data[1024];
+
+    gametask_new_init_io(game, game->io);
+
+    struct PacketBuffer packetbuffer;
+    packetbuffer_init(&packetbuffer);
+
+    packetin_write_rebuild_region(data, sizeof(data), 50 * 8, 50 * 8);
+
+    packetbuffer_read(&packetbuffer, data, sizeof(data));
+    assert(packetbuffer_ready(&packetbuffer));
+
+    gamestream_process(game, packetbuffer.packet_type, packetbuffer.data, packetbuffer.data_size);
+    // gametask_new_init_scene(game, 50, 50, 50, 50);
+
+    packetbuffer_reset(&packetbuffer);
 
     return game;
-}
-
-void
-libg_game_free(struct GGame* game)
-{
-    gioq_free(game->io);
-    free(game);
 }
 
 void
@@ -326,7 +335,7 @@ on_completed_task(
     struct GGame* game,
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer,
-    struct GTask* task)
+    struct GameTask* task)
 {
     switch( task->kind )
     {
@@ -344,18 +353,18 @@ libg_game_step_tasks(
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer)
 {
-    struct GTask* task = game->tasks_nullable;
-    enum GTaskStatus status = GTASK_STATUS_FAILED;
+    struct GameTask* task = game->tasks_nullable;
+    enum GameTaskStatus status = GTASK_STATUS_FAILED;
     while( task )
     {
-        status = gtask_step(task);
+        status = gametask_step(task);
         if( status != GTASK_STATUS_COMPLETED )
             break;
 
         on_completed_task(game, input, render_command_buffer, task);
 
         game->tasks_nullable = game->tasks_nullable->next;
-        gtask_free(task);
+        gametask_free(task);
         task = game->tasks_nullable;
     }
 }
@@ -366,7 +375,7 @@ libg_game_step(
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer)
 {
-    struct GTask* task = NULL;
+    struct GameTask* task = NULL;
     struct GIOMessage message = { 0 };
 
     if( input->quit )

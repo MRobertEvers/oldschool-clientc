@@ -1,7 +1,8 @@
 #ifndef GTASK_INIT_SCENE_H
 #define GTASK_INIT_SCENE_H
 
-#include "libg.h"
+#include "game.h"
+#include "osrs/gametask_status.h"
 #include "osrs/gio.h"
 #include "osrs/rscache/tables/model.h"
 
@@ -74,7 +75,7 @@ gtask_init_scene_new(
 void
 gtask_init_scene_free(struct GTaskInitScene* task);
 
-enum GTaskStatus
+enum GameTaskStatus
 gtask_init_scene_step(struct GTaskInitScene* task);
 
 struct CacheModel*

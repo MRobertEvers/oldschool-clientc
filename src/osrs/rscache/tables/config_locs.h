@@ -80,12 +80,17 @@ struct CacheConfigLocation
     // LostCity/2004Scape/Pazaz-Gang call this wallwidth.
     int wall_width;
 
+    // If this is true, then we have to do mouse interaction checks
+    // The player can right click on the loc etc.
     int is_interactive;
+
     int contoured_ground;
     int contour_ground_type;
     int contour_ground_param;
 
     // This is merge_normals in rs map viewer
+    // If this is true, normals of locs that share a point in space
+    // are merged into a single normal.
     int sharelight;
 
     int occlude;
@@ -122,6 +127,10 @@ struct CacheConfigLocation
 
     int obstructs_ground;
     int is_hollow;
+
+    // If true, items on the same tile as are raised from the
+    // ground height. For example, to appear as if they're sitting
+    // on a table.
     int support_items;
 
     int transform_varbit;

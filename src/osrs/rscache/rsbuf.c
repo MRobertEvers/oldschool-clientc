@@ -7,7 +7,10 @@
 #include <wchar.h>
 
 void
-rsbuf_init(struct RSBuffer* buffer, int8_t* data, int size)
+rsbuf_init(
+    struct RSBuffer* buffer,
+    int8_t* data,
+    int size)
 {
     buffer->data = data;
     buffer->size = size;
@@ -18,6 +21,14 @@ int
 rsbuf_g1(struct RSBuffer* buffer)
 {
     return buffer->data[buffer->position++] & 0xff;
+}
+
+void
+rsbuf_p1(
+    struct RSBuffer* buffer,
+    int value)
+{
+    buffer->data[buffer->position++] = value & 0xff;
 }
 
 // signed
@@ -33,6 +44,15 @@ rsbuf_g2(struct RSBuffer* buffer)
     buffer->position += 2;
     return (buffer->data[buffer->position - 2] & 0xff) << 8 |
            (buffer->data[buffer->position - 1] & 0xff);
+}
+
+void
+rsbuf_p2(
+    struct RSBuffer* buffer,
+    int value)
+{
+    buffer->data[buffer->position++] = value >> 8 & 0xff;
+    buffer->data[buffer->position++] = value & 0xff;
 }
 
 // signed
@@ -193,7 +213,11 @@ rsbuf_read_unsigned_short_smart(struct RSBuffer* buffer)
 }
 
 int
-rsbuf_readto(struct RSBuffer* buffer, char* out, int out_size, int len)
+rsbuf_readto(
+    struct RSBuffer* buffer,
+    char* out,
+    int out_size,
+    int len)
 {
     assert(buffer->position + len <= buffer->size);
     int bytes_read = 0;
@@ -209,7 +233,9 @@ rsbuf_readto(struct RSBuffer* buffer, char* out, int out_size, int len)
 }
 
 void
-rsbuf_read_params(struct RSBuffer* buffer, struct Params* params)
+rsbuf_read_params(
+    struct RSBuffer* buffer,
+    struct Params* params)
 {
     if( buffer->position >= buffer->size )
     {

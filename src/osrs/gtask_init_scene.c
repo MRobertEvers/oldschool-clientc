@@ -4,9 +4,9 @@
 
 #include "datastruct/list.h"
 #include "datastruct/vec.h"
+#include "game.h"
+#include "gametask.h"
 #include "graphics/dash.h"
-#include "gtask.h"
-#include "libg.h"
 #include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
 #include "osrs/dashlib.h"
@@ -640,7 +640,7 @@ gtask_init_scene_free(struct GTaskInitScene* task)
     free(task);
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_scenery_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_1_LOAD_SCENERY];
@@ -709,7 +709,7 @@ step_scenery_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_scenery_config_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_2_LOAD_SCENERY_CONFIG];
@@ -783,7 +783,7 @@ step_scenery_config_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_scenery_models_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_3_LOAD_SCENERY_MODELS];
@@ -839,7 +839,7 @@ step_scenery_models_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_terrain_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_4_LOAD_TERRAIN];
@@ -886,7 +886,7 @@ step_terrain_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_underlay_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_5_LOAD_UNDERLAY];
@@ -929,7 +929,7 @@ step_underlay_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_overlay_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_6_LOAD_OVERLAY];
@@ -974,7 +974,7 @@ step_overlay_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_textures_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_7_LOAD_TEXTURES];
@@ -1081,7 +1081,7 @@ step_textures_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_spritepacks_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_8_LOAD_SPRITEPACKS];
@@ -1151,7 +1151,7 @@ step_spritepacks_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_textures_build(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_9_BUILD_TEXTURES];
@@ -1183,7 +1183,7 @@ step_textures_build(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_sequences_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_10_LOAD_SEQUENCES];
@@ -1231,7 +1231,7 @@ step_sequences_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_frames_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_11_LOAD_FRAMES];
@@ -1301,7 +1301,7 @@ step_frames_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-static enum GTaskStatus
+static enum GameTaskStatus
 step_framemaps_load(struct GTaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_12_LOAD_FRAMEMAPS];
@@ -1427,7 +1427,7 @@ step_framemaps_load(struct GTaskInitScene* task)
     return GTASK_STATUS_COMPLETED;
 }
 
-enum GTaskStatus
+enum GameTaskStatus
 gtask_init_scene_step(struct GTaskInitScene* task)
 {
     struct GIOMessage message;

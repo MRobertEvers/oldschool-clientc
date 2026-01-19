@@ -209,7 +209,13 @@
         "framemap.h": "c",
         "config_sequence.h": "c",
         "config_npctype.h": "c",
-        "dash_utils.h": "c"
+        "dash_utils.h": "c",
+        "scenestream.h": "c",
+        "packetin.h": "c",
+        "cache_utils.h": "c",
+        "gtask_init_scene.h": "c",
+        "gamestream.h": "c",
+        "gametask.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

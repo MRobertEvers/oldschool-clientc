@@ -1,6 +1,6 @@
 #include "gtask_init_io.h"
 
-#include "gtask.h"
+#include "gametask.h"
 #include "osrs/gio_assets.h"
 #include "osrs/rscache/tables/model.h"
 
@@ -23,7 +23,7 @@ gtask_init_io_free(struct GTaskInitIO* task)
     free(task);
 }
 
-enum GTaskStatus
+enum GameTaskStatus
 gtask_init_io_step(struct GTaskInitIO* task)
 {
     struct GIOMessage message = { 0 };

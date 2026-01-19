@@ -39,7 +39,7 @@ struct SceneElement
 
     struct CacheConfigLocation* config_loc;
 
-    char _dbg_name[32];
+    char _dbg_name[64];
 };
 
 struct SceneScenery
