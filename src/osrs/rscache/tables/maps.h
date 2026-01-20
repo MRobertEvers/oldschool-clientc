@@ -2,6 +2,7 @@
 #define MAPS_H
 
 #include "../cache.h"
+#include "../cache_dat.h"
 #include "../rsbuf.h"
 
 #include <assert.h>
@@ -127,6 +128,7 @@ map_locs_new_from_decode(
 
 void //
 map_terrain_free(struct CacheMapTerrain* map_terrain);
+
 void //
 map_locs_free(struct CacheMapLocs* map_locs);
 

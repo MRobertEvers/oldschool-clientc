@@ -1551,28 +1551,6 @@ task_init_scene_step(struct TaskInitScene* task)
         goto bad_step;
     }
 
-    // initial:;
-    //     static const int MODEL_ID = 0;
-    //     if( task->reqid_model == 0 )
-    //         task->reqid_model = gio_assets_model_load(task->io, MODEL_ID);
-
-    //     if( !gioq_poll(task->io, &message) )
-    //         return GAMETASK_STATUS_PENDING;
-    //     assert(message.message_id == task->reqid_model);
-
-    //     task->step = STEP_INIT_SCENE_LOAD_MODEL;
-    // step_two_load_model:;
-
-    //     model = model_new_decode(message.data, message.data_size);
-    //     model->_id = MODEL_ID;
-
-    //     task->model_nullable = model;
-
-    //     gioq_release(task->io, &message);
-
-    //     task->step = STEP_INIT_SCENE_DONE;
-    //     return GAMETASK_STATUS_COMPLETED;
-
 bad_step:;
     assert(false && "Bad step in task_init_scene_step");
     return GAMETASK_STATUS_FAILED;

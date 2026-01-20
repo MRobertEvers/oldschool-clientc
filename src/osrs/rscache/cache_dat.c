@@ -91,17 +91,6 @@ cache_dat_free(struct CacheDat* cache_dat)
 }
 
 struct CacheDatArchive*
-cache_dat_archive_new_reference_table_load(
-    struct CacheDat* cache_dat,
-    int table_id)
-{
-    struct CacheDatArchive* archive = malloc(sizeof(struct CacheDatArchive));
-    memset(archive, 0, sizeof(struct CacheDatArchive));
-
-    return archive;
-}
-
-struct CacheDatArchive*
 cache_dat_archive_new_load(
     struct CacheDat* cache_dat,
     int table_id,
@@ -111,6 +100,11 @@ cache_dat_archive_new_load(
     struct ArchiveBuffer dat2_archive = { 0 };
     struct CacheDatArchive* archive = malloc(sizeof(struct CacheDatArchive));
     memset(archive, 0, sizeof(struct CacheDatArchive));
+
+    if( table_id == CACHE_DAT_CONFIGS )
+        dat2_archive.format = ARCHIVE_FORMAT_DAT_MULTIFILE;
+    else
+        dat2_archive.format = ARCHIVE_FORMAT_DAT;
 
     // 2. Consult the index for table_id. Table_id=2 is idx2
     //  - Read the entry "archive_id" in idx2. archive_id is the slot in the idx2 file..
@@ -135,17 +129,20 @@ cache_dat_archive_new_load(
         goto error;
     }
 
-    bool decompressed = archive_decompress_dat(&dat2_archive);
-    if( !decompressed )
+    if( dat2_archive.format == ARCHIVE_FORMAT_DAT )
     {
-        printf("Failed to decompress dat2 archive for table %d\n", table_id);
-        goto error;
+        if( !archive_decompress_dat(&dat2_archive) )
+        {
+            printf("Failed to decompress dat2 archive for table %d\n", table_id);
+            goto error;
+        }
     }
 
     archive->data = dat2_archive.data;
     archive->data_size = dat2_archive.data_size;
     archive->archive_id = archive_id;
     archive->table_id = table_id;
+    archive->format = dat2_archive.format;
 
     return archive;
 
@@ -154,4 +151,12 @@ error:;
         free(archive->data);
     free(archive);
     return NULL;
+}
+
+void
+cache_dat_archive_free(struct CacheDatArchive* archive)
+{
+    if( archive->data )
+        free(archive->data);
+    free(archive);
 }

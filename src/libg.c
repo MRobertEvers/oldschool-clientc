@@ -257,66 +257,66 @@ libg_game_new(struct GIOQueue* io)
     //     game->model->vertices_y,
     //     game->model->vertices_z);
 
-    struct CacheDat* cache_dat = cache_dat_new(CACHE_DAT_PATH);
-    struct CacheDatArchive* archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_MODELS, 0);
-    assert(archive);
+    // struct CacheDat* cache_dat = cache_dat_new(CACHE_DAT_PATH);
+    // struct CacheDatArchive* archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_MODELS, 0);
+    // assert(archive);
 
-    struct CacheModel* datmodel = model_new_from_archive(archive, 0);
-    struct DashModel* dashmodel = dashmodel_new_from_cache_model(datmodel);
-    game->model = dashmodel;
+    // struct CacheModel* datmodel = model_new_from_archive(archive, 0);
+    // struct DashModel* dashmodel = dashmodel_new_from_cache_model(datmodel);
+    // game->model = dashmodel;
 
-    dashmodel->normals = dashmodel_normals_new(game->model->vertex_count, game->model->face_count);
-    calculate_vertex_normals(
-        dashmodel->normals->lighting_vertex_normals,
-        dashmodel->normals->lighting_face_normals,
-        game->model->vertex_count,
-        game->model->face_indices_a,
-        game->model->face_indices_b,
-        game->model->face_indices_c,
-        game->model->vertices_x,
-        game->model->vertices_y,
-        game->model->vertices_z,
-        game->model->face_count);
+    // dashmodel->normals = dashmodel_normals_new(game->model->vertex_count,
+    // game->model->face_count); calculate_vertex_normals(
+    //     dashmodel->normals->lighting_vertex_normals,
+    //     dashmodel->normals->lighting_face_normals,
+    //     game->model->vertex_count,
+    //     game->model->face_indices_a,
+    //     game->model->face_indices_b,
+    //     game->model->face_indices_c,
+    //     game->model->vertices_x,
+    //     game->model->vertices_y,
+    //     game->model->vertices_z,
+    //     game->model->face_count);
 
-    struct DashModelLighting* lighting = dashmodel_lighting_new(game->model->face_count);
+    // struct DashModelLighting* lighting = dashmodel_lighting_new(game->model->face_count);
 
-    dashmodel->lighting = lighting;
+    // dashmodel->lighting = lighting;
 
-    int light_ambient = 64;
-    int light_attenuation = 768;
-    int lightsrc_x = -50;
-    int lightsrc_y = -10;
-    int lightsrc_z = -50;
+    // int light_ambient = 64;
+    // int light_attenuation = 768;
+    // int lightsrc_x = -50;
+    // int lightsrc_y = -10;
+    // int lightsrc_z = -50;
 
-    {
-        light_ambient += 0;
-        // 2004Scape multiplies contrast by 5.
-        // Later versions do not.
-        light_attenuation += 0;
-    }
+    // {
+    //     light_ambient += 0;
+    //     // 2004Scape multiplies contrast by 5.
+    //     // Later versions do not.
+    //     light_attenuation += 0;
+    // }
 
-    int light_magnitude =
-        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    int attenuation = (light_attenuation * light_magnitude) >> 8;
-    apply_lighting(
-        lighting->face_colors_hsl_a,
-        lighting->face_colors_hsl_b,
-        lighting->face_colors_hsl_c,
-        dashmodel->normals->lighting_vertex_normals,
-        dashmodel->normals->lighting_face_normals,
-        dashmodel->face_indices_a,
-        dashmodel->face_indices_b,
-        dashmodel->face_indices_c,
-        dashmodel->face_count,
-        dashmodel->face_colors,
-        dashmodel->face_alphas,
-        dashmodel->face_textures,
-        dashmodel->face_infos,
-        64,
-        768,
-        -50,
-        -10,
-        -50);
+    // int light_magnitude =
+    //     (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+    // int attenuation = (light_attenuation * light_magnitude) >> 8;
+    // apply_lighting(
+    //     lighting->face_colors_hsl_a,
+    //     lighting->face_colors_hsl_b,
+    //     lighting->face_colors_hsl_c,
+    //     dashmodel->normals->lighting_vertex_normals,
+    //     dashmodel->normals->lighting_face_normals,
+    //     dashmodel->face_indices_a,
+    //     dashmodel->face_indices_b,
+    //     dashmodel->face_indices_c,
+    //     dashmodel->face_count,
+    //     dashmodel->face_colors,
+    //     dashmodel->face_alphas,
+    //     dashmodel->face_textures,
+    //     dashmodel->face_infos,
+    //     64,
+    //     768,
+    //     -50,
+    //     -10,
+    //     -50);
 
     char data[1024];
 

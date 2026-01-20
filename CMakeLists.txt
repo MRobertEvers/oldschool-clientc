@@ -52,6 +52,8 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/gio.c
         src/osrs/gio_assets.c
         src/osrs/gio_cache.c
+
+        # src/osrs/gio_cache_dat.c
         src/osrs/task_init_io.c
         src/osrs/task_init_scene.c
         src/osrs/configmap.c
@@ -60,6 +62,8 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/gametask.c
         src/osrs/gameproto.c
         src/osrs/packetbuffer.c
+        src/osrs/rscache/compression.c
+        src/osrs/rscache/tables/string_utils.c
 
         src/osrs/rscache/cache.c
         src/osrs/rscache/cache_dat.c

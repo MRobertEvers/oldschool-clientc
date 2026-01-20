@@ -12,6 +12,77 @@
 #define FLAG_HASH 0x8
 
 struct FileList*
+filelist_new_from_cache_dat_archive(struct CacheDatArchive* archive)
+{
+    // const actualSize = buffer.readMedium();
+    // const size = buffer.readMedium();
+
+    // const isCompressed = actualSize !== size;
+
+    // let dataBuffer: ByteBuffer;
+    // let metaBuffer: ByteBuffer;
+    // if (isCompressed) {
+    //     const data = buffer.readUnsignedBytes(size);
+    //     const decompressed = Bzip2.decompress(data, actualSize);
+    //     dataBuffer = new ByteBuffer(decompressed);
+    //     metaBuffer = new ByteBuffer(decompressed);
+    // } else {
+    //     dataBuffer = new ByteBuffer(data);
+    //     metaBuffer = buffer;
+    // }
+
+    // fileCount = metaBuffer.readUnsignedShort();
+    // dataBuffer.offset = metaBuffer.offset + fileCount * 10;
+
+    // fileIds = new Int32Array(fileCount);
+    // fileNameHashes = new Int32Array(fileCount);
+    // for (let i = 0; i < fileCount; i++) {
+    //     const nameHash = metaBuffer.readInt();
+    //     const fileActualSize = metaBuffer.readMedium();
+    //     const fileSize = metaBuffer.readMedium();
+
+    //     let decompressedFile: Int8Array;
+    //     if (isCompressed) {
+    //         decompressedFile = dataBuffer.readBytes(fileSize);
+    //     } else {
+    //         const data = dataBuffer.readUnsignedBytes(fileSize);
+    //         decompressedFile = Bzip2.decompress(data, fileActualSize);
+    //     }
+    //     files.set(i, new ArchiveFile(i, id, decompressedFile));
+    //     fileIds[i] = i;
+    //     fileNameHashes[i] = nameHash;
+    // }
+
+    struct RSBuffer buffer = { .data = archive->data, .position = 0, .size = archive->data_size };
+
+    int actual_size = g3(&buffer);
+    int size = g3(&buffer);
+
+    bool is_compressed = actual_size != size;
+
+    struct RSBuffer data_buffer = { .data = NULL, .position = 0, .size = 0 };
+    struct RSBuffer meta_buffer = { .data = NULL, .position = 0, .size = 0 };
+
+    if( is_compressed )
+    {
+        data_buffer.data = malloc(size);
+        if( !data_buffer.data )
+            return NULL;
+        data_buffer.size = size;
+
+        greadto(&buffer, data_buffer.data, size, size);
+    }
+    else
+    {
+        data_buffer.data = archive->data;
+        data_buffer.size = archive->data_size;
+    }
+
+    meta_buffer.data = archive->data;
+    meta_buffer.size = archive->data_size;
+}
+
+struct FileList*
 filelist_new_from_cache_archive(struct CacheArchive* archive)
 {
     return filelist_new_from_decode(archive->data, archive->data_size, archive->file_count);

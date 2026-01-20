@@ -2,6 +2,7 @@
 #define FILELIST_H
 
 #include "cache.h"
+#include "cache_dat.h"
 
 /**
  * This is part of cachelib
@@ -18,6 +19,10 @@ struct FileList
 
 struct FileList*
 filelist_new_from_cache_archive(struct CacheArchive* archive);
+
+struct FileList*
+filelist_new_from_cache_dat_archive(struct CacheDatArchive* archive);
+
 struct FileList*
 filelist_new_from_decode(
     char* data,

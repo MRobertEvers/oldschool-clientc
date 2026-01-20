@@ -14,7 +14,10 @@ extern "C" {
  *   0   if s1 == s2
  *   > 0 if s1 > s2
  */
-int strcasecmp(const char *s1, const char *s2);
+int
+strcasecmp(
+    const char* s1,
+    const char* s2);
 
 /**
  * Case-insensitive string comparison with length limit
@@ -23,7 +26,16 @@ int strcasecmp(const char *s1, const char *s2);
  *   0   if s1 == s2
  *   > 0 if s1 > s2
  */
-int strncasecmp(const char *s1, const char *s2, size_t n);
+int
+strncasecmp(
+    const char* s1,
+    const char* s2,
+    size_t n);
+
+void
+str_ascii_toupper(
+    char* str,
+    int len);
 
 #ifdef __cplusplus
 }

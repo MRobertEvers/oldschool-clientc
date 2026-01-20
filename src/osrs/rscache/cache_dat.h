@@ -4,8 +4,6 @@
 #include "archive_decompress.h"
 #include "cache.h"
 
-struct CacheDat;
-
 enum CacheDatTable
 {
     CACHE_DAT_CONFIGS = 0,
@@ -31,17 +29,17 @@ struct CacheDatArchive
     int revision;
 
     int file_count;
-};
 
-struct CacheDatArchive*
-cache_dat_archive_new_reference_table_load(
-    struct CacheDat* cache_dat,
-    int table_id);
+    enum ArchiveFormat format;
+};
 
 struct CacheDatArchive*
 cache_dat_archive_new_load(
     struct CacheDat* cache_dat,
     int table_id,
     int archive_id);
+
+void
+cache_dat_archive_free(struct CacheDatArchive* archive);
 
 #endif

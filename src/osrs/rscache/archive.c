@@ -1,5 +1,7 @@
 #include "archive.h"
 
+#include "tables/string_utils.h"
+
 #include <stdlib.h>
 
 //   static hashDjb2(str: string) {
@@ -28,8 +30,29 @@ hash_djb2(char* name)
     return hash;
 }
 
+static int
+hash_rolling_polynomial_uppercase(char* name)
+{
+    int c = 0;
+    int hash = 0;
+    for( int i = 0; name[i] != '\0'; i++ )
+    {
+        c = name[i];
+        str_ascii_toupper(&c, 1);
+
+        hash = (hash * 61 + c - 32) | 0;
+    }
+    return hash;
+}
+
 int
-archive_name_hash(char* name)
+archive_name_hash_dat2(char* name)
 {
     return hash_djb2(name);
+}
+
+int
+archive_name_hash_dat(char* name)
+{
+    return hash_rolling_polynomial_uppercase(name);
 }

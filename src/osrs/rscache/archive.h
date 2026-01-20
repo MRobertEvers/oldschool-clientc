@@ -6,7 +6,10 @@
 enum ArchiveFormat
 {
     ARCHIVE_FORMAT_DAT2 = 0,
+    // For .dat, the default archives are gzipped blobs.
     ARCHIVE_FORMAT_DAT = 1,
+    // For .dat, the Configs index contains multifile archives.
+    ARCHIVE_FORMAT_DAT_MULTIFILE = 2,
 };
 
 /**
@@ -25,6 +28,9 @@ struct ArchiveBuffer
 };
 
 int
-archive_name_hash(char* name);
+archive_name_hash_dat2(char* name);
+
+int
+archive_name_hash_dat(char* name);
 
 #endif

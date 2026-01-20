@@ -3,7 +3,9 @@
 #include "../archive.h"
 #include "../archive_decompress.h"
 #include "../cache.h"
+#include "../cache_dat.h"
 #include "../rsbuf.h"
+#include "configs_dat.h"
 #include "noise.h"
 
 #include <stdio.h>
@@ -106,7 +108,7 @@ dat2_map_terrain_id(
 
     snprintf(name, sizeof(name), "m%d_%d", map_x, map_y);
 
-    int name_hash = archive_name_hash(name);
+    int name_hash = archive_name_hash_dat2(name);
 
     struct ReferenceTable* table = cache->tables[CACHE_MAPS];
 
@@ -130,7 +132,7 @@ dat2_map_loc_id(
     char name[13];
     snprintf(name, sizeof(name), "l%d_%d", map_x, map_y);
 
-    int name_hash = archive_name_hash(name);
+    int name_hash = archive_name_hash_dat2(name);
 
     struct ReferenceTable* table = cache->tables[CACHE_MAPS];
 
@@ -154,7 +156,7 @@ dat2_map_npc_id(
     char name[13];
     snprintf(name, sizeof(name), "n%d_%d", map_x, map_y);
 
-    int name_hash = archive_name_hash(name);
+    int name_hash = archive_name_hash_dat2(name);
 
     struct ReferenceTable* table = cache->tables[CACHE_MAPS];
 
@@ -250,6 +252,45 @@ map_terrain_new_from_cache(
     return map_terrain;
 
     cache_archive_free(archive);
+    map_terrain_free(map_terrain);
+    return NULL;
+}
+
+struct CacheMapTerrain*
+map_terrain_new_from_cache_dat(
+    struct CacheDat* cache_dat,
+    int map_x,
+    int map_y)
+{
+    struct CacheDatArchive* archive = NULL;
+    struct CacheMapTerrain* map_terrain = NULL;
+    int archive_id = dat2_map_terrain_id(cache_dat, map_x, map_y);
+
+    if( archive_id == -1 )
+    {
+        printf("Failed to load map terrain %d, %d (archive_id: %d)\n", map_x, map_y, archive_id);
+        return NULL;
+    }
+
+    archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_MAPS, archive_id);
+    if( !archive )
+    {
+        printf("Failed to load map terrain %d, %d cache_load\n", map_x, map_y);
+        return NULL;
+    }
+
+    map_terrain = map_terrain_new_from_decode(archive->data, archive->data_size, map_x, map_y);
+    if( !map_terrain )
+    {
+        printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_y);
+        return NULL;
+    }
+
+    cache_dat_archive_free(archive);
+
+    return map_terrain;
+
+    cache_dat_archive_free(archive);
     map_terrain_free(map_terrain);
     return NULL;
 }

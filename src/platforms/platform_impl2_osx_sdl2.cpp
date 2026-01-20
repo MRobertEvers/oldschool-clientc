@@ -5,6 +5,7 @@ extern "C" {
 #include "osrs/gio.h"
 #include "osrs/gio_assets.h"
 #include "osrs/gio_cache.h"
+#include "osrs/gio_cache_dat.h"
 #include "osrs/grender.h"
 }
 
@@ -369,6 +370,7 @@ on_gio_req_init(
     case GIO_STATUS_PENDING:
     {
         platform->cache = gioqb_cache_new();
+        // platform->cache = gioqb_cache_dat_new();
         gioqb_mark_done(
             io, message->message_id, message->command, message->param_b, message->param_a, NULL, 0);
     }
