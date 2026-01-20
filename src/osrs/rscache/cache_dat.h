@@ -1,6 +1,7 @@
 #ifndef CACHE_DAT_H
 #define CACHE_DAT_H
 
+#include "archive_decompress.h"
 #include "cache.h"
 
 struct CacheDat;
@@ -19,5 +20,28 @@ cache_dat_new(char const* path);
 
 void
 cache_dat_free(struct CacheDat* cache_dat);
+
+struct CacheDatArchive
+{
+    char* data;
+    int data_size;
+
+    int archive_id;
+    int table_id;
+    int revision;
+
+    int file_count;
+};
+
+struct CacheDatArchive*
+cache_dat_archive_new_reference_table_load(
+    struct CacheDat* cache_dat,
+    int table_id);
+
+struct CacheDatArchive*
+cache_dat_archive_new_load(
+    struct CacheDat* cache_dat,
+    int table_id,
+    int archive_id);
 
 #endif

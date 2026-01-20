@@ -270,6 +270,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
     for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
     {
+        break;
         struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
         memset(&position, 0, sizeof(struct DashPosition));
 

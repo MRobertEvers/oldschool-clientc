@@ -161,6 +161,8 @@ decodeOldFormat(
     model->textured_n_coordinate = NULL;
 
     // Read header information from the end of the file
+    bool has_textures = false;
+    bool has_faceinfos = false;
     int offset = inputLength - 18;
     int vertexCount = read_unsigned_short(inputData, &offset);
     int faceCount = read_unsigned_short(inputData, &offset);
@@ -231,6 +233,9 @@ decodeOldFormat(
     model->vertices_x = (int*)malloc(vertexCount * sizeof(int));
     model->vertices_y = (int*)malloc(vertexCount * sizeof(int));
     model->vertices_z = (int*)malloc(vertexCount * sizeof(int));
+    memset(model->vertices_x, 0, vertexCount * sizeof(int));
+    memset(model->vertices_y, 0, vertexCount * sizeof(int));
+    memset(model->vertices_z, 0, vertexCount * sizeof(int));
 
     // Allocate memory for faces
     model->face_indices_a = (int*)malloc(faceCount * sizeof(int));
@@ -239,13 +244,26 @@ decodeOldFormat(
     model->face_colors = (int*)malloc(faceCount * sizeof(int));
     model->face_priorities = (int*)malloc(faceCount * sizeof(int));
     model->face_alphas = (int*)malloc(faceCount * sizeof(int));
+    memset(model->face_indices_a, 0, faceCount * sizeof(int));
+    memset(model->face_indices_b, 0, faceCount * sizeof(int));
+    memset(model->face_indices_c, 0, faceCount * sizeof(int));
+    memset(model->face_colors, 0, faceCount * sizeof(int));
+    memset(model->face_priorities, 0, faceCount * sizeof(int));
+    memset(model->face_alphas, 0, faceCount * sizeof(int));
+
     model->face_infos = (int*)malloc(faceCount * sizeof(int));
     model->face_textures = (int*)malloc(faceCount * sizeof(int));
     model->face_texture_coords = (int*)malloc(faceCount * sizeof(int));
+    memset(model->face_infos, 0, faceCount * sizeof(int));
+    memset(model->face_textures, 0, faceCount * sizeof(int));
+    memset(model->face_texture_coords, 0, faceCount * sizeof(int));
 
     model->textured_p_coordinate = (int*)malloc(textureCount * sizeof(int));
     model->textured_m_coordinate = (int*)malloc(textureCount * sizeof(int));
     model->textured_n_coordinate = (int*)malloc(textureCount * sizeof(int));
+    memset(model->textured_p_coordinate, 0, textureCount * sizeof(int));
+    memset(model->textured_m_coordinate, 0, textureCount * sizeof(int));
+    memset(model->textured_n_coordinate, 0, textureCount * sizeof(int));
 
     // Read vertex data
     int previousVertexX = 0;
@@ -298,6 +316,7 @@ decodeOldFormat(
             if( faceTextureFlags & 1 )
             {
                 model->face_infos[i] = 1;
+                has_faceinfos = true;
             }
             else
             {
@@ -306,6 +325,7 @@ decodeOldFormat(
 
             if( faceTextureFlags & 2 )
             {
+                has_textures = true;
                 model->face_alphas[i] = faceTextureFlags >> 2;
                 model->face_textures[i] = model->face_colors[i];
                 model->face_colors[i] = 127;
@@ -395,6 +415,18 @@ decodeOldFormat(
 
     // Set model priority
     model->model_priority = faceRenderPriority;
+
+    if( !has_faceinfos )
+    {
+        free(model->face_infos);
+        model->face_infos = NULL;
+    }
+
+    if( !has_textures )
+    {
+        free(model->face_textures);
+        model->face_textures = NULL;
+    }
 
     return model;
 }
@@ -2280,11 +2312,11 @@ model_new_from_cache(
 struct CacheModel*
 model_new_from_archive(
     struct CacheArchive* archive,
-    int model_id)
+    int model_id_nullable)
 {
     struct CacheModel* model = model_new_decode(archive->data, archive->data_size);
     if( model )
-        model->_id = model_id;
+        model->_id = model_id_nullable;
     return model;
 }
 
@@ -2320,7 +2352,8 @@ model_new_decode(
             model->_model_type = 1;
         }
     }
-    else
+
+    if( !model )
     {
         model = decodeOldFormat(inputData, inputLength);
         model->_model_type = 0;

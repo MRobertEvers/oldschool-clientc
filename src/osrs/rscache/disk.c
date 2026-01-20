@@ -19,7 +19,9 @@ struct SectorHeader
 };
 
 static void
-read_sector_header_small(struct SectorHeader* header, uint8_t* data)
+read_sector_header_small(
+    struct SectorHeader* header,
+    uint8_t* data)
 {
     header->archive_id = ((data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     header->part_no = ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
@@ -28,7 +30,9 @@ read_sector_header_small(struct SectorHeader* header, uint8_t* data)
 }
 
 static void
-write_sector_header_small(struct SectorHeader* header, uint8_t* data)
+write_sector_header_small(
+    struct SectorHeader* header,
+    uint8_t* data)
 {
     // Small archive format (8 byte header)
     // Archive (2 bytes), CurrentPart (2 bytes), NextSector (3 bytes), Table (1 byte)
@@ -43,7 +47,9 @@ write_sector_header_small(struct SectorHeader* header, uint8_t* data)
 }
 
 static void
-read_sector_header_large(struct SectorHeader* header, uint8_t* data)
+read_sector_header_large(
+    struct SectorHeader* header,
+    uint8_t* data)
 {
     header->archive_id = ((data[0] & 0xFF) << 24) | ((data[1] & 0xFF) << 16) |
                          ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
@@ -53,7 +59,9 @@ read_sector_header_large(struct SectorHeader* header, uint8_t* data)
 }
 
 static void
-write_sector_header_large(struct SectorHeader* header, uint8_t* data)
+write_sector_header_large(
+    struct SectorHeader* header,
+    uint8_t* data)
 {
     // Large archive format (10 byte header)
     // Archive (4 bytes), CurrentPart (2 bytes), NextSector (3 bytes), Table (1 byte)
@@ -76,7 +84,11 @@ header_size_for_archive(int archive_id)
 }
 
 static void
-read_sector_header(struct SectorHeader* header, int archive_id, uint8_t* data, int data_size)
+read_sector_header(
+    struct SectorHeader* header,
+    int archive_id,
+    uint8_t* data,
+    int data_size)
 {
     if( archive_id > 0xFFFF )
     {
@@ -91,7 +103,10 @@ read_sector_header(struct SectorHeader* header, int archive_id, uint8_t* data, i
 }
 
 static void
-write_sector_header(struct SectorHeader* header, uint8_t* data, int data_size)
+write_sector_header(
+    struct SectorHeader* header,
+    uint8_t* data,
+    int data_size)
 {
     if( header->archive_id > 0xFFFF )
     {
@@ -256,7 +271,27 @@ error:
 }
 
 int
-disk_dat2file_append_archive(FILE* file, int index_id, int archive_id, uint8_t* data, int data_size)
+disk_datfile_read_archive(
+    FILE* dat_file,
+    int index_id,
+    int archive_id,
+    int start_sector,
+    int length_bytes,
+    struct Dat2Archive* archive)
+{
+    // DAT file indexes are named 0 offset, but accessed as 1 offset.
+    // e.g. index_id 0 is the first archive, but accessed as 1.
+    return disk_dat2file_read_archive(
+        dat_file, index_id + 1, archive_id, start_sector, length_bytes, archive);
+}
+
+int
+disk_dat2file_append_archive(
+    FILE* file,
+    int index_id,
+    int archive_id,
+    uint8_t* data,
+    int data_size)
 {
     uint8_t sector_data[SECTOR_SIZE];
 
@@ -325,7 +360,10 @@ disk_dat2file_append_archive(FILE* file, int index_id, int archive_id, uint8_t* 
 }
 
 int
-disk_indexfile_read_record(FILE* file, int entry_idx, struct IndexRecord* record)
+disk_indexfile_read_record(
+    FILE* file,
+    int entry_idx,
+    struct IndexRecord* record)
 {
     char data[INDEX_ENTRY_SIZE] = { 0 };
 
@@ -357,7 +395,10 @@ disk_indexfile_read_record(FILE* file, int entry_idx, struct IndexRecord* record
 }
 
 int
-disk_indexfile_write_record(FILE* file, int entry_idx, struct IndexRecord* record)
+disk_indexfile_write_record(
+    FILE* file,
+    int entry_idx,
+    struct IndexRecord* record)
 {
     // If the desired write offset is past EOF, fill the gap with zeros.
     char data[INDEX_ENTRY_SIZE] = { 0 };

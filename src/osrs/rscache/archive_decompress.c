@@ -33,7 +33,9 @@ typedef enum
  * @return Detected compression format
  */
 static inline compression_format_t
-detect_compression_format(const uint8_t* data, size_t size)
+detect_compression_format(
+    const uint8_t* data,
+    size_t size)
 {
     if( size < 2 )
         return COMPRESSION_FORMAT_UNKNOWN;
@@ -166,7 +168,9 @@ decompress_gzip_with_miniz(
  * @param archive
  */
 bool
-archive_decrypt_decompress(struct Dat2Archive* archive, uint32_t* xtea_key_nullable)
+archive_decrypt_decompress(
+    struct Dat2Archive* archive,
+    uint32_t* xtea_key_nullable)
 {
     // TODO: CRC32
 
@@ -336,4 +340,85 @@ bool
 archive_decompress(struct Dat2Archive* archive)
 {
     return archive_decrypt_decompress(archive, NULL);
+}
+
+bool
+archive_decompress_dat(struct Dat2Archive* archive)
+{
+    struct RSBuffer buffer = { .data = archive->data, .position = 0, .size = archive->data_size };
+    int bytes_read;
+
+    // GZ compression
+    // 	int uncompressedLength = buffer.getInt();
+
+    char* decompressed_data = malloc(32768);
+    if( !decompressed_data )
+    {
+        return false;
+    }
+
+    // Detect compression format
+    compression_format_t format = detect_compression_format(archive->data, archive->data_size);
+    if( format == COMPRESSION_FORMAT_UNKNOWN )
+    {
+        free(decompressed_data);
+        return false;
+    }
+
+    z_stream strm;
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    strm.avail_in = archive->data_size;
+    strm.next_in = (Bytef*)archive->data;
+    strm.avail_out = 32768;
+    strm.next_out = (Bytef*)decompressed_data;
+
+    if( format == COMPRESSION_FORMAT_GZIP )
+    {
+        // Use miniz for GZIP decompression
+        size_t decompressed_size =
+            decompress_gzip_with_miniz(archive->data, archive->data_size, decompressed_data, 32768);
+
+        if( decompressed_size == 0 )
+        {
+            free(decompressed_data);
+            return false;
+        }
+
+        // Update archive with decompressed data
+        free(archive->data);
+        archive->data = (char*)decompressed_data;
+        archive->data_size = (int)decompressed_size;
+    }
+    else // format == COMPRESSION_FORMAT_ZLIB
+    {
+        // Use zlib for zlib format
+        int ret = inflateInit2(&strm, 15); // 15 for max window size, no GZIP wrapper
+        if( ret != Z_OK )
+        {
+            printf("inflateInit2 failed with error code: %d\n", ret);
+            free(decompressed_data);
+            return false;
+        }
+
+        // Decompress
+        ret = inflate(&strm, Z_FINISH);
+        if( ret != Z_STREAM_END )
+        {
+            printf("inflate failed with error code: %d\n", ret);
+            inflateEnd(&strm);
+            free(decompressed_data);
+            return false;
+        }
+
+        // Update archive with decompressed data
+        free(archive->data);
+        archive->data = (char*)decompressed_data;
+        archive->data_size = strm.total_out;
+
+        // Cleanup
+        inflateEnd(&strm);
+    }
+    return true;
 }

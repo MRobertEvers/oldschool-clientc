@@ -82,12 +82,6 @@ struct CacheArchive
     int file_count;
 };
 
-struct CacheArchiveTuple
-{
-    int table_id;
-    int archive_id;
-};
-
 struct CacheArchive*
 cache_archive_new_reference_table_load(
     struct Cache* cache,
