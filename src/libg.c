@@ -258,7 +258,7 @@ libg_game_new(struct GIOQueue* io)
 
     archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_VERSION_LIST);
 
-    struct FileList* filelist = filelist_new_from_cache_dat_archive(archive);
+    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
 
     char data[1024];
 

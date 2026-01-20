@@ -13,13 +13,13 @@
 #define FLAG_WHIRLPOOL 0x2
 #define FLAG_HASH 0x8
 
-struct FileList*
-filelist_new_from_cache_dat_archive(struct CacheDatArchive* archive)
+struct FileListDat*
+filelist_dat_new_from_cache_dat_archive(struct CacheDatArchive* archive)
 {
     struct RSBuffer buffer = { .data = (int8_t*)archive->data,
                                .position = 0,
                                .size = archive->data_size };
-
+    struct FileListDat* filelist = NULL;
     int actual_size = g3(&buffer);
     int size = g3(&buffer);
 
@@ -84,7 +84,7 @@ filelist_new_from_cache_dat_archive(struct CacheDatArchive* archive)
     data_buffer.position = meta_buffer.position + file_count * 10;
 
     // Allocate FileList
-    struct FileList* filelist = malloc(sizeof(struct FileList));
+    filelist = malloc(sizeof(struct FileListDat));
     if( !filelist )
     {
         if( decompressed_archive )
@@ -94,12 +94,15 @@ filelist_new_from_cache_dat_archive(struct CacheDatArchive* archive)
 
     filelist->files = malloc(file_count * sizeof(char*));
     filelist->file_sizes = malloc(file_count * sizeof(int));
-    if( !filelist->files || !filelist->file_sizes )
+    filelist->file_name_hashes = malloc(file_count * sizeof(int));
+    if( !filelist->files || !filelist->file_sizes || !filelist->file_name_hashes )
     {
         if( filelist->files )
             free(filelist->files);
         if( filelist->file_sizes )
             free(filelist->file_sizes);
+        if( filelist->file_name_hashes )
+            free(filelist->file_name_hashes);
         free(filelist);
         if( decompressed_archive )
             free(decompressed_archive);
@@ -108,6 +111,7 @@ filelist_new_from_cache_dat_archive(struct CacheDatArchive* archive)
 
     memset(filelist->files, 0, file_count * sizeof(char*));
     memset(filelist->file_sizes, 0, file_count * sizeof(int));
+    memset(filelist->file_name_hashes, 0, file_count * sizeof(int));
     filelist->file_count = file_count;
 
     // Read each file
@@ -162,6 +166,7 @@ filelist_new_from_cache_dat_archive(struct CacheDatArchive* archive)
 
         filelist->files[i] = file_data;
         filelist->file_sizes[i] = is_compressed ? file_size : file_actual_size;
+        filelist->file_name_hashes[i] = name_hash;
     }
 
     // Cleanup decompressed archive if we allocated it
@@ -188,6 +193,20 @@ error:
     if( decompressed_archive )
         free(decompressed_archive);
     return NULL;
+}
+
+void
+filelist_dat_free(struct FileListDat* filelist)
+{
+    if( !filelist )
+        return;
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        free(filelist->files[i]);
+    }
+    free(filelist->file_sizes);
+    free(filelist->file_name_hashes);
+    free(filelist);
 }
 
 struct FileList*
