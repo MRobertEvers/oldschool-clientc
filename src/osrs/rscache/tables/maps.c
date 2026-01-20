@@ -5,7 +5,6 @@
 #include "../cache.h"
 #include "../cache_dat.h"
 #include "../rsbuf.h"
-#include "configs_dat.h"
 #include "noise.h"
 
 #include <stdio.h>

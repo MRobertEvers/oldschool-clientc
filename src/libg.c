@@ -10,8 +10,8 @@
 #include "osrs/packetbuffer.h"
 #include "osrs/packetin.h"
 #include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/tables/configs_dat.h"
 #include "osrs/rscache/tables_dat/config_versionlist_mapsquare.h"
+#include "osrs/rscache/tables_dat/configs_dat.h"
 // clang-format off
 #include "osrs/rscache/cache.h"
 #include "osrs/rscache/tables/model.h"
