@@ -4,89 +4,6 @@
 #include "archive_decompress.h"
 #include "cache.h"
 
-// @ObfuscatedName("vb.a(Lyb;Lclient;)V")
-// public void unpack(Jagfile jag, Client app) {
-//     String[] version = new String[] { "model_version", "anim_version", "midi_version",
-//     "map_version" }; for (int archive = 0; archive < 4; archive++) {
-//         byte[] data = jag.read(version[archive], null);
-//         int count = data.length / 2;
-//         Packet buf = new Packet(data);
-
-//         this.versions[archive] = new int[count];
-//         this.priorities[archive] = new byte[count];
-
-//         for (int file = 0; file < count; file++) {
-//             this.versions[archive][file] = buf.g2();
-//         }
-//     }
-
-//     String[] crc = new String[] { "model_crc", "anim_crc", "midi_crc", "map_crc" };
-//     for (int archive = 0; archive < 4; archive++) {
-//         byte[] data = jag.read(crc[archive], null);
-//         int count = data.length / 4;
-//         Packet buf = new Packet(data);
-
-//         this.crcs[archive] = new int[count];
-
-//         for (int file = 0; file < count; file++) {
-//             this.crcs[archive][file] = buf.g4();
-//         }
-//     }
-
-//     byte[] data = jag.read("model_index", null);
-//     int count = this.versions[0].length;
-
-//     this.models = new byte[count];
-
-//     for (int file = 0; file < count; file++) {
-//         if (file < data.length) {
-//             this.models[file] = data[file];
-//         } else {
-//             this.models[file] = 0;
-//         }
-//     }
-
-//     data = jag.read("map_index", null);
-//     Packet buf = new Packet(data);
-//     count = data.length / 7;
-
-//     this.mapIndex = new int[count];
-//     this.mapLand = new int[count];
-//     this.mapLoc = new int[count];
-//     this.mapMembers = new int[count];
-
-//     for (int i = 0; i < count; i++) {
-//         this.mapIndex[i] = buf.g2();
-//         this.mapLand[i] = buf.g2();
-//         this.mapLoc[i] = buf.g2();
-//         this.mapMembers[i] = buf.g1();
-//     }
-
-//     data = jag.read("anim_index", null);
-//     buf = new Packet(data);
-//     count = data.length / 2;
-
-//     this.animIndex = new int[count];
-
-//     for (int frame = 0; frame < count; frame++) {
-//         this.animIndex[frame] = buf.g2();
-//     }
-
-//     data = jag.read("midi_index", null);
-//     buf = new Packet(data);
-//     count = data.length;
-
-//     this.midiIndex = new int[count];
-
-//     for (int file = 0; file < count; file++) {
-//         this.midiIndex[file] = buf.g1();
-//     }
-
-//     this.app = app;
-//     this.running = true;
-//     this.app.startThread(this, 2);
-// }
-
 enum CacheDatTable
 {
     CACHE_DAT_CONFIGS = 0,
@@ -95,13 +12,6 @@ enum CacheDatTable
     CACHE_DAT_SOUNDS = 3,
     CACHE_DAT_MAPS = 4,
 };
-
-// Jagfile jagConfig = this.getJagFile("config", 2, this.jagChecksum[2], "config", 30);
-// Jagfile jagInterface = this.getJagFile("interface", 3, this.jagChecksum[3], "interface", 35);
-// Jagfile jagMedia = this.getJagFile("2d graphics", 4, this.jagChecksum[4], "media", 40);
-// Jagfile jagTextures = this.getJagFile("textures", 6, this.jagChecksum[6], "textures", 45);
-// Jagfile jagWordenc = this.getJagFile("chat system", 7, this.jagChecksum[7], "wordenc", 50);
-// Jagfile jagSounds = this.getJagFile("sound effects", 8, this.jagChecksum[8], "sounds", 55);
 
 /**
  * Cache Dat has 5 tables.
@@ -195,5 +105,95 @@ cache_dat_archive_new_load(
 
 void
 cache_dat_archive_free(struct CacheDatArchive* archive);
+
+// @ObfuscatedName("vb.a(Lyb;Lclient;)V")
+// public void unpack(Jagfile jag, Client app) {
+//     String[] version = new String[] { "model_version", "anim_version", "midi_version",
+//     "map_version" }; for (int archive = 0; archive < 4; archive++) {
+//         byte[] data = jag.read(version[archive], null);
+//         int count = data.length / 2;
+//         Packet buf = new Packet(data);
+
+//         this.versions[archive] = new int[count];
+//         this.priorities[archive] = new byte[count];
+
+//         for (int file = 0; file < count; file++) {
+//             this.versions[archive][file] = buf.g2();
+//         }
+//     }
+
+//     String[] crc = new String[] { "model_crc", "anim_crc", "midi_crc", "map_crc" };
+//     for (int archive = 0; archive < 4; archive++) {
+//         byte[] data = jag.read(crc[archive], null);
+//         int count = data.length / 4;
+//         Packet buf = new Packet(data);
+
+//         this.crcs[archive] = new int[count];
+
+//         for (int file = 0; file < count; file++) {
+//             this.crcs[archive][file] = buf.g4();
+//         }
+//     }
+
+//     byte[] data = jag.read("model_index", null);
+//     int count = this.versions[0].length;
+
+//     this.models = new byte[count];
+
+//     for (int file = 0; file < count; file++) {
+//         if (file < data.length) {
+//             this.models[file] = data[file];
+//         } else {
+//             this.models[file] = 0;
+//         }
+//     }
+
+//     data = jag.read("map_index", null);
+//     Packet buf = new Packet(data);
+//     count = data.length / 7;
+
+//     this.mapIndex = new int[count];
+//     this.mapLand = new int[count];
+//     this.mapLoc = new int[count];
+//     this.mapMembers = new int[count];
+
+//     for (int i = 0; i < count; i++) {
+//         this.mapIndex[i] = buf.g2();
+//         this.mapLand[i] = buf.g2();
+//         this.mapLoc[i] = buf.g2();
+//         this.mapMembers[i] = buf.g1();
+//     }
+
+//     data = jag.read("anim_index", null);
+//     buf = new Packet(data);
+//     count = data.length / 2;
+
+//     this.animIndex = new int[count];
+
+//     for (int frame = 0; frame < count; frame++) {
+//         this.animIndex[frame] = buf.g2();
+//     }
+
+//     data = jag.read("midi_index", null);
+//     buf = new Packet(data);
+//     count = data.length;
+
+//     this.midiIndex = new int[count];
+
+//     for (int file = 0; file < count; file++) {
+//         this.midiIndex[file] = buf.g1();
+//     }
+
+//     this.app = app;
+//     this.running = true;
+//     this.app.startThread(this, 2);
+// }
+
+// Jagfile jagConfig = this.getJagFile("config", 2, this.jagChecksum[2], "config", 30);
+// Jagfile jagInterface = this.getJagFile("interface", 3, this.jagChecksum[3], "interface", 35);
+// Jagfile jagMedia = this.getJagFile("2d graphics", 4, this.jagChecksum[4], "media", 40);
+// Jagfile jagTextures = this.getJagFile("textures", 6, this.jagChecksum[6], "textures", 45);
+// Jagfile jagWordenc = this.getJagFile("chat system", 7, this.jagChecksum[7], "wordenc", 50);
+// Jagfile jagSounds = this.getJagFile("sound effects", 8, this.jagChecksum[8], "sounds", 55);
 
 #endif
