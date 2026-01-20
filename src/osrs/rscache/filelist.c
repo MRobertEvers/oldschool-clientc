@@ -1,8 +1,10 @@
 #include "filelist.h"
 
+#include "compression.h"
 #include "rsbuf.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,72 +16,178 @@
 struct FileList*
 filelist_new_from_cache_dat_archive(struct CacheDatArchive* archive)
 {
-    // const actualSize = buffer.readMedium();
-    // const size = buffer.readMedium();
-
-    // const isCompressed = actualSize !== size;
-
-    // let dataBuffer: ByteBuffer;
-    // let metaBuffer: ByteBuffer;
-    // if (isCompressed) {
-    //     const data = buffer.readUnsignedBytes(size);
-    //     const decompressed = Bzip2.decompress(data, actualSize);
-    //     dataBuffer = new ByteBuffer(decompressed);
-    //     metaBuffer = new ByteBuffer(decompressed);
-    // } else {
-    //     dataBuffer = new ByteBuffer(data);
-    //     metaBuffer = buffer;
-    // }
-
-    // fileCount = metaBuffer.readUnsignedShort();
-    // dataBuffer.offset = metaBuffer.offset + fileCount * 10;
-
-    // fileIds = new Int32Array(fileCount);
-    // fileNameHashes = new Int32Array(fileCount);
-    // for (let i = 0; i < fileCount; i++) {
-    //     const nameHash = metaBuffer.readInt();
-    //     const fileActualSize = metaBuffer.readMedium();
-    //     const fileSize = metaBuffer.readMedium();
-
-    //     let decompressedFile: Int8Array;
-    //     if (isCompressed) {
-    //         decompressedFile = dataBuffer.readBytes(fileSize);
-    //     } else {
-    //         const data = dataBuffer.readUnsignedBytes(fileSize);
-    //         decompressedFile = Bzip2.decompress(data, fileActualSize);
-    //     }
-    //     files.set(i, new ArchiveFile(i, id, decompressedFile));
-    //     fileIds[i] = i;
-    //     fileNameHashes[i] = nameHash;
-    // }
-
-    struct RSBuffer buffer = { .data = archive->data, .position = 0, .size = archive->data_size };
+    struct RSBuffer buffer = { .data = (int8_t*)archive->data,
+                               .position = 0,
+                               .size = archive->data_size };
 
     int actual_size = g3(&buffer);
     int size = g3(&buffer);
 
     bool is_compressed = actual_size != size;
 
-    struct RSBuffer data_buffer = { .data = NULL, .position = 0, .size = 0 };
-    struct RSBuffer meta_buffer = { .data = NULL, .position = 0, .size = 0 };
+    char* decompressed_archive = NULL;
+    struct RSBuffer data_buffer;
+    struct RSBuffer meta_buffer;
 
     if( is_compressed )
     {
-        data_buffer.data = malloc(size);
-        if( !data_buffer.data )
+        // Read compressed data
+        char* compressed_data = malloc(size);
+        if( !compressed_data )
             return NULL;
-        data_buffer.size = size;
 
-        greadto(&buffer, data_buffer.data, size, size);
+        int bytes_read = greadto(&buffer, compressed_data, size, size);
+        if( bytes_read < size )
+        {
+            free(compressed_data);
+            return NULL;
+        }
+
+        // Decompress the archive
+        decompressed_archive = malloc(actual_size);
+        if( !decompressed_archive )
+        {
+            free(compressed_data);
+            return NULL;
+        }
+
+        int decompressed_size = cache_bzip_decompress(
+            (uint8_t*)decompressed_archive, actual_size, (uint8_t*)compressed_data, size);
+        assert(decompressed_size == actual_size);
+        free(compressed_data);
+
+        // Both buffers point to the decompressed data
+        data_buffer.data = (int8_t*)decompressed_archive;
+        data_buffer.size = actual_size;
+        data_buffer.position = 0;
+
+        meta_buffer.data = (int8_t*)decompressed_archive;
+        meta_buffer.size = actual_size;
+        meta_buffer.position = 0;
     }
     else
     {
-        data_buffer.data = archive->data;
+        // Not compressed, use original data
+        data_buffer.data = (int8_t*)archive->data;
         data_buffer.size = archive->data_size;
+        data_buffer.position = buffer.position;
+
+        meta_buffer.data = (int8_t*)archive->data;
+        meta_buffer.size = archive->data_size;
+        meta_buffer.position = buffer.position;
     }
 
-    meta_buffer.data = archive->data;
-    meta_buffer.size = archive->data_size;
+    // Read file count
+    int file_count = g2(&meta_buffer);
+
+    // Skip ahead in data buffer by fileCount * 10 bytes
+    data_buffer.position = meta_buffer.position + file_count * 10;
+
+    // Allocate FileList
+    struct FileList* filelist = malloc(sizeof(struct FileList));
+    if( !filelist )
+    {
+        if( decompressed_archive )
+            free(decompressed_archive);
+        return NULL;
+    }
+
+    filelist->files = malloc(file_count * sizeof(char*));
+    filelist->file_sizes = malloc(file_count * sizeof(int));
+    if( !filelist->files || !filelist->file_sizes )
+    {
+        if( filelist->files )
+            free(filelist->files);
+        if( filelist->file_sizes )
+            free(filelist->file_sizes);
+        free(filelist);
+        if( decompressed_archive )
+            free(decompressed_archive);
+        return NULL;
+    }
+
+    memset(filelist->files, 0, file_count * sizeof(char*));
+    memset(filelist->file_sizes, 0, file_count * sizeof(int));
+    filelist->file_count = file_count;
+
+    // Read each file
+    for( int i = 0; i < file_count; i++ )
+    {
+        int name_hash = g4(&meta_buffer);
+        int file_actual_size = g3(&meta_buffer);
+        int file_size = g3(&meta_buffer);
+
+        char* file_data = NULL;
+
+        if( is_compressed )
+        {
+            // Archive is compressed, files are already decompressed
+            file_data = malloc(file_size);
+            if( !file_data )
+                goto error;
+
+            int bytes_read = greadto(&data_buffer, file_data, file_size, file_size);
+            if( bytes_read < file_size )
+            {
+                free(file_data);
+                goto error;
+            }
+        }
+        else
+        {
+            // Archive is not compressed, individual files are compressed
+            char* compressed_file_data = malloc(file_size);
+            if( !compressed_file_data )
+                goto error;
+
+            int bytes_read = greadto(&data_buffer, compressed_file_data, file_size, file_size);
+            if( bytes_read < file_size )
+            {
+                free(compressed_file_data);
+                goto error;
+            }
+
+            // Decompress the file
+            file_data = malloc(file_actual_size);
+            if( !file_data )
+            {
+                free(compressed_file_data);
+                goto error;
+            }
+
+            cache_bzip_decompress(
+                (uint8_t*)file_data, file_actual_size, (uint8_t*)compressed_file_data, file_size);
+            free(compressed_file_data);
+        }
+
+        filelist->files[i] = file_data;
+        filelist->file_sizes[i] = is_compressed ? file_size : file_actual_size;
+    }
+
+    // Cleanup decompressed archive if we allocated it
+    if( decompressed_archive )
+        free(decompressed_archive);
+
+    return filelist;
+
+error:
+    // Cleanup on error
+    if( filelist )
+    {
+        for( int i = 0; i < file_count; i++ )
+        {
+            if( filelist->files && filelist->files[i] )
+                free(filelist->files[i]);
+        }
+        if( filelist->files )
+            free(filelist->files);
+        if( filelist->file_sizes )
+            free(filelist->file_sizes);
+        free(filelist);
+    }
+    if( decompressed_archive )
+        free(decompressed_archive);
+    return NULL;
 }
 
 struct FileList*

@@ -112,7 +112,7 @@ archive_decrypt_decompress(
             return false;
         }
 
-        cache_gzip_decompress(decompressed_data, uncompressed_length, compressed_data, size);
+        cache_gzip_decompress(decompressed_data, uncompressed_length, compressed_data, size, 0);
 
         free(archive->data);
         archive->data = decompressed_data;
@@ -135,6 +135,7 @@ archive_decompress(struct ArchiveBuffer* archive)
     return archive_decrypt_decompress(archive, NULL);
 }
 
+static uint8_t decompress_buffer[65536];
 bool
 archive_decompress_dat(struct ArchiveBuffer* archive)
 {
@@ -142,16 +143,17 @@ archive_decompress_dat(struct ArchiveBuffer* archive)
     {
     case ARCHIVE_FORMAT_DAT:
     {
-        int uncompressed_length = cache_gzip_uncompressed_size(archive->data, archive->data_size);
-        if( uncompressed_length == 0 )
-            return false;
+        int uncompressed_length = cache_gzip_decompress(
+            decompress_buffer,
+            sizeof(decompress_buffer),
+            archive->data,
+            archive->data_size,
+            GZIP_NO_FOOTER);
 
-        uint8_t* decompressed_data = malloc(uncompressed_length);
+        void* decompressed_data = malloc(uncompressed_length);
         if( !decompressed_data )
             return false;
-
-        cache_gzip_decompress(
-            decompressed_data, uncompressed_length, archive->data, archive->data_size);
+        memcpy(decompressed_data, decompress_buffer, uncompressed_length);
 
         free(archive->data);
         archive->data = decompressed_data;

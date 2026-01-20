@@ -160,28 +160,29 @@ cache_gzip_decompress(
     uint8_t* out,
     int out_length,
     uint8_t* compressed_data,
-    int compressed_length)
+    int compressed_length,
+    int flags)
 {
-    // GZIP Stores the size of the uncompressed data in the last 4 bytes.
-    // i.e. The footer.
-    int uncompressed_length = *(int*)(compressed_data + compressed_length - 4);
-    assert(out_length >= uncompressed_length);
-
     // Detect compression format
+    z_stream strm;
     compression_format_t format = detect_compression_format(compressed_data, compressed_length);
     if( format == COMPRESSION_FORMAT_UNKNOWN )
-    {
         return 0;
-    }
-
-    z_stream strm;
 
     if( format == COMPRESSION_FORMAT_GZIP )
     {
+        // GZIP Stores the size of the uncompressed data in the last 4 bytes.
+        // i.e. The footer.
+        int uncompressed_length;
+        if( (flags & GZIP_NO_FOOTER) == 0 )
+        {
+            uncompressed_length = *(int*)(compressed_data + compressed_length - 4);
+            assert(out_length >= uncompressed_length);
+        }
+
         // Use miniz for GZIP decompression
         size_t decompressed_size =
             decompress_gzip_with_miniz(compressed_data, compressed_length, out, out_length);
-        assert(decompressed_size == uncompressed_length);
 
         return decompressed_size;
     }

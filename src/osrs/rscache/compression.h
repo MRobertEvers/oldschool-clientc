@@ -4,12 +4,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define GZIP_NO_FOOTER 1
+
 uint32_t
 cache_gzip_decompress(
     uint8_t* out,
     int out_length,
     uint8_t* compressed_data,
-    int compressed_length);
+    int compressed_length,
+    int flags);
 
 uint32_t
 cache_gzip_uncompressed_size(
