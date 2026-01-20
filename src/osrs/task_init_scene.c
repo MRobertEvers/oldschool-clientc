@@ -1,6 +1,6 @@
 #ifndef GTASK_INIT_SCENE_U_C
 #define GTASK_INIT_SCENE_U_C
-#include "gtask_init_scene.h"
+#include "task_init_scene.h"
 
 #include "datastruct/list.h"
 #include "datastruct/vec.h"
@@ -121,9 +121,9 @@ framepack_free(struct FramePack* framepack)
     free(framepack);
 }
 
-struct GTaskInitScene
+struct TaskInitScene
 {
-    enum GTaskInitSceneStep step;
+    enum TaskInitSceneStep step;
     struct GGame* game;
     struct GIOQueue* io;
 
@@ -169,7 +169,7 @@ struct GTaskInitScene
 
 static void
 framepack_push_buffer(
-    struct GTaskInitScene* task,
+    struct TaskInitScene* task,
     int id,
     void* data,
     int data_size)
@@ -446,7 +446,7 @@ done:;
 
 static void
 queue_sequence(
-    struct GTaskInitScene* task,
+    struct TaskInitScene* task,
     struct CacheConfigLocation* scenery_config)
 {
     int seq_id = scenery_config->seq_id;
@@ -458,7 +458,7 @@ queue_sequence(
 
 static void
 queue_scenery_models(
-    struct GTaskInitScene* task,
+    struct TaskInitScene* task,
     struct CacheConfigLocation* scenery_config,
     int shape_select)
 {
@@ -505,8 +505,8 @@ queue_scenery_models(
     }
 }
 
-struct GTaskInitScene*
-gtask_init_scene_new(
+struct TaskInitScene*
+task_init_scene_new(
     struct GGame* game,
     int map_sw_x,
     int map_sw_z,
@@ -514,8 +514,8 @@ gtask_init_scene_new(
     int map_ne_z)
 {
     struct DashMapConfig config = { 0 };
-    struct GTaskInitScene* task = malloc(sizeof(struct GTaskInitScene));
-    memset(task, 0, sizeof(struct GTaskInitScene));
+    struct TaskInitScene* task = malloc(sizeof(struct TaskInitScene));
+    memset(task, 0, sizeof(struct TaskInitScene));
     task->step = STEP_INIT_SCENE_INITIAL;
     task->game = game;
     task->io = game->io;
@@ -619,7 +619,7 @@ gtask_init_scene_new(
 }
 
 void
-gtask_init_scene_free(struct GTaskInitScene* task)
+task_init_scene_free(struct TaskInitScene* task)
 {
     vec_free(task->queued_scenery_models_vec);
     vec_free(task->queued_texture_ids_vec);
@@ -641,7 +641,7 @@ gtask_init_scene_free(struct GTaskInitScene* task)
 }
 
 static enum GameTaskStatus
-step_scenery_load(struct GTaskInitScene* task)
+step_scenery_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_1_LOAD_SCENERY];
 
@@ -687,7 +687,7 @@ step_scenery_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
@@ -706,11 +706,11 @@ step_scenery_load(struct GTaskInitScene* task)
         step_stage->step = TS_DONE;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_scenery_config_load(struct GTaskInitScene* task)
+step_scenery_config_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_2_LOAD_SCENERY_CONFIG];
 
@@ -750,7 +750,7 @@ step_scenery_config_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
@@ -780,11 +780,11 @@ step_scenery_config_load(struct GTaskInitScene* task)
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_scenery_models_load(struct GTaskInitScene* task)
+step_scenery_models_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_3_LOAD_SCENERY_MODELS];
 
@@ -829,18 +829,18 @@ step_scenery_models_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_DONE;
     case TS_DONE:
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_terrain_load(struct GTaskInitScene* task)
+step_terrain_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_4_LOAD_TERRAIN];
 
@@ -876,18 +876,18 @@ step_terrain_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_DONE;
     case TS_DONE:
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_underlay_load(struct GTaskInitScene* task)
+step_underlay_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_5_LOAD_UNDERLAY];
 
@@ -919,18 +919,18 @@ step_underlay_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_DONE;
     case TS_DONE:
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_overlay_load(struct GTaskInitScene* task)
+step_overlay_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_6_LOAD_OVERLAY];
 
@@ -964,18 +964,18 @@ step_overlay_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_DONE;
     case TS_DONE:
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_textures_load(struct GTaskInitScene* task)
+step_textures_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_7_LOAD_TEXTURES];
 
@@ -1071,18 +1071,18 @@ step_textures_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_DONE;
     case TS_DONE:
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_spritepacks_load(struct GTaskInitScene* task)
+step_spritepacks_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_8_LOAD_SPRITEPACKS];
     int reqid = 0;
@@ -1139,7 +1139,7 @@ step_spritepacks_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
@@ -1148,11 +1148,11 @@ step_spritepacks_load(struct GTaskInitScene* task)
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_textures_build(struct GTaskInitScene* task)
+step_textures_build(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_9_BUILD_TEXTURES];
 
@@ -1180,11 +1180,11 @@ step_textures_build(struct GTaskInitScene* task)
 
     step_stage->step = TS_DONE;
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_sequences_load(struct GTaskInitScene* task)
+step_sequences_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_10_LOAD_SEQUENCES];
 
@@ -1219,7 +1219,7 @@ step_sequences_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
@@ -1228,11 +1228,11 @@ step_sequences_load(struct GTaskInitScene* task)
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_frames_load(struct GTaskInitScene* task)
+step_frames_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_11_LOAD_FRAMES];
 
@@ -1291,18 +1291,18 @@ step_frames_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 static enum GameTaskStatus
-step_framemaps_load(struct GTaskInitScene* task)
+step_framemaps_load(struct TaskInitScene* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_12_LOAD_FRAMEMAPS];
 
@@ -1375,7 +1375,7 @@ step_framemaps_load(struct GTaskInitScene* task)
         }
 
         if( task->reqid_queue_inflight_count != 0 )
-            return GTASK_STATUS_PENDING;
+            return GAMETASK_STATUS_PENDING;
 
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
@@ -1424,11 +1424,11 @@ step_framemaps_load(struct GTaskInitScene* task)
         break;
     }
 
-    return GTASK_STATUS_COMPLETED;
+    return GAMETASK_STATUS_COMPLETED;
 }
 
 enum GameTaskStatus
-gtask_init_scene_step(struct GTaskInitScene* task)
+task_init_scene_step(struct TaskInitScene* task)
 {
     struct GIOMessage message;
     struct DashMapIter* iter = NULL;
@@ -1442,64 +1442,64 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     }
     case STEP_INIT_SCENE_1_LOAD_SCENERY:
     {
-        if( step_scenery_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_scenery_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_2_LOAD_SCENERY_CONFIG;
     }
     case STEP_INIT_SCENE_2_LOAD_SCENERY_CONFIG:
     {
-        if( step_scenery_config_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_scenery_config_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_3_LOAD_SCENERY_MODELS;
     }
     case STEP_INIT_SCENE_3_LOAD_SCENERY_MODELS:
     {
-        if( step_scenery_models_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_scenery_models_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_4_LOAD_TERRAIN;
     }
     case STEP_INIT_SCENE_4_LOAD_TERRAIN:
     {
-        if( step_terrain_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_terrain_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_5_LOAD_UNDERLAY;
     }
     case STEP_INIT_SCENE_5_LOAD_UNDERLAY:
     {
-        if( step_underlay_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_underlay_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_6_LOAD_OVERLAY;
     }
     case STEP_INIT_SCENE_6_LOAD_OVERLAY:
     {
-        if( step_overlay_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_overlay_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_7_LOAD_TEXTURES;
     }
     case STEP_INIT_SCENE_7_LOAD_TEXTURES:
     {
-        if( step_textures_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_textures_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_8_LOAD_SPRITEPACKS;
     }
     case STEP_INIT_SCENE_8_LOAD_SPRITEPACKS:
     {
-        if( step_spritepacks_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_spritepacks_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_9_BUILD_TEXTURES;
     }
     case STEP_INIT_SCENE_9_BUILD_TEXTURES:
     {
-        if( step_textures_build(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_textures_build(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_10_LOAD_SEQUENCES;
     }
@@ -1515,22 +1515,22 @@ gtask_init_scene_step(struct GTaskInitScene* task)
          * Get all the framemaps from the frames.
          * Load each framemap.
          */
-        if( step_sequences_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_sequences_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_11_LOAD_FRAMES;
     }
     case STEP_INIT_SCENE_11_LOAD_FRAMES:
     {
-        if( step_frames_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_frames_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_12_LOAD_FRAMEMAPS;
     }
     case STEP_INIT_SCENE_12_LOAD_FRAMEMAPS:
     {
-        if( step_framemaps_load(task) != GTASK_STATUS_COMPLETED )
-            return GTASK_STATUS_PENDING;
+        if( step_framemaps_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_13_BUILD_WORLD3D;
     }
@@ -1545,7 +1545,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     }
     case STEP_INIT_SCENE_DONE:
     {
-        return GTASK_STATUS_COMPLETED;
+        return GAMETASK_STATUS_COMPLETED;
     }
     default:
         goto bad_step;
@@ -1557,7 +1557,7 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     //         task->reqid_model = gio_assets_model_load(task->io, MODEL_ID);
 
     //     if( !gioq_poll(task->io, &message) )
-    //         return GTASK_STATUS_PENDING;
+    //         return GAMETASK_STATUS_PENDING;
     //     assert(message.message_id == task->reqid_model);
 
     //     task->step = STEP_INIT_SCENE_LOAD_MODEL;
@@ -1571,15 +1571,15 @@ gtask_init_scene_step(struct GTaskInitScene* task)
     //     gioq_release(task->io, &message);
 
     //     task->step = STEP_INIT_SCENE_DONE;
-    //     return GTASK_STATUS_COMPLETED;
+    //     return GAMETASK_STATUS_COMPLETED;
 
 bad_step:;
-    assert(false && "Bad step in gtask_init_scene_step");
-    return GTASK_STATUS_FAILED;
+    assert(false && "Bad step in task_init_scene_step");
+    return GAMETASK_STATUS_FAILED;
 }
 
 struct CacheModel*
-gtask_init_scene_value(struct GTaskInitScene* task)
+task_init_scene_value(struct TaskInitScene* task)
 {
     assert(task->step == STEP_INIT_SCENE_DONE);
     return NULL;

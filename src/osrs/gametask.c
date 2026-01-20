@@ -1,7 +1,7 @@
 #include "gametask.h"
 
-#include "gtask_init_io.h"
-#include "gtask_init_scene.h"
+#include "task_init_io.h"
+#include "task_init_scene.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -31,9 +31,9 @@ gametask_new_init_io(
 {
     struct GameTask* task = malloc(sizeof(struct GameTask));
     memset(task, 0, sizeof(struct GameTask));
-    task->status = GTASK_STATUS_PENDING;
-    task->kind = GTASK_KIND_INIT_IO;
-    task->_init_io = gtask_init_io_new(io);
+    task->status = GAMETASK_STATUS_PENDING;
+    task->kind = GAMETASK_KIND_INIT_IO;
+    task->_init_io = task_init_io_new(io);
 
     append_task(game, task);
 
@@ -45,13 +45,13 @@ gametask_step(struct GameTask* task)
 {
     switch( task->kind )
     {
-    case GTASK_KIND_INIT_IO:
-        return gtask_init_io_step(task->_init_io);
-    case GTASK_KIND_INIT_SCENE:
-        return gtask_init_scene_step(task->_init_scene);
+    case GAMETASK_KIND_INIT_IO:
+        return task_init_io_step(task->_init_io);
+    case GAMETASK_KIND_INIT_SCENE:
+        return task_init_scene_step(task->_init_scene);
     }
 
-    return GTASK_STATUS_FAILED;
+    return GAMETASK_STATUS_FAILED;
 }
 
 struct GameTask*
@@ -64,9 +64,9 @@ gametask_new_init_scene(
 {
     struct GameTask* task = malloc(sizeof(struct GameTask));
     memset(task, 0, sizeof(struct GameTask));
-    task->status = GTASK_STATUS_PENDING;
-    task->kind = GTASK_KIND_INIT_SCENE;
-    task->_init_scene = gtask_init_scene_new(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    task->status = GAMETASK_STATUS_PENDING;
+    task->kind = GAMETASK_KIND_INIT_SCENE;
+    task->_init_scene = task_init_scene_new(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 
     append_task(game, task);
 
@@ -78,11 +78,11 @@ gametask_free(struct GameTask* task)
 {
     switch( task->kind )
     {
-    case GTASK_KIND_INIT_IO:
-        gtask_init_io_free(task->_init_io);
+    case GAMETASK_KIND_INIT_IO:
+        task_init_io_free(task->_init_io);
         break;
-    case GTASK_KIND_INIT_SCENE:
-        gtask_init_scene_free(task->_init_scene);
+    case GAMETASK_KIND_INIT_SCENE:
+        task_init_scene_free(task->_init_scene);
         break;
     }
 

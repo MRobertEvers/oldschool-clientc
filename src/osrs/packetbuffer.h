@@ -1,6 +1,8 @@
 #ifndef CLIENTSTREAM_H
 #define CLIENTSTREAM_H
 
+#include "gameproto_revisions.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -16,6 +18,7 @@ enum PacketBufferState
 
 struct PacketBuffer
 {
+    enum GameProtoRevision revision;
     enum PacketBufferState state;
     int packet_type;
     int packet_length;
@@ -25,7 +28,9 @@ struct PacketBuffer
 };
 
 void
-packetbuffer_init(struct PacketBuffer* packetbuffer);
+packetbuffer_init(
+    struct PacketBuffer* packetbuffer,
+    enum GameProtoRevision revision);
 
 int
 packetbuffer_read(

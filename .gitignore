@@ -1,5 +1,6 @@
 build/
 cache/
+cache254/
 .DS_Store
 runelite
 all_tiles.json

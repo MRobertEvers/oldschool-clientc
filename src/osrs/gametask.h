@@ -1,5 +1,5 @@
-#ifndef GTASK_H
-#define GTASK_H
+#ifndef GAMETASK_H
+#define GAMETASK_H
 
 #include "libg.h"
 #include "osrs/gametask_status.h"
@@ -7,12 +7,12 @@
 
 enum GameTaskKind
 {
-    GTASK_KIND_INIT_IO,
-    GTASK_KIND_INIT_SCENE,
+    GAMETASK_KIND_INIT_IO,
+    GAMETASK_KIND_INIT_SCENE,
 };
 
-struct GTaskInitIO;
-struct GTaskInitScene;
+struct TaskInitIO;
+struct TaskInitScene;
 struct GameTask
 {
     enum GameTaskStatus status;
@@ -20,8 +20,8 @@ struct GameTask
     enum GameTaskKind kind;
     union
     {
-        struct GTaskInitIO* _init_io;
-        struct GTaskInitScene* _init_scene;
+        struct TaskInitIO* _init_io;
+        struct TaskInitScene* _init_scene;
     };
 
     struct GameTask* next;

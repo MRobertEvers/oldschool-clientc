@@ -32,6 +32,12 @@ libg_game_step_tasks(
     struct GRenderCommandBuffer* render_command_buffer);
 
 void
+LibToriRS_BeginFrame(struct GGame* game);
+
+void
+LibToriRS_EndFrame(struct GGame* game);
+
+void
 libg_game_free(struct GGame* game);
 void
 libg_game_step(

@@ -14,7 +14,7 @@
 // > Names based on https://www.rune-server.ee/runescape-development/
 // > rs-503-client-and-server/informative-threads/
 // > 622541-great-nxt-beta-dump-thread.html
-enum PacketInType
+enum PacketInType_Dane317
 {
     PKTIN_CAM_LOOKAT = 177,
     PKTIN_CAM_RESET = 107,
@@ -96,7 +96,7 @@ struct PacketInDefinition
     int length;
 };
 
-static const struct PacketInDefinition g_packet_in_definitions[256] = {
+static const struct PacketInDefinition g_packet_in_definitions_dane317[256] = {
     [PKTIN_MAP_ANIM] = { .length = 6 },
     [PKTIN_IF_SETMODEL] = { .length = 4 },
     [PKTIN_TAB_HINT] = { .length = 1 },
@@ -166,10 +166,10 @@ static const struct PacketInDefinition g_packet_in_definitions[256] = {
 };
 
 static inline int
-packetin_size(int packet_type)
+packetin_size_dane317(int packet_type)
 {
     assert(packet_type >= 0 && packet_type < 256);
-    return g_packet_in_definitions[packet_type].length;
+    return g_packet_in_definitions_dane317[packet_type].length;
 }
 
 enum PacketInType_LC254

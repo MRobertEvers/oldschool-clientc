@@ -1,0 +1,10 @@
+#ifndef GAMEPROTO_REVISIONS_H
+#define GAMEPROTO_REVISIONS_H
+
+enum GameProtoRevision
+{
+    GAMEPROTO_REVISION_INVALID = 0,
+    GAMEPROTO_REVISION_LC254 = 1,
+};
+
+#endif

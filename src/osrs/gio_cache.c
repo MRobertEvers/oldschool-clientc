@@ -2,6 +2,7 @@
 
 #include "filepack.h"
 #include "gio_assets.h"
+#include "osrs/rscache/xtea_config.h"
 #include "rscache/tables/configs.h"
 #include "rscache/tables/maps.h"
 
@@ -14,6 +15,17 @@
 struct Cache*
 gioqb_cache_new(void)
 {
+    printf("Loading XTEA keys from: %s/xteas.json\n", CACHE_PATH);
+    // printf("Loading XTEA keys from: ../cache/xteas.json\n");
+    int xtea_keys_count = xtea_config_load_keys(CACHE_PATH "/xteas.json");
+    if( xtea_keys_count == -1 )
+    {
+        printf("Failed to load xtea keys from: %s/xteas.json\n", CACHE_PATH);
+        printf("Make sure the xteas.json file exists in the cache directory\n");
+        assert(false && "Failed to load xtea keys");
+    }
+    printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
+
     struct Cache* cache = cache_new_from_directory(CACHE_PATH);
     if( !cache )
     {

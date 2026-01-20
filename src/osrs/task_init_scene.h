@@ -41,7 +41,7 @@
  * Don't need:
  * IDK, Object
  */
-enum GTaskInitSceneStep
+enum TaskInitSceneStep
 {
     STEP_INIT_SCENE_INITIAL = 0,
     STEP_INIT_SCENE_1_LOAD_SCENERY,
@@ -64,21 +64,21 @@ enum GTaskInitSceneStep
     STEP_INIT_SCENE_STEP_COUNT,
 };
 
-struct GTaskInitScene;
-struct GTaskInitScene*
-gtask_init_scene_new(
+struct TaskInitScene;
+struct TaskInitScene*
+task_init_scene_new(
     struct GGame* game,
     int map_sw_x,
     int map_sw_z,
     int map_ne_x,
     int map_ne_z);
 void
-gtask_init_scene_free(struct GTaskInitScene* task);
+task_init_scene_free(struct TaskInitScene* task);
 
 enum GameTaskStatus
-gtask_init_scene_step(struct GTaskInitScene* task);
+task_init_scene_step(struct TaskInitScene* task);
 
 struct CacheModel*
-gtask_init_scene_value(struct GTaskInitScene* task);
+task_init_scene_value(struct TaskInitScene* task);
 
 #endif

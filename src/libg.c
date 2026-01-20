@@ -198,7 +198,7 @@ libg_game_new(struct GIOQueue* io)
     gametask_new_init_io(game, game->io);
 
     struct PacketBuffer packetbuffer;
-    packetbuffer_init(&packetbuffer);
+    packetbuffer_init(&packetbuffer, GAMEPROTO_REVISION_LC254);
 
     gameproto_packet_write_maprebuild8_z16_x16(
         data, PKTIN_LC254_REBUILD_NORMAL, sizeof(data), 50 * 8, 50 * 8);
@@ -347,9 +347,9 @@ on_completed_task(
 {
     switch( task->kind )
     {
-    case GTASK_KIND_INIT_IO:
+    case GAMETASK_KIND_INIT_IO:
         break;
-    case GTASK_KIND_INIT_SCENE:
+    case GAMETASK_KIND_INIT_SCENE:
         // game->model = gtask_init_scene_value(task->_init_scene);
         break;
     }
@@ -362,11 +362,11 @@ libg_game_step_tasks(
     struct GRenderCommandBuffer* render_command_buffer)
 {
     struct GameTask* task = game->tasks_nullable;
-    enum GameTaskStatus status = GTASK_STATUS_FAILED;
+    enum GameTaskStatus status = GAMETASK_STATUS_FAILED;
     while( task )
     {
         status = gametask_step(task);
-        if( status != GTASK_STATUS_COMPLETED )
+        if( status != GAMETASK_STATUS_COMPLETED )
             break;
 
         on_completed_task(game, input, render_command_buffer, task);
@@ -394,7 +394,7 @@ libg_game_step(
 
     libg_game_step_tasks(game, input, render_command_buffer);
     task = game->tasks_nullable;
-    if( task && task->status != GTASK_STATUS_COMPLETED )
+    if( task && task->status != GAMETASK_STATUS_COMPLETED )
     {
         return;
     }

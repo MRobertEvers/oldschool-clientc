@@ -6,7 +6,6 @@ extern "C" {
 #include "osrs/gio_assets.h"
 #include "osrs/gio_cache.h"
 #include "osrs/grender.h"
-#include "osrs/rscache/xtea_config.h"
 }
 
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -369,17 +368,6 @@ on_gio_req_init(
     {
     case GIO_STATUS_PENDING:
     {
-        printf("Loading XTEA keys from: ../cache/xteas.json\n");
-        // printf("Loading XTEA keys from: ../cache/xteas.json\n");
-        int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
-        if( xtea_keys_count == -1 )
-        {
-            printf("Failed to load xtea keys from: ../cache/xteas.json\n");
-            printf("Make sure the xteas.json file exists in the cache directory\n");
-            assert(false && "Failed to load xtea keys");
-        }
-        printf("Loaded %d XTEA keys successfully\n", xtea_keys_count);
-
         platform->cache = gioqb_cache_new();
         gioqb_mark_done(
             io, message->message_id, message->command, message->param_b, message->param_a, NULL, 0);

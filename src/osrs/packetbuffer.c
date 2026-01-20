@@ -18,13 +18,28 @@ imin(
 }
 
 void
-packetbuffer_init(struct PacketBuffer* packetbuffer)
+packetbuffer_init(
+    struct PacketBuffer* packetbuffer,
+    enum GameProtoRevision revision)
 {
     packetbuffer->state = PKTBUF_AWAITING_PACKET;
+    packetbuffer->revision = revision;
     packetbuffer->packet_type = 0;
     packetbuffer->packet_length = 0;
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
+}
+
+static inline int
+packetsize(
+    enum GameProtoRevision revision,
+    int packet_type)
+{
+    switch( revision )
+    {
+    case GAMEPROTO_REVISION_LC254:
+        return packetin_size_lc254(packet_type);
+    }
 }
 
 int
@@ -50,7 +65,7 @@ packetbuffer_read(
         {
         case PKTBUF_AWAITING_PACKET:
             packet_type = g1(&buffer);
-            packet_size = packetin_size_lc254(packet_type);
+            packet_size = packetsize(packetbuffer->revision, packet_type);
             packetbuffer->packet_type = packet_type;
 
             if( packet_size == PKTIN_LENGTH_VARU8 )
@@ -132,7 +147,7 @@ packetbuffer_reset(struct PacketBuffer* packetbuffer)
         free(packetbuffer->data);
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
-    packetbuffer_init(packetbuffer);
+    packetbuffer_init(packetbuffer, packetbuffer->revision);
 }
 
 int

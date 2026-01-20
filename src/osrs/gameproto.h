@@ -2,12 +2,7 @@
 #define GAMEPROTO_H
 
 #include "game.h"
-
-enum GameProtoRevision
-{
-    GAMEPROTO_REVISION_INVALID = 0,
-    GAMEPROTO_REVISION_LC254 = 1,
-};
+#include "gameproto_revisions.h"
 
 void
 gameproto_process(

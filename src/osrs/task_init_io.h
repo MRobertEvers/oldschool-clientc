@@ -3,19 +3,19 @@
 
 #include "osrs/gametask_status.h"
 #include "osrs/gio.h"
-struct GTaskInitIO
+struct TaskInitIO
 {
     struct GIOQueue* io;
 
     uint32_t reqid_init;
 };
 
-struct GTaskInitIO*
-gtask_init_io_new(struct GIOQueue* io);
+struct TaskInitIO*
+task_init_io_new(struct GIOQueue* io);
 void
-gtask_init_io_free(struct GTaskInitIO* task);
+task_init_io_free(struct TaskInitIO* task);
 
 enum GameTaskStatus
-gtask_init_io_step(struct GTaskInitIO* task);
+task_init_io_step(struct TaskInitIO* task);
 
 #endif
