@@ -11,6 +11,7 @@
 #include "osrs/packetin.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables/configs_dat.h"
+#include "osrs/rscache/tables_dat/config_versionlist_mapsquare.h"
 // clang-format off
 #include "osrs/rscache/cache.h"
 #include "osrs/rscache/tables/model.h"
@@ -259,6 +260,40 @@ libg_game_new(struct GIOQueue* io)
     archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_VERSION_LIST);
 
     struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
+
+    char* file_data = NULL;
+    int file_data_size = 0;
+    int name_hash = archive_name_hash_dat("map_index");
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+        {
+            printf("Found map index at index %d\n", i);
+            file_data = filelist->files[i];
+            file_data_size = filelist->file_sizes[i];
+            break;
+        }
+    }
+
+    assert(file_data);
+
+    struct CacheMapSquares* map_squares = cache_map_squares_new_decode(file_data, file_data_size);
+    assert(map_squares);
+
+    for( int i = 0; i < map_squares->squares_count; i++ )
+    {
+        struct MapSquareCoord coord = { 0 };
+        cache_map_square_coord(&coord, map_squares->squares[i].map_id);
+        printf(
+            "Map square %d: (%d, %d), %d, %d\n",
+            i,
+            coord.map_x,
+            coord.map_z,
+            map_squares->squares[i].terrain_archive_id,
+            map_squares->squares[i].loc_archive_id);
+    }
+
+    cache_map_squares_free(map_squares);
 
     char data[1024];
 
