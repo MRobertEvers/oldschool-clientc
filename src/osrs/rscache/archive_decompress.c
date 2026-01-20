@@ -169,7 +169,7 @@ decompress_gzip_with_miniz(
  */
 bool
 archive_decrypt_decompress(
-    struct Dat2Archive* archive,
+    struct ArchiveBuffer* archive,
     uint32_t* xtea_key_nullable)
 {
     // TODO: CRC32
@@ -337,19 +337,16 @@ archive_decrypt_decompress(
 }
 
 bool
-archive_decompress(struct Dat2Archive* archive)
+archive_decompress(struct ArchiveBuffer* archive)
 {
     return archive_decrypt_decompress(archive, NULL);
 }
 
 bool
-archive_decompress_dat(struct Dat2Archive* archive)
+archive_decompress_dat(struct ArchiveBuffer* archive)
 {
     struct RSBuffer buffer = { .data = archive->data, .position = 0, .size = archive->data_size };
     int bytes_read;
-
-    // GZ compression
-    // 	int uncompressedLength = buffer.getInt();
 
     char* decompressed_data = malloc(32768);
     if( !decompressed_data )

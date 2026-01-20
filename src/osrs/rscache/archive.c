@@ -33,24 +33,3 @@ archive_name_hash(char* name)
 {
     return hash_djb2(name);
 }
-
-struct Dat2Archive*
-archive_new(int archive_id)
-{
-    struct Dat2Archive* archive = malloc(sizeof(struct Dat2Archive));
-    if( archive == NULL )
-        return NULL;
-    archive->data = NULL;
-    archive->data_size = 0;
-    archive->archive_id = archive_id;
-    return archive;
-}
-
-void
-archive_free(struct Dat2Archive* archive)
-{
-    if( archive == NULL )
-        return;
-    free(archive->data);
-    free(archive);
-}

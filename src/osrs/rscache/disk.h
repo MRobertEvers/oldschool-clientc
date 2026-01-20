@@ -14,7 +14,7 @@ disk_dat2file_read_archive(
     int archive_id,
     int start_sector,
     int length_bytes,
-    struct Dat2Archive* archive);
+    struct ArchiveBuffer* archive);
 
 int
 disk_datfile_read_archive(
@@ -23,7 +23,7 @@ disk_datfile_read_archive(
     int archive_id,
     int start_sector,
     int length_bytes,
-    struct Dat2Archive* archive);
+    struct ArchiveBuffer* archive);
 
 int
 disk_dat2file_append_archive(

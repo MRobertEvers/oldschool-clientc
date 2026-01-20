@@ -366,7 +366,7 @@ cache_archive_new_reference_table_load(
     int res = 0;
     bool decompressed = false;
     char* dat2_data = NULL;
-    struct Dat2Archive dat2_archive = { 0 };
+    struct ArchiveBuffer dat2_archive = { 0 };
 
     struct CacheArchive* archive = malloc(sizeof(struct CacheArchive));
     memset(archive, 0, sizeof(struct CacheArchive));
@@ -452,7 +452,7 @@ cache_archive_new_load_decrypted(
     uint32_t* xtea_key_nullable)
 {
     struct CacheInetPayload* payload = NULL;
-    struct Dat2Archive dat2_archive = { 0 };
+    struct ArchiveBuffer dat2_archive = { 0 };
     struct CacheArchive* archive = malloc(sizeof(struct CacheArchive));
     memset(archive, 0, sizeof(struct CacheArchive));
 

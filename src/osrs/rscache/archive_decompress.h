@@ -6,15 +6,15 @@
 #include <stdint.h>
 
 bool
-archive_decompress(struct Dat2Archive* archive);
+archive_decompress(struct ArchiveBuffer* archive);
 // Decrypt and decompress the archive data using the provided XTEA key
 // If xtea_key_nullable is NULL, the data will not be decrypted
 bool
 archive_decrypt_decompress(
-    struct Dat2Archive* archive,
+    struct ArchiveBuffer* archive,
     uint32_t* xtea_key_nullable);
 
 bool
-archive_decompress_dat(struct Dat2Archive* archive);
+archive_decompress_dat(struct ArchiveBuffer* archive);
 
 #endif

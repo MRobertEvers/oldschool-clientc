@@ -108,7 +108,7 @@ cache_dat_archive_new_load(
     int archive_id)
 {
     struct CacheInetPayload* payload = NULL;
-    struct Dat2Archive dat2_archive = { 0 };
+    struct ArchiveBuffer dat2_archive = { 0 };
     struct CacheDatArchive* archive = malloc(sizeof(struct CacheDatArchive));
     memset(archive, 0, sizeof(struct CacheDatArchive));
 

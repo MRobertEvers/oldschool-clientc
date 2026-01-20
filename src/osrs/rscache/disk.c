@@ -129,7 +129,7 @@ disk_dat2file_read_archive(
     int archive_id,
     int sector,
     int length,
-    struct Dat2Archive* archive)
+    struct ArchiveBuffer* archive)
 {
     char read_buffer[SECTOR_SIZE];
     int read_buffer_len = 0;
@@ -277,7 +277,7 @@ disk_datfile_read_archive(
     int archive_id,
     int start_sector,
     int length_bytes,
-    struct Dat2Archive* archive)
+    struct ArchiveBuffer* archive)
 {
     // DAT file indexes are named 0 offset, but accessed as 1 offset.
     // e.g. index_id 0 is the first archive, but accessed as 1.
