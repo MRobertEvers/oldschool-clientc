@@ -194,12 +194,12 @@ config_object_decode_inplace(
         }
         case 2:
         {
-            object->name = gstring(&buffer);
+            object->name = gcstring(&buffer);
             break;
         }
         case 3:
         {
-            object->examine = gstring(&buffer);
+            object->examine = gcstring(&buffer);
             break;
         }
         case 4:
@@ -229,7 +229,7 @@ config_object_decode_inplace(
         }
         case 9:
         {
-            gstring(&buffer);
+            gcstring(&buffer);
             break;
         }
         case 11:
@@ -290,7 +290,7 @@ config_object_decode_inplace(
         case 33:
         case 34:
         {
-            object->actions[opcode - 30] = gstring(&buffer);
+            object->actions[opcode - 30] = gcstring(&buffer);
             if( strcasecmp(object->actions[opcode - 30], "Hidden") == 0 )
             {
                 free(object->actions[opcode - 30]);
@@ -304,7 +304,7 @@ config_object_decode_inplace(
         case 38:
         case 39:
         {
-            object->if_actions[opcode - 35] = gstring(&buffer);
+            object->if_actions[opcode - 35] = gcstring(&buffer);
 
             break;
         }
@@ -356,7 +356,7 @@ config_object_decode_inplace(
                 {
                     break;
                 }
-                char* string = gstring(&buffer);
+                char* string = gcstring(&buffer);
                 if( valid && sub_action_id >= 0 && sub_action_id < 20 )
                 {
                     object->sub_actions[action_id][sub_action_id] = string;

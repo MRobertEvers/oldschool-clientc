@@ -298,24 +298,25 @@ libg_game_new(struct GIOQueue* io)
     char data[1024];
 
     gametask_new_init_io(game, game->io);
+    gametask_new_init_scene_dat(game, 50, 50, 50, 50);
 
-    struct PacketBuffer packetbuffer;
-    packetbuffer_init(&packetbuffer, GAMEPROTO_REVISION_LC254);
+    // struct PacketBuffer packetbuffer;
+    // packetbuffer_init(&packetbuffer, GAMEPROTO_REVISION_LC254);
 
-    gameproto_packet_write_maprebuild8_z16_x16(
-        data, PKTIN_LC254_REBUILD_NORMAL, sizeof(data), 50 * 8, 50 * 8);
+    // gameproto_packet_write_maprebuild8_z16_x16(
+    //     data, PKTIN_LC254_REBUILD_NORMAL, sizeof(data), 50 * 8, 50 * 8);
 
-    packetbuffer_read(&packetbuffer, data, sizeof(data));
-    assert(packetbuffer_ready(&packetbuffer));
+    // packetbuffer_read(&packetbuffer, data, sizeof(data));
+    // assert(packetbuffer_ready(&packetbuffer));
 
-    gameproto_process(
-        game,
-        GAMEPROTO_REVISION_LC254,
-        packetbuffer.packet_type,
-        packetbuffer.data,
-        packetbuffer.data_size);
+    // gameproto_process(
+    //     game,
+    //     GAMEPROTO_REVISION_LC254,
+    //     packetbuffer.packet_type,
+    //     packetbuffer.data,
+    //     packetbuffer.data_size);
 
-    packetbuffer_reset(&packetbuffer);
+    // packetbuffer_reset(&packetbuffer);
 
     return game;
 }
@@ -506,6 +507,8 @@ libg_game_step(
     while( game->cycles > 0 )
     {
         game->cycles--;
+        if( !game->scene )
+            continue;
         for( int i = 0; i < game->scene->scenery->elements_length; i++ )
         {
             struct SceneElement* element = scene_element_at(game->scene->scenery, i);

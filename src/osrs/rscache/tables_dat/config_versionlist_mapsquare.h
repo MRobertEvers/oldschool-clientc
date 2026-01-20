@@ -2,6 +2,7 @@
 #define CONFIG_VERSIONLIST_MAPSQUARE_H
 
 #include "../cache_dat.h"
+#include "configs_dat.h"
 
 #include <stdbool.h>
 

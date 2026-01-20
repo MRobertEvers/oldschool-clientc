@@ -7,12 +7,18 @@ enum AssetKind
 {
     ASSET_BAD = 0,
     ASSET_MODELS,
+    // Used in dat2 - these are the texture definitions
     ASSET_TEXTURES,
+    // Used in dat - jagfile
+    ASSET_TEXTURE_SPRITE,
     ASSET_SPRITEPACKS,
     ASSET_MAP_SCENERY,
     ASSET_MAP_TERRAIN,
     ASSET_CONFIG_SCENERY,
-    ASSET_CONFIG_UNDERLAY,
+    // Only used in dat - jagfile
+    ASSET_CONFIG_FLOORTYPE,
+    // For dat2
+    ASSET_CONFIG_UNDERLAY = ASSET_CONFIG_FLOORTYPE,
     ASSET_CONFIG_OVERLAY,
     ASSET_CONFIG_SEQUENCES,
     ASSET_ANIMATION,
@@ -27,6 +33,9 @@ gio_assets_model_load(
 
 uint32_t
 gio_assets_texture_definitions_load(struct GIOQueue* q);
+
+uint32_t
+gio_assets_texture_sprites_load(struct GIOQueue* q);
 
 uint32_t
 gio_assets_spritepack_load(

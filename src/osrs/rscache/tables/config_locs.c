@@ -252,10 +252,10 @@ decode_loc(
             break;
         }
         case 2:
-            loc->name = rsbuf_read_string(&buffer);
+            loc->name = gcstring(&buffer);
             break;
         case 3:
-            loc->desc = rsbuf_read_string(&buffer);
+            loc->desc = gcstring(&buffer);
             break;
         case 5:
         {
@@ -341,7 +341,7 @@ decode_loc(
         case 38:
         {
             int action_index = opcode - 30;
-            char* action = rsbuf_read_string(&buffer);
+            char* action = gcstring(&buffer);
             actions_count++;
             // Check if action is "hidden" (case insensitive)
             if( action && strcasecmp(action, "hidden") == 0 )
@@ -623,7 +623,7 @@ decode_loc(
         case 154:
         {
             int action_index = opcode - 150;
-            char* action = rsbuf_read_string(&buffer);
+            char* action = gcstring(&buffer);
             // Check if action is "hidden" (case insensitive)
             if( action && strcasecmp(action, "hidden") == 0 )
             {

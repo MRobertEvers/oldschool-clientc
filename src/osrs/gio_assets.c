@@ -15,6 +15,12 @@ gio_assets_texture_definitions_load(struct GIOQueue* q)
 }
 
 uint32_t
+gio_assets_texture_sprites_load(struct GIOQueue* q)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_TEXTURE_SPRITE, 0, 0);
+}
+
+uint32_t
 gio_assets_spritepack_load(
     struct GIOQueue* q,
     int spritepack_id)

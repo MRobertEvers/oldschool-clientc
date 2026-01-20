@@ -59,10 +59,13 @@
 static void
 init_overlay(struct CacheConfigOverlay* overlay)
 {
+    memset(overlay, 0, sizeof(struct CacheConfigOverlay));
     overlay->rgb_color = 0;
     overlay->texture = -1;
     overlay->secondary_rgb_color = -1;
     overlay->hide_underlay = true;
+
+    overlay->flotype_overlay = false;
 }
 
 struct CacheConfigOverlay*
@@ -89,7 +92,7 @@ config_floortype_overlay_new_decode(
     return overlay;
 }
 
-void
+int
 config_floortype_overlay_decode_inplace(
     struct CacheConfigOverlay* overlay,
     char* data,
@@ -121,9 +124,17 @@ config_floortype_overlay_decode_inplace(
             int texture = rsbuf_g1(&buffer);
             overlay->texture = texture;
         }
+        else if( opcode == 3 )
+        {
+            overlay->flotype_overlay = true;
+        }
         else if( opcode == 5 )
         {
             overlay->hide_underlay = false;
+        }
+        else if( opcode == 6 )
+        {
+            overlay->flotype_name = gstringnewline(&buffer);
         }
         else if( opcode == 7 )
         {
@@ -135,6 +146,8 @@ config_floortype_overlay_decode_inplace(
             assert(false);
         }
     }
+
+    return buffer.position;
 }
 
 void

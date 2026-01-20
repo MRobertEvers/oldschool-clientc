@@ -39,7 +39,17 @@ struct FileListDat
 struct FileListDat*
 filelist_dat_new_from_cache_dat_archive(struct CacheDatArchive* archive);
 
+struct FileListDat*
+filelist_dat_new_from_decode(
+    char* data,
+    int data_size);
+
 void
 filelist_dat_free(struct FileListDat* filelist);
+
+int
+filelist_dat_find_file_by_name(
+    struct FileListDat* filelist,
+    const char* name);
 
 #endif

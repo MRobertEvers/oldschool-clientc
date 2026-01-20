@@ -2,6 +2,7 @@
 #define FILEPACK_H
 
 #include "rscache/cache.h"
+#include "rscache/cache_dat.h"
 
 struct FilePack
 {
@@ -14,11 +15,15 @@ filepack_new(
     struct Cache* cache,
     struct CacheArchive* archive);
 
+struct FilePack*
+filepack_new_from_cache_dat_archive(struct CacheDatArchive* archive);
+
 void
 filepack_free(struct FilePack* filepack);
 
 struct FileMetadata
 {
+    int flags;
     int revision;
     int file_count;
     int archive_id;

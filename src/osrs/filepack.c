@@ -19,6 +19,7 @@ filepack_new(
     filelist_reference_size =
         archive_reference->children.count * sizeof(archive_reference->children.files[0]);
 
+    data_size += sizeof(int); // flags
     data_size += sizeof(int); // filelist reference size
     data_size += sizeof(int); // revision
     data_size += sizeof(int); // file count
@@ -30,6 +31,10 @@ filepack_new(
     packed->data = malloc(data_size);
     packed->data_size = data_size;
     memset(packed->data, 0, packed->data_size);
+
+    int flags = 0;
+    memcpy((uint8_t*)packed->data + offset, &flags, sizeof(int));
+    offset += sizeof(int);
 
     memcpy((uint8_t*)packed->data + offset, &filelist_reference_size, sizeof(int));
     offset += sizeof(int);
@@ -45,6 +50,55 @@ filepack_new(
         (uint8_t*)packed->data + offset,
         archive_reference->children.files,
         filelist_reference_size);
+    offset += filelist_reference_size;
+    memcpy((uint8_t*)packed->data + offset, archive->data, archive->data_size);
+    offset += archive->data_size;
+
+    return packed;
+}
+
+struct FilePack*
+filepack_new_from_cache_dat_archive(struct CacheDatArchive* archive)
+{
+    int data_size = 0;
+    int offset = 0;
+    int filelist_reference_size = 0;
+    struct FilePack* packed = malloc(sizeof(struct FilePack));
+    memset(packed, 0, sizeof(struct FilePack));
+
+    data_size += sizeof(int); // flags
+    data_size += sizeof(int); // filelist reference size
+    data_size += sizeof(int); // revision
+    data_size += sizeof(int); // file count
+    data_size += sizeof(int); // archive id
+    data_size += sizeof(int); // table id
+    data_size += 0;
+    data_size += archive->data_size;
+
+    packed->data = malloc(data_size);
+    packed->data_size = data_size;
+    memset(packed->data, 0, packed->data_size);
+
+    int flags = 1;
+    memcpy((uint8_t*)packed->data + offset, &flags, sizeof(int));
+    offset += sizeof(int);
+
+    // memcpy((uint8_t*)packed->data + offset, &filelist_reference_size, sizeof(int));
+    offset += sizeof(int);
+
+    int version = 0;
+    memcpy((uint8_t*)packed->data + offset, &version, sizeof(int));
+    offset += sizeof(int);
+    // memcpy((uint8_t*)packed->data + offset, &archive_reference->children.count, sizeof(int));
+    offset += sizeof(int);
+    memcpy((uint8_t*)packed->data + offset, &archive->archive_id, sizeof(int));
+    offset += sizeof(int);
+    memcpy((uint8_t*)packed->data + offset, &archive->table_id, sizeof(int));
+    offset += sizeof(int);
+    // memcpy(
+    //     (uint8_t*)packed->data + offset,
+    //     archive_reference->children.files,
+    //     filelist_reference_size);
     offset += filelist_reference_size;
     memcpy((uint8_t*)packed->data + offset, archive->data, archive->data_size);
     offset += archive->data_size;
@@ -71,11 +125,14 @@ filepack_metadata(
 
     int offset = 0;
     int filelist_reference_size = 0;
+    int flags = 0;
     int revision = 0;
     int file_count = 0;
     int archive_id = 0;
     int table_id = 0;
 
+    memcpy(&flags, (uint8_t*)data + offset, sizeof(int));
+    offset += sizeof(int);
     memcpy(&filelist_reference_size, (uint8_t*)data + offset, sizeof(int));
     offset += sizeof(int);
     memcpy(&revision, (uint8_t*)data + offset, sizeof(int));

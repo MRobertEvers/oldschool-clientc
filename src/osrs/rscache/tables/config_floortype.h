@@ -11,11 +11,16 @@ struct CacheConfigUnderlay
 
 struct CacheConfigOverlay
 {
-    int _id;
     int rgb_color;
     int texture;
     int secondary_rgb_color;
     bool hide_underlay;
+
+    // Used in dat. Not used in dat2.
+    bool flotype_overlay;
+    char* flotype_name;
+
+    int _id;
 };
 
 // void config_floortype_overlay_init(struct CacheConfigOverlay* overlay);
@@ -25,7 +30,7 @@ struct CacheConfigOverlay*
 config_floortype_overlay_new_decode(
     char* buffer,
     int buffer_size);
-void
+int
 config_floortype_overlay_decode_inplace(
     struct CacheConfigOverlay* overlay,
     char* buffer,

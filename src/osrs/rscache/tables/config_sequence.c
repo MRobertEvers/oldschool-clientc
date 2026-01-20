@@ -467,7 +467,7 @@ decode_sequence_pre_220(
             break;
         }
         case 18:
-            def->debug_name = gstring(buffer);
+            def->debug_name = gcstring(buffer);
             break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
@@ -598,7 +598,7 @@ decode_sequence_220_226(
             break;
         }
         case 18:
-            def->debug_name = gstring(buffer);
+            def->debug_name = gcstring(buffer);
             break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
@@ -726,7 +726,7 @@ decode_sequence_226_plus(
             break;
         }
         case 18:
-            def->debug_name = gstring(buffer);
+            def->debug_name = gcstring(buffer);
             break;
         default:
             printf("Unrecognized opcode %d\n", opcode);

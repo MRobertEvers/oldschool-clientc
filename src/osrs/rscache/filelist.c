@@ -1,5 +1,6 @@
 #include "filelist.h"
 
+#include "archive.h"
 #include "compression.h"
 #include "rsbuf.h"
 
@@ -16,9 +17,15 @@
 struct FileListDat*
 filelist_dat_new_from_cache_dat_archive(struct CacheDatArchive* archive)
 {
-    struct RSBuffer buffer = { .data = (int8_t*)archive->data,
-                               .position = 0,
-                               .size = archive->data_size };
+    return filelist_dat_new_from_decode(archive->data, archive->data_size);
+}
+
+struct FileListDat*
+filelist_dat_new_from_decode(
+    char* data,
+    int data_size)
+{
+    struct RSBuffer buffer = { .data = (int8_t*)data, .position = 0, .size = data_size };
     struct FileListDat* filelist = NULL;
     int actual_size = g3(&buffer);
     int size = g3(&buffer);
@@ -68,12 +75,12 @@ filelist_dat_new_from_cache_dat_archive(struct CacheDatArchive* archive)
     else
     {
         // Not compressed, use original data
-        data_buffer.data = (int8_t*)archive->data;
-        data_buffer.size = archive->data_size;
+        data_buffer.data = (int8_t*)data;
+        data_buffer.size = data_size;
         data_buffer.position = buffer.position;
 
-        meta_buffer.data = (int8_t*)archive->data;
-        meta_buffer.size = archive->data_size;
+        meta_buffer.data = (int8_t*)data;
+        meta_buffer.size = data_size;
         meta_buffer.position = buffer.position;
     }
 
@@ -207,6 +214,20 @@ filelist_dat_free(struct FileListDat* filelist)
     free(filelist->file_sizes);
     free(filelist->file_name_hashes);
     free(filelist);
+}
+
+int
+filelist_dat_find_file_by_name(
+    struct FileListDat* filelist,
+    const char* name)
+{
+    int name_hash = archive_name_hash_dat(name);
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+            return i;
+    }
+    return -1;
 }
 
 struct FileList*

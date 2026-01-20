@@ -15,6 +15,12 @@
 #include "scenebuilder_shademap.u.c"
 // clang-format on
 
+struct FlotypeEntry
+{
+    int id;
+    struct CacheConfigOverlay* flotype;
+};
+
 struct FrameAnimEntry
 {
     // frame_file
@@ -73,6 +79,9 @@ struct SceneBuilder
     struct DashMap* config_locs_configmap;
     struct DashMap* config_underlay_configmap;
     struct DashMap* config_overlay_configmap;
+
+    // TODO:
+    struct DashMap* flotypes_hmap;
 
     struct BuildGrid* build_grid;
     struct Shademap* shademap;

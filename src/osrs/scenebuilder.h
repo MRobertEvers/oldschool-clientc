@@ -4,6 +4,7 @@
 #include "configmap.h"
 #include "datastruct/hmap.h"
 #include "libg.h"
+#include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/frame.h"
 #include "osrs/rscache/tables/maps.h"
@@ -72,6 +73,12 @@ scenebuilder_cache_map_terrain(
     int mapx,
     int mapz,
     struct CacheMapTerrain* map_terrain);
+
+void
+scenebuilder_cache_flotype(
+    struct SceneBuilder* scene_builder,
+    int flotype_id,
+    struct CacheConfigOverlay* flotype);
 
 struct Scene*
 scenebuilder_load(struct SceneBuilder* scene_builder);

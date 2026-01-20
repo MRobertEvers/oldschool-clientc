@@ -2,6 +2,7 @@
 
 #include "task_init_io.h"
 #include "task_init_scene.h"
+#include "task_init_scene_dat.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -49,6 +50,8 @@ gametask_step(struct GameTask* task)
         return task_init_io_step(task->_init_io);
     case GAMETASK_KIND_INIT_SCENE:
         return task_init_scene_step(task->_init_scene);
+    case GAMETASK_KIND_INIT_SCENE_DAT:
+        return task_init_scene_dat_step(task->_init_scene_dat);
     }
 
     return GAMETASK_STATUS_FAILED;
@@ -73,6 +76,25 @@ gametask_new_init_scene(
     return task;
 }
 
+struct GameTask*
+gametask_new_init_scene_dat(
+    struct GGame* game,
+    int map_sw_x,
+    int map_sw_z,
+    int map_ne_x,
+    int map_ne_z)
+{
+    struct GameTask* task = malloc(sizeof(struct GameTask));
+    memset(task, 0, sizeof(struct GameTask));
+    task->status = GAMETASK_STATUS_PENDING;
+    task->kind = GAMETASK_KIND_INIT_SCENE_DAT;
+    task->_init_scene_dat = task_init_scene_dat_new(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+
+    append_task(game, task);
+
+    return task;
+}
+
 void
 gametask_free(struct GameTask* task)
 {
@@ -83,6 +105,9 @@ gametask_free(struct GameTask* task)
         break;
     case GAMETASK_KIND_INIT_SCENE:
         task_init_scene_free(task->_init_scene);
+        break;
+    case GAMETASK_KIND_INIT_SCENE_DAT:
+        task_init_scene_dat_free(task->_init_scene_dat);
         break;
     }
 

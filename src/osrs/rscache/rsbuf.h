@@ -56,7 +56,9 @@ rsbuf_read_usmart(struct RSBuffer* buffer);
 int
 rsbuf_read_big_smart(struct RSBuffer* buffer);
 char*
-rsbuf_read_string(struct RSBuffer* buffer);
+rsbuf_read_string_null_terminated(struct RSBuffer* buffer);
+char*
+rsbuf_read_string_newline_terminated(struct RSBuffer* buffer);
 
 int
 rsbuf_read_unsigned_int_smart_short_compat(struct RSBuffer* buffer);
@@ -93,7 +95,8 @@ rsbuf_readto(
 #define gushortsmart(buffer) rsbuf_read_unsigned_short_smart(buffer)
 #define gshortsmart(buffer) rsbuf_read_short_smart(buffer)
 
-#define gstring(buffer) rsbuf_read_string(buffer)
+#define gcstring(buffer) rsbuf_read_string_null_terminated(buffer)
+#define gstringnewline(buffer) rsbuf_read_string_newline_terminated(buffer)
 #define gparams(buffer, params) rsbuf_read_params(buffer, params)
 #define greadto(buffer, out, out_size, len) rsbuf_readto(buffer, out, out_size, len)
 

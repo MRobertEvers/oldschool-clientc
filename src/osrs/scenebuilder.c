@@ -68,6 +68,15 @@ scenebuilder_new_painter(
     };
     scene_builder->frames_hmap = dashmap_new(&config, 0);
 
+    buffer_size = ENTRYS * sizeof(struct FlotypeEntry);
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct FlotypeEntry),
+    };
+    scene_builder->flotypes_hmap = dashmap_new(&config, 0);
+
     int height = (mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z;
     int width = (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X;
 
@@ -199,6 +208,21 @@ scenebuilder_cache_map_terrain(
     map_entry->mapx = mapx;
     map_entry->mapz = mapz;
     map_entry->map_terrain = map_terrain;
+}
+
+void
+scenebuilder_cache_flotype(
+    struct SceneBuilder* scene_builder,
+    int flotype_id,
+    struct CacheConfigOverlay* flotype)
+{
+    struct FlotypeEntry* flotype_entry = NULL;
+
+    flotype_entry = (struct FlotypeEntry*)dashmap_search(
+        scene_builder->flotypes_hmap, &flotype_id, DASHMAP_INSERT);
+    assert(flotype_entry && "Flotype must be inserted into hmap");
+    flotype_entry->id = flotype_id;
+    flotype_entry->flotype = flotype;
 }
 
 static void

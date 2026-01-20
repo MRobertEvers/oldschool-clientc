@@ -9,4 +9,9 @@ cu_filelist_new_from_filepack(
     void* data,
     int data_size);
 
+struct FileListDat*
+cu_filelist_dat_new_from_filepack(
+    void* data,
+    int data_size);
+
 #endif

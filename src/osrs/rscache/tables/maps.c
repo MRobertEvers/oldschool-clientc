@@ -326,25 +326,33 @@ struct CacheMapTerrain*
 map_terrain_new_from_archive(
     struct CacheArchive* archive,
     int map_x,
-    int map_y)
+    int map_z)
 {
     struct CacheMapTerrain* map_terrain =
-        map_terrain_new_from_decode(archive->data, archive->data_size, map_x, map_y);
+        map_terrain_new_from_decode(archive->data, archive->data_size, map_x, map_z);
     if( !map_terrain )
     {
-        printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_y);
+        printf("Failed to load map terrain %d, %d terrain_new_from_decode\n", map_x, map_z);
         return NULL;
     }
 
     return map_terrain;
 }
 
-struct CacheMapTerrain*
-map_terrain_new_from_decode(
-    char* data,
-    int data_size,
-    int map_x,
-    int map_z)
+static int
+read_decode(
+    struct RSBuffer* buffer,
+    bool u16)
+{
+    if( u16 )
+        return g2(buffer);
+    else
+        return g1(buffer);
+}
+
+struct CacheMapTerrain* //
+map_terrain_new_from_decode_flags( //
+    char* data, int data_size, int map_x, int map_z, int flags)
 {
     struct CacheMapTerrain* map_terrain = malloc(sizeof(struct CacheMapTerrain));
     memset(map_terrain, 0, sizeof(struct CacheMapTerrain));
@@ -361,7 +369,7 @@ map_terrain_new_from_decode(
 
                 while( true )
                 {
-                    int attribute = g2(&buffer);
+                    int attribute = read_decode(&buffer, flags == MAP_TERRAIN_DECODE_U16);
                     if( attribute == 0 )
                     {
                         break;
@@ -375,8 +383,8 @@ map_terrain_new_from_decode(
                     }
                     else if( attribute <= 49 )
                     {
+                        tile->overlay_id = read_decode(&buffer, flags == MAP_TERRAIN_DECODE_U16);
                         tile->attr_opcode = attribute;
-                        tile->overlay_id = g2(&buffer);
                         tile->shape = (attribute - 2) / 4;
                         tile->rotation = attribute - 2 & 3;
                     }
@@ -396,6 +404,16 @@ map_terrain_new_from_decode(
     fixup_terrain(map_terrain, map_x, map_z);
 
     return map_terrain;
+}
+
+struct CacheMapTerrain*
+map_terrain_new_from_decode(
+    char* data,
+    int data_size,
+    int map_x,
+    int map_z)
+{
+    return map_terrain_new_from_decode_flags(data, data_size, map_x, map_z, MAP_TERRAIN_DECODE_U16);
 }
 
 void

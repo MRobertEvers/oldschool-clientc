@@ -26,6 +26,7 @@ struct Platform2_OSX_SDL2
     uint64_t last_frame_time_ticks;
 
     struct Cache* cache;
+    struct CacheDat* cache_dat;
 };
 
 struct Platform2_OSX_SDL2*

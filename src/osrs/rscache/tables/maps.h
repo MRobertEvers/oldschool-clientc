@@ -111,15 +111,22 @@ struct CacheMapTerrain*
 map_terrain_new_from_archive( //
     struct CacheArchive* archive, int map_x, int map_y);
 
+#define MAP_TERRAIN_DECODE_U16 0
+#define MAP_TERRAIN_DECODE_U8 1
+
+struct CacheMapTerrain* //
+map_terrain_new_from_decode_flags( //
+    char* data, int data_size, int map_x, int map_z, int flags);
+
 struct CacheMapTerrain* //
 map_terrain_new_from_decode( //
-    char* data, int data_size, int map_x, int map_y);
+    char* data, int data_size, int map_x, int map_z);
 
 struct CacheMapLocs* //
 map_locs_new_from_cache(
     struct Cache* cache,
     int map_x,
-    int map_y);
+    int map_z);
 
 struct CacheMapLocs* //
 map_locs_new_from_decode(

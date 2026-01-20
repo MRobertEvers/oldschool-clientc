@@ -2,6 +2,8 @@
 
 #include "archive.h"
 #include "disk.h"
+#include "filelist.h"
+#include "tables_dat/config_versionlist_mapsquare.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -54,16 +56,13 @@ error:;
     return -1;
 }
 
-struct CacheDat
-{
-    char const* directory;
-
-    FILE* _dat_file;
-};
-
 struct CacheDat*
 cache_dat_new(char const* directory)
 {
+    struct CacheDatArchive* archive = NULL;
+    struct FileListDat* filelist = NULL;
+    char* file_data = NULL;
+
     struct CacheDat* cache_dat = malloc(sizeof(struct CacheDat));
     if( cache_dat == NULL )
         return NULL;
@@ -75,6 +74,24 @@ cache_dat_new(char const* directory)
         free(cache_dat);
         return NULL;
     }
+
+    archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_VERSION_LIST);
+
+    filelist = filelist_dat_new_from_cache_dat_archive(archive);
+
+    int file_data_size = 0;
+    int name_hash = archive_name_hash_dat("map_index");
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+        {
+            file_data = filelist->files[i];
+            file_data_size = filelist->file_sizes[i];
+            break;
+        }
+    }
+
+    cache_dat->map_squares = cache_map_squares_new_decode(file_data, file_data_size);
 
     return cache_dat;
 }

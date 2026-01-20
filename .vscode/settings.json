@@ -218,7 +218,9 @@
         "gametask.h": "c",
         "gameproto.h": "c",
         "config_versionlist_mapsquare.h": "c",
-        "configs_dat.h": "c"
+        "configs_dat.h": "c",
+        "task_init_scene_dat.h": "c",
+        "config_textures.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

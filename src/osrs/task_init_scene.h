@@ -78,7 +78,4 @@ task_init_scene_free(struct TaskInitScene* task);
 enum GameTaskStatus
 task_init_scene_step(struct TaskInitScene* task);
 
-struct CacheModel*
-task_init_scene_value(struct TaskInitScene* task);
-
 #endif

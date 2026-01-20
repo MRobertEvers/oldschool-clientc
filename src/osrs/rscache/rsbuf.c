@@ -131,8 +131,10 @@ rsbuf_read_big_smart(struct RSBuffer* buffer)
     }
 }
 
-char*
-rsbuf_read_string(struct RSBuffer* buffer)
+static inline char*
+read_string(
+    struct RSBuffer* buffer,
+    int stop_char)
 {
     static const wchar_t CHARACTERS[] = {
         L'\u20ac', L'\0',     L'\u201a', L'\u0192', L'\u201e', L'\u2026', L'\u2020', L'\u2021',
@@ -147,7 +149,7 @@ rsbuf_read_string(struct RSBuffer* buffer)
     while( 1 )
     {
         int ch = rsbuf_g1(buffer);
-        if( ch == 0 )
+        if( ch == stop_char )
         {
             break;
         }
@@ -163,7 +165,7 @@ rsbuf_read_string(struct RSBuffer* buffer)
     while( 1 )
     {
         int ch = rsbuf_g1(buffer);
-        if( ch == 0 )
+        if( ch == stop_char )
         {
             break;
         }
@@ -182,6 +184,18 @@ rsbuf_read_string(struct RSBuffer* buffer)
     }
     string[length] = '\0';
     return string;
+}
+
+char*
+rsbuf_read_string_null_terminated(struct RSBuffer* buffer)
+{
+    return read_string(buffer, 0x00);
+}
+
+char*
+rsbuf_read_string_newline_terminated(struct RSBuffer* buffer)
+{
+    return read_string(buffer, 0x0a);
 }
 
 int

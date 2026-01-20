@@ -2,7 +2,9 @@
 #define CACHE_DAT_H
 
 #include "archive_decompress.h"
-#include "cache.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 
 enum CacheDatTable
 {
@@ -23,6 +25,52 @@ enum CacheDatTable
  *
  * In the above code, 'this.getJagFile' loads the archive in the
  * second argument from the CONFIG table.
+ *
+ * The "OnDemand" class in later versions of LostCity JavaClient is responsible for loading the
+ * archives of tables NOT the config table. It uses the version list to load archives.
+ *
+ * The "OnDemand" class consults the "Version List" and then loads
+ * the archive requested.
+ *
+ * Table: CONFIG
+ * Archive: CONFIG_DAT_TITLE_AND_FONTS
+ * Files:
+ * - "index.dat"
+ * // Seen in loadTitleBackground in LostCity JavaClient
+ * - "title.dat"
+ * - "logo.dat"
+ * // Seen in loadTitleImages
+ * - "titlebox.dat"
+ * - "titlebutton.dat"
+ * - "runes.dat"
+ * // Seen in Client.load in LostCity JavaClient
+ * - "p11.dat"
+ * - "p12.dat"
+ * - "b12.dat"
+ * - "q8.dat"
+ *
+ * Table: CONFIG
+ * Archive: CONFIG_DAT_CONFIGS
+ * Files:
+ * // Seen in Client.load. This appears to be all the files.
+ * - "seq.dat"	// SeqType.unpack(jagConfig);
+ * - "loc.dat"	// LocType.unpack(jagConfig);
+ * - "loc.idx"	// LocType.unpack(jagConfig);
+ * - "flo.dat"	// FloType.unpack(jagConfig);
+ * - "obj.dat"	// ObjType.unpack(jagConfig);
+ * - "obj.idx"	// ObjType.unpack(jagConfig);
+ * - "npc.dat"	// NpcType.unpack(jagConfig);
+ * - "npc.idx"	// NpcType.unpack(jagConfig);
+ * - "idk.dat"	// IdkType.unpack(jagConfig);
+ * - "spotanim.dat"	// SpotAnimType.unpack(jagConfig);
+ * - "varp.dat"	// VarpType.unpack(jagConfig);
+ *
+ * Table: CONFIG
+ * Archive: CONFIG_DAT_TEXTURES
+ * Files:
+ * // Seen in "Pix3D.unpackTextures" in LostCity JavaClient
+ * - "0.dat" - "49.dat"
+ * - "index.dat"
  *
  * Some known files seen in "OnDemand.java"
  * This archive behaves much like the ArchiveReferenceTables in Dat2.
@@ -47,6 +95,7 @@ enum CacheDatTable
  * Files:
  * // Seen in "Component.unpack" in LostCity JavaClient
  * // This appears to be the only file in this archive.
+ * // Note: NO ".dat" extension.
  * - "data"
  *
  * Table: CONFIG
@@ -73,9 +122,25 @@ enum CacheDatTable
  * - "cross.dat"
  * etc.
  *
+ * Table: CONFIG
+ * Archive: CONFIG_DAT_SOUND_EFFECTS
+ * Files:
+ * // This appears to be the only file in this archive.
+ * // Seen in Client.load
+ * - "sounds.dat"
+ *
  * @param path
  * @return struct CacheDat*
  */
+struct CacheMapSquares;
+struct CacheDat
+{
+    char const* directory;
+
+    FILE* _dat_file;
+
+    struct CacheMapSquares* map_squares;
+};
 
 struct CacheDat*
 cache_dat_new(char const* path);

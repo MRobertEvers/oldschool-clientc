@@ -98,7 +98,7 @@ struct FramePack
     int data_size;
 };
 
-struct FramePack*
+static struct FramePack*
 framepack_new(
     void* data,
     int data_size)
@@ -1554,13 +1554,6 @@ task_init_scene_step(struct TaskInitScene* task)
 bad_step:;
     assert(false && "Bad step in task_init_scene_step");
     return GAMETASK_STATUS_FAILED;
-}
-
-struct CacheModel*
-task_init_scene_value(struct TaskInitScene* task)
-{
-    assert(task->step == STEP_INIT_SCENE_DONE);
-    return NULL;
 }
 
 #endif

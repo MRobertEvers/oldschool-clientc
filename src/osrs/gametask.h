@@ -9,10 +9,12 @@ enum GameTaskKind
 {
     GAMETASK_KIND_INIT_IO,
     GAMETASK_KIND_INIT_SCENE,
+    GAMETASK_KIND_INIT_SCENE_DAT,
 };
 
 struct TaskInitIO;
 struct TaskInitScene;
+struct TaskInitSceneDat;
 struct GameTask
 {
     enum GameTaskStatus status;
@@ -22,6 +24,7 @@ struct GameTask
     {
         struct TaskInitIO* _init_io;
         struct TaskInitScene* _init_scene;
+        struct TaskInitSceneDat* _init_scene_dat;
     };
 
     struct GameTask* next;
@@ -34,6 +37,14 @@ gametask_new_init_io(
 
 struct GameTask*
 gametask_new_init_scene(
+    struct GGame* game,
+    int map_sw_x,
+    int map_sw_z,
+    int map_ne_x,
+    int map_ne_z);
+
+struct GameTask*
+gametask_new_init_scene_dat(
     struct GGame* game,
     int map_sw_x,
     int map_sw_z,
