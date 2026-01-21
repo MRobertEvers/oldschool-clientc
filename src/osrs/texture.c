@@ -322,7 +322,9 @@ texture_new_from_texture_sprite(struct CacheDatTexture* texture)
         return NULL;
     memset(pixels, 0, pixel_count * sizeof(int));
 
-    if( size == texture->wi )
+    // TRUE FOR NOW.
+    // Normalized matches the size.
+    if( size == size )
     {
         for( int pixel_index = 0; pixel_index < pixel_count; pixel_index++ )
         {

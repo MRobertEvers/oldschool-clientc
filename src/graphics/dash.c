@@ -425,6 +425,7 @@ dash3d_raster_model_face(
             (struct DashTextureEntry*)dashmap_search(textures_hmap, &texture_id, DASHMAP_FIND);
         assert(texture_entry != NULL);
         texture = texture_entry->texture;
+        assert(texture != NULL);
 
         texels = texture->texels;
         texture_size = texture->width;

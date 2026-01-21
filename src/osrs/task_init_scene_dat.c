@@ -154,7 +154,9 @@ queue_scenery_models(
         return;
 
     // Collect all model IDs that need to be loaded
-    if( !shapes )
+    // shapes 10 and 11 are used in old dat caches and they have one model.
+    // TODO: Clean this up.
+    if( !shapes || shapes[0] == 10 || shapes[0] == 11 )
     {
         int count = lengths[0];
         for( int i = 0; i < count; i++ )
@@ -895,7 +897,7 @@ step_textures_load(struct TaskInitSceneDat* task)
             // Hardcoded to 50 in the deob. Not sure why.
             for( int i = 0; i < 50; i++ )
             {
-                if( i == 12 )
+                if( i == 8 )
                 {
                     printf("Loading texture %d\n", i);
                 }
@@ -903,6 +905,7 @@ step_textures_load(struct TaskInitSceneDat* task)
                     cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
 
                 struct DashTexture* dash_texture = texture_new_from_texture_sprite(texture);
+                assert(dash_texture != NULL);
 
                 struct TextureEntry* texture_entry =
                     (struct TextureEntry*)dashmap_search(task->textures_hmap, &i, DASHMAP_INSERT);

@@ -196,7 +196,8 @@ load_model(
     if( !model_id_sets )
         return NULL;
 
-    if( !shapes )
+    // In old dat caches, the shape_select matched the loctype.
+    if( !shapes || shapes[0] == 10 || shapes[0] == 11 )
     {
         int count = lengths[0];
 
@@ -1569,7 +1570,9 @@ build_scene_scenery(
 
             // TODO: shape_select == 10 causes issues. I think it is a changing loc
             if( map_loc->shape_select == 10 )
-                continue;
+            {
+                printf("shape_select: %d\n", map_loc->shape_select);
+            }
 
             scenery_add(
                 scene_builder,
