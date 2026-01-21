@@ -203,6 +203,26 @@ lightness_clamped(int lightness)
     return lightness;
 }
 
+/**
+ * Doing this to simulate the "lighting shift" of older versions of OSRS.
+ */
+static int
+bucket_lighting(int lightness)
+{
+    if( lightness < 24 )
+    {
+        return 32;
+    }
+    if( lightness < 32 )
+    {
+        return lightness + 8;
+    }
+
+    return lightness;
+    lightness = lightness / 16;
+    return lightness * 13 + 24;
+}
+
 void
 apply_lighting(
     int* face_colors_a_hsl16,
@@ -288,21 +308,27 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                lightness = bucket_lighting(lightness);
+                face_colors_a_hsl16[i] =
+                    lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, type);
 
                 n = &vertex_normals[b];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                face_colors_b_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                lightness = bucket_lighting(lightness);
+                face_colors_b_hsl16[i] =
+                    lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, type);
 
                 n = &vertex_normals[c];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                face_colors_c_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                lightness = bucket_lighting(lightness);
+                face_colors_c_hsl16[i] =
+                    lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, type);
             }
             else if( type == 1 )
             {
@@ -338,18 +364,21 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
+                lightness = bucket_lighting(lightness);
                 face_colors_a_hsl16[i] = lightness_clamped(lightness);
 
                 n = &vertex_normals[b];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
+                lightness = bucket_lighting(lightness);
                 face_colors_b_hsl16[i] = lightness_clamped(lightness);
 
                 n = &vertex_normals[c];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
+                lightness = bucket_lighting(lightness);
                 face_colors_c_hsl16[i] = lightness_clamped(lightness);
             }
             else if( type == 1 )
