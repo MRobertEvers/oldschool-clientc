@@ -55,6 +55,7 @@ struct BuildTile
     int elements[10];
     int elements_length;
 
+    // These are also included in the elements array.
     int wall_element_a_idx;
     int wall_element_b_idx;
 
@@ -189,6 +190,20 @@ build_grid_tile_at(
 }
 
 static void
+build_grid_tile_push_element(
+    struct BuildGrid* build_grid,
+    int sx,
+    int sz,
+    int slevel,
+    int element_idx)
+{
+    struct BuildTile* tile = build_grid_tile_at(build_grid, sx, sz, slevel);
+    assert(tile->elements_length < 10);
+    tile->elements[tile->elements_length] = element_idx;
+    tile->elements_length++;
+}
+
+static void
 build_grid_set_element(
     struct BuildGrid* build_grid,
     int element_idx,
@@ -206,6 +221,7 @@ build_grid_set_element(
     build_element->sharelight = config_loc->sharelight;
     build_element->rotation = orientation;
     build_element->light_ambient = config_loc->ambient;
+    // Old Revisions multiply the contract by 5 instead of 25
     build_element->light_attenuation = config_loc->contrast;
     build_element->aliased_lighting_normals = NULL;
 

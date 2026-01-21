@@ -152,7 +152,9 @@ calculate_vertex_normals(
 }
 
 static int
-lighting_multiply_hsl16(int hsl, int scalar)
+lighting_multiply_hsl16(
+    int hsl,
+    int scalar)
 {
     // bottom 7 bits are multiplied by scalar.
     // i.e. The lightness is multiplied by the scalar,
@@ -169,7 +171,10 @@ lighting_multiply_hsl16(int hsl, int scalar)
 }
 
 static int
-lighting_multiply_hsl16_unlit(int hsl, int scalar, int face_info)
+lighting_multiply_hsl16_unlit(
+    int hsl,
+    int scalar,
+    int face_info)
 {
     // face info 2 means unlit.
     if( (face_info & 0x2) == 2 )
@@ -339,14 +344,12 @@ apply_lighting(
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
-
                 face_colors_b_hsl16[i] = lightness_clamped(lightness);
 
                 n = &vertex_normals[c];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
-
                 face_colors_c_hsl16[i] = lightness_clamped(lightness);
             }
             else if( type == 1 )

@@ -27,28 +27,42 @@ gather_adjacent_tiles(
     int tile_size_x,
     int tile_size_z)
 {
+    if( tile_x == 31 && (tile_z == 24 || tile_z == 23 || tile_z == 25) )
+    {
+        printf("Gathering adjacent tiles for tile %d, %d, %d\n", tile_x, tile_z, tile_level);
+    }
     int min_tile_x = tile_x;
-    int max_tile_x = tile_x + tile_size_x;
+    int max_tile_x = tile_x + (tile_size_x);
     int min_tile_z = tile_z - 1;
-    int max_tile_z = tile_z + tile_size_z;
+    int max_tile_z = tile_z + (tile_size_z);
+
+    bool huh = false;
 
     int count = 0;
-    for( int level = 0; level <= tile_level + 1; level++ )
+    for( int level = tile_level; level <= tile_level + 1; level++ )
     {
         for( int x = min_tile_x; x <= max_tile_x; x++ )
         {
             for( int z = min_tile_z; z <= max_tile_z; z++ )
             {
-                if( (x == tile_x && z == tile_z && level == tile_level) )
-                    continue;
+                // if( (x == tile_x && z == tile_z && level == tile_level) )
+                //     continue;
                 if( x < 0 || z < 0 || x >= scenery->tile_width_x || z >= scenery->tile_width_z ||
                     level < 0 || level >= MAP_TERRAIN_LEVELS )
+                    continue;
+                if( (!huh && x < max_tile_x && z < max_tile_z && (z >= tile_z || x == tile_x)) )
                     continue;
 
                 assert(count < out_size);
                 out[count++] = (struct TileCoord){ .x = x, .z = z, .level = level };
             }
         }
+
+        // max_tile_x += 1;
+        // min_tile_z += 1;
+        min_tile_x -= 1;
+        // min_tile_z -= 1;
+        huh = true;
     }
 
     return count;
@@ -63,23 +77,6 @@ gather_sharelight_models(
 {
     int count = 0;
     struct BuildElement* build_element = NULL;
-    if( build_tile->wall_element_a_idx != -1 )
-    {
-        build_element = build_grid_element_at(build_grid, build_tile->wall_element_a_idx);
-        assert(build_element && "Element must be valid");
-
-        if( build_element->sharelight )
-            out[count++] = build_tile->wall_element_a_idx;
-    }
-
-    if( build_tile->wall_element_b_idx != -1 )
-    {
-        build_element = build_grid_element_at(build_grid, build_tile->wall_element_b_idx);
-        assert(build_element && "Element must be valid");
-
-        if( build_element->sharelight )
-            out[count++] = build_tile->wall_element_b_idx;
-    }
 
     // if( build_tile->wall_b_element_idx != -1 )
     // {
@@ -356,6 +353,20 @@ sharelight_build_scene(
 
                         for( int k = 0; k < adjacent_sharelight_elements_count; k++ )
                         {
+                            if( sx == 31 && (sz == 24 || sz == 23 || sz == 25) )
+                            {
+                                printf(
+                                    "Gathering adjacent sharelight models for tile %d, %d, %d: %d "
+                                    "%d %d\n",
+                                    sx,
+                                    sz,
+                                    slevel,
+                                    adjacent_tile_coord.x,
+                                    adjacent_tile_coord.z,
+                                    adjacent_tile_coord.level);
+                            }
+                            if( adjacent_sharelight_elements[k] == sharelight_elements[i] )
+                                continue;
                             adjacent_build_element = build_grid_element_at(
                                 scene_builder->build_grid, adjacent_sharelight_elements[k]);
                             assert(
@@ -370,12 +381,26 @@ sharelight_build_scene(
                                                   sharelight_build_element->size_x) *
                                                      64;
 
-                            int check_offset_y = (adjacent_tile_coord.z - sz) * 128 +
+                            int check_offset_z = (adjacent_tile_coord.z - sz) * 128 +
                                                  (adjacent_build_element->size_z -
                                                   sharelight_build_element->size_z) *
                                                      64;
                             int check_offset_level = adjacent_build_tile->height_center -
                                                      sharelight_build_tile->height_center;
+
+                            if( check_offset_z != 0 && check_offset_x != 0 &&
+                                check_offset_level == 0 &&
+                                (sx == 31 && (sz == 24 || sz == 23 || sz == 25)) )
+                            {
+                                printf(
+                                    "Merging normals for tile %d, %d, %d: %d %d %d\n",
+                                    sx,
+                                    sz,
+                                    slevel,
+                                    check_offset_x,
+                                    check_offset_z,
+                                    check_offset_level);
+                            }
 
                             dashmodel_alias_normals(
                                 sharelight_build_element,
@@ -397,7 +422,7 @@ sharelight_build_scene(
                                     ->lighting_vertex_normals,
                                 check_offset_x,
                                 check_offset_level,
-                                check_offset_y);
+                                check_offset_z);
                         }
                     }
                 }
@@ -427,19 +452,16 @@ sharelight_build_scene(
             (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
         int attenuation = (light_attenuation * light_magnitude) >> 8;
 
-        if( build_element->sharelight )
-        {
-            dashmodel_alias_normals(build_element, scene_element->dash_model->normals);
-        }
+        if( !build_element->sharelight )
+            continue;
+        dashmodel_alias_normals(build_element, scene_element->dash_model->normals);
 
         apply_lighting(
             scene_element->dash_model->lighting->face_colors_hsl_a,
             scene_element->dash_model->lighting->face_colors_hsl_b,
             scene_element->dash_model->lighting->face_colors_hsl_c,
-            build_element->sharelight
-                ? build_element->aliased_lighting_normals->lighting_vertex_normals
-                : scene_element->dash_model->normals->lighting_vertex_normals,
-            scene_element->dash_model->normals->lighting_face_normals,
+            build_element->aliased_lighting_normals->lighting_vertex_normals,
+            build_element->aliased_lighting_normals->lighting_face_normals,
             scene_element->dash_model->face_indices_a,
             scene_element->dash_model->face_indices_b,
             scene_element->dash_model->face_indices_c,

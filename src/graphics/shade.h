@@ -16,8 +16,13 @@
  * @return int
  */
 static inline int
-shade_blend(int base, int shade)
+shade_blend(
+    int base,
+    int shade)
 {
+    // base = base & 0x00FCFCFC;
+    // return (base >> ((shade >> 2) & 0x3));
+
     int rb = base & 0x00ff00ff;
     int g = base & 0x0000ff00;
 

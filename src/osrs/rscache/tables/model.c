@@ -164,14 +164,14 @@ decodeOldFormat(
     bool has_textures = false;
     bool has_faceinfos = false;
     int offset = inputLength - 18;
-    int vertexCount = read_unsigned_short(inputData, &offset);
-    int faceCount = read_unsigned_short(inputData, &offset);
-    int textureCount = read_unsigned_byte(inputData, &offset);
-    int isTextured = read_unsigned_byte(inputData, &offset);
-    int faceRenderPriority = read_unsigned_byte(inputData, &offset);
-    int hasFaceTransparencies = read_unsigned_byte(inputData, &offset);
-    int hasPackedTransparencyVertexGroups = read_unsigned_byte(inputData, &offset);
-    int hasPackedVertexGroups = read_unsigned_byte(inputData, &offset);
+    int vertex_count = read_unsigned_short(inputData, &offset);
+    int face_count = read_unsigned_short(inputData, &offset);
+    int textured_face_count = read_unsigned_byte(inputData, &offset);
+    int has_face_info = read_unsigned_byte(inputData, &offset);
+    int model_priority = read_unsigned_byte(inputData, &offset);
+    int has_alpha = read_unsigned_byte(inputData, &offset);
+    int has_face_labels = read_unsigned_byte(inputData, &offset);
+    int has_vertex_labels = read_unsigned_byte(inputData, &offset);
     int vertexXDataByteCount = read_unsigned_short(inputData, &offset);
     int vertexYDataByteCount = read_unsigned_short(inputData, &offset);
     int vertexZDataByteCount = read_unsigned_short(inputData, &offset);
@@ -179,45 +179,45 @@ decodeOldFormat(
 
     // Calculate offsets for different data sections
     int offsetOfVertexFlags = 0;
-    int dataOffset = offsetOfVertexFlags + vertexCount;
+    int dataOffset = offsetOfVertexFlags + vertex_count;
     int offsetOfFaceIndices = dataOffset;
-    dataOffset += faceCount;
+    dataOffset += face_count;
     int offsetOfFaceRenderPriorities = dataOffset;
-    if( faceRenderPriority == 255 )
+    if( model_priority == 255 )
     {
-        dataOffset += faceCount;
+        dataOffset += face_count;
     }
 
     int offsetOfPackedTransparencyVertexGroups = dataOffset;
-    if( hasPackedTransparencyVertexGroups == 1 )
+    if( has_face_labels == 1 )
     {
-        dataOffset += faceCount;
+        dataOffset += face_count;
     }
 
-    int offsetOfFaceTextureFlags = dataOffset;
-    if( isTextured == 1 )
+    int face_infos_offset = dataOffset;
+    if( has_face_info == 1 )
     {
-        dataOffset += faceCount;
+        dataOffset += face_count;
     }
 
     int offsetOfPackedVertexGroups = dataOffset;
-    if( hasPackedVertexGroups == 1 )
+    if( has_vertex_labels == 1 )
     {
-        dataOffset += vertexCount;
+        dataOffset += vertex_count;
     }
 
     int offsetOfFaceTransparencies = dataOffset;
-    if( hasFaceTransparencies == 1 )
+    if( has_alpha == 1 )
     {
-        dataOffset += faceCount;
+        dataOffset += face_count;
     }
 
     int offsetOfFaceIndexData = dataOffset;
     dataOffset += faceIndexDataByteCount;
     int offsetOfFaceColorsOrFaceTextures = dataOffset;
-    dataOffset += faceCount * 2;
+    dataOffset += face_count * 2;
     int offsetOfTextureIndices = dataOffset;
-    dataOffset += textureCount * 6;
+    dataOffset += textured_face_count * 6;
     int offsetOfVertexXData = dataOffset;
     dataOffset += vertexXDataByteCount;
     int offsetOfVertexYData = dataOffset;
@@ -225,48 +225,48 @@ decodeOldFormat(
     int offsetOfVertexZData = dataOffset;
 
     // Set model properties
-    model->vertex_count = vertexCount;
-    model->face_count = faceCount;
-    model->textured_face_count = textureCount;
+    model->vertex_count = vertex_count;
+    model->face_count = face_count;
+    model->textured_face_count = textured_face_count;
 
     // Allocate memory for vertices
-    model->vertices_x = (int*)malloc(vertexCount * sizeof(int));
-    model->vertices_y = (int*)malloc(vertexCount * sizeof(int));
-    model->vertices_z = (int*)malloc(vertexCount * sizeof(int));
-    memset(model->vertices_x, 0, vertexCount * sizeof(int));
-    memset(model->vertices_y, 0, vertexCount * sizeof(int));
-    memset(model->vertices_z, 0, vertexCount * sizeof(int));
+    model->vertices_x = (int*)malloc(vertex_count * sizeof(int));
+    model->vertices_y = (int*)malloc(vertex_count * sizeof(int));
+    model->vertices_z = (int*)malloc(vertex_count * sizeof(int));
+    memset(model->vertices_x, 0, vertex_count * sizeof(int));
+    memset(model->vertices_y, 0, vertex_count * sizeof(int));
+    memset(model->vertices_z, 0, vertex_count * sizeof(int));
 
     // Allocate memory for faces
-    model->face_indices_a = (int*)malloc(faceCount * sizeof(int));
-    model->face_indices_b = (int*)malloc(faceCount * sizeof(int));
-    model->face_indices_c = (int*)malloc(faceCount * sizeof(int));
-    model->face_colors = (int*)malloc(faceCount * sizeof(int));
-    model->face_priorities = (int*)malloc(faceCount * sizeof(int));
-    if( hasFaceTransparencies == 1 )
+    model->face_indices_a = (int*)malloc(face_count * sizeof(int));
+    model->face_indices_b = (int*)malloc(face_count * sizeof(int));
+    model->face_indices_c = (int*)malloc(face_count * sizeof(int));
+    model->face_colors = (int*)malloc(face_count * sizeof(int));
+    model->face_priorities = (int*)malloc(face_count * sizeof(int));
+    if( has_alpha == 1 )
     {
-        model->face_alphas = (int*)malloc(faceCount * sizeof(int));
-        memset(model->face_alphas, 0, faceCount * sizeof(int));
+        model->face_alphas = (int*)malloc(face_count * sizeof(int));
+        memset(model->face_alphas, 0, face_count * sizeof(int));
     }
-    memset(model->face_indices_a, 0, faceCount * sizeof(int));
-    memset(model->face_indices_b, 0, faceCount * sizeof(int));
-    memset(model->face_indices_c, 0, faceCount * sizeof(int));
-    memset(model->face_colors, 0, faceCount * sizeof(int));
-    memset(model->face_priorities, 0, faceCount * sizeof(int));
+    memset(model->face_indices_a, 0, face_count * sizeof(int));
+    memset(model->face_indices_b, 0, face_count * sizeof(int));
+    memset(model->face_indices_c, 0, face_count * sizeof(int));
+    memset(model->face_colors, 0, face_count * sizeof(int));
+    memset(model->face_priorities, 0, face_count * sizeof(int));
 
-    model->face_infos = (int*)malloc(faceCount * sizeof(int));
-    model->face_textures = (int*)malloc(faceCount * sizeof(int));
-    model->face_texture_coords = (int*)malloc(faceCount * sizeof(int));
-    memset(model->face_infos, 0, faceCount * sizeof(int));
-    memset(model->face_textures, 0, faceCount * sizeof(int));
-    memset(model->face_texture_coords, 0, faceCount * sizeof(int));
+    model->face_infos = (int*)malloc(face_count * sizeof(int));
+    model->face_textures = (int*)malloc(face_count * sizeof(int));
+    model->face_texture_coords = (int*)malloc(face_count * sizeof(int));
+    memset(model->face_infos, 0, face_count * sizeof(int));
+    memset(model->face_textures, 0, face_count * sizeof(int));
+    memset(model->face_texture_coords, 0, face_count * sizeof(int));
 
-    model->textured_p_coordinate = (int*)malloc(textureCount * sizeof(int));
-    model->textured_m_coordinate = (int*)malloc(textureCount * sizeof(int));
-    model->textured_n_coordinate = (int*)malloc(textureCount * sizeof(int));
-    memset(model->textured_p_coordinate, 0, textureCount * sizeof(int));
-    memset(model->textured_m_coordinate, 0, textureCount * sizeof(int));
-    memset(model->textured_n_coordinate, 0, textureCount * sizeof(int));
+    model->textured_p_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+    model->textured_m_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+    model->textured_n_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+    memset(model->textured_p_coordinate, 0, textured_face_count * sizeof(int));
+    memset(model->textured_m_coordinate, 0, textured_face_count * sizeof(int));
+    memset(model->textured_n_coordinate, 0, textured_face_count * sizeof(int));
 
     // Read vertex data
     int previousVertexX = 0;
@@ -274,7 +274,7 @@ decodeOldFormat(
     int previousVertexZ = 0;
     offset = offsetOfVertexFlags;
 
-    for( int i = 0; i < vertexCount; i++ )
+    for( int i = 0; i < vertex_count; i++ )
     {
         int vertexFlags = read_unsigned_byte(inputData, &offset);
         int deltaX = 0;
@@ -304,57 +304,62 @@ decodeOldFormat(
 
     // Read face data
     offset = offsetOfFaceColorsOrFaceTextures;
-    int textureFlagsOffset = offsetOfFaceTextureFlags;
+    int textureFlagsOffset = face_infos_offset;
     int prioritiesOffset = offsetOfFaceRenderPriorities;
     int transparenciesOffset = offsetOfFaceTransparencies;
     int transparencyGroupsOffset = offsetOfPackedTransparencyVertexGroups;
 
-    for( int i = 0; i < faceCount; i++ )
+    for( int i = 0; i < face_count; i++ )
     {
         model->face_colors[i] = read_unsigned_short(inputData, &offset);
 
-        if( isTextured == 1 )
+        if( has_face_info == 1 )
         {
+            has_faceinfos = true;
             int faceTextureFlags = read_unsigned_byte(inputData, &textureFlagsOffset);
             if( faceTextureFlags & 1 )
             {
+                // Flat shading
                 model->face_infos[i] = 1;
-                has_faceinfos = true;
             }
             else
             {
+                // Gouraud shading
                 model->face_infos[i] = 0;
             }
 
             if( faceTextureFlags & 2 )
             {
-                has_textures = true;
-                model->face_texture_coords[i] = faceTextureFlags >> 2;
+                // Textured
+                int textured_face = faceTextureFlags >> 2;
+                model->face_texture_coords[i] = textured_face;
                 model->face_textures[i] = model->face_colors[i];
                 model->face_colors[i] = 127;
+                has_textures = true;
             }
             else
             {
+                // Not textured
                 model->face_texture_coords[i] = -1;
                 model->face_textures[i] = -1;
             }
         }
 
-        if( faceRenderPriority == 255 )
+        if( model_priority == 255 )
         {
             model->face_priorities[i] = read_byte(inputData, &prioritiesOffset);
         }
         else
         {
-            model->face_priorities[i] = faceRenderPriority;
+            model->face_priorities[i] = model_priority;
         }
 
-        if( hasFaceTransparencies == 1 )
+        if( has_alpha == 1 )
         {
             model->face_alphas[i] = read_byte(inputData, &transparenciesOffset);
         }
 
-        if( hasPackedTransparencyVertexGroups == 1 )
+        if( has_face_labels == 1 )
         {
             read_unsigned_byte(
                 inputData,
@@ -370,7 +375,7 @@ decodeOldFormat(
     int previousIndex3 = 0;
     int previousIndex3Copy = 0; // This matches var43 in Java code
 
-    for( int i = 0; i < faceCount; i++ )
+    for( int i = 0; i < face_count; i++ )
     {
         int compressionType = read_unsigned_byte(inputData, &compressionTypesOffset);
 
@@ -409,14 +414,14 @@ decodeOldFormat(
 
     offset = offsetOfTextureIndices;
 
-    for( int i = 0; i < textureCount; i++ )
+    for( int i = 0; i < textured_face_count; i++ )
     {
         model->textured_p_coordinate[i] = read_unsigned_short(inputData, &offset);
         model->textured_m_coordinate[i] = read_unsigned_short(inputData, &offset);
         model->textured_n_coordinate[i] = read_unsigned_short(inputData, &offset);
     }
 
-    if( textureCount > 0 )
+    if( textured_face_count > 0 )
     {
         // let hasValidTexFace = false;
 
@@ -439,12 +444,12 @@ decodeOldFormat(
         //         this.textureCoords = undefined;
         //     }
         int hasValidTexFace = false;
-        for( int i = 0; i < faceCount; i++ )
+        for( int i = 0; i < face_count; i++ )
         {
             int index = model->face_texture_coords[i] & 255;
             if( index != 255 )
             {
-                assert(index >= 0 && index < textureCount);
+                assert(index >= 0 && index < textured_face_count);
                 if( model->face_indices_a[i] == (model->textured_p_coordinate[index] & 0xffff) &&
                     model->face_indices_b[i] == (model->textured_m_coordinate[index] & 0xffff) &&
                     model->face_indices_c[i] == (model->textured_n_coordinate[index] & 0xffff) )
@@ -466,7 +471,7 @@ decodeOldFormat(
     }
 
     // Set model priority
-    model->model_priority = faceRenderPriority;
+    model->model_priority = model_priority;
 
     if( !has_faceinfos )
     {

@@ -282,6 +282,14 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 &position,
                 scene_element_position(game->scene, cmd->_entity._bf_entity),
                 sizeof(struct DashPosition));
+
+            // int tile_x = position.x / 128;
+            // int tile_z = position.z / 128;
+            // if( !(tile_x == 31 && (tile_z == 24 || tile_z == 23 || tile_z == 25)) )
+            // {
+            //     continue;
+            // }
+
             position.x = position.x - game->camera_world_x;
             position.y = position.y - game->camera_world_y;
             position.z = position.z - game->camera_world_z;

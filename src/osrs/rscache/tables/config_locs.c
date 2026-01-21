@@ -371,6 +371,7 @@ decode_loc(
             break;
         }
         case 39:
+            // Old Revisions multiply the contract by 5 instead of 25
             loc->contrast = rsbuf_g1b(&buffer) * 25;
             break;
         case 40:

@@ -844,7 +844,7 @@ step_models_load(struct TaskInitSceneDat* task)
                 task->models_hmap, &message.param_b, DASHMAP_INSERT);
             assert(model_entry && "Model must be inserted into hmap");
             model_entry->id = message.param_b;
-            if( message.param_b == 969 )
+            if( message.param_b == 638 )
             {
                 printf("Loading model %d\n", message.param_b);
             }

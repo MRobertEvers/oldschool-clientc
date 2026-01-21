@@ -602,6 +602,9 @@ scenery_add_wall_single(
     build_grid_set_element(
         scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
 
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_id);
+
     return 1;
 }
 
@@ -655,6 +658,9 @@ scenery_add_wall_tri_corner(
         scene_builder->build_grid, element_id, config_loc, offset, orientation, 1, 1);
     build_grid_tile_add_wall(
         scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_id);
+
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_id);
 
     return 1;
 }
@@ -743,6 +749,11 @@ scenery_add_wall_two_sides(
     build_grid_tile_add_wall(
         scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_B, element_two_id);
 
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_one_id);
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_two_id);
+
     return 2;
 }
 
@@ -805,6 +816,9 @@ scenery_add_wall_rect_corner(
 
     build_grid_tile_add_wall(
         scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_id);
+
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_id);
 
     return 1;
 }
@@ -1083,6 +1097,9 @@ scenery_add_wall_decor_diagonal_inside(
 
     build_grid_set_decor(scene_builder->build_grid, element_id, DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_id);
+
     return 1;
 }
 
@@ -1180,6 +1197,11 @@ scenery_add_wall_decor_diagonal_double(
     build_grid_set_decor(
         scene_builder->build_grid, element_two_id, DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_one_id);
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_two_id);
+
     return 2;
 }
 
@@ -1195,6 +1217,10 @@ scenery_add_wall_diagonal(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    if( config_loc->_id == 980 )
+    {
+        printf("scenery_add_wall_diagonal: %d, %d\n", offset->x, offset->z);
+    }
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
@@ -1224,6 +1250,9 @@ scenery_add_wall_diagonal(
 
     build_grid_tile_add_wall(
         scene_builder->build_grid, offset->x, offset->z, offset->level, WALL_A, element_id);
+
+    build_grid_tile_add_element(
+        scene_builder->build_grid, offset->x, offset->z, offset->level, element_id);
 
     return 1;
 }
@@ -1429,6 +1458,11 @@ scenery_add(
         map_loc->chunk_pos_z,
         map_loc->chunk_pos_level,
         &offset);
+
+    // if( !(offset.x == 30 && offset.z == 25) )
+    // {
+    //     return;
+    // }
 
     tile_heights_at(
         terrain_grid,
