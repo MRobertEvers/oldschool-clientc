@@ -16,6 +16,19 @@ struct TileCoord
     int level;
 };
 
+/**
+ * @brief TODO: IDK how this works
+ *
+ * @param out
+ * @param out_size
+ * @param scenery
+ * @param tile_x
+ * @param tile_z
+ * @param tile_level
+ * @param tile_size_x
+ * @param tile_size_z
+ * @return int
+ */
 static int
 gather_adjacent_tiles(
     struct TileCoord* out,
@@ -39,6 +52,7 @@ gather_adjacent_tiles(
     bool huh = false;
 
     int count = 0;
+
     for( int level = tile_level; level <= tile_level + 1; level++ )
     {
         for( int x = min_tile_x; x <= max_tile_x; x++ )
@@ -50,7 +64,7 @@ gather_adjacent_tiles(
                 if( x < 0 || z < 0 || x >= scenery->tile_width_x || z >= scenery->tile_width_z ||
                     level < 0 || level >= MAP_TERRAIN_LEVELS )
                     continue;
-                if( (!huh && x < max_tile_x && z < max_tile_z && (z >= tile_z || x == tile_x)) )
+                if( (!huh && x < max_tile_x && z < max_tile_z && (z >= tile_z || x >= tile_x)) )
                     continue;
 
                 assert(count < out_size);
@@ -58,10 +72,7 @@ gather_adjacent_tiles(
             }
         }
 
-        // max_tile_x += 1;
-        // min_tile_z += 1;
         min_tile_x -= 1;
-        // min_tile_z -= 1;
         huh = true;
     }
 
