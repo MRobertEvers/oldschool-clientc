@@ -83,7 +83,8 @@ apply_transforms(
     int sw_height,
     int se_height,
     int ne_height,
-    int nw_height)
+    int nw_height,
+    int old_revision)
 {
     // This should never be called on a shared model.
     assert((model->_flags & CMODEL_FLAG_SHARED) == 0);
@@ -91,6 +92,14 @@ apply_transforms(
     for( int i = 0; i < loc->recolor_count; i++ )
     {
         model_transform_recolor(model, loc->recolors_from[i], loc->recolors_to[i]);
+
+        // From rsmapviewer
+        // const retexture =
+        // locType.cacheInfo.game === "runescape" && locType.cacheInfo.revision <= 464;
+        if( old_revision )
+        {
+            model_transform_retexture(model, loc->recolors_from[i], loc->recolors_to[i]);
+        }
     }
 
     for( int i = 0; i < loc->retexture_count; i++ )
@@ -303,7 +312,8 @@ load_model(
         tile_heights->sw_height,
         tile_heights->se_height,
         tile_heights->ne_height,
-        tile_heights->nw_height);
+        tile_heights->nw_height,
+        true);
 
     struct DashModel* dash_model = NULL;
     dash_model = dashmodel_new_from_cache_model(model);

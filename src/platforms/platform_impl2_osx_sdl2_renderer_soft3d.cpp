@@ -307,7 +307,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             if( cull != DASHCULL_VISIBLE )
                 break;
 
-            if( (true || scene_element_interactable(game->scene, cmd->_entity._bf_entity)) &&
+            if( (scene_element_interactable(game->scene, cmd->_entity._bf_entity)) &&
                 dash3d_projected_model_contains(
                     game->sys_dash,
                     scene_element_model(game->scene, cmd->_entity._bf_entity),
@@ -315,7 +315,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     game->mouse_x,
                     game->mouse_y) )
             {
-                  printf(
+                printf(
                     "Interactable: %s\n", scene_element_name(game->scene, cmd->_entity._bf_entity));
 
                 for( struct SceneAction* action = element->actions; action; action = action->next )
