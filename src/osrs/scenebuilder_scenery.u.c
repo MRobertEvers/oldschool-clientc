@@ -197,7 +197,8 @@ load_model(
         return NULL;
 
     // In old dat caches, the shape_select matched the loctype.
-    if( !shapes || shapes[0] == 10 || shapes[0] == 11 )
+    // if( !shapes || shapes[0] == 10 || shapes[0] == 11 )
+    if( !shapes )
     {
         int count = lengths[0];
 

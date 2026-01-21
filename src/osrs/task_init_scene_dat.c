@@ -156,7 +156,7 @@ queue_scenery_models(
     // Collect all model IDs that need to be loaded
     // shapes 10 and 11 are used in old dat caches and they have one model.
     // TODO: Clean this up.
-    if( !shapes || shapes[0] == 10 || shapes[0] == 11 )
+    if( !shapes )
     {
         int count = lengths[0];
         for( int i = 0; i < count; i++ )
@@ -746,7 +746,7 @@ step_scenery_config_load(struct TaskInitSceneDat* task)
 
                     loc = &locs->locs[i];
                     int offset = filelist_indexed->offsets[loc->loc_id];
-                    if( loc->loc_id == 196 )
+                    if( loc->loc_id == 114 )
                     {
                         printf("loc_id: %d\n", loc->loc_id);
                     }
