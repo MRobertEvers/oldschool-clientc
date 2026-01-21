@@ -87,7 +87,7 @@ gioqb_cache_dat_models_new_load(
     struct CacheDat* cache_dat,
     int model_id)
 {
-    if( model_id == 617 )
+    if( model_id == 969 )
     {
         printf("Loading model %d\n", model_id);
     }

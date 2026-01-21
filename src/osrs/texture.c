@@ -293,6 +293,7 @@ texture_new_from_definition(
 struct DashTexture*
 texture_new_from_texture_sprite(struct CacheDatTexture* texture)
 {
+    bool opaque = true;
     int size = 128;
     int* normalized_pixels =
         normalize_pixel_buffer(texture->pixels, texture->wi, texture->hi, size, size);
@@ -310,6 +311,7 @@ texture_new_from_texture_sprite(struct CacheDatTexture* texture)
         if( texture->palette[pi] == 0 )
         {
             alpha = 0;
+            opaque = false;
         }
         texture->palette[pi] = (alpha << 24) | gamma_blend(texture->palette[pi], 0.8f);
     }
@@ -363,7 +365,7 @@ texture_new_from_texture_sprite(struct CacheDatTexture* texture)
     dash_texture->texels = pixels;
     dash_texture->width = size;
     dash_texture->height = size;
-    dash_texture->opaque = true;
+    dash_texture->opaque = opaque;
     dash_texture->animation_direction = 0;
     dash_texture->animation_speed = 0;
 

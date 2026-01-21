@@ -3,6 +3,7 @@
 #include "../rsbuf.h"
 
 #include <stdio.h>
+#include <string.h>
 
 struct CacheDatTexture*
 cache_dat_texture_new_from_filelist_dat(
@@ -74,6 +75,7 @@ cache_dat_texture_new_from_filelist_dat(
     int* bpal = malloc(pal_count * sizeof(int));
     if( !bpal )
         return NULL;
+    memset(bpal, 0, pal_count * sizeof(int));
     for( int i = 0; i < pal_count - 1; i++ )
         bpal[i + 1] = g3(&indexbuf);
 

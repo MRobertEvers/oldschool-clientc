@@ -813,7 +813,7 @@ step_models_load(struct TaskInitSceneDat* task)
         iter = dashmap_iter_new(task->config_loc_hmap);
         while( (config_loc_entry = (struct ConfigLocEntry*)dashmap_iter_next(iter)) )
         {
-            if( config_loc_entry->id == 1911 )
+            if( config_loc_entry->id == 997 )
             {
                 printf("config_loc_id: %d\n", config_loc_entry->id);
             }
@@ -842,7 +842,7 @@ step_models_load(struct TaskInitSceneDat* task)
                 task->models_hmap, &message.param_b, DASHMAP_INSERT);
             assert(model_entry && "Model must be inserted into hmap");
             model_entry->id = message.param_b;
-            if( message.param_b == 617 )
+            if( message.param_b == 969 )
             {
                 printf("Loading model %d\n", message.param_b);
             }
@@ -895,6 +895,10 @@ step_textures_load(struct TaskInitSceneDat* task)
             // Hardcoded to 50 in the deob. Not sure why.
             for( int i = 0; i < 50; i++ )
             {
+                if( i == 12 )
+                {
+                    printf("Loading texture %d\n", i);
+                }
                 struct CacheDatTexture* texture =
                     cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
 

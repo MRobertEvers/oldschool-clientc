@@ -243,13 +243,16 @@ decodeOldFormat(
     model->face_indices_c = (int*)malloc(faceCount * sizeof(int));
     model->face_colors = (int*)malloc(faceCount * sizeof(int));
     model->face_priorities = (int*)malloc(faceCount * sizeof(int));
-    model->face_alphas = (int*)malloc(faceCount * sizeof(int));
+    if( hasFaceTransparencies == 1 )
+    {
+        model->face_alphas = (int*)malloc(faceCount * sizeof(int));
+        memset(model->face_alphas, 0, faceCount * sizeof(int));
+    }
     memset(model->face_indices_a, 0, faceCount * sizeof(int));
     memset(model->face_indices_b, 0, faceCount * sizeof(int));
     memset(model->face_indices_c, 0, faceCount * sizeof(int));
     memset(model->face_colors, 0, faceCount * sizeof(int));
     memset(model->face_priorities, 0, faceCount * sizeof(int));
-    memset(model->face_alphas, 0, faceCount * sizeof(int));
 
     model->face_infos = (int*)malloc(faceCount * sizeof(int));
     model->face_textures = (int*)malloc(faceCount * sizeof(int));
