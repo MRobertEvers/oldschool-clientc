@@ -82,8 +82,44 @@ gioqb_cache_dat_map_terrain_new_load(
     return cache_dat_archive_new_load(cache_dat, CACHE_DAT_MAPS, map_square->terrain_archive_id);
 }
 
+struct CacheDatArchive* //
+gioqb_cache_dat_models_new_load(
+    struct CacheDat* cache_dat,
+    int model_id)
+{
+    return cache_dat_archive_new_load(cache_dat, CACHE_DAT_MODELS, model_id);
+}
+
+struct CacheDatArchive*
+gioqb_cache_dat_map_scenery_new_load(
+    struct CacheDat* cache_dat,
+    int chunk_x,
+    int chunk_z)
+{
+    int map_id = cache_map_square_id(chunk_x, chunk_z);
+
+    struct CacheMapSquare* map_square = NULL;
+
+    for( int i = 0; i < cache_dat->map_squares->squares_count; i++ )
+    {
+        if( cache_dat->map_squares->squares[i].map_id == map_id )
+        {
+            map_square = &cache_dat->map_squares->squares[i];
+            break;
+        }
+    }
+
+    if( !map_square )
+    {
+        printf("Failed to load map scenery %d, %d\n", chunk_x, chunk_z);
+        return NULL;
+    }
+
+    return cache_dat_archive_new_load(cache_dat, CACHE_DAT_MAPS, map_square->loc_archive_id);
+}
+
 struct FileBuffer*
-gioqb_cache_dat_flotype_load(struct CacheDat* cache_dat)
+gioqb_cache_dat_config_flotype_file_load(struct CacheDat* cache_dat)
 {
     struct FileBuffer* filebuffer = NULL;
     struct FileListDat* filelist = NULL;
@@ -132,7 +168,7 @@ gioqb_cache_dat_flotype_load(struct CacheDat* cache_dat)
 }
 
 struct CacheDatArchive*
-gioqb_cache_dat_texture_sprites_new_load(struct CacheDat* cache_dat)
+gioqb_cache_dat_config_texture_sprites_new_load(struct CacheDat* cache_dat)
 {
     struct CacheDatArchive* config_archive =
         cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_TEXTURES);
@@ -143,6 +179,61 @@ gioqb_cache_dat_texture_sprites_new_load(struct CacheDat* cache_dat)
     }
 
     return config_archive;
+}
+struct FileListDatIndexed*
+gioqb_cache_dat_config_scenery_fileidx_new_load(struct CacheDat* cache_dat)
+{
+    struct FileBuffer* filebuffer = NULL;
+    struct FileListDatIndexed* filelist_indexed = NULL;
+    struct FileListDat* filelist = NULL;
+    struct CacheDatArchive* config_archive =
+        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
+    if( !config_archive )
+    {
+        printf("Failed to load config underlay\n");
+        return NULL;
+    }
+
+    filelist = filelist_dat_new_from_cache_dat_archive(config_archive);
+    if( !filelist )
+    {
+        printf("Failed to load filelist underlay\n");
+        cache_dat_archive_free(config_archive);
+        return NULL;
+    }
+
+    int file_index_idx = filelist_dat_find_file_by_name(filelist, "loc.idx");
+    if( file_index_idx == -1 )
+    {
+        printf("Failed to find loc.idx in filelist\n");
+        filelist_dat_free(filelist);
+        cache_dat_archive_free(config_archive);
+        return NULL;
+    }
+
+    int file_data_idx = filelist_dat_find_file_by_name(filelist, "loc.dat");
+    if( file_data_idx == -1 )
+    {
+        printf("Failed to find loc.dat in filelist\n");
+        filelist_dat_free(filelist);
+        cache_dat_archive_free(config_archive);
+        return NULL;
+    }
+
+    filelist_indexed = filelist_dat_indexed_new_from_decode(
+        filelist->files[file_index_idx],
+        filelist->file_sizes[file_index_idx],
+        filelist->files[file_data_idx],
+        filelist->file_sizes[file_data_idx]);
+    if( !filelist_indexed )
+    {
+        printf("Failed to load filelist indexed\n");
+        filelist_dat_indexed_free(filelist_indexed);
+        cache_dat_archive_free(config_archive);
+        return NULL;
+    }
+
+    return filelist_indexed;
 }
 
 void
@@ -155,8 +246,9 @@ gioqb_cache_dat_fullfill(
     struct FilePack* filepack = NULL;
     struct FileBuffer* filebuffer = NULL;
     struct FileListDat* filelist = NULL;
+    struct FileListDatIndexed* filelist_indexed = NULL;
 
-    if( message->command == ASSET_MAP_TERRAIN )
+    if( message->command == ASSET_DAT_MAP_TERRAIN )
     {
         archive =
             gioqb_cache_dat_map_terrain_new_load(cache_dat, message->param_a, message->param_b);
@@ -174,9 +266,9 @@ gioqb_cache_dat_fullfill(
         cache_dat_archive_free(archive);
         archive = NULL;
     }
-    else if( message->command == ASSET_CONFIG_FLOORTYPE )
+    else if( message->command == ASSET_DAT_CONFIG_FILE_FLOORTYPE )
     {
-        filebuffer = gioqb_cache_dat_flotype_load(cache_dat);
+        filebuffer = gioqb_cache_dat_config_flotype_file_load(cache_dat);
         gioqb_mark_done(
             io,
             message->message_id,
@@ -190,11 +282,59 @@ gioqb_cache_dat_fullfill(
         filebuffer_free(filebuffer);
         filebuffer = NULL;
     }
-    else if( message->command == ASSET_TEXTURE_SPRITE )
+    else if( message->command == ASSET_DAT_MAP_SCENERY )
     {
-        archive = gioqb_cache_dat_texture_sprites_new_load(cache_dat);
+        archive =
+            gioqb_cache_dat_map_scenery_new_load(cache_dat, message->param_a, message->param_b);
+        int param_b_mapxz = (message->param_a << 16) | message->param_b;
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            param_b_mapxz,
+            archive->data,
+            archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_dat_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_DAT_CONFIG_TEXTURE_SPRITES )
+    {
+        archive = gioqb_cache_dat_config_texture_sprites_new_load(cache_dat);
         gioqb_mark_done(
             io, message->message_id, message->command, 0, 0, archive->data, archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_dat_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_DAT_CONFIG_FILEIDX_SCENERY )
+    {
+        filelist_indexed = gioqb_cache_dat_config_scenery_fileidx_new_load(cache_dat);
+        filepack = filepack_new_from_filelist_dat_indexed(filelist_indexed);
+        gioqb_mark_done(
+            io, message->message_id, message->command, 0, 0, filepack->data, filepack->data_size);
+        filepack->data = NULL;
+        filepack->data_size = 0;
+        filepack_free(filepack);
+        filepack = NULL;
+        filelist_dat_indexed_free(filelist_indexed);
+        filelist_indexed = NULL;
+    }
+    else if( message->command == ASSET_DAT_MODELS )
+    {
+        archive = gioqb_cache_dat_models_new_load(cache_dat, message->param_a);
+        assert(archive && "Failed to load models archive");
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            archive->revision,
+            message->param_a,
+            archive->data,
+            archive->data_size);
         archive->data = NULL;
         archive->data_size = 0;
         cache_dat_archive_free(archive);

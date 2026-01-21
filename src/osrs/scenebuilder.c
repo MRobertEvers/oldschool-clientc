@@ -77,6 +77,16 @@ scenebuilder_new_painter(
     };
     scene_builder->flotypes_hmap = dashmap_new(&config, 0);
 
+    buffer_size = 1024 * 16 * sizeof(struct CacheConfigLocationEntry);
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct CacheConfigLocationEntry),
+    };
+    memset(config.buffer, 0, buffer_size);
+    scene_builder->config_locs_hmap = dashmap_new(&config, 0);
+
     int height = (mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z;
     int width = (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X;
 
@@ -223,6 +233,23 @@ scenebuilder_cache_flotype(
     assert(flotype_entry && "Flotype must be inserted into hmap");
     flotype_entry->id = flotype_id;
     flotype_entry->flotype = flotype;
+}
+
+void
+scenebuilder_cache_config_loc(
+    struct SceneBuilder* scene_builder,
+    int loc_id,
+    struct CacheConfigLocation* config_loc)
+{
+    struct CacheConfigLocationEntry* config_loc_entry = NULL;
+    config_loc_entry = (struct CacheConfigLocationEntry*)dashmap_search(
+        scene_builder->config_locs_hmap, &loc_id, DASHMAP_INSERT);
+    assert(config_loc_entry && "Config loc must be inserted into hmap");
+    assert(config_loc_entry->id == loc_id);
+    assert(!config_loc_entry->config_loc || config_loc_entry->config_loc->_id == loc_id);
+    config_loc_entry->id = loc_id;
+
+    config_loc_entry->config_loc = config_loc;
 }
 
 static void

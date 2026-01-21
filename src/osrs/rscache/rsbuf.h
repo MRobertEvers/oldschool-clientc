@@ -48,6 +48,11 @@ int
 rsbuf_g3(struct RSBuffer* buffer);
 int
 rsbuf_g4(struct RSBuffer* buffer);
+void
+rsbuf_p4(
+    struct RSBuffer* buffer,
+    int value);
+
 int64_t
 rsbuf_g8(struct RSBuffer* buffer);
 
@@ -89,6 +94,7 @@ rsbuf_readto(
 
 #define g3(buffer) rsbuf_g3(buffer)
 #define g4(buffer) rsbuf_g4(buffer)
+#define p4(buffer, value) rsbuf_p4(buffer, value)
 #define g8(buffer) rsbuf_g8(buffer)
 #define gusmart(buffer) rsbuf_read_usmart(buffer)
 #define gbigsmart(buffer) rsbuf_read_big_smart(buffer)

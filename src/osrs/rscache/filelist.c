@@ -391,3 +391,48 @@ filelist_free(struct FileList* filelist)
     free(filelist->file_sizes);
     free(filelist);
 }
+
+struct FileListDatIndexed*
+filelist_dat_indexed_new_from_decode(
+    char* index_data,
+    int index_data_size,
+    char* data,
+    int data_size)
+{
+    struct FileListDatIndexed* filelist = malloc(sizeof(struct FileListDatIndexed));
+    if( !filelist )
+        return NULL;
+
+    struct RSBuffer index_buffer = { .data = index_data, .position = 0, .size = index_data_size };
+    int index_count = g2(&index_buffer);
+
+    filelist->offsets = malloc(index_count * sizeof(int));
+    filelist->offset_count = index_count;
+    if( !filelist->offsets )
+        return NULL;
+
+    int offset = 2;
+    for( int i = 0; i < index_count; i++ )
+    {
+        filelist->offsets[i] = offset;
+
+        int delta = g2(&index_buffer);
+        offset += delta;
+    }
+
+    filelist->data = malloc(data_size);
+    memcpy(filelist->data, data, data_size);
+    filelist->data_size = data_size;
+
+    return filelist;
+}
+
+void
+filelist_dat_indexed_free(struct FileListDatIndexed* filelist)
+{
+    if( !filelist )
+        return;
+    free(filelist->offsets);
+    free(filelist->data);
+    free(filelist);
+}

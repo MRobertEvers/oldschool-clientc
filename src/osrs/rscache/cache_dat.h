@@ -64,6 +64,11 @@ enum CacheDatTable
  * - "idk.dat"	// IdkType.unpack(jagConfig);
  * - "spotanim.dat"	// SpotAnimType.unpack(jagConfig);
  * - "varp.dat"	// VarpType.unpack(jagConfig);
+ * ".idx" files are lists of offsets in the corresponding ".dat" files.
+ * [count, offset, offset, ...] where count is the number of elements in the list.
+ * Accessing entry 0 of an indexed ".dat" file is done by reading the offset at index 0 of the
+ * ".idx" file.
+ * ".dat" files otherwise have no specific structure.
  *
  * Table: CONFIG
  * Archive: CONFIG_DAT_TEXTURES

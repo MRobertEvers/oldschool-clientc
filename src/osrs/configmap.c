@@ -261,7 +261,7 @@ configdecode(
             {
                 printf("config_locs_decode_inplace: %d\n", id);
             }
-            config_locs_decode_inplace(&entry->loc, data, data_size);
+            config_locs_decode_inplace(&entry->loc, data, data_size, CONFIG_LOC_DECODE_DAT2);
             entry->loc._id = id;
         }
         break;

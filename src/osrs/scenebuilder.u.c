@@ -62,6 +62,12 @@ struct FramemapEntry
     struct CacheFramemap* framemap;
 };
 
+struct CacheConfigLocationEntry
+{
+    int id;
+    struct CacheConfigLocation* config_loc;
+};
+
 struct SceneBuilder
 {
     struct Painter* painter;
@@ -76,6 +82,7 @@ struct SceneBuilder
     struct DashMap* frames_hmap;
     struct DashMap* framemaps_hmap;
     struct DashMap* sequences_configmap;
+    struct DashMap* config_locs_hmap;
     struct DashMap* config_locs_configmap;
     struct DashMap* config_underlay_configmap;
     struct DashMap* config_overlay_configmap;

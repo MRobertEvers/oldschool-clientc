@@ -23,19 +23,6 @@ struct CacheDat*
 gioqb_cache_dat_new(void);
 
 struct CacheDatArchive* //
-gioqb_cache_dat_model_new_load(
-    struct CacheDat* cache_dat,
-    int model_id);
-
-struct CacheDatArchive* //
-gioqb_cache_dat_texture_new_load(struct CacheDat* cache_dat);
-
-struct CacheDatArchive* //
-gioqb_cache_dat_spritepack_new_load(
-    struct CacheDat* cache_dat,
-    int spritepack_id);
-
-struct CacheDatArchive* //
 gioqb_cache_dat_map_scenery_new_load(
     struct CacheDat* cache_dat,
     int chunk_x,
@@ -48,13 +35,18 @@ gioqb_cache_dat_map_terrain_new_load(
     int chunk_y);
 
 struct CacheDatArchive* //
-gioqb_cache_dat_config_scenery_new_load(struct CacheDat* cache_dat);
+gioqb_cache_dat_models_new_load(
+    struct CacheDat* cache_dat,
+    int model_id);
 
-struct FileBuffer* //
-gioqb_cache_dat_flotype_load(struct CacheDat* cache_dat);
+struct FileBuffer*
+gioqb_cache_dat_config_flotype_file_load(struct CacheDat* cache_dat);
 
 struct CacheDatArchive* //
-gioqb_cache_dat_texture_sprites_new_load(struct CacheDat* cache_dat);
+gioqb_cache_dat_config_texture_sprites_new_load(struct CacheDat* cache_dat);
+
+struct FileListDatIndexed*
+gioqb_cache_dat_config_scenery_fileidx_new_load(struct CacheDat* cache_dat);
 
 void
 gioqb_cache_dat_fullfill(

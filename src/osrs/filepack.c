@@ -1,5 +1,7 @@
 #include "filepack.h"
 
+#include "rscache/rsbuf.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -58,50 +60,40 @@ filepack_new(
 }
 
 struct FilePack*
-filepack_new_from_cache_dat_archive(struct CacheDatArchive* archive)
+filepack_new_from_filelist_dat_indexed(struct FileListDatIndexed* filelist_indexed)
 {
     int data_size = 0;
     int offset = 0;
-    int filelist_reference_size = 0;
+    int zero = 0;
     struct FilePack* packed = malloc(sizeof(struct FilePack));
     memset(packed, 0, sizeof(struct FilePack));
 
     data_size += sizeof(int); // flags
-    data_size += sizeof(int); // filelist reference size
-    data_size += sizeof(int); // revision
-    data_size += sizeof(int); // file count
-    data_size += sizeof(int); // archive id
-    data_size += sizeof(int); // table id
-    data_size += 0;
-    data_size += archive->data_size;
+    data_size += sizeof(int); // data size
+    data_size += sizeof(int); // offset sizes
+    data_size += filelist_indexed->data_size;
+    data_size += filelist_indexed->offset_count * sizeof(int);
 
     packed->data = malloc(data_size);
     packed->data_size = data_size;
     memset(packed->data, 0, packed->data_size);
 
+    struct RSBuffer buffer = { .data = packed->data, .position = 0, .size = data_size };
+
     int flags = 1;
-    memcpy((uint8_t*)packed->data + offset, &flags, sizeof(int));
-    offset += sizeof(int);
+    p4(&buffer, flags);
 
-    // memcpy((uint8_t*)packed->data + offset, &filelist_reference_size, sizeof(int));
-    offset += sizeof(int);
+    p4(&buffer, filelist_indexed->data_size);
+    p4(&buffer, filelist_indexed->offset_count);
 
-    int version = 0;
-    memcpy((uint8_t*)packed->data + offset, &version, sizeof(int));
-    offset += sizeof(int);
-    // memcpy((uint8_t*)packed->data + offset, &archive_reference->children.count, sizeof(int));
-    offset += sizeof(int);
-    memcpy((uint8_t*)packed->data + offset, &archive->archive_id, sizeof(int));
-    offset += sizeof(int);
-    memcpy((uint8_t*)packed->data + offset, &archive->table_id, sizeof(int));
-    offset += sizeof(int);
-    // memcpy(
-    //     (uint8_t*)packed->data + offset,
-    //     archive_reference->children.files,
-    //     filelist_reference_size);
-    offset += filelist_reference_size;
-    memcpy((uint8_t*)packed->data + offset, archive->data, archive->data_size);
-    offset += archive->data_size;
+    memcpy(buffer.data + buffer.position, filelist_indexed->data, filelist_indexed->data_size);
+    buffer.position += filelist_indexed->data_size;
+
+    memcpy(
+        buffer.data + buffer.position,
+        filelist_indexed->offsets,
+        filelist_indexed->offset_count * sizeof(int));
+    buffer.position += filelist_indexed->offset_count * sizeof(int);
 
     return packed;
 }
@@ -133,6 +125,10 @@ filepack_metadata(
 
     memcpy(&flags, (uint8_t*)data + offset, sizeof(int));
     offset += sizeof(int);
+
+    out->flags = flags;
+    if( flags == 1 )
+        return;
     memcpy(&filelist_reference_size, (uint8_t*)data + offset, sizeof(int));
     offset += sizeof(int);
     memcpy(&revision, (uint8_t*)data + offset, sizeof(int));

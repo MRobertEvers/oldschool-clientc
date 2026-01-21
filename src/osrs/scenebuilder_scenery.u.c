@@ -404,7 +404,7 @@ load_model_animations(
     struct DashFrame* dash_frame = NULL;
     struct DashFramemap* dash_framemap = NULL;
 
-    if( loc_config->seq_id == -1 )
+    if( loc_config->seq_id == -1 || !sequences_configmap )
         return NULL;
 
     scene_animation = malloc(sizeof(struct SceneAnimation));
@@ -1391,9 +1391,25 @@ scenery_add(
     struct SceneSceneryTile* scenery_tile = NULL;
     int elements_pushed = 0;
 
-    config_loc = (struct CacheConfigLocation*)configmap_get(
-        scene_builder->config_locs_configmap, map_loc->loc_id);
-    assert(config_loc && "Config loc must be found in configmap");
+    struct CacheConfigLocationEntry* config_loc_entry = NULL;
+    config_loc_entry = (struct CacheConfigLocationEntry*)dashmap_search(
+        scene_builder->config_locs_hmap, &map_loc->loc_id, DASHMAP_FIND);
+    printf(
+        "config_loc_entry->id: %d == %d == %d\n",
+        config_loc_entry->id,
+        map_loc->loc_id,
+        config_loc_entry->config_loc->_id);
+    assert(config_loc_entry && "Config loc must be found in hmap");
+    assert(
+        config_loc_entry->id == map_loc->loc_id &&
+        config_loc_entry->config_loc->_id == map_loc->loc_id);
+
+    config_loc = config_loc_entry->config_loc;
+    assert(config_loc && "Config loc must be valid");
+
+    // config_loc = (struct CacheConfigLocation*)configmap_get(
+    //     scene_builder->config_locs_configmap, map_loc->loc_id);
+    // assert(config_loc && "Config loc must be found in configmap");
 
     terrain_grid_offset_from_sw(
         terrain_grid,
@@ -1552,6 +1568,10 @@ build_scene_scenery(
         {
             map_loc = &map_locs->locs[i];
             assert(map_loc && "Map loc must be valid");
+
+            // TODO: shape_select == 10 causes issues. I think it is a changing loc
+            if( map_loc->shape_select == 10 )
+                continue;
 
             scenery_add(
                 scene_builder,

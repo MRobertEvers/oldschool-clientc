@@ -52,4 +52,24 @@ filelist_dat_find_file_by_name(
     struct FileListDat* filelist,
     const char* name);
 
+// ".dat" + ".idx" files inside the config table config archive.
+struct FileListDatIndexed
+{
+    char* data;
+    int data_size;
+
+    int* offsets;
+    int offset_count;
+};
+
+struct FileListDatIndexed*
+filelist_dat_indexed_new_from_decode(
+    char* index_data,
+    int index_data_size,
+    char* data,
+    int data_size);
+
+void
+filelist_dat_indexed_free(struct FileListDatIndexed* filelist);
+
 #endif

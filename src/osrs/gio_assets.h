@@ -7,22 +7,23 @@ enum AssetKind
 {
     ASSET_BAD = 0,
     ASSET_MODELS,
-    // Used in dat2 - these are the texture definitions
     ASSET_TEXTURES,
-    // Used in dat - jagfile
-    ASSET_TEXTURE_SPRITE,
     ASSET_SPRITEPACKS,
     ASSET_MAP_SCENERY,
     ASSET_MAP_TERRAIN,
     ASSET_CONFIG_SCENERY,
-    // Only used in dat - jagfile
-    ASSET_CONFIG_FLOORTYPE,
-    // For dat2
-    ASSET_CONFIG_UNDERLAY = ASSET_CONFIG_FLOORTYPE,
+    ASSET_CONFIG_UNDERLAY,
     ASSET_CONFIG_OVERLAY,
     ASSET_CONFIG_SEQUENCES,
     ASSET_ANIMATION,
     ASSET_FRAMEMAP,
+    // Used in dat - jagfile
+    ASSET_DAT_MAP_TERRAIN,
+    ASSET_DAT_MAP_SCENERY,
+    ASSET_DAT_MODELS,
+    ASSET_DAT_CONFIG_TEXTURE_SPRITES,
+    ASSET_DAT_CONFIG_FILE_FLOORTYPE,
+    ASSET_DAT_CONFIG_FILEIDX_SCENERY,
     ASSET_TABLE_COUNT
 };
 
@@ -33,9 +34,6 @@ gio_assets_model_load(
 
 uint32_t
 gio_assets_texture_definitions_load(struct GIOQueue* q);
-
-uint32_t
-gio_assets_texture_sprites_load(struct GIOQueue* q);
 
 uint32_t
 gio_assets_spritepack_load(
@@ -80,5 +78,31 @@ uint32_t
 gio_assets_framemap_load(
     struct GIOQueue* q,
     int framemap_id);
+
+uint32_t
+gio_assets_dat_map_scenery_load(
+    struct GIOQueue* q,
+    int chunk_x,
+    int chunk_y);
+
+uint32_t
+gio_assets_dat_map_terrain_load(
+    struct GIOQueue* q,
+    int chunk_x,
+    int chunk_z);
+
+uint32_t
+gio_assets_dat_models_load(
+    struct GIOQueue* q,
+    int model_id);
+
+uint32_t
+gio_assets_dat_config_texture_sprites_load(struct GIOQueue* q);
+
+uint32_t
+gio_assets_dat_config_flotype_file_load(struct GIOQueue* q);
+
+uint32_t
+gio_assets_dat_config_scenery_fileidx_load(struct GIOQueue* q);
 
 #endif

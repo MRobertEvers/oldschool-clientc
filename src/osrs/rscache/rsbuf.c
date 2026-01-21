@@ -87,6 +87,17 @@ rsbuf_g4(struct RSBuffer* buffer)
            (buffer->data[buffer->position - 1] & 0xff);
 }
 
+void
+rsbuf_p4(
+    struct RSBuffer* buffer,
+    int value)
+{
+    buffer->data[buffer->position++] = value >> 24 & 0xff;
+    buffer->data[buffer->position++] = value >> 16 & 0xff;
+    buffer->data[buffer->position++] = value >> 8 & 0xff;
+    buffer->data[buffer->position++] = value & 0xff;
+}
+
 int64_t
 rsbuf_g8(struct RSBuffer* buffer)
 {

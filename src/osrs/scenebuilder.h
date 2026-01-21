@@ -80,6 +80,12 @@ scenebuilder_cache_flotype(
     int flotype_id,
     struct CacheConfigOverlay* flotype);
 
+void
+scenebuilder_cache_config_loc(
+    struct SceneBuilder* scene_builder,
+    int loc_id,
+    struct CacheConfigLocation* config_loc);
+
 struct Scene*
 scenebuilder_load(struct SceneBuilder* scene_builder);
 

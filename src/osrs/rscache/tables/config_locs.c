@@ -13,7 +13,8 @@ static void
 decode_loc(
     struct CacheConfigLocation* loc,
     char* data,
-    int data_size);
+    int data_size,
+    int flags);
 
 struct CacheConfigLocation*
 config_locs_new_decode(
@@ -28,7 +29,7 @@ config_locs_new_decode(
     }
     memset(loc, 0, sizeof(struct CacheConfigLocation));
 
-    decode_loc(loc, buffer, buffer_size);
+    decode_loc(loc, buffer, buffer_size, 0);
 
     return loc;
 }
@@ -85,9 +86,10 @@ void
 config_locs_decode_inplace(
     struct CacheConfigLocation* loc,
     char* data,
-    int data_size)
+    int data_size,
+    int flags)
 {
-    decode_loc(loc, data, data_size);
+    decode_loc(loc, data, data_size, flags);
 }
 
 static void
@@ -194,11 +196,24 @@ init_loc(struct CacheConfigLocation* loc)
     // loc->param_values = NULL;
 }
 
+static inline char*
+gstringfl(
+    struct RSBuffer* buffer,
+    int flags)
+{
+    if( flags & CONFIG_LOC_DECODE_DAT )
+    {
+        return gstringnewline(buffer);
+    }
+    return gcstring(buffer);
+}
+
 static void
 decode_loc(
     struct CacheConfigLocation* loc,
     char* data,
-    int data_size)
+    int data_size,
+    int flags)
 {
     struct RSBuffer buffer = { .data = (uint8_t*)data, .size = data_size, .position = 0 };
 
@@ -252,10 +267,10 @@ decode_loc(
             break;
         }
         case 2:
-            loc->name = gcstring(&buffer);
+            loc->name = gstringfl(&buffer, flags);
             break;
         case 3:
-            loc->desc = gcstring(&buffer);
+            loc->desc = gstringfl(&buffer, flags);
             break;
         case 5:
         {
@@ -341,7 +356,7 @@ decode_loc(
         case 38:
         {
             int action_index = opcode - 30;
-            char* action = gcstring(&buffer);
+            char* action = gstringfl(&buffer, flags);
             actions_count++;
             // Check if action is "hidden" (case insensitive)
             if( action && strcasecmp(action, "hidden") == 0 )
@@ -623,7 +638,7 @@ decode_loc(
         case 154:
         {
             int action_index = opcode - 150;
-            char* action = gcstring(&buffer);
+            char* action = gstringfl(&buffer, flags);
             // Check if action is "hidden" (case insensitive)
             if( action && strcasecmp(action, "hidden") == 0 )
             {

@@ -3,6 +3,7 @@
 
 #include "rscache/cache.h"
 #include "rscache/cache_dat.h"
+#include "rscache/filelist.h"
 
 struct FilePack
 {
@@ -16,7 +17,7 @@ filepack_new(
     struct CacheArchive* archive);
 
 struct FilePack*
-filepack_new_from_cache_dat_archive(struct CacheDatArchive* archive);
+filepack_new_from_filelist_dat_indexed(struct FileListDatIndexed* filelist_indexed);
 
 void
 filepack_free(struct FilePack* filepack);

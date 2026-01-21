@@ -169,10 +169,14 @@ config_locs_free(struct CacheConfigLocation* loc);
 void
 config_locs_free_inplace(struct CacheConfigLocation* loc);
 
+#define CONFIG_LOC_DECODE_DAT2 0
+#define CONFIG_LOC_DECODE_DAT 1
+
 void
 config_locs_decode_inplace(
     struct CacheConfigLocation* loc,
     char* data,
-    int data_size);
+    int data_size,
+    int flags);
 
 #endif
