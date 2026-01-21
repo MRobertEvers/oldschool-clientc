@@ -326,7 +326,7 @@ decodeOldFormat(
             if( faceTextureFlags & 2 )
             {
                 has_textures = true;
-                model->face_alphas[i] = faceTextureFlags >> 2;
+                model->face_texture_coords[i] = faceTextureFlags >> 2;
                 model->face_textures[i] = model->face_colors[i];
                 model->face_colors[i] = 127;
             }
@@ -413,53 +413,54 @@ decodeOldFormat(
         model->textured_n_coordinate[i] = read_unsigned_short(inputData, &offset);
     }
 
-    // if( model->face_texture_coords )
-    // {
-    //     // let hasValidTexFace = false;
+    if( textureCount > 0 )
+    {
+        // let hasValidTexFace = false;
 
-    //     //     for (let i = 0; i < faceCount; i++) {
-    //     //         const index = this.textureCoords[i] & 255;
-    //     //         if (index !== 255) {
-    //     //             if (
-    //     //                 this.indices1[i] === (this.textureMappingP[index] & 0xffff) &&
-    //     //                 this.indices2[i] === (this.textureMappingM[index] & 0xffff) &&
-    //     //                 this.indices3[i] === (this.textureMappingN[index] & 0xffff)
-    //     //             ) {
-    //     //                 this.textureCoords[i] = -1;
-    //     //             } else {
-    //     //                 hasValidTexFace = true;
-    //     //             }
-    //     //         }
-    //     //     }
+        //     for (let i = 0; i < faceCount; i++) {
+        //         const index = this.textureCoords[i] & 255;
+        //         if (index !== 255) {
+        //             if (
+        //                 this.indices1[i] === (this.textureMappingP[index] & 0xffff) &&
+        //                 this.indices2[i] === (this.textureMappingM[index] & 0xffff) &&
+        //                 this.indices3[i] === (this.textureMappingN[index] & 0xffff)
+        //             ) {
+        //                 this.textureCoords[i] = -1;
+        //             } else {
+        //                 hasValidTexFace = true;
+        //             }
+        //         }
+        //     }
 
-    //     //     if (!hasValidTexFace) {
-    //     //         this.textureCoords = undefined;
-    //     //     }
-    //     int hasValidTexFace = false;
-    //     for( int i = 0; i < faceCount; i++ )
-    //     {
-    //         int index = model->face_texture_coords[i] & 255;
-    //         if( index != 255 )
-    //         {
-    //             if( model->face_indices_a[i] == (model->textured_p_coordinate[index] & 0xffff) &&
-    //                 model->face_indices_b[i] == (model->textured_m_coordinate[index] & 0xffff) &&
-    //                 model->face_indices_c[i] == (model->textured_n_coordinate[index] & 0xffff) )
-    //             {
-    //                 model->face_texture_coords[i] = -1;
-    //             }
-    //             else
-    //             {
-    //                 hasValidTexFace = true;
-    //             }
-    //         }
-    //     }
+        //     if (!hasValidTexFace) {
+        //         this.textureCoords = undefined;
+        //     }
+        int hasValidTexFace = false;
+        for( int i = 0; i < faceCount; i++ )
+        {
+            int index = model->face_texture_coords[i] & 255;
+            if( index != 255 )
+            {
+                assert(index >= 0 && index < textureCount);
+                if( model->face_indices_a[i] == (model->textured_p_coordinate[index] & 0xffff) &&
+                    model->face_indices_b[i] == (model->textured_m_coordinate[index] & 0xffff) &&
+                    model->face_indices_c[i] == (model->textured_n_coordinate[index] & 0xffff) )
+                {
+                    model->face_texture_coords[i] = -1;
+                }
+                else
+                {
+                    hasValidTexFace = true;
+                }
+            }
+        }
 
-    //     if( !hasValidTexFace )
-    //     {
-    //         free(model->face_texture_coords);
-    //         model->face_texture_coords = NULL;
-    //     }
-    // }
+        if( !hasValidTexFace )
+        {
+            free(model->face_texture_coords);
+            model->face_texture_coords = NULL;
+        }
+    }
 
     // Set model priority
     model->model_priority = faceRenderPriority;
@@ -2616,6 +2617,10 @@ model_new_merge(
 
     model->_model_type = -1;
     model->_id = -1;
+    for( int i = 0; i < model_count; i++ )
+    {
+        model->_ids[i] = models[i]->_id;
+    }
 
     int vertex_count = 0;
     int face_count = 0;

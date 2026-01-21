@@ -516,6 +516,7 @@ init_scene_element(
     scene_element->dash_model = NULL;
     scene_element->dash_position = NULL;
     scene_element->animation = NULL;
+    scene_element->config_loc_id = config_loc->_id;
 
     if( config_loc->name )
     {
@@ -1384,10 +1385,7 @@ scenery_add(
 {
     struct CacheConfigLocation* config_loc = NULL;
     struct TileHeights tile_heights;
-    struct SceneElement* scene_element = NULL;
     struct TerrainGridOffsetFromSW offset;
-    struct DashModel* dash_model = NULL;
-    struct DashPosition* dash_position = NULL;
     struct SceneSceneryTile* scenery_tile = NULL;
     int elements_pushed = 0;
 

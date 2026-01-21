@@ -103,6 +103,7 @@ struct DashModelAnimation
 {};
 struct DashModel
 {
+    int _dbg_ids[10];
     int vertex_count;
     int* vertices_x;
     int* vertices_y;

@@ -175,6 +175,10 @@ queue_scenery_models(
             // Ignore shape select because some locs don't use the shape select stored.
             // if( loc_type == shape_select )
             {
+                // 629
+                // 2280 is lumby flag in old cache
+                // 2050 lumby church windows
+                // 617 is the roofs in lumby
                 for( int j = 0; j < count_inner; j++ )
                 {
                     int model_id = model_id_sets[i][j];
@@ -809,7 +813,7 @@ step_models_load(struct TaskInitSceneDat* task)
         iter = dashmap_iter_new(task->config_loc_hmap);
         while( (config_loc_entry = (struct ConfigLocEntry*)dashmap_iter_next(iter)) )
         {
-            if( config_loc_entry->id == 85 )
+            if( config_loc_entry->id == 1911 )
             {
                 printf("config_loc_id: %d\n", config_loc_entry->id);
             }
@@ -838,6 +842,10 @@ step_models_load(struct TaskInitSceneDat* task)
                 task->models_hmap, &message.param_b, DASHMAP_INSERT);
             assert(model_entry && "Model must be inserted into hmap");
             model_entry->id = message.param_b;
+            if( message.param_b == 617 )
+            {
+                printf("Loading model %d\n", message.param_b);
+            }
             model_entry->model = model_new_decode(message.data, message.data_size);
 
             scenebuilder_cache_model(task->scene_builder, message.param_b, model_entry->model);

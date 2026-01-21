@@ -178,6 +178,7 @@ scenebuilder_cache_model(
     assert(model_entry && "Model must be inserted into hmap");
     model_entry->id = model_id;
     model_entry->model = model;
+    model_entry->model->_id = model_id;
 }
 
 void
