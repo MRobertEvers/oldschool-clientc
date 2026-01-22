@@ -140,13 +140,22 @@ libg_game_new(struct GIOQueue* io)
     // 7616
     // z =
     // 8100
+    game->camera_world_x = 0;
+    game->camera_world_y = -500;
+    game->camera_world_z = 0;
 
     // Camera (x, y, z): 3939, -800, 12589 : 30, 98
     // Camera (pitch, yaw, roll): 388, 1556, 0
 
-    game->camera_world_x = 3939;
-    game->camera_world_y = -800;
-    game->camera_world_z = 12589;
+    // Camera (x, y, z): 3790, -780, 4355 : 29, 34
+    game->camera_world_x = 3790;
+    game->camera_world_y = -780;
+    game->camera_world_z = 4355;
+
+    // game->camera_world_x = 3939;
+    // game->camera_world_y = -800;
+    // game->camera_world_z = 12589;
+
     game->camera_pitch = 388;
     game->camera_yaw = 1556;
     game->camera_roll = 0;
@@ -185,13 +194,14 @@ libg_game_new(struct GIOQueue* io)
 
     // Camera (x, y, z): 3939, -800, 12589 : 30, 98
     // Camera (pitch, yaw, roll): 388, 1556, 0
-    game->position->x = 3939;
-    game->position->y = -800;
-    game->position->z = 12589;
 
-    game->position->pitch = 388;
-    game->position->yaw = 1556;
-    game->position->roll = 0;
+    // game->position->x = 3939;
+    // game->position->y = -800;
+    // game->position->z = 12589;
+
+    // game->position->pitch = 388;
+    // game->position->yaw = 1556;
+    // game->position->roll = 0;
 
     game->view_port->stride = 1024;
     game->view_port->width = 1024;
@@ -305,7 +315,7 @@ libg_game_new(struct GIOQueue* io)
 
     gametask_new_init_io(game, game->io);
     // gametask_new_init_scene_dat(game, 48, 48, 51, 51);
-    gametask_new_init_scene(game, 48, 48, 51, 51);
+    gametask_new_init_scene(game, 48, 49, 51, 51);
     // gametask_new_init_scene(game, 40, 40, 41, 41);
     // gametask_new_init_scene(game, 23, 54, 25, 54);
 

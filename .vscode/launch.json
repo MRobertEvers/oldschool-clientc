@@ -70,7 +70,14 @@
             "cwd": "${workspaceFolder}/build",
             "environment": [],
             "externalConsole": false,
-            "MIMode": "lldb"
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Stop on debug traps (SIGTRAP)",
+                    "text": "process handle SIGTRAP -n false -p true -s false",
+                    "ignoreFailures": true
+                }
+            ]
         },
         {
             "name": "(lldb) Launch Harness",

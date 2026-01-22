@@ -227,6 +227,14 @@ painter_tile_set_bridge(
     int bridge_tile_sz,
     int bridge_tile_slevel)
 {
+    if( sx == 34 && sz == 98 )
+    {
+        printf(
+            "bridge_tile_sx: %d, bridge_tile_sz: %d, bridge_tile_slevel: %d\n",
+            bridge_tile_sx,
+            bridge_tile_sz,
+            bridge_tile_slevel);
+    }
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     tile->bridge_tile =
         painter_coord_idx(painter, bridge_tile_sx, bridge_tile_sz, bridge_tile_slevel);
@@ -545,16 +553,26 @@ ensure_command_capacity(
     }
 }
 
+int g_trap_command = -1;
+
+#if defined(__APPLE__)
+#include <signal.h>
+#endif
+
 static inline void
 push_command_entity(
     struct PaintersBuffer* buffer,
     int entity)
 {
     int count = buffer->command_count;
-    if( count == 62 )
+
+#if defined(__APPLE__)
+    if( count == g_trap_command )
     {
-        printf("entity: %d\n", entity);
+        printf("TRAP: %d\n", count);
+        __builtin_debugtrap(); // triggers debugger on macOS/Clang
     }
+#endif
     buffer->command_count += 1;
     ensure_command_capacity(buffer, 1);
     buffer->commands[count] = (struct PaintersElementCommand){
@@ -572,6 +590,16 @@ push_command_terrain(
     int sz,
     int slevel)
 {
+    int count = buffer->command_count;
+
+#if defined(__APPLE__)
+    if( count == g_trap_command )
+    {
+        printf("TRAP: %d\n", count);
+        __builtin_debugtrap(); // triggers debugger on macOS/Clang
+    }
+#endif
+
     ensure_command_capacity(buffer, 1);
     buffer->commands[buffer->command_count++] = (struct PaintersElementCommand){
         ._terrain = {
@@ -622,6 +650,9 @@ painter_buffer_new()
     return buffer;
 }
 
+int g_trap_x = -1;
+int g_trap_z = -1;
+
 int
 painter_paint(
     struct Painter* painter, //
@@ -648,7 +679,7 @@ painter_paint(
     int radius = 25;
     int coord_list_x[4];
     int coord_list_z[4];
-    int max_level = 0;
+    int max_level = 4;
 
     int coord_list_length = 0;
 
@@ -807,9 +838,10 @@ painter_paint(
         assert(tile_paint->queue_count > 0);
         tile_paint->queue_count -= 1;
 
-        if( tile_sx == 27 && tile_sz == 91 )
+        if( g_trap_x != -1 && g_trap_z != -1 && tile_sx == g_trap_x && tile_sz == g_trap_z )
         {
             printf("tile_idx: %d\n", tile_idx);
+            __builtin_debugtrap();
         }
         // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
         // Dane discovered this also.
@@ -935,6 +967,12 @@ painter_paint(
             {
                 bridge_underpass_tile = &painter->tiles[tile->bridge_tile];
 
+                // other_paint = tile_paint_at(
+                //     painter,
+                //     bridge_underpass_tile->sx,
+                //     bridge_underpass_tile->sz,
+                //     bridge_underpass_tile->terrain_slevel);
+                // other_paint->step = PAINT_STEP_DONE;
                 // The bridge floor is always stored on level 3.
                 push_command_terrain(
                     buffer,
@@ -952,9 +990,15 @@ painter_paint(
                 for( int i = 0; i < bridge_underpass_tile->scenery_count; i++ )
                 {
                     int scenery_element = bridge_underpass_tile->scenery[i];
+                    element_paint = &painter->element_paints[scenery_element];
+                    if( element_paint->drawn )
+                        continue;
+
                     element = &painter->elements[scenery_element];
                     assert(element->kind == PNTRELEM_SCENERY);
                     push_command_entity(buffer, element->_scenery.entity);
+
+                    element_paint->drawn = true;
                 }
             }
 
@@ -1301,6 +1345,11 @@ painter_paint(
                         painter_push_queue(painter, other_idx, prio);
                     }
                 }
+            }
+
+            if( waiting_spanning_scenery )
+            {
+                goto done;
             }
 
             tile_paint->step = PAINT_STEP_NEAR_WALL;

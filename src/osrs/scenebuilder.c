@@ -317,6 +317,8 @@ init_terrain_grid(
             assert(map_terrain_entry && "Map terrain must be found in hmap");
             map_terrain = map_terrain_entry->map_terrain;
 
+            map_terrain->map_x = mapx;
+            map_terrain->map_z = mapz;
             terrain_grid->map_terrain[map_index] = map_terrain;
             map_index++;
         }

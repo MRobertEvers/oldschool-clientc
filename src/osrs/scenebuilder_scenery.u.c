@@ -1815,14 +1815,22 @@ build_scene_scenery(
      * Buffer Level 2: Nothing
      * Buffer Level 3: Tile := (Previous Level 0)
      */
+    struct CacheMapFloor* floor_tile = NULL;
     struct CacheMapFloor* floor = NULL;
     struct PaintersTile bridge_tile_tmp = { 0 };
     for( int x = 0; x < scene->tile_width_x; x++ )
     {
         for( int z = 0; z < scene->tile_width_z; z++ )
         {
+            if( x == 34 && z == 34 )
+            {
+                printf("x: %d, z: %d\n", x, z);
+            }
+
+            floor_tile = tile_from_sw_origin(terrain_grid, x, z, 0);
             floor = tile_from_sw_origin(terrain_grid, x, z, 1);
-            if( (floor->settings & FLOFLAG_BRIDGE) != 0 )
+            if( (floor->settings & FLOFLAG_DRAW_DOWNLEVEL) != 0 &&
+                (floor_tile->settings & FLOFLAG_BRIDGE) != 0 )
             {
                 bridge_tile_tmp = *painter_tile_at(scene_builder->painter, x, z, 0);
 

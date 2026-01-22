@@ -15,6 +15,10 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+extern int g_trap_command;
+extern int g_trap_x;
+extern int g_trap_z;
+
 static void
 render_imgui(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
@@ -36,6 +40,18 @@ render_imgui(
     Uint64 frequency = SDL_GetPerformanceFrequency();
 
     ImGui::Text("Buck: %d", game->cc);
+    ImGui::Text("Trap command: %d", g_trap_command);
+    if( ImGui::Button("Trap command") )
+    {
+        if( g_trap_command == -1 )
+            g_trap_command = game->cc;
+        else
+            g_trap_command = -1;
+    }
+
+    ImGui::InputInt("Trap X", &g_trap_x);
+    ImGui::InputInt("Trap Z", &g_trap_z);
+
     // ImGui::Text(
     //     "Render Time: %.3f ms/frame",
     //     (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);

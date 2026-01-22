@@ -365,6 +365,10 @@ map_terrain_new_from_decode_flags( //
         {
             for( int z = 0; z < MAP_TERRAIN_Z; z++ )
             {
+                if( x == 34 && z == 34 )
+                {
+                    printf("x: %d, z: %d, level: %d\n", x, z, level);
+                }
                 struct CacheMapFloor* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, z, level)];
 
                 while( true )
