@@ -30,6 +30,82 @@
 
 #define BLEND_RADIUS 5
 
+enum GroundTypeMode
+{
+    M_DAT_FLOTYPE,
+    M_DAT2_OVERLAY_UNDERLAY
+};
+
+struct GroundTypeMap
+{
+    enum GroundTypeMode mode;
+    struct DashMap* map_;
+    struct DashMap* configmap_;
+};
+
+static int
+ground_type_map_get_rgb(
+    struct GroundTypeMap* ground_type_map,
+    int underlay_id)
+{
+    int search_id = underlay_id - 1;
+    switch( ground_type_map->mode )
+    {
+    case M_DAT_FLOTYPE:
+    {
+        struct FlotypeEntry* flotype_entry = NULL;
+        flotype_entry =
+            (struct FlotypeEntry*)dashmap_search(ground_type_map->map_, &search_id, DASHMAP_FIND);
+        assert(flotype_entry != NULL);
+        return flotype_entry->flotype->rgb_color;
+    }
+    case M_DAT2_OVERLAY_UNDERLAY:
+    {
+        struct CacheConfigUnderlay* entry = NULL;
+        entry = (struct CacheConfigUnderlay*)configmap_get(ground_type_map->configmap_, search_id);
+        assert(entry != NULL);
+        return entry->rgb_color;
+    }
+    }
+
+    assert(false);
+    return -1;
+}
+
+struct CacheConfigOverlay*
+ground_type_map_get_overlay(
+    struct GroundTypeMap* ground_type_map,
+    int overlay_id)
+{
+    // struct FlotypeEntry* flotype_entry = NULL;
+    // flotype_entry = (struct FlotypeEntry*)dashmap_search(
+    //     config_overlay_map, &overlay_id, DASHMAP_FIND);
+    // assert(flotype_entry != NULL);
+    // overlay = flotype_entry->flotype;
+    // assert(overlay != NULL);
+
+    // overlay = (struct CacheConfigOverlay*)configmap_get(config_overlay_map, overlay_id);
+    // assert(overlay != NULL);
+    switch( ground_type_map->mode )
+    {
+    case M_DAT_FLOTYPE:
+    {
+        struct FlotypeEntry* flotype_entry = NULL;
+        flotype_entry =
+            (struct FlotypeEntry*)dashmap_search(ground_type_map->map_, &overlay_id, DASHMAP_FIND);
+        assert(flotype_entry != NULL);
+        return flotype_entry->flotype;
+    }
+    case M_DAT2_OVERLAY_UNDERLAY:
+    {
+        return configmap_get(ground_type_map->configmap_, overlay_id);
+    }
+    }
+
+    assert(false);
+    return NULL;
+}
+
 static inline int
 grid_coord(
     int width,
@@ -44,10 +120,9 @@ grid_coord(
 static int*
 blend_underlays(
     struct TerrainGrid* terrain_grid,
-    struct DashMap* config_underlay_map,
+    struct GroundTypeMap* underlay_map,
     int level)
 {
-    struct CacheConfigUnderlay* entry = NULL;
     struct CacheMapFloor* tile = NULL;
 
     struct HSL hsl;
@@ -110,11 +185,13 @@ blend_underlays(
 
                     // hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
 
-                    struct CacheConfigUnderlay* entry = (struct CacheConfigUnderlay*)configmap_get(
-                        config_underlay_map, underlay_id - 1);
-                    assert(entry != NULL);
+                    // struct CacheConfigUnderlay* entry = (struct
+                    // CacheConfigUnderlay*)configmap_get(
+                    //     config_underlay_map, underlay_id - 1);
+                    // assert(entry != NULL);
 
-                    hsl = palette_rgb_to_hsl24(entry->rgb_color);
+                    int rgb = ground_type_map_get_rgb(underlay_map, underlay_id);
+                    hsl = palette_rgb_to_hsl24(rgb);
 
                     chroma[zi] += hsl.chroma;
                     sats[zi] += hsl.sat;
@@ -143,11 +220,14 @@ blend_underlays(
 
                     // hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
 
-                    struct CacheConfigUnderlay* entry = (struct CacheConfigUnderlay*)configmap_get(
-                        config_underlay_map, underlay_id - 1);
-                    assert(entry != NULL);
+                    // struct CacheConfigUnderlay* entry = (struct
+                    // CacheConfigUnderlay*)configmap_get(
+                    //     config_underlay_map, underlay_id - 1);
+                    // assert(entry != NULL);
 
-                    hsl = palette_rgb_to_hsl24(entry->rgb_color);
+                    int rgb = ground_type_map_get_rgb(underlay_map, underlay_id);
+
+                    hsl = palette_rgb_to_hsl24(rgb);
 
                     chroma[zi] -= hsl.chroma;
                     sats[zi] -= hsl.sat;
@@ -405,13 +485,26 @@ build_scene_terrain(
     struct CacheMapFloor* map = NULL;
     struct SceneTerrainTile* tile = NULL;
 
+    struct GroundTypeMap groundtypemap = { 0 };
+
+    if( scene_builder->config_underlay_configmap != NULL )
+    {
+        groundtypemap.mode = M_DAT2_OVERLAY_UNDERLAY;
+        groundtypemap.configmap_ = config_underlay_map;
+    }
+    else
+    {
+        groundtypemap.mode = M_DAT_FLOTYPE;
+        groundtypemap.map_ = scene_builder->flotypes_hmap;
+    }
+
     int max_z = terrain_grid_z_height(terrain_grid);
     int max_x = terrain_grid_x_width(terrain_grid);
     int tile_count = terrain_grid_size(terrain_grid);
 
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
-        int* blended_underlays = blend_underlays(terrain_grid, config_underlay_map, level);
+        int* blended_underlays = blend_underlays(terrain_grid, &groundtypemap, level);
         int* lights = calculate_lights(terrain_grid, level);
 
         apply_shade(
@@ -454,9 +547,9 @@ build_scene_terrain(
                     // underlay = flotype_entry->flotype;
                     // assert(underlay != NULL);
 
-                    underlay = (struct CacheConfigUnderlay*)configmap_get(
-                        config_underlay_map, underlay_id - 1);
-                    assert(underlay != NULL);
+                    // underlay = (struct CacheConfigUnderlay*)configmap_get(
+                    //     config_underlay_map, underlay_id - 1);
+                    // assert(underlay != NULL);
 
                     // underlay_hsl = palette_rgb_to_hsl16(underlay->rgb_color);
                     underlay_hsl =
@@ -504,8 +597,11 @@ build_scene_terrain(
                     // overlay = flotype_entry->flotype;
                     // assert(overlay != NULL);
 
-                    overlay =
-                        (struct CacheConfigOverlay*)configmap_get(config_overlay_map, overlay_id);
+                    // overlay =
+                    //     (struct CacheConfigOverlay*)configmap_get(config_overlay_map,
+                    //     overlay_id);
+
+                    overlay = ground_type_map_get_overlay(&groundtypemap, overlay_id);
                     assert(overlay != NULL);
 
                     if( overlay->texture != -1 )

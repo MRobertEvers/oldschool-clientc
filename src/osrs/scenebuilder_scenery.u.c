@@ -21,9 +21,7 @@
 #include <assert.h>
 
 #define TILE_SIZE 128
-#define WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE 256
-// #define WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE (768 + 1024)
-#define WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE (256 + 1024)
+#define WALL_DECOR_YAW_ADJUST 256
 
 static const int WALL_DECOR_ROTATION_OFFSET_X[] = { 1, 0, -1, 0 };
 static const int WALL_DECOR_ROTATION_OFFSET_Z[] = { 0, -1, 0, 1 };
@@ -39,6 +37,28 @@ static const int ROTATION_WALL_CORNER_TYPE[] = {
     WALL_CORNER_SOUTHEAST,
     WALL_CORNER_SOUTHWEST,
 };
+
+struct CacheConfigLocation*
+scenebuilder_config_loc_get(
+    struct SceneBuilder* scene_builder,
+    int loc_id)
+{
+    if( scene_builder->config_locs_configmap != NULL )
+    {
+        return (struct CacheConfigLocation*)configmap_get(
+            scene_builder->config_locs_configmap, loc_id);
+    }
+    else
+    {
+        struct CacheConfigLocationEntry* config_loc_entry = NULL;
+        config_loc_entry = (struct CacheConfigLocationEntry*)dashmap_search(
+            scene_builder->config_locs_hmap, &loc_id, DASHMAP_FIND);
+
+        assert(config_loc_entry && "Config loc must be found in hmap");
+
+        return config_loc_entry->config_loc;
+    }
+}
 
 /**
  * This is a configured offset for a loc, then there may be additional
@@ -431,7 +451,7 @@ load_model(
 }
 
 static struct SceneAnimation*
-load_model_animations(
+load_model_animations_dat2(
     struct CacheConfigLocation* loc_config,
 
     struct DashMap* sequences_configmap,
@@ -496,9 +516,8 @@ load_model_animations(
 }
 
 static struct SceneAnimation*
-load_model_animationsdat(
+load_model_animations_dat(
     struct CacheConfigLocation* loc_config,
-
     struct DashMap* sequences_configmap,
     struct DashMap* frames_hmap)
 {
@@ -559,6 +578,23 @@ load_model_animationsdat(
     }
 
     return scene_animation;
+}
+
+static struct SceneAnimation*
+scenebuilder_load_model_animations(
+    struct SceneBuilder* scene_builder,
+    struct CacheConfigLocation* loc_config)
+{
+    if( scene_builder->config_locs_configmap != NULL )
+    {
+        return load_model_animations_dat2(
+            loc_config, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    }
+    else
+    {
+        return load_model_animations_dat(
+            loc_config, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    }
 }
 
 static struct DashPosition*
@@ -940,6 +976,7 @@ scenery_add_wall_decor_inside(
 {
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
+    struct SceneAnimation* scene_animation = NULL;
     struct SceneElement scene_element = { 0 };
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
@@ -954,8 +991,7 @@ scenery_add_wall_decor_inside(
         rotation,
         tile_heights);
 
-    struct SceneAnimation* scene_animation = load_model_animations(
-        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
 
     scene_element.animation = scene_animation;
 
@@ -1006,6 +1042,7 @@ scenery_add_wall_decor_outside(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
@@ -1025,8 +1062,7 @@ scenery_add_wall_decor_outside(
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
 
-    struct SceneAnimation* scene_animation = load_model_animations(
-        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
 
     scene_element.animation = scene_animation;
 
@@ -1074,11 +1110,12 @@ scenery_add_wall_decor_diagonal_outside(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
-    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : orientation;
 
     dash_model = load_model(
         config_loc,
@@ -1095,15 +1132,14 @@ scenery_add_wall_decor_diagonal_outside(
     // scene_model->yaw = 512 * orientation;
     // scene_model->yaw %= 2048;
     // scene_element.dash_position->yaw = 512 * map_loc->orientation;
-    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
+    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
     {
         scene_element.dash_position->yaw += 512 * orientation;
     }
     scene_element.dash_position->yaw %= 2048;
 
-    struct SceneAnimation* scene_animation = load_model_animations(
-        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
 
     scene_element.animation = scene_animation;
 
@@ -1150,11 +1186,12 @@ scenery_add_wall_decor_diagonal_inside(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
-    int rotation = config_loc->seq_id != -1 ? 0 : (map_loc->orientation + 2);
     int orientation = (map_loc->orientation + 2) & 0x3;
+    int rotation = config_loc->seq_id != -1 ? 0 : (orientation);
 
     dash_model = load_model(
         config_loc,
@@ -1171,14 +1208,13 @@ scenery_add_wall_decor_diagonal_inside(
     scene_element.dash_position = dash_position;
     // scene_model->yaw = 512 * orientation;
     // scene_model->yaw %= 2048;
-    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
+    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST;
 
     if( config_loc->seq_id != -1 )
         scene_element.dash_position->yaw += 512 * (orientation);
     scene_element.dash_position->yaw %= 2048;
 
-    struct SceneAnimation* scene_animation = load_model_animations(
-        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
 
     scene_element.animation = scene_animation;
 
@@ -1230,9 +1266,9 @@ scenery_add_wall_decor_diagonal_double(
     int element_two_id = -1;
 
     int outside_orientation = map_loc->orientation;
-    int outside_rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
+    int outside_rotation = config_loc->seq_id != -1 ? 0 : outside_orientation;
     int inside_orientation = (map_loc->orientation + 2) & 0x3;
-    int inside_rotation = config_loc->seq_id != -1 ? 0 : (map_loc->orientation + 2);
+    int inside_rotation = config_loc->seq_id != -1 ? 0 : (inside_orientation);
 
     dash_model_one = load_model(
         config_loc,
@@ -1247,13 +1283,12 @@ scenery_add_wall_decor_diagonal_double(
     scene_element.dash_model = dash_model_one;
     scene_element.dash_position = dash_position_one;
 
-    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
+    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
-        scene_element.dash_position->yaw += 512 * (outside_rotation);
+        scene_element.dash_position->yaw += 512 * (outside_orientation);
     scene_element.dash_position->yaw %= 2048;
 
-    scene_animation = load_model_animations(
-        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
 
     scene_element.animation = scene_animation;
 
@@ -1273,14 +1308,13 @@ scenery_add_wall_decor_diagonal_double(
     scene_element.dash_model = dash_model_two;
     scene_element.dash_position = dash_position_two;
 
-    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE;
+    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST;
 
     if( config_loc->seq_id != -1 )
-        scene_element.dash_position->yaw += 512 * (inside_rotation);
+        scene_element.dash_position->yaw += 512 * (inside_orientation);
     scene_element.dash_position->yaw %= 2048;
 
-    scene_animation = load_model_animations(
-        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
 
     scene_element.animation = scene_animation;
 
@@ -1393,6 +1427,7 @@ scenery_add_normal(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
@@ -1425,8 +1460,7 @@ scenery_add_normal(
         scene_element.dash_position->yaw %= 2048;
     }
 
-    struct SceneAnimation* scene_animation = load_model_animations(
-        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
 
     scene_element.animation = scene_animation;
 
@@ -1511,6 +1545,7 @@ scenery_add_floor_decoration(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
+    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
@@ -1523,6 +1558,9 @@ scenery_add_floor_decoration(
 
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
+
+    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
+    scene_element.animation = scene_animation;
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
@@ -1565,7 +1603,7 @@ scenery_add(
 
     // config_loc = config_loc_entry->config_loc;
 
-    config_loc = configmap_get(scene_builder->config_locs_configmap, map_loc->loc_id);
+    config_loc = scenebuilder_config_loc_get(scene_builder, map_loc->loc_id);
     assert(config_loc && "Config loc must be valid");
 
     terrain_grid_offset_from_sw(
