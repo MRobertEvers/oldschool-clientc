@@ -369,8 +369,8 @@ on_gio_req_init(
     {
     case GIO_STATUS_PENDING:
     {
-        // platform->cache = gioqb_cache_new();
-        platform->cache_dat = gioqb_cache_dat_new();
+        platform->cache = gioqb_cache_new();
+        // platform->cache_dat = gioqb_cache_dat_new();
         gioqb_mark_done(
             io, message->message_id, message->command, message->param_b, message->param_a, NULL, 0);
     }
@@ -396,8 +396,8 @@ on_gio_req_asset(
     switch( message->status )
     {
     case GIO_STATUS_PENDING:
-        // gioqb_cache_fullfill(io, platform->cache, message);
-        gioqb_cache_dat_fullfill(io, platform->cache_dat, message);
+        gioqb_cache_fullfill(io, platform->cache, message);
+        // gioqb_cache_dat_fullfill(io, platform->cache_dat, message);
         break;
     case GIO_STATUS_DONE:
         break;

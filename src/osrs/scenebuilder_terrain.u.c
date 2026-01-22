@@ -102,13 +102,19 @@ blend_underlays(
 
                 if( underlay_id > 0 )
                 {
-                    struct FlotypeEntry* flotype_entry = NULL;
-                    int search_id = underlay_id - 1;
-                    flotype_entry = (struct FlotypeEntry*)dashmap_search(
-                        config_underlay_map, &search_id, DASHMAP_FIND);
-                    assert(flotype_entry != NULL);
+                    // struct FlotypeEntry* flotype_entry = NULL;
+                    // int search_id = underlay_id - 1;
+                    // flotype_entry = (struct FlotypeEntry*)dashmap_search(
+                    //     config_underlay_map, &search_id, DASHMAP_FIND);
+                    // assert(flotype_entry != NULL);
 
-                    hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
+                    // hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
+
+                    struct CacheConfigUnderlay* entry = (struct CacheConfigUnderlay*)configmap_get(
+                        config_underlay_map, underlay_id - 1);
+                    assert(entry != NULL);
+
+                    hsl = palette_rgb_to_hsl24(entry->rgb_color);
 
                     chroma[zi] += hsl.chroma;
                     sats[zi] += hsl.sat;
@@ -129,13 +135,19 @@ blend_underlays(
                 underlay_id = tile->underlay_id;
                 if( underlay_id > 0 )
                 {
-                    struct FlotypeEntry* flotype_entry = NULL;
-                    int search_id = underlay_id - 1;
-                    flotype_entry = (struct FlotypeEntry*)dashmap_search(
-                        config_underlay_map, &search_id, DASHMAP_FIND);
-                    assert(flotype_entry != NULL);
+                    // struct FlotypeEntry* flotype_entry = NULL;
+                    // int search_id = underlay_id - 1;
+                    // flotype_entry = (struct FlotypeEntry*)dashmap_search(
+                    //     config_underlay_map, &search_id, DASHMAP_FIND);
+                    // assert(flotype_entry != NULL);
 
-                    hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
+                    // hsl = palette_rgb_to_hsl24(flotype_entry->flotype->rgb_color);
+
+                    struct CacheConfigUnderlay* entry = (struct CacheConfigUnderlay*)configmap_get(
+                        config_underlay_map, underlay_id - 1);
+                    assert(entry != NULL);
+
+                    hsl = palette_rgb_to_hsl24(entry->rgb_color);
 
                     chroma[zi] -= hsl.chroma;
                     sats[zi] -= hsl.sat;
@@ -435,17 +447,16 @@ build_scene_terrain(
 
                 if( underlay_id != -1 )
                 {
-                    struct FlotypeEntry* flotype_entry = NULL;
-                    flotype_entry = (struct FlotypeEntry*)dashmap_search(
-                        config_underlay_map, &underlay_id, DASHMAP_FIND);
-                    assert(flotype_entry != NULL);
-                    underlay = flotype_entry->flotype;
-                    assert(underlay != NULL);
+                    // struct FlotypeEntry* flotype_entry = NULL;
+                    // flotype_entry = (struct FlotypeEntry*)dashmap_search(
+                    //     config_underlay_map, &underlay_id, DASHMAP_FIND);
+                    // assert(flotype_entry != NULL);
+                    // underlay = flotype_entry->flotype;
+                    // assert(underlay != NULL);
 
-                    if( x == 183 && z == 103 )
-                    {
-                        printf("underlay_hsl: %d\n", underlay_hsl);
-                    }
+                    underlay = (struct CacheConfigUnderlay*)configmap_get(
+                        config_underlay_map, underlay_id - 1);
+                    assert(underlay != NULL);
 
                     // underlay_hsl = palette_rgb_to_hsl16(underlay->rgb_color);
                     underlay_hsl =
@@ -486,12 +497,17 @@ build_scene_terrain(
 
                 if( overlay_id != -1 )
                 {
-                    struct FlotypeEntry* flotype_entry = NULL;
-                    flotype_entry = (struct FlotypeEntry*)dashmap_search(
-                        config_overlay_map, &overlay_id, DASHMAP_FIND);
-                    assert(flotype_entry != NULL);
-                    overlay = flotype_entry->flotype;
+                    // struct FlotypeEntry* flotype_entry = NULL;
+                    // flotype_entry = (struct FlotypeEntry*)dashmap_search(
+                    //     config_overlay_map, &overlay_id, DASHMAP_FIND);
+                    // assert(flotype_entry != NULL);
+                    // overlay = flotype_entry->flotype;
+                    // assert(overlay != NULL);
+
+                    overlay =
+                        (struct CacheConfigOverlay*)configmap_get(config_overlay_map, overlay_id);
                     assert(overlay != NULL);
+
                     if( overlay->texture != -1 )
                     {
                         overlay_hsl = -1;

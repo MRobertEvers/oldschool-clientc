@@ -408,7 +408,7 @@ load_model(
 }
 
 static struct SceneAnimation*
-load_model_animationsdat2(
+load_model_animations(
     struct CacheConfigLocation* loc_config,
 
     struct DashMap* sequences_configmap,
@@ -445,6 +445,14 @@ load_model_animationsdat2(
         scene_animation->frame_index = 0;
     }
 
+    scene_animation->frame_lengths = malloc(sequence->frame_count * sizeof(int));
+    memset(scene_animation->frame_lengths, 0, sequence->frame_count * sizeof(int));
+
+    for( int i = 0; i < sequence->frame_count; i++ )
+    {
+        scene_animation->frame_lengths[i] = sequence->frame_lengths[i];
+    }
+
     for( int i = 0; i < sequence->frame_count; i++ )
     {
         // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
@@ -465,7 +473,7 @@ load_model_animationsdat2(
 }
 
 static struct SceneAnimation*
-load_model_animations(
+load_model_animationsdat(
     struct CacheConfigLocation* loc_config,
 
     struct DashMap* sequences_configmap,
@@ -1140,10 +1148,10 @@ scenery_add_wall_decor_diagonal_inside(
     scene_element.dash_position = dash_position;
     // scene_model->yaw = 512 * orientation;
     // scene_model->yaw %= 2048;
-    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE;
+    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
 
     if( config_loc->seq_id != -1 )
-        scene_element.dash_position->yaw = 512 * (orientation);
+        scene_element.dash_position->yaw += 512 * (orientation);
     scene_element.dash_position->yaw %= 2048;
 
     struct SceneAnimation* scene_animation = load_model_animations(
@@ -1505,16 +1513,18 @@ scenery_add(
     struct SceneSceneryTile* scenery_tile = NULL;
     int elements_pushed = 0;
 
-    struct CacheConfigLocationEntry* config_loc_entry = NULL;
-    config_loc_entry = (struct CacheConfigLocationEntry*)dashmap_search(
-        scene_builder->config_locs_hmap, &map_loc->loc_id, DASHMAP_FIND);
+    // struct CacheConfigLocationEntry* config_loc_entry = NULL;
+    // config_loc_entry = (struct CacheConfigLocationEntry*)dashmap_search(
+    //     scene_builder->config_locs_hmap, &map_loc->loc_id, DASHMAP_FIND);
 
-    assert(config_loc_entry && "Config loc must be found in hmap");
-    assert(
-        config_loc_entry->id == map_loc->loc_id &&
-        config_loc_entry->config_loc->_id == map_loc->loc_id);
+    // assert(config_loc_entry && "Config loc must be found in hmap");
+    // assert(
+    //     config_loc_entry->id == map_loc->loc_id &&
+    //     config_loc_entry->config_loc->_id == map_loc->loc_id);
 
-    config_loc = config_loc_entry->config_loc;
+    // config_loc = config_loc_entry->config_loc;
+
+    config_loc = configmap_get(scene_builder->config_locs_configmap, map_loc->loc_id);
     assert(config_loc && "Config loc must be valid");
 
     terrain_grid_offset_from_sw(
