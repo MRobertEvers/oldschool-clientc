@@ -369,8 +369,8 @@ on_gio_req_init(
     {
     case GIO_STATUS_PENDING:
     {
-        platform->cache = gioqb_cache_new();
-        // platform->cache_dat = gioqb_cache_dat_new();
+        // platform->cache = gioqb_cache_new();
+        platform->cache_dat = gioqb_cache_dat_new();
         gioqb_mark_done(
             io, message->message_id, message->command, message->param_b, message->param_a, NULL, 0);
     }

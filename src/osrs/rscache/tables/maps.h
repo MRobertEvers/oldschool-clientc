@@ -75,16 +75,16 @@ struct CacheMapLocs
 enum FloorFlags
 {
     // Bridge underlay
-    FLOFLAG_BRIDGE = 0x01,
+    FLOFLAG_BLOCKGROUND = 0x01,
 
-    // Used for things like the lights in the lumbridge church
-    // This appears to only be used for things on Level 1 and 0.
+    // Used for bridges.
+    // This causes all the tiles to be "shifted down" by one level.
     // if ((mapl[1][var3][var4] & 0x2) == 2) {
     //     var5 = var2 - 1;
     // ((levelTileFlags[0][x0][z0] & 0x2) == 0) && (((levelTileFlags[level][x0][z0] & 0x10) != 0)
-    FLOFLAG_DRAW_DOWNLEVEL = 0x02,
-    // Not sure how this works but it's used in 'getTopLevel'.
-    FLOFLAG_TOPLEVEL_SOMETHING = 0x04,
+    FLOFLAG_BRIDGE = 0x02,
+    // Somethign about roofs
+    FLOFLAG_ROOF = 0x04,
     // if ((mapl[arg0][arg1][arg2] & 0x8) != 0) {
     // var8 = 0;
     FLOFLAG_DRAW_LEVEL_0 = 0x08,

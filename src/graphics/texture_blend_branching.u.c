@@ -36,9 +36,11 @@ draw_texture_scanline_opaque_blend_ordered_blerp8(
     if( screen_x0_ish16 < 0 )
         screen_x0_ish16 = 0;
 
-    int screen_x0 = screen_x0_ish16 >> 16;
+    int screen_x0 = (screen_x0_ish16 - 1) >> 16;
     int screen_x1 = screen_x1_ish16 >> 16;
 
+    if( screen_x0 < 0 )
+        screen_x0 = 0;
     if( screen_x1 >= screen_width )
         screen_x1 = screen_width - 1;
 
@@ -46,9 +48,9 @@ draw_texture_scanline_opaque_blend_ordered_blerp8(
         return;
 
     adjust = screen_x0 - (screen_width >> 1);
-    au += step_au_dx * adjust;
-    bv += step_bv_dx * adjust;
-    cw += step_cw_dx * adjust;
+    au += (step_au_dx)*adjust;
+    bv += (step_bv_dx)*adjust;
+    cw += (step_cw_dx)*adjust;
 
     step_au_dx <<= 3;
     step_bv_dx <<= 3;

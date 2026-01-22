@@ -55,8 +55,8 @@ ground_type_map_get_underlay_rgb(
     case M_DAT_FLOTYPE:
     {
         struct FlotypeEntry* flotype_entry = NULL;
-        flotype_entry = (struct FlotypeEntry*)dashmap_search(
-            ground_type_map->underlay_configmap_, &search_id, DASHMAP_FIND);
+        flotype_entry =
+            (struct FlotypeEntry*)dashmap_search(ground_type_map->map_, &search_id, DASHMAP_FIND);
         assert(flotype_entry != NULL);
         return flotype_entry->flotype->rgb_color;
     }

@@ -1848,19 +1848,27 @@ build_scene_scenery(
         for( int z = 0; z < scene->tile_width_z; z++ )
         {
             /**
-             * Note: The check here is different in 2004scape and OS1.
-             * 2004scape:
-             * if( (bridge->settings & FLOFLAG_DRAW_DOWNLEVEL) != 0 &&
-             *     (ground->settings & FLOFLAG_BRIDGE) != 0 )
              * OS1:
-             * if( (bridge->settings & FLOFLAG_DRAW_DOWNLEVEL) != 0 &&
-             *     (ground->settings & FLOFLAG_BRIDGE) != 0 )
+             * 	for (int var76 = 0; var76 < 104; var76++) {
+             *	for (int var77 = 0; var77 < 104; var77++) {
+             *		if ((mapl[1][var76][var77] & 0x2) == 2) {
+             *			arg0.pushDown(var76, var77);
+             *		}
+             *	}
+             * }
+             * Dane's 317
+             *   for (int x = 0; x < maxTileX; x++) {
+             *     for (int z = 0; z < maxTileZ; z++) {
+             *         if ((levelTileFlags[1][x][z] & 0x2) == 2) {
+             *             scene.setBridge(x, z);
+             *         }
+             *     }
+             * }
              */
             ground = tile_from_sw_origin(terrain_grid, x, z, 0);
             bridge = tile_from_sw_origin(terrain_grid, x, z, 1);
 
-            if( (bridge->settings & FLOFLAG_DRAW_DOWNLEVEL) != 0 &&
-                (ground->settings & FLOFLAG_BRIDGE) != 0 )
+            if( (bridge->settings & FLOFLAG_BRIDGE) != 0 )
             {
                 bridge_tile_tmp = *painter_tile_at(scene_builder->painter, x, z, 0);
 

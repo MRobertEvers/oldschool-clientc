@@ -40,7 +40,7 @@ raster_texture_blend(
     int offset_x,
     int offset_y)
 {
-    if( texture_opaque )
+    if( true )
     {
         raster_texture_opaque_blend_blerp8(
             pixel_buffer,
@@ -230,12 +230,11 @@ raster_face_texture_blend_near_clip(
     int color_b;
     int color_c;
     int lerp_slope;
-
     if( za >= near_plane_z )
     {
         g_clip_x[clipped_count] = screen_vertices_x[a];
         g_clip_y[clipped_count] = screen_vertices_y[a];
-        // assert(g_clip_x[clipped_count] != -5000);
+        assert(g_clip_x[clipped_count] != -5000);
         g_clip_color[clipped_count] = colors_a[face];
 
         clipped_count++;
