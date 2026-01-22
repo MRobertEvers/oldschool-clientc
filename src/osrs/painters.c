@@ -1,6 +1,7 @@
 #include "painters.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -359,6 +360,10 @@ painter_add_normal_scenery(
     int size_z)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    if( sx == 27 && sz == 91 )
+    {
+        printf("entity: %d\n", entity);
+    }
     int element = painter_push_element(painter);
 
     compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);
@@ -548,6 +553,10 @@ push_command_entity(
     struct PaintersBuffer* buffer,
     int entity)
 {
+    if( entity == 32933 )
+    {
+        printf("entity: %d\n", entity);
+    }
     ensure_command_capacity(buffer, 1);
     buffer->commands[buffer->command_count++] = (struct PaintersElementCommand){
         ._entity = {
@@ -640,7 +649,7 @@ painter_paint(
     int radius = 25;
     int coord_list_x[4];
     int coord_list_z[4];
-    int max_level = 0;
+    int max_level = 1;
 
     int coord_list_length = 0;
 
@@ -799,6 +808,10 @@ painter_paint(
         assert(tile_paint->queue_count > 0);
         tile_paint->queue_count -= 1;
 
+        if( tile_sx == 27 && tile_sz == 91 )
+        {
+            printf("tile_idx: %d\n", tile_idx);
+        }
         // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
         // Dane discovered this also.
         // The issue turned out to be...a nuance of the DoublyLinkedList and Node
@@ -1093,6 +1106,10 @@ painter_paint(
             for( int j = 0; j < tile->scenery_count; j++ )
             {
                 int scenery_element = tile->scenery[j];
+                if( scenery_element == 32933 )
+                {
+                    printf("scenery_element: %d\n", scenery_element);
+                }
 
                 element_paint = &painter->element_paints[scenery_element];
                 if( element_paint->drawn )
@@ -1100,6 +1117,11 @@ painter_paint(
 
                 element = &painter->elements[scenery_element];
                 assert(element->kind == PNTRELEM_SCENERY);
+
+                if( element->_scenery.entity == 32933 )
+                {
+                    printf("entity: %d\n", element->_scenery.entity);
+                }
 
                 int min_tile_x = element->sx;
                 int min_tile_z = element->sz;

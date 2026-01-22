@@ -1344,3 +1344,32 @@ Loading an archive
 2. Platform Init (Select Platform Layer Abstraction)
 3. Platform Asset (Socket connection etc.)
 4. Platform Render (Paired with Platform Layer Abstraction)
+
+# Level Tile Flags
+
+Some locs and tiles are drawn on the tile below. e.g. Fire on the standing torch, or the light in the lumbridge church. Also many tiles along the banks of rivers.
+
+Level tile flags seem to indicate when a loc or something should be drawn on a different level.
+LevelTileFlags are stored in the terrain. For example the standing torch's flame is on level 1, but the terrain indicates it is on level 0.
+
+
+from Dane's
+
+<!-- 
+} else if (type <= 81) {
+                    levelTileFlags[level][x][z] = (byte) (type - 49); -->
+
+
+Then 
+
+```
+    public int getDrawLevel(int level, int stx, int stz) {
+        if ((levelTileFlags[level][stx][stz] & 0x8) != 0) {
+            return 0;
+        }
+        if ((level > 0) && ((levelTileFlags[1][stx][stz] & 0x2) != 0)) {
+            return level - 1;
+        }
+        return level;
+    }
+```

@@ -274,10 +274,28 @@ load_model(
 
     assert(model_count > 0);
 
-    if( models[0]->_id == 2086 )
+    if( models[0]->_id == 2261 )
     {
         printf("model_count: %d\n", model_count);
     }
+
+    if( models[0]->_id == 5439 &&
+        memcmp(loc_config->name, "Standing torch", sizeof("Standing torch") - 1) == 0 )
+    {
+        if( loc_config->seq_id != -1 )
+        {
+            printf("seq_id: %d\n", loc_config->seq_id);
+        }
+        else
+        {
+            printf("seq_id: %d\n", loc_config->seq_id);
+        }
+    }
+
+    // if( dash_model->_dbg_ids[0] == 5439 && )
+    // {
+    //     printf("model_count: %d\n", model_count);
+    // }
 
     if( model_count > 1 )
     {
@@ -1559,6 +1577,15 @@ scenery_add(
         map_loc->chunk_pos_level,
         &offset);
 
+    // int settings = tile_at(
+    //                    terrain_grid,
+    //                    mapx,
+    //                    mapz,
+    //                    map_loc->chunk_pos_x,
+    //                    map_loc->chunk_pos_z,
+    //                    map_loc->chunk_pos_level)
+    //                    ->settings;
+    // printf("settings: %d\n", settings);
     // if( !(offset.x == 30 && offset.z == 25) )
     // {
     //     return;
