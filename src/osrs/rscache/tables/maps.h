@@ -74,6 +74,7 @@ struct CacheMapLocs
 
 enum FloorFlags
 {
+    // Bridge underlay
     FLOFLAG_BRIDGE = 0x01,
 
     // Used for things like the lights in the lumbridge church

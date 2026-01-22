@@ -87,7 +87,7 @@ struct Chunk
     int z;
 };
 
-#define CHUNKS_COUNT 36
+#define CHUNKS_COUNT 128
 
 struct FramePack
 {
@@ -538,8 +538,9 @@ task_init_scene_new(
     task->chunks_width = (map_ne_x - map_sw_x + 1);
     task->chunks_count = (map_ne_z - map_sw_z + 1) * (map_ne_x - map_sw_x + 1);
 
-    game->sys_painter =
-        painter_new(task->chunks_width * 64, task->chunks_width * 64, MAP_TERRAIN_LEVELS);
+    int chunks_height = (map_ne_z - map_sw_z + 1);
+    int chunks_width = (map_ne_x - map_sw_x + 1);
+    game->sys_painter = painter_new(chunks_width * 64, chunks_height * 64, MAP_TERRAIN_LEVELS);
     game->sys_painter_buffer = painter_buffer_new();
 
     task->painter = game->sys_painter;

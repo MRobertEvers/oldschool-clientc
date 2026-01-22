@@ -5,7 +5,7 @@
 
 struct TerrainGrid
 {
-    struct CacheMapTerrain* map_terrain[36];
+    struct CacheMapTerrain* map_terrain[196];
     int mapx_sw;
     int mapz_sw;
     int mapx_ne;
@@ -128,6 +128,65 @@ tile_from_sw_origin(
 }
 
 static void
+tile_heights_at_sized(
+    struct TerrainGrid* terrain_grid,
+    int mapx,
+    int mapz,
+    // Tile from the SW chunk
+    int cx,
+    int cz,
+    int clevel,
+    int size_x,
+    int size_z,
+    struct TileHeights* tile_heights)
+{
+    int start_x = cx;
+    int end_x = cx + 1;
+    int start_z = cz;
+    int end_z = cz + 1;
+
+    // This is what OSRS uses.
+    // Older revs do not.
+    if( tile_in_bounds(terrain_grid, mapx, mapz, cx + size_x, cz) )
+    {
+        start_x = (size_x >> 1) + cx;
+        end_x = ((size_x + 1) >> 1) + cx;
+    }
+
+    if( tile_in_bounds(terrain_grid, mapx, mapz, cx, cz + size_z) )
+    {
+        start_z = (size_z >> 1) + cz;
+        end_z = ((size_z + 1) >> 1) + cz;
+    }
+
+    tile_heights->sw_height = tile_at(terrain_grid, mapx, mapz, start_x, start_z, clevel)->height;
+
+    tile_heights->se_height = tile_heights->sw_height;
+    if( tile_in_bounds(terrain_grid, mapx, mapz, end_x, start_z) )
+    {
+        tile_heights->se_height = tile_at(terrain_grid, mapx, mapz, end_x, start_z, clevel)->height;
+    }
+
+    tile_heights->ne_height = tile_heights->sw_height;
+    if( tile_in_bounds(terrain_grid, mapx, mapz, end_x, end_z) )
+    {
+        tile_heights->ne_height = tile_at(terrain_grid, mapx, mapz, end_x, end_z, clevel)->height;
+    }
+
+    tile_heights->nw_height = tile_heights->sw_height;
+    if( tile_in_bounds(terrain_grid, mapx, mapz, start_x, end_z) )
+    {
+        tile_heights->nw_height = tile_at(terrain_grid, mapx, mapz, start_x, end_z, clevel)->height;
+    }
+
+    int height_center = (tile_heights->sw_height + tile_heights->se_height +
+                         tile_heights->ne_height + tile_heights->nw_height) >>
+                        2;
+
+    tile_heights->height_center = height_center;
+}
+
+static void
 tile_heights_at(
     struct TerrainGrid* terrain_grid,
     int mapx,
@@ -138,31 +197,7 @@ tile_heights_at(
     int clevel,
     struct TileHeights* tile_heights)
 {
-    tile_heights->sw_height = tile_at(terrain_grid, mapx, mapz, cx, cz, clevel)->height;
-
-    tile_heights->se_height = tile_heights->sw_height;
-    if( tile_in_bounds(terrain_grid, mapx, mapz, cx + 1, cz) )
-    {
-        tile_heights->se_height = tile_at(terrain_grid, mapx, mapz, cx + 1, cz, clevel)->height;
-    }
-
-    tile_heights->ne_height = tile_heights->sw_height;
-    if( tile_in_bounds(terrain_grid, mapx, mapz, cx + 1, cz + 1) )
-    {
-        tile_heights->ne_height = tile_at(terrain_grid, mapx, mapz, cx + 1, cz + 1, clevel)->height;
-    }
-
-    tile_heights->nw_height = tile_heights->sw_height;
-    if( tile_in_bounds(terrain_grid, mapx, mapz, cx, cz + 1) )
-    {
-        tile_heights->nw_height = tile_at(terrain_grid, mapx, mapz, cx, cz + 1, clevel)->height;
-    }
-
-    int height_center = (tile_heights->sw_height + tile_heights->se_height +
-                         tile_heights->ne_height + tile_heights->nw_height) >>
-                        2;
-
-    tile_heights->height_center = height_center;
+    return tile_heights_at_sized(terrain_grid, mapx, mapz, cx, cz, clevel, 1, 1, tile_heights);
 }
 
 static void

@@ -294,6 +294,11 @@ load_model(
 
     assert(model_count > 0);
 
+    if( loc_config->_id == 44832 )
+    {
+        printf("model_count: %d\n", model_count);
+    }
+
     if( models[0]->_id == 2261 )
     {
         printf("model_count: %d\n", model_count);
@@ -1615,6 +1620,16 @@ scenery_add(
         map_loc->chunk_pos_level,
         &offset);
 
+    if( config_loc->_id == 44832 || config_loc->_id == 44833 )
+    {
+        printf("config_loc->_id: %d\n", config_loc->_id);
+    }
+
+    if( (offset.x == 44 && offset.z == 34) || (offset.x == 44 && offset.z == 30) )
+    {
+        printf("offset: %d, %d\n", 1);
+    }
+
     // int settings = tile_at(
     //                    terrain_grid,
     //                    mapx,
@@ -1629,13 +1644,15 @@ scenery_add(
     //     return;
     // }
 
-    tile_heights_at(
+    tile_heights_at_sized(
         terrain_grid,
         mapx,
         mapz,
         map_loc->chunk_pos_x,
         map_loc->chunk_pos_z,
         map_loc->chunk_pos_level,
+        config_loc->size_x,
+        config_loc->size_z,
         &tile_heights);
 
     switch( map_loc->shape_select )
@@ -1815,22 +1832,27 @@ build_scene_scenery(
      * Buffer Level 2: Nothing
      * Buffer Level 3: Tile := (Previous Level 0)
      */
-    struct CacheMapFloor* floor_tile = NULL;
-    struct CacheMapFloor* floor = NULL;
+    struct CacheMapFloor* ground = NULL;
+    struct CacheMapFloor* bridge = NULL;
     struct PaintersTile bridge_tile_tmp = { 0 };
     for( int x = 0; x < scene->tile_width_x; x++ )
     {
         for( int z = 0; z < scene->tile_width_z; z++ )
         {
-            if( x == 34 && z == 34 )
-            {
-                printf("x: %d, z: %d\n", x, z);
-            }
+            /**
+             * Note: The check here is different in 2004scape and OS1.
+             * 2004scape:
+             * if( (bridge->settings & FLOFLAG_DRAW_DOWNLEVEL) != 0 &&
+             *     (ground->settings & FLOFLAG_BRIDGE) != 0 )
+             * OS1:
+             * if( (bridge->settings & FLOFLAG_DRAW_DOWNLEVEL) != 0 &&
+             *     (ground->settings & FLOFLAG_BRIDGE) != 0 )
+             */
+            ground = tile_from_sw_origin(terrain_grid, x, z, 0);
+            bridge = tile_from_sw_origin(terrain_grid, x, z, 1);
 
-            floor_tile = tile_from_sw_origin(terrain_grid, x, z, 0);
-            floor = tile_from_sw_origin(terrain_grid, x, z, 1);
-            if( (floor->settings & FLOFLAG_DRAW_DOWNLEVEL) != 0 &&
-                (floor_tile->settings & FLOFLAG_BRIDGE) != 0 )
+            if( (bridge->settings & FLOFLAG_DRAW_DOWNLEVEL) != 0 &&
+                (ground->settings & FLOFLAG_BRIDGE) != 0 )
             {
                 bridge_tile_tmp = *painter_tile_at(scene_builder->painter, x, z, 0);
 

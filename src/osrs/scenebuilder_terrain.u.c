@@ -527,6 +527,12 @@ build_scene_terrain(
                 if( underlay_id == -1 && overlay_id == -1 )
                     continue;
 
+                // Low statue
+                // Normal
+                // 44 30
+                if( (x == 44 && z == 34) || (x == 44 && z == 30) )
+                    printf("height_sw: %d\n", 1);
+
                 int height_sw = tile_from_sw_origin(terrain_grid, x, z, level)->height;
                 int height_se = tile_from_sw_origin(terrain_grid, x + 1, z, level)->height;
                 int height_ne = tile_from_sw_origin(terrain_grid, x + 1, z + 1, level)->height;

@@ -139,6 +139,10 @@ scene_terrain_tile_at(
 {
     int index =
         sx + sz * terrain->tile_width_x + slevel * terrain->tile_width_x * terrain->tile_width_z;
+    assert(sx >= 0 && sx < terrain->tile_width_x);
+    assert(sz >= 0 && sz < terrain->tile_width_z);
+    assert(slevel >= 0 && slevel < MAP_TERRAIN_LEVELS);
+    assert(index >= 0 && index < terrain->tiles_capacity);
     return &terrain->tiles[index];
 }
 
