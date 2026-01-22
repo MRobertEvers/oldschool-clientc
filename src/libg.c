@@ -302,7 +302,7 @@ libg_game_new(struct GIOQueue* io)
 
     gametask_new_init_io(game, game->io);
     // gametask_new_init_scene_dat(game, 48, 48, 51, 51);
-    gametask_new_init_scene(game, 50, 50, 51, 51);
+    gametask_new_init_scene(game, 48, 48, 51, 51);
 
     // struct PacketBuffer packetbuffer;
     // packetbuffer_init(&packetbuffer, GAMEPROTO_REVISION_LC254);

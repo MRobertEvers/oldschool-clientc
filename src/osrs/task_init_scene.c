@@ -1335,6 +1335,11 @@ step_framemaps_load(struct TaskInitScene* task)
                     task->frame_blob_hmap, &frame_archive_id, DASHMAP_FIND);
                 assert(frame_entry && "Frame must be found");
 
+                if( frame_file_id - 1 >= frame_entry->frame->file_count )
+                {
+                    frame_file_id = frame_entry->frame->file_count;
+                }
+
                 assert(frame_file_id > 0);
                 assert(frame_file_id - 1 < frame_entry->frame->file_count);
 
@@ -1391,6 +1396,11 @@ step_framemaps_load(struct TaskInitScene* task)
                 frame_entry = (struct FrameEntry*)dashmap_search(
                     task->frame_blob_hmap, &frame_archive_id, DASHMAP_FIND);
                 assert(frame_entry && "Frame must be found");
+
+                if( frame_file_id - 1 >= frame_entry->frame->file_count )
+                {
+                    frame_file_id = frame_entry->frame->file_count;
+                }
 
                 assert(frame_file_id > 0);
                 assert(frame_file_id - 1 < frame_entry->frame->file_count);

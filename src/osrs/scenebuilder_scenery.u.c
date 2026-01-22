@@ -274,6 +274,11 @@ load_model(
 
     assert(model_count > 0);
 
+    if( models[0]->_id == 2086 )
+    {
+        printf("model_count: %d\n", model_count);
+    }
+
     if( model_count > 1 )
     {
         model = model_new_merge(models, model_count);
@@ -1130,7 +1135,7 @@ scenery_add_wall_decor_diagonal_inside(
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
-    int rotation = config_loc->seq_id != -1 ? 0 : (map_loc->orientation);
+    int rotation = config_loc->seq_id != -1 ? 0 : (map_loc->orientation + 2);
     int orientation = (map_loc->orientation + 2) & 0x3;
 
     dash_model = load_model(
@@ -1201,19 +1206,22 @@ scenery_add_wall_decor_diagonal_double(
     struct DashPosition* dash_position_one = NULL;
     struct DashPosition* dash_position_two = NULL;
     struct SceneElement scene_element = { 0 };
+    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_one_id = -1;
     int element_two_id = -1;
 
     int outside_orientation = map_loc->orientation;
+    int outside_rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int inside_orientation = (map_loc->orientation + 2) & 0x3;
+    int inside_rotation = config_loc->seq_id != -1 ? 0 : (map_loc->orientation + 2);
 
     dash_model_one = load_model(
         config_loc,
         scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
-        outside_orientation,
+        outside_rotation,
         tile_heights);
 
     dash_position_one = dash_position_from_offset_1x1(offset, tile_heights->height_center);
@@ -1222,7 +1230,14 @@ scenery_add_wall_decor_diagonal_double(
     scene_element.dash_position = dash_position_one;
 
     scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
+    if( config_loc->seq_id != -1 )
+        scene_element.dash_position->yaw += 512 * (outside_rotation);
     scene_element.dash_position->yaw %= 2048;
+
+    scene_animation = load_model_animations(
+        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+
+    scene_element.animation = scene_animation;
 
     element_one_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_one_id != -1);
@@ -1232,7 +1247,7 @@ scenery_add_wall_decor_diagonal_double(
         scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
-        inside_orientation,
+        inside_rotation,
         tile_heights);
 
     dash_position_two = dash_position_from_offset_1x1(offset, tile_heights->height_center);
@@ -1240,8 +1255,16 @@ scenery_add_wall_decor_diagonal_double(
     scene_element.dash_model = dash_model_two;
     scene_element.dash_position = dash_position_two;
 
-    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_OUTSIDE;
+    scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST_DIAGONAL_INSIDE;
+
+    if( config_loc->seq_id != -1 )
+        scene_element.dash_position->yaw += 512 * (inside_rotation);
     scene_element.dash_position->yaw %= 2048;
+
+    scene_animation = load_model_animations(
+        config_loc, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+
+    scene_element.animation = scene_animation;
 
     element_two_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_two_id != -1);
