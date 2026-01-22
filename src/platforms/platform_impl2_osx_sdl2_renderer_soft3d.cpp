@@ -34,6 +34,8 @@ render_imgui(
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
     Uint64 frequency = SDL_GetPerformanceFrequency();
+
+    ImGui::Text("Buck: %d", game->cc);
     // ImGui::Text(
     //     "Render Time: %.3f ms/frame",
     //     (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
@@ -319,6 +321,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     game->mouse_x,
                     game->mouse_y) )
             {
+                // 1637
                 printf(
                     "Interactable: %s\n", scene_element_name(game->scene, cmd->_entity._bf_entity));
 

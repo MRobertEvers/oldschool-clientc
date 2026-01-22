@@ -40,11 +40,12 @@ struct GroundTypeMap
 {
     enum GroundTypeMode mode;
     struct DashMap* map_;
-    struct DashMap* configmap_;
+    struct DashMap* underlay_configmap_;
+    struct DashMap* overlay_configmap_;
 };
 
 static int
-ground_type_map_get_rgb(
+ground_type_map_get_underlay_rgb(
     struct GroundTypeMap* ground_type_map,
     int underlay_id)
 {
@@ -54,15 +55,16 @@ ground_type_map_get_rgb(
     case M_DAT_FLOTYPE:
     {
         struct FlotypeEntry* flotype_entry = NULL;
-        flotype_entry =
-            (struct FlotypeEntry*)dashmap_search(ground_type_map->map_, &search_id, DASHMAP_FIND);
+        flotype_entry = (struct FlotypeEntry*)dashmap_search(
+            ground_type_map->underlay_configmap_, &search_id, DASHMAP_FIND);
         assert(flotype_entry != NULL);
         return flotype_entry->flotype->rgb_color;
     }
     case M_DAT2_OVERLAY_UNDERLAY:
     {
         struct CacheConfigUnderlay* entry = NULL;
-        entry = (struct CacheConfigUnderlay*)configmap_get(ground_type_map->configmap_, search_id);
+        entry = (struct CacheConfigUnderlay*)configmap_get(
+            ground_type_map->underlay_configmap_, search_id);
         assert(entry != NULL);
         return entry->rgb_color;
     }
@@ -98,7 +100,7 @@ ground_type_map_get_overlay(
     }
     case M_DAT2_OVERLAY_UNDERLAY:
     {
-        return configmap_get(ground_type_map->configmap_, overlay_id);
+        return configmap_get(ground_type_map->overlay_configmap_, overlay_id);
     }
     }
 
@@ -190,7 +192,7 @@ blend_underlays(
                     //     config_underlay_map, underlay_id - 1);
                     // assert(entry != NULL);
 
-                    int rgb = ground_type_map_get_rgb(underlay_map, underlay_id);
+                    int rgb = ground_type_map_get_underlay_rgb(underlay_map, underlay_id);
                     hsl = palette_rgb_to_hsl24(rgb);
 
                     chroma[zi] += hsl.chroma;
@@ -225,7 +227,7 @@ blend_underlays(
                     //     config_underlay_map, underlay_id - 1);
                     // assert(entry != NULL);
 
-                    int rgb = ground_type_map_get_rgb(underlay_map, underlay_id);
+                    int rgb = ground_type_map_get_underlay_rgb(underlay_map, underlay_id);
 
                     hsl = palette_rgb_to_hsl24(rgb);
 
@@ -490,7 +492,8 @@ build_scene_terrain(
     if( scene_builder->config_underlay_configmap != NULL )
     {
         groundtypemap.mode = M_DAT2_OVERLAY_UNDERLAY;
-        groundtypemap.configmap_ = config_underlay_map;
+        groundtypemap.underlay_configmap_ = config_underlay_map;
+        groundtypemap.overlay_configmap_ = config_overlay_map;
     }
     else
     {

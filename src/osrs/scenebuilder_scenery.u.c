@@ -312,11 +312,6 @@ load_model(
         }
     }
 
-    // if( dash_model->_dbg_ids[0] == 5439 && )
-    // {
-    //     printf("model_count: %d\n", model_count);
-    // }
-
     if( model_count > 1 )
     {
         model = model_new_merge(models, model_count);
@@ -366,6 +361,11 @@ load_model(
     struct DashModel* dash_model = NULL;
     dash_model = dashmodel_new_from_cache_model(model);
     model_free(model);
+
+    if( dash_model->_dbg_ids[0] == 1637 )
+    {
+        printf("model_count: %d\n", model_count);
+    }
 
     light_model_default(dash_model, loc_config->contrast, loc_config->ambient);
 
