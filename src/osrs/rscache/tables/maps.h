@@ -74,14 +74,28 @@ struct CacheMapLocs
 
 enum FloorFlags
 {
-    FLOFLAG_SOLID_UNKNWON = 0 << 1,
-    FLOFLAG_BRIDGE = 1 << 1
+    FLOFLAG_BRIDGE = 0x01,
+
+    // Used for things like the lights in the lumbridge church
+    // This appears to only be used for things on Level 1 and 0.
+    // if ((mapl[1][var3][var4] & 0x2) == 2) {
+    //     var5 = var2 - 1;
+    // ((levelTileFlags[0][x0][z0] & 0x2) == 0) && (((levelTileFlags[level][x0][z0] & 0x10) != 0)
+    FLOFLAG_DRAW_DOWNLEVEL = 0x02,
+    // Not sure how this works but it's used in 'getTopLevel'.
+    FLOFLAG_TOPLEVEL_SOMETHING = 0x04,
+    // if ((mapl[arg0][arg1][arg2] & 0x8) != 0) {
+    // var8 = 0;
+    FLOFLAG_DRAW_LEVEL_0 = 0x08,
+    // Seemingly only used in conjunction with FLOFLAG_DOWNLEVEL
+    FLOFLAG_IGNORE_DRAWLEVEL = 0x10,
 };
 
 struct CacheMapFloor
 {
     int height;
     int attr_opcode;
+    // enum FloorFlags
     int settings;
     int overlay_id;
     int shape;
