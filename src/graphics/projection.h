@@ -17,43 +17,4 @@ struct ProjectedVertex
     int clipped;
 };
 
-// Function declarations
-void project_vertices_all(
-    int* orthographic_vertices_x,
-    int* orthographic_vertices_y,
-    int* orthographic_vertices_z,
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    int num_vertices,
-    int model_yaw,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    int camera_fov,
-    int camera_pitch,
-    int camera_yaw);
-
-void project_vertices_all_avx(
-    int* orthographic_vertices_x,
-    int* orthographic_vertices_y,
-    int* orthographic_vertices_z,
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    int num_vertices,
-    int model_yaw,
-    int scene_x,
-    int scene_y,
-    int scene_z,
-    int camera_fov,
-    int camera_pitch,
-    int camera_yaw);
-
 #endif

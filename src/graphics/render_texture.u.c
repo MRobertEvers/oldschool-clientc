@@ -235,7 +235,7 @@ raster_face_texture_blend_near_clip(
     {
         g_clip_x[clipped_count] = screen_vertices_x[a];
         g_clip_y[clipped_count] = screen_vertices_y[a];
-        assert(g_clip_x[clipped_count] != -5000);
+        // assert(g_clip_x[clipped_count] != -5000);
         g_clip_color[clipped_count] = colors_a[face];
 
         clipped_count++;

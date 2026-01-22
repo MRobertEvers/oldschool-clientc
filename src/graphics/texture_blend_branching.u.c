@@ -63,6 +63,7 @@ draw_texture_scanline_opaque_blend_ordered_blerp8(
     // If texture width is 128 or 64.
     // assert(texture_width == 128 || texture_width == 64);
     int texture_shift = (texture_width & 0x80) ? 7 : 6;
+    int mask = texture_shift == 7 ? 0x3f80 : 0x0fc0;
 
     int curr_u;
     int curr_v;
@@ -170,7 +171,7 @@ draw_texture_scanline_opaque_blend_ordered_blerp8(
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & mask;
         int texel = texels[u + v];
         pixel_buffer[offset] = shade_blend(texel, shade);
 

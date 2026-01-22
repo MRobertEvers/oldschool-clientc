@@ -12,7 +12,9 @@
 
 // shade_blend for 4 pixels at a time
 static inline uint32x4_t
-shade_blend4_neon(uint32x4_t texel, int shade)
+shade_blend4_neon(
+    uint32x4_t texel,
+    int shade)
 {
     // Expand 8-bit channels to 16-bit
     uint8x16_t texel_u8 = vreinterpretq_u8_u32(texel);
@@ -46,10 +48,12 @@ raster_linear_transparent_blend_lerp8(
     int shade)
 {
     int idx[8];
+    assert(texture_shift == 7 || texture_shift == 6);
+    int mask = texture_shift == 7 ? 0x3f80 : 0x0fc0;
     for( int i = 0; i < 8; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & mask;
         idx[i] = u + v;
         u_scan += step_u;
         v_scan += step_v;
@@ -93,10 +97,12 @@ raster_linear_opaque_blend_lerp8(
     int shade)
 {
     int idx[8];
+    assert(texture_shift == 7 || texture_shift == 6);
+    int mask = texture_shift == 7 ? 0x3f80 : 0x0fc0;
     for( int i = 0; i < 8; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & mask;
         idx[i] = u + v;
         u_scan += step_u;
         v_scan += step_v;
@@ -120,7 +126,9 @@ raster_linear_opaque_blend_lerp8(
 
 // shade_blend for 8 pixels at a time using AVX2
 static inline __m256i
-shade_blend8_avx2(__m256i texel, int shade)
+shade_blend8_avx2(
+    __m256i texel,
+    int shade)
 {
     // Expand 8-bit channels to 16-bit (similar to NEON vmovl_u8)
     __m256i texel_lo = _mm256_unpacklo_epi8(texel, _mm256_setzero_si256());
@@ -154,10 +162,12 @@ raster_linear_transparent_blend_lerp8(
     int shade)
 {
     int idx[8];
+    assert(texture_shift == 7 || texture_shift == 6);
+    int mask = texture_shift == 7 ? 0x3f80 : 0x0fc0;
     for( int i = 0; i < 8; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & mask;
         idx[i] = u + v;
         u_scan += step_u;
         v_scan += step_v;
@@ -235,7 +245,9 @@ raster_linear_opaque_blend_lerp8(
 
 // shade_blend for 4 pixels at a time using SSE2
 static inline __m128i
-shade_blend4_sse(__m128i texel, int shade)
+shade_blend4_sse(
+    __m128i texel,
+    int shade)
 {
     // Expand 8-bit channels to 16-bit (similar to NEON vmovl_u8)
     __m128i texel_lo = _mm_unpacklo_epi8(texel, _mm_setzero_si128());
@@ -269,10 +281,12 @@ raster_linear_transparent_blend_lerp8(
     int shade)
 {
     int idx[8];
+    assert(texture_shift == 7 || texture_shift == 6);
+    int mask = texture_shift == 7 ? 0x3f80 : 0x0fc0;
     for( int i = 0; i < 8; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & mask;
         idx[i] = u + v;
         u_scan += step_u;
         v_scan += step_v;
@@ -318,10 +332,12 @@ raster_linear_opaque_blend_lerp8(
     int shade)
 {
     int idx[8];
+    assert(texture_shift == 7 || texture_shift == 6);
+    int mask = texture_shift == 7 ? 0x3f80 : 0x0fc0;
     for( int i = 0; i < 8; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & mask;
         idx[i] = u + v;
         u_scan += step_u;
         v_scan += step_v;
@@ -353,10 +369,12 @@ raster_linear_transparent_blend_lerp8(
     int texture_shift,
     int shade)
 {
+    assert(texture_shift == 7 || texture_shift == 6);
+    int mask = texture_shift == 7 ? 0x3f80 : 0x0fc0;
     for( int i = 0; i < 8; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & mask;
         int texel = texels[u + (v)];
         if( texel != 0 )
             pixel_buffer[offset] = shade_blend(texel, shade);
@@ -380,10 +398,12 @@ raster_linear_opaque_blend_lerp8(
     int texture_shift,
     int shade)
 {
+    assert(texture_shift == 7 || texture_shift == 6);
+    int mask = texture_shift == 7 ? 0x3f80 : 0x0fc0;
     for( int i = 0; i < 8; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & mask;
         int texel = texels[u + (v)];
         pixel_buffer[offset] = shade_blend(texel, shade);
 

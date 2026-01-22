@@ -3,8 +3,16 @@
 
 #include <stdbool.h>
 
-bool
-triangle_contains_point(int x1, int y1, int x2, int y2, int x3, int y3, int x, int y)
+static inline bool
+triangle_contains_point(
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    int x3,
+    int y3,
+    int x,
+    int y)
 {
     int denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
     if( denominator != 0 )
