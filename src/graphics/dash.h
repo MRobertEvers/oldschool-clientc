@@ -268,6 +268,9 @@ dash3d_add_texture(
     int texture_id, //
     struct DashTexture* texture);
 
+void
+dash3d_animate_textures(struct DashGraphics* dash);
+
 struct DashModelNormals* //
 dashmodel_normals_new(
     int vertex_count,

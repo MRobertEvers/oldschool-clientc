@@ -1472,6 +1472,16 @@ dash3d_add_texture(
     entry->texture = texture;
 }
 
+void
+dash3d_animate_textures(struct DashGraphics* dash)
+{
+    for( int i = 0; i < dash->textures_hmap->count; i++ )
+    {
+        struct DashTextureEntry* entry = (struct DashTextureEntry*)dash->textures_hmap->entries[i];
+        struct DashTexture* texture = entry->texture;
+    }
+}
+
 struct DashModelNormals*
 dashmodel_normals_new(
     int vertex_count,
