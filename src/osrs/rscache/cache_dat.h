@@ -145,6 +145,10 @@ struct CacheDat
     FILE* _dat_file;
 
     struct CacheMapSquares* map_squares;
+    // This is just because there is no way to look up an animframe by id
+    // unless you unpack all the animframes up front.
+    struct CacheDatAnimBaseFrames** animbaseframes;
+    int animbaseframes_count;
 };
 
 struct CacheDat*

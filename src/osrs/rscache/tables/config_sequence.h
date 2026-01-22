@@ -52,6 +52,51 @@ config_sequence_new_decode(
     int revision,
     char* buffer,
     int buffer_size);
+
+struct CacheDatSequence
+{
+    // frameCount: number = 0;
+    // frames: Int16Array | null = null;
+    // iframes: Int16Array | null = null;
+    // delay: Int16Array | null = null;
+    // loops: number = -1;
+    // walkmerge: Int32Array | null = null;
+    // stretches: boolean = false;
+    // priority: number = 5;
+    // replaceheldleft: number = -1;
+    // replaceheldright: number = -1;
+    // maxloops: number = 99;
+    // preanim_move: number = -1;
+    // postanim_move: number = -1;
+    // duplicatebehavior: number = -1;
+
+    int frame_count;
+    int* frames;
+    int* iframes;
+    int* delay;
+    int loops;
+    int* walkmerge;
+    bool stretches;
+    int priority;
+    int replaceheldleft;
+    int replaceheldright;
+    int maxloops;
+    int preanim_move;
+    int postanim_move;
+    int duplicate_behavior;
+};
+
+struct CacheDatSequence*
+config_dat_sequence_new_decode(
+    char* buffer,
+    int buffer_size);
+
+int
+config_dat_sequence_decode_inplace(
+    struct CacheDatSequence* sequence,
+    char* buffer,
+    int buffer_size);
+
 void
 config_sequence_free(struct CacheConfigSequence* sequence);
 void

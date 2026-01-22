@@ -3,6 +3,7 @@
 #include "archive.h"
 #include "disk.h"
 #include "filelist.h"
+#include "tables_dat/animframe.h"
 #include "tables_dat/config_versionlist_mapsquare.h"
 
 #include <assert.h>
@@ -92,6 +93,32 @@ cache_dat_new(char const* directory)
     }
 
     cache_dat->map_squares = cache_map_squares_new_decode(file_data, file_data_size);
+
+    name_hash = archive_name_hash_dat("anim_index");
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+        {
+            file_data = filelist->files[i];
+            file_data_size = filelist->file_sizes[i];
+            break;
+        }
+    }
+
+    // int archive_count = file_data_size / 2;
+
+    // cache_dat->animbaseframes = malloc(archive_count * sizeof(struct CacheDatAnimBaseFrames*));
+    // cache_dat->animbaseframes_count = archive_count;
+    // for( int i = 0; i < archive_count; i++ )
+    // {
+    //     archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_ANIMATIONS, i);
+    //     if( !archive )
+    //         continue;
+    //     cache_dat->animbaseframes[i] =
+    //         cache_dat_animbaseframes_new_decode(archive->data, archive->data_size);
+    //     cache_dat_archive_free(archive);
+    //     archive = NULL;
+    // }
 
     return cache_dat;
 }

@@ -1581,6 +1581,7 @@ dashmodel_animate(
 {
     reset_original_values(model);
     assert(model->original_vertices_x != NULL);
+    assert(model->vertex_bones != NULL);
     anim_frame_apply(
         frame,
         framemap,

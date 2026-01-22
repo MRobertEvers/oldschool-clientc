@@ -938,3 +938,154 @@ free_sequence(struct CacheConfigSequence* def)
         free(def->frame_sounds.sounds);
     }
 }
+
+// if (code === 1) {
+//     this.frameCount = dat.g1();
+//     this.frames = new Int16Array(this.frameCount);
+//     this.iframes = new Int16Array(this.frameCount);
+//     this.delay = new Int16Array(this.frameCount);
+
+//     for (let i: number = 0; i < this.frameCount; i++) {
+//         this.frames[i] = dat.g2();
+
+//         this.iframes[i] = dat.g2();
+//         if (this.iframes[i] === 65535) {
+//             this.iframes[i] = -1;
+//         }
+
+//         this.delay[i] = dat.g2();
+//     }
+// } else if (code === 2) {
+//     this.loops = dat.g2();
+// } else if (code === 3) {
+//     const count: number = dat.g1();
+//     this.walkmerge = new Int32Array(count + 1);
+
+//     for (let i: number = 0; i < count; i++) {
+//         this.walkmerge[i] = dat.g1();
+//     }
+
+//     this.walkmerge[count] = 9999999;
+// } else if (code === 4) {
+//     this.stretches = true;
+// } else if (code === 5) {
+//     this.priority = dat.g1();
+// } else if (code === 6) {
+//     this.replaceheldleft = dat.g2();
+// } else if (code === 7) {
+//     this.replaceheldright = dat.g2();
+// } else if (code === 8) {
+//     this.maxloops = dat.g1();
+// } else if (code === 9) {
+//     this.preanim_move = dat.g1();
+// } else if (code === 10) {
+//     this.postanim_move = dat.g1();
+// } else if (code === 11) {
+//     this.duplicatebehavior = dat.g1();
+// } else {
+//     console.log('Error unrecognised seq config code: ', code);
+// }
+
+struct CacheDatSequence*
+config_dat_sequence_new_decode(
+    char* buffer,
+    int buffer_size)
+{
+    struct CacheDatSequence* def = malloc(sizeof(struct CacheDatSequence));
+    memset(def, 0, sizeof(struct CacheDatSequence));
+
+    config_dat_sequence_decode_inplace(def, buffer, buffer_size);
+
+    return def;
+}
+
+int
+config_dat_sequence_decode_inplace(
+    struct CacheDatSequence* def,
+    char* data,
+    int data_size)
+{
+    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+
+    while( true )
+    {
+        int opcode = g1(&buffer);
+        if( opcode == 0 )
+        {
+            break;
+        }
+
+        switch( opcode )
+        {
+        case 1:
+            def->frame_count = g1(&buffer);
+
+            def->frames = malloc(def->frame_count * sizeof(int));
+            def->iframes = malloc(def->frame_count * sizeof(int));
+            def->delay = malloc(def->frame_count * sizeof(int));
+            memset(def->frames, 0, def->frame_count * sizeof(int));
+            memset(def->iframes, 0, def->frame_count * sizeof(int));
+            memset(def->delay, 0, def->frame_count * sizeof(int));
+
+            for( int i = 0; i < def->frame_count; i++ )
+            {
+                int frame = g2(&buffer);
+                def->frames[i] = frame;
+                int iframe = g2(&buffer);
+                if( iframe == 65535 )
+                {
+                    iframe = -1;
+                }
+                def->iframes[i] = iframe;
+
+                int delay = g2(&buffer);
+                def->delay[i] = delay;
+            }
+            break;
+        case 2:
+            def->loops = g2(&buffer);
+            break;
+        case 3:
+        {
+            int count = g1(&buffer);
+            def->walkmerge = malloc((count + 1) * sizeof(int));
+            memset(def->walkmerge, 0, (count + 1) * sizeof(int));
+            for( int i = 0; i < count; i++ )
+            {
+                def->walkmerge[i] = g1(&buffer);
+            }
+            def->walkmerge[count] = 9999999;
+        }
+        break;
+        case 4:
+            def->stretches = true;
+            break;
+        case 5:
+            def->priority = g1(&buffer);
+            break;
+        case 6:
+            def->replaceheldleft = g2(&buffer);
+            break;
+        case 7:
+            def->replaceheldright = g2(&buffer);
+            break;
+        case 8:
+            def->maxloops = g1(&buffer);
+            break;
+        case 9:
+            def->preanim_move = g1(&buffer);
+            break;
+        case 10:
+            def->postanim_move = g1(&buffer);
+            break;
+        case 11:
+            def->duplicate_behavior = g1(&buffer);
+            break;
+        default:
+            printf("Unrecognized opcode %d\n", opcode);
+            break;
+        }
+    }
+
+    return buffer.position;
+}

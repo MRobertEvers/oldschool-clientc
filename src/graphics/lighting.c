@@ -170,57 +170,18 @@ lighting_multiply_hsl16(
     return (hsl & 0xff80) + scalar;
 }
 
-static int
-lighting_multiply_hsl16_unlit(
-    int hsl,
-    int scalar,
-    int face_info)
-{
-    // face info 2 means unlit.
-    if( (face_info & 0x2) == 2 )
-    {
-        if( scalar < 0 )
-        {
-            scalar = 0;
-        }
-        else if( scalar > 127 )
-        {
-            scalar = 127;
-        }
-        return 127 - scalar;
-    }
-
-    return lighting_multiply_hsl16(hsl, scalar);
-}
-
-static int
-lightness_clamped(int lightness)
-{
-    if( lightness < 2 )
-        return 2;
-    if( lightness > 126 )
-        return 126;
-    return lightness;
-}
-
 /**
  * Doing this to simulate the "lighting shift" of older versions of OSRS.
  */
 static int
-bucket_lighting(int lightness)
+lightness_clamped(int lightness)
 {
-    if( lightness < 24 )
-    {
-        return 32;
-    }
+    // For later revisions, this is 2.
     if( lightness < 32 )
-    {
-        return lightness + 8;
-    }
-
+        return 32;
+    if( lightness > 126 )
+        return 126;
     return lightness;
-    lightness = lightness / 16;
-    return lightness * 13 + 24;
 }
 
 void
@@ -308,27 +269,21 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                lightness = bucket_lighting(lightness);
-                face_colors_a_hsl16[i] =
-                    lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, type);
+                face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
 
                 n = &vertex_normals[b];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                lightness = bucket_lighting(lightness);
-                face_colors_b_hsl16[i] =
-                    lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, type);
+                face_colors_b_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
 
                 n = &vertex_normals[c];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                lightness = bucket_lighting(lightness);
-                face_colors_c_hsl16[i] =
-                    lighting_multiply_hsl16_unlit(color_flat_hsl16, lightness, type);
+                face_colors_c_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
             }
             else if( type == 1 )
             {
@@ -354,6 +309,7 @@ apply_lighting(
         }
         else
         {
+            // Textured faces.
             if( type == 0 )
             {
                 n = &vertex_normals[a];
@@ -364,21 +320,18 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                lightness = bucket_lighting(lightness);
                 face_colors_a_hsl16[i] = lightness_clamped(lightness);
 
                 n = &vertex_normals[b];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
-                lightness = bucket_lighting(lightness);
                 face_colors_b_hsl16[i] = lightness_clamped(lightness);
 
                 n = &vertex_normals[c];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
-                lightness = bucket_lighting(lightness);
                 face_colors_c_hsl16[i] = lightness_clamped(lightness);
             }
             else if( type == 1 )

@@ -21,6 +21,7 @@
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables/sprites.h"
 #include "osrs/rscache/tables/textures.h"
+#include "osrs/rscache/tables_dat/animframe.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/scenebuilder.h"
 // #include "osrs/terrain.h"
@@ -56,6 +57,18 @@ struct ConfigLocEntry
     struct CacheConfigLocation* config_loc;
 };
 
+struct AnimframeEntry
+{
+    int id;
+    struct CacheAnimframe* animframe;
+};
+
+struct AnimbaseframesEntry
+{
+    int id;
+    struct CacheDatAnimBaseFrames* animbaseframes;
+};
+
 struct SceneryEntry
 {
     int id;
@@ -74,6 +87,12 @@ struct TextureEntry
 {
     int id;
     struct DashTexture* texture;
+};
+
+struct SequenceEntry
+{
+    int id;
+    struct CacheDatSequence* sequence;
 };
 
 struct Chunk
@@ -121,9 +140,14 @@ struct TaskInitSceneDat
     struct DashMap* scenery_hmap;
     struct DashMap* models_hmap;
     struct DashMap* config_loc_hmap;
+    struct DashMap* animframes_hmap;
+    // For cleanup.
+    struct DashMap* animbaseframes_hmap;
+    struct DashMap* sequences_hmap;
 
     struct Vec* queued_texture_ids_vec;
     struct Vec* queued_scenery_models_vec;
+    int animbaseframes_count;
 
     struct Chunk chunks[CHUNKS_COUNT];
     int chunks_count;
@@ -521,6 +545,30 @@ task_init_scene_dat_new(
     };
     task->config_loc_hmap = dashmap_new(&config, 0);
 
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size * 8),
+        .buffer_size = buffer_size * 8,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct AnimframeEntry),
+    };
+    task->animframes_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct AnimbaseframesEntry),
+    };
+    task->animbaseframes_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct SequenceEntry),
+    };
+    task->sequences_hmap = dashmap_new(&config, 0);
+
     return task;
 }
 
@@ -671,11 +719,12 @@ step_scenery_load(struct TaskInitSceneDat* task)
         while( gioq_poll(task->io, &message) )
         {
             task->reqid_queue_inflight_count--;
-            assert(task->reqid_queue_inflight_count == 0);
 
             struct CacheMapLocs* locs = map_locs_new_from_decode(message.data, message.data_size);
             locs->_chunk_mapx = message.param_b >> 16;
             locs->_chunk_mapz = message.param_b & 0xFFFF;
+
+            mapxz = MAPXZ(locs->_chunk_mapx, locs->_chunk_mapz);
 
             struct SceneryEntry* scenery_entry =
                 (struct SceneryEntry*)dashmap_search(task->scenery_hmap, &mapxz, DASHMAP_INSERT);
@@ -746,10 +795,11 @@ step_scenery_config_load(struct TaskInitSceneDat* task)
 
                     loc = &locs->locs[i];
                     int offset = filelist_indexed->offsets[loc->loc_id];
-                    if( loc->loc_id == 114 )
+                    if( loc->loc_id == 187 )
                     {
                         printf("loc_id: %d\n", loc->loc_id);
                     }
+
                     config_locs_decode_inplace(
                         config_loc,
                         filelist_indexed->data + offset,
@@ -815,10 +865,6 @@ step_models_load(struct TaskInitSceneDat* task)
         iter = dashmap_iter_new(task->config_loc_hmap);
         while( (config_loc_entry = (struct ConfigLocEntry*)dashmap_iter_next(iter)) )
         {
-            if( config_loc_entry->id == 997 )
-            {
-                printf("config_loc_id: %d\n", config_loc_entry->id);
-            }
             queue_scenery_models(
                 task, config_loc_entry->config_loc, config_loc_entry->shape_select);
         }
@@ -844,12 +890,13 @@ step_models_load(struct TaskInitSceneDat* task)
                 task->models_hmap, &message.param_b, DASHMAP_INSERT);
             assert(model_entry && "Model must be inserted into hmap");
             model_entry->id = message.param_b;
-            if( message.param_b == 638 )
+
+            if( message.param_b == 2085 )
             {
-                printf("Loading model %d\n", message.param_b);
+                printf("IIII %d\n", message.param_b);
             }
             model_entry->model = model_new_decode(message.data, message.data_size);
-
+            model_entry->model->_id = message.param_b;
             scenebuilder_cache_model(task->scene_builder, message.param_b, model_entry->model);
 
             gioq_release(task->io, &message);
@@ -897,9 +944,9 @@ step_textures_load(struct TaskInitSceneDat* task)
             // Hardcoded to 50 in the deob. Not sure why.
             for( int i = 0; i < 50; i++ )
             {
-                if( i == 8 )
+                if( i == 14 )
                 {
-                    printf("Loading texture %d\n", i);
+                    printf("IIII %d\n", i);
                 }
                 struct CacheDatTexture* texture =
                     cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
@@ -926,6 +973,194 @@ step_textures_load(struct TaskInitSceneDat* task)
         break;
     }
 
+    return GAMETASK_STATUS_COMPLETED;
+}
+
+static enum GameTaskStatus
+step_sequences_load(struct TaskInitSceneDat* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_7_LOAD_SEQUENCES];
+
+    struct ConfigLocEntry* config_loc_entry = NULL;
+    struct DashMapIter* iter = NULL;
+    struct GIOMessage message = { 0 };
+
+    int reqid = 0;
+    switch( step_stage->step )
+    {
+    case TS_GATHER:
+        vec_clear(task->reqid_queue_vec);
+
+        reqid = gio_assets_dat_config_seq_file_load(task->io);
+        vec_push(task->reqid_queue_vec, &reqid);
+
+        task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
+
+        step_stage->step = TS_POLL;
+    case TS_POLL:
+        struct CacheAnimframe* animframe = NULL;
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_queue_inflight_count--;
+            assert(task->reqid_queue_inflight_count == 0);
+
+            struct RSBuffer buffer = { .data = message.data,
+                                       .size = message.data_size,
+                                       .position = 0 };
+            int count = g2(&buffer);
+            for( int i = 0; i < count; i++ )
+            {
+                struct CacheDatSequence* sequence = malloc(sizeof(struct CacheDatSequence));
+                memset(sequence, 0, sizeof(struct CacheDatSequence));
+
+                buffer.position += config_dat_sequence_decode_inplace(
+                    sequence, buffer.data + buffer.position, buffer.size - buffer.position);
+
+                struct SequenceEntry* sequence_entry =
+                    (struct SequenceEntry*)dashmap_search(task->sequences_hmap, &i, DASHMAP_INSERT);
+                assert(sequence_entry && "Sequence must be inserted into hmap");
+                sequence_entry->id = i;
+                sequence_entry->sequence = sequence;
+
+                scenebuilder_cache_dat_sequence(task->scene_builder, i, sequence);
+            }
+
+            // animframe = cache_dat_animframe_new_decode(message.data, message.data_size);
+            // struct AnimframeEntry* animframe_entry = (struct AnimframeEntry*)dashmap_search(
+            //     task->animframes_hmap, &message.param_b, DASHMAP_INSERT);
+            // assert(animframe_entry && "Animframe must be inserted into hmap");
+            // animframe_entry->id = message.param_b;
+            // animframe_entry->animframe = animframe;
+
+            // scenebuilder_cache_animframe(
+            //     task->scene_builder, message.param_b, animframe_entry->animframe);
+
+            gioq_release(task->io, &message);
+        }
+
+        if( task->reqid_queue_inflight_count != 0 )
+            return GAMETASK_STATUS_PENDING;
+
+        step_stage->step = TS_PROCESS;
+    case TS_PROCESS:
+        break;
+    }
+
+    return GAMETASK_STATUS_COMPLETED;
+}
+
+static enum GameTaskStatus
+step_animframes_index_load(struct TaskInitSceneDat* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_8_LOAD_ANIMFRAMES_INDEX];
+
+    struct GIOMessage message = { 0 };
+    int reqid = 0;
+    switch( step_stage->step )
+    {
+    case TS_GATHER:
+        vec_clear(task->reqid_queue_vec);
+        reqid = gio_assets_dat_config_versionlist_animindex_load(task->io);
+        vec_push(task->reqid_queue_vec, &reqid);
+        task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
+
+        step_stage->step = TS_POLL;
+    case TS_POLL:
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_queue_inflight_count--;
+            assert(task->reqid_queue_inflight_count == 0);
+
+            task->animbaseframes_count = message.data_size / 2;
+
+            gioq_release(task->io, &message);
+        }
+        if( task->reqid_queue_inflight_count != 0 )
+            return GAMETASK_STATUS_PENDING;
+
+        step_stage->step = TS_PROCESS;
+
+    case TS_PROCESS:
+        break;
+    }
+
+    return GAMETASK_STATUS_COMPLETED;
+}
+
+static enum GameTaskStatus
+step_animbaseframes_load(struct TaskInitSceneDat* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_9_LOAD_ANIMBASEFRAMES];
+
+    struct GIOMessage message = { 0 };
+    int reqid = 0;
+    struct ConfigLocEntry* config_loc_entry = NULL;
+    struct DashMapIter* iter = NULL;
+
+    switch( step_stage->step )
+    {
+    case TS_GATHER:
+        vec_clear(task->reqid_queue_vec);
+
+        for( int i = 0; i < task->animbaseframes_count; i++ )
+        {
+            reqid = gio_assets_dat_animbaseframes_load(task->io, i);
+            vec_push(task->reqid_queue_vec, &reqid);
+        }
+
+        task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
+
+        step_stage->step = TS_POLL;
+    case TS_POLL:
+    {
+        struct CacheDatAnimBaseFrames* animbaseframes = NULL;
+        struct AnimbaseframesEntry* animbaseframes_entry = NULL;
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_queue_inflight_count--;
+
+            if( message.data == NULL )
+                goto release;
+
+            animbaseframes = cache_dat_animbaseframes_new_decode(message.data, message.data_size);
+
+            animbaseframes_entry = (struct AnimbaseframesEntry*)dashmap_search(
+                task->animbaseframes_hmap, &message.param_b, DASHMAP_INSERT);
+            assert(animbaseframes_entry && "Animbaseframes must be inserted into hmap");
+            animbaseframes_entry->id = message.param_b;
+            animbaseframes_entry->animbaseframes = animbaseframes;
+
+            for( int i = 0; i < animbaseframes->frame_count; i++ )
+            {
+                struct CacheAnimframe* animframe = &animbaseframes->frames[i];
+                struct AnimframeEntry* animframe_entry = (struct AnimframeEntry*)dashmap_search(
+                    task->animframes_hmap, &animframe->id, DASHMAP_INSERT);
+                assert(animframe_entry && "Animframe must be inserted into hmap");
+                animframe_entry->id = animframe->id;
+                animframe_entry->animframe = animframe;
+
+                scenebuilder_cache_animframe(task->scene_builder, animframe->id, animframe);
+            }
+
+        release:;
+            gioq_release(task->io, &message);
+        }
+
+        if( task->reqid_queue_inflight_count != 0 )
+            return GAMETASK_STATUS_PENDING;
+
+        step_stage->step = TS_PROCESS;
+    }
+    case TS_PROCESS:
+        break;
+    }
+
+    return GAMETASK_STATUS_COMPLETED;
+}
+
+static enum GameTaskStatus
+step_sounds_load(struct TaskInitSceneDat* task)
+{
     return GAMETASK_STATUS_COMPLETED;
 }
 
@@ -980,6 +1215,34 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
     case STEP_INIT_SCENE_DAT_6_LOAD_TEXTURES:
     {
         if( step_textures_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_DAT_7_LOAD_SEQUENCES;
+    }
+    case STEP_INIT_SCENE_DAT_7_LOAD_SEQUENCES:
+    {
+        if( step_sequences_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_DAT_8_LOAD_ANIMFRAMES_INDEX;
+    }
+    case STEP_INIT_SCENE_DAT_8_LOAD_ANIMFRAMES_INDEX:
+    {
+        if( step_animframes_index_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_DAT_9_LOAD_ANIMBASEFRAMES;
+    }
+    case STEP_INIT_SCENE_DAT_9_LOAD_ANIMBASEFRAMES:
+    {
+        if( step_animbaseframes_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_DAT_10_LOAD_SOUNDS;
+    }
+    case STEP_INIT_SCENE_DAT_10_LOAD_SOUNDS:
+    {
+        if( step_sounds_load(task) != GAMETASK_STATUS_COMPLETED )
             return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_DAT_DONE;

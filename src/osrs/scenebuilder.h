@@ -9,6 +9,7 @@
 #include "osrs/rscache/tables/frame.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/tables_dat/animframe.h"
 #include "painters.h"
 #include "scene.h"
 
@@ -85,6 +86,18 @@ scenebuilder_cache_config_loc(
     struct SceneBuilder* scene_builder,
     int loc_id,
     struct CacheConfigLocation* config_loc);
+
+void
+scenebuilder_cache_animframe(
+    struct SceneBuilder* scene_builder,
+    int animframe_id,
+    struct CacheAnimframe* animframe);
+
+void
+scenebuilder_cache_dat_sequence(
+    struct SceneBuilder* scene_builder,
+    int sequence_id,
+    struct CacheDatSequence* sequence);
 
 struct Scene*
 scenebuilder_load(struct SceneBuilder* scene_builder);

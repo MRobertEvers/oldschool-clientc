@@ -268,6 +268,18 @@ decodeOldFormat(
     memset(model->textured_m_coordinate, 0, textured_face_count * sizeof(int));
     memset(model->textured_n_coordinate, 0, textured_face_count * sizeof(int));
 
+    if( has_vertex_labels == 1 )
+    {
+        model->vertex_bone_map = (int*)malloc(vertex_count * sizeof(int));
+        memset(model->vertex_bone_map, 0, vertex_count * sizeof(int));
+    }
+
+    if( has_face_labels == 1 )
+    {
+        model->face_bone_map = (int*)malloc(face_count * sizeof(int));
+        memset(model->face_bone_map, 0, face_count * sizeof(int));
+    }
+
     // Read vertex data
     int previousVertexX = 0;
     int previousVertexY = 0;
@@ -300,6 +312,12 @@ decodeOldFormat(
         previousVertexX = model->vertices_x[i];
         previousVertexY = model->vertices_y[i];
         previousVertexZ = model->vertices_z[i];
+
+        if( has_vertex_labels == 1 )
+        {
+            int vertexLabel = read_unsigned_byte(inputData, &offsetOfPackedVertexGroups);
+            model->vertex_bone_map[i] = vertexLabel;
+        }
     }
 
     // Read face data
@@ -361,9 +379,10 @@ decodeOldFormat(
 
         if( has_face_labels == 1 )
         {
-            read_unsigned_byte(
+            int faceLabel = read_unsigned_byte(
                 inputData,
                 &transparencyGroupsOffset); // Skip this data as it's not in our model struct
+            model->face_bone_map[i] = faceLabel;
         }
     }
 

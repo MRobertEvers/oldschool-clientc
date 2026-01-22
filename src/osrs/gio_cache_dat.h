@@ -39,14 +39,30 @@ gioqb_cache_dat_models_new_load(
     struct CacheDat* cache_dat,
     int model_id);
 
+struct CacheDatArchive* //
+gioqb_cache_dat_animbaseframes_new_load(
+    struct CacheDat* cache_dat,
+    int animbaseframes_id);
+
+struct CacheDatArchive* //
+gioqb_cache_dat_sound_new_load(
+    struct CacheDat* cache_dat,
+    int sound_id);
+
 struct FileBuffer*
 gioqb_cache_dat_config_flotype_file_load(struct CacheDat* cache_dat);
+
+struct FileBuffer* //
+gioqb_cache_dat_config_seq_file_new_load(struct CacheDat* cache_dat);
 
 struct CacheDatArchive* //
 gioqb_cache_dat_config_texture_sprites_new_load(struct CacheDat* cache_dat);
 
 struct FileListDatIndexed*
 gioqb_cache_dat_config_scenery_fileidx_new_load(struct CacheDat* cache_dat);
+
+struct FileBuffer* //
+gioqb_cache_dat_config_versionlist_animindex_new_load(struct CacheDat* cache_dat);
 
 void
 gioqb_cache_dat_fullfill(

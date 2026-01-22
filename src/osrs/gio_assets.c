@@ -107,6 +107,22 @@ gio_assets_dat_models_load(
 }
 
 uint32_t
+gio_assets_dat_animbaseframes_load(
+    struct GIOQueue* q,
+    int animbaseframes_id)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_ANIMBASEFRAMES, animbaseframes_id, 0);
+}
+
+uint32_t
+gio_assets_dat_sound_load(
+    struct GIOQueue* q,
+    int sound_id)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_SOUND, sound_id, 0);
+}
+
+uint32_t
 gio_assets_dat_config_texture_sprites_load(struct GIOQueue* q)
 {
     return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_TEXTURE_SPRITES, 0, 0);
@@ -119,7 +135,19 @@ gio_assets_dat_config_flotype_file_load(struct GIOQueue* q)
 }
 
 uint32_t
+gio_assets_dat_config_seq_file_load(struct GIOQueue* q)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_FILE_SEQ, 0, 0);
+}
+
+uint32_t
 gio_assets_dat_config_scenery_fileidx_load(struct GIOQueue* q)
 {
     return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_FILEIDX_SCENERY, 0, 0);
+}
+
+uint32_t
+gio_assets_dat_config_versionlist_animindex_load(struct GIOQueue* q)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_VERSIONLIST_ANIMINDEX, 0, 0);
 }

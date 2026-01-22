@@ -134,16 +134,21 @@ static void
 light_model_default(
     struct DashModel* dash_model,
     int model_contrast,
-    int model_attenuation)
+    int model_ambient)
 {
+    if( dash_model->_dbg_ids[0] == 2260 )
+    {
+        printf("IIII %d\n", dash_model->_dbg_ids[0]);
+    }
     int light_ambient = 64;
     int light_attenuation = 768;
     int lightsrc_x = -50;
     int lightsrc_y = -10;
     int lightsrc_z = -50;
 
-    light_ambient += model_contrast;
-    light_attenuation += model_attenuation;
+    light_ambient += model_ambient;
+    // This is what 2004Scape does. Later revs do not.
+    light_attenuation += (model_contrast & 0xff) * 5;
 
     int light_magnitude =
         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
@@ -403,7 +408,7 @@ load_model(
 }
 
 static struct SceneAnimation*
-load_model_animations(
+load_model_animationsdat2(
     struct CacheConfigLocation* loc_config,
 
     struct DashMap* sequences_configmap,
@@ -454,6 +459,72 @@ load_model_animations(
             scene_animation,
             dashframe_new_from_cache_frame(frame_entry->frame),
             dashframemap_new_from_cache_framemap(frame_entry->frame->_framemap));
+    }
+
+    return scene_animation;
+}
+
+static struct SceneAnimation*
+load_model_animations(
+    struct CacheConfigLocation* loc_config,
+
+    struct DashMap* sequences_configmap,
+    struct DashMap* frames_hmap)
+{
+    struct SceneAnimation* scene_animation = NULL;
+    struct AnimframeEntry* animframe_entry = NULL;
+    struct DatSequenceEntry* dat_sequence_entry = NULL;
+
+    struct DashFrame* dash_frame = NULL;
+    struct DashFramemap* dash_framemap = NULL;
+
+    if( loc_config->seq_id == -1 || !sequences_configmap )
+        return NULL;
+
+    scene_animation = malloc(sizeof(struct SceneAnimation));
+    memset(scene_animation, 0, sizeof(struct SceneAnimation));
+
+    dat_sequence_entry = (struct DatSequenceEntry*)dashmap_search(
+        sequences_configmap, &loc_config->seq_id, DASHMAP_FIND);
+    assert(dat_sequence_entry);
+
+    scene_animation->frame_lengths =
+        malloc(dat_sequence_entry->dat_sequence->frame_count * sizeof(int));
+    memset(
+        scene_animation->frame_lengths,
+        0,
+        dat_sequence_entry->dat_sequence->frame_count * sizeof(int));
+
+    // scene_animation->config_sequence = dat_sequence_entry->dat_sequence;
+
+    for( int i = 0; i < dat_sequence_entry->dat_sequence->frame_count; i++ )
+    {
+        // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
+        //     first 2 bytes are the sequence ID,
+        //     the second 2 bytes are the frame file ID
+        int frame_id = dat_sequence_entry->dat_sequence->frames[i];
+
+        animframe_entry =
+            (struct AnimframeEntry*)dashmap_search(frames_hmap, &frame_id, DASHMAP_FIND);
+        assert(animframe_entry);
+
+        if( !dash_framemap )
+        {
+            dash_framemap = dashframemap_new_from_animframe(animframe_entry->animframe);
+        }
+
+        // From Client-TS 245.2
+        int length = dat_sequence_entry->dat_sequence->delay[i];
+        if( length == 0 )
+        {
+            length = animframe_entry->animframe->delay;
+        }
+        scene_animation->frame_lengths[i] = length;
+
+        scene_animation_push_frame(
+            scene_animation,
+            dashframe_new_from_animframe(animframe_entry->animframe),
+            dash_framemap);
     }
 
     return scene_animation;
@@ -522,6 +593,10 @@ init_scene_element(
     struct SceneElement* scene_element,
     struct CacheConfigLocation* config_loc)
 {
+    if( config_loc->_id == 724 )
+    {
+        printf("IIII %d\n", config_loc->_id);
+    }
     memset(scene_element, 0, sizeof(struct SceneElement));
     scene_element->interactable = config_loc->is_interactive;
     scene_element->config_loc = config_loc;
@@ -1433,11 +1508,7 @@ scenery_add(
     struct CacheConfigLocationEntry* config_loc_entry = NULL;
     config_loc_entry = (struct CacheConfigLocationEntry*)dashmap_search(
         scene_builder->config_locs_hmap, &map_loc->loc_id, DASHMAP_FIND);
-    printf(
-        "config_loc_entry->id: %d == %d == %d\n",
-        config_loc_entry->id,
-        map_loc->loc_id,
-        config_loc_entry->config_loc->_id);
+
     assert(config_loc_entry && "Config loc must be found in hmap");
     assert(
         config_loc_entry->id == map_loc->loc_id &&
@@ -1445,10 +1516,6 @@ scenery_add(
 
     config_loc = config_loc_entry->config_loc;
     assert(config_loc && "Config loc must be valid");
-
-    // config_loc = (struct CacheConfigLocation*)configmap_get(
-    //     scene_builder->config_locs_configmap, map_loc->loc_id);
-    // assert(config_loc && "Config loc must be found in configmap");
 
     terrain_grid_offset_from_sw(
         terrain_grid,

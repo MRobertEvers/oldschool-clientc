@@ -21,7 +21,11 @@ enum AssetKind
     ASSET_DAT_MAP_TERRAIN,
     ASSET_DAT_MAP_SCENERY,
     ASSET_DAT_MODELS,
+    ASSET_DAT_ANIMBASEFRAMES,
+    ASSET_DAT_SOUND,
+    ASSET_DAT_CONFIG_VERSIONLIST_ANIMINDEX,
     ASSET_DAT_CONFIG_TEXTURE_SPRITES,
+    ASSET_DAT_CONFIG_FILE_SEQ,
     ASSET_DAT_CONFIG_FILE_FLOORTYPE,
     ASSET_DAT_CONFIG_FILEIDX_SCENERY,
     ASSET_TABLE_COUNT
@@ -97,12 +101,28 @@ gio_assets_dat_models_load(
     int model_id);
 
 uint32_t
+gio_assets_dat_animbaseframes_load(
+    struct GIOQueue* q,
+    int animbaseframes_id);
+
+uint32_t
+gio_assets_dat_sound_load(
+    struct GIOQueue* q,
+    int sound_id);
+
+uint32_t
 gio_assets_dat_config_texture_sprites_load(struct GIOQueue* q);
 
 uint32_t
 gio_assets_dat_config_flotype_file_load(struct GIOQueue* q);
 
 uint32_t
+gio_assets_dat_config_seq_file_load(struct GIOQueue* q);
+
+uint32_t
 gio_assets_dat_config_scenery_fileidx_load(struct GIOQueue* q);
+
+uint32_t
+gio_assets_dat_config_versionlist_animindex_load(struct GIOQueue* q);
 
 #endif

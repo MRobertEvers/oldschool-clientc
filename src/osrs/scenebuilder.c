@@ -59,7 +59,7 @@ scenebuilder_new_painter(
     };
     scene_builder->map_terrains_hmap = dashmap_new(&config, 0);
 
-    buffer_size = ENTRYS * sizeof(struct FrameAnimEntry);
+    buffer_size = ENTRYS * 8 * sizeof(struct FrameAnimEntry);
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
@@ -76,6 +76,15 @@ scenebuilder_new_painter(
         .entry_size = sizeof(struct FlotypeEntry),
     };
     scene_builder->flotypes_hmap = dashmap_new(&config, 0);
+
+    buffer_size = ENTRYS * sizeof(struct DatSequenceEntry);
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct DatSequenceEntry),
+    };
+    scene_builder->sequences_configmap = dashmap_new(&config, 0);
 
     buffer_size = 1024 * 16 * sizeof(struct CacheConfigLocationEntry);
     config = (struct DashMapConfig){
@@ -251,6 +260,34 @@ scenebuilder_cache_config_loc(
     config_loc_entry->id = loc_id;
 
     config_loc_entry->config_loc = config_loc;
+}
+
+void
+scenebuilder_cache_animframe(
+    struct SceneBuilder* scene_builder,
+    int animframe_id,
+    struct CacheAnimframe* animframe)
+{
+    struct AnimframeEntry* animframe_entry = NULL;
+    animframe_entry = (struct AnimframeEntry*)dashmap_search(
+        scene_builder->frames_hmap, &animframe_id, DASHMAP_INSERT);
+    assert(animframe_entry && "Animframe must be inserted into hmap");
+    animframe_entry->id = animframe_id;
+    animframe_entry->animframe = animframe;
+}
+
+void
+scenebuilder_cache_dat_sequence(
+    struct SceneBuilder* scene_builder,
+    int sequence_id,
+    struct CacheDatSequence* sequence)
+{
+    struct DatSequenceEntry* sequence_entry = NULL;
+    sequence_entry = (struct DatSequenceEntry*)dashmap_search(
+        scene_builder->sequences_configmap, &sequence_id, DASHMAP_INSERT);
+    assert(sequence_entry && "Dat sequence must be inserted into hmap");
+    sequence_entry->id = sequence_id;
+    sequence_entry->dat_sequence = sequence;
 }
 
 static void

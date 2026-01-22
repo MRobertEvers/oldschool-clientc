@@ -28,6 +28,18 @@ struct FrameAnimEntry
     struct CacheFrame* frame;
 };
 
+struct AnimframeEntry
+{
+    int id;
+    struct CacheAnimframe* animframe;
+};
+
+struct DatSequenceEntry
+{
+    int id;
+    struct CacheDatSequence* dat_sequence;
+};
+
 struct ModelEntry
 {
     int id;

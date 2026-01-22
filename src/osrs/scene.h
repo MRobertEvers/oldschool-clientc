@@ -14,6 +14,7 @@ struct SceneAction
 struct SceneAnimation
 {
     struct DashFrame** dash_frames;
+    int* frame_lengths;
     int frame_count;
     int frame_capacity;
 

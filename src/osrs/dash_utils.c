@@ -60,4 +60,52 @@ dashframe_new_from_cache_frame(struct CacheFrame* frame)
     return dashframe;
 }
 
+struct DashFrame*
+dashframe_new_from_animframe(struct CacheAnimframe* animframe)
+{
+    struct DashFrame* dashframe = malloc(sizeof(struct DashFrame));
+    memset(dashframe, 0, sizeof(struct DashFrame));
+    dashframe->_id = animframe->id;
+    dashframe->framemap_id = -1;
+    dashframe->translator_count = animframe->length;
+
+    dashframe->index_frame_ids = malloc(animframe->length * sizeof(int));
+    memcpy(dashframe->index_frame_ids, animframe->groups, animframe->length * sizeof(int));
+
+    dashframe->translator_arg_x = malloc(animframe->length * sizeof(int));
+    memcpy(dashframe->translator_arg_x, animframe->x, animframe->length * sizeof(int));
+
+    dashframe->translator_arg_y = malloc(animframe->length * sizeof(int));
+    memcpy(dashframe->translator_arg_y, animframe->y, animframe->length * sizeof(int));
+
+    dashframe->translator_arg_z = malloc(animframe->length * sizeof(int));
+    memcpy(dashframe->translator_arg_z, animframe->z, animframe->length * sizeof(int));
+
+    dashframe->showing = true;
+    return dashframe;
+}
+
+struct DashFramemap*
+dashframemap_new_from_animframe(struct CacheAnimframe* animframe)
+{
+    struct DashFramemap* dashframemap = malloc(sizeof(struct DashFramemap));
+    memset(dashframemap, 0, sizeof(struct DashFramemap));
+    dashframemap->id = animframe->id;
+    dashframemap->length = animframe->base->length;
+
+    dashframemap->bone_groups = malloc(animframe->base->length * sizeof(int*));
+    memcpy(
+        dashframemap->bone_groups, animframe->base->labels, animframe->base->length * sizeof(int*));
+
+    dashframemap->bone_groups_lengths = malloc(animframe->base->length * sizeof(int));
+    memcpy(
+        dashframemap->bone_groups_lengths,
+        animframe->base->label_counts,
+        animframe->base->length * sizeof(int));
+
+    dashframemap->types = malloc(animframe->base->length * sizeof(int));
+    memcpy(dashframemap->types, animframe->base->types, animframe->base->length * sizeof(int));
+    return dashframemap;
+}
+
 #endif

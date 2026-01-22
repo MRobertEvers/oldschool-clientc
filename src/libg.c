@@ -301,7 +301,7 @@ libg_game_new(struct GIOQueue* io)
     char data[1024];
 
     gametask_new_init_io(game, game->io);
-    gametask_new_init_scene_dat(game, 50, 50, 50, 50);
+    gametask_new_init_scene_dat(game, 50, 50, 51, 51);
 
     // struct PacketBuffer packetbuffer;
     // packetbuffer_init(&packetbuffer, GAMEPROTO_REVISION_LC254);
@@ -515,17 +515,15 @@ libg_game_step(
         for( int i = 0; i < game->scene->scenery->elements_length; i++ )
         {
             struct SceneElement* element = scene_element_at(game->scene->scenery, i);
-            if( element->animation && element->animation->config_sequence )
+            if( element->animation )
             {
                 element->animation->cycle++;
                 if( element->animation->cycle >=
-                    element->animation->config_sequence
-                        ->frame_lengths[element->animation->frame_index] )
+                    element->animation->frame_lengths[element->animation->frame_index] )
                 {
                     element->animation->cycle = 0;
                     element->animation->frame_index++;
-                    if( element->animation->frame_index >=
-                        element->animation->config_sequence->frame_count )
+                    if( element->animation->frame_index >= element->animation->frame_count )
                     {
                         element->animation->frame_index = 0;
                     }

@@ -640,7 +640,7 @@ painter_paint(
     int radius = 25;
     int coord_list_x[4];
     int coord_list_z[4];
-    int max_level = 4;
+    int max_level = 0;
 
     int coord_list_length = 0;
 

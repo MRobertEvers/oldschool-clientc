@@ -7,6 +7,7 @@
 #include "rscache/filelist.h"
 #include "rscache/tables/configs.h"
 #include "rscache/tables/maps.h"
+#include "rscache/tables_dat/animframe.h"
 #include "rscache/tables_dat/config_versionlist_mapsquare.h"
 
 #include <stdio.h>
@@ -87,11 +88,15 @@ gioqb_cache_dat_models_new_load(
     struct CacheDat* cache_dat,
     int model_id)
 {
-    if( model_id == 969 )
-    {
-        printf("Loading model %d\n", model_id);
-    }
     return cache_dat_archive_new_load(cache_dat, CACHE_DAT_MODELS, model_id);
+}
+
+struct CacheDatArchive* //
+gioqb_cache_dat_sound_new_load(
+    struct CacheDat* cache_dat,
+    int sound_id)
+{
+    return cache_dat_archive_new_load(cache_dat, CACHE_DAT_SOUNDS, sound_id);
 }
 
 struct CacheDatArchive*
@@ -147,6 +152,55 @@ gioqb_cache_dat_config_flotype_file_load(struct CacheDat* cache_dat)
     if( file_data_idx == -1 )
     {
         printf("Failed to find flo.dat in filelist\n");
+        filelist_dat_free(filelist);
+        cache_dat_archive_free(config_archive);
+        return NULL;
+    }
+
+    int file_size = filelist->file_sizes[file_data_idx];
+    void* file_data = malloc(file_size);
+    if( !file_data )
+    {
+        printf("Failed to allocate memory for file data\n");
+        filelist_dat_free(filelist);
+        cache_dat_archive_free(config_archive);
+        return NULL;
+    }
+    memcpy(file_data, filelist->files[file_data_idx], file_size);
+
+    filebuffer = filebuffer_new(file_data, file_size);
+
+    filelist_dat_free(filelist);
+    cache_dat_archive_free(config_archive);
+
+    return filebuffer;
+}
+
+struct FileBuffer* //
+gioqb_cache_dat_config_seq_file_new_load(struct CacheDat* cache_dat)
+{
+    struct FileBuffer* filebuffer = NULL;
+    struct FileListDat* filelist = NULL;
+    struct CacheDatArchive* config_archive =
+        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
+    if( !config_archive )
+    {
+        printf("Failed to load config underlay\n");
+        return NULL;
+    }
+
+    filelist = filelist_dat_new_from_cache_dat_archive(config_archive);
+    if( !filelist )
+    {
+        printf("Failed to load filelist underlay\n");
+        cache_dat_archive_free(config_archive);
+        return NULL;
+    }
+
+    int file_data_idx = filelist_dat_find_file_by_name(filelist, "seq.dat");
+    if( file_data_idx == -1 )
+    {
+        printf("Failed to find seq.dat in filelist\n");
         filelist_dat_free(filelist);
         cache_dat_archive_free(config_archive);
         return NULL;
@@ -240,6 +294,73 @@ gioqb_cache_dat_config_scenery_fileidx_new_load(struct CacheDat* cache_dat)
     return filelist_indexed;
 }
 
+struct FileBuffer* //
+gioqb_cache_dat_config_versionlist_animindex_new_load(struct CacheDat* cache_dat)
+{
+    struct FileBuffer* filebuffer = NULL;
+    struct FileListDat* filelist = NULL;
+    struct CacheDatArchive* archive =
+        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
+    if( !archive )
+    {
+        printf("Failed to load config underlay\n");
+        return NULL;
+    }
+
+    archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_VERSION_LIST);
+
+    filelist = filelist_dat_new_from_cache_dat_archive(archive);
+
+    int file_data_size = 0;
+    int name_hash;
+    char* file_data = NULL;
+
+    name_hash = archive_name_hash_dat("anim_index");
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+        {
+            file_data = filelist->files[i];
+            file_data_size = filelist->file_sizes[i];
+            break;
+        }
+    }
+
+    assert(file_data && "Failed to find anim index");
+
+    void* filebuffer_data = malloc(file_data_size);
+    if( !filebuffer_data )
+    {
+        printf("Failed to allocate memory for file data\n");
+        filelist_dat_free(filelist);
+        cache_dat_archive_free(archive);
+        return NULL;
+    }
+    memcpy(filebuffer_data, file_data, file_data_size);
+    filebuffer = filebuffer_new(filebuffer_data, file_data_size);
+
+    filelist_dat_free(filelist);
+    cache_dat_archive_free(archive);
+
+    return filebuffer;
+}
+
+struct CacheDatArchive*
+gioqb_cache_dat_animbaseframes_new_load(
+    struct CacheDat* cache_dat,
+    int animbaseframes_id)
+{
+    struct CacheDatArchive* archive = NULL;
+    archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_ANIMATIONS, animbaseframes_id);
+    if( !archive )
+    {
+        printf("Failed to load animbaseframes archive\n");
+        return NULL;
+    }
+
+    return archive;
+}
+
 void
 gioqb_cache_dat_fullfill(
     struct GIOQueue* io,
@@ -273,6 +394,22 @@ gioqb_cache_dat_fullfill(
     else if( message->command == ASSET_DAT_CONFIG_FILE_FLOORTYPE )
     {
         filebuffer = gioqb_cache_dat_config_flotype_file_load(cache_dat);
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            0,
+            0,
+            filebuffer->data,
+            filebuffer->data_size);
+        filebuffer->data = NULL;
+        filebuffer->data_size = 0;
+        filebuffer_free(filebuffer);
+        filebuffer = NULL;
+    }
+    else if( message->command == ASSET_DAT_CONFIG_FILE_SEQ )
+    {
+        filebuffer = gioqb_cache_dat_config_seq_file_new_load(cache_dat);
         gioqb_mark_done(
             io,
             message->message_id,
@@ -336,6 +473,64 @@ gioqb_cache_dat_fullfill(
             message->message_id,
             message->command,
             archive->revision,
+            message->param_a,
+            archive->data,
+            archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_dat_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_DAT_ANIMBASEFRAMES )
+    {
+        archive = gioqb_cache_dat_animbaseframes_new_load(cache_dat, message->param_a);
+        // NULL is OK here!
+        if( archive )
+        {
+            gioqb_mark_done(
+                io,
+                message->message_id,
+                message->command,
+                archive->revision,
+                message->param_a,
+                archive->data,
+                archive->data_size);
+            archive->data = NULL;
+            archive->data_size = 0;
+            cache_dat_archive_free(archive);
+            archive = NULL;
+        }
+        else
+        {
+            gioqb_mark_done(io, message->message_id, message->command, 0, 0, NULL, 0);
+        }
+    }
+    else if( message->command == ASSET_DAT_CONFIG_VERSIONLIST_ANIMINDEX )
+    {
+        filebuffer = gioqb_cache_dat_config_versionlist_animindex_new_load(cache_dat);
+        assert(filebuffer && "Failed to load anim index");
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            0,
+            0,
+            filebuffer->data,
+            filebuffer->data_size);
+        filebuffer->data = NULL;
+        filebuffer->data_size = 0;
+        filebuffer_free(filebuffer);
+        filebuffer = NULL;
+    }
+    else if( message->command == ASSET_DAT_SOUND )
+    {
+        archive = gioqb_cache_dat_sound_new_load(cache_dat, message->param_a);
+        assert(archive && "Failed to load sound archive");
+        gioqb_mark_done(
+            io,
+            message->message_id,
+            message->command,
+            0,
             message->param_a,
             archive->data,
             archive->data_size);
