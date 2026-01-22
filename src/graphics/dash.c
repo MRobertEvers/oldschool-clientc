@@ -40,7 +40,8 @@ struct DashGraphics
     short tmp_priority_faces[12 * 2000];
     int tmp_flex_prio11_face_to_depth[1024];
     int tmp_flex_prio12_face_to_depth[512];
-    int tmp_face_order[1024];
+    // Used to be 1024, but now we need to support larger models.
+    int tmp_face_order[4096];
 
     struct DashMap* textures_hmap;
 };

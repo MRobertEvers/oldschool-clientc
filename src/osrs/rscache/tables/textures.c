@@ -10,7 +10,9 @@
 #include <string.h>
 
 struct CacheTexture*
-texture_definition_new_from_cache(struct Cache* cache, int id)
+texture_definition_new_from_cache(
+    struct Cache* cache,
+    int id)
 {
     struct FileList* filelist = NULL;
     struct ArchiveReference* reference = NULL;
@@ -26,6 +28,11 @@ texture_definition_new_from_cache(struct Cache* cache, int id)
     reference = &cache->tables[CACHE_TEXTURES]->archives[0];
     if( !reference )
         return NULL;
+
+    if( id == 34 )
+    {
+        printf("id: %d\n", id);
+    }
 
     /**
      * Texture definition ids are mostly contiguous but id=54 is missing.
@@ -71,7 +78,9 @@ texture_definition_free_inplace(struct CacheTexture* texture_definition)
 }
 
 struct CacheTexture*
-texture_definition_new_decode(const unsigned char* data, int length)
+texture_definition_new_decode(
+    const unsigned char* data,
+    int length)
 {
     struct CacheTexture* def = malloc(sizeof(struct CacheTexture));
     memset(def, 0, sizeof(struct CacheTexture));
@@ -82,7 +91,10 @@ texture_definition_new_decode(const unsigned char* data, int length)
 }
 
 struct CacheTexture*
-texture_definition_decode_inplace(struct CacheTexture* def, const unsigned char* data, int length)
+texture_definition_decode_inplace(
+    struct CacheTexture* def,
+    const unsigned char* data,
+    int length)
 {
     struct RSBuffer buffer;
     rsbuf_init(&buffer, data, length);

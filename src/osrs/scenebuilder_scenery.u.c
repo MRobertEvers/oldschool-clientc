@@ -1620,7 +1620,7 @@ scenery_add(
         map_loc->chunk_pos_level,
         &offset);
 
-    if( config_loc->_id == 44832 || config_loc->_id == 44833 )
+    if( config_loc->_id == 10834 )
     {
         printf("config_loc->_id: %d\n", config_loc->_id);
     }
@@ -1644,6 +1644,14 @@ scenery_add(
     //     return;
     // }
 
+    int size_x = config_loc->size_x;
+    int size_z = config_loc->size_z;
+    // For old revisions, loc height is always sized as 1.
+    if( scene_builder->config_locs_configmap == NULL )
+    {
+        size_x = 1;
+        size_z = 1;
+    }
     tile_heights_at_sized(
         terrain_grid,
         mapx,
@@ -1651,8 +1659,8 @@ scenery_add(
         map_loc->chunk_pos_x,
         map_loc->chunk_pos_z,
         map_loc->chunk_pos_level,
-        config_loc->size_x,
-        config_loc->size_z,
+        size_x,
+        size_z,
         &tile_heights);
 
     switch( map_loc->shape_select )
