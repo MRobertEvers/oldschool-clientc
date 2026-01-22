@@ -507,6 +507,8 @@ libg_game_step(
 
     libg_game_process_input(game, input);
 
+    dash_animate_textures(game->sys_dash, game->cycles);
+
     while( game->cycles > 0 )
     {
         game->cycles--;

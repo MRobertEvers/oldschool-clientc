@@ -291,7 +291,10 @@ texture_new_from_definition(
 
 // return pixels;
 struct DashTexture*
-texture_new_from_texture_sprite(struct CacheDatTexture* texture)
+texture_new_from_texture_sprite(
+    struct CacheDatTexture* texture,
+    int animation_direction,
+    int animation_speed)
 {
     bool opaque = true;
     int size = texture->wi == 64 ? 64 : 128;
@@ -368,8 +371,8 @@ texture_new_from_texture_sprite(struct CacheDatTexture* texture)
     dash_texture->width = size;
     dash_texture->height = size;
     dash_texture->opaque = opaque;
-    dash_texture->animation_direction = 0;
-    dash_texture->animation_speed = 0;
+    dash_texture->animation_direction = animation_direction;
+    dash_texture->animation_speed = animation_speed;
 
     if( normalized_pixels != pixels )
         free(normalized_pixels);

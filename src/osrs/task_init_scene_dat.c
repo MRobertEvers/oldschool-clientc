@@ -951,7 +951,26 @@ step_textures_load(struct TaskInitSceneDat* task)
                 struct CacheDatTexture* texture =
                     cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
 
-                struct DashTexture* dash_texture = texture_new_from_texture_sprite(texture);
+                int animation_direction = TEXANIM_DIRECTION_NONE;
+                int animation_speed = 0;
+
+                /**
+                 * In old revisions (e.g. 245.2) the animated textures were hardcoded.
+                 */
+                if( i == 17 )
+                {
+                    animation_direction = TEXANIM_DIRECTION_V_DOWN;
+                    animation_speed = 2;
+                }
+
+                if( i == 24 )
+                {
+                    animation_direction = TEXANIM_DIRECTION_V_DOWN;
+                    animation_speed = 2;
+                }
+
+                struct DashTexture* dash_texture =
+                    texture_new_from_texture_sprite(texture, animation_direction, animation_speed);
                 assert(dash_texture != NULL);
 
                 struct TextureEntry* texture_entry =

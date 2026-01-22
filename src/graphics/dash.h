@@ -143,6 +143,15 @@ struct DashModel
     struct DashBoundsCylinder* bounds_cylinder;
 };
 
+enum DashTextureAnimation
+{
+    TEXANIM_DIRECTION_NONE,
+    TEXANIM_DIRECTION_V_DOWN = 1,
+    TEXANIM_DIRECTION_U_DOWN = 2,
+    TEXANIM_DIRECTION_V_UP = 3,
+    TEXANIM_DIRECTION_U_UP = 4,
+};
+
 struct DashTexture
 {
     int* texels;
@@ -269,7 +278,9 @@ dash3d_add_texture(
     struct DashTexture* texture);
 
 void
-dash3d_animate_textures(struct DashGraphics* dash);
+dash_animate_textures(
+    struct DashGraphics* dash,
+    int time_delta);
 
 struct DashModelNormals* //
 dashmodel_normals_new(

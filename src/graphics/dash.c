@@ -1472,14 +1472,94 @@ dash3d_add_texture(
     entry->texture = texture;
 }
 
-void
-dash3d_animate_textures(struct DashGraphics* dash)
+static void
+animate_texture(
+    struct DashTexture* texture,
+    int time_delta)
 {
-    for( int i = 0; i < dash->textures_hmap->count; i++ )
+    if( texture->animation_direction == TEXANIM_DIRECTION_NONE )
+        return;
+
+    int animation_speed = texture->animation_speed;
+    int animation_direction = texture->animation_direction;
+
+    int width = texture->width;
+    int height = texture->height;
+    int length = width * height;
+
+    int* pixels = texture->texels;
+
+    int v_offset = width * time_delta * animation_speed;
+    if( animation_direction == TEXANIM_DIRECTION_V_DOWN )
     {
-        struct DashTextureEntry* entry = (struct DashTextureEntry*)dash->textures_hmap->entries[i];
-        struct DashTexture* texture = entry->texture;
+        v_offset = -v_offset;
     }
+
+    if( v_offset > 0 )
+    {
+        for( int offset = 0; offset < length - 1; offset++ )
+        {
+            int index = (v_offset + (offset)) & (length - 1);
+            pixels[offset] = pixels[index];
+        }
+    }
+    else
+    {
+        for( int offset = length - 2; offset >= 0; offset-- )
+        {
+            int index = (v_offset + (offset)) & (length - 1);
+            pixels[offset] = pixels[index];
+        }
+    }
+    // else if( animation_direction == TEXTURE_DIRECTION_V_UP )
+    // {
+    //     for( int y = height - 1; y >= 0; y-- )
+    //     {
+    //         for( int x = 0; x < width; x++ )
+    //         {
+    //             int index = y * width + x;
+    //             int pixel = pixels[index];
+    //             pixels[index] = pixel;
+    //         }
+    //     }
+    // }
+    // else if( animation_direction == TEXTURE_DIRECTION_U_DOWN )
+    // {
+    //     for( int y = 0; y < height; y++ )
+    //     {
+    //         for( int x = width - 1; x >= 0; x-- )
+    //         {
+    //             int index = y * width + x;
+    //             int pixel = pixels[index];
+    //             pixels[index] = pixel;
+    //         }
+    //     }
+    // }
+    // else if( animation_direction == TEXTURE_DIRECTION_U_UP )
+    // {
+    //     for( int y = height - 1; y >= 0; y-- )
+    //     {
+    //         for( int x = width - 1; x >= 0; x-- )
+    //         {
+    //             int index = y * width + x;
+    //             int pixel = pixels[index];
+    //             pixels[index] = pixel;
+    //         }
+    //     }
+    // }
+}
+
+void
+dash_animate_textures(
+    struct DashGraphics* dash,
+    int time_delta)
+{
+    struct DashTextureEntry* entry = NULL;
+
+    struct DashMapIter* iter = dashmap_iter_new(dash->textures_hmap);
+    while( (entry = (struct DashTextureEntry*)dashmap_iter_next(iter)) )
+        animate_texture(entry->texture, time_delta);
+    dashmap_iter_free(iter);
 }
 
 struct DashModelNormals*
