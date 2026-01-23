@@ -426,4 +426,15 @@ dash2d_fill_rect(
     int height,
     int color_rgb);
 
+void
+dash2d_fill_minimap_tile(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int background_rgb,
+    int foreground_rgb,
+    int rotation,
+    int shape);
+
 #endif

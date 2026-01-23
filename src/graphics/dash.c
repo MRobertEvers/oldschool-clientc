@@ -2039,3 +2039,99 @@ dash2d_fill_rect(
         }
     }
 }
+
+static int g_minimap_tile_rotation_map[4][16] = {
+    { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15 },
+    { 12, 8,  4,  0,  13, 9,  5,  1,  14, 10, 6,  2,  15, 11, 7,  3  },
+    { 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0  },
+    { 3,  7,  11, 15, 2,  6,  10, 14, 1,  5,  9,  13, 0,  4,  8,  12 },
+};
+
+static int g_minimap_tile_mask[16][16] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1 },
+    { 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
+    { 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1 },
+    { 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1 }
+};
+
+void
+dash2d_fill_minimap_tile(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int background_rgb,
+    int foreground_rgb,
+    int angle,
+    int shape)
+{
+    assert(shape >= 0 && shape < 16);
+    assert(angle >= 0 && angle < 4);
+    int* mask = g_minimap_tile_mask[shape];
+    int* rotation = g_minimap_tile_rotation_map[angle];
+
+    int offset = (x) + (y)*stride;
+    if( foreground_rgb == 0 )
+    {
+        if( background_rgb != 0 )
+        {
+            for( int i = 0; i < 4; i++ )
+            {
+                pixel_buffer[offset] = background_rgb;
+                pixel_buffer[offset + 1] = background_rgb;
+                pixel_buffer[offset + 2] = background_rgb;
+                pixel_buffer[offset + 3] = background_rgb;
+                offset += stride;
+            }
+        }
+        return;
+    }
+
+    int shape_vertex_index = 0;
+    if( background_rgb != 0 )
+    {
+        for( int i = 0; i < 4; i++ )
+        {
+            pixel_buffer[offset] =
+                mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+            pixel_buffer[offset + 1] =
+                mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+            pixel_buffer[offset + 2] =
+                mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+            pixel_buffer[offset + 3] =
+                mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+            offset += stride;
+        }
+        return;
+    }
+
+    for( int i = 0; i < 4; i++ )
+    {
+        if( mask[rotation[shape_vertex_index++]] != 0 )
+        {
+            pixel_buffer[offset] = foreground_rgb;
+        }
+        if( mask[rotation[shape_vertex_index++]] != 0 )
+        {
+            pixel_buffer[offset + 1] = foreground_rgb;
+        }
+        if( mask[rotation[shape_vertex_index++]] != 0 )
+        {
+            pixel_buffer[offset + 2] = foreground_rgb;
+        }
+        if( mask[rotation[shape_vertex_index++]] != 0 )
+        {
+            pixel_buffer[offset + 3] = foreground_rgb;
+        }
+        offset += stride;
+    }
+}

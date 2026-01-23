@@ -21,29 +21,6 @@ extern int g_trap_command;
 extern int g_trap_x;
 extern int g_trap_z;
 
-static int g_minimap_tile_rotation_map[4][16] = {
-    { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15 },
-    { 12, 8,  4,  0,  13, 9,  5,  1,  14, 10, 6,  2,  15, 11, 7,  3  },
-    { 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0  },
-    { 3,  7,  11, 15, 2,  6,  10, 14, 1,  5,  9,  13, 0,  4,  8,  12 },
-};
-
-static int g_minimap_tile_mask[16][16] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-    { 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1 },
-    { 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
-    { 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-    { 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
-    { 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1 },
-    { 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1 },
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1 }
-};
-
 static void
 render_imgui(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
@@ -863,76 +840,15 @@ done_draw:;
             if( rgb_foreground == 0 && rgb_background == 0 )
                 break;
 
-            int step = renderer->width;
-
-            int* mask = g_minimap_tile_mask[shape];
-            int* rotation = g_minimap_tile_rotation_map[angle];
-
-            int offset = (x + (command->_tile.tile_sx - sw_x) * 4) +
-                         (y - (command->_tile.tile_sy + 1 - sw_z) * 4) * step;
-            if( rgb_foreground == 0 )
-            {
-                if( rgb_background != 0 )
-                {
-                    for( int i = 0; i < 4; i++ )
-                    {
-                        renderer->pixel_buffer[offset] = rgb_background;
-                        renderer->pixel_buffer[offset + 1] = rgb_background;
-                        renderer->pixel_buffer[offset + 2] = rgb_background;
-                        renderer->pixel_buffer[offset + 3] = rgb_background;
-                        offset += step;
-                    }
-                }
-                break;
-            }
-
-            int off = 0;
-            if( rgb_background != 0 )
-            {
-                for( int i = 0; i < 4; i++ )
-                {
-                    renderer->pixel_buffer[offset] =
-                        mask[rotation[off++]] == 0 ? rgb_background : rgb_foreground;
-                    renderer->pixel_buffer[offset + 1] =
-                        mask[rotation[off++]] == 0 ? rgb_background : rgb_foreground;
-                    renderer->pixel_buffer[offset + 2] =
-                        mask[rotation[off++]] == 0 ? rgb_background : rgb_foreground;
-                    renderer->pixel_buffer[offset + 3] =
-                        mask[rotation[off++]] == 0 ? rgb_background : rgb_foreground;
-                    offset += step;
-                }
-                continue;
-            }
-
-            for( int i = 0; i < 4; i++ )
-            {
-                if( mask[rotation[off++]] != 0 )
-                {
-                    renderer->pixel_buffer[offset] = rgb_foreground;
-                }
-                if( mask[rotation[off++]] != 0 )
-                {
-                    renderer->pixel_buffer[offset + 1] = rgb_foreground;
-                }
-                if( mask[rotation[off++]] != 0 )
-                {
-                    renderer->pixel_buffer[offset + 2] = rgb_foreground;
-                }
-                if( mask[rotation[off++]] != 0 )
-                {
-                    renderer->pixel_buffer[offset + 3] = rgb_foreground;
-                }
-                offset += step;
-            }
-
-            // dash2d_fill_rect(
-            //     renderer->pixel_buffer,
-            //     renderer->width,
-            //     x + (command->_tile.tile_sx - sw_x) * 4,
-            //     y - (command->_tile.tile_sy + 1 - sw_z) * 4,
-            //     4,
-            //     4,
-            //     rgb);
+            dash2d_fill_minimap_tile(
+                renderer->pixel_buffer,
+                renderer->width,
+                x + (command->_tile.tile_sx - sw_x) * 4,
+                y - (command->_tile.tile_sy + 1 - sw_z) * 4,
+                rgb_background,
+                rgb_foreground,
+                angle,
+                shape);
 
             break;
         }
