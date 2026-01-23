@@ -194,6 +194,8 @@ libg_game_new(
     memset(game->view_port, 0, sizeof(struct DashViewPort));
     game->camera = malloc(sizeof(struct DashCamera));
     memset(game->camera, 0, sizeof(struct DashCamera));
+    game->iface_view_port = malloc(sizeof(struct DashViewPort));
+    memset(game->iface_view_port, 0, sizeof(struct DashViewPort));
 
     // Camera (x, y, z): 3939, -800, 12589 : 30, 98
     // Camera (pitch, yaw, roll): 388, 1556, 0

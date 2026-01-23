@@ -243,6 +243,14 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     int new_width = window_width > renderer->max_width ? renderer->max_width : window_width;
     int new_height = window_height > renderer->max_height ? renderer->max_height : window_height;
 
+    if( game->iface_view_port )
+    {
+        game->iface_view_port->x_center = new_width / 2;
+        game->iface_view_port->y_center = new_height / 2;
+        game->iface_view_port->width = new_width;
+        game->iface_view_port->height = new_height;
+    }
+
     // Allocate/update dash buffer if viewport exists
     if( game->view_port )
     {
@@ -314,11 +322,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
     // Clear main pixel buffer
     // memset(renderer->pixel_buffer, 0x00FF00FF, renderer->width * renderer->height * sizeof(int));
-    for( int y = 0; y < renderer->height; y++ )
-        memset(
-            &renderer->pixel_buffer[y * renderer->width],
-            0x00FF00FF,
-            renderer->width * sizeof(int));
+    // for( int y = 0; y < renderer->height; y++ )
+    //     memset(
+    //         &renderer->pixel_buffer[y * renderer->width],
+    //         0x00FF00FF,
+    //         renderer->width * sizeof(int));
 
     // Clear dash buffer if it exists
     if( renderer->dash_buffer )
@@ -326,7 +334,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         for( int y = 0; y < renderer->dash_buffer_height; y++ )
             memset(
                 &renderer->dash_buffer[y * renderer->dash_buffer_width],
-                0x00FF00FF,
+                0x00,
                 renderer->dash_buffer_width * sizeof(int));
     }
 
@@ -574,16 +582,7 @@ done_draw:;
         dash2d_blit_sprite(
             game->sys_dash,
             game->invback_sprite,
-            game->view_port,
-            553,
-            205,
-            renderer->pixel_buffer);
-
-    if( game->invback_sprite )
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->mapedge_sprite,
-            game->view_port,
+            game->iface_view_port,
             553,
             205,
             renderer->pixel_buffer);
@@ -593,7 +592,7 @@ done_draw:;
         dash2d_blit_sprite(
             game->sys_dash,
             game->cross_sprite[game->mouse_cycle / 100],
-            game->view_port,
+            game->iface_view_port,
             game->mouse_clicked_x - 8 - 4,
             game->mouse_clicked_y - 8 - 4,
             renderer->pixel_buffer);

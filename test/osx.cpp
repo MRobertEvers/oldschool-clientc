@@ -89,6 +89,12 @@ main(
         return 1;
     }
 
+    game->iface_view_port->width = renderer->width;
+    game->iface_view_port->height = renderer->height;
+    game->iface_view_port->x_center = renderer->width / 2;
+    game->iface_view_port->y_center = renderer->height / 2;
+    game->iface_view_port->stride = renderer->width;
+
     PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 100, 100);
 
     libg_game_step_tasks(game, &input, render_command_buffer);

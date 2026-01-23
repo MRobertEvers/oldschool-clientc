@@ -50,6 +50,7 @@ struct GGame
     struct DashModel* model;
     struct DashPosition* position;
     struct DashViewPort* view_port;
+    struct DashViewPort* iface_view_port;
     struct DashCamera* camera;
     struct GIOQueue* io;
     struct GameTask* tasks_nullable;
