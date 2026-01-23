@@ -319,7 +319,7 @@ libg_game_new(
     char data[1024];
 
     gametask_new_init_io(game, game->io);
-    gametask_new_init_scene_dat(game, 50, 50, 51, 51);
+    gametask_new_init_scene_dat(game, 48, 48, 51, 51);
     // gametask_new_init_scene(game, 48, 48, 51, 51);
     // gametask_new_init_scene(game, 47, 47, 49, 49);
     // gametask_new_init_scene(game, 40, 40, 41, 41);
