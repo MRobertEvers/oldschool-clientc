@@ -144,12 +144,23 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(
     }
     memset(renderer->pixel_buffer, 0, width * height * sizeof(int));
 
+    // Initialize dash buffer (will be allocated when viewport is known)
+    renderer->dash_buffer = NULL;
+    renderer->dash_buffer_width = 0;
+    renderer->dash_buffer_height = 0;
+    renderer->dash_offset_x = 0;
+    renderer->dash_offset_y = 0;
+
     return renderer;
 }
 
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer)
 {
+    if( renderer->dash_buffer )
+    {
+        free(renderer->dash_buffer);
+    }
     free(renderer);
 }
 
@@ -204,17 +215,25 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer);
 
 void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    int offset_x,
+    int offset_y)
+{
+    if( renderer )
+    {
+        renderer->dash_offset_x = offset_x;
+        renderer->dash_offset_y = offset_y;
+    }
+}
+
+void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game,
     struct GRenderCommandBuffer* render_command_buffer)
 {
     // Ensure viewport center matches viewport dimensions (critical for coordinate transformations)
-    if( game->view_port )
-    {
-        game->view_port->x_center = game->view_port->width / 2;
-        game->view_port->y_center = game->view_port->height / 2;
-    }
 
     // Handle window resize: update renderer dimensions up to max size
     int window_width, window_height;
@@ -224,24 +243,43 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     int new_width = window_width > renderer->max_width ? renderer->max_width : window_width;
     int new_height = window_height > renderer->max_height ? renderer->max_height : window_height;
 
+    // Allocate/update dash buffer if viewport exists
+    if( game->view_port )
+    {
+        // Ensure viewport center matches viewport dimensions (not renderer dimensions)
+        // This is critical for coordinate transformations to work correctly
+        game->view_port->x_center = game->view_port->width / 2;
+        game->view_port->y_center = game->view_port->height / 2;
+
+        // Allocate or reallocate dash buffer if size changed
+        if( !renderer->dash_buffer || renderer->dash_buffer_width != game->view_port->width ||
+            renderer->dash_buffer_height != game->view_port->height )
+        {
+            if( renderer->dash_buffer )
+            {
+                free(renderer->dash_buffer);
+            }
+
+            renderer->dash_buffer_width = game->view_port->width;
+            renderer->dash_buffer_height = game->view_port->height;
+            renderer->dash_buffer = (int*)malloc(
+                renderer->dash_buffer_width * renderer->dash_buffer_height * sizeof(int));
+            if( !renderer->dash_buffer )
+            {
+                printf("Failed to allocate dash buffer\n");
+                return;
+            }
+
+            // Set stride to dash buffer width for dash rendering
+            game->view_port->stride = renderer->dash_buffer_width;
+        }
+    }
+
     // Only update if size changed
     if( new_width != renderer->width || new_height != renderer->height )
     {
         // renderer->width = new_width;
         // renderer->height = new_height;
-
-        // Update viewport to match renderer dimensions
-        if( game->view_port )
-        {
-            // game->view_port->width = renderer->width;
-            // game->view_port->height = renderer->height;
-            // Ensure viewport center matches viewport dimensions (not renderer dimensions)
-            // This is critical for coordinate transformations to work correctly
-            game->view_port->x_center = game->view_port->width / 2;
-            game->view_port->y_center = game->view_port->height / 2;
-            // Keep stride aligned to renderer width for pixel buffer access
-            game->view_port->stride = renderer->width;
-        }
 
         // Recreate texture with new dimensions
         if( renderer->texture )
@@ -274,12 +312,23 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
+    // Clear main pixel buffer
     // memset(renderer->pixel_buffer, 0x00FF00FF, renderer->width * renderer->height * sizeof(int));
     for( int y = 0; y < renderer->height; y++ )
         memset(
             &renderer->pixel_buffer[y * renderer->width],
             0x00FF00FF,
             renderer->width * sizeof(int));
+
+    // Clear dash buffer if it exists
+    if( renderer->dash_buffer )
+    {
+        for( int y = 0; y < renderer->dash_buffer_height; y++ )
+            memset(
+                &renderer->dash_buffer[y * renderer->dash_buffer_width],
+                0x00FF00FF,
+                renderer->dash_buffer_width * sizeof(int));
+    }
 
     // struct AABB aabb;
     struct GRenderCommand* command = NULL;
@@ -340,12 +389,15 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
             if( (scene_element_interactable(game->scene, cmd->_entity._bf_entity)) )
             {
+                // Adjust mouse coordinates for dash buffer offset
+                int mouse_x_adjusted = game->mouse_x - renderer->dash_offset_x;
+                int mouse_y_adjusted = game->mouse_y - renderer->dash_offset_y;
                 if( dash3d_projected_model_contains(
                         game->sys_dash,
                         scene_element_model(game->scene, cmd->_entity._bf_entity),
                         game->view_port,
-                        game->mouse_x,
-                        game->mouse_y) )
+                        mouse_x_adjusted,
+                        mouse_y_adjusted) )
                 {
                     // 1637
                     printf(
@@ -358,55 +410,61 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         printf("Action: %s\n", action->action);
                     }
 
-                    // Draw AABB rectangle outline
+                    // Draw AABB rectangle outline on dash buffer
                     // AABB coordinates are in screen space relative to viewport center
-                    // Convert to pixel buffer coordinates
                     struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
 
-                    // Convert from viewport-relative coordinates to absolute screen coordinates
-                    // AABB coordinates are already adjusted by screen_edge_width/height in
-                    // dash3d_calculate_aabb So they're in viewport space (0 to viewport->width, 0
-                    // to viewport->height) Scale to pixel buffer coordinates
-                    float scale_x = 1;
-                    float scale_y = 1;
+                    // AABB coordinates are already in viewport space (0 to viewport->width, 0 to
+                    // viewport->height)
+                    int db_min_x = aabb->min_screen_x;
+                    int db_min_y = aabb->min_screen_y;
+                    int db_max_x = aabb->max_screen_x;
+                    int db_max_y = aabb->max_screen_y;
 
-                    int pb_min_x = (int)(aabb->min_screen_x * scale_x);
-                    int pb_min_y = (int)(aabb->min_screen_y * scale_y);
-                    int pb_max_x = (int)(aabb->max_screen_x * scale_x);
-                    int pb_max_y = (int)(aabb->max_screen_y * scale_y);
-
-                    // Draw top and bottom horizontal lines
-                    for( int x = pb_min_x; x <= pb_max_x; x++ )
+                    // Draw on dash buffer if it exists
+                    if( renderer->dash_buffer )
                     {
-                        if( x >= 0 && x < renderer->width )
+                        // Draw top and bottom horizontal lines
+                        for( int x = db_min_x; x <= db_max_x; x++ )
                         {
-                            // Top line
-                            if( pb_min_y >= 0 && pb_min_y < renderer->height )
+                            if( x >= 0 && x < renderer->dash_buffer_width )
                             {
-                                renderer->pixel_buffer[pb_min_y * renderer->width + x] = 0xFFFFFF;
-                            }
-                            // Bottom line
-                            if( pb_max_y >= 0 && pb_max_y < renderer->height )
-                            {
-                                renderer->pixel_buffer[pb_max_y * renderer->width + x] = 0xFFFFFF;
+                                // Top line
+                                if( db_min_y >= 0 && db_min_y < renderer->dash_buffer_height )
+                                {
+                                    renderer
+                                        ->dash_buffer[db_min_y * renderer->dash_buffer_width + x] =
+                                        0xFFFFFF;
+                                }
+                                // Bottom line
+                                if( db_max_y >= 0 && db_max_y < renderer->dash_buffer_height )
+                                {
+                                    renderer
+                                        ->dash_buffer[db_max_y * renderer->dash_buffer_width + x] =
+                                        0xFFFFFF;
+                                }
                             }
                         }
-                    }
 
-                    // Draw left and right vertical lines
-                    for( int y = pb_min_y; y <= pb_max_y; y++ )
-                    {
-                        if( y >= 0 && y < renderer->height )
+                        // Draw left and right vertical lines
+                        for( int y = db_min_y; y <= db_max_y; y++ )
                         {
-                            // Left line
-                            if( pb_min_x >= 0 && pb_min_x < renderer->width )
+                            if( y >= 0 && y < renderer->dash_buffer_height )
                             {
-                                renderer->pixel_buffer[y * renderer->width + pb_min_x] = 0xFFFFFF;
-                            }
-                            // Right line
-                            if( pb_max_x >= 0 && pb_max_x < renderer->width )
-                            {
-                                renderer->pixel_buffer[y * renderer->width + pb_max_x] = 0xFFFFFF;
+                                // Left line
+                                if( db_min_x >= 0 && db_min_x < renderer->dash_buffer_width )
+                                {
+                                    renderer
+                                        ->dash_buffer[y * renderer->dash_buffer_width + db_min_x] =
+                                        0xFFFFFF;
+                                }
+                                // Right line
+                                if( db_max_x >= 0 && db_max_x < renderer->dash_buffer_width )
+                                {
+                                    renderer
+                                        ->dash_buffer[y * renderer->dash_buffer_width + db_max_x] =
+                                        0xFFFFFF;
+                                }
                             }
                         }
                     }
@@ -419,7 +477,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 &position,
                 game->view_port,
                 game->camera,
-                renderer->pixel_buffer);
+                renderer->dash_buffer);
         }
         break;
         case PNTR_CMD_TERRAIN:
@@ -440,7 +498,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 &position,
                 game->view_port,
                 game->camera,
-                renderer->pixel_buffer);
+                renderer->dash_buffer);
         }
         break;
         default:
@@ -483,7 +541,7 @@ done_draw:;
                 &position,
                 game->view_port,
                 game->camera,
-                renderer->pixel_buffer);
+                renderer->dash_buffer);
             // render_model_frame(
             //     renderer->pixel_buffer,
             //     renderer->width,
@@ -554,18 +612,44 @@ done_draw:;
 
     // Copy the pixels into the texture
     int* pix_write = NULL;
-    int _pitch_unused = 0;
-    if( SDL_LockTexture(renderer->texture, NULL, (void**)&pix_write, &_pitch_unused) < 0 )
+    int texture_pitch = 0;
+    if( SDL_LockTexture(renderer->texture, NULL, (void**)&pix_write, &texture_pitch) < 0 )
         return;
 
     int row_size = renderer->width * sizeof(int);
     int* src_pixels = (int*)surface->pixels;
     for( int src_y = 0; src_y < (renderer->height); src_y++ )
     {
-        // Calculate offset in texture to write a single row of pixels
         int* row = &pix_write[(src_y * renderer->width)];
-        // Copy a single row of pixels
         memcpy(row, &src_pixels[(src_y - 0) * renderer->width], row_size);
+    }
+
+    // Copy dash buffer directly to texture at offset position
+    if( renderer->dash_buffer )
+    {
+        int* dash_buf = renderer->dash_buffer;
+        int dash_w = renderer->dash_buffer_width;
+        int dash_h = renderer->dash_buffer_height;
+        int offset_x = renderer->dash_offset_x;
+        int offset_y = renderer->dash_offset_y;
+        int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
+
+        for( int y = 0; y < dash_h; y++ )
+        {
+            int dst_y = y + offset_y;
+            if( dst_y >= 0 && dst_y < renderer->height )
+            {
+                for( int x = 0; x < dash_w; x++ )
+                {
+                    int dst_x = x + offset_x;
+                    if( dst_x >= 0 && dst_x < renderer->width )
+                    {
+                        int src_pixel = dash_buf[y * dash_w + x];
+                        pix_write[dst_y * texture_w + dst_x] = src_pixel;
+                    }
+                }
+            }
+        }
     }
 
     // Unlock the texture so that it may be used elsewhere

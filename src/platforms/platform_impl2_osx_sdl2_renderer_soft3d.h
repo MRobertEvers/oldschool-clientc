@@ -14,6 +14,13 @@ struct Platform2_OSX_SDL2_Renderer_Soft3D
     int max_width;
     int max_height;
 
+    // Separate buffer for dash rendering
+    int* dash_buffer;
+    int dash_buffer_width;
+    int dash_buffer_height;
+    int dash_offset_x;
+    int dash_offset_y;
+
     float time_delta_accumulator;
 };
 
@@ -33,5 +40,10 @@ void PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game,
     struct GRenderCommandBuffer* render_command_buffer);
+
+void PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    int offset_x,
+    int offset_y);
 
 #endif
