@@ -7,6 +7,7 @@
 #include "osrs/rscache/tables_dat/animframe.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
+#include "osrs/rscache/tables_dat/pixfont.h"
 
 struct CacheFrame;
 struct CacheFramemap;
@@ -34,5 +35,8 @@ dashsprite_new_from_cache_pix32(struct CacheDatPix32* pix32);
 
 struct DashSprite*
 dashsprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette);
+
+struct DashPixFont*
+dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont);
 
 #endif

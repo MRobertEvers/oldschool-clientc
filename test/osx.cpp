@@ -95,7 +95,7 @@ main(
     game->iface_view_port->y_center = renderer->height / 2;
     game->iface_view_port->stride = renderer->width;
 
-    PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 100, 100);
+    PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 0, 00);
 
     libg_game_step_tasks(game, &input, render_command_buffer);
     while( libg_game_is_running(game) )

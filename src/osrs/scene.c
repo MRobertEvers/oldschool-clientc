@@ -161,11 +161,6 @@ scene_scenery_push_element_move(
     scenery->elements[scenery->elements_length].id = scenery->elements_length;
     scenery->elements_length++;
 
-    if( scenery->elements_length - 1 == 1600 )
-    {
-        printf("SceneElement: %s\n", element->_dbg_name);
-    }
-
     return scenery->elements_length - 1;
 }
 

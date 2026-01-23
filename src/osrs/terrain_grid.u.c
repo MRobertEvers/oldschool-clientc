@@ -115,10 +115,6 @@ tile_from_sw_origin(
     int sz,
     int slevel)
 {
-    if( sx == 34 && sz == 98 )
-    {
-        printf("sx: %d, sz: %d, slevel: %d\n", sx, sz, slevel);
-    }
     int mapx = sx / MAP_TERRAIN_X + terrain_grid->mapx_sw;
     int mapz = sz / MAP_TERRAIN_Z + terrain_grid->mapz_sw;
 

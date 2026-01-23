@@ -46,9 +46,45 @@ struct DashGraphics
     struct DashMap* textures_hmap;
 };
 
+/**
+ * Runescape only looks at the first byte of a UTF16 code point.
+ * For example, str.charCodeAt(str.indexOf('£')) returns 163 or a3, which is not ascii anyway and
+ * all the other characters are ascii, so there is no collision.
+ * @param c
+ * @return int
+ */
+static inline int
+index_of_char(uint8_t c)
+{
+    for( int i = 0; i < DASH_FONT_CHAR_COUNT; i++ )
+    {
+        if( (DASH_FONT_CHARSET[i] & 0xFF) == c )
+            return i;
+    }
+    return -1;
+}
+
+static uint8_t DASH_FONT_CHARCODESET[256] = { 0 };
+
+static inline void
+init_font_charset()
+{
+    // Initialize CHARCODESET for single-byte values (0-255)
+    for( int i = 0; i < 256; i++ )
+    {
+        int c = index_of_char((uint8_t)i);
+        if( c == -1 )
+            c = index_of_char(' '); // space
+
+        assert(c < DASH_FONT_CHAR_COUNT);
+        DASH_FONT_CHARCODESET[i] = c;
+    }
+}
+
 void
 dash_init(void)
 {
+    init_font_charset();
     init_hsl16_to_rgb_table();
     init_sin_table();
     init_cos_table();
@@ -1740,6 +1776,16 @@ dashsprite_new_from_pix32(struct DashPix32* pix32)
     int* pixels = malloc(pix32->draw_width * pix32->draw_height * sizeof(int));
     memset(pixels, 0, pix32->draw_width * pix32->draw_height * sizeof(int));
 
+    if( pix32->stride_y > pix32->draw_height )
+    {
+        height = pix32->draw_height;
+    }
+
+    if( pix32->stride_x > pix32->draw_width )
+    {
+        width = pix32->draw_width;
+    }
+
     int write_x = 0;
     int write_y = pix32->crop_y;
     for( ; y < height; y++ )
@@ -1747,7 +1793,12 @@ dashsprite_new_from_pix32(struct DashPix32* pix32)
         write_x = pix32->crop_x;
         for( int x = 0; x < width; x++ )
         {
-            pixels[write_x + write_y * pix32->draw_width] = pix32->pixels[x + y * pix32->stride_x];
+            int pixel_index = x + y * pix32->stride_x;
+            int write_index = write_x + write_y * pix32->draw_width;
+            if( write_index < 0 || write_index >= pix32->draw_width * pix32->draw_height )
+                continue;
+            assert(write_index < pix32->draw_width * pix32->draw_height);
+            pixels[write_index] = pix32->pixels[pixel_index];
             write_x++;
         }
         write_y++;
@@ -1805,4 +1856,116 @@ dashsprite_free(struct DashSprite* sprite)
 {
     free(sprite->pixels_argb);
     free(sprite);
+}
+
+static void
+dashfont_draw_mask(
+    int w,
+    int h,
+    int* src,
+    int src_offset,
+    int src_step,
+    int* dst,
+    int dst_offset,
+    int dst_step,
+    int rgb)
+{
+    int hw = -(w >> 2);
+    w = -(w & 0x3);
+    for( int y = -h; y < 0; y++ )
+    {
+        for( int x = hw; x < 0; x++ )
+        {
+            if( src[src_offset++] == 0 )
+            {
+                dst_offset++;
+            }
+            else
+            {
+                dst[dst_offset++] = rgb;
+            }
+
+            if( src[src_offset++] == 0 )
+            {
+                dst_offset++;
+            }
+            else
+            {
+                dst[dst_offset++] = rgb;
+            }
+
+            if( src[src_offset++] == 0 )
+            {
+                dst_offset++;
+            }
+            else
+            {
+                dst[dst_offset++] = rgb;
+            }
+
+            if( src[src_offset++] == 0 )
+            {
+                dst_offset++;
+            }
+            else
+            {
+                dst[dst_offset++] = rgb;
+            }
+        }
+
+        for( int x = w; x < 0; x++ )
+        {
+            if( src[src_offset++] == 0 )
+            {
+                dst_offset++;
+            }
+            else
+            {
+                dst[dst_offset++] = rgb;
+            }
+        }
+
+        dst_offset += dst_step;
+        src_offset += src_step;
+    }
+}
+
+void
+dashfont_draw_text(
+    struct DashPixFont* pixfont,
+    // 163 is '£'
+    uint8_t* text,
+    int x,
+    int y,
+    int color_rgb,
+    int* pixels,
+    int stride)
+{
+    // Calculate length of UTF16 string (null-terminated)
+    int length = strlen(text);
+
+    for( int i = 0; i < length; i++ )
+    {
+        uint8_t code_point = text[i];
+        int c = 0;
+        c = DASH_FONT_CHARCODESET[code_point];
+
+        if( c < DASH_FONT_CHAR_COUNT )
+        {
+            int w = pixfont->char_mask_width[c];
+            int h = pixfont->char_mask_height[c];
+            int* mask = pixfont->char_mask[c];
+            dashfont_draw_mask(
+                w,
+                h,
+                mask,
+                0,
+                0,
+                pixels,
+                x + pixfont->char_offset_x[c] + pixfont->char_offset_y[c] * stride,
+                stride - w,
+                color_rgb);
+        }
+        x += pixfont->char_advance[c];
+    }
 }

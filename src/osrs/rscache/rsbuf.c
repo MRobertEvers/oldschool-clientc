@@ -20,6 +20,7 @@ rsbuf_init(
 int
 rsbuf_g1(struct RSBuffer* buffer)
 {
+    assert(buffer->position < buffer->size);
     return buffer->data[buffer->position++] & 0xff;
 }
 

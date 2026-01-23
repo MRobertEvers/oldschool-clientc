@@ -17,7 +17,7 @@ struct RSBuffer
 {
     int8_t* data;
     int size;
-    int position;
+    uint32_t position;
 };
 
 void

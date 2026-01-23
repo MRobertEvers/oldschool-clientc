@@ -910,10 +910,6 @@ step_models_load(struct TaskInitSceneDat* task)
             assert(model_entry && "Model must be inserted into hmap");
             model_entry->id = message.param_b;
 
-            if( message.param_b == 2085 )
-            {
-                printf("IIII %d\n", message.param_b);
-            }
             model_entry->model = model_new_decode(message.data, message.data_size);
             model_entry->model->_id = message.param_b;
             scenebuilder_cache_model(task->scene_builder, message.param_b, model_entry->model);
@@ -1208,6 +1204,75 @@ step_media_load_gather(struct TaskInitSceneDat* task)
     reqid = gio_assets_dat_config_media_load(task->io);
     vec_push(task->reqid_queue_vec, &reqid);
 }
+
+struct FilePtr
+{
+    void* data;
+    int data_size;
+};
+
+static struct DashSprite*
+step_media_load_sprite_pix8(
+    struct FileListDat* filelist,
+    const char* filename,
+    int index_file_idx,
+    int sprite_idx)
+{
+    struct CacheDatPix8Palette* pix8_palette = NULL;
+    struct DashSprite* sprite = NULL;
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, filename);
+    if( data_file_idx == -1 )
+    {
+        printf("Failed to find %s in filelist\n", filename);
+        assert(false && "Failed to find %s in filelist");
+        return NULL;
+    }
+
+    pix8_palette = cache_dat_pix8_palette_new(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        sprite_idx);
+
+    sprite = dashsprite_new_from_cache_pix8_palette(pix8_palette);
+    cache_dat_pix8_palette_free(pix8_palette);
+
+    return sprite;
+}
+
+static struct DashSprite*
+step_media_load_sprite_pix32(
+    struct FileListDat* filelist,
+    const char* filename,
+    int index_file_idx,
+    int sprite_idx)
+{
+    struct CacheDatPix32* pix32 = NULL;
+    struct DashSprite* sprite = NULL;
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, filename);
+    if( data_file_idx == -1 )
+    {
+        printf("Failed to find %s in filelist\n", filename);
+        assert(false && "Failed to find %s in filelist");
+        return NULL;
+    }
+
+    pix32 = cache_dat_pix32_new(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        sprite_idx);
+    if( !pix32 )
+    {
+        return NULL;
+    }
+    sprite = dashsprite_new_from_cache_pix32(pix32);
+    cache_dat_pix32_free(pix32);
+    return sprite;
+}
+
 static void
 step_media_load_poll(
     struct TaskInitSceneDat* task,
@@ -1220,81 +1285,156 @@ step_media_load_poll(
 
     // char name[16] = { 0 };
     // snprintf(name, sizeof(name), "%d.dat", texture_id);
-    int data_file_idx = filelist_dat_find_file_by_name(filelist, "invback.dat");
-    int data_file_idx2 = filelist_dat_find_file_by_name(filelist, "mapedge.dat");
-    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
 
-    if( data_file_idx == -1 || index_file_idx == -1 )
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+    assert(index_file_idx != -1 && "Failed to find invback.dat or index.dat in filelist");
+
+    task->game->sprite_invback =
+        step_media_load_sprite_pix8(filelist, "invback.dat", index_file_idx, 0);
+
+    task->game->sprite_chatback =
+        step_media_load_sprite_pix8(filelist, "chatback.dat", index_file_idx, 0);
+
+    task->game->sprite_mapback =
+        step_media_load_sprite_pix8(filelist, "mapback.dat", index_file_idx, 0);
+
+    task->game->sprite_backbase1 =
+        step_media_load_sprite_pix8(filelist, "backbase1.dat", index_file_idx, 0);
+
+    task->game->sprite_backbase2 =
+        step_media_load_sprite_pix8(filelist, "backbase2.dat", index_file_idx, 0);
+
+    task->game->sprite_backhmid1 =
+        step_media_load_sprite_pix8(filelist, "backhmid1.dat", index_file_idx, 0);
+
+    for( int i = 0; i < 13; i++ )
     {
-        printf("Failed to find invback.dat or index.dat in filelist\n");
-        assert(false && "Failed to find invback.dat or index.dat in filelist");
-        filelist_dat_free(filelist);
-        return;
+        task->game->sprite_sideicons[i] =
+            step_media_load_sprite_pix8(filelist, "sideicons.dat", index_file_idx, i);
     }
 
-    pix8 = cache_dat_pix8_palette_new(
-        filelist->files[data_file_idx],
-        filelist->file_sizes[data_file_idx],
-        filelist->files[index_file_idx],
-        filelist->file_sizes[index_file_idx],
-        0);
-    task->game->invback_sprite = dashsprite_new_from_cache_pix8_palette(pix8);
-    cache_dat_pix8_palette_free(pix8);
+    task->game->sprite_compass =
+        step_media_load_sprite_pix32(filelist, "compass.dat", index_file_idx, 0);
 
-    data_file_idx = filelist_dat_find_file_by_name(filelist, "backright1.dat");
-    assert(data_file_idx != -1 && "Failed to find mapedge.dat in filelist");
-    pix32 = cache_dat_pix32_new(
-        filelist->files[data_file_idx],
-        filelist->file_sizes[data_file_idx],
-        filelist->files[index_file_idx],
-        filelist->file_sizes[index_file_idx],
-        0);
-    task->game->mapedge_sprite = dashsprite_new_from_cache_pix32(pix32);
-    cache_dat_pix32_free(pix32);
+    task->game->sprite_mapedge =
+        step_media_load_sprite_pix32(filelist, "mapedge.dat", index_file_idx, 0);
 
-    data_file_idx = filelist_dat_find_file_by_name(filelist, "cross.dat");
-    assert(data_file_idx != -1 && "Failed to find cross.dat in filelist");
+    for( int i = 0; i < 50; i++ )
+    {
+        task->game->sprite_mapscene[i] =
+            step_media_load_sprite_pix8(filelist, "mapscene.dat", index_file_idx, i);
+    }
+
+    for( int i = 0; i < 50; i++ )
+    {
+        task->game->sprite_mapfunction[i] =
+            step_media_load_sprite_pix32(filelist, "mapfunction.dat", index_file_idx, i);
+    }
+
+    for( int i = 0; i < 20; i++ )
+    {
+        task->game->sprite_hitmarks[i] =
+            step_media_load_sprite_pix32(filelist, "hitmarks.dat", index_file_idx, i);
+    }
+
+    for( int i = 0; i < 20; i++ )
+    {
+        task->game->sprite_headicons[i] =
+            step_media_load_sprite_pix32(filelist, "headicons.dat", index_file_idx, i);
+    }
+
+    task->game->sprite_mapmarker0 =
+        step_media_load_sprite_pix32(filelist, "mapmarker.dat", index_file_idx, 0);
+
+    task->game->sprite_mapmarker1 =
+        step_media_load_sprite_pix32(filelist, "mapmarker.dat", index_file_idx, 1);
+
     for( int i = 0; i < 8; i++ )
     {
-        pix32 = cache_dat_pix32_new(
-            filelist->files[data_file_idx],
-            filelist->file_sizes[data_file_idx],
-            filelist->files[index_file_idx],
-            filelist->file_sizes[index_file_idx],
-            i);
-        task->game->cross_sprite[i] = dashsprite_new_from_cache_pix32(pix32);
-        cache_dat_pix32_free(pix32);
-
-        char name[16] = { 0 };
-        snprintf(name, sizeof(name), "cross%d.bmp", i);
-        bmp_write_file(
-            name,
-            task->game->cross_sprite[i]->pixels_argb,
-            task->game->cross_sprite[i]->width,
-            task->game->cross_sprite[i]->height);
+        task->game->sprite_cross[i] =
+            step_media_load_sprite_pix32(filelist, "cross.dat", index_file_idx, i);
     }
 
-    data_file_idx = filelist_dat_find_file_by_name(filelist, "compass.dat");
-    assert(data_file_idx != -1 && "Failed to find compass.dat in filelist");
-    pix32 = cache_dat_pix32_new(
-        filelist->files[data_file_idx],
-        filelist->file_sizes[data_file_idx],
-        filelist->files[index_file_idx],
-        filelist->file_sizes[index_file_idx],
-        0);
-    task->game->compass_sprite = dashsprite_new_from_cache_pix32(pix32);
-    cache_dat_pix32_free(pix32);
+    task->game->sprite_mapdot0 =
+        step_media_load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 0);
 
-    // int* argb = malloc(task->pix8->width * task->pix8->height * sizeof(int));
-    // memset(argb, 0, task->pix8->width * task->pix8->height * sizeof(int));
-    // for( int i = 0; i < task->pix8->width * task->pix8->height; i++ )
-    // {
-    //     int palette_index = task->pix8->pixels[i];
-    //     assert(palette_index >= 0 && palette_index < task->palette->palette_count);
-    //     argb[i] = task->palette->palette[palette_index];
-    // }
-    // bmp_write_file("../cache/invback.bmp", argb, task->pix8->width, task->pix8->height);
-    // free(argb);
+    task->game->sprite_mapdot1 =
+        step_media_load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 1);
+
+    task->game->sprite_mapdot2 =
+        step_media_load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 2);
+
+    task->game->sprite_mapdot3 =
+        step_media_load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 3);
+
+    task->game->sprite_scrollbar0 =
+        step_media_load_sprite_pix8(filelist, "scrollbar.dat", index_file_idx, 0);
+
+    task->game->sprite_scrollbar1 =
+        step_media_load_sprite_pix8(filelist, "scrollbar.dat", index_file_idx, 1);
+
+    task->game->sprite_redstone1 =
+        step_media_load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone2 =
+        step_media_load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone3 =
+        step_media_load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone1h =
+        step_media_load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone2h =
+        step_media_load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone1v =
+        step_media_load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone2v =
+        step_media_load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone3v =
+        step_media_load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone1hv =
+        step_media_load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+
+    task->game->sprite_redstone2hv =
+        step_media_load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+
+    for( int i = 0; i < 2; i++ )
+    {
+        task->game->sprite_modicons[i] =
+            step_media_load_sprite_pix8(filelist, "mod_icons.dat", index_file_idx, i);
+    }
+
+    task->game->sprite_backleft1 =
+        step_media_load_sprite_pix32(filelist, "backleft1.dat", index_file_idx, 0);
+
+    task->game->sprite_backleft2 =
+        step_media_load_sprite_pix8(filelist, "backleft2.dat", index_file_idx, 0);
+
+    task->game->sprite_backright1 =
+        step_media_load_sprite_pix8(filelist, "backright1.dat", index_file_idx, 0);
+
+    task->game->sprite_backright2 =
+        step_media_load_sprite_pix8(filelist, "backright2.dat", index_file_idx, 0);
+
+    task->game->sprite_backtop1 =
+        step_media_load_sprite_pix8(filelist, "backtop1.dat", index_file_idx, 0);
+
+    task->game->sprite_backvmid1 =
+        step_media_load_sprite_pix8(filelist, "backvmid1.dat", index_file_idx, 0);
+
+    task->game->sprite_backvmid2 =
+        step_media_load_sprite_pix8(filelist, "backvmid2.dat", index_file_idx, 0);
+
+    task->game->sprite_backvmid3 =
+        step_media_load_sprite_pix8(filelist, "backvmid3.dat", index_file_idx, 0);
+
+    task->game->sprite_backhmid2 =
+        step_media_load_sprite_pix8(filelist, "backhmid2.dat", index_file_idx, 0);
 
     filelist_dat_free(filelist);
 }
@@ -1350,7 +1490,7 @@ step_title_load_poll(
 {
     struct FileListDat* filelist = filelist_dat_new_from_decode(message->data, message->data_size);
 
-    int data_file_idx = filelist_dat_find_file_by_name(filelist, "p11.dat");
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, "q8.dat");
     int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
     assert(
         data_file_idx != -1 && index_file_idx != -1 &&
@@ -1360,7 +1500,7 @@ step_title_load_poll(
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
-    task->game->pixfont = pixfont;
+    task->game->pixfont = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
     filelist_dat_free(filelist);
 }
 

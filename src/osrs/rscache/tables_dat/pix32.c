@@ -126,6 +126,8 @@ cache_dat_pix32_new(
 
     if( pixel_order == 0 )
     {
+        if( databuf.position + pixel_count > databuf.size )
+            return NULL;
         for( int i = 0; i < pixel_count; i++ )
         {
             int pixel_index = g1(&databuf);

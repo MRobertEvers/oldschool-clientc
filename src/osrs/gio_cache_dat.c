@@ -383,7 +383,8 @@ gioqb_cache_dat_animbaseframes_new_load(
     archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_ANIMATIONS, animbaseframes_id);
     if( !archive )
     {
-        printf("Failed to load animbaseframes archive\n");
+        // This failure is expected. The loader just asks for all the archives.
+        // printf("Failed to load animbaseframes archive\n");
         return NULL;
     }
 

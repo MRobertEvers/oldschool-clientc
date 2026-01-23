@@ -238,6 +238,36 @@ struct DashSprite
     int height;
 };
 
+// We have to use UTF16 here because '£' is gets compiled to 0x00A3, which is 2 bytes wide, even in
+// a char array.
+static const uint16_t DASH_FONT_CHARSET[] = {
+    'A', 'B',  'C', 'D', 'E',  'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+    'N', 'O',  'P', 'Q', 'R',  'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    'a', 'b',  'c', 'd', 'e',  'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o',  'p', 'q', 'r',  's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    '0', '1',  '2', '3', '4',  '5', '6', '7', '8', '9', '!', '"', 0x00A3 /*'£'*/,
+    '$', '%',  '^', '&', '*',  '(', ')', '-', '_', '=', '+', '[', '{',
+    ']', '}',  ';', ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/',
+    '?', '\\', '|', ' '
+};
+
+// #define CHAR_COUNT (sizeof(CHARSET) - 1)
+#define DASH_FONT_CHAR_COUNT 94
+
+struct DashPixFont
+{
+    int* charcode_set;
+    int* char_mask[DASH_FONT_CHAR_COUNT];
+    int char_mask_count;
+
+    int char_mask_width[DASH_FONT_CHAR_COUNT];
+    int char_mask_height[DASH_FONT_CHAR_COUNT];
+    int char_offset_x[DASH_FONT_CHAR_COUNT];
+    int char_offset_y[DASH_FONT_CHAR_COUNT];
+    int char_advance[DASH_FONT_CHAR_COUNT + 1];
+    int draw_width[256];
+};
+
 void
 dash_init(void);
 
@@ -366,5 +396,16 @@ dash2d_blit_sprite(
 
 void
 dashsprite_free(struct DashSprite* sprite);
+
+void
+dashfont_draw_text(
+    struct DashPixFont* pixfont,
+    // 163 is '£'
+    uint8_t* text,
+    int x,
+    int y,
+    int color_rgb,
+    int* pixels,
+    int stride);
 
 #endif

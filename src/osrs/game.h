@@ -53,14 +53,54 @@ struct GGame
     struct DashViewPort* view_port;
     struct DashViewPort* iface_view_port;
     struct DashCamera* camera;
-    struct CacheDatPixfont* pixfont;
+    struct DashPixFont* pixfont;
     struct GIOQueue* io;
     struct GameTask* tasks_nullable;
 
-    struct DashSprite* invback_sprite;
-    struct DashSprite* mapedge_sprite;
-    struct DashSprite* compass_sprite;
-    struct DashSprite* cross_sprite[8];
+    struct DashSprite* sprite_invback;
+    struct DashSprite* sprite_chatback;
+    struct DashSprite* sprite_mapback;
+    struct DashSprite* sprite_backbase1;
+    struct DashSprite* sprite_backbase2;
+    struct DashSprite* sprite_backhmid1;
+    struct DashSprite* sprite_sideicons[13];
+    struct DashSprite* sprite_compass;
+    struct DashSprite* sprite_mapedge;
+    struct DashSprite* sprite_mapscene[50];
+    struct DashSprite* sprite_mapfunction[50];
+    struct DashSprite* sprite_hitmarks[20];
+    struct DashSprite* sprite_headicons[20];
+    struct DashSprite* sprite_mapmarker0;
+    struct DashSprite* sprite_mapmarker1;
+    struct DashSprite* sprite_cross[8];
+    struct DashSprite* sprite_mapdot0;
+    struct DashSprite* sprite_mapdot1;
+    struct DashSprite* sprite_mapdot2;
+    struct DashSprite* sprite_mapdot3;
+    struct DashSprite* sprite_scrollbar0;
+    struct DashSprite* sprite_scrollbar1;
+    struct DashSprite* sprite_redstone1;
+    struct DashSprite* sprite_redstone2;
+    struct DashSprite* sprite_redstone3;
+    struct DashSprite* sprite_redstone1h;
+    struct DashSprite* sprite_redstone2h;
+    struct DashSprite* sprite_redstone1v;
+    struct DashSprite* sprite_redstone2v;
+    struct DashSprite* sprite_redstone3v;
+    struct DashSprite* sprite_redstone1hv;
+    struct DashSprite* sprite_redstone2hv;
+
+    struct DashSprite* sprite_modicons[2];
+    struct DashSprite* sprite_backleft1;
+    struct DashSprite* sprite_backleft2;
+    struct DashSprite* sprite_backright1;
+
+    struct DashSprite* sprite_backright2;
+    struct DashSprite* sprite_backtop1;
+    struct DashSprite* sprite_backvmid1;
+    struct DashSprite* sprite_backvmid2;
+    struct DashSprite* sprite_backvmid3;
+    struct DashSprite* sprite_backhmid2;
 };
 
 #endif

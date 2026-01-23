@@ -312,12 +312,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
         else
         {
-            printf(
-                "Window resized to %dx%d (max: %dx%d)\n",
-                renderer->width,
-                renderer->height,
-                renderer->max_width,
-                renderer->max_height);
         }
     }
 
@@ -576,20 +570,20 @@ done_draw:;
         }
     }
 
-    if( game->invback_sprite )
+    if( game->sprite_invback )
         dash2d_blit_sprite(
             game->sys_dash,
-            game->invback_sprite,
+            game->sprite_invback,
             game->iface_view_port,
             553,
             205,
             renderer->pixel_buffer);
 
-    if( game->cross_sprite[0] && game->mouse_cycle != -1 )
+    if( game->sprite_cross[0] && game->mouse_cycle != -1 )
     {
         dash2d_blit_sprite(
             game->sys_dash,
-            game->cross_sprite[game->mouse_cycle / 100],
+            game->sprite_cross[game->mouse_cycle / 100],
             game->iface_view_port,
             game->mouse_clicked_x - 8 - 4,
             game->mouse_clicked_y - 8 - 4,
@@ -617,10 +611,18 @@ done_draw:;
     int* src_pixels = (int*)surface->pixels;
     int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
 
-    uint16_t* text = (uint16_t*)u"Hello world!";
+    uint8_t buffer[100];
+    strcpy((char*)buffer, "Hello world!");
+    buffer[0] = 163;
     if( game->pixfont )
-        pixfont_draw_text(
-            game->pixfont, text, 0, 0, renderer->dash_buffer, renderer->dash_buffer_width);
+        dashfont_draw_text(
+            game->pixfont,
+            buffer,
+            0,
+            0,
+            0xFFFFFF,
+            renderer->dash_buffer,
+            renderer->dash_buffer_width);
 
     // Copy dash buffer directly to texture at offset position
     if( renderer->dash_buffer )

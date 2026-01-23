@@ -40,10 +40,6 @@ gather_adjacent_tiles(
     int tile_size_x,
     int tile_size_z)
 {
-    if( tile_x == 31 && (tile_z == 24 || tile_z == 23 || tile_z == 25) )
-    {
-        printf("Gathering adjacent tiles for tile %d, %d, %d\n", tile_x, tile_z, tile_level);
-    }
     int min_tile_x = tile_x;
     int max_tile_x = tile_x + (tile_size_x);
     int min_tile_z = tile_z - 1;
@@ -364,18 +360,6 @@ sharelight_build_scene(
 
                         for( int k = 0; k < adjacent_sharelight_elements_count; k++ )
                         {
-                            if( sx == 31 && (sz == 24 || sz == 23 || sz == 25) )
-                            {
-                                printf(
-                                    "Gathering adjacent sharelight models for tile %d, %d, %d: %d "
-                                    "%d %d\n",
-                                    sx,
-                                    sz,
-                                    slevel,
-                                    adjacent_tile_coord.x,
-                                    adjacent_tile_coord.z,
-                                    adjacent_tile_coord.level);
-                            }
                             if( adjacent_sharelight_elements[k] == sharelight_elements[i] )
                                 continue;
                             adjacent_build_element = build_grid_element_at(

@@ -156,10 +156,6 @@ light_model_default(
     int model_contrast,
     int model_ambient)
 {
-    if( dash_model->_dbg_ids[0] == 2260 )
-    {
-        printf("IIII %d\n", dash_model->_dbg_ids[0]);
-    }
     int light_ambient = 64;
     int light_attenuation = 768;
     int lightsrc_x = -50;
@@ -294,29 +290,6 @@ load_model(
 
     assert(model_count > 0);
 
-    if( loc_config->_id == 44832 )
-    {
-        printf("model_count: %d\n", model_count);
-    }
-
-    if( models[0]->_id == 2261 )
-    {
-        printf("model_count: %d\n", model_count);
-    }
-
-    if( models[0]->_id == 5439 &&
-        memcmp(loc_config->name, "Standing torch", sizeof("Standing torch") - 1) == 0 )
-    {
-        if( loc_config->seq_id != -1 )
-        {
-            printf("seq_id: %d\n", loc_config->seq_id);
-        }
-        else
-        {
-            printf("seq_id: %d\n", loc_config->seq_id);
-        }
-    }
-
     if( model_count > 1 )
     {
         model = model_new_merge(models, model_count);
@@ -366,11 +339,6 @@ load_model(
     struct DashModel* dash_model = NULL;
     dash_model = dashmodel_new_from_cache_model(model);
     model_free(model);
-
-    if( dash_model->_dbg_ids[0] == 1637 )
-    {
-        printf("model_count: %d\n", model_count);
-    }
 
     light_model_default(dash_model, loc_config->contrast, loc_config->ambient);
 
@@ -665,10 +633,6 @@ init_scene_element(
     struct SceneElement* scene_element,
     struct CacheConfigLocation* config_loc)
 {
-    if( config_loc->_id == 724 )
-    {
-        printf("IIII %d\n", config_loc->_id);
-    }
     memset(scene_element, 0, sizeof(struct SceneElement));
     scene_element->interactable = config_loc->is_interactive;
     scene_element->config_loc = config_loc;
@@ -1380,10 +1344,6 @@ scenery_add_wall_diagonal(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
-    if( config_loc->_id == 980 )
-    {
-        printf("scenery_add_wall_diagonal: %d, %d\n", offset->x, offset->z);
-    }
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
@@ -1620,16 +1580,6 @@ scenery_add(
         map_loc->chunk_pos_level,
         &offset);
 
-    if( config_loc->_id == 38426 )
-    {
-        printf("config_loc->_id: %d\n", config_loc->_id);
-    }
-
-    if( (offset.x == 44 && offset.z == 34) || (offset.x == 44 && offset.z == 30) )
-    {
-        printf("offset: %d, %d\n", 1);
-    }
-
     // int settings = tile_at(
     //                    terrain_grid,
     //                    mapx,
@@ -1802,12 +1752,6 @@ build_scene_scenery(
         {
             map_loc = &map_locs->locs[i];
             assert(map_loc && "Map loc must be valid");
-
-            // TODO: shape_select == 10 causes issues. I think it is a changing loc
-            if( map_loc->shape_select == 10 )
-            {
-                printf("shape_select: %d\n", map_loc->shape_select);
-            }
 
             scenery_add(
                 scene_builder,

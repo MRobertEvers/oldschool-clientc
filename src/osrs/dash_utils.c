@@ -162,3 +162,29 @@ dashsprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
     dashpixpalette_free(dashpixpalette);
     return dashsprite;
 }
+
+struct DashPixFont*
+dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont)
+{
+    struct DashPixFont* dashpixfont = malloc(sizeof(struct DashPixFont));
+    memset(dashpixfont, 0, sizeof(struct DashPixFont));
+    dashpixfont->charcode_set = pixfont->charcode_set;
+
+    memcpy(dashpixfont->char_mask, pixfont->char_mask, sizeof(int*) * DASH_FONT_CHAR_COUNT);
+
+    memcpy(
+        dashpixfont->char_mask_width, pixfont->char_mask_width, sizeof(int) * DASH_FONT_CHAR_COUNT);
+    memcpy(
+        dashpixfont->char_mask_height,
+        pixfont->char_mask_height,
+        sizeof(int) * DASH_FONT_CHAR_COUNT);
+    memcpy(dashpixfont->char_offset_x, pixfont->char_offset_x, sizeof(int) * DASH_FONT_CHAR_COUNT);
+    memcpy(dashpixfont->char_offset_y, pixfont->char_offset_y, sizeof(int) * DASH_FONT_CHAR_COUNT);
+    memcpy(
+        dashpixfont->char_advance, pixfont->char_advance, sizeof(int) * (DASH_FONT_CHAR_COUNT + 1));
+    memcpy(dashpixfont->draw_width, pixfont->draw_width, sizeof(int) * 256);
+
+    // Moved out of.
+    memset(pixfont, 0x00, sizeof(struct CacheDatPixfont));
+    return dashpixfont;
+}

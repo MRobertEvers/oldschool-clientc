@@ -8,88 +8,15 @@
 
 static char CHARCODESET[256] = { 0 };
 
-// idx.pos = dat.g2() + 4; // skip cropW and cropH
-
-// const off: number = idx.g1();
-// if (off > 0) {
-//     // skip palette
-//     idx.pos += (off - 1) * 3;
-// }
-
-// const font: PixFont = new PixFont();
-
-// for (let i: number = 0; i < 94; i++) {
-//     font.charOffsetX[i] = idx.g1();
-//     font.charOffsetY[i] = idx.g1();
-
-//     const w: number = (font.charMaskWidth[i] = idx.g2());
-//     const h: number = (font.charMaskHeight[i] = idx.g2());
-
-//     const type: number = idx.g1();
-//     const len: number = w * h;
-
-//     font.charMask[i] = new Int8Array(len);
-
-//     if (type === 0) {
-//         for (let j: number = 0; j < w * h; j++) {
-//             font.charMask[i][j] = dat.g1b();
-//         }
-//     } else if (type === 1) {
-//         for (let x: number = 0; x < w; x++) {
-//             for (let y: number = 0; y < h; y++) {
-//                 font.charMask[i][x + y * w] = dat.g1b();
-//             }
-//         }
-//     }
-
-//     if (h > font.height2d) {
-//         font.height2d = h;
-//     }
-
-//     font.charOffsetX[i] = 1;
-//     font.charAdvance[i] = w + 2;
-
-//     {
-//         let space: number = 0;
-//         for (let y: number = (h / 7) | 0; y < h; y++) {
-//             space += font.charMask[i][y * w];
-//         }
-
-//         if (space <= ((h / 7) | 0)) {
-//             font.charAdvance[i]--;
-//             font.charOffsetX[i] = 0;
-//         }
-//     }
-
-//     {
-//         let space: number = 0;
-//         for (let y: number = (h / 7) | 0; y < h; y++) {
-//             space += font.charMask[i][w + y * w - 1];
-//         }
-
-//         if (space <= ((h / 7) | 0)) {
-//             font.charAdvance[i]--;
-//         }
-//     }
-// }
-
-// font.charAdvance[94] = font.charAdvance[8];
-// for (let i: number = 0; i < 256; i++) {
-//     font.drawWidth[i] = font.charAdvance[PixFont.CHARCODESET[i]];
-// }
-
-// return font;
-
 /**
  * Runescape only looks at the first byte of a UTF16 code point.
  * For example, str.charCodeAt(str.indexOf('£')) returns 163 or a3, which is not ascii anyway and
  * all the other characters are ascii, so there is no collision.
- *
  * @param c
  * @return int
  */
 static inline int
-index_of_char(uint16_t c) // UTF16 code point
+index_of_char(uint8_t c)
 {
     for( int i = 0; i < CHAR_COUNT; i++ )
     {
@@ -105,7 +32,7 @@ cache_dat_pixfont_init()
     // Initialize CHARCODESET for single-byte values (0-255)
     for( int i = 0; i < 256; i++ )
     {
-        int c = index_of_char((uint16_t)i);
+        int c = index_of_char((uint8_t)i);
         if( c == -1 )
             c = index_of_char(' '); // space
 
@@ -200,6 +127,7 @@ cache_dat_pixfont_new_decode(
         }
     }
 
+    // space is the 94th char. It has the same offset as the 8th char.
     pixfont->char_advance[94] = pixfont->char_advance[8];
     for( int i = 0; i < 256; i++ )
     {
@@ -296,22 +224,20 @@ drawMask(
 void
 pixfont_draw_text(
     struct CacheDatPixfont* pixfont,
-    uint16_t* utf16_text, // UTF16 encoded string
+    uint8_t* text,
     int x,
     int y,
     int* pixels,
     int stride)
 {
     // Calculate length of UTF16 string (null-terminated)
-    int length = 0;
-    while( utf16_text[length] != 0 )
-        length++;
+    int length = strlen(text);
 
     for( int i = 0; i < length; i++ )
     {
-        uint16_t code_point = utf16_text[i];
+        uint8_t code_point = text[i];
         int c = 0;
-        c = CHARCODESET[code_point & 0xFF];
+        c = CHARCODESET[code_point];
 
         if( c < CHAR_COUNT )
         {
