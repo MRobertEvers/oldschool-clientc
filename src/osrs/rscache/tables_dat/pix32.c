@@ -86,13 +86,8 @@ cache_dat_pix32_new(
     struct RSBuffer indexbuf = { .data = index_data, .size = index_data_size };
 
     indexbuf.position = g2(&databuf);
-    int crop_right = g2(&indexbuf);
-    int crop_bottom = g2(&indexbuf);
-
-    int* pixels = malloc(crop_right * crop_bottom * sizeof(int));
-    if( !pixels )
-        return NULL;
-    memset(pixels, 0, crop_right * crop_bottom * sizeof(int));
+    int draw_width = g2(&indexbuf);
+    int draw_height = g2(&indexbuf);
 
     int palette_count = g1(&indexbuf);
     int* palette = malloc(palette_count * sizeof(int));
@@ -124,9 +119,13 @@ cache_dat_pix32_new(
     int pixel_order = g1(&indexbuf);
     int pixel_count = width * height;
 
+    int* pixels = malloc(pixel_count * sizeof(int));
+    if( !pixels )
+        return NULL;
+    memset(pixels, 0, pixel_count * sizeof(int));
+
     if( pixel_order == 0 )
     {
-        int length = crop_right * crop_bottom;
         for( int i = 0; i < pixel_count; i++ )
         {
             int pixel_index = g1(&databuf);
@@ -147,12 +146,12 @@ cache_dat_pix32_new(
     }
 
     pix32->pixels = pixels;
-    pix32->width = width;
-    pix32->height = height;
+    pix32->draw_width = draw_width;
+    pix32->draw_height = draw_height;
     pix32->crop_x = crop_x;
     pix32->crop_y = crop_y;
-    pix32->crop_width = crop_right;
-    pix32->crop_height = crop_bottom;
+    pix32->stride_x = width;
+    pix32->stride_y = height;
 
     return pix32;
 }

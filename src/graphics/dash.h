@@ -212,6 +212,23 @@ struct DashPix8
     uint8_t* pixels;
     int width;
     int height;
+
+    int crop_x;
+    int crop_y;
+    int crop_width;
+    int crop_height;
+};
+
+struct DashPix32
+{
+    int* pixels;
+    int draw_width;
+    int draw_height;
+
+    int crop_x;
+    int crop_y;
+    int stride_x;
+    int stride_y;
 };
 
 struct DashSprite
@@ -331,10 +348,7 @@ dashsprite_new_from_pix8(
     struct DashPixPalette* palette);
 
 struct DashSprite*
-dashsprite_new_from_pix32(
-    int* pixels,
-    int width,
-    int height);
+dashsprite_new_from_pix32(struct DashPix32* pix32);
 
 void
 dashpix8_free(struct DashPix8* pix8);

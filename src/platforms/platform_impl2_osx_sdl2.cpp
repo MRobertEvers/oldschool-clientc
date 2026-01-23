@@ -131,6 +131,10 @@ Platform2_OSX_SDL2_PollEvents(
     struct Platform2_OSX_SDL2* platform,
     struct GInput* input)
 {
+    input->mouse_clicked = 0;
+    input->mouse_clicked_x = -1;
+    input->mouse_clicked_y = -1;
+
     uint64_t current_frame_time = SDL_GetTicks64();
     input->time_delta_accumulator_seconds +=
         (double)(current_frame_time - platform->last_frame_time_ticks) / 1000.0f;
@@ -202,13 +206,18 @@ Platform2_OSX_SDL2_PollEvents(
         {
             if( !imgui_wants_mouse )
             {
+                // event.button.x,
+                // event.button.y,
+                // input->mouse_clicked_x = event.button.x;
+                // input->mouse_clicked_y = event.button.y;
                 // Mouse click coordinates are stored in input if needed
                 // For now, we just update the mouse position
+                input->mouse_clicked = 1;
                 transform_mouse_coordinates(
                     event.button.x,
                     event.button.y,
-                    &input->mouse_x,
-                    &input->mouse_y,
+                    &input->mouse_clicked_x,
+                    &input->mouse_clicked_y,
                     platform->window_width,
                     platform->window_height,
                     platform);

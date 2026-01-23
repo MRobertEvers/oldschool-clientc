@@ -1728,17 +1728,34 @@ dashsprite_new_from_pix8(
 }
 
 struct DashSprite*
-dashsprite_new_from_pix32(
-    int* pixels,
-    int width,
-    int height)
+dashsprite_new_from_pix32(struct DashPix32* pix32)
 {
     struct DashSprite* sprite = (struct DashSprite*)malloc(sizeof(struct DashSprite));
     memset(sprite, 0, sizeof(struct DashSprite));
-    sprite->pixels_argb = malloc(width * height * sizeof(int));
-    memcpy(sprite->pixels_argb, pixels, width * height * sizeof(int));
-    sprite->width = width;
-    sprite->height = height;
+
+    int y = 0;
+    int width = pix32->stride_x;
+    int height = pix32->stride_y;
+
+    int* pixels = malloc(pix32->draw_width * pix32->draw_height * sizeof(int));
+    memset(pixels, 0, pix32->draw_width * pix32->draw_height * sizeof(int));
+
+    int write_x = 0;
+    int write_y = pix32->crop_y;
+    for( ; y < height; y++ )
+    {
+        write_x = pix32->crop_x;
+        for( int x = 0; x < width; x++ )
+        {
+            pixels[write_x + write_y * pix32->draw_width] = pix32->pixels[x + y * pix32->stride_x];
+            write_x++;
+        }
+        write_y++;
+    }
+
+    sprite->pixels_argb = pixels;
+    sprite->width = pix32->draw_width;
+    sprite->height = pix32->draw_height;
     return sprite;
 }
 
@@ -1774,7 +1791,11 @@ dash2d_blit_sprite(
                 continue;
 
             int pixel_buffer_index = (y + y_offset) * view_port->stride + (x + x_offset);
-            pixel_buffer[pixel_buffer_index] = sprite->pixels_argb[x + y * sprite->width];
+            int pixel = sprite->pixels_argb[x + y * sprite->width];
+            if( pixel == 0 )
+                continue;
+
+            pixel_buffer[pixel_buffer_index] = pixel;
         }
     }
 }

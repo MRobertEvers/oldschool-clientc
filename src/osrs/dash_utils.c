@@ -139,15 +139,15 @@ dashpixpalette_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_pale
 struct DashSprite*
 dashsprite_new_from_cache_pix32(struct CacheDatPix32* pix32)
 {
-    struct DashSprite* dashsprite = malloc(sizeof(struct DashSprite));
-    memset(dashsprite, 0, sizeof(struct DashSprite));
-    int* pixels = malloc(pix32->width * pix32->height * sizeof(int));
-    memcpy(pixels, pix32->pixels, pix32->width * pix32->height * sizeof(int));
-
-    dashsprite->pixels_argb = pixels;
-    dashsprite->width = pix32->width;
-    dashsprite->height = pix32->height;
-
+    struct DashPix32 dashpix32 = { 0 };
+    dashpix32.pixels = pix32->pixels;
+    dashpix32.draw_width = pix32->draw_width;
+    dashpix32.draw_height = pix32->draw_height;
+    dashpix32.crop_x = pix32->crop_x;
+    dashpix32.crop_y = pix32->crop_y;
+    dashpix32.stride_x = pix32->stride_x;
+    dashpix32.stride_y = pix32->stride_y;
+    struct DashSprite* dashsprite = dashsprite_new_from_pix32(&dashpix32);
     return dashsprite;
 }
 

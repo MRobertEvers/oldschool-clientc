@@ -21,6 +21,9 @@ struct GGame
 
     int cycles;
 
+    int mouse_cycle;
+    int mouse_clicked_x;
+    int mouse_clicked_y;
     int mouse_x;
     int mouse_y;
 

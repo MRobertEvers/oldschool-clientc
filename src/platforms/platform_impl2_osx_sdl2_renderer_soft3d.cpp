@@ -501,7 +501,32 @@ done_draw:;
 
     if( game->invback_sprite )
         dash2d_blit_sprite(
-            game->sys_dash, game->invback_sprite, game->view_port, 364, 0, renderer->pixel_buffer);
+            game->sys_dash,
+            game->invback_sprite,
+            game->view_port,
+            553,
+            205,
+            renderer->pixel_buffer);
+
+    if( game->invback_sprite )
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->mapedge_sprite,
+            game->view_port,
+            553,
+            205,
+            renderer->pixel_buffer);
+
+    if( game->cross_sprite[0] && game->mouse_cycle != -1 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->cross_sprite[game->mouse_cycle / 100],
+            game->view_port,
+            game->mouse_clicked_x - 8 - 4,
+            game->mouse_clicked_y - 8 - 4,
+            renderer->pixel_buffer);
+    }
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,

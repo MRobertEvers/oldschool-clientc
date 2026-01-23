@@ -1240,7 +1240,7 @@ step_media_load_poll(
     task->game->invback_sprite = dashsprite_new_from_cache_pix8_palette(pix8);
     cache_dat_pix8_palette_free(pix8);
 
-    data_file_idx = filelist_dat_find_file_by_name(filelist, "mapedge.dat");
+    data_file_idx = filelist_dat_find_file_by_name(filelist, "backright1.dat");
     assert(data_file_idx != -1 && "Failed to find mapedge.dat in filelist");
     pix32 = cache_dat_pix32_new(
         filelist->files[data_file_idx],
@@ -1263,6 +1263,14 @@ step_media_load_poll(
             i);
         task->game->cross_sprite[i] = dashsprite_new_from_cache_pix32(pix32);
         cache_dat_pix32_free(pix32);
+
+        char name[16] = { 0 };
+        snprintf(name, sizeof(name), "cross%d.bmp", i);
+        bmp_write_file(
+            name,
+            task->game->cross_sprite[i]->pixels_argb,
+            task->game->cross_sprite[i]->width,
+            task->game->cross_sprite[i]->height);
     }
 
     data_file_idx = filelist_dat_find_file_by_name(filelist, "compass.dat");

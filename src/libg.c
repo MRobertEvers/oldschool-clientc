@@ -317,7 +317,7 @@ libg_game_new(
     char data[1024];
 
     gametask_new_init_io(game, game->io);
-    gametask_new_init_scene_dat(game, 48, 48, 51, 51);
+    gametask_new_init_scene_dat(game, 50, 50, 51, 51);
     // gametask_new_init_scene(game, 48, 48, 51, 51);
     // gametask_new_init_scene(game, 47, 47, 49, 49);
     // gametask_new_init_scene(game, 40, 40, 41, 41);
@@ -368,6 +368,13 @@ libg_game_process_input(
 
     for( int i = 0; i < time_quanta; i++ )
     {
+        if( game->mouse_cycle < 400 && game->mouse_cycle != -1 )
+        {
+            game->mouse_cycle += 20;
+            if( game->mouse_cycle >= 400 )
+                game->mouse_cycle = -1;
+        }
+
         if( input->w_pressed )
         {
             game->camera_world_x -=
@@ -461,6 +468,13 @@ libg_game_process_input(
         {
             game->cc -= 100;
         }
+    }
+
+    if( input->mouse_clicked )
+    {
+        game->mouse_cycle = 0;
+        game->mouse_clicked_x = input->mouse_clicked_x;
+        game->mouse_clicked_y = input->mouse_clicked_y;
     }
 }
 

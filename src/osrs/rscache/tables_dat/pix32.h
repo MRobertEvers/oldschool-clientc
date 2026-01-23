@@ -15,10 +15,10 @@
 struct CacheDatPix32
 {
     int* pixels;
-    int width;
-    int height;
-    int crop_width;
-    int crop_height;
+    int draw_width;
+    int draw_height;
+    int stride_x;
+    int stride_y;
     int crop_x;
     int crop_y;
 };
