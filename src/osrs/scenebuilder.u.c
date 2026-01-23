@@ -21,6 +21,12 @@ struct FlotypeEntry
     struct CacheConfigOverlay* flotype;
 };
 
+struct TextureEntry
+{
+    int id;
+    struct DashTexture* texture;
+};
+
 struct FrameAnimEntry
 {
     // frame_file
@@ -83,6 +89,7 @@ struct CacheConfigLocationEntry
 struct SceneBuilder
 {
     struct Painter* painter;
+    struct Minimap* minimap;
     int mapx_sw;
     int mapz_sw;
     int mapx_ne;
@@ -101,6 +108,7 @@ struct SceneBuilder
 
     // TODO:
     struct DashMap* flotypes_hmap;
+    struct DashMap* textures_hmap;
 
     struct BuildGrid* build_grid;
     struct Shademap* shademap;

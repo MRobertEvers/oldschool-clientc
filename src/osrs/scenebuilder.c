@@ -16,6 +16,7 @@
 struct SceneBuilder*
 scenebuilder_new_painter(
     struct Painter* painter,
+    struct Minimap* minimap,
     int mapx_sw,
     int mapz_sw,
     int mapx_ne,
@@ -26,7 +27,7 @@ scenebuilder_new_painter(
     memset(scene_builder, 0, sizeof(struct SceneBuilder));
 
     scene_builder->painter = painter;
-
+    scene_builder->minimap = minimap;
     scene_builder->mapx_sw = mapx_sw;
     scene_builder->mapz_sw = mapz_sw;
     scene_builder->mapx_ne = mapx_ne;
@@ -95,6 +96,15 @@ scenebuilder_new_painter(
     };
     memset(config.buffer, 0, buffer_size);
     scene_builder->config_locs_hmap = dashmap_new(&config, 0);
+
+    buffer_size = ENTRYS * sizeof(struct TextureEntry);
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct TextureEntry),
+    };
+    scene_builder->textures_hmap = dashmap_new(&config, 0);
 
     int height = (mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z;
     int width = (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X;
@@ -288,6 +298,20 @@ scenebuilder_cache_dat_sequence(
     assert(sequence_entry && "Dat sequence must be inserted into hmap");
     sequence_entry->id = sequence_id;
     sequence_entry->dat_sequence = sequence;
+}
+
+void
+scenebuilder_cache_texture(
+    struct SceneBuilder* scene_builder,
+    int texture_id,
+    struct DashTexture* texture)
+{
+    struct TextureEntry* texture_entry = NULL;
+    texture_entry = (struct TextureEntry*)dashmap_search(
+        scene_builder->textures_hmap, &texture_id, DASHMAP_INSERT);
+    assert(texture_entry && "Texture must be inserted into hmap");
+    texture_entry->id = texture_id;
+    texture_entry->texture = texture;
 }
 
 static void

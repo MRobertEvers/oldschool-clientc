@@ -546,7 +546,7 @@ task_init_scene_new(
     task->painter = game->sys_painter;
 
     task->scene_builder =
-        scenebuilder_new_painter(task->painter, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+        scenebuilder_new_painter(task->painter, NULL, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 
     task->reqid_queue_vec = vec_new(sizeof(int), 64);
     task->reqid_queue_inflight_count = 0;

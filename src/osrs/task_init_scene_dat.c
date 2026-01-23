@@ -12,6 +12,7 @@
 #include "osrs/dash_utils.h"
 #include "osrs/dashlib.h"
 #include "osrs/gio_assets.h"
+#include "osrs/minimap.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/config_floortype.h"
@@ -503,9 +504,10 @@ task_init_scene_dat_new(
     game->sys_painter_buffer = painter_buffer_new();
 
     task->painter = game->sys_painter;
+    game->sys_minimap = minimap_new(map_sw_x, map_sw_z, map_ne_x, map_ne_z, MAP_TERRAIN_LEVELS);
 
-    task->scene_builder =
-        scenebuilder_new_painter(task->painter, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    task->scene_builder = scenebuilder_new_painter(
+        task->painter, game->sys_minimap, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 
     task->reqid_queue_vec = vec_new(sizeof(int), 64);
     task->reqid_queue_inflight_count = 0;
@@ -991,6 +993,7 @@ step_textures_load(struct TaskInitSceneDat* task)
                 texture_entry->id = i;
                 texture_entry->texture = dash_texture;
 
+                scenebuilder_cache_texture(task->scene_builder, i, dash_texture);
                 dash3d_add_texture(task->game->sys_dash, i, dash_texture);
             }
             gioq_release(task->io, &message);

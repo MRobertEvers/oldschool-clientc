@@ -88,25 +88,8 @@ and compile with `-O0 -g`.
 
 ### TODOS
 
-3. Consolodate sprite pixel loading.
-4. Consolodate pixel blending
-5. Consolodate face modes. (the whole colorc == -2 thing)
-6. Scene manager (manage lifetimes of models etc, )
-7. Varbits and VarP transforms. e.g. Lumbridge castle bank not showing.
-8. Network cache + inprocess server + multicast discovery (because i'm lazy)
-9. SSE2 vs. SSE4.1 (support both); SSE2 does not have
-   \_mm_mullo_epi32, which is SSE4.1 only
-   e.g.
-
-```
-#if defined(__SSE4_1__)
-    #include <smmintrin.h>   // SSE4.1 intrinsics
-#elif defined(__SSE2__)
-    #include <emmintrin.h>   // SSE2 intrinsics
-#else
-    #error "Requires at least SSE2"
-#endif
-```
+1. Contour Ground
+2. Minimap
 
 Software rester
 

@@ -4,6 +4,7 @@
 #include "configmap.h"
 #include "datastruct/hmap.h"
 #include "libg.h"
+#include "osrs/minimap.h"
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/frame.h"
@@ -20,6 +21,7 @@ struct SceneBuilder;
 struct SceneBuilder*
 scenebuilder_new_painter(
     struct Painter* painter,
+    struct Minimap* minimap,
     int mapx_sw,
     int mapz_sw,
     int mapx_ne,
@@ -98,6 +100,12 @@ scenebuilder_cache_dat_sequence(
     struct SceneBuilder* scene_builder,
     int sequence_id,
     struct CacheDatSequence* sequence);
+
+void
+scenebuilder_cache_texture(
+    struct SceneBuilder* scene_builder,
+    int texture_id,
+    struct DashTexture* texture);
 
 struct Scene*
 scenebuilder_load(struct SceneBuilder* scene_builder);

@@ -60,7 +60,7 @@ main(
 
     bool has_message = false;
     struct GIOQueue* io = gioq_new();
-    struct GGame* game = libg_game_new(io, 512, 334);
+    struct GGame* game = libg_game_new(io, 513, 335);
     struct GInput input = { 0 };
     struct GRenderCommandBuffer* render_command_buffer = grendercb_new(1024);
     struct GIOMessage message = { 0 };
@@ -95,7 +95,7 @@ main(
     game->iface_view_port->y_center = renderer->height / 2;
     game->iface_view_port->stride = renderer->width;
 
-    PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 5, 5);
+    PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 4, 4);
 
     libg_game_step_tasks(game, &input, render_command_buffer);
     while( libg_game_is_running(game) )

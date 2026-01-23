@@ -1,6 +1,7 @@
 #include "dash.h"
 
 #include "dashmap.h"
+#include "osrs/palette.h"
 #include "shared_tables.h"
 
 #include <assert.h>
@@ -1407,6 +1408,13 @@ dash3d_projected_model_contains(
     return projected_model_contains(dash, model, view_port, screen_x, screen_y);
 }
 
+int
+dash_hsl16_to_rgb(int hsl16)
+{
+    assert(hsl16 >= 0 && hsl16 < 65536);
+    return g_hsl16_to_rgb_table[hsl16];
+}
+
 int //
 dash3d_render_model( //
     struct DashGraphics* dash, 
@@ -1967,5 +1975,67 @@ dashfont_draw_text(
                 color_rgb);
         }
         x += pixfont->char_advance[c];
+    }
+}
+
+int
+dash_texture_average_hsl(struct DashTexture* texture)
+{
+    if( texture->average_hsl != 0 )
+        return texture->average_hsl;
+
+    // let red = 0;
+    // let green = 0;
+    // let blue = 0;
+
+    // const colourCount = sprite.palette.length;
+    // for (let i = 0; i < colourCount; i++) {
+    //     red += (sprite.palette[i] >> 16) & 0xff;
+    //     green += (sprite.palette[i] >> 8) & 0xff;
+    //     blue += sprite.palette[i] & 0xff;
+    // }
+
+    // const averageRgb =
+    //     ((red / colourCount) << 16) + ((green / colourCount) << 8) + ((blue / colourCount) | 0);
+
+    // averageHsl = rgbToHsl(averageRgb);
+
+    int red = 0;
+    int green = 0;
+    int blue = 0;
+    int colourCount = texture->width * texture->height;
+    for( int i = 0; i < colourCount; i++ )
+    {
+        red += (texture->texels[i] >> 16) & 0xff;
+        green += (texture->texels[i] >> 8) & 0xff;
+        blue += texture->texels[i] & 0xff;
+    }
+
+    int averageRgb =
+        ((red / colourCount) << 16) + ((green / colourCount) << 8) + ((blue / colourCount) | 0);
+
+    int average_hsl = palette_rgb_to_hsl16(averageRgb);
+    texture->average_hsl = average_hsl;
+
+    return average_hsl;
+}
+
+void
+dash2d_fill_rect(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb)
+{
+    for( int i = 0; i < height; i++ )
+    {
+        for( int j = 0; j < width; j++ )
+        {
+            int pixel_buffer_index = (y + i) * stride + (x + j);
+            pixel_buffer[pixel_buffer_index] = color_rgb;
+        }
     }
 }

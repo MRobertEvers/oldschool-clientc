@@ -162,6 +162,8 @@ struct DashTexture
     int animation_speed;
 
     bool opaque;
+
+    int average_hsl;
 };
 
 struct DashViewPort
@@ -282,6 +284,9 @@ dash_free(struct DashGraphics* dash);
 #define DASHCULL_CULLED_FAST 1
 #define DASHCULL_CULLED_AABB 2
 #define DASHCULL_ERROR 3
+
+int
+dash_hsl16_to_rgb(int hsl16);
 
 int //
 dash3d_render_model( //
@@ -407,5 +412,18 @@ dashfont_draw_text(
     int color_rgb,
     int* pixels,
     int stride);
+
+int
+dash_texture_average_hsl(struct DashTexture* texture);
+
+void
+dash2d_fill_rect(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb);
 
 #endif

@@ -2,6 +2,7 @@
 #define SCENE_BUILDER_TERRAIN_U_C
 
 #include "configmap.h"
+#include "minimap.h"
 #include "palette.h"
 #include "rscache/tables/config_floortype.h"
 #include "rscache/tables/maps.h"
@@ -632,6 +633,56 @@ build_scene_terrain(
                 tile->sx = x;
                 tile->sz = z;
                 tile->slevel = level;
+
+                int minimap_foreground_rgb = 0;
+                int minimap_background_rgb = 0;
+                if( overlay )
+                {
+                    if( overlay_hsl > 0 )
+                    {
+                        minimap_foreground_rgb = dash_hsl16_to_rgb(overlay_hsl);
+                    }
+                    if( overlay->secondary_rgb_color > 0 )
+                    {
+                        minimap_foreground_rgb = overlay->secondary_rgb_color;
+                    }
+                }
+
+                if( underlay_hsl > 0 )
+                {
+                    minimap_background_rgb = dash_hsl16_to_rgb(underlay_hsl);
+                }
+
+                if( texture_id != -1 )
+                {
+                    struct TextureEntry* texture_entry =
+                        dashmap_search(scene_builder->textures_hmap, &texture_id, DASHMAP_FIND);
+                    assert(texture_entry != NULL);
+
+                    dash_texture_average_hsl(texture_entry->texture);
+                    int average_hsl = texture_entry->texture->average_hsl;
+                    minimap_foreground_rgb = dash_hsl16_to_rgb(average_hsl);
+                }
+
+                if( minimap_foreground_rgb > 0 )
+                    minimap_set_tile_color(
+                        scene_builder->minimap,
+                        x,
+                        z,
+                        level,
+                        minimap_foreground_rgb,
+                        MINIMAP_FOREGROUND);
+
+                if( minimap_background_rgb > 0 )
+                    minimap_set_tile_color(
+                        scene_builder->minimap,
+                        x,
+                        z,
+                        level,
+                        minimap_background_rgb,
+                        MINIMAP_BACKGROUND);
+
+                minimap_set_tile_shape(scene_builder->minimap, x, z, level, shape, rotation);
 
                 assert(tile->dash_model == NULL);
 

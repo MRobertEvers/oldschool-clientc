@@ -7,6 +7,7 @@
 extern "C" {
 #include "graphics/dash.h"
 #include "libg.h"
+#include "osrs/minimap.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 }
@@ -19,6 +20,29 @@ extern "C" {
 extern int g_trap_command;
 extern int g_trap_x;
 extern int g_trap_z;
+
+static int g_minimap_tile_rotation_map[4][16] = {
+    { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15 },
+    { 12, 8,  4,  0,  13, 9,  5,  1,  14, 10, 6,  2,  15, 11, 7,  3  },
+    { 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,  5,  4,  3,  2,  1,  0  },
+    { 3,  7,  11, 15, 2,  6,  10, 14, 1,  5,  9,  13, 0,  4,  8,  12 },
+};
+
+static int g_minimap_tile_mask[16][16] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1 },
+    { 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
+    { 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
+    { 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1 },
+    { 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1 }
+};
 
 static void
 render_imgui(
@@ -793,6 +817,127 @@ done_draw:;
             bind_y + 13,
             renderer->pixel_buffer);
     }
+
+    int camera_tile_x = game->camera_world_x / 128;
+    int camera_tile_z = game->camera_world_z / 128;
+
+    int radius = 25;
+    int sw_x = camera_tile_x - radius;
+    int sw_z = camera_tile_z - radius;
+    int ne_x = camera_tile_x + radius;
+    int ne_z = camera_tile_z + radius;
+
+    struct MinimapRenderCommandBuffer* minimap_command_buffer = minimap_commands_new(1024);
+    minimap_render(game->sys_minimap, sw_x, sw_z, ne_x, ne_z, 0, minimap_command_buffer);
+
+    int x = 350;
+    int y = 350;
+    int rgb_foreground;
+    int rgb_background;
+    int shape;
+    int angle;
+    for( int i = 0; i < minimap_command_buffer->count; i++ )
+    {
+        struct MinimapRenderCommand* command = &minimap_command_buffer->commands[i];
+        switch( command->kind )
+        {
+        case MINIMAP_RENDER_COMMAND_TILE:
+
+            shape = minimap_tile_shape(
+                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sy, 0);
+
+            angle = minimap_tile_rotation(
+                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sy, 0);
+            rgb_background = minimap_tile_rgb(
+                game->sys_minimap,
+                command->_tile.tile_sx,
+                command->_tile.tile_sy,
+                0,
+                MINIMAP_BACKGROUND);
+            rgb_foreground = minimap_tile_rgb(
+                game->sys_minimap,
+                command->_tile.tile_sx,
+                command->_tile.tile_sy,
+                0,
+                MINIMAP_FOREGROUND);
+            if( rgb_foreground == 0 && rgb_background == 0 )
+                break;
+
+            int step = renderer->width;
+
+            int* mask = g_minimap_tile_mask[shape];
+            int* rotation = g_minimap_tile_rotation_map[angle];
+
+            int offset = (x + (command->_tile.tile_sx - sw_x) * 4) +
+                         (y - (command->_tile.tile_sy + 1 - sw_z) * 4) * step;
+            if( rgb_foreground == 0 )
+            {
+                if( rgb_background != 0 )
+                {
+                    for( int i = 0; i < 4; i++ )
+                    {
+                        renderer->pixel_buffer[offset] = rgb_background;
+                        renderer->pixel_buffer[offset + 1] = rgb_background;
+                        renderer->pixel_buffer[offset + 2] = rgb_background;
+                        renderer->pixel_buffer[offset + 3] = rgb_background;
+                        offset += step;
+                    }
+                }
+                break;
+            }
+
+            int off = 0;
+            if( rgb_background != 0 )
+            {
+                for( int i = 0; i < 4; i++ )
+                {
+                    renderer->pixel_buffer[offset] =
+                        mask[rotation[off++]] == 0 ? rgb_background : rgb_foreground;
+                    renderer->pixel_buffer[offset + 1] =
+                        mask[rotation[off++]] == 0 ? rgb_background : rgb_foreground;
+                    renderer->pixel_buffer[offset + 2] =
+                        mask[rotation[off++]] == 0 ? rgb_background : rgb_foreground;
+                    renderer->pixel_buffer[offset + 3] =
+                        mask[rotation[off++]] == 0 ? rgb_background : rgb_foreground;
+                    offset += step;
+                }
+                continue;
+            }
+
+            for( int i = 0; i < 4; i++ )
+            {
+                if( mask[rotation[off++]] != 0 )
+                {
+                    renderer->pixel_buffer[offset] = rgb_foreground;
+                }
+                if( mask[rotation[off++]] != 0 )
+                {
+                    renderer->pixel_buffer[offset + 1] = rgb_foreground;
+                }
+                if( mask[rotation[off++]] != 0 )
+                {
+                    renderer->pixel_buffer[offset + 2] = rgb_foreground;
+                }
+                if( mask[rotation[off++]] != 0 )
+                {
+                    renderer->pixel_buffer[offset + 3] = rgb_foreground;
+                }
+                offset += step;
+            }
+
+            // dash2d_fill_rect(
+            //     renderer->pixel_buffer,
+            //     renderer->width,
+            //     x + (command->_tile.tile_sx - sw_x) * 4,
+            //     y - (command->_tile.tile_sy + 1 - sw_z) * 4,
+            //     4,
+            //     4,
+            //     rgb);
+
+            break;
+        }
+    }
+    minimap_commands_free(minimap_command_buffer);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,

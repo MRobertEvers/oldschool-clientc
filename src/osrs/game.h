@@ -45,6 +45,7 @@ struct GGame
     struct Scene* scene;
 
     struct DashGraphics* sys_dash;
+    struct Minimap* sys_minimap;
     struct Painter* sys_painter;
     struct PaintersBuffer* sys_painter_buffer;
 
