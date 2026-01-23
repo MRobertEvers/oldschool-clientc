@@ -12,6 +12,7 @@
 static inline void
 raster_texture_blend(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -44,6 +45,7 @@ raster_texture_blend(
     {
         raster_texture_opaque_blend_blerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             camera_fov,
@@ -72,6 +74,7 @@ raster_texture_blend(
     {
         raster_texture_transparent_blend_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             camera_fov,
@@ -101,6 +104,7 @@ raster_texture_blend(
 static inline void
 raster_texture_flat(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -131,6 +135,7 @@ raster_texture_flat(
     {
         raster_texture_opaque_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             camera_fov,
@@ -157,6 +162,7 @@ raster_texture_flat(
     {
         raster_texture_transparent_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             camera_fov,
@@ -184,6 +190,7 @@ raster_texture_flat(
 static inline void
 raster_face_texture_blend_near_clip(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -412,6 +419,7 @@ raster_face_texture_blend_near_clip(
 
     raster_texture_blend(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         camera_fov,
@@ -472,6 +480,7 @@ raster_face_texture_blend_near_clip(
 
     raster_texture_blend(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         camera_fov,
@@ -504,6 +513,7 @@ raster_face_texture_blend_near_clip(
 static inline void
 raster_face_texture_blend(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -540,6 +550,7 @@ raster_face_texture_blend(
     {
         raster_face_texture_blend_near_clip(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             camera_fov,
@@ -647,6 +658,7 @@ raster_face_texture_blend(
 
     raster_texture_blend(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         camera_fov,
@@ -681,6 +693,7 @@ raster_face_texture_blend(
 static inline void
 raster_face_texture_flat_near_clip(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -875,6 +888,7 @@ raster_face_texture_flat_near_clip(
 
     raster_texture_flat(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         camera_fov,
@@ -930,6 +944,7 @@ raster_face_texture_flat_near_clip(
 
     raster_texture_flat(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         camera_fov,
@@ -960,6 +975,7 @@ raster_face_texture_flat_near_clip(
 static inline void
 raster_face_texture_flat(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -994,6 +1010,7 @@ raster_face_texture_flat(
     {
         raster_face_texture_flat_near_clip(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             camera_fov,
@@ -1052,6 +1069,7 @@ raster_face_texture_flat(
 
     raster_texture_flat(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         camera_fov,

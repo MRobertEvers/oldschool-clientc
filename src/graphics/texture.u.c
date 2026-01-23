@@ -32,6 +32,7 @@
 static inline void
 raster_texture_scanline_transparent_blend_lerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int screen_x0_ish16,
@@ -225,6 +226,7 @@ raster_texture_scanline_transparent_blend_lerp8(
 static void
 raster_texture_scanline_opaque_blend_lerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int screen_x0_ish16,
@@ -420,6 +422,7 @@ raster_texture_scanline_opaque_blend_lerp8(
 static void
 raster_texture_scanline_transparent_lerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int screen_x0,
@@ -593,6 +596,7 @@ raster_texture_scanline_transparent_lerp8(
 static void
 raster_texture_scanline_opaque_lerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int screen_x0_ish16,
@@ -778,6 +782,7 @@ raster_texture_scanline_opaque_lerp8(
 static inline void
 raster_texture_transparent_blend_lerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -931,7 +936,7 @@ raster_texture_transparent_blend_lerp8(
     cw += vUVPlane_normal_yhat * (dy);
 
     int steps = screen_y1 - screen_y0;
-    int offset = screen_y0 * screen_width;
+    int offset = screen_y0 * stride;
 
     assert(screen_y0 < screen_height);
 
@@ -942,6 +947,7 @@ raster_texture_transparent_blend_lerp8(
 
         raster_texture_scanline_transparent_blend_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             edge_x_AC_ish16,
@@ -967,7 +973,7 @@ raster_texture_transparent_blend_lerp8(
 
         shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
-        offset += screen_width;
+        offset += stride;
     }
 
     if( screen_y2 >= screen_height )
@@ -989,12 +995,13 @@ raster_texture_transparent_blend_lerp8(
     assert(screen_y2 >= 0);
     assert(screen_y2 <= screen_height);
 
-    offset = screen_y1 * screen_width;
+    offset = screen_y1 * stride;
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
         raster_texture_scanline_transparent_blend_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             edge_x_AC_ish16,
@@ -1020,13 +1027,14 @@ raster_texture_transparent_blend_lerp8(
 
         shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
-        offset += screen_width;
+        offset += stride;
     }
 }
 
 static inline void
 raster_texture_opaque_blend_lerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -1180,7 +1188,7 @@ raster_texture_opaque_blend_lerp8(
     cw += vUVPlane_normal_yhat * (dy);
 
     int steps = screen_y1 - screen_y0;
-    int offset = screen_y0 * screen_width;
+    int offset = screen_y0 * stride;
 
     assert(screen_y0 < screen_height);
 
@@ -1191,6 +1199,7 @@ raster_texture_opaque_blend_lerp8(
 
         raster_texture_scanline_opaque_blend_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             edge_x_AC_ish16,
@@ -1216,7 +1225,7 @@ raster_texture_opaque_blend_lerp8(
 
         shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
-        offset += screen_width;
+        offset += stride;
     }
 
     if( screen_y2 >= screen_height )
@@ -1238,12 +1247,13 @@ raster_texture_opaque_blend_lerp8(
     assert(screen_y2 >= 0);
     assert(screen_y2 <= screen_height);
 
-    offset = screen_y1 * screen_width;
+    offset = screen_y1 * stride;
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
         raster_texture_scanline_opaque_blend_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             edge_x_AC_ish16,
@@ -1269,13 +1279,14 @@ raster_texture_opaque_blend_lerp8(
 
         shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
-        offset += screen_width;
+        offset += stride;
     }
 }
 
 static inline void
 raster_texture_transparent_lerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -1411,7 +1422,7 @@ raster_texture_transparent_lerp8(
     cw += vUVPlane_normal_yhat * (dy);
 
     int steps = screen_y1 - screen_y0;
-    int offset = screen_y0 * screen_width;
+    int offset = screen_y0 * stride;
 
     int shade = shade7bit << 9;
 
@@ -1424,6 +1435,7 @@ raster_texture_transparent_lerp8(
 
         raster_texture_scanline_transparent_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             x_start,
@@ -1446,7 +1458,7 @@ raster_texture_transparent_lerp8(
         bv += vUOPlane_normal_yhat;
         cw += vUVPlane_normal_yhat;
 
-        offset += screen_width;
+        offset += stride;
     }
 
     if( screen_y2 >= screen_height )
@@ -1468,12 +1480,13 @@ raster_texture_transparent_lerp8(
     assert(screen_y2 >= 0);
     assert(screen_y2 <= screen_height);
 
-    offset = screen_y1 * screen_width;
+    offset = screen_y1 * stride;
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
         raster_texture_scanline_transparent_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             edge_x_AC_ish16 >> 16,
@@ -1496,13 +1509,14 @@ raster_texture_transparent_lerp8(
         bv += vUOPlane_normal_yhat;
         cw += vUVPlane_normal_yhat;
 
-        offset += screen_width;
+        offset += stride;
     }
 }
 
 static inline void
 raster_texture_opaque_lerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -1639,7 +1653,7 @@ raster_texture_opaque_lerp8(
     cw += vUVPlane_normal_yhat * (dy);
 
     int steps = screen_y1 - screen_y0;
-    int offset = screen_y0 * screen_width;
+    int offset = screen_y0 * stride;
 
     int shade8bit = shade7bit << 1;
 
@@ -1649,6 +1663,7 @@ raster_texture_opaque_lerp8(
     {
         raster_texture_scanline_opaque_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             edge_x_AC_ish16,
@@ -1671,7 +1686,7 @@ raster_texture_opaque_lerp8(
         bv += vUOPlane_normal_yhat;
         cw += vUVPlane_normal_yhat;
 
-        offset += screen_width;
+        offset += stride;
     }
 
     if( screen_y2 >= screen_height )
@@ -1693,12 +1708,13 @@ raster_texture_opaque_lerp8(
     assert(screen_y2 >= 0);
     assert(screen_y2 <= screen_height);
 
-    offset = screen_y1 * screen_width;
+    offset = screen_y1 * stride;
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
         raster_texture_scanline_opaque_lerp8(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             edge_x_AC_ish16,
@@ -1721,7 +1737,7 @@ raster_texture_opaque_lerp8(
         bv += vUOPlane_normal_yhat;
         cw += vUVPlane_normal_yhat;
 
-        offset += screen_width;
+        offset += stride;
     }
 }
 

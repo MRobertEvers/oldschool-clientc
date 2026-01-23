@@ -10,6 +10,7 @@
 static inline void
 draw_texture_affine_scanline_opaque_blend_ordered_blerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int screen_x0_ish16,
@@ -79,6 +80,7 @@ draw_texture_affine_scanline_opaque_blend_ordered_blerp8(
 static inline void
 raster_texture_affine_opaque_blend_ordered_blerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -173,7 +175,7 @@ raster_texture_affine_opaque_blend_ordered_blerp8(
         y1 = 0;
     }
 
-    int offset = y0 * screen_width;
+    int offset = y0 * stride;
 
     if( y1 >= screen_height )
     {
@@ -195,6 +197,7 @@ raster_texture_affine_opaque_blend_ordered_blerp8(
         {
             draw_texture_affine_scanline_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 edge_x_AB_ish16,
@@ -217,13 +220,14 @@ raster_texture_affine_opaque_blend_ordered_blerp8(
 
             shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
-            offset += screen_width;
+            offset += stride;
         }
 
         while( y2-- > 0 )
         {
             draw_texture_affine_scanline_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 edge_x_BC_ish16,
@@ -246,7 +250,7 @@ raster_texture_affine_opaque_blend_ordered_blerp8(
 
             shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
-            offset += screen_width;
+            offset += stride;
         }
     }
     else
@@ -258,6 +262,7 @@ raster_texture_affine_opaque_blend_ordered_blerp8(
         {
             draw_texture_affine_scanline_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 edge_x_AC_ish16,
@@ -280,13 +285,14 @@ raster_texture_affine_opaque_blend_ordered_blerp8(
 
             shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
-            offset += screen_width;
+            offset += stride;
         }
 
         while( y2-- > 0 )
         {
             draw_texture_affine_scanline_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 edge_x_AC_ish16,
@@ -308,7 +314,7 @@ raster_texture_affine_opaque_blend_ordered_blerp8(
             v_edge_ish8 += step_v_y_ish8;
 
             shade8bit_edge_ish8 += shade8bit_yhat_ish8;
-            offset += screen_width;
+            offset += stride;
         }
     }
 }
@@ -316,6 +322,7 @@ raster_texture_affine_opaque_blend_ordered_blerp8(
 static inline void
 raster_texture_affine_opaque_blend_blerp8(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int camera_fov,
@@ -395,6 +402,7 @@ raster_texture_affine_opaque_blend_blerp8(
 
             raster_texture_affine_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 camera_fov,
@@ -424,6 +432,7 @@ raster_texture_affine_opaque_blend_blerp8(
 
             raster_texture_affine_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 camera_fov,
@@ -456,6 +465,7 @@ raster_texture_affine_opaque_blend_blerp8(
 
             raster_texture_affine_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 camera_fov,
@@ -485,6 +495,7 @@ raster_texture_affine_opaque_blend_blerp8(
 
             raster_texture_affine_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 camera_fov,
@@ -517,6 +528,7 @@ raster_texture_affine_opaque_blend_blerp8(
 
             raster_texture_affine_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 camera_fov,
@@ -546,6 +558,7 @@ raster_texture_affine_opaque_blend_blerp8(
 
             raster_texture_affine_opaque_blend_ordered_blerp8(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 camera_fov,

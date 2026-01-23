@@ -546,6 +546,7 @@ dash3d_raster_model_face(
 
             raster_face_texture_blend(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 camera_fov,
@@ -691,6 +692,7 @@ dash3d_raster_model_face(
 
             raster_face_texture_flat(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 camera_fov,
