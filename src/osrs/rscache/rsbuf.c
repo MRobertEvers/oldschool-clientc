@@ -28,6 +28,7 @@ rsbuf_p1(
     struct RSBuffer* buffer,
     int value)
 {
+    assert(buffer->position < buffer->size);
     buffer->data[buffer->position++] = value & 0xff;
 }
 
@@ -35,6 +36,7 @@ rsbuf_p1(
 int8_t
 rsbuf_g1b(struct RSBuffer* buffer)
 {
+    assert(buffer->position < buffer->size);
     return buffer->data[buffer->position++];
 }
 

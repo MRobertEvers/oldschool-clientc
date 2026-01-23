@@ -1620,7 +1620,7 @@ scenery_add(
         map_loc->chunk_pos_level,
         &offset);
 
-    if( config_loc->_id == 10834 )
+    if( config_loc->_id == 38426 )
     {
         printf("config_loc->_id: %d\n", config_loc->_id);
     }

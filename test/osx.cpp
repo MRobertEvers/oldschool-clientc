@@ -13,8 +13,8 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-#define SCREEN_WIDTH 1024
-#define SCREEN_HEIGHT 768
+#define SCREEN_WIDTH 800
+#define SCREEN_HEIGHT 500
 
 void
 test_gio(void)
@@ -60,7 +60,7 @@ main(
 
     bool has_message = false;
     struct GIOQueue* io = gioq_new();
-    struct GGame* game = libg_game_new(io);
+    struct GGame* game = libg_game_new(io, 512, 334);
     struct GInput input = { 0 };
     struct GRenderCommandBuffer* render_command_buffer = grendercb_new(1024);
     struct GIOMessage message = { 0 };
@@ -92,8 +92,8 @@ main(
     // Ensure viewport matches renderer dimensions
     if( game->view_port )
     {
-        game->view_port->width = renderer->width;
-        game->view_port->height = renderer->height;
+        // game->view_port->width = renderer->width;
+        // game->view_port->height = renderer->height;
         game->view_port->x_center = renderer->width / 2;
         game->view_port->y_center = renderer->height / 2;
         game->view_port->stride = renderer->width;

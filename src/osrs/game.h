@@ -50,6 +50,11 @@ struct GGame
     struct DashCamera* camera;
     struct GIOQueue* io;
     struct GameTask* tasks_nullable;
+
+    struct DashSprite* invback_sprite;
+    struct DashSprite* mapedge_sprite;
+    struct DashSprite* compass_sprite;
+    struct DashSprite* cross_sprite[8];
 };
 
 #endif

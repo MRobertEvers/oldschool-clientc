@@ -127,9 +127,17 @@ texture_new_from_definition(
             if( (palette[pi] & 0xf8f8ff) == 0 )
             {
                 alpha = 0;
-                opaque = false;
             }
             adjusted_palette[pi] = (alpha << 24) | gamma_blend(palette[pi], 0.8f);
+        }
+
+        for( int pixel_index = 0; pixel_index < sprite->width * sprite->height; pixel_index++ )
+        {
+            int palette_index = palette_pixels[pixel_index];
+            if( adjusted_palette[palette_index] & 0xf8f8ff == 0 )
+            {
+                opaque = false;
+            }
         }
 
         // Determine sprite type index
@@ -314,16 +322,27 @@ texture_new_from_texture_sprite(
         if( texture->palette[pi] == 0 )
         {
             alpha = 0;
-            opaque = false;
         }
         texture->palette[pi] = (alpha << 24) | gamma_blend(texture->palette[pi], 0.8f);
     }
 
     int pixel_count = size * size;
+
     int* pixels = (int*)malloc(pixel_count * sizeof(int));
     if( !pixels )
         return NULL;
     memset(pixels, 0, pixel_count * sizeof(int));
+
+    for( int i = 0; i < pixel_count; i++ )
+    {
+        int palette_index = normalized_pixels[i];
+        // 0xf8f8ff allows the shift dimming trick to work
+        pixels[i] = texture->palette[palette_index] & 0xf8f8ff;
+        if( pixels[i] == 0 )
+        {
+            opaque = false;
+        }
+    }
 
     // TRUE FOR NOW.
     // Normalized matches the size.

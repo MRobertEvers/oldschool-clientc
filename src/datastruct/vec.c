@@ -20,7 +20,9 @@ struct Vec
  *----------------------------------------------------------*/
 
 static inline size_t
-vec_align_up_size(size_t x, size_t align)
+vec_align_up_size(
+    size_t x,
+    size_t align)
 {
     if( align == 0 )
         return x;
@@ -31,7 +33,9 @@ vec_align_up_size(size_t x, size_t align)
 }
 
 static inline unsigned char*
-vec_align_up_ptr(unsigned char* p, size_t align)
+vec_align_up_ptr(
+    unsigned char* p,
+    size_t align)
 {
     uintptr_t ip = (uintptr_t)p;
     uintptr_t aligned = (ip + (uintptr_t)(align - 1)) & ~(uintptr_t)(align - 1);
@@ -39,13 +43,17 @@ vec_align_up_ptr(unsigned char* p, size_t align)
 }
 
 static inline void*
-vec_element_at(const struct Vec* v, size_t index)
+vec_element_at(
+    const struct Vec* v,
+    size_t index)
 {
     return (void*)(v->buffer + index * v->element_size);
 }
 
 static inline int
-vec_ensure_capacity(struct Vec* v, size_t required_capacity)
+vec_ensure_capacity(
+    struct Vec* v,
+    size_t required_capacity)
 {
     if( required_capacity <= v->capacity )
         return VEC_OK;
@@ -64,7 +72,11 @@ vec_ensure_capacity(struct Vec* v, size_t required_capacity)
 
 int
 vec_init(
-    struct Vec* v, void* buffer, size_t buffer_size, size_t element_size, size_t initial_capacity)
+    struct Vec* v,
+    void* buffer,
+    size_t buffer_size,
+    size_t element_size,
+    size_t initial_capacity)
 {
     if( !v || !buffer || element_size == 0 )
         return VEC_BADARG;
@@ -95,7 +107,9 @@ vec_init(
 }
 
 struct Vec*
-vec_new(size_t element_size, size_t initial_capacity)
+vec_new(
+    size_t element_size,
+    size_t initial_capacity)
 {
     if( element_size == 0 )
         return NULL;
@@ -142,7 +156,9 @@ vec_free(struct Vec* v)
 }
 
 int
-vec_reserve(struct Vec* v, size_t new_capacity)
+vec_reserve(
+    struct Vec* v,
+    size_t new_capacity)
 {
     if( !v )
         return VEC_BADARG;
@@ -175,7 +191,9 @@ vec_reserve(struct Vec* v, size_t new_capacity)
 }
 
 int
-vec_resize(struct Vec* v, size_t new_size)
+vec_resize(
+    struct Vec* v,
+    size_t new_size)
 {
     if( !v )
         return VEC_BADARG;
@@ -251,7 +269,9 @@ vec_empty(const struct Vec* v)
 }
 
 void*
-vec_get(const struct Vec* v, size_t index)
+vec_get(
+    const struct Vec* v,
+    size_t index)
 {
     if( !v || index >= v->size )
         return NULL;
@@ -260,7 +280,10 @@ vec_get(const struct Vec* v, size_t index)
 }
 
 int
-vec_set(struct Vec* v, size_t index, const void* element)
+vec_set(
+    struct Vec* v,
+    size_t index,
+    const void* element)
 {
     if( !v || index >= v->size || !element )
         return VEC_BADARG;
@@ -270,7 +293,9 @@ vec_set(struct Vec* v, size_t index, const void* element)
 }
 
 int
-vec_push(struct Vec* v, const void* element)
+vec_push(
+    struct Vec* v,
+    const void* element)
 {
     if( !v || !element )
         return VEC_BADARG;
@@ -286,7 +311,9 @@ vec_push(struct Vec* v, const void* element)
 }
 
 int
-vec_pop(struct Vec* v, void* out_element)
+vec_pop(
+    struct Vec* v,
+    void* out_element)
 {
     if( !v || v->size == 0 )
         return VEC_BADARG;
@@ -300,7 +327,10 @@ vec_pop(struct Vec* v, void* out_element)
 }
 
 int
-vec_insert(struct Vec* v, size_t index, const void* element)
+vec_insert(
+    struct Vec* v,
+    size_t index,
+    const void* element)
 {
     if( !v || index > v->size || !element )
         return VEC_BADARG;
@@ -325,7 +355,10 @@ vec_insert(struct Vec* v, size_t index, const void* element)
 }
 
 int
-vec_remove(struct Vec* v, size_t index, void* out_element)
+vec_remove(
+    struct Vec* v,
+    size_t index,
+    void* out_element)
 {
     if( !v || index >= v->size )
         return VEC_BADARG;
@@ -354,7 +387,10 @@ vec_clear(struct Vec* v)
 }
 
 int
-vec_append(struct Vec* v, const void* elements, size_t count)
+vec_append(
+    struct Vec* v,
+    const void* elements,
+    size_t count)
 {
     if( !v || !elements || count == 0 )
         return VEC_BADARG;
@@ -370,7 +406,9 @@ vec_append(struct Vec* v, const void* elements, size_t count)
 }
 
 int
-vec_copy(const struct Vec* src, struct Vec* dst)
+vec_copy(
+    const struct Vec* src,
+    struct Vec* dst)
 {
     if( !src || !dst )
         return VEC_BADARG;

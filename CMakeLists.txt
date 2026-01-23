@@ -19,6 +19,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(osx
         test/osx.cpp
         src/libg.c
+        src/bmp.c
         src/datastruct/list.c
         src/datastruct/vec.c
         src/graphics/shared_tables.c
@@ -37,6 +38,8 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/rscache/tables/sprites.c
         src/osrs/rscache/tables_dat/config_textures.c
         src/osrs/rscache/tables_dat/animframe.c
+        src/osrs/rscache/tables_dat/pix8.c
+        src/osrs/rscache/tables_dat/pix32.c
         src/osrs/painters.c
         src/osrs/dashlib.c
         src/osrs/cache_utils.c

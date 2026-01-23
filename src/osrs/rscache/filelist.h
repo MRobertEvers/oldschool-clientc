@@ -28,6 +28,8 @@ filelist_new_from_decode(
 void
 filelist_free(struct FileList* filelist);
 
+// Jagfile in lostcity
+
 struct FileListDat
 {
     char** files;

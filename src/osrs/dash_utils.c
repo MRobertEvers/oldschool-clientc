@@ -1,7 +1,7 @@
-#ifndef DASH_UTILS_C
-#define DASH_UTILS_C
-
 #include "dash_utils.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 struct DashFramemap*
 dashframemap_new_from_cache_framemap(struct CacheFramemap* framemap)
@@ -108,4 +108,57 @@ dashframemap_new_from_animframe(struct CacheAnimframe* animframe)
     return dashframemap;
 }
 
-#endif
+struct DashPix8*
+dashpix8_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+{
+    struct DashPix8* dashpix8 = malloc(sizeof(struct DashPix8));
+    memset(dashpix8, 0, sizeof(struct DashPix8));
+    uint8_t* pixels = malloc(pix8_palette->width * pix8_palette->height * sizeof(uint8_t));
+    memcpy(
+        pixels, pix8_palette->pixels, pix8_palette->width * pix8_palette->height * sizeof(uint8_t));
+
+    dashpix8->pixels = (uint8_t*)pixels;
+    dashpix8->width = pix8_palette->width;
+    dashpix8->height = pix8_palette->height;
+    return dashpix8;
+}
+
+struct DashPixPalette*
+dashpixpalette_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+{
+    struct DashPixPalette* dashpixpalette = malloc(sizeof(struct DashPixPalette));
+    memset(dashpixpalette, 0, sizeof(struct DashPixPalette));
+    void* palette = malloc(pix8_palette->palette_count * sizeof(int));
+    memcpy(palette, pix8_palette->palette, pix8_palette->palette_count * sizeof(int));
+
+    dashpixpalette->palette = (int*)palette;
+    dashpixpalette->palette_count = pix8_palette->palette_count;
+    return dashpixpalette;
+}
+
+struct DashSprite*
+dashsprite_new_from_cache_pix32(struct CacheDatPix32* pix32)
+{
+    struct DashSprite* dashsprite = malloc(sizeof(struct DashSprite));
+    memset(dashsprite, 0, sizeof(struct DashSprite));
+    int* pixels = malloc(pix32->width * pix32->height * sizeof(int));
+    memcpy(pixels, pix32->pixels, pix32->width * pix32->height * sizeof(int));
+
+    dashsprite->pixels_argb = pixels;
+    dashsprite->width = pix32->width;
+    dashsprite->height = pix32->height;
+
+    return dashsprite;
+}
+
+struct DashSprite*
+dashsprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
+{
+    struct DashPix8* dashpix8 = dashpix8_new_from_cache_pix8_palette(pix8_palette);
+    struct DashPixPalette* dashpixpalette =
+        dashpixpalette_new_from_cache_pix8_palette(pix8_palette);
+    struct DashSprite* dashsprite = dashsprite_new_from_pix8(dashpix8, dashpixpalette);
+    dashpix8_free(dashpix8);
+    dashpixpalette_free(dashpixpalette);
+    return dashsprite;
+}

@@ -201,6 +201,26 @@ struct DashPoint2D
     int y;
 };
 
+struct DashPixPalette
+{
+    int* palette;
+    int palette_count;
+};
+
+struct DashPix8
+{
+    uint8_t* pixels;
+    int width;
+    int height;
+};
+
+struct DashSprite
+{
+    int* pixels_argb;
+    int width;
+    int height;
+};
+
 void
 dash_init(void);
 
@@ -304,5 +324,33 @@ dashmodel_animate(
     struct DashModel* model,
     struct DashFrame* frame,
     struct DashFramemap* framemap);
+
+struct DashSprite*
+dashsprite_new_from_pix8(
+    struct DashPix8* pix8,
+    struct DashPixPalette* palette);
+
+struct DashSprite*
+dashsprite_new_from_pix32(
+    int* pixels,
+    int width,
+    int height);
+
+void
+dashpix8_free(struct DashPix8* pix8);
+void
+dashpixpalette_free(struct DashPixPalette* palette);
+
+void
+dash2d_blit_sprite(
+    struct DashGraphics* dash,
+    struct DashSprite* sprite,
+    struct DashViewPort* view_port,
+    int x,
+    int y,
+    int* pixel_buffer);
+
+void
+dashsprite_free(struct DashSprite* sprite);
 
 #endif

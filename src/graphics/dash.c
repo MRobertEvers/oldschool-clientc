@@ -347,6 +347,7 @@ dash3d_raster_model_face(
     int near_plane_z,
     int screen_width,
     int screen_height,
+    int stride,
     int camera_fov,
     struct DashMap* textures_hmap)
 {
@@ -1121,11 +1122,12 @@ dash3d_raster(
                     model->lighting->face_colors_hsl_b,
                     model->lighting->face_colors_hsl_c,
                     model->face_alphas,
-                    view_port->width / 2,
-                    view_port->height / 2,
+                    view_port->width >> 1,
+                    view_port->height >> 1,
                     camera->near_plane_z,
                     view_port->width,
                     view_port->height,
+                    view_port->stride,
                     camera->fov_rpi2048,
                     dash->textures_hmap);
             }
@@ -1189,11 +1191,12 @@ dash3d_raster(
                 model->lighting->face_colors_hsl_b,
                 model->lighting->face_colors_hsl_c,
                 model->face_alphas,
-                view_port->width / 2,
-                view_port->height / 2,
+                view_port->width >> 1,
+                view_port->height >> 1,
                 camera->near_plane_z,
                 view_port->width,
                 view_port->height,
+                view_port->stride,
                 camera->fov_rpi2048,
                 dash->textures_hmap);
         }
@@ -1686,4 +1689,95 @@ dashmodel_animate(
         model->face_bones ? model->face_bones->bones_count : 0,
         model->face_bones ? model->face_bones->bones : NULL,
         model->face_bones ? model->face_bones->bones_sizes : NULL);
+}
+
+static int*
+dashpix8_to_argb(
+    struct DashPix8* pix8,
+    struct DashPixPalette* palette)
+{
+    int* pixels_argb = NULL;
+    pixels_argb = malloc(pix8->width * pix8->height * sizeof(int));
+    memset(pixels_argb, 0, pix8->width * pix8->height * sizeof(int));
+
+    for( int i = 0; i < pix8->width * pix8->height; i++ )
+    {
+        int palette_index = pix8->pixels[i];
+        assert(palette_index >= 0 && palette_index < palette->palette_count);
+        pixels_argb[i] = palette->palette[palette_index];
+    }
+
+    return pixels_argb;
+}
+
+struct DashSprite*
+dashsprite_new_from_pix8(
+    struct DashPix8* pix8,
+    struct DashPixPalette* palette)
+{
+    struct DashSprite* sprite = (struct DashSprite*)malloc(sizeof(struct DashSprite));
+    memset(sprite, 0, sizeof(struct DashSprite));
+    sprite->pixels_argb = dashpix8_to_argb(pix8, palette);
+    sprite->width = pix8->width;
+    sprite->height = pix8->height;
+    return sprite;
+}
+
+struct DashSprite*
+dashsprite_new_from_pix32(
+    int* pixels,
+    int width,
+    int height)
+{
+    struct DashSprite* sprite = (struct DashSprite*)malloc(sizeof(struct DashSprite));
+    memset(sprite, 0, sizeof(struct DashSprite));
+    sprite->pixels_argb = malloc(width * height * sizeof(int));
+    memcpy(sprite->pixels_argb, pixels, width * height * sizeof(int));
+    sprite->width = width;
+    sprite->height = height;
+    return sprite;
+}
+
+void
+dashpix8_free(struct DashPix8* pix8)
+{
+    free(pix8->pixels);
+    free(pix8);
+}
+
+void
+dashpixpalette_free(struct DashPixPalette* palette)
+{
+    free(palette->palette);
+    free(palette);
+}
+
+void
+dash2d_blit_sprite(
+    struct DashGraphics* dash,
+    struct DashSprite* sprite,
+    struct DashViewPort* view_port,
+    int x_offset,
+    int y_offset,
+    int* pixel_buffer)
+{
+    for( int y = 0; y < sprite->height; y++ )
+    {
+        for( int x = 0; x < sprite->width; x++ )
+        {
+            if( x + x_offset < 0 || x + x_offset >= view_port->stride || y + y_offset < 0 ||
+                y + y_offset >= view_port->stride )
+                continue;
+
+            int pixel_buffer_index = (y + y_offset) * view_port->stride + (x + x_offset);
+            pixel_buffer[pixel_buffer_index] = sprite->pixels_argb[x + y * sprite->width];
+        }
+    }
+}
+
+void
+dashsprite_free(struct DashSprite* sprite)
+{
+    free(sprite->pixels_argb);
+    free(sprite);
 }

@@ -25,6 +25,7 @@ enum AssetKind
     ASSET_DAT_SOUND,
     ASSET_DAT_CONFIG_VERSIONLIST_ANIMINDEX,
     ASSET_DAT_CONFIG_TEXTURE_SPRITES,
+    ASSET_DAT_CONFIG_MEDIA_2D_GRAPHICS,
     ASSET_DAT_CONFIG_FILE_SEQ,
     ASSET_DAT_CONFIG_FILE_FLOORTYPE,
     ASSET_DAT_CONFIG_FILEIDX_SCENERY,
@@ -112,6 +113,9 @@ gio_assets_dat_sound_load(
 
 uint32_t
 gio_assets_dat_config_texture_sprites_load(struct GIOQueue* q);
+
+uint32_t
+gio_assets_dat_config_media_load(struct GIOQueue* q);
 
 uint32_t
 gio_assets_dat_config_flotype_file_load(struct GIOQueue* q);

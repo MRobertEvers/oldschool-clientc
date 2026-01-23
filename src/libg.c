@@ -126,7 +126,10 @@ dashmodel_new_from_cache(
 }
 
 struct GGame*
-libg_game_new(struct GIOQueue* io)
+libg_game_new(
+    struct GIOQueue* io,
+    int graphics3d_width,
+    int graphics3d_height)
 {
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
@@ -203,11 +206,11 @@ libg_game_new(struct GIOQueue* io)
     // game->position->yaw = 1556;
     // game->position->roll = 0;
 
-    game->view_port->stride = 1024;
-    game->view_port->width = 1024;
-    game->view_port->height = 768;
-    game->view_port->x_center = 512;
-    game->view_port->y_center = 384;
+    game->view_port->stride = graphics3d_width;
+    game->view_port->width = graphics3d_width;
+    game->view_port->height = graphics3d_height;
+    game->view_port->x_center = graphics3d_width / 2;
+    game->view_port->y_center = graphics3d_height / 2;
 
     game->camera->fov_rpi2048 = 512;
     game->camera->near_plane_z = 50;
@@ -315,7 +318,7 @@ libg_game_new(struct GIOQueue* io)
 
     gametask_new_init_io(game, game->io);
     gametask_new_init_scene_dat(game, 48, 48, 51, 51);
-    // gametask_new_init_scene(game, 48, 49, 51, 51);
+    // gametask_new_init_scene(game, 48, 48, 51, 51);
     // gametask_new_init_scene(game, 47, 47, 49, 49);
     // gametask_new_init_scene(game, 40, 40, 41, 41);
     // gametask_new_init_scene(game, 23, 54, 25, 54);

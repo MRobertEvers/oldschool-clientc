@@ -238,6 +238,21 @@ gioqb_cache_dat_config_texture_sprites_new_load(struct CacheDat* cache_dat)
 
     return config_archive;
 }
+
+struct CacheDatArchive*
+gioqb_cache_dat_config_media_new_load(struct CacheDat* cache_dat)
+{
+    struct CacheDatArchive* config_archive =
+        cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);
+    if( !config_archive )
+    {
+        printf("Failed to load config media\n");
+        return NULL;
+    }
+
+    return config_archive;
+}
+
 struct FileListDatIndexed*
 gioqb_cache_dat_config_scenery_fileidx_new_load(struct CacheDat* cache_dat)
 {
@@ -444,6 +459,16 @@ gioqb_cache_dat_fullfill(
     else if( message->command == ASSET_DAT_CONFIG_TEXTURE_SPRITES )
     {
         archive = gioqb_cache_dat_config_texture_sprites_new_load(cache_dat);
+        gioqb_mark_done(
+            io, message->message_id, message->command, 0, 0, archive->data, archive->data_size);
+        archive->data = NULL;
+        archive->data_size = 0;
+        cache_dat_archive_free(archive);
+        archive = NULL;
+    }
+    else if( message->command == ASSET_DAT_CONFIG_MEDIA_2D_GRAPHICS )
+    {
+        archive = gioqb_cache_dat_config_media_new_load(cache_dat);
         gioqb_mark_done(
             io, message->message_id, message->command, 0, 0, archive->data, archive->data_size);
         archive->data = NULL;

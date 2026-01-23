@@ -29,6 +29,9 @@ struct CacheDatAnimBaseFrames
     int frame_count;
 };
 
+/**
+ * data := archive from the anim table
+ */
 struct CacheDatAnimBaseFrames*
 cache_dat_animbaseframes_new_decode(
     char* data,

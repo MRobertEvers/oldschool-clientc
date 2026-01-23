@@ -1,6 +1,7 @@
 
 #include "task_init_scene_dat.h"
 
+#include "bmp.h"
 #include "datastruct/list.h"
 #include "datastruct/vec.h"
 #include "game.h"
@@ -8,6 +9,7 @@
 #include "graphics/dash.h"
 #include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
+#include "osrs/dash_utils.h"
 #include "osrs/dashlib.h"
 #include "osrs/gio_assets.h"
 #include "osrs/painters.h"
@@ -23,6 +25,8 @@
 #include "osrs/rscache/tables/textures.h"
 #include "osrs/rscache/tables_dat/animframe.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
+#include "osrs/rscache/tables_dat/pix32.h"
+#include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/scenebuilder.h"
 // #include "osrs/terrain.h"
 #include "osrs/texture.h"
@@ -144,6 +148,11 @@ struct TaskInitSceneDat
     // For cleanup.
     struct DashMap* animbaseframes_hmap;
     struct DashMap* sequences_hmap;
+
+    struct DashPix8* pix8;
+    struct DashPixPalette* palette;
+
+    struct DashSprite* sprite;
 
     struct Vec* queued_texture_ids_vec;
     struct Vec* queued_scenery_models_vec;
@@ -572,29 +581,46 @@ task_init_scene_dat_new(
     return task;
 }
 
+static void
+step_terrain_load_gather(struct TaskInitSceneDat* task)
+{
+    int reqid = 0;
+    vec_clear(task->reqid_queue_vec);
+    for( int i = 0; i < task->chunks_count; i++ )
+    {
+        reqid = gio_assets_dat_map_terrain_load(task->io, task->chunks[i].x, task->chunks[i].z);
+
+        vec_push(task->reqid_queue_vec, &reqid);
+    }
+}
+
+static void
+step_terrain_load_poll(
+    struct TaskInitSceneDat* task,
+    struct GIOMessage* message)
+{
+    struct CacheMapTerrain* terrain = NULL;
+
+    int map_x = (message->param_b >> 16) & 0xFFFF;
+    int map_z = message->param_b & 0xFFFF;
+
+    terrain = map_terrain_new_from_decode_flags(
+        message->data, message->data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
+
+    scenebuilder_cache_map_terrain(task->scene_builder, map_x, map_z, terrain);
+}
+
 static enum GameTaskStatus
 step_terrain_load(struct TaskInitSceneDat* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_1_LOAD_TERRAIN];
 
-    struct CacheMapLocs* locs = NULL;
-    struct DashMapIter* iter = NULL;
     struct GIOMessage message = { 0 };
-    struct CacheMapTerrain* terrain = NULL;
-    int reqid = 0;
-    struct SceneryEntry* scenery_entry = NULL;
-    int mapxz = 0;
 
     switch( step_stage->step )
     {
     case TS_GATHER:
-        vec_clear(task->reqid_queue_vec);
-        for( int i = 0; i < task->chunks_count; i++ )
-        {
-            reqid = gio_assets_dat_map_terrain_load(task->io, task->chunks[i].x, task->chunks[i].z);
-
-            vec_push(task->reqid_queue_vec, &reqid);
-        }
+        step_terrain_load_gather(task);
         task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
 
         step_stage->step = TS_POLL;
@@ -603,13 +629,7 @@ step_terrain_load(struct TaskInitSceneDat* task)
         {
             task->reqid_queue_inflight_count--;
 
-            int map_x = (message.param_b >> 16) & 0xFFFF;
-            int map_z = message.param_b & 0xFFFF;
-
-            terrain = map_terrain_new_from_decode_flags(
-                message.data, message.data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
-
-            scenebuilder_cache_map_terrain(task->scene_builder, map_x, map_z, terrain);
+            step_terrain_load_poll(task, &message);
 
             gioq_release(task->io, &message);
         }
@@ -617,15 +637,13 @@ step_terrain_load(struct TaskInitSceneDat* task)
         if( task->reqid_queue_inflight_count != 0 )
             return GAMETASK_STATUS_PENDING;
 
-        step_stage->step = TS_PROCESS;
-    case TS_PROCESS:
-
         step_stage->step = TS_DONE;
+    case TS_DONE:
+        break;
     }
 
     return GAMETASK_STATUS_COMPLETED;
 }
-
 static enum GameTaskStatus
 step_flotype_load(struct TaskInitSceneDat* task)
 {
@@ -1183,6 +1201,134 @@ step_sounds_load(struct TaskInitSceneDat* task)
     return GAMETASK_STATUS_COMPLETED;
 }
 
+static void
+step_media_load_gather(struct TaskInitSceneDat* task)
+{
+    int reqid = 0;
+
+    vec_clear(task->reqid_queue_vec);
+
+    reqid = gio_assets_dat_config_media_load(task->io);
+    vec_push(task->reqid_queue_vec, &reqid);
+}
+static void
+step_media_load_poll(
+    struct TaskInitSceneDat* task,
+    struct GIOMessage* message)
+{
+    int reqid = 0;
+    struct CacheDatPix8Palette* pix8 = NULL;
+    struct CacheDatPix32* pix32 = NULL;
+    struct FileListDat* filelist = filelist_dat_new_from_decode(message->data, message->data_size);
+
+    // char name[16] = { 0 };
+    // snprintf(name, sizeof(name), "%d.dat", texture_id);
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, "invback.dat");
+    int data_file_idx2 = filelist_dat_find_file_by_name(filelist, "mapedge.dat");
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+
+    if( data_file_idx == -1 || index_file_idx == -1 )
+    {
+        printf("Failed to find invback.dat or index.dat in filelist\n");
+        assert(false && "Failed to find invback.dat or index.dat in filelist");
+        filelist_dat_free(filelist);
+        return;
+    }
+
+    pix8 = cache_dat_pix8_palette_new(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        0);
+    task->game->invback_sprite = dashsprite_new_from_cache_pix8_palette(pix8);
+    cache_dat_pix8_palette_free(pix8);
+
+    data_file_idx = filelist_dat_find_file_by_name(filelist, "mapedge.dat");
+    assert(data_file_idx != -1 && "Failed to find mapedge.dat in filelist");
+    pix32 = cache_dat_pix32_new(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        0);
+    task->game->mapedge_sprite = dashsprite_new_from_cache_pix32(pix32);
+    cache_dat_pix32_free(pix32);
+
+    data_file_idx = filelist_dat_find_file_by_name(filelist, "cross.dat");
+    assert(data_file_idx != -1 && "Failed to find cross.dat in filelist");
+    for( int i = 0; i < 8; i++ )
+    {
+        pix32 = cache_dat_pix32_new(
+            filelist->files[data_file_idx],
+            filelist->file_sizes[data_file_idx],
+            filelist->files[index_file_idx],
+            filelist->file_sizes[index_file_idx],
+            i);
+        task->game->cross_sprite[i] = dashsprite_new_from_cache_pix32(pix32);
+        cache_dat_pix32_free(pix32);
+    }
+
+    data_file_idx = filelist_dat_find_file_by_name(filelist, "compass.dat");
+    assert(data_file_idx != -1 && "Failed to find compass.dat in filelist");
+    pix32 = cache_dat_pix32_new(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        0);
+    task->game->compass_sprite = dashsprite_new_from_cache_pix32(pix32);
+    cache_dat_pix32_free(pix32);
+
+    // int* argb = malloc(task->pix8->width * task->pix8->height * sizeof(int));
+    // memset(argb, 0, task->pix8->width * task->pix8->height * sizeof(int));
+    // for( int i = 0; i < task->pix8->width * task->pix8->height; i++ )
+    // {
+    //     int palette_index = task->pix8->pixels[i];
+    //     assert(palette_index >= 0 && palette_index < task->palette->palette_count);
+    //     argb[i] = task->palette->palette[palette_index];
+    // }
+    // bmp_write_file("../cache/invback.bmp", argb, task->pix8->width, task->pix8->height);
+    // free(argb);
+
+    filelist_dat_free(filelist);
+}
+
+static enum GameTaskStatus
+step_media_load(struct TaskInitSceneDat* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_11_LOAD_MEDIA];
+
+    struct GIOMessage message = { 0 };
+
+    switch( step_stage->step )
+    {
+    case TS_GATHER:
+        step_media_load_gather(task);
+        task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
+
+        step_stage->step = TS_POLL;
+    case TS_POLL:
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_queue_inflight_count--;
+
+            step_media_load_poll(task, &message);
+
+            gioq_release(task->io, &message);
+        }
+
+        if( task->reqid_queue_inflight_count != 0 )
+            return GAMETASK_STATUS_PENDING;
+
+        step_stage->step = TS_PROCESS;
+    case TS_PROCESS:
+        break;
+    }
+
+    return GAMETASK_STATUS_COMPLETED;
+}
+
 enum GameTaskStatus
 task_init_scene_dat_step(struct TaskInitSceneDat* task)
 {
@@ -1262,6 +1408,13 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
     case STEP_INIT_SCENE_DAT_10_LOAD_SOUNDS:
     {
         if( step_sounds_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_DAT_11_LOAD_MEDIA;
+    }
+    case STEP_INIT_SCENE_DAT_11_LOAD_MEDIA:
+    {
+        if( step_media_load(task) != GAMETASK_STATUS_COMPLETED )
             return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_DAT_DONE;

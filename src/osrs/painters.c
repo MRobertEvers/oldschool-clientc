@@ -555,10 +555,6 @@ ensure_command_capacity(
 
 int g_trap_command = -1;
 
-#if defined(__APPLE__)
-#include <signal.h>
-#endif
-
 static inline void
 push_command_entity(
     struct PaintersBuffer* buffer,
@@ -1197,10 +1193,6 @@ painter_paint(
             for( int j = 0; j < scenery_queue_length; j++ )
             {
                 int scenery_element = scenery_queue[j];
-                if( scenery_queue_length > 1 )
-                {
-                    printf("scenery_element: %d\n", scenery_element);
-                }
 
                 element_paint = &painter->element_paints[scenery_element];
                 if( element_paint->drawn )
@@ -1282,6 +1274,7 @@ painter_paint(
             if( waiting_spanning_scenery )
             {
                 tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
+                goto done;
             }
 
             if( tile_slevel < painter->levels - 1 )
@@ -1345,11 +1338,6 @@ painter_paint(
                         painter_push_queue(painter, other_idx, prio);
                     }
                 }
-            }
-
-            if( waiting_spanning_scenery )
-            {
-                goto done;
             }
 
             tile_paint->step = PAINT_STEP_NEAR_WALL;

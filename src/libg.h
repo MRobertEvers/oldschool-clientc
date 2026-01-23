@@ -19,7 +19,10 @@ struct DashViewPort;
 struct DashCamera;
 
 struct GGame*
-libg_game_new(struct GIOQueue* io);
+libg_game_new(
+    struct GIOQueue* io,
+    int graphics3d_width,
+    int graphics3d_height);
 
 void
 libg_game_process_input(
