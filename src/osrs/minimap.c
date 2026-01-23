@@ -195,7 +195,7 @@ push_tile_command(
         ._tile = {
             .kind = MINIMAP_RENDER_COMMAND_TILE,
             .tile_sx = sx,
-            .tile_sy = sz,
+            .tile_sz = sz,
         },
     };
 }
@@ -265,6 +265,21 @@ minimap_tile_rgb(
     return is_foreground == MINIMAP_FOREGROUND ? tile->foreground_rgb : tile->background_rgb;
 }
 
+int
+minimap_tile_wall(
+    struct Minimap* minimap,
+    int sx,
+    int sz,
+    int level)
+{
+    assert(sx >= 0 && sx < minimap->width);
+    assert(sz >= 0 && sz < minimap->height);
+    assert(level >= 0 && level < minimap->levels);
+
+    int idx = minimap_coord_idx(minimap, sx, sz, level);
+    struct MinimapTile* tile = &minimap->tiles[idx];
+    return tile->wall;
+}
 int
 minimap_tile_shape(
     struct Minimap* minimap,

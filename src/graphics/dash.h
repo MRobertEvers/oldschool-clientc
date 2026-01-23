@@ -437,4 +437,17 @@ dash2d_fill_minimap_tile(
     int rotation,
     int shape);
 
+void
+dash2d_blit_rotated(
+    struct DashSprite* sprite,
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int anchor_x,
+    int anchor_y,
+    int angle_r2pi2048);
+
 #endif

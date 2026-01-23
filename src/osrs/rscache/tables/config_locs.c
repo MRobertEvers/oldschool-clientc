@@ -432,6 +432,7 @@ decode_loc(
             loc->resize_z = rsbuf_g2(&buffer);
             break;
         case 68:
+            // Client-TS from LostCity call this mapScene
             loc->map_scene_id = rsbuf_g2(&buffer);
             break;
         case 69:

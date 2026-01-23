@@ -818,23 +818,27 @@ done_draw:;
         struct MinimapRenderCommand* command = &minimap_command_buffer->commands[i];
         switch( command->kind )
         {
+        case MINIMAP_RENDER_COMMAND_LOC:
+        {
+            break;
+        }
         case MINIMAP_RENDER_COMMAND_TILE:
-
+        {
             shape = minimap_tile_shape(
-                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sy, 0);
+                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
 
             angle = minimap_tile_rotation(
-                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sy, 0);
+                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
             rgb_background = minimap_tile_rgb(
                 game->sys_minimap,
                 command->_tile.tile_sx,
-                command->_tile.tile_sy,
+                command->_tile.tile_sz,
                 0,
                 MINIMAP_BACKGROUND);
             rgb_foreground = minimap_tile_rgb(
                 game->sys_minimap,
                 command->_tile.tile_sx,
-                command->_tile.tile_sy,
+                command->_tile.tile_sz,
                 0,
                 MINIMAP_FOREGROUND);
             if( rgb_foreground == 0 && rgb_background == 0 )
@@ -844,13 +848,78 @@ done_draw:;
                 renderer->pixel_buffer,
                 renderer->width,
                 x + (command->_tile.tile_sx - sw_x) * 4,
-                y - (command->_tile.tile_sy + 1 - sw_z) * 4,
+                y - (command->_tile.tile_sz + 1 - sw_z) * 4,
                 rgb_background,
                 rgb_foreground,
                 angle,
                 shape);
 
-            break;
+            {
+                int wall = minimap_tile_wall(
+                    game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
+                int step = renderer->width;
+                int rgb = 0xFFFFFFFF;
+                int* dst = renderer->pixel_buffer;
+                int offset = 0;
+
+                for( int f = 0; f < 12; f++ )
+                {
+                    int wall_flag = (wall & (1 << f)) != 0;
+                    if( wall_flag == 0 )
+                        continue;
+
+                    int tx = x + (command->_tile.tile_sx - sw_x) * 4;
+                    int ty = y - (command->_tile.tile_sz + 1 - sw_z) * 4;
+
+                    offset = ty * renderer->width + tx;
+
+                    if( wall & MINIMAP_WALL_WEST )
+                    {
+                        for( int p = 0; p < 4; p++ )
+                        {
+                            dst[offset + p * step] = rgb;
+                        }
+                    }
+                    else if( wall & MINIMAP_WALL_NORTH )
+                    {
+                        for( int p = 0; p < 4; p++ )
+                        {
+                            dst[offset + p] = rgb;
+                        }
+                    }
+                    else if( wall & MINIMAP_WALL_EAST )
+                    {
+                        for( int p = 0; p < 4; p++ )
+                        {
+                            dst[offset + 3 + p * step] = rgb;
+                        }
+                    }
+                    else if( wall & MINIMAP_WALL_SOUTH )
+                    {
+                        for( int p = 0; p < 4; p++ )
+                        {
+                            dst[offset + p + 3 * step] = rgb;
+                        }
+                    }
+                    else if( wall & MINIMAP_WALL_NORTHEAST_SOUTHWEST )
+                    {
+                        dst[offset + 3 * step] = rgb;
+                        dst[offset + 2 * step + 1] = rgb;
+                        dst[offset + 1 * step + 2] = rgb;
+                        dst[offset + 0 * step + 3] = rgb;
+                    }
+                    else if( wall & MINIMAP_WALL_NORTHWEST_SOUTHEAST )
+                    {
+                        dst[offset + 3 * step + 3] = rgb;
+                        dst[offset + 2 * step + 2] = rgb;
+                        dst[offset + 1 * step + 1] = rgb;
+                        dst[offset + 0 * step + 0] = rgb;
+                    }
+                }
+            }
+        }
+
+        break;
         }
     }
     minimap_commands_free(minimap_command_buffer);

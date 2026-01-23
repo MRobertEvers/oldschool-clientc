@@ -6,6 +6,7 @@
 #include "graphics/lighting.h"
 #include "model_transforms.h"
 #include "osrs/dash_utils.h"
+#include "osrs/minimap.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
@@ -658,6 +659,42 @@ init_scene_element(
     }
 }
 
+static inline enum MinimapWallFlag
+orientation_wall_flag(int orientation)
+{
+    switch( orientation & 0x3 )
+    {
+    case 0:
+        return MINIMAP_WALL_WEST;
+    case 1:
+        return MINIMAP_WALL_NORTH;
+    case 2:
+        return MINIMAP_WALL_EAST;
+    case 3:
+        return MINIMAP_WALL_SOUTH;
+    default:
+        return MINIMAP_WALL_NONE;
+    }
+}
+
+static inline enum MinimapWallFlag
+orientation_wall_flag_diagonal(int orientation)
+{
+    switch( orientation & 0x3 )
+    {
+    case 0:
+        return MINIMAP_WALL_NORTHEAST_SOUTHWEST;
+    case 1:
+        return MINIMAP_WALL_NORTHWEST_SOUTHEAST;
+    case 2:
+        return MINIMAP_WALL_NORTHEAST_SOUTHWEST;
+    case 3:
+        return MINIMAP_WALL_NORTHWEST_SOUTHEAST;
+    default:
+        return MINIMAP_WALL_NONE;
+    }
+}
+
 static int
 scenery_add_wall_single(
     struct SceneBuilder* scene_builder,
@@ -699,6 +736,19 @@ scenery_add_wall_single(
         element_id,
         WALL_A,
         ROTATION_WALL_TYPE[orientation]);
+
+    /**
+     * Minimap
+     */
+    if( config_loc->map_scene_id == -1 )
+    {
+        minimap_add_tile_wall(
+            scene_builder->minimap,
+            offset->x,
+            offset->z,
+            offset->level,
+            orientation_wall_flag(orientation));
+    }
 
     /* Shademap */
     if( config_loc->shadowed )
@@ -846,6 +896,26 @@ scenery_add_wall_two_sides(
         element_two_id,
         WALL_B,
         ROTATION_WALL_TYPE[next_orientation]);
+
+    /**
+     * Minimap
+     */
+    if( config_loc->map_scene_id == -1 )
+    {
+        minimap_add_tile_wall(
+            scene_builder->minimap,
+            offset->x,
+            offset->z,
+            offset->level,
+            orientation_wall_flag(map_loc->orientation));
+
+        minimap_add_tile_wall(
+            scene_builder->minimap,
+            offset->x,
+            offset->z,
+            offset->level,
+            orientation_wall_flag(next_orientation));
+    }
 
     /**
      * Build grid
@@ -1362,8 +1432,25 @@ scenery_add_wall_diagonal(
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
 
+    /**
+     * Painter
+     */
+
     painter_add_normal_scenery(
         scene_builder->painter, offset->x, offset->z, offset->level, element_id, 1, 1);
+
+    /**
+     * Minimap
+     */
+    if( config_loc->map_scene_id == -1 )
+    {
+        minimap_add_tile_wall(
+            scene_builder->minimap,
+            offset->x,
+            offset->z,
+            offset->level,
+            orientation_wall_flag_diagonal(map_loc->orientation));
+    }
 
     /**
      * Build grid

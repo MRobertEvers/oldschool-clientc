@@ -664,7 +664,11 @@ build_scene_terrain(
                     minimap_foreground_rgb = dash_hsl16_to_rgb(average_hsl);
                 }
 
-                if( minimap_foreground_rgb > 0 )
+                int trans = overlay ? overlay->secondary_rgb_color == 0xFF00FF ||
+                                          overlay->rgb_color == 0xFF00FF
+                                    : 0;
+
+                if( minimap_foreground_rgb > 0 && !trans )
                     minimap_set_tile_color(
                         scene_builder->minimap,
                         x,
@@ -673,7 +677,7 @@ build_scene_terrain(
                         minimap_foreground_rgb,
                         MINIMAP_FOREGROUND);
 
-                if( minimap_background_rgb > 0 )
+                if( minimap_background_rgb > 0 && !trans )
                     minimap_set_tile_color(
                         scene_builder->minimap,
                         x,

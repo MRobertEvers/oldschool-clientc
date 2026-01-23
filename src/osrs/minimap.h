@@ -94,7 +94,7 @@ struct MinimapRenderCommand
         {
             uint16_t kind : 2;
             uint16_t tile_sx : 10;
-            uint16_t tile_sy : 10;
+            uint16_t tile_sz : 10;
         } _tile;
 
         struct
@@ -155,6 +155,13 @@ minimap_tile_rgb(
     int sz,
     int level,
     int is_foreground);
+
+int
+minimap_tile_wall(
+    struct Minimap* minimap,
+    int sx,
+    int sz,
+    int level);
 
 int
 minimap_tile_shape(

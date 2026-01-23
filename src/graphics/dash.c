@@ -2135,3 +2135,54 @@ dash2d_fill_minimap_tile(
         offset += stride;
     }
 }
+
+void
+dash2d_blit_rotated(
+    struct DashSprite* sprite,
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int anchor_x,
+    int anchor_y,
+    int angle_r2pi2048)
+{
+    // try {
+    int zoom = 1;
+    int centerX = (-width / 2);
+    int centerY = (-height / 2);
+
+    int sin = (dash_sin(angle_r2pi2048)) | 0;
+    int cos = (dash_cos(angle_r2pi2048)) | 0;
+    int sinZoom = (sin * zoom) >> 8;
+    int cosZoom = (cos * zoom) >> 8;
+
+    int leftX = (anchor_x << 16) + centerY * sinZoom + centerX * cosZoom;
+    int leftY = (anchor_y << 16) + (centerY * cosZoom - centerX * sinZoom);
+    int leftOff = x + y * stride;
+
+    for( int i = 0; i < height; i++ )
+    {
+        int dstOff = i * stride;
+        int dstX = leftOff + dstOff;
+
+        int srcX = leftX + cosZoom * dstOff;
+        int srcY = leftY - sinZoom * dstOff;
+
+        for( int j = -stride; j < 0; j++ )
+        {
+            pixel_buffer[dstX++] = sprite->pixels_argb[(srcX >> 16) + (srcY >> 16) * sprite->width];
+            srcX += cosZoom;
+            srcY -= sinZoom;
+        }
+
+        leftX += sinZoom;
+        leftY += cosZoom;
+        leftOff += stride;
+    }
+    // } catch (e) {
+    //     /* empty */
+    // }
+}
