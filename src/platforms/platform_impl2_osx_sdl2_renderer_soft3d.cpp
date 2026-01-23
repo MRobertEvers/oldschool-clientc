@@ -7,6 +7,7 @@
 extern "C" {
 #include "graphics/dash.h"
 #include "libg.h"
+#include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 }
 
@@ -321,12 +322,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
 
     // Clear main pixel buffer
-    // memset(renderer->pixel_buffer, 0x00FF00FF, renderer->width * renderer->height * sizeof(int));
-    // for( int y = 0; y < renderer->height; y++ )
-    //     memset(
-    //         &renderer->pixel_buffer[y * renderer->width],
-    //         0x00FF00FF,
-    //         renderer->width * sizeof(int));
+
+    for( int y = 0; y < renderer->height; y++ )
+        memset(&renderer->pixel_buffer[y * renderer->width], 0x00, renderer->width * sizeof(int));
 
     // Clear dash buffer if it exists
     if( renderer->dash_buffer )
@@ -617,11 +615,16 @@ done_draw:;
 
     int row_size = renderer->width * sizeof(int);
     int* src_pixels = (int*)surface->pixels;
-    for( int src_y = 0; src_y < (renderer->height); src_y++ )
-    {
-        int* row = &pix_write[(src_y * renderer->width)];
-        memcpy(row, &src_pixels[(src_y - 0) * renderer->width], row_size);
-    }
+    int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
+
+    if( game->pixfont )
+        pixfont_draw_text(
+            game->pixfont,
+            "Hello, world!",
+            0,
+            0,
+            renderer->dash_buffer,
+            renderer->dash_buffer_width);
 
     // Copy dash buffer directly to texture at offset position
     if( renderer->dash_buffer )
@@ -631,7 +634,6 @@ done_draw:;
         int dash_h = renderer->dash_buffer_height;
         int offset_x = renderer->dash_offset_x;
         int offset_y = renderer->dash_offset_y;
-        int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
 
         for( int y = 0; y < dash_h; y++ )
         {
@@ -649,6 +651,20 @@ done_draw:;
                 }
             }
         }
+    }
+
+    for( int src_y = 0; src_y < (renderer->height); src_y++ )
+    {
+        int* row = &pix_write[(src_y * renderer->width)];
+        for( int x = 0; x < renderer->width; x++ )
+        {
+            int pixel = src_pixels[src_y * renderer->width + x];
+            if( pixel != 0 )
+            {
+                row[x] = pixel;
+            }
+        }
+        // memcpy(row, &src_pixels[(src_y - 0) * renderer->width], row_size);
     }
 
     // Unlock the texture so that it may be used elsewhere

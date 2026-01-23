@@ -61,6 +61,9 @@ gioqb_cache_dat_config_texture_sprites_new_load(struct CacheDat* cache_dat);
 struct CacheDatArchive*
 gioqb_cache_dat_config_media_new_load(struct CacheDat* cache_dat);
 
+struct CacheDatArchive* //
+gioqb_cache_dat_config_title_new_load(struct CacheDat* cache_dat);
+
 struct FileListDatIndexed*
 gioqb_cache_dat_config_scenery_fileidx_new_load(struct CacheDat* cache_dat);
 

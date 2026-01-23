@@ -135,6 +135,12 @@ gio_assets_dat_config_media_load(struct GIOQueue* q)
 }
 
 uint32_t
+gio_assets_dat_config_title_load(struct GIOQueue* q)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_TITLE, 0, 0);
+}
+
+uint32_t
 gio_assets_dat_config_flotype_file_load(struct GIOQueue* q)
 {
     return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_FILE_FLOORTYPE, 0, 0);

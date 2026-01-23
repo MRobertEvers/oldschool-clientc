@@ -27,6 +27,7 @@
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
+#include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scenebuilder.h"
 // #include "osrs/terrain.h"
 #include "osrs/texture.h"
@@ -1333,6 +1334,70 @@ step_media_load(struct TaskInitSceneDat* task)
     return GAMETASK_STATUS_COMPLETED;
 }
 
+static void
+step_title_load_gather(struct TaskInitSceneDat* task)
+{
+    int reqid = 0;
+    vec_clear(task->reqid_queue_vec);
+    reqid = gio_assets_dat_config_title_load(task->io);
+    vec_push(task->reqid_queue_vec, &reqid);
+}
+
+static void
+step_title_load_poll(
+    struct TaskInitSceneDat* task,
+    struct GIOMessage* message)
+{
+    struct FileListDat* filelist = filelist_dat_new_from_decode(message->data, message->data_size);
+
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, "p11.dat");
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+    assert(
+        data_file_idx != -1 && index_file_idx != -1 &&
+        "Failed to find p11.dat or index.dat in filelist");
+    struct CacheDatPixfont* pixfont = cache_dat_pixfont_new_decode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+    task->game->pixfont = pixfont;
+    filelist_dat_free(filelist);
+}
+
+static enum GameTaskStatus
+step_title_load(struct TaskInitSceneDat* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_12_LOAD_TITLE];
+
+    struct GIOMessage message = { 0 };
+
+    switch( step_stage->step )
+    {
+    case TS_GATHER:
+        step_title_load_gather(task);
+        task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
+
+        step_stage->step = TS_POLL;
+    case TS_POLL:
+        while( gioq_poll(task->io, &message) )
+        {
+            task->reqid_queue_inflight_count--;
+            step_title_load_poll(task, &message);
+
+            gioq_release(task->io, &message);
+        }
+
+        if( task->reqid_queue_inflight_count != 0 )
+            return GAMETASK_STATUS_PENDING;
+
+        step_stage->step = TS_PROCESS;
+    case TS_PROCESS:
+        break;
+    }
+
+    return GAMETASK_STATUS_COMPLETED;
+}
+
 enum GameTaskStatus
 task_init_scene_dat_step(struct TaskInitSceneDat* task)
 {
@@ -1419,6 +1484,13 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
     case STEP_INIT_SCENE_DAT_11_LOAD_MEDIA:
     {
         if( step_media_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_DAT_12_LOAD_TITLE;
+    }
+    case STEP_INIT_SCENE_DAT_12_LOAD_TITLE:
+    {
+        if( step_title_load(task) != GAMETASK_STATUS_COMPLETED )
             return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_DAT_DONE;

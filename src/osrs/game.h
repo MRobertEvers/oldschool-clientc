@@ -7,6 +7,7 @@
 #include "osrs/gio.h"
 #include "osrs/grender.h"
 #include "osrs/painters.h"
+#include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 
 #include <stdbool.h>
@@ -52,6 +53,7 @@ struct GGame
     struct DashViewPort* view_port;
     struct DashViewPort* iface_view_port;
     struct DashCamera* camera;
+    struct CacheDatPixfont* pixfont;
     struct GIOQueue* io;
     struct GameTask* tasks_nullable;
 
