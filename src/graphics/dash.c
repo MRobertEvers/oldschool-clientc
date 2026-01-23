@@ -212,8 +212,8 @@ dash3d_calculate_aabb(
     int model_center_to_bottom_edge = model->bounds_cylinder->center_to_bottom_edge;
     int model_min_y = model->bounds_cylinder->min_y;
     int model_max_y = model->bounds_cylinder->max_y;
-    int screen_edge_width = view_port->width >> 1;
-    int screen_edge_height = view_port->height >> 1;
+    int screen_edge_width = view_port->x_center;
+    int screen_edge_height = view_port->y_center;
     int scene_x = position->x;
     int scene_y = position->y;
     int scene_z = position->z;

@@ -209,6 +209,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct GGame* game,
     struct GRenderCommandBuffer* render_command_buffer)
 {
+    // Ensure viewport center matches viewport dimensions (critical for coordinate transformations)
+    if( game->view_port )
+    {
+        game->view_port->x_center = game->view_port->width / 2;
+        game->view_port->y_center = game->view_port->height / 2;
+    }
+
     // Handle window resize: update renderer dimensions up to max size
     int window_width, window_height;
     SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
@@ -228,8 +235,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         {
             // game->view_port->width = renderer->width;
             // game->view_port->height = renderer->height;
-            // game->view_port->x_center = renderer->width / 2;
-            // game->view_port->y_center = renderer->height / 2;
+            // Ensure viewport center matches viewport dimensions (not renderer dimensions)
+            // This is critical for coordinate transformations to work correctly
+            game->view_port->x_center = game->view_port->width / 2;
+            game->view_port->y_center = game->view_port->height / 2;
             // Keep stride aligned to renderer width for pixel buffer access
             game->view_port->stride = renderer->width;
         }
@@ -329,72 +338,76 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             if( cull != DASHCULL_VISIBLE )
                 break;
 
-            if( (scene_element_interactable(game->scene, cmd->_entity._bf_entity)) &&
-                dash3d_projected_model_contains(
-                    game->sys_dash,
-                    scene_element_model(game->scene, cmd->_entity._bf_entity),
-                    game->view_port,
-                    game->mouse_x,
-                    game->mouse_y) )
+            if( (scene_element_interactable(game->scene, cmd->_entity._bf_entity)) )
             {
-                // 1637
-                printf(
-                    "Interactable: %s\n", scene_element_name(game->scene, cmd->_entity._bf_entity));
-
-                for( struct SceneAction* action = element->actions; action; action = action->next )
+                if( dash3d_projected_model_contains(
+                        game->sys_dash,
+                        scene_element_model(game->scene, cmd->_entity._bf_entity),
+                        game->view_port,
+                        game->mouse_x,
+                        game->mouse_y) )
                 {
-                    printf("Action: %s\n", action->action);
-                }
+                    // 1637
+                    printf(
+                        "Interactable: %s\n",
+                        scene_element_name(game->scene, cmd->_entity._bf_entity));
 
-                // Draw AABB rectangle outline
-                // AABB coordinates are in screen space relative to viewport center
-                // Convert to pixel buffer coordinates
-                struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
-
-                // Convert from viewport-relative coordinates to absolute screen coordinates
-                // AABB coordinates are already adjusted by screen_edge_width/height in
-                // dash3d_calculate_aabb So they're in viewport space (0 to viewport->width, 0 to
-                // viewport->height) Scale to pixel buffer coordinates
-                float scale_x = (float)renderer->width / (float)game->view_port->width;
-                float scale_y = (float)renderer->height / (float)game->view_port->height;
-
-                int pb_min_x = (int)(aabb->min_screen_x * scale_x);
-                int pb_min_y = (int)(aabb->min_screen_y * scale_y);
-                int pb_max_x = (int)(aabb->max_screen_x * scale_x);
-                int pb_max_y = (int)(aabb->max_screen_y * scale_y);
-
-                // Draw top and bottom horizontal lines
-                for( int x = pb_min_x; x <= pb_max_x; x++ )
-                {
-                    if( x >= 0 && x < renderer->width )
+                    for( struct SceneAction* action = element->actions; action;
+                         action = action->next )
                     {
-                        // Top line
-                        if( pb_min_y >= 0 && pb_min_y < renderer->height )
+                        printf("Action: %s\n", action->action);
+                    }
+
+                    // Draw AABB rectangle outline
+                    // AABB coordinates are in screen space relative to viewport center
+                    // Convert to pixel buffer coordinates
+                    struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+
+                    // Convert from viewport-relative coordinates to absolute screen coordinates
+                    // AABB coordinates are already adjusted by screen_edge_width/height in
+                    // dash3d_calculate_aabb So they're in viewport space (0 to viewport->width, 0
+                    // to viewport->height) Scale to pixel buffer coordinates
+                    float scale_x = 1;
+                    float scale_y = 1;
+
+                    int pb_min_x = (int)(aabb->min_screen_x * scale_x);
+                    int pb_min_y = (int)(aabb->min_screen_y * scale_y);
+                    int pb_max_x = (int)(aabb->max_screen_x * scale_x);
+                    int pb_max_y = (int)(aabb->max_screen_y * scale_y);
+
+                    // Draw top and bottom horizontal lines
+                    for( int x = pb_min_x; x <= pb_max_x; x++ )
+                    {
+                        if( x >= 0 && x < renderer->width )
                         {
-                            renderer->pixel_buffer[pb_min_y * renderer->width + x] = 0xFFFFFF;
-                        }
-                        // Bottom line
-                        if( pb_max_y >= 0 && pb_max_y < renderer->height )
-                        {
-                            renderer->pixel_buffer[pb_max_y * renderer->width + x] = 0xFFFFFF;
+                            // Top line
+                            if( pb_min_y >= 0 && pb_min_y < renderer->height )
+                            {
+                                renderer->pixel_buffer[pb_min_y * renderer->width + x] = 0xFFFFFF;
+                            }
+                            // Bottom line
+                            if( pb_max_y >= 0 && pb_max_y < renderer->height )
+                            {
+                                renderer->pixel_buffer[pb_max_y * renderer->width + x] = 0xFFFFFF;
+                            }
                         }
                     }
-                }
 
-                // Draw left and right vertical lines
-                for( int y = pb_min_y; y <= pb_max_y; y++ )
-                {
-                    if( y >= 0 && y < renderer->height )
+                    // Draw left and right vertical lines
+                    for( int y = pb_min_y; y <= pb_max_y; y++ )
                     {
-                        // Left line
-                        if( pb_min_x >= 0 && pb_min_x < renderer->width )
+                        if( y >= 0 && y < renderer->height )
                         {
-                            renderer->pixel_buffer[y * renderer->width + pb_min_x] = 0xFFFFFF;
-                        }
-                        // Right line
-                        if( pb_max_x >= 0 && pb_max_x < renderer->width )
-                        {
-                            renderer->pixel_buffer[y * renderer->width + pb_max_x] = 0xFFFFFF;
+                            // Left line
+                            if( pb_min_x >= 0 && pb_min_x < renderer->width )
+                            {
+                                renderer->pixel_buffer[y * renderer->width + pb_min_x] = 0xFFFFFF;
+                            }
+                            // Right line
+                            if( pb_max_x >= 0 && pb_max_x < renderer->width )
+                            {
+                                renderer->pixel_buffer[y * renderer->width + pb_max_x] = 0xFFFFFF;
+                            }
                         }
                     }
                 }
@@ -437,11 +450,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 done_draw:;
     // for( int i = 0; i < vec_size(game->scene_elements); i++ )
     // {
-    //     struct SceneElement* scene_element = (struct SceneElement*)vec_get(game->scene_elements,
-    //     i); memcpy(&position, scene_element->position, sizeof(struct DashPosition)); position.x =
-    //     position.x - game->camera_world_x; position.y = position.y - game->camera_world_y;
-    //     position.z = position.z - game->camera_world_z;
-    //     dash3d_render_model(
+    //     struct SceneElement* scene_element = (struct
+    //     SceneElement*)vec_get(game->scene_elements, i); memcpy(&position,
+    //     scene_element->position, sizeof(struct DashPosition)); position.x = position.x -
+    //     game->camera_world_x; position.y = position.y - game->camera_world_y; position.z =
+    //     position.z - game->camera_world_z; dash3d_render_model(
     //         game->sys_dash,
     //         scene_element->model,
     //         &position,
