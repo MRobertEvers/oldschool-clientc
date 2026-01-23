@@ -617,14 +617,10 @@ done_draw:;
     int* src_pixels = (int*)surface->pixels;
     int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
 
+    uint16_t* text = (uint16_t*)u"Hello world!";
     if( game->pixfont )
         pixfont_draw_text(
-            game->pixfont,
-            "Hello, world!",
-            0,
-            0,
-            renderer->dash_buffer,
-            renderer->dash_buffer_width);
+            game->pixfont, text, 0, 0, renderer->dash_buffer, renderer->dash_buffer_width);
 
     // Copy dash buffer directly to texture at offset position
     if( renderer->dash_buffer )

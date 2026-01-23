@@ -80,12 +80,20 @@ static char CHARCODESET[256] = { 0 };
 
 // return font;
 
+/**
+ * Runescape only looks at the first byte of a UTF16 code point.
+ * For example, str.charCodeAt(str.indexOf('£')) returns 163 or a3, which is not ascii anyway and
+ * all the other characters are ascii, so there is no collision.
+ *
+ * @param c
+ * @return int
+ */
 static inline int
-index_of_char(char c)
+index_of_char(uint16_t c) // UTF16 code point
 {
-    for( int i = 0; i < sizeof(CHARSET); i++ )
+    for( int i = 0; i < CHAR_COUNT; i++ )
     {
-        if( CHARSET[i] == c )
+        if( (CHARSET[i] & 0xFF) == c )
             return i;
     }
     return -1;
@@ -94,12 +102,14 @@ index_of_char(char c)
 static void
 cache_dat_pixfont_init()
 {
+    // Initialize CHARCODESET for single-byte values (0-255)
     for( int i = 0; i < 256; i++ )
     {
-        int c = index_of_char(i);
+        int c = index_of_char((uint16_t)i);
         if( c == -1 )
-            c = 74; // space
+            c = index_of_char(' '); // space
 
+        assert(c < CHAR_COUNT);
         CHARCODESET[i] = c;
     }
 }
@@ -286,17 +296,24 @@ drawMask(
 void
 pixfont_draw_text(
     struct CacheDatPixfont* pixfont,
-    char* text,
+    uint16_t* utf16_text, // UTF16 encoded string
     int x,
     int y,
     int* pixels,
     int stride)
 {
-    int length = strlen(text);
+    // Calculate length of UTF16 string (null-terminated)
+    int length = 0;
+    while( utf16_text[length] != 0 )
+        length++;
+
     for( int i = 0; i < length; i++ )
     {
-        int c = CHARCODESET[text[i]];
-        if( c != CHAR_COUNT )
+        uint16_t code_point = utf16_text[i];
+        int c = 0;
+        c = CHARCODESET[code_point & 0xFF];
+
+        if( c < CHAR_COUNT )
         {
             int w = pixfont->char_mask_width[c];
             int h = pixfont->char_mask_height[c];
