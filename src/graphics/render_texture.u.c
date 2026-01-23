@@ -41,7 +41,7 @@ raster_texture_blend(
     int offset_x,
     int offset_y)
 {
-    if( true )
+    if( texture_opaque )
     {
         raster_texture_opaque_blend_blerp8(
             pixel_buffer,

@@ -962,10 +962,6 @@ step_textures_load(struct TaskInitSceneDat* task)
             // Hardcoded to 50 in the deob. Not sure why.
             for( int i = 0; i < 50; i++ )
             {
-                if( i == 14 )
-                {
-                    printf("IIII %d\n", i);
-                }
                 struct CacheDatTexture* texture =
                     cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
 
