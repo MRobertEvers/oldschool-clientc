@@ -1,6 +1,7 @@
 #include "dash.h"
 
 #include "dashmap.h"
+#include "osrs/minimap.h"
 #include "osrs/palette.h"
 #include "shared_tables.h"
 
@@ -2072,10 +2073,19 @@ dash2d_fill_minimap_tile(
     int background_rgb,
     int foreground_rgb,
     int angle,
-    int shape)
+    int shape,
+    int clip_width,
+    int clip_height)
 {
     assert(shape >= 0 && shape < 16);
     assert(angle >= 0 && angle < 4);
+
+    // Early exit if tile is completely outside bounds
+    if( x + 3 < 0 || x >= clip_width || y + 3 < 0 || y >= clip_height )
+    {
+        return;
+    }
+
     int* mask = g_minimap_tile_mask[shape];
     int* rotation = g_minimap_tile_rotation_map[angle];
 
@@ -2086,10 +2096,18 @@ dash2d_fill_minimap_tile(
         {
             for( int i = 0; i < 4; i++ )
             {
-                pixel_buffer[offset] = background_rgb;
-                pixel_buffer[offset + 1] = background_rgb;
-                pixel_buffer[offset + 2] = background_rgb;
-                pixel_buffer[offset + 3] = background_rgb;
+                int current_y = y + i;
+                if( current_y >= 0 && current_y < clip_height )
+                {
+                    if( x >= 0 && x < clip_width )
+                        pixel_buffer[offset] = background_rgb;
+                    if( x + 1 >= 0 && x + 1 < clip_width )
+                        pixel_buffer[offset + 1] = background_rgb;
+                    if( x + 2 >= 0 && x + 2 < clip_width )
+                        pixel_buffer[offset + 2] = background_rgb;
+                    if( x + 3 >= 0 && x + 3 < clip_width )
+                        pixel_buffer[offset + 3] = background_rgb;
+                }
                 offset += stride;
             }
         }
@@ -2101,14 +2119,32 @@ dash2d_fill_minimap_tile(
     {
         for( int i = 0; i < 4; i++ )
         {
-            pixel_buffer[offset] =
-                mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
-            pixel_buffer[offset + 1] =
-                mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
-            pixel_buffer[offset + 2] =
-                mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
-            pixel_buffer[offset + 3] =
-                mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+            int current_y = y + i;
+            if( current_y >= 0 && current_y < clip_height )
+            {
+                int color0 =
+                    mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+                int color1 =
+                    mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+                int color2 =
+                    mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+                int color3 =
+                    mask[rotation[shape_vertex_index++]] == 0 ? background_rgb : foreground_rgb;
+
+                if( x >= 0 && x < clip_width )
+                    pixel_buffer[offset] = color0;
+                if( x + 1 >= 0 && x + 1 < clip_width )
+                    pixel_buffer[offset + 1] = color1;
+                if( x + 2 >= 0 && x + 2 < clip_width )
+                    pixel_buffer[offset + 2] = color2;
+                if( x + 3 >= 0 && x + 3 < clip_width )
+                    pixel_buffer[offset + 3] = color3;
+            }
+            else
+            {
+                // Skip shape_vertex_index even if we're not drawing
+                shape_vertex_index += 4;
+            }
             offset += stride;
         }
         return;
@@ -2116,23 +2152,144 @@ dash2d_fill_minimap_tile(
 
     for( int i = 0; i < 4; i++ )
     {
-        if( mask[rotation[shape_vertex_index++]] != 0 )
+        int current_y = y + i;
+        if( current_y >= 0 && current_y < clip_height )
         {
-            pixel_buffer[offset] = foreground_rgb;
+            if( mask[rotation[shape_vertex_index++]] != 0 )
+            {
+                if( x >= 0 && x < clip_width )
+                    pixel_buffer[offset] = foreground_rgb;
+            }
+            if( mask[rotation[shape_vertex_index++]] != 0 )
+            {
+                if( x + 1 >= 0 && x + 1 < clip_width )
+                    pixel_buffer[offset + 1] = foreground_rgb;
+            }
+            if( mask[rotation[shape_vertex_index++]] != 0 )
+            {
+                if( x + 2 >= 0 && x + 2 < clip_width )
+                    pixel_buffer[offset + 2] = foreground_rgb;
+            }
+            if( mask[rotation[shape_vertex_index++]] != 0 )
+            {
+                if( x + 3 >= 0 && x + 3 < clip_width )
+                    pixel_buffer[offset + 3] = foreground_rgb;
+            }
         }
-        if( mask[rotation[shape_vertex_index++]] != 0 )
+        else
         {
-            pixel_buffer[offset + 1] = foreground_rgb;
-        }
-        if( mask[rotation[shape_vertex_index++]] != 0 )
-        {
-            pixel_buffer[offset + 2] = foreground_rgb;
-        }
-        if( mask[rotation[shape_vertex_index++]] != 0 )
-        {
-            pixel_buffer[offset + 3] = foreground_rgb;
+            // Skip shape_vertex_index even if we're not drawing
+            shape_vertex_index += 4;
         }
         offset += stride;
+    }
+}
+
+void
+dash2d_draw_minimap_wall(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int wall,
+    int clip_width,
+    int clip_height)
+{
+    // Early exit if tile is completely outside bounds
+    if( x + 3 < 0 || x >= clip_width || y + 3 < 0 || y >= clip_height )
+    {
+        return;
+    }
+
+    int rgb = 0xFFFFFFFF;
+    int offset = y * stride + x;
+
+    // Draw WEST wall (left edge, vertical line)
+    if( wall & MINIMAP_WALL_WEST )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_y = y + p;
+            if( current_y >= 0 && current_y < clip_height && x >= 0 && x < clip_width )
+            {
+                pixel_buffer[offset + p * stride] = rgb;
+            }
+        }
+    }
+
+    // Draw NORTH wall (top edge, horizontal line)
+    if( wall & MINIMAP_WALL_NORTH )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_x = x + p;
+            if( current_x >= 0 && current_x < clip_width && y >= 0 && y < clip_height )
+            {
+                pixel_buffer[offset + p] = rgb;
+            }
+        }
+    }
+
+    // Draw EAST wall (right edge, vertical line)
+    if( wall & MINIMAP_WALL_EAST )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_y = y + p;
+            int current_x = x + 3;
+            if( current_y >= 0 && current_y < clip_height && current_x >= 0 &&
+                current_x < clip_width )
+            {
+                pixel_buffer[offset + 3 + p * stride] = rgb;
+            }
+        }
+    }
+
+    // Draw SOUTH wall (bottom edge, horizontal line)
+    if( wall & MINIMAP_WALL_SOUTH )
+    {
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_x = x + p;
+            int current_y = y + 3;
+            if( current_x >= 0 && current_x < clip_width && current_y >= 0 &&
+                current_y < clip_height )
+            {
+                pixel_buffer[offset + p + 3 * stride] = rgb;
+            }
+        }
+    }
+
+    // Draw NORTHEAST_SOUTHWEST diagonal (top-right to bottom-left)
+    if( wall & MINIMAP_WALL_NORTHEAST_SOUTHWEST )
+    {
+        // Draw diagonal: (x+3, y+0), (x+2, y+1), (x+1, y+2), (x+0, y+3)
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_x = x + (3 - p);
+            int current_y = y + p;
+            if( current_x >= 0 && current_x < clip_width && current_y >= 0 &&
+                current_y < clip_height )
+            {
+                pixel_buffer[offset + p * stride + (3 - p)] = rgb;
+            }
+        }
+    }
+
+    // Draw NORTHWEST_SOUTHEAST diagonal (top-left to bottom-right)
+    if( wall & MINIMAP_WALL_NORTHWEST_SOUTHEAST )
+    {
+        // Draw diagonal: (x+0, y+0), (x+1, y+1), (x+2, y+2), (x+3, y+3)
+        for( int p = 0; p < 4; p++ )
+        {
+            int current_x = x + p;
+            int current_y = y + p;
+            if( current_x >= 0 && current_x < clip_width && current_y >= 0 &&
+                current_y < clip_height )
+            {
+                pixel_buffer[offset + p * stride + p] = rgb;
+            }
+        }
     }
 }
 

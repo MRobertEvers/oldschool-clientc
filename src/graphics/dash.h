@@ -435,7 +435,19 @@ dash2d_fill_minimap_tile(
     int background_rgb,
     int foreground_rgb,
     int rotation,
-    int shape);
+    int shape,
+    int clip_width,
+    int clip_height);
+
+void
+dash2d_draw_minimap_wall(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int wall,
+    int clip_width,
+    int clip_height);
 
 void
 dash2d_blit_rotated(

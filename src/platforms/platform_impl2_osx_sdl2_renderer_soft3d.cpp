@@ -153,6 +153,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(
     renderer->dash_offset_x = 0;
     renderer->dash_offset_y = 0;
 
+    // Initialize minimap buffer (will be allocated when needed)
+    renderer->minimap_buffer = NULL;
+    renderer->minimap_buffer_width = 0;
+    renderer->minimap_buffer_height = 0;
+
     return renderer;
 }
 
@@ -162,6 +167,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(struct Platform2_OSX_SDL2_Renderer_S
     if( renderer->dash_buffer )
     {
         free(renderer->dash_buffer);
+    }
+    if( renderer->minimap_buffer )
+    {
+        free(renderer->minimap_buffer);
     }
     free(renderer);
 }
@@ -226,6 +235,77 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(
     {
         renderer->dash_offset_x = offset_x;
         renderer->dash_offset_y = offset_y;
+    }
+}
+
+static void
+blit_rotated_buffer(
+    int* src_buffer,
+    int src_width,
+    int src_height,
+    int* dst_buffer,
+    int dst_stride,
+    int dst_width,
+    int dst_height,
+    int dst_x,
+    int dst_y,
+    int anchor_x,
+    int anchor_y,
+    int angle_r2pi2048)
+{
+    int sin = dash_sin(angle_r2pi2048);
+    int cos = dash_cos(angle_r2pi2048);
+
+    // Calculate source center (where the minimap is centered in the buffer)
+    int src_center_x = src_width / 2;
+    int src_center_y = src_height / 2;
+
+    // Calculate the bounding box of the rotated minimap
+    // We'll iterate through a square region that covers the rotated minimap
+    int half_size = (src_width > src_height ? src_width : src_height) / 2;
+    int min_x = dst_x - half_size;
+    int min_y = dst_y - half_size;
+    int max_x = dst_x + half_size;
+    int max_y = dst_y + half_size;
+
+    // Clamp to destination bounds
+    if( min_x < 0 )
+        min_x = 0;
+    if( min_y < 0 )
+        min_y = 0;
+    if( max_x > dst_width )
+        max_x = dst_width;
+    if( max_y > dst_height )
+        max_y = dst_height;
+
+    // Iterate through destination pixels in the rotated region
+    for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )
+    {
+        for( int dst_x_abs = min_x; dst_x_abs < max_x; dst_x_abs++ )
+        {
+            // Calculate position relative to anchor point
+            int rel_x = dst_x_abs - anchor_x;
+            int rel_y = dst_y_abs - anchor_y;
+
+            // Apply inverse rotation to find source pixel
+            // Inverse rotation: to rotate image by angle, we sample at -angle
+            int src_rel_x = (rel_x * cos + rel_y * sin) >> 16;
+            int src_rel_y = (-rel_x * sin + rel_y * cos) >> 16;
+
+            // Convert to source buffer coordinates (relative to source center)
+            int src_x = src_center_x + src_rel_x;
+            int src_y = src_center_y + src_rel_y;
+
+            // Check bounds
+            if( src_x >= 0 && src_x < src_width && src_y >= 0 && src_y < src_height )
+            {
+                int src_pixel = src_buffer[src_y * src_width + src_x];
+                if( src_pixel != 0 )
+                {
+                    dst_buffer[dst_y_abs * dst_stride + dst_x_abs] = src_pixel;
+                }
+            }
+        }
     }
 }
 
@@ -330,6 +410,34 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 0x00,
                 renderer->dash_buffer_width * sizeof(int));
     }
+
+    // Allocate minimap buffer if needed (size based on radius * 2 * 4 pixels per tile)
+    int minimap_size = 220; // Slightly larger than 25*2*4 = 200 for safety
+    if( !renderer->minimap_buffer || renderer->minimap_buffer_width != minimap_size ||
+        renderer->minimap_buffer_height != minimap_size )
+    {
+        if( renderer->minimap_buffer )
+        {
+            free(renderer->minimap_buffer);
+        }
+
+        renderer->minimap_buffer_width = minimap_size;
+        renderer->minimap_buffer_height = minimap_size;
+        renderer->minimap_buffer = (int*)malloc(
+            renderer->minimap_buffer_width * renderer->minimap_buffer_height * sizeof(int));
+        if( !renderer->minimap_buffer )
+        {
+            printf("Failed to allocate minimap buffer\n");
+            return;
+        }
+    }
+
+    // Clear minimap buffer
+    for( int y = 0; y < renderer->minimap_buffer_height; y++ )
+        memset(
+            &renderer->minimap_buffer[y * renderer->minimap_buffer_width],
+            0x00,
+            renderer->minimap_buffer_width * sizeof(int));
 
     // struct AABB aabb;
     struct GRenderCommand* command = NULL;
@@ -807,8 +915,9 @@ done_draw:;
     struct MinimapRenderCommandBuffer* minimap_command_buffer = minimap_commands_new(1024);
     minimap_render(game->sys_minimap, sw_x, sw_z, ne_x, ne_z, 0, minimap_command_buffer);
 
-    int x = 350;
-    int y = 350;
+    // Render minimap to buffer (centered in buffer)
+    int minimap_center_x = renderer->minimap_buffer_width / 2;
+    int minimap_center_y = renderer->minimap_buffer_height / 2;
     int rgb_foreground;
     int rgb_background;
     int shape;
@@ -845,76 +954,32 @@ done_draw:;
                 break;
 
             dash2d_fill_minimap_tile(
-                renderer->pixel_buffer,
-                renderer->width,
-                x + (command->_tile.tile_sx - sw_x) * 4,
-                y - (command->_tile.tile_sz + 1 - sw_z) * 4,
+                renderer->minimap_buffer,
+                renderer->minimap_buffer_width,
+                minimap_center_x + (command->_tile.tile_sx - sw_x) * 4,
+                minimap_center_y - (command->_tile.tile_sz + 1 - sw_z) * 4,
                 rgb_background,
                 rgb_foreground,
                 angle,
-                shape);
+                shape,
+                renderer->minimap_buffer_width,
+                renderer->minimap_buffer_height);
 
             {
                 int wall = minimap_tile_wall(
                     game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
-                int step = renderer->width;
-                int rgb = 0xFFFFFFFF;
-                int* dst = renderer->pixel_buffer;
-                int offset = 0;
-
-                for( int f = 0; f < 12; f++ )
+                if( wall != 0 )
                 {
-                    int wall_flag = (wall & (1 << f)) != 0;
-                    if( wall_flag == 0 )
-                        continue;
-
-                    int tx = x + (command->_tile.tile_sx - sw_x) * 4;
-                    int ty = y - (command->_tile.tile_sz + 1 - sw_z) * 4;
-
-                    offset = ty * renderer->width + tx;
-
-                    if( wall & MINIMAP_WALL_WEST )
-                    {
-                        for( int p = 0; p < 4; p++ )
-                        {
-                            dst[offset + p * step] = rgb;
-                        }
-                    }
-                    else if( wall & MINIMAP_WALL_NORTH )
-                    {
-                        for( int p = 0; p < 4; p++ )
-                        {
-                            dst[offset + p] = rgb;
-                        }
-                    }
-                    else if( wall & MINIMAP_WALL_EAST )
-                    {
-                        for( int p = 0; p < 4; p++ )
-                        {
-                            dst[offset + 3 + p * step] = rgb;
-                        }
-                    }
-                    else if( wall & MINIMAP_WALL_SOUTH )
-                    {
-                        for( int p = 0; p < 4; p++ )
-                        {
-                            dst[offset + p + 3 * step] = rgb;
-                        }
-                    }
-                    else if( wall & MINIMAP_WALL_NORTHEAST_SOUTHWEST )
-                    {
-                        dst[offset + 3 * step] = rgb;
-                        dst[offset + 2 * step + 1] = rgb;
-                        dst[offset + 1 * step + 2] = rgb;
-                        dst[offset + 0 * step + 3] = rgb;
-                    }
-                    else if( wall & MINIMAP_WALL_NORTHWEST_SOUTHEAST )
-                    {
-                        dst[offset + 3 * step + 3] = rgb;
-                        dst[offset + 2 * step + 2] = rgb;
-                        dst[offset + 1 * step + 1] = rgb;
-                        dst[offset + 0 * step + 0] = rgb;
-                    }
+                    int tx = minimap_center_x + (command->_tile.tile_sx - sw_x) * 4;
+                    int ty = minimap_center_y - (command->_tile.tile_sz + 1 - sw_z) * 4;
+                    dash2d_draw_minimap_wall(
+                        renderer->minimap_buffer,
+                        renderer->minimap_buffer_width,
+                        tx,
+                        ty,
+                        wall,
+                        renderer->minimap_buffer_width,
+                        renderer->minimap_buffer_height);
                 }
             }
         }
@@ -923,6 +988,25 @@ done_draw:;
         }
     }
     minimap_commands_free(minimap_command_buffer);
+
+    // Rotate and blit the minimap buffer to the main pixel buffer
+    // Angle: 45 degrees = 2048 * 45 / 360 = 256 (in r2pi2048 format)
+    int minimap_angle_r2pi2048 = 256; // 45 degrees
+    int minimap_dst_x = 350;
+    int minimap_dst_y = 350;
+    blit_rotated_buffer(
+        renderer->minimap_buffer,
+        renderer->minimap_buffer_width,
+        renderer->minimap_buffer_height,
+        renderer->pixel_buffer,
+        renderer->width,
+        renderer->width,
+        renderer->height,
+        minimap_dst_x,
+        minimap_dst_y,
+        minimap_dst_x,
+        minimap_dst_y,
+        game->camera_yaw);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,
