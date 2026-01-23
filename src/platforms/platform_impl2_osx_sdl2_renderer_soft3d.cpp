@@ -344,6 +344,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct DashPosition position = { 0 };
     struct SceneElement* element = NULL;
 
+    int interacting_scene_element = -1;
+
     for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
     {
         struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
@@ -400,15 +402,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         mouse_y_adjusted) )
                 {
                     // 1637
-                    printf(
-                        "Interactable: %s\n",
-                        scene_element_name(game->scene, cmd->_entity._bf_entity));
+                    interacting_scene_element = cmd->_entity._bf_entity;
+                    // printf(
+                    //     "Interactable: %s\n",
+                    //     scene_element_name(game->scene, cmd->_entity._bf_entity));
 
-                    for( struct SceneAction* action = element->actions; action;
-                         action = action->next )
-                    {
-                        printf("Action: %s\n", action->action);
-                    }
+                    // for( struct SceneAction* action = element->actions; action;
+                    //      action = action->next )
+                    // {
+                    //     printf("Action: %s\n", action->action);
+                    // }
 
                     // Draw AABB rectangle outline on dash buffer
                     // AABB coordinates are in screen space relative to viewport center
@@ -590,6 +593,207 @@ done_draw:;
             renderer->pixel_buffer);
     }
 
+    if( game->sprite_backleft1 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backleft1,
+            game->iface_view_port,
+            0,
+            4,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_backleft2 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backleft2,
+            game->iface_view_port,
+            0,
+            357,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_backright1 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backright1,
+            game->iface_view_port,
+            722,
+            4,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_backright2 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backright2,
+            game->iface_view_port,
+            743,
+            205,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_backtop1 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backtop1,
+            game->iface_view_port,
+            0,
+            0,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_backvmid1 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backvmid1,
+            game->iface_view_port,
+            516,
+            4,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_backvmid2 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backvmid2,
+            game->iface_view_port,
+            516,
+            205,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_backvmid3 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backvmid3,
+            game->iface_view_port,
+            496,
+            357,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_backhmid2 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backhmid2,
+            game->iface_view_port,
+            0,
+            338,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_mapback )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_mapback,
+            game->iface_view_port,
+            550,
+            4,
+            renderer->pixel_buffer);
+    }
+
+    int bind_x = 516;
+    int bind_y = 160;
+
+    if( game->sprite_backhmid1 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backhmid1,
+            game->iface_view_port,
+            bind_x,
+            bind_y,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_sideicons[0] )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[0],
+            game->iface_view_port,
+            bind_x + 29,
+            bind_y + 13,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_sideicons[1] )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[1],
+            game->iface_view_port,
+            bind_x + 53,
+            bind_y + 11,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_sideicons[2] )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[2],
+            game->iface_view_port,
+            bind_x + 82,
+            bind_y + 13,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_sideicons[3] )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[3],
+            game->iface_view_port,
+            bind_x + 115,
+            bind_y + 12,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_sideicons[4] )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[4],
+            game->iface_view_port,
+            bind_x + 153,
+            bind_y + 13,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_sideicons[5] )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[5],
+            game->iface_view_port,
+            bind_x + 180,
+            bind_y + 11,
+            renderer->pixel_buffer);
+    }
+
+    if( game->sprite_sideicons[6] )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[6],
+            game->iface_view_port,
+            bind_x + 208,
+            bind_y + 13,
+            renderer->pixel_buffer);
+    }
+
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,
         renderer->width,
@@ -614,15 +818,34 @@ done_draw:;
     uint8_t buffer[100];
     strcpy((char*)buffer, "Hello world!");
     buffer[0] = 163;
-    if( game->pixfont )
-        dashfont_draw_text(
-            game->pixfont,
-            buffer,
-            0,
-            0,
-            0xFFFFFF,
-            renderer->dash_buffer,
-            renderer->dash_buffer_width);
+    // if( game->pixfont_b12 )
+    //     dashfont_draw_text(
+    //         game->pixfont_b12,
+    //         buffer,
+    //         0,
+    //         0,
+    //         0xFFFFFF,
+    //         renderer->dash_buffer,
+    //         renderer->dash_buffer_width);
+
+    if( interacting_scene_element != -1 )
+    {
+        struct SceneElement* element =
+            scene_element_at(game->scene->scenery, interacting_scene_element);
+        if( element )
+        {
+            snprintf((char*)buffer, sizeof(buffer), "%s", element->_dbg_name);
+            if( game->pixfont_b12 )
+                dashfont_draw_text(
+                    game->pixfont_b12,
+                    buffer,
+                    10,
+                    10,
+                    0xFFFF,
+                    renderer->dash_buffer,
+                    renderer->dash_buffer_width);
+        }
+    }
 
     // Copy dash buffer directly to texture at offset position
     if( renderer->dash_buffer )

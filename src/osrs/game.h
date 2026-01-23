@@ -53,7 +53,10 @@ struct GGame
     struct DashViewPort* view_port;
     struct DashViewPort* iface_view_port;
     struct DashCamera* camera;
-    struct DashPixFont* pixfont;
+    struct DashPixFont* pixfont_b12;
+    struct DashPixFont* pixfont_p11;
+    struct DashPixFont* pixfont_p12;
+    struct DashPixFont* pixfont_q8;
     struct GIOQueue* io;
     struct GameTask* tasks_nullable;
 

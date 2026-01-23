@@ -1490,17 +1490,55 @@ step_title_load_poll(
 {
     struct FileListDat* filelist = filelist_dat_new_from_decode(message->data, message->data_size);
 
-    int data_file_idx = filelist_dat_find_file_by_name(filelist, "q8.dat");
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, "b12.dat");
     int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
     assert(
         data_file_idx != -1 && index_file_idx != -1 &&
-        "Failed to find p11.dat or index.dat in filelist");
+        "Failed to find b12.dat or index.dat in filelist");
     struct CacheDatPixfont* pixfont = cache_dat_pixfont_new_decode(
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
-    task->game->pixfont = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    task->game->pixfont_b12 = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    cache_dat_pixfont_free(pixfont);
+
+    data_file_idx = filelist_dat_find_file_by_name(filelist, "p12.dat");
+    assert(
+        data_file_idx != -1 && index_file_idx != -1 &&
+        "Failed to find p12.dat or index.dat in filelist");
+    pixfont = cache_dat_pixfont_new_decode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+    task->game->pixfont_p12 = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    cache_dat_pixfont_free(pixfont);
+
+    data_file_idx = filelist_dat_find_file_by_name(filelist, "p11.dat");
+    assert(
+        data_file_idx != -1 && index_file_idx != -1 &&
+        "Failed to find p11.dat or index.dat in filelist");
+    pixfont = cache_dat_pixfont_new_decode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+    task->game->pixfont_p11 = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    cache_dat_pixfont_free(pixfont);
+
+    data_file_idx = filelist_dat_find_file_by_name(filelist, "q8.dat");
+    assert(
+        data_file_idx != -1 && index_file_idx != -1 &&
+        "Failed to find q8.dat or index.dat in filelist");
+    pixfont = cache_dat_pixfont_new_decode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+    task->game->pixfont_q8 = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    cache_dat_pixfont_free(pixfont);
+
     filelist_dat_free(filelist);
 }
 
