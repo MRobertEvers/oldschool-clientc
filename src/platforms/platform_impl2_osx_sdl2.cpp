@@ -25,13 +25,12 @@ transform_mouse_coordinates(
     int window_mouse_y,
     int* game_mouse_x,
     int* game_mouse_y,
-    int game_screen_width,
-    int game_screen_height,
     struct Platform2_OSX_SDL2* platform)
 {
     // Calculate the same scaling transformation as the rendering
-    float src_aspect = (float)game_screen_width / game_screen_height;
-    float dst_aspect = (float)platform->drawable_width / platform->drawable_height;
+    // Use the fixed game screen dimensions, not the window dimensions
+    float src_aspect = (float)platform->game_screen_width / (float)platform->game_screen_height;
+    float dst_aspect = (float)platform->drawable_width / (float)platform->drawable_height;
 
     int dst_x, dst_y, dst_w, dst_h;
 
@@ -67,8 +66,8 @@ transform_mouse_coordinates(
         float relative_x = (float)(window_mouse_x - dst_x) / dst_w;
         float relative_y = (float)(window_mouse_y - dst_y) / dst_h;
 
-        *game_mouse_x = (int)(relative_x * game_screen_width);
-        *game_mouse_y = (int)(relative_y * game_screen_height);
+        *game_mouse_x = (int)(relative_x * platform->game_screen_width);
+        *game_mouse_y = (int)(relative_y * platform->game_screen_height);
     }
 }
 
@@ -119,8 +118,9 @@ Platform2_OSX_SDL2_InitForSoft3D(
     platform->drawable_width = screen_width;
     platform->drawable_height = screen_height;
 
-    // Store game screen dimensions: use window_width/window_height to preserve
-    // the original game screen dimensions (they get updated on resize for window tracking)
+    // Store fixed game screen dimensions for mouse coordinate transformation
+    platform->game_screen_width = screen_width;
+    platform->game_screen_height = screen_height;
 
     platform->last_frame_time_ticks = SDL_GetTicks64();
     return true;
@@ -173,13 +173,7 @@ Platform2_OSX_SDL2_PollEvents(
                 int current_mouse_x, current_mouse_y;
                 SDL_GetMouseState(&current_mouse_x, &current_mouse_y);
                 transform_mouse_coordinates(
-                    current_mouse_x,
-                    current_mouse_y,
-                    &input->mouse_x,
-                    &input->mouse_y,
-                    platform->window_width,
-                    platform->window_height,
-                    platform);
+                    current_mouse_x, current_mouse_y, &input->mouse_x, &input->mouse_y, platform);
             }
         }
         else if( event.type == SDL_MOUSEMOTION )
@@ -187,13 +181,7 @@ Platform2_OSX_SDL2_PollEvents(
             if( !imgui_wants_mouse )
             {
                 transform_mouse_coordinates(
-                    event.motion.x,
-                    event.motion.y,
-                    &input->mouse_x,
-                    &input->mouse_y,
-                    platform->window_width,
-                    platform->window_height,
-                    platform);
+                    event.motion.x, event.motion.y, &input->mouse_x, &input->mouse_y, platform);
             }
             else
             {
@@ -218,8 +206,6 @@ Platform2_OSX_SDL2_PollEvents(
                     event.button.y,
                     &input->mouse_clicked_x,
                     &input->mouse_clicked_y,
-                    platform->window_width,
-                    platform->window_height,
                     platform);
             }
         }

@@ -23,6 +23,10 @@ struct Platform2_OSX_SDL2
     int drawable_width;
     int drawable_height;
 
+    // Fixed game screen dimensions (used for mouse coordinate transformation)
+    int game_screen_width;
+    int game_screen_height;
+
     uint64_t last_frame_time_ticks;
 
     struct Cache* cache;
