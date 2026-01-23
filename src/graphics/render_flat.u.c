@@ -10,6 +10,7 @@
 static inline void
 raster_flat(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int x1,
@@ -23,12 +24,24 @@ raster_flat(
 {
     if( alpha == 0xFF )
     {
-        raster_flat_s4(pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
+        raster_flat_s4(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
     }
     else
     {
         raster_flat_alpha_s4(
-            pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color,
+            alpha);
     }
 }
 
@@ -53,6 +66,7 @@ raster_face_flat_near_clip(
     int near_plane_z,
     int offset_x,
     int offset_y,
+    int stride,
     int screen_width,
     int screen_height)
 {
@@ -204,7 +218,8 @@ raster_face_flat_near_clip(
     xc += offset_x;
     yc += offset_y;
 
-    raster_flat(pixel_buffer, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
+    raster_flat(
+        pixel_buffer, stride, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
 
     if( clipped_count != 4 )
         return;
@@ -215,7 +230,8 @@ raster_face_flat_near_clip(
     xb += offset_x;
     yb += offset_y;
 
-    raster_flat(pixel_buffer, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
+    raster_flat(
+        pixel_buffer, stride, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
 }
 
 static inline void
@@ -236,6 +252,7 @@ raster_face_flat(
     int near_plane_z,
     int offset_x,
     int offset_y,
+    int stride,
     int screen_width,
     int screen_height)
 {
@@ -264,6 +281,7 @@ raster_face_flat(
             near_plane_z,
             offset_x,
             offset_y,
+            stride,
             screen_width,
             screen_height);
         return;
@@ -293,5 +311,6 @@ raster_face_flat(
 
     // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
 
-    raster_flat(pixel_buffer, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+    raster_flat(
+        pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
 }

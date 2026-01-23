@@ -77,6 +77,7 @@ draw_scanline_gouraud_ordered_bary_bs4(
 static inline void
 raster_gouraud_ordered_bary_bs4(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int x0,
@@ -205,7 +206,7 @@ raster_gouraud_ordered_bary_bs4(
         y1 = 0;
     }
 
-    int offset = y0 * screen_width;
+    int offset = y0 * stride;
 
     if( y1 >= screen_height )
     {
@@ -240,7 +241,7 @@ raster_gouraud_ordered_bary_bs4(
 
             hsl_ish8 += step_y_hsl_ish8;
 
-            offset += screen_width;
+            offset += stride;
         }
 
         while( y2-- > 0 )
@@ -259,7 +260,7 @@ raster_gouraud_ordered_bary_bs4(
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
 
             hsl_ish8 += step_y_hsl_ish8;
-            offset += screen_width;
+            offset += stride;
         }
     }
     else
@@ -286,7 +287,7 @@ raster_gouraud_ordered_bary_bs4(
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
 
             hsl_ish8 += step_y_hsl_ish8;
-            offset += screen_width;
+            offset += stride;
         }
 
         while( y2-- > 0 )
@@ -305,7 +306,7 @@ raster_gouraud_ordered_bary_bs4(
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
 
             hsl_ish8 += step_y_hsl_ish8;
-            offset += screen_width;
+            offset += stride;
         }
     }
 }
@@ -313,6 +314,7 @@ raster_gouraud_ordered_bary_bs4(
 static inline void
 raster_gouraud_bary_bs4(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int x0,
@@ -345,6 +347,7 @@ raster_gouraud_bary_bs4(
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 x0,
@@ -365,6 +368,7 @@ raster_gouraud_bary_bs4(
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 x0,
@@ -391,6 +395,7 @@ raster_gouraud_bary_bs4(
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 x1,
@@ -411,6 +416,7 @@ raster_gouraud_bary_bs4(
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 x1,
@@ -437,6 +443,7 @@ raster_gouraud_bary_bs4(
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 x2,
@@ -457,6 +464,7 @@ raster_gouraud_bary_bs4(
 
             raster_gouraud_ordered_bary_bs4(
                 pixel_buffer,
+                stride,
                 screen_width,
                 screen_height,
                 x2,

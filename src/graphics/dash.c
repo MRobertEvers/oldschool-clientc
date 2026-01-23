@@ -477,6 +477,7 @@ dash3d_raster_model_face(
                 near_plane_z,
                 offset_x,
                 offset_y,
+                stride,
                 screen_width,
                 screen_height);
 
@@ -501,6 +502,7 @@ dash3d_raster_model_face(
                 near_plane_z,
                 offset_x,
                 offset_y,
+                stride,
                 screen_width,
                 screen_height);
 

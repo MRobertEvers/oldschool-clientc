@@ -12,6 +12,7 @@
 static inline void
 raster_gouraud(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int x1,
@@ -30,6 +31,7 @@ raster_gouraud(
         // raster_gouraud_s4(
         raster_gouraud_bary_bs4(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             x1,
@@ -46,6 +48,7 @@ raster_gouraud(
     {
         raster_gouraud_alpha_s4(
             pixel_buffer,
+            stride,
             screen_width,
             screen_height,
             x1,
@@ -84,6 +87,7 @@ raster_face_gouraud_near_clip(
     int near_plane_z,
     int offset_x,
     int offset_y,
+    int stride,
     int screen_width,
     int screen_height)
 {
@@ -263,6 +267,7 @@ raster_face_gouraud_near_clip(
 
     raster_gouraud(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         xa,
@@ -288,6 +293,7 @@ raster_face_gouraud_near_clip(
 
     raster_gouraud(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         xa,
@@ -322,6 +328,7 @@ raster_face_gouraud_near_clipf(
     int near_plane_z,
     int offset_x,
     int offset_y,
+    int stride,
     int screen_width,
     int screen_height)
 {
@@ -516,6 +523,7 @@ raster_face_gouraud_near_clipf(
 
     raster_gouraud(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         xa,
@@ -559,6 +567,7 @@ raster_face_gouraud_near_clipf(
 
     raster_gouraud(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         xa,
@@ -593,6 +602,7 @@ raster_face_gouraud(
     int near_plane_z,
     int offset_x,
     int offset_y,
+    int stride,
     int screen_width,
     int screen_height)
 {
@@ -623,6 +633,7 @@ raster_face_gouraud(
             near_plane_z,
             offset_x,
             offset_y,
+            stride,
             screen_width,
             screen_height);
         return;
@@ -655,6 +666,7 @@ raster_face_gouraud(
 
     raster_gouraud(
         pixel_buffer,
+        stride,
         screen_width,
         screen_height,
         x1,

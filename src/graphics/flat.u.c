@@ -9,7 +9,13 @@ extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
 draw_scanline_flat_s4(
-    int* pixel_buffer, int stride_width, int y, int x_start, int x_end, int color_hsl16)
+    int* pixel_buffer,
+    int stride,
+    int screen_width,
+    int y,
+    int x_start,
+    int x_end,
+    int color_hsl16)
 {
     if( x_start == x_end )
         return;
@@ -21,8 +27,8 @@ draw_scanline_flat_s4(
         x_end = tmp;
     }
 
-    if( x_end >= stride_width )
-        x_end = stride_width - 1;
+    if( x_end >= screen_width )
+        x_end = screen_width - 1;
 
     if( x_start < 0 )
         x_start = 0;
@@ -34,7 +40,7 @@ draw_scanline_flat_s4(
     assert(dx_stride > 0);
 
     // Steps by 4.
-    int offset = x_start + y * stride_width;
+    int offset = x_start + y * stride;
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
 
     int steps = dx_stride >> 2;
@@ -61,6 +67,7 @@ draw_scanline_flat_s4(
 void
 raster_flat_s4(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int x0,
@@ -170,7 +177,7 @@ raster_flat_s4(
         int x_end_current = edge_x_AB_ish16 >> 16;
 
         draw_scanline_flat_s4(
-            pixel_buffer, screen_width, i, x_start_current, x_end_current, color_hsl16);
+            pixel_buffer, stride, screen_width, i, x_start_current, x_end_current, color_hsl16);
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
     }
@@ -185,7 +192,7 @@ raster_flat_s4(
         int x_end_current = edge_x_BC_ish16 >> 16;
 
         draw_scanline_flat_s4(
-            pixel_buffer, screen_width, i, x_start_current, x_end_current, color_hsl16);
+            pixel_buffer, stride, screen_width, i, x_start_current, x_end_current, color_hsl16);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -194,7 +201,14 @@ raster_flat_s4(
 
 static inline void
 draw_scanline_flat_alpha_s4(
-    int* pixel_buffer, int stride_width, int y, int x_start, int x_end, int color_hsl16, int alpha)
+    int* pixel_buffer,
+    int stride,
+    int screen_width,
+    int y,
+    int x_start,
+    int x_end,
+    int color_hsl16,
+    int alpha)
 {
     if( x_start == x_end )
         return;
@@ -206,8 +220,8 @@ draw_scanline_flat_alpha_s4(
         x_end = tmp;
     }
 
-    if( x_end >= stride_width )
-        x_end = stride_width - 1;
+    if( x_end >= screen_width )
+        x_end = screen_width - 1;
 
     if( x_start < 0 )
         x_start = 0;
@@ -219,7 +233,7 @@ draw_scanline_flat_alpha_s4(
     assert(dx_stride > 0);
 
     // Steps by 4.
-    int offset = x_start + y * stride_width;
+    int offset = x_start + y * stride;
     int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
 
     int steps = (dx_stride) >> 2;
@@ -255,6 +269,7 @@ draw_scanline_flat_alpha_s4(
 void
 raster_flat_alpha_s4(
     int* pixel_buffer,
+    int stride,
     int screen_width,
     int screen_height,
     int x0,
@@ -365,7 +380,14 @@ raster_flat_alpha_s4(
         int x_end_current = edge_x_AB_ish16 >> 16;
 
         draw_scanline_flat_alpha_s4(
-            pixel_buffer, screen_width, i, x_start_current, x_end_current, color_hsl16, alpha);
+            pixel_buffer,
+            stride,
+            screen_width,
+            i,
+            x_start_current,
+            x_end_current,
+            color_hsl16,
+            alpha);
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
     }
@@ -380,7 +402,14 @@ raster_flat_alpha_s4(
         int x_end_current = edge_x_BC_ish16 >> 16;
 
         draw_scanline_flat_alpha_s4(
-            pixel_buffer, screen_width, i, x_start_current, x_end_current, color_hsl16, alpha);
+            pixel_buffer,
+            stride,
+            screen_width,
+            i,
+            x_start_current,
+            x_end_current,
+            color_hsl16,
+            alpha);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;
