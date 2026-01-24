@@ -151,16 +151,17 @@ libg_game_new(
     // Camera (pitch, yaw, roll): 388, 1556, 0
 
     // Camera (x, y, z): 3790, -780, 4355 : 29, 34
-    game->camera_world_x = 3790;
-    game->camera_world_y = -780;
-    game->camera_world_z = 4355;
+    // Camera (x, y, z): 79, -150, -64 : 0, 0
+    game->camera_world_x = 79;
+    game->camera_world_y = -150;
+    game->camera_world_z = -64;
 
     // game->camera_world_x = 3939;
     // game->camera_world_y = -800;
     // game->camera_world_z = 12589;
-
-    game->camera_pitch = 388;
-    game->camera_yaw = 1556;
+    // Camera (pitch, yaw, roll): 1916, 328, 0
+    game->camera_pitch = 1916;
+    game->camera_yaw = 328;
     game->camera_roll = 0;
     game->camera_fov = 512;
     game->camera_movement_speed = 70;
@@ -319,7 +320,7 @@ libg_game_new(
     char data[1024];
 
     gametask_new_init_io(game, game->io);
-    gametask_new_init_scene_dat(game, 48, 48, 51, 51);
+    gametask_new_init_scene_dat(game, 50, 50, 51, 51);
     // gametask_new_init_scene(game, 48, 48, 51, 51);
     // gametask_new_init_scene(game, 47, 47, 49, 49);
     // gametask_new_init_scene(game, 40, 40, 41, 41);

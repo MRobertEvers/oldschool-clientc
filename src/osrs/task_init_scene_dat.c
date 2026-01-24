@@ -7,6 +7,7 @@
 #include "game.h"
 #include "gametask.h"
 #include "graphics/dash.h"
+#include "graphics/lighting.h"
 #include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
 #include "osrs/dash_utils.h"
@@ -868,6 +869,63 @@ step_scenery_config_load(struct TaskInitSceneDat* task)
     return GAMETASK_STATUS_COMPLETED;
 }
 
+static const int g_guard_models[] = { 235, 246, 301, 151, 176, 254, 185, 519, 541 };
+
+#include <math.h>
+
+static void
+light_model_default(
+    struct DashModel* dash_model,
+    int model_contrast,
+    int model_ambient)
+{
+    int light_ambient = 64;
+    int light_attenuation = 768;
+    int lightsrc_x = -50;
+    int lightsrc_y = -10;
+    int lightsrc_z = -50;
+
+    light_ambient += model_ambient;
+    // This is what 2004Scape does. Later revs do not.
+    light_attenuation += (model_contrast & 0xff) * 5;
+
+    int light_magnitude =
+        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
+    int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+    calculate_vertex_normals(
+        dash_model->normals->lighting_vertex_normals,
+        dash_model->normals->lighting_face_normals,
+        dash_model->vertex_count,
+        dash_model->face_indices_a,
+        dash_model->face_indices_b,
+        dash_model->face_indices_c,
+        dash_model->vertices_x,
+        dash_model->vertices_y,
+        dash_model->vertices_z,
+        dash_model->face_count);
+
+    apply_lighting(
+        dash_model->lighting->face_colors_hsl_a,
+        dash_model->lighting->face_colors_hsl_b,
+        dash_model->lighting->face_colors_hsl_c,
+        dash_model->normals->lighting_vertex_normals,
+        dash_model->normals->lighting_face_normals,
+        dash_model->face_indices_a,
+        dash_model->face_indices_b,
+        dash_model->face_indices_c,
+        dash_model->face_count,
+        dash_model->face_colors,
+        dash_model->face_alphas,
+        dash_model->face_textures,
+        dash_model->face_infos,
+        light_ambient,
+        attenuation,
+        lightsrc_x,
+        lightsrc_y,
+        lightsrc_z);
+}
+
 static enum GameTaskStatus
 step_models_load(struct TaskInitSceneDat* task)
 {
@@ -890,6 +948,11 @@ step_models_load(struct TaskInitSceneDat* task)
                 task, config_loc_entry->config_loc, config_loc_entry->shape_select);
         }
         dashmap_iter_free(iter);
+
+        for( int i = 0; i < sizeof(g_guard_models) / sizeof(g_guard_models[0]); i++ )
+        {
+            vec_push_unique(task->queued_scenery_models_vec, &g_guard_models[i]);
+        }
 
         int count = vec_size(task->queued_scenery_models_vec);
         for( int i = 0; i < count; i++ )
@@ -924,7 +987,24 @@ step_models_load(struct TaskInitSceneDat* task)
 
         step_stage->step = TS_DONE;
     case TS_DONE:
+    {
+        struct CacheModel* guard_models[sizeof(g_guard_models) / sizeof(g_guard_models[0])] = {};
+        for( int i = 0; i < sizeof(g_guard_models) / sizeof(g_guard_models[0]); i++ )
+        {
+            struct ModelEntry* model_entry = (struct ModelEntry*)dashmap_search(
+                task->models_hmap, &g_guard_models[i], DASHMAP_INSERT);
+            assert(model_entry && "Model must be inserted into hmap");
+            guard_models[i] = model_entry->model;
+        }
+
+        struct CacheModel* merged_model =
+            model_new_merge(guard_models, sizeof(g_guard_models) / sizeof(g_guard_models[0]));
+
+        task->game->model = dashmodel_new_from_cache_model(merged_model);
+        model_free(merged_model);
+        light_model_default(task->game->model, 0, 0);
         break;
+    }
     }
 
     return GAMETASK_STATUS_COMPLETED;

@@ -41,7 +41,7 @@ render_imgui(
         ImGui::GetIO().Framerate);
     Uint64 frequency = SDL_GetPerformanceFrequency();
 
-    ImGui::Text("Buck: %d", game->cc);
+    ImGui::Text("Max paint command: %d", game->cc);
     ImGui::Text("Trap command: %d", g_trap_command);
     if( ImGui::Button("Trap command") )
     {
@@ -243,71 +243,42 @@ blit_rotated_buffer(
     int* src_buffer,
     int src_width,
     int src_height,
-    int* dst_buffer,
-    int dst_stride,
-    int dst_width,
-    int dst_height,
-    int dst_x,
-    int dst_y,
-    int dst_anchor_x,
-    int dst_anchor_y,
     int src_anchor_x,
     int src_anchor_y,
+    int* dst_buffer,
+    int dst_stride,
+    int dst_x,
+    int dst_y,
+    int dst_width,
+    int dst_height,
+    int dst_anchor_x,
+    int dst_anchor_y,
     int angle_r2pi2048)
 {
+    assert(dst_width + dst_x <= dst_stride);
     int sin = dash_sin(angle_r2pi2048);
     int cos = dash_cos(angle_r2pi2048);
 
-    // Calculate the bounding box of the rotated minimap
-    // We'll iterate through a square region that covers the rotated minimap
-    // The bounding box is centered around the destination anchor point (rotation center)
-    int half_size = (src_width > src_height ? src_width : src_height) / 2;
-    int min_x = dst_anchor_x - half_size;
-    int min_y = dst_anchor_y - half_size;
-    int max_x = dst_anchor_x + half_size;
-    int max_y = dst_anchor_y + half_size;
+    int min_x = dst_x;
+    int min_y = dst_y;
+    int max_x = dst_x + dst_width;
+    int max_y = dst_y + dst_height;
 
-    // Clamp to destination bounds
-    if( min_x < 0 )
-        min_x = 0;
-    if( min_y < 0 )
-        min_y = 0;
-    if( max_x > dst_width )
-        max_x = dst_width;
-    if( max_y > dst_height )
-        max_y = dst_height;
+    if( max_x > dst_stride )
+        max_x = dst_stride;
+    // if (max_y > dst_height)
+    //     max_y = dst_height;
 
-    // Iterate through destination pixels in the rotated region
     for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )
     {
         for( int dst_x_abs = min_x; dst_x_abs < max_x; dst_x_abs++ )
         {
-            // Calculate position relative to destination anchor point
-            // When dst_x_abs == dst_anchor_x and dst_y_abs == dst_anchor_y, we want to sample
-            // from src_anchor_x, src_anchor_y to ensure the source anchor coincides with dest
-            // anchor
-            int rel_x = dst_x_abs - dst_anchor_x;
-            int rel_y = dst_y_abs - dst_anchor_y;
+            int rel_x = dst_x_abs - dst_x - dst_anchor_x;
+            int rel_y = dst_y_abs - dst_y - dst_anchor_y;
 
-            // Apply inverse rotation to find which source pixel corresponds to this destination
-            // pixel Forward rotation: a source point (sx_rel, sy_rel) relative to src_anchor maps
-            // to destination (dx_rel, dy_rel) relative to dst_anchor:
-            //   dx_rel = sx_rel*cos(θ) - sy_rel*sin(θ)
-            //   dy_rel = sx_rel*sin(θ) + sy_rel*cos(θ)
-            //
-            // To invert (find source from destination), use inverse rotation matrix:
-            //   sx_rel = dx_rel*cos(θ) + dy_rel*sin(θ)
-            //   sy_rel = -dx_rel*sin(θ) + dy_rel*cos(θ)
-            //
-            // When dst is at anchor (rel_x=0, rel_y=0): src_rel_x=0, src_rel_y=0
-            // So src_x = src_anchor_x, src_y = src_anchor_y
-            // This ensures src_anchor pixel is drawn at dst_anchor position
-            // Using fixed-point: cos and sin are in 16.16 format (already shifted left by 16)
             int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
             int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
 
-            // Convert to absolute source buffer coordinates
-            // The source anchor pixel will be drawn at the destination anchor position
             int src_x = src_anchor_x + src_rel_x;
             int src_y = src_anchor_y + src_rel_y;
 
@@ -697,6 +668,131 @@ done_draw:;
         }
     }
 
+    int camera_tile_x = game->camera_world_x / 128;
+    int camera_tile_z = game->camera_world_z / 128;
+
+    int radius = 25;
+    int sw_x = camera_tile_x - radius;
+    int sw_z = camera_tile_z - radius;
+    int ne_x = camera_tile_x + radius;
+    int ne_z = camera_tile_z + radius;
+
+    struct MinimapRenderCommandBuffer* minimap_command_buffer = minimap_commands_new(1024);
+    minimap_render(game->sys_minimap, sw_x, sw_z, ne_x, ne_z, 0, minimap_command_buffer);
+
+    int rgb_foreground;
+    int rgb_background;
+    int shape;
+    int angle;
+    for( int i = 0; i < minimap_command_buffer->count; i++ )
+    {
+        struct MinimapRenderCommand* command = &minimap_command_buffer->commands[i];
+        switch( command->kind )
+        {
+        case MINIMAP_RENDER_COMMAND_LOC:
+        {
+            break;
+        }
+        case MINIMAP_RENDER_COMMAND_TILE:
+        {
+            shape = minimap_tile_shape(
+                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
+
+            angle = minimap_tile_rotation(
+                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
+            rgb_background = minimap_tile_rgb(
+                game->sys_minimap,
+                command->_tile.tile_sx,
+                command->_tile.tile_sz,
+                0,
+                MINIMAP_BACKGROUND);
+            rgb_foreground = minimap_tile_rgb(
+                game->sys_minimap,
+                command->_tile.tile_sx,
+                command->_tile.tile_sz,
+                0,
+                MINIMAP_FOREGROUND);
+            if( rgb_foreground == 0 && rgb_background == 0 )
+                break;
+
+            // Write minimap starting at (0,0) in the buffer
+            // X: tile_sx increases from sw_x to ne_x, map to 0 to (ne_x - sw_x) * 4
+            int tile_x = (command->_tile.tile_sx - sw_x) * 4;
+            // Y: tile_sz increases from sw_z to ne_z, but we want ne_z at top (y=0) and sw_z at
+            // bottom Original: minimap_center_y - (tile_sz + 1 - sw_z) * 4 For (0,0) start: (ne_z -
+            // tile_sz) * 4
+            int tile_y = (ne_z - command->_tile.tile_sz) * 4;
+            dash2d_fill_minimap_tile(
+                renderer->minimap_buffer,
+                renderer->minimap_buffer_width,
+                tile_x,
+                tile_y,
+                rgb_background,
+                rgb_foreground,
+                angle,
+                shape,
+                renderer->minimap_buffer_width,
+                renderer->minimap_buffer_height);
+
+            {
+                int wall = minimap_tile_wall(
+                    game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
+                if( wall != 0 )
+                {
+                    int tx = tile_x;
+                    int ty = tile_y;
+                    dash2d_draw_minimap_wall(
+                        renderer->minimap_buffer,
+                        renderer->minimap_buffer_width,
+                        tx,
+                        ty,
+                        wall,
+                        renderer->minimap_buffer_width,
+                        renderer->minimap_buffer_height);
+                }
+            }
+        }
+
+        break;
+        }
+    }
+    minimap_commands_free(minimap_command_buffer);
+
+    int mm_side = 800 - (512 + 10);
+    blit_rotated_buffer(
+        renderer->minimap_buffer,
+        renderer->minimap_buffer_width,
+        renderer->minimap_buffer_height,
+        renderer->minimap_buffer_width >> 1,
+        renderer->minimap_buffer_height >> 1,
+        renderer->pixel_buffer,
+        renderer->width,
+        550 + 25,
+        4 + 5,
+        146,
+        151,
+        73,
+        75,
+        game->camera_yaw);
+
+    if( game->sprite_compass )
+        blit_rotated_buffer(
+            game->sprite_compass->pixels_argb,
+            game->sprite_compass->width,
+            game->sprite_compass->height,
+            game->sprite_compass->width >> 1,
+            game->sprite_compass->height >> 1,
+            renderer->pixel_buffer,
+            renderer->width,
+            550,
+            4,
+            33,
+            33,
+            // The game always assumes the dest anchor is the center of the the width and height.
+            16,
+            16,
+            game->camera_yaw);
+
     if( game->sprite_invback )
         dash2d_blit_sprite(
             game->sys_dash,
@@ -918,128 +1014,17 @@ done_draw:;
             renderer->pixel_buffer);
     }
 
-    int camera_tile_x = game->camera_world_x / 128;
-    int camera_tile_z = game->camera_world_z / 128;
-
-    int radius = 25;
-    int sw_x = camera_tile_x - radius;
-    int sw_z = camera_tile_z - radius;
-    int ne_x = camera_tile_x + radius;
-    int ne_z = camera_tile_z + radius;
-
-    struct MinimapRenderCommandBuffer* minimap_command_buffer = minimap_commands_new(1024);
-    minimap_render(game->sys_minimap, sw_x, sw_z, ne_x, ne_z, 0, minimap_command_buffer);
+    // Draw a vertical line at x = 550
+    // for( int y = 0; y < renderer->height; y++ )
+    // {
+    //     if( 550 >= 0 && 550 < renderer->width )
+    //     {
+    //         renderer->pixel_buffer[y * renderer->width + 550] = 0xFFFFFF; // white color
+    //     }
+    // }
 
     // Render minimap to buffer starting at (0,0)
     // Calculate the center of the minimap content for rotation anchor
-    int minimap_content_width = (ne_x - sw_x) * 4;
-    int minimap_content_height = (ne_z - sw_z) * 4;
-    int minimap_content_center_x = minimap_content_width / 2;
-    int minimap_content_center_y = minimap_content_height / 2;
-    int rgb_foreground;
-    int rgb_background;
-    int shape;
-    int angle;
-    for( int i = 0; i < minimap_command_buffer->count; i++ )
-    {
-        struct MinimapRenderCommand* command = &minimap_command_buffer->commands[i];
-        switch( command->kind )
-        {
-        case MINIMAP_RENDER_COMMAND_LOC:
-        {
-            break;
-        }
-        case MINIMAP_RENDER_COMMAND_TILE:
-        {
-            shape = minimap_tile_shape(
-                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
-
-            angle = minimap_tile_rotation(
-                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
-            rgb_background = minimap_tile_rgb(
-                game->sys_minimap,
-                command->_tile.tile_sx,
-                command->_tile.tile_sz,
-                0,
-                MINIMAP_BACKGROUND);
-            rgb_foreground = minimap_tile_rgb(
-                game->sys_minimap,
-                command->_tile.tile_sx,
-                command->_tile.tile_sz,
-                0,
-                MINIMAP_FOREGROUND);
-            if( rgb_foreground == 0 && rgb_background == 0 )
-                break;
-
-            // Write minimap starting at (0,0) in the buffer
-            // X: tile_sx increases from sw_x to ne_x, map to 0 to (ne_x - sw_x) * 4
-            int tile_x = (command->_tile.tile_sx - sw_x) * 4;
-            // Y: tile_sz increases from sw_z to ne_z, but we want ne_z at top (y=0) and sw_z at
-            // bottom Original: minimap_center_y - (tile_sz + 1 - sw_z) * 4 For (0,0) start: (ne_z -
-            // tile_sz) * 4
-            int tile_y = (ne_z - command->_tile.tile_sz) * 4;
-            dash2d_fill_minimap_tile(
-                renderer->minimap_buffer,
-                renderer->minimap_buffer_width,
-                tile_x,
-                tile_y,
-                rgb_background,
-                rgb_foreground,
-                angle,
-                shape,
-                renderer->minimap_buffer_width,
-                renderer->minimap_buffer_height);
-
-            {
-                int wall = minimap_tile_wall(
-                    game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
-                if( wall != 0 )
-                {
-                    int tx = tile_x;
-                    int ty = tile_y;
-                    dash2d_draw_minimap_wall(
-                        renderer->minimap_buffer,
-                        renderer->minimap_buffer_width,
-                        tx,
-                        ty,
-                        wall,
-                        renderer->minimap_buffer_width,
-                        renderer->minimap_buffer_height);
-                }
-            }
-        }
-
-        break;
-        }
-    }
-    minimap_commands_free(minimap_command_buffer);
-
-    // Rotate and blit the minimap buffer to the main pixel buffer
-    // The minimap rotates around its center
-    int minimap_dst_x = 350;
-    int minimap_dst_y = 350;
-    // Destination anchor point is where the minimap center will appear
-    int minimap_dst_anchor_x = minimap_dst_x;
-    int minimap_dst_anchor_y = minimap_dst_y;
-    // Source anchor point is the center of the minimap content (which starts at 0,0 in buffer)
-    // The minimap content center is at (minimap_content_center_x, minimap_content_center_y)
-    int minimap_src_anchor_x = minimap_content_center_x;
-    int minimap_src_anchor_y = minimap_content_center_y;
-    blit_rotated_buffer(
-        renderer->minimap_buffer,
-        renderer->minimap_buffer_width,
-        renderer->minimap_buffer_height,
-        renderer->pixel_buffer,
-        renderer->width,
-        renderer->width,
-        renderer->height,
-        minimap_dst_x,
-        minimap_dst_y,
-        minimap_dst_anchor_x,
-        minimap_dst_anchor_y,
-        minimap_src_anchor_x,
-        minimap_src_anchor_y,
-        game->camera_yaw);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,
