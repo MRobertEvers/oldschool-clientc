@@ -782,6 +782,62 @@ step_models_load(struct TaskInitSceneDat* task)
     return GAMETASK_STATUS_COMPLETED;
 }
 
+static void
+step_textures_load_gather(struct TaskInitSceneDat* task)
+{
+    vec_clear(task->reqid_queue_vec);
+
+    int reqid = gio_assets_dat_config_texture_sprites_load(task->io);
+    vec_push(task->reqid_queue_vec, &reqid);
+}
+
+static void
+step_textures_load_poll(
+    struct TaskInitSceneDat* task,
+    struct GIOMessage* message)
+{
+    struct FileListDat* filelist = filelist_dat_new_from_decode(message->data, message->data_size);
+    struct CacheDatTexture* texture = cache_dat_texture_new_from_filelist_dat(filelist, 0, 0);
+
+    // Hardcoded to 50 in the deob. Not sure why.
+    for( int i = 0; i < 50; i++ )
+    {
+        struct CacheDatTexture* texture = cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
+
+        int animation_direction = TEXANIM_DIRECTION_NONE;
+        int animation_speed = 0;
+
+        /**
+         * In old revisions (e.g. 245.2) the animated textures were hardcoded.
+         */
+        if( i == 17 )
+        {
+            animation_direction = TEXANIM_DIRECTION_V_DOWN;
+            animation_speed = 2;
+        }
+
+        if( i == 24 )
+        {
+            animation_direction = TEXANIM_DIRECTION_V_DOWN;
+            animation_speed = 2;
+        }
+
+        struct DashTexture* dash_texture =
+            texture_new_from_texture_sprite(texture, animation_direction, animation_speed);
+        assert(dash_texture != NULL);
+
+        struct TextureEntry* texture_entry =
+            (struct TextureEntry*)dashmap_search(task->textures_hmap, &i, DASHMAP_INSERT);
+        assert(texture_entry && "Texture must be inserted into hmap");
+
+        texture_entry->id = i;
+        texture_entry->texture = dash_texture;
+
+        scenebuilder_cache_texture(task->scene_builder, i, dash_texture);
+        dash3d_add_texture(task->game->sys_dash, i, dash_texture);
+    }
+}
+
 static enum GameTaskStatus
 step_textures_load(struct TaskInitSceneDat* task)
 {
@@ -794,10 +850,7 @@ step_textures_load(struct TaskInitSceneDat* task)
     {
     case TS_GATHER:
         vec_clear(task->reqid_queue_vec);
-
-        reqid = gio_assets_dat_config_texture_sprites_load(task->io);
-        vec_push(task->reqid_queue_vec, &reqid);
-
+        step_textures_load_gather(task);
         task->reqid_queue_inflight_count = vec_size(task->reqid_queue_vec);
 
         step_stage->step = TS_POLL;
@@ -805,49 +858,9 @@ step_textures_load(struct TaskInitSceneDat* task)
         while( gioq_poll(task->io, &message) )
         {
             task->reqid_queue_inflight_count--;
-            assert(task->reqid_queue_inflight_count == 0);
 
-            struct FileListDat* filelist =
-                filelist_dat_new_from_decode(message.data, message.data_size);
+            step_textures_load_poll(task, &message);
 
-            // Hardcoded to 50 in the deob. Not sure why.
-            for( int i = 0; i < 50; i++ )
-            {
-                struct CacheDatTexture* texture =
-                    cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
-
-                int animation_direction = TEXANIM_DIRECTION_NONE;
-                int animation_speed = 0;
-
-                /**
-                 * In old revisions (e.g. 245.2) the animated textures were hardcoded.
-                 */
-                if( i == 17 )
-                {
-                    animation_direction = TEXANIM_DIRECTION_V_DOWN;
-                    animation_speed = 2;
-                }
-
-                if( i == 24 )
-                {
-                    animation_direction = TEXANIM_DIRECTION_V_DOWN;
-                    animation_speed = 2;
-                }
-
-                struct DashTexture* dash_texture =
-                    texture_new_from_texture_sprite(texture, animation_direction, animation_speed);
-                assert(dash_texture != NULL);
-
-                struct TextureEntry* texture_entry =
-                    (struct TextureEntry*)dashmap_search(task->textures_hmap, &i, DASHMAP_INSERT);
-                assert(texture_entry && "Texture must be inserted into hmap");
-
-                texture_entry->id = i;
-                texture_entry->texture = dash_texture;
-
-                scenebuilder_cache_texture(task->scene_builder, i, dash_texture);
-                dash3d_add_texture(task->game->sys_dash, i, dash_texture);
-            }
             gioq_release(task->io, &message);
         }
         if( task->reqid_queue_inflight_count != 0 )
@@ -894,16 +907,6 @@ step_sequences_load(struct TaskInitSceneDat* task)
 
         scenebuilder_cache_dat_sequence(task->scene_builder, i, sequence);
     }
-
-    // animframe = cache_dat_animframe_new_decode(message.data, message.data_size);
-    // struct AnimframeEntry* animframe_entry = (struct AnimframeEntry*)dashmap_search(
-    //     task->animframes_hmap, &message.param_b, DASHMAP_INSERT);
-    // assert(animframe_entry && "Animframe must be inserted into hmap");
-    // animframe_entry->id = message.param_b;
-    // animframe_entry->animframe = animframe;
-
-    // scenebuilder_cache_animframe(
-    //     task->scene_builder, message.param_b, animframe_entry->animframe);
 
     return GAMETASK_STATUS_COMPLETED;
 }
