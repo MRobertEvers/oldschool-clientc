@@ -2729,19 +2729,31 @@ model_new_merge(
 
     int* face_colors = NULL;
     if( has_face_render_colors )
+    {
         face_colors = (int*)malloc(face_count * sizeof(int));
+        memset(face_colors, 0, face_count * sizeof(int));
+    }
 
     int* textured_p_coordinate = NULL;
     if( has_face_render_textures )
+    {
         textured_p_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+        memset(textured_p_coordinate, 0, textured_face_count * sizeof(int));
+    }
 
     int* textured_m_coordinate = NULL;
     if( has_face_render_textures )
+    {
         textured_m_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+        memset(textured_m_coordinate, 0, textured_face_count * sizeof(int));
+    }
 
     int* textured_n_coordinate = NULL;
     if( has_face_render_textures )
+    {
         textured_n_coordinate = (int*)malloc(textured_face_count * sizeof(int));
+        memset(textured_n_coordinate, 0, textured_face_count * sizeof(int));
+    }
 
     int* vertex_bone_map = NULL;
     if( has_vertex_bones )
@@ -2763,11 +2775,17 @@ model_new_merge(
     {
         face_textures = (int*)malloc(face_count * sizeof(int));
         face_texture_coords = (int*)malloc(face_count * sizeof(int));
+
+        memset(face_textures, 0, face_count * sizeof(int));
+        memset(face_texture_coords, 0, face_count * sizeof(int));
     }
 
     unsigned char* textureRenderTypes = NULL;
     if( has_face_render_textures )
+    {
         textureRenderTypes = (unsigned char*)malloc(textured_face_count * sizeof(unsigned char));
+        memset(textureRenderTypes, 0, textured_face_count * sizeof(unsigned char));
+    }
 
     // model->vertex_count = vertex_count;
     // model->face_count = face_count;
