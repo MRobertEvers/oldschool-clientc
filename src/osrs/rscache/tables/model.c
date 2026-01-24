@@ -2819,7 +2819,8 @@ model_new_merge(
 
     for( int i = 0; i < model_count; i++ )
     {
-        for( int j = 0; j < models[i]->face_count; j++ )
+        int face_count = models[i]->face_count;
+        for( int j = 0; j < face_count; j++ )
         {
             if( face_alphas && models[i]->face_alphas )
                 model->face_alphas[model->face_count] = models[i]->face_alphas[j];
@@ -2906,7 +2907,6 @@ model_new_merge(
             model->textured_m_coordinate[model->textured_face_count] = vertex_index_m;
             model->textured_n_coordinate[model->textured_face_count] = vertex_index_n;
 
-            model->face_textures[model->textured_face_count] = models[i]->face_textures[j];
             model->face_texture_coords[model->textured_face_count] =
                 models[i]->face_texture_coords[j];
 
