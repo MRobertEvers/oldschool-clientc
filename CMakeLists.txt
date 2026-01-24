@@ -18,7 +18,7 @@ endif()
 if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(osx
         test/osx.cpp
-        src/libg.c
+        src/tori_rs.c
         src/bmp.c
         src/datastruct/list.c
         src/datastruct/vec.c

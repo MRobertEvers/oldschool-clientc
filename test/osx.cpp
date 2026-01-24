@@ -1,8 +1,8 @@
 extern "C" {
-#include "libg.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/grender.h"
+#include "tori_rs.h"
 }
 
 #include "platforms/platform_impl2_osx_sdl2.h"
@@ -60,7 +60,7 @@ main(
 
     bool has_message = false;
     struct GIOQueue* io = gioq_new();
-    struct GGame* game = libg_game_new(io, 513, 335);
+    struct GGame* game = LibToriRS_GameNew(io, 513, 335);
     struct GInput input = { 0 };
     struct GRenderCommandBuffer* render_command_buffer = grendercb_new(1024);
     struct GIOMessage message = { 0 };
@@ -97,14 +97,14 @@ main(
 
     PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 4, 4);
 
-    libg_game_step_tasks(game, &input, render_command_buffer);
-    while( libg_game_is_running(game) )
+    LibToriRS_GameStepTasks(game, &input, render_command_buffer);
+    while( LibToriRS_GameIsRunning(game) )
     {
         // Poll backend
         Platform2_OSX_SDL2_PollIO(platform, io);
         Platform2_OSX_SDL2_PollEvents(platform, &input);
 
-        libg_game_step(game, &input, render_command_buffer);
+        LibToriRS_GameStep(game, &input, render_command_buffer);
 
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, render_command_buffer);
     }

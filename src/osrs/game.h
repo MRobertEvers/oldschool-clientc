@@ -38,8 +38,14 @@ struct GGame
     int camera_movement_speed;
     int camera_rotation_speed;
 
-    struct Vec* entity_dashmodels;
-    struct Vec* entity_painters;
+    int player_pos_tile_x;
+    int player_pos_tile_z;
+
+    int player_pathing_tile_x;
+    int player_pathing_tile_z;
+
+    uint64_t tick_ms;
+    uint64_t next_tick_ms;
 
     struct Vec* scene_elements;
     struct Scene* scene;

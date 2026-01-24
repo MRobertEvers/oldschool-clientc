@@ -1,4 +1,4 @@
-#include "libg.h"
+#include "tori_rs.h"
 
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
@@ -25,108 +25,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct DashModel*
-dashmodel_new_from_cache(
-    struct Cache* cache,
-    int model_id)
-{
-    struct CacheModel* model = model_new_from_cache(cache, model_id);
-    if( !model )
-    {
-        printf("Failed to load model %d\n", model_id);
-        return NULL;
-    }
-
-    struct DashModel* dashmodel = malloc(sizeof(struct DashModel));
-    memset(dashmodel, 0, sizeof(struct DashModel));
-    dashmodel->vertex_count = model->vertex_count;
-
-    dashmodel->vertices_x = model->vertices_x;
-    dashmodel->vertices_y = model->vertices_y;
-    dashmodel->vertices_z = model->vertices_z;
-
-    dashmodel->face_count = model->face_count;
-    dashmodel->face_indices_a = model->face_indices_a;
-    dashmodel->face_indices_b = model->face_indices_b;
-    dashmodel->face_indices_c = model->face_indices_c;
-    dashmodel->face_alphas = model->face_alphas;
-    dashmodel->face_infos = model->face_infos;
-    dashmodel->face_priorities = model->face_priorities;
-    dashmodel->textured_face_count = model->textured_face_count;
-    dashmodel->textured_p_coordinate = model->textured_p_coordinate;
-    dashmodel->textured_m_coordinate = model->textured_m_coordinate;
-    dashmodel->textured_n_coordinate = model->textured_n_coordinate;
-    dashmodel->face_textures = model->face_textures;
-    dashmodel->face_texture_coords = model->face_texture_coords;
-
-    dashmodel->normals = dashmodel_normals_new(model->vertex_count, model->face_count);
-
-    calculate_vertex_normals(
-        dashmodel->normals->lighting_vertex_normals,
-        dashmodel->normals->lighting_face_normals,
-        dashmodel->vertex_count,
-        dashmodel->face_indices_a,
-        dashmodel->face_indices_b,
-        dashmodel->face_indices_c,
-        dashmodel->vertices_x,
-        dashmodel->vertices_y,
-        dashmodel->vertices_z,
-        dashmodel->face_count);
-
-    struct DashModelLighting* lighting =
-        (struct DashModelLighting*)dashmodel_lighting_new(dashmodel->face_count);
-    dashmodel->lighting = lighting;
-
-    int light_ambient = 64;
-    int light_attenuation = 768;
-    int lightsrc_x = -50;
-    int lightsrc_y = -10;
-    int lightsrc_z = -50;
-
-    {
-        light_ambient += 0;
-        // 2004Scape multiplies contrast by 5.
-        // Later versions do not.
-        light_attenuation += 0;
-    }
-
-    int light_magnitude =
-        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    int attenuation = (light_attenuation * light_magnitude) >> 8;
-
-    apply_lighting(
-        lighting->face_colors_hsl_a,
-        lighting->face_colors_hsl_b,
-        lighting->face_colors_hsl_c,
-        dashmodel->normals->lighting_vertex_normals,
-        dashmodel->normals->lighting_face_normals,
-        dashmodel->face_indices_a,
-        dashmodel->face_indices_b,
-        dashmodel->face_indices_c,
-        dashmodel->face_count,
-        model->face_colors,
-        dashmodel->face_alphas,
-        dashmodel->face_textures,
-        dashmodel->face_infos,
-        light_ambient,
-        attenuation,
-        lightsrc_x,
-        lightsrc_y,
-        lightsrc_z);
-
-    dashmodel->bounds_cylinder =
-        (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
-    dash3d_calculate_bounds_cylinder(
-        dashmodel->bounds_cylinder,
-        model->vertex_count,
-        model->vertices_x,
-        model->vertices_y,
-        model->vertices_z);
-    return dashmodel;
-}
-
 struct GGame*
-libg_game_new(
+LibToriRS_GameNew(
     struct GIOQueue* io,
     int graphics3d_width,
     int graphics3d_height)
@@ -172,22 +72,6 @@ libg_game_new(
     game->sys_dash = dash_new();
 
     game->scene_elements = vec_new(sizeof(struct SceneElement), 1024);
-    game->entity_dashmodels = vec_new(sizeof(int), 1024);
-    game->entity_painters = vec_new(sizeof(int), 1024);
-
-    struct Cache* cache = cache_new_from_directory(CACHE_PATH);
-    if( !cache )
-    {
-        printf("Failed to load cache from directory: %s\n", CACHE_PATH);
-        return NULL;
-    }
-    struct CacheModel* model = model_new_from_cache(cache, 0);
-    game->model = dashmodel_new_from_cache(cache, 0);
-    if( !game->model )
-    {
-        printf("Failed to load model %d\n", 0);
-        return NULL;
-    }
 
     game->position = malloc(sizeof(struct DashPosition));
     memset(game->position, 0, sizeof(struct DashPosition));
@@ -198,17 +82,6 @@ libg_game_new(
     game->iface_view_port = malloc(sizeof(struct DashViewPort));
     memset(game->iface_view_port, 0, sizeof(struct DashViewPort));
 
-    // Camera (x, y, z): 3939, -800, 12589 : 30, 98
-    // Camera (pitch, yaw, roll): 388, 1556, 0
-
-    // game->position->x = 3939;
-    // game->position->y = -800;
-    // game->position->z = 12589;
-
-    // game->position->pitch = 388;
-    // game->position->yaw = 1556;
-    // game->position->roll = 0;
-
     game->view_port->stride = graphics3d_width;
     game->view_port->width = graphics3d_width;
     game->view_port->height = graphics3d_height;
@@ -218,137 +91,14 @@ libg_game_new(
     game->camera->fov_rpi2048 = 512;
     game->camera->near_plane_z = 50;
 
-    struct CacheDat* cache_dat = cache_dat_new(CACHE_DAT_PATH);
-    struct CacheDatArchive* archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_MODELS, 0);
-    assert(archive);
-
-    struct CacheModel* datmodel = model_new_from_archive(archive, 0);
-    struct DashModel* dashmodel = dashmodel_new_from_cache_model(datmodel);
-    game->model = dashmodel;
-
-    dashmodel->normals = dashmodel_normals_new(game->model->vertex_count, game->model->face_count);
-    calculate_vertex_normals(
-        dashmodel->normals->lighting_vertex_normals,
-        dashmodel->normals->lighting_face_normals,
-        game->model->vertex_count,
-        game->model->face_indices_a,
-        game->model->face_indices_b,
-        game->model->face_indices_c,
-        game->model->vertices_x,
-        game->model->vertices_y,
-        game->model->vertices_z,
-        game->model->face_count);
-
-    struct DashModelLighting* lighting = dashmodel_lighting_new(game->model->face_count);
-
-    dashmodel->lighting = lighting;
-
-    int light_ambient = 64;
-    int light_attenuation = 768;
-    int lightsrc_x = -50;
-    int lightsrc_y = -10;
-    int lightsrc_z = -50;
-
-    {
-        light_ambient += 0;
-        // 2004Scape multiplies contrast by 5.
-        // Later versions do not.
-        light_attenuation += 0;
-    }
-
-    int light_magnitude =
-        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    int attenuation = (light_attenuation * light_magnitude) >> 8;
-    apply_lighting(
-        lighting->face_colors_hsl_a,
-        lighting->face_colors_hsl_b,
-        lighting->face_colors_hsl_c,
-        dashmodel->normals->lighting_vertex_normals,
-        dashmodel->normals->lighting_face_normals,
-        dashmodel->face_indices_a,
-        dashmodel->face_indices_b,
-        dashmodel->face_indices_c,
-        dashmodel->face_count,
-        dashmodel->face_colors,
-        dashmodel->face_alphas,
-        dashmodel->face_textures,
-        dashmodel->face_infos,
-        64,
-        768,
-        -50,
-        -10,
-        -50);
-
-    archive = cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_VERSION_LIST);
-
-    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
-
-    char* file_data = NULL;
-    int file_data_size = 0;
-    int name_hash = archive_name_hash_dat("map_index");
-    for( int i = 0; i < filelist->file_count; i++ )
-    {
-        if( filelist->file_name_hashes[i] == name_hash )
-        {
-            printf("Found map index at index %d\n", i);
-            file_data = filelist->files[i];
-            file_data_size = filelist->file_sizes[i];
-            break;
-        }
-    }
-
-    assert(file_data);
-
-    struct CacheMapSquares* map_squares = cache_map_squares_new_decode(file_data, file_data_size);
-    assert(map_squares);
-
-    for( int i = 0; i < map_squares->squares_count; i++ )
-    {
-        struct MapSquareCoord coord = { 0 };
-        cache_map_square_coord(&coord, map_squares->squares[i].map_id);
-        printf(
-            "Map square %d: (%d, %d), %d, %d\n",
-            i,
-            coord.map_x,
-            coord.map_z,
-            map_squares->squares[i].terrain_archive_id,
-            map_squares->squares[i].loc_archive_id);
-    }
-
-    cache_map_squares_free(map_squares);
-
-    char data[1024];
-
     gametask_new_init_io(game, game->io);
     gametask_new_init_scene_dat(game, 50, 50, 51, 51);
-    // gametask_new_init_scene(game, 48, 48, 51, 51);
-    // gametask_new_init_scene(game, 47, 47, 49, 49);
-    // gametask_new_init_scene(game, 40, 40, 41, 41);
-    // gametask_new_init_scene(game, 23, 54, 25, 54);
-
-    // struct PacketBuffer packetbuffer;
-    // packetbuffer_init(&packetbuffer, GAMEPROTO_REVISION_LC254);
-
-    // gameproto_packet_write_maprebuild8_z16_x16(
-    //     data, PKTIN_LC254_REBUILD_NORMAL, sizeof(data), 50 * 8, 50 * 8);
-
-    // packetbuffer_read(&packetbuffer, data, sizeof(data));
-    // assert(packetbuffer_ready(&packetbuffer));
-
-    // gameproto_process(
-    //     game,
-    //     GAMEPROTO_REVISION_LC254,
-    //     packetbuffer.packet_type,
-    //     packetbuffer.data,
-    //     packetbuffer.data_size);
-
-    // packetbuffer_reset(&packetbuffer);
 
     return game;
 }
 
 void
-libg_game_process_input(
+LibToriRS_GameProcessInput(
     struct GGame* game,
     struct GInput* input)
 {
@@ -499,7 +249,7 @@ on_completed_task(
 }
 
 void
-libg_game_step_tasks(
+LibToriRS_GameStepTasks(
     struct GGame* game,
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer)
@@ -521,7 +271,7 @@ libg_game_step_tasks(
 }
 
 void
-libg_game_step(
+LibToriRS_GameStep(
     struct GGame* game,
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer)
@@ -535,14 +285,14 @@ libg_game_step(
         return;
     }
 
-    libg_game_step_tasks(game, input, render_command_buffer);
+    LibToriRS_GameStepTasks(game, input, render_command_buffer);
     task = game->tasks_nullable;
     if( task && task->status != GAMETASK_STATUS_COMPLETED )
     {
         return;
     }
 
-    libg_game_process_input(game, input);
+    LibToriRS_GameProcessInput(game, input);
 
     dash_animate_textures(game->sys_dash, game->cycles);
 
@@ -581,7 +331,7 @@ libg_game_step(
 }
 
 bool
-libg_game_is_running(struct GGame* game)
+LibToriRS_GameIsRunning(struct GGame* game)
 {
     return game->running;
 }

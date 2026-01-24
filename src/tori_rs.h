@@ -1,5 +1,5 @@
-#ifndef LIBG_H
-#define LIBG_H
+#ifndef TORI_RS_H
+#define TORI_RS_H
 
 #include "datastruct/vec.h"
 #include "osrs/game.h"
@@ -19,17 +19,17 @@ struct DashViewPort;
 struct DashCamera;
 
 struct GGame*
-libg_game_new(
+LibToriRS_GameNew(
     struct GIOQueue* io,
     int graphics3d_width,
     int graphics3d_height);
 
 void
-libg_game_process_input(
+LibToriRS_GameProcessInput(
     struct GGame* game,
     struct GInput* input);
 void
-libg_game_step_tasks(
+LibToriRS_GameStepTasks(
     struct GGame* game,
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer);
@@ -41,14 +41,14 @@ void
 LibToriRS_EndFrame(struct GGame* game);
 
 void
-libg_game_free(struct GGame* game);
+LibToriRS_GameFree(struct GGame* game);
 void
-libg_game_step(
+LibToriRS_GameStep(
     struct GGame* game,
     struct GInput* input,
     struct GRenderCommandBuffer* render_command_buffer);
 
 bool
-libg_game_is_running(struct GGame* game);
+LibToriRS_GameIsRunning(struct GGame* game);
 
 #endif

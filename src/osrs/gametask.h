@@ -1,7 +1,7 @@
 #ifndef GAMETASK_H
 #define GAMETASK_H
 
-#include "libg.h"
+#include "osrs/game.h"
 #include "osrs/gametask_status.h"
 #include "osrs/gio.h"
 

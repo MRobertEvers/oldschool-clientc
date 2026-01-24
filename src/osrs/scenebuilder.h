@@ -3,7 +3,7 @@
 
 #include "configmap.h"
 #include "datastruct/hmap.h"
-#include "libg.h"
+#include "osrs/game.h"
 #include "osrs/minimap.h"
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"

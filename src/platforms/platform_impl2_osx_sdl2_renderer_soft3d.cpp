@@ -6,10 +6,10 @@
 
 extern "C" {
 #include "graphics/dash.h"
-#include "libg.h"
 #include "osrs/minimap.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
+#include "tori_rs.h"
 }
 
 #include <SDL.h>
