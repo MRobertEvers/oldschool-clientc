@@ -3,6 +3,12 @@
 
 #include "osrs/gio.h"
 
+/**
+ * Note: This should only be used as a network abstraction.
+ * Only assets that are requested over a network should be here,
+ * subfiles, and parts of archives should be loaded by the game
+ * logic.
+ */
 enum AssetKind
 {
     ASSET_BAD = 0,
@@ -23,13 +29,14 @@ enum AssetKind
     ASSET_DAT_MODELS,
     ASSET_DAT_ANIMBASEFRAMES,
     ASSET_DAT_SOUND,
-    ASSET_DAT_CONFIG_VERSIONLIST_ANIMINDEX,
-    ASSET_DAT_CONFIG_TEXTURE_SPRITES,
+    ASSET_DAT_CONFIG_TITLE_AND_FONTS,
+    ASSET_DAT_CONFIG_CONFIGS,
+    ASSET_DAT_CONFIG_INTERFACES,
     ASSET_DAT_CONFIG_MEDIA_2D_GRAPHICS,
-    ASSET_DAT_CONFIG_TITLE,
-    ASSET_DAT_CONFIG_FILE_SEQ,
-    ASSET_DAT_CONFIG_FILE_FLOORTYPE,
-    ASSET_DAT_CONFIG_FILEIDX_SCENERY,
+    ASSET_DAT_CONFIG_VERSION_LIST,
+    ASSET_DAT_CONFIG_TEXTURES,
+    ASSET_DAT_CONFIG_CHAT_SYSTEM,
+    ASSET_DAT_CONFIG_SOUND_EFFECTS,
     ASSET_TABLE_COUNT
 };
 
@@ -122,15 +129,24 @@ uint32_t
 gio_assets_dat_config_title_load(struct GIOQueue* q);
 
 uint32_t
-gio_assets_dat_config_flotype_file_load(struct GIOQueue* q);
+gio_assets_dat_config_configs_load(struct GIOQueue* q);
 
 uint32_t
-gio_assets_dat_config_seq_file_load(struct GIOQueue* q);
+gio_assets_dat_config_interfaces_load(struct GIOQueue* q);
 
 uint32_t
-gio_assets_dat_config_scenery_fileidx_load(struct GIOQueue* q);
+gio_assets_dat_config_media_2d_graphics_load(struct GIOQueue* q);
 
 uint32_t
-gio_assets_dat_config_versionlist_animindex_load(struct GIOQueue* q);
+gio_assets_dat_config_version_list_load(struct GIOQueue* q);
+
+uint32_t
+gio_assets_dat_config_textures_load(struct GIOQueue* q);
+
+uint32_t
+gio_assets_dat_config_chat_system_load(struct GIOQueue* q);
+
+uint32_t
+gio_assets_dat_config_sound_effects_load(struct GIOQueue* q);
 
 #endif

@@ -125,7 +125,7 @@ gio_assets_dat_sound_load(
 uint32_t
 gio_assets_dat_config_texture_sprites_load(struct GIOQueue* q)
 {
-    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_TEXTURE_SPRITES, 0, 0);
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_TEXTURES, 0, 0);
 }
 
 uint32_t
@@ -137,29 +137,41 @@ gio_assets_dat_config_media_load(struct GIOQueue* q)
 uint32_t
 gio_assets_dat_config_title_load(struct GIOQueue* q)
 {
-    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_TITLE, 0, 0);
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_TITLE_AND_FONTS, 0, 0);
 }
 
 uint32_t
-gio_assets_dat_config_flotype_file_load(struct GIOQueue* q)
+gio_assets_dat_config_configs_load(struct GIOQueue* q)
 {
-    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_FILE_FLOORTYPE, 0, 0);
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_CONFIGS, 0, 0);
 }
 
 uint32_t
-gio_assets_dat_config_seq_file_load(struct GIOQueue* q)
+gio_assets_dat_config_interfaces_load(struct GIOQueue* q)
 {
-    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_FILE_SEQ, 0, 0);
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_INTERFACES, 0, 0);
 }
 
 uint32_t
-gio_assets_dat_config_scenery_fileidx_load(struct GIOQueue* q)
+gio_assets_dat_config_media_2d_graphics_load(struct GIOQueue* q)
 {
-    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_FILEIDX_SCENERY, 0, 0);
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_MEDIA_2D_GRAPHICS, 0, 0);
 }
 
 uint32_t
-gio_assets_dat_config_versionlist_animindex_load(struct GIOQueue* q)
+gio_assets_dat_config_version_list_load(struct GIOQueue* q)
 {
-    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_VERSIONLIST_ANIMINDEX, 0, 0);
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_VERSION_LIST, 0, 0);
+}
+
+uint32_t
+gio_assets_dat_config_textures_load(struct GIOQueue* q)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_TEXTURES, 0, 0);
+}
+
+uint32_t
+gio_assets_dat_config_chat_system_load(struct GIOQueue* q)
+{
+    return gioq_submit(q, GIO_REQ_ASSET, ASSET_DAT_CONFIG_CHAT_SYSTEM, 0, 0);
 }
