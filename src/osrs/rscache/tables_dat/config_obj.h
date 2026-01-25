@@ -50,13 +50,15 @@ struct CacheDatConfigObj
 
 struct CacheDatConfigObjList
 {
-    struct CacheDatConfigObj* objs;
+    struct CacheDatConfigObj** objs;
     int objs_count;
 };
 
 struct CacheDatConfigObjList*
 cache_dat_config_obj_list_new_decode(
-    void* jagfile_objdat_data,
-    int jagfile_objdat_data_size);
+    char* index_data,
+    int index_data_size,
+    char* data,
+    int data_size);
 
 #endif

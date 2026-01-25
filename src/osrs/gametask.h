@@ -57,8 +57,6 @@ gametask_new_init_scene_dat(
 struct GameTask*
 gametask_new_load_dat(
     struct GGame* game,
-    int* sequence_ids,
-    int sequence_count,
     int* model_ids,
     int model_count);
 

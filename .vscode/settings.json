@@ -223,7 +223,10 @@
         "config_textures.h": "c",
         "cache_dat.h": "c",
         "frame.h": "c",
-        "task_load_dat.h": "c"
+        "task_load_dat.h": "c",
+        "animframe.h": "c",
+        "task_init_scene.h": "c",
+        "_light_model_default.u.c": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

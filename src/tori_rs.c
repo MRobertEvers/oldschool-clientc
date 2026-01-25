@@ -19,7 +19,7 @@
 // clang-format on
 
 #define CACHE_PATH "../cache"
-#define CACHE_DAT_PATH "../cache254"
+#define CACHE_DAT_PATH "../cache245_2"
 
 #include <math.h>
 #include <stdlib.h>
@@ -38,6 +38,11 @@ LibToriRS_GameNew(
 
     game->io = io;
     game->running = true;
+
+    game->player_tx = -1;
+    game->player_tz = -1;
+    game->player_draw_x = -1;
+    game->player_draw_z = -1;
 
     // x =
     // 7616
@@ -68,11 +73,6 @@ LibToriRS_GameNew(
     game->camera_rotation_speed = 20;
     game->cc = 100000;
     game->latched = false;
-
-    // Initialize camera target fields
-    game->camera_target_tile_x = -1;
-    game->camera_target_tile_z = -1;
-    game->camera_last_move_time_ms = 0;
 
     game->sys_dash = dash_new();
 
@@ -326,44 +326,63 @@ LibToriRS_GameStep(
                 }
             }
         }
-    }
 
-    // Get current time (using tick_ms as fallback, or we can use a platform-specific timer)
-    // For now, we'll use a simple approach: track time in game structure
-    // The timestamp will be updated by the platform layer
-    if( game->player_tx != -1 )
-    {
-        int player_draw_tx = game->player_draw_x / 128;
-        int player_draw_tz = game->player_draw_z / 128;
-        if( game->player_tx != player_draw_tx || game->player_tz != player_draw_tz )
+        // Get current time (using tick_ms as fallback, or we can use a platform-specific timer)
+        // For now, we'll use a simple approach: track time in game structure
+        // The timestamp will be updated by the platform layer
+        if( game->player_tx != -1 )
         {
-            // Move one tile if enough time has passed
-
-            int xdiff = game->player_tx - player_draw_tx;
-            int zdiff = game->player_tz - player_draw_tz;
-            int xmove = 0;
-            int zmove = 0;
-            if( xdiff != 0 )
-                xmove = xdiff > 0 ? 1 : -1;
-            if( zdiff != 0 )
-                zmove = zdiff > 0 ? 1 : -1;
-
-            // Update camera world position
-            game->player_draw_x += xmove * (128 / 12);
-            game->player_draw_z += zmove * (128 / 12);
-
-            if( xdiff >= 2 || zdiff >= 2 )
+            int player_target_draw_x = game->player_tx * 128;
+            int player_target_draw_z = game->player_tz * 128;
+            if( player_target_draw_x != game->player_draw_x ||
+                player_target_draw_z != game->player_draw_z )
             {
-                game->player_state = 2;
+                // Move one tile if enough time has passed
+
+                int xdiff = player_target_draw_x - game->player_draw_x;
+                int zdiff = player_target_draw_z - game->player_draw_z;
+                int xmove = 0;
+                int zmove = 0;
+                int pxmove = 0;
+                int pzmove = 0;
+                // 4 6
+                static const int move_speed = 4;
+                if( abs(xdiff) > move_speed )
+                {
+                    xmove = xdiff > 0 ? 1 : -1;
+                    pxmove = xmove * move_speed;
+                }
+                else
+                {
+                    pxmove = player_target_draw_x - game->player_draw_x;
+                }
+                if( abs(zdiff) > move_speed )
+                {
+                    zmove = zdiff > 0 ? 1 : -1;
+                    pzmove = zmove * move_speed;
+                }
+                else
+                {
+                    pzmove = player_target_draw_z - game->player_draw_z;
+                }
+
+                // Update camera world position
+                game->player_draw_x += pxmove;
+                game->player_draw_z += pzmove;
+
+                if( xdiff >= 2 || zdiff >= 2 )
+                {
+                    game->player_state = 2;
+                }
+                else
+                {
+                    game->player_state = 1;
+                }
             }
             else
             {
-                game->player_state = 1;
+                game->player_state = 0;
             }
-        }
-        else
-        {
-            game->player_state = 0;
         }
     }
 

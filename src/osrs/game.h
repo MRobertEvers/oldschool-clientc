@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include "datastruct/vec.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/gametask.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
@@ -17,6 +18,8 @@ struct GGame
 {
     bool running;
 
+    int awaiting_models;
+    int build_player;
     int cc;
     bool latched;
 
@@ -53,8 +56,9 @@ struct GGame
     int player_turnanim;
     int player_readyanim;
 
-    void* config_jagfile;
-    void* versionlist_jagfile;
+    struct BuildCacheDat* buildcachedat;
+
+    void* scenebuilder;
 
     uint64_t tick_ms;
     uint64_t next_tick_ms;

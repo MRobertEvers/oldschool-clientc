@@ -21,6 +21,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/tori_rs.c
         src/bmp.c
         src/server/server.c
+        src/osrs/buildcachedat.c
         src/server/prot.c
         src/datastruct/list.c
         src/datastruct/vec.c
@@ -39,6 +40,8 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/rscache/tables/textures.c
         src/osrs/rscache/tables/sprites.c
         src/osrs/rscache/tables_dat/config_textures.c
+        src/osrs/rscache/tables_dat/config_idk.c
+        src/osrs/rscache/tables_dat/config_obj.c
         src/osrs/rscache/tables_dat/animframe.c
         src/osrs/rscache/tables_dat/pix8.c
         src/osrs/rscache/tables_dat/pix32.c
@@ -66,6 +69,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/task_init_io.c
         src/osrs/task_init_scene.c
         src/osrs/task_init_scene_dat.c
+        src/osrs/task_load_models_dat.c
         src/osrs/configmap.c
         src/osrs/filepack.c
         src/osrs/dash_utils.c

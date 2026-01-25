@@ -6,8 +6,12 @@
 
 extern "C" {
 #include "graphics/dash.h"
+#include "osrs/_light_model_default.u.c"
+#include "osrs/dash_utils.h"
+#include "osrs/dashlib.h"
 #include "osrs/minimap.h"
 #include "osrs/rscache/rsbuf.h"
+#include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 #include "server/prot.h"
@@ -658,9 +662,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                             mouse_x_adjusted,
                             mouse_y_adjusted) )
                     {
-                        // renderer->clicked_tile_x = sx;
-                        // renderer->clicked_tile_z = sz;
-                        // renderer->clicked_tile_level = slevel;
+                        renderer->clicked_tile_x = sx;
+                        renderer->clicked_tile_z = sz;
+                        renderer->clicked_tile_level = slevel;
                     }
                 }
             }
@@ -705,6 +709,10 @@ done_draw:;
         case GRENDER_CMD_MODEL_DRAW:
         {
             position = *game->position;
+            position.x = game->player_draw_x + 64;
+            position.z = game->player_draw_z + 64;
+            position.y =
+                scene_terrain_height_center(game->scene, game->player_tx, game->player_tz, 0);
             position.x = position.x - game->camera_world_x;
             position.y = position.y - game->camera_world_y;
             position.z = position.z - game->camera_world_z;
@@ -1246,6 +1254,161 @@ done_draw:;
     SDL_RenderPresent(renderer->renderer);
 }
 
+static int
+idk_model(
+    struct GGame* game,
+    int idk_id)
+{
+    struct BuildCacheDat* buildcachedat = game->buildcachedat;
+    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+    int models_queue[50] = { 0 };
+    int models_queue_count = 0;
+
+    if( !idk )
+        return -2;
+
+    struct CacheModel* models[50] = { 0 };
+
+    if( idk )
+    {
+        struct CacheModel* model = buildcachedat_get_idk_model(buildcachedat, idk_id);
+        if( model )
+            return idk_id;
+
+        for( int i = 0; i < idk->models_count; i++ )
+        {
+            int model_id = idk->models[i];
+            struct CacheModel* model = buildcachedat_get_model(buildcachedat, model_id);
+            if( !model )
+                models_queue[models_queue_count++] = model_id;
+            else
+                models[i] = model;
+        }
+
+        if( models_queue_count > 0 )
+        {
+            gametask_new_load_dat(game, models_queue, models_queue_count);
+            return -1;
+        }
+
+        struct CacheModel* merged_model = NULL;
+        if( idk->models_count > 1 )
+        {
+            merged_model = model_new_merge(models, idk->models_count);
+            for( int i = 0; i < idk->models_count; i++ )
+            {
+                merged_model->_ids[i] = models[i]->_id;
+            }
+        }
+        else
+        {
+            merged_model = model_new_copy(models[0]);
+            merged_model->_id = idk_id;
+        }
+
+        buildcachedat_add_idk_model(buildcachedat, idk_id, merged_model);
+
+        return idk_id;
+    }
+
+    return -1;
+}
+
+// static int
+// obj_model(
+//     struct GGame* game,
+//     int obj_id)
+// {
+//     struct BuildCacheDat* buildcachedat = game->buildcachedat;
+//     struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+//     int models_queue[50] = { 0 };
+//     int models_queue_count = 0;
+
+//     struct CacheModel* models[50] = { 0 };
+
+//     if( obj )
+//     {
+//         struct CacheModel* model = buildcachedat_get_obj_model(buildcachedat, obj_id);
+//         if( model )
+//             return obj_id;
+
+//         for( int i = 0; i < obj->models_count; i++ )
+//         {
+//             int model_id = obj->models[i];
+//             struct CacheModel* model = buildcachedat_get_model(buildcachedat, model_id);
+//             if( !model )
+//                 models_queue[models_queue_count++] = model_id;
+//             else
+//                 models[i] = model;
+//         }
+
+//         if( models_queue_count > 0 )
+//         {
+//             gametask_new_load_dat(game, models_queue, models_queue_count);
+//             return -1;
+//         }
+
+//         struct CacheModel* merged_model = model_new_merge(models, obj->models_count);
+//         buildcachedat_add_obj_model(buildcachedat, obj_id, merged_model);
+//         return obj_id;
+//     }
+//     return -1;
+// }
+
+static void
+build_player(struct GGame* game)
+{
+    struct BuildCacheDat* buildcachedat = game->buildcachedat;
+
+    int queue_models[50] = { 0 };
+    int queue_models_count = 0;
+    int right_hand_value = 0;
+    int left_hand_value = 0;
+
+    struct CacheModel* models[50] = { 0 };
+    int build_models[50] = { 0 };
+    int build_models_count = 0;
+
+    for( int i = 0; i < 12; i++ )
+    {
+        int appearance = game->player_slots[i];
+        if( right_hand_value >= 0 && i == 3 )
+        {
+            appearance = right_hand_value;
+        }
+        if( left_hand_value >= 0 && i == 5 )
+        {
+            appearance = left_hand_value;
+        }
+        if( appearance >= 0x100 && appearance < 0x200 )
+        {
+            appearance -= 0x100;
+            int model_id = idk_model(game, appearance);
+            if( model_id >= 0 )
+            {
+                struct CacheModel* model = buildcachedat_get_idk_model(buildcachedat, model_id);
+                assert(model && "Model must be found");
+                models[build_models_count++] = model;
+            }
+            else if( model_id != -2 )
+            {
+                game->awaiting_models++;
+            }
+        }
+    }
+
+    if( game->awaiting_models == 0 && build_models_count > 0 )
+    {
+        struct CacheModel* merged_model = model_new_merge(models, build_models_count);
+        game->model = dashmodel_new_from_cache_model(merged_model);
+        model_free(merged_model);
+
+        _light_model_default(game->model, 0, 0);
+
+        game->build_player = 0;
+    }
+}
+
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
@@ -1256,6 +1419,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
     if( !server )
     {
         return;
+    }
+
+    if( game->build_player == 1 )
+    {
+        build_player(game);
     }
 
     if( renderer->first_frame == 0 )
@@ -1302,12 +1470,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
     server_get_outgoing_message(server, &server_message_data, &server_message_size);
 
     struct RSBuffer buffer;
-    rsbuf_init(&buffer, server_message_data, server_message_size);
+    rsbuf_init(&buffer, (int8_t*)server_message_data, server_message_size);
 
     while( buffer.position < buffer.size )
     {
-        int message_kind = g1(&buffer);
-        int message_size = client_prot_get_packet_size(message_kind);
+        int message_kind = buffer.data[buffer.position];
+        int message_size = client_prot_get_packet_size((enum ClientProtKind)message_kind);
 
         void* data = buffer.data + buffer.position;
         int data_size = message_size - buffer.position;
@@ -1317,7 +1485,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
         case CLIENT_PROT_PLAYER_MOVE:
         {
             struct ClientProtPlayerMove player_move;
-            buffer.position += client_prot_player_move_decode(&player_move, data, data_size);
+            buffer.position +=
+                client_prot_player_move_decode(&player_move, (uint8_t*)data, data_size);
 
             game->player_tx = player_move.x;
             game->player_tz = player_move.z;
@@ -1326,7 +1495,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
         case CLIENT_PROT_PLAYER:
         {
             struct ClientProtPlayer player;
-            buffer.position += client_prot_player_decode(&player, data, data_size);
+            buffer.position += client_prot_player_decode(&player, (uint8_t*)data, data_size);
 
             game->player_tx = player.x;
             game->player_tz = player.z;
@@ -1341,8 +1510,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
             game->player_walkanim_l = player.walkanim_l;
             game->player_turnanim = player.turnanim;
             game->player_readyanim = player.readyanim;
+
+            game->build_player = 1;
         }
         break;
+        }
+
+        if( game->player_draw_x == -1 && game->player_draw_z == -1 )
+        {
+            game->player_draw_x = game->player_tx * 128;
+            game->player_draw_z = game->player_tz * 128;
         }
     }
 }

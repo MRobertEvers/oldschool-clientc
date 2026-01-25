@@ -1,6 +1,11 @@
 #include "config_idk.h"
 
 #include "../rsbuf.h"
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 // if (code === 1) {
 //     this.type = dat.g1();
 // } else if (code === 2) {
@@ -23,14 +28,16 @@
 // }
 
 static struct CacheDatConfigIdk*
-decode_idk(struct RSBuffer* buffer)
+decode_idk(struct RSBuffer* inb)
 {
     struct CacheDatConfigIdk* idk = malloc(sizeof(struct CacheDatConfigIdk));
     memset(idk, 0, sizeof(struct CacheDatConfigIdk));
 
+    struct RSBuffer buffer = *inb;
+
     while( true )
     {
-        if( buffer->position >= buffer->size )
+        if( buffer.position >= buffer.size )
         {
             assert(false && "Buffer position exceeded data size");
             return NULL;
@@ -73,6 +80,8 @@ decode_idk(struct RSBuffer* buffer)
             break;
         }
     }
+
+    *inb = buffer;
     return idk;
 }
 
@@ -89,13 +98,17 @@ cache_dat_config_idk_list_new_decode(
                                .position = 0 };
 
     int idk_count = g2(&buffer);
-    idk_list->idks = malloc(idk_count * sizeof(struct CacheDatConfigIdk));
-    memset(idk_list->idks, 0, idk_count * sizeof(struct CacheDatConfigIdk));
+    idk_list->idks = malloc(idk_count * sizeof(struct CacheDatConfigIdk**));
+    memset(idk_list->idks, 0, idk_count * sizeof(struct CacheDatConfigIdk*));
 
     idk_list->idks_count = idk_count;
 
     for( int i = 0; i < idk_count; i++ )
     {
+        if( i == 18 )
+        {
+            printf("Decoding idk %d\n", i);
+        }
         idk_list->idks[i] = decode_idk(&buffer);
         if( idk_list->idks[i] == NULL )
         {

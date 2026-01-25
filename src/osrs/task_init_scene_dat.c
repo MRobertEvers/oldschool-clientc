@@ -8,6 +8,7 @@
 #include "gametask.h"
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
 #include "osrs/dash_utils.h"
@@ -26,6 +27,8 @@
 #include "osrs/rscache/tables/sprites.h"
 #include "osrs/rscache/tables/textures.h"
 #include "osrs/rscache/tables_dat/animframe.h"
+#include "osrs/rscache/tables_dat/config_idk.h"
+#include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
@@ -49,57 +52,6 @@ enum TaskStepKind
 struct TaskStep
 {
     enum TaskStepKind step;
-};
-
-struct FlotypeEntry
-{
-    int id;
-    struct CacheConfigOverlay* flotype;
-};
-
-struct ConfigLocEntry
-{
-    int id;
-    int shape_select;
-    struct CacheConfigLocation* config_loc;
-};
-
-struct AnimframeEntry
-{
-    int id;
-    struct CacheAnimframe* animframe;
-};
-
-struct AnimbaseframesEntry
-{
-    int id;
-    struct CacheDatAnimBaseFrames* animbaseframes;
-};
-
-struct SceneryEntry
-{
-    int id;
-    int mapx;
-    int mapz;
-    struct CacheMapLocs* locs;
-};
-
-struct ModelEntry
-{
-    int id;
-    struct CacheModel* model;
-};
-
-struct TextureEntry
-{
-    int id;
-    struct DashTexture* texture;
-};
-
-struct SequenceEntry
-{
-    int id;
-    struct CacheDatSequence* sequence;
 };
 
 struct Chunk
@@ -142,15 +94,7 @@ struct TaskInitSceneDat
 
     struct SceneBuilder* scene_builder;
 
-    struct DashMap* flotype_hmap;
-    struct DashMap* textures_hmap;
-    struct DashMap* scenery_hmap;
-    struct DashMap* models_hmap;
-    struct DashMap* config_loc_hmap;
-    struct DashMap* animframes_hmap;
-    // For cleanup.
-    struct DashMap* animbaseframes_hmap;
-    struct DashMap* sequences_hmap;
+    struct BuildCacheDat* buildcachedat;
 
     struct DashPix8* pix8;
     struct DashPixPalette* palette;
@@ -171,9 +115,6 @@ struct TaskInitSceneDat
 
     struct Vec* reqid_queue_vec;
     int reqid_queue_inflight_count;
-
-    struct FileListDat* config_jagfile;
-    struct FileListDat* versionlist_jagfile;
 
     struct Painter* painter;
 };
@@ -276,108 +217,18 @@ task_init_scene_dat_new(
     task->scene_builder = scenebuilder_new_painter(
         task->painter, game->sys_minimap, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 
+    game->scenebuilder = task->scene_builder;
+
     task->reqid_queue_vec = vec_new(sizeof(int), 64);
     task->reqid_queue_inflight_count = 0;
 
     task->queued_texture_ids_vec = vec_new(sizeof(int), 512);
     task->queued_scenery_models_vec = vec_new(sizeof(int), 512);
 
-    int buffer_size = 1024 * sizeof(struct TextureEntry) * 4;
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct TextureEntry),
-    };
-    task->textures_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct FlotypeEntry),
-    };
-    task->flotype_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct SceneryEntry),
-    };
-    task->scenery_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct ModelEntry),
-    };
-    task->models_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct ConfigLocEntry),
-    };
-    task->config_loc_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size * 8),
-        .buffer_size = buffer_size * 8,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct AnimframeEntry),
-    };
-    task->animframes_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct AnimbaseframesEntry),
-    };
-    task->animbaseframes_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct SequenceEntry),
-    };
-    task->sequences_hmap = dashmap_new(&config, 0);
+    game->buildcachedat = buildcachedat_new();
+    task->buildcachedat = game->buildcachedat;
 
     return task;
-}
-
-static void
-step_terrain_load_gather(struct TaskInitSceneDat* task)
-{
-    int reqid = 0;
-    vec_clear(task->reqid_queue_vec);
-    for( int i = 0; i < task->chunks_count; i++ )
-    {
-        reqid = gio_assets_dat_map_terrain_load(task->io, task->chunks[i].x, task->chunks[i].z);
-
-        vec_push(task->reqid_queue_vec, &reqid);
-    }
-}
-
-static void
-step_terrain_load_poll(
-    struct TaskInitSceneDat* task,
-    struct GIOMessage* message)
-{
-    struct CacheMapTerrain* terrain = NULL;
-
-    int map_x = (message->param_b >> 16) & 0xFFFF;
-    int map_z = message->param_b & 0xFFFF;
-
-    terrain = map_terrain_new_from_decode_flags(
-        message->data, message->data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
-
-    scenebuilder_cache_map_terrain(task->scene_builder, map_x, map_z, terrain);
 }
 
 static enum GameTaskStatus
@@ -409,15 +260,15 @@ step_configs_load(struct TaskInitSceneDat* task)
 
             if( message.message_id == configs_reqid )
             {
-                task->config_jagfile =
-                    filelist_dat_new_from_decode(message.data, message.data_size);
-                task->game->config_jagfile = task->config_jagfile;
+                buildcachedat_set_config_jagfile(
+                    task->buildcachedat,
+                    filelist_dat_new_from_decode(message.data, message.data_size));
             }
             else if( message.message_id == versionlist_reqid )
             {
-                task->versionlist_jagfile =
-                    filelist_dat_new_from_decode(message.data, message.data_size);
-                task->game->versionlist_jagfile = task->versionlist_jagfile;
+                buildcachedat_set_versionlist_jagfile(
+                    task->buildcachedat,
+                    filelist_dat_new_from_decode(message.data, message.data_size));
             }
 
             gioq_release(task->io, &message);
@@ -430,6 +281,35 @@ step_configs_load(struct TaskInitSceneDat* task)
     }
 
     return GAMETASK_STATUS_COMPLETED;
+}
+
+static void
+step_terrain_load_gather(struct TaskInitSceneDat* task)
+{
+    int reqid = 0;
+    vec_clear(task->reqid_queue_vec);
+    for( int i = 0; i < task->chunks_count; i++ )
+    {
+        reqid = gio_assets_dat_map_terrain_load(task->io, task->chunks[i].x, task->chunks[i].z);
+
+        vec_push(task->reqid_queue_vec, &reqid);
+    }
+}
+
+static void
+step_terrain_load_poll(
+    struct TaskInitSceneDat* task,
+    struct GIOMessage* message)
+{
+    struct CacheMapTerrain* terrain = NULL;
+
+    int map_x = (message->param_b >> 16) & 0xFFFF;
+    int map_z = message->param_b & 0xFFFF;
+
+    terrain = map_terrain_new_from_decode_flags(
+        message->data, message->data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
+
+    scenebuilder_cache_map_terrain(task->scene_builder, map_x, map_z, terrain);
 }
 
 static enum GameTaskStatus
@@ -474,14 +354,15 @@ step_flotype_load(struct TaskInitSceneDat* task)
     int reqid = 0;
     struct ConfigMap* configmap = NULL;
 
-    assert(task->config_jagfile != NULL && "Config jagfile must be loaded");
-    int data_file_idx = filelist_dat_find_file_by_name(task->config_jagfile, "flo.dat");
+    struct FileListDat* config_jagfile = buildcachedat_config_jagfile(task->buildcachedat);
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
+    int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "flo.dat");
 
     assert(data_file_idx != -1 && "Data file must be found");
 
     struct RSBuffer buffer = {
-        .data = task->config_jagfile->files[data_file_idx],
-        .size = task->config_jagfile->file_sizes[data_file_idx],
+        .data = config_jagfile->files[data_file_idx],
+        .size = config_jagfile->file_sizes[data_file_idx],
         .position = 0,
     };
     struct CacheConfigOverlay* flotype = NULL;
@@ -496,11 +377,7 @@ step_flotype_load(struct TaskInitSceneDat* task)
         buffer.position += config_floortype_overlay_decode_inplace(
             flotype, buffer.data + buffer.position, buffer.size - buffer.position);
 
-        struct FlotypeEntry* flotype_entry =
-            (struct FlotypeEntry*)dashmap_search(task->flotype_hmap, &i, DASHMAP_INSERT);
-        assert(flotype_entry && "Flotype must be inserted into hmap");
-        flotype_entry->id = i;
-        flotype_entry->flotype = flotype;
+        buildcachedat_add_flotype(task->buildcachedat, i, flotype);
 
         scenebuilder_cache_flotype(task->scene_builder, i, flotype);
     }
@@ -517,7 +394,6 @@ step_scenery_load(struct TaskInitSceneDat* task)
     struct DashMapIter* iter = NULL;
     struct GIOMessage message = { 0 };
     int reqid = 0;
-    struct SceneryEntry* scenery_entry = NULL;
     int mapxz = 0;
 
     switch( step_stage->step )
@@ -541,15 +417,8 @@ step_scenery_load(struct TaskInitSceneDat* task)
             locs->_chunk_mapx = message.param_b >> 16;
             locs->_chunk_mapz = message.param_b & 0xFFFF;
 
-            mapxz = MAPXZ(locs->_chunk_mapx, locs->_chunk_mapz);
-
-            struct SceneryEntry* scenery_entry =
-                (struct SceneryEntry*)dashmap_search(task->scenery_hmap, &mapxz, DASHMAP_INSERT);
-            assert(scenery_entry && "Scenery entry must be inserted into hmap");
-            scenery_entry->id = mapxz;
-            scenery_entry->mapx = locs->_chunk_mapx;
-            scenery_entry->mapz = locs->_chunk_mapz;
-            scenery_entry->locs = locs;
+            buildcachedat_add_scenery(
+                task->buildcachedat, locs->_chunk_mapx, locs->_chunk_mapz, locs);
 
             scenebuilder_cache_map_locs(
                 task->scene_builder, locs->_chunk_mapx, locs->_chunk_mapz, locs);
@@ -577,26 +446,27 @@ step_scenery_config_load(struct TaskInitSceneDat* task)
     struct CacheMapLocs* locs = NULL;
     struct CacheMapLoc* loc = NULL;
     struct DashMapIter* iter = NULL;
-    struct SceneryEntry* scenery_entry = NULL;
     struct FileListDatIndexed* filelist_indexed = NULL;
     int mapxz = 0;
 
-    int data_file_idx = filelist_dat_find_file_by_name(task->config_jagfile, "loc.dat");
-    int index_file_idx = filelist_dat_find_file_by_name(task->config_jagfile, "loc.idx");
+    struct FileListDat* config_jagfile = buildcachedat_config_jagfile(task->buildcachedat);
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+    int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.dat");
+    int index_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.idx");
 
     assert(data_file_idx != -1 && "Data file must be found");
     assert(index_file_idx != -1 && "Index file must be found");
 
     filelist_indexed = filelist_dat_indexed_new_from_decode(
-        task->config_jagfile->files[index_file_idx],
-        task->config_jagfile->file_sizes[index_file_idx],
-        task->config_jagfile->files[data_file_idx],
-        task->config_jagfile->file_sizes[data_file_idx]);
+        config_jagfile->files[index_file_idx],
+        config_jagfile->file_sizes[index_file_idx],
+        config_jagfile->files[data_file_idx],
+        config_jagfile->file_sizes[data_file_idx]);
 
-    iter = dashmap_iter_new(task->scenery_hmap);
-    while( (scenery_entry = (struct SceneryEntry*)dashmap_iter_next(iter)) )
+    iter = buildcachedat_iter_new_scenery(task->buildcachedat);
+    while( (locs = buildcachedat_iter_next_scenery(iter)) )
     {
-        locs = scenery_entry->locs;
         for( int i = 0; i < locs->locs_count; i++ )
         {
             struct CacheConfigLocation* config_loc = malloc(sizeof(struct CacheConfigLocation));
@@ -604,10 +474,6 @@ step_scenery_config_load(struct TaskInitSceneDat* task)
 
             loc = &locs->locs[i];
             int offset = filelist_indexed->offsets[loc->loc_id];
-            if( loc->loc_id == 187 )
-            {
-                printf("loc_id: %d\n", loc->loc_id);
-            }
 
             config_locs_decode_inplace(
                 config_loc,
@@ -615,28 +481,13 @@ step_scenery_config_load(struct TaskInitSceneDat* task)
                 filelist_indexed->data_size - offset,
                 CONFIG_LOC_DECODE_DAT);
 
-            struct ConfigLocEntry* config_loc_entry = (struct ConfigLocEntry*)dashmap_search(
-                task->config_loc_hmap, &loc->loc_id, DASHMAP_INSERT);
-            assert(config_loc_entry && "Config loc entry must be inserted into hmap");
-            assert(config_loc_entry->id == loc->loc_id);
-            config_loc_entry->id = loc->loc_id;
-            config_loc_entry->shape_select = loc->shape_select;
-            config_loc_entry->config_loc = config_loc;
             config_loc->_id = loc->loc_id;
-            assert(
-                config_loc_entry->id == loc->loc_id &&
-                config_loc_entry->config_loc->_id == loc->loc_id);
+
+            buildcachedat_add_config_loc(
+                task->buildcachedat, loc->loc_id, loc->shape_select, config_loc);
 
             scenebuilder_cache_config_loc(task->scene_builder, loc->loc_id, config_loc);
         }
-    }
-    dashmap_iter_free(iter);
-
-    iter = dashmap_iter_new(task->config_loc_hmap);
-    struct ConfigLocEntry* config_loc_entry = NULL;
-    while( (config_loc_entry = (struct ConfigLocEntry*)dashmap_iter_next(iter)) )
-    {
-        assert(config_loc_entry->id == config_loc_entry->config_loc->_id);
     }
     dashmap_iter_free(iter);
 
@@ -708,18 +559,18 @@ step_models_load(struct TaskInitSceneDat* task)
     int reqid = 0;
     struct GIOMessage message = { 0 };
     struct DashMapIter* iter = NULL;
-    struct ConfigLocEntry* config_loc_entry = NULL;
+    struct CacheConfigLocation* config_loc = NULL;
+    int shape_select = 0;
 
     switch( step_stage->step )
     {
     case TS_GATHER:
         vec_clear(task->reqid_queue_vec);
 
-        iter = dashmap_iter_new(task->config_loc_hmap);
-        while( (config_loc_entry = (struct ConfigLocEntry*)dashmap_iter_next(iter)) )
+        iter = buildcachedat_iter_new_config_locs(task->buildcachedat);
+        while( (config_loc = buildcachedat_iter_next_config_loc(iter, &shape_select)) )
         {
-            queue_scenery_models(
-                task, config_loc_entry->config_loc, config_loc_entry->shape_select);
+            queue_scenery_models(task, config_loc, shape_select);
         }
         dashmap_iter_free(iter);
 
@@ -744,14 +595,11 @@ step_models_load(struct TaskInitSceneDat* task)
         {
             task->reqid_queue_inflight_count--;
 
-            struct ModelEntry* model_entry = (struct ModelEntry*)dashmap_search(
-                task->models_hmap, &message.param_b, DASHMAP_INSERT);
-            assert(model_entry && "Model must be inserted into hmap");
-            model_entry->id = message.param_b;
+            struct CacheModel* model = model_new_decode(message.data, message.data_size);
 
-            model_entry->model = model_new_decode(message.data, message.data_size);
-            model_entry->model->_id = message.param_b;
-            scenebuilder_cache_model(task->scene_builder, message.param_b, model_entry->model);
+            buildcachedat_add_model(task->buildcachedat, message.param_b, model);
+
+            scenebuilder_cache_model(task->scene_builder, message.param_b, model);
 
             gioq_release(task->io, &message);
         }
@@ -765,10 +613,7 @@ step_models_load(struct TaskInitSceneDat* task)
         struct CacheModel* guard_models[sizeof(g_guard_models) / sizeof(g_guard_models[0])] = {};
         for( int i = 0; i < sizeof(g_guard_models) / sizeof(g_guard_models[0]); i++ )
         {
-            struct ModelEntry* model_entry = (struct ModelEntry*)dashmap_search(
-                task->models_hmap, &g_guard_models[i], DASHMAP_INSERT);
-            assert(model_entry && "Model must be inserted into hmap");
-            guard_models[i] = model_entry->model;
+            guard_models[i] = buildcachedat_get_model(task->buildcachedat, g_guard_models[i]);
         }
 
         struct CacheModel* merged_model =
@@ -828,14 +673,10 @@ step_textures_load_poll(
             texture_new_from_texture_sprite(texture, animation_direction, animation_speed);
         assert(dash_texture != NULL);
 
-        struct TextureEntry* texture_entry =
-            (struct TextureEntry*)dashmap_search(task->textures_hmap, &i, DASHMAP_INSERT);
-        assert(texture_entry && "Texture must be inserted into hmap");
-
-        texture_entry->id = i;
-        texture_entry->texture = dash_texture;
+        buildcachedat_add_texture(task->buildcachedat, i, dash_texture);
 
         scenebuilder_cache_texture(task->scene_builder, i, dash_texture);
+
         dash3d_add_texture(task->game->sys_dash, i, dash_texture);
     }
 }
@@ -881,16 +722,14 @@ step_sequences_load(struct TaskInitSceneDat* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_7_LOAD_SEQUENCES];
 
-    struct ConfigLocEntry* config_loc_entry = NULL;
-    struct DashMapIter* iter = NULL;
+    struct FileListDat* config_jagfile = buildcachedat_config_jagfile(task->buildcachedat);
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
 
-    struct CacheAnimframe* animframe = NULL;
-
-    int data_file_idx = filelist_dat_find_file_by_name(task->config_jagfile, "seq.dat");
+    int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "seq.dat");
     assert(data_file_idx != -1 && "Data file must be found");
 
-    struct RSBuffer buffer = { .data = task->config_jagfile->files[data_file_idx],
-                               .size = task->config_jagfile->file_sizes[data_file_idx],
+    struct RSBuffer buffer = { .data = config_jagfile->files[data_file_idx],
+                               .size = config_jagfile->file_sizes[data_file_idx],
                                .position = 0 };
     int count = g2(&buffer);
     for( int i = 0; i < count; i++ )
@@ -901,11 +740,7 @@ step_sequences_load(struct TaskInitSceneDat* task)
         buffer.position += config_dat_sequence_decode_inplace(
             sequence, buffer.data + buffer.position, buffer.size - buffer.position);
 
-        struct SequenceEntry* sequence_entry =
-            (struct SequenceEntry*)dashmap_search(task->sequences_hmap, &i, DASHMAP_INSERT);
-        assert(sequence_entry && "Sequence must be inserted into hmap");
-        sequence_entry->id = i;
-        sequence_entry->sequence = sequence;
+        buildcachedat_add_sequence(task->buildcachedat, i, sequence);
 
         scenebuilder_cache_dat_sequence(task->scene_builder, i, sequence);
     }
@@ -918,10 +753,14 @@ step_animframes_index_load(struct TaskInitSceneDat* task)
 {
     struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_8_LOAD_ANIMFRAMES_INDEX];
 
-    int index_file_idx = filelist_dat_find_file_by_name(task->versionlist_jagfile, "anim_index");
+    struct FileListDat* versionlist_jagfile =
+        buildcachedat_versionlist_jagfile(task->buildcachedat);
+    assert(versionlist_jagfile != NULL && "Versionlist jagfile must be loaded");
+
+    int index_file_idx = filelist_dat_find_file_by_name(versionlist_jagfile, "anim_index");
     assert(index_file_idx != -1 && "Index file must be found");
 
-    task->animbaseframes_count = task->versionlist_jagfile->file_sizes[index_file_idx] / 2;
+    task->animbaseframes_count = versionlist_jagfile->file_sizes[index_file_idx] / 2;
 
     return GAMETASK_STATUS_COMPLETED;
 }
@@ -933,8 +772,6 @@ step_animbaseframes_load(struct TaskInitSceneDat* task)
 
     struct GIOMessage message = { 0 };
     int reqid = 0;
-    struct ConfigLocEntry* config_loc_entry = NULL;
-    struct DashMapIter* iter = NULL;
 
     switch( step_stage->step )
     {
@@ -953,7 +790,6 @@ step_animbaseframes_load(struct TaskInitSceneDat* task)
     case TS_POLL:
     {
         struct CacheDatAnimBaseFrames* animbaseframes = NULL;
-        struct AnimbaseframesEntry* animbaseframes_entry = NULL;
         while( gioq_poll(task->io, &message) )
         {
             task->reqid_queue_inflight_count--;
@@ -963,20 +799,13 @@ step_animbaseframes_load(struct TaskInitSceneDat* task)
 
             animbaseframes = cache_dat_animbaseframes_new_decode(message.data, message.data_size);
 
-            animbaseframes_entry = (struct AnimbaseframesEntry*)dashmap_search(
-                task->animbaseframes_hmap, &message.param_b, DASHMAP_INSERT);
-            assert(animbaseframes_entry && "Animbaseframes must be inserted into hmap");
-            animbaseframes_entry->id = message.param_b;
-            animbaseframes_entry->animbaseframes = animbaseframes;
+            buildcachedat_add_animbaseframes(task->buildcachedat, message.param_b, animbaseframes);
 
             for( int i = 0; i < animbaseframes->frame_count; i++ )
             {
                 struct CacheAnimframe* animframe = &animbaseframes->frames[i];
-                struct AnimframeEntry* animframe_entry = (struct AnimframeEntry*)dashmap_search(
-                    task->animframes_hmap, &animframe->id, DASHMAP_INSERT);
-                assert(animframe_entry && "Animframe must be inserted into hmap");
-                animframe_entry->id = animframe->id;
-                animframe_entry->animframe = animframe;
+
+                buildcachedat_add_animframe(task->buildcachedat, animframe->id, animframe);
 
                 scenebuilder_cache_animframe(task->scene_builder, animframe->id, animframe);
             }
@@ -1013,12 +842,6 @@ step_media_load_gather(struct TaskInitSceneDat* task)
     reqid = gio_assets_dat_config_media_load(task->io);
     vec_push(task->reqid_queue_vec, &reqid);
 }
-
-struct FilePtr
-{
-    void* data;
-    int data_size;
-};
 
 static struct DashSprite*
 step_media_load_sprite_pix8(
@@ -1385,6 +1208,53 @@ step_title_load(struct TaskInitSceneDat* task)
     return GAMETASK_STATUS_COMPLETED;
 }
 
+static enum GameTaskStatus
+step_idkits_load(struct TaskInitSceneDat* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_13_LOAD_IDKITS];
+
+    struct FileListDat* filelist = buildcachedat_config_jagfile(task->buildcachedat);
+
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, "idk.dat");
+    assert(data_file_idx != -1 && "Failed to find idk.dat in filelist");
+
+    struct CacheDatConfigIdkList* idk_list = cache_dat_config_idk_list_new_decode(
+        filelist->files[data_file_idx], filelist->file_sizes[data_file_idx]);
+
+    for( int i = 0; i < idk_list->idks_count; i++ )
+    {
+        buildcachedat_add_idk(task->buildcachedat, i, idk_list->idks[i]);
+    }
+
+    return GAMETASK_STATUS_COMPLETED;
+}
+
+static enum GameTaskStatus
+step_objects_load(struct TaskInitSceneDat* task)
+{
+    struct TaskStep* step_stage = &task->task_steps[STEP_INIT_SCENE_DAT_14_LOAD_OBJECTS];
+
+    struct FileListDat* filelist = buildcachedat_config_jagfile(task->buildcachedat);
+
+    int data_file_idx = filelist_dat_find_file_by_name(filelist, "obj.dat");
+    assert(data_file_idx != -1 && "Failed to find obj.dat in filelist");
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "obj.idx");
+    assert(index_file_idx != -1 && "Failed to find obj.idx in filelist");
+
+    struct CacheDatConfigObjList* obj_list = cache_dat_config_obj_list_new_decode(
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx]);
+
+    for( int i = 0; i < obj_list->objs_count; i++ )
+    {
+        buildcachedat_add_obj(task->buildcachedat, i, obj_list->objs[i]);
+    }
+
+    return GAMETASK_STATUS_COMPLETED;
+}
+
 enum GameTaskStatus
 task_init_scene_dat_step(struct TaskInitSceneDat* task)
 {
@@ -1485,6 +1355,20 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
     case STEP_INIT_SCENE_DAT_12_LOAD_TITLE:
     {
         if( step_title_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_DAT_13_LOAD_IDKITS;
+    }
+    case STEP_INIT_SCENE_DAT_13_LOAD_IDKITS:
+    {
+        if( step_idkits_load(task) != GAMETASK_STATUS_COMPLETED )
+            return GAMETASK_STATUS_PENDING;
+
+        task->step = STEP_INIT_SCENE_DAT_14_LOAD_OBJECTS;
+    }
+    case STEP_INIT_SCENE_DAT_14_LOAD_OBJECTS:
+    {
+        if( step_objects_load(task) != GAMETASK_STATUS_COMPLETED )
             return GAMETASK_STATUS_PENDING;
 
         task->step = STEP_INIT_SCENE_DAT_DONE;

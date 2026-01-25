@@ -3,7 +3,7 @@
 #include "task_init_io.h"
 #include "task_init_scene.h"
 #include "task_init_scene_dat.h"
-#include "task_load_dat.h"
+#include "task_load_models_dat.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -101,8 +101,6 @@ gametask_new_init_scene_dat(
 struct GameTask*
 gametask_new_load_dat(
     struct GGame* game,
-    int* sequence_ids,
-    int sequence_count,
     int* model_ids,
     int model_count)
 {
@@ -110,7 +108,7 @@ gametask_new_load_dat(
     memset(task, 0, sizeof(struct GameTask));
     task->status = GAMETASK_STATUS_PENDING;
     task->kind = GAMETASK_KIND_LOAD_DAT;
-    task->_load_dat = task_load_dat_new(game, sequence_ids, sequence_count, model_ids, model_count);
+    task->_load_dat = task_load_dat_new(game, model_ids, model_count);
 
     append_task(game, task);
 

@@ -61,6 +61,8 @@ struct SceneTerrainTile
 
     struct DashModel* dash_model;
 
+    int height;
+
     int sx;
     int sz;
     int slevel;
@@ -142,5 +144,12 @@ char*
 scene_element_name(
     struct Scene* scene,
     int element);
+
+int
+scene_terrain_height_center(
+    struct Scene* scene,
+    int sx,
+    int sz,
+    int slevel);
 
 #endif

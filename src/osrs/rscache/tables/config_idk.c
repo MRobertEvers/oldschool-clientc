@@ -8,9 +8,12 @@
 #include <string.h>
 
 struct CacheConfigIdk*
-config_idk_new_decode(char* buffer, int buffer_size)
+config_idk_new_decode(
+    char* buffer,
+    int buffer_size)
 {
     struct CacheConfigIdk* idk = malloc(sizeof(struct CacheConfigIdk));
+
     config_idk_decode_inplace(idk, buffer, buffer_size);
     return idk;
 }
@@ -32,7 +35,10 @@ init_idk(struct CacheConfigIdk* idk)
 }
 
 void
-config_idk_decode_inplace(struct CacheConfigIdk* idk, char* buffer, int buffer_size)
+config_idk_decode_inplace(
+    struct CacheConfigIdk* idk,
+    char* buffer,
+    int buffer_size)
 {
     struct RSBuffer rsbuf = { .data = (uint8_t*)buffer, .size = buffer_size, .position = 0 };
 

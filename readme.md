@@ -1361,3 +1361,19 @@ Then
 # Contour Ground
 
 TODO: Need to rework contour ground.
+
+
+# Managing State
+
+Need to maintain loaded assets.
+
+Will need to load assets randomly.
+Dash owns the dash assets.
+
+struct BuildCacheDat
+{
+  struct FileListDat* config_jagfile;
+
+  struct DashMap* models_hmap;
+  struct DashMap* textures_hmap;
+};

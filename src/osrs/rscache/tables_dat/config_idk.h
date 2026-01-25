@@ -1,6 +1,6 @@
 #ifndef CONFIG_IDK_H
 #define CONFIG_IDK_H
-
+#include <stdbool.h>
 // Identity Kit.
 // type: number = -1;
 // models: Int32Array | null = null;
@@ -13,18 +13,15 @@ struct CacheDatConfigIdk
     int type;
     int* models;
     int models_count;
-    int* recol_s;
-    int recol_s_count;
-    int* recol_d;
-    int recol_d_count;
-    int* heads;
-    int heads_count;
+    int recol_s[10];
+    int recol_d[10];
+    int heads[10];
     bool disable;
 };
 
 struct CacheDatConfigIdkList
 {
-    struct CacheDatConfigIdk* idks;
+    struct CacheDatConfigIdk** idks;
     int idks_count;
 };
 

@@ -130,6 +130,17 @@ scene_free(struct Scene* scene)
     free(scene);
 }
 
+static bool
+inbounds(
+    struct SceneTerrain* terrain,
+    int sx,
+    int sz,
+    int slevel)
+{
+    return sx >= 0 && sx < terrain->tile_width_x && sz >= 0 && sz < terrain->tile_width_z &&
+           slevel >= 0 && slevel < MAP_TERRAIN_LEVELS;
+}
+
 struct SceneTerrainTile*
 scene_terrain_tile_at(
     struct SceneTerrain* terrain,
@@ -207,4 +218,40 @@ scene_element_name(
 {
     assert(element >= 0 && element < scene->scenery->elements_length);
     return scene->scenery->elements[element]._dbg_name;
+}
+
+int
+scene_terrain_height_center(
+    struct Scene* scene,
+    int sx,
+    int sz,
+    int slevel)
+{
+    struct SceneTerrain* terrain = scene->terrain;
+    struct SceneTerrainTile* tile = scene_terrain_tile_at(terrain, sx, sz, slevel);
+    int height_sw = tile->height;
+
+    int height_se = 0;
+    int height_ne = 0;
+    int height_nw = 0;
+
+    if( inbounds(terrain, sx + 1, sz, slevel) )
+    {
+        height_se = scene_terrain_tile_at(terrain, sx + 1, sz, slevel)->height;
+    }
+    if( inbounds(terrain, sx, sz + 1, slevel) )
+    {
+        height_ne = scene_terrain_tile_at(terrain, sx, sz + 1, slevel)->height;
+    }
+
+    if( inbounds(terrain, sx - 1, sz, slevel) )
+    {
+        height_nw = scene_terrain_tile_at(terrain, sx - 1, sz, slevel)->height;
+    }
+    if( inbounds(terrain, sx, sz - 1, slevel) )
+    {
+        height_nw = scene_terrain_tile_at(terrain, sx, sz - 1, slevel)->height;
+    }
+
+    return (height_sw + height_se + height_ne + height_nw) >> 2;
 }

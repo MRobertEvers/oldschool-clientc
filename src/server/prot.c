@@ -40,6 +40,38 @@ prot_tile_click_decode(
 }
 
 int
+prot_connect_encode(
+    struct ProtConnect* connect,
+    uint8_t* data,
+    int data_size)
+{
+    struct RSBuffer buffer;
+    rsbuf_init(&buffer, data, data_size);
+
+    p1(&buffer, PROT_KIND_CONNECT);
+    p2(&buffer, connect->pid);
+
+    return buffer.position;
+}
+
+int
+prot_connect_decode(
+    struct ProtConnect* connect,
+    uint8_t* data,
+    int data_size)
+{
+    struct RSBuffer buffer;
+    rsbuf_init(&buffer, data, data_size);
+
+    int kind = g1(&buffer);
+    assert(kind == PROT_KIND_CONNECT);
+
+    connect->pid = g2(&buffer);
+
+    return buffer.position;
+}
+
+int
 client_prot_player_move_encode(
     struct ClientProtPlayerMove* player_move,
     uint8_t* data,
@@ -86,6 +118,24 @@ client_prot_player_encode(
 {
     struct RSBuffer buffer;
     rsbuf_init(&buffer, data, data_size);
+
+    p1(&buffer, CLIENT_PROT_PLAYER);
+    p2(&buffer, player->pid);
+    p2(&buffer, player->x);
+    p2(&buffer, player->z);
+    for( int i = 0; i < 12; i++ )
+    {
+        p2(&buffer, player->slots[i]);
+    }
+    p2(&buffer, player->walkanim);
+    p2(&buffer, player->runanim);
+    p2(&buffer, player->walkanim_b);
+    p2(&buffer, player->walkanim_r);
+    p2(&buffer, player->walkanim_l);
+    p2(&buffer, player->turnanim);
+    p2(&buffer, player->readyanim);
+
+    return buffer.position;
 }
 
 int
@@ -96,16 +146,36 @@ client_prot_player_decode(
 {
     struct RSBuffer buffer;
     rsbuf_init(&buffer, data, data_size);
+
+    int kind = g1(&buffer);
+    assert(kind == CLIENT_PROT_PLAYER);
+
+    player->pid = g2(&buffer);
+    player->x = g2(&buffer);
+    player->z = g2(&buffer);
+    for( int i = 0; i < 12; i++ )
+    {
+        player->slots[i] = g2(&buffer);
+    }
+    player->walkanim = g2(&buffer);
+    player->runanim = g2(&buffer);
+    player->walkanim_b = g2(&buffer);
+    player->walkanim_r = g2(&buffer);
+    player->walkanim_l = g2(&buffer);
+    player->turnanim = g2(&buffer);
+    player->readyanim = g2(&buffer);
+
+    return buffer.position;
 }
 
 static const int g_packet_sizes[PROT_KIND_MAX] = {
-    [PROT_KIND_TILE_CLICK] = sizeof(struct ProtTileClick),
-    [PROT_KIND_CONNECT] = sizeof(struct ProtConnect),
+    [PROT_KIND_TILE_CLICK] = 4,
+    [PROT_KIND_CONNECT] = 2,
 };
 
 static const int g_client_packet_sizes[CLIENT_PROT_MAX] = {
-    [CLIENT_PROT_PLAYER_MOVE] = sizeof(struct ClientProtPlayerMove),
-    [CLIENT_PROT_PLAYER] = sizeof(struct ClientProtPlayer),
+    [CLIENT_PROT_PLAYER_MOVE] = 8,
+    [CLIENT_PROT_PLAYER] = 44,
 };
 
 int

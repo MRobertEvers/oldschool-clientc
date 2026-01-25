@@ -1,5 +1,6 @@
 #include "config_obj.h"
 
+#include "../filelist.h"
 #include "../rsbuf.h"
 
 #include <assert.h>
@@ -10,10 +11,14 @@
 #include <string.h>
 
 static struct CacheDatConfigObj*
-decode_obj(struct RSBuffer* buffer)
+decode_obj(
+    void* data,
+    int size)
 {
     struct CacheDatConfigObj* obj = malloc(sizeof(struct CacheDatConfigObj));
     memset(obj, 0, sizeof(struct CacheDatConfigObj));
+
+    struct RSBuffer buffer = { .data = data, .size = size, .position = 0 };
 
     // Initialize default values
     obj->model = 0;
@@ -64,13 +69,13 @@ decode_obj(struct RSBuffer* buffer)
 
     while( true )
     {
-        if( buffer->position >= buffer->size )
+        if( buffer.position >= buffer.size )
         {
             assert(false && "Buffer position exceeded data size");
             return NULL;
         }
 
-        int opcode = g1(buffer);
+        int opcode = g1(&buffer);
         if( opcode == 0 )
         {
             break;
@@ -79,26 +84,26 @@ decode_obj(struct RSBuffer* buffer)
         switch( opcode )
         {
         case 1:
-            obj->model = g2(buffer);
+            obj->model = g2(&buffer);
             break;
         case 2:
-            obj->name = gstringnewline(buffer);
+            obj->name = gstringnewline(&buffer);
             break;
         case 3:
-            obj->desc = gstringnewline(buffer);
+            obj->desc = gstringnewline(&buffer);
             break;
         case 4:
-            obj->zoom2d = g2(buffer);
+            obj->zoom2d = g2(&buffer);
             break;
         case 5:
-            obj->xan2d = g2(buffer);
+            obj->xan2d = g2(&buffer);
             break;
         case 6:
-            obj->yan2d = g2(buffer);
+            obj->yan2d = g2(&buffer);
             break;
         case 7:
         {
-            obj->xof2d = g2b(buffer);
+            obj->xof2d = g2b(&buffer);
             if( obj->xof2d > 32767 )
             {
                 obj->xof2d -= 65536;
@@ -107,7 +112,7 @@ decode_obj(struct RSBuffer* buffer)
         }
         case 8:
         {
-            obj->yof2d = g2b(buffer);
+            obj->yof2d = g2b(&buffer);
             if( obj->yof2d > 32767 )
             {
                 obj->yof2d -= 65536;
@@ -118,34 +123,34 @@ decode_obj(struct RSBuffer* buffer)
             obj->code9 = true;
             break;
         case 10:
-            obj->code10 = g2(buffer);
+            obj->code10 = g2(&buffer);
             break;
         case 11:
             obj->stackable = true;
             break;
         case 12:
-            obj->cost = g4(buffer);
+            obj->cost = g4(&buffer);
             break;
         case 16:
             obj->members = true;
             break;
         case 23:
-            obj->manwear = g2(buffer);
-            obj->manwearOffsetY = g1b(buffer);
+            obj->manwear = g2(&buffer);
+            obj->manwearOffsetY = g1b(&buffer);
             break;
         case 24:
-            obj->manwear2 = g2(buffer);
+            obj->manwear2 = g2(&buffer);
             break;
         case 25:
-            obj->womanwear = g2(buffer);
-            obj->womanwearOffsetY = g1b(buffer);
+            obj->womanwear = g2(&buffer);
+            obj->womanwearOffsetY = g1b(&buffer);
             break;
         case 26:
-            obj->womanwear2 = g2(buffer);
+            obj->womanwear2 = g2(&buffer);
             break;
         case 30 ... 34:
         {
-            char* action = gstringnewline(buffer);
+            char* action = gstringnewline(&buffer);
             if( action != NULL )
             {
                 // Check if action is "hidden" (case-insensitive)
@@ -186,48 +191,48 @@ decode_obj(struct RSBuffer* buffer)
         }
         case 35 ... 39:
         {
-            obj->iop[opcode - 35] = gstringnewline(buffer);
+            obj->iop[opcode - 35] = gstringnewline(&buffer);
             break;
         }
         case 40:
         {
-            int count = g1(buffer);
+            int count = g1(&buffer);
             obj->recol_s = malloc(count * sizeof(int));
             obj->recol_d = malloc(count * sizeof(int));
             obj->recol_count = count;
             for( int i = 0; i < count; i++ )
             {
-                obj->recol_s[i] = g2(buffer);
-                obj->recol_d[i] = g2(buffer);
+                obj->recol_s[i] = g2(&buffer);
+                obj->recol_d[i] = g2(&buffer);
             }
             break;
         }
         case 78:
-            obj->manwear3 = g2(buffer);
+            obj->manwear3 = g2(&buffer);
             break;
         case 79:
-            obj->womanwear3 = g2(buffer);
+            obj->womanwear3 = g2(&buffer);
             break;
         case 90:
-            obj->manhead = g2(buffer);
+            obj->manhead = g2(&buffer);
             break;
         case 91:
-            obj->womanhead = g2(buffer);
+            obj->womanhead = g2(&buffer);
             break;
         case 92:
-            obj->manhead2 = g2(buffer);
+            obj->manhead2 = g2(&buffer);
             break;
         case 93:
-            obj->womanhead2 = g2(buffer);
+            obj->womanhead2 = g2(&buffer);
             break;
         case 95:
-            obj->zan2d = g2(buffer);
+            obj->zan2d = g2(&buffer);
             break;
         case 97:
-            obj->certlink = g2(buffer);
+            obj->certlink = g2(&buffer);
             break;
         case 98:
-            obj->certtemplate = g2(buffer);
+            obj->certtemplate = g2(&buffer);
             break;
         case 100 ... 109:
         {
@@ -239,24 +244,24 @@ decode_obj(struct RSBuffer* buffer)
                 memset(obj->countobj, 0, 10 * sizeof(int));
                 memset(obj->countco, 0, 10 * sizeof(int));
             }
-            obj->countobj[opcode - 100] = g2(buffer);
-            obj->countco[opcode - 100] = g2(buffer);
+            obj->countobj[opcode - 100] = g2(&buffer);
+            obj->countco[opcode - 100] = g2(&buffer);
             break;
         }
         case 110:
-            obj->resizex = g2(buffer);
+            obj->resizex = g2(&buffer);
             break;
         case 111:
-            obj->resizey = g2(buffer);
+            obj->resizey = g2(&buffer);
             break;
         case 112:
-            obj->resizez = g2(buffer);
+            obj->resizez = g2(&buffer);
             break;
         case 113:
-            obj->ambient = g1b(buffer);
+            obj->ambient = g1b(&buffer);
             break;
         case 114:
-            obj->contrast = g1b(buffer) * 5;
+            obj->contrast = g1b(&buffer) * 5;
             break;
         default:
             assert(false && "Unrecognized opcode");
@@ -268,33 +273,34 @@ decode_obj(struct RSBuffer* buffer)
 
 struct CacheDatConfigObjList*
 cache_dat_config_obj_list_new_decode(
-    void* jagfile_objdat_data,
-    int jagfile_objdat_data_size)
+    char* index_data,
+    int index_data_size,
+    char* data,
+    int data_size)
 {
     struct CacheDatConfigObjList* obj_list = malloc(sizeof(struct CacheDatConfigObjList));
     memset(obj_list, 0, sizeof(struct CacheDatConfigObjList));
+    struct FileListDatIndexed* filelist_indexed =
+        filelist_dat_indexed_new_from_decode(index_data, index_data_size, data, data_size);
 
-    struct RSBuffer buffer = { .data = jagfile_objdat_data,
-                               .size = jagfile_objdat_data_size,
-                               .position = 0 };
+    obj_list->objs = malloc(filelist_indexed->offset_count * sizeof(struct CacheDatConfigObj*));
+    obj_list->objs_count = filelist_indexed->offset_count;
 
-    int obj_count = g2(&buffer);
-    obj_list->objs = malloc(obj_count * sizeof(struct CacheDatConfigObj));
-    memset(obj_list->objs, 0, obj_count * sizeof(struct CacheDatConfigObj));
-
-    obj_list->objs_count = obj_count;
-
-    for( int i = 0; i < obj_count; i++ )
+    for( int i = 0; i < filelist_indexed->offset_count; i++ )
     {
-        struct CacheDatConfigObj* decoded_obj = decode_obj(&buffer);
-        if( decoded_obj == NULL )
+        struct CacheDatConfigObj* obj = decode_obj(
+            filelist_indexed->data + filelist_indexed->offsets[i],
+            filelist_indexed->data_size - filelist_indexed->offsets[i]);
+        if( obj == NULL )
         {
             assert(false && "Failed to decode obj");
             return NULL;
         }
-        obj_list->objs[i] = *decoded_obj;
-        free(decoded_obj);
+
+        obj_list->objs[i] = obj;
     }
+
+    filelist_dat_indexed_free(filelist_indexed);
 
     return obj_list;
 }

@@ -21,9 +21,9 @@ server_new(void)
     server->packet_kind = -1;
     server->packet_bytes_received = 0;
     server->packet_expected_size = 0;
-    server->outgoing_message_size = 0;
+    server->write_offset = 0;
 
-    server->player_count = 1;
+    server->player_count = 0;
     server->players[0].x = 10;
     server->players[0].z = 10;
     server->players[0].pathing.x = -1;
@@ -88,7 +88,7 @@ server_step(
 
     server->write_offset = 0;
 
-    for( int i = 0; i < server->queue; i++ )
+    for( int i = 0; i < server->queue_size; i++ )
     {
         struct ClientPackets* client_packet = &server->queue[i];
         switch( client_packet->kind )
@@ -111,31 +111,61 @@ server_step(
             player.turnanim = server->players[0].turnanim;
             player.readyanim = server->players[0].readyanim;
 
-            struct ClientProtPlayerAppearance player_appearance = { 0 };
-
             server->write_offset +=
                 client_prot_player_encode(&player, write_buffer(server), write_buffer_size(server));
 
+            server->player_count += 1;
             break;
         }
         break;
         case PROT_KIND_TILE_CLICK:
-            break;
+        {
+            server->players[0].pathing.x = client_packet->_tile_click.x;
+            server->players[0].pathing.z = client_packet->_tile_click.z;
+        }
+        break;
         }
     }
 
-    server->queue = 0;
+    for( int i = 0; i < server->player_count; i++ )
+    {
+        if( server->players[i].pathing.x != -1 && server->players[i].pathing.z != -1 )
+        {
+            int xdiff = server->players[i].pathing.x - server->players[i].x;
+            int zdiff = server->players[i].pathing.z - server->players[i].z;
+            if( xdiff != 0 )
+                server->players[i].x += xdiff > 0 ? 1 : -1;
+            if( zdiff != 0 )
+                server->players[i].z += zdiff > 0 ? 1 : -1;
+
+            if( server->players[i].x == server->players[i].pathing.x &&
+                server->players[i].z == server->players[i].pathing.z )
+            {
+                server->players[i].pathing.x = -1;
+                server->players[i].pathing.z = -1;
+            }
+        }
+
+        struct ClientProtPlayerMove player_move = { 0 };
+        player_move.x = server->players[i].x;
+        player_move.z = server->players[i].z;
+        player_move.pathing_x = server->players[i].pathing.x;
+        player_move.pathing_z = server->players[i].pathing.z;
+
+        server->write_offset += client_prot_player_move_encode(
+            &player_move, write_buffer(server), write_buffer_size(server));
+    }
+
+    server->queue_size = 0;
 }
 
 static void
 queue_client_packet(
     struct Server* server,
-    enum ProtKind kind,
-    struct ClientPackets* packet);
+    struct ClientPackets* packet)
 {
     struct ClientPackets* client_packet = &server->queue[server->queue_size];
-    client_packet->kind = kind;
-    memcpy(&client_packet->packet, packet, sizeof(struct ClientPackets));
+    memcpy(client_packet, packet, sizeof(struct ClientPackets));
     server->queue_size++;
 }
 
@@ -217,7 +247,7 @@ server_receive(
                     tile_click.x,
                     tile_click.z);
 
-                client_packet.kind = CLIENT_PROT_PLAYER_MOVE;
+                client_packet.kind = PROT_KIND_TILE_CLICK;
                 memcpy(&client_packet._tile_click, &tile_click, sizeof(tile_click));
                 queue_client_packet(server, &client_packet);
                 break;
@@ -227,7 +257,7 @@ server_receive(
                 struct ProtConnect connect;
                 prot_connect_decode(&connect, server->packet_buffer, server->packet_bytes_received);
 
-                client_packet.kind = CLIENT_PROT_PLAYER;
+                client_packet.kind = PROT_KIND_CONNECT;
                 memcpy(&client_packet._connect, &connect, sizeof(connect));
                 queue_client_packet(server, &client_packet);
                 break;
@@ -251,10 +281,11 @@ server_get_outgoing_message(
     uint8_t** data,
     int* data_size)
 {
-    if( server->outgoing_message_size > 0 )
+    if( server->write_offset > 0 )
     {
         *data = server->outgoing_message_buffer;
         *data_size = server->write_offset;
+        server->write_offset = 0;
     }
     else
     {
