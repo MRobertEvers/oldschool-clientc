@@ -110,4 +110,9 @@ scenebuilder_cache_texture(
 struct Scene*
 scenebuilder_load(struct SceneBuilder* scene_builder);
 
+struct SceneAnimation*
+scenebuilder_new_animation(
+    struct SceneBuilder* scene_builder,
+    int sequence_id);
+
 #endif

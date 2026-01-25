@@ -308,6 +308,24 @@ LibToriRS_GameStep(
         game->cycles--;
         if( !game->scene )
             continue;
+
+        if( game->player_walk_animation && game->player_walk_animation->frame_count > 0 )
+        {
+            game->player_walk_animation->cycle++;
+            if( game->player_walk_animation->cycle >=
+                game->player_walk_animation
+                    ->frame_lengths[game->player_walk_animation->frame_index] )
+            {
+                game->player_walk_animation->cycle = 0;
+                game->player_walk_animation->frame_index++;
+                if( game->player_walk_animation->frame_index >=
+                    game->player_walk_animation->frame_count )
+                {
+                    game->player_walk_animation->frame_index = 0;
+                }
+            }
+        }
+
         for( int i = 0; i < game->scene->scenery->elements_length; i++ )
         {
             struct SceneElement* element = scene_element_at(game->scene->scenery, i);
@@ -377,6 +395,45 @@ LibToriRS_GameStep(
                 else
                 {
                     game->player_state = 1;
+                }
+                if( xdiff == 0 )
+                {
+                    if( zdiff > 0 )
+                    {
+                        game->player_draw_yaw = 1024;
+                    }
+                    else
+                    {
+                        game->player_draw_yaw = 0;
+                    }
+                }
+                else if( zdiff == 0 )
+                {
+                    if( xdiff > 0 )
+                    {
+                        game->player_draw_yaw = 1536;
+                    }
+                    else
+                    {
+                        game->player_draw_yaw = 512;
+                    }
+                }
+
+                else if( xdiff > 0 && zdiff > 0 )
+                {
+                    game->player_draw_yaw = 1024 + 256;
+                }
+                else if( xdiff > 0 && zdiff < 0 )
+                {
+                    game->player_draw_yaw = 1536 + 256;
+                }
+                else if( xdiff < 0 && zdiff > 0 )
+                {
+                    game->player_draw_yaw = 512 + 256;
+                }
+                else if( xdiff < 0 && zdiff < 0 )
+                {
+                    game->player_draw_yaw = 256;
                 }
             }
             else

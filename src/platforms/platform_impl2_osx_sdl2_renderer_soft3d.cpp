@@ -10,6 +10,7 @@ extern "C" {
 #include "osrs/dash_utils.h"
 #include "osrs/dashlib.h"
 #include "osrs/minimap.h"
+#include "osrs/model_transforms.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
@@ -708,7 +709,24 @@ done_draw:;
         {
         case GRENDER_CMD_MODEL_DRAW:
         {
+            if( game->player_state != 0 )
+            {
+                if( game->player_walk_animation && game->player_walk_animation->frame_count > 0 )
+                {
+                    dashmodel_animate(
+                        game->model,
+                        game->player_walk_animation
+                            ->dash_frames[game->player_walk_animation->frame_index],
+                        game->player_walk_animation->dash_framemap);
+                }
+            }
+            else if( game->player_walk_animation )
+            {
+                dashmodel_animate(game->model, NULL, NULL);
+            }
             position = *game->position;
+            position.yaw = game->player_draw_yaw;
+
             position.x = game->player_draw_x + 64;
             position.z = game->player_draw_z + 64;
             position.y =
@@ -1255,6 +1273,65 @@ done_draw:;
 }
 
 static int
+obj_model(
+    struct GGame* game,
+    int obj_id)
+{
+    struct BuildCacheDat* buildcachedat = game->buildcachedat;
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    if( !obj )
+        return -2;
+
+    int models_queue[50] = { 0 };
+    int models_queue_count = 0;
+
+    struct CacheModel* models[50] = { 0 };
+    int build_models_count = 0;
+
+    int idxs[3] = { 0 };
+
+    if( obj )
+    {
+        struct CacheModel* model = buildcachedat_get_obj_model(buildcachedat, obj_id);
+        if( model )
+            return obj_id;
+
+        idxs[0] = obj->manwear;
+        idxs[1] = obj->manwear2;
+        idxs[2] = obj->manwear3;
+
+        for( int i = 0; i < 3; i++ )
+        {
+            if( idxs[i] >= 0 )
+            {
+                struct CacheModel* model = buildcachedat_get_model(buildcachedat, idxs[i]);
+                if( !model )
+                    models_queue[models_queue_count++] = idxs[i];
+                else
+                    models[build_models_count++] = model;
+            }
+        }
+
+        if( models_queue_count > 0 )
+        {
+            gametask_new_load_dat(game, models_queue, models_queue_count);
+            return -1;
+        }
+
+        struct CacheModel* merged_model = model_new_merge(models, build_models_count);
+        buildcachedat_add_obj_model(buildcachedat, obj_id, merged_model);
+
+        for( int i = 0; i < obj->recol_count; i++ )
+        {
+            model_transform_recolor(merged_model, obj->recol_s[i], obj->recol_d[i]);
+        }
+        return obj_id;
+    }
+
+    return -1;
+}
+
+static int
 idk_model(
     struct GGame* game,
     int idk_id)
@@ -1362,8 +1439,8 @@ build_player(struct GGame* game)
 
     int queue_models[50] = { 0 };
     int queue_models_count = 0;
-    int right_hand_value = 0;
-    int left_hand_value = 0;
+    int right_hand_value = -1;
+    int left_hand_value = -1;
 
     struct CacheModel* models[50] = { 0 };
     int build_models[50] = { 0 };
@@ -1387,6 +1464,21 @@ build_player(struct GGame* game)
             if( model_id >= 0 )
             {
                 struct CacheModel* model = buildcachedat_get_idk_model(buildcachedat, model_id);
+                assert(model && "Model must be found");
+                models[build_models_count++] = model;
+            }
+            else if( model_id != -2 )
+            {
+                game->awaiting_models++;
+            }
+        }
+        else if( appearance >= 0x200 )
+        {
+            appearance -= 0x200;
+            int model_id = obj_model(game, appearance);
+            if( model_id >= 0 )
+            {
+                struct CacheModel* model = buildcachedat_get_obj_model(buildcachedat, model_id);
                 assert(model && "Model must be found");
                 models[build_models_count++] = model;
             }

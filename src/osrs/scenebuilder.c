@@ -403,3 +403,20 @@ scenebuilder_load(struct SceneBuilder* scene_builder)
 
     return scene;
 }
+
+struct SceneAnimation*
+scenebuilder_new_animation(
+    struct SceneBuilder* scene_builder,
+    int sequence_id)
+{
+    struct DatSequenceEntry* sequence_entry = NULL;
+    sequence_entry = (struct DatSequenceEntry*)dashmap_search(
+        scene_builder->sequences_configmap, &sequence_id, DASHMAP_FIND);
+    assert(sequence_entry && "Sequence must be found in hmap");
+
+    struct SceneAnimation* animation = NULL;
+    animation = load_model_animations_dati(
+        sequence_id, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+
+    return animation;
+}

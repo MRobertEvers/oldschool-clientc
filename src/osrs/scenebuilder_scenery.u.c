@@ -490,8 +490,8 @@ load_model_animations_dat2(
 }
 
 static struct SceneAnimation*
-load_model_animations_dat(
-    struct CacheConfigLocation* loc_config,
+load_model_animations_dati(
+    int sequence_id,
     struct DashMap* sequences_configmap,
     struct DashMap* frames_hmap)
 {
@@ -502,14 +502,14 @@ load_model_animations_dat(
     struct DashFrame* dash_frame = NULL;
     struct DashFramemap* dash_framemap = NULL;
 
-    if( loc_config->seq_id == -1 || !sequences_configmap )
+    if( sequence_id == -1 || !sequences_configmap )
         return NULL;
 
     scene_animation = malloc(sizeof(struct SceneAnimation));
     memset(scene_animation, 0, sizeof(struct SceneAnimation));
 
-    dat_sequence_entry = (struct DatSequenceEntry*)dashmap_search(
-        sequences_configmap, &loc_config->seq_id, DASHMAP_FIND);
+    dat_sequence_entry =
+        (struct DatSequenceEntry*)dashmap_search(sequences_configmap, &sequence_id, DASHMAP_FIND);
     assert(dat_sequence_entry);
 
     scene_animation->frame_lengths =
@@ -552,6 +552,24 @@ load_model_animations_dat(
     }
 
     return scene_animation;
+}
+
+static struct SceneAnimation*
+load_model_animations_dat(
+    struct CacheConfigLocation* loc_config,
+    struct DashMap* sequences_configmap,
+    struct DashMap* frames_hmap)
+{
+    struct SceneAnimation* scene_animation = NULL;
+    struct AnimframeEntry* animframe_entry = NULL;
+    struct DatSequenceEntry* dat_sequence_entry = NULL;
+
+    struct DashFrame* dash_frame = NULL;
+    struct DashFramemap* dash_framemap = NULL;
+
+    if( loc_config->seq_id == -1 || !sequences_configmap )
+        return NULL;
+    return load_model_animations_dati(loc_config->seq_id, sequences_configmap, frames_hmap);
 }
 
 static struct SceneAnimation*

@@ -1375,6 +1375,8 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
     }
     case STEP_INIT_SCENE_DAT_DONE:
     {
+        task->game->player_walk_animation = scenebuilder_new_animation(task->scene_builder, 819);
+        assert(task->game->player_walk_animation != NULL && "Failed to load player walk animation");
         task->game->scene = scenebuilder_load(task->scene_builder);
 
         return GAMETASK_STATUS_COMPLETED;

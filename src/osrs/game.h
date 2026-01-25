@@ -46,6 +46,7 @@ struct GGame
     int player_tz;
     int player_draw_x;
     int player_draw_z;
+    int player_draw_yaw;
     int player_state; // 0 = idle, 1 = walking, 2 = running
     int player_slots[12];
     int player_walkanim;
@@ -55,6 +56,7 @@ struct GGame
     int player_walkanim_l;
     int player_turnanim;
     int player_readyanim;
+    struct SceneAnimation* player_walk_animation;
 
     struct BuildCacheDat* buildcachedat;
 
