@@ -3,6 +3,7 @@
 #include "task_init_io.h"
 #include "task_init_scene.h"
 #include "task_init_scene_dat.h"
+#include "task_load_dat.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -52,6 +53,8 @@ gametask_step(struct GameTask* task)
         return task_init_scene_step(task->_init_scene);
     case GAMETASK_KIND_INIT_SCENE_DAT:
         return task_init_scene_dat_step(task->_init_scene_dat);
+    case GAMETASK_KIND_LOAD_DAT:
+        return task_load_dat_step(task->_load_dat);
     }
 
     return GAMETASK_STATUS_FAILED;
@@ -95,6 +98,25 @@ gametask_new_init_scene_dat(
     return task;
 }
 
+struct GameTask*
+gametask_new_load_dat(
+    struct GGame* game,
+    int* sequence_ids,
+    int sequence_count,
+    int* model_ids,
+    int model_count)
+{
+    struct GameTask* task = malloc(sizeof(struct GameTask));
+    memset(task, 0, sizeof(struct GameTask));
+    task->status = GAMETASK_STATUS_PENDING;
+    task->kind = GAMETASK_KIND_LOAD_DAT;
+    task->_load_dat = task_load_dat_new(game, sequence_ids, sequence_count, model_ids, model_count);
+
+    append_task(game, task);
+
+    return task;
+}
+
 void
 gametask_free(struct GameTask* task)
 {
@@ -108,6 +130,9 @@ gametask_free(struct GameTask* task)
         break;
     case GAMETASK_KIND_INIT_SCENE_DAT:
         task_init_scene_dat_free(task->_init_scene_dat);
+        break;
+    case GAMETASK_KIND_LOAD_DAT:
+        task_load_dat_free(task->_load_dat);
         break;
     }
 

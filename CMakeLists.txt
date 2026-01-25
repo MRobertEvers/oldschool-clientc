@@ -20,6 +20,8 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         test/osx.cpp
         src/tori_rs.c
         src/bmp.c
+        src/server/server.c
+        src/server/prot.c
         src/datastruct/list.c
         src/datastruct/vec.c
         src/graphics/shared_tables.c

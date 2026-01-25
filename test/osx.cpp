@@ -2,12 +2,14 @@ extern "C" {
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/grender.h"
+#include "server/server.h"
 #include "tori_rs.h"
 }
 
 #include "platforms/platform_impl2_osx_sdl2.h"
 #include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
 
+#include <SDL.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,17 +99,38 @@ main(
 
     PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 4, 4);
 
+    // Create server instance (independent of renderer)
+    struct Server* server = server_new();
+    if( !server )
+    {
+        printf("Failed to create server\n");
+        return 1;
+    }
+
+    renderer->clicked_tile_x = -1;
+    renderer->clicked_tile_z = -1;
+
     LibToriRS_GameStepTasks(game, &input, render_command_buffer);
     while( LibToriRS_GameIsRunning(game) )
     {
+        // Process server messages from previous frame and step server
+        uint64_t timestamp_ms = SDL_GetTicks64();
+        PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(renderer, server, game, timestamp_ms);
+
         // Poll backend
         Platform2_OSX_SDL2_PollIO(platform, io);
         Platform2_OSX_SDL2_PollEvents(platform, &input);
+
+        // Update game tick time for camera movement timing
+        game->tick_ms = timestamp_ms;
 
         LibToriRS_GameStep(game, &input, render_command_buffer);
 
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, render_command_buffer);
     }
+
+    // Cleanup server
+    server_free(server);
 
     return 0;
 }

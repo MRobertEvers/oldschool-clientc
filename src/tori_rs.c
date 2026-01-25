@@ -69,6 +69,11 @@ LibToriRS_GameNew(
     game->cc = 100000;
     game->latched = false;
 
+    // Initialize camera target fields
+    game->camera_target_tile_x = -1;
+    game->camera_target_tile_z = -1;
+    game->camera_last_move_time_ms = 0;
+
     game->sys_dash = dash_new();
 
     game->scene_elements = vec_new(sizeof(struct SceneElement), 1024);
@@ -223,8 +228,10 @@ LibToriRS_GameProcessInput(
         }
     }
 
+    game->mouse_clicked = false;
     if( input->mouse_clicked )
     {
+        game->mouse_clicked = true;
         game->mouse_cycle = 0;
         game->mouse_clicked_x = input->mouse_clicked_x;
         game->mouse_clicked_y = input->mouse_clicked_y;
@@ -318,6 +325,45 @@ LibToriRS_GameStep(
                     }
                 }
             }
+        }
+    }
+
+    // Get current time (using tick_ms as fallback, or we can use a platform-specific timer)
+    // For now, we'll use a simple approach: track time in game structure
+    // The timestamp will be updated by the platform layer
+    if( game->player_tx != -1 )
+    {
+        int player_draw_tx = game->player_draw_x / 128;
+        int player_draw_tz = game->player_draw_z / 128;
+        if( game->player_tx != player_draw_tx || game->player_tz != player_draw_tz )
+        {
+            // Move one tile if enough time has passed
+
+            int xdiff = game->player_tx - player_draw_tx;
+            int zdiff = game->player_tz - player_draw_tz;
+            int xmove = 0;
+            int zmove = 0;
+            if( xdiff != 0 )
+                xmove = xdiff > 0 ? 1 : -1;
+            if( zdiff != 0 )
+                zmove = zdiff > 0 ? 1 : -1;
+
+            // Update camera world position
+            game->player_draw_x += xmove * (128 / 12);
+            game->player_draw_z += zmove * (128 / 12);
+
+            if( xdiff >= 2 || zdiff >= 2 )
+            {
+                game->player_state = 2;
+            }
+            else
+            {
+                game->player_state = 1;
+            }
+        }
+        else
+        {
+            game->player_state = 0;
         }
     }
 

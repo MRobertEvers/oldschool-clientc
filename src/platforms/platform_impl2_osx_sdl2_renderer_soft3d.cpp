@@ -7,8 +7,11 @@
 extern "C" {
 #include "graphics/dash.h"
 #include "osrs/minimap.h"
+#include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
+#include "server/prot.h"
+#include "server/server.h"
 #include "tori_rs.h"
 }
 
@@ -113,6 +116,30 @@ render_imgui(
         ImGui::SetClipboardText(camera_rot_text);
     }
 
+    // Display clicked tile information
+    ImGui::Separator();
+    if( renderer->clicked_tile_x != -1 && renderer->clicked_tile_z != -1 )
+    {
+        char clicked_tile_text[256];
+        snprintf(
+            clicked_tile_text,
+            sizeof(clicked_tile_text),
+            "Clicked Tile: (%d, %d, level %d)",
+            renderer->clicked_tile_x,
+            renderer->clicked_tile_z,
+            renderer->clicked_tile_level);
+        ImGui::Text("%s", clicked_tile_text);
+        ImGui::SameLine();
+        if( ImGui::SmallButton("Copy##tile") )
+        {
+            ImGui::SetClipboardText(clicked_tile_text);
+        }
+    }
+    else
+    {
+        ImGui::Text("Clicked Tile: None");
+    }
+
     // Add camera speed slider
     ImGui::Separator();
     ImGui::End();
@@ -157,6 +184,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(
     renderer->minimap_buffer = NULL;
     renderer->minimap_buffer_width = 0;
     renderer->minimap_buffer_height = 0;
+
+    // Initialize outgoing message buffer
+    renderer->outgoing_message_size = 0;
+
+    // Initialize client-side position interpolation
+    renderer->client_player_pos_tile_x = 0;
+    renderer->client_player_pos_tile_z = 0;
+    renderer->client_target_tile_x = 0;
+    renderer->client_target_tile_z = 0;
+    renderer->last_move_time_ms = 0;
 
     return renderer;
 }
@@ -441,6 +478,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
     int interacting_scene_element = -1;
 
+    // Reset clicked tile info at start of frame
+    renderer->clicked_tile_x = -1;
+    renderer->clicked_tile_z = -1;
+    renderer->clicked_tile_level = -1;
+
     for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
     {
         struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
@@ -590,6 +632,39 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             position.x = sx * 128 - game->camera_world_x;
             position.z = sz * 128 - game->camera_world_z;
             position.y = -game->camera_world_y;
+
+            // Check for tile click detection
+            if( game->mouse_clicked && tile_model->dash_model )
+            {
+                // Project the tile model to get its screen bounds
+                int cull = dash3d_project_model(
+                    game->sys_dash,
+                    tile_model->dash_model,
+                    &position,
+                    game->view_port,
+                    game->camera);
+
+                if( cull == DASHCULL_VISIBLE )
+                {
+                    // Adjust mouse coordinates for dash buffer offset
+                    int mouse_x_adjusted = game->mouse_clicked_x - renderer->dash_offset_x;
+                    int mouse_y_adjusted = game->mouse_clicked_y - renderer->dash_offset_y;
+
+                    // Check if click point is within the tile's projected geometry
+                    if( dash3d_projected_model_contains(
+                            game->sys_dash,
+                            tile_model->dash_model,
+                            game->view_port,
+                            mouse_x_adjusted,
+                            mouse_y_adjusted) )
+                    {
+                        // renderer->clicked_tile_x = sx;
+                        // renderer->clicked_tile_z = sz;
+                        // renderer->clicked_tile_level = slevel;
+                    }
+                }
+            }
+
             dash3d_render_model(
                 game->sys_dash,
                 tile_model->dash_model,
@@ -1169,4 +1244,105 @@ done_draw:;
     render_imgui(renderer, game);
 
     SDL_RenderPresent(renderer->renderer);
+}
+
+void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    struct Server* server,
+    struct GGame* game,
+    uint64_t timestamp_ms)
+{
+    if( !server )
+    {
+        return;
+    }
+
+    if( renderer->first_frame == 0 )
+    {
+        struct ProtConnect connect;
+        connect.pid = 0;
+        renderer->first_frame = 1;
+        renderer->outgoing_message_size = prot_connect_encode(
+            &connect, renderer->outgoing_message_buffer, sizeof(renderer->outgoing_message_buffer));
+    }
+
+    // Check if a tile was clicked and pack message into buffer
+    if( renderer->clicked_tile_x != -1 && renderer->clicked_tile_z != -1 )
+    {
+        struct ProtTileClick tile_click;
+        tile_click.x = renderer->clicked_tile_x;
+        tile_click.z = renderer->clicked_tile_z;
+
+        renderer->outgoing_message_size = prot_tile_click_encode(
+            &tile_click,
+            renderer->outgoing_message_buffer,
+            sizeof(renderer->outgoing_message_buffer));
+
+        // Clear the clicked tile after packing the message
+        renderer->clicked_tile_x = -1;
+        renderer->clicked_tile_z = -1;
+        renderer->clicked_tile_level = -1;
+    }
+
+    // Send outgoing message to server if there is one
+    if( renderer->outgoing_message_size > 0 )
+    {
+        printf("Sending tile click to server: message size %d\n", renderer->outgoing_message_size);
+        server_receive(server, renderer->outgoing_message_buffer, renderer->outgoing_message_size);
+        renderer->outgoing_message_size = 0;
+    }
+
+    // Step the server (convert timestamp_ms to int, using milliseconds)
+    server_step(server, (int)(timestamp_ms % 2147483647)); // Clamp to int range
+
+    // Get and process server's outgoing message (player location update)
+    uint8_t* server_message_data = NULL;
+    int server_message_size = 0;
+    server_get_outgoing_message(server, &server_message_data, &server_message_size);
+
+    struct RSBuffer buffer;
+    rsbuf_init(&buffer, server_message_data, server_message_size);
+
+    while( buffer.position < buffer.size )
+    {
+        int message_kind = g1(&buffer);
+        int message_size = client_prot_get_packet_size(message_kind);
+
+        void* data = buffer.data + buffer.position;
+        int data_size = message_size - buffer.position;
+
+        switch( message_kind )
+        {
+        case CLIENT_PROT_PLAYER_MOVE:
+        {
+            struct ClientProtPlayerMove player_move;
+            buffer.position += client_prot_player_move_decode(&player_move, data, data_size);
+
+            game->player_tx = player_move.x;
+            game->player_tz = player_move.z;
+        }
+        break;
+        case CLIENT_PROT_PLAYER:
+        {
+            struct ClientProtPlayer player;
+            buffer.position += client_prot_player_decode(&player, data, data_size);
+
+            game->player_tx = player.x;
+            game->player_tz = player.z;
+            for( int i = 0; i < 12; i++ )
+            {
+                game->player_slots[i] = player.slots[i];
+            }
+            game->player_walkanim = player.walkanim;
+            game->player_runanim = player.runanim;
+            game->player_walkanim_b = player.walkanim_b;
+            game->player_walkanim_r = player.walkanim_r;
+            game->player_walkanim_l = player.walkanim_l;
+            game->player_turnanim = player.turnanim;
+            game->player_readyanim = player.readyanim;
+        }
+        break;
+        }
+    }
 }

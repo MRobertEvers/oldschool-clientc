@@ -23,6 +23,7 @@ struct GGame
     int cycles;
 
     int mouse_cycle;
+    int mouse_clicked;
     int mouse_clicked_x;
     int mouse_clicked_y;
     int mouse_x;
@@ -38,11 +39,22 @@ struct GGame
     int camera_movement_speed;
     int camera_rotation_speed;
 
-    int player_pos_tile_x;
-    int player_pos_tile_z;
+    int player_tx;
+    int player_tz;
+    int player_draw_x;
+    int player_draw_z;
+    int player_state; // 0 = idle, 1 = walking, 2 = running
+    int player_slots[12];
+    int player_walkanim;
+    int player_runanim;
+    int player_walkanim_b;
+    int player_walkanim_r;
+    int player_walkanim_l;
+    int player_turnanim;
+    int player_readyanim;
 
-    int player_pathing_tile_x;
-    int player_pathing_tile_z;
+    void* config_jagfile;
+    void* versionlist_jagfile;
 
     uint64_t tick_ms;
     uint64_t next_tick_ms;

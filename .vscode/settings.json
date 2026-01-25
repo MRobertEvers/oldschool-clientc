@@ -222,7 +222,8 @@
         "task_init_scene_dat.h": "c",
         "config_textures.h": "c",
         "cache_dat.h": "c",
-        "frame.h": "c"
+        "frame.h": "c",
+        "task_load_dat.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

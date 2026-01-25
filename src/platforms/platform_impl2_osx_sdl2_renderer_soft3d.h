@@ -27,6 +27,23 @@ struct Platform2_OSX_SDL2_Renderer_Soft3D
     int minimap_buffer_height;
 
     float time_delta_accumulator;
+
+    // Clicked tile information
+    int first_frame;
+    int clicked_tile_x;
+    int clicked_tile_z;
+    int clicked_tile_level;
+
+    // Outgoing message buffer for server communication
+    uint8_t outgoing_message_buffer[256];
+    int outgoing_message_size;
+
+    // Client-side position interpolation
+    int client_player_pos_tile_x;
+    int client_player_pos_tile_z;
+    int client_target_tile_x;
+    int client_target_tile_z;
+    uint64_t last_move_time_ms;
 };
 
 struct Platform2_OSX_SDL2_Renderer_Soft3D*
@@ -59,5 +76,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
     int offset_x,
     int offset_y);
+
+void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    struct Server* server,
+    struct GGame* game,
+    uint64_t timestamp_ms);
 
 #endif

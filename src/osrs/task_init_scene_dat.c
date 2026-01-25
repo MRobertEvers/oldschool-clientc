@@ -411,11 +411,13 @@ step_configs_load(struct TaskInitSceneDat* task)
             {
                 task->config_jagfile =
                     filelist_dat_new_from_decode(message.data, message.data_size);
+                task->game->config_jagfile = task->config_jagfile;
             }
             else if( message.message_id == versionlist_reqid )
             {
                 task->versionlist_jagfile =
                     filelist_dat_new_from_decode(message.data, message.data_size);
+                task->game->versionlist_jagfile = task->versionlist_jagfile;
             }
 
             gioq_release(task->io, &message);
