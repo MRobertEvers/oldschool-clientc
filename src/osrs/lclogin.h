@@ -67,7 +67,6 @@ struct LCLogin
 
     // Network
     struct ClientStream* stream;
-    int socket_fd;
 
     // Buffers
     struct RSBuffer out;
@@ -82,6 +81,13 @@ struct LCLogin
     int credentials_sent;
     int read_bytes_needed;
     int read_bytes_received;
+
+    // Pending I/O operations (data-driven instead of socket-based)
+    const uint8_t* pending_send_data;
+    int pending_send_size;
+    int pending_send_sent;
+    int pending_receive_needed;
+    int pending_receive_received;
 
     // Login data
     uint64_t server_seed;
@@ -166,10 +172,32 @@ lclogin_get_message0(const struct LCLogin* login);
 const char*
 lclogin_get_message1(const struct LCLogin* login);
 
-// Set socket file descriptor (call this before starting login if socket is opened externally)
-void
-lclogin_set_socket(
+// Provide received data to the login state machine
+// Returns number of bytes consumed, or -1 on error
+// Call this when data is available from the network
+int
+lclogin_provide_data(
     struct LCLogin* login,
-    int socket_fd);
+    const uint8_t* data,
+    int data_size);
+
+// Get data that needs to be sent
+// Returns number of bytes available to send, or 0 if no data ready
+// The data pointer will be set to the buffer containing data to send
+int
+lclogin_get_data_to_send(
+    struct LCLogin* login,
+    const uint8_t** data);
+
+// Get number of bytes needed for the next read operation
+// Returns 0 if no read is pending
+int
+lclogin_get_bytes_needed(const struct LCLogin* login);
+
+// Mark data as sent (call this after successfully sending data from lclogin_get_data_to_send)
+void
+lclogin_mark_data_sent(
+    struct LCLogin* login,
+    int bytes_sent);
 
 #endif // OSRS_LCLOGIN_H

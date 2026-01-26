@@ -84,6 +84,15 @@ rsbuf_readto(
     int out_size,
     int len);
 
+/**
+ * Older revs use newline terminated strings. Newer revs use null terminated strings.
+ */
+void
+rsbuf_pjstr(
+    struct RSBuffer* buffer,
+    const char* str,
+    int terminator);
+
 #define g1(buffer) rsbuf_g1(buffer)
 #define g1b(buffer) rsbuf_g1b(buffer)
 #define p1(buffer, value) rsbuf_p1(buffer, value)
@@ -103,6 +112,8 @@ rsbuf_readto(
 
 #define gcstring(buffer) rsbuf_read_string_null_terminated(buffer)
 #define gstringnewline(buffer) rsbuf_read_string_newline_terminated(buffer)
+#define pjstr(buffer, str, terminator) rsbuf_pjstr(buffer, str, terminator)
+
 #define gparams(buffer, params) rsbuf_read_params(buffer, params)
 #define greadto(buffer, out, out_size, len) rsbuf_readto(buffer, out, out_size, len)
 

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 
 void
@@ -444,4 +445,34 @@ rsbuf_read_params(
         params->is_string[params->count] = is_string;
         params->count++;
     }
+}
+
+void
+rsbuf_pjstr(
+    struct RSBuffer* buffer,
+    const char* str,
+    int terminator)
+{
+    int len = strlen(str);
+    for( int i = 0; i < len; i++ )
+    {
+        unsigned char c = (unsigned char)str[i];
+        if( c >= 'A' && c <= 'Z' )
+        {
+            rsbuf_p1(buffer, c);
+        }
+        else if( c >= 'a' && c <= 'z' )
+        {
+            rsbuf_p1(buffer, c);
+        }
+        else if( c >= '0' && c <= '9' )
+        {
+            rsbuf_p1(buffer, c);
+        }
+        else
+        {
+            rsbuf_p1(buffer, c); // Pass through other chars
+        }
+    }
+    rsbuf_p1(buffer, terminator); // Null terminator
 }

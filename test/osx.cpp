@@ -212,8 +212,6 @@ main(
     }
     else
     {
-        lclogin_set_socket(&login, login_socket);
-
         // Start login process (using placeholder credentials - adjust as needed)
         // In a real implementation, these would come from user input or config
         const char* username = "asdf";
@@ -234,6 +232,55 @@ main(
         if( login_state != LCLOGIN_STATE_IDLE && login_state != LCLOGIN_STATE_SUCCESS &&
             login_state != LCLOGIN_STATE_ERROR )
         {
+            // Handle socket I/O for login
+            if( login_socket >= 0 )
+            {
+                // Check for data to send
+                const uint8_t* data_to_send = NULL;
+                int send_size = lclogin_get_data_to_send(&login, &data_to_send);
+                if( send_size > 0 && data_to_send )
+                {
+                    int sent = send(login_socket, data_to_send, send_size, 0);
+                    if( sent > 0 )
+                    {
+                        lclogin_mark_data_sent(&login, sent);
+                    }
+                    else if( sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
+                    {
+                        // Socket error
+                        printf("Socket send error: %s\n", strerror(errno));
+                        close(login_socket);
+                        login_socket = -1;
+                    }
+                }
+
+                // Check for data to receive
+                int bytes_needed = lclogin_get_bytes_needed(&login);
+                if( bytes_needed > 0 )
+                {
+                    uint8_t recv_buffer[512];
+                    int received = recv(login_socket, recv_buffer, bytes_needed, MSG_DONTWAIT);
+                    if( received > 0 )
+                    {
+                        lclogin_provide_data(&login, recv_buffer, received);
+                    }
+                    else if( received == 0 )
+                    {
+                        // Connection closed
+                        printf("Login socket closed\n");
+                        close(login_socket);
+                        login_socket = -1;
+                    }
+                    else if( received < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
+                    {
+                        // Socket error
+                        printf("Socket recv error: %s\n", strerror(errno));
+                        close(login_socket);
+                        login_socket = -1;
+                    }
+                }
+            }
+
             int login_result = lclogin_process(&login);
             if( login_result != 0 )
             {
@@ -275,6 +322,13 @@ main(
 
     // Cleanup login
     lclogin_cleanup(&login);
+
+    // Cleanup socket
+    if( login_socket >= 0 )
+    {
+        close(login_socket);
+        login_socket = -1;
+    }
 
     // Cleanup server
     server_free(server);

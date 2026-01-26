@@ -10,11 +10,15 @@
  *                     OR lclogin_load_rsa_public_key_from_env(&login) [uses LOGIN_RSAN/LOGIN_RSAE
  * env vars] OR lclogin_load_rsa_public_key_from_values(&login, modulus_str, exponent_str)
  *                     lclogin_load_rsa_private_key(&login, "private.pem")
- *   3. Open socket connection and set it: lclogin_set_socket(&login, socket_fd)
- *   4. Start login: lclogin_start(&login, username, password, reconnect)
- *   5. Process in loop: while (lclogin_process(&login) == 0) { /* wait or yield
- *   6. Check result: lclogin_get_state(&login) and lclogin_get_result(&login)
- *   7. Cleanup: lclogin_cleanup(&login)
+ *   3. Start login: lclogin_start(&login, username, password, reconnect)
+ *   4. Process in loop:
+ *      - Call lclogin_process(&login) to advance state machine
+ *      - Check lclogin_get_bytes_needed(&login) to see if data is needed
+ *      - Provide received data via lclogin_provide_data(&login, data, size)
+ *      - Check lclogin_get_data_to_send(&login, &data) to get data to send
+ *      - Repeat until lclogin_process returns non-zero
+ *   5. Check result: lclogin_get_state(&login) and lclogin_get_result(&login)
+ *   6. Cleanup: lclogin_cleanup(&login)
  *
  * The state machine handles all the async operations by breaking them into states.
  * Each call to lclogin_process() advances the state machine one step.
@@ -32,55 +36,14 @@
 #include "jbase37.h"
 #include "rsa.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
-
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <sys/socket.h>
-#include <sys/types.h>
-#endif
-
-// Helper function to write JString (OSRS string format)
-static void
-rsbuf_pjstr(
-    struct RSBuffer* buffer,
-    const char* str,
-    int terminator)
-{
-    int len = strlen(str);
-    for( int i = 0; i < len; i++ )
-    {
-        unsigned char c = (unsigned char)str[i];
-        if( c >= 'A' && c <= 'Z' )
-        {
-            rsbuf_p1(buffer, c);
-        }
-        else if( c >= 'a' && c <= 'z' )
-        {
-            rsbuf_p1(buffer, c);
-        }
-        else if( c >= '0' && c <= '9' )
-        {
-            rsbuf_p1(buffer, c);
-        }
-        else
-        {
-            rsbuf_p1(buffer, c); // Pass through other chars
-        }
-    }
-    rsbuf_p1(buffer, terminator); // Null terminator
-}
 
 int
 rsbuf_rsaenc(
@@ -97,41 +60,6 @@ rsbuf_rsaenc(
     buffer->position = enclen + 1;
 
     return enclen;
-}
-
-// Socket read helper (non-blocking)
-static int
-socket_read(
-    int fd,
-    uint8_t* buffer,
-    int size)
-{
-    if( fd < 0 )
-        return -1;
-#ifdef __EMSCRIPTEN__
-    // Emscripten may need special handling
-    return recv(fd, (char*)buffer, size, 0);
-#elif defined(_WIN32)
-    return recv(fd, (char*)buffer, size, 0);
-#else
-    return recv(fd, buffer, size, MSG_DONTWAIT);
-#endif
-}
-
-// Socket write helper
-static int
-socket_write(
-    int fd,
-    const uint8_t* buffer,
-    int size)
-{
-    if( fd < 0 )
-        return -1;
-#ifdef _WIN32
-    return send(fd, (const char*)buffer, size, 0);
-#else
-    return send(fd, buffer, size, 0);
-#endif
 }
 
 // Generate random seed values
@@ -213,7 +141,12 @@ lclogin_init(
     rsbuf_init(&login->in, login->in_data, sizeof(login->in_data));
     rsbuf_init(&login->loginout, login->loginout_data, sizeof(login->loginout_data));
 
-    login->socket_fd = -1;
+    // Initialize pending send/receive buffers
+    login->pending_send_data = NULL;
+    login->pending_send_size = 0;
+    login->pending_send_sent = 0;
+    login->pending_receive_needed = 0;
+    login->pending_receive_received = 0;
 }
 
 void
@@ -269,41 +202,6 @@ lclogin_process(struct LCLogin* login)
             login->login_message1[sizeof(login->login_message1) - 1] = '\0';
         }
 
-        // Socket should be set via lclogin_set_socket() before calling lclogin_start()
-        // or opened in the CONNECTING state
-        if( login->socket_fd < 0 )
-        {
-            // Try to transition to connecting state if socket not set
-            // In a full implementation, you'd create the socket here
-            login->state = LCLOGIN_STATE_CONNECTING;
-            return 0;
-        }
-
-        login->state = LCLOGIN_STATE_SENDING_LOGIN_SERVER;
-        // Fall through
-    }
-        __attribute__((fallthrough));
-
-    case LCLOGIN_STATE_CONNECTING:
-    {
-        // Socket connection should be established here
-        // For now, we assume socket_fd is set via lclogin_set_socket()
-        // In a full implementation, you would:
-        // 1. Create socket: socket(AF_INET, SOCK_STREAM, 0)
-        // 2. Connect to server: connect(socket_fd, &server_addr, sizeof(server_addr))
-        // 3. Set non-blocking mode if needed
-
-        if( login->socket_fd < 0 )
-        {
-            login->state = LCLOGIN_STATE_ERROR;
-            strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-            strncpy(
-                login->login_message1,
-                "Error connecting to server.",
-                sizeof(login->login_message1) - 1);
-            return -1;
-        }
-
         login->state = LCLOGIN_STATE_SENDING_LOGIN_SERVER;
         // Fall through
     }
@@ -320,134 +218,84 @@ lclogin_process(struct LCLogin* login)
         rsbuf_p1(&login->out, 14);
         rsbuf_p1(&login->out, login_server);
 
-        // Send packet
-        int sent = socket_write(login->socket_fd, login->out.data, 2);
-        if( sent < 0 )
+        // Set up pending send if not already set
+        if( !login->pending_send_data )
         {
-            if( errno == EAGAIN || errno == EWOULDBLOCK )
-            {
-                // Would block, try again later
-                return 0;
-            }
-            login->state = LCLOGIN_STATE_ERROR;
-            strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-            strncpy(
-                login->login_message1,
-                "Error connecting to server.",
-                sizeof(login->login_message1) - 1);
-            return -1;
+            login->pending_send_data = login->out.data;
+            login->pending_send_size = 2;
+            login->pending_send_sent = 0;
         }
 
-        if( sent < 2 )
+        // Check if all data has been sent
+        if( login->pending_send_sent >= login->pending_send_size )
         {
-            // Partial send, would need to track this in a real implementation
-            return 0;
+            login->state = LCLOGIN_STATE_READING_INITIAL_RESPONSE;
+            login->initial_response_bytes_read = 0;
+            login->pending_send_data = NULL;
+            login->pending_send_size = 0;
+            login->pending_send_sent = 0;
+            login->pending_receive_needed = 8;
+            login->pending_receive_received = 0;
+            // Fall through
         }
-
-        login->state = LCLOGIN_STATE_READING_INITIAL_RESPONSE;
-        login->initial_response_bytes_read = 0;
-        // Fall through
+        else
+        {
+            return 0; // Still waiting for data to be sent
+        }
     }
         __attribute__((fallthrough));
 
     case LCLOGIN_STATE_READING_INITIAL_RESPONSE:
     {
-        // Read 8 bytes
-        int needed = 8 - login->initial_response_bytes_read;
-        if( needed > 0 )
-        {
-            int received = socket_read(
-                login->socket_fd, login->in.data + login->initial_response_bytes_read, needed);
-
-            if( received < 0 )
-            {
-                if( errno == EAGAIN || errno == EWOULDBLOCK )
-                {
-                    // Would block, try again later
-                    return 0;
-                }
-                login->state = LCLOGIN_STATE_ERROR;
-                strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-                strncpy(
-                    login->login_message1,
-                    "Error connecting to server.",
-                    sizeof(login->login_message1) - 1);
-                return -1;
-            }
-
-            if( received == 0 )
-            {
-                // Connection closed
-                login->state = LCLOGIN_STATE_ERROR;
-                strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-                strncpy(
-                    login->login_message1, "Connection closed.", sizeof(login->login_message1) - 1);
-                return -1;
-            }
-
-            login->initial_response_bytes_read += received;
-        }
-
+        // Need 8 bytes
         if( login->initial_response_bytes_read < 8 )
         {
-            // Still need more data
+            // Set pending receive if not already set
+            if( login->pending_receive_needed == 0 )
+            {
+                login->pending_receive_needed = 8;
+                login->pending_receive_received = 0;
+            }
+            // Wait for data to be provided via lclogin_provide_data
             return 0;
         }
 
+        // Have all 8 bytes, move to next state
         login->state = LCLOGIN_STATE_READING_REPLY;
+        login->pending_receive_needed = 1;
+        login->pending_receive_received = 0;
         // Fall through
     }
         __attribute__((fallthrough));
 
     case LCLOGIN_STATE_READING_REPLY:
     {
-        // Read reply byte
-        uint8_t reply_byte;
-        int received = socket_read(login->socket_fd, &reply_byte, 1);
-
-        if( received < 0 )
+        // Need 1 byte for reply
+        if( login->pending_receive_received < 1 )
         {
-            if( errno == EAGAIN || errno == EWOULDBLOCK )
-            {
-                // Would block, try again later
-                return 0;
-            }
-            login->state = LCLOGIN_STATE_ERROR;
-            strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-            strncpy(
-                login->login_message1,
-                "Error connecting to server.",
-                sizeof(login->login_message1) - 1);
-            return -1;
-        }
-
-        if( received == 0 )
-        {
-            // Connection closed
-            login->state = LCLOGIN_STATE_ERROR;
-            strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-            strncpy(login->login_message1, "Connection closed.", sizeof(login->login_message1) - 1);
-            return -1;
-        }
-
-        if( received < 1 )
-        {
-            // Still waiting
+            // Wait for data to be provided via lclogin_provide_data
             return 0;
         }
 
+        // Reply byte should be in login->in.data[8] (after initial 8 bytes)
+        uint8_t reply_byte = login->in.data[8];
         int reply = reply_byte & 0xFF;
 
         if( reply == 0 )
         {
             // Need to read server seed and send credentials
             login->state = LCLOGIN_STATE_PROCESSING_REPLY_0;
+            login->read_bytes_received = 0;
+            login->pending_receive_needed = 8;
+            login->pending_receive_received = 0;
         }
         else
         {
             // Handle other replies directly
             login->state = LCLOGIN_STATE_HANDLING_REPLY;
             login->result = (lclogin_result_t)reply;
+            login->pending_receive_needed = 0;
+            login->pending_receive_received = 0;
         }
         // Fall through
     }
@@ -456,46 +304,14 @@ lclogin_process(struct LCLogin* login)
     case LCLOGIN_STATE_PROCESSING_REPLY_0:
     {
         // Read 8 bytes for server seed
-        int needed = 8 - login->read_bytes_received;
-        if( needed > 0 )
-        {
-            int received =
-                socket_read(login->socket_fd, login->in.data + login->read_bytes_received, needed);
-
-            if( received < 0 )
-            {
-                if( errno == EAGAIN || errno == EWOULDBLOCK )
-                {
-                    return 0;
-                }
-                login->state = LCLOGIN_STATE_ERROR;
-                strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-                strncpy(
-                    login->login_message1,
-                    "Error connecting to server.",
-                    sizeof(login->login_message1) - 1);
-                return -1;
-            }
-
-            if( received == 0 )
-            {
-                login->state = LCLOGIN_STATE_ERROR;
-                strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-                strncpy(
-                    login->login_message1, "Connection closed.", sizeof(login->login_message1) - 1);
-                return -1;
-            }
-
-            login->read_bytes_received += received;
-        }
-
         if( login->read_bytes_received < 8 )
         {
+            // Wait for data to be provided via lclogin_provide_data
             return 0;
         }
 
-        // Parse server seed
-        login->in.position = 0;
+        // Parse server seed (from bytes 9-16, after initial 8 bytes and reply byte)
+        login->in.position = 9;
         login->server_seed = rsbuf_g8(&login->in);
 
         // Generate client seed
@@ -582,6 +398,8 @@ lclogin_process(struct LCLogin* login)
 
         login->state = LCLOGIN_STATE_SENDING_CREDENTIALS;
         login->credentials_sent = 0;
+        login->pending_receive_needed = 0;
+        login->pending_receive_received = 0;
         // Fall through
     }
         __attribute__((fallthrough));
@@ -589,89 +407,50 @@ lclogin_process(struct LCLogin* login)
     case LCLOGIN_STATE_SENDING_CREDENTIALS:
     {
         int total_size = login->loginout.position;
-        int remaining = total_size - login->credentials_sent;
 
-        if( remaining > 0 )
+        // Set up pending send if not already set
+        if( !login->pending_send_data && login->credentials_sent < total_size )
         {
-            int sent = socket_write(
-                login->socket_fd, login->loginout.data + login->credentials_sent, remaining);
-
-            if( sent < 0 )
-            {
-                if( errno == EAGAIN || errno == EWOULDBLOCK )
-                {
-                    return 0;
-                }
-                login->state = LCLOGIN_STATE_ERROR;
-                strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-                strncpy(
-                    login->login_message1,
-                    "Error connecting to server.",
-                    sizeof(login->login_message1) - 1);
-                return -1;
-            }
-
-            if( sent == 0 )
-            {
-                login->state = LCLOGIN_STATE_ERROR;
-                strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-                strncpy(
-                    login->login_message1, "Connection closed.", sizeof(login->login_message1) - 1);
-                return -1;
-            }
-
-            login->credentials_sent += sent;
+            login->pending_send_data = login->loginout.data + login->credentials_sent;
+            login->pending_send_size = total_size - login->credentials_sent;
+            login->pending_send_sent = 0;
         }
 
-        if( login->credentials_sent < total_size )
+        // Check if all data has been sent
+        if( login->credentials_sent >= total_size )
         {
-            // Still sending
-            return 0;
+            login->state = LCLOGIN_STATE_READING_FINAL_REPLY;
+            login->read_bytes_received = 0;
+            login->pending_send_data = NULL;
+            login->pending_send_size = 0;
+            login->pending_send_sent = 0;
+            login->pending_receive_needed = 1;
+            login->pending_receive_received = 0;
+            // Fall through
         }
-
-        login->state = LCLOGIN_STATE_READING_FINAL_REPLY;
-        login->read_bytes_received = 0;
-        // Fall through
+        else
+        {
+            return 0; // Still waiting for data to be sent
+        }
     }
         __attribute__((fallthrough));
 
     case LCLOGIN_STATE_READING_FINAL_REPLY:
     {
-        // Read final reply byte
-        uint8_t reply_byte;
-        int received = socket_read(login->socket_fd, &reply_byte, 1);
-
-        if( received < 0 )
+        // Need 1 byte for final reply
+        if( login->pending_receive_received < 1 )
         {
-            if( errno == EAGAIN || errno == EWOULDBLOCK )
-            {
-                return 0;
-            }
-            login->state = LCLOGIN_STATE_ERROR;
-            strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-            strncpy(
-                login->login_message1,
-                "Error connecting to server.",
-                sizeof(login->login_message1) - 1);
-            return -1;
-        }
-
-        if( received == 0 )
-        {
-            login->state = LCLOGIN_STATE_ERROR;
-            strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-            strncpy(login->login_message1, "Connection closed.", sizeof(login->login_message1) - 1);
-            return -1;
-        }
-
-        if( received < 1 )
-        {
+            // Wait for data to be provided via lclogin_provide_data
             return 0;
         }
 
+        // Reply byte should be in the receive buffer
+        uint8_t reply_byte = login->in.data[17]; // After initial 8 + reply 1 + seed 8
         int reply = reply_byte & 0xFF;
         login->state = LCLOGIN_STATE_HANDLING_REPLY;
         login->result = (lclogin_result_t)reply;
+        login->pending_receive_needed = 0;
+        login->pending_receive_received = 0;
         // Fall through
     }
         __attribute__((fallthrough));
@@ -954,11 +733,11 @@ lclogin_cleanup(struct LCLogin* login)
 
     login->rsa_loaded = false;
 
-    if( login->socket_fd >= 0 )
-    {
-        close(login->socket_fd);
-        login->socket_fd = -1;
-    }
+    login->pending_send_data = NULL;
+    login->pending_send_size = 0;
+    login->pending_send_sent = 0;
+    login->pending_receive_needed = 0;
+    login->pending_receive_received = 0;
 }
 
 lclogin_state_t
@@ -985,13 +764,127 @@ lclogin_get_message1(const struct LCLogin* login)
     return login ? login->login_message1 : "";
 }
 
-void
-lclogin_set_socket(
+int
+lclogin_provide_data(
     struct LCLogin* login,
-    int socket_fd)
+    const uint8_t* data,
+    int data_size)
 {
-    if( login )
+    if( !login || !data || data_size <= 0 )
     {
-        login->socket_fd = socket_fd;
+        return -1;
+    }
+
+    if( login->pending_receive_needed <= 0 )
+    {
+        return 0; // Not expecting data
+    }
+
+    int needed = login->pending_receive_needed - login->pending_receive_received;
+    if( needed <= 0 )
+    {
+        return 0; // Already have all needed data
+    }
+
+    int to_copy = (data_size < needed) ? data_size : needed;
+
+    // Determine where to copy based on current state
+    uint8_t* dest = NULL;
+    if( login->state == LCLOGIN_STATE_READING_INITIAL_RESPONSE )
+    {
+        dest = login->in.data + login->initial_response_bytes_read;
+    }
+    else if( login->state == LCLOGIN_STATE_READING_REPLY )
+    {
+        dest = login->in.data + 8; // After initial 8 bytes
+    }
+    else if( login->state == LCLOGIN_STATE_PROCESSING_REPLY_0 )
+    {
+        dest = login->in.data + 9 + login->read_bytes_received; // After initial 8 + reply byte
+    }
+    else if( login->state == LCLOGIN_STATE_READING_FINAL_REPLY )
+    {
+        dest = login->in.data + 17; // After initial 8 + reply 1 + seed 8
+    }
+    else
+    {
+        return -1; // Invalid state for receiving data
+    }
+
+    memcpy(dest, data, to_copy);
+    login->pending_receive_received += to_copy;
+
+    // Update state-specific counters
+    if( login->state == LCLOGIN_STATE_READING_INITIAL_RESPONSE )
+    {
+        login->initial_response_bytes_read += to_copy;
+    }
+    else if( login->state == LCLOGIN_STATE_PROCESSING_REPLY_0 )
+    {
+        login->read_bytes_received += to_copy;
+    }
+
+    return to_copy;
+}
+
+int
+lclogin_get_data_to_send(
+    struct LCLogin* login,
+    const uint8_t** data)
+{
+    if( !login || !data )
+    {
+        return 0;
+    }
+
+    if( !login->pending_send_data || login->pending_send_size <= 0 )
+    {
+        *data = NULL;
+        return 0;
+    }
+
+    int remaining = login->pending_send_size - login->pending_send_sent;
+    if( remaining <= 0 )
+    {
+        *data = NULL;
+        return 0;
+    }
+
+    *data = login->pending_send_data + login->pending_send_sent;
+    return remaining;
+}
+
+int
+lclogin_get_bytes_needed(const struct LCLogin* login)
+{
+    if( !login )
+    {
+        return 0;
+    }
+
+    return login->pending_receive_needed - login->pending_receive_received;
+}
+
+// Mark data as sent (call this after successfully sending data from lclogin_get_data_to_send)
+void
+lclogin_mark_data_sent(
+    struct LCLogin* login,
+    int bytes_sent)
+{
+    if( !login || bytes_sent <= 0 )
+    {
+        return;
+    }
+
+    login->pending_send_sent += bytes_sent;
+
+    // Update state-specific counters
+    if( login->state == LCLOGIN_STATE_SENDING_LOGIN_SERVER )
+    {
+        // All data sent, state machine will transition on next process call
+    }
+    else if( login->state == LCLOGIN_STATE_SENDING_CREDENTIALS )
+    {
+        login->credentials_sent += bytes_sent;
     }
 }
