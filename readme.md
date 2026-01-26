@@ -1,4 +1,4 @@
-# RuneScratch
+# ToriRS
 
 Rewrite of the osrs renderer.
 
@@ -645,10 +645,10 @@ dsymutil -s ./build/main_client > symbols.txt
 
 Map Tiles are stored in sequence.
 
-```
-        for (let level = 0; level < Scene.MAX_LEVELS; level++) {
-            for (let x = 0; x < Scene.MAP_SQUARE_SIZE; x++) {
-                for (let y = 0; y < Scene.MAP_SQUARE_SIZE; y++) {
+```typescript
+  for (let level = 0; level < Scene.MAX_LEVELS; level++) {
+      for (let x = 0; x < Scene.MAP_SQUARE_SIZE; x++) {
+          for (let y = 0; y < Scene.MAP_SQUARE_SIZE; y++) {
 ```
 
 They are decoded in order.
@@ -657,17 +657,17 @@ Map viewer parallelizes the properties (Data Oriented style)
 
 Ex.
 
-```
-       scene.tileOverlays[level][x][y] = readTerrainValue(
-                        buffer,
-                        this.newTerrainFormat,
-                    );
-                    scene.tileShapes[level][x][y] = (v - 2) / 4;
-                    scene.tileRotations[level][x][y] = (v - 2 + rotOffset) & 3;
-                } else if (v <= 81) {
-                    scene.tileRenderFlags[level][x][y] = v - 49;
-                } else {
-                    scene.tileUnderlays[level][x][y] = v - 81;
+```typescript
+  scene.tileOverlays[level][x][y] = readTerrainValue(
+          buffer,
+          this.newTerrainFormat,
+      );
+      scene.tileShapes[level][x][y] = (v - 2) / 4;
+      scene.tileRotations[level][x][y] = (v - 2 + rotOffset) & 3;
+  } else if (v <= 81) {
+      scene.tileRenderFlags[level][x][y] = v - 49;
+  } else {
+      scene.tileUnderlays[level][x][y] = v - 81;
 ```
 
 In `src/rs/scene/SceneBuilder.ts`.`addTileModels`, the MapTiles are decoded to Map Models.
@@ -686,33 +686,33 @@ This was based on some bad code from rs-map-viewer. The official deob only uses 
 
 The RS Map Viewer uses RGB blending.
 
-```
+```typescript
  underlay = &underlays[underlay_index];
-                    underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];
-                    underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
-                    underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
-                    underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
+underlay_hsl_sw = blended_underlays[COLOR_COORD(x, y)];
+underlay_hsl_se = blended_underlays[COLOR_COORD(x + 1, y)];
+underlay_hsl_ne = blended_underlays[COLOR_COORD(x + 1, y + 1)];
+underlay_hsl_nw = blended_underlays[COLOR_COORD(x, y + 1)];
 
-                    /**
-                     * This is confusing.
-                     *
-                     * When this is false, the underlays are rendered correctly.
-                     * When this is true, they are not.
-                     *
-                     * I checked the underlay rendering with the actual osrs client,
-                     * and the underlays render correct when SMOOTH_UNDERLAYS is false.
-                     *
-                     * See
-                     * ![my_renderer](res/underlay_blending/underlay_my_renderer_no_smooth_blending.png)
-                     * and ![osrs_client](res/underlay_blending/underlay_osrs.png)
-                     *
-                     */
-                    if( underlay_hsl_se == -1 || !SMOOTH_UNDERLAYS )
-                        underlay_hsl_se = underlay_hsl_sw;
-                    if( underlay_hsl_ne == -1 || !SMOOTH_UNDERLAYS )
-                        underlay_hsl_ne = underlay_hsl_sw;
-                    if( underlay_hsl_nw == -1 || !SMOOTH_UNDERLAYS )
-                        underlay_hsl_nw = underlay_hsl_sw;
+/**
+  * This is confusing.
+  *
+  * When this is false, the underlays are rendered correctly.
+  * When this is true, they are not.
+  *
+  * I checked the underlay rendering with the actual osrs client,
+  * and the underlays render correct when SMOOTH_UNDERLAYS is false.
+  *
+  * See
+  * ![my_renderer](res/underlay_blending/underlay_my_renderer_no_smooth_blending.png)
+  * and ![osrs_client](res/underlay_blending/underlay_osrs.png)
+  *
+  */
+if( underlay_hsl_se == -1 || !SMOOTH_UNDERLAYS )
+    underlay_hsl_se = underlay_hsl_sw;
+if( underlay_hsl_ne == -1 || !SMOOTH_UNDERLAYS )
+    underlay_hsl_ne = underlay_hsl_sw;
+if( underlay_hsl_nw == -1 || !SMOOTH_UNDERLAYS )
+    underlay_hsl_nw = underlay_hsl_sw;
 ```
 
 ### Lumbridge table
@@ -1390,3 +1390,51 @@ Region ID: 9043
 (regionX = 35, regionY = 83)
 
 Instances -> Load region chunk, server has instance area for you.
+
+## Shade Blending
+
+Old revs use 
+0-127 / 32 := {0, 1, 2, 3}
+Then
+(texel & 0xF8F8FF) >> 0-3
+F8 masks the lower 3 bits of the color.
+
+```typescript
+const rgb: number = (texels[i] = palette[texture.pixels[i]] & 0xf8f8ff);
+if (rgb === 0) {
+    this.textureTranslucent[id] = true;
+}
+texels[i + 4096] = (rgb - (rgb >>> 3)) & 0xf8f8ff;
+texels[i + 8192] = (rgb - (rgb >>> 2)) & 0xf8f8ff;
+texels[i + 12288] = (rgb - (rgb >>> 2) - (rgb >>> 3)) & 0xf8f8ff;
+```
+
+
+## Rendering Commands
+
+I want
+
+```
+void LibToriRS_FrameStart
+bool LibToriRS_FrameNextCommand(struct Game*, out_command)
+void LibToriRS_FrameEnd
+```
+
+Commands
+
+```
+RASTER_MODEL
+RENDER_MODEL (projection and RASTER)
+BLIT_SPRITE
+DRAW_LINE
+DRAW_RECT
+DRAW_POLYLINE_START
+DRAW_POLYLINE_POINT
+DRAW_POLYLINE_FILL
+DRAW_POLYLINE_END
+DRAW_TEXT_SET_COLOR
+DRAW_TEXT_SET_FONT
+DRAW_TEXT
+SET_BUFFER (For drawing somewhere else and later blitting to main buffer.)
+BLIT_BUFFER ()
+```
