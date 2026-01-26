@@ -58,8 +58,6 @@ main(
     int argc,
     char* argv[])
 {
-    printf("Hello, World!\n");
-
     bool has_message = false;
     struct GIOQueue* io = gioq_new();
     struct GGame* game = LibToriRS_GameNew(io, 513, 335);

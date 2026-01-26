@@ -7,6 +7,8 @@ enum ProtKind
 {
     PROT_KIND_CONNECT,
     PROT_KIND_TILE_CLICK,
+
+    PROTLC_REBUILD_NORMAL,
     PROT_KIND_MAX,
 };
 
