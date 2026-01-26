@@ -30,8 +30,6 @@ gameproto_packet_maprebuild8_z16_x16(
     int map_sw_z = (zonez - zone_padding) / 8;
     int map_ne_x = (zonex + zone_padding) / 8;
     int map_ne_z = (zonez + zone_padding) / 8;
-
-    gametask_new_init_scene(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 }
 
 #endif

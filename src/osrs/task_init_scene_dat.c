@@ -225,7 +225,6 @@ task_init_scene_dat_new(
     task->queued_texture_ids_vec = vec_new(sizeof(int), 512);
     task->queued_scenery_models_vec = vec_new(sizeof(int), 512);
 
-    game->buildcachedat = buildcachedat_new();
     task->buildcachedat = game->buildcachedat;
 
     return task;

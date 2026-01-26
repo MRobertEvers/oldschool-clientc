@@ -353,4 +353,178 @@ packetin_size_lc254(int packet_type)
     return g_packet_in_definitions_lc254[packet_type].length;
 }
 
+enum PacketInType_LC245_2
+{
+    PKTIN_LC245_2_IF_OPENCHAT = 7,
+    PKTIN_LC245_2_IF_OPENMAIN_SIDE = 229,
+    PKTIN_LC245_2_IF_CLOSE = 174,
+    PKTIN_LC245_2_IF_SETTAB = 29,
+    PKTIN_LC245_2_IF_OPENMAIN = 177,
+    PKTIN_LC245_2_IF_OPENSIDE = 236,
+    PKTIN_LC245_2_IF_SETTAB_ACTIVE = 8,
+
+    // updating interfaces
+    PKTIN_LC245_2_IF_SETCOLOUR = 135,
+    PKTIN_LC245_2_IF_SETHIDE = 225,
+    PKTIN_LC245_2_IF_SETOBJECT = 153,
+    PKTIN_LC245_2_IF_SETMODEL = 60,
+    PKTIN_LC245_2_IF_SETANIM = 69,
+    PKTIN_LC245_2_IF_SETPLAYERHEAD = 83,
+    PKTIN_LC245_2_IF_SETTEXT = 32,
+    PKTIN_LC245_2_IF_SETNPCHEAD = 76,
+    PKTIN_LC245_2_IF_SETPOSITION = 230,
+    PKTIN_LC245_2_IF_SETSCROLLPOS = 226,
+
+    // tutorial area
+    PKTIN_LC245_2_TUT_FLASH = 132,
+    PKTIN_LC245_2_TUT_OPEN = 152,
+
+    // inventory
+    PKTIN_LC245_2_UPDATE_INV_STOP_TRANSMIT = 143,
+    PKTIN_LC245_2_UPDATE_INV_FULL = 156,
+    PKTIN_LC245_2_UPDATE_INV_PARTIAL = 95,
+
+    // camera control
+    PKTIN_LC245_2_CAM_LOOKAT = 123,
+    PKTIN_LC245_2_CAM_SHAKE = 103,
+    PKTIN_LC245_2_CAM_MOVETO = 86,
+    PKTIN_LC245_2_CAM_RESET = 134,
+
+    // entity updates
+    PKTIN_LC245_2_NPC_INFO = 105,
+    PKTIN_LC245_2_PLAYER_INFO = 161,
+
+    // input tracking
+    PKTIN_LC245_2_FINISH_TRACKING = 165,
+    PKTIN_LC245_2_ENABLE_TRACKING = 28,
+
+    // social
+    PKTIN_LC245_2_MESSAGE_GAME = 175,
+    PKTIN_LC245_2_UPDATE_IGNORELIST = 181,
+    PKTIN_LC245_2_CHAT_FILTER_SETTINGS = 2,
+    PKTIN_LC245_2_MESSAGE_PRIVATE = 207,
+    PKTIN_LC245_2_UPDATE_FRIENDLIST = 109,
+
+    // misc
+    PKTIN_LC245_2_UNSET_MAP_FLAG = 233,
+    PKTIN_LC245_2_UPDATE_RUNWEIGHT = 70,
+    PKTIN_LC245_2_HINT_ARROW = 243,
+    PKTIN_LC245_2_UPDATE_REBOOT_TIMER = 26,
+    PKTIN_LC245_2_UPDATE_STAT = 110,
+    PKTIN_LC245_2_UPDATE_RUNENERGY = 208,
+    PKTIN_LC245_2_RESET_ANIMS = 144,
+    PKTIN_LC245_2_UPDATE_PID = 49,
+    PKTIN_LC245_2_LAST_LOGIN_INFO = 238,
+    PKTIN_LC245_2_LOGOUT = 36,
+    PKTIN_LC245_2_P_COUNTDIALOG = 56,
+    PKTIN_LC245_2_SET_MULTIWAY = 35,
+
+    // maps
+    PKTIN_LC245_2_REBUILD_NORMAL = 66,
+
+    // vars
+    PKTIN_LC245_2_VARP_SMALL = 192,
+    PKTIN_LC245_2_VARP_LARGE = 75,
+    PKTIN_LC245_2_RESET_CLIENT_VARCACHE = 25,
+
+    // audio
+    PKTIN_LC245_2_SYNTH_SOUND = 209,
+    PKTIN_LC245_2_MIDI_SONG = 96,
+    PKTIN_LC245_2_MIDI_JINGLE = 39,
+
+    // zones
+    PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS = 203,
+    PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS = 140,
+    PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED = 15,
+
+    // zone protocol
+    PKTIN_LC245_2_LOC_MERGE = 188,
+    PKTIN_LC245_2_LOC_ANIM = 71,
+    PKTIN_LC245_2_OBJ_DEL = 13,
+    PKTIN_LC245_2_OBJ_REVEAL = 190,
+    PKTIN_LC245_2_LOC_ADD_CHANGE = 119,
+    PKTIN_LC245_2_MAP_PROJANIM = 187,
+    PKTIN_LC245_2_LOC_DEL = 198,
+    PKTIN_LC245_2_OBJ_COUNT = 151,
+    PKTIN_LC245_2_MAP_ANIM = 141,
+    PKTIN_LC245_2_OBJ_ADD = 94
+};
+
+static const struct PacketInDefinition g_packet_in_definitions_lc245_2[256] = {
+    [PKTIN_LC245_2_IF_OPENCHAT] = { .length = 2 },
+    [PKTIN_LC245_2_IF_OPENMAIN_SIDE] = { .length = 4 },
+    [PKTIN_LC245_2_IF_CLOSE] = { .length = 0 },
+    [PKTIN_LC245_2_IF_SETTAB] = { .length = 3 },
+    [PKTIN_LC245_2_IF_OPENMAIN] = { .length = 2 },
+    [PKTIN_LC245_2_IF_OPENSIDE] = { .length = 2 },
+    [PKTIN_LC245_2_IF_SETTAB_ACTIVE] = { .length = 1 },
+    [PKTIN_LC245_2_IF_SETCOLOUR] = { .length = 4 },
+    [PKTIN_LC245_2_IF_SETHIDE] = { .length = 3 },
+    [PKTIN_LC245_2_IF_SETOBJECT] = { .length = 6 },
+    [PKTIN_LC245_2_IF_SETMODEL] = { .length = 4 },
+    [PKTIN_LC245_2_IF_SETANIM] = { .length = 4 },
+    [PKTIN_LC245_2_IF_SETPLAYERHEAD] = { .length = 2 },
+    [PKTIN_LC245_2_IF_SETTEXT] = { .length = PKTIN_LENGTH_VARU16 },
+    [PKTIN_LC245_2_IF_SETNPCHEAD] = { .length = 4 },
+    [PKTIN_LC245_2_IF_SETPOSITION] = { .length = 6 },
+    [PKTIN_LC245_2_IF_SETSCROLLPOS] = { .length = 4 },
+    [PKTIN_LC245_2_TUT_FLASH] = { .length = 1 },
+    [PKTIN_LC245_2_TUT_OPEN] = { .length = 2 },
+    [PKTIN_LC245_2_UPDATE_INV_STOP_TRANSMIT] = { .length = 2 },
+    [PKTIN_LC245_2_UPDATE_INV_FULL] = { .length = PKTIN_LENGTH_VARU16 },
+    [PKTIN_LC245_2_UPDATE_INV_PARTIAL] = { .length = PKTIN_LENGTH_VARU16 },
+    [PKTIN_LC245_2_CAM_LOOKAT] = { .length = 6 },
+    [PKTIN_LC245_2_CAM_SHAKE] = { .length = 4 },
+    [PKTIN_LC245_2_CAM_MOVETO] = { .length = 6 },
+    [PKTIN_LC245_2_CAM_RESET] = { .length = 0 },
+    [PKTIN_LC245_2_NPC_INFO] = { .length = PKTIN_LENGTH_VARU16 },
+    [PKTIN_LC245_2_PLAYER_INFO] = { .length = PKTIN_LENGTH_VARU16 },
+    [PKTIN_LC245_2_FINISH_TRACKING] = { .length = 0 },
+    [PKTIN_LC245_2_ENABLE_TRACKING] = { .length = 0 },
+    [PKTIN_LC245_2_MESSAGE_GAME] = { .length = PKTIN_LENGTH_VARU8 },
+    [PKTIN_LC245_2_UPDATE_IGNORELIST] = { .length = PKTIN_LENGTH_VARU16 },
+    [PKTIN_LC245_2_CHAT_FILTER_SETTINGS] = { .length = 3 },
+    [PKTIN_LC245_2_MESSAGE_PRIVATE] = { .length = PKTIN_LENGTH_VARU8 },
+    [PKTIN_LC245_2_UPDATE_FRIENDLIST] = { .length = 9 },
+    [PKTIN_LC245_2_UNSET_MAP_FLAG] = { .length = 0 },
+    [PKTIN_LC245_2_UPDATE_RUNWEIGHT] = { .length = 2 },
+    [PKTIN_LC245_2_HINT_ARROW] = { .length = 6 },
+    [PKTIN_LC245_2_UPDATE_REBOOT_TIMER] = { .length = 2 },
+    [PKTIN_LC245_2_UPDATE_STAT] = { .length = 6 },
+    [PKTIN_LC245_2_UPDATE_RUNENERGY] = { .length = 1 },
+    [PKTIN_LC245_2_RESET_ANIMS] = { .length = 0 },
+    [PKTIN_LC245_2_UPDATE_PID] = { .length = 3 },
+    [PKTIN_LC245_2_LAST_LOGIN_INFO] = { .length = 10 },
+    [PKTIN_LC245_2_LOGOUT] = { .length = 0 },
+    [PKTIN_LC245_2_P_COUNTDIALOG] = { .length = 0 },
+    [PKTIN_LC245_2_SET_MULTIWAY] = { .length = 1 },
+    [PKTIN_LC245_2_REBUILD_NORMAL] = { .length = 4 },
+    [PKTIN_LC245_2_VARP_SMALL] = { .length = 3 },
+    [PKTIN_LC245_2_VARP_LARGE] = { .length = 6 },
+    [PKTIN_LC245_2_RESET_CLIENT_VARCACHE] = { .length = 0 },
+    [PKTIN_LC245_2_SYNTH_SOUND] = { .length = 5 },
+    [PKTIN_LC245_2_MIDI_SONG] = { .length = 2 },
+    [PKTIN_LC245_2_MIDI_JINGLE] = { .length = 4 },
+    [PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS] = { .length = 2 },
+    [PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS] = { .length = 2 },
+    [PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED] = { .length = PKTIN_LENGTH_VARU16 },
+    [PKTIN_LC245_2_LOC_MERGE] = { .length = 14 },
+    [PKTIN_LC245_2_LOC_ANIM] = { .length = 4 },
+    [PKTIN_LC245_2_OBJ_DEL] = { .length = 3 },
+    [PKTIN_LC245_2_OBJ_REVEAL] = { .length = 7 },
+    [PKTIN_LC245_2_LOC_ADD_CHANGE] = { .length = 4 },
+    [PKTIN_LC245_2_MAP_PROJANIM] = { .length = 15 },
+    [PKTIN_LC245_2_LOC_DEL] = { .length = 2 },
+    [PKTIN_LC245_2_OBJ_COUNT] = { .length = 7 },
+    [PKTIN_LC245_2_MAP_ANIM] = { .length = 6 },
+    [PKTIN_LC245_2_OBJ_ADD] = { .length = 5 },
+};
+
+static inline int
+packetin_size_lc245_2(int packet_type)
+{
+    assert(packet_type >= 0 && packet_type < 256);
+    return g_packet_in_definitions_lc245_2[packet_type].length;
+}
+
 #endif

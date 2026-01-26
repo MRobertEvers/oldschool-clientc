@@ -94,6 +94,12 @@ buildcachedat_add_scenery(
     struct CacheMapLocs* locs);
 
 struct CacheMapLocs*
+buildcachedat_get_scenery(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz);
+
+struct CacheMapLocs*
 buildcachedat_iter_next_scenery(struct DashMapIter* iter);
 
 struct DashMapIter*

@@ -3,18 +3,20 @@
 #include "isaac.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
 struct Isaac
 {
     int count;
 
-    int rsl[256];
-    int mem[256];
+    uint32_t rsl[256];
+    uint32_t mem[256];
 
-    int a;
-    int b;
-    int c;
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
 };
 
 static void
@@ -25,7 +27,7 @@ isaac_scramble(struct Isaac* isaac)
 
     for( int i = 0; i < 256; i++ )
     {
-        int x = isaac->mem[i];
+        uint32_t x = isaac->mem[i];
         int mem = i & 3;
         if( mem == 0 )
         {
@@ -46,7 +48,7 @@ isaac_scramble(struct Isaac* isaac)
 
         isaac->a += isaac->mem[(i + 128) & 0xff];
 
-        int y;
+        uint32_t y;
         isaac->mem[i] = y = isaac->mem[((unsigned int)x >> 2) & 0xff] + isaac->a + isaac->b;
         isaac->rsl[i] = isaac->b = isaac->mem[(((unsigned int)y >> 8) >> 2) & 0xff] + x;
     }
@@ -55,8 +57,8 @@ isaac_scramble(struct Isaac* isaac)
 static void
 isaac_init(struct Isaac* isaac)
 {
-    int a = 0x9e3779b9, b = 0x9e3779b9, c = 0x9e3779b9, d = 0x9e3779b9, e = 0x9e3779b9,
-        f = 0x9e3779b9, g = 0x9e3779b9, h = 0x9e3779b9;
+    uint32_t a = 0x9e3779b9, b = 0x9e3779b9, c = 0x9e3779b9, d = 0x9e3779b9, e = 0x9e3779b9,
+             f = 0x9e3779b9, g = 0x9e3779b9, h = 0x9e3779b9;
 
     for( int i = 0; i < 4; i++ )
     {

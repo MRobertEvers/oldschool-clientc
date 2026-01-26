@@ -2,6 +2,7 @@
 
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/dashlib.h"
 #include "osrs/gameproto.h"
 #include "osrs/gametask.h"
@@ -96,8 +97,10 @@ LibToriRS_GameNew(
     game->camera->fov_rpi2048 = 512;
     game->camera->near_plane_z = 50;
 
-    gametask_new_init_io(game, game->io);
-    gametask_new_init_scene_dat(game, 50, 50, 51, 51);
+    game->buildcachedat = buildcachedat_new();
+
+    // gametask_new_init_io(game, game->io);
+    // gametask_new_init_scene_dat(game, 50, 50, 51, 51);
 
     return game;
 }

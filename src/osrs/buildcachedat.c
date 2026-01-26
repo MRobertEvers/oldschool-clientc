@@ -275,6 +275,20 @@ buildcachedat_add_scenery(
 }
 
 struct CacheMapLocs*
+buildcachedat_get_scenery(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz)
+{
+    int mapxz = MAPXZ(mapx, mapz);
+    struct SceneryEntry* scenery_entry =
+        (struct SceneryEntry*)dashmap_search(buildcachedat->scenery_hmap, &mapxz, DASHMAP_FIND);
+    if( !scenery_entry )
+        return NULL;
+    return scenery_entry->locs;
+}
+
+struct CacheMapLocs*
 buildcachedat_iter_next_scenery(struct DashMapIter* iter)
 {
     struct SceneryEntry* scenery_entry = (struct SceneryEntry*)dashmap_iter_next(iter);

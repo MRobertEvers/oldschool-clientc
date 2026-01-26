@@ -226,7 +226,8 @@
         "task_load_dat.h": "c",
         "animframe.h": "c",
         "task_init_scene.h": "c",
-        "_light_model_default.u.c": "cpp"
+        "_light_model_default.u.c": "cpp",
+        "gio.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

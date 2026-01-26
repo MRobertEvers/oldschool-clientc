@@ -3,6 +3,8 @@ extern "C" {
 #include "osrs/gio.h"
 #include "osrs/grender.h"
 #include "osrs/lclogin.h"
+#include "osrs/query_engine.h"
+#include "osrs/query_executor_dat.h"
 #include "server/server.h"
 #include "tori_rs.h"
 }
@@ -188,38 +190,50 @@ main(
         return 1;
     }
 
-    // Initialize login state machine
-    struct LCLogin login;
-    int32_t jag_checksum[9] = {
-        0
-    }; // Initialize with zeros - should be set from cache in real implementation
+    struct QueryEngine* query_engine = query_engine_new();
 
-    // Initialize login
-    lclogin_init(&login, 317, jag_checksum, false);
+#define MAPXZR(x, z) ((x) << 8 | (z))
+    int regions[2] = {
+        MAPXZR(50, 50),
+        MAPXZR(50, 51),
+    };
 
-    // Load RSA public key from environment variables with defaults
-    if( lclogin_load_rsa_public_key_from_env(&login) < 0 )
-    {
-        printf("Failed to load RSA public key from environment variables\n");
-    }
+    struct QEQuery* q = query_engine_qnew();
+    query_engine_qpush_op(q, QEDAT_DT_MAPS_SCENERY, QE_FN_0, QE_STORE_SET_0);
+    query_engine_qpush_argx(q, regions, 2);
 
-    // Create socket connection to login server
-    int login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
-    if( login_socket < 0 )
-    {
-        printf("Failed to create login socket\n");
-        // Continue anyway - login will fail gracefully
-    }
-    else
-    {
-        // Start login process (using placeholder credentials - adjust as needed)
-        // In a real implementation, these would come from user input or config
-        const char* username = "asdf";
-        const char* password = "a";
-        lclogin_start(&login, username, password, false);
+    // // Initialize login state machine
+    // struct LCLogin login;
+    // int32_t jag_checksum[9] = {
+    //     0
+    // }; // Initialize with zeros - should be set from cache in real implementation
 
-        printf("Login process started\n");
-    }
+    // // Initialize login
+    // lclogin_init(&login, 245, jag_checksum, false);
+
+    // // Load RSA public key from environment variables with defaults
+    // if( lclogin_load_rsa_public_key_from_env(&login) < 0 )
+    // {
+    //     printf("Failed to load RSA public key from environment variables\n");
+    // }
+
+    // // Create socket connection to login server
+    // int login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
+    // if( login_socket < 0 )
+    // {
+    //     printf("Failed to create login socket\n");
+    //     // Continue anyway - login will fail gracefully
+    // }
+    // else
+    // {
+    //     // Start login process (using placeholder credentials - adjust as needed)
+    //     // In a real implementation, these would come from user input or config
+    //     const char* username = "asdf";
+    //     const char* password = "a";
+    //     lclogin_start(&login, username, password, false);
+
+    //     printf("Login process started\n");
+    // }
 
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;
@@ -227,120 +241,114 @@ main(
     LibToriRS_GameStepTasks(game, &input, render_command_buffer);
     while( LibToriRS_GameIsRunning(game) )
     {
-        // Process login state machine
-        lclogin_state_t login_state = lclogin_get_state(&login);
-        if( login_state != LCLOGIN_STATE_IDLE && login_state != LCLOGIN_STATE_SUCCESS &&
-            login_state != LCLOGIN_STATE_ERROR )
-        {
-            // Handle socket I/O for login
-            if( login_socket >= 0 )
-            {
-                // Check for data to send
-                const uint8_t* data_to_send = NULL;
-                int send_size = lclogin_get_data_to_send(&login, &data_to_send);
-                if( send_size > 0 && data_to_send )
-                {
-                    int sent = send(login_socket, data_to_send, send_size, 0);
-                    if( sent > 0 )
-                    {
-                        lclogin_mark_data_sent(&login, sent);
-                    }
-                    else if( sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
-                    {
-                        // Socket error
-                        printf("Socket send error: %s\n", strerror(errno));
-                        close(login_socket);
-                        login_socket = -1;
-                    }
-                }
+        if( !query_engine_qdone(q) )
+            query_executor_dat_step(query_engine, q, io, game->buildcachedat);
+        // // Process login state machine
+        // lclogin_state_t login_state = lclogin_get_state(&login);
+        // if( login_state != LCLOGIN_STATE_IDLE && login_state != LCLOGIN_STATE_SUCCESS &&
+        //     login_state != LCLOGIN_STATE_ERROR )
+        // {
+        //     // Handle socket I/O for login
+        //     if( login_socket >= 0 )
+        //     {
+        //         // Check for data to send
+        //         const uint8_t* data_to_send = NULL;
+        //         int send_size = lclogin_get_data_to_send(&login, &data_to_send);
+        //         if( send_size > 0 && data_to_send )
+        //         {
+        //             int sent = send(login_socket, data_to_send, send_size, 0);
+        //             if( sent > 0 )
+        //             {
+        //                 lclogin_mark_data_sent(&login, sent);
+        //             }
+        //             else if( sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
+        //             {
+        //                 // Socket error
+        //                 printf("Socket send error: %s\n", strerror(errno));
+        //                 close(login_socket);
+        //                 login_socket = -1;
+        //             }
+        //         }
 
-                // Check for data to receive
-                int bytes_needed = lclogin_get_bytes_needed(&login);
-                if( bytes_needed > 0 )
-                {
-                    uint8_t recv_buffer[512];
-                    // In draining state, read as much as available
-                    int recv_size =
-                        (login_state == LCLOGIN_STATE_SUCCESS) ? sizeof(recv_buffer) : bytes_needed;
-                    int received = recv(login_socket, recv_buffer, recv_size, MSG_DONTWAIT);
-                    if( received > 0 )
-                    {
-                        lclogin_provide_data(&login, recv_buffer, received);
-                    }
-                    else if( received == 0 )
-                    {
-                        // Connection closed
-                        printf("Login socket closed\n");
-                        close(login_socket);
-                        login_socket = -1;
-                    }
-                    else if( received < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
-                    {
-                        // Socket error
-                        printf("Socket recv error: %s\n", strerror(errno));
-                        close(login_socket);
-                        login_socket = -1;
-                    }
-                }
-            }
-        }
-        // Handle draining state separately - continue to drain data after login
-        if( login_state == LCLOGIN_STATE_SUCCESS && login_socket >= 0 )
-        {
-            // Continue receiving and discarding data
-            uint8_t recv_buffer[512];
-            int received = recv(login_socket, recv_buffer, sizeof(recv_buffer), MSG_DONTWAIT);
-            if( received > 0 )
-            {
-                lclogin_provide_data(&login, recv_buffer, received);
-            }
-            else if( received == 0 )
-            {
-                // Connection closed - transition to success
-                printf("Login socket closed, login complete\n");
-                login.state = LCLOGIN_STATE_SUCCESS;
-                close(login_socket);
-                login_socket = -1;
-            }
-            else if( received < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
-            {
-                // Socket error
-                printf("Socket recv error during drain: %s\n", strerror(errno));
-                login.state = LCLOGIN_STATE_SUCCESS; // Still mark as success
-                close(login_socket);
-                login_socket = -1;
-            }
-        }
-
-        int login_result = lclogin_process(&login);
-        if( login_result != 0 )
-        {
-            // Login completed (success or error)
-            login_state = lclogin_get_state(&login);
-            if( login_state == LCLOGIN_STATE_SUCCESS )
-            {
-                printf("Login successful!\n");
-                lclogin_result_t result = lclogin_get_result(&login);
-                printf("Login result: %d\n", (int)result);
-            }
-            else if( login_state == LCLOGIN_STATE_ERROR )
-            {
-                printf(
-                    "Login failed: %s - %s\n",
-                    lclogin_get_message0(&login),
-                    lclogin_get_message1(&login));
-                lclogin_result_t result = lclogin_get_result(&login);
-                printf("Login result: %d\n", (int)result);
-            }
-        }
-
-        // // Check if we transitioned from DRAINING to SUCCESS
-        // login_state = lclogin_get_state(&login);
+        //         // Check for data to receive
+        //         int bytes_needed = lclogin_get_bytes_needed(&login);
+        //         if( bytes_needed > 0 )
+        //         {
+        //             uint8_t recv_buffer[512];
+        //             // In draining state, read as much as available
+        //             int recv_size =
+        //                 (login_state == LCLOGIN_STATE_SUCCESS) ? sizeof(recv_buffer) :
+        //                 bytes_needed;
+        //             int received = recv(login_socket, recv_buffer, recv_size, MSG_DONTWAIT);
+        //             if( received > 0 )
+        //             {
+        //                 lclogin_provide_data(&login, recv_buffer, received);
+        //             }
+        //             else if( received == 0 )
+        //             {
+        //                 // Connection closed
+        //                 printf("Login socket closed\n");
+        //                 close(login_socket);
+        //                 login_socket = -1;
+        //             }
+        //             else if( received < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
+        //             {
+        //                 // Socket error
+        //                 printf("Socket recv error: %s\n", strerror(errno));
+        //                 close(login_socket);
+        //                 login_socket = -1;
+        //             }
+        //         }
+        //     }
+        // }
+        // // Handle draining state separately - continue to drain data after login
         // if( login_state == LCLOGIN_STATE_SUCCESS && login_socket >= 0 )
         // {
-        //     printf("Login complete, closing socket\n");
-        //     close(login_socket);
-        //     login_socket = -1;
+        //     // Continue receiving and discarding data
+        //     uint8_t recv_buffer[512];
+        //     int received = recv(login_socket, recv_buffer, sizeof(recv_buffer), MSG_DONTWAIT);
+        //     if( received > 0 )
+        //     {
+        //         lclogin_provide_data(&login, recv_buffer, received);
+        //     }
+        //     else if( received == 0 )
+        //     {
+        //         // Connection closed - transition to success
+        //         printf("Login socket closed, login complete\n");
+        //         login.state = LCLOGIN_STATE_SUCCESS;
+        //         close(login_socket);
+        //         login_socket = -1;
+        //     }
+        //     else if( received < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
+        //     {
+        //         // Socket error
+        //         printf("Socket recv error during drain: %s\n", strerror(errno));
+        //         login.state = LCLOGIN_STATE_SUCCESS; // Still mark as success
+        //         close(login_socket);
+        //         login_socket = -1;
+        //     }
+        // }
+
+        // int login_result = lclogin_process(&login);
+        // if( login_result != 0 )
+        // {
+        //     // Login completed (success or error)
+        //     login_state = lclogin_get_state(&login);
+        //     if( login_state == LCLOGIN_STATE_SUCCESS )
+        //     {
+        //         printf("Login successful!\n");
+        //         lclogin_result_t result = lclogin_get_result(&login);
+        //         printf("Login result: %d\n", (int)result);
+        //     }
+        //     else if( login_state == LCLOGIN_STATE_ERROR )
+        //     {
+        //         printf(
+        //             "Login failed: %s - %s\n",
+        //             lclogin_get_message0(&login),
+        //             lclogin_get_message1(&login));
+        //         lclogin_result_t result = lclogin_get_result(&login);
+        //         printf("Login result: %d\n", (int)result);
+        //     }
         // }
 
         // Process server messages from previous frame and step server
@@ -354,20 +362,20 @@ main(
         // Update game tick time for camera movement timing
         game->tick_ms = timestamp_ms;
 
-        LibToriRS_GameStep(game, &input, render_command_buffer);
+        // LibToriRS_GameStep(game, &input, render_command_buffer);
 
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, render_command_buffer);
     }
 
-    // Cleanup login
-    lclogin_cleanup(&login);
+    // // Cleanup login
+    // lclogin_cleanup(&login);
 
-    // Cleanup socket
-    if( login_socket >= 0 )
-    {
-        close(login_socket);
-        login_socket = -1;
-    }
+    // // Cleanup socket
+    // if( login_socket >= 0 )
+    // {
+    //     close(login_socket);
+    //     login_socket = -1;
+    // }
 
     // Cleanup server
     server_free(server);

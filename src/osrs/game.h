@@ -7,12 +7,20 @@
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/grender.h"
+#include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 
 #include <stdbool.h>
 #include <stdint.h>
+
+struct RevPacket_LC245_2_Item
+{
+    struct RevPacket_LC245_2 packet;
+
+    struct RevPacket_LC245_2_Item* next_nullable;
+};
 
 struct GGame
 {
@@ -64,6 +72,8 @@ struct GGame
 
     uint64_t tick_ms;
     uint64_t next_tick_ms;
+
+    struct RevPacket_LC245_2_Item* packet_queue_lc245_2_nullable;
 
     struct Vec* scene_elements;
     struct Scene* scene;

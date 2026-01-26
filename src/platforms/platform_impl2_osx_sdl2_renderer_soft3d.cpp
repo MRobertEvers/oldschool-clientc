@@ -470,7 +470,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     // struct AABB aabb;
     struct GRenderCommand* command = NULL;
 
-    if( game->tasks_nullable == NULL )
+    if( game->tasks_nullable == NULL && game->sys_painter )
         painter_paint(
             game->sys_painter,
             game->sys_painter_buffer,
@@ -487,202 +487,199 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;
     renderer->clicked_tile_level = -1;
-
-    for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
-    {
-        struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
-        memset(&position, 0, sizeof(struct DashPosition));
-
-        switch( cmd->_bf_kind )
+    if( game->sys_painter_buffer )
+        for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
         {
-        case PNTR_CMD_ELEMENT:
-        {
-            element = scene_element_at(game->scene->scenery, cmd->_entity._bf_entity);
-            memcpy(
-                &position,
-                scene_element_position(game->scene, cmd->_entity._bf_entity),
-                sizeof(struct DashPosition));
+            struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
+            memset(&position, 0, sizeof(struct DashPosition));
 
-            // int tile_x = position.x / 128;
-            // int tile_z = position.z / 128;
-            // if( !(tile_x == 31 && (tile_z == 24 || tile_z == 23 || tile_z == 25)) )
-            // {
-            //     continue;
-            // }
-
-            position.x = position.x - game->camera_world_x;
-            position.y = position.y - game->camera_world_y;
-            position.z = position.z - game->camera_world_z;
-
-            if( element->dash_model && element->animation && element->animation->frame_count > 0 )
+            switch( cmd->_bf_kind )
             {
-                dashmodel_animate(
-                    scene_element_model(game->scene, cmd->_entity._bf_entity),
-                    element->animation->dash_frames[element->animation->frame_index],
-                    element->animation->dash_framemap);
-            }
-
-            int cull = dash3d_project_model(
-                game->sys_dash,
-                scene_element_model(game->scene, cmd->_entity._bf_entity),
-                &position,
-                game->view_port,
-                game->camera);
-            if( cull != DASHCULL_VISIBLE )
-                break;
-
-            if( (scene_element_interactable(game->scene, cmd->_entity._bf_entity)) )
+            case PNTR_CMD_ELEMENT:
             {
-                // Adjust mouse coordinates for dash buffer offset
-                int mouse_x_adjusted = game->mouse_x - renderer->dash_offset_x;
-                int mouse_y_adjusted = game->mouse_y - renderer->dash_offset_y;
-                if( dash3d_projected_model_contains(
-                        game->sys_dash,
-                        scene_element_model(game->scene, cmd->_entity._bf_entity),
-                        game->view_port,
-                        mouse_x_adjusted,
-                        mouse_y_adjusted) )
+                element = scene_element_at(game->scene->scenery, cmd->_entity._bf_entity);
+                memcpy(
+                    &position,
+                    scene_element_position(game->scene, cmd->_entity._bf_entity),
+                    sizeof(struct DashPosition));
+
+                // int tile_x = position.x / 128;
+                // int tile_z = position.z / 128;
+                // if( !(tile_x == 31 && (tile_z == 24 || tile_z == 23 || tile_z == 25)) )
+                // {
+                //     continue;
+                // }
+
+                position.x = position.x - game->camera_world_x;
+                position.y = position.y - game->camera_world_y;
+                position.z = position.z - game->camera_world_z;
+
+                if( element->dash_model && element->animation &&
+                    element->animation->frame_count > 0 )
                 {
-                    // 1637
-                    interacting_scene_element = cmd->_entity._bf_entity;
-                    // printf(
-                    //     "Interactable: %s\n",
-                    //     scene_element_name(game->scene, cmd->_entity._bf_entity));
-
-                    // for( struct SceneAction* action = element->actions; action;
-                    //      action = action->next )
-                    // {
-                    //     printf("Action: %s\n", action->action);
-                    // }
-
-                    // Draw AABB rectangle outline on dash buffer
-                    // AABB coordinates are in screen space relative to viewport center
-                    struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
-
-                    // AABB coordinates are already in viewport space (0 to viewport->width, 0 to
-                    // viewport->height)
-                    int db_min_x = aabb->min_screen_x;
-                    int db_min_y = aabb->min_screen_y;
-                    int db_max_x = aabb->max_screen_x;
-                    int db_max_y = aabb->max_screen_y;
-
-                    // Draw on dash buffer if it exists
-                    if( renderer->dash_buffer )
-                    {
-                        // Draw top and bottom horizontal lines
-                        for( int x = db_min_x; x <= db_max_x; x++ )
-                        {
-                            if( x >= 0 && x < renderer->dash_buffer_width )
-                            {
-                                // Top line
-                                if( db_min_y >= 0 && db_min_y < renderer->dash_buffer_height )
-                                {
-                                    renderer
-                                        ->dash_buffer[db_min_y * renderer->dash_buffer_width + x] =
-                                        0xFFFFFF;
-                                }
-                                // Bottom line
-                                if( db_max_y >= 0 && db_max_y < renderer->dash_buffer_height )
-                                {
-                                    renderer
-                                        ->dash_buffer[db_max_y * renderer->dash_buffer_width + x] =
-                                        0xFFFFFF;
-                                }
-                            }
-                        }
-
-                        // Draw left and right vertical lines
-                        for( int y = db_min_y; y <= db_max_y; y++ )
-                        {
-                            if( y >= 0 && y < renderer->dash_buffer_height )
-                            {
-                                // Left line
-                                if( db_min_x >= 0 && db_min_x < renderer->dash_buffer_width )
-                                {
-                                    renderer
-                                        ->dash_buffer[y * renderer->dash_buffer_width + db_min_x] =
-                                        0xFFFFFF;
-                                }
-                                // Right line
-                                if( db_max_x >= 0 && db_max_x < renderer->dash_buffer_width )
-                                {
-                                    renderer
-                                        ->dash_buffer[y * renderer->dash_buffer_width + db_max_x] =
-                                        0xFFFFFF;
-                                }
-                            }
-                        }
-                    }
+                    dashmodel_animate(
+                        scene_element_model(game->scene, cmd->_entity._bf_entity),
+                        element->animation->dash_frames[element->animation->frame_index],
+                        element->animation->dash_framemap);
                 }
-            }
 
-            dash3d_raster_projected_model(
-                game->sys_dash,
-                scene_element_model(game->scene, cmd->_entity._bf_entity),
-                &position,
-                game->view_port,
-                game->camera,
-                renderer->dash_buffer);
-        }
-        break;
-        case PNTR_CMD_TERRAIN:
-        {
-            struct SceneTerrainTile* tile_model = NULL;
-            int sx = cmd->_terrain._bf_terrain_x;
-            int sz = cmd->_terrain._bf_terrain_z;
-            int slevel = cmd->_terrain._bf_terrain_y;
-
-            tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
-
-            position.x = sx * 128 - game->camera_world_x;
-            position.z = sz * 128 - game->camera_world_z;
-            position.y = -game->camera_world_y;
-
-            // Check for tile click detection
-            if( game->mouse_clicked && tile_model->dash_model )
-            {
-                // Project the tile model to get its screen bounds
                 int cull = dash3d_project_model(
                     game->sys_dash,
-                    tile_model->dash_model,
+                    scene_element_model(game->scene, cmd->_entity._bf_entity),
                     &position,
                     game->view_port,
                     game->camera);
+                if( cull != DASHCULL_VISIBLE )
+                    break;
 
-                if( cull == DASHCULL_VISIBLE )
+                if( (scene_element_interactable(game->scene, cmd->_entity._bf_entity)) )
                 {
                     // Adjust mouse coordinates for dash buffer offset
-                    int mouse_x_adjusted = game->mouse_clicked_x - renderer->dash_offset_x;
-                    int mouse_y_adjusted = game->mouse_clicked_y - renderer->dash_offset_y;
-
-                    // Check if click point is within the tile's projected geometry
+                    int mouse_x_adjusted = game->mouse_x - renderer->dash_offset_x;
+                    int mouse_y_adjusted = game->mouse_y - renderer->dash_offset_y;
                     if( dash3d_projected_model_contains(
                             game->sys_dash,
-                            tile_model->dash_model,
+                            scene_element_model(game->scene, cmd->_entity._bf_entity),
                             game->view_port,
                             mouse_x_adjusted,
                             mouse_y_adjusted) )
                     {
-                        renderer->clicked_tile_x = sx;
-                        renderer->clicked_tile_z = sz;
-                        renderer->clicked_tile_level = slevel;
+                        // 1637
+                        interacting_scene_element = cmd->_entity._bf_entity;
+                        // printf(
+                        //     "Interactable: %s\n",
+                        //     scene_element_name(game->scene, cmd->_entity._bf_entity));
+
+                        // for( struct SceneAction* action = element->actions; action;
+                        //      action = action->next )
+                        // {
+                        //     printf("Action: %s\n", action->action);
+                        // }
+
+                        // Draw AABB rectangle outline on dash buffer
+                        // AABB coordinates are in screen space relative to viewport center
+                        struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+
+                        // AABB coordinates are already in viewport space (0 to viewport->width, 0
+                        // to viewport->height)
+                        int db_min_x = aabb->min_screen_x;
+                        int db_min_y = aabb->min_screen_y;
+                        int db_max_x = aabb->max_screen_x;
+                        int db_max_y = aabb->max_screen_y;
+
+                        // Draw on dash buffer if it exists
+                        if( renderer->dash_buffer )
+                        {
+                            // Draw top and bottom horizontal lines
+                            for( int x = db_min_x; x <= db_max_x; x++ )
+                            {
+                                if( x >= 0 && x < renderer->dash_buffer_width )
+                                {
+                                    // Top line
+                                    if( db_min_y >= 0 && db_min_y < renderer->dash_buffer_height )
+                                    {
+                                        renderer->dash_buffer
+                                            [db_min_y * renderer->dash_buffer_width + x] = 0xFFFFFF;
+                                    }
+                                    // Bottom line
+                                    if( db_max_y >= 0 && db_max_y < renderer->dash_buffer_height )
+                                    {
+                                        renderer->dash_buffer
+                                            [db_max_y * renderer->dash_buffer_width + x] = 0xFFFFFF;
+                                    }
+                                }
+                            }
+
+                            // Draw left and right vertical lines
+                            for( int y = db_min_y; y <= db_max_y; y++ )
+                            {
+                                if( y >= 0 && y < renderer->dash_buffer_height )
+                                {
+                                    // Left line
+                                    if( db_min_x >= 0 && db_min_x < renderer->dash_buffer_width )
+                                    {
+                                        renderer->dash_buffer
+                                            [y * renderer->dash_buffer_width + db_min_x] = 0xFFFFFF;
+                                    }
+                                    // Right line
+                                    if( db_max_x >= 0 && db_max_x < renderer->dash_buffer_width )
+                                    {
+                                        renderer->dash_buffer
+                                            [y * renderer->dash_buffer_width + db_max_x] = 0xFFFFFF;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            }
 
-            dash3d_render_model(
-                game->sys_dash,
-                tile_model->dash_model,
-                &position,
-                game->view_port,
-                game->camera,
-                renderer->dash_buffer);
-        }
-        break;
-        default:
+                dash3d_raster_projected_model(
+                    game->sys_dash,
+                    scene_element_model(game->scene, cmd->_entity._bf_entity),
+                    &position,
+                    game->view_port,
+                    game->camera,
+                    renderer->dash_buffer);
+            }
             break;
+            case PNTR_CMD_TERRAIN:
+            {
+                struct SceneTerrainTile* tile_model = NULL;
+                int sx = cmd->_terrain._bf_terrain_x;
+                int sz = cmd->_terrain._bf_terrain_z;
+                int slevel = cmd->_terrain._bf_terrain_y;
+
+                tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
+
+                position.x = sx * 128 - game->camera_world_x;
+                position.z = sz * 128 - game->camera_world_z;
+                position.y = -game->camera_world_y;
+
+                // Check for tile click detection
+                if( game->mouse_clicked && tile_model->dash_model )
+                {
+                    // Project the tile model to get its screen bounds
+                    int cull = dash3d_project_model(
+                        game->sys_dash,
+                        tile_model->dash_model,
+                        &position,
+                        game->view_port,
+                        game->camera);
+
+                    if( cull == DASHCULL_VISIBLE )
+                    {
+                        // Adjust mouse coordinates for dash buffer offset
+                        int mouse_x_adjusted = game->mouse_clicked_x - renderer->dash_offset_x;
+                        int mouse_y_adjusted = game->mouse_clicked_y - renderer->dash_offset_y;
+
+                        // Check if click point is within the tile's projected geometry
+                        if( dash3d_projected_model_contains(
+                                game->sys_dash,
+                                tile_model->dash_model,
+                                game->view_port,
+                                mouse_x_adjusted,
+                                mouse_y_adjusted) )
+                        {
+                            renderer->clicked_tile_x = sx;
+                            renderer->clicked_tile_z = sz;
+                            renderer->clicked_tile_level = slevel;
+                        }
+                    }
+                }
+
+                dash3d_render_model(
+                    game->sys_dash,
+                    tile_model->dash_model,
+                    &position,
+                    game->view_port,
+                    game->camera,
+                    renderer->dash_buffer);
+            }
+            break;
+            default:
+                break;
+            }
         }
-    }
 done_draw:;
     // for( int i = 0; i < vec_size(game->scene_elements); i++ )
     // {
@@ -779,7 +776,8 @@ done_draw:;
     int ne_z = camera_tile_z + radius;
 
     struct MinimapRenderCommandBuffer* minimap_command_buffer = minimap_commands_new(1024);
-    minimap_render(game->sys_minimap, sw_x, sw_z, ne_x, ne_z, 0, minimap_command_buffer);
+    if( game->sys_minimap )
+        minimap_render(game->sys_minimap, sw_x, sw_z, ne_x, ne_z, 0, minimap_command_buffer);
 
     int rgb_foreground;
     int rgb_background;

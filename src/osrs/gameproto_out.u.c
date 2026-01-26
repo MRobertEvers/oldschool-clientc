@@ -1,6 +1,11 @@
 #ifndef GAMEPROTO_OUT_U_C
 #define GAMEPROTO_OUT_U_C
 
+#include "rscache/rsbuf.h"
+
+#include <assert.h>
+#include <stdint.h>
+
 static inline int
 packetin_write_rebuild_region(
     uint8_t* data,

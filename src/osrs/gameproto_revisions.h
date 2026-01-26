@@ -5,6 +5,7 @@ enum GameProtoRevision
 {
     GAMEPROTO_REVISION_INVALID = 0,
     GAMEPROTO_REVISION_LC254 = 1,
+    GAMEPROTO_REVISION_LC245_2 = 2,
 };
 
 #endif
