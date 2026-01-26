@@ -1377,3 +1377,16 @@ struct BuildCacheDat
   struct DashMap* models_hmap;
   struct DashMap* textures_hmap;
 };
+
+## Inferno
+
+Region 
+x = (region >> 8)
+y = (region 0xFF)
+
+Inferno region 
+
+Region ID: 9043
+(regionX = 35, regionY = 83)
+
+Instances -> Load region chunk, server has instance area for you.
