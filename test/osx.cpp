@@ -201,12 +201,6 @@ main(
     if( lclogin_load_rsa_public_key_from_env(&login) < 0 )
     {
         printf("Failed to load RSA public key from environment variables\n");
-        // Try falling back to PEM file
-        if( lclogin_load_rsa_public_key(&login, "../public.pem") < 0 )
-        {
-            printf("Failed to load RSA public key from public.pem\n");
-            // Continue anyway - login will fail gracefully
-        }
     }
 
     // Create socket connection to login server

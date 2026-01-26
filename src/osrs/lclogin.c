@@ -30,11 +30,7 @@
 #include "lclogin.h"
 
 #include "jbase37.h"
-#include <openssl/bn.h>
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/pem.h>
-#include <openssl/rsa.h>
+#include "rsa.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -86,131 +82,21 @@ rsbuf_pjstr(
     rsbuf_p1(buffer, terminator); // Null terminator
 }
 
-// RSA encryption using raw modular exponentiation (no padding)
-// This matches the TypeScript implementation: bytesToBigInt -> bigIntModPow -> bigIntToBytes
-// This encrypts the buffer data using the RSA public key
-static int
+int
 rsbuf_rsaenc(
     struct RSBuffer* buffer,
-    RSA* rsa_key)
+    const struct rsa* rsa)
 {
-    if( !rsa_key || !buffer || buffer->position == 0 )
-    {
-        return -1;
-    }
+    int8_t* temp = malloc(buffer->position);
+    memcpy(temp, buffer->data, buffer->position);
 
-    // Get RSA key size (in bytes)
-    int rsa_size = RSA_size(rsa_key);
-    if( rsa_size <= 0 )
-    {
-        return -1;
-    }
-
-    // Check if buffer has enough space for encrypted data (1 byte length + rsa_size bytes)
-    if( (int)buffer->size < 1 + rsa_size )
-    {
-        return -1;
-    }
-
-    // Save the input length and data (from position 0)
-    int input_length = buffer->position;
-    unsigned char* temp = (unsigned char*)malloc(input_length);
-    if( !temp )
-    {
-        return -1;
-    }
-    memcpy(temp, buffer->data, input_length);
-
-    // Get the RSA modulus and exponent from the key
-    const BIGNUM* n = NULL;
-    const BIGNUM* e = NULL;
-    RSA_get0_key(rsa_key, &n, &e, NULL);
-    if( !n || !e )
-    {
-        free(temp);
-        return -1;
-    }
-
-    // Convert input bytes to BIGNUM (big-endian)
-    BIGNUM* input_bn = BN_bin2bn(temp, input_length, NULL);
-    if( !input_bn )
-    {
-        free(temp);
-        return -1;
-    }
-
-    // Perform modular exponentiation: (input_bn^e) mod n
-    BIGNUM* result_bn = BN_new();
-    if( !result_bn )
-    {
-        BN_free(input_bn);
-        free(temp);
-        return -1;
-    }
-
-    BN_CTX* ctx = BN_CTX_new();
-    if( !ctx )
-    {
-        BN_free(input_bn);
-        BN_free(result_bn);
-        free(temp);
-        return -1;
-    }
-
-    if( BN_mod_exp(result_bn, input_bn, e, n, ctx) != 1 )
-    {
-        BN_CTX_free(ctx);
-        BN_free(input_bn);
-        BN_free(result_bn);
-        free(temp);
-        return -1;
-    }
-
-    // Convert result back to bytes (big-endian)
-    // The result will be at most rsa_size bytes
-    // We need a temporary buffer to get the actual size first
-    unsigned char* temp_output = (unsigned char*)malloc(rsa_size);
-    if( !temp_output )
-    {
-        BN_CTX_free(ctx);
-        BN_free(input_bn);
-        BN_free(result_bn);
-        free(temp);
-        return -1;
-    }
-
-    int result_size = BN_bn2bin(result_bn, temp_output);
-
-    // Pad with leading zeros if result is smaller than rsa_size (big-endian format)
-    // This ensures the output is always exactly rsa_size bytes
-    unsigned char* output = (unsigned char*)buffer->data + 1;
-    if( result_size < rsa_size )
-    {
-        // Zero-pad the left side
-        memset(output, 0, rsa_size - result_size);
-        // Copy the actual bytes
-        memcpy(output + (rsa_size - result_size), temp_output, result_size);
-    }
-    else
-    {
-        // Result is exactly rsa_size (should always be the case for RSA)
-        memcpy(output, temp_output, rsa_size);
-    }
-
-    // Cleanup
-    free(temp_output);
-    BN_CTX_free(ctx);
-    BN_free(input_bn);
-    BN_free(result_bn);
+    int enclen = rsa_crypt(rsa, temp, buffer->position, buffer->data + 1, buffer->size);
     free(temp);
 
-    // Write output: [length_byte][encrypted_data]
-    // Match TypeScript: write actual result size (though it should be rsa_size)
-    // But for RSA compatibility, we always output exactly rsa_size bytes
-    buffer->data[0] = (unsigned char)rsa_size;
-    buffer->position = 1 + rsa_size;
+    buffer->data[0] = enclen;
+    buffer->position = enclen + 1;
 
-    return 0;
+    return enclen;
 }
 
 // Socket read helper (non-blocking)
@@ -257,41 +143,6 @@ generate_seed(int32_t* seed)
     // seed[2] and seed[3] will be set from server_seed
 }
 
-int
-lclogin_load_rsa_public_key(
-    struct LCLogin* login,
-    const char* pem_file_path)
-{
-    if( !login || !pem_file_path )
-    {
-        return -1;
-    }
-
-    // Free existing key if any
-    if( login->rsa_public_key )
-    {
-        RSA_free(login->rsa_public_key);
-        login->rsa_public_key = NULL;
-    }
-
-    FILE* fp = fopen(pem_file_path, "r");
-    if( !fp )
-    {
-        return -1;
-    }
-
-    // Read public key from PEM file
-    login->rsa_public_key = PEM_read_RSA_PUBKEY(fp, NULL, NULL, NULL);
-    fclose(fp);
-
-    if( !login->rsa_public_key )
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
 // Load RSA public key from modulus and exponent (as decimal strings)
 // Returns 0 on success, -1 on error
 int
@@ -305,57 +156,13 @@ lclogin_load_rsa_public_key_from_values(
         return -1;
     }
 
-    // Free existing key if any
-    if( login->rsa_public_key )
+    int ret = rsa_init(&login->rsa, exponent_str, modulus_str);
+    if( ret < 0 )
     {
-        RSA_free(login->rsa_public_key);
-        login->rsa_public_key = NULL;
-    }
-
-    // Create BIGNUMs from the decimal strings
-    // BN_dec2bn allocates new BIGNUMs, so we pass NULL pointers
-    BIGNUM* n = NULL;
-    BIGNUM* e = NULL;
-
-    // Convert decimal strings to BIGNUMs (BN_dec2bn allocates the BIGNUMs)
-    if( BN_dec2bn(&n, modulus_str) == 0 || !n )
-    {
-        if( n )
-            BN_free(n);
-        if( e )
-            BN_free(e);
         return -1;
     }
 
-    if( BN_dec2bn(&e, exponent_str) == 0 || !e )
-    {
-        if( n )
-            BN_free(n);
-        if( e )
-            BN_free(e);
-        return -1;
-    }
-
-    // Create new RSA key
-    login->rsa_public_key = RSA_new();
-    if( !login->rsa_public_key )
-    {
-        BN_free(n);
-        BN_free(e);
-        return -1;
-    }
-
-    // Set the modulus and exponent (RSA_set0_key takes ownership of the BIGNUMs)
-    if( RSA_set0_key(login->rsa_public_key, n, e, NULL) != 1 )
-    {
-        RSA_free(login->rsa_public_key);
-        login->rsa_public_key = NULL;
-        BN_free(n);
-        BN_free(e);
-        return -1;
-    }
-
-    return 0;
+    return ret;
 }
 
 // Load RSA public key from environment variables with defaults
@@ -363,51 +170,25 @@ lclogin_load_rsa_public_key_from_values(
 int
 lclogin_load_rsa_public_key_from_env(struct LCLogin* login)
 {
-    const char* default_e =
-        "58778699976184461502525193738213253649000149147835990136706041084440742975821";
-    const char* default_n =
-        "716290052522979803276181679123052729632931329123232429023784926350120820797289405392906563"
-        "6522363163621000728841182238772712427862772219676577293600221789";
+    // const char* default_e_decimal =
+    //     "58778699976184461502525193738213253649000149147835990136706041084440742975821";
+    // const char* default_n_decimal =
+    //     "716290052522979803276181679123052729632931329123232429023784926350120820797289405392906563"
+    //     "6522363163621000728841182238772712427862772219676577293600221789";
 
-    const char* e_str = default_e;
-    const char* n_str = default_n;
+    char const* default_e_hex =
+        "81f390b2cf8ca7039ee507975951d5a0b15a87bf8b3f99c966834118c50fd94d"; // pad exponent to
+                                                                            // an even number
+                                                                            // (prefix a 0 if
+                                                                            // needed)
+    char const* default_n_hex =
+        "88c38748a58228f7261cdc340b5691d7d0975dee0ecdb717609e6bf971eb3fe723ef9d130e468681373976"
+        "8ad9472eb46d8bfcc042c1a5fcb05e931f632eea5d";
+
+    const char* e_str = default_e_hex;
+    const char* n_str = default_n_hex;
 
     return lclogin_load_rsa_public_key_from_values(login, n_str, e_str);
-}
-
-int
-lclogin_load_rsa_private_key(
-    struct LCLogin* login,
-    const char* pem_file_path)
-{
-    if( !login || !pem_file_path )
-    {
-        return -1;
-    }
-
-    // Free existing key if any
-    if( login->rsa_private_key )
-    {
-        RSA_free(login->rsa_private_key);
-        login->rsa_private_key = NULL;
-    }
-
-    FILE* fp = fopen(pem_file_path, "r");
-    if( !fp )
-    {
-        return -1;
-    }
-
-    // Read private key from PEM file
-    login->rsa_private_key = PEM_read_RSAPrivateKey(fp, NULL, NULL, NULL);
-    fclose(fp);
-
-    if( !login->rsa_private_key )
-    {
-        return -1;
-    }
-
-    return 0;
 }
 
 void
@@ -422,8 +203,7 @@ lclogin_init(
     login->result = LCLOGIN_RESULT_UNEXPECTED;
     login->client_version = client_version;
     login->low_memory = low_memory;
-    login->rsa_public_key = NULL;
-    login->rsa_private_key = NULL;
+    login->rsa_loaded = false;
     if( jag_checksum )
     {
         memcpy(login->jag_checksum, jag_checksum, sizeof(login->jag_checksum));
@@ -736,17 +516,7 @@ lclogin_process(struct LCLogin* login)
         rsbuf_pjstr(&login->out, login->username, '\n');
         rsbuf_pjstr(&login->out, login->password, '\n');
 
-        // Encrypt credentials using RSA
-        if( !login->rsa_public_key )
-        {
-            login->state = LCLOGIN_STATE_ERROR;
-            strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
-            strncpy(
-                login->login_message1, "RSA key not loaded.", sizeof(login->login_message1) - 1);
-            return -1;
-        }
-
-        if( rsbuf_rsaenc(&login->out, login->rsa_public_key) < 0 )
+        if( rsbuf_rsaenc(&login->out, &login->rsa) < 0 )
         {
             login->state = LCLOGIN_STATE_ERROR;
             strncpy(login->login_message0, "", sizeof(login->login_message0) - 1);
@@ -1182,17 +952,7 @@ lclogin_cleanup(struct LCLogin* login)
         login->random_in = NULL;
     }
 
-    if( login->rsa_public_key )
-    {
-        RSA_free(login->rsa_public_key);
-        login->rsa_public_key = NULL;
-    }
-
-    if( login->rsa_private_key )
-    {
-        RSA_free(login->rsa_private_key);
-        login->rsa_private_key = NULL;
-    }
+    login->rsa_loaded = false;
 
     if( login->socket_fd >= 0 )
     {

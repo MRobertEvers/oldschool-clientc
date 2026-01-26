@@ -95,6 +95,8 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/rscache/xtea_config.c
         src/3rd/bzip/bzip.c
         src/3rd/miniz/miniz.c
+        src/3rd/tommath/mpi.c
+        src/osrs/rsa.c
         src/osrs/rscache/rsbuf.c
         src/osrs/rscache/xtea.c
 

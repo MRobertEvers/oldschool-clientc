@@ -1,15 +1,12 @@
 #ifndef OSRS_LCLOGIN_H
 #define OSRS_LCLOGIN_H
 
-#include "rscache/rsbuf.h"
 #include "isaac.h"
+#include "rsa.h"
+#include "rscache/rsbuf.h"
 
 #include <stdbool.h>
 #include <stdint.h>
-
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
 
 // Login state machine states
 typedef enum
@@ -92,9 +89,9 @@ struct LCLogin
     struct Isaac* random_out;
     struct Isaac* random_in;
 
-    // RSA keys (loaded from PEM files)
-    RSA* rsa_public_key;
-    RSA* rsa_private_key;
+    // RSA keys (modulus n and exponent e as big numbers)
+    struct rsa rsa;
+    bool rsa_loaded;
 
     // Client version and checksums
     int client_version;
@@ -130,13 +127,6 @@ lclogin_load_rsa_public_key_from_values(
 int
 lclogin_load_rsa_public_key_from_env(struct LCLogin* login);
 
-// Load RSA private key from PEM file
-// Returns 0 on success, -1 on error
-int
-lclogin_load_rsa_private_key(
-    struct LCLogin* login,
-    const char* pem_file_path);
-
 // Initialize login state machine
 void
 lclogin_init(
@@ -156,8 +146,7 @@ lclogin_start(
 // Process login state machine (call this repeatedly until state is SUCCESS or ERROR)
 // Returns 0 if more processing needed, 1 if complete, -1 on error
 int
-lclogin_process(
-    struct LCLogin* login);
+lclogin_process(struct LCLogin* login);
 
 // Cleanup
 void
@@ -179,6 +168,8 @@ lclogin_get_message1(const struct LCLogin* login);
 
 // Set socket file descriptor (call this before starting login if socket is opened externally)
 void
-lclogin_set_socket(struct LCLogin* login, int socket_fd);
+lclogin_set_socket(
+    struct LCLogin* login,
+    int socket_fd);
 
 #endif // OSRS_LCLOGIN_H
