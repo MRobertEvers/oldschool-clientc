@@ -1,11 +1,10 @@
-#ifndef ISAAC_C
-#define ISAAC_C
+
 
 #include "isaac.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
 struct Isaac
 {
     int count;
@@ -34,7 +33,7 @@ isaac_scramble(struct Isaac* isaac)
         }
         else if( mem == 1 )
         {
-            isaac->a ^= isaac->a >>> 6;
+            isaac->a ^= isaac->a >> 6;
         }
         else if( mem == 2 )
         {
@@ -42,7 +41,7 @@ isaac_scramble(struct Isaac* isaac)
         }
         else if( mem == 3 )
         {
-            isaac->a ^= isaac->a >>> 16;
+            isaac->a ^= isaac->a >> 16;
         }
 
         isaac->a += isaac->mem[(i + 128) & 0xff];
@@ -56,33 +55,33 @@ isaac_scramble(struct Isaac* isaac)
 static void
 isaac_init(struct Isaac* isaac)
 {
-    int a = 0x9e3779b9, b = d, c = 0x9e3779b9, d = 0x9e3779b9, e = 0x9e3779b9, f = 0x9e3779b9,
-        g = 0x9e3779b9, h = 0x9e3779b9;
+    int a = 0x9e3779b9, b = 0x9e3779b9, c = 0x9e3779b9, d = 0x9e3779b9, e = 0x9e3779b9,
+        f = 0x9e3779b9, g = 0x9e3779b9, h = 0x9e3779b9;
 
     for( int i = 0; i < 4; i++ )
     {
         a ^= b << 11;
         d += a;
         b += c;
-        b ^= c >>> 2;
+        b ^= c >> 2;
         e += b;
         c += d;
         c ^= d << 8;
         f += c;
         d += e;
-        d ^= e >>> 16;
+        d ^= e >> 16;
         g += d;
         e += f;
         e ^= f << 10;
         h += e;
         f += g;
-        f ^= g >>> 4;
+        f ^= g >> 4;
         a += f;
         g += h;
         g ^= h << 8;
         b += g;
         h += a;
-        h ^= a >>> 9;
+        h ^= a >> 9;
         c += h;
         a += b;
     }
@@ -101,25 +100,25 @@ isaac_init(struct Isaac* isaac)
         a ^= b << 11;
         d += a;
         b += c;
-        b ^= c >>> 2;
+        b ^= c >> 2;
         e += b;
         c += d;
         c ^= d << 8;
         f += c;
         d += e;
-        d ^= e >>> 16;
+        d ^= e >> 16;
         g += d;
         e += f;
         e ^= f << 10;
         h += e;
         f += g;
-        f ^= g >>> 4;
+        f ^= g >> 4;
         a += f;
         g += h;
         g ^= h << 8;
         b += g;
         h += a;
-        h ^= a >>> 9;
+        h ^= a >> 9;
         c += h;
         a += b;
 
@@ -147,25 +146,25 @@ isaac_init(struct Isaac* isaac)
         a ^= b << 11;
         d += a;
         b += c;
-        b ^= c >>> 2;
+        b ^= c >> 2;
         e += b;
         c += d;
         c ^= d << 8;
         f += c;
         d += e;
-        d ^= e >>> 16;
+        d ^= e >> 16;
         g += d;
         e += f;
         e ^= f << 10;
         h += e;
         f += g;
-        f ^= g >>> 4;
+        f ^= g >> 4;
         a += f;
         g += h;
         g ^= h << 8;
         b += g;
         h += a;
-        h ^= a >>> 9;
+        h ^= a >> 9;
         c += h;
         a += b;
 
@@ -188,11 +187,10 @@ isaac_new(
     int* seed,
     int seed_length)
 {
-    assert(seed_length == 256);
     struct Isaac* isaac = malloc(sizeof(struct Isaac));
     memset(isaac, 0, sizeof(struct Isaac));
 
-    for( int i = 0; i < 256; i++ )
+    for( int i = 0; i < seed_length; i++ )
     {
         isaac->rsl[i] = seed[i];
     }

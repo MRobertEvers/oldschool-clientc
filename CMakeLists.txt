@@ -18,6 +18,9 @@ endif()
 if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(osx
         test/osx.cpp
+        src/osrs/lclogin.c
+        src/osrs/isaac.c
+        src/jbase37.c
         src/tori_rs.c
         src/bmp.c
         src/server/server.c
@@ -111,8 +114,9 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     find_package(SDL2 REQUIRED)
     find_package(Freetype REQUIRED)
+    find_package(OpenSSL REQUIRED)
 
-    target_link_libraries(osx SDL2::SDL2)
+    target_link_libraries(osx SDL2::SDL2 OpenSSL::SSL OpenSSL::Crypto)
     target_include_directories(osx PRIVATE ${SDL2_INCLUDE_DIRS})
 endif()
 

@@ -29,6 +29,7 @@ rsbuf_p1(
     struct RSBuffer* buffer,
     int value)
 {
+    assert(value < 256);
     assert(buffer->position < buffer->size);
     buffer->data[buffer->position++] = value & 0xff;
 }

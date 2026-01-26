@@ -1,6 +1,11 @@
-#include "base37.h"
+#include "jbase37.h"
 
-static const char* BASE37_LOOKUP[] = {                               //
+#include <assert.h>
+#include <string.h>
+
+#define MAX_BASE37 0x1000000000000000 // 12 characters in base37
+
+static const char BASE37_LOOKUP[] = {                                //
     '_',                                                             //
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', //
     'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', //
