@@ -47,7 +47,28 @@
             ],
             "type": "node"
         },
-        
+        {
+            "name": "Debug Node Current File",
+            "type": "node",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${fileDirname}",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "name": "(lldb) Debug Current File with ./a.out",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${fileDirname}/a.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
         {
             "name": "(lldb) Launch osrs/a.out",
             "type": "cppdbg",

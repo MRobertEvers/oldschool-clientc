@@ -147,6 +147,7 @@ lclogin_init(
     login->pending_send_sent = 0;
     login->pending_receive_needed = 0;
     login->pending_receive_received = 0;
+    login->first_byte_printed = false;
 }
 
 void
@@ -487,7 +488,11 @@ lclogin_process(struct LCLogin* login)
 
             login->ingame = true;
             login->state = LCLOGIN_STATE_SUCCESS;
-            return 1;
+            login->pending_receive_needed = 1; // Ready to receive data
+            login->pending_receive_received = 0;
+            login->first_byte_printed = false; // Reset flag for new login
+            // Continue to receive data after login
+            return 0;
         }
         else if( reply == 3 )
         {
@@ -628,7 +633,11 @@ lclogin_process(struct LCLogin* login)
             // Scene loading - special case
             login->ingame = true;
             login->state = LCLOGIN_STATE_SUCCESS;
-            return 1;
+            login->pending_receive_needed = 1; // Ready to receive data
+            login->pending_receive_received = 0;
+            login->first_byte_printed = false; // Reset flag for new login
+            // Continue to receive data after login
+            return 0;
         }
         else if( reply == 16 )
         {
@@ -688,7 +697,16 @@ lclogin_process(struct LCLogin* login)
     }
 
     case LCLOGIN_STATE_SUCCESS:
-        return 1;
+    {
+        // Continue receiving data after successful login
+        // Set up to receive data if not already set
+        if( login->pending_receive_needed == 0 )
+        {
+            login->pending_receive_needed = 1; // Ready to receive at least 1 byte
+            login->pending_receive_received = 0;
+        }
+        return 0; // Continue processing to receive data
+    }
 
     case LCLOGIN_STATE_ERROR:
         return 1;
@@ -806,6 +824,29 @@ lclogin_provide_data(
     {
         dest = login->in.data + 17; // After initial 8 + reply 1 + seed 8
     }
+    else if( login->state == LCLOGIN_STATE_SUCCESS )
+    {
+        // In success state, receive data and decode first byte using ISAAC
+        // Print decoded first byte only once
+        if( !login->first_byte_printed && to_copy > 0 && login->random_in )
+        {
+            int encrypted_byte = data[0] & 0xff;
+            int isaac_value = isaac_next(login->random_in);
+            int decoded_byte = (encrypted_byte - isaac_value) & 0xff;
+            printf("First byte after login (encrypted): 0x%02x (%d)\n", encrypted_byte, encrypted_byte);
+            printf("First byte after login (decoded): 0x%02x (%d)\n", decoded_byte, decoded_byte);
+            login->first_byte_printed = true;
+        }
+
+        // Update received count
+        login->pending_receive_received += to_copy;
+
+        // Reset pending_receive_needed to continue receiving
+        login->pending_receive_needed = 1;
+        login->pending_receive_received = 0; // Reset for next chunk
+
+        return to_copy;
+    }
     else
     {
         return -1; // Invalid state for receiving data
@@ -860,6 +901,12 @@ lclogin_get_bytes_needed(const struct LCLogin* login)
     if( !login )
     {
         return 0;
+    }
+
+    // In success state, always ready to receive at least 1 byte
+    if( login->state == LCLOGIN_STATE_SUCCESS )
+    {
+        return 1;
     }
 
     return login->pending_receive_needed - login->pending_receive_received;

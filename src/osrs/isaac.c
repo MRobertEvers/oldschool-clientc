@@ -33,7 +33,7 @@ isaac_scramble(struct Isaac* isaac)
         }
         else if( mem == 1 )
         {
-            isaac->a ^= isaac->a >> 6;
+            isaac->a ^= (unsigned int)isaac->a >> 6;
         }
         else if( mem == 2 )
         {
@@ -41,14 +41,14 @@ isaac_scramble(struct Isaac* isaac)
         }
         else if( mem == 3 )
         {
-            isaac->a ^= isaac->a >> 16;
+            isaac->a ^= (unsigned int)isaac->a >> 16;
         }
 
         isaac->a += isaac->mem[(i + 128) & 0xff];
 
-        int y = isaac->mem[(x >> 2) & 0xff] + isaac->a + isaac->b;
-        isaac->mem[i] = y;
-        isaac->rsl[i] = isaac->b = isaac->mem[((y >> 8) >> 2) & 0xff] + x;
+        int y;
+        isaac->mem[i] = y = isaac->mem[((unsigned int)x >> 2) & 0xff] + isaac->a + isaac->b;
+        isaac->rsl[i] = isaac->b = isaac->mem[(((unsigned int)y >> 8) >> 2) & 0xff] + x;
     }
 }
 
@@ -63,25 +63,25 @@ isaac_init(struct Isaac* isaac)
         a ^= b << 11;
         d += a;
         b += c;
-        b ^= c >> 2;
+        b ^= (unsigned int)c >> 2;
         e += b;
         c += d;
         c ^= d << 8;
         f += c;
         d += e;
-        d ^= e >> 16;
+        d ^= (unsigned int)e >> 16;
         g += d;
         e += f;
         e ^= f << 10;
         h += e;
         f += g;
-        f ^= g >> 4;
+        f ^= (unsigned int)g >> 4;
         a += f;
         g += h;
         g ^= h << 8;
         b += g;
         h += a;
-        h ^= a >> 9;
+        h ^= (unsigned int)a >> 9;
         c += h;
         a += b;
     }
@@ -100,25 +100,25 @@ isaac_init(struct Isaac* isaac)
         a ^= b << 11;
         d += a;
         b += c;
-        b ^= c >> 2;
+        b ^= (unsigned int)c >> 2;
         e += b;
         c += d;
         c ^= d << 8;
         f += c;
         d += e;
-        d ^= e >> 16;
+        d ^= (unsigned int)e >> 16;
         g += d;
         e += f;
         e ^= f << 10;
         h += e;
         f += g;
-        f ^= g >> 4;
+        f ^= (unsigned int)g >> 4;
         a += f;
         g += h;
         g ^= h << 8;
         b += g;
         h += a;
-        h ^= a >> 9;
+        h ^= (unsigned int)a >> 9;
         c += h;
         a += b;
 
@@ -146,25 +146,25 @@ isaac_init(struct Isaac* isaac)
         a ^= b << 11;
         d += a;
         b += c;
-        b ^= c >> 2;
+        b ^= (unsigned int)c >> 2;
         e += b;
         c += d;
         c ^= d << 8;
         f += c;
         d += e;
-        d ^= e >> 16;
+        d ^= (unsigned int)e >> 16;
         g += d;
         e += f;
         e ^= f << 10;
         h += e;
         f += g;
-        f ^= g >> 4;
+        f ^= (unsigned int)g >> 4;
         a += f;
         g += h;
         g ^= h << 8;
         b += g;
         h += a;
-        h ^= a >> 9;
+        h ^= (unsigned int)a >> 9;
         c += h;
         a += b;
 
@@ -209,8 +209,7 @@ isaac_free(struct Isaac* isaac)
 int
 isaac_next(struct Isaac* isaac)
 {
-    isaac->count -= 1;
-    if( isaac->count == 0 )
+    if( isaac->count-- == 0 )
     {
         isaac_scramble(isaac);
         isaac->count = 255;

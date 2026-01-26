@@ -88,6 +88,7 @@ struct LCLogin
     int pending_send_sent;
     int pending_receive_needed;
     int pending_receive_received;
+    bool first_byte_printed; // Track if first byte after login has been printed
 
     // Login data
     uint64_t server_seed;

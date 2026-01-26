@@ -259,7 +259,10 @@ main(
                 if( bytes_needed > 0 )
                 {
                     uint8_t recv_buffer[512];
-                    int received = recv(login_socket, recv_buffer, bytes_needed, MSG_DONTWAIT);
+                    // In draining state, read as much as available
+                    int recv_size =
+                        (login_state == LCLOGIN_STATE_SUCCESS) ? sizeof(recv_buffer) : bytes_needed;
+                    int received = recv(login_socket, recv_buffer, recv_size, MSG_DONTWAIT);
                     if( received > 0 )
                     {
                         lclogin_provide_data(&login, recv_buffer, received);
@@ -280,29 +283,65 @@ main(
                     }
                 }
             }
-
-            int login_result = lclogin_process(&login);
-            if( login_result != 0 )
+        }
+        // Handle draining state separately - continue to drain data after login
+        if( login_state == LCLOGIN_STATE_SUCCESS && login_socket >= 0 )
+        {
+            // Continue receiving and discarding data
+            uint8_t recv_buffer[512];
+            int received = recv(login_socket, recv_buffer, sizeof(recv_buffer), MSG_DONTWAIT);
+            if( received > 0 )
             {
-                // Login completed (success or error)
-                login_state = lclogin_get_state(&login);
-                if( login_state == LCLOGIN_STATE_SUCCESS )
-                {
-                    printf("Login successful!\n");
-                    lclogin_result_t result = lclogin_get_result(&login);
-                    printf("Login result: %d\n", (int)result);
-                }
-                else if( login_state == LCLOGIN_STATE_ERROR )
-                {
-                    printf(
-                        "Login failed: %s - %s\n",
-                        lclogin_get_message0(&login),
-                        lclogin_get_message1(&login));
-                    lclogin_result_t result = lclogin_get_result(&login);
-                    printf("Login result: %d\n", (int)result);
-                }
+                lclogin_provide_data(&login, recv_buffer, received);
+            }
+            else if( received == 0 )
+            {
+                // Connection closed - transition to success
+                printf("Login socket closed, login complete\n");
+                login.state = LCLOGIN_STATE_SUCCESS;
+                close(login_socket);
+                login_socket = -1;
+            }
+            else if( received < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
+            {
+                // Socket error
+                printf("Socket recv error during drain: %s\n", strerror(errno));
+                login.state = LCLOGIN_STATE_SUCCESS; // Still mark as success
+                close(login_socket);
+                login_socket = -1;
             }
         }
+
+        int login_result = lclogin_process(&login);
+        if( login_result != 0 )
+        {
+            // Login completed (success or error)
+            login_state = lclogin_get_state(&login);
+            if( login_state == LCLOGIN_STATE_SUCCESS )
+            {
+                printf("Login successful!\n");
+                lclogin_result_t result = lclogin_get_result(&login);
+                printf("Login result: %d\n", (int)result);
+            }
+            else if( login_state == LCLOGIN_STATE_ERROR )
+            {
+                printf(
+                    "Login failed: %s - %s\n",
+                    lclogin_get_message0(&login),
+                    lclogin_get_message1(&login));
+                lclogin_result_t result = lclogin_get_result(&login);
+                printf("Login result: %d\n", (int)result);
+            }
+        }
+
+        // // Check if we transitioned from DRAINING to SUCCESS
+        // login_state = lclogin_get_state(&login);
+        // if( login_state == LCLOGIN_STATE_SUCCESS && login_socket >= 0 )
+        // {
+        //     printf("Login complete, closing socket\n");
+        //     close(login_socket);
+        //     login_socket = -1;
+        // }
 
         // Process server messages from previous frame and step server
         uint64_t timestamp_ms = SDL_GetTicks64();
