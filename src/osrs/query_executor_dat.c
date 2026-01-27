@@ -73,8 +73,7 @@ dt_maps_scenery_poll(
 
     int regionid = locs->_chunk_mapx << 8 | locs->_chunk_mapz;
     int set_idx = query_engine_qget_active_set_idx(q);
-    if( set_idx != -1 )
-        query_engine_qset_push(query_engine, set_idx, regionid, locs);
+    query_engine_qset_push(query_engine, set_idx, regionid, locs);
 }
 
 static void
@@ -88,34 +87,64 @@ dt_config_locs_exec(
 {
     switch( fn )
     {
-    case QE_FN_FROM_0 ... QE_FN_FROM_9:
+    case QE_FN_FROM_0:
+    case QE_FN_FROM_1:
+    case QE_FN_FROM_2:
+    case QE_FN_FROM_3:
+    case QE_FN_FROM_4:
+    case QE_FN_FROM_5:
+    case QE_FN_FROM_6:
+    case QE_FN_FROM_7:
+    case QE_FN_FROM_8:
+    case QE_FN_FROM_9:
     {
+        struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+        assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+        int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.dat");
+        int index_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.idx");
+
+        assert(data_file_idx != -1 && "Data file must be found");
+        assert(index_file_idx != -1 && "Index file must be found");
+
+        struct FileListDatIndexed* filelist_indexed = NULL;
+        filelist_indexed = filelist_dat_indexed_new_from_decode(
+            config_jagfile->files[index_file_idx],
+            config_jagfile->file_sizes[index_file_idx],
+            config_jagfile->files[data_file_idx],
+            config_jagfile->file_sizes[data_file_idx]);
+
         int set_idx = fn - QE_FN_FROM_0;
 
         struct CacheMapLocs* locs = NULL;
+        struct CacheMapLoc* loc = NULL;
         query_engine_qget_begin(query_engine, set_idx);
         while( (locs = query_engine_qget_next(query_engine, set_idx)) != NULL )
         {
             int mapx = locs->_chunk_mapx;
             int mapz = locs->_chunk_mapz;
             printf("Processing locs for mapx: %d, mapz: %d\n", mapx, mapz);
+
+            for( int i = 0; i < locs->locs_count; i++ )
+            {
+                struct CacheConfigLocation* config_loc = malloc(sizeof(struct CacheConfigLocation));
+                memset(config_loc, 0, sizeof(struct CacheConfigLocation));
+
+                loc = &locs->locs[i];
+                int offset = filelist_indexed->offsets[loc->loc_id];
+
+                config_locs_decode_inplace(
+                    config_loc,
+                    filelist_indexed->data + offset,
+                    filelist_indexed->data_size - offset,
+                    CONFIG_LOC_DECODE_DAT);
+
+                config_loc->_id = loc->loc_id;
+
+                buildcachedat_add_config_loc(buildcachedat, loc->loc_id, config_loc);
+            }
         }
         query_engine_qget_end(query_engine, set_idx);
-
-        // struct FileListDat* config_jagfile = buildcachedat_config_jagfile(task->buildcachedat);
-        // assert(config_jagfile != NULL && "Config jagfile must be loaded");
-
-        // int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.dat");
-        // int index_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.idx");
-
-        // assert(data_file_idx != -1 && "Data file must be found");
-        // assert(index_file_idx != -1 && "Index file must be found");
-
-        // filelist_indexed = filelist_dat_indexed_new_from_decode(
-        //     config_jagfile->files[index_file_idx],
-        //     config_jagfile->file_sizes[index_file_idx],
-        //     config_jagfile->files[data_file_idx],
-        //     config_jagfile->file_sizes[data_file_idx]);
     }
     break;
     default:

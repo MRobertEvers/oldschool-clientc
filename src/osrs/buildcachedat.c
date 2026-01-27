@@ -13,7 +13,6 @@ struct FlotypeEntry
 struct ConfigLocEntry
 {
     int id;
-    int shape_select;
     struct CacheConfigLocation* config_loc;
 };
 
@@ -378,31 +377,38 @@ buildcachedat_get_obj_model(
     return obj_entry->model;
 }
 
+// TODO: Needs to only be done by loc id and not shape select.
 void
 buildcachedat_add_config_loc(
     struct BuildCacheDat* buildcachedat,
     int config_loc_id,
-    int shape_select,
     struct CacheConfigLocation* config_loc)
 {
     struct ConfigLocEntry* config_loc_entry = (struct ConfigLocEntry*)dashmap_search(
         buildcachedat->config_loc_hmap, &config_loc_id, DASHMAP_INSERT);
     assert(config_loc_entry && "Config loc must be inserted into hmap");
     config_loc_entry->id = config_loc_id;
-    config_loc_entry->shape_select = shape_select;
     config_loc_entry->config_loc = config_loc;
 }
 
 struct CacheConfigLocation*
-buildcachedat_iter_next_config_loc(
-    struct DashMapIter* iter,
-    int* out_shape_select)
+buildcachedat_iter_next_config_loc(struct DashMapIter* iter)
 {
     struct ConfigLocEntry* config_loc_entry = (struct ConfigLocEntry*)dashmap_iter_next(iter);
     if( !config_loc_entry )
         return NULL;
-    if( out_shape_select )
-        *out_shape_select = config_loc_entry->shape_select;
+    return config_loc_entry->config_loc;
+}
+
+struct CacheConfigLocation*
+buildcachedat_get_config_loc(
+    struct BuildCacheDat* buildcachedat,
+    int config_loc_id)
+{
+    struct ConfigLocEntry* config_loc_entry = (struct ConfigLocEntry*)dashmap_search(
+        buildcachedat->config_loc_hmap, &config_loc_id, DASHMAP_FIND);
+    if( !config_loc_entry )
+        return NULL;
     return config_loc_entry->config_loc;
 }
 

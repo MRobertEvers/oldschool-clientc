@@ -484,8 +484,7 @@ step_scenery_config_load(struct TaskInitSceneDat* task)
 
             config_loc->_id = loc->loc_id;
 
-            buildcachedat_add_config_loc(
-                task->buildcachedat, loc->loc_id, loc->shape_select, config_loc);
+            buildcachedat_add_config_loc(task->buildcachedat, loc->loc_id, config_loc);
 
             scenebuilder_cache_config_loc(task->scene_builder, loc->loc_id, config_loc);
         }
@@ -561,6 +560,8 @@ step_models_load(struct TaskInitSceneDat* task)
     struct GIOMessage message = { 0 };
     struct DashMapIter* iter = NULL;
     struct CacheConfigLocation* config_loc = NULL;
+    struct CacheMapLocs* locs = NULL;
+    struct CacheMapLoc* loc = NULL;
     int shape_select = 0;
 
     switch( step_stage->step )
@@ -568,10 +569,16 @@ step_models_load(struct TaskInitSceneDat* task)
     case TS_GATHER:
         vec_clear(task->reqid_queue_vec);
 
-        iter = buildcachedat_iter_new_config_locs(task->buildcachedat);
-        while( (config_loc = buildcachedat_iter_next_config_loc(iter, &shape_select)) )
+        iter = buildcachedat_iter_new_scenery(task->buildcachedat);
+        while( (locs = buildcachedat_iter_next_scenery(iter)) )
         {
-            queue_scenery_models(task, config_loc, shape_select);
+            for( int i = 0; i < locs->locs_count; i++ )
+            {
+                loc = &locs->locs[i];
+                config_loc = buildcachedat_get_config_loc(task->buildcachedat, loc->loc_id);
+                assert(config_loc && "Config loc must be found");
+                queue_scenery_models(task, config_loc, loc->shape_select);
+            }
         }
         dashmap_iter_free(iter);
 

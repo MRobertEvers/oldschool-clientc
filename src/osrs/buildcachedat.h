@@ -148,13 +148,15 @@ void
 buildcachedat_add_config_loc(
     struct BuildCacheDat* buildcachedat,
     int config_loc_id,
-    int shape_select,
     struct CacheConfigLocation* config_loc);
 
 struct CacheConfigLocation*
-buildcachedat_iter_next_config_loc(
-    struct DashMapIter* iter,
-    int* out_shape_select);
+buildcachedat_iter_next_config_loc(struct DashMapIter* iter);
+
+struct CacheConfigLocation*
+buildcachedat_get_config_loc(
+    struct BuildCacheDat* buildcachedat,
+    int config_loc_id);
 
 struct DashMapIter*
 buildcachedat_iter_new_config_locs(struct BuildCacheDat* buildcachedat);

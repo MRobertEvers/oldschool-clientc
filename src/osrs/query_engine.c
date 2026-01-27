@@ -396,6 +396,8 @@ query_engine_qset_push(
     int id,
     void* value)
 {
+    if( set_idx == -1 )
+        return;
     assert(set_idx >= 0 && set_idx < 10);
     assert(query_engine->sets[set_idx]);
     struct SetEntry* entry =
