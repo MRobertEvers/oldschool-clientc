@@ -297,8 +297,15 @@ void*
 configvalue(
     int table_id,
     int archive_id,
-    void* ptr)
+    void* ptr,
+    int* out_id)
 {
+    int dummy = 0;
+    if( !out_id )
+    {
+        out_id = &dummy;
+    }
+
     if( table_id == CACHE_CONFIGS )
     {
         switch( archive_id )
@@ -306,23 +313,40 @@ configvalue(
         case CONFIG_UNDERLAY:
         {
             struct ConfigUnderlayEntry* entry = (struct ConfigUnderlayEntry*)ptr;
+            *out_id = entry->id;
             return &entry->underlay;
         }
         case CONFIG_OVERLAY:
         {
             struct ConfigOverlayEntry* entry = (struct ConfigOverlayEntry*)ptr;
+            *out_id = entry->id;
             entry->overlay._id = entry->id;
             return &entry->overlay;
         }
         case CONFIG_OBJECT:
-            return &((struct ConfigObjectEntry*)ptr)->object;
+        {
+            struct ConfigObjectEntry* entry = (struct ConfigObjectEntry*)ptr;
+            *out_id = entry->id;
+            entry->object._id = entry->id;
+            return &entry->object;
+        }
         case CONFIG_SEQUENCE:
-            return &((struct ConfigSequenceEntry*)ptr)->sequence;
+        {
+            struct ConfigSequenceEntry* entry = (struct ConfigSequenceEntry*)ptr;
+            *out_id = entry->id;
+            return &entry->sequence;
+        }
         case CONFIG_NPC:
-            return &((struct ConfigNPCEntry*)ptr)->npc;
+        {
+            struct ConfigNPCEntry* entry = (struct ConfigNPCEntry*)ptr;
+            *out_id = entry->id;
+            return &entry->npc;
+        }
         case CONFIG_LOCS:
         {
             struct ConfigLocsEntry* entry = (struct ConfigLocsEntry*)ptr;
+            *out_id = entry->id;
+            entry->loc._id = entry->id;
             return &entry->loc;
         }
         default:
@@ -334,12 +358,14 @@ configvalue(
     {
         struct ConfigTexturesEntry* entry = (struct ConfigTexturesEntry*)ptr;
         entry->texture._id = entry->id;
+        *out_id = entry->id;
         return &entry->texture;
     }
     else if( table_id == CACHE_ANIMATIONS )
     {
         struct FrameEntry* entry = (struct FrameEntry*)ptr;
         entry->frame._id = entry->id;
+        *out_id = entry->id;
         return &entry->frame;
     }
     else
@@ -475,21 +501,22 @@ configmap_get(
 {
     struct MetadataEntry* metadata = configmap_metadata_get(configmap);
     void* ptr = dashmap_search(configmap, &id, DASHMAP_FIND);
-    assert(metadata);
-    assert(ptr);
+    assert(ptr && "Config must be found");
 
-    return configvalue(metadata->table_id, metadata->archive_id, ptr);
+    return configvalue(metadata->table_id, metadata->archive_id, ptr, NULL);
 }
 
 void*
-configmap_iter_next(struct DashMapIter* iter)
+configmap_iter_next(
+    struct DashMapIter* iter,
+    int* out_id)
 {
     void* ptr = dashmap_iter_next(iter);
     if( !ptr )
         return NULL;
 
     struct MetadataEntry* metadata = configmap_metadata_get(dashmap_iter_get_map(iter));
-    return configvalue(metadata->table_id, metadata->archive_id, ptr);
+    return configvalue(metadata->table_id, metadata->archive_id, ptr, out_id);
 }
 
 bool

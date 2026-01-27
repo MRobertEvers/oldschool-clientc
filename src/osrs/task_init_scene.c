@@ -635,10 +635,11 @@ step_scenery_config_load(struct TaskInitScene* task)
                 (int*)vec_data(task->scenery_ids_vec),
                 vec_size(task->scenery_ids_vec));
 
+            int id = 0;
             iter = dashmap_iter_new(task->scenery_configmap);
-            while( (config_loc = (struct CacheConfigLocation*)configmap_iter_next(iter)) )
+            while( (config_loc = (struct CacheConfigLocation*)configmap_iter_next(iter, &id)) )
             {
-                buildcache_add_config_location(buildcache, config_loc->_id, config_loc);
+                buildcache_add_config_location(buildcache, id, config_loc);
             }
             dashmap_iter_free(iter);
 
@@ -800,9 +801,10 @@ step_underlay_load(struct TaskInitScene* task)
 
             configmap = configmap_new_from_filepack(message.data, message.data_size, NULL, 0);
             struct DashMapIter* iter = dashmap_iter_new(configmap);
-            while( (underlay = (struct CacheConfigUnderlay*)configmap_iter_next(iter)) )
+            int id = 0;
+            while( (underlay = (struct CacheConfigUnderlay*)configmap_iter_next(iter, &id)) )
             {
-                buildcache_add_config_underlay(task->game->buildcache, underlay, underlay);
+                buildcache_add_config_underlay(task->game->buildcache, id, underlay);
             }
             dashmap_iter_free(iter);
 
@@ -849,11 +851,11 @@ step_overlay_load(struct TaskInitScene* task)
             configmap = configmap_new_from_filepack(message.data, message.data_size, NULL, 0);
 
             struct DashMapIter* iter = dashmap_iter_new(configmap);
+            int id = 0;
             struct CacheConfigOverlay* config_overlay = NULL;
-            while( (config_overlay = (struct CacheConfigOverlay*)configmap_iter_next(iter)) )
+            while( (config_overlay = (struct CacheConfigOverlay*)configmap_iter_next(iter, &id)) )
             {
-                buildcache_add_config_overlay(
-                    task->game->buildcache, config_overlay->_id, config_overlay);
+                buildcache_add_config_overlay(task->game->buildcache, id, config_overlay);
             }
             dashmap_iter_free(iter);
             gioq_release(task->io, &message);
@@ -994,7 +996,7 @@ step_spritepacks_load(struct TaskInitScene* task)
         queued_sprite_pack_ids = vec_new(sizeof(int), 512);
 
         iter = dashmap_iter_new(task->texture_definitions_configmap);
-        while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter)) )
+        while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter, NULL)) )
         {
             for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
                 vec_push_unique(queued_sprite_pack_ids, &texture_definition->sprite_ids[i]);
@@ -1050,15 +1052,16 @@ step_textures_build(struct TaskInitScene* task)
     struct DashTexture* texture = NULL;
     struct BuildCache* buildcache = task->game->buildcache;
 
+    int id = 0;
     iter = dashmap_iter_new(task->texture_definitions_configmap);
-    while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter)) )
+    while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter, &id)) )
     {
         texture = texture_new_from_definition(texture_definition, buildcache->spritepacks_hmap);
         assert(texture);
 
-        buildcache_add_texture(buildcache, texture_definition->_id, texture);
+        buildcache_add_texture(buildcache, id, texture);
 
-        dash3d_add_texture(task->game->sys_dash, texture_definition->_id, texture);
+        dash3d_add_texture(task->game->sys_dash, id, texture);
     }
     dashmap_iter_free(iter);
 
@@ -1134,7 +1137,7 @@ step_frames_load(struct TaskInitScene* task)
         queued_frame_ids_vec = vec_new(sizeof(int), 512);
         vec_clear(task->reqid_queue_vec);
         iter = dashmap_iter_new(task->sequences_configmap);
-        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter)) )
+        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
         {
             for( int i = 0; i < sequence->frame_count; i++ )
             {
@@ -1205,7 +1208,7 @@ step_framemaps_load(struct TaskInitScene* task)
         queued_framemap_ids_vec = vec_new(sizeof(int), 512);
         vec_clear(task->reqid_queue_vec);
         iter = dashmap_iter_new(task->sequences_configmap);
-        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter)) )
+        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
         {
             for( int i = 0; i < sequence->frame_count; i++ )
             {
@@ -1262,7 +1265,7 @@ step_framemaps_load(struct TaskInitScene* task)
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
         iter = dashmap_iter_new(task->sequences_configmap);
-        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter)) )
+        while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
         {
             for( int i = 0; i < sequence->frame_count; i++ )
             {

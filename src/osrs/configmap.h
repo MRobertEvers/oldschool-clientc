@@ -30,7 +30,9 @@ configmap_get(
     int id);
 
 void*
-configmap_iter_next(struct DashMapIter* iter);
+configmap_iter_next(
+    struct DashMapIter* iter,
+    int* out_id);
 
 bool
 configmap_valid(struct DashMap* configmap);
