@@ -368,8 +368,11 @@ sharelight_build_scene(
                                 adjacent_build_element && "Adjacent build element must be valid");
                             adjacent_scene_element =
                                 scene_element_at(scene->scenery, adjacent_sharelight_elements[k]);
+
                             assert(
                                 adjacent_scene_element && "Adjacent scene element must be valid");
+                            if( !adjacent_scene_element->dash_model )
+                                continue;
 
                             int check_offset_x = (adjacent_tile_coord.x - sx) * 128 +
                                                  (adjacent_build_element->size_x -
