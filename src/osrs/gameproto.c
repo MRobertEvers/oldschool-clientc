@@ -38,7 +38,7 @@ pktin_rebuild_region(
 }
 
 void
-gameproto_process(
+gameproto_process_data(
     struct GGame* game,
     enum GameProtoRevision revision,
     int packet_type,

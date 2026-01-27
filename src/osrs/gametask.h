@@ -11,15 +11,15 @@ enum GameTaskKind
     GAMETASK_KIND_INIT_IO,
     GAMETASK_KIND_INIT_SCENE,
     GAMETASK_KIND_INIT_SCENE_DAT,
-    GAMETASK_KIND_LOAD_DAT,
+    GAMETASK_KIND_PACKET,
     GAMETASK_KIND_QUERY,
 };
 
 struct TaskInitIO;
 struct TaskInitScene;
 struct TaskInitSceneDat;
-struct TaskLoadDat;
 struct TaskQuery;
+struct TaskPacket;
 struct GameTask
 {
     enum GameTaskStatus status;
@@ -30,8 +30,8 @@ struct GameTask
         struct TaskInitIO* _init_io;
         struct TaskInitScene* _init_scene;
         struct TaskInitSceneDat* _init_scene_dat;
-        struct TaskLoadDat* _load_dat;
         struct TaskQuery* _query;
+        struct TaskPacket* _packet;
     };
 
     struct GameTask* next;
@@ -59,15 +59,14 @@ gametask_new_init_scene_dat(
     int map_ne_z);
 
 struct GameTask*
-gametask_new_load_dat(
-    struct GGame* game,
-    int* model_ids,
-    int model_count);
-
-struct GameTask*
 gametask_new_query(
     struct GGame* game,
     struct QEQuery* q);
+
+struct GameTask*
+gametask_new_packet(
+    struct GGame* game,
+    struct GIOQueue* io);
 
 enum GameTaskStatus
 gametask_step(struct GameTask* task);

@@ -3,7 +3,7 @@
 #include "task_init_io.h"
 #include "task_init_scene.h"
 #include "task_init_scene_dat.h"
-#include "task_load_models_dat.h"
+#include "task_packet.h"
 #include "task_query.h"
 
 #include <stdlib.h>
@@ -54,8 +54,8 @@ gametask_step(struct GameTask* task)
         // return task_init_scene_step(task->_init_scene);
     case GAMETASK_KIND_INIT_SCENE_DAT:
         return task_init_scene_dat_step(task->_init_scene_dat);
-    case GAMETASK_KIND_LOAD_DAT:
-        return task_load_dat_step(task->_load_dat);
+    case GAMETASK_KIND_PACKET:
+        return task_packet_step(task->_packet);
     case GAMETASK_KIND_QUERY:
         return task_query_step(task->_query);
     }
@@ -102,16 +102,15 @@ gametask_new_init_scene_dat(
 }
 
 struct GameTask*
-gametask_new_load_dat(
+gametask_new_packet(
     struct GGame* game,
-    int* model_ids,
-    int model_count)
+    struct GIOQueue* io)
 {
     struct GameTask* task = malloc(sizeof(struct GameTask));
     memset(task, 0, sizeof(struct GameTask));
     task->status = GAMETASK_STATUS_PENDING;
-    task->kind = GAMETASK_KIND_LOAD_DAT;
-    task->_load_dat = task_load_dat_new(game, model_ids, model_count);
+    task->kind = GAMETASK_KIND_PACKET;
+    task->_packet = task_packet_new(game, io);
 
     append_task(game, task);
 
@@ -149,8 +148,8 @@ gametask_free(struct GameTask* task)
     case GAMETASK_KIND_INIT_SCENE_DAT:
         task_init_scene_dat_free(task->_init_scene_dat);
         break;
-    case GAMETASK_KIND_LOAD_DAT:
-        task_load_dat_free(task->_load_dat);
+    case GAMETASK_KIND_PACKET:
+        task_packet_free(task->_packet);
         break;
     case GAMETASK_KIND_QUERY:
         task_query_free(task->_query);

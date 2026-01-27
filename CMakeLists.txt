@@ -72,12 +72,13 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/task_init_io.c
         # src/osrs/task_init_scene.c
         src/osrs/task_init_scene_dat.c
-        src/osrs/task_load_models_dat.c
+        src/osrs/task_packet.c
         src/osrs/configmap.c
         src/osrs/filepack.c
         src/osrs/dash_utils.c
         src/osrs/gametask.c
         src/osrs/gameproto.c
+        src/osrs/gameproto_process.c
         src/osrs/packetbuffer.c
         src/osrs/rscache/compression.c
         src/osrs/rscache/tables/string_utils.c

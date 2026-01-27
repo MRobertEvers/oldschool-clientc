@@ -17,11 +17,7 @@
 struct SceneBuilder*
 scenebuilder_new_painter(
     struct Painter* painter,
-    struct Minimap* minimap,
-    int mapx_sw,
-    int mapz_sw,
-    int mapx_ne,
-    int mapz_ne)
+    struct Minimap* minimap)
 {
     struct DashMapConfig config;
     struct SceneBuilder* scene_builder = malloc(sizeof(struct SceneBuilder));
@@ -29,16 +25,6 @@ scenebuilder_new_painter(
 
     scene_builder->painter = painter;
     scene_builder->minimap = minimap;
-    scene_builder->mapx_sw = mapx_sw;
-    scene_builder->mapz_sw = mapz_sw;
-    scene_builder->mapx_ne = mapx_ne;
-    scene_builder->mapz_ne = mapz_ne;
-
-    int height = (mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z;
-    int width = (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X;
-
-    scene_builder->build_grid = build_grid_new(width, height);
-    scene_builder->shademap = shademap_new(width, height, MAP_TERRAIN_LEVELS);
 
     return scene_builder;
 }
@@ -118,8 +104,23 @@ init_build_grid(
 struct Scene*
 scenebuilder_load_from_buildcachedat(
     struct SceneBuilder* scene_builder,
+    int mapx_sw,
+    int mapz_sw,
+    int mapx_ne,
+    int mapz_ne,
     struct BuildCacheDat* buildcachedat)
 {
+    scene_builder->mapx_sw = mapx_sw;
+    scene_builder->mapz_sw = mapz_sw;
+    scene_builder->mapx_ne = mapx_ne;
+    scene_builder->mapz_ne = mapz_ne;
+
+    int height = (mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z;
+    int width = (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X;
+
+    scene_builder->build_grid = build_grid_new(width, height);
+    scene_builder->shademap = shademap_new(width, height, MAP_TERRAIN_LEVELS);
+
     struct TerrainGrid terrain_grid;
 
     struct Scene* scene = NULL;

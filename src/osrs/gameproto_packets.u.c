@@ -25,12 +25,6 @@ gameproto_packet_maprebuild8_z16_x16(
 
     // Rebuild.
 
-    int zone_padding = SCENE_TILE_WIDTH / (2 * 8);
-    int map_sw_x = (zonex - zone_padding) / 8;
-    int map_sw_z = (zonez - zone_padding) / 8;
-    int map_ne_x = (zonex + zone_padding) / 8;
-    int map_ne_z = (zonez + zone_padding) / 8;
-
     game->packet_queue_lc245_2_nullable = malloc(sizeof(struct RevPacket_LC245_2_Item));
     game->packet_queue_lc245_2_nullable->packet.packet_type = PKTIN_LC245_2_REBUILD_NORMAL;
     game->packet_queue_lc245_2_nullable->packet._map_rebuild.zonex = zonex;

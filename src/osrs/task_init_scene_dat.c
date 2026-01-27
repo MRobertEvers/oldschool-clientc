@@ -115,6 +115,11 @@ struct TaskInitSceneDat
     int world_z;
     int scene_size;
 
+    int mapx_sw;
+    int mapz_sw;
+    int mapx_ne;
+    int mapz_ne;
+
     struct Vec* reqid_queue_vec;
     int reqid_queue_inflight_count;
 
@@ -216,10 +221,13 @@ task_init_scene_dat_new(
     task->painter = game->sys_painter;
     game->sys_minimap = minimap_new(map_sw_x, map_sw_z, map_ne_x, map_ne_z, MAP_TERRAIN_LEVELS);
 
-    task->scene_builder = scenebuilder_new_painter(
-        task->painter, game->sys_minimap, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    task->scene_builder = scenebuilder_new_painter(task->painter, game->sys_minimap);
 
     game->scenebuilder = task->scene_builder;
+    task->mapx_sw = map_sw_x;
+    task->mapz_sw = map_sw_z;
+    task->mapx_ne = map_ne_x;
+    task->mapz_ne = map_ne_z;
 
     task->reqid_queue_vec = vec_new(sizeof(int), 64);
     task->reqid_queue_inflight_count = 0;
@@ -1371,8 +1379,13 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
         // task->game->player_walk_animation = scenebuilder_new_animation(task->scene_builder, 819);
         // assert(task->game->player_walk_animation != NULL && "Failed to load player walk
         // animation");
-        task->game->scene =
-            scenebuilder_load_from_buildcachedat(task->scene_builder, task->game->buildcachedat);
+        task->game->scene = scenebuilder_load_from_buildcachedat(
+            task->scene_builder,
+            task->mapx_sw,
+            task->mapz_sw,
+            task->mapx_ne,
+            task->mapz_ne,
+            task->game->buildcachedat);
 
         return GAMETASK_STATUS_COMPLETED;
     }

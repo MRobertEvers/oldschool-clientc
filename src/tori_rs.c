@@ -5,6 +5,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/dashlib.h"
 #include "osrs/gameproto.h"
+#include "osrs/gameproto_process.h"
 #include "osrs/gametask.h"
 #include "osrs/gio.h"
 #include "osrs/packetbuffer.h"
@@ -319,9 +320,24 @@ LibToriRS_GameStep(
         return;
     }
 
-    if( game->cycle >= game->next_rebuild )
+    if( !game->rebuilt && game->cycle >= 500 )
     {
-        game->next_rebuild = game->cycle + 100;
+        int map_sw_x = 48;
+        int map_sw_z = 48;
+
+        int zonex = map_sw_x * 8 + 8;
+        int zonez = map_sw_z * 8 + 8;
+
+        game->packet_queue_lc245_2_nullable = malloc(sizeof(struct RevPacket_LC245_2_Item));
+        memset(game->packet_queue_lc245_2_nullable, 0, sizeof(struct RevPacket_LC245_2_Item));
+        game->packet_queue_lc245_2_nullable->packet.packet_type = PKTIN_LC245_2_REBUILD_NORMAL;
+        game->packet_queue_lc245_2_nullable->packet._map_rebuild.zonex = zonex;
+        game->packet_queue_lc245_2_nullable->packet._map_rebuild.zonez = zonez;
+        game->packet_queue_lc245_2_nullable->next_nullable = NULL;
+
+        gameproto_process(game, game->io);
+
+        game->rebuilt = true;
     }
 
     LibToriRS_GameProcessInput(game, input);

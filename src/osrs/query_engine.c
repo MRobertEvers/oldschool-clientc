@@ -263,7 +263,14 @@ query_engine_qawait(struct QEQuery* q)
 {
     if( vec_size(q->reqids) == 0 )
     {
-        q->state = QE_STATE_DONE;
+        if( q->pc == q->code_count )
+        {
+            q->state = QE_STATE_DONE;
+        }
+        else
+        {
+            q->state = QE_STATE_ACTIVE;
+        }
         return;
     }
     q->state = QE_STATE_AWAITING_IO;

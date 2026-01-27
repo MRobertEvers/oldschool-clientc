@@ -10,6 +10,7 @@
 #include "osrs/painters.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
+#include "osrs/scenebuilder.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -26,6 +27,7 @@ struct GGame
     bool running;
     int at_render_command_index;
     int at_painters_command_index;
+    int rebuilt;
 
     int awaiting_models;
     int build_player;
@@ -72,7 +74,7 @@ struct GGame
 
     struct BuildCacheDat* buildcachedat;
 
-    void* scenebuilder;
+    struct SceneBuilder* scenebuilder;
 
     uint64_t tick_ms;
     uint64_t next_tick_ms;

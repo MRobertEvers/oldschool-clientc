@@ -233,6 +233,8 @@
         "query_engine.h": "c",
         "task_load_models_dat.h": "c",
         "pixfont.h": "c",
-        "buildcachedat.h": "c"
+        "buildcachedat.h": "c",
+        "gametask_status.h": "c",
+        "vec.h": "c"
     },
 }

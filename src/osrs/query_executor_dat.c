@@ -77,6 +77,75 @@ dt_maps_scenery_poll(
 }
 
 static void
+dt_maps_terrain_exec(
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    struct GIOQueue* io,
+    struct BuildCacheDat* buildcachedat,
+    uint32_t fn,
+    uint32_t action)
+{
+    switch( fn )
+    {
+    case QE_FN_0:
+    {
+        int argx_count = query_engine_qget_argx_count(q);
+        int* regions = malloc(argx_count * sizeof(int));
+        memset(regions, 0, argx_count * sizeof(int));
+        for( int i = 0; i < argx_count; i++ )
+        {
+            regions[i] = query_engine_qget_arg(q);
+        }
+
+        struct CacheMapTerrain* existing = NULL;
+        for( int i = 0; i < argx_count; i++ )
+        {
+            int mapx = regions[i] >> 8;
+            int mapz = regions[i] & 0xFF;
+
+            existing = buildcachedat_get_map_terrain(buildcachedat, mapx, mapz);
+            if( existing )
+                continue;
+
+            printf("Loading terrain for mapx: %d, mapz: %d\n", mapx, mapz);
+            int reqid = gio_assets_dat_map_terrain_load(io, mapx, mapz);
+
+            query_engine_qpush_reqid(q, reqid);
+        }
+
+        free(regions);
+    }
+    break;
+    default:
+        assert(0);
+        break;
+    }
+}
+
+static void
+dt_maps_terrain_poll(
+    struct BuildCacheDat* buildcachedat,
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    void* data,
+    int data_size,
+    int param_a,
+    int param_b)
+{
+    struct CacheMapTerrain* terrain = NULL;
+    int mapx = param_b >> 16;
+    int mapz = param_b & 0xFFFF;
+
+    terrain = map_terrain_new_from_decode_flags(data, data_size, mapx, mapz, MAP_TERRAIN_DECODE_U8);
+
+    buildcachedat_add_map_terrain(buildcachedat, mapx, mapz, terrain);
+
+    int regionid = MAPREGIONXZ(mapx, mapz);
+    int set_idx = query_engine_qget_active_set_idx(q);
+    query_engine_qset_push(query_engine, set_idx, regionid, terrain);
+}
+
+static void
 dt_config_locs_exec(
     struct QueryEngine* query_engine,
     struct QEQuery* q,
@@ -164,6 +233,81 @@ dt_config_locs_poll(
     int param_b)
 {}
 
+#include "datastruct/vec.h"
+
+static void
+vec_push_unique(
+    struct Vec* vec,
+    int* element)
+{
+    struct VecIter* iter = vec_iter_new(vec);
+    int* element_iter = NULL;
+    while( (element_iter = (int*)vec_iter_next(iter)) )
+    {
+        if( *element_iter == *element )
+            goto done;
+    }
+    vec_push(vec, element);
+
+done:;
+    vec_iter_free(iter);
+}
+
+static void
+queue_scenery_models(
+    struct Vec* queued_scenery_models_vec,
+    struct CacheConfigLocation* scenery_config,
+    int shape_select)
+{
+    int* shapes = scenery_config->shapes;
+    int** model_id_sets = scenery_config->models;
+    int* lengths = scenery_config->lengths;
+    int shapes_and_model_count = scenery_config->shapes_and_model_count;
+
+    if( !model_id_sets )
+        return;
+
+    // Collect all model IDs that need to be loaded
+    // shapes 10 and 11 are used in old dat caches and they have one model.
+    // TODO: Clean this up.
+    if( !shapes )
+    {
+        int count = lengths[0];
+        for( int i = 0; i < count; i++ )
+        {
+            int model_id = model_id_sets[0][i];
+            if( model_id )
+            {
+                vec_push_unique(queued_scenery_models_vec, &model_id);
+            }
+        }
+    }
+    else
+    {
+        for( int i = 0; i < shapes_and_model_count; i++ )
+        {
+            int count_inner = lengths[i];
+            int loc_type = shapes[i];
+            // Ignore shape select because some locs don't use the shape select stored.
+            // if( loc_type == shape_select )
+            {
+                // 629
+                // 2280 is lumby flag in old cache
+                // 2050 lumby church windows
+                // 617 is the roofs in lumby
+                for( int j = 0; j < count_inner; j++ )
+                {
+                    int model_id = model_id_sets[i][j];
+                    if( model_id )
+                    {
+                        vec_push_unique(queued_scenery_models_vec, &model_id);
+                    }
+                }
+            }
+        }
+    }
+}
+
 static void
 dt_models_exec(
     struct QueryEngine* query_engine,
@@ -200,6 +344,43 @@ dt_models_exec(
         }
 
         free(model_ids);
+    }
+    break;
+    case QE_FN_FROM_0:
+    {
+        int set_idx = fn - QE_FN_FROM_0;
+
+        int dt = query_engine_qget_set_dt(query_engine, set_idx);
+        assert(dt == QEDAT_DT_MAPS_SCENERY);
+
+        struct Vec* queued_scenery_models_vec = vec_new(sizeof(int), 512);
+
+        query_engine_qget_begin(query_engine, set_idx);
+        struct CacheMapLocs* scenery = NULL;
+        while( (scenery = query_engine_qget_next(query_engine, set_idx)) )
+        {
+            for( int i = 0; i < scenery->locs_count; i++ )
+            {
+                int loc_id = scenery->locs[i].loc_id;
+                struct CacheConfigLocation* config_loc =
+                    buildcachedat_get_config_loc(buildcachedat, loc_id);
+                assert(config_loc != NULL && "Config loc must be found");
+
+                queue_scenery_models(
+                    queued_scenery_models_vec, config_loc, scenery->locs[i].shape_select);
+            }
+        }
+
+        query_engine_qget_end(query_engine, set_idx);
+
+        for( int i = 0; i < vec_size(queued_scenery_models_vec); i++ )
+        {
+            int model_id = *(int*)vec_get(queued_scenery_models_vec, i);
+            int reqid = gio_assets_dat_models_load(io, model_id);
+            query_engine_qpush_reqid(q, reqid);
+        }
+
+        vec_free(queued_scenery_models_vec);
     }
     break;
     default:
@@ -246,8 +427,10 @@ query_executor_dat_step_active(
         dt_maps_scenery_exec(query_engine, q, io, buildcachedat, fn, action);
         break;
     case QEDAT_DT_MAPS_TERRAIN:
+        dt_maps_terrain_exec(query_engine, q, io, buildcachedat, fn, action);
         break;
     case QEDAT_DT_MODELS:
+        dt_models_exec(query_engine, q, io, buildcachedat, fn, action);
         break;
     case QEDAT_DT_TEXTURES:
         break;
@@ -290,8 +473,24 @@ query_executor_dat_step_awaiting_io(
                 message.param_b);
             break;
         case QEDAT_DT_MAPS_TERRAIN:
+            dt_maps_terrain_poll(
+                buildcachedat,
+                query_engine,
+                q,
+                message.data,
+                message.data_size,
+                message.param_a,
+                message.param_b);
             break;
         case QEDAT_DT_MODELS:
+            dt_models_poll(
+                buildcachedat,
+                query_engine,
+                q,
+                message.data,
+                message.data_size,
+                message.param_a,
+                message.param_b);
             break;
         case QEDAT_DT_TEXTURES:
             break;

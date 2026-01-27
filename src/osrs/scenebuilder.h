@@ -21,11 +21,7 @@ struct SceneBuilder;
 struct SceneBuilder*
 scenebuilder_new_painter(
     struct Painter* painter,
-    struct Minimap* minimap,
-    int mapx_sw,
-    int mapz_sw,
-    int mapx_ne,
-    int mapz_ne);
+    struct Minimap* minimap);
 
 void
 scenebuilder_free(struct SceneBuilder* scene_builder);
@@ -33,6 +29,10 @@ scenebuilder_free(struct SceneBuilder* scene_builder);
 struct Scene*
 scenebuilder_load_from_buildcachedat(
     struct SceneBuilder* scene_builder,
+    int mapx_sw,
+    int mapz_sw,
+    int mapx_ne,
+    int mapz_ne,
     struct BuildCacheDat* buildcachedat);
 
 struct SceneAnimation*
