@@ -1,10 +1,11 @@
 extern "C" {
+#include "osrs/gameproto.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
-#include "osrs/grender.h"
 #include "osrs/lclogin.h"
 #include "osrs/query_engine.h"
 #include "osrs/query_executor_dat.h"
+#include "osrs/revs/revpacket_lc245_2_query.h"
 #include "server/server.h"
 #include "tori_rs.h"
 }
@@ -147,7 +148,8 @@ main(
     struct GIOQueue* io = gioq_new();
     struct GGame* game = LibToriRS_GameNew(io, 513, 335);
     struct GInput input = { 0 };
-    struct GRenderCommandBuffer* render_command_buffer = grendercb_new(1024);
+    struct ToriRSRenderCommandBuffer* render_command_buffer =
+        tori_rs_render_command_buffer_new(1024);
     struct GIOMessage message = { 0 };
     struct Platform2_OSX_SDL2* platform = Platform2_OSX_SDL2_New();
     if( !platform )

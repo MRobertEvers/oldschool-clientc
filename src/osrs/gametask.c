@@ -51,7 +51,7 @@ gametask_step(struct GameTask* task)
     case GAMETASK_KIND_INIT_IO:
         return task_init_io_step(task->_init_io);
     case GAMETASK_KIND_INIT_SCENE:
-        return task_init_scene_step(task->_init_scene);
+        // return task_init_scene_step(task->_init_scene);
     case GAMETASK_KIND_INIT_SCENE_DAT:
         return task_init_scene_dat_step(task->_init_scene_dat);
     case GAMETASK_KIND_LOAD_DAT:
@@ -75,7 +75,7 @@ gametask_new_init_scene(
     memset(task, 0, sizeof(struct GameTask));
     task->status = GAMETASK_STATUS_PENDING;
     task->kind = GAMETASK_KIND_INIT_SCENE;
-    task->_init_scene = task_init_scene_new(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    // task->_init_scene = task_init_scene_new(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 
     append_task(game, task);
 
@@ -144,7 +144,7 @@ gametask_free(struct GameTask* task)
         task_init_io_free(task->_init_io);
         break;
     case GAMETASK_KIND_INIT_SCENE:
-        task_init_scene_free(task->_init_scene);
+        // task_init_scene_free(task->_init_scene);
         break;
     case GAMETASK_KIND_INIT_SCENE_DAT:
         task_init_scene_dat_free(task->_init_scene_dat);

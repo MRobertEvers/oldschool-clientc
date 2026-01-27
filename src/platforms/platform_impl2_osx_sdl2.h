@@ -3,7 +3,7 @@
 
 extern "C" {
 #include "osrs/ginput.h"
-#include "osrs/grender.h"
+#include "tori_rs_render.h"
 }
 #include <SDL.h>
 #include <stdbool.h>

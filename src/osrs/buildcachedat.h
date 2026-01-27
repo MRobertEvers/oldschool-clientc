@@ -24,6 +24,7 @@ struct BuildCacheDat
     struct FileListDat* cfg_config_jagfile;
     struct FileListDat* cfg_versionlist_jagfile;
 
+    struct DashMap* map_terrains_hmap;
     struct DashMap* flotype_hmap;
     struct DashMap* textures_hmap;
     struct DashMap* scenery_hmap;
@@ -68,6 +69,11 @@ buildcachedat_add_flotype(
     int flotype_id,
     struct CacheConfigOverlay* flotype);
 
+struct CacheConfigOverlay*
+buildcachedat_get_flotype(
+    struct BuildCacheDat* buildcachedat,
+    int flotype_id);
+
 struct DashMapIter*
 buildcachedat_iter_new_flotypes(struct BuildCacheDat* buildcachedat);
 
@@ -79,6 +85,11 @@ buildcachedat_add_texture(
     struct BuildCacheDat* buildcachedat,
     int texture_id,
     struct DashTexture* texture);
+
+struct DashTexture*
+buildcachedat_get_texture(
+    struct BuildCacheDat* buildcachedat,
+    int texture_id);
 
 struct DashMapIter*
 buildcachedat_iter_new_textures(struct BuildCacheDat* buildcachedat);
@@ -230,4 +241,18 @@ buildcachedat_iter_next_obj(struct DashMapIter* iter);
 
 struct DashMapIter*
 buildcachedat_iter_new_objs(struct BuildCacheDat* buildcachedat);
+
+void
+buildcachedat_add_map_terrain(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz,
+    struct CacheMapTerrain* map_terrain);
+
+struct CacheMapTerrain*
+buildcachedat_get_map_terrain(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz);
+
 #endif

@@ -18,6 +18,7 @@
 #include "terrain_grid.u.c"
 #include "terrain_decode_tile.u.c"
 #include "scenebuilder_shademap.u.c"
+#include "scenebuild_compat.u.c"
 #include "scenebuilder.u.c"
 // clang-format on
 
@@ -30,84 +31,6 @@
 #define HEIGHT_SCALE 65536
 
 #define BLEND_RADIUS 5
-
-enum GroundTypeMode
-{
-    M_DAT_FLOTYPE,
-    M_DAT2_OVERLAY_UNDERLAY
-};
-
-struct GroundTypeMap
-{
-    enum GroundTypeMode mode;
-    struct DashMap* map_;
-    struct DashMap* underlay_configmap_;
-    struct DashMap* overlay_configmap_;
-};
-
-static int
-ground_type_map_get_underlay_rgb(
-    struct GroundTypeMap* ground_type_map,
-    int underlay_id)
-{
-    int search_id = underlay_id - 1;
-    switch( ground_type_map->mode )
-    {
-    case M_DAT_FLOTYPE:
-    {
-        struct FlotypeEntry* flotype_entry = NULL;
-        flotype_entry =
-            (struct FlotypeEntry*)dashmap_search(ground_type_map->map_, &search_id, DASHMAP_FIND);
-        assert(flotype_entry != NULL);
-        return flotype_entry->flotype->rgb_color;
-    }
-    case M_DAT2_OVERLAY_UNDERLAY:
-    {
-        struct CacheConfigUnderlay* entry = NULL;
-        entry = (struct CacheConfigUnderlay*)configmap_get(
-            ground_type_map->underlay_configmap_, search_id);
-        assert(entry != NULL);
-        return entry->rgb_color;
-    }
-    }
-
-    assert(false);
-    return -1;
-}
-
-struct CacheConfigOverlay*
-ground_type_map_get_overlay(
-    struct GroundTypeMap* ground_type_map,
-    int overlay_id)
-{
-    // struct FlotypeEntry* flotype_entry = NULL;
-    // flotype_entry = (struct FlotypeEntry*)dashmap_search(
-    //     config_overlay_map, &overlay_id, DASHMAP_FIND);
-    // assert(flotype_entry != NULL);
-    // overlay = flotype_entry->flotype;
-    // assert(overlay != NULL);
-
-    // overlay = (struct CacheConfigOverlay*)configmap_get(config_overlay_map, overlay_id);
-    // assert(overlay != NULL);
-    switch( ground_type_map->mode )
-    {
-    case M_DAT_FLOTYPE:
-    {
-        struct FlotypeEntry* flotype_entry = NULL;
-        flotype_entry =
-            (struct FlotypeEntry*)dashmap_search(ground_type_map->map_, &overlay_id, DASHMAP_FIND);
-        assert(flotype_entry != NULL);
-        return flotype_entry->flotype;
-    }
-    case M_DAT2_OVERLAY_UNDERLAY:
-    {
-        return configmap_get(ground_type_map->overlay_configmap_, overlay_id);
-    }
-    }
-
-    assert(false);
-    return NULL;
-}
 
 static inline int
 grid_coord(
@@ -122,8 +45,8 @@ grid_coord(
 
 static int*
 blend_underlays(
+    struct SceneBuilder* scene_builder,
     struct TerrainGrid* terrain_grid,
-    struct GroundTypeMap* underlay_map,
     int level)
 {
     struct CacheMapFloor* tile = NULL;
@@ -193,7 +116,7 @@ blend_underlays(
                     //     config_underlay_map, underlay_id - 1);
                     // assert(entry != NULL);
 
-                    int rgb = ground_type_map_get_underlay_rgb(underlay_map, underlay_id);
+                    int rgb = scenebuilder_compat_get_underlay_rgb(scene_builder, underlay_id);
                     hsl = palette_rgb_to_hsl24(rgb);
 
                     chroma[zi] += hsl.chroma;
@@ -228,7 +151,7 @@ blend_underlays(
                     //     config_underlay_map, underlay_id - 1);
                     // assert(entry != NULL);
 
-                    int rgb = ground_type_map_get_underlay_rgb(underlay_map, underlay_id);
+                    int rgb = scenebuilder_compat_get_underlay_rgb(scene_builder, underlay_id);
 
                     hsl = palette_rgb_to_hsl24(rgb);
 
@@ -463,44 +386,11 @@ build_scene_terrain(
     struct TerrainGrid* terrain_grid,
     struct SceneTerrain* terrain)
 {
-    struct DashMap* config_underlay_map = scene_builder->config_underlay_configmap;
-    struct DashMap* config_overlay_map = scene_builder->config_overlay_configmap;
-
-    if( scene_builder->config_overlay_configmap == NULL ||
-        scene_builder->config_underlay_configmap == NULL )
-    {
-        config_underlay_map = scene_builder->flotypes_hmap;
-        config_overlay_map = scene_builder->flotypes_hmap;
-    }
-    else
-    {
-        config_underlay_map = scene_builder->config_underlay_configmap;
-
-        config_overlay_map = scene_builder->config_overlay_configmap;
-        assert(configmap_valid(config_underlay_map) && "Config underlay map must be valid");
-        assert(configmap_valid(config_overlay_map) && "Config overlay map must be valid");
-    }
-
     struct DashModel* model = NULL;
-    struct CacheConfigUnderlay* underlay = NULL;
     struct CacheConfigOverlay* overlay = NULL;
     struct TerrainTileModel* chunk_tiles = NULL;
     struct CacheMapFloor* map = NULL;
     struct SceneTerrainTile* tile = NULL;
-
-    struct GroundTypeMap groundtypemap = { 0 };
-
-    if( scene_builder->config_underlay_configmap != NULL )
-    {
-        groundtypemap.mode = M_DAT2_OVERLAY_UNDERLAY;
-        groundtypemap.underlay_configmap_ = config_underlay_map;
-        groundtypemap.overlay_configmap_ = config_overlay_map;
-    }
-    else
-    {
-        groundtypemap.mode = M_DAT_FLOTYPE;
-        groundtypemap.map_ = scene_builder->flotypes_hmap;
-    }
 
     int max_z = terrain_grid_z_height(terrain_grid);
     int max_x = terrain_grid_x_width(terrain_grid);
@@ -508,7 +398,7 @@ build_scene_terrain(
 
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
-        int* blended_underlays = blend_underlays(terrain_grid, &groundtypemap, level);
+        int* blended_underlays = blend_underlays(scene_builder, terrain_grid, level);
         int* lights = calculate_lights(terrain_grid, level);
 
         apply_shade(
@@ -604,7 +494,7 @@ build_scene_terrain(
                     //     (struct CacheConfigOverlay*)configmap_get(config_overlay_map,
                     //     overlay_id);
 
-                    overlay = ground_type_map_get_overlay(&groundtypemap, overlay_id);
+                    overlay = scenebuilder_compat_get_flotype(scene_builder, overlay_id);
                     assert(overlay != NULL);
 
                     if( overlay->texture != -1 )
@@ -656,12 +546,12 @@ build_scene_terrain(
 
                 if( texture_id != -1 )
                 {
-                    struct TextureEntry* texture_entry =
-                        dashmap_search(scene_builder->textures_hmap, &texture_id, DASHMAP_FIND);
-                    assert(texture_entry != NULL);
+                    struct DashTexture* dash_texture =
+                        scenebuilder_compat_get_texture(scene_builder, texture_id);
+                    assert(dash_texture != NULL);
 
-                    dash_texture_average_hsl(texture_entry->texture);
-                    int average_hsl = texture_entry->texture->average_hsl;
+                    dash_texture_average_hsl(dash_texture);
+                    int average_hsl = dash_texture->average_hsl;
                     minimap_foreground_rgb = dash_hsl16_to_rgb(average_hsl);
                 }
 

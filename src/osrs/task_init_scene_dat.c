@@ -310,7 +310,7 @@ step_terrain_load_poll(
     terrain = map_terrain_new_from_decode_flags(
         message->data, message->data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
 
-    scenebuilder_cache_map_terrain(task->scene_builder, map_x, map_z, terrain);
+    buildcachedat_add_map_terrain(task->buildcachedat, map_x, map_z, terrain);
 }
 
 static enum GameTaskStatus
@@ -379,8 +379,6 @@ step_flotype_load(struct TaskInitSceneDat* task)
             flotype, buffer.data + buffer.position, buffer.size - buffer.position);
 
         buildcachedat_add_flotype(task->buildcachedat, i, flotype);
-
-        scenebuilder_cache_flotype(task->scene_builder, i, flotype);
     }
 
     return GAMETASK_STATUS_COMPLETED;
@@ -420,9 +418,6 @@ step_scenery_load(struct TaskInitSceneDat* task)
 
             buildcachedat_add_scenery(
                 task->buildcachedat, locs->_chunk_mapx, locs->_chunk_mapz, locs);
-
-            scenebuilder_cache_map_locs(
-                task->scene_builder, locs->_chunk_mapx, locs->_chunk_mapz, locs);
 
             gioq_release(task->io, &message);
         }
@@ -485,8 +480,6 @@ step_scenery_config_load(struct TaskInitSceneDat* task)
             config_loc->_id = loc->loc_id;
 
             buildcachedat_add_config_loc(task->buildcachedat, loc->loc_id, config_loc);
-
-            scenebuilder_cache_config_loc(task->scene_builder, loc->loc_id, config_loc);
         }
     }
     dashmap_iter_free(iter);
@@ -607,8 +600,6 @@ step_models_load(struct TaskInitSceneDat* task)
 
             buildcachedat_add_model(task->buildcachedat, message.param_b, model);
 
-            scenebuilder_cache_model(task->scene_builder, message.param_b, model);
-
             gioq_release(task->io, &message);
         }
 
@@ -683,8 +674,6 @@ step_textures_load_poll(
 
         buildcachedat_add_texture(task->buildcachedat, i, dash_texture);
 
-        scenebuilder_cache_texture(task->scene_builder, i, dash_texture);
-
         dash3d_add_texture(task->game->sys_dash, i, dash_texture);
     }
 }
@@ -749,8 +738,6 @@ step_sequences_load(struct TaskInitSceneDat* task)
             sequence, buffer.data + buffer.position, buffer.size - buffer.position);
 
         buildcachedat_add_sequence(task->buildcachedat, i, sequence);
-
-        scenebuilder_cache_dat_sequence(task->scene_builder, i, sequence);
     }
 
     return GAMETASK_STATUS_COMPLETED;
@@ -814,8 +801,6 @@ step_animbaseframes_load(struct TaskInitSceneDat* task)
                 struct CacheAnimframe* animframe = &animbaseframes->frames[i];
 
                 buildcachedat_add_animframe(task->buildcachedat, animframe->id, animframe);
-
-                scenebuilder_cache_animframe(task->scene_builder, animframe->id, animframe);
             }
 
         release:;
@@ -1383,9 +1368,11 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
     }
     case STEP_INIT_SCENE_DAT_DONE:
     {
-        task->game->player_walk_animation = scenebuilder_new_animation(task->scene_builder, 819);
-        assert(task->game->player_walk_animation != NULL && "Failed to load player walk animation");
-        task->game->scene = scenebuilder_load(task->scene_builder);
+        // task->game->player_walk_animation = scenebuilder_new_animation(task->scene_builder, 819);
+        // assert(task->game->player_walk_animation != NULL && "Failed to load player walk
+        // animation");
+        task->game->scene =
+            scenebuilder_load_from_buildcachedat(task->scene_builder, task->game->buildcachedat);
 
         return GAMETASK_STATUS_COMPLETED;
     }

@@ -69,7 +69,7 @@ void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game,
-    struct GRenderCommandBuffer* render_command_buffer);
+    struct ToriRSRenderCommandBuffer* render_command_buffer);
 
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(

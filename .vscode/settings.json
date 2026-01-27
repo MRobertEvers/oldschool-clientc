@@ -7,6 +7,7 @@
     "cpp.default.browse.limitSymbolsToIncludedHeaders": true,
     "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
     "editor.formatOnSave": true,
+    "editor.multiCursorModifier": "alt",
     "C_Cpp.clang_format_path": "/opt/homebrew/bin/clang-format",
     "C_Cpp.clang_format_style": "file",
     "[c]": {
@@ -231,7 +232,7 @@
         "task_query.h": "c",
         "query_engine.h": "c",
         "task_load_models_dat.h": "c",
-        "pixfont.h": "c"
+        "pixfont.h": "c",
+        "buildcachedat.h": "c"
     },
-    "C_Cpp.errorSquiggles": "disabled"
 }

@@ -5,9 +5,9 @@
 #include "osrs/game.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
-#include "osrs/grender.h"
 #include "osrs/painters.h"
 #include "osrs/scene.h"
+#include "tori_rs_render.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -32,13 +32,21 @@ void
 LibToriRS_GameStepTasks(
     struct GGame* game,
     struct GInput* input,
-    struct GRenderCommandBuffer* render_command_buffer);
+    struct ToriRSRenderCommandBuffer* render_command_buffer);
 
 void
-LibToriRS_BeginFrame(struct GGame* game);
+LibToriRS_FrameBegin(
+    struct GGame* game,
+    struct ToriRSRenderCommandBuffer* render_command_buffer);
+
+bool
+LibToriRS_FrameNextCommand(
+    struct GGame* game,
+    struct ToriRSRenderCommandBuffer* render_command_buffer,
+    struct ToriRSRenderCommand* command);
 
 void
-LibToriRS_EndFrame(struct GGame* game);
+LibToriRS_FrameEnd(struct GGame* game);
 
 void
 LibToriRS_GameFree(struct GGame* game);
@@ -46,7 +54,7 @@ void
 LibToriRS_GameStep(
     struct GGame* game,
     struct GInput* input,
-    struct GRenderCommandBuffer* render_command_buffer);
+    struct ToriRSRenderCommandBuffer* render_command_buffer);
 
 bool
 LibToriRS_GameIsRunning(struct GGame* game);

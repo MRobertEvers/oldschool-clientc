@@ -95,20 +95,7 @@ struct SceneBuilder
     int mapx_ne;
     int mapz_ne;
 
-    struct DashMap* models_hmap;
-    struct DashMap* map_terrains_hmap;
-    struct DashMap* map_locs_hmap;
-    struct DashMap* frames_hmap;
-    struct DashMap* framemaps_hmap;
-    struct DashMap* sequences_configmap;
-    struct DashMap* config_locs_hmap;
-    struct DashMap* config_locs_configmap;
-    struct DashMap* config_underlay_configmap;
-    struct DashMap* config_overlay_configmap;
-
-    // TODO:
-    struct DashMap* flotypes_hmap;
-    struct DashMap* textures_hmap;
+    struct BuildCacheDat* buildcachedat;
 
     struct BuildGrid* build_grid;
     struct Shademap* shademap;

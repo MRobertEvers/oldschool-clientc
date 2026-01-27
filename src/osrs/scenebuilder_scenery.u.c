@@ -17,6 +17,7 @@
 #include "scenebuilder.u.c"
 #include "scenebuilder_sharelight.u.c"
 #include "terrain_grid.u.c"
+#include "scenebuild_compat.u.c"
 // clang-format on
 
 #include <assert.h>
@@ -44,21 +45,11 @@ scenebuilder_config_loc_get(
     struct SceneBuilder* scene_builder,
     int loc_id)
 {
-    if( scene_builder->config_locs_configmap != NULL )
+    if( scene_builder->buildcachedat != NULL )
     {
-        return (struct CacheConfigLocation*)configmap_get(
-            scene_builder->config_locs_configmap, loc_id);
+        return buildcachedat_get_config_loc(scene_builder->buildcachedat, loc_id);
     }
-    else
-    {
-        struct CacheConfigLocationEntry* config_loc_entry = NULL;
-        config_loc_entry = (struct CacheConfigLocationEntry*)dashmap_search(
-            scene_builder->config_locs_hmap, &loc_id, DASHMAP_FIND);
-
-        assert(config_loc_entry && "Config loc must be found in hmap");
-
-        return config_loc_entry->config_loc;
-    }
+    return NULL;
 }
 
 /**
@@ -206,8 +197,8 @@ light_model_default(
 
 static struct DashModel*
 load_model(
+    struct SceneBuilder* scene_builder,
     struct CacheConfigLocation* loc_config,
-    struct DashMap* models_hmap,
     int shape_select,
     int rotation,
     struct TileHeights* tile_heights)
@@ -243,11 +234,9 @@ load_model(
             int model_id = model_id_sets[0][i];
             assert(model_id);
 
-            model_entry = (struct ModelEntry*)dashmap_search(models_hmap, &model_id, DASHMAP_FIND);
-            assert(model_entry);
-            model = model_entry->model;
-
+            model = scenebuilder_compat_get_model(scene_builder, model_id);
             assert(model);
+
             models[model_count] = model;
             model_ids[model_count] = model_id;
             model_count++;
@@ -273,10 +262,8 @@ load_model(
                     int model_id = model_id_sets[i][j];
                     assert(model_id);
 
-                    model_entry =
-                        (struct ModelEntry*)dashmap_search(models_hmap, &model_id, DASHMAP_FIND);
-                    assert(model_entry);
-                    model = model_entry->model;
+                    model = scenebuilder_compat_get_model(scene_builder, model_id);
+                    assert(model);
 
                     assert(model);
                     models[model_count] = model;
@@ -577,16 +564,17 @@ scenebuilder_load_model_animations(
     struct SceneBuilder* scene_builder,
     struct CacheConfigLocation* loc_config)
 {
-    if( scene_builder->config_locs_configmap != NULL )
-    {
-        return load_model_animations_dat2(
-            loc_config, scene_builder->sequences_configmap, scene_builder->frames_hmap);
-    }
-    else
-    {
-        return load_model_animations_dat(
-            loc_config, scene_builder->sequences_configmap, scene_builder->frames_hmap);
-    }
+    return NULL;
+    // if( scene_builder->config_locs_configmap != NULL )
+    // {
+    //     return load_model_animations_dat2(
+    //         loc_config, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    // }
+    // else
+    // {
+    //     return load_model_animations_dat(
+    //         loc_config, scene_builder->sequences_configmap, scene_builder->frames_hmap);
+    // }
 }
 
 static struct DashPosition*
@@ -731,8 +719,8 @@ scenery_add_wall_single(
 
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
-    dash_model = load_model(
-        config_loc, scene_builder->models_hmap, map_loc->shape_select, rotation, tile_heights);
+    dash_model =
+        load_model(scene_builder, config_loc, map_loc->shape_select, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -805,8 +793,8 @@ scenery_add_wall_tri_corner(
 
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
-    dash_model = load_model(
-        config_loc, scene_builder->models_hmap, map_loc->shape_select, rotation, tile_heights);
+    dash_model =
+        load_model(scene_builder, config_loc, map_loc->shape_select, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -867,8 +855,8 @@ scenery_add_wall_two_sides(
     int next_orientation = (map_loc->orientation + 1) & 0x3;
 
     dash_model_one = load_model(
+        scene_builder,
         config_loc,
-        scene_builder->models_hmap,
         LOC_SHAPE_WALL_TWO_SIDES,
         // +4 for Mirrored
         map_loc->orientation + 4,
@@ -883,11 +871,7 @@ scenery_add_wall_two_sides(
     assert(element_one_id != -1);
 
     dash_model_two = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        LOC_SHAPE_WALL_TWO_SIDES,
-        next_orientation,
-        tile_heights);
+        scene_builder, config_loc, LOC_SHAPE_WALL_TWO_SIDES, next_orientation, tile_heights);
 
     dash_position_two = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -978,8 +962,8 @@ scenery_add_wall_rect_corner(
 
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
-    dash_model = load_model(
-        config_loc, scene_builder->models_hmap, LOC_SHAPE_WALL_RECT_CORNER, rotation, tile_heights);
+    dash_model =
+        load_model(scene_builder, config_loc, LOC_SHAPE_WALL_RECT_CORNER, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -1041,12 +1025,8 @@ scenery_add_wall_decor_inside(
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
 
-    dash_model = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        LOC_SHAPE_WALL_DECOR_INSIDE,
-        rotation,
-        tile_heights);
+    dash_model =
+        load_model(scene_builder, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, tile_heights);
 
     scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
 
@@ -1107,8 +1087,8 @@ scenery_add_wall_decor_outside(
     int orientation = map_loc->orientation;
 
     dash_model = load_model(
+        scene_builder,
         config_loc,
-        scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
@@ -1175,8 +1155,8 @@ scenery_add_wall_decor_diagonal_outside(
     int rotation = config_loc->seq_id != -1 ? 0 : orientation;
 
     dash_model = load_model(
+        scene_builder,
         config_loc,
-        scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
@@ -1251,8 +1231,8 @@ scenery_add_wall_decor_diagonal_inside(
     int rotation = config_loc->seq_id != -1 ? 0 : (orientation);
 
     dash_model = load_model(
+        scene_builder,
         config_loc,
-        scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
@@ -1328,8 +1308,8 @@ scenery_add_wall_decor_diagonal_double(
     int inside_rotation = config_loc->seq_id != -1 ? 0 : (inside_orientation);
 
     dash_model_one = load_model(
+        scene_builder,
         config_loc,
-        scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
         outside_rotation,
@@ -1353,8 +1333,8 @@ scenery_add_wall_decor_diagonal_double(
     assert(element_one_id != -1);
 
     dash_model_two = load_model(
+        scene_builder,
         config_loc,
-        scene_builder->models_hmap,
         // This is correct.
         LOC_SHAPE_WALL_DECOR_INSIDE,
         inside_rotation,
@@ -1436,11 +1416,7 @@ scenery_add_wall_diagonal(
     int element_id = -1;
 
     dash_model = load_model(
-        config_loc,
-        scene_builder->models_hmap,
-        LOC_SHAPE_WALL_DIAGONAL,
-        map_loc->orientation,
-        tile_heights);
+        scene_builder, config_loc, LOC_SHAPE_WALL_DIAGONAL, map_loc->orientation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -1513,8 +1489,7 @@ scenery_add_normal(
     int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
 
-    dash_model = load_model(
-        config_loc, scene_builder->models_hmap, LOC_SHAPE_SCENERY, rotation, tile_heights);
+    dash_model = load_model(scene_builder, config_loc, LOC_SHAPE_SCENERY, rotation, tile_heights);
 
     dash_position =
         dash_position_from_offset_wxh(offset, tile_heights->height_center, size_x, size_z);
@@ -1578,8 +1553,8 @@ scenery_add_roof(
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
 
-    dash_model = load_model(
-        config_loc, scene_builder->models_hmap, map_loc->shape_select, rotation, tile_heights);
+    dash_model =
+        load_model(scene_builder, config_loc, map_loc->shape_select, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -1621,8 +1596,8 @@ scenery_add_floor_decoration(
 
     int rotation = map_loc->orientation;
     int orientation = map_loc->orientation;
-    dash_model = load_model(
-        config_loc, scene_builder->models_hmap, map_loc->shape_select, rotation, tile_heights);
+    dash_model =
+        load_model(scene_builder, config_loc, map_loc->shape_select, rotation, tile_heights);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -1702,7 +1677,7 @@ scenery_add(
     int size_x = config_loc->size_x;
     int size_z = config_loc->size_z;
     // For old revisions, loc height is always sized as 1.
-    if( scene_builder->config_locs_configmap == NULL )
+    if( scene_builder->buildcachedat == NULL )
     {
         size_x = 1;
         size_z = 1;
@@ -1842,29 +1817,23 @@ build_scene_scenery(
     struct TerrainGrid* terrain_grid,
     struct Scene* scene)
 {
-    struct DashMapIter* iter = dashmap_iter_new(scene_builder->map_locs_hmap);
-    struct MapLocsEntry* map_locs_entry = NULL;
     struct CacheMapLocs* map_locs = NULL;
     struct CacheMapLoc* map_loc = NULL;
-    int mapxz = 0;
 
-    while( (map_locs_entry = (struct MapLocsEntry*)dashmap_iter_next(iter)) )
+    for( int x = scene_builder->mapx_sw; x <= scene_builder->mapx_ne; x++ )
     {
-        map_locs = map_locs_entry->locs;
-        assert(map_locs && "Map locs must be valid");
-
-        for( int i = 0; i < map_locs->locs_count; i++ )
+        for( int z = scene_builder->mapz_sw; z <= scene_builder->mapz_ne; z++ )
         {
-            map_loc = &map_locs->locs[i];
-            assert(map_loc && "Map loc must be valid");
+            map_locs = scenebuilder_compat_get_scenery(scene_builder, x, z);
+            assert(map_locs && "Map locs must be valid");
 
-            scenery_add(
-                scene_builder,
-                terrain_grid,
-                map_locs_entry->mapx,
-                map_locs_entry->mapz,
-                map_loc,
-                scene->scenery);
+            for( int i = 0; i < map_locs->locs_count; i++ )
+            {
+                map_loc = &map_locs->locs[i];
+                assert(map_loc && "Map loc must be valid");
+
+                scenery_add(scene_builder, terrain_grid, x, z, map_loc, scene->scenery);
+            }
         }
     }
 

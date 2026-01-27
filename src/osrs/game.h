@@ -6,7 +6,6 @@
 #include "osrs/gametask.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
-#include "osrs/grender.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
@@ -25,6 +24,8 @@ struct RevPacket_LC245_2_Item
 struct GGame
 {
     bool running;
+    int at_render_command_index;
+    int at_painters_command_index;
 
     int awaiting_models;
     int build_player;
@@ -32,6 +33,9 @@ struct GGame
     bool latched;
 
     int cycles;
+    int cycle;
+
+    int next_rebuild;
 
     int mouse_cycle;
     int mouse_clicked;

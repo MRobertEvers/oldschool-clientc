@@ -30,85 +30,10 @@ scenebuilder_new_painter(
 void
 scenebuilder_free(struct SceneBuilder* scene_builder);
 
-void
-scenebuilder_cache_configmap_underlay(
-    struct SceneBuilder* scene_builder,
-    struct DashMap* config_underlay_map);
-
-void
-scenebuilder_cache_configmap_overlay(
-    struct SceneBuilder* scene_builder,
-    struct DashMap* config_overlay_map);
-
-void
-scenebuilder_cache_configmap_locs(
-    struct SceneBuilder* scene_builder,
-    struct DashMap* config_locs_configmap);
-
-void
-scenebuilder_cache_configmap_sequences(
-    struct SceneBuilder* scene_builder,
-    struct DashMap* config_sequences_configmap);
-
-void
-scenebuilder_cache_frame(
-    struct SceneBuilder* scene_builder,
-    // frame_file
-    int frame_anim_id,
-    struct CacheFrame* frame);
-
-void
-scenebuilder_cache_model(
-    struct SceneBuilder* scene_builder,
-    int model_id,
-    struct CacheModel* model);
-
-void
-scenebuilder_cache_map_locs(
-    struct SceneBuilder* scene_builder,
-    int mapx,
-    int mapz,
-    struct CacheMapLocs* map_locs);
-
-void
-scenebuilder_cache_map_terrain(
-    struct SceneBuilder* scene_builder,
-    int mapx,
-    int mapz,
-    struct CacheMapTerrain* map_terrain);
-
-void
-scenebuilder_cache_flotype(
-    struct SceneBuilder* scene_builder,
-    int flotype_id,
-    struct CacheConfigOverlay* flotype);
-
-void
-scenebuilder_cache_config_loc(
-    struct SceneBuilder* scene_builder,
-    int loc_id,
-    struct CacheConfigLocation* config_loc);
-
-void
-scenebuilder_cache_animframe(
-    struct SceneBuilder* scene_builder,
-    int animframe_id,
-    struct CacheAnimframe* animframe);
-
-void
-scenebuilder_cache_dat_sequence(
-    struct SceneBuilder* scene_builder,
-    int sequence_id,
-    struct CacheDatSequence* sequence);
-
-void
-scenebuilder_cache_texture(
-    struct SceneBuilder* scene_builder,
-    int texture_id,
-    struct DashTexture* texture);
-
 struct Scene*
-scenebuilder_load(struct SceneBuilder* scene_builder);
+scenebuilder_load_from_buildcachedat(
+    struct SceneBuilder* scene_builder,
+    struct BuildCacheDat* buildcachedat);
 
 struct SceneAnimation*
 scenebuilder_new_animation(

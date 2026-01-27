@@ -6,7 +6,7 @@ extern "C" {
 #include "osrs/gio_assets.h"
 #include "osrs/gio_cache.h"
 #include "osrs/gio_cache_dat.h"
-#include "osrs/grender.h"
+#include "tori_rs_render.h"
 }
 
 #define IMGUI_DEFINE_MATH_OPERATORS

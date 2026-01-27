@@ -2,7 +2,13 @@
 
 #include "graphics/dash.h"
 
-#define MAPXZ(mapx, mapz) ((mapx << 16) | mapz)
+struct MapTerrainEntry
+{
+    int id;
+    int mapx;
+    int mapz;
+    struct CacheMapTerrain* map_terrain;
+};
 
 struct FlotypeEntry
 {
@@ -184,6 +190,14 @@ buildcachedat_new(void)
     };
     buildcachedat->obj_models_hmap = dashmap_new(&config, 0);
 
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct MapTerrainEntry),
+    };
+    buildcachedat->map_terrains_hmap = dashmap_new(&config, 0);
+
     return buildcachedat;
 }
 
@@ -243,6 +257,18 @@ buildcachedat_add_flotype(
     flotype_entry->flotype = flotype;
 }
 
+struct CacheConfigOverlay*
+buildcachedat_get_flotype(
+    struct BuildCacheDat* buildcachedat,
+    int flotype_id)
+{
+    struct FlotypeEntry* flotype_entry = (struct FlotypeEntry*)dashmap_search(
+        buildcachedat->flotype_hmap, &flotype_id, DASHMAP_FIND);
+    if( !flotype_entry )
+        return NULL;
+    return flotype_entry->flotype;
+}
+
 void
 buildcachedat_add_texture(
     struct BuildCacheDat* buildcachedat,
@@ -256,6 +282,18 @@ buildcachedat_add_texture(
     texture_entry->texture = texture;
 }
 
+struct DashTexture*
+buildcachedat_get_texture(
+    struct BuildCacheDat* buildcachedat,
+    int texture_id)
+{
+    struct TextureEntry* texture_entry = (struct TextureEntry*)dashmap_search(
+        buildcachedat->textures_hmap, &texture_id, DASHMAP_FIND);
+    if( !texture_entry )
+        return NULL;
+    return texture_entry->texture;
+}
+
 void
 buildcachedat_add_scenery(
     struct BuildCacheDat* buildcachedat,
@@ -263,7 +301,7 @@ buildcachedat_add_scenery(
     int mapz,
     struct CacheMapLocs* locs)
 {
-    int mapxz = MAPXZ(mapx, mapz);
+    int mapxz = MAPREGIONXZ(mapx, mapz);
     struct SceneryEntry* scenery_entry =
         (struct SceneryEntry*)dashmap_search(buildcachedat->scenery_hmap, &mapxz, DASHMAP_INSERT);
     assert(scenery_entry && "Scenery must be inserted into hmap");
@@ -279,7 +317,7 @@ buildcachedat_get_scenery(
     int mapx,
     int mapz)
 {
-    int mapxz = MAPXZ(mapx, mapz);
+    int mapxz = MAPREGIONXZ(mapx, mapz);
     struct SceneryEntry* scenery_entry =
         (struct SceneryEntry*)dashmap_search(buildcachedat->scenery_hmap, &mapxz, DASHMAP_FIND);
     if( !scenery_entry )
@@ -535,4 +573,35 @@ struct DashMapIter*
 buildcachedat_iter_new_objs(struct BuildCacheDat* buildcachedat)
 {
     return dashmap_iter_new(buildcachedat->obj_hmap);
+}
+
+void
+buildcachedat_add_map_terrain(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz,
+    struct CacheMapTerrain* map_terrain)
+{
+    int mapxz = MAPREGIONXZ(mapx, mapz);
+    struct MapTerrainEntry* map_terrain_entry = (struct MapTerrainEntry*)dashmap_search(
+        buildcachedat->map_terrains_hmap, &mapxz, DASHMAP_INSERT);
+    assert(map_terrain_entry && "Map terrain must be inserted into hmap");
+    map_terrain_entry->id = mapxz;
+    map_terrain_entry->mapx = mapx;
+    map_terrain_entry->mapz = mapz;
+    map_terrain_entry->map_terrain = map_terrain;
+}
+
+struct CacheMapTerrain*
+buildcachedat_get_map_terrain(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz)
+{
+    int mapxz = MAPREGIONXZ(mapx, mapz);
+    struct MapTerrainEntry* map_terrain_entry = (struct MapTerrainEntry*)dashmap_search(
+        buildcachedat->map_terrains_hmap, &mapxz, DASHMAP_FIND);
+    if( !map_terrain_entry )
+        return NULL;
+    return map_terrain_entry->map_terrain;
 }
