@@ -141,7 +141,7 @@ packetbuffer_read(
     }
 
 done:;
-    return packetbuffer->state == PKTBUF_PROCESS;
+    return buffer.position;
 }
 
 bool

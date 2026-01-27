@@ -54,7 +54,7 @@ LibToriRS_GameNew(
     memset(game->login, 0, sizeof(struct LCLogin));
     lclogin_init(game->login, 245, NULL, false);
     lclogin_load_rsa_public_key_from_env(game->login);
-    lclogin_start(game->login, "asdf", "a", false);
+    lclogin_start(game->login, "asdf2", "a", false);
 
     game->packet_buffer = malloc(sizeof(struct PacketBuffer));
     memset(game->packet_buffer, 0, sizeof(struct PacketBuffer));
@@ -849,6 +849,27 @@ LibToriRS_NetPump(struct GGame* game)
                 ret = ringbuf_read(game->netin, contiguous_buffer, sizeof(contiguous_buffer));
                 if( ret <= 0 )
                     break;
+
+                // FILE* f = fopen("contiguous_buffer.bin", "wb");
+                // fwrite(contiguous_buffer, 1, ret, f);
+                // fclose(f);
+                // {
+                //     size_t sz = isaac_state_size();
+                //     void* buf = malloc(sz);
+                //     if( buf && game->login && game->login->random_in )
+                //     {
+                //         isaac_get_state(game->login->random_in, buf);
+                //         FILE* isaac_f = fopen("login_isaac_state.bin", "wb");
+                //         if( isaac_f )
+                //         {
+                //             fwrite(buf, 1, sz, isaac_f);
+                //             fclose(isaac_f);
+                //         }
+                //         free(buf);
+                //     }
+                // }
+                // assert(0);
+
                 int amnt_used = packetbuffer_read(game->packet_buffer, contiguous_buffer, ret);
                 if( amnt_used < ret )
                 {

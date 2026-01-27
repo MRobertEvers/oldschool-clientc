@@ -219,3 +219,24 @@ isaac_next(struct Isaac* isaac)
 
     return isaac->rsl[isaac->count];
 }
+
+size_t
+isaac_state_size(void)
+{
+    return sizeof(struct Isaac);
+}
+
+void
+isaac_get_state(struct Isaac* isaac, void* buf)
+{
+    memcpy(buf, isaac, sizeof(struct Isaac));
+}
+
+struct Isaac*
+isaac_from_state(const void* buf)
+{
+    struct Isaac* isaac = malloc(sizeof(struct Isaac));
+    if( isaac )
+        memcpy(isaac, buf, sizeof(struct Isaac));
+    return isaac;
+}
