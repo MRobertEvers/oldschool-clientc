@@ -3,6 +3,7 @@
 
 #include "configmap.h"
 #include "graphics/dash.h"
+#include "osrs/buildcache.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/tables/config_sequence.h"
 #include "osrs/rscache/tables/frame.h"
@@ -96,6 +97,7 @@ struct SceneBuilder
     int mapz_ne;
 
     struct BuildCacheDat* buildcachedat;
+    struct BuildCache* buildcache;
 
     struct BuildGrid* build_grid;
     struct Shademap* shademap;

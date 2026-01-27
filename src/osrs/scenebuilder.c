@@ -101,14 +101,13 @@ init_build_grid(
     }
 }
 
-struct Scene*
-scenebuilder_load_from_buildcachedat(
+static struct Scene*
+scenebuiler_build(
     struct SceneBuilder* scene_builder,
     int mapx_sw,
     int mapz_sw,
     int mapx_ne,
-    int mapz_ne,
-    struct BuildCacheDat* buildcachedat)
+    int mapz_ne)
 {
     scene_builder->mapx_sw = mapx_sw;
     scene_builder->mapz_sw = mapz_sw;
@@ -125,8 +124,6 @@ scenebuilder_load_from_buildcachedat(
 
     struct Scene* scene = NULL;
 
-    scene_builder->buildcachedat = buildcachedat;
-
     init_terrain_grid(scene_builder, &terrain_grid);
 
     init_build_grid(&terrain_grid, scene_builder->build_grid);
@@ -138,6 +135,32 @@ scenebuilder_load_from_buildcachedat(
     build_scene_terrain(scene_builder, &terrain_grid, scene->terrain);
 
     return scene;
+}
+
+struct Scene*
+scenebuilder_load_from_buildcachedat(
+    struct SceneBuilder* scene_builder,
+    int mapx_sw,
+    int mapz_sw,
+    int mapx_ne,
+    int mapz_ne,
+    struct BuildCacheDat* buildcachedat)
+{
+    scene_builder->buildcachedat = buildcachedat;
+    return scenebuiler_build(scene_builder, mapx_sw, mapz_sw, mapx_ne, mapz_ne);
+}
+
+struct Scene*
+scenebuilder_load_from_buildcache(
+    struct SceneBuilder* scene_builder,
+    int mapx_sw,
+    int mapz_sw,
+    int mapx_ne,
+    int mapz_ne,
+    struct BuildCache* buildcache)
+{
+    scene_builder->buildcache = buildcache;
+    return scenebuiler_build(scene_builder, mapx_sw, mapz_sw, mapx_ne, mapz_ne);
 }
 
 // struct SceneAnimation*

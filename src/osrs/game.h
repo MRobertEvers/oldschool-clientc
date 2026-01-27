@@ -4,6 +4,7 @@
 #include "datastruct/ringbuf.h"
 #include "datastruct/vec.h"
 #include "lclogin.h"
+#include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/gametask.h"
 #include "osrs/ginput.h"
@@ -89,6 +90,7 @@ struct GGame
     struct SceneAnimation* player_walk_animation;
 
     struct BuildCacheDat* buildcachedat;
+    struct BuildCache* buildcache;
 
     struct SceneBuilder* scenebuilder;
 

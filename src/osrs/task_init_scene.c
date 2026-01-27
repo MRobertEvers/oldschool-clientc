@@ -133,18 +133,6 @@ struct TaskInitScene
 
     struct FramePack* framepacks_list;
 
-    struct DashMap* overlay_configmap;
-    struct DashMap* scenery_configmap;
-    struct DashMap* sequences_configmap;
-    struct DashMap* texture_definitions_configmap;
-    struct DashMap* models_hmap;
-    struct DashMap* spritepacks_hmap;
-    struct DashMap* textures_hmap;
-    struct DashMap* frame_blob_hmap;
-    struct DashMap* frame_anim_hmap;
-    struct DashMap* framemaps_hmap;
-
-    struct DashMap* scenery_hmap;
     struct Vec* scenery_ids_vec;
 
     struct Vec* queued_texture_ids_vec;
@@ -545,8 +533,8 @@ task_init_scene_new(
 
     task->painter = game->sys_painter;
 
-    task->scene_builder =
-        scenebuilder_new_painter(task->painter, NULL, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    game->sys_minimap = minimap_new(map_sw_x, map_sw_z, map_ne_x, map_ne_z, MAP_TERRAIN_LEVELS);
+    task->scene_builder = scenebuilder_new_painter(task->painter, game->sys_minimap);
 
     task->reqid_queue_vec = vec_new(sizeof(int), 64);
     task->reqid_queue_inflight_count = 0;
@@ -559,63 +547,6 @@ task_init_scene_new(
     task->queued_frame_ids_vec = vec_new(sizeof(int), 512);
     task->queued_framemap_ids_vec = vec_new(sizeof(int), 512);
 
-    int buffer_size = 1024 * sizeof(struct ModelEntry) * 4;
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct ModelEntry),
-    };
-    task->models_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct TextureEntry),
-    };
-    task->textures_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct SpritePackEntry),
-    };
-    task->spritepacks_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct FramemapEntry),
-    };
-    task->framemaps_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct FrameEntry),
-    };
-    task->frame_blob_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct FrameAnimEntry),
-    };
-    task->frame_anim_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct SceneryEntry),
-    };
-    task->scenery_hmap = dashmap_new(&config, 0);
-
     return task;
 }
 
@@ -626,17 +557,6 @@ task_init_scene_free(struct TaskInitScene* task)
     vec_free(task->queued_texture_ids_vec);
     vec_free(task->queued_frame_ids_vec);
     vec_free(task->queued_framemap_ids_vec);
-
-    free(dashmap_buffer_ptr(task->models_hmap));
-    free(dashmap_buffer_ptr(task->textures_hmap));
-    free(dashmap_buffer_ptr(task->spritepacks_hmap));
-
-    dashmap_free(task->models_hmap);
-    dashmap_free(task->textures_hmap);
-    dashmap_free(task->spritepacks_hmap);
-
-    configmap_free(task->scenery_configmap);
-    configmap_free(task->texture_definitions_configmap);
 
     free(task);
 }
@@ -697,8 +617,8 @@ step_scenery_load(struct TaskInitScene* task)
         {
             locs = scenery_entry->locs;
 
-            scenebuilder_cache_map_locs(
-                task->scene_builder, locs->_chunk_mapx, locs->_chunk_mapz, locs);
+            buildcache_add_map_scenery(
+                task->game->buildcache, locs->_chunk_mapx, locs->_chunk_mapz, locs);
 
             for( int i = 0; i < locs->locs_count; i++ )
                 vec_push_unique(task->scenery_ids_vec, &locs->locs[i].loc_id);
@@ -755,8 +675,6 @@ step_scenery_config_load(struct TaskInitScene* task)
 
         step_stage->step = TS_PROCESS;
     case TS_PROCESS:
-
-        scenebuilder_cache_configmap_locs(task->scene_builder, task->scenery_configmap);
 
         iter = dashmap_iter_new(task->scenery_hmap);
         while( (scenery_entry = (struct SceneryEntry*)dashmap_iter_next(iter)) )
@@ -824,7 +742,7 @@ step_scenery_models_load(struct TaskInitScene* task)
             model_entry->id = message.param_b;
             model_entry->model = model;
 
-            scenebuilder_cache_model(task->scene_builder, message.param_b, model);
+            buildcache_add_model(task->game->buildcache, message.param_b, model);
 
             gioq_release(task->io, &message);
         }
@@ -871,7 +789,7 @@ step_terrain_load(struct TaskInitScene* task)
 
             terrain = map_terrain_new_from_decode(message.data, message.data_size, map_x, map_z);
 
-            scenebuilder_cache_map_terrain(task->scene_builder, map_x, map_z, terrain);
+            buildcache_add_map_terrain(task->game->buildcache, map_x, map_z, terrain);
 
             gioq_release(task->io, &message);
         }
@@ -914,7 +832,7 @@ step_underlay_load(struct TaskInitScene* task)
             assert(task->reqid_queue_inflight_count == 0);
 
             configmap = configmap_new_from_filepack(message.data, message.data_size, NULL, 0);
-            scenebuilder_cache_configmap_underlay(task->scene_builder, configmap);
+            buildcache_add_config_underlay(task->game->buildcache, message.param_b, configmap);
 
             gioq_release(task->io, &message);
         }
@@ -959,8 +877,15 @@ step_overlay_load(struct TaskInitScene* task)
             configmap = configmap_new_from_filepack(message.data, message.data_size, NULL, 0);
 
             task->overlay_configmap = configmap;
-            scenebuilder_cache_configmap_overlay(task->scene_builder, configmap);
 
+            struct DashMapIter* iter = dashmap_iter_new(configmap);
+            struct CacheConfigOverlay* config_overlay = NULL;
+            while( (config_overlay = (struct CacheConfigOverlay*)dashmap_iter_next(iter)) )
+            {
+                buildcache_add_config_overlay(
+                    task->game->buildcache, config_overlay->_id, config_overlay);
+            }
+            dashmap_iter_free(iter);
             gioq_release(task->io, &message);
         }
 
@@ -1425,7 +1350,7 @@ step_framemaps_load(struct TaskInitScene* task)
                 frame_anim_entry->id = frame_id;
                 frame_anim_entry->frame = cache_frame;
 
-                scenebuilder_cache_frame(task->scene_builder, frame_id, cache_frame);
+                buildcache_add_frame_anim(task->game->buildcache, frame_id, cache_frame);
             }
         }
 
@@ -1547,10 +1472,8 @@ task_init_scene_step(struct TaskInitScene* task)
     }
     case STEP_INIT_SCENE_13_BUILD_WORLD3D:
     {
-        scenebuilder_cache_configmap_locs(task->scene_builder, task->scenery_configmap);
-        scenebuilder_cache_configmap_sequences(task->scene_builder, task->sequences_configmap);
-
-        task->game->scene = scenebuilder_load(task->scene_builder);
+        task->game->scene =
+            scenebuilder_load_from_buildcache(task->scene_builder, task->game->buildcache);
 
         task->step = STEP_INIT_SCENE_14_BUILD_TERRAIN3D;
     }

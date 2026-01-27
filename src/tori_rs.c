@@ -54,7 +54,6 @@ LibToriRS_GameNew(
     memset(game->login, 0, sizeof(struct LCLogin));
     lclogin_init(game->login, 245, NULL, false);
     lclogin_load_rsa_public_key_from_env(game->login);
-    lclogin_start(game->login, "asdf2", "a", false);
 
     game->packet_buffer = malloc(sizeof(struct PacketBuffer));
     memset(game->packet_buffer, 0, sizeof(struct PacketBuffer));
@@ -112,6 +111,7 @@ LibToriRS_GameNew(
     game->camera->near_plane_z = 50;
 
     game->buildcachedat = buildcachedat_new();
+    game->buildcache = buildcache_new();
 
     gametask_new_init_io(game, game->io);
     gametask_new_init_scene_dat(game, 50, 50, 51, 51);

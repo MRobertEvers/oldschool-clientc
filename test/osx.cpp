@@ -192,20 +192,21 @@ main(
         return 1;
     }
 
+    int login_socket = -1;
     // Create socket connection to login server
-    int login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
-    if( login_socket < 0 )
-    {
-        printf("Failed to create login socket\n");
-        // Continue anyway - login will fail gracefully
-    }
+    //  login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
+    // if( login_socket < 0 )
+    // {
+    //     printf("Failed to create login socket\n");
+    //     // Continue anyway - login will fail gracefully
+    // }
 
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;
 
     uint8_t buffer[4096];
 
-    LibToriRS_NetConnect(game, "asdf", "a");
+    LibToriRS_NetConnect(game, "asdf2", "a");
     while( LibToriRS_GameIsRunning(game) )
     {
         // // Process login state machine
@@ -316,7 +317,7 @@ main(
         //     }
         // }
 
-        if( LibToriRS_NetIsReady(game) )
+        if( LibToriRS_NetIsReady(game) && login_socket >= 0 )
         {
             LibToriRS_NetPump(game);
 

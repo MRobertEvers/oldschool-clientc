@@ -35,6 +35,15 @@ scenebuilder_load_from_buildcachedat(
     int mapz_ne,
     struct BuildCacheDat* buildcachedat);
 
+struct Scene*
+scenebuilder_load_from_buildcache(
+    struct SceneBuilder* scene_builder,
+    int mapx_sw,
+    int mapz_sw,
+    int mapx_ne,
+    int mapz_ne,
+    struct BuildCache* buildcache);
+
 struct SceneAnimation*
 scenebuilder_new_animation(
     struct SceneBuilder* scene_builder,

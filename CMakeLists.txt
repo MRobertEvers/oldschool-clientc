@@ -25,6 +25,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/bmp.c
         src/server/server.c
         src/osrs/buildcachedat.c
+        src/osrs/buildcache.c
         src/server/prot.c
         src/datastruct/list.c
         src/datastruct/vec.c

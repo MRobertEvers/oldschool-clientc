@@ -81,6 +81,10 @@ scenebuilder_compat_get_texture(
     {
         return buildcachedat_get_texture(scene_builder->buildcachedat, texture_id);
     }
+    if( scene_builder->buildcache != NULL )
+    {
+        return buildcache_get_texture(scene_builder->buildcache, texture_id);
+    }
     return NULL;
 }
 
