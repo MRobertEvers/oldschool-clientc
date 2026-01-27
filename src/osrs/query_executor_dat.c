@@ -13,10 +13,10 @@ dt_maps_scenery_exec(
     struct QueryEngine* query_engine,
     struct QEQuery* q,
     struct GIOQueue* io,
-    struct BuildCacheDat* buildcachedat)
+    struct BuildCacheDat* buildcachedat,
+    uint32_t fn,
+    uint32_t action)
 {
-    uint32_t fn = query_engine_qget_fn(q);
-    uint32_t action = query_engine_qget_action(q);
     switch( fn )
     {
     case QE_FN_0:
@@ -39,22 +39,19 @@ dt_maps_scenery_exec(
             if( existing )
                 continue;
 
+            printf("Loading scenery for mapx: %d, mapz: %d\n", mapx, mapz);
             int reqid = gio_assets_dat_map_scenery_load(io, mapx, mapz);
 
             query_engine_qpush_reqid(q, reqid);
         }
 
         free(regions);
-
-        query_engine_qawait(q);
     }
     break;
     default:
         assert(0);
         break;
     }
-
-    query_engine_init_set(query_engine, q, action, QEDAT_DT_MAPS_SCENERY);
 }
 
 static void
@@ -73,6 +70,11 @@ dt_maps_scenery_poll(
     locs->_chunk_mapz = param_b & 0xFFFF;
 
     buildcachedat_add_scenery(buildcachedat, locs->_chunk_mapx, locs->_chunk_mapz, locs);
+
+    int regionid = locs->_chunk_mapx << 8 | locs->_chunk_mapz;
+    int set_idx = query_engine_qget_active_set_idx(q);
+    if( set_idx != -1 )
+        query_engine_qset_push(query_engine, set_idx, regionid, locs);
 }
 
 static void
@@ -80,16 +82,25 @@ dt_config_locs_exec(
     struct QueryEngine* query_engine,
     struct QEQuery* q,
     struct GIOQueue* io,
-    struct BuildCacheDat* buildcachedat)
+    struct BuildCacheDat* buildcachedat,
+    uint32_t fn,
+    uint32_t action)
 {
-    uint32_t fn = query_engine_qget_fn(q);
-    uint32_t action = query_engine_qget_action(q);
     switch( fn )
     {
     case QE_FN_FROM_0 ... QE_FN_FROM_9:
     {
         int set_idx = fn - QE_FN_FROM_0;
-        struct DashMap* map = query_engine_qget_set(query_engine, set_idx);
+
+        struct CacheMapLocs* locs = NULL;
+        query_engine_qget_begin(query_engine, set_idx);
+        while( (locs = query_engine_qget_next(query_engine, set_idx)) != NULL )
+        {
+            int mapx = locs->_chunk_mapx;
+            int mapz = locs->_chunk_mapz;
+            printf("Processing locs for mapx: %d, mapz: %d\n", mapx, mapz);
+        }
+        query_engine_qget_end(query_engine, set_idx);
 
         // struct FileListDat* config_jagfile = buildcachedat_config_jagfile(task->buildcachedat);
         // assert(config_jagfile != NULL && "Config jagfile must be loaded");
@@ -105,16 +116,6 @@ dt_config_locs_exec(
         //     config_jagfile->file_sizes[index_file_idx],
         //     config_jagfile->files[data_file_idx],
         //     config_jagfile->file_sizes[data_file_idx]);
-
-        struct CacheMapLocs* locs = NULL;
-        struct DashMapIter* iter = dashmap_iter_new(map);
-        while( locs = dashmap_iter_next(iter) )
-        {
-            int mapx = locs->_chunk_mapx;
-            int mapz = locs->_chunk_mapz;
-            int reqid = gio_assets_dat_map_scenery_load(io, mapx, mapz);
-        }
-        dashmap_iter_free(iter);
     }
     break;
     default:
@@ -142,6 +143,8 @@ query_executor_dat_step_active(
     struct BuildCacheDat* buildcachedat)
 {
     uint32_t dt = query_engine_qget_dt(q);
+    uint32_t fn = query_engine_qget_fn(q);
+    uint32_t action = query_engine_qget_action(q);
 
     query_engine_qset_active_dt(q, dt);
 
@@ -151,7 +154,7 @@ query_executor_dat_step_active(
         assert(0);
         break;
     case QEDAT_DT_MAPS_SCENERY:
-        dt_maps_scenery_exec(query_engine, q, io, buildcachedat);
+        dt_maps_scenery_exec(query_engine, q, io, buildcachedat, fn, action);
         break;
     case QEDAT_DT_MAPS_TERRAIN:
         break;
@@ -162,8 +165,12 @@ query_executor_dat_step_active(
     case QEDAT_DT_FLOTYPE:
         break;
     case QEDAT_DT_CONFIG_LOCIDS:
+        dt_config_locs_exec(query_engine, q, io, buildcachedat, fn, action);
         break;
     }
+
+    query_engine_qawait(q);
+    query_engine_init_set(query_engine, q, action, dt);
 }
 
 void

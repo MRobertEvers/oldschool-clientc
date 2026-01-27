@@ -23,6 +23,7 @@ struct QESet
 {
     int dt;
 
+    struct DashMapIter* iter_nullable;
     struct DashMap* map;
 };
 
@@ -113,6 +114,8 @@ query_engine_qnew(void)
     q->state = QE_STATE_ACTIVE;
     q->reqids = vec_new(sizeof(uint32_t), 1024);
     q->recv_count = 0;
+    q->set_idx = -1;
+    q->dt = 0;
     return q;
 }
 
@@ -250,6 +253,8 @@ query_engine_qpop_reqid(
         {
             q->state = QE_STATE_ACTIVE;
         }
+        vec_clear(q->reqids);
+        q->recv_count = 0;
     }
 }
 
@@ -345,7 +350,6 @@ query_engine_init_set(
 {
     if( action < QE_STORE_SET_0 || action > QE_STORE_SET_9 )
     {
-        assert(0);
         return 0;
     }
 
@@ -369,14 +373,10 @@ query_engine_qstate(struct QEQuery* q)
     return q->state;
 }
 
-struct DashMap*
-query_engine_qget_set(
-    struct QueryEngine* query_engine,
-    int set_idx)
+int32_t
+query_engine_qget_active_set_idx(struct QEQuery* q)
 {
-    assert(set_idx >= 0 && set_idx < 10);
-    assert(query_engine->sets[set_idx]);
-    return query_engine->sets[set_idx]->map;
+    return q->set_idx;
 }
 
 uint32_t
@@ -387,4 +387,62 @@ query_engine_qget_set_dt(
     assert(set_idx >= 0 && set_idx < 10);
     assert(query_engine->sets[set_idx]);
     return query_engine->sets[set_idx]->dt;
+}
+
+void
+query_engine_qset_push(
+    struct QueryEngine* query_engine,
+    int set_idx,
+    int id,
+    void* value)
+{
+    assert(set_idx >= 0 && set_idx < 10);
+    assert(query_engine->sets[set_idx]);
+    struct SetEntry* entry =
+        (struct SetEntry*)dashmap_search(query_engine->sets[set_idx]->map, &id, DASHMAP_INSERT);
+    assert(entry);
+    entry->id = id;
+    entry->value = value;
+}
+
+void
+query_engine_qget_begin(
+    struct QueryEngine* query_engine,
+    int set_idx)
+{
+    assert(set_idx >= 0 && set_idx < 10);
+    assert(query_engine->sets[set_idx]);
+    assert(query_engine->sets[set_idx]->iter_nullable == NULL);
+
+    struct DashMapIter* iter = dashmap_iter_new(query_engine->sets[set_idx]->map);
+    query_engine->sets[set_idx]->iter_nullable = iter;
+}
+
+void*
+query_engine_qget_next(
+    struct QueryEngine* query_engine,
+    int set_idx)
+{
+    assert(set_idx >= 0 && set_idx < 10);
+    assert(query_engine->sets[set_idx]);
+    assert(query_engine->sets[set_idx]->iter_nullable != NULL);
+
+    struct SetEntry* entry =
+        (struct SetEntry*)dashmap_iter_next(query_engine->sets[set_idx]->iter_nullable);
+    if( !entry )
+        return NULL;
+    return entry->value;
+}
+
+void
+query_engine_qget_end(
+    struct QueryEngine* query_engine,
+    int set_idx)
+{
+    assert(set_idx >= 0 && set_idx < 10);
+    assert(query_engine->sets[set_idx]);
+    assert(query_engine->sets[set_idx]->iter_nullable != NULL);
+
+    dashmap_iter_free(query_engine->sets[set_idx]->iter_nullable);
+    query_engine->sets[set_idx]->iter_nullable = NULL;
 }

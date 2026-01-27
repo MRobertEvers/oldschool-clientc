@@ -155,8 +155,28 @@ query_engine_qdone(struct QEQuery* q);
 enum QEQueryState
 query_engine_qstate(struct QEQuery* q);
 
-struct DashMap*
-query_engine_qget_set(
+int32_t
+query_engine_qget_active_set_idx(struct QEQuery* q);
+
+void
+query_engine_qset_push(
+    struct QueryEngine* query_engine,
+    int set_idx,
+    int id,
+    void* value);
+
+void
+query_engine_qget_begin(
+    struct QueryEngine* query_engine,
+    int set_idx);
+
+void*
+query_engine_qget_next(
+    struct QueryEngine* query_engine,
+    int set_idx);
+
+void
+query_engine_qget_end(
     struct QueryEngine* query_engine,
     int set_idx);
 

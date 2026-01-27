@@ -107,8 +107,8 @@ LibToriRS_GameNew(
     {
 #define MAPXZR(x, z) ((x) << 8 | (z))
         int regions[2] = {
-            MAPXZR(50, 50),
-            MAPXZR(50, 51),
+            MAPXZR(48, 48),
+            MAPXZR(48, 49),
         };
 
         struct QEQuery* q = query_engine_qnew();
