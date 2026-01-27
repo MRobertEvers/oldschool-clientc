@@ -56,7 +56,7 @@ scenebuilder_compat_get_underlay_rgb(
     if( scene_builder->buildcache != NULL )
     {
         struct CacheConfigUnderlay* underlay =
-            buildcache_get_config_underlay(scene_builder->buildcache, underlay_id);
+            buildcache_get_config_underlay(scene_builder->buildcache, underlay_id - 1);
         if( underlay )
             return underlay->rgb_color;
     }
