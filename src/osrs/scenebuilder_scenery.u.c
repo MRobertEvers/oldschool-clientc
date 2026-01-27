@@ -40,18 +40,6 @@ static const int ROTATION_WALL_CORNER_TYPE[] = {
     WALL_CORNER_SOUTHWEST,
 };
 
-struct CacheConfigLocation*
-scenebuilder_config_loc_get(
-    struct SceneBuilder* scene_builder,
-    int loc_id)
-{
-    if( scene_builder->buildcachedat != NULL )
-    {
-        return buildcachedat_get_config_loc(scene_builder->buildcachedat, loc_id);
-    }
-    return NULL;
-}
-
 /**
  * This is a configured offset for a loc, then there may be additional
  * offsets applied by other locs on the tile.
@@ -1648,7 +1636,7 @@ scenery_add(
 
     // config_loc = config_loc_entry->config_loc;
 
-    config_loc = scenebuilder_config_loc_get(scene_builder, map_loc->loc_id);
+    config_loc = scenebuilder_compat_get_config_loc(scene_builder, map_loc->loc_id);
     assert(config_loc && "Config loc must be valid");
 
     terrain_grid_offset_from_sw(

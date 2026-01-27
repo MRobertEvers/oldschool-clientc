@@ -41,6 +41,12 @@ struct ConfigSequenceEntry
     struct CacheConfigSequence* config_sequence;
 };
 
+struct ConfigLocationEntry
+{
+    int id;
+    struct CacheConfigLocation* config_location;
+};
+
 struct ModelEntry
 {
     int id;
@@ -50,7 +56,7 @@ struct ModelEntry
 struct SpritepackEntry
 {
     int id;
-    struct CacheSpritepack* spritepack;
+    struct CacheSpritePack* spritepack;
 };
 
 struct TextureEntry
@@ -174,6 +180,14 @@ buildcache_new(void)
     };
     buildcache->framemaps_hmap = dashmap_new(&config, 0);
 
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct ConfigLocationEntry),
+    };
+    buildcache->config_location_hmap = dashmap_new(&config, 0);
+
     return buildcache;
 }
 
@@ -185,6 +199,7 @@ buildcache_free(struct BuildCache* buildcache)
     dashmap_free(buildcache->config_overlay_hmap);
     dashmap_free(buildcache->config_underlay_hmap);
     dashmap_free(buildcache->config_sequence_hmap);
+    dashmap_free(buildcache->config_location_hmap);
     dashmap_free(buildcache->models_hmap);
     dashmap_free(buildcache->spritepacks_hmap);
     dashmap_free(buildcache->textures_hmap);
@@ -242,7 +257,7 @@ buildcache_add_map_scenery(
     entry->locs = locs;
 }
 
-void
+struct CacheMapLocs*
 buildcache_get_map_scenery(
     struct BuildCache* buildcache,
     int mapx,
@@ -254,6 +269,81 @@ buildcache_get_map_scenery(
     if( !entry )
         return NULL;
     return entry->locs;
+}
+
+struct DashMapIter*
+buildcache_iter_new_map_scenery(struct BuildCache* buildcache)
+{
+    return dashmap_iter_new(buildcache->map_scenery_hmap);
+}
+
+struct CacheMapLocs*
+buildcache_iter_next_map_scenery(
+    struct DashMapIter* iter,
+    int* mapx,
+    int* mapz)
+{
+    struct MapSceneryEntry* entry = (struct MapSceneryEntry*)dashmap_iter_next(iter);
+    if( !entry )
+        return NULL;
+    *mapx = entry->mapx;
+    *mapz = entry->mapz;
+    return entry->locs;
+}
+
+void
+buildcache_iter_free_map_scenery(struct DashMapIter* iter)
+{
+    dashmap_iter_free(iter);
+}
+
+struct DashMapIter*
+buildcache_iter_new_models(struct BuildCache* buildcache)
+{
+    return dashmap_iter_new(buildcache->models_hmap);
+}
+
+struct CacheModel*
+buildcache_iter_next_models(
+    struct DashMapIter* iter,
+    int* model_id)
+{
+    struct ModelEntry* entry = (struct ModelEntry*)dashmap_iter_next(iter);
+    if( !entry )
+        return NULL;
+    *model_id = entry->id;
+    return entry->model;
+}
+
+void
+buildcache_iter_free_models(struct DashMapIter* iter)
+{
+    dashmap_iter_free(iter);
+}
+
+void
+buildcache_add_config_location(
+    struct BuildCache* buildcache,
+    int config_location_id,
+    struct CacheConfigLocation* config_location)
+{
+    struct ConfigLocationEntry* entry = (struct ConfigLocationEntry*)dashmap_search(
+        buildcache->config_location_hmap, &config_location_id, DASHMAP_INSERT);
+    assert(entry && "Config location must be inserted into hmap");
+    entry->id = config_location_id;
+    entry->config_location = config_location;
+}
+
+struct CacheConfigLocation*
+buildcache_get_config_location(
+    struct BuildCache* buildcache,
+    int config_location_id)
+{
+    struct ConfigLocationEntry* entry = (struct ConfigLocationEntry*)dashmap_search(
+        buildcache->config_location_hmap, &config_location_id, DASHMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->config_location;
 }
 
 void
@@ -279,6 +369,27 @@ buildcache_get_config_overlay(
     if( !entry )
         return NULL;
     return entry->config_overlay;
+}
+
+struct DashMapIter*
+buildcache_iter_new_config_overlay(struct BuildCache* buildcache)
+{
+    return dashmap_iter_new(buildcache->config_overlay_hmap);
+}
+
+struct CacheConfigOverlay*
+buildcache_iter_next_config_overlay(struct DashMapIter* iter)
+{
+    struct ConfigOverlayEntry* entry = (struct ConfigOverlayEntry*)dashmap_iter_next(iter);
+    if( !entry )
+        return NULL;
+    return entry->config_overlay;
+}
+
+void
+buildcache_iter_free_config_overlay(struct DashMapIter* iter)
+{
+    dashmap_iter_free(iter);
 }
 
 void
@@ -360,7 +471,7 @@ void
 buildcache_add_spritepack(
     struct BuildCache* buildcache,
     int spritepack_id,
-    struct CacheSpritepack* spritepack)
+    struct CacheSpritePack* spritepack)
 {
     struct SpritepackEntry* entry = (struct SpritepackEntry*)dashmap_search(
         buildcache->spritepacks_hmap, &spritepack_id, DASHMAP_INSERT);
@@ -369,7 +480,7 @@ buildcache_add_spritepack(
     entry->spritepack = spritepack;
 }
 
-struct CacheSpritepack*
+struct CacheSpritePack*
 buildcache_get_spritepack(
     struct BuildCache* buildcache,
     int spritepack_id)

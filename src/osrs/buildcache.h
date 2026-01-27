@@ -12,6 +12,8 @@
 #include "osrs/rscache/tables/sprites.h"
 #include "osrs/rscache/tables/textures.h"
 
+typedef struct CacheSpritePack CacheSpritepack;
+
 struct CacheFrameBlob; /* opaque; implemented as FileList when filelist.h included */
 
 struct BuildCache
@@ -21,6 +23,7 @@ struct BuildCache
     struct DashMap* config_overlay_hmap;
     struct DashMap* config_underlay_hmap;
     struct DashMap* config_sequence_hmap;
+    struct DashMap* config_location_hmap;
     struct DashMap* models_hmap;
     struct DashMap* spritepacks_hmap;
     struct DashMap* textures_hmap;
@@ -61,6 +64,40 @@ buildcache_get_map_scenery(
     int mapx,
     int mapz);
 
+struct DashMapIter*
+buildcache_iter_new_map_scenery(struct BuildCache* buildcache);
+
+struct CacheMapLocs*
+buildcache_iter_next_map_scenery(
+    struct DashMapIter* iter,
+    int* mapx,
+    int* mapz);
+
+void
+buildcache_iter_free_map_scenery(struct DashMapIter* iter);
+
+struct DashMapIter*
+buildcache_iter_new_models(struct BuildCache* buildcache);
+
+struct CacheModel*
+buildcache_iter_next_models(
+    struct DashMapIter* iter,
+    int* model_id);
+
+void
+buildcache_iter_free_models(struct DashMapIter* iter);
+
+void
+buildcache_add_config_location(
+    struct BuildCache* buildcache,
+    int config_location_id,
+    struct CacheConfigLocation* config_location);
+
+struct CacheConfigLocation*
+buildcache_get_config_location(
+    struct BuildCache* buildcache,
+    int config_location_id);
+
 void
 buildcache_add_config_overlay(
     struct BuildCache* buildcache,
@@ -71,6 +108,15 @@ struct CacheConfigOverlay*
 buildcache_get_config_overlay(
     struct BuildCache* buildcache,
     int config_overlay_id);
+
+struct DashMapIter*
+buildcache_iter_new_config_overlay(struct BuildCache* buildcache);
+
+struct CacheConfigOverlay*
+buildcache_iter_next_config_overlay(struct DashMapIter* iter);
+
+void
+buildcache_iter_free_config_overlay(struct DashMapIter* iter);
 
 void
 buildcache_add_config_underlay(
@@ -109,7 +155,12 @@ void
 buildcache_add_spritepack(
     struct BuildCache* buildcache,
     int spritepack_id,
-    struct CacheSpritepack* spritepack);
+    struct CacheSpritePack* spritepack);
+
+struct CacheSpritePack*
+buildcache_get_spritepack(
+    struct BuildCache* buildcache,
+    int spritepack_id);
 
 void
 buildcache_add_texture(
@@ -127,6 +178,11 @@ buildcache_add_frame_blob(
     struct BuildCache* buildcache,
     int frame_blob_id,
     struct CacheFrameBlob* frame_blob);
+
+struct CacheFrameBlob*
+buildcache_get_frame_blob(
+    struct BuildCache* buildcache,
+    int frame_blob_id);
 
 void
 buildcache_add_frame_anim(

@@ -114,7 +114,8 @@ LibToriRS_GameNew(
     game->buildcache = buildcache_new();
 
     gametask_new_init_io(game, game->io);
-    gametask_new_init_scene_dat(game, 50, 50, 51, 51);
+    // gametask_new_init_scene_dat(game, 50, 50, 51, 51);
+    gametask_new_init_scene(game, 50, 50, 51, 51);
 
     //     {
     // #define MAPXZR(x, z) ((x) << 8 | (z))
