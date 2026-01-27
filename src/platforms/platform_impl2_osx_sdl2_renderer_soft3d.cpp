@@ -699,7 +699,7 @@ done_draw:;
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
     game->camera->roll = game->camera_roll;
-    for( int i = 0; i < grendercb_count(render_command_buffer); i++ )
+    for( int i = 0; i < grendercb_count(render_command_buffer) && game->scene; i++ )
     {
         command = grendercb_at(render_command_buffer, i);
         switch( command->kind )

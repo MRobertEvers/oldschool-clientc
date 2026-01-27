@@ -23,8 +23,6 @@ struct QESet
 {
     int dt;
 
-    struct Vec* reqids;
-
     struct DashMap* map;
 };
 
@@ -34,7 +32,6 @@ qeset_new(int dt)
     struct QESet* qeset = malloc(sizeof(struct QESet));
     memset(qeset, 0, sizeof(struct QESet));
     qeset->dt = dt;
-    qeset->reqids = vec_new(sizeof(uint32_t), 1024);
 
     int buffer_size = 1024 * sizeof(struct SetEntry);
     struct DashMapConfig config = {
@@ -52,7 +49,7 @@ qeset_free(struct QESet* qeset)
 {
     if( !qeset )
         return;
-    vec_free(qeset->reqids);
+    free(dashmap_buffer_ptr(qeset->map));
     dashmap_free(qeset->map);
     free(qeset);
 }
@@ -88,6 +85,7 @@ query_engine_reset(struct QueryEngine* query_engine)
     {
         if( query_engine->sets[i] )
             qeset_free(query_engine->sets[i]);
+        query_engine->sets[i] = NULL;
     }
 }
 
@@ -258,6 +256,11 @@ query_engine_qpop_reqid(
 void
 query_engine_qawait(struct QEQuery* q)
 {
+    if( vec_size(q->reqids) == 0 )
+    {
+        q->state = QE_STATE_DONE;
+        return;
+    }
     q->state = QE_STATE_AWAITING_IO;
 }
 
@@ -364,4 +367,24 @@ enum QEQueryState
 query_engine_qstate(struct QEQuery* q)
 {
     return q->state;
+}
+
+struct DashMap*
+query_engine_qget_set(
+    struct QueryEngine* query_engine,
+    int set_idx)
+{
+    assert(set_idx >= 0 && set_idx < 10);
+    assert(query_engine->sets[set_idx]);
+    return query_engine->sets[set_idx]->map;
+}
+
+uint32_t
+query_engine_qget_set_dt(
+    struct QueryEngine* query_engine,
+    int set_idx)
+{
+    assert(set_idx >= 0 && set_idx < 10);
+    assert(query_engine->sets[set_idx]);
+    return query_engine->sets[set_idx]->dt;
 }

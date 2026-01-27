@@ -101,6 +101,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/rscache/xtea.c
         src/osrs/query_engine.c
         src/osrs/query_executor_dat.c
+        src/osrs/task_query.c
 
         src/platforms/platform_impl2_osx_sdl2.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp

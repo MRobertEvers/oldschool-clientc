@@ -10,6 +10,8 @@
 #include "osrs/grender.h"
 #include "osrs/packetbuffer.h"
 #include "osrs/packetin.h"
+#include "osrs/query_engine.h"
+#include "osrs/query_executor_dat.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/config_versionlist_mapsquare.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
@@ -99,8 +101,24 @@ LibToriRS_GameNew(
 
     game->buildcachedat = buildcachedat_new();
 
-    // gametask_new_init_io(game, game->io);
-    // gametask_new_init_scene_dat(game, 50, 50, 51, 51);
+    gametask_new_init_io(game, game->io);
+    gametask_new_init_scene_dat(game, 50, 50, 51, 51);
+
+    {
+#define MAPXZR(x, z) ((x) << 8 | (z))
+        int regions[2] = {
+            MAPXZR(50, 50),
+            MAPXZR(50, 51),
+        };
+
+        struct QEQuery* q = query_engine_qnew();
+        query_engine_qpush_op(q, QEDAT_DT_MAPS_SCENERY, QE_FN_0, QE_STORE_SET_0);
+        query_engine_qpush_argx(q, regions, 2);
+        query_engine_qpush_op(q, QEDAT_DT_CONFIG_LOCIDS, QE_FN_FROM_0, QE_STORE_DISCARD);
+        query_engine_qpush_op(q, QEDAT_DT_MAPS_TERRAIN, QE_FN_0, QE_STORE_DISCARD);
+
+        gametask_new_query(game, q);
+    }
 
     return game;
 }

@@ -75,6 +75,65 @@ dt_maps_scenery_poll(
     buildcachedat_add_scenery(buildcachedat, locs->_chunk_mapx, locs->_chunk_mapz, locs);
 }
 
+static void
+dt_config_locs_exec(
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    struct GIOQueue* io,
+    struct BuildCacheDat* buildcachedat)
+{
+    uint32_t fn = query_engine_qget_fn(q);
+    uint32_t action = query_engine_qget_action(q);
+    switch( fn )
+    {
+    case QE_FN_FROM_0 ... QE_FN_FROM_9:
+    {
+        int set_idx = fn - QE_FN_FROM_0;
+        struct DashMap* map = query_engine_qget_set(query_engine, set_idx);
+
+        // struct FileListDat* config_jagfile = buildcachedat_config_jagfile(task->buildcachedat);
+        // assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+        // int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.dat");
+        // int index_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.idx");
+
+        // assert(data_file_idx != -1 && "Data file must be found");
+        // assert(index_file_idx != -1 && "Index file must be found");
+
+        // filelist_indexed = filelist_dat_indexed_new_from_decode(
+        //     config_jagfile->files[index_file_idx],
+        //     config_jagfile->file_sizes[index_file_idx],
+        //     config_jagfile->files[data_file_idx],
+        //     config_jagfile->file_sizes[data_file_idx]);
+
+        struct CacheMapLocs* locs = NULL;
+        struct DashMapIter* iter = dashmap_iter_new(map);
+        while( locs = dashmap_iter_next(iter) )
+        {
+            int mapx = locs->_chunk_mapx;
+            int mapz = locs->_chunk_mapz;
+            int reqid = gio_assets_dat_map_scenery_load(io, mapx, mapz);
+        }
+        dashmap_iter_free(iter);
+    }
+    break;
+    default:
+        assert(0);
+        break;
+    }
+}
+
+static void
+dt_config_locs_poll(
+    struct BuildCacheDat* buildcachedat,
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    void* data,
+    int data_size,
+    int param_a,
+    int param_b)
+{}
+
 void
 query_executor_dat_step_active(
     struct QueryEngine* query_engine,

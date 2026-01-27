@@ -34,6 +34,8 @@
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scenebuilder.h"
+#include "query_engine.h"
+#include "query_executor_dat.h"
 // #include "osrs/terrain.h"
 #include "osrs/texture.h"
 

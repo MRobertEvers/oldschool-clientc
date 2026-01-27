@@ -190,18 +190,6 @@ main(
         return 1;
     }
 
-    struct QueryEngine* query_engine = query_engine_new();
-
-#define MAPXZR(x, z) ((x) << 8 | (z))
-    int regions[2] = {
-        MAPXZR(50, 50),
-        MAPXZR(50, 51),
-    };
-
-    struct QEQuery* q = query_engine_qnew();
-    query_engine_qpush_op(q, QEDAT_DT_MAPS_SCENERY, QE_FN_0, QE_STORE_SET_0);
-    query_engine_qpush_argx(q, regions, 2);
-
     // // Initialize login state machine
     // struct LCLogin login;
     // int32_t jag_checksum[9] = {
@@ -241,8 +229,6 @@ main(
     LibToriRS_GameStepTasks(game, &input, render_command_buffer);
     while( LibToriRS_GameIsRunning(game) )
     {
-        if( !query_engine_qdone(q) )
-            query_executor_dat_step(query_engine, q, io, game->buildcachedat);
         // // Process login state machine
         // lclogin_state_t login_state = lclogin_get_state(&login);
         // if( login_state != LCLOGIN_STATE_IDLE && login_state != LCLOGIN_STATE_SUCCESS &&
@@ -362,7 +348,7 @@ main(
         // Update game tick time for camera movement timing
         game->tick_ms = timestamp_ms;
 
-        // LibToriRS_GameStep(game, &input, render_command_buffer);
+        LibToriRS_GameStep(game, &input, render_command_buffer);
 
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, render_command_buffer);
     }

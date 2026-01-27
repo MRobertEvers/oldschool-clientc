@@ -4,6 +4,7 @@
 #include "task_init_scene.h"
 #include "task_init_scene_dat.h"
 #include "task_load_models_dat.h"
+#include "task_query.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -55,6 +56,8 @@ gametask_step(struct GameTask* task)
         return task_init_scene_dat_step(task->_init_scene_dat);
     case GAMETASK_KIND_LOAD_DAT:
         return task_load_dat_step(task->_load_dat);
+    case GAMETASK_KIND_QUERY:
+        return task_query_step(task->_query);
     }
 
     return GAMETASK_STATUS_FAILED;
@@ -115,6 +118,23 @@ gametask_new_load_dat(
     return task;
 }
 
+struct GameTask*
+gametask_new_query(
+    struct GGame* game,
+    struct QEQuery* q)
+{
+    struct GameTask* task = malloc(sizeof(struct GameTask));
+    memset(task, 0, sizeof(struct GameTask));
+    task->status = GAMETASK_STATUS_PENDING;
+
+    task->kind = GAMETASK_KIND_QUERY;
+    task->_query = task_query_new(game, q);
+
+    append_task(game, task);
+
+    return task;
+}
+
 void
 gametask_free(struct GameTask* task)
 {
@@ -131,6 +151,9 @@ gametask_free(struct GameTask* task)
         break;
     case GAMETASK_KIND_LOAD_DAT:
         task_load_dat_free(task->_load_dat);
+        break;
+    case GAMETASK_KIND_QUERY:
+        task_query_free(task->_query);
         break;
     }
 

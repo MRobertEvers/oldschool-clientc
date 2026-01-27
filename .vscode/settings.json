@@ -227,7 +227,11 @@
         "animframe.h": "c",
         "task_init_scene.h": "c",
         "_light_model_default.u.c": "cpp",
-        "gio.h": "c"
+        "gio.h": "c",
+        "task_query.h": "c",
+        "query_engine.h": "c",
+        "task_load_models_dat.h": "c",
+        "pixfont.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

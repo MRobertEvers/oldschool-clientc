@@ -1,6 +1,8 @@
 #ifndef QUERY_ENGINE_DAT_H
 #define QUERY_ENGINE_DAT_H
 
+#include "graphics/dash.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -152,5 +154,15 @@ query_engine_qdone(struct QEQuery* q);
 
 enum QEQueryState
 query_engine_qstate(struct QEQuery* q);
+
+struct DashMap*
+query_engine_qget_set(
+    struct QueryEngine* query_engine,
+    int set_idx);
+
+uint32_t
+query_engine_qget_set_dt(
+    struct QueryEngine* query_engine,
+    int set_idx);
 
 #endif
