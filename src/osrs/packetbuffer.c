@@ -20,10 +20,12 @@ imin(
 void
 packetbuffer_init(
     struct PacketBuffer* packetbuffer,
+    struct Isaac* random,
     enum GameProtoRevision revision)
 {
     packetbuffer->state = PKTBUF_AWAITING_PACKET;
     packetbuffer->revision = revision;
+    packetbuffer->random = random;
     packetbuffer->packet_type = 0;
     packetbuffer->packet_length = 0;
     packetbuffer->data = NULL;
@@ -39,7 +41,12 @@ packetsize(
     {
     case GAMEPROTO_REVISION_LC254:
         return packetin_size_lc254(packet_type);
+    case GAMEPROTO_REVISION_LC245_2:
+        return packetin_size_lc245_2(packet_type);
     }
+
+    assert(0 && "Random is required for packet buffer");
+    return 0;
 }
 
 int
@@ -65,6 +72,9 @@ packetbuffer_read(
         {
         case PKTBUF_AWAITING_PACKET:
             packet_type = g1(&buffer);
+            // isaac_next(login->random_in);
+            // int decoded_byte = (encrypted_byte - isaac_value) & 0xff
+            packet_type = (packet_type - isaac_next(packetbuffer->random)) & 0xff;
             packet_size = packetsize(packetbuffer->revision, packet_type);
             packetbuffer->packet_type = packet_type;
 
@@ -147,13 +157,19 @@ packetbuffer_reset(struct PacketBuffer* packetbuffer)
         free(packetbuffer->data);
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
-    packetbuffer_init(packetbuffer, packetbuffer->revision);
+    packetbuffer_init(packetbuffer, packetbuffer->random, packetbuffer->revision);
 }
 
 int
 packetbuffer_size(struct PacketBuffer* packetbuffer)
 {
     return packetbuffer->data_size;
+}
+
+int
+packetbuffer_packet_type(struct PacketBuffer* packetbuffer)
+{
+    return packetbuffer->packet_type;
 }
 
 void*

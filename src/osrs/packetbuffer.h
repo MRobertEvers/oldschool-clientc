@@ -2,6 +2,7 @@
 #define CLIENTSTREAM_H
 
 #include "gameproto_revisions.h"
+#include "isaac.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -20,6 +21,7 @@ struct PacketBuffer
 {
     enum GameProtoRevision revision;
     enum PacketBufferState state;
+    struct Isaac* random;
     int packet_type;
     int packet_length;
 
@@ -30,6 +32,7 @@ struct PacketBuffer
 void
 packetbuffer_init(
     struct PacketBuffer* packetbuffer,
+    struct Isaac* random,
     enum GameProtoRevision revision);
 
 int
@@ -45,6 +48,8 @@ packetbuffer_reset(struct PacketBuffer* packetbuffer);
 
 int
 packetbuffer_size(struct PacketBuffer* packetbuffer);
+int
+packetbuffer_packet_type(struct PacketBuffer* packetbuffer);
 void*
 packetbuffer_data(struct PacketBuffer* packetbuffer);
 

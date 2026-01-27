@@ -347,17 +347,26 @@ dt_models_exec(
     }
     break;
     case QE_FN_FROM_0:
+    case QE_FN_FROM_1:
+    case QE_FN_FROM_2:
+    case QE_FN_FROM_3:
+    case QE_FN_FROM_4:
+    case QE_FN_FROM_5:
+    case QE_FN_FROM_6:
+    case QE_FN_FROM_7:
+    case QE_FN_FROM_8:
+    case QE_FN_FROM_9:
     {
-        int set_idx = fn - QE_FN_FROM_0;
+        int fromset_idx = fn - QE_FN_FROM_0;
 
-        int dt = query_engine_qget_set_dt(query_engine, set_idx);
+        int dt = query_engine_qget_set_dt(query_engine, fromset_idx);
         assert(dt == QEDAT_DT_MAPS_SCENERY);
 
         struct Vec* queued_scenery_models_vec = vec_new(sizeof(int), 512);
 
-        query_engine_qget_begin(query_engine, set_idx);
+        query_engine_qget_begin(query_engine, fromset_idx);
         struct CacheMapLocs* scenery = NULL;
-        while( (scenery = query_engine_qget_next(query_engine, set_idx)) )
+        while( (scenery = query_engine_qget_next(query_engine, fromset_idx)) )
         {
             for( int i = 0; i < scenery->locs_count; i++ )
             {
@@ -371,7 +380,7 @@ dt_models_exec(
             }
         }
 
-        query_engine_qget_end(query_engine, set_idx);
+        query_engine_qget_end(query_engine, fromset_idx);
 
         for( int i = 0; i < vec_size(queued_scenery_models_vec); i++ )
         {

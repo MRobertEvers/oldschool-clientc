@@ -1,4 +1,6 @@
-#ifndef GAME_H
-#define GAME_H
+#include "game.h"
 
-#endif
+#include "lclogin.h"
+
+#include <stdlib.h>
+#include <string.h>

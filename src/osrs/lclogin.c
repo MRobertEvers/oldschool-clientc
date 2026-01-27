@@ -698,14 +698,12 @@ lclogin_process(struct LCLogin* login)
 
     case LCLOGIN_STATE_SUCCESS:
     {
-        // Continue receiving data after successful login
-        // Set up to receive data if not already set
         if( login->pending_receive_needed == 0 )
         {
-            login->pending_receive_needed = 1; // Ready to receive at least 1 byte
+            login->pending_receive_needed = 0;
             login->pending_receive_received = 0;
         }
-        return 0; // Continue processing to receive data
+        return 0;
     }
 
     case LCLOGIN_STATE_ERROR:
@@ -833,7 +831,10 @@ lclogin_provide_data(
             int encrypted_byte = data[0] & 0xff;
             int isaac_value = isaac_next(login->random_in);
             int decoded_byte = (encrypted_byte - isaac_value) & 0xff;
-            printf("First byte after login (encrypted): 0x%02x (%d)\n", encrypted_byte, encrypted_byte);
+            printf(
+                "First byte after login (encrypted): 0x%02x (%d)\n",
+                encrypted_byte,
+                encrypted_byte);
             printf("First byte after login (decoded): 0x%02x (%d)\n", decoded_byte, decoded_byte);
             login->first_byte_printed = true;
         }
@@ -841,8 +842,7 @@ lclogin_provide_data(
         // Update received count
         login->pending_receive_received += to_copy;
 
-        // Reset pending_receive_needed to continue receiving
-        login->pending_receive_needed = 1;
+        login->pending_receive_needed = 0;
         login->pending_receive_received = 0; // Reset for next chunk
 
         return to_copy;
@@ -910,6 +910,12 @@ lclogin_get_bytes_needed(const struct LCLogin* login)
     }
 
     return login->pending_receive_needed - login->pending_receive_received;
+}
+
+uint8_t*
+lclogin_get_buffer(const struct LCLogin* login)
+{
+    return login->in.data + login->in.position;
 }
 
 // Mark data as sent (call this after successfully sending data from lclogin_get_data_to_send)

@@ -51,10 +51,6 @@ fixup_terrain(
         {
             for( int x = 0; x < MAP_TERRAIN_X; x++ )
             {
-                if( x == 44 && z == 35 )
-                {
-                    printf("x: %d, z: %d, level: %d\n", x, z, level);
-                }
                 struct CacheMapFloor* map = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, z, level)];
                 // If the height is unset, then the terrain is procedurally generated with
                 // generate_height.
@@ -369,10 +365,6 @@ map_terrain_new_from_decode_flags( //
         {
             for( int z = 0; z < MAP_TERRAIN_Z; z++ )
             {
-                if( x == 44 && z == 34 )
-                {
-                    printf("x: %d, z: %d, level: %d\n", x, z, level);
-                }
                 struct CacheMapFloor* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(x, z, level)];
 
                 while( true )

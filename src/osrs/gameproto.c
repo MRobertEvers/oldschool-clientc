@@ -1,6 +1,5 @@
 #include "gameproto.h"
 
-#include "osrs/gametask.h"
 #include "packetin.h"
 #include "rscache/rsbuf.h"
 
@@ -8,49 +7,36 @@
 #include "gameproto_lc254.u.c"
 // clang-format on
 
-#define SCENE_TILE_WIDTH 104
-
-static void
-pktin_rebuild_region(
+int
+gameproto_parse_lc245_2(
     struct GGame* game,
+    int packet_type,
     uint8_t* data,
-    int data_size)
+    int data_size,
+    struct RevPacket_LC245_2* packet)
 {
     struct RSBuffer buffer;
     rsbuf_init(&buffer, data, data_size);
 
-    int zonex;
-    int zonez;
+    packet->packet_type = packet_type;
 
-    zonex = g2(&buffer);
-    zonez = g2(&buffer);
-    assert(buffer.position == data_size);
+    static int g_already = 0;
 
-    // Rebuild.
-
-    int zone_padding = SCENE_TILE_WIDTH / (2 * 8);
-    int map_sw_x = (zonex - zone_padding) / 8;
-    int map_sw_z = (zonez - zone_padding) / 8;
-    int map_ne_x = (zonex + zone_padding) / 8;
-    int map_ne_z = (zonez + zone_padding) / 8;
-
-    gametask_new_init_scene(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
-}
-
-void
-gameproto_process_data(
-    struct GGame* game,
-    enum GameProtoRevision revision,
-    int packet_type,
-    uint8_t* data,
-    int data_size)
-{
-    switch( revision )
+    switch( packet_type )
     {
-    case GAMEPROTO_REVISION_LC254:
-        lc254_process(game, packet_type, data, data_size);
+    case PKTIN_LC245_2_REBUILD_NORMAL:
+        printf("g_already: %d, packet_type: %d\n", g_already, packet_type);
+        {
+            packet->_map_rebuild.zonex = g2(&buffer);
+            packet->_map_rebuild.zonez = g2(&buffer);
+            assert(buffer.position == data_size);
+        }
+        return 1;
         break;
     default:
+        printf("Unknown packet type: %d\n", packet_type);
         break;
     }
+
+    return 0;
 }

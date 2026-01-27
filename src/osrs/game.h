@@ -1,11 +1,14 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include "datastruct/ringbuf.h"
 #include "datastruct/vec.h"
+#include "lclogin.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/gametask.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
+#include "osrs/packetbuffer.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
@@ -21,6 +24,12 @@ struct RevPacket_LC245_2_Item
 
     struct RevPacket_LC245_2_Item* next_nullable;
 };
+enum GameNetState
+{
+    GAME_NET_STATE_DISCONNECTED,
+    GAME_NET_STATE_LOGIN,
+    GAME_NET_STATE_GAME,
+};
 
 struct GGame
 {
@@ -33,6 +42,13 @@ struct GGame
     int build_player;
     int cc;
     bool latched;
+
+    struct RingBuf* netin;
+    struct RingBuf* netout;
+
+    enum GameNetState net_state;
+    struct LCLogin* login;
+    struct PacketBuffer* packet_buffer;
 
     int cycles;
     int cycle;
@@ -79,7 +95,8 @@ struct GGame
     uint64_t tick_ms;
     uint64_t next_tick_ms;
 
-    struct RevPacket_LC245_2_Item* packet_queue_lc245_2_nullable;
+    struct RevPacket_LC245_2_Item* packets_lc245_2;
+    struct RevPacket_LC245_2_Item* packets_lc245_2_inflight;
 
     struct Vec* scene_elements;
     struct Scene* scene;

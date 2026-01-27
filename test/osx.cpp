@@ -192,43 +192,20 @@ main(
         return 1;
     }
 
-    // // Initialize login state machine
-    // struct LCLogin login;
-    // int32_t jag_checksum[9] = {
-    //     0
-    // }; // Initialize with zeros - should be set from cache in real implementation
-
-    // // Initialize login
-    // lclogin_init(&login, 245, jag_checksum, false);
-
-    // // Load RSA public key from environment variables with defaults
-    // if( lclogin_load_rsa_public_key_from_env(&login) < 0 )
-    // {
-    //     printf("Failed to load RSA public key from environment variables\n");
-    // }
-
-    // // Create socket connection to login server
-    // int login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
-    // if( login_socket < 0 )
-    // {
-    //     printf("Failed to create login socket\n");
-    //     // Continue anyway - login will fail gracefully
-    // }
-    // else
-    // {
-    //     // Start login process (using placeholder credentials - adjust as needed)
-    //     // In a real implementation, these would come from user input or config
-    //     const char* username = "asdf";
-    //     const char* password = "a";
-    //     lclogin_start(&login, username, password, false);
-
-    //     printf("Login process started\n");
-    // }
+    // Create socket connection to login server
+    int login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
+    if( login_socket < 0 )
+    {
+        printf("Failed to create login socket\n");
+        // Continue anyway - login will fail gracefully
+    }
 
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;
 
-    LibToriRS_GameStepTasks(game, &input, render_command_buffer);
+    uint8_t buffer[4096];
+
+    LibToriRS_NetConnect(game, "asdf", "a");
     while( LibToriRS_GameIsRunning(game) )
     {
         // // Process login state machine
@@ -339,6 +316,33 @@ main(
         //     }
         // }
 
+        if( LibToriRS_NetIsReady(game) )
+        {
+            LibToriRS_NetPump(game);
+
+            int outgoing_size = LibToriRS_NetGetOutgoing(game, buffer, sizeof(buffer));
+            if( outgoing_size > 0 )
+            {
+                send(login_socket, buffer, outgoing_size, 0);
+            }
+            int recv_size = sizeof(buffer);
+            int received = recv(login_socket, buffer, sizeof(buffer), MSG_DONTWAIT);
+            if( received > 0 )
+            {
+                LibToriRS_NetRecv(game, buffer, received);
+            }
+            else if( received == 0 || (received < 0 && errno != EAGAIN && errno != EWOULDBLOCK) )
+            {
+                // Connection closed
+                printf("Login socket closed\n");
+                close(login_socket);
+                login_socket = -1;
+                LibToriRS_NetDisconnected(game);
+            }
+        }
+
+        // Socket error
+
         // Process server messages from previous frame and step server
         uint64_t timestamp_ms = SDL_GetTicks64();
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(renderer, server, game, timestamp_ms);
@@ -358,12 +362,12 @@ main(
     // // Cleanup login
     // lclogin_cleanup(&login);
 
-    // // Cleanup socket
-    // if( login_socket >= 0 )
-    // {
-    //     close(login_socket);
-    //     login_socket = -1;
-    // }
+    // Cleanup socket
+    if( login_socket >= 0 )
+    {
+        close(login_socket);
+        login_socket = -1;
+    }
 
     // Cleanup server
     server_free(server);

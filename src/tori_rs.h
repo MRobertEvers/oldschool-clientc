@@ -28,6 +28,10 @@ void
 LibToriRS_GameProcessInput(
     struct GGame* game,
     struct GInput* input);
+
+/**
+ * @deprecated Not needed.
+ */
 void
 LibToriRS_GameStepTasks(
     struct GGame* game,
@@ -48,8 +52,36 @@ LibToriRS_FrameNextCommand(
 void
 LibToriRS_FrameEnd(struct GGame* game);
 
+int
+LibToriRS_NetIsReady(struct GGame* game);
+
+void
+LibToriRS_NetConnect(
+    struct GGame* game,
+    char* username,
+    char* password);
+
+int
+LibToriRS_NetPump(struct GGame* game);
+
+void
+LibToriRS_NetRecv(
+    struct GGame* game,
+    uint8_t* data,
+    int data_size);
+
+void
+LibToriRS_NetDisconnected(struct GGame* game);
+
+int
+LibToriRS_NetGetOutgoing(
+    struct GGame* game,
+    uint8_t* buffer,
+    int buffer_size);
+
 void
 LibToriRS_GameFree(struct GGame* game);
+
 void
 LibToriRS_GameStep(
     struct GGame* game,

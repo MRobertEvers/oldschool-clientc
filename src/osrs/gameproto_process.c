@@ -10,49 +10,73 @@ gameproto_process(
     struct GGame* game,
     struct GIOQueue* io)
 {
-    if( game->packet_queue_lc245_2_nullable )
+    if( game->packets_lc245_2 )
     {
-        struct RevPacket_LC245_2_Item* item = game->packet_queue_lc245_2_nullable;
+        struct RevPacket_LC245_2_Item* item = game->packets_lc245_2;
+        game->packets_lc245_2 = item->next_nullable;
 
+        static int g_already = 0;
+        g_already++;
+        printf("g_already: %d, packet_type: %d\n", g_already, item->packet.packet_type);
         switch( item->packet.packet_type )
         {
         case PKTIN_LC245_2_REBUILD_NORMAL:
         {
+            // if( g_already != 1 )
+            //     break;
+            int regions[20] = { 0 };
+
+            int zone_padding = 104 / (2 * 8);
+            int map_sw_x = (item->packet._map_rebuild.zonex - zone_padding) / 8;
+            int map_sw_z = (item->packet._map_rebuild.zonez - zone_padding) / 8;
+            int map_ne_x = (item->packet._map_rebuild.zonex + zone_padding) / 8;
+            int map_ne_z = (item->packet._map_rebuild.zonez + zone_padding) / 8;
+
+            if( map_sw_x > 100 || map_sw_z < 30 || map_sw_z > 100 || map_ne_z < 30 )
+                break;
+            if( map_ne_x < 3 || map_ne_z < 3 )
+                break;
+            int index = 0;
+            for( int x = map_sw_x; x <= map_ne_x; x++ )
             {
-                int regions[20] = { 0 };
-
-                int zone_padding = 104 / (2 * 8);
-                int map_sw_x = (item->packet._map_rebuild.zonex - zone_padding) / 8;
-                int map_sw_z = (item->packet._map_rebuild.zonez - zone_padding) / 8;
-                int map_ne_x = (item->packet._map_rebuild.zonex + zone_padding) / 8;
-                int map_ne_z = (item->packet._map_rebuild.zonez + zone_padding) / 8;
-
-                int index = 0;
-                for( int x = map_sw_x; x <= map_ne_x; x++ )
+                for( int z = map_sw_z; z <= map_ne_z; z++ )
                 {
-                    for( int z = map_sw_z; z <= map_ne_z; z++ )
-                    {
-                        regions[index] = MAPREGIONXZ(x, z);
-                        index++;
-                    }
+                    if( x == 44 && z == 34 )
+                        printf("x: %d, z: %d\n", x, z);
+                    printf("x: %d, z: %d\n", x, z);
+                    regions[index] = MAPREGIONXZ(x, z);
+                    index++;
                 }
-
-                struct QEQuery* q = query_engine_qnew();
-                query_engine_qpush_op(q, QEDAT_DT_MAPS_SCENERY, QE_FN_0, QE_STORE_SET_0);
-                query_engine_qpush_argx(q, regions, index);
-                query_engine_qpush_op(q, QEDAT_DT_CONFIG_LOCIDS, QE_FN_FROM_0, QE_STORE_DISCARD);
-                query_engine_qpush_op(q, QEDAT_DT_MODELS, QE_FN_FROM_0, QE_STORE_DISCARD);
-                query_engine_qpush_op(q, QEDAT_DT_MAPS_TERRAIN, QE_FN_0, QE_STORE_DISCARD);
-                query_engine_qpush_argx(q, regions, index);
-
-                gametask_new_query(game, q);
-
-                gametask_new_packet(game, io);
             }
+
+            struct QEQuery* q = query_engine_qnew();
+            query_engine_qpush_op(q, QEDAT_DT_MAPS_SCENERY, QE_FN_0, QE_STORE_SET_0);
+            query_engine_qpush_argx(q, regions, index);
+            query_engine_qpush_op(q, QEDAT_DT_CONFIG_LOCIDS, QE_FN_FROM_0, QE_STORE_DISCARD);
+            query_engine_qpush_op(q, QEDAT_DT_MODELS, QE_FN_FROM_0, QE_STORE_DISCARD);
+            query_engine_qpush_op(q, QEDAT_DT_MAPS_TERRAIN, QE_FN_0, QE_STORE_DISCARD);
+            query_engine_qpush_argx(q, regions, index);
+
+            gametask_new_query(game, q);
+
+            gametask_new_packet(game, io);
         }
         break;
         default:
             break;
+        }
+
+        item->next_nullable = NULL;
+        if( !game->packets_lc245_2_inflight )
+        {
+            game->packets_lc245_2_inflight = item;
+        }
+        else
+        {
+            struct RevPacket_LC245_2_Item* list = game->packets_lc245_2_inflight;
+            while( list->next_nullable )
+                list = list->next_nullable;
+            list->next_nullable = item;
         }
     }
 }
