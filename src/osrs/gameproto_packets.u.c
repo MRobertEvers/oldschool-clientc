@@ -30,6 +30,22 @@ gameproto_packet_maprebuild8_z16_x16(
     int map_sw_z = (zonez - zone_padding) / 8;
     int map_ne_x = (zonex + zone_padding) / 8;
     int map_ne_z = (zonez + zone_padding) / 8;
+
+    //     {
+    // #define MAPXZR(x, z) ((x) << 8 | (z))
+    //         int regions[2] = {
+    //             MAPXZR(48, 48),
+    //             MAPXZR(48, 49),
+    //         };
+
+    //         struct QEQuery* q = query_engine_qnew();
+    //         query_engine_qpush_op(q, QEDAT_DT_MAPS_SCENERY, QE_FN_0, QE_STORE_SET_0);
+    //         query_engine_qpush_argx(q, regions, 2);
+    //         query_engine_qpush_op(q, QEDAT_DT_CONFIG_LOCIDS, QE_FN_FROM_0, QE_STORE_DISCARD);
+    //         query_engine_qpush_op(q, QEDAT_DT_MAPS_TERRAIN, QE_FN_0, QE_STORE_DISCARD);
+
+    //         gametask_new_query(game, q);
+    //     }
 }
 
 #endif

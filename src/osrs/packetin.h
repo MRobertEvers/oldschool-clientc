@@ -1,8 +1,6 @@
 #ifndef PACKETIN_H
 #define PACKETIN_H
 
-#include "rscache/rsbuf.h"
-
 #include <assert.h>
 #include <stdint.h>
 

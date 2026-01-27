@@ -164,6 +164,66 @@ dt_config_locs_poll(
     int param_b)
 {}
 
+static void
+dt_models_exec(
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    struct GIOQueue* io,
+    struct BuildCacheDat* buildcachedat,
+    uint32_t fn,
+    uint32_t action)
+{
+    switch( fn )
+    {
+    case QE_FN_0:
+    {
+        int argx_count = query_engine_qget_argx_count(q);
+        int* model_ids = malloc(argx_count * sizeof(int));
+        memset(model_ids, 0, argx_count * sizeof(int));
+        for( int i = 0; i < argx_count; i++ )
+        {
+            model_ids[i] = query_engine_qget_arg(q);
+        }
+
+        struct CacheModel* existing = NULL;
+        for( int i = 0; i < argx_count; i++ )
+        {
+            int model_id = model_ids[i];
+
+            existing = buildcachedat_get_model(buildcachedat, model_id);
+            if( existing )
+                continue;
+
+            int reqid = gio_assets_dat_models_load(io, model_id);
+
+            query_engine_qpush_reqid(q, reqid);
+        }
+
+        free(model_ids);
+    }
+    break;
+    default:
+        assert(0);
+        break;
+    }
+}
+
+static void
+dt_models_poll(
+    struct BuildCacheDat* buildcachedat,
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    void* data,
+    int data_size,
+    int param_a,
+    int param_b)
+{
+    struct CacheModel* model = model_new_decode(data, data_size);
+    assert(model != NULL && "Model must be decoded");
+
+    buildcachedat_add_model(buildcachedat, param_b, model);
+}
+
 void
 query_executor_dat_step_active(
     struct QueryEngine* query_engine,

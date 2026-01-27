@@ -1270,124 +1270,124 @@ done_draw:;
     SDL_RenderPresent(renderer->renderer);
 }
 
-static int
-obj_model(
-    struct GGame* game,
-    int obj_id)
-{
-    struct BuildCacheDat* buildcachedat = game->buildcachedat;
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
-    if( !obj )
-        return -2;
+// static int
+// obj_model(
+//     struct GGame* game,
+//     int obj_id)
+// {
+//     struct BuildCacheDat* buildcachedat = game->buildcachedat;
+//     struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+//     if( !obj )
+//         return -2;
 
-    int models_queue[50] = { 0 };
-    int models_queue_count = 0;
+//     int models_queue[50] = { 0 };
+//     int models_queue_count = 0;
 
-    struct CacheModel* models[50] = { 0 };
-    int build_models_count = 0;
+//     struct CacheModel* models[50] = { 0 };
+//     int build_models_count = 0;
 
-    int idxs[3] = { 0 };
+//     int idxs[3] = { 0 };
 
-    if( obj )
-    {
-        struct CacheModel* model = buildcachedat_get_obj_model(buildcachedat, obj_id);
-        if( model )
-            return obj_id;
+//     if( obj )
+//     {
+//         struct CacheModel* model = buildcachedat_get_obj_model(buildcachedat, obj_id);
+//         if( model )
+//             return obj_id;
 
-        idxs[0] = obj->manwear;
-        idxs[1] = obj->manwear2;
-        idxs[2] = obj->manwear3;
+//         idxs[0] = obj->manwear;
+//         idxs[1] = obj->manwear2;
+//         idxs[2] = obj->manwear3;
 
-        for( int i = 0; i < 3; i++ )
-        {
-            if( idxs[i] >= 0 )
-            {
-                struct CacheModel* model = buildcachedat_get_model(buildcachedat, idxs[i]);
-                if( !model )
-                    models_queue[models_queue_count++] = idxs[i];
-                else
-                    models[build_models_count++] = model;
-            }
-        }
+//         for( int i = 0; i < 3; i++ )
+//         {
+//             if( idxs[i] >= 0 )
+//             {
+//                 struct CacheModel* model = buildcachedat_get_model(buildcachedat, idxs[i]);
+//                 if( !model )
+//                     models_queue[models_queue_count++] = idxs[i];
+//                 else
+//                     models[build_models_count++] = model;
+//             }
+//         }
 
-        if( models_queue_count > 0 )
-        {
-            gametask_new_load_dat(game, models_queue, models_queue_count);
-            return -1;
-        }
+//         if( models_queue_count > 0 )
+//         {
+//             gametask_new_load_dat(game, models_queue, models_queue_count);
+//             return -1;
+//         }
 
-        struct CacheModel* merged_model = model_new_merge(models, build_models_count);
-        buildcachedat_add_obj_model(buildcachedat, obj_id, merged_model);
+//         struct CacheModel* merged_model = model_new_merge(models, build_models_count);
+//         buildcachedat_add_obj_model(buildcachedat, obj_id, merged_model);
 
-        for( int i = 0; i < obj->recol_count; i++ )
-        {
-            model_transform_recolor(merged_model, obj->recol_s[i], obj->recol_d[i]);
-        }
-        return obj_id;
-    }
+//         for( int i = 0; i < obj->recol_count; i++ )
+//         {
+//             model_transform_recolor(merged_model, obj->recol_s[i], obj->recol_d[i]);
+//         }
+//         return obj_id;
+//     }
 
-    return -1;
-}
+//     return -1;
+// }
 
-static int
-idk_model(
-    struct GGame* game,
-    int idk_id)
-{
-    struct BuildCacheDat* buildcachedat = game->buildcachedat;
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
-    int models_queue[50] = { 0 };
-    int models_queue_count = 0;
+// static int
+// idk_model(
+//     struct GGame* game,
+//     int idk_id)
+// {
+//     struct BuildCacheDat* buildcachedat = game->buildcachedat;
+//     struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+//     int models_queue[50] = { 0 };
+//     int models_queue_count = 0;
 
-    if( !idk )
-        return -2;
+//     if( !idk )
+//         return -2;
 
-    struct CacheModel* models[50] = { 0 };
+//     struct CacheModel* models[50] = { 0 };
 
-    if( idk )
-    {
-        struct CacheModel* model = buildcachedat_get_idk_model(buildcachedat, idk_id);
-        if( model )
-            return idk_id;
+//     if( idk )
+//     {
+//         struct CacheModel* model = buildcachedat_get_idk_model(buildcachedat, idk_id);
+//         if( model )
+//             return idk_id;
 
-        for( int i = 0; i < idk->models_count; i++ )
-        {
-            int model_id = idk->models[i];
-            struct CacheModel* model = buildcachedat_get_model(buildcachedat, model_id);
-            if( !model )
-                models_queue[models_queue_count++] = model_id;
-            else
-                models[i] = model;
-        }
+//         for( int i = 0; i < idk->models_count; i++ )
+//         {
+//             int model_id = idk->models[i];
+//             struct CacheModel* model = buildcachedat_get_model(buildcachedat, model_id);
+//             if( !model )
+//                 models_queue[models_queue_count++] = model_id;
+//             else
+//                 models[i] = model;
+//         }
 
-        if( models_queue_count > 0 )
-        {
-            gametask_new_load_dat(game, models_queue, models_queue_count);
-            return -1;
-        }
+//         if( models_queue_count > 0 )
+//         {
+//             gametask_new_load_dat(game, models_queue, models_queue_count);
+//             return -1;
+//         }
 
-        struct CacheModel* merged_model = NULL;
-        if( idk->models_count > 1 )
-        {
-            merged_model = model_new_merge(models, idk->models_count);
-            for( int i = 0; i < idk->models_count; i++ )
-            {
-                merged_model->_ids[i] = models[i]->_id;
-            }
-        }
-        else
-        {
-            merged_model = model_new_copy(models[0]);
-            merged_model->_id = idk_id;
-        }
+//         struct CacheModel* merged_model = NULL;
+//         if( idk->models_count > 1 )
+//         {
+//             merged_model = model_new_merge(models, idk->models_count);
+//             for( int i = 0; i < idk->models_count; i++ )
+//             {
+//                 merged_model->_ids[i] = models[i]->_id;
+//             }
+//         }
+//         else
+//         {
+//             merged_model = model_new_copy(models[0]);
+//             merged_model->_id = idk_id;
+//         }
 
-        buildcachedat_add_idk_model(buildcachedat, idk_id, merged_model);
+//         buildcachedat_add_idk_model(buildcachedat, idk_id, merged_model);
 
-        return idk_id;
-    }
+//         return idk_id;
+//     }
 
-    return -1;
-}
+//     return -1;
+// }
 
 // static int
 // obj_model(
@@ -1430,74 +1430,74 @@ idk_model(
 //     return -1;
 // }
 
-static void
-build_player(struct GGame* game)
-{
-    struct BuildCacheDat* buildcachedat = game->buildcachedat;
+// static void
+// build_player(struct GGame* game)
+// {
+//     struct BuildCacheDat* buildcachedat = game->buildcachedat;
 
-    int queue_models[50] = { 0 };
-    int queue_models_count = 0;
-    int right_hand_value = -1;
-    int left_hand_value = -1;
+//     int queue_models[50] = { 0 };
+//     int queue_models_count = 0;
+//     int right_hand_value = -1;
+//     int left_hand_value = -1;
 
-    struct CacheModel* models[50] = { 0 };
-    int build_models[50] = { 0 };
-    int build_models_count = 0;
+//     struct CacheModel* models[50] = { 0 };
+//     int build_models[50] = { 0 };
+//     int build_models_count = 0;
 
-    for( int i = 0; i < 12; i++ )
-    {
-        int appearance = game->player_slots[i];
-        if( right_hand_value >= 0 && i == 3 )
-        {
-            appearance = right_hand_value;
-        }
-        if( left_hand_value >= 0 && i == 5 )
-        {
-            appearance = left_hand_value;
-        }
-        if( appearance >= 0x100 && appearance < 0x200 )
-        {
-            appearance -= 0x100;
-            int model_id = idk_model(game, appearance);
-            if( model_id >= 0 )
-            {
-                struct CacheModel* model = buildcachedat_get_idk_model(buildcachedat, model_id);
-                assert(model && "Model must be found");
-                models[build_models_count++] = model;
-            }
-            else if( model_id != -2 )
-            {
-                game->awaiting_models++;
-            }
-        }
-        else if( appearance >= 0x200 )
-        {
-            appearance -= 0x200;
-            int model_id = obj_model(game, appearance);
-            if( model_id >= 0 )
-            {
-                struct CacheModel* model = buildcachedat_get_obj_model(buildcachedat, model_id);
-                assert(model && "Model must be found");
-                models[build_models_count++] = model;
-            }
-            else if( model_id != -2 )
-            {
-                game->awaiting_models++;
-            }
-        }
-    }
+//     for( int i = 0; i < 12; i++ )
+//     {
+//         int appearance = game->player_slots[i];
+//         if( right_hand_value >= 0 && i == 3 )
+//         {
+//             appearance = right_hand_value;
+//         }
+//         if( left_hand_value >= 0 && i == 5 )
+//         {
+//             appearance = left_hand_value;
+//         }
+//         if( appearance >= 0x100 && appearance < 0x200 )
+//         {
+//             appearance -= 0x100;
+//             int model_id = idk_model(game, appearance);
+//             if( model_id >= 0 )
+//             {
+//                 struct CacheModel* model = buildcachedat_get_idk_model(buildcachedat, model_id);
+//                 assert(model && "Model must be found");
+//                 models[build_models_count++] = model;
+//             }
+//             else if( model_id != -2 )
+//             {
+//                 game->awaiting_models++;
+//             }
+//         }
+//         else if( appearance >= 0x200 )
+//         {
+//             appearance -= 0x200;
+//             int model_id = obj_model(game, appearance);
+//             if( model_id >= 0 )
+//             {
+//                 struct CacheModel* model = buildcachedat_get_obj_model(buildcachedat, model_id);
+//                 assert(model && "Model must be found");
+//                 models[build_models_count++] = model;
+//             }
+//             else if( model_id != -2 )
+//             {
+//                 game->awaiting_models++;
+//             }
+//         }
+//     }
 
-    if( game->awaiting_models == 0 && build_models_count > 0 )
-    {
-        struct CacheModel* merged_model = model_new_merge(models, build_models_count);
-        game->model = dashmodel_new_from_cache_model(merged_model);
-        model_free(merged_model);
+//     if( game->awaiting_models == 0 && build_models_count > 0 )
+//     {
+//         struct CacheModel* merged_model = model_new_merge(models, build_models_count);
+//         game->model = dashmodel_new_from_cache_model(merged_model);
+//         model_free(merged_model);
 
-        _light_model_default(game->model, 0, 0);
+//         _light_model_default(game->model, 0, 0);
 
-        game->build_player = 0;
-    }
-}
+//         game->build_player = 0;
+//     }
+// }
 
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
@@ -1511,10 +1511,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
         return;
     }
 
-    if( game->build_player == 1 )
-    {
-        build_player(game);
-    }
+    // if( game->build_player == 1 )
+    // {
+    //     build_player(game);
+    // }
 
     if( renderer->first_frame == 0 )
     {
