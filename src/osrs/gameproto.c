@@ -25,14 +25,16 @@ gameproto_parse_lc245_2(
     switch( packet_type )
     {
     case PKTIN_LC245_2_REBUILD_NORMAL:
-        printf("g_already: %d, packet_type: %d\n", g_already, packet_type);
-        {
-            packet->_map_rebuild.zonex = g2(&buffer);
-            packet->_map_rebuild.zonez = g2(&buffer);
-            assert(buffer.position == data_size);
-        }
+        packet->_map_rebuild.zonex = g2(&buffer);
+        packet->_map_rebuild.zonez = g2(&buffer);
+        assert(buffer.position == data_size);
         return 1;
-        break;
+    case PKTIN_LC245_2_NPC_INFO:
+    {
+        packet->_npc_info.npc_id = g2(&buffer);
+        assert(buffer.position == data_size);
+    }
+        return 1;
     default:
         printf("Unknown packet type: %d\n", packet_type);
         break;

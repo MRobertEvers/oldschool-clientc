@@ -49,7 +49,7 @@ scenebuilder_compat_get_underlay_rgb(
     if( scene_builder->buildcachedat != NULL )
     {
         struct CacheConfigOverlay* flotype =
-            buildcachedat_get_flotype(scene_builder->buildcachedat, underlay_id);
+            buildcachedat_get_flotype(scene_builder->buildcachedat, underlay_id - 1);
         if( flotype )
             return flotype->rgb_color;
     }

@@ -194,12 +194,12 @@ main(
 
     int login_socket = -1;
     // Create socket connection to login server
-    //  login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
-    // if( login_socket < 0 )
-    // {
-    //     printf("Failed to create login socket\n");
-    //     // Continue anyway - login will fail gracefully
-    // }
+    login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
+    if( login_socket < 0 )
+    {
+        printf("Failed to create login socket\n");
+        // Continue anyway - login will fail gracefully
+    }
 
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;

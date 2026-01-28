@@ -481,6 +481,7 @@ build_scene_terrain(
                 int rotation = overlay_id == -1 ? 0 : map->rotation;
                 int texture_id = -1;
 
+                int trans = 0;
                 if( overlay_id != -1 )
                 {
                     // struct FlotypeEntry* flotype_entry = NULL;
@@ -507,6 +508,10 @@ build_scene_terrain(
                     {
                         overlay_hsl = -2;
                         texture_id = -1;
+                        if( overlay->secondary_rgb_color == -1 )
+                        {
+                            trans = 1;
+                        }
                     }
                     else
                     {
@@ -554,10 +559,6 @@ build_scene_terrain(
                     int average_hsl = dash_texture->average_hsl;
                     minimap_foreground_rgb = dash_hsl16_to_rgb(average_hsl);
                 }
-
-                int trans = overlay ? overlay->secondary_rgb_color == 0xFF00FF ||
-                                          overlay->rgb_color == 0xFF00FF
-                                    : 0;
 
                 if( minimap_foreground_rgb > 0 && !trans )
                     minimap_set_tile_color(
