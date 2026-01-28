@@ -3,6 +3,8 @@
 #include "gio_assets.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/tables_dat/config_idk.h"
+#include "osrs/rscache/tables_dat/config_obj.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -331,6 +333,160 @@ queue_scenery_models(
 }
 
 static void
+dt_models_from_dt(
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    struct GIOQueue* io,
+    struct BuildCacheDat* buildcachedat,
+    uint32_t fn,
+    uint32_t action)
+{
+    int fromreg_idx = fn - QE_FN_FROM_0;
+
+    int dt = query_engine_qreg_get_dt(query_engine, fromreg_idx);
+
+    switch( dt )
+    {
+    case QEDAT_DT_MAPS_SCENERY:
+    {
+        struct Vec* queued_scenery_models_vec = vec_new(sizeof(int), 512);
+
+        query_engine_qreg_iter_begin(query_engine, fromreg_idx);
+        struct CacheMapLocs* scenery = NULL;
+        while( (scenery = query_engine_qreg_iter_next(query_engine, fromreg_idx)) )
+        {
+            for( int i = 0; i < scenery->locs_count; i++ )
+            {
+                int loc_id = scenery->locs[i].loc_id;
+                struct CacheConfigLocation* config_loc =
+                    buildcachedat_get_config_loc(buildcachedat, loc_id);
+                assert(config_loc != NULL && "Config loc must be found");
+
+                queue_scenery_models(
+                    queued_scenery_models_vec, config_loc, scenery->locs[i].shape_select);
+            }
+        }
+
+        query_engine_qreg_iter_end(query_engine, fromreg_idx);
+
+        for( int i = 0; i < vec_size(queued_scenery_models_vec); i++ )
+        {
+            int model_id = *(int*)vec_get(queued_scenery_models_vec, i);
+            int reqid = gio_assets_dat_models_load(io, model_id);
+            query_engine_qpush_reqid(q, reqid);
+        }
+
+        vec_free(queued_scenery_models_vec);
+    }
+    break;
+    case QEDAT_DT_CONFIG_OBJS:
+    {
+        struct Vec* queued_obj_models_vec = vec_new(sizeof(int), 512);
+
+        query_engine_qreg_iter_begin(query_engine, fromreg_idx);
+        struct CacheDatConfigObj* obj = NULL;
+        while( (obj = query_engine_qreg_iter_next(query_engine, fromreg_idx)) )
+        {
+            if( obj->manwear != -1 )
+            {
+                vec_push_unique(queued_obj_models_vec, &obj->manwear);
+            }
+            if( obj->manwear2 != -1 )
+            {
+                vec_push_unique(queued_obj_models_vec, &obj->manwear2);
+            }
+            if( obj->manwear3 != -1 )
+            {
+                vec_push_unique(queued_obj_models_vec, &obj->manwear3);
+            }
+            // if( obj->womanwear != -1 )
+            // {
+            //     vec_push_unique(queued_obj_models_vec, &obj->womanwear);
+            // }
+            // if( obj->womanwear2 != -1 )
+            // {
+            //     vec_push_unique(queued_obj_models_vec, &obj->womanwear2);
+            // }
+            // if( obj->manwear3 != -1 )
+            // {
+            //     vec_push_unique(queued_obj_models_vec, &obj->manwear3);
+            // }
+            // if( obj->womanwear3 != -1 )
+            // {
+            //     vec_push_unique(queued_obj_models_vec, &obj->womanwear3);
+            // }
+            // if( obj->manhead != -1 )
+            // {
+            //     vec_push_unique(queued_obj_models_vec, &obj->manhead);
+            // }
+            // if( obj->manhead2 != -1 )
+            // {
+            //     vec_push_unique(queued_obj_models_vec, &obj->manhead2);
+            // }
+            // if( obj->womanhead != -1 )
+            // {
+            //     vec_push_unique(queued_obj_models_vec, &obj->womanhead);
+            // }
+            // if( obj->womanhead2 != -1 )
+            // {
+            //     vec_push_unique(queued_obj_models_vec, &obj->womanhead2);
+            // }
+        }
+        query_engine_qreg_iter_end(query_engine, fromreg_idx);
+
+        struct CacheModel* existing = NULL;
+        for( int i = 0; i < vec_size(queued_obj_models_vec); i++ )
+        {
+            int model_id = *(int*)vec_get(queued_obj_models_vec, i);
+
+            existing = buildcachedat_get_model(buildcachedat, model_id);
+            if( existing )
+                continue;
+
+            int reqid = gio_assets_dat_models_load(io, model_id);
+            query_engine_qpush_reqid(q, reqid);
+        }
+
+        vec_free(queued_obj_models_vec);
+    }
+    break;
+    case QEDAT_DT_CONFIG_IDKS:
+    {
+        struct Vec* queued_idk_models_vec = vec_new(sizeof(int), 512);
+
+        query_engine_qreg_iter_begin(query_engine, fromreg_idx);
+        struct CacheDatConfigIdk* idk = NULL;
+        while( (idk = query_engine_qreg_iter_next(query_engine, fromreg_idx)) )
+        {
+            for( int j = 0; j < idk->models_count; j++ )
+            {
+                int model_id = idk->models[j];
+                if( model_id )
+                {
+                    vec_push_unique(queued_idk_models_vec, &model_id);
+                }
+            }
+        }
+        query_engine_qreg_iter_end(query_engine, fromreg_idx);
+
+        struct CacheModel* existing = NULL;
+        for( int i = 0; i < vec_size(queued_idk_models_vec); i++ )
+        {
+            int model_id = *(int*)vec_get(queued_idk_models_vec, i);
+            existing = buildcachedat_get_model(buildcachedat, model_id);
+            if( existing )
+                continue;
+
+            int reqid = gio_assets_dat_models_load(io, model_id);
+            query_engine_qpush_reqid(q, reqid);
+        }
+        vec_free(queued_idk_models_vec);
+    }
+    break;
+    }
+}
+
+static void
 dt_models_exec(
     struct QueryEngine* query_engine,
     struct QEQuery* q,
@@ -380,39 +536,7 @@ dt_models_exec(
     case QE_FN_FROM_8:
     case QE_FN_FROM_9:
     {
-        int fromreg_idx = fn - QE_FN_FROM_0;
-
-        int dt = query_engine_qreg_get_dt(query_engine, fromreg_idx);
-        assert(dt == QEDAT_DT_MAPS_SCENERY);
-
-        struct Vec* queued_scenery_models_vec = vec_new(sizeof(int), 512);
-
-        query_engine_qreg_iter_begin(query_engine, fromreg_idx);
-        struct CacheMapLocs* scenery = NULL;
-        while( (scenery = query_engine_qreg_iter_next(query_engine, fromreg_idx)) )
-        {
-            for( int i = 0; i < scenery->locs_count; i++ )
-            {
-                int loc_id = scenery->locs[i].loc_id;
-                struct CacheConfigLocation* config_loc =
-                    buildcachedat_get_config_loc(buildcachedat, loc_id);
-                assert(config_loc != NULL && "Config loc must be found");
-
-                queue_scenery_models(
-                    queued_scenery_models_vec, config_loc, scenery->locs[i].shape_select);
-            }
-        }
-
-        query_engine_qreg_iter_end(query_engine, fromreg_idx);
-
-        for( int i = 0; i < vec_size(queued_scenery_models_vec); i++ )
-        {
-            int model_id = *(int*)vec_get(queued_scenery_models_vec, i);
-            int reqid = gio_assets_dat_models_load(io, model_id);
-            query_engine_qpush_reqid(q, reqid);
-        }
-
-        vec_free(queued_scenery_models_vec);
+        dt_models_from_dt(query_engine, q, io, buildcachedat, fn, action);
     }
     break;
     default:
@@ -436,6 +560,92 @@ dt_models_poll(
 
     buildcachedat_add_model(buildcachedat, param_b, model);
 }
+
+static void
+dt_config_idks_exec(
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    struct GIOQueue* io,
+    struct BuildCacheDat* buildcachedat,
+    uint32_t fn,
+    uint32_t action)
+{
+    switch( fn )
+    {
+    case QE_FN_0:
+    {
+        // TODO: if not discard
+        int store_idx = action - QE_STORE_SET_0;
+        assert(store_idx >= 0 && store_idx < 10);
+        int argx_count = query_engine_qdecode_argx_count(q);
+        int* idk_ids = qe_decode_varargs_new(q, argx_count);
+
+        for( int i = 0; i < argx_count; i++ )
+        {
+            int idk_id = idk_ids[i];
+            struct CacheConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+
+            query_engine_qreg_push(query_engine, store_idx, idk_id, idk);
+        }
+
+        free(idk_ids);
+    }
+    break;
+    }
+}
+
+static void
+dt_config_idks_poll(
+    struct BuildCacheDat* buildcachedat,
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    void* data,
+    int data_size,
+    int param_a,
+    int param_b)
+{}
+
+static void
+dt_config_objs_exec(
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    struct GIOQueue* io,
+    struct BuildCacheDat* buildcachedat,
+    uint32_t fn,
+    uint32_t action)
+{
+    switch( fn )
+    {
+    case QE_FN_0:
+    {
+        int store_idx = action - QE_STORE_SET_0;
+        assert(store_idx >= 0 && store_idx < 10);
+        int argx_count = query_engine_qdecode_argx_count(q);
+        int* obj_ids = qe_decode_varargs_new(q, argx_count);
+
+        for( int i = 0; i < argx_count; i++ )
+        {
+            int obj_id = obj_ids[i];
+            struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+
+            query_engine_qreg_push(query_engine, store_idx, obj_id, obj);
+        }
+        free(obj_ids);
+    }
+    break;
+    }
+}
+
+static void
+dt_config_objs_poll(
+    struct BuildCacheDat* buildcachedat,
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    void* data,
+    int data_size,
+    int param_a,
+    int param_b)
+{}
 
 void
 query_executor_dat_step_active(
@@ -471,6 +681,14 @@ query_executor_dat_step_active(
         break;
     case QEDAT_DT_CONFIG_LOCIDS:
         dt_config_locs_exec(query_engine, q, io, buildcachedat, fn, action);
+        break;
+    case QEDAT_DT_CONFIG_NPCS:
+        break;
+    case QEDAT_DT_CONFIG_IDKS:
+        dt_config_idks_exec(query_engine, q, io, buildcachedat, fn, action);
+        break;
+    case QEDAT_DT_CONFIG_OBJS:
+        dt_config_objs_exec(query_engine, q, io, buildcachedat, fn, action);
         break;
     }
 
@@ -529,6 +747,12 @@ query_executor_dat_step_awaiting_io(
         case QEDAT_DT_FLOTYPE:
             break;
         case QEDAT_DT_CONFIG_LOCIDS:
+            break;
+        case QEDAT_DT_CONFIG_NPCS:
+            break;
+        case QEDAT_DT_CONFIG_IDKS:
+            break;
+        case QEDAT_DT_CONFIG_OBJS:
             break;
         }
 

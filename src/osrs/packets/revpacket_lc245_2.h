@@ -12,6 +12,12 @@ struct PktNpcInfoLC245_2
     uint8_t* data;
 };
 
+struct PktPlayerInfoLC245_2
+{
+    int length;
+    uint8_t* data;
+};
+
 struct RevPacket_LC245_2
 {
     enum PacketInType_LC245_2 packet_type;
@@ -20,6 +26,7 @@ struct RevPacket_LC245_2
     {
         struct PktMapRebuild _map_rebuild;
         struct PktNpcInfoLC245_2 _npc_info;
+        struct PktPlayerInfoLC245_2 _player_info;
     };
 };
 

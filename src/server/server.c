@@ -35,8 +35,8 @@ server_new(void)
     server->players[0].appearance[0] = 0;
     server->players[0].appearance[1] = 0;
     server->players[0].appearance[2] = 0;
-    server->players[0].appearance[3] = 0x200 + 1333;
-    server->players[0].appearance[4] = 0x100 + 18; // 274;
+    server->players[0].appearance[3] = 0x200 + 1333; // Rune scimitar
+    server->players[0].appearance[4] = 0x100 + 18;   // 274;
     server->players[0].appearance[5] = 0;
     server->players[0].appearance[6] = 0x100 + 26;  // 282;
     server->players[0].appearance[7] = 0x100 + 36;  // 292;

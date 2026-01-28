@@ -64,6 +64,8 @@ struct Painter
     int height;
     int levels;
 
+    int static_element_count;
+
     struct PaintersTile* tiles;
     struct TilePaint* tile_paints;
     int tile_count;
@@ -367,8 +369,6 @@ painter_add_normal_scenery(
     int size_x,
     int size_z)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
-
     int element = painter_push_element(painter);
 
     compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);
@@ -385,6 +385,24 @@ painter_add_normal_scenery(
         ._scenery = { .entity = entity, .size_x = size_x, .size_z = size_z },
     };
     return element;
+}
+
+void
+painter_mark_static_count(struct Painter* painter)
+{
+    painter->static_element_count = painter->element_count;
+}
+
+void
+painter_reset_to_static(struct Painter* painter)
+{
+    for( int i = painter->static_element_count; i < painter->element_count; i++ )
+    {
+        struct PaintersTile* tile = painter_tile_at(
+            painter, painter->elements[i].sx, painter->elements[i].sz, painter->elements[i].slevel);
+        tile->scenery_count--;
+    }
+    painter->element_count = painter->static_element_count;
 }
 
 int

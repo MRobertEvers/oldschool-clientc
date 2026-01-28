@@ -74,8 +74,8 @@ init_build_grid(
     struct TileHeights tile_heights = { 0 };
     struct BuildTile* build_tile = NULL;
 
-    build_grid->tile_width_x = terrain_grid_x_width(terrain_grid);
-    build_grid->tile_width_z = terrain_grid_z_height(terrain_grid);
+    build_grid->tile_width_x = 104; // terrain_grid_x_width(terrain_grid);
+    build_grid->tile_width_z = 104; // terrain_grid_z_height(terrain_grid);
 
     for( int sx = 0; sx < build_grid->tile_width_x; sx++ )
     {
@@ -83,14 +83,14 @@ init_build_grid(
         {
             for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
             {
-                tile_heights_at(
-                    terrain_grid,
-                    terrain_grid->mapx_sw + (sx / MAP_TERRAIN_X),
-                    terrain_grid->mapz_sw + (sz / MAP_TERRAIN_Z),
-                    sx % MAP_TERRAIN_X,
-                    sz % MAP_TERRAIN_Z,
-                    slevel,
-                    &tile_heights);
+                // tile_heights_at(
+                //     terrain_grid,
+                //     terrain_grid->mapx_sw + (sx / MAP_TERRAIN_X),
+                //     terrain_grid->mapz_sw + (sz / MAP_TERRAIN_Z),
+                //     sx % MAP_TERRAIN_X,
+                //     sz % MAP_TERRAIN_Z,
+                //     slevel,
+                //     &tile_heights);
 
                 int index = build_grid_index(
                     build_grid->tile_width_x, build_grid->tile_width_z, sx, sz, slevel);
@@ -104,6 +104,8 @@ init_build_grid(
 static struct Scene*
 scenebuiler_build(
     struct SceneBuilder* scene_builder,
+    int base_tile_x,
+    int base_tile_z,
     int mapx_sw,
     int mapz_sw,
     int mapx_ne,
@@ -113,9 +115,11 @@ scenebuiler_build(
     scene_builder->mapz_sw = mapz_sw;
     scene_builder->mapx_ne = mapx_ne;
     scene_builder->mapz_ne = mapz_ne;
+    scene_builder->base_tile_x = base_tile_x;
+    scene_builder->base_tile_z = base_tile_z;
 
-    int height = (mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z;
-    int width = (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X;
+    int height = 104; // ((mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z) - base_tile_x;
+    int width = 104;  // (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X - base_tile_z;
 
     scene_builder->build_grid = build_grid_new(width, height);
     scene_builder->shademap = shademap_new(width, height, MAP_TERRAIN_LEVELS);
@@ -128,11 +132,12 @@ scenebuiler_build(
 
     init_build_grid(&terrain_grid, scene_builder->build_grid);
 
-    scene =
-        scene_new(terrain_grid_x_width(&terrain_grid), terrain_grid_z_height(&terrain_grid), 1024);
+    scene = scene_new(width, height, 1024);
 
     build_scene_scenery(scene_builder, &terrain_grid, scene);
     build_scene_terrain(scene_builder, &terrain_grid, scene->terrain);
+
+    painter_mark_static_count(scene_builder->painter);
 
     return scene;
 }
@@ -140,6 +145,8 @@ scenebuiler_build(
 struct Scene*
 scenebuilder_load_from_buildcachedat(
     struct SceneBuilder* scene_builder,
+    int base_tile_x,
+    int base_tile_z,
     int mapx_sw,
     int mapz_sw,
     int mapx_ne,
@@ -147,7 +154,8 @@ scenebuilder_load_from_buildcachedat(
     struct BuildCacheDat* buildcachedat)
 {
     scene_builder->buildcachedat = buildcachedat;
-    return scenebuiler_build(scene_builder, mapx_sw, mapz_sw, mapx_ne, mapz_ne);
+    return scenebuiler_build(
+        scene_builder, base_tile_x, base_tile_z, mapx_sw, mapz_sw, mapx_ne, mapz_ne);
 }
 
 struct Scene*
@@ -160,7 +168,7 @@ scenebuilder_load_from_buildcache(
     struct BuildCache* buildcache)
 {
     scene_builder->buildcache = buildcache;
-    return scenebuiler_build(scene_builder, mapx_sw, mapz_sw, mapx_ne, mapz_ne);
+    return scenebuiler_build(scene_builder, 0, 0, mapx_sw, mapz_sw, mapx_ne, mapz_ne);
 }
 
 // struct SceneAnimation*
@@ -180,8 +188,22 @@ scenebuilder_load_from_buildcache(
 //     return animation;
 // }
 
+static void
+dash_position_from_offset_wxh_elem(
+    struct SceneElement* element,
+    int sx,
+    int sz,
+    int height_center,
+    int size_x,
+    int size_z)
+{
+    element->dash_position->x = sx * TILE_SIZE + size_x * 64;
+    element->dash_position->z = sz * TILE_SIZE + size_z * 64;
+    element->dash_position->y = height_center;
+}
+
 static struct DashPosition*
-dash_position_from_offset_1x1_elem(
+dash_position_new_from_offset_1x1_elem(
     int sx,
     int sz,
     int height_center)
@@ -189,15 +211,13 @@ dash_position_from_offset_1x1_elem(
     struct DashPosition* dash_position = malloc(sizeof(struct DashPosition));
     memset(dash_position, 0, sizeof(struct DashPosition));
 
-    dash_position->x = sx * TILE_SIZE + 64;
-    dash_position->z = sz * TILE_SIZE + 64;
-    dash_position->y = height_center;
+    dash_position_from_offset_wxh_elem(dash_position, sx, sz, height_center, 1, 1);
 
     return dash_position;
 }
 
 void
-scenebuilder_push_element(
+scenebuilder_push_dynamic_element(
     struct SceneBuilder* scene_builder,
     struct Scene* scene,
     int sx,
@@ -205,16 +225,26 @@ scenebuilder_push_element(
     int slevel,
     int size_x,
     int size_z,
-    struct DashModel* dash_model)
+    struct SceneElement* element)
 {
     struct SceneElement scene_element = { 0 };
 
     int height_center = scene_terrain_height_center(scene, sx, sz, slevel);
 
-    scene_element.dash_model = dash_model;
-    scene_element.dash_position = dash_position_from_offset_1x1_elem(sx, sz, height_center);
+    scene_element.dash_model = element->dash_model;
+    scene_element.dash_position = element->dash_position;
+    dash_position_from_offset_wxh_elem(&scene_element, sx, sz, height_center, size_x, size_z);
 
-    int element_id = scene_push_element_move(scene, &scene_element);
+    int element_id = scene_scenery_push_dynamic_element_move(scene->scenery, &scene_element);
 
-    painter_add_normal_scenery(scene_builder->painter, sx, sz, slevel, element_id, size_x, size_z);
+    painter_add_normal_scenery(scene_builder->painter, sx, sz, slevel, element_id, 1, 1);
+}
+
+void
+scenebuilder_reset_dynamic_elements(
+    struct SceneBuilder* scene_builder,
+    struct Scene* scene)
+{
+    painter_reset_to_static(scene_builder->painter);
+    scene_scenery_reset_dynamic_elements(scene->scenery);
 }

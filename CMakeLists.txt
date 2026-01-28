@@ -79,8 +79,12 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/filepack.c
         src/osrs/dash_utils.c
         src/osrs/gametask.c
+        src/osrs/gameproto_exec.c
         src/osrs/gameproto_parse.c
         src/osrs/gameproto_process.c
+        src/osrs/game_entity.c
+        src/osrs/datatypes/player_appearance.c
+        src/osrs/packets/pkt_player_info.c
         src/osrs/packetbuffer.c
         src/osrs/rscache/compression.c
         src/osrs/rscache/tables/string_utils.c

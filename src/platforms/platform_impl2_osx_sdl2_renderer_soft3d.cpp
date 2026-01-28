@@ -1279,61 +1279,61 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
     server_step(server, (int)(timestamp_ms % 2147483647)); // Clamp to int range
 
     // Get and process server's outgoing message (player location update)
-    uint8_t* server_message_data = NULL;
-    int server_message_size = 0;
-    server_get_outgoing_message(server, &server_message_data, &server_message_size);
+    // uint8_t* server_message_data = NULL;
+    // int server_message_size = 0;
+    // server_get_outgoing_message(server, &server_message_data, &server_message_size);
 
-    struct RSBuffer buffer;
-    rsbuf_init(&buffer, (int8_t*)server_message_data, server_message_size);
+    // struct RSBuffer buffer;
+    // rsbuf_init(&buffer, (int8_t*)server_message_data, server_message_size);
 
-    while( buffer.position < buffer.size )
-    {
-        int message_kind = buffer.data[buffer.position];
-        int message_size = client_prot_get_packet_size((enum ClientProtKind)message_kind);
+    // while( buffer.position < buffer.size )
+    // {
+    //     int message_kind = buffer.data[buffer.position];
+    //     int message_size = client_prot_get_packet_size((enum ClientProtKind)message_kind);
 
-        void* data = buffer.data + buffer.position;
-        int data_size = message_size - buffer.position;
+    //     void* data = buffer.data + buffer.position;
+    //     int data_size = message_size - buffer.position;
 
-        switch( message_kind )
-        {
-        case CLIENT_PROT_PLAYER_MOVE:
-        {
-            struct ClientProtPlayerMove player_move;
-            buffer.position +=
-                client_prot_player_move_decode(&player_move, (uint8_t*)data, data_size);
+    //     switch( message_kind )
+    //     {
+    //     case CLIENT_PROT_PLAYER_MOVE:
+    //     {
+    //         struct ClientProtPlayerMove player_move;
+    //         buffer.position +=
+    //             client_prot_player_move_decode(&player_move, (uint8_t*)data, data_size);
 
-            game->player_tx = player_move.x;
-            game->player_tz = player_move.z;
-        }
-        break;
-        case CLIENT_PROT_PLAYER:
-        {
-            struct ClientProtPlayer player;
-            buffer.position += client_prot_player_decode(&player, (uint8_t*)data, data_size);
+    //         game->player_tx = player_move.x;
+    //         game->player_tz = player_move.z;
+    //     }
+    //     break;
+    //     case CLIENT_PROT_PLAYER:
+    //     {
+    //         struct ClientProtPlayer player;
+    //         buffer.position += client_prot_player_decode(&player, (uint8_t*)data, data_size);
 
-            game->player_tx = player.x;
-            game->player_tz = player.z;
-            for( int i = 0; i < 12; i++ )
-            {
-                game->player_slots[i] = player.slots[i];
-            }
-            game->player_walkanim = player.walkanim;
-            game->player_runanim = player.runanim;
-            game->player_walkanim_b = player.walkanim_b;
-            game->player_walkanim_r = player.walkanim_r;
-            game->player_walkanim_l = player.walkanim_l;
-            game->player_turnanim = player.turnanim;
-            game->player_readyanim = player.readyanim;
+    //         game->player_tx = player.x;
+    //         game->player_tz = player.z;
+    //         for( int i = 0; i < 12; i++ )
+    //         {
+    //             game->player_slots[i] = player.slots[i];
+    //         }
+    //         game->player_walkanim = player.walkanim;
+    //         game->player_runanim = player.runanim;
+    //         game->player_walkanim_b = player.walkanim_b;
+    //         game->player_walkanim_r = player.walkanim_r;
+    //         game->player_walkanim_l = player.walkanim_l;
+    //         game->player_turnanim = player.turnanim;
+    //         game->player_readyanim = player.readyanim;
 
-            game->build_player = 1;
-        }
-        break;
-        }
+    //         game->build_player = 1;
+    //     }
+    //     break;
+    //     }
 
-        if( game->player_draw_x == -1 && game->player_draw_z == -1 )
-        {
-            game->player_draw_x = game->player_tx * 128;
-            game->player_draw_z = game->player_tz * 128;
-        }
-    }
+    //     if( game->player_draw_x == -1 && game->player_draw_z == -1 )
+    //     {
+    //         game->player_draw_x = game->player_tx * 128;
+    //         game->player_draw_z = game->player_tz * 128;
+    //     }
+    // }
 }

@@ -1400,6 +1400,8 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
         // animation");
         task->game->scene = scenebuilder_load_from_buildcachedat(
             task->scene_builder,
+            0,
+            0,
             task->mapx_sw,
             task->mapz_sw,
             task->mapx_ne,

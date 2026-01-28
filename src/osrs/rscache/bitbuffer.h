@@ -34,7 +34,20 @@ bitbuffer_gbits(
     struct BitBuffer* buf,
     int n);
 
+// unsigned int
+// bitbuffer_gdata(
+//     struct BitBuffer* buf,
+//     int offset,
+//     int n,
+//     uint8_t* out,
+//     int out_size);
+
+// unsigned int
+// bitbuffer_gbyte_offset(struct BitBuffer* buf);
+
 #define bits(buf) bitbuffer_bits(buf)
 #define gbits(buf, n) bitbuffer_gbits(buf, n)
+// #define gdata(buf, offset, n, out, out_size) bitbuffer_gdata(buf, offset, n, out, out_size)
+// #define gbyte_offset(buf) bitbuffer_gbyte_offset(buf)
 
 #endif

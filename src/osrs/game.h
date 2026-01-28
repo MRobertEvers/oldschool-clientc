@@ -3,6 +3,7 @@
 
 #include "datastruct/ringbuf.h"
 #include "datastruct/vec.h"
+#include "game_entity.h"
 #include "lclogin.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
@@ -18,6 +19,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#define MAX_PLAYERS 2048
+#define MAX_NPCS 8192
+
+#define ACTIVE_PLAYER_SLOT 2047
 
 struct RevPacket_LC245_2_Item
 {
@@ -73,21 +79,8 @@ struct GGame
     int camera_movement_speed;
     int camera_rotation_speed;
 
-    int player_tx;
-    int player_tz;
-    int player_draw_x;
-    int player_draw_z;
-    int player_draw_yaw;
-    int player_state; // 0 = idle, 1 = walking, 2 = running
-    int player_slots[12];
-    int player_walkanim;
-    int player_runanim;
-    int player_walkanim_b;
-    int player_walkanim_r;
-    int player_walkanim_l;
-    int player_turnanim;
-    int player_readyanim;
-    struct SceneAnimation* player_walk_animation;
+    struct PlayerEntity players[MAX_PLAYERS];
+    struct NPCEntity npcs[MAX_NPCS];
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;

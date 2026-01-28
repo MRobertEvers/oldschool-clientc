@@ -162,6 +162,8 @@ scene_scenery_push_element_move(
     struct SceneScenery* scenery,
     struct SceneElement* element)
 {
+    assert(scenery->dynamic_elements_length == 0);
+
     if( scenery->elements_length >= scenery->elements_capacity )
     {
         scenery->elements_capacity *= 2;
@@ -175,11 +177,50 @@ scene_scenery_push_element_move(
     return scenery->elements_length - 1;
 }
 
+int
+scene_scenery_push_dynamic_element_move(
+    struct SceneScenery* scenery,
+    struct SceneElement* element)
+{
+    if( scenery->dynamic_elements_length >= scenery->dynamic_elements_capacity )
+    {
+        if( scenery->dynamic_elements_capacity == 0 )
+            scenery->dynamic_elements_capacity = 8;
+        scenery->dynamic_elements_capacity *= 2;
+        scenery->dynamic_elements = realloc(
+            scenery->dynamic_elements,
+            scenery->dynamic_elements_capacity * sizeof(struct SceneElement));
+    }
+    memcpy(
+        &scenery->dynamic_elements[scenery->dynamic_elements_length],
+        element,
+        sizeof(struct SceneElement));
+    scenery->dynamic_elements[scenery->dynamic_elements_length].id =
+        scenery->dynamic_elements_length;
+    scenery->dynamic_elements_length++;
+
+    int idx = scenery->dynamic_elements_length - 1 + scenery->elements_length;
+    return idx;
+}
+
+void
+scene_scenery_reset_dynamic_elements(struct SceneScenery* scenery)
+{
+    scenery->dynamic_elements_length = 0;
+}
+
 struct SceneElement*
 scene_element_at(
     struct SceneScenery* scenery,
     int element_idx)
 {
+    if( element_idx >= scenery->elements_length )
+    {
+        element_idx -= scenery->elements_length;
+        assert(element_idx >= 0 && element_idx < scenery->dynamic_elements_length);
+        return &scenery->dynamic_elements[element_idx];
+    }
+
     assert(element_idx >= 0 && element_idx < scenery->elements_length);
     return &scenery->elements[element_idx];
 }
@@ -197,8 +238,7 @@ scene_element_interactable(
     struct Scene* scene,
     int element)
 {
-    assert(element >= 0 && element < scene->scenery->elements_length);
-    return scene->scenery->elements[element].interactable;
+    return scene_element_at(scene->scenery, element)->interactable;
 }
 
 struct DashModel*
@@ -206,8 +246,7 @@ scene_element_model(
     struct Scene* scene,
     int element)
 {
-    assert(element >= 0 && element < scene->scenery->elements_length);
-    return scene->scenery->elements[element].dash_model;
+    return scene_element_at(scene->scenery, element)->dash_model;
 }
 
 struct DashPosition*
@@ -215,8 +254,7 @@ scene_element_position(
     struct Scene* scene,
     int element)
 {
-    assert(element >= 0 && element < scene->scenery->elements_length);
-    return scene->scenery->elements[element].dash_position;
+    return scene_element_at(scene->scenery, element)->dash_position;
 }
 
 char*
@@ -224,8 +262,7 @@ scene_element_name(
     struct Scene* scene,
     int element)
 {
-    assert(element >= 0 && element < scene->scenery->elements_length);
-    return scene->scenery->elements[element]._dbg_name;
+    return scene_element_at(scene->scenery, element)->_dbg_name;
 }
 
 int

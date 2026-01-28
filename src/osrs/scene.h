@@ -35,6 +35,10 @@ struct SceneElement
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
 
+    int tile_sx;
+    int tile_sz;
+    int tile_slevel;
+
     struct SceneAnimation* animation;
     struct SceneAction* actions;
 
@@ -47,9 +51,14 @@ struct SceneElement
 
 struct SceneScenery
 {
+    // Static elements
     struct SceneElement* elements;
     int elements_length;
     int elements_capacity;
+
+    struct SceneElement* dynamic_elements;
+    int dynamic_elements_length;
+    int dynamic_elements_capacity;
 
     int tile_width_x;
     int tile_width_z;
@@ -112,6 +121,14 @@ int
 scene_scenery_push_element_move(
     struct SceneScenery* scenery,
     struct SceneElement* element);
+
+int
+scene_scenery_push_dynamic_element_move(
+    struct SceneScenery* scenery,
+    struct SceneElement* element);
+
+void
+scene_scenery_reset_dynamic_elements(struct SceneScenery* scenery);
 
 struct SceneTerrainTile*
 scene_terrain_tile_at(

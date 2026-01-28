@@ -157,6 +157,7 @@ packetbuffer_reset(struct PacketBuffer* packetbuffer)
         free(packetbuffer->data);
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
+
     packetbuffer_init(packetbuffer, packetbuffer->random, packetbuffer->revision);
 }
 

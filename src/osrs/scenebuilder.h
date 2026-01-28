@@ -29,6 +29,8 @@ scenebuilder_free(struct SceneBuilder* scene_builder);
 struct Scene*
 scenebuilder_load_from_buildcachedat(
     struct SceneBuilder* scene_builder,
+    int base_tile_x,
+    int base_tile_z,
     int mapx_sw,
     int mapz_sw,
     int mapx_ne,
@@ -50,7 +52,7 @@ scenebuilder_new_animation(
     int sequence_id);
 
 void
-scenebuilder_push_element(
+scenebuilder_push_dynamic_element(
     struct SceneBuilder* scene_builder,
     struct Scene* scene,
     int sx,
@@ -58,6 +60,11 @@ scenebuilder_push_element(
     int slevel,
     int size_x,
     int size_z,
-    struct DashModel* dash_model);
+    struct SceneElement* element);
+
+void
+scenebuilder_reset_dynamic_elements(
+    struct SceneBuilder* scene_builder,
+    struct Scene* scene);
 
 #endif

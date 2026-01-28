@@ -11,7 +11,7 @@ struct Pathing
     int z;
 };
 
-struct PlayerEntity
+struct ServerPlayerEntity
 {
     int x;
     int z;
@@ -54,7 +54,7 @@ struct Server
     uint8_t outgoing_message_buffer[65536];
     int write_offset;
 
-    struct PlayerEntity players[100];
+    struct ServerPlayerEntity players[100];
     int player_count;
 
     struct ClientPackets queue[100];

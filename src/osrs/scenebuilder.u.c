@@ -95,6 +95,8 @@ struct SceneBuilder
     int mapz_sw;
     int mapx_ne;
     int mapz_ne;
+    int base_tile_x;
+    int base_tile_z;
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;

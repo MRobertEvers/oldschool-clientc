@@ -237,6 +237,9 @@
         "gametask_status.h": "c",
         "vec.h": "c",
         "revpacket_lc245_2.h": "c",
-        "bitbuffer.h": "c"
+        "bitbuffer.h": "c",
+        "gameproto_exec.h": "c",
+        "jbase37.h": "c",
+        "config_obj.h": "c"
     },
 }

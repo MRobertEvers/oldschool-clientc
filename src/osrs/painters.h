@@ -301,6 +301,12 @@ painter_add_normal_scenery(
     int size_x,
     int size_y);
 
+void
+painter_mark_static_count(struct Painter* painter);
+
+void
+painter_reset_to_static(struct Painter* painter);
+
 #define WALL_A 0
 #define WALL_B 1
 

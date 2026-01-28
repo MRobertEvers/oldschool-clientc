@@ -489,10 +489,6 @@ buildcachedat_add_npc_model(
     int npc_id,
     struct CacheModel* model)
 {
-    if( npc_id == 45 )
-    {
-        printf("Adding npc model %d\n", npc_id);
-    }
     struct NpcModelEntry* npc_model_entry = (struct NpcModelEntry*)dashmap_search(
         buildcachedat->npc_models_hmap, &npc_id, DASHMAP_INSERT);
     assert(npc_model_entry && "Npc model must be inserted into hmap");

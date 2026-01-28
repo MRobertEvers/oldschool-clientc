@@ -15,6 +15,7 @@
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/config_versionlist_mapsquare.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/scenebuilder.h"
 // clang-format off
 #include "osrs/rscache/cache.h"
 #include "osrs/rscache/tables/model.h"
@@ -42,10 +43,10 @@ LibToriRS_GameNew(
     game->io = io;
     game->running = true;
 
-    game->player_tx = -1;
-    game->player_tz = -1;
-    game->player_draw_x = -1;
-    game->player_draw_z = -1;
+    game->players[ACTIVE_PLAYER_SLOT].alive = false;
+    game->players[ACTIVE_PLAYER_SLOT].position.sx = 50;
+    game->players[ACTIVE_PLAYER_SLOT].position.sz = 50;
+    game->players[ACTIVE_PLAYER_SLOT].position.height = 0;
 
     game->netin = ringbuf_new(4096);
     game->netout = ringbuf_new(4096);
@@ -340,6 +341,38 @@ LibToriRS_GameStep(
 
     dash_animate_textures(game->sys_dash, game->cycles);
 
+    scenebuilder_reset_dynamic_elements(game->scenebuilder, game->scene);
+
+    for( int i = 0; i < MAX_NPCS; i++ )
+    {
+        struct NPCEntity* npc = &game->npcs[i];
+        if( npc->alive )
+        {
+            scenebuilder_push_dynamic_element(
+                game->scenebuilder,
+                game->scene,
+                npc->position.sx,
+                npc->position.sz,
+                0,
+                npc->size_x,
+                npc->size_z,
+                npc->scene_element);
+        }
+    }
+
+    if( game->players[ACTIVE_PLAYER_SLOT].alive && game->players[ACTIVE_PLAYER_SLOT].scene_element )
+    {
+        scenebuilder_push_dynamic_element(
+            game->scenebuilder,
+            game->scene,
+            game->players[ACTIVE_PLAYER_SLOT].position.sx,
+            game->players[ACTIVE_PLAYER_SLOT].position.sz,
+            0,
+            1,
+            1,
+            game->players[ACTIVE_PLAYER_SLOT].scene_element);
+    }
+
     while( game->cycles > 0 )
     {
         game->cycles--;
@@ -348,22 +381,22 @@ LibToriRS_GameStep(
 
         game->cycle++;
 
-        if( game->player_walk_animation && game->player_walk_animation->frame_count > 0 )
-        {
-            game->player_walk_animation->cycle++;
-            if( game->player_walk_animation->cycle >=
-                game->player_walk_animation
-                    ->frame_lengths[game->player_walk_animation->frame_index] )
-            {
-                game->player_walk_animation->cycle = 0;
-                game->player_walk_animation->frame_index++;
-                if( game->player_walk_animation->frame_index >=
-                    game->player_walk_animation->frame_count )
-                {
-                    game->player_walk_animation->frame_index = 0;
-                }
-            }
-        }
+        // if( game->player_walk_animation && game->player_walk_animation->frame_count > 0 )
+        // {
+        //     game->player_walk_animation->cycle++;
+        //     if( game->player_walk_animation->cycle >=
+        //         game->player_walk_animation
+        //             ->frame_lengths[game->player_walk_animation->frame_index] )
+        //     {
+        //         game->player_walk_animation->cycle = 0;
+        //         game->player_walk_animation->frame_index++;
+        //         if( game->player_walk_animation->frame_index >=
+        //             game->player_walk_animation->frame_count )
+        //         {
+        //             game->player_walk_animation->frame_index = 0;
+        //         }
+        //     }
+        // }
 
         for( int i = 0; i < game->scene->scenery->elements_length; i++ )
         {
@@ -387,99 +420,99 @@ LibToriRS_GameStep(
         // Get current time (using tick_ms as fallback, or we can use a platform-specific timer)
         // For now, we'll use a simple approach: track time in game structure
         // The timestamp will be updated by the platform layer
-        if( game->player_tx != -1 )
-        {
-            int player_target_draw_x = game->player_tx * 128;
-            int player_target_draw_z = game->player_tz * 128;
-            if( player_target_draw_x != game->player_draw_x ||
-                player_target_draw_z != game->player_draw_z )
-            {
-                // Move one tile if enough time has passed
+        // if( game->player_tx != -1 )
+        // {
+        //     int player_target_draw_x = game->player_tx * 128;
+        //     int player_target_draw_z = game->player_tz * 128;
+        //     if( player_target_draw_x != game->player_draw_x ||
+        //         player_target_draw_z != game->player_draw_z )
+        //     {
+        //         // Move one tile if enough time has passed
 
-                int xdiff = player_target_draw_x - game->player_draw_x;
-                int zdiff = player_target_draw_z - game->player_draw_z;
-                int xmove = 0;
-                int zmove = 0;
-                int pxmove = 0;
-                int pzmove = 0;
-                // 4 6
-                static const int move_speed = 4;
-                if( abs(xdiff) > move_speed )
-                {
-                    xmove = xdiff > 0 ? 1 : -1;
-                    pxmove = xmove * move_speed;
-                }
-                else
-                {
-                    pxmove = player_target_draw_x - game->player_draw_x;
-                }
-                if( abs(zdiff) > move_speed )
-                {
-                    zmove = zdiff > 0 ? 1 : -1;
-                    pzmove = zmove * move_speed;
-                }
-                else
-                {
-                    pzmove = player_target_draw_z - game->player_draw_z;
-                }
+        //         int xdiff = player_target_draw_x - game->player_draw_x;
+        //         int zdiff = player_target_draw_z - game->player_draw_z;
+        //         int xmove = 0;
+        //         int zmove = 0;
+        //         int pxmove = 0;
+        //         int pzmove = 0;
+        //         // 4 6
+        //         static const int move_speed = 4;
+        //         if( abs(xdiff) > move_speed )
+        //         {
+        //             xmove = xdiff > 0 ? 1 : -1;
+        //             pxmove = xmove * move_speed;
+        //         }
+        //         else
+        //         {
+        //             pxmove = player_target_draw_x - game->player_draw_x;
+        //         }
+        //         if( abs(zdiff) > move_speed )
+        //         {
+        //             zmove = zdiff > 0 ? 1 : -1;
+        //             pzmove = zmove * move_speed;
+        //         }
+        //         else
+        //         {
+        //             pzmove = player_target_draw_z - game->player_draw_z;
+        //         }
 
-                // Update camera world position
-                game->player_draw_x += pxmove;
-                game->player_draw_z += pzmove;
+        //         // Update camera world position
+        //         game->player_draw_x += pxmove;
+        //         game->player_draw_z += pzmove;
 
-                if( xdiff >= 2 || zdiff >= 2 )
-                {
-                    game->player_state = 2;
-                }
-                else
-                {
-                    game->player_state = 1;
-                }
-                if( xdiff == 0 )
-                {
-                    if( zdiff > 0 )
-                    {
-                        game->player_draw_yaw = 1024;
-                    }
-                    else
-                    {
-                        game->player_draw_yaw = 0;
-                    }
-                }
-                else if( zdiff == 0 )
-                {
-                    if( xdiff > 0 )
-                    {
-                        game->player_draw_yaw = 1536;
-                    }
-                    else
-                    {
-                        game->player_draw_yaw = 512;
-                    }
-                }
+        //         if( xdiff >= 2 || zdiff >= 2 )
+        //         {
+        //             game->player_state = 2;
+        //         }
+        //         else
+        //         {
+        //             game->player_state = 1;
+        //         }
+        //         if( xdiff == 0 )
+        //         {
+        //             if( zdiff > 0 )
+        //             {
+        //                 game->player_draw_yaw = 1024;
+        //             }
+        //             else
+        //             {
+        //                 game->player_draw_yaw = 0;
+        //             }
+        //         }
+        //         else if( zdiff == 0 )
+        //         {
+        //             if( xdiff > 0 )
+        //             {
+        //                 game->player_draw_yaw = 1536;
+        //             }
+        //             else
+        //             {
+        //                 game->player_draw_yaw = 512;
+        //             }
+        //         }
 
-                else if( xdiff > 0 && zdiff > 0 )
-                {
-                    game->player_draw_yaw = 1024 + 256;
-                }
-                else if( xdiff > 0 && zdiff < 0 )
-                {
-                    game->player_draw_yaw = 1536 + 256;
-                }
-                else if( xdiff < 0 && zdiff > 0 )
-                {
-                    game->player_draw_yaw = 512 + 256;
-                }
-                else if( xdiff < 0 && zdiff < 0 )
-                {
-                    game->player_draw_yaw = 256;
-                }
-            }
-            else
-            {
-                game->player_state = 0;
-            }
-        }
+        //         else if( xdiff > 0 && zdiff > 0 )
+        //         {
+        //             game->player_draw_yaw = 1024 + 256;
+        //         }
+        //         else if( xdiff > 0 && zdiff < 0 )
+        //         {
+        //             game->player_draw_yaw = 1536 + 256;
+        //         }
+        //         else if( xdiff < 0 && zdiff > 0 )
+        //         {
+        //             game->player_draw_yaw = 512 + 256;
+        //         }
+        //         else if( xdiff < 0 && zdiff < 0 )
+        //         {
+        //             game->player_draw_yaw = 256;
+        //         }
+        //     }
+        //     else
+        //     {
+        //         game->player_state = 0;
+        //     }
+        // }
     }
 
     // tori_rs_render_command_buffer_reset(render_command_buffer);
@@ -808,7 +841,7 @@ LibToriRS_NetPump(struct GGame* game)
     while( available > 0 )
     {
         int ret = 1;
-        char contiguous_buffer[64];
+        char contiguous_buffer[4096];
 
         while( ret > 0 )
         {
