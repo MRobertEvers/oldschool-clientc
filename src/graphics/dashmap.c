@@ -222,6 +222,7 @@ dashmap_init(
         return DASHMAP_BADARG;
 
     memset(m, 0, sizeof(*m));
+    memset(buffer, 0, buffer_size);
 
     const size_t align = 16;
 

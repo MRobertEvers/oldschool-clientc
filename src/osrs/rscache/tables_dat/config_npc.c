@@ -1,5 +1,6 @@
 #include "config_npc.h"
 
+#include "../filelist.h"
 #include "../rsbuf.h"
 
 #include <assert.h>
@@ -9,11 +10,72 @@
 #include <stdlib.h>
 #include <string.h>
 
+// name: string | null = null;
+// desc: string | null = null;
+// size: number = 1;
+// models: Uint16Array | null = null;
+// heads: Uint16Array | null = null;
+// readyanim: number = -1;
+// walkanim: number = -1;
+// walkanim_b: number = -1;
+// walkanim_r: number = -1;
+// walkanim_l: number = -1;
+// animHasAlpha: boolean = false;
+// recol_s: Uint16Array | null = null;
+// recol_d: Uint16Array | null = null;
+// op: (string | null)[] | null = null;
+// resizex: number = -1;
+// resizey: number = -1;
+// resizez: number = -1;
+// minimap: boolean = true;
+// vislevel: number = -1;
+// resizeh: number = 128;
+// resizev: number = 128;
+// alwaysontop: boolean = false;
+// headicon: number = -1;
+// static modelCache: LruCache | null = new LruCache(30);
+// ambient: number = 0;
+// contrast: number = 0;
+static void
+init_npc(struct CacheDatConfigNpc* npc)
+{
+    memset(npc, 0, sizeof(struct CacheDatConfigNpc));
+    npc->name = NULL;
+    npc->desc = NULL;
+    npc->size = 1;
+    npc->models = NULL;
+    npc->models_count = 0;
+    npc->heads = NULL;
+    npc->heads_count = 0;
+    npc->readyanim = -1;
+    npc->walkanim = -1;
+    npc->walkanim_b = -1;
+    npc->walkanim_r = -1;
+    npc->walkanim_l = -1;
+    npc->animHasAlpha = false;
+    npc->recol_s = NULL;
+    npc->recol_d = NULL;
+    npc->recol_count = 0;
+    npc->resizex = -1;
+    npc->resizey = -1;
+    npc->resizez = -1;
+    npc->minimap = true;
+    npc->vislevel = -1;
+    npc->resizeh = 128;
+    npc->resizev = 128;
+    npc->alwaysontop = false;
+    npc->headicon = -1;
+    npc->ambient = 0;
+    npc->contrast = 0;
+}
+
 static struct CacheDatConfigNpc*
 decode_npc(struct RSBuffer* buffer)
 {
     struct CacheDatConfigNpc* npc = malloc(sizeof(struct CacheDatConfigNpc));
     memset(npc, 0, sizeof(struct CacheDatConfigNpc));
+
+    init_npc(npc);
 
     // Initialize default values
     npc->size = 1;
@@ -235,32 +297,37 @@ decode_npc(struct RSBuffer* buffer)
 
 struct CacheDatConfigNpcList*
 cache_dat_config_npc_list_new_decode(
-    void* jagfile_npcdat_data,
-    int jagfile_npcdat_data_size)
+    char* index_data,
+    int index_data_size,
+    char* data,
+    int data_size)
 {
     struct CacheDatConfigNpcList* npc_list = malloc(sizeof(struct CacheDatConfigNpcList));
     memset(npc_list, 0, sizeof(struct CacheDatConfigNpcList));
 
-    struct RSBuffer buffer = { .data = jagfile_npcdat_data,
-                               .size = jagfile_npcdat_data_size,
-                               .position = 0 };
+    struct FileListDatIndexed* filelist_indexed =
+        filelist_dat_indexed_new_from_decode(index_data, index_data_size, data, data_size);
 
-    int npc_count = g2(&buffer);
-    npc_list->npcs = malloc(npc_count * sizeof(struct CacheDatConfigNpc));
-    memset(npc_list->npcs, 0, npc_count * sizeof(struct CacheDatConfigNpc));
+    npc_list->npcs = malloc(filelist_indexed->offset_count * sizeof(struct CacheDatConfigNpc));
+    memset(npc_list->npcs, 0, filelist_indexed->offset_count * sizeof(struct CacheDatConfigNpc));
 
-    npc_list->npcs_count = npc_count;
+    npc_list->npcs_count = filelist_indexed->offset_count;
 
-    for( int i = 0; i < npc_count; i++ )
+    struct RSBuffer buffer;
+    for( int i = 0; i < filelist_indexed->offset_count; i++ )
     {
-        struct CacheDatConfigNpc* decoded_npc = decode_npc(&buffer);
-        if( decoded_npc == NULL )
+        rsbuf_init(
+            &buffer,
+            filelist_indexed->data + filelist_indexed->offsets[i],
+            filelist_indexed->data_size - filelist_indexed->offsets[i]);
+
+        struct CacheDatConfigNpc* npc = decode_npc(&buffer);
+        if( npc == NULL )
         {
             assert(false && "Failed to decode npc");
             return NULL;
         }
-        npc_list->npcs[i] = *decoded_npc;
-        free(decoded_npc);
+        npc_list->npcs[i] = npc;
     }
 
     return npc_list;

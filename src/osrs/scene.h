@@ -125,6 +125,11 @@ scene_element_at(
     struct SceneScenery* scenery,
     int element_idx);
 
+int
+scene_push_element_move(
+    struct Scene* scene,
+    struct SceneElement* element);
+
 bool
 scene_element_interactable(
     struct Scene* scene,

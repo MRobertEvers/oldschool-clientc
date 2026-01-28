@@ -28,6 +28,7 @@
 #include "osrs/rscache/tables/textures.h"
 #include "osrs/rscache/tables_dat/animframe.h"
 #include "osrs/rscache/tables_dat/config_idk.h"
+#include "osrs/rscache/tables_dat/config_npc.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/rscache/tables_dat/pix32.h"
@@ -1225,6 +1226,24 @@ step_idkits_load(struct TaskInitSceneDat* task)
     for( int i = 0; i < idk_list->idks_count; i++ )
     {
         buildcachedat_add_idk(task->buildcachedat, i, idk_list->idks[i]);
+    }
+
+    data_file_idx = filelist_dat_find_file_by_name(filelist, "npc.dat");
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "npc.idx");
+
+    assert(
+        data_file_idx != -1 && index_file_idx != -1 &&
+        "Failed to find npc.dat or npc.idx in filelist");
+
+    struct CacheDatConfigNpcList* npc_list = cache_dat_config_npc_list_new_decode(
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx]);
+
+    for( int i = 0; i < npc_list->npcs_count; i++ )
+    {
+        buildcachedat_add_npc(task->buildcachedat, i, npc_list->npcs[i]);
     }
 
     return GAMETASK_STATUS_COMPLETED;

@@ -128,61 +128,61 @@ query_engine_qset_active_dt(
     uint32_t dt);
 
 uint32_t
-query_engine_qget_dt(struct QEQuery* q);
+query_engine_qdecode_dt(struct QEQuery* q);
 
 uint32_t
-query_engine_qget_fn(struct QEQuery* q);
+query_engine_qdecode_fn(struct QEQuery* q);
 
 uint32_t
-query_engine_qget_action(struct QEQuery* q);
+query_engine_qdecode_action(struct QEQuery* q);
 
 uint32_t
-query_engine_qget_arg(struct QEQuery* q);
+query_engine_qdecode_arg(struct QEQuery* q);
 
 uint32_t
-query_engine_qget_argx_count(struct QEQuery* q);
+query_engine_qdecode_argx_count(struct QEQuery* q);
 
 uint32_t
-query_engine_init_set(
+query_engine_qreg_init_active(
     struct QueryEngine* qe,
     struct QEQuery* q,
     enum QueryEngineAction action,
     int dt);
 
+int32_t
+query_engine_qreg_get_active_idx(struct QEQuery* q);
+
 bool
-query_engine_qdone(struct QEQuery* q);
+query_engine_qisdone(struct QEQuery* q);
 
 enum QEQueryState
 query_engine_qstate(struct QEQuery* q);
 
-int32_t
-query_engine_qget_active_set_idx(struct QEQuery* q);
-
 void
-query_engine_qset_push(
+query_engine_qreg_push(
     struct QueryEngine* query_engine,
-    int set_idx,
+    int reg_idx,
     int id,
     void* value);
 
 void
-query_engine_qget_begin(
+query_engine_qreg_iter_begin(
     struct QueryEngine* query_engine,
-    int set_idx);
+    int reg_idx);
 
 void*
-query_engine_qget_next(
+query_engine_qreg_iter_next(
     struct QueryEngine* query_engine,
-    int set_idx);
+    int reg_idx);
 
 void
-query_engine_qget_end(
+query_engine_qreg_iter_end(
     struct QueryEngine* query_engine,
-    int set_idx);
+    int reg_idx);
 
 uint32_t
-query_engine_qget_set_dt(
+query_engine_qreg_get_dt(
     struct QueryEngine* query_engine,
-    int set_idx);
+    int reg_idx);
 
 #endif

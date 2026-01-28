@@ -13,6 +13,7 @@
 #include "osrs/rscache/tables/textures.h"
 #include "osrs/rscache/tables_dat/animframe.h"
 #include "osrs/rscache/tables_dat/config_idk.h"
+#include "osrs/rscache/tables_dat/config_npc.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/rscache/tables_dat/pix32.h"
@@ -32,6 +33,7 @@ struct BuildCacheDat
 
     struct DashMap* idk_models_hmap;
     struct DashMap* obj_models_hmap;
+    struct DashMap* npc_models_hmap;
 
     struct DashMap* config_loc_hmap;
     struct DashMap* animframes_hmap;
@@ -39,6 +41,7 @@ struct BuildCacheDat
     struct DashMap* sequences_hmap;
     struct DashMap* idk_hmap;
     struct DashMap* obj_hmap;
+    struct DashMap* npc_hmap;
 };
 
 struct BuildCacheDat*
@@ -148,6 +151,34 @@ struct CacheModel*
 buildcachedat_get_obj_model(
     struct BuildCacheDat* buildcachedat,
     int obj_id);
+
+void
+buildcachedat_add_npc(
+    struct BuildCacheDat* buildcachedat,
+    int npc_id,
+    struct CacheDatConfigNpc* npc);
+
+struct CacheDatConfigNpc*
+buildcachedat_get_npc(
+    struct BuildCacheDat* buildcachedat,
+    int npc_id);
+
+struct DashMapIter*
+buildcachedat_iter_new_npcs(struct BuildCacheDat* buildcachedat);
+
+struct CacheDatConfigNpc*
+buildcachedat_iter_next_npc(struct DashMapIter* iter);
+
+void
+buildcachedat_add_npc_model(
+    struct BuildCacheDat* buildcachedat,
+    int npc_id,
+    struct CacheModel* model);
+
+struct CacheModel*
+buildcachedat_get_npc_model(
+    struct BuildCacheDat* buildcachedat,
+    int npc_id);
 
 struct CacheModel*
 buildcachedat_iter_next_model(struct DashMapIter* iter);

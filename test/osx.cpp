@@ -1,5 +1,5 @@
 extern "C" {
-#include "osrs/gameproto.h"
+#include "osrs/gameproto_parse.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/lclogin.h"

@@ -236,6 +236,7 @@
         "buildcachedat.h": "c",
         "gametask_status.h": "c",
         "vec.h": "c",
-        "revpacket_lc245_2.h": "c"
+        "revpacket_lc245_2.h": "c",
+        "bitbuffer.h": "c"
     },
 }

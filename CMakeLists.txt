@@ -79,12 +79,13 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/filepack.c
         src/osrs/dash_utils.c
         src/osrs/gametask.c
-        src/osrs/gameproto.c
+        src/osrs/gameproto_parse.c
         src/osrs/gameproto_process.c
         src/osrs/packetbuffer.c
         src/osrs/rscache/compression.c
         src/osrs/rscache/tables/string_utils.c
         src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
+        src/osrs/rscache/tables_dat/config_npc.c
 
         src/osrs/rscache/cache.c
         src/osrs/rscache/cache_dat.c
@@ -101,6 +102,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/3rd/tommath/mpi.c
         src/osrs/rsa.c
         src/osrs/rscache/rsbuf.c
+        src/osrs/rscache/bitbuffer.c
         src/osrs/rscache/xtea.c
         src/osrs/query_engine.c
         src/osrs/query_executor_dat.c

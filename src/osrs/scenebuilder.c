@@ -179,3 +179,42 @@ scenebuilder_load_from_buildcache(
 
 //     return animation;
 // }
+
+static struct DashPosition*
+dash_position_from_offset_1x1_elem(
+    int sx,
+    int sz,
+    int height_center)
+{
+    struct DashPosition* dash_position = malloc(sizeof(struct DashPosition));
+    memset(dash_position, 0, sizeof(struct DashPosition));
+
+    dash_position->x = sx * TILE_SIZE + 64;
+    dash_position->z = sz * TILE_SIZE + 64;
+    dash_position->y = height_center;
+
+    return dash_position;
+}
+
+void
+scenebuilder_push_element(
+    struct SceneBuilder* scene_builder,
+    struct Scene* scene,
+    int sx,
+    int sz,
+    int slevel,
+    int size_x,
+    int size_z,
+    struct DashModel* dash_model)
+{
+    struct SceneElement scene_element = { 0 };
+
+    int height_center = scene_terrain_height_center(scene, sx, sz, slevel);
+
+    scene_element.dash_model = dash_model;
+    scene_element.dash_position = dash_position_from_offset_1x1_elem(sx, sz, height_center);
+
+    int element_id = scene_push_element_move(scene, &scene_element);
+
+    painter_add_normal_scenery(scene_builder->painter, sx, sz, slevel, element_id, size_x, size_z);
+}

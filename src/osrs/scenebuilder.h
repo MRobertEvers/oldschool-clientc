@@ -49,4 +49,15 @@ scenebuilder_new_animation(
     struct SceneBuilder* scene_builder,
     int sequence_id);
 
+void
+scenebuilder_push_element(
+    struct SceneBuilder* scene_builder,
+    struct Scene* scene,
+    int sx,
+    int sz,
+    int slevel,
+    int size_x,
+    int size_z,
+    struct DashModel* dash_model);
+
 #endif

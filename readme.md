@@ -1438,3 +1438,9 @@ DRAW_TEXT
 SET_BUFFER (For drawing somewhere else and later blitting to main buffer.)
 BLIT_BUFFER ()
 ```
+
+
+## Positions
+
+NPC Positions are sent relative to the local player. (routeTile[0])
+The local player position is sent in the first Player Info packet.

@@ -8,6 +8,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int*
+qe_decode_varargs_new(
+    struct QEQuery* q,
+    int argx_count)
+{
+    int* args = malloc(argx_count * sizeof(int));
+    memset(args, 0, argx_count * sizeof(int));
+    for( int i = 0; i < argx_count; i++ )
+    {
+        args[i] = query_engine_qdecode_arg(q);
+    }
+    return args;
+}
+
 static void
 dt_maps_scenery_exec(
     struct QueryEngine* query_engine,
@@ -21,13 +35,8 @@ dt_maps_scenery_exec(
     {
     case QE_FN_0:
     {
-        int argx_count = query_engine_qget_argx_count(q);
-        int* regions = malloc(argx_count * sizeof(int));
-        memset(regions, 0, argx_count * sizeof(int));
-        for( int i = 0; i < argx_count; i++ )
-        {
-            regions[i] = query_engine_qget_arg(q);
-        }
+        int argx_count = query_engine_qdecode_argx_count(q);
+        int* regions = qe_decode_varargs_new(q, argx_count);
 
         struct CacheMapLocs* existing = NULL;
         for( int i = 0; i < argx_count; i++ )
@@ -72,8 +81,8 @@ dt_maps_scenery_poll(
     buildcachedat_add_scenery(buildcachedat, locs->_chunk_mapx, locs->_chunk_mapz, locs);
 
     int regionid = locs->_chunk_mapx << 8 | locs->_chunk_mapz;
-    int set_idx = query_engine_qget_active_set_idx(q);
-    query_engine_qset_push(query_engine, set_idx, regionid, locs);
+    int reg_idx = query_engine_qreg_get_active_idx(q);
+    query_engine_qreg_push(query_engine, reg_idx, regionid, locs);
 }
 
 static void
@@ -89,13 +98,8 @@ dt_maps_terrain_exec(
     {
     case QE_FN_0:
     {
-        int argx_count = query_engine_qget_argx_count(q);
-        int* regions = malloc(argx_count * sizeof(int));
-        memset(regions, 0, argx_count * sizeof(int));
-        for( int i = 0; i < argx_count; i++ )
-        {
-            regions[i] = query_engine_qget_arg(q);
-        }
+        int argx_count = query_engine_qdecode_argx_count(q);
+        int* regions = qe_decode_varargs_new(q, argx_count);
 
         struct CacheMapTerrain* existing = NULL;
         for( int i = 0; i < argx_count; i++ )
@@ -141,8 +145,8 @@ dt_maps_terrain_poll(
     buildcachedat_add_map_terrain(buildcachedat, mapx, mapz, terrain);
 
     int regionid = MAPREGIONXZ(mapx, mapz);
-    int set_idx = query_engine_qget_active_set_idx(q);
-    query_engine_qset_push(query_engine, set_idx, regionid, terrain);
+    int reg_idx = query_engine_qreg_get_active_idx(q);
+    query_engine_qreg_push(query_engine, reg_idx, regionid, terrain);
 }
 
 static void
@@ -156,6 +160,24 @@ dt_config_locs_exec(
 {
     switch( fn )
     {
+    case QE_FN_0:
+    {
+        int argx_count = query_engine_qdecode_argx_count(q);
+        int* model_ids = qe_decode_varargs_new(q, argx_count);
+
+        for( int i = 0; i < argx_count; i++ )
+        {
+            int model_id = model_ids[i];
+            struct CacheModel* model = buildcachedat_get_model(buildcachedat, model_id);
+            if( !model )
+            {
+                int reqid = gio_assets_dat_models_load(io, model_id);
+                query_engine_qpush_reqid(q, reqid);
+            }
+        }
+
+        free(model_ids);
+    }
     case QE_FN_FROM_0:
     case QE_FN_FROM_1:
     case QE_FN_FROM_2:
@@ -183,12 +205,12 @@ dt_config_locs_exec(
             config_jagfile->files[data_file_idx],
             config_jagfile->file_sizes[data_file_idx]);
 
-        int set_idx = fn - QE_FN_FROM_0;
+        int reg_idx = fn - QE_FN_FROM_0;
 
         struct CacheMapLocs* locs = NULL;
         struct CacheMapLoc* loc = NULL;
-        query_engine_qget_begin(query_engine, set_idx);
-        while( (locs = query_engine_qget_next(query_engine, set_idx)) != NULL )
+        query_engine_qreg_iter_begin(query_engine, reg_idx);
+        while( (locs = query_engine_qreg_iter_next(query_engine, reg_idx)) != NULL )
         {
             int mapx = locs->_chunk_mapx;
             int mapz = locs->_chunk_mapz;
@@ -213,7 +235,7 @@ dt_config_locs_exec(
                 buildcachedat_add_config_loc(buildcachedat, loc->loc_id, config_loc);
             }
         }
-        query_engine_qget_end(query_engine, set_idx);
+        query_engine_qreg_iter_end(query_engine, reg_idx);
     }
     break;
     default:
@@ -321,12 +343,13 @@ dt_models_exec(
     {
     case QE_FN_0:
     {
-        int argx_count = query_engine_qget_argx_count(q);
+        int argx_count = query_engine_qdecode_argx_count(q);
         int* model_ids = malloc(argx_count * sizeof(int));
         memset(model_ids, 0, argx_count * sizeof(int));
         for( int i = 0; i < argx_count; i++ )
         {
-            model_ids[i] = query_engine_qget_arg(q);
+            model_ids[i] = query_engine_qdecode_arg(q);
+            printf("Fetching model %d\n", model_ids[i]);
         }
 
         struct CacheModel* existing = NULL;
@@ -357,16 +380,16 @@ dt_models_exec(
     case QE_FN_FROM_8:
     case QE_FN_FROM_9:
     {
-        int fromset_idx = fn - QE_FN_FROM_0;
+        int fromreg_idx = fn - QE_FN_FROM_0;
 
-        int dt = query_engine_qget_set_dt(query_engine, fromset_idx);
+        int dt = query_engine_qreg_get_dt(query_engine, fromreg_idx);
         assert(dt == QEDAT_DT_MAPS_SCENERY);
 
         struct Vec* queued_scenery_models_vec = vec_new(sizeof(int), 512);
 
-        query_engine_qget_begin(query_engine, fromset_idx);
+        query_engine_qreg_iter_begin(query_engine, fromreg_idx);
         struct CacheMapLocs* scenery = NULL;
-        while( (scenery = query_engine_qget_next(query_engine, fromset_idx)) )
+        while( (scenery = query_engine_qreg_iter_next(query_engine, fromreg_idx)) )
         {
             for( int i = 0; i < scenery->locs_count; i++ )
             {
@@ -380,7 +403,7 @@ dt_models_exec(
             }
         }
 
-        query_engine_qget_end(query_engine, fromset_idx);
+        query_engine_qreg_iter_end(query_engine, fromreg_idx);
 
         for( int i = 0; i < vec_size(queued_scenery_models_vec); i++ )
         {
@@ -421,11 +444,12 @@ query_executor_dat_step_active(
     struct GIOQueue* io,
     struct BuildCacheDat* buildcachedat)
 {
-    uint32_t dt = query_engine_qget_dt(q);
-    uint32_t fn = query_engine_qget_fn(q);
-    uint32_t action = query_engine_qget_action(q);
+    uint32_t dt = query_engine_qdecode_dt(q);
+    uint32_t fn = query_engine_qdecode_fn(q);
+    uint32_t action = query_engine_qdecode_action(q);
 
     query_engine_qset_active_dt(q, dt);
+    query_engine_qreg_init_active(query_engine, q, action, dt);
 
     switch( dt )
     {
@@ -451,7 +475,6 @@ query_executor_dat_step_active(
     }
 
     query_engine_qawait(q);
-    query_engine_init_set(query_engine, q, action, dt);
 }
 
 void

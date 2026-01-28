@@ -37,7 +37,7 @@ task_query_free(struct TaskQuery* task)
 enum GameTaskStatus
 task_query_step(struct TaskQuery* task)
 {
-    if( !query_engine_qdone(task->q) )
+    if( !query_engine_qisdone(task->q) )
     {
         query_executor_dat_step(
             task->query_engine, task->q, task->game->io, task->game->buildcachedat);

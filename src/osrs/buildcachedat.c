@@ -84,6 +84,18 @@ struct ObjModelEntry
     struct CacheModel* model;
 };
 
+struct NpcEntry
+{
+    int id;
+    struct CacheDatConfigNpc* npc;
+};
+
+struct NpcModelEntry
+{
+    int id;
+    struct CacheModel* model;
+};
+
 struct BuildCacheDat*
 buildcachedat_new(void)
 {
@@ -197,6 +209,22 @@ buildcachedat_new(void)
         .entry_size = sizeof(struct MapTerrainEntry),
     };
     buildcachedat->map_terrains_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct NpcEntry),
+    };
+    buildcachedat->npc_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct NpcModelEntry),
+    };
+    buildcachedat->npc_models_hmap = dashmap_new(&config, 0);
 
     return buildcachedat;
 }
@@ -413,6 +441,75 @@ buildcachedat_get_obj_model(
     if( !obj_entry )
         return NULL;
     return obj_entry->model;
+}
+
+void
+buildcachedat_add_npc(
+    struct BuildCacheDat* buildcachedat,
+    int npc_id,
+    struct CacheDatConfigNpc* npc)
+{
+    struct NpcEntry* npc_entry =
+        (struct NpcEntry*)dashmap_search(buildcachedat->npc_hmap, &npc_id, DASHMAP_INSERT);
+    assert(npc_entry && "Npc must be inserted into hmap");
+    npc_entry->id = npc_id;
+    npc_entry->npc = npc;
+}
+
+struct CacheDatConfigNpc*
+buildcachedat_get_npc(
+    struct BuildCacheDat* buildcachedat,
+    int npc_id)
+{
+    struct NpcEntry* npc_entry =
+        (struct NpcEntry*)dashmap_search(buildcachedat->npc_hmap, &npc_id, DASHMAP_FIND);
+    if( !npc_entry )
+        return NULL;
+    return npc_entry->npc;
+}
+
+struct DashMapIter*
+buildcachedat_iter_new_npcs(struct BuildCacheDat* buildcachedat)
+{
+    return dashmap_iter_new(buildcachedat->npc_hmap);
+}
+
+struct CacheDatConfigNpc*
+buildcachedat_iter_next_npc(struct DashMapIter* iter)
+{
+    struct NpcEntry* npc_entry = (struct NpcEntry*)dashmap_iter_next(iter);
+    if( !npc_entry )
+        return NULL;
+    return npc_entry->npc;
+}
+
+void
+buildcachedat_add_npc_model(
+    struct BuildCacheDat* buildcachedat,
+    int npc_id,
+    struct CacheModel* model)
+{
+    if( npc_id == 45 )
+    {
+        printf("Adding npc model %d\n", npc_id);
+    }
+    struct NpcModelEntry* npc_model_entry = (struct NpcModelEntry*)dashmap_search(
+        buildcachedat->npc_models_hmap, &npc_id, DASHMAP_INSERT);
+    assert(npc_model_entry && "Npc model must be inserted into hmap");
+    npc_model_entry->id = npc_id;
+    npc_model_entry->model = model;
+}
+
+struct CacheModel*
+buildcachedat_get_npc_model(
+    struct BuildCacheDat* buildcachedat,
+    int npc_id)
+{
+    struct NpcModelEntry* npc_model_entry = (struct NpcModelEntry*)dashmap_search(
+        buildcachedat->npc_models_hmap, &npc_id, DASHMAP_FIND);
+    if( !npc_model_entry )
+        return NULL;
+    return npc_model_entry->model;
 }
 
 // TODO: Needs to only be done by loc id and not shape select.

@@ -37,13 +37,15 @@ struct CacheDatConfigNpc
 
 struct CacheDatConfigNpcList
 {
-    struct CacheDatConfigNpc* npcs;
+    struct CacheDatConfigNpc** npcs;
     int npcs_count;
 };
 
 struct CacheDatConfigNpcList*
 cache_dat_config_npc_list_new_decode(
-    void* jagfile_npcdat_data,
-    int jagfile_npcdat_data_size);
+    char* index_data,
+    int index_data_size,
+    char* data,
+    int data_size);
 
 #endif

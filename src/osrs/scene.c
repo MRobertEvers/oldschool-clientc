@@ -184,6 +184,14 @@ scene_element_at(
     return &scenery->elements[element_idx];
 }
 
+int
+scene_push_element_move(
+    struct Scene* scene,
+    struct SceneElement* element)
+{
+    return scene_scenery_push_element_move(scene->scenery, element);
+}
+
 bool
 scene_element_interactable(
     struct Scene* scene,
