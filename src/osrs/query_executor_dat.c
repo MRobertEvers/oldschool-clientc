@@ -212,7 +212,7 @@ dt_config_locs_exec(
         struct CacheMapLocs* locs = NULL;
         struct CacheMapLoc* loc = NULL;
         query_engine_qreg_iter_begin(query_engine, reg_idx);
-        while( (locs = query_engine_qreg_iter_next(query_engine, reg_idx)) != NULL )
+        while( (locs = query_engine_qreg_iter_next(query_engine, reg_idx, NULL)) != NULL )
         {
             int mapx = locs->_chunk_mapx;
             int mapz = locs->_chunk_mapz;
@@ -353,7 +353,7 @@ dt_models_from_dt(
 
         query_engine_qreg_iter_begin(query_engine, fromreg_idx);
         struct CacheMapLocs* scenery = NULL;
-        while( (scenery = query_engine_qreg_iter_next(query_engine, fromreg_idx)) )
+        while( (scenery = query_engine_qreg_iter_next(query_engine, fromreg_idx, NULL)) )
         {
             for( int i = 0; i < scenery->locs_count; i++ )
             {
@@ -385,8 +385,10 @@ dt_models_from_dt(
 
         query_engine_qreg_iter_begin(query_engine, fromreg_idx);
         struct CacheDatConfigObj* obj = NULL;
-        while( (obj = query_engine_qreg_iter_next(query_engine, fromreg_idx)) )
+        int obj_id = 0;
+        while( (obj = query_engine_qreg_iter_next(query_engine, fromreg_idx, &obj_id)) )
         {
+            printf("Processing obj: %d\n", obj_id);
             if( obj->manwear != -1 )
             {
                 vec_push_unique(queued_obj_models_vec, &obj->manwear);
@@ -456,7 +458,7 @@ dt_models_from_dt(
 
         query_engine_qreg_iter_begin(query_engine, fromreg_idx);
         struct CacheDatConfigIdk* idk = NULL;
-        while( (idk = query_engine_qreg_iter_next(query_engine, fromreg_idx)) )
+        while( (idk = query_engine_qreg_iter_next(query_engine, fromreg_idx, NULL)) )
         {
             for( int j = 0; j < idk->models_count; j++ )
             {
@@ -505,7 +507,6 @@ dt_models_exec(
         for( int i = 0; i < argx_count; i++ )
         {
             model_ids[i] = query_engine_qdecode_arg(q);
-            printf("Fetching model %d\n", model_ids[i]);
         }
 
         struct CacheModel* existing = NULL;
@@ -580,10 +581,11 @@ dt_config_idks_exec(
         int argx_count = query_engine_qdecode_argx_count(q);
         int* idk_ids = qe_decode_varargs_new(q, argx_count);
 
+        struct CacheDatConfigIdk* idk = NULL;
         for( int i = 0; i < argx_count; i++ )
         {
             int idk_id = idk_ids[i];
-            struct CacheConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+            idk = buildcachedat_get_idk(buildcachedat, idk_id);
 
             query_engine_qreg_push(query_engine, store_idx, idk_id, idk);
         }
@@ -623,10 +625,12 @@ dt_config_objs_exec(
         int argx_count = query_engine_qdecode_argx_count(q);
         int* obj_ids = qe_decode_varargs_new(q, argx_count);
 
+        struct CacheDatConfigObj* obj = NULL;
         for( int i = 0; i < argx_count; i++ )
         {
             int obj_id = obj_ids[i];
-            struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+            obj = buildcachedat_get_obj(buildcachedat, obj_id);
+            assert(obj != NULL && "Obj must be found");
 
             query_engine_qreg_push(query_engine, store_idx, obj_id, obj);
         }

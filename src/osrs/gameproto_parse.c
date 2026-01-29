@@ -42,10 +42,6 @@ gameproto_parse_lc245_2(
     }
     case PKTIN_LC245_2_PLAYER_INFO:
     {
-        static int g_already = 0;
-        if( g_already )
-            return 0;
-        g_already = 1;
         uint8_t* commandstream = malloc(data_size);
         memcpy(commandstream, data, data_size);
         packet->_player_info.length = data_size;

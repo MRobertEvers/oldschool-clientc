@@ -63,16 +63,19 @@ obj_model(
     if( obj->manwear != -1 )
     {
         models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear);
+        assert(models[model_count] && "Model must be found");
         model_count++;
     }
     if( obj->manwear2 != -1 )
     {
         models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear2);
+        assert(models[model_count] && "Model must be found");
         model_count++;
     }
     if( obj->manwear3 != -1 )
     {
         models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear3);
+        assert(models[model_count] && "Model must be found");
         model_count++;
     }
 
@@ -117,7 +120,7 @@ player_appearance_model(
     assert(merged->vertices_y && "Merged model must have vertices");
     assert(merged->vertices_z && "Merged model must have vertices");
 
-    struct DashModel* dash_model = dashmodel_new_from_cache_model(merged);
+    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_new_copy(merged));
     _light_model_default(dash_model, 0, 0);
 
     return dash_model;
@@ -333,15 +336,16 @@ add_player_info(
     struct SceneElement* scene_element = NULL;
 
     int count = pkt_player_info_reader_read(&player_info_reader, &packet->_player_info, ops, 2048);
-    int is_local_player = false;
+    int player_id = ACTIVE_PLAYER_SLOT;
+
+    game->player_count = 0;
     for( int i = 0; i < count; i++ )
     {
         struct PktPlayerInfoOp* op = &ops[i];
 
-        int player_idx = is_local_player ? ACTIVE_PLAYER_SLOT : ACTIVE_PLAYER_SLOT;
-        struct PlayerEntity* player = &game->players[player_idx];
+        struct PlayerEntity* player = &game->players[player_id];
+        player->alive = true;
 
-        struct SceneElement* scene_element = NULL;
         if( !player->scene_element )
         {
             scene_element = (struct SceneElement*)malloc(sizeof(struct SceneElement));
@@ -363,14 +367,34 @@ add_player_info(
         {
         case PKT_PLAYER_INFO_MODE_LOCAL_PLAYER:
         {
-            is_local_player = true;
-            player->alive = true;
+            player_id = ACTIVE_PLAYER_SLOT;
             break;
         }
-        case PKT_PLAYER_INFO_MODE_PLAYER_ENTITY_IDX:
-        case PKT_PLAYER_INFO_MODE_PLAYER_ENTITY_ID:
+        case PKT_PLAYER_INFO_MODE_PLAYER_IDX:
         {
-            is_local_player = false;
+            player_id = game->active_players[op->_bitvalue];
+            game->player_count += 1;
+            break;
+        }
+        case PKT_PLAYER_INFO_MODE_PLAYER_NEW:
+        {
+            player_id = op->_bitvalue;
+            game->active_players[game->player_count] = player_id;
+            game->player_count += 1;
+            break;
+        }
+        case PKT_PLAYER_INFO_OPBITS_DX:
+        {
+            int x = game->players[ACTIVE_PLAYER_SLOT].position.sx;
+
+            player->position.sx = op->_bitvalue + x;
+            break;
+        }
+        case PKT_PLAYER_INFO_OPBITS_DZ:
+        {
+            int z = game->players[ACTIVE_PLAYER_SLOT].position.sz;
+
+            player->position.sz = op->_bitvalue + z;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_LOCAL_X:

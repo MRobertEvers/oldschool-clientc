@@ -17,8 +17,8 @@ enum PktPlayerInfoOpKind
     // The server keeps track of the list of players that they sent to
     // the client. In future packets, it doesn't send the entity id,
     // only the entry in the list.
-    PKT_PLAYER_INFO_MODE_PLAYER_ENTITY_IDX,
-    PKT_PLAYER_INFO_MODE_PLAYER_ENTITY_ID,
+    PKT_PLAYER_INFO_MODE_PLAYER_NEW,
+    PKT_PLAYER_INFO_MODE_PLAYER_IDX,
     PKT_PLAYER_INFO_OPBITS_INFO,
     PKT_PLAYER_INFO_OPBITS_WALKDIR,
     PKT_PLAYER_INFO_OPBITS_RUNDIR,
@@ -140,8 +140,8 @@ struct PktPlayerInfo
 
 struct PktPlayerInfoReader
 {
-    uint16_t player_queue[2048];
-    int player_queue_size;
+    uint16_t extended_queue[2048];
+    int extended_count;
 
     // Maps [...2047] to [0...8192]
     // Where the index in the second array is the entity id.

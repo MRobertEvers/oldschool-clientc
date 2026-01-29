@@ -360,6 +360,24 @@ LibToriRS_GameStep(
         }
     }
 
+    for( int i = 0; i < game->player_count; i++ )
+    {
+        int player_id = game->active_players[i];
+        struct PlayerEntity* player = &game->players[player_id];
+        if( player->alive && player->scene_element )
+        {
+            scenebuilder_push_dynamic_element(
+                game->scenebuilder,
+                game->scene,
+                player->position.sx,
+                player->position.sz,
+                0,
+                1,
+                1,
+                player->scene_element);
+        }
+    }
+
     if( game->players[ACTIVE_PLAYER_SLOT].alive && game->players[ACTIVE_PLAYER_SLOT].scene_element )
     {
         scenebuilder_push_dynamic_element(
@@ -912,10 +930,15 @@ LibToriRS_NetPump(struct GGame* game)
                 }
                 if( packetbuffer_ready(game->packet_buffer) )
                 {
+                    int pkt = packetbuffer_packet_type(game->packet_buffer);
+                    if( pkt == 96 )
+                    {
+                        printf("packet type: %d\n", pkt);
+                    }
                     struct RevPacket_LC245_2 packet = { 0 };
                     int res = gameproto_parse_lc245_2(
                         game,
-                        packetbuffer_packet_type(game->packet_buffer),
+                        pkt,
                         packetbuffer_data(game->packet_buffer),
                         packetbuffer_size(game->packet_buffer),
                         &packet);

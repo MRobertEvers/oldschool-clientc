@@ -39,9 +39,19 @@ task_packet_step(struct TaskPacket* task)
     struct RevPacket_LC245_2_Item* item = task->game->packets_lc245_2_inflight;
     assert(item);
 
-    task->game->packets_lc245_2_inflight = item->next_nullable;
+    struct RevPacket_LC245_2_Item* item2 = item;
+    int count = 0;
+    while( item2 )
+    {
+        count++;
+        item2 = item2->next_nullable;
+    }
+
+    printf("Count: %d\n", count);
 
     gameproto_exec_lc245_2(task->game, &item->packet);
+
+    task->game->packets_lc245_2_inflight = item->next_nullable;
 
     return GAMETASK_STATUS_COMPLETED;
 }

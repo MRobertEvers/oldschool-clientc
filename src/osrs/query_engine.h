@@ -173,7 +173,8 @@ query_engine_qreg_iter_begin(
 void*
 query_engine_qreg_iter_next(
     struct QueryEngine* query_engine,
-    int reg_idx);
+    int reg_idx,
+    int* out_id);
 
 void
 query_engine_qreg_iter_end(

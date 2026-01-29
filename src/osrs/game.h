@@ -80,6 +80,8 @@ struct GGame
     int camera_rotation_speed;
 
     struct PlayerEntity players[MAX_PLAYERS];
+    uint32_t active_players[MAX_PLAYERS];
+    int player_count;
     struct NPCEntity npcs[MAX_NPCS];
 
     struct BuildCacheDat* buildcachedat;

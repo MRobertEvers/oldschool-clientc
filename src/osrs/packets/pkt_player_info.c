@@ -8,6 +8,15 @@
 
 #define MASK_APPEARANCE 0x01
 #define MASK_SEQUENCE 0x02
+#define MASK_FACE_ENTITY 0x04
+#define MASK_SAY 0x08
+#define MASK_DAMAGE 0x10
+#define MASK_FACE_COORD 0x20
+#define MASK_CHAT 0x40
+#define MASK_BIG_UPDATE 0x80
+#define MASK_SPOTANIM 0x100
+#define MASK_EXACT_MOVE 0x200
+#define MASK_DAMAGE2 0x400
 
 static struct PktPlayerInfoOp*
 next_op(
@@ -19,33 +28,6 @@ next_op(
     return &ops[reader->current_op++];
 }
 
-static uint16_t
-masked_pid(
-    int num,
-    bool is_entity_id)
-{
-    if( is_entity_id )
-    {
-        return num | 0x8000;
-    }
-    else
-    {
-        return num & 0x7FFF;
-    }
-}
-
-static uint16_t
-unmasked_pid(int num)
-{
-    return num & 0x7FFF;
-}
-
-static bool
-is_entity_id(int num)
-{
-    return num & 0x8000;
-}
-
 static void
 push_mode_local_player(struct PktPlayerInfoOp* op)
 {
@@ -53,21 +35,21 @@ push_mode_local_player(struct PktPlayerInfoOp* op)
 }
 
 static void
-push_mode_player_entity_idx(
+push_mode_player_new(
     struct PktPlayerInfoOp* op,
     int player_idx)
 {
-    op->kind = PKT_PLAYER_INFO_MODE_PLAYER_ENTITY_IDX;
+    op->kind = PKT_PLAYER_INFO_MODE_PLAYER_NEW;
     op->_bitvalue = player_idx;
 }
 
 static void
-push_mode_player_entity_id(
+push_mode_player_idx(
     struct PktPlayerInfoOp* op,
-    int player_entity_id)
+    int player_idx)
 {
-    op->kind = PKT_PLAYER_INFO_MODE_PLAYER_ENTITY_ID;
-    op->_bitvalue = player_entity_id;
+    op->kind = PKT_PLAYER_INFO_MODE_PLAYER_IDX;
+    op->_bitvalue = player_idx;
 }
 
 static void
@@ -169,7 +151,7 @@ pkt_player_info_reader_read(
     int ops_capacity)
 {
     reader->current_op = 0;
-    reader->player_queue_size = 0;
+    reader->extended_count = 0;
     struct BitBuffer buf;
     struct RSBuffer rsbuf;
     rsbuf_init(&rsbuf, pkt->data, pkt->length);
@@ -186,7 +168,7 @@ pkt_player_info_reader_read(
         switch( op )
         {
         case 0:
-
+            reader->extended_queue[reader->extended_count++] = 2047;
             break;
         case 1:
         { // walkdir
@@ -197,7 +179,7 @@ pkt_player_info_reader_read(
             int has_extended_info = gbits(&buf, 1);
             if( has_extended_info )
             {
-                reader->player_queue[reader->player_queue_size++] = 2047;
+                reader->extended_queue[reader->extended_count++] = 2047;
             }
         }
         break;
@@ -214,7 +196,7 @@ pkt_player_info_reader_read(
             int has_extended_info = gbits(&buf, 1);
             if( has_extended_info )
             {
-                reader->player_queue[reader->player_queue_size++] = 2047;
+                reader->extended_queue[reader->extended_count++] = 2047;
             }
         }
         break;
@@ -232,7 +214,7 @@ pkt_player_info_reader_read(
             int has_extended_info = gbits(&buf, 1);
             if( has_extended_info )
             {
-                reader->player_queue[reader->player_queue_size++] = 2047;
+                reader->extended_queue[reader->extended_count++] = 2047;
             }
         }
         break;
@@ -241,14 +223,14 @@ pkt_player_info_reader_read(
     else
     {
         push_bits_info(next_op(reader, ops, ops_capacity), info);
-        reader->player_queue[reader->player_queue_size++] = masked_pid(2047, false);
     }
 
     // Player Old Vis
+    int idx = 0;
     int count = gbits(&buf, 8);
     for( int i = 0; i < count; i++ )
     {
-        push_mode_player_entity_idx(next_op(reader, ops, ops_capacity), i);
+        push_mode_player_idx(next_op(reader, ops, ops_capacity), i);
 
         int info = gbits(&buf, 1);
         push_bits_info(next_op(reader, ops, ops_capacity), info);
@@ -270,7 +252,7 @@ pkt_player_info_reader_read(
                     int has_extended_info = gbits(&buf, 1);
                     if( has_extended_info )
                     {
-                        reader->player_queue[reader->player_queue_size++] = masked_pid(i, false);
+                        reader->extended_queue[reader->extended_count++] = i;
                     }
                 }
                 break;
@@ -285,7 +267,7 @@ pkt_player_info_reader_read(
                 int has_extended_info = gbits(&buf, 1);
                 if( has_extended_info )
                 {
-                    reader->player_queue[reader->player_queue_size++] = masked_pid(i, false);
+                    reader->extended_queue[reader->extended_count++] = i;
                 }
             }
             break;
@@ -294,13 +276,10 @@ pkt_player_info_reader_read(
                 break;
             }
         }
-        else
-        {
-            reader->player_queue[reader->player_queue_size++] = masked_pid(i, false);
-        }
     }
 
     // Player New Vis
+    idx = count;
     while( ((buf.byte_position * 8) + buf.bit_offset + 10) < pkt->length * 8 )
     {
         int player_id = gbits(&buf, 11);
@@ -309,7 +288,7 @@ pkt_player_info_reader_read(
             break;
         }
 
-        push_mode_player_entity_id(next_op(reader, ops, ops_capacity), player_id);
+        push_mode_player_new(next_op(reader, ops, ops_capacity), player_id);
 
         int dx = gbits(&buf, 5);
         if( dx > 15 )
@@ -325,20 +304,26 @@ pkt_player_info_reader_read(
         int has_extended_info = gbits(&buf, 1);
         if( has_extended_info )
         {
-            reader->player_queue[reader->player_queue_size++] = masked_pid(player_id, true);
+            reader->extended_queue[reader->extended_count++] = idx;
         }
+
+        idx++;
     }
 
     // Extended Info
     uint8_t* appearance_buf = NULL;
     rsbuf.position = buf.byte_position + (buf.bit_offset + 7) / 8;
-    for( int i = 0; i < reader->player_queue_size; i++ )
+    for( int i = 0; i < reader->extended_count; i++ )
     {
-        int id = reader->player_queue[i];
-        if( is_entity_id(id) )
-            push_mode_player_entity_id(next_op(reader, ops, ops_capacity), unmasked_pid(id));
+        int idx = reader->extended_queue[i];
+        if( idx == 2047 )
+        {
+            push_mode_local_player(next_op(reader, ops, ops_capacity));
+        }
         else
-            push_mode_player_entity_idx(next_op(reader, ops, ops_capacity), unmasked_pid(id));
+        {
+            push_mode_player_idx(next_op(reader, ops, ops_capacity), idx);
+        }
 
         int mask = g1(&rsbuf);
         if( (mask & 0x80) != 0 )
@@ -361,13 +346,58 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_SEQUENCE) != 0 )
         {
+            assert(0);
             // int len = g1(&rsbuf);
             // uint8_t* sequence_buf = malloc(len);
             // greadto(&rsbuf, sequence_buf, len, len);
             // push_op_sequence(&ops[reader->current_op++], sequence_buf, len);
         }
 
-        break;
+        if( (mask & MASK_FACE_ENTITY) != 0 )
+        {
+            assert(0);
+        }
+
+        if( (mask & MASK_SAY) != 0 )
+        {
+            assert(0);
+        }
+
+        if( (mask & MASK_DAMAGE) != 0 )
+        {
+            assert(0);
+        }
+
+        if( (mask & MASK_FACE_COORD) != 0 )
+        {
+            int target_x = g2(&rsbuf);
+            int target_z = g2(&rsbuf);
+        }
+
+        if( (mask & MASK_CHAT) != 0 )
+        {
+            assert(0);
+        }
+
+        if( (mask & MASK_BIG_UPDATE) != 0 )
+        {
+            assert(0);
+        }
+
+        if( (mask & MASK_SPOTANIM) != 0 )
+        {
+            assert(0);
+        }
+
+        if( (mask & MASK_EXACT_MOVE) != 0 )
+        {
+            assert(0);
+        }
+
+        if( (mask & MASK_DAMAGE2) != 0 )
+        {
+            assert(0);
+        }
     }
 
     return reader->current_op;

@@ -45,6 +45,7 @@ task_query_step(struct TaskQuery* task)
     }
     else
     {
+        printf("Query completed\n");
         return GAMETASK_STATUS_COMPLETED;
     }
 }

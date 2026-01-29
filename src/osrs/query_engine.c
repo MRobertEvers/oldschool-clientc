@@ -420,7 +420,8 @@ query_engine_qreg_iter_begin(
 void*
 query_engine_qreg_iter_next(
     struct QueryEngine* query_engine,
-    int reg_idx)
+    int reg_idx,
+    int* out_id)
 {
     assert(reg_idx >= 0 && reg_idx < 10);
     assert(query_engine->sets[reg_idx]);
@@ -428,8 +429,11 @@ query_engine_qreg_iter_next(
 
     struct SetEntry* entry =
         (struct SetEntry*)dashmap_iter_next(query_engine->sets[reg_idx]->iter_nullable);
+
     if( !entry )
         return NULL;
+    if( out_id )
+        *out_id = entry->id;
     return entry->value;
 }
 
