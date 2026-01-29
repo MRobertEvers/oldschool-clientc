@@ -220,8 +220,6 @@ gameproto_process(
             query_engine_qpush_argx(q, regions, index);
 
             gametask_new_query(game, q);
-
-            gametask_new_packet(game, io);
         }
         break;
         case PKTIN_LC245_2_PLAYER_INFO:
@@ -254,8 +252,6 @@ gameproto_process(
                 break;
                 }
             }
-
-            gametask_new_packet(game, game->io);
         }
         break;
         case PKTIN_LC245_2_NPC_INFO:
@@ -349,12 +345,13 @@ gameproto_process(
             query_engine_qpush_op(q, QEDAT_DT_MODELS, QE_FN_0, QE_STORE_DISCARD);
             query_engine_qpush_argx(q, vec_data(models), vec_size(models));
             gametask_new_query(game, q);
-            gametask_new_packet(game, io);
             break;
         }
         default:
             break;
         }
+
+        gametask_new_packet(game, io);
 
         item->next_nullable = NULL;
 

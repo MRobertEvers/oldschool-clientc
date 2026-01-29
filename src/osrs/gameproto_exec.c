@@ -3,6 +3,7 @@
 #include "dashlib.h"
 #include "datatypes/appearances.h"
 #include "datatypes/player_appearance.h"
+#include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
 #include "packets/pkt_player_info.h"
 #include "rscache/bitbuffer.h"
@@ -81,6 +82,12 @@ obj_model(
 
     struct CacheModel* merged = model_new_merge(models, model_count);
     buildcachedat_add_obj_model(game->buildcachedat, obj_id, merged);
+
+    for( int i = 0; i < obj->recol_count; i++ )
+    {
+        model_transform_recolor(merged, obj->recol_s[i], obj->recol_d[i]);
+    }
+
     return merged;
 }
 
@@ -365,22 +372,27 @@ add_player_info(
 
         switch( op->kind )
         {
-        case PKT_PLAYER_INFO_MODE_LOCAL_PLAYER:
+        case PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER:
         {
             player_id = ACTIVE_PLAYER_SLOT;
             break;
         }
-        case PKT_PLAYER_INFO_MODE_PLAYER_IDX:
+        case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
         {
             player_id = game->active_players[op->_bitvalue];
             game->player_count += 1;
             break;
         }
-        case PKT_PLAYER_INFO_MODE_PLAYER_NEW:
+        case PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID:
         {
             player_id = op->_bitvalue;
             game->active_players[game->player_count] = player_id;
             game->player_count += 1;
+            break;
+        }
+        case PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX:
+        {
+            player_id = game->active_players[op->_bitvalue];
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_DX:

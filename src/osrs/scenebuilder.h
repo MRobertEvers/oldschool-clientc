@@ -40,10 +40,12 @@ scenebuilder_load_from_buildcachedat(
 struct Scene*
 scenebuilder_load_from_buildcache(
     struct SceneBuilder* scene_builder,
-    int mapx_sw,
-    int mapz_sw,
-    int mapx_ne,
-    int mapz_ne,
+    int wx_sw,
+    int wz_sw,
+    int wx_ne,
+    int wz_ne,
+    int size_x,
+    int size_z,
     struct BuildCache* buildcache);
 
 struct SceneAnimation*

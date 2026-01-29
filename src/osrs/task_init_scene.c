@@ -501,9 +501,10 @@ task_init_scene_new(
 
     task->painter = game->sys_painter;
 
-    game->sys_minimap = minimap_new(map_sw_x, map_sw_z, map_ne_x, map_ne_z, MAP_TERRAIN_LEVELS);
+    game->sys_minimap = minimap_new(
+        map_sw_x * 64, map_sw_z * 64, (map_ne_x + 1) * 64, (map_ne_z + 1) * 64, MAP_TERRAIN_LEVELS);
     task->scene_builder = scenebuilder_new_painter(task->painter, game->sys_minimap);
-
+    game->scenebuilder = task->scene_builder;
     task->reqid_queue_vec = vec_new(sizeof(int), 64);
     task->reqid_queue_inflight_count = 0;
     task->queued_scenery_models_vec = vec_new(sizeof(int), 512);
@@ -1417,13 +1418,12 @@ task_init_scene_step(struct TaskInitScene* task)
     }
     case STEP_INIT_SCENE_13_BUILD_WORLD3D:
     {
+        int twx = task->world_x * 64;
+        int twz = task->world_z * 64;
+        int tne_x = (task->world_x + task->chunks_width) * 64 - 1;
+        int tne_z = (task->world_z + task->chunks_count / task->chunks_width) * 64 - 1;
         task->game->scene = scenebuilder_load_from_buildcache(
-            task->scene_builder,
-            task->world_x,
-            task->world_z,
-            task->world_x + task->chunks_width - 1,
-            task->world_z + task->chunks_count / task->chunks_width - 1,
-            task->game->buildcache);
+            task->scene_builder, twx, twz, tne_x, tne_z, 104, 104, task->game->buildcache);
 
         task->step = STEP_INIT_SCENE_14_BUILD_TERRAIN3D;
     }
