@@ -29,12 +29,12 @@ scenebuilder_free(struct SceneBuilder* scene_builder);
 struct Scene*
 scenebuilder_load_from_buildcachedat(
     struct SceneBuilder* scene_builder,
-    int base_tile_x,
-    int base_tile_z,
-    int mapx_sw,
-    int mapz_sw,
-    int mapx_ne,
-    int mapz_ne,
+    int wx_sw,
+    int wz_sw,
+    int wx_ne,
+    int wz_ne,
+    int size_x,
+    int size_z,
     struct BuildCacheDat* buildcachedat);
 
 struct Scene*

@@ -220,7 +220,8 @@ task_init_scene_dat_new(
     game->sys_painter_buffer = painter_buffer_new();
 
     task->painter = game->sys_painter;
-    game->sys_minimap = minimap_new(map_sw_x, map_sw_z, map_ne_x, map_ne_z, MAP_TERRAIN_LEVELS);
+    game->sys_minimap = minimap_new(
+        map_sw_x * 64, map_sw_z * 64, (map_ne_x + 1) * 64, (map_ne_z + 1) * 64, MAP_TERRAIN_LEVELS);
 
     task->scene_builder = scenebuilder_new_painter(task->painter, game->sys_minimap);
 
@@ -1400,12 +1401,12 @@ task_init_scene_dat_step(struct TaskInitSceneDat* task)
         // animation");
         task->game->scene = scenebuilder_load_from_buildcachedat(
             task->scene_builder,
-            0,
-            0,
-            task->mapx_sw,
-            task->mapz_sw,
-            task->mapx_ne,
-            task->mapz_ne,
+            task->mapx_sw * 64,
+            task->mapz_sw * 64,
+            task->mapx_ne * 64,
+            task->mapz_ne * 64,
+            104,
+            104,
             task->game->buildcachedat);
 
         return GAMETASK_STATUS_COMPLETED;

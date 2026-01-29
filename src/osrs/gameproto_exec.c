@@ -406,10 +406,15 @@ gameproto_exec_lc245_2(
     {
 #define SCENE_WIDTH 104
         int zone_padding = SCENE_WIDTH / (2 * 8);
-        int map_sw_x = (packet->_map_rebuild.zonex - zone_padding) / 8;
-        int map_sw_z = (packet->_map_rebuild.zonez - zone_padding) / 8;
-        int map_ne_x = (packet->_map_rebuild.zonex + zone_padding) / 8;
-        int map_ne_z = (packet->_map_rebuild.zonez + zone_padding) / 8;
+        int zone_sw_x = packet->_map_rebuild.zonex - zone_padding;
+        int zone_sw_z = packet->_map_rebuild.zonez - zone_padding;
+        int zone_ne_x = packet->_map_rebuild.zonex + zone_padding;
+        int zone_ne_z = packet->_map_rebuild.zonez + zone_padding;
+
+        int map_sw_x = (zone_sw_x) / 8;
+        int map_sw_z = (zone_sw_z) / 8;
+        int map_ne_x = (zone_ne_x) / 8;
+        int map_ne_z = (zone_ne_z) / 8;
 
         // this.sceneBaseTileX = (this.sceneCenterZoneX - 6) * 8;
         // this.sceneBaseTileZ = (this.sceneCenterZoneZ - 6) * 8;
@@ -419,23 +424,22 @@ gameproto_exec_lc245_2(
         int base_tile_x = (packet->_map_rebuild.zonex - 6) * 8;
         int base_tile_z = (packet->_map_rebuild.zonez - 6) * 8;
 
-        int width = map_ne_x - map_sw_x + 1;
-        int height = map_ne_z - map_sw_z + 1;
         int levels = MAP_TERRAIN_LEVELS;
 
         game->sys_painter = painter_new(SCENE_WIDTH, SCENE_WIDTH, levels);
         game->sys_painter_buffer = painter_buffer_new();
-        game->sys_minimap = minimap_new(map_sw_x, map_sw_z, map_ne_x, map_ne_z, levels);
+        game->sys_minimap = minimap_new(
+            zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104, levels);
         game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
 
         game->scene = scenebuilder_load_from_buildcachedat(
             game->scenebuilder,
-            base_tile_x,
-            base_tile_z,
-            map_sw_x,
-            map_sw_z,
-            map_ne_x,
-            map_ne_z,
+            zone_sw_x * 8,
+            zone_sw_z * 8,
+            zone_ne_x * 8,
+            zone_ne_z * 8,
+            104,
+            104,
             game->buildcachedat);
     }
     break;

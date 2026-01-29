@@ -54,8 +54,8 @@ minimap_new(
     minimap->ne_x = ne_x;
     minimap->ne_z = ne_z;
 
-    int width = (ne_x - sw_x + 1) * 64;
-    int height = (ne_z - sw_z + 1) * 64;
+    int width = ne_x - sw_x + 1;
+    int height = ne_z - sw_z + 1;
     minimap->width = width;
     minimap->height = height;
     minimap->levels = levels;

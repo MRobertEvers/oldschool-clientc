@@ -46,16 +46,28 @@ init_terrain_grid(
     int mapxz = 0;
     memset(terrain_grid, 0, sizeof(struct TerrainGrid));
 
-    terrain_grid->mapx_ne = scene_builder->mapx_ne;
-    terrain_grid->mapz_ne = scene_builder->mapz_ne;
-    terrain_grid->mapx_sw = scene_builder->mapx_sw;
-    terrain_grid->mapz_sw = scene_builder->mapz_sw;
+    int mapx_sw = scene_builder->wx_sw / 64;
+    int mapz_sw = scene_builder->wz_sw / 64;
+    int mapx_ne = (scene_builder->wx_ne) / 64;
+    int mapz_ne = (scene_builder->wz_ne) / 64;
+
+    int offset_x = scene_builder->wx_sw % 64;
+    int offset_z = scene_builder->wz_sw % 64;
+
+    terrain_grid->mapx_ne = mapx_ne;
+    terrain_grid->mapz_ne = mapz_ne;
+    terrain_grid->mapx_sw = mapx_sw;
+    terrain_grid->mapz_sw = mapz_sw;
+    terrain_grid->offset_x = offset_x;
+    terrain_grid->offset_z = offset_z;
+    terrain_grid->size_x = scene_builder->size_x;
+    terrain_grid->size_z = scene_builder->size_z;
 
     int map_index = 0;
     struct CacheMapTerrain* map_terrain = NULL;
-    for( int mapz = scene_builder->mapz_sw; mapz <= scene_builder->mapz_ne; mapz++ )
+    for( int mapz = mapz_sw; mapz <= mapz_ne; mapz++ )
     {
-        for( int mapx = scene_builder->mapx_sw; mapx <= scene_builder->mapx_ne; mapx++ )
+        for( int mapx = mapx_sw; mapx <= mapx_ne; mapx++ )
         {
             map_terrain = scenebuilder_compat_get_map_terrain(scene_builder, mapx, mapz);
             assert(map_terrain && "Map terrain must be found");
@@ -74,8 +86,8 @@ init_build_grid(
     struct TileHeights tile_heights = { 0 };
     struct BuildTile* build_tile = NULL;
 
-    build_grid->tile_width_x = 104; // terrain_grid_x_width(terrain_grid);
-    build_grid->tile_width_z = 104; // terrain_grid_z_height(terrain_grid);
+    build_grid->tile_width_x = terrain_grid_x_width(terrain_grid);
+    build_grid->tile_width_z = terrain_grid_z_height(terrain_grid);
 
     for( int sx = 0; sx < build_grid->tile_width_x; sx++ )
     {
@@ -83,14 +95,7 @@ init_build_grid(
         {
             for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
             {
-                // tile_heights_at(
-                //     terrain_grid,
-                //     terrain_grid->mapx_sw + (sx / MAP_TERRAIN_X),
-                //     terrain_grid->mapz_sw + (sz / MAP_TERRAIN_Z),
-                //     sx % MAP_TERRAIN_X,
-                //     sz % MAP_TERRAIN_Z,
-                //     slevel,
-                //     &tile_heights);
+                tile_heights_at_sized(terrain_grid, sx, sz, slevel, 1, 1, &tile_heights);
 
                 int index = build_grid_index(
                     build_grid->tile_width_x, build_grid->tile_width_z, sx, sz, slevel);
@@ -104,22 +109,22 @@ init_build_grid(
 static struct Scene*
 scenebuiler_build(
     struct SceneBuilder* scene_builder,
-    int base_tile_x,
-    int base_tile_z,
-    int mapx_sw,
-    int mapz_sw,
-    int mapx_ne,
-    int mapz_ne)
+    int wx_sw,
+    int wz_sw,
+    int wx_ne,
+    int wz_ne,
+    int size_x,
+    int size_z)
 {
-    scene_builder->mapx_sw = mapx_sw;
-    scene_builder->mapz_sw = mapz_sw;
-    scene_builder->mapx_ne = mapx_ne;
-    scene_builder->mapz_ne = mapz_ne;
-    scene_builder->base_tile_x = base_tile_x;
-    scene_builder->base_tile_z = base_tile_z;
+    scene_builder->wx_sw = wx_sw;
+    scene_builder->wz_sw = wz_sw;
+    scene_builder->wx_ne = wx_ne;
+    scene_builder->wz_ne = wz_ne;
+    scene_builder->size_x = size_x;
+    scene_builder->size_z = size_z;
 
-    int height = 104; // ((mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z) - base_tile_x;
-    int width = 104;  // (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X - base_tile_z;
+    int height = size_z; // ((mapz_ne - mapz_sw + 1) * MAP_TERRAIN_Z) - base_tile_x;
+    int width = size_x;  // (mapx_ne - mapx_sw + 1) * MAP_TERRAIN_X - base_tile_z;
 
     scene_builder->build_grid = build_grid_new(width, height);
     scene_builder->shademap = shademap_new(width, height, MAP_TERRAIN_LEVELS);
@@ -145,17 +150,16 @@ scenebuiler_build(
 struct Scene*
 scenebuilder_load_from_buildcachedat(
     struct SceneBuilder* scene_builder,
-    int base_tile_x,
-    int base_tile_z,
-    int mapx_sw,
-    int mapz_sw,
-    int mapx_ne,
-    int mapz_ne,
+    int wx_sw,
+    int wz_sw,
+    int wx_ne,
+    int wz_ne,
+    int size_x,
+    int size_z,
     struct BuildCacheDat* buildcachedat)
 {
     scene_builder->buildcachedat = buildcachedat;
-    return scenebuiler_build(
-        scene_builder, base_tile_x, base_tile_z, mapx_sw, mapz_sw, mapx_ne, mapz_ne);
+    return scenebuiler_build(scene_builder, wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z);
 }
 
 struct Scene*

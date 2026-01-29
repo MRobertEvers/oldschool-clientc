@@ -91,12 +91,12 @@ struct SceneBuilder
 {
     struct Painter* painter;
     struct Minimap* minimap;
-    int mapx_sw;
-    int mapz_sw;
-    int mapx_ne;
-    int mapz_ne;
-    int base_tile_x;
-    int base_tile_z;
+    int wx_sw;
+    int wz_sw;
+    int wx_ne;
+    int wz_ne;
+    int size_x;
+    int size_z;
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;

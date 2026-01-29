@@ -1639,7 +1639,11 @@ scenery_add(
     config_loc = scenebuilder_compat_get_config_loc(scene_builder, map_loc->loc_id);
     assert(config_loc && "Config loc must be valid");
 
-    terrain_grid_offset_from_sw(
+    if( !tile_in_bounds_from_maploc(
+            terrain_grid, mapx, mapz, map_loc->chunk_pos_x, map_loc->chunk_pos_z) )
+        return;
+
+    terrain_grid_offset_from_sw_maploc(
         terrain_grid,
         mapx,
         mapz,
@@ -1671,34 +1675,7 @@ scenery_add(
         size_z = 1;
     }
     tile_heights_at_sized(
-        terrain_grid,
-        mapx,
-        mapz,
-        map_loc->chunk_pos_x,
-        map_loc->chunk_pos_z,
-        map_loc->chunk_pos_level,
-        size_x,
-        size_z,
-        &tile_heights);
-
-    if( offset.x < scene_builder->base_tile_x )
-    {
-        return;
-    }
-    if( offset.z < scene_builder->base_tile_z )
-    {
-        return;
-    }
-    offset.x -= scene_builder->base_tile_x;
-    offset.z -= scene_builder->base_tile_z;
-    if( offset.x >= 104 )
-    {
-        return;
-    }
-    if( offset.z >= 104 )
-    {
-        return;
-    }
+        terrain_grid, offset.x, offset.z, offset.level, size_x, size_z, &tile_heights);
 
     switch( map_loc->shape_select )
     {
@@ -1827,9 +1804,9 @@ build_scene_scenery(
     struct CacheMapLocs* map_locs = NULL;
     struct CacheMapLoc* map_loc = NULL;
 
-    for( int mapx = scene_builder->mapx_sw; mapx <= scene_builder->mapx_ne; mapx++ )
+    for( int mapx = terrain_grid->mapx_sw; mapx <= terrain_grid->mapx_ne; mapx++ )
     {
-        for( int mapz = scene_builder->mapz_sw; mapz <= scene_builder->mapz_ne; mapz++ )
+        for( int mapz = terrain_grid->mapz_sw; mapz <= terrain_grid->mapz_ne; mapz++ )
         {
             map_locs = scenebuilder_compat_get_scenery(scene_builder, mapx, mapz);
             assert(map_locs && "Map locs must be valid");
