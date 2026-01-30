@@ -51,16 +51,14 @@ texture_raster_deob(
     bool opaque,
     bool hclip)
 {
-    if( hclip )
+ 
+    if( x_end > screen_width )
     {
-        if( x_end > screen_width )
-        {
-            x_end = screen_width;
-        }
-        if( x_start < 0 )
-        {
-            x_start = 0;
-        }
+        x_end = screen_width;
+    }
+    if( x_start < 0 )
+    {
+        x_start = 0;
     }
 
     if( x_start >= x_end )
@@ -379,6 +377,7 @@ texture_deob(
     {
         if( y0 < screen_height )
         {
+
             if( y1 > screen_height )
             {
                 y1 = screen_height;
@@ -389,9 +388,9 @@ texture_deob(
             }
 
             // Java: var48 = (arg6 << 9) - arg3 * var31 + var31
-            // Where arg6 = shade0 (0-127), arg3 = y0, var31 = shade_step_x_ish9
+            // Where arg6 = shade0 (0-127), arg3 = x0, var31 = shade_step_x_ish9
             // shade0 << 9 converts 0-127 to ish9 format (0-65024)
-            int shade_start = (shade0 << 9) - y0 * shade_step_x_ish9 + shade_step_x_ish9;
+            int shade_start = (shade0 << 9) - x0 * shade_step_x_ish9 + shade_step_x_ish9;
 
             if( y1 < y2 )
             {
@@ -577,6 +576,7 @@ texture_deob(
             }
             else
             {
+
                 // Java: y2 >= y1 case (else branch of y1 < y2)
                 int x_left_ish16;
                 int x_right_ish16 = x_left_ish16 = x0 << 16;
@@ -591,7 +591,7 @@ texture_deob(
                 int x_mid_ish16 = x2 << 16;
                 if( y2 < 0 )
                 {
-                    x_mid_ish16 -= y2 * step_x02_ish16;
+                    x_mid_ish16 -= y2 * step_x12_ish16;
                     y2 = 0;
                 }
 
@@ -773,7 +773,7 @@ texture_deob(
             }
 
             // Java: var75 = (arg7 << 9) - arg4 * var31 + var31
-            int shade_start = (shade1 << 9) - y1 * shade_step_x_ish9 + shade_step_x_ish9;
+            int shade_start = (shade1 << 9) - x1 * shade_step_x_ish9 + shade_step_x_ish9;
 
             if( y2 < y0 )
             {
@@ -1150,7 +1150,7 @@ texture_deob(
         }
 
         // Java: var102 = (arg8 << 9) - arg5 * var31 + var31
-        int shade_start = (shade2 << 9) - y2 * shade_step_x_ish9 + shade_step_x_ish9;
+        int shade_start = (shade2 << 9) - x2 * shade_step_x_ish9 + shade_step_x_ish9;
 
         if( y0 < y1 )
         {
