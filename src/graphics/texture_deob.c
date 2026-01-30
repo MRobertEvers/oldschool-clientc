@@ -114,6 +114,9 @@ texture_raster_deob(
 
         int steps_8 = width >> 3;
         int shade_step_8 = shade_step_ish8 << 3;
+        // Java: var87 = var16 >> 8
+        // shade_accum is in ish9 format (0-65024 for input shade 0-127)
+        // >> 8 converts to 0-254 range for blending
         int shade = shade_accum >> 8;
 
         if( opaque )
@@ -386,8 +389,9 @@ texture_deob(
             }
 
             // Java: var48 = (arg6 << 9) - arg3 * var31 + var31
-            // Where arg6 = shade0, arg3 = y0, var31 = shade_step_x_ish9
-            int shade_start = (shade0 << 9) - y0 * shade_step_x_ish9 + shade_step_x_ish9;
+            // Where arg6 = shade0 (0-127), arg3 = y0, var31 = shade_step_x_ish9
+            // shade0 << 9 converts 0-127 to ish9 format (0-65024)
+            int shade_start = (shade0 << 9) - x0 * shade_step_x_ish9 + shade_step_x_ish9;
 
             if( y1 < y2 )
             {
