@@ -7,7 +7,7 @@
 #include "texture_blend_branching.u.c"
 #include "render_clip.u.c"
 #include "render_gouraud.u.c"
-#include "texture_deob.c"
+#include "texture_opaque_blend_affine.c"
 // clang-format on
 
 static inline void

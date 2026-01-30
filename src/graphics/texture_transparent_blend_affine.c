@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 // Forward declarations
-static inline void raster_texture_opaque_blend_affine_ordered(
+static inline void raster_texture_transparent_blend_affine_ordered(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -36,7 +36,7 @@ static inline void raster_texture_opaque_blend_affine_ordered(
     int texture_width);
 
 
-static inline void raster_texture_opaque_blend_affine(
+static inline void raster_texture_transparent_blend_affine(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -79,7 +79,7 @@ static inline void raster_texture_opaque_blend_affine(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -112,7 +112,7 @@ static inline void raster_texture_opaque_blend_affine(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -148,7 +148,7 @@ static inline void raster_texture_opaque_blend_affine(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -181,7 +181,7 @@ static inline void raster_texture_opaque_blend_affine(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -217,7 +217,7 @@ static inline void raster_texture_opaque_blend_affine(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -250,7 +250,7 @@ static inline void raster_texture_opaque_blend_affine(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -371,36 +371,52 @@ draw_texture_scanline_opaque_blend_affine_ordered(
         do
         {
             int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
-            pixel_buffer[offset++] =
-                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
             int uv_next = uv_packed + uv_step;
+
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-            pixel_buffer[offset++] =
-                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
+
             uv_next = uv_step + uv_next;
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-            pixel_buffer[offset++] =
-                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
+
             uv_next = uv_step + uv_next;
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-            pixel_buffer[offset++] =
-                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
+
             uv_next = uv_step + uv_next;
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-            pixel_buffer[offset++] =
-                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
+
             uv_next = uv_step + uv_next;
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-            pixel_buffer[offset++] =
-                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
+
             uv_next = uv_step + uv_next;
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-            pixel_buffer[offset++] =
-                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
+
             uv_next = uv_step + uv_next;
             texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-            pixel_buffer[offset++] =
-                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
+
             uv_packed = uv_step + uv_next;
             shade_accum += shade_step_8;
             shade = shade_accum >> 8;
@@ -413,9 +429,10 @@ draw_texture_scanline_opaque_blend_affine_ordered(
     {
         do
         {
-        int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
-        pixel_buffer[offset++] =
-            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
+            if (texel != 0)
+                pixel_buffer[offset] = shade_blend(texel, shade);
+            offset += 1;
             uv_packed += uv_step;
             remaining--;
         } while( remaining > 0 );
@@ -424,7 +441,7 @@ draw_texture_scanline_opaque_blend_affine_ordered(
 
 static inline
 void
-raster_texture_opaque_blend_affine_ordered(
+raster_texture_transparent_blend_affine_ordered(
     int* pixel_buffer,
     int stride,
     int screen_width,
