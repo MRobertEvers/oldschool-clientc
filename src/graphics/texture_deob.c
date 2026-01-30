@@ -283,11 +283,12 @@ static inline void raster_texture_opaque_blend_affine(
 static inline void
 draw_texture_scanline_opaque_blend_affine_ordered(
     int* pixel_buffer,
-    int* texels,
-    int y,
     int stride,
+    int screen_width,
+    int screen_height,
     int x_start,
     int x_end,
+    int pixel_offset,
     int shade_ish8,
     int shade_step_ish8,
     int u,
@@ -296,8 +297,7 @@ draw_texture_scanline_opaque_blend_affine_ordered(
     int step_u_dx,
     int step_v_dx,
     int step_w_dx,
-    int screen_width,
-    int screen_height,
+    int* texels,
     int origin_x)
 {
  
@@ -315,7 +315,7 @@ draw_texture_scanline_opaque_blend_affine_ordered(
         return;
     }
 
-    int offset = y * stride + x_start;
+    int offset = pixel_offset + x_start;
     int shade_accum = x_start * shade_step_ish8 + shade_ish8;
     int width = x_end - x_start;
     int dx = x_start - origin_x;
@@ -584,6 +584,8 @@ raster_texture_opaque_blend_affine_ordered(
             int v_val = v_plane_z * dy + v_plane_x;
             int w_val = w_plane_z * dy + w_plane_x;
 
+            int offset = y0 * stride;
+
             if( (y0 == y1 && step_x02_ish16 <= step_x12_ish16) ||
                 (y0 != y1 && step_x02_ish16 >= step_x01_ish16) )
             {
@@ -594,11 +596,12 @@ raster_texture_opaque_blend_affine_ordered(
                 {
                     draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
-                        texels,
-                        y0,
                         stride,
+                        screen_width,
+                        screen_height,
                         x_left_ish16 >> 16,
                         x_right_ish16 >> 16,
+                        offset,
                         shade_start,
                         shade_step_x_ish9,
                         u_val,
@@ -607,13 +610,12 @@ raster_texture_opaque_blend_affine_ordered(
                         u_plane_y,
                         v_plane_y,
                         w_plane_y,
-                        screen_width,
-                        screen_height,
+                        texels,
                         origin_x);
                     x_right_ish16 += step_x02_ish16;
                     x_left_ish16 += step_x01_ish16;
                     shade_start += shade_step_y_ish9;
-                    y0++;
+                    offset += stride;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
                     w_val += w_plane_z;
@@ -623,11 +625,12 @@ raster_texture_opaque_blend_affine_ordered(
                 {
                     draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
-                        texels,
-                        y0,
                         stride,
+                        screen_width,
+                        screen_height,
                         x_mid_ish16 >> 16,
                         x_right_ish16 >> 16,
+                        offset,
                         shade_start,
                         shade_step_x_ish9,
                         u_val,
@@ -636,13 +639,12 @@ raster_texture_opaque_blend_affine_ordered(
                         u_plane_y,
                         v_plane_y,
                         w_plane_y,
-                        screen_width,
-                        screen_height,
+                        texels,
                         origin_x);
                     x_right_ish16 += step_x02_ish16;
                     x_mid_ish16 += step_x12_ish16;
                     shade_start += shade_step_y_ish9;
-                    y0++;
+                    offset += stride;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
                     w_val += w_plane_z;
@@ -657,11 +659,12 @@ raster_texture_opaque_blend_affine_ordered(
                 {
                     draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
-                        texels,
-                        y0,
                         stride,
+                        screen_width,
+                        screen_height,
                         x_right_ish16 >> 16,
                         x_left_ish16 >> 16,
+                        offset,
                         shade_start,
                         shade_step_x_ish9,
                         u_val,
@@ -670,13 +673,12 @@ raster_texture_opaque_blend_affine_ordered(
                         u_plane_y,
                         v_plane_y,
                         w_plane_y,
-                        screen_width,
-                        screen_height,
+                        texels,
                         origin_x);
                     x_right_ish16 += step_x02_ish16;
                     x_left_ish16 += step_x01_ish16;
                     shade_start += shade_step_y_ish9;
-                    y0++;
+                    offset += stride;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
                     w_val += w_plane_z;
@@ -686,11 +688,12 @@ raster_texture_opaque_blend_affine_ordered(
                 {
                     draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
-                        texels,
-                        y0,
                         stride,
+                        screen_width,
+                        screen_height,
                         x_right_ish16 >> 16,
                         x_mid_ish16 >> 16,
+                        offset,
                         shade_start,
                         shade_step_x_ish9,
                         u_val,
@@ -699,14 +702,13 @@ raster_texture_opaque_blend_affine_ordered(
                         u_plane_y,
                         v_plane_y,
                         w_plane_y,
-                        screen_width,
-                        screen_height,
+                        texels,
                         origin_x
                     );
                     x_right_ish16 += step_x02_ish16;
                     x_mid_ish16 += step_x12_ish16;
                     shade_start += shade_step_y_ish9;
-                    y0++;
+                    offset += stride;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
                     w_val += w_plane_z;
