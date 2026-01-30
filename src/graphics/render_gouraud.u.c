@@ -1,4 +1,5 @@
-
+#ifndef RENDER_GOURAUD_U_C
+#define RENDER_GOURAUD_U_C
 
 #include <assert.h>
 
@@ -680,3 +681,5 @@ raster_face_gouraud(
         color_c,
         alpha);
 }
+
+#endif

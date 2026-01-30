@@ -7,6 +7,8 @@
 #include "texture_blend_branching.u.c"
 #include "texture_affine_branching_bary.u.c"
 #include "render_clip.u.c"
+#include "render_gouraud.u.c"
+#include "texture_deob.c"
 // clang-format on
 
 static inline void
@@ -623,6 +625,7 @@ raster_face_texture_blend(
 
     // raster_texture_affine_opaque_blend_blerp8(
     //     pixel_buffer,
+    //     stride,
     //     screen_width,
     //     screen_height,
     //     camera_fov,
@@ -656,6 +659,55 @@ raster_face_texture_blend(
     //     texels,
     //     texture_size);
 
+    //     return;
+
+    // Map orthographic texture coordinates to u/v/w
+    int u0 = orthographic_uvorigin_x0;
+    int v0 = orthographic_uvorigin_y0;
+    int w0 = orthographic_uvorigin_z0;
+    int u1 = orthographic_uend_x1;
+    int v1 = orthographic_uend_y1;
+    int w1 = orthographic_uend_z1;
+    int u2 = orthographic_vend_x2;
+    int v2 = orthographic_vend_y2;
+    int w2 = orthographic_vend_z2;
+
+    int origin_x = screen_width >> 1;
+    bool opaque = texture_opaque;
+    bool hclip = true; // Enable horizontal clipping
+
+    texture_deob(
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        shade_a,
+        shade_b,
+        shade_c,
+        u0,
+        v0,
+        w0,
+        u1,
+        v1,
+        w1,
+        u2,
+        v2,
+        w2,
+        0, // texture_id (not used in current implementation)
+        pixel_buffer,
+        texels,
+        stride,
+        screen_width,
+        screen_height,
+        origin_x,
+        opaque,
+        hclip);
+
+    return;
+
+    
     raster_texture_blend(
         pixel_buffer,
         stride,

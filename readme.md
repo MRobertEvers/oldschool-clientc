@@ -90,6 +90,16 @@ and compile with `-O0 -g`.
 
 1. Contour Ground
 2. Minimap
+3. Fast Shaded Texture (Textures are masked and shifted for shade).
+  - The textures are tile [0-4095, 4096-etc.]. Then each of the pixels are masked 0xf8f8ff (lower 3 bits)
+  - The texture rasterizer selects a tile by `curU += (shadeShiftFP16 >> 3) & 0xc0000`.
+  - 0xC = 0b1100, 
+  - Since the shadeShift is upshifted by 16, this is effectively `(shadeShift >> 16) / 8 * 4096` (for tiles tiled by 4096)
+  - Then the color is shifted by the remaining shade shift 0xf8f8ff mask guarantees the colors don't bleed into eachother.
+4. RGB Gouraud vs HSL Gouraud
+5. Projection no ortho.
+  - Need to create SIMD versions for each too.
+6. Forcedraw loop in painters
 
 Software rester
 
