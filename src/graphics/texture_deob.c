@@ -385,7 +385,9 @@ texture_deob(
                 y2 = screen_height;
             }
 
-            int shade_start = (shade0 << 9) - y0 * shade_step_y_ish9 + shade_step_y_ish9;
+            // Java: var48 = (arg6 << 9) - arg3 * var31 + var31
+            // Where arg6 = shade0, arg3 = y0, var31 = shade_step_x_ish9
+            int shade_start = (shade0 << 9) - y0 * shade_step_x_ish9 + shade_step_x_ish9;
 
             if( y1 < y2 )
             {
@@ -406,12 +408,14 @@ texture_deob(
                     y1 = 0;
                 }
 
-                // Initial u/v/w values at y0 (will be adjusted per scanline)
-                // The plane equation is: value = plane_x + plane_y * x + plane_z * y
-                // At start of triangle, we calculate at y0, x will be added per pixel
-                int u_val = u_plane_x + u_plane_z * y0;
-                int v_val = v_plane_x + v_plane_z * y0;
-                int w_val = w_plane_x + w_plane_z * y0;
+                // Java: var52 = arg0 - originY, var53 = var41 * var52 + var39
+                // So: u_val = u_plane_z * (y0 - origin_y) + u_plane_x
+                // The x component is handled in textureRaster with (x_start - originX)
+                int origin_y = screen_height >> 1;
+                int dy = y0 - origin_y;
+                int u_val = u_plane_z * dy + u_plane_x;
+                int v_val = v_plane_z * dy + v_plane_x;
+                int w_val = w_plane_z * dy + w_plane_x;
 
                 if( (y0 != y1 && step_x02_ish16 < step_x01_ish16) ||
                     (y0 == y1 && step_x02_ish16 > step_x12_ish16) )
