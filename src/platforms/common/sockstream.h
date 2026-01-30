@@ -5,8 +5,23 @@
 extern "C" {
 #endif
 
+#define SOCKSTREAM_ERROR_WOULDBLOCK -1
+#define SOCKSTREAM_ERROR -2
+
 // Opaque structure for socket stream
 struct SockStream;
+
+int
+sockstream_init(void);
+
+void
+sockstream_cleanup(void);
+
+int 
+sockstream_lasterror(struct SockStream* stream);
+
+char*
+sockstream_strerror(int error);
 
 /**
  * Create a new socket stream and connect to the specified host and port.

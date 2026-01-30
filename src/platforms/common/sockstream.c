@@ -18,17 +18,51 @@
 #include <unistd.h>
 #endif
 
-#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#define close closesocket
+#define EAGAIN WSAEWOULDBLOCK
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EINPROGRESS WSAEINPROGRESS
+
+#endif
+
+int
+sockstream_init(void)
+{
+#ifdef _WIN32
+    WSADATA wsaData;
+    if( WSAStartup(MAKEWORD(2, 2), &wsaData) != 0 )
+    {
+        return -1;
+    }
+#endif
+
+    return 0;
+}
+
+ void
+sockstream_cleanup(void)
+{
+#ifdef _WIN32
+    WSACleanup();
+#endif
+}
 
 struct SockStream
 {
     int sockfd;
     int is_valid;
 };
+
+
 
 struct SockStream*
 sockstream_connect(const char* host, int port, int timeout_sec)
@@ -160,6 +194,50 @@ sockstream_connect(const char* host, int port, int timeout_sec)
     stream->is_valid = 1;
     printf("Connected to %s:%d\n", host, port);
     return stream;
+}
+
+
+int 
+sockstream_lasterror(struct SockStream* stream)
+{
+    if( !stream )
+    {
+        return SOCKSTREAM_ERROR;
+    }
+#ifdef _WIN32
+    int error = WSAGetLastError();
+    if( error == WSAEWOULDBLOCK )
+    {
+        return SOCKSTREAM_ERROR_WOULDBLOCK;
+    }
+    else {
+        return SOCKSTREAM_ERROR;
+    }
+#else
+    int error = errno;
+    if( error == EAGAIN || error == EWOULDBLOCK )
+    {
+        return SOCKSTREAM_ERROR_WOULDBLOCK;
+    }
+    else {
+        return SOCKSTREAM_ERROR;
+    }
+#endif
+}
+
+
+char*
+sockstream_strerror(int error)
+{
+    switch( error )
+    {
+        case SOCKSTREAM_ERROR_WOULDBLOCK:
+            return "WOULDBLOCK";
+        case SOCKSTREAM_ERROR:
+            return "ERROR";
+        default:
+            return "UNKNOWN";
+    }
 }
 
 int

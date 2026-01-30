@@ -1,13 +1,8 @@
 #define SDL_MAIN_HANDLED
 
 extern "C" {
-#include "osrs/gameproto_parse.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
-#include "osrs/lclogin.h"
-#include "osrs/query_engine.h"
-#include "osrs/query_executor_dat.h"
-#include "osrs/revs/revpacket_lc245_2_query.h"
 #include "platforms/common/sockstream.h"
 #include "server/server.h"
 #include "tori_rs.h"
@@ -16,11 +11,6 @@ extern "C" {
 #include "platforms/platform_impl2_osx_sdl2.h"
 #include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
 
-#ifdef _WIN32
-#include <winsock2.h>
-#else
-#include <errno.h>
-#endif
 
 #include <SDL.h>
 #include <assert.h>
@@ -72,14 +62,6 @@ main(
     int argc,
     char* argv[])
 {
-#ifdef _WIN32
-    WSADATA wsaData;
-    if( WSAStartup(MAKEWORD(2, 2), &wsaData) != 0 )
-    {
-        printf("WSAStartup failed\n");
-        return 1;
-    }
-#endif
 
     bool has_message = false;
     struct GIOQueue* io = gioq_new();
@@ -146,114 +128,6 @@ main(
     LibToriRS_NetConnect(game, "asdf2", "a");
     while( LibToriRS_GameIsRunning(game) )
     {
-        // // Process login state machine
-        // lclogin_state_t login_state = lclogin_get_state(&login);
-        // if( login_state != LCLOGIN_STATE_IDLE && login_state != LCLOGIN_STATE_SUCCESS &&
-        //     login_state != LCLOGIN_STATE_ERROR )
-        // {
-        //     // Handle socket I/O for login
-        //     if( login_socket >= 0 )
-        //     {
-        //         // Check for data to send
-        //         const uint8_t* data_to_send = NULL;
-        //         int send_size = lclogin_get_data_to_send(&login, &data_to_send);
-        //         if( send_size > 0 && data_to_send )
-        //         {
-        //             int sent = send(login_socket, data_to_send, send_size, 0);
-        //             if( sent > 0 )
-        //             {
-        //                 lclogin_mark_data_sent(&login, sent);
-        //             }
-        //             else if( sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
-        //             {
-        //                 // Socket error
-        //                 printf("Socket send error: %s\n", strerror(errno));
-        //                 close(login_socket);
-        //                 login_socket = -1;
-        //             }
-        //         }
-
-        //         // Check for data to receive
-        //         int bytes_needed = lclogin_get_bytes_needed(&login);
-        //         if( bytes_needed > 0 )
-        //         {
-        //             uint8_t recv_buffer[512];
-        //             // In draining state, read as much as available
-        //             int recv_size =
-        //                 (login_state == LCLOGIN_STATE_SUCCESS) ? sizeof(recv_buffer) :
-        //                 bytes_needed;
-        //             int received = recv(login_socket, recv_buffer, recv_size, MSG_DONTWAIT);
-        //             if( received > 0 )
-        //             {
-        //                 lclogin_provide_data(&login, recv_buffer, received);
-        //             }
-        //             else if( received == 0 )
-        //             {
-        //                 // Connection closed
-        //                 printf("Login socket closed\n");
-        //                 close(login_socket);
-        //                 login_socket = -1;
-        //             }
-        //             else if( received < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
-        //             {
-        //                 // Socket error
-        //                 printf("Socket recv error: %s\n", strerror(errno));
-        //                 close(login_socket);
-        //                 login_socket = -1;
-        //             }
-        //         }
-        //     }
-        // }
-        // // Handle draining state separately - continue to drain data after login
-        // if( login_state == LCLOGIN_STATE_SUCCESS && login_socket >= 0 )
-        // {
-        //     // Continue receiving and discarding data
-        //     uint8_t recv_buffer[512];
-        //     int received = recv(login_socket, recv_buffer, sizeof(recv_buffer), MSG_DONTWAIT);
-        //     if( received > 0 )
-        //     {
-        //         lclogin_provide_data(&login, recv_buffer, received);
-        //     }
-        //     else if( received == 0 )
-        //     {
-        //         // Connection closed - transition to success
-        //         printf("Login socket closed, login complete\n");
-        //         login.state = LCLOGIN_STATE_SUCCESS;
-        //         close(login_socket);
-        //         login_socket = -1;
-        //     }
-        //     else if( received < 0 && errno != EAGAIN && errno != EWOULDBLOCK )
-        //     {
-        //         // Socket error
-        //         printf("Socket recv error during drain: %s\n", strerror(errno));
-        //         login.state = LCLOGIN_STATE_SUCCESS; // Still mark as success
-        //         close(login_socket);
-        //         login_socket = -1;
-        //     }
-        // }
-
-        // int login_result = lclogin_process(&login);
-        // if( login_result != 0 )
-        // {
-        //     // Login completed (success or error)
-        //     login_state = lclogin_get_state(&login);
-        //     if( login_state == LCLOGIN_STATE_SUCCESS )
-        //     {
-        //         printf("Login successful!\n");
-        //         lclogin_result_t result = lclogin_get_result(&login);
-        //         printf("Login result: %d\n", (int)result);
-        //     }
-        //     else if( login_state == LCLOGIN_STATE_ERROR )
-        //     {
-        //         printf(
-        //             "Login failed: %s - %s\n",
-        //             lclogin_get_message0(&login),
-        //             lclogin_get_message1(&login));
-        //         lclogin_result_t result = lclogin_get_result(&login);
-        //         printf("Login result: %d\n", (int)result);
-        //     }
-        // }
-
         if( LibToriRS_NetIsReady(game) && sockstream_is_valid(login_stream) )
         {
             LibToriRS_NetPump(game);
@@ -278,27 +152,15 @@ main(
             }
             else if( received < 0 )
             {
-                // Check if it's a real error (not just would-block)
-#ifdef _WIN32
-                int recv_err = WSAGetLastError();
-                if( recv_err != WSAEWOULDBLOCK )
+                int error = sockstream_lasterror(login_stream);
+                if (error != SOCKSTREAM_ERROR_WOULDBLOCK)
                 {
                     // Connection error
-                    printf("Login socket error: %d\n", recv_err);
+                    printf("Login socket error: %s\n", sockstream_strerror(error));
                     sockstream_close(login_stream);
                     login_stream = NULL;
                     LibToriRS_NetDisconnected(game);
                 }
-#else
-                if( errno != EAGAIN && errno != EWOULDBLOCK )
-                {
-                    // Connection error
-                    printf("Login socket error: %s\n", strerror(errno));
-                    sockstream_close(login_stream);
-                    login_stream = NULL;
-                    LibToriRS_NetDisconnected(game);
-                }
-#endif
             }
         }
 
@@ -333,9 +195,6 @@ main(
     // Cleanup server
     server_free(server);
 
-#ifdef _WIN32
-    WSACleanup();
-#endif
-
+    sockstream_cleanup();
     return 0;
 }
