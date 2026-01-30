@@ -5,7 +5,6 @@
 // clang-format off
 #include "texture.u.c"
 #include "texture_blend_branching.u.c"
-#include "texture_affine_branching_bary.u.c"
 #include "render_clip.u.c"
 #include "render_gouraud.u.c"
 #include "texture_deob.c"
@@ -661,26 +660,18 @@ raster_face_texture_blend(
 
     //     return;
 
-    // Map orthographic texture coordinates to u/v/w
-    int u0 = orthographic_uvorigin_x0;
-    int v0 = orthographic_uvorigin_y0;
-    int w0 = orthographic_uvorigin_z0;
-    int u1 = orthographic_uend_x1;
-    int v1 = orthographic_uend_y1;
-    int w1 = orthographic_uend_z1;
-    int u2 = orthographic_vend_x2;
-    int v2 = orthographic_vend_y2;
-    int w2 = orthographic_vend_z2;
 
-    int origin_x = screen_width >> 1;
-    bool opaque = texture_opaque;
-    bool hclip = true; // Enable horizontal clipping
 
     assert(shade_a >= 0 && shade_a < 128);
     assert(shade_b >= 0 && shade_b < 128);
     assert(shade_c >= 0 && shade_c < 128);
 
-    texture_deob(
+    raster_texture_opaque_blend_affine(
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        512,
         x1,
         x2,
         x3,
@@ -688,27 +679,21 @@ raster_face_texture_blend(
         y2,
         y3,
         // 80,80,80,
+        orthographic_uvorigin_x0,
+        orthographic_uend_x1,
+        orthographic_vend_x2,
+        orthographic_uvorigin_y0,
+        orthographic_uend_y1,
+        orthographic_vend_y2,
+        orthographic_uvorigin_z0,
+        orthographic_uend_z1,
+        orthographic_vend_z2,
+        
         shade_a,
         shade_b,
         shade_c,
-        u0,
-        v0,
-        w0,
-        u1,
-        v1,
-        w1,
-        u2,
-        v2,
-        w2,
-        0, // texture_id (not used in current implementation)
-        pixel_buffer,
         texels,
-        stride,
-        screen_width,
-        screen_height,
-        origin_x,
-        opaque,
-        hclip);
+        texture_size);
 
     return;
 

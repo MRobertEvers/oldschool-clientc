@@ -7,27 +7,33 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// Forward declaration
-static void texture_raster_deob(
+// Forward declarations
+static inline void raster_texture_opaque_blend_affine_ordered(
     int* pixel_buffer,
-    int* texels,
-    int y,
     int stride,
-    int x_start,
-    int x_end,
-    int shade_ish8,
-    int shade_step_ish8,
-    int u,
-    int v,
-    int w,
-    int step_u_dx,
-    int step_v_dx,
-    int step_w_dx,
     int screen_width,
     int screen_height,
-    int origin_x,
-    bool opaque,
-    bool hclip);
+    int camera_fov,
+    int x0,
+    int x1,
+    int x2,
+    int y0,
+    int y1,
+    int y2,
+    int orthographic_uvorigin_x0,
+    int orthographic_uend_x1,
+    int orthographic_vend_x2,
+    int orthographic_uvorigin_y0,
+    int orthographic_uend_y1,
+    int orthographic_vend_y2,
+    int orthographic_uvorigin_z0,
+    int orthographic_uend_z1,
+    int orthographic_vend_z2,
+    int shade0,
+    int shade1,
+    int shade2,
+    int* texels,
+    int texture_width);
 
 
 static inline void raster_texture_opaque_blend_affine(
@@ -205,6 +211,7 @@ static inline void raster_texture_opaque_blend_affine(
     }
     else
     {
+        return;
         // y2, y0, y1,
         if( y0 <= y1 )
         {
@@ -359,64 +366,60 @@ draw_texture_scanline_opaque_blend_affine_ordered(
     // >> 8 converts to 0-254 range for blending
     int shade = shade_accum >> 8;
 
-    if (shade == 0)
+
+    if( steps_8 > 0 )
     {
-        return;
-    }
-
-        if( steps_8 > 0 )
+        do
         {
-            do
-            {
-                int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
-                pixel_buffer[offset++] =
-                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                int uv_next = uv_packed + uv_step;
-                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                pixel_buffer[offset++] =
-                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                uv_next = uv_step + uv_next;
-                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                pixel_buffer[offset++] =
-                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                uv_next = uv_step + uv_next;
-                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                pixel_buffer[offset++] =
-                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                uv_next = uv_step + uv_next;
-                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                pixel_buffer[offset++] =
-                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                uv_next = uv_step + uv_next;
-                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                pixel_buffer[offset++] =
-                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                uv_next = uv_step + uv_next;
-                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                pixel_buffer[offset++] =
-                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                uv_next = uv_step + uv_next;
-                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                pixel_buffer[offset++] =
-                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                uv_packed = uv_step + uv_next;
-                shade_accum += shade_step_8;
-                shade = shade_accum >> 8;
-                steps_8--;
-            } while( steps_8 > 0 );
-        }
-
-        int remaining = (x_end - x_start) & 0x7;
-        if( remaining > 0 )
-        {
-            do
-            {
             int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
             pixel_buffer[offset++] =
                 (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                uv_packed += uv_step;
-                remaining--;
-            } while( remaining > 0 );
+            int uv_next = uv_packed + uv_step;
+            texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+            pixel_buffer[offset++] =
+                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            uv_next = uv_step + uv_next;
+            texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+            pixel_buffer[offset++] =
+                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            uv_next = uv_step + uv_next;
+            texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+            pixel_buffer[offset++] =
+                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            uv_next = uv_step + uv_next;
+            texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+            pixel_buffer[offset++] =
+                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            uv_next = uv_step + uv_next;
+            texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+            pixel_buffer[offset++] =
+                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            uv_next = uv_step + uv_next;
+            texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+            pixel_buffer[offset++] =
+                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            uv_next = uv_step + uv_next;
+            texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+            pixel_buffer[offset++] =
+                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            uv_packed = uv_step + uv_next;
+            shade_accum += shade_step_8;
+            shade = shade_accum >> 8;
+            steps_8--;
+        } while( steps_8 > 0 );
+    }
+
+    int remaining = (x_end - x_start) & 0x7;
+    if( remaining > 0 )
+    {
+        do
+        {
+        int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
+        pixel_buffer[offset++] =
+            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+            uv_packed += uv_step;
+            remaining--;
+        } while( remaining > 0 );
     }
 }
 
@@ -449,6 +452,16 @@ raster_texture_opaque_blend_affine_ordered(
     int* texels,
     int texture_width)
 {
+    // Map orthographic texture coordinates to u/v/w
+    int u0 = orthographic_uvorigin_x0;
+    int v0 = orthographic_uvorigin_y0;
+    int w0 = orthographic_uvorigin_z0;
+    int u1 = orthographic_uend_x1;
+    int v1 = orthographic_uend_y1;
+    int w1 = orthographic_uend_z1;
+    int u2 = orthographic_vend_x2;
+    int v2 = orthographic_vend_y2;
+    int w2 = orthographic_vend_z2;
 
     int dx01 = x1 - x0;
     int dy01 = y1 - y0;
@@ -565,29 +578,28 @@ raster_texture_opaque_blend_affine_ordered(
             // Java: var52 = arg0 - originY, var53 = var41 * var52 + var39
             // So: u_val = u_plane_z * (y0 - origin_y) + u_plane_x
             // The x component is handled in textureRaster with (x_start - originX)
+            int origin_x = screen_width >> 1;
             int origin_y = screen_height >> 1;
             int dy = y0 - origin_y;
             int u_val = u_plane_z * dy + u_plane_x;
             int v_val = v_plane_z * dy + v_plane_x;
             int w_val = w_plane_z * dy + w_plane_x;
 
-            if( (y0 != y1 && step_x02_ish16 < step_x01_ish16) ||
-                (y0 == y1 && step_x02_ish16 > step_x12_ish16) )
+            if( (y0 == y1 && step_x02_ish16 <= step_x12_ish16) ||
+                (y0 != y1 && step_x02_ish16 >= step_x01_ish16) )
             {
-                int steps_bottom = y2 - y1;
-                int steps_top = y1 - y0;
-                int current_y = y0;
+                y2 -= y1;
+                y1 -= y0;
 
-                while( steps_top-- )
+                while( y1-- > 0 )
                 {
-              
                     draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
                         texels,
-                        current_y,
+                        y0,
                         stride,
-                        x_right_ish16 >> 16,
                         x_left_ish16 >> 16,
+                        x_right_ish16 >> 16,
                         shade_start,
                         shade_step_x_ish9,
                         u_val,
@@ -602,53 +614,18 @@ raster_texture_opaque_blend_affine_ordered(
                     x_right_ish16 += step_x02_ish16;
                     x_left_ish16 += step_x01_ish16;
                     shade_start += shade_step_y_ish9;
-                    current_y++;
+                    y0++;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
                     w_val += w_plane_z;
                 }
 
-                while (steps_bottom-- > 0)
+                while( y2-- > 0 )
                 {
                     draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
                         texels,
-                        current_y,
-                        stride,
-                        x_right_ish16 >> 16,
-                        x_left_ish16 >> 16,
-                        shade_start,
-                        shade_step_x_ish9,
-                        u_val,
-                        v_val,
-                        w_val,
-                        u_plane_y,
-                        v_plane_y,
-                        w_plane_y,
-                        screen_width,
-                        screen_height,
-                        origin_x);
-                    x_right_ish16 += step_x02_ish16;
-                    x_left_ish16 += step_x01_ish16;
-                    shade_start += shade_step_y_ish9;
-                    current_y++;
-                    u_val += u_plane_z;
-                    v_val += v_plane_z;
-                    w_val += w_plane_z;
-                }
-            }
-            else
-            {
-                int steps_bottom = y2 - y1;
-                int steps_top = y1 - y0;
-                int current_y = y0;
-
-                while (steps_top-- > 0)
-                 {
-                    draw_texture_scanline_opaque_blend_affine_ordered(
-                        pixel_buffer,
-                        texels,
-                        current_y,
+                        y0,
                         stride,
                         x_mid_ish16 >> 16,
                         x_right_ish16 >> 16,
@@ -666,22 +643,55 @@ raster_texture_opaque_blend_affine_ordered(
                     x_right_ish16 += step_x02_ish16;
                     x_mid_ish16 += step_x12_ish16;
                     shade_start += shade_step_y_ish9;
-                    current_y++;
+                    y0++;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
                     w_val += w_plane_z;
-            
                 }
+            }
+            else
+            {
+                y2 -= y1;
+                y1 -= y0;
 
-                while (steps_bottom-- > 0)
+                while( y1-- > 0 )
                 {
                     draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
                         texels,
-                        current_y,
+                        y0,
                         stride,
-                        x_mid_ish16 >> 16,
                         x_right_ish16 >> 16,
+                        x_left_ish16 >> 16,
+                        shade_start,
+                        shade_step_x_ish9,
+                        u_val,
+                        v_val,
+                        w_val,
+                        u_plane_y,
+                        v_plane_y,
+                        w_plane_y,
+                        screen_width,
+                        screen_height,
+                        origin_x);
+                    x_right_ish16 += step_x02_ish16;
+                    x_left_ish16 += step_x01_ish16;
+                    shade_start += shade_step_y_ish9;
+                    y0++;
+                    u_val += u_plane_z;
+                    v_val += v_plane_z;
+                    w_val += w_plane_z;
+                }
+
+                while( y2-- > 0 )
+                {
+                    draw_texture_scanline_opaque_blend_affine_ordered(
+                        pixel_buffer,
+                        texels,
+                        y0,
+                        stride,
+                        x_right_ish16 >> 16,
+                        x_mid_ish16 >> 16,
                         shade_start,
                         shade_step_x_ish9,
                         u_val,
@@ -697,7 +707,7 @@ raster_texture_opaque_blend_affine_ordered(
                     x_right_ish16 += step_x02_ish16;
                     x_mid_ish16 += step_x12_ish16;
                     shade_start += shade_step_y_ish9;
-                    current_y++;
+                    y0++;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
                     w_val += w_plane_z;
