@@ -211,7 +211,6 @@ static inline void raster_texture_opaque_blend_affine(
     }
     else
     {
-        return;
         // y2, y0, y1,
         if( y0 <= y1 )
         {
