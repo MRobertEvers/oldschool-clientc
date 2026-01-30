@@ -27,6 +27,7 @@ gameproto_parse_lc245_2(
     {
     case PKTIN_LC245_2_REBUILD_NORMAL:
     {
+        printf("PKTIN_LC245_2_REBUILD_NORMAL\n");
         packet->_map_rebuild.zonex = g2(&buffer);
         packet->_map_rebuild.zonez = g2(&buffer);
         assert(buffer.position == data_size);
@@ -34,6 +35,7 @@ gameproto_parse_lc245_2(
     }
     case PKTIN_LC245_2_NPC_INFO:
     {
+        printf("PKTIN_LC245_2_NPC_INFO\n");
         uint8_t* commandstream = malloc(data_size);
         memcpy(commandstream, data, data_size);
         packet->_npc_info.length = data_size;
@@ -42,6 +44,7 @@ gameproto_parse_lc245_2(
     }
     case PKTIN_LC245_2_PLAYER_INFO:
     {
+        printf("PKTIN_LC245_2_PLAYER_INFO\n");
         uint8_t* commandstream = malloc(data_size);
         memcpy(commandstream, data, data_size);
         packet->_player_info.length = data_size;

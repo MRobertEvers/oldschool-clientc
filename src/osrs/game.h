@@ -55,10 +55,13 @@ struct GGame
 
     enum GameNetState net_state;
     struct LCLogin* login;
+    uint8_t outbound_buffer[4096];
+    int outbound_size;
     struct PacketBuffer* packet_buffer;
 
-    int cycles;
+    int cycles_elapsed;
     int cycle;
+    int next_notimeout_cycle;
 
     int next_rebuild;
 
@@ -83,6 +86,8 @@ struct GGame
     uint32_t active_players[MAX_PLAYERS];
     int player_count;
     struct NPCEntity npcs[MAX_NPCS];
+    uint32_t active_npcs[MAX_NPCS];
+    int npc_count;
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;

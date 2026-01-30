@@ -115,8 +115,8 @@ LibToriRS_GameNew(
     game->buildcache = buildcache_new();
 
     gametask_new_init_io(game, game->io);
-    // gametask_new_init_scene_dat(game, 50, 50, 51, 51);
-    gametask_new_init_scene(game, 50, 50, 51, 51);
+    gametask_new_init_scene_dat(game, 50, 50, 51, 51);
+    // gametask_new_init_scene(game, 50, 50, 51, 51);
     // gametask_new_init_scene(game, 35, 83, 35, 83);
 
     //     {
@@ -152,7 +152,7 @@ LibToriRS_GameProcessInput(
     {
         time_quanta++;
         input->time_delta_accumulator_seconds -= time_delta_step;
-        game->cycles++;
+        game->cycles_elapsed++;
         if( !game->latched )
             game->cc++;
     }
@@ -339,13 +339,23 @@ LibToriRS_GameStep(
 
     LibToriRS_GameProcessInput(game, input);
 
-    dash_animate_textures(game->sys_dash, game->cycles);
+    dash_animate_textures(game->sys_dash, game->cycles_elapsed);
+    if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
+    {
+        game->next_notimeout_cycle = game->cycle + 50;
+        int opcode = 206;
+        uint32_t op = (opcode + isaac_next(game->login->random_out)) & 0xff;
+        game->outbound_buffer[game->outbound_size++] = op;
+    }
 
     scenebuilder_reset_dynamic_elements(game->scenebuilder, game->scene);
 
-    for( int i = 0; i < MAX_NPCS; i++ )
+    for( int i = 0; i < game->npc_count; i++ )
     {
-        struct NPCEntity* npc = &game->npcs[i];
+        int npc_id = game->active_npcs[i];
+        if( npc_id == -1 )
+            continue;
+        struct NPCEntity* npc = &game->npcs[game->active_npcs[i]];
         if( npc->alive )
         {
             scenebuilder_push_dynamic_element(
@@ -391,9 +401,9 @@ LibToriRS_GameStep(
             game->players[ACTIVE_PLAYER_SLOT].scene_element);
     }
 
-    while( game->cycles > 0 )
+    while( game->cycles_elapsed > 0 )
     {
-        game->cycles--;
+        game->cycles_elapsed--;
         if( !game->scene )
             continue;
 
@@ -931,10 +941,6 @@ LibToriRS_NetPump(struct GGame* game)
                 if( packetbuffer_ready(game->packet_buffer) )
                 {
                     int pkt = packetbuffer_packet_type(game->packet_buffer);
-                    if( pkt == 96 )
-                    {
-                        printf("packet type: %d\n", pkt);
-                    }
                     struct RevPacket_LC245_2 packet = { 0 };
                     int res = gameproto_parse_lc245_2(
                         game,
@@ -1016,6 +1022,7 @@ LibToriRS_NetGetOutgoing(
     uint8_t* buffer,
     int buffer_size)
 {
+    int outbound_size = 0;
     switch( game->net_state )
     {
     case GAME_NET_STATE_DISCONNECTED:
@@ -1023,17 +1030,24 @@ LibToriRS_NetGetOutgoing(
     case GAME_NET_STATE_LOGIN:
     {
         const uint8_t* data = NULL;
-        int outgoing_size = lclogin_get_data_to_send(game->login, &data);
+        outbound_size = lclogin_get_data_to_send(game->login, &data);
         if( data )
         {
-            assert(outgoing_size <= buffer_size);
-            memcpy(buffer, data, outgoing_size);
+            assert(outbound_size <= buffer_size);
+            memcpy(buffer, data, outbound_size);
         }
-        lclogin_mark_data_sent(game->login, outgoing_size);
-        return outgoing_size;
+        lclogin_mark_data_sent(game->login, outbound_size);
+        return outbound_size;
     }
     case GAME_NET_STATE_GAME:
-        return 0;
+    {
+        if( game->outbound_size == 0 )
+            return 0;
+        outbound_size = game->outbound_size;
+        memcpy(buffer, game->outbound_buffer, outbound_size);
+        game->outbound_size = 0;
+        return outbound_size;
+    }
     }
     return 0;
 }

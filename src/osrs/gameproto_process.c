@@ -7,6 +7,7 @@
 #include "jbase37.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/maps.h"
+#include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
 #include "query_engine.h"
 #include "query_executor_dat.h"
@@ -256,94 +257,40 @@ gameproto_process(
         break;
         case PKTIN_LC245_2_NPC_INFO:
         {
-            struct Vec* npc_ids = vec_new(sizeof(int), 64);
-            struct QEQuery* q = query_engine_qnew();
             struct BitBuffer buf;
             struct RSBuffer rsbuf;
             rsbuf_init(&rsbuf, item->packet._npc_info.data, item->packet._npc_info.length);
             bitbuffer_init_from_rsbuf(&buf, &rsbuf);
             bits(&buf);
 
-            int count = gbits(&buf, 8);
+            struct PktNpcInfoReader reader = { 0 };
+            reader.extended_count = 0;
+            reader.current_op = 0;
+            reader.max_ops = 2048;
+
+            struct PktNpcInfoOp ops[2048];
+            int npc_ids[2048];
+            int npc_ids_count = 0;
+            int count = pkt_npc_info_reader_read(&reader, &item->packet._npc_info, ops, 2048);
+
             for( int i = 0; i < count; i++ )
             {
-                //
-            }
-
-            int npc_count;
-            for( int i = 0; i < count; i++ )
-            {
-                // int index = npc_ids[i];
-
-                int info = gbits(&buf, 1);
-                if( info == 0 )
+                struct PktNpcInfoOp* op = &ops[i];
+                switch( op->kind )
                 {
-                    //
+                case PKT_NPC_INFO_OPBITS_NPCTYPE:
+                {
+                    int npc_type = op->_bitvalue;
+                    npc_ids[npc_ids_count++] = npc_type;
                 }
-                else
-                {
-                    int op = gbits(&buf, 2);
-                    switch( op )
-                    {
-                    case 0:
-                        //
-                        break;
-                    case 1:
-                        // walkdir
-                        gbits(&buf, 3);
-                        // has extended info
-                        gbits(&buf, 1);
-                        break;
-                    case 2:
-                        // walkdir
-                        gbits(&buf, 3);
-                        // rundir
-                        gbits(&buf, 3);
-                        // has extended info
-                        gbits(&buf, 1);
-                        break;
-                    case 3:
-                        //
-                        break;
-                    }
-                    //
+                break;
                 }
             }
 
-            while( ((buf.byte_position * 8) + buf.bit_offset + 21) <
-                   item->packet._npc_info.length * 8 )
-            {
-                int npc_idx = gbits(&buf, 13);
-                if( npc_idx == 8191 )
-                {
-                    break;
-                }
-
-                int npc_id = gbits(&buf, 11);
-                vec_push(npc_ids, &npc_id);
-
-                int dx = gbits(&buf, 5);
-                int dy = gbits(&buf, 5);
-
-                int has_extended_info = gbits(&buf, 1);
-            }
-
-            struct Vec* models = vec_new(sizeof(int), 64);
-            for( int i = 0; i < vec_size(npc_ids); i++ )
-            {
-                int npc_id = *(int*)vec_get(npc_ids, i);
-                struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, npc_id);
-                assert(npc && "Npc must be found");
-
-                for( int j = 0; j < npc->models_count; j++ )
-                {
-                    int model_id = npc->models[j];
-                    vec_push(models, &model_id);
-                }
-            }
-
-            query_engine_qpush_op(q, QEDAT_DT_MODELS, QE_FN_0, QE_STORE_DISCARD);
-            query_engine_qpush_argx(q, vec_data(models), vec_size(models));
+            struct QEQuery* q = query_engine_qnew();
+            query_engine_qpush_op(q, QEDAT_DT_CONFIG_NPCS, QE_FN_0, QE_STORE_SET_0);
+            query_engine_qpush_argx(q, npc_ids, npc_ids_count);
+            query_engine_qpush_op(q, QEDAT_DT_MODELS, QE_FN_FROM_0, QE_STORE_DISCARD);
             gametask_new_query(game, q);
             break;
         }

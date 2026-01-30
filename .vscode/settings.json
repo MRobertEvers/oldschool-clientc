@@ -240,6 +240,7 @@
         "bitbuffer.h": "c",
         "gameproto_exec.h": "c",
         "jbase37.h": "c",
-        "config_obj.h": "c"
+        "config_obj.h": "c",
+        "config_npc.h": "c"
     },
 }

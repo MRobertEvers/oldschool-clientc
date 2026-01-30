@@ -194,7 +194,7 @@ main(
 
     int login_socket = -1;
     // Create socket connection to login server
-    // login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
+    login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
     if( login_socket < 0 )
     {
         printf("Failed to create login socket\n");
@@ -324,6 +324,7 @@ main(
             int outgoing_size = LibToriRS_NetGetOutgoing(game, buffer, sizeof(buffer));
             if( outgoing_size > 0 )
             {
+                printf("Sending %d bytes to login server\n", outgoing_size);
                 send(login_socket, buffer, outgoing_size, 0);
             }
             int recv_size = sizeof(buffer);

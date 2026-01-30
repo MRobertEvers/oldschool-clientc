@@ -234,6 +234,10 @@ scenebuilder_push_dynamic_element(
     struct SceneElement* element)
 {
     struct SceneElement scene_element = { 0 };
+    assert(sx >= 0 && sx < scene->tile_width_x);
+    assert(sz >= 0 && sz < scene->tile_width_z);
+    assert(slevel >= 0 && slevel < MAP_TERRAIN_LEVELS);
+    assert(element != NULL);
 
     int height_center = scene_terrain_height_center(scene, sx, sz, slevel);
 
