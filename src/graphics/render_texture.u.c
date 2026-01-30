@@ -676,6 +676,10 @@ raster_face_texture_blend(
     bool opaque = texture_opaque;
     bool hclip = true; // Enable horizontal clipping
 
+    assert(shade_a >= 0 && shade_a < 128);
+    assert(shade_b >= 0 && shade_b < 128);
+    assert(shade_c >= 0 && shade_c < 128);
+
     texture_deob(
         x1,
         x2,
@@ -683,10 +687,10 @@ raster_face_texture_blend(
         y1,
         y2,
         y3,
-        80,80,80,
-        // shade_a,
-        // shade_b,
-        // shade_c,
+        // 80,80,80,
+        shade_a,
+        shade_b,
+        shade_c,
         u0,
         v0,
         w0,

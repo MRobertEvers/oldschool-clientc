@@ -117,6 +117,11 @@ texture_raster_deob(
         // >> 8 converts to 0-254 range for blending
         int shade = shade_accum >> 8;
 
+        if (shade == 0)
+        {
+            return;
+        }
+
         if( opaque )
         {
             if( steps_8 > 0 )
@@ -296,8 +301,10 @@ texture_deob(
 
     int dx01 = x1 - x0;
     int dy01 = y1 - y0;
+
     int dx02 = x2 - x0;
     int dy02 = y2 - y0;
+
     int du01 = u1 - u0;
     int dv01 = v1 - v0;
     int dw01 = w1 - w0;
@@ -329,13 +336,11 @@ texture_deob(
         return;
     }
 
-    // Java: var31 = shade step per x, var32 = shade step per y
-    // var31 = ((x2-x0)*(shade1-shade0) - (x1-x0)*(shade2-shade0) << 9) / area
-    // var32 = ((y1-y0)*(shade2-shade0) - (y2-y0)*(shade1-shade0) << 9) / area
+    // Solution to a barycentric equation system for dy and dx
     int dshade01 = shade1 - shade0;
     int dshade02 = shade2 - shade0;
-    int shade_step_x_ish9 = ((dx02 * dshade01 - dx01 * dshade02) << 9) / area;
-    int shade_step_y_ish9 = ((dy01 * dshade02 - dy02 * dshade01) << 9) / area;
+    int shade_step_x_ish9 = ((dy02 * dshade01 - dy01 * dshade02) << 9) / area;
+    int shade_step_y_ish9 = ((dx01 * dshade02 - dx02 * dshade01) << 9) / area;
 
     // Java: var33 = u0 - u1, var34 = v0 - v1, var35 = w0 - w1
     // Java: var36 = u2 - u0, var37 = v2 - v0, var38 = w2 - w0
@@ -400,7 +405,7 @@ texture_deob(
                 {
                     x_right_ish16 -= y0 * step_x02_ish16;
                     x_left_ish16 -= y0 * step_x01_ish16;
-                    shade_start -= y0 * shade_step_x_ish9;
+                    shade_start -= y0 * shade_step_y_ish9;
                     y0 = 0;
                 }
 
@@ -461,7 +466,7 @@ texture_deob(
                                     hclip);
                                 x_right_ish16 += step_x02_ish16;
                                 x_mid_ish16 += step_x12_ish16;
-                                shade_start += shade_step_x_ish9;
+                                shade_start += shade_step_y_ish9;
                                 current_y++;
                                 u_val += u_plane_z;
                                 v_val += v_plane_z;
@@ -490,7 +495,7 @@ texture_deob(
                             hclip);
                         x_right_ish16 += step_x02_ish16;
                         x_left_ish16 += step_x01_ish16;
-                        shade_start += shade_step_x_ish9;
+                        shade_start += shade_step_y_ish9;
                         current_y++;
                         u_val += u_plane_z;
                         v_val += v_plane_z;
@@ -537,7 +542,7 @@ texture_deob(
                                     hclip);
                                 x_right_ish16 += step_x02_ish16;
                                 x_mid_ish16 += step_x12_ish16;
-                                shade_start += shade_step_x_ish9;
+                                shade_start += shade_step_y_ish9;
                                 current_y++;
                                 u_val += u_plane_z;
                                 v_val += v_plane_z;
@@ -566,7 +571,7 @@ texture_deob(
                             hclip);
                         x_right_ish16 += step_x02_ish16;
                         x_left_ish16 += step_x01_ish16;
-                        shade_start += shade_step_x_ish9;
+                        shade_start += shade_step_y_ish9;
                         current_y++;
                         u_val += u_plane_z;
                         v_val += v_plane_z;
@@ -584,7 +589,7 @@ texture_deob(
                 {
                     x_right_ish16 -= y0 * step_x02_ish16;
                     x_left_ish16 -= y0 * step_x01_ish16;
-                    shade_start -= y0 * shade_step_x_ish9;
+                    shade_start -= y0 * shade_step_y_ish9;
                     y0 = 0;
                 }
 
@@ -643,7 +648,7 @@ texture_deob(
                                     hclip);
                                 x_mid_ish16 += step_x12_ish16;
                                 x_left_ish16 += step_x01_ish16;
-                                shade_start += shade_step_x_ish9;
+                                shade_start += shade_step_y_ish9;
                                 current_y++;
                                 u_val += u_plane_z;
                                 v_val += v_plane_z;
@@ -672,7 +677,7 @@ texture_deob(
                             hclip);
                         x_right_ish16 += step_x02_ish16;
                         x_left_ish16 += step_x01_ish16;
-                        shade_start += shade_step_x_ish9;
+                        shade_start += shade_step_y_ish9;
                         current_y++;
                         u_val += u_plane_z;
                         v_val += v_plane_z;
@@ -719,7 +724,7 @@ texture_deob(
                                     hclip);
                                 x_mid_ish16 += step_x12_ish16;
                                 x_left_ish16 += step_x01_ish16;
-                                shade_start += shade_step_x_ish9;
+                                shade_start += shade_step_y_ish9;
                                 current_y++;
                                 u_val += u_plane_z;
                                 v_val += v_plane_z;
@@ -748,7 +753,7 @@ texture_deob(
                             hclip);
                         x_right_ish16 += step_x02_ish16;
                         x_left_ish16 += step_x01_ish16;
-                        shade_start += shade_step_x_ish9;
+                        shade_start += shade_step_y_ish9;
                         current_y++;
                         u_val += u_plane_z;
                         v_val += v_plane_z;
@@ -783,7 +788,7 @@ texture_deob(
                 {
                     x_right_ish16 -= y1 * step_x01_ish16;
                     x_left_ish16 -= y1 * step_x12_ish16;
-                    shade_start -= y1 * shade_step_x_ish9;
+                    shade_start -= y1 * shade_step_y_ish9;
                     y1 = 0;
                 }
 
@@ -842,7 +847,7 @@ texture_deob(
                                     hclip);
                                 x_right_ish16 += step_x01_ish16;
                                 x_mid_ish16 += step_x02_ish16;
-                                shade_start += shade_step_x_ish9;
+                                shade_start += shade_step_y_ish9;
                                 current_y++;
                                 u_val += u_plane_z;
                                 v_val += v_plane_z;
@@ -871,7 +876,7 @@ texture_deob(
                             hclip);
                         x_right_ish16 += step_x01_ish16;
                         x_left_ish16 += step_x12_ish16;
-                        shade_start += shade_step_x_ish9;
+                        shade_start += shade_step_y_ish9;
                         current_y++;
                         u_val += u_plane_z;
                         v_val += v_plane_z;
@@ -918,7 +923,7 @@ texture_deob(
                                     hclip);
                                 x_right_ish16 += step_x01_ish16;
                                 x_mid_ish16 += step_x02_ish16;
-                                shade_start += shade_step_x_ish9;
+                                shade_start += shade_step_y_ish9;
                                 current_y++;
                                 u_val += u_plane_z;
                                 v_val += v_plane_z;
@@ -947,7 +952,7 @@ texture_deob(
                             hclip);
                         x_right_ish16 += step_x01_ish16;
                         x_left_ish16 += step_x12_ish16;
-                        shade_start += shade_step_x_ish9;
+                        shade_start += shade_step_y_ish9;
                         current_y++;
                         u_val += u_plane_z;
                         v_val += v_plane_z;
@@ -964,7 +969,7 @@ texture_deob(
                 {
                     x_right_ish16 -= y1 * step_x01_ish16;
                     x_left_ish16 -= y1 * step_x12_ish16;
-                    shade_start -= y1 * shade_step_x_ish9;
+                    shade_start -= y1 * shade_step_y_ish9;
                     y1 = 0;
                 }
 
@@ -1022,7 +1027,7 @@ texture_deob(
                                     hclip);
                                 x_mid_ish16 += step_x02_ish16;
                                 x_left_ish16 += step_x12_ish16;
-                                shade_start += shade_step_x_ish9;
+                                shade_start += shade_step_y_ish9;
                                 current_y++;
                                 u_val += u_plane_z;
                                 v_val += v_plane_z;
@@ -1051,7 +1056,7 @@ texture_deob(
                             hclip);
                         x_right_ish16 += step_x01_ish16;
                         x_left_ish16 += step_x12_ish16;
-                        shade_start += shade_step_x_ish9;
+                        shade_start += shade_step_y_ish9;
                         current_y++;
                         u_val += u_plane_z;
                         v_val += v_plane_z;
@@ -1098,7 +1103,7 @@ texture_deob(
                                     hclip);
                                 x_mid_ish16 += step_x02_ish16;
                                 x_left_ish16 += step_x12_ish16;
-                                shade_start += shade_step_x_ish9;
+                                shade_start += shade_step_y_ish9;
                                 current_y++;
                                 u_val += u_plane_z;
                                 v_val += v_plane_z;
@@ -1127,7 +1132,7 @@ texture_deob(
                             hclip);
                         x_right_ish16 += step_x01_ish16;
                         x_left_ish16 += step_x12_ish16;
-                        shade_start += shade_step_x_ish9;
+                        shade_start += shade_step_y_ish9;
                         current_y++;
                         u_val += u_plane_z;
                         v_val += v_plane_z;
@@ -1160,7 +1165,7 @@ texture_deob(
             {
                 x_right_ish16 -= y2 * step_x12_ish16;
                 x_left_ish16 -= y2 * step_x02_ish16;
-                shade_start -= y2 * shade_step_x_ish9;
+                shade_start -= y2 * shade_step_y_ish9;
                 y2 = 0;
             }
 
@@ -1218,7 +1223,7 @@ texture_deob(
                                 hclip);
                             x_right_ish16 += step_x12_ish16;
                             x_mid_ish16 += step_x01_ish16;
-                            shade_start += shade_step_x_ish9;
+                            shade_start += shade_step_y_ish9;
                             current_y++;
                             u_val += u_plane_z;
                             v_val += v_plane_z;
@@ -1247,7 +1252,7 @@ texture_deob(
                         hclip);
                     x_right_ish16 += step_x12_ish16;
                     x_left_ish16 += step_x02_ish16;
-                    shade_start += shade_step_x_ish9;
+                    shade_start += shade_step_y_ish9;
                     current_y++;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
@@ -1294,7 +1299,7 @@ texture_deob(
                                 hclip);
                             x_right_ish16 += step_x12_ish16;
                             x_mid_ish16 += step_x01_ish16;
-                            shade_start += shade_step_x_ish9;
+                            shade_start += shade_step_y_ish9;
                             current_y++;
                             u_val += u_plane_z;
                             v_val += v_plane_z;
@@ -1323,7 +1328,7 @@ texture_deob(
                         hclip);
                     x_right_ish16 += step_x12_ish16;
                     x_left_ish16 += step_x02_ish16;
-                    shade_start += shade_step_x_ish9;
+                    shade_start += shade_step_y_ish9;
                     current_y++;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
@@ -1340,7 +1345,7 @@ texture_deob(
             {
                 x_right_ish16 -= y2 * step_x12_ish16;
                 x_left_ish16 -= y2 * step_x02_ish16;
-                shade_start -= y2 * shade_step_x_ish9;
+                shade_start -= y2 * shade_step_y_ish9;
                 y2 = 0;
             }
 
@@ -1398,7 +1403,7 @@ texture_deob(
                                 hclip);
                             x_mid_ish16 += step_x01_ish16;
                             x_left_ish16 += step_x02_ish16;
-                            shade_start += shade_step_x_ish9;
+                            shade_start += shade_step_y_ish9;
                             current_y++;
                             u_val += u_plane_z;
                             v_val += v_plane_z;
@@ -1427,7 +1432,7 @@ texture_deob(
                         hclip);
                     x_right_ish16 += step_x12_ish16;
                     x_left_ish16 += step_x02_ish16;
-                    shade_start += shade_step_x_ish9;
+                    shade_start += shade_step_y_ish9;
                     current_y++;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
@@ -1474,7 +1479,7 @@ texture_deob(
                                 hclip);
                             x_mid_ish16 += step_x01_ish16;
                             x_left_ish16 += step_x02_ish16;
-                            shade_start += shade_step_x_ish9;
+                            shade_start += shade_step_y_ish9;
                             current_y++;
                             u_val += u_plane_z;
                             v_val += v_plane_z;
@@ -1503,7 +1508,7 @@ texture_deob(
                         hclip);
                     x_right_ish16 += step_x12_ish16;
                     x_left_ish16 += step_x02_ish16;
-                    shade_start += shade_step_x_ish9;
+                    shade_start += shade_step_y_ish9;
                     current_y++;
                     u_val += u_plane_z;
                     v_val += v_plane_z;
