@@ -1,0 +1,115 @@
+========================================
+Windows XP Build - Quick Start Guide
+========================================
+
+PREREQUISITES:
+- MinGW i686 toolchain at: C:\Users\mrobe\Downloads\winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2
+- CMake installed
+- SDL2 development files (see setup_sdl2_winxp.bat)
+
+========================================
+MINGW SHELL LAUNCHERS
+========================================
+
+mingw_shell.bat / mingw_shell.ps1
+   - Launches a shell with MinGW in PATH
+   - Makes gcc, make, cmake available
+   - Optional - for manual builds
+   - See MINGW_SHELL.md for details
+
+========================================
+SCRIPTS OVERVIEW
+========================================
+
+1. setup_sdl2_winxp.bat
+   - Checks if SDL2 is properly installed
+   - Provides installation instructions
+   - Run this FIRST if you haven't set up SDL2
+
+2. build_winxp.bat
+   - Full build script with detailed output
+   - Recommended for first-time builds
+   - Shows all configuration and build steps
+
+3. build_winxp_quick.bat
+   - Fast build with minimal output
+   - Use after your first successful build
+   - Shows only errors and final status
+
+4. test_winxp_build.bat
+   - Verifies build outputs
+   - Checks for required DLLs
+   - Optionally runs the built executable
+
+5. clean_winxp.bat
+   - Removes build directory
+   - Use before a clean rebuild
+
+========================================
+QUICK START (3 STEPS)
+========================================
+
+Step 1: Setup SDL2
+   > setup_sdl2_winxp.bat
+
+Step 2: Build Project
+   > build_winxp.bat
+
+Step 3: Test Build
+   > test_winxp_build.bat
+
+========================================
+OUTPUT
+========================================
+
+Build directory: build-winxp\
+
+Executables:
+  - scene_tile_test.exe
+  - model_viewer.exe
+
+Required DLLs:
+  - SDL2.dll
+  - libwinpthread-1.dll
+
+========================================
+DEPLOYING TO WINDOWS XP
+========================================
+
+1. Copy entire build-winxp\ folder to Windows XP
+2. Run scene_tile_test.exe or model_viewer.exe
+3. Ensure cache\ folder is in parent directory
+
+========================================
+TROUBLESHOOTING
+========================================
+
+Q: SDL2 not found during build
+A: Run setup_sdl2_winxp.bat and follow instructions
+
+Q: Executables won't run on Windows XP
+A: Check that SDL2.dll and libwinpthread-1.dll are present
+
+Q: "Entry point not found" error
+A: Rebuild with -D_WIN32_WINNT=0x0501 flag (already in scripts)
+
+Q: Build fails with compiler errors
+A: Ensure MinGW path in scripts matches your installation
+
+Q: Performance is poor
+A: See BUILD_WINXP.md for optimization options
+
+========================================
+MORE INFORMATION
+========================================
+
+See BUILD_WINXP.md for:
+  - Detailed build instructions
+  - Compiler flags explanation
+  - Static linking options
+  - Performance tuning
+  - System requirements
+  - Known limitations
+
+========================================
+

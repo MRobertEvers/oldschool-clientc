@@ -124,7 +124,6 @@ Platform2_OSX_SDL2_InitForSoft3D(
 
     platform->last_frame_time_ticks = SDL_GetTicks64();
 
-    platform->cache_dat = gioqb_cache_dat_new();
     return true;
 }
 

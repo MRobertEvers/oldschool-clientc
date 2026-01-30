@@ -1,309 +1,67 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug WASM (Launch with User Profile)",
-            "type": "chrome",
+            "name": "Debug with MinGW64 (osx.exe)",
+            "type": "cppdbg",
             "request": "launch",
-            "url": "http://localhost:8000/emscripten_sdl2_webgl1.html",
-            "webRoot": "${workspaceFolder}",
-            "userDataDir": true,
-            "pathMapping": {
-                "/": "${workspaceFolder}",
-                "/src": "${workspaceFolder}/src",
-                "/test": "${workspaceFolder}/test",
-                "/build.em": "${workspaceFolder}/build.em"
-            },
-            "sourceMapPathOverrides": {
-                "/*": "${workspaceFolder}/*"
-            },
-            "trace": false,
-            "timeout": 30000,
-            "runtimeArgs": [
-                "--enable-features=SharedArrayBuffer"
-            ]
-        },
-        {
-            "name": "(Windows) Launch",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build-ninja/model_viewer.exe",
+            "program": "${workspaceFolder}/build-mingw/osx.exe",
             "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build-ninja",
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}/build-mingw",
             "environment": [],
-            "console": "externalTerminal"
-        },
-        {
-            "name": "Launch to_bin.js",
-            "program": "${workspaceFolder}/docs/to_bin.js",
-            "request": "launch",
-            "cwd": "${workspaceFolder}/docs",
-            "skipFiles": [
-                "<node_internals>/**"
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:/msys64/mingw64/bin/gdb.exe",
+            "sourceFileMap": {
+                "C:/Users/mrobe/Documents/git_repos/3d-raster": "${workspaceFolder}",
+                "c:/Users/mrobe/Documents/git_repos/3d-raster": "${workspaceFolder}",
+                "/c/Users/mrobe/Documents/git_repos/3d-raster": "${workspaceFolder}",
+                "/c/users/mrobe/documents/git_repos/3d-raster": "${workspaceFolder}",
+                "C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster": "${workspaceFolder}",
+                "..": "${workspaceFolder}",
+                "../..": "${workspaceFolder}"
+            },
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set substitute-path for MSYS2 Unix-style paths",
+                    "text": "-gdb-set substitute-path /c/Users/mrobe/Documents/git_repos/3d-raster C:/Users/mrobe/Documents/git_repos/3d-raster",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set substitute-path for MSYS2 lowercase paths",
+                    "text": "-gdb-set substitute-path /c/users/mrobe/documents/git_repos/3d-raster C:/Users/mrobe/Documents/git_repos/3d-raster",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set substitute-path for Windows backslash paths",
+                    "text": "-gdb-set substitute-path C:\\Users\\mrobe\\Documents\\git_repos\\3d-raster C:/Users/mrobe/Documents/git_repos/3d-raster",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set substitute-path for Windows forward slash paths (lowercase)",
+                    "text": "-gdb-set substitute-path c:/Users/mrobe/Documents/git_repos/3d-raster C:/Users/mrobe/Documents/git_repos/3d-raster",
+                    "ignoreFailures": true
+                }
             ],
-            "type": "node"
-        },
-        {
-            "name": "Debug Node Current File",
-            "type": "node",
-            "request": "launch",
-            "program": "${file}",
-            "cwd": "${fileDirname}",
-            "skipFiles": [
-                "<node_internals>/**"
-            ]
-        },
-        {
-            "name": "(lldb) Debug Current File with ./a.out",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${fileDirname}/a.out",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${fileDirname}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch osrs/a.out",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/osrs/a.out",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/src/osrs",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch OSX",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/osx",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb",
-            "setupCommands": [
-                {
-                    "description": "Stop on debug traps (SIGTRAP)",
-                    "text": "process handle SIGTRAP -n false -p true -s false",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "(lldb) Launch Harness",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/osx_sdl2_game",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch Scene Tiles Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/scene_tile_test",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch Asset Server",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/asset_server",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch Game Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/osx_sdl2_game",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch Model Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/model_viewerfx",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch Tiles Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/tiles_test",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch xtea Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/xtea_test",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch Client",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/main_client",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch RS",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/main_rs",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch Cache Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/osrs_cache_test",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${fileDirname}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch Texture Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/texture_test",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${fileDirname}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(lldb) Launch",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/rs",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "(gdb) Launch",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/scene_tile_test",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                },
-                {
-                    "description": "Set Disassembly Flavor to Intel",
-                    "text": "-gdb-set disassembly-flavor intel",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "(gdb) Launch MV",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/model_viewer",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                },
-                {
-                    "description": "Set Disassembly Flavor to Intel",
-                    "text": "-gdb-set disassembly-flavor intel",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "(Windows MSVC) Launch Scene Tiles Test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build-ninja/scene_tile_test.exe",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build-ninja",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "miDebuggerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.40.33807/bin/Hostx64/x64/gdb.exe"
+            "preLaunchTask": "",
+            "logging": {
+                "moduleLoad": false,
+                "trace": false,
+                "engineLogging": false,
+                "programOutput": true,
+                "exceptions": true
+            }
         }
     ]
 }

@@ -2,9 +2,8 @@
 
 #include "archive.h"
 #include "archive_decompress.h"
-#include "cache_inet.h"
+// #include "cache_inet.h"
 #include "disk.h"
-#include "rsbuf.h"
 #include "xtea_config.h"
 
 #include <assert.h>
@@ -231,61 +230,61 @@ cache_new_inet(
         goto error;
     }
 
-    cache->_inet_nullable = (void*)cache_inet_new_connect(ip, port);
-    if( !cache->_inet_nullable )
-    {
-        printf("Failed to connect to server\n");
-        assert(false);
-        return NULL;
-    }
+    // cache->_inet_nullable = (void*)cache_inet_new_connect(ip, port);
+    // if( !cache->_inet_nullable )
+    // {
+    //     printf("Failed to connect to server\n");
+    //     assert(false);
+    //     return NULL;
+    // }
 
     // For native builds: Load idx255 metadata upfront if needed
     int is_valid = idx255_size_is_valid(cache->directory);
 
-    if( !is_valid )
-    {
-        printf("idx255 file is not valid. Requesting from server.\n");
-        struct CacheInetPayload* payload = NULL;
-        struct IndexRecord index_record = { 0 };
-        int sector_start;
+    // if( !is_valid )
+    // {
+    //     printf("idx255 file is not valid. Requesting from server.\n");
+    //     struct CacheInetPayload* payload = NULL;
+    //     struct IndexRecord index_record = { 0 };
+    //     int sector_start;
 
-        char path[1024];
-        snprintf(path, sizeof(path), "%s/main_file_cache.idx255", cache->directory);
-        FILE* idx255_file = fopen(path, "wb");
-        if( !idx255_file )
-        {
-            printf("Failed to open idx255 file\n");
-            goto error;
-        }
+    //     char path[1024];
+    //     snprintf(path, sizeof(path), "%s/main_file_cache.idx255", cache->directory);
+    //     FILE* idx255_file = fopen(path, "wb");
+    //     if( !idx255_file )
+    //     {
+    //         printf("Failed to open idx255 file\n");
+    //         goto error;
+    //     }
 
-        for( int i = 0; i < sizeof(g_table_idx_files) / sizeof(g_table_idx_files[0]); i++ )
-        {
-            printf("Requesting idx%d metadata from server\n", g_table_idx_files[i]);
+    //     for( int i = 0; i < sizeof(g_table_idx_files) / sizeof(g_table_idx_files[0]); i++ )
+    //     {
+    //         printf("Requesting idx%d metadata from server\n", g_table_idx_files[i]);
 
-            payload = cache_inet_payload_new_archive_request(
-                (struct CacheInet*)cache->_inet_nullable, 255, g_table_idx_files[i]);
+    //         payload = cache_inet_payload_new_archive_request(
+    //             (struct CacheInet*)cache->_inet_nullable, 255, g_table_idx_files[i]);
 
-            if( !payload )
-            {
-                printf("Failed to request idx%d metadata from server\n", g_table_idx_files[i]);
-                continue;
-            }
+    //         if( !payload )
+    //         {
+    //             printf("Failed to request idx%d metadata from server\n", g_table_idx_files[i]);
+    //             continue;
+    //         }
 
-            sector_start = disk_dat2file_append_archive(
-                cache->_dat2_file, 255, g_table_idx_files[i], payload->data, payload->data_size);
+    //         sector_start = disk_dat2file_append_archive(
+    //             cache->_dat2_file, 255, g_table_idx_files[i], payload->data, payload->data_size);
 
-            index_record.idx_file_id = 255;
-            index_record.archive_idx = g_table_idx_files[i];
-            index_record.sector = sector_start;
-            index_record.length = payload->data_size;
+    //         index_record.idx_file_id = 255;
+    //         index_record.archive_idx = g_table_idx_files[i];
+    //         index_record.sector = sector_start;
+    //         index_record.length = payload->data_size;
 
-            disk_indexfile_write_record(idx255_file, g_table_idx_files[i], &index_record);
+    //         disk_indexfile_write_record(idx255_file, g_table_idx_files[i], &index_record);
 
-            free(payload);
-        }
+    //         free(payload);
+    //     }
 
-        fclose(idx255_file);
-    }
+    //     fclose(idx255_file);
+    // }
 
     // For native builds, load all reference tables upfront
     init_reference_tables(cache);
@@ -466,41 +465,41 @@ cache_archive_new_load_decrypted(
     struct IndexRecord index_record = { 0 };
     read_index(&index_record, cache->directory, table_id, archive_id);
 
-    // The archive is not loaded.
-    if( index_record.sector == 0 )
-    {
-        if( cache->mode != CACHE_MODE_INET )
-        {
-            printf("Cache mode is not inet. Cannot request from server.\n");
-            goto error;
-        }
+    // // The archive is not loaded.
+    // if( index_record.sector == 0 )
+    // {
+    //     if( cache->mode != CACHE_MODE_INET )
+    //     {
+    //         printf("Cache mode is not inet. Cannot request from server.\n");
+    //         goto error;
+    //     }
 
-        payload = cache_inet_payload_new_archive_request(
-            (struct CacheInet*)cache->_inet_nullable, table_id, archive_id);
-        if( !payload )
-        {
-            printf("Failed to request archive from server\n");
-            goto error;
-        }
+    //     payload = cache_inet_payload_new_archive_request(
+    //         (struct CacheInet*)cache->_inet_nullable, table_id, archive_id);
+    //     if( !payload )
+    //     {
+    //         printf("Failed to request archive from server\n");
+    //         goto error;
+    //     }
 
-        int sector_start = disk_dat2file_append_archive(
-            cache->_dat2_file, table_id, archive_id, payload->data, payload->data_size);
+    //     int sector_start = disk_dat2file_append_archive(
+    //         cache->_dat2_file, table_id, archive_id, payload->data, payload->data_size);
 
-        FILE* index_file = fopen_index(cache->directory, table_id);
-        if( !index_file )
-        {
-            printf("Failed to open index file\n");
-            goto error;
-        }
-        index_record.sector = sector_start;
-        index_record.length = payload->data_size;
-        index_record.idx_file_id = table_id;
-        index_record.archive_idx = archive_id;
-        disk_indexfile_write_record(index_file, archive_id, &index_record);
-        fclose(index_file);
+    //     FILE* index_file = fopen_index(cache->directory, table_id);
+    //     if( !index_file )
+    //     {
+    //         printf("Failed to open index file\n");
+    //         goto error;
+    //     }
+    //     index_record.sector = sector_start;
+    //     index_record.length = payload->data_size;
+    //     index_record.idx_file_id = table_id;
+    //     index_record.archive_idx = archive_id;
+    //     disk_indexfile_write_record(index_file, archive_id, &index_record);
+    //     fclose(index_file);
 
-        read_index(&index_record, cache->directory, table_id, archive_id);
-    }
+    //     read_index(&index_record, cache->directory, table_id, archive_id);
+    // }
 
     int res = disk_dat2file_read_archive(
         cache->_dat2_file,

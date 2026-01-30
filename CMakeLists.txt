@@ -10,12 +10,16 @@ endif()
 
 # Enable AddressSanitizer for Debug builds
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g -O0)
-    add_link_options(-fsanitize=address)
+# add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
+#     add_link_options(-fsanitize=address)
 endif()
 
+
 # OSX SDL2 Game executable (macOS only)
-if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # On Windows, ensure we use console subsystem (not GUI) to avoid WinMain requirement
+    if(WIN32)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
+    endif()
     add_executable(osx
         test/osx.cpp
         src/osrs/lclogin.c
@@ -90,6 +94,7 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/rscache/tables/string_utils.c
         src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
         src/osrs/rscache/tables_dat/config_npc.c
+        src/platforms/common/sockstream.c
 
         src/osrs/rscache/cache.c
         src/osrs/rscache/cache_dat.c
@@ -97,7 +102,6 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/osrs/frustrum_cullmap.c
         src/osrs/palette.c
         src/osrs/rscache/archive_decompress.c
-        src/osrs/rscache/cache_inet.c
         src/osrs/rscache/disk.c
         src/osrs/rscache/reference_table.c
         src/osrs/rscache/xtea_config.c
@@ -125,15 +129,31 @@ if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/imgui/imgui_impl_sdlrenderer2.cpp
     )
 
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(osx PRIVATE -fpermissive) 
+endif()
+
+
     target_include_directories(osx PRIVATE src src/imgui)
 
     find_package(SDL2 REQUIRED)
     find_package(Freetype REQUIRED)
-    find_package(OpenSSL REQUIRED)
 
-    target_link_libraries(osx SDL2::SDL2 OpenSSL::SSL OpenSSL::Crypto)
+    target_link_libraries(osx SDL2::SDL2)
     target_include_directories(osx PRIVATE ${SDL2_INCLUDE_DIRS})
-endif()
+
+    # Link Winsock library on Windows
+    if(WIN32)
+        target_link_libraries(osx ws2_32)
+        # Set console subsystem to use main() instead of WinMain()
+        set_target_properties(osx PROPERTIES
+            WIN32_EXECUTABLE FALSE
+        )
+        # Explicitly set console subsystem - ensure it's applied
+        target_link_options(osx PRIVATE 
+            -Wl,-subsystem,console
+        )
+    endif()
 
 set_target_properties(osx PROPERTIES
     CXX_STANDARD 17

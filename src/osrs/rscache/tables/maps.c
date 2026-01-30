@@ -263,7 +263,7 @@ map_terrain_new_from_cache_dat(
 {
     struct CacheDatArchive* archive = NULL;
     struct CacheMapTerrain* map_terrain = NULL;
-    int archive_id = dat2_map_terrain_id(cache_dat, map_x, map_y);
+    int archive_id = dat2_map_terrain_id((void*)cache_dat, map_x, map_y);
 
     if( archive_id == -1 )
     {

@@ -1444,3 +1444,7 @@ BLIT_BUFFER ()
 
 NPC Positions are sent relative to the local player. (routeTile[0])
 The local player position is sent in the first Player Info packet.
+
+## Mingw
+
+pacman -S mingw-w64-x86_64-gdb

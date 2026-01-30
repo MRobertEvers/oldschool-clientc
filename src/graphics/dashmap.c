@@ -364,7 +364,7 @@ dashmap_search(
 
     size_t idx = hash % m->capacity;
     size_t start = idx;
-    ssize_t tomb_i = -1;
+    int64_t tomb_i = -1;
 
     for( ;; )
     {
@@ -445,7 +445,7 @@ dashmap_search(
         hh->hash = hash;
 
         void* entry = hmap_slot_entry_ptr(m, t);
-        void* ekey = hmap_entry_key_ptr(m, entry);
+        void* ekey = hmap_entry_key_ptr((void*)m, entry);
 
         memcpy(ekey, key, m->key_size);
         m->size++;

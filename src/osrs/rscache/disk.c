@@ -366,9 +366,29 @@ disk_indexfile_read_record(
     struct IndexRecord* record)
 {
     char data[INDEX_ENTRY_SIZE] = { 0 };
+    int ret = 0;
 
-    fseek(file, entry_idx * INDEX_ENTRY_SIZE, SEEK_SET);
-    fread(data, INDEX_ENTRY_SIZE, 1, file);
+    ret = fseek(file, entry_idx * INDEX_ENTRY_SIZE, SEEK_SET);
+    if (ret != 0 )
+    {
+        ret = ferror(file);
+        printf("failed to seek index record err: %d\n", ret);
+        assert(false);
+        return -1;
+    }
+
+    
+    // ret = ftell(file);
+    // printf("current file pos: %d\n", ret);
+
+    ret = fread(data, INDEX_ENTRY_SIZE, 1, file);
+    if( ret != 1 )
+    {
+        ret = ferror(file);
+        printf("failed to read index record err: %d\n", ret);
+        // assert(false);
+        // return -1;
+    }
 
     // 	int length = ((buffer[0] & 0xFF) << 16) | ((buffer[1] & 0xFF) << 8) | (buffer[2] & 0xFF);
     // int sector = ((buffer[3] & 0xFF) << 16) | ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);

@@ -10709,8 +10709,8 @@ s_read_arc4random(
 #endif
 
 #define WIN32_LEAN_AND_MEAN
-#include <wincrypt.h>
 #include <windows.h>
+#include <wincrypt.h>
 
 static mp_err
 s_read_wincsp(

@@ -855,7 +855,9 @@ painter_paint(
         if( g_trap_x != -1 && g_trap_z != -1 && tile_sx == g_trap_x && tile_sz == g_trap_z )
         {
             printf("tile_idx: %d\n", tile_idx);
-            __builtin_debugtrap();
+
+            
+            // __builtin_debugtrap();
         }
         // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
         // Dane discovered this also.

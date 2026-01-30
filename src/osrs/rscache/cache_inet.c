@@ -1,16 +1,26 @@
 #include "cache_inet.h"
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#define close closesocket
+#define EAGAIN WSAEWOULDBLOCK
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EINPROGRESS WSAEINPROGRESS
+#else
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <unistd.h>
+#endif
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #ifdef __EMSCRIPTEN__
 #include "cache_inet_indexeddb.h"
@@ -177,7 +187,12 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
                 goto sleep_poll_status;
             }
 #endif
+#ifdef _WIN32
+            int error = WSAGetLastError();
+            printf("Failed to receive status (n: %d, error: %d)\n", n, error);
+#else
             printf("Failed to receive status (n: %d, errno: %d/%s)\n", n, errno, strerror(errno));
+#endif
             free(payload);
             return NULL;
         }
@@ -213,7 +228,12 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
                 goto sleep_poll_payload_size;
             }
 #endif
+#ifdef _WIN32
+            int error = WSAGetLastError();
+            printf("Failed to receive status (n: %d, error: %d)\n", n, error);
+#else
             printf("Failed to receive status (n: %d, errno: %d/%s)\n", n, errno, strerror(errno));
+#endif
             free(payload);
             return NULL;
         }
@@ -257,7 +277,18 @@ cache_inet_payload_new_archive_request(struct CacheInet* cache_inet, int table_i
                 goto recv_poll;
             }
 #endif
-            printf("Error receiving payload data: recv failed\n");
+#ifdef _WIN32
+            int error = WSAGetLastError();
+            if( error != WSAEWOULDBLOCK )
+            {
+                printf("Error receiving payload data: recv failed (error: %d)\n", error);
+            }
+#else
+            if( errno != EAGAIN && errno != EWOULDBLOCK )
+            {
+                printf("Error receiving payload data: recv failed (errno: %d/%s)\n", errno, strerror(errno));
+            }
+#endif
             free(payload->data);
             free(payload);
             return NULL;

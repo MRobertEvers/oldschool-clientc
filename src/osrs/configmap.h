@@ -1,7 +1,7 @@
 #ifndef CONFIGMAP_H
 #define CONFIGMAP_H
 
-#include "cache.h"
+#include "rscache/cache.h"
 #include "graphics/dash.h"
 
 #include <stdbool.h>

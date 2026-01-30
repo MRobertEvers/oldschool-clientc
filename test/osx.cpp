@@ -1,3 +1,5 @@
+#define SDL_MAIN_HANDLED
+
 extern "C" {
 #include "osrs/gameproto_parse.h"
 #include "osrs/ginput.h"
@@ -6,103 +8,29 @@ extern "C" {
 #include "osrs/query_engine.h"
 #include "osrs/query_executor_dat.h"
 #include "osrs/revs/revpacket_lc245_2_query.h"
+#include "platforms/common/sockstream.h"
 #include "server/server.h"
 #include "tori_rs.h"
 }
 
 #include "platforms/platform_impl2_osx_sdl2.h"
 #include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/select.h>
-#include <sys/socket.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <errno.h>
+#endif
 
 #include <SDL.h>
 #include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 500
 #define LOGIN_PORT 43594
-
-// Helper function to create and connect socket
-static int
-create_login_socket(
-    const char* host,
-    int port)
-{
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if( sockfd < 0 )
-    {
-        printf("Failed to create socket: %s\n", strerror(errno));
-        return -1;
-    }
-
-    // Set socket to non-blocking
-    int flags = fcntl(sockfd, F_GETFL, 0);
-    if( flags < 0 || fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) < 0 )
-    {
-        printf("Failed to set non-blocking: %s\n", strerror(errno));
-        close(sockfd);
-        return -1;
-    }
-
-    struct sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-
-    if( inet_pton(AF_INET, host, &server_addr.sin_addr) <= 0 )
-    {
-        printf("Invalid address: %s\n", host);
-        close(sockfd);
-        return -1;
-    }
-
-    // Try to connect (non-blocking)
-    int result = connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr));
-    if( result < 0 && errno != EINPROGRESS )
-    {
-        printf("Failed to connect: %s\n", strerror(errno));
-        close(sockfd);
-        return -1;
-    }
-
-    // For non-blocking connect, we need to check if connection is ready
-    // Using select to wait for connection
-    fd_set write_fds;
-    FD_ZERO(&write_fds);
-    FD_SET(sockfd, &write_fds);
-    struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
-
-    result = select(sockfd + 1, NULL, &write_fds, NULL, &timeout);
-    if( result <= 0 )
-    {
-        printf("Connection timeout or error\n");
-        close(sockfd);
-        return -1;
-    }
-
-    // Check if connection succeeded
-    int error = 0;
-    socklen_t len = sizeof(error);
-    if( getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0 )
-    {
-        printf("Connection failed: %s\n", error ? strerror(error) : "unknown error");
-        close(sockfd);
-        return -1;
-    }
-
-    printf("Connected to %s:%d\n", host, port);
-    return sockfd;
-}
 
 void
 test_gio(void)
@@ -144,6 +72,15 @@ main(
     int argc,
     char* argv[])
 {
+#ifdef _WIN32
+    WSADATA wsaData;
+    if( WSAStartup(MAKEWORD(2, 2), &wsaData) != 0 )
+    {
+        printf("WSAStartup failed\n");
+        return 1;
+    }
+#endif
+
     bool has_message = false;
     struct GIOQueue* io = gioq_new();
     struct GGame* game = LibToriRS_GameNew(io, 513, 335);
@@ -192,10 +129,10 @@ main(
         return 1;
     }
 
-    int login_socket = -1;
+    struct SockStream* login_stream = NULL;
     // Create socket connection to login server
-    login_socket = create_login_socket("127.0.0.1", LOGIN_PORT);
-    if( login_socket < 0 )
+    // login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
+    if( !login_stream )
     {
         printf("Failed to create login socket\n");
         // Continue anyway - login will fail gracefully
@@ -317,28 +254,51 @@ main(
         //     }
         // }
 
-        if( LibToriRS_NetIsReady(game) && login_socket >= 0 )
+        if( LibToriRS_NetIsReady(game) && sockstream_is_valid(login_stream) )
         {
             LibToriRS_NetPump(game);
 
             int outgoing_size = LibToriRS_NetGetOutgoing(game, buffer, sizeof(buffer));
             if( outgoing_size > 0 )
             {
-                send(login_socket, buffer, outgoing_size, 0);
+                sockstream_send(login_stream, buffer, outgoing_size);
             }
-            int recv_size = sizeof(buffer);
-            int received = recv(login_socket, buffer, sizeof(buffer), MSG_DONTWAIT);
+            int received = sockstream_recv(login_stream, buffer, sizeof(buffer));
             if( received > 0 )
             {
                 LibToriRS_NetRecv(game, buffer, received);
             }
-            else if( received == 0 || (received < 0 && errno != EAGAIN && errno != EWOULDBLOCK) )
+            else if( received == 0 )
             {
                 // Connection closed
                 printf("Login socket closed\n");
-                close(login_socket);
-                login_socket = -1;
+                sockstream_close(login_stream);
+                login_stream = NULL;
                 LibToriRS_NetDisconnected(game);
+            }
+            else if( received < 0 )
+            {
+                // Check if it's a real error (not just would-block)
+#ifdef _WIN32
+                int recv_err = WSAGetLastError();
+                if( recv_err != WSAEWOULDBLOCK )
+                {
+                    // Connection error
+                    printf("Login socket error: %d\n", recv_err);
+                    sockstream_close(login_stream);
+                    login_stream = NULL;
+                    LibToriRS_NetDisconnected(game);
+                }
+#else
+                if( errno != EAGAIN && errno != EWOULDBLOCK )
+                {
+                    // Connection error
+                    printf("Login socket error: %s\n", strerror(errno));
+                    sockstream_close(login_stream);
+                    login_stream = NULL;
+                    LibToriRS_NetDisconnected(game);
+                }
+#endif
             }
         }
 
@@ -364,14 +324,18 @@ main(
     // lclogin_cleanup(&login);
 
     // Cleanup socket
-    if( login_socket >= 0 )
+    if( login_stream )
     {
-        close(login_socket);
-        login_socket = -1;
+        sockstream_close(login_stream);
+        login_stream = NULL;
     }
 
     // Cleanup server
     server_free(server);
+
+#ifdef _WIN32
+    WSACleanup();
+#endif
 
     return 0;
 }

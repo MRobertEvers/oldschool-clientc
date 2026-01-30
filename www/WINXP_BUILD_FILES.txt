@@ -1,0 +1,301 @@
+========================================
+Windows XP Build Scripts - File Summary
+========================================
+
+This document lists all files created for Windows XP builds.
+
+========================================
+MINGW SHELL LAUNCHERS (Optional)
+========================================
+
+1. mingw_shell.bat
+   - Full-featured CMD shell with MinGW
+   - Shows tool versions and environment info
+   - Custom prompt indicating MinGW mode
+   - Best for interactive work
+   
+2. mingw_shell_simple.bat
+   - Minimal CMD shell launcher
+   - Quick startup, no fancy output
+   - Just sets PATH and launches shell
+
+3. mingw_shell.ps1
+   - PowerShell version with colored output
+   - Custom prompt function
+   - Native PowerShell integration
+   - Run with: .\mingw_shell.ps1
+
+Note: Shell launchers are optional - the build scripts
+      work without them. Use them for manual builds or
+      interactive compilation work.
+
+========================================
+BUILD SCRIPTS (Run these)
+========================================
+
+1. build_winxp.bat
+   - Main build script with verbose output
+   - Checks toolchain and SDL2
+   - Configures CMake with Windows XP flags
+   - Builds scene_tile_test.exe and model_viewer.exe
+   - Copies required DLLs
+   - Shows detailed build progress
+   
+2. build_winxp_quick.bat
+   - Simplified version for quick rebuilds
+   - Minimal output, shows only errors
+   - Same functionality as full script
+   - Use after first successful build
+
+3. setup_sdl2_winxp.bat
+   - Interactive SDL2 setup helper
+   - Checks for SDL2 installation
+   - Provides download instructions
+   - Verifies development files and DLLs
+   - Run this FIRST if SDL2 not installed
+
+4. test_winxp_build.bat
+   - Verifies build outputs
+   - Checks for executables
+   - Checks for required DLLs
+   - Optionally runs scene_tile_test.exe
+   - Useful for deployment verification
+
+5. clean_winxp.bat
+   - Removes build-winxp directory
+   - Use before clean rebuild
+   - Simple cleanup utility
+
+========================================
+DOCUMENTATION FILES
+========================================
+
+1. MINGW_SHELL.md
+   - MinGW shell launcher guide
+   - Explains each shell script variant
+   - Usage examples and customization
+   - IDE/editor integration tips
+   - Troubleshooting
+
+2. BUILD_WINXP.md
+   - Comprehensive build documentation (Markdown)
+   - Prerequisites and installation
+   - Build instructions (quick and manual)
+   - Deployment guide
+   - Troubleshooting section
+   - Compiler flags explained
+   - Performance tuning
+   - Static vs dynamic linking
+   - System requirements
+   - Known limitations
+
+3. WINXP_QUICKSTART.txt
+   - Quick reference guide (Plain text)
+   - Scripts overview
+   - 3-step quick start
+   - Output description
+   - Common troubleshooting
+   - Easy to print or view in terminal
+
+4. WINXP_BUILD_FILES.txt
+   - This file
+   - Summary of all created files
+   - Purpose and description of each
+
+4. readme.md (UPDATED)
+   - Added "Building for Windows XP" section
+   - Links to new scripts and documentation
+   - Quick start instructions
+   - Key features summary
+
+========================================
+CONFIGURATION
+========================================
+
+All scripts are pre-configured with:
+
+MinGW Toolchain Path:
+  C:\Users\mrobe\Downloads\winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2
+
+Build Directory:
+  build-winxp/
+
+Target Platform:
+  - Windows XP SP3 (32-bit)
+  - _WIN32_WINNT=0x0501
+  - WINVER=0x0501
+
+Compiler Flags:
+  - O3 (maximum optimization)
+  - march=pentium4 (Pentium 4+ CPU)
+  - msse2 (SSE2 instructions)
+  - mfpmath=sse (SSE floating-point)
+
+Linker Flags:
+  - static-libgcc (no GCC DLL needed)
+  - static-libstdc++ (no C++ stdlib DLL needed)
+
+========================================
+BUILD OUTPUT
+========================================
+
+Location: build-winxp\
+
+Executables:
+  - scene_tile_test.exe
+  - model_viewer.exe
+
+Required DLLs:
+  - SDL2.dll (runtime library)
+  - libwinpthread-1.dll (threading support)
+
+Optional DLLs (if not static):
+  - libgcc_s_dw2-1.dll
+  - libstdc++-6.dll
+
+Other Files:
+  - CMake configuration files
+  - Build intermediates
+  - imgui.ini (ImGui settings)
+
+========================================
+WORKFLOW
+========================================
+
+First Time Setup:
+  1. Run setup_sdl2_winxp.bat
+  2. Follow SDL2 installation instructions
+  3. Run setup_sdl2_winxp.bat again to verify
+  4. Run build_winxp.bat
+  5. Run test_winxp_build.bat
+
+Subsequent Builds:
+  1. Make code changes
+  2. Run build_winxp_quick.bat
+  3. Test
+
+Clean Rebuild:
+  1. Run clean_winxp.bat
+  2. Run build_winxp.bat
+
+Deploy to Windows XP:
+  1. Run test_winxp_build.bat to verify
+  2. Copy entire build-winxp\ folder
+  3. Ensure cache\ folder is accessible
+  4. Run executables
+
+========================================
+CUSTOMIZATION
+========================================
+
+To modify MinGW path:
+  - Edit toolchain path in each .bat file
+  - Look for: set "MINGW_ROOT=..."
+
+To change optimization:
+  - Edit OPT_FLAGS in build_winxp.bat
+  - Options: -O2, -O3, -Os (size)
+  - CPU targets: pentium3, pentium4, i686
+
+To change build directory:
+  - Edit BUILD_DIR in each script
+  - Default: build-winxp
+
+To enable/disable static linking:
+  - Edit EXTRA_LINKER_FLAGS in build_winxp.bat
+  - Add/remove: -static-libgcc -static-libstdc++
+
+========================================
+SYSTEM REQUIREMENTS
+========================================
+
+Build Machine (Development):
+  - Windows 7+ (64-bit recommended)
+  - 2GB RAM minimum
+  - CMake 3.7+
+  - MinGW i686 toolchain
+  - SDL2 development files
+
+Target Machine (Windows XP):
+  - Windows XP SP3 (32-bit)
+  - Pentium 4 or later (SSE2 support)
+  - 512MB RAM recommended
+  - DirectX 9.0c
+  - Cache folder with game data
+
+========================================
+TECHNICAL DETAILS
+========================================
+
+Compiler: GCC 15.2.0
+Architecture: i686 (32-bit x86)
+Threading Model: POSIX
+Exception Model: DWARF
+C Runtime: msvcrt (Windows default)
+C Standard: C99
+C++ Standard: C++17
+
+Windows API Level: 0x0501 (XP)
+Minimum Subsystem: 5.01
+
+Supported Features:
+  - SSE/SSE2 instructions
+  - Win32 API (XP subset)
+  - SDL2 2.0+
+  - OpenGL (driver dependent)
+
+Not Supported:
+  - AVX/AVX2 instructions
+  - DirectX 10+
+  - Windows Vista+ APIs
+  - 64-bit operations (native)
+
+========================================
+TROUBLESHOOTING QUICK REF
+========================================
+
+Problem: SDL2 not found
+Solution: Run setup_sdl2_winxp.bat
+
+Problem: Entry point not found (XP)
+Solution: Verify -D_WIN32_WINNT=0x0501 flag
+
+Problem: Missing DLL on XP
+Solution: Run test_winxp_build.bat, copy all DLLs
+
+Problem: Compiler not found
+Solution: Check MINGW_ROOT path in scripts
+
+Problem: Build fails
+Solution: Run build_winxp.bat for full output
+
+Problem: Poor performance
+Solution: See BUILD_WINXP.md optimization section
+
+========================================
+SUPPORT & REFERENCES
+========================================
+
+Documentation:
+  - BUILD_WINXP.md - Full documentation
+  - WINXP_QUICKSTART.txt - Quick reference
+  - readme.md - Project documentation
+
+External Links:
+  - SDL2: https://github.com/libsdl-org/SDL
+  - MinGW-w64: https://www.mingw-w64.org/
+  - CMake: https://cmake.org/
+  - Windows API: https://docs.microsoft.com/
+
+========================================
+VERSION INFO
+========================================
+
+Scripts Version: 1.0
+Created: 2025
+Target: Windows XP SP3+
+Compiler: GCC 15.2.0 MinGW-w64
+SDL Version: 2.x (latest compatible)
+
+========================================
+

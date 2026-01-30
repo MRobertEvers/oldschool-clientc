@@ -216,7 +216,7 @@ task_init_scene_dat_new(
     task->chunks_count = (map_ne_z - map_sw_z + 1) * (map_ne_x - map_sw_x + 1);
 
     game->sys_painter =
-        painter_new(task->chunks_width * 64, task->chunks_width * 64, MAP_TERRAIN_LEVELS);
+        painter_new(104, 104, MAP_TERRAIN_LEVELS);
     game->sys_painter_buffer = painter_buffer_new();
 
     task->painter = game->sys_painter;
@@ -619,18 +619,18 @@ step_models_load(struct TaskInitSceneDat* task)
         step_stage->step = TS_DONE;
     case TS_DONE:
     {
-        struct CacheModel* guard_models[sizeof(g_guard_models) / sizeof(g_guard_models[0])] = {};
-        for( int i = 0; i < sizeof(g_guard_models) / sizeof(g_guard_models[0]); i++ )
-        {
-            guard_models[i] = buildcachedat_get_model(task->buildcachedat, g_guard_models[i]);
-        }
+        // struct CacheModel* guard_models[sizeof(g_guard_models) / sizeof(g_guard_models[0])] = {};
+        // for( int i = 0; i < sizeof(g_guard_models) / sizeof(g_guard_models[0]); i++ )
+        // {
+        //     guard_models[i] = buildcachedat_get_model(task->buildcachedat, g_guard_models[i]);
+        // }
 
-        struct CacheModel* merged_model =
-            model_new_merge(guard_models, sizeof(g_guard_models) / sizeof(g_guard_models[0]));
+        // struct CacheModel* merged_model =
+        //     model_new_merge(guard_models, sizeof(g_guard_models) / sizeof(g_guard_models[0]));
 
-        task->game->model = dashmodel_new_from_cache_model(merged_model);
-        model_free(merged_model);
-        light_model_default(task->game->model, 0, 0);
+        // task->game->model = dashmodel_new_from_cache_model(merged_model);
+        // model_free(merged_model);
+        // light_model_default(task->game->model, 0, 0);
         break;
     }
     }
@@ -765,7 +765,8 @@ step_animframes_index_load(struct TaskInitSceneDat* task)
     int index_file_idx = filelist_dat_find_file_by_name(versionlist_jagfile, "anim_index");
     assert(index_file_idx != -1 && "Index file must be found");
 
-    task->animbaseframes_count = versionlist_jagfile->file_sizes[index_file_idx] / 2;
+    // task->animbaseframes_count = versionlist_jagfile->file_sizes[index_file_idx] / 2;
+    task->animbaseframes_count = 264;
 
     return GAMETASK_STATUS_COMPLETED;
 }
