@@ -29,8 +29,253 @@ static void texture_raster_deob(
     bool opaque,
     bool hclip);
 
-static void
-texture_raster_deob(
+
+static inline void raster_texture_opaque_blend_affine(
+    int* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int camera_fov,
+    int x0,
+    int x1,
+    int x2,
+    int y0,
+    int y1,
+    int y2,
+    int orthographic_uvorigin_x0,
+    int orthographic_uend_x1,
+    int orthographic_vend_x2,
+    int orthographic_uvorigin_y0,
+    int orthographic_uend_y1,
+    int orthographic_vend_y2,
+    int orthographic_uvorigin_z0,
+    int orthographic_uend_z1,
+    int orthographic_vend_z2,
+    int shade7bit_a,
+    int shade7bit_b,
+    int shade7bit_c,
+    int* texels,
+    int texture_width
+)
+{
+     // either.
+    // y0, y1, y2,
+    // y0, y2, y1,
+    // y1, y0, y2,
+    // y1, y2, y0,
+    // y2, y0, y1,
+    // y2, y1, y0,
+    if( y0 <= y1 && y0 <= y2 )
+    {
+        // y0, y1, y2,
+        if( y1 <= y2 )
+        {
+            if( y2 < 0 || y0 >= screen_height )
+                return;
+
+            raster_texture_opaque_blend_affine_ordered(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                camera_fov,
+                x0,
+                x1,
+                x2,
+                y0,
+                y1,
+                y2,
+                orthographic_uvorigin_x0,
+                orthographic_uend_x1,
+                orthographic_vend_x2,
+                orthographic_uvorigin_y0,
+                orthographic_uend_y1,
+                orthographic_vend_y2,
+                orthographic_uvorigin_z0,
+                orthographic_uend_z1,
+                orthographic_vend_z2,
+                shade7bit_a,
+                shade7bit_b,
+                shade7bit_c,
+                texels,
+                texture_width);
+        }
+        // y0, y2, y1,
+        else
+        {
+            if( y1 < 0 || y0 >= screen_height )
+                return;
+
+            raster_texture_opaque_blend_affine_ordered(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                camera_fov,
+                x0,
+                x2,
+                x1,
+                y0,
+                y2,
+                y1,
+                orthographic_uvorigin_x0,
+                orthographic_uend_x1,
+                orthographic_vend_x2,
+                orthographic_uvorigin_y0,
+                orthographic_uend_y1,
+                orthographic_vend_y2,
+                orthographic_uvorigin_z0,
+                orthographic_uend_z1,
+                orthographic_vend_z2,
+                shade7bit_a,
+                shade7bit_c,
+                shade7bit_b,
+                texels,
+                texture_width);
+        }
+    }
+    else if( y1 <= y2 )
+    {
+        // y1, y2, y0
+        if( y2 <= y0 )
+        {
+            if( y0 < 0 || y1 >= screen_height )
+                return;
+
+            raster_texture_opaque_blend_affine_ordered(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                camera_fov,
+                x1,
+                x2,
+                x0,
+                y1,
+                y2,
+                y0,
+                orthographic_uvorigin_x0,
+                orthographic_uend_x1,
+                orthographic_vend_x2,
+                orthographic_uvorigin_y0,
+                orthographic_uend_y1,
+                orthographic_vend_y2,
+                orthographic_uvorigin_z0,
+                orthographic_uend_z1,
+                orthographic_vend_z2,
+                shade7bit_b,
+                shade7bit_c,
+                shade7bit_a,
+                texels,
+                texture_width);
+        }
+        // y1, y0, y2,
+        else
+        {
+            if( y2 < 0 || y1 >= screen_height )
+                return;
+
+            raster_texture_opaque_blend_affine_ordered(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                camera_fov,
+                x1,
+                x0,
+                x2,
+                y1,
+                y0,
+                y2,
+                orthographic_uvorigin_x0,
+                orthographic_uend_x1,
+                orthographic_vend_x2,
+                orthographic_uvorigin_y0,
+                orthographic_uend_y1,
+                orthographic_vend_y2,
+                orthographic_uvorigin_z0,
+                orthographic_uend_z1,
+                orthographic_vend_z2,
+                shade7bit_b,
+                shade7bit_a,
+                shade7bit_c,
+                texels,
+                texture_width);
+        }
+    }
+    else
+    {
+        // y2, y0, y1,
+        if( y0 <= y1 )
+        {
+            if( y1 < 0 || y2 >= screen_height )
+                return;
+
+            raster_texture_opaque_blend_affine_ordered(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                camera_fov,
+                x2,
+                x0,
+                x1,
+                y2,
+                y0,
+                y1,
+                orthographic_uvorigin_x0,
+                orthographic_uend_x1,
+                orthographic_vend_x2,
+                orthographic_uvorigin_y0,
+                orthographic_uend_y1,
+                orthographic_vend_y2,
+                orthographic_uvorigin_z0,
+                orthographic_uend_z1,
+                orthographic_vend_z2,
+                shade7bit_c,
+                shade7bit_a,
+                shade7bit_b,
+                texels,
+                texture_width);
+        }
+        // y2, y1, y0,
+        else
+        {
+            if( y0 < 0 || y2 >= screen_height )
+                return;
+
+            raster_texture_opaque_blend_affine_ordered(
+                pixel_buffer,
+                stride,
+                screen_width,
+                screen_height,
+                camera_fov,
+                x2,
+                x1,
+                x0,
+                y2,
+                y1,
+                y0,
+                orthographic_uvorigin_x0,
+                orthographic_uend_x1,
+                orthographic_vend_x2,
+                orthographic_uvorigin_y0,
+                orthographic_uend_y1,
+                orthographic_vend_y2,
+                orthographic_uvorigin_z0,
+                orthographic_uend_z1,
+                orthographic_vend_z2,
+                shade7bit_c,
+                shade7bit_b,
+                shade7bit_a,
+                texels,
+                texture_width);
+        }
+    }
+}
+
+static inline void
+draw_texture_scanline_opaque_blend_affine_ordered(
     int* pixel_buffer,
     int* texels,
     int y,
@@ -47,9 +292,7 @@ texture_raster_deob(
     int step_w_dx,
     int screen_width,
     int screen_height,
-    int origin_x,
-    bool opaque,
-    bool hclip)
+    int origin_x)
 {
  
     if( x_end > screen_width )
@@ -69,234 +312,142 @@ texture_raster_deob(
     int offset = y * stride + x_start;
     int shade_accum = x_start * shade_step_ish8 + shade_ish8;
     int width = x_end - x_start;
+    int dx = x_start - origin_x;
+    int u_start = step_u_dx * dx + u;
+    int v_start = step_v_dx * dx + v;
+    int w_start = step_w_dx * dx + w;
+
+    int w_div = w_start >> 14;
+    int u_coord = 0;
+    int v_coord = 0;
+    if( w_div == 0 )
     {
-        int dx = x_start - origin_x;
-        int u_start = step_u_dx * dx + u;
-        int v_start = step_v_dx * dx + v;
-        int w_start = step_w_dx * dx + w;
+        u_coord = 0;
+        v_coord = 0;
+    }
+    else
+    {
+        u_coord = u_start / w_div;
+        v_coord = v_start / w_div;
+    }
 
-        int w_div = w_start >> 14;
-        int u_coord = 0;
-        int v_coord = 0;
-        if( w_div == 0 )
+    int u_end = step_u_dx * width + u_start;
+    int v_end = step_v_dx * width + v_start;
+    int w_end = step_w_dx * width + w_start;
+
+    int w_div_end = w_end >> 14;
+    int u_coord_end = 0;
+    int v_coord_end = 0;
+    if( w_div_end == 0 )
+    {
+        u_coord_end = 0;
+        v_coord_end = 0;
+    }
+    else
+    {
+        u_coord_end = u_end / w_div_end;
+        v_coord_end = v_end / w_div_end;
+    }
+
+    int uv_packed = (u_coord << 18) + v_coord;
+    int uv_step = ((u_coord_end - u_coord) / width << 18) + (v_coord_end - v_coord) / width;
+
+    int steps_8 = width >> 3;
+    int shade_step_8 = shade_step_ish8 << 3;
+    // Java: var87 = var16 >> 8
+    // shade_accum is in ish9 format (0-65024 for input shade 0-127)
+    // >> 8 converts to 0-254 range for blending
+    int shade = shade_accum >> 8;
+
+    if (shade == 0)
+    {
+        return;
+    }
+
+        if( steps_8 > 0 )
         {
-            u_coord = 0;
-            v_coord = 0;
-        }
-        else
-        {
-            u_coord = u_start / w_div;
-            v_coord = v_start / w_div;
-        }
-
-        int u_end = step_u_dx * width + u_start;
-        int v_end = step_v_dx * width + v_start;
-        int w_end = step_w_dx * width + w_start;
-
-        int w_div_end = w_end >> 14;
-        int u_coord_end = 0;
-        int v_coord_end = 0;
-        if( w_div_end == 0 )
-        {
-            u_coord_end = 0;
-            v_coord_end = 0;
-        }
-        else
-        {
-            u_coord_end = u_end / w_div_end;
-            v_coord_end = v_end / w_div_end;
-        }
-
-        int uv_packed = (u_coord << 18) + v_coord;
-        int uv_step = ((u_coord_end - u_coord) / width << 18) + (v_coord_end - v_coord) / width;
-
-        int steps_8 = width >> 3;
-        int shade_step_8 = shade_step_ish8 << 3;
-        // Java: var87 = var16 >> 8
-        // shade_accum is in ish9 format (0-65024 for input shade 0-127)
-        // >> 8 converts to 0-254 range for blending
-        int shade = shade_accum >> 8;
-
-        if (shade == 0)
-        {
-            return;
-        }
-
-        if( opaque )
-        {
-            if( steps_8 > 0 )
+            do
             {
-                do
-                {
-                    int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
-                    pixel_buffer[offset++] =
-                        (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    int uv_next = uv_packed + uv_step;
-                    texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                    pixel_buffer[offset++] =
-                        (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    uv_next = uv_step + uv_next;
-                    texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                    pixel_buffer[offset++] =
-                        (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    uv_next = uv_step + uv_next;
-                    texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                    pixel_buffer[offset++] =
-                        (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    uv_next = uv_step + uv_next;
-                    texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                    pixel_buffer[offset++] =
-                        (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    uv_next = uv_step + uv_next;
-                    texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                    pixel_buffer[offset++] =
-                        (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    uv_next = uv_step + uv_next;
-                    texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                    pixel_buffer[offset++] =
-                        (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    uv_next = uv_step + uv_next;
-                    texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
-                    pixel_buffer[offset++] =
-                        (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    uv_packed = uv_step + uv_next;
-                    shade_accum += shade_step_8;
-                    shade = shade_accum >> 8;
-                    steps_8--;
-                } while( steps_8 > 0 );
-            }
-
-            int remaining = (x_end - x_start) & 0x7;
-            if( remaining > 0 )
-            {
-                do
-                {
                 int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
                 pixel_buffer[offset++] =
                     (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    uv_packed += uv_step;
-                    remaining--;
-                } while( remaining > 0 );
-            }
+                int uv_next = uv_packed + uv_step;
+                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+                pixel_buffer[offset++] =
+                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+                uv_next = uv_step + uv_next;
+                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+                pixel_buffer[offset++] =
+                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+                uv_next = uv_step + uv_next;
+                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+                pixel_buffer[offset++] =
+                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+                uv_next = uv_step + uv_next;
+                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+                pixel_buffer[offset++] =
+                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+                uv_next = uv_step + uv_next;
+                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+                pixel_buffer[offset++] =
+                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+                uv_next = uv_step + uv_next;
+                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+                pixel_buffer[offset++] =
+                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+                uv_next = uv_step + uv_next;
+                texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)];
+                pixel_buffer[offset++] =
+                    (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+                uv_packed = uv_step + uv_next;
+                shade_accum += shade_step_8;
+                shade = shade_accum >> 8;
+                steps_8--;
+            } while( steps_8 > 0 );
         }
-        else
-        {
-            if( steps_8 > 0 )
-            {
-                do
-                {
-                    int texel;
-                    if( (texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    int uv_next = uv_packed + uv_step;
-                    if( (texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    uv_next = uv_step + uv_next;
-                    if( (texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    uv_next = uv_step + uv_next;
-                    if( (texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    uv_next = uv_step + uv_next;
-                    if( (texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    uv_next = uv_step + uv_next;
-                    if( (texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    uv_next = uv_step + uv_next;
-                    if( (texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    uv_next = uv_step + uv_next;
-                    if( (texel = texels[((uint32_t)uv_next >> 25) + (uv_next & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    uv_packed = uv_step + uv_next;
-                    shade_accum += shade_step_8;
-                    shade = shade_accum >> 8;
-                    steps_8--;
-                } while( steps_8 > 0 );
-            }
 
-            int remaining = (x_end - x_start) & 0x7;
-            if( remaining > 0 )
+        int remaining = (x_end - x_start) & 0x7;
+        if( remaining > 0 )
+        {
+            do
             {
-                do
-                {
-                    int texel;
-                    if( (texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)]) != 0 )
-                    {
-                        pixel_buffer[offset] =
-                            (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
-                    }
-                    offset++;
-                    uv_packed += uv_step;
-                    remaining--;
-                } while( remaining > 0 );
-            }
-        }
+            int texel = texels[((uint32_t)uv_packed >> 25) + (uv_packed & 0x3F80)];
+            pixel_buffer[offset++] =
+                (((texel & 0xFF00FF) * shade & 0xFF00FF00) + ((texel & 0xFF00) * shade & 0xFF0000)) >> 8;
+                uv_packed += uv_step;
+                remaining--;
+            } while( remaining > 0 );
     }
 }
 
+static inline
 void
-texture_deob(
+raster_texture_opaque_blend_affine_ordered(
+    int* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int camera_fov,
     int x0,
     int x1,
     int x2,
     int y0,
     int y1,
     int y2,
+    int orthographic_uvorigin_x0,
+    int orthographic_uend_x1,
+    int orthographic_vend_x2,
+    int orthographic_uvorigin_y0,
+    int orthographic_uend_y1,
+    int orthographic_vend_y2,
+    int orthographic_uvorigin_z0,
+    int orthographic_uend_z1,
+    int orthographic_vend_z2,
     int shade0,
     int shade1,
     int shade2,
-    int u0,
-    int v0,
-    int w0,
-    int u1,
-    int v1,
-    int w1,
-    int u2,
-    int v2,
-    int w2,
-    int texture_id,
-    int* pixel_buffer,
     int* texels,
-    int stride,
-    int screen_width,
-    int screen_height,
-    int origin_x,
-    bool opaque,
-    bool hclip)
+    int texture_width)
 {
 
     int dx01 = x1 - x0;
@@ -377,1040 +528,60 @@ texture_deob(
     // y1 <= y2, or y2 is topmost). Each case then has sub-cases for left/right
     // edge ordering. For brevity, I'll implement the first main case.
     // The full implementation would mirror the Java structure exactly.
-
-    if( y0 <= y1 && y0 <= y2 )
+    if( y0 < screen_height )
     {
-        if( y0 < screen_height )
-        {
 
-            if( y1 > screen_height )
-            {
-                y1 = screen_height;
-            }
-            if( y2 > screen_height )
-            {
-                y2 = screen_height;
-            }
-
-            // Java: var48 = (arg6 << 9) - arg3 * var31 + var31
-            // Where arg6 = shade0 (0-127), arg3 = x0, var31 = shade_step_x_ish9
-            // shade0 << 9 converts 0-127 to ish9 format (0-65024)
-            int shade_start = (shade0 << 9) - x0 * shade_step_x_ish9 + shade_step_x_ish9;
-
-            if( y1 < y2 )
-            {
-                int x_left_ish16;
-                int x_right_ish16 = x_left_ish16 = x0 << 16;
-                if( y0 < 0 )
-                {
-                    x_right_ish16 -= y0 * step_x02_ish16;
-                    x_left_ish16 -= y0 * step_x01_ish16;
-                    shade_start -= y0 * shade_step_y_ish9;
-                    y0 = 0;
-                }
-
-                int x_mid_ish16 = x1 << 16;
-                if( y1 < 0 )
-                {
-                    x_mid_ish16 -= y1 * step_x12_ish16;
-                    y1 = 0;
-                }
-
-                // Java: var52 = arg0 - originY, var53 = var41 * var52 + var39
-                // So: u_val = u_plane_z * (y0 - origin_y) + u_plane_x
-                // The x component is handled in textureRaster with (x_start - originX)
-                int origin_y = screen_height >> 1;
-                int dy = y0 - origin_y;
-                int u_val = u_plane_z * dy + u_plane_x;
-                int v_val = v_plane_z * dy + v_plane_x;
-                int w_val = w_plane_z * dy + w_plane_x;
-
-                if( (y0 != y1 && step_x02_ish16 < step_x01_ish16) ||
-                    (y0 == y1 && step_x02_ish16 > step_x12_ish16) )
-                {
-                    int steps_bottom = y2 - y1;
-                    int steps_top = y1 - y0;
-                    int current_y = y0;
-
-                    while( true )
-                    {
-                        steps_top--;
-                        if( steps_top < 0 )
-                        {
-                            while( true )
-                            {
-                                steps_bottom--;
-                                if( steps_bottom < 0 )
-                                {
-                                    return;
-                                }
-                                texture_raster_deob(
-                                    pixel_buffer,
-                                    texels,
-                                    current_y,
-                                    stride,
-                                    x_right_ish16 >> 16,
-                                    x_mid_ish16 >> 16,
-                                    shade_start,
-                                    shade_step_x_ish9,
-                                    u_val,
-                                    v_val,
-                                    w_val,
-                                    u_plane_y,
-                                    v_plane_y,
-                                    w_plane_y,
-                                    screen_width,
-                                    screen_height,
-                                    origin_x,
-                                    opaque,
-                                    hclip);
-                                x_right_ish16 += step_x02_ish16;
-                                x_mid_ish16 += step_x12_ish16;
-                                shade_start += shade_step_y_ish9;
-                                current_y++;
-                                u_val += u_plane_z;
-                                v_val += v_plane_z;
-                                w_val += w_plane_z;
-                            }
-                        }
-                        texture_raster_deob(
-                            pixel_buffer,
-                            texels,
-                            current_y,
-                            stride,
-                            x_right_ish16 >> 16,
-                            x_left_ish16 >> 16,
-                            shade_start,
-                            shade_step_x_ish9,
-                            u_val,
-                            v_val,
-                            w_val,
-                            u_plane_y,
-                            v_plane_y,
-                            w_plane_y,
-                            screen_width,
-                            screen_height,
-                            origin_x,
-                            opaque,
-                            hclip);
-                        x_right_ish16 += step_x02_ish16;
-                        x_left_ish16 += step_x01_ish16;
-                        shade_start += shade_step_y_ish9;
-                        current_y++;
-                        u_val += u_plane_z;
-                        v_val += v_plane_z;
-                        w_val += w_plane_z;
-                    }
-                }
-                else
-                {
-                    int steps_bottom = y2 - y1;
-                    int steps_top = y1 - y0;
-                    int current_y = y0;
-
-                    while( true )
-                    {
-                        steps_top--;
-                        if( steps_top < 0 )
-                        {
-                            while( true )
-                            {
-                                steps_bottom--;
-                                if( steps_bottom < 0 )
-                                {
-                                    return;
-                                }
-                                texture_raster_deob(
-                                    pixel_buffer,
-                                    texels,
-                                    current_y,
-                                    stride,
-                                    x_mid_ish16 >> 16,
-                                    x_right_ish16 >> 16,
-                                    shade_start,
-                                    shade_step_x_ish9,
-                                    u_val,
-                                    v_val,
-                                    w_val,
-                                    u_plane_y,
-                                    v_plane_y,
-                                    w_plane_y,
-                                    screen_width,
-                                    screen_height,
-                                    origin_x,
-                                    opaque,
-                                    hclip);
-                                x_right_ish16 += step_x02_ish16;
-                                x_mid_ish16 += step_x12_ish16;
-                                shade_start += shade_step_y_ish9;
-                                current_y++;
-                                u_val += u_plane_z;
-                                v_val += v_plane_z;
-                                w_val += w_plane_z;
-                            }
-                        }
-                        texture_raster_deob(
-                            pixel_buffer,
-                            texels,
-                            current_y,
-                            stride,
-                            x_left_ish16 >> 16,
-                            x_right_ish16 >> 16,
-                            shade_start,
-                            shade_step_x_ish9,
-                            u_val,
-                            v_val,
-                            w_val,
-                            u_plane_y,
-                            v_plane_y,
-                            w_plane_y,
-                            screen_width,
-                            screen_height,
-                            origin_x,
-                            opaque,
-                            hclip);
-                        x_right_ish16 += step_x02_ish16;
-                        x_left_ish16 += step_x01_ish16;
-                        shade_start += shade_step_y_ish9;
-                        current_y++;
-                        u_val += u_plane_z;
-                        v_val += v_plane_z;
-                        w_val += w_plane_z;
-                    }
-                }
-            }
-            else
-            {
-
-                // Java: y2 >= y1 case (else branch of y1 < y2)
-                int x_left_ish16;
-                int x_right_ish16 = x_left_ish16 = x0 << 16;
-                if( y0 < 0 )
-                {
-                    x_right_ish16 -= y0 * step_x02_ish16;
-                    x_left_ish16 -= y0 * step_x01_ish16;
-                    shade_start -= y0 * shade_step_y_ish9;
-                    y0 = 0;
-                }
-
-                int x_mid_ish16 = x2 << 16;
-                if( y2 < 0 )
-                {
-                    x_mid_ish16 -= y2 * step_x12_ish16;
-                    y2 = 0;
-                }
-
-                int origin_y = screen_height >> 1;
-                int dy = y0 - origin_y;
-                int u_val = u_plane_z * dy + u_plane_x;
-                int v_val = v_plane_z * dy + v_plane_x;
-                int w_val = w_plane_z * dy + w_plane_x;
-
-                // Java: (arg0 == arg2 || var29 >= var27) && (arg0 != arg2 || var28 <= var27)
-                if( (y0 == y2 || step_x02_ish16 >= step_x01_ish16) &&
-                    (y0 != y2 || step_x12_ish16 <= step_x01_ish16) )
-                {
-                    int steps_bottom = y1 - y2;
-                    int steps_top = y2 - y0;
-                    int current_y = y0;
-
-                    while( true )
-                    {
-                        steps_top--;
-                        if( steps_top < 0 )
-                        {
-                            while( true )
-                            {
-                                steps_bottom--;
-                                if( steps_bottom < 0 )
-                                {
-                                    return;
-                                }
-                                texture_raster_deob(
-                                    pixel_buffer,
-                                    texels,
-                                    current_y,
-                                    stride,
-                                    x_left_ish16 >> 16,
-                                    x_mid_ish16 >> 16,
-                                    shade_start,
-                                    shade_step_x_ish9,
-                                    u_val,
-                                    v_val,
-                                    w_val,
-                                    u_plane_y,
-                                    v_plane_y,
-                                    w_plane_y,
-                                    screen_width,
-                                    screen_height,
-                                    origin_x,
-                                    opaque,
-                                    hclip);
-                                x_mid_ish16 += step_x12_ish16;
-                                x_left_ish16 += step_x01_ish16;
-                                shade_start += shade_step_y_ish9;
-                                current_y++;
-                                u_val += u_plane_z;
-                                v_val += v_plane_z;
-                                w_val += w_plane_z;
-                            }
-                        }
-                        texture_raster_deob(
-                            pixel_buffer,
-                            texels,
-                            current_y,
-                            stride,
-                            x_left_ish16 >> 16,
-                            x_right_ish16 >> 16,
-                            shade_start,
-                            shade_step_x_ish9,
-                            u_val,
-                            v_val,
-                            w_val,
-                            u_plane_y,
-                            v_plane_y,
-                            w_plane_y,
-                            screen_width,
-                            screen_height,
-                            origin_x,
-                            opaque,
-                            hclip);
-                        x_right_ish16 += step_x02_ish16;
-                        x_left_ish16 += step_x01_ish16;
-                        shade_start += shade_step_y_ish9;
-                        current_y++;
-                        u_val += u_plane_z;
-                        v_val += v_plane_z;
-                        w_val += w_plane_z;
-                    }
-                }
-                else
-                {
-                    int steps_bottom = y1 - y2;
-                    int steps_top = y2 - y0;
-                    int current_y = y0;
-
-                    while( true )
-                    {
-                        steps_top--;
-                        if( steps_top < 0 )
-                        {
-                            while( true )
-                            {
-                                steps_bottom--;
-                                if( steps_bottom < 0 )
-                                {
-                                    return;
-                                }
-                                texture_raster_deob(
-                                    pixel_buffer,
-                                    texels,
-                                    current_y,
-                                    stride,
-                                    x_mid_ish16 >> 16,
-                                    x_left_ish16 >> 16,
-                                    shade_start,
-                                    shade_step_x_ish9,
-                                    u_val,
-                                    v_val,
-                                    w_val,
-                                    u_plane_y,
-                                    v_plane_y,
-                                    w_plane_y,
-                                    screen_width,
-                                    screen_height,
-                                    origin_x,
-                                    opaque,
-                                    hclip);
-                                x_mid_ish16 += step_x12_ish16;
-                                x_left_ish16 += step_x01_ish16;
-                                shade_start += shade_step_y_ish9;
-                                current_y++;
-                                u_val += u_plane_z;
-                                v_val += v_plane_z;
-                                w_val += w_plane_z;
-                            }
-                        }
-                        texture_raster_deob(
-                            pixel_buffer,
-                            texels,
-                            current_y,
-                            stride,
-                            x_right_ish16 >> 16,
-                            x_left_ish16 >> 16,
-                            shade_start,
-                            shade_step_x_ish9,
-                            u_val,
-                            v_val,
-                            w_val,
-                            u_plane_y,
-                            v_plane_y,
-                            w_plane_y,
-                            screen_width,
-                            screen_height,
-                            origin_x,
-                            opaque,
-                            hclip);
-                        x_right_ish16 += step_x02_ish16;
-                        x_left_ish16 += step_x01_ish16;
-                        shade_start += shade_step_y_ish9;
-                        current_y++;
-                        u_val += u_plane_z;
-                        v_val += v_plane_z;
-                        w_val += w_plane_z;
-                    }
-                }
-            }
-        }
-    }
-    else if( y1 <= y2 )
-    {
-        // Java: else if (arg1 <= arg2) - y1 is topmost
-        if( y1 < screen_height )
-        {
-            if( y2 > screen_height )
-            {
-                y2 = screen_height;
-            }
-            if( y0 > screen_height )
-            {
-                y0 = screen_height;
-            }
-
-            // Java: var75 = (arg7 << 9) - arg4 * var31 + var31
-            int shade_start = (shade1 << 9) - x1 * shade_step_x_ish9 + shade_step_x_ish9;
-
-            if( y2 < y0 )
-            {
-                int x_left_ish16;
-                int x_right_ish16 = x_left_ish16 = x1 << 16;
-                if( y1 < 0 )
-                {
-                    x_right_ish16 -= y1 * step_x01_ish16;
-                    x_left_ish16 -= y1 * step_x12_ish16;
-                    shade_start -= y1 * shade_step_y_ish9;
-                    y1 = 0;
-                }
-
-                int x_mid_ish16 = x2 << 16;
-                if( y2 < 0 )
-                {
-                    x_mid_ish16 -= y2 * step_x02_ish16;
-                    y2 = 0;
-                }
-
-                int origin_y = screen_height >> 1;
-                int dy = y1 - origin_y;
-                int u_val = u_plane_z * dy + u_plane_x;
-                int v_val = v_plane_z * dy + v_plane_x;
-                int w_val = w_plane_z * dy + w_plane_x;
-
-                // Java: arg1 != arg2 && var27 < var28 || arg1 == arg2 && var27 > var29
-                if( (y1 != y2 && step_x01_ish16 < step_x12_ish16) ||
-                    (y1 == y2 && step_x01_ish16 > step_x02_ish16) )
-                {
-                    int steps_bottom = y0 - y2;
-                    int steps_top = y2 - y1;
-                    int current_y = y1;
-
-                    while( true )
-                    {
-                        steps_top--;
-                        if( steps_top < 0 )
-                        {
-                            while( true )
-                            {
-                                steps_bottom--;
-                                if( steps_bottom < 0 )
-                                {
-                                    return;
-                                }
-                                texture_raster_deob(
-                                    pixel_buffer,
-                                    texels,
-                                    current_y,
-                                    stride,
-                                    x_right_ish16 >> 16,
-                                    x_mid_ish16 >> 16,
-                                    shade_start,
-                                    shade_step_x_ish9,
-                                    u_val,
-                                    v_val,
-                                    w_val,
-                                    u_plane_y,
-                                    v_plane_y,
-                                    w_plane_y,
-                                    screen_width,
-                                    screen_height,
-                                    origin_x,
-                                    opaque,
-                                    hclip);
-                                x_right_ish16 += step_x01_ish16;
-                                x_mid_ish16 += step_x02_ish16;
-                                shade_start += shade_step_y_ish9;
-                                current_y++;
-                                u_val += u_plane_z;
-                                v_val += v_plane_z;
-                                w_val += w_plane_z;
-                            }
-                        }
-                        texture_raster_deob(
-                            pixel_buffer,
-                            texels,
-                            current_y,
-                            stride,
-                            x_right_ish16 >> 16,
-                            x_left_ish16 >> 16,
-                            shade_start,
-                            shade_step_x_ish9,
-                            u_val,
-                            v_val,
-                            w_val,
-                            u_plane_y,
-                            v_plane_y,
-                            w_plane_y,
-                            screen_width,
-                            screen_height,
-                            origin_x,
-                            opaque,
-                            hclip);
-                        x_right_ish16 += step_x01_ish16;
-                        x_left_ish16 += step_x12_ish16;
-                        shade_start += shade_step_y_ish9;
-                        current_y++;
-                        u_val += u_plane_z;
-                        v_val += v_plane_z;
-                        w_val += w_plane_z;
-                    }
-                }
-                else
-                {
-                    int steps_bottom = y0 - y2;
-                    int steps_top = y2 - y1;
-                    int current_y = y1;
-
-                    while( true )
-                    {
-                        steps_top--;
-                        if( steps_top < 0 )
-                        {
-                            while( true )
-                            {
-                                steps_bottom--;
-                                if( steps_bottom < 0 )
-                                {
-                                    return;
-                                }
-                                texture_raster_deob(
-                                    pixel_buffer,
-                                    texels,
-                                    current_y,
-                                    stride,
-                                    x_mid_ish16 >> 16,
-                                    x_right_ish16 >> 16,
-                                    shade_start,
-                                    shade_step_x_ish9,
-                                    u_val,
-                                    v_val,
-                                    w_val,
-                                    u_plane_y,
-                                    v_plane_y,
-                                    w_plane_y,
-                                    screen_width,
-                                    screen_height,
-                                    origin_x,
-                                    opaque,
-                                    hclip);
-                                x_right_ish16 += step_x01_ish16;
-                                x_mid_ish16 += step_x02_ish16;
-                                shade_start += shade_step_y_ish9;
-                                current_y++;
-                                u_val += u_plane_z;
-                                v_val += v_plane_z;
-                                w_val += w_plane_z;
-                            }
-                        }
-                        texture_raster_deob(
-                            pixel_buffer,
-                            texels,
-                            current_y,
-                            stride,
-                            x_left_ish16 >> 16,
-                            x_right_ish16 >> 16,
-                            shade_start,
-                            shade_step_x_ish9,
-                            u_val,
-                            v_val,
-                            w_val,
-                            u_plane_y,
-                            v_plane_y,
-                            w_plane_y,
-                            screen_width,
-                            screen_height,
-                            origin_x,
-                            opaque,
-                            hclip);
-                        x_right_ish16 += step_x01_ish16;
-                        x_left_ish16 += step_x12_ish16;
-                        shade_start += shade_step_y_ish9;
-                        current_y++;
-                        u_val += u_plane_z;
-                        v_val += v_plane_z;
-                        w_val += w_plane_z;
-                    }
-                }
-            }
-            else
-            {
-                // Java: y2 >= y0 case
-                int x_left_ish16;
-                int x_right_ish16 = x_left_ish16 = x1 << 16;
-                if( y1 < 0 )
-                {
-                    x_right_ish16 -= y1 * step_x01_ish16;
-                    x_left_ish16 -= y1 * step_x12_ish16;
-                    shade_start -= y1 * shade_step_y_ish9;
-                    y1 = 0;
-                }
-
-                int x_mid_ish16 = x0 << 16;
-                if( y0 < 0 )
-                {
-                    x_mid_ish16 -= y0 * step_x02_ish16;
-                    y0 = 0;
-                }
-
-                int origin_y = screen_height >> 1;
-                int dy = y1 - origin_y;
-                int u_val = u_plane_z * dy + u_plane_x;
-                int v_val = v_plane_z * dy + v_plane_x;
-                int w_val = w_plane_z * dy + w_plane_x;
-
-                // Java: var27 < var28
-                if( step_x01_ish16 < step_x12_ish16 )
-                {
-                    int steps_bottom = y2 - y0;
-                    int steps_top = y0 - y1;
-                    int current_y = y1;
-
-                    while( true )
-                    {
-                        steps_top--;
-                        if( steps_top < 0 )
-                        {
-                            while( true )
-                            {
-                                steps_bottom--;
-                                if( steps_bottom < 0 )
-                                {
-                                    return;
-                                }
-                                texture_raster_deob(
-                                    pixel_buffer,
-                                    texels,
-                                    current_y,
-                                    stride,
-                                    x_mid_ish16 >> 16,
-                                    x_left_ish16 >> 16,
-                                    shade_start,
-                                    shade_step_x_ish9,
-                                    u_val,
-                                    v_val,
-                                    w_val,
-                                    u_plane_y,
-                                    v_plane_y,
-                                    w_plane_y,
-                                    screen_width,
-                                    screen_height,
-                                    origin_x,
-                                    opaque,
-                                    hclip);
-                                x_mid_ish16 += step_x02_ish16;
-                                x_left_ish16 += step_x12_ish16;
-                                shade_start += shade_step_y_ish9;
-                                current_y++;
-                                u_val += u_plane_z;
-                                v_val += v_plane_z;
-                                w_val += w_plane_z;
-                            }
-                        }
-                        texture_raster_deob(
-                            pixel_buffer,
-                            texels,
-                            current_y,
-                            stride,
-                            x_right_ish16 >> 16,
-                            x_left_ish16 >> 16,
-                            shade_start,
-                            shade_step_x_ish9,
-                            u_val,
-                            v_val,
-                            w_val,
-                            u_plane_y,
-                            v_plane_y,
-                            w_plane_y,
-                            screen_width,
-                            screen_height,
-                            origin_x,
-                            opaque,
-                            hclip);
-                        x_right_ish16 += step_x01_ish16;
-                        x_left_ish16 += step_x12_ish16;
-                        shade_start += shade_step_y_ish9;
-                        current_y++;
-                        u_val += u_plane_z;
-                        v_val += v_plane_z;
-                        w_val += w_plane_z;
-                    }
-                }
-                else
-                {
-                    int steps_bottom = y2 - y0;
-                    int steps_top = y0 - y1;
-                    int current_y = y1;
-
-                    while( true )
-                    {
-                        steps_top--;
-                        if( steps_top < 0 )
-                        {
-                            while( true )
-                            {
-                                steps_bottom--;
-                                if( steps_bottom < 0 )
-                                {
-                                    return;
-                                }
-                                texture_raster_deob(
-                                    pixel_buffer,
-                                    texels,
-                                    current_y,
-                                    stride,
-                                    x_left_ish16 >> 16,
-                                    x_mid_ish16 >> 16,
-                                    shade_start,
-                                    shade_step_x_ish9,
-                                    u_val,
-                                    v_val,
-                                    w_val,
-                                    u_plane_y,
-                                    v_plane_y,
-                                    w_plane_y,
-                                    screen_width,
-                                    screen_height,
-                                    origin_x,
-                                    opaque,
-                                    hclip);
-                                x_mid_ish16 += step_x02_ish16;
-                                x_left_ish16 += step_x12_ish16;
-                                shade_start += shade_step_y_ish9;
-                                current_y++;
-                                u_val += u_plane_z;
-                                v_val += v_plane_z;
-                                w_val += w_plane_z;
-                            }
-                        }
-                        texture_raster_deob(
-                            pixel_buffer,
-                            texels,
-                            current_y,
-                            stride,
-                            x_left_ish16 >> 16,
-                            x_right_ish16 >> 16,
-                            shade_start,
-                            shade_step_x_ish9,
-                            u_val,
-                            v_val,
-                            w_val,
-                            u_plane_y,
-                            v_plane_y,
-                            w_plane_y,
-                            screen_width,
-                            screen_height,
-                            origin_x,
-                            opaque,
-                            hclip);
-                        x_right_ish16 += step_x01_ish16;
-                        x_left_ish16 += step_x12_ish16;
-                        shade_start += shade_step_y_ish9;
-                        current_y++;
-                        u_val += u_plane_z;
-                        v_val += v_plane_z;
-                        w_val += w_plane_z;
-                    }
-                }
-            }
-        }
-    }
-    else if( y2 < screen_height )
-    {
-        // Java: else if (arg2 < sizeY) - y2 is topmost
-        if( y0 > screen_height )
-        {
-            y0 = screen_height;
-        }
         if( y1 > screen_height )
         {
             y1 = screen_height;
         }
-
-        // Java: var102 = (arg8 << 9) - arg5 * var31 + var31
-        int shade_start = (shade2 << 9) - x2 * shade_step_x_ish9 + shade_step_x_ish9;
-
-        if( y0 < y1 )
+        if( y2 > screen_height )
         {
-            int x_left_ish16;
-            int x_right_ish16 = x_left_ish16 = x2 << 16;
-            if( y2 < 0 )
-            {
-                x_right_ish16 -= y2 * step_x12_ish16;
-                x_left_ish16 -= y2 * step_x02_ish16;
-                shade_start -= y2 * shade_step_y_ish9;
-                y2 = 0;
-            }
+            y2 = screen_height;
+        }
 
-            int x_mid_ish16 = x0 << 16;
+        // Java: var48 = (arg6 << 9) - arg3 * var31 + var31
+        // Where arg6 = shade0 (0-127), arg3 = x0, var31 = shade_step_x_ish9
+        // shade0 << 9 converts 0-127 to ish9 format (0-65024)
+        int shade_start = (shade0 << 9) - x0 * shade_step_x_ish9 + shade_step_x_ish9;
+
+            int x_left_ish16;
+            int x_right_ish16 = x_left_ish16 = x0 << 16;
             if( y0 < 0 )
             {
-                x_mid_ish16 -= y0 * step_x01_ish16;
+                x_right_ish16 -= y0 * step_x02_ish16;
+                x_left_ish16 -= y0 * step_x01_ish16;
+                shade_start -= y0 * shade_step_y_ish9;
                 y0 = 0;
-            }
-
-            int origin_y = screen_height >> 1;
-            int dy = y2 - origin_y;
-            int u_val = u_plane_z * dy + u_plane_x;
-            int v_val = v_plane_z * dy + v_plane_x;
-            int w_val = w_plane_z * dy + w_plane_x;
-
-            // Java: var28 < var29
-            if( step_x12_ish16 < step_x02_ish16 )
-            {
-                int steps_bottom = y1 - y0;
-                int steps_top = y0 - y2;
-                int current_y = y2;
-
-                while( true )
-                {
-                    steps_top--;
-                    if( steps_top < 0 )
-                    {
-                        while( true )
-                        {
-                            steps_bottom--;
-                            if( steps_bottom < 0 )
-                            {
-                                return;
-                            }
-                            texture_raster_deob(
-                                pixel_buffer,
-                                texels,
-                                current_y,
-                                stride,
-                                x_right_ish16 >> 16,
-                                x_mid_ish16 >> 16,
-                                shade_start,
-                                shade_step_x_ish9,
-                                u_val,
-                                v_val,
-                                w_val,
-                                u_plane_y,
-                                v_plane_y,
-                                w_plane_y,
-                                screen_width,
-                                screen_height,
-                                origin_x,
-                                opaque,
-                                hclip);
-                            x_right_ish16 += step_x12_ish16;
-                            x_mid_ish16 += step_x01_ish16;
-                            shade_start += shade_step_y_ish9;
-                            current_y++;
-                            u_val += u_plane_z;
-                            v_val += v_plane_z;
-                            w_val += w_plane_z;
-                        }
-                    }
-                    texture_raster_deob(
-                        pixel_buffer,
-                        texels,
-                        current_y,
-                        stride,
-                        x_right_ish16 >> 16,
-                        x_left_ish16 >> 16,
-                        shade_start,
-                        shade_step_x_ish9,
-                        u_val,
-                        v_val,
-                        w_val,
-                        u_plane_y,
-                        v_plane_y,
-                        w_plane_y,
-                        screen_width,
-                        screen_height,
-                        origin_x,
-                        opaque,
-                        hclip);
-                    x_right_ish16 += step_x12_ish16;
-                    x_left_ish16 += step_x02_ish16;
-                    shade_start += shade_step_y_ish9;
-                    current_y++;
-                    u_val += u_plane_z;
-                    v_val += v_plane_z;
-                    w_val += w_plane_z;
-                }
-            }
-            else
-            {
-                int steps_bottom = y1 - y0;
-                int steps_top = y0 - y2;
-                int current_y = y2;
-
-                while( true )
-                {
-                    steps_top--;
-                    if( steps_top < 0 )
-                    {
-                        while( true )
-                        {
-                            steps_bottom--;
-                            if( steps_bottom < 0 )
-                            {
-                                return;
-                            }
-                            texture_raster_deob(
-                                pixel_buffer,
-                                texels,
-                                current_y,
-                                stride,
-                                x_mid_ish16 >> 16,
-                                x_right_ish16 >> 16,
-                                shade_start,
-                                shade_step_x_ish9,
-                                u_val,
-                                v_val,
-                                w_val,
-                                u_plane_y,
-                                v_plane_y,
-                                w_plane_y,
-                                screen_width,
-                                screen_height,
-                                origin_x,
-                                opaque,
-                                hclip);
-                            x_right_ish16 += step_x12_ish16;
-                            x_mid_ish16 += step_x01_ish16;
-                            shade_start += shade_step_y_ish9;
-                            current_y++;
-                            u_val += u_plane_z;
-                            v_val += v_plane_z;
-                            w_val += w_plane_z;
-                        }
-                    }
-                    texture_raster_deob(
-                        pixel_buffer,
-                        texels,
-                        current_y,
-                        stride,
-                        x_left_ish16 >> 16,
-                        x_right_ish16 >> 16,
-                        shade_start,
-                        shade_step_x_ish9,
-                        u_val,
-                        v_val,
-                        w_val,
-                        u_plane_y,
-                        v_plane_y,
-                        w_plane_y,
-                        screen_width,
-                        screen_height,
-                        origin_x,
-                        opaque,
-                        hclip);
-                    x_right_ish16 += step_x12_ish16;
-                    x_left_ish16 += step_x02_ish16;
-                    shade_start += shade_step_y_ish9;
-                    current_y++;
-                    u_val += u_plane_z;
-                    v_val += v_plane_z;
-                    w_val += w_plane_z;
-                }
-            }
-        }
-        else
-        {
-            // Java: y0 >= y1 case
-            int x_left_ish16;
-            int x_right_ish16 = x_left_ish16 = x2 << 16;
-            if( y2 < 0 )
-            {
-                x_right_ish16 -= y2 * step_x12_ish16;
-                x_left_ish16 -= y2 * step_x02_ish16;
-                shade_start -= y2 * shade_step_y_ish9;
-                y2 = 0;
             }
 
             int x_mid_ish16 = x1 << 16;
             if( y1 < 0 )
             {
-                x_mid_ish16 -= y1 * step_x01_ish16;
+                x_mid_ish16 -= y1 * step_x12_ish16;
                 y1 = 0;
             }
 
+            // Java: var52 = arg0 - originY, var53 = var41 * var52 + var39
+            // So: u_val = u_plane_z * (y0 - origin_y) + u_plane_x
+            // The x component is handled in textureRaster with (x_start - originX)
             int origin_y = screen_height >> 1;
-            int dy = y2 - origin_y;
+            int dy = y0 - origin_y;
             int u_val = u_plane_z * dy + u_plane_x;
             int v_val = v_plane_z * dy + v_plane_x;
             int w_val = w_plane_z * dy + w_plane_x;
 
-            // Java: var28 < var29
-            if( step_x12_ish16 < step_x02_ish16 )
+            if( (y0 != y1 && step_x02_ish16 < step_x01_ish16) ||
+                (y0 == y1 && step_x02_ish16 > step_x12_ish16) )
             {
-                int steps_bottom = y0 - y1;
-                int steps_top = y1 - y2;
-                int current_y = y2;
+                int steps_bottom = y2 - y1;
+                int steps_top = y1 - y0;
+                int current_y = y0;
 
-                while( true )
+                while( steps_top-- )
                 {
-                    steps_top--;
-                    if( steps_top < 0 )
-                    {
-                        while( true )
-                        {
-                            steps_bottom--;
-                            if( steps_bottom < 0 )
-                            {
-                                return;
-                            }
-                            texture_raster_deob(
-                                pixel_buffer,
-                                texels,
-                                current_y,
-                                stride,
-                                x_mid_ish16 >> 16,
-                                x_left_ish16 >> 16,
-                                shade_start,
-                                shade_step_x_ish9,
-                                u_val,
-                                v_val,
-                                w_val,
-                                u_plane_y,
-                                v_plane_y,
-                                w_plane_y,
-                                screen_width,
-                                screen_height,
-                                origin_x,
-                                opaque,
-                                hclip);
-                            x_mid_ish16 += step_x01_ish16;
-                            x_left_ish16 += step_x02_ish16;
-                            shade_start += shade_step_y_ish9;
-                            current_y++;
-                            u_val += u_plane_z;
-                            v_val += v_plane_z;
-                            w_val += w_plane_z;
-                        }
-                    }
-                    texture_raster_deob(
+              
+                    draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
                         texels,
                         current_y,
@@ -1427,11 +598,38 @@ texture_deob(
                         w_plane_y,
                         screen_width,
                         screen_height,
-                        origin_x,
-                        opaque,
-                        hclip);
-                    x_right_ish16 += step_x12_ish16;
-                    x_left_ish16 += step_x02_ish16;
+                        origin_x);
+                    x_right_ish16 += step_x02_ish16;
+                    x_left_ish16 += step_x01_ish16;
+                    shade_start += shade_step_y_ish9;
+                    current_y++;
+                    u_val += u_plane_z;
+                    v_val += v_plane_z;
+                    w_val += w_plane_z;
+                }
+
+                while (steps_bottom-- > 0)
+                {
+                    draw_texture_scanline_opaque_blend_affine_ordered(
+                        pixel_buffer,
+                        texels,
+                        current_y,
+                        stride,
+                        x_right_ish16 >> 16,
+                        x_left_ish16 >> 16,
+                        shade_start,
+                        shade_step_x_ish9,
+                        u_val,
+                        v_val,
+                        w_val,
+                        u_plane_y,
+                        v_plane_y,
+                        w_plane_y,
+                        screen_width,
+                        screen_height,
+                        origin_x);
+                    x_right_ish16 += step_x02_ish16;
+                    x_left_ish16 += step_x01_ish16;
                     shade_start += shade_step_y_ish9;
                     current_y++;
                     u_val += u_plane_z;
@@ -1441,57 +639,18 @@ texture_deob(
             }
             else
             {
-                int steps_bottom = y0 - y1;
-                int steps_top = y1 - y2;
-                int current_y = y2;
+                int steps_bottom = y2 - y1;
+                int steps_top = y1 - y0;
+                int current_y = y0;
 
-                while( true )
-                {
-                    steps_top--;
-                    if( steps_top < 0 )
-                    {
-                        while( true )
-                        {
-                            steps_bottom--;
-                            if( steps_bottom < 0 )
-                            {
-                                return;
-                            }
-                            texture_raster_deob(
-                                pixel_buffer,
-                                texels,
-                                current_y,
-                                stride,
-                                x_left_ish16 >> 16,
-                                x_mid_ish16 >> 16,
-                                shade_start,
-                                shade_step_x_ish9,
-                                u_val,
-                                v_val,
-                                w_val,
-                                u_plane_y,
-                                v_plane_y,
-                                w_plane_y,
-                                screen_width,
-                                screen_height,
-                                origin_x,
-                                opaque,
-                                hclip);
-                            x_mid_ish16 += step_x01_ish16;
-                            x_left_ish16 += step_x02_ish16;
-                            shade_start += shade_step_y_ish9;
-                            current_y++;
-                            u_val += u_plane_z;
-                            v_val += v_plane_z;
-                            w_val += w_plane_z;
-                        }
-                    }
-                    texture_raster_deob(
+                while (steps_top-- > 0)
+                 {
+                    draw_texture_scanline_opaque_blend_affine_ordered(
                         pixel_buffer,
                         texels,
                         current_y,
                         stride,
-                        x_left_ish16 >> 16,
+                        x_mid_ish16 >> 16,
                         x_right_ish16 >> 16,
                         shade_start,
                         shade_step_x_ish9,
@@ -1503,11 +662,40 @@ texture_deob(
                         w_plane_y,
                         screen_width,
                         screen_height,
-                        origin_x,
-                        opaque,
-                        hclip);
-                    x_right_ish16 += step_x12_ish16;
-                    x_left_ish16 += step_x02_ish16;
+                        origin_x);
+                    x_right_ish16 += step_x02_ish16;
+                    x_mid_ish16 += step_x12_ish16;
+                    shade_start += shade_step_y_ish9;
+                    current_y++;
+                    u_val += u_plane_z;
+                    v_val += v_plane_z;
+                    w_val += w_plane_z;
+            
+                }
+
+                while (steps_bottom-- > 0)
+                {
+                    draw_texture_scanline_opaque_blend_affine_ordered(
+                        pixel_buffer,
+                        texels,
+                        current_y,
+                        stride,
+                        x_mid_ish16 >> 16,
+                        x_right_ish16 >> 16,
+                        shade_start,
+                        shade_step_x_ish9,
+                        u_val,
+                        v_val,
+                        w_val,
+                        u_plane_y,
+                        v_plane_y,
+                        w_plane_y,
+                        screen_width,
+                        screen_height,
+                        origin_x
+                    );
+                    x_right_ish16 += step_x02_ish16;
+                    x_mid_ish16 += step_x12_ish16;
                     shade_start += shade_step_y_ish9;
                     current_y++;
                     u_val += u_plane_z;
@@ -1515,8 +703,8 @@ texture_deob(
                     w_val += w_plane_z;
                 }
             }
-        }
     }
+   
 }
 
 #endif
