@@ -662,40 +662,40 @@ raster_face_texture_blend(
 
 
 
-    assert(shade_a >= 0 && shade_a < 128);
-    assert(shade_b >= 0 && shade_b < 128);
-    assert(shade_c >= 0 && shade_c < 128);
+    // assert(shade_a >= 0 && shade_a < 128);
+    // assert(shade_b >= 0 && shade_b < 128);
+    // assert(shade_c >= 0 && shade_c < 128);
 
-    raster_texture_opaque_blend_affine(
-        pixel_buffer,
-        stride,
-        screen_width,
-        screen_height,
-        512,
-        x1,
-        x2,
-        x3,
-        y1,
-        y2,
-        y3,
-        // 80,80,80,
-        orthographic_uvorigin_x0,
-        orthographic_uend_x1,
-        orthographic_vend_x2,
-        orthographic_uvorigin_y0,
-        orthographic_uend_y1,
-        orthographic_vend_y2,
-        orthographic_uvorigin_z0,
-        orthographic_uend_z1,
-        orthographic_vend_z2,
+    // raster_texture_opaque_blend_affine(
+    //     pixel_buffer,
+    //     stride,
+    //     screen_width,
+    //     screen_height,
+    //     512,
+    //     x1,
+    //     x2,
+    //     x3,
+    //     y1,
+    //     y2,
+    //     y3,
+    //     // 80,80,80,
+    //     orthographic_uvorigin_x0,
+    //     orthographic_uend_x1,
+    //     orthographic_vend_x2,
+    //     orthographic_uvorigin_y0,
+    //     orthographic_uend_y1,
+    //     orthographic_vend_y2,
+    //     orthographic_uvorigin_z0,
+    //     orthographic_uend_z1,
+    //     orthographic_vend_z2,
         
-        shade_a,
-        shade_b,
-        shade_c,
-        texels,
-        texture_size);
+    //     shade_a,
+    //     shade_b,
+    //     shade_c,
+    //     texels,
+    //     texture_size);
 
-    return;
+    // return;
 
     
     raster_texture_blend(
