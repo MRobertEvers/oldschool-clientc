@@ -87,6 +87,7 @@ endif()
         src/osrs/gameproto_parse.c
         src/osrs/gameproto_process.c
         src/osrs/game_entity.c
+        src/osrs/loginproto.c
         src/osrs/datatypes/player_appearance.c
         src/osrs/packets/pkt_player_info.c
         src/osrs/packets/pkt_npc_info.c

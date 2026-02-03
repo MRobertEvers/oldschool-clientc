@@ -93,6 +93,12 @@ rsbuf_pjstr(
     const char* str,
     int terminator);
 
+void
+rsbuf_pwrite(
+    struct RSBuffer* buffer,
+    const uint8_t* data,
+    int data_size);
+
 #define g1(buffer) rsbuf_g1(buffer)
 #define g1b(buffer) rsbuf_g1b(buffer)
 #define p1(buffer, value) rsbuf_p1(buffer, value)
@@ -116,5 +122,6 @@ rsbuf_pjstr(
 
 #define gparams(buffer, params) rsbuf_read_params(buffer, params)
 #define greadto(buffer, out, out_size, len) rsbuf_readto(buffer, out, out_size, len)
+#define pwrite(buffer, data, data_size) rsbuf_pwrite(buffer, data, data_size)
 
 #endif

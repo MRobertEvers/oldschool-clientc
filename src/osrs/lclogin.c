@@ -45,7 +45,7 @@
 #include <emscripten.h>
 #endif
 
-int
+static int
 rsbuf_rsaenc(
     struct RSBuffer* buffer,
     const struct rsa* rsa)

@@ -53,4 +53,7 @@ packetbuffer_packet_type(struct PacketBuffer* packetbuffer);
 void*
 packetbuffer_data(struct PacketBuffer* packetbuffer);
 
+int
+packetbuffer_amt_recv_cnt(struct PacketBuffer* packetbuffer);
+
 #endif

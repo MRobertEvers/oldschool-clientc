@@ -1,5 +1,6 @@
 #include "ringbuf.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -55,7 +56,10 @@ ringbuf_free(struct RingBuf* rb)
  *----------------------------------------------------------*/
 
 int
-ringbuf_init(struct RingBuf* rb, void* buffer, size_t capacity)
+ringbuf_init(
+    struct RingBuf* rb,
+    void* buffer,
+    size_t capacity)
 {
     if( !rb || !buffer || capacity == 0 )
         return RINGBUF_BADARG;
@@ -126,7 +130,10 @@ ringbuf_full(const struct RingBuf* rb)
  *----------------------------------------------------------*/
 
 int
-ringbuf_write(struct RingBuf* rb, const void* data, size_t len)
+ringbuf_write(
+    struct RingBuf* rb,
+    const void* data,
+    size_t len)
 {
     if( !rb || !data )
         return RINGBUF_BADARG;
@@ -134,6 +141,8 @@ ringbuf_write(struct RingBuf* rb, const void* data, size_t len)
         return RINGBUF_OK;
     if( len > ringbuf_avail(rb) )
         return RINGBUF_FULL;
+
+    assert(len <= rb->capacity);
 
     const unsigned char* p = (const unsigned char*)data;
     size_t n = rb->capacity - rb->tail;
@@ -151,7 +160,9 @@ ringbuf_write(struct RingBuf* rb, const void* data, size_t len)
 }
 
 int
-ringbuf_putc(struct RingBuf* rb, unsigned char c)
+ringbuf_putc(
+    struct RingBuf* rb,
+    unsigned char c)
 {
     if( !rb )
         return RINGBUF_BADARG;
@@ -167,7 +178,10 @@ ringbuf_putc(struct RingBuf* rb, unsigned char c)
  *----------------------------------------------------------*/
 
 int
-ringbuf_putback(struct RingBuf* rb, const void* data, size_t len)
+ringbuf_putback(
+    struct RingBuf* rb,
+    const void* data,
+    size_t len)
 {
     if( !rb || !data )
         return RINGBUF_BADARG;
@@ -197,7 +211,10 @@ ringbuf_putback(struct RingBuf* rb, const void* data, size_t len)
  *----------------------------------------------------------*/
 
 size_t
-ringbuf_read(struct RingBuf* rb, void* dst, size_t len)
+ringbuf_read(
+    struct RingBuf* rb,
+    void* dst,
+    size_t len)
 {
     if( !rb || !dst || len == 0 )
         return 0;
@@ -224,7 +241,9 @@ ringbuf_read(struct RingBuf* rb, void* dst, size_t len)
 }
 
 int
-ringbuf_getc(struct RingBuf* rb, unsigned char* out)
+ringbuf_getc(
+    struct RingBuf* rb,
+    unsigned char* out)
 {
     if( !rb || !out )
         return RINGBUF_BADARG;
@@ -240,13 +259,20 @@ ringbuf_getc(struct RingBuf* rb, unsigned char* out)
  *----------------------------------------------------------*/
 
 size_t
-ringbuf_peek(struct RingBuf* rb, void* dst, size_t len)
+ringbuf_peek(
+    struct RingBuf* rb,
+    void* dst,
+    size_t len)
 {
     return ringbuf_peek_at(rb, 0, dst, len);
 }
 
 size_t
-ringbuf_peek_at(const struct RingBuf* rb, size_t offset, void* dst, size_t len)
+ringbuf_peek_at(
+    const struct RingBuf* rb,
+    size_t offset,
+    void* dst,
+    size_t len)
 {
     if( !rb || !dst || len == 0 )
         return 0;
@@ -277,7 +303,9 @@ ringbuf_peek_at(const struct RingBuf* rb, size_t offset, void* dst, size_t len)
  *----------------------------------------------------------*/
 
 size_t
-ringbuf_skip(struct RingBuf* rb, size_t len)
+ringbuf_skip(
+    struct RingBuf* rb,
+    size_t len)
 {
     if( !rb )
         return 0;

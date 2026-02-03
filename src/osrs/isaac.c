@@ -190,6 +190,18 @@ isaac_new(
     int seed_length)
 {
     struct Isaac* isaac = malloc(sizeof(struct Isaac));
+
+    isaac_seed(isaac, seed, seed_length);
+
+    return isaac;
+}
+
+void
+isaac_seed(
+    struct Isaac* isaac,
+    int* seed,
+    int seed_length)
+{
     memset(isaac, 0, sizeof(struct Isaac));
 
     for( int i = 0; i < seed_length; i++ )
@@ -198,8 +210,6 @@ isaac_new(
     }
 
     isaac_init(isaac);
-
-    return isaac;
 }
 
 void
@@ -227,7 +237,9 @@ isaac_state_size(void)
 }
 
 void
-isaac_get_state(struct Isaac* isaac, void* buf)
+isaac_get_state(
+    struct Isaac* isaac,
+    void* buf)
 {
     memcpy(buf, isaac, sizeof(struct Isaac));
 }

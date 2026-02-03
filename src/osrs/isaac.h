@@ -16,6 +16,12 @@ isaac_new(
     int seed_length);
 
 void
+isaac_seed(
+    struct Isaac* isaac,
+    int* seed,
+    int seed_length);
+
+void
 isaac_free(struct Isaac* isaac);
 
 int
@@ -27,9 +33,12 @@ isaac_state_size(void);
 
 /** Write current ISAAC state into buf (must have isaac_state_size() bytes) */
 void
-isaac_get_state(struct Isaac* isaac, void* buf);
+isaac_get_state(
+    struct Isaac* isaac,
+    void* buf);
 
-/** Restore ISAAC state from buf (must have isaac_state_size() bytes). Returns new Isaac* or NULL. */
+/** Restore ISAAC state from buf (must have isaac_state_size() bytes). Returns new Isaac* or NULL.
+ */
 struct Isaac*
 isaac_from_state(const void* buf);
 

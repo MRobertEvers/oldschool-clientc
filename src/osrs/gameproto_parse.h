@@ -7,7 +7,6 @@
 
 int
 gameproto_parse_lc245_2(
-    struct GGame* game,
     int packet_type,
     uint8_t* data,
     int data_size,

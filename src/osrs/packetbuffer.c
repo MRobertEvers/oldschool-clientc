@@ -66,6 +66,7 @@ packetbuffer_read(
 
     while( buffer.position < data_size )
     {
+    step:;
         remaining = data_size - buffer.position;
 
         switch( packetbuffer->state )
@@ -90,6 +91,7 @@ packetbuffer_read(
             {
                 packetbuffer->packet_length = packet_size;
                 packetbuffer->state = PKTBUF_PREPARE_RECEIVE;
+                goto step;
             }
             break;
         case PKTBUF_READ_VARLEN_U8:
@@ -97,26 +99,29 @@ packetbuffer_read(
             packetbuffer->packet_length = varlength;
 
             packetbuffer->state = PKTBUF_PREPARE_RECEIVE;
+            goto step;
             break;
         case PKTBUF_READ_VARLEN_U16:
             varlength = g2(&buffer);
             packetbuffer->packet_length = varlength;
 
             packetbuffer->state = PKTBUF_PREPARE_RECEIVE;
+            goto step;
             break;
         case PKTBUF_PREPARE_RECEIVE:
             packetbuffer->data = malloc(packetbuffer->packet_length);
             memset(packetbuffer->data, 0, packetbuffer->packet_length);
 
             packetbuffer->state = PKTBUF_READ_DATA;
-            break;
 
+            goto step;
+            break;
         case PKTBUF_READ_DATA:
         {
-            if( remaining <= 0 )
-                goto done;
-
             int remaining_packet_len = packetbuffer->packet_length - packetbuffer->data_size;
+
+            if( remaining < remaining_packet_len )
+                goto done;
 
             int copy_size = imin(remaining_packet_len, remaining);
 
@@ -157,6 +162,8 @@ packetbuffer_reset(struct PacketBuffer* packetbuffer)
         free(packetbuffer->data);
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
+    packetbuffer->packet_length = 0;
+    packetbuffer->packet_type = 0;
 
     packetbuffer_init(packetbuffer, packetbuffer->random, packetbuffer->revision);
 }
@@ -177,4 +184,27 @@ void*
 packetbuffer_data(struct PacketBuffer* packetbuffer)
 {
     return packetbuffer->data;
+}
+
+int
+packetbuffer_amt_recv_cnt(struct PacketBuffer* packetbuffer)
+{
+    switch( packetbuffer->state )
+    {
+    case PKTBUF_AWAITING_PACKET:
+        return 1;
+    case PKTBUF_READ_VARLEN_U8:
+        return 1;
+    case PKTBUF_READ_VARLEN_U16:
+        return 2;
+    case PKTBUF_PREPARE_RECEIVE:
+    {
+        assert(0);
+        return 0;
+    }
+    case PKTBUF_READ_DATA:
+        return packetbuffer->packet_length - packetbuffer->data_size;
+    case PKTBUF_PROCESS:
+        return 0;
+    }
 }

@@ -11,7 +11,6 @@ extern "C" {
 #include "platforms/platform_impl2_osx_sdl2.h"
 #include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
 
-
 #include <SDL.h>
 #include <assert.h>
 #include <stdio.h>
@@ -62,7 +61,6 @@ main(
     int argc,
     char* argv[])
 {
-
     bool has_message = false;
     struct GIOQueue* io = gioq_new();
     struct GGame* game = LibToriRS_GameNew(io, 513, 335);
@@ -114,7 +112,7 @@ main(
     struct SockStream* login_stream = NULL;
     sockstream_init();
     // Create socket connection to login server
-    // login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
+    login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
     if( !login_stream )
     {
         printf("Failed to create login socket\n");
@@ -172,7 +170,7 @@ main(
             else if( received < 0 )
             {
                 int error = sockstream_lasterror(login_stream);
-                if (error != SOCKSTREAM_ERROR_WOULDBLOCK)
+                if( error != SOCKSTREAM_ERROR_WOULDBLOCK )
                 {
                     // Connection error
                     printf("Login socket error: %s\n", sockstream_strerror(error));

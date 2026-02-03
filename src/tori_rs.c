@@ -8,6 +8,7 @@
 #include "osrs/gameproto_process.h"
 #include "osrs/gametask.h"
 #include "osrs/gio.h"
+#include "osrs/loginproto.h"
 #include "osrs/packetbuffer.h"
 #include "osrs/packetin.h"
 #include "osrs/query_engine.h"
@@ -28,6 +29,35 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+
+static inline int
+imin(
+    int a,
+    int b)
+{
+    return a < b ? a : b;
+}
+
+static void
+init_rsa(struct GGame* game)
+{
+    // const char* default_e_decimal =
+    //     "58778699976184461502525193738213253649000149147835990136706041084440742975821";
+    // const char* default_n_decimal =
+    //     "716290052522979803276181679123052729632931329123232429023784926350120820797289405392906563"
+    //     "6522363163621000728841182238772712427862772219676577293600221789";
+
+    char const* default_e_hex =
+        "81f390b2cf8ca7039ee507975951d5a0b15a87bf8b3f99c966834118c50fd94d"; // pad exponent to
+                                                                            // an even number
+                                                                            // (prefix a 0 if
+                                                                            // needed)
+    char const* default_n_hex =
+        "88c38748a58228f7261cdc340b5691d7d0975dee0ecdb717609e6bf971eb3fe723ef9d130e468681373976"
+        "8ad9472eb46d8bfcc042c1a5fcb05e931f632eea5d";
+
+    rsa_init(&game->rsa, default_e_hex, default_n_hex);
+}
 
 struct GGame*
 LibToriRS_GameNew(
@@ -114,10 +144,17 @@ LibToriRS_GameNew(
     game->buildcachedat = buildcachedat_new();
     game->buildcache = buildcache_new();
 
+    game->random_in = isaac_new(NULL, 0);
+    game->random_out = isaac_new(NULL, 0);
+    init_rsa(game);
+
+    game->loginproto =
+        loginproto_new(game->random_in, game->random_out, &game->rsa, "asdf2", "a", NULL);
+
     gametask_new_init_io((void*)game, game->io);
-    
-    // gametask_new_init_scene_dat((void*)game, 50, 50, 51, 51);
-    gametask_new_init_scene(game, 50, 50, 50, 50);
+
+    gametask_new_init_scene_dat((void*)game, 50, 50, 51, 51);
+    // gametask_new_init_scene(game, 50, 50, 50, 50);
     // gametask_new_init_scene(game, 35, 83, 35, 83);
 
     //     {
@@ -345,7 +382,7 @@ LibToriRS_GameStep(
     {
         game->next_notimeout_cycle = game->cycle + 50;
         int opcode = 206;
-        uint32_t op = (opcode + isaac_next(game->login->random_out)) & 0xff;
+        uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
         game->outbound_buffer[game->outbound_size++] = op;
     }
 
@@ -765,8 +802,6 @@ LibToriRS_FrameNextCommand(
             int sx = cmd->_terrain._bf_terrain_x;
             int sz = cmd->_terrain._bf_terrain_z;
             int slevel = cmd->_terrain._bf_terrain_y;
-            assert(sz <= 63 && game->scene->terrain->tile_width_z);
-            assert(sz >= 0);
 
             tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
             if( !tile_model || !tile_model->dash_model )
@@ -868,126 +903,75 @@ push_packet_lc245_2(
 int
 LibToriRS_NetPump(struct GGame* game)
 {
-    int available = ringbuf_used(game->netin);
-    while( available > 0 )
-    {
-        int ret = 1;
-        char contiguous_buffer[4096];
+    int read_cnt = 1;
+    char contiguous_buffer[4096];
 
-        while( ret > 0 )
+    while( read_cnt > 0 )
+    {
+        switch( game->net_state )
         {
-            switch( game->net_state )
+        case GAME_NET_STATE_DISCONNECTED:
+            read_cnt = 1;
+            game->net_state = GAME_NET_STATE_LOGIN;
+            break;
+        case GAME_NET_STATE_LOGIN:
+        {
+            int to_read_cnt = imin(game->loginproto->await_recv_cnt, sizeof(contiguous_buffer));
+
+            read_cnt = ringbuf_read(game->netin, contiguous_buffer, to_read_cnt);
+
+            loginproto_recv(game->loginproto, contiguous_buffer, read_cnt);
+            int proto = loginproto_poll(game->loginproto);
+            int send_cnt =
+                loginproto_send(game->loginproto, contiguous_buffer, sizeof(contiguous_buffer));
+            if( send_cnt > 0 )
             {
-            case GAME_NET_STATE_DISCONNECTED:
-                ret = 1;
-                game->net_state = GAME_NET_STATE_LOGIN;
+                ringbuf_write(game->netout, contiguous_buffer, send_cnt);
+            }
+
+            if( proto == LOGINPROTO_SUCCESS )
+            {
+                packetbuffer_init(game->packet_buffer, game->random_in, GAMEPROTO_REVISION_LC245_2);
+                game->net_state = GAME_NET_STATE_GAME;
+            }
+            else
+                read_cnt = 0;
+        }
+        break;
+        case GAME_NET_STATE_GAME:
+        {
+            int to_read_cnt =
+                imin(packetbuffer_amt_recv_cnt(game->packet_buffer), sizeof(contiguous_buffer));
+
+            read_cnt = ringbuf_read(game->netin, contiguous_buffer, to_read_cnt);
+            if( read_cnt == 0 )
                 break;
-            case GAME_NET_STATE_LOGIN:
+
+            int pkt_read_cnt = packetbuffer_read(game->packet_buffer, contiguous_buffer, read_cnt);
+            assert(pkt_read_cnt == read_cnt);
+
+            if( packetbuffer_ready(game->packet_buffer) )
             {
-                int bytes_needed = lclogin_get_bytes_needed(game->login);
-                int total_read = 0;
-                do
-                {
-                    if( bytes_needed <= 0 )
-                        break;
+                struct RevPacket_LC245_2 packet;
+                memset(&packet, 0, sizeof(struct RevPacket_LC245_2));
+                int success = 0;
 
-                    int to_read;
-                    if( bytes_needed > sizeof(contiguous_buffer) )
-                        to_read = sizeof(contiguous_buffer);
-                    else
-                        to_read = bytes_needed;
+                success = gameproto_parse_lc245_2(
+                    packetbuffer_packet_type(game->packet_buffer),
+                    packetbuffer_data(game->packet_buffer),
+                    packetbuffer_size(game->packet_buffer),
+                    &packet);
 
-                    int amount_read = ringbuf_read(game->netin, contiguous_buffer, to_read);
+                if( success )
+                    push_packet_lc245_2(game, &packet);
 
-                    ret = lclogin_provide_data(game->login, contiguous_buffer, amount_read);
-                    assert(ret == amount_read);
-                    bytes_needed -= amount_read;
-                    total_read += amount_read;
-
-                    bytes_needed = lclogin_get_bytes_needed(game->login);
-                } while( bytes_needed > 0 );
-
-                ret = total_read;
-            }
-            break;
-            case GAME_NET_STATE_GAME:
-            {
-                ret = ringbuf_read(game->netin, contiguous_buffer, sizeof(contiguous_buffer));
-                if( ret <= 0 )
-                    break;
-
-                // FILE* f = fopen("contiguous_buffer.bin", "wb");
-                // fwrite(contiguous_buffer, 1, ret, f);
-                // fclose(f);
-                // {
-                //     size_t sz = isaac_state_size();
-                //     void* buf = malloc(sz);
-                //     if( buf && game->login && game->login->random_in )
-                //     {
-                //         isaac_get_state(game->login->random_in, buf);
-                //         FILE* isaac_f = fopen("login_isaac_state.bin", "wb");
-                //         if( isaac_f )
-                //         {
-                //             fwrite(buf, 1, sz, isaac_f);
-                //             fclose(isaac_f);
-                //         }
-                //         free(buf);
-                //     }
-                // }
-                // assert(0);
-
-                int amnt_used = packetbuffer_read(game->packet_buffer, contiguous_buffer, ret);
-                if( amnt_used < ret )
-                {
-                    ringbuf_putback(game->netin, contiguous_buffer + amnt_used, ret - amnt_used);
-                }
-                if( packetbuffer_ready(game->packet_buffer) )
-                {
-                    int pkt = packetbuffer_packet_type(game->packet_buffer);
-                    struct RevPacket_LC245_2 packet = { 0 };
-                    int res = gameproto_parse_lc245_2(
-                        game,
-                        pkt,
-                        packetbuffer_data(game->packet_buffer),
-                        packetbuffer_size(game->packet_buffer),
-                        &packet);
-
-                    if( res )
-                        push_packet_lc245_2(game, &packet);
-                    packetbuffer_reset(game->packet_buffer);
-                    break;
-                }
-            }
-            break;
+                packetbuffer_reset(game->packet_buffer);
             }
         }
-
-        if( ret <= 0 )
-            break;
-        available = ringbuf_used(game->netin);
-    }
-
-    switch( game->net_state )
-    {
-    case GAME_NET_STATE_LOGIN:
-    {
-        int result = lclogin_process(game->login);
-
-        if( lclogin_get_state(game->login) == LCLOGIN_STATE_SUCCESS )
-        {
-            game->net_state = GAME_NET_STATE_GAME;
-            packetbuffer_init(
-                game->packet_buffer, game->login->random_in, GAMEPROTO_REVISION_LC245_2);
-        }
-        else if( lclogin_get_state(game->login) == LCLOGIN_STATE_ERROR )
-        {
-            game->net_state = GAME_NET_STATE_DISCONNECTED;
+        break;
         }
     }
-    break;
-    case GAME_NET_STATE_GAME:
-        return 0;
-    }
+
     return 0;
 }
 
@@ -998,7 +982,7 @@ LibToriRS_NetConnect(
     char* password)
 {
     game->net_state = GAME_NET_STATE_LOGIN;
-    lclogin_start(game->login, username, password, false);
+    // lclogin_start(game->login, username, password, false);
 }
 
 void
@@ -1025,32 +1009,7 @@ LibToriRS_NetGetOutgoing(
     uint8_t* buffer,
     int buffer_size)
 {
-    int outbound_size = 0;
-    switch( game->net_state )
-    {
-    case GAME_NET_STATE_DISCONNECTED:
-        return 0;
-    case GAME_NET_STATE_LOGIN:
-    {
-        const uint8_t* data = NULL;
-        outbound_size = lclogin_get_data_to_send(game->login, &data);
-        if( data )
-        {
-            assert(outbound_size <= buffer_size);
-            memcpy(buffer, data, outbound_size);
-        }
-        lclogin_mark_data_sent(game->login, outbound_size);
-        return outbound_size;
-    }
-    case GAME_NET_STATE_GAME:
-    {
-        if( game->outbound_size == 0 )
-            return 0;
-        outbound_size = game->outbound_size;
-        memcpy(buffer, game->outbound_buffer, outbound_size);
-        game->outbound_size = 0;
-        return outbound_size;
-    }
-    }
-    return 0;
+    int outbound_cnt = 0;
+    outbound_cnt = ringbuf_read(game->netout, buffer, buffer_size);
+    return outbound_cnt;
 }

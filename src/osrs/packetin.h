@@ -99,9 +99,9 @@ struct PacketInDefinition
 // #define PACKET_DEFINITION( length) { length }
 // The [name] =  bit is used to ensure that the static array is in the correct order.
 #ifdef __GNUC__
-#define PACKET_DEFINITION(name,code,length) { name, code, length }
+#define PACKET_DEFINITION(name, code, length) { name, code, length }
 #else
-#define PACKET_DEFINITION(name,code,length) [name] = { name, code, length }
+#define PACKET_DEFINITION(name, code, length) [name] = { name, code, length }
 #endif
 
 // static const struct PacketInDefinition g_packet_in_definitions_dane317[256] = {
@@ -475,7 +475,6 @@ static const struct PacketInDefinition g_packet_in_definitions_lc245_2[256] = {
     PACKET_DEFINITION(PKTIN_LC245_2_OBJ_COUNT, 151, 7),
     PACKET_DEFINITION(PKTIN_LC245_2_MAP_ANIM, 141, 6),
     PACKET_DEFINITION(PKTIN_LC245_2_OBJ_ADD, 94, 5)
-  
 };
 
 // [PKTIN_LC245_2_IF_OPENMAIN_SIDE] = PACKETIN_DEFINITION(4),
@@ -549,14 +548,28 @@ static inline int
 packetin_size_lc245_2(int packet_type)
 {
     assert(packet_type >= 0 && packet_type < 256);
-    return g_packet_in_definitions_lc245_2[packet_type].length;
+    for( int i = 0; i < 256; i++ )
+    {
+        if( g_packet_in_definitions_lc245_2[i].code == packet_type )
+        {
+            return g_packet_in_definitions_lc245_2[i].length;
+        }
+    }
+    return 0;
 }
 
 static inline int
 packetin_code_lc245_2(int packet_type)
 {
     assert(packet_type >= 0 && packet_type < 256);
-    return g_packet_in_definitions_lc245_2[packet_type].code;
+    for( int i = 0; i < 256; i++ )
+    {
+        if( g_packet_in_definitions_lc245_2[i].name == packet_type )
+        {
+            return g_packet_in_definitions_lc245_2[i].code;
+        }
+    }
+    return 0;
 }
 
 #endif

@@ -476,3 +476,14 @@ rsbuf_pjstr(
     }
     rsbuf_p1(buffer, terminator); // Null terminator
 }
+
+void
+rsbuf_pwrite(
+    struct RSBuffer* buffer,
+    const uint8_t* data,
+    int data_size)
+{
+    assert(buffer->position + data_size <= buffer->size);
+    memcpy(buffer->data + buffer->position, data, data_size);
+    buffer->position += data_size;
+}

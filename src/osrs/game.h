@@ -58,6 +58,10 @@ struct GGame
     uint8_t outbound_buffer[4096];
     int outbound_size;
     struct PacketBuffer* packet_buffer;
+    struct LoginProto* loginproto;
+    struct Isaac* random_in;
+    struct Isaac* random_out;
+    struct rsa rsa;
 
     int cycles_elapsed;
     int cycle;
