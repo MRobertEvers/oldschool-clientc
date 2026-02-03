@@ -135,8 +135,8 @@ modelbones_new_decode(
     return bones;
 }
 
-struct CacheModel*
-decodeOldFormat(
+static struct CacheModel*
+decode_ob2(
     const unsigned char* inputData,
     int inputLength)
 {
@@ -853,8 +853,8 @@ decodeOldFormat(
 
 // 	}
 
-struct CacheModel*
-decodeType1(
+static struct CacheModel*
+decode_ob3(
     const unsigned char* var1,
     int var1_length)
 
@@ -1241,7 +1241,7 @@ decodeType1(
 }
 
 struct CacheModel*
-decodeType2(
+decode_version2(
     const unsigned char* var1,
     int var1_length)
 {
@@ -1955,7 +1955,7 @@ decodeType2(
 //     }
 
 struct CacheModel*
-decodeType3(
+decode_version3(
     const unsigned char* var1,
     int var1_length)
 {
@@ -2396,6 +2396,22 @@ model_new_from_archive(
     return model;
 }
 
+// From Gemini
+// Type 0 (ob2): This is the "Legacy" format from the 2004 launch of RuneScape 2. It has no footer
+// marker because it was the only format at the time. The loader simply tries to parse it if no
+// other markers are found.
+//
+// Type 1 (ob3): Introduced around 2006. It added a 2-byte footer (0xFFFF)
+// to explicitly tell the client "I am the new format." This added support for vertex skinning
+// (boneweights for smoother animation).
+//
+// Type 2 (0xFEFF): This was an OSRS-specific upgrade. It
+// expanded the model limits, allowing for more than 65,535 vertices/faces in a single model and
+// better support for high-definition textures used in the Steam and mobile clients.
+//
+// Type 3 (0xFDFF): This is the current "Modern" format. It includes support for GPU-based vertex
+// colors, enhanced alpha transparency, and "Material" IDs that map to specific shaders (like the
+// shiny effect on a Crystal Body or the glow on a Shadow Silk Robe).
 struct CacheModel*
 model_new_decode(
     const unsigned char* inputData,
@@ -2410,20 +2426,20 @@ model_new_decode(
 
         if( lastByte == 0xFD && secondLastByte == 0xFF )
         { // -3, -1
-            model = decodeType3(inputData, inputLength);
+            model = decode_version3(inputData, inputLength);
             assert(model != NULL);
 
             model->_model_type = 3;
         }
         else if( lastByte == 0xFE && secondLastByte == 0xFF )
         { // -2, -1
-            model = decodeType2(inputData, inputLength);
+            model = decode_version2(inputData, inputLength);
             assert(model != NULL);
             model->_model_type = 2;
         }
         else if( lastByte == 0xFF && secondLastByte == 0xFF )
         { // -1, -1
-            model = decodeType1(inputData, inputLength);
+            model = decode_ob3(inputData, inputLength);
             assert(model != NULL);
             model->_model_type = 1;
         }
@@ -2431,7 +2447,8 @@ model_new_decode(
 
     if( !model )
     {
-        model = decodeOldFormat(inputData, inputLength);
+        // Used by many early 2004scape models.
+        model = decode_ob2(inputData, inputLength);
         model->_model_type = 0;
     }
 
