@@ -122,7 +122,6 @@ gametask_new_query(
     struct GGame* game,
     struct QEQuery* q)
 {
-    printf("Creating new query task\n");
     struct GameTask* task = malloc(sizeof(struct GameTask));
     memset(task, 0, sizeof(struct GameTask));
     task->status = GAMETASK_STATUS_PENDING;

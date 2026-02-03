@@ -112,13 +112,40 @@ main(
     }
 
     struct SockStream* login_stream = NULL;
+    sockstream_init();
     // Create socket connection to login server
-    // login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
+    login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
     if( !login_stream )
     {
         printf("Failed to create login socket\n");
         // Continue anyway - login will fail gracefully
     }
+    else
+    {
+        // Poll for connection completion since connect is non-blocking
+        printf("Polling for connection...\n");
+        int poll_count = 0;
+        const int max_polls = 50; // 5 seconds max (50 * 100ms)
+        while( !sockstream_is_connected(login_stream) && poll_count < max_polls )
+        {
+            if( sockstream_poll_connect(login_stream) )
+            {
+                printf("Login socket connected\n");
+                break;
+            }
+            // Wait a bit before polling again (non-blocking, so we can do other work)
+            SDL_Delay(100);
+            poll_count++;
+        }
+        if( !sockstream_is_connected(login_stream) )
+        {
+            printf("Login socket connection timeout or failed\n");
+            sockstream_close(login_stream);
+            login_stream = NULL;
+        }
+    }
+
+    printf("Login socket created\n");
 
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;
@@ -128,7 +155,7 @@ main(
     LibToriRS_NetConnect(game, "asdf2", "a");
     while( LibToriRS_GameIsRunning(game) )
     {
-        if( LibToriRS_NetIsReady(game) && sockstream_is_valid(login_stream) )
+        if( LibToriRS_NetIsReady(game) && sockstream_is_connected(login_stream) )
         {
             LibToriRS_NetPump(game);
 
@@ -141,14 +168,6 @@ main(
             if( received > 0 )
             {
                 LibToriRS_NetRecv(game, buffer, received);
-            }
-            else if( received == 0 )
-            {
-                // Connection closed
-                printf("Login socket closed\n");
-                sockstream_close(login_stream);
-                login_stream = NULL;
-                LibToriRS_NetDisconnected(game);
             }
             else if( received < 0 )
             {

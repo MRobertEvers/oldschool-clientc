@@ -29,26 +29,35 @@ next_op(
 }
 
 static void
-push_mode_local_player(struct PktPlayerInfoOp* op)
+push_op_set_local_player(struct PktPlayerInfoOp* op)
 {
-    op->kind = PKT_PLAYER_INFO_MODE_LOCAL_PLAYER;
+    op->kind = PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER;
 }
 
 static void
-push_mode_player_new(
+push_op_add_player_new_opbits_pid(
+    struct PktPlayerInfoOp* op,
+    int player_id)
+{
+    op->kind = PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID;
+    op->_bitvalue = player_id;
+}
+
+static void
+push_op_add_player_old_opbits_idx(
     struct PktPlayerInfoOp* op,
     int player_idx)
 {
-    op->kind = PKT_PLAYER_INFO_MODE_PLAYER_NEW;
+    op->kind = PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX;
     op->_bitvalue = player_idx;
 }
 
 static void
-push_mode_player_idx(
+push_op_set_player_opbits_idx(
     struct PktPlayerInfoOp* op,
     int player_idx)
 {
-    op->kind = PKT_PLAYER_INFO_MODE_PLAYER_IDX;
+    op->kind = PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX;
     op->_bitvalue = player_idx;
 }
 
@@ -158,7 +167,7 @@ pkt_player_info_reader_read(
     bitbuffer_init_from_rsbuf(&buf, &rsbuf);
     bits(&buf);
 
-    push_mode_local_player(next_op(reader, ops, ops_capacity));
+    push_op_set_local_player(next_op(reader, ops, ops_capacity));
 
     // Player local
     int info = gbits(&buf, 1);
@@ -230,7 +239,7 @@ pkt_player_info_reader_read(
     int count = gbits(&buf, 8);
     for( int i = 0; i < count; i++ )
     {
-        push_mode_player_idx(next_op(reader, ops, ops_capacity), i);
+        push_op_add_player_old_opbits_idx(next_op(reader, ops, ops_capacity), i);
 
         int info = gbits(&buf, 1);
         push_bits_info(next_op(reader, ops, ops_capacity), info);
@@ -288,7 +297,7 @@ pkt_player_info_reader_read(
             break;
         }
 
-        push_mode_player_new(next_op(reader, ops, ops_capacity), player_id);
+        push_op_add_player_new_opbits_pid(next_op(reader, ops, ops_capacity), player_id);
 
         int dx = gbits(&buf, 5);
         if( dx > 15 )
@@ -318,11 +327,11 @@ pkt_player_info_reader_read(
         int idx = reader->extended_queue[i];
         if( idx == 2047 )
         {
-            push_mode_local_player(next_op(reader, ops, ops_capacity));
+            push_op_set_local_player(next_op(reader, ops, ops_capacity));
         }
         else
         {
-            push_mode_player_idx(next_op(reader, ops, ops_capacity), idx);
+            push_op_set_player_opbits_idx(next_op(reader, ops, ops_capacity), idx);
         }
 
         int mask = g1(&rsbuf);

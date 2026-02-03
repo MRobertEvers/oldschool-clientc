@@ -3,13 +3,13 @@
 #include "dashlib.h"
 #include "datatypes/appearances.h"
 #include "datatypes/player_appearance.h"
+#include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
+#include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
 #include "rscache/bitbuffer.h"
 #include "rscache/rsbuf.h"
 #include "rscache/tables/model.h"
-
-static int npc_sizes[8096] = { 0 };
 
 static struct CacheModel*
 idk_model(
@@ -81,6 +81,12 @@ obj_model(
 
     struct CacheModel* merged = model_new_merge(models, model_count);
     buildcachedat_add_obj_model(game->buildcachedat, obj_id, merged);
+
+    for( int i = 0; i < obj->recol_count; i++ )
+    {
+        model_transform_recolor(merged, obj->recol_s[i], obj->recol_d[i]);
+    }
+
     return merged;
 }
 
@@ -129,14 +135,12 @@ player_appearance_model(
 static struct DashModel*
 npc_model(
     struct GGame* game,
-    int npc_id,
-    int npc_idx)
+    int npc_id)
 {
     struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, npc_id);
     assert(npc && "Npc must be found");
 
     assert(npc->size > 0 && "Npc size must be greater than 0");
-    npc_sizes[npc_idx] = npc->size;
 
     struct DashModel* dash_model = NULL;
     struct CacheModel* model = buildcachedat_get_npc_model(game->buildcachedat, npc_id);
@@ -175,144 +179,163 @@ npc_model(
     return dash_model;
 }
 
-static struct DashModel* models[8096] = { 0 };
-
-static int sxs[8096] = { 0 };
-static int szs[8096] = { 0 };
+static struct PktNpcInfoReader npc_info_reader = { 0 };
 
 static void
 add_npc_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    struct BitBuffer buf;
-    struct RSBuffer rsbuf;
-    rsbuf_init(&rsbuf, packet->_npc_info.data, packet->_npc_info.length);
-    bitbuffer_init_from_rsbuf(&buf, &rsbuf);
-    bits(&buf);
-
-    int count = gbits(&buf, 8);
-    for( int i = 0; i < count; i++ )
-    {
-        //
-    }
-
-    for( int i = 0; i < count; i++ )
-    {
-        // int index = npc_ids[i];
-
-        int info = gbits(&buf, 1);
-        if( info == 0 )
-        {
-            //
-        }
-        else
-        {
-            int op = gbits(&buf, 2);
-            switch( op )
-            {
-            case 0:
-                //
-                break;
-            case 1:
-                // walkdir
-                gbits(&buf, 3);
-                // has extended info
-                gbits(&buf, 1);
-                break;
-            case 2:
-                // walkdir
-                gbits(&buf, 3);
-                // rundir
-                gbits(&buf, 3);
-                // has extended info
-                gbits(&buf, 1);
-                break;
-            case 3:
-                //
-                break;
-            }
-            //
-        }
-    }
-
-    static int g_npcs[2048];
-    int npc_count = 0;
-
-    while( ((buf.byte_position * 8) + buf.bit_offset + 21) < packet->_npc_info.length * 8 )
-    {
-        int npc_idx = gbits(&buf, 13);
-        if( npc_idx == 8191 )
-        {
-            break;
-        }
-        g_npcs[npc_count] = npc_idx;
-
-        int npc_id = gbits(&buf, 11);
-
-        models[npc_idx] = npc_model(game, npc_id, npc_idx);
-        assert(npc_sizes[npc_idx] > 0 && "Npc size must be greater than 0");
-
-        int dx = gbits(&buf, 5);
-        if( dx > 15 )
-            dx -= 32;
-        int dy = gbits(&buf, 5);
-        if( dy > 15 )
-            dy -= 32;
-
-        sxs[npc_idx] = dx;
-        szs[npc_idx] = dy;
-
-        int has_extended_info = gbits(&buf, 1);
-        npc_count++;
-    }
+    npc_info_reader.extended_count = 0;
+    npc_info_reader.current_op = 0;
+    npc_info_reader.max_ops = 2048;
+    struct PktNpcInfoOp ops[2048];
+    int count = pkt_npc_info_reader_read(&npc_info_reader, &packet->_npc_info, ops, 2048);
 
     struct PlayerEntity* player = &game->players[ACTIVE_PLAYER_SLOT];
+    if( !player->alive )
+        return;
 
-    for( int i = 0; i < npc_count; i++ )
+    int npc_id = -1;
+    int prev_count = game->npc_count;
+    int removed_count = 0;
+    game->npc_count = 0;
+    struct NPCEntity* npc = NULL;
+    for( int i = 0; i < count; i++ )
     {
-        int idx = g_npcs[i];
-        struct NPCEntity* npc = &game->npcs[idx];
+        struct PktNpcInfoOp* op = &ops[i];
 
-        if( player->alive )
+        if( npc_id != -1 )
         {
-            int dx = sxs[idx];
-            int dz = szs[idx];
-            int size_x = npc_sizes[idx];
-            int size_z = npc_sizes[idx];
-
-            int x = player->position.sx + dx;
-            int z = player->position.sz + dz;
-
+            npc = &game->npcs[npc_id];
             npc->alive = true;
-            npc->position.sx = x;
-            npc->position.sz = z;
-            npc->size_x = size_x;
-            npc->size_z = size_z;
+        }
+        else
+            npc = NULL;
 
-            struct SceneElement* scene_element = NULL;
-            if( npc->scene_element )
+        switch( op->kind )
+        {
+        case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
+        {
+            npc_id = op->_bitvalue;
+            game->active_npcs[game->npc_count] = npc_id;
+            game->npc_count += 1;
+            printf("PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID: %d\n", npc_id);
+
+            break;
+        }
+        case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
+        {
+            assert(op->_bitvalue >= game->npc_count);
+            npc_id = game->active_npcs[op->_bitvalue];
+            game->active_npcs[game->npc_count] = npc_id;
+            printf(
+                "PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX: %d, %d, %d\n",
+                npc_id,
+                op->_bitvalue,
+                game->npc_count);
+            game->npc_count += 1;
+
+            break;
+        }
+        case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
+        {
+            npc_id = game->active_npcs[op->_bitvalue];
+            printf("PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX: %d, %d\n", npc_id, op->_bitvalue);
+            break;
+        }
+        case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
+        {
+            npc_id = game->active_npcs[op->_bitvalue];
+            printf("PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX: %d, %d\n", npc_id, op->_bitvalue);
+            memset(&game->npcs[npc_id], 0, sizeof(struct NPCEntity));
+            game->active_npcs[op->_bitvalue] = -1;
+            npc_id = -1;
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_COUNT_RESET:
+        {
+            for( int idx = op->_bitvalue; idx < prev_count; idx++ )
             {
-                scene_element = npc->scene_element;
+                memset(&game->npcs[game->active_npcs[idx]], 0, sizeof(struct NPCEntity));
             }
-            else
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_DZ:
+        {
+            int dz = op->_bitvalue;
+            npc->position.sz = dz + player->position.sz;
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_DX:
+        {
+            int dx = op->_bitvalue;
+            npc->position.sx = dx + player->position.sx;
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_WALKDIR:
+        case PKT_NPC_INFO_OPBITS_RUNDIR:
+        {
+            int direction = op->_bitvalue;
+            int next_x = npc->position.sx;
+            int next_z = npc->position.sz;
+            if( direction == 0 )
             {
-                scene_element = (struct SceneElement*)malloc(sizeof(struct SceneElement));
+                next_x--;
+                next_z++;
+            }
+            else if( direction == 1 )
+            {
+                next_z++;
+            }
+            else if( direction == 2 )
+            {
+                next_x++;
+                next_z++;
+            }
+            else if( direction == 3 )
+            {
+                next_x--;
+            }
+            else if( direction == 4 )
+            {
+                next_x++;
+            }
+            else if( direction == 5 )
+            {
+                next_x--;
+                next_z--;
+            }
+            else if( direction == 6 )
+            {
+                next_z--;
+            }
+            else if( direction == 7 )
+            {
+                next_x++;
+                next_z--;
+            }
+            npc->position.sx = next_x;
+            npc->position.sz = next_z;
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_NPCTYPE:
+        {
+            if( npc && !npc->scene_element )
+            {
+                struct SceneElement* scene_element =
+                    (struct SceneElement*)malloc(sizeof(struct SceneElement));
                 memset(scene_element, 0, sizeof(struct SceneElement));
-                scene_element->dash_model = models[idx];
-
-                struct DashPosition* dash_position = NULL;
-                dash_position = (struct DashPosition*)malloc(sizeof(struct DashPosition));
-                memset(dash_position, 0, sizeof(struct DashPosition));
-
-                scene_element->dash_position = dash_position;
-
+                scene_element->dash_model = npc_model(game, op->_bitvalue);
                 npc->scene_element = scene_element;
-            }
 
-            scene_element->dash_position->x = x * 128 + 64 * size_x;
-            scene_element->dash_position->z = z * 128 + 64 * size_z;
-            scene_element->dash_position->y = scene_terrain_height_center(game->scene, x, z, 0);
+                struct DashPosition* dash_position =
+                    (struct DashPosition*)malloc(sizeof(struct DashPosition));
+                memset(dash_position, 0, sizeof(struct DashPosition));
+                scene_element->dash_position = dash_position;
+            }
+            break;
+        }
         }
     }
 }
@@ -365,22 +388,73 @@ add_player_info(
 
         switch( op->kind )
         {
-        case PKT_PLAYER_INFO_MODE_LOCAL_PLAYER:
+        case PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER:
         {
             player_id = ACTIVE_PLAYER_SLOT;
             break;
         }
-        case PKT_PLAYER_INFO_MODE_PLAYER_IDX:
+        case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
         {
             player_id = game->active_players[op->_bitvalue];
             game->player_count += 1;
             break;
         }
-        case PKT_PLAYER_INFO_MODE_PLAYER_NEW:
+        case PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID:
         {
             player_id = op->_bitvalue;
             game->active_players[game->player_count] = player_id;
             game->player_count += 1;
+            break;
+        }
+        case PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX:
+        {
+            player_id = game->active_players[op->_bitvalue];
+            break;
+        }
+        case PKT_PLAYER_INFO_OPBITS_WALKDIR:
+        case PKT_PLAYER_INFO_OPBITS_RUNDIR:
+        {
+            int direction = op->_bitvalue;
+            int next_x = player->position.sx;
+            int next_z = player->position.sz;
+            if( direction == 0 )
+            {
+                next_x--;
+                next_z++;
+            }
+            else if( direction == 1 )
+            {
+                next_z++;
+            }
+            else if( direction == 2 )
+            {
+                next_x++;
+                next_z++;
+            }
+            else if( direction == 3 )
+            {
+                next_x--;
+            }
+            else if( direction == 4 )
+            {
+                next_x++;
+            }
+            else if( direction == 5 )
+            {
+                next_x--;
+                next_z--;
+            }
+            else if( direction == 6 )
+            {
+                next_z--;
+            }
+            else if( direction == 7 )
+            {
+                next_x++;
+                next_z--;
+            }
+            player->position.sx = next_x;
+            player->position.sz = next_z;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_DX:

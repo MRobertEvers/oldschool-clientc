@@ -7,7 +7,7 @@
 enum PktPlayerInfoOpKind
 {
     PKT_PLAYER_INFO_OP_NONE = 0,
-    PKT_PLAYER_INFO_MODE_LOCAL_PLAYER,
+    PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER,
     // This is the offset in the active player map.
     // The active player maps [...2047] to [0...8192]
     //                           ^idx         ^entity_id
@@ -17,8 +17,9 @@ enum PktPlayerInfoOpKind
     // The server keeps track of the list of players that they sent to
     // the client. In future packets, it doesn't send the entity id,
     // only the entry in the list.
-    PKT_PLAYER_INFO_MODE_PLAYER_NEW,
-    PKT_PLAYER_INFO_MODE_PLAYER_IDX,
+    PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID,
+    PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX,
+    PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX,
     PKT_PLAYER_INFO_OPBITS_INFO,
     PKT_PLAYER_INFO_OPBITS_WALKDIR,
     PKT_PLAYER_INFO_OPBITS_RUNDIR,

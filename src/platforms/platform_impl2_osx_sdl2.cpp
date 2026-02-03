@@ -392,8 +392,8 @@ on_gio_req_asset(
     switch( message->status )
     {
     case GIO_STATUS_PENDING:
-        if( platform->cache != NULL )
-            gioqb_cache_fullfill(io, platform->cache, message);
+        // if( platform->cache != NULL )
+        //     gioqb_cache_fullfill(io, platform->cache, message);
         if( platform->cache_dat != NULL )
             gioqb_cache_dat_fullfill(io, platform->cache_dat, message);
         break;

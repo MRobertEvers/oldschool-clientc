@@ -165,14 +165,16 @@ scenebuilder_load_from_buildcachedat(
 struct Scene*
 scenebuilder_load_from_buildcache(
     struct SceneBuilder* scene_builder,
-    int mapx_sw,
-    int mapz_sw,
-    int mapx_ne,
-    int mapz_ne,
+    int wx_sw,
+    int wz_sw,
+    int wx_ne,
+    int wz_ne,
+    int size_x,
+    int size_z,
     struct BuildCache* buildcache)
 {
     scene_builder->buildcache = buildcache;
-    return scenebuiler_build(scene_builder, 0, 0, mapx_sw, mapz_sw, mapx_ne, mapz_ne);
+    return scenebuiler_build(scene_builder, wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z);
 }
 
 // struct SceneAnimation*
@@ -232,6 +234,10 @@ scenebuilder_push_dynamic_element(
     struct SceneElement* element)
 {
     struct SceneElement scene_element = { 0 };
+    assert(sx >= 0 && sx < scene->tile_width_x);
+    assert(sz >= 0 && sz < scene->tile_width_z);
+    assert(slevel >= 0 && slevel < MAP_TERRAIN_LEVELS);
+    assert(element != NULL);
 
     int height_center = scene_terrain_height_center(scene, sx, sz, slevel);
 

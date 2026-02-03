@@ -60,7 +60,9 @@ int sockstream_recv(struct SockStream* stream, void* buffer, int size);
  * @param stream The socket stream
  * @return 1 if valid and connected, 0 otherwise
  */
-int sockstream_is_valid(struct SockStream* stream);
+int sockstream_is_connected(struct SockStream* stream);
+
+int sockstream_poll_connect(struct SockStream* stream);
 
 /**
  * Get the underlying socket file descriptor.

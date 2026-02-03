@@ -5,9 +5,15 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #define close closesocket
+#ifndef EAGAIN
 #define EAGAIN WSAEWOULDBLOCK
+#endif
+#ifndef EWOULDBLOCK
 #define EWOULDBLOCK WSAEWOULDBLOCK
+#endif
+#ifndef EINPROGRESS
 #define EINPROGRESS WSAEINPROGRESS
+#endif
 #define MSG_DONTWAIT 0
 #else
 #include <arpa/inet.h>
@@ -18,20 +24,13 @@
 #include <unistd.h>
 #endif
 
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#define close closesocket
-#define EAGAIN WSAEWOULDBLOCK
-#define EWOULDBLOCK WSAEWOULDBLOCK
-#define EINPROGRESS WSAEINPROGRESS
-
+#ifndef _WIN32
+#include <errno.h>
+#include <fcntl.h>
 #endif
 
 int
@@ -82,17 +81,24 @@ sockstream_connect(const char* host, int port, int timeout_sec)
     stream->is_valid = 0;
 
     // Create socket
-    stream->sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if( stream->sockfd < 0 )
-    {
 #ifdef _WIN32
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+    if( sock == INVALID_SOCKET )
+    {
         printf("Failed to create socket: %d\n", WSAGetLastError());
-#else
-        printf("Failed to create socket: %s\n", strerror(errno));
-#endif
         free(stream);
         return NULL;
     }
+    stream->sockfd = (int)sock;
+#else
+    stream->sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if( stream->sockfd < 0 )
+    {
+        printf("Failed to create socket: %s\n", strerror(errno));
+        free(stream);
+        return NULL;
+    }
+#endif
 
     // Set socket to non-blocking
 #ifdef _WIN32
@@ -136,15 +142,35 @@ sockstream_connect(const char* host, int port, int timeout_sec)
     // Try to connect (non-blocking)
     int result = connect(stream->sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr));
 #ifdef _WIN32
-    int connect_err = WSAGetLastError();
-    if( result < 0 && connect_err != WSAEINPROGRESS && connect_err != WSAEWOULDBLOCK )
+    if( result == 0 )
     {
-        printf("Failed to connect: %d\n", connect_err);
-        closesocket(stream->sockfd);
-        free(stream);
-        return NULL;
+        // Connection succeeded immediately
+        stream->is_valid = 1;
+        printf("Connected to %s:%d\n", host, port);
+        return stream;
     }
+    if( result == SOCKET_ERROR )
+    {
+        int connect_err = WSAGetLastError();
+        if( connect_err != WSAEINPROGRESS && connect_err != WSAEWOULDBLOCK )
+        {
+            printf("Failed to connect: %d\n", connect_err);
+            closesocket(stream->sockfd);
+            free(stream);
+            return NULL;
+        }
+    }
+    // Connection in progress - return stream, caller should poll with sockstream_poll_connect
+    printf("Connection in progress to %s:%d\n", host, port);
+    return stream;
 #else
+    if( result == 0 )
+    {
+        // Connection succeeded immediately
+        stream->is_valid = 1;
+        printf("Connected to %s:%d\n", host, port);
+        return stream;
+    }
     if( result < 0 && errno != EINPROGRESS )
     {
         printf("Failed to connect: %s\n", strerror(errno));
@@ -152,48 +178,10 @@ sockstream_connect(const char* host, int port, int timeout_sec)
         free(stream);
         return NULL;
     }
-#endif
-
-    // For non-blocking connect, wait for connection to complete using select
-    fd_set write_fds;
-    FD_ZERO(&write_fds);
-    FD_SET(stream->sockfd, &write_fds);
-    struct timeval timeout;
-    timeout.tv_sec = (timeout_sec > 0) ? timeout_sec : 5;
-    timeout.tv_usec = 0;
-
-    result = select(stream->sockfd + 1, NULL, &write_fds, NULL, &timeout);
-    if( result <= 0 )
-    {
-        printf("Connection timeout or error\n");
-#ifdef _WIN32
-        closesocket(stream->sockfd);
-#else
-        close(stream->sockfd);
-#endif
-        free(stream);
-        return NULL;
-    }
-
-    // Check if connection succeeded
-    int error = 0;
-    socklen_t len = sizeof(error);
-    if( getsockopt(stream->sockfd, SOL_SOCKET, SO_ERROR, (char*)&error, &len) < 0 || error != 0 )
-    {
-#ifdef _WIN32
-        printf("Connection failed: %d\n", error ? error : WSAGetLastError());
-        closesocket(stream->sockfd);
-#else
-        printf("Connection failed: %s\n", error ? strerror(error) : "unknown error");
-        close(stream->sockfd);
-#endif
-        free(stream);
-        return NULL;
-    }
-
-    stream->is_valid = 1;
-    printf("Connected to %s:%d\n", host, port);
+    // Connection in progress - return stream, caller should poll with sockstream_poll_connect
+    printf("Connection in progress to %s:%d\n", host, port);
     return stream;
+#endif
 }
 
 
@@ -315,7 +303,79 @@ sockstream_recv(struct SockStream* stream, void* buffer, int size)
 }
 
 int
-sockstream_is_valid(struct SockStream* stream)
+sockstream_poll_connect(struct SockStream* stream)
+{
+    if( !stream || stream->sockfd < 0 )
+    {
+        return 0;
+    }
+
+    // If already connected, return success
+    if( stream->is_valid )
+    {
+        return 1;
+    }
+
+    // Check if socket is writable (connected sockets are writable)
+    fd_set write_fds;
+    FD_ZERO(&write_fds);
+    FD_SET(stream->sockfd, &write_fds);
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+
+#ifdef _WIN32
+    int result = select(0, NULL, &write_fds, NULL, &timeout);
+#else
+    int result = select(stream->sockfd + 1, NULL, &write_fds, NULL, &timeout);
+#endif
+
+    if( result <= 0 )
+    {
+        // Still connecting or error
+        return 0;
+    }
+
+    // Socket is writable, check if connection succeeded
+    if( !FD_ISSET(stream->sockfd, &write_fds) )
+    {
+        return 0;
+    }
+
+    // Check if connection succeeded
+    int error = 0;
+#ifdef _WIN32
+    int len = sizeof(error);
+    if( getsockopt(stream->sockfd, SOL_SOCKET, SO_ERROR, (char*)&error, &len) == SOCKET_ERROR )
+    {
+        return 0;
+    }
+    if( error != 0 )
+    {
+        printf("Connection failed with error: %d\n", error);
+        return 0;
+    }
+#else
+    socklen_t len = sizeof(error);
+    if( getsockopt(stream->sockfd, SOL_SOCKET, SO_ERROR, (char*)&error, &len) < 0 )
+    {
+        return 0;
+    }
+    if( error != 0 )
+    {
+        printf("Connection failed with error: %s\n", strerror(error));
+        return 0;
+    }
+#endif
+
+    // Connection succeeded
+    stream->is_valid = 1;
+    printf("Connection completed\n");
+    return 1;
+}
+
+int
+sockstream_is_connected(struct SockStream* stream)
 {
     return (stream && stream->is_valid && stream->sockfd >= 0) ? 1 : 0;
 }

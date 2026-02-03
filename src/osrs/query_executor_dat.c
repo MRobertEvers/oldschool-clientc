@@ -4,6 +4,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables_dat/config_idk.h"
+#include "osrs/rscache/tables_dat/config_npc.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 
 #include <assert.h>
@@ -379,6 +380,43 @@ dt_models_from_dt(
         vec_free(queued_scenery_models_vec);
     }
     break;
+    case QEDAT_DT_CONFIG_NPCS:
+    {
+        struct Vec* queued_npc_models_vec = vec_new(sizeof(int), 512);
+
+        query_engine_qreg_iter_begin(query_engine, fromreg_idx);
+        struct CacheDatConfigNpc* npc = NULL;
+        int npc_id = 0;
+        while( (npc = query_engine_qreg_iter_next(query_engine, fromreg_idx, &npc_id)) )
+        {
+            printf("Processing npc: %d\n", npc_id);
+            for( int i = 0; i < npc->models_count; i++ )
+            {
+                int model_id = npc->models[i];
+                if( model_id )
+                {
+                    vec_push_unique(queued_npc_models_vec, &model_id);
+                }
+            }
+        }
+        query_engine_qreg_iter_end(query_engine, fromreg_idx);
+
+        struct CacheModel* existing = NULL;
+        for( int i = 0; i < vec_size(queued_npc_models_vec); i++ )
+        {
+            int model_id = *(int*)vec_get(queued_npc_models_vec, i);
+
+            existing = buildcachedat_get_model(buildcachedat, model_id);
+            if( existing )
+                continue;
+
+            int reqid = gio_assets_dat_models_load(io, model_id);
+            query_engine_qpush_reqid(q, reqid);
+        }
+
+        vec_free(queued_npc_models_vec);
+    }
+    break;
     case QEDAT_DT_CONFIG_OBJS:
     {
         struct Vec* queued_obj_models_vec = vec_new(sizeof(int), 512);
@@ -563,6 +601,40 @@ dt_models_poll(
 }
 
 static void
+dt_config_npcs_exec(
+    struct QueryEngine* query_engine,
+    struct QEQuery* q,
+    struct GIOQueue* io,
+    struct BuildCacheDat* buildcachedat,
+    uint32_t fn,
+    uint32_t action)
+{
+    switch( fn )
+    {
+    case QE_FN_0:
+    {
+        // TODO: if not discard
+        int store_idx = action - QE_STORE_SET_0;
+        assert(store_idx >= 0 && store_idx < 10);
+        int argx_count = query_engine_qdecode_argx_count(q);
+        int* npc_ids = qe_decode_varargs_new(q, argx_count);
+
+        struct CacheDatConfigNpc* npc = NULL;
+        for( int i = 0; i < argx_count; i++ )
+        {
+            int npc_id = npc_ids[i];
+            npc = buildcachedat_get_npc(buildcachedat, npc_id);
+
+            query_engine_qreg_push(query_engine, store_idx, npc_id, npc);
+        }
+
+        free(npc_ids);
+    }
+    break;
+    }
+}
+
+static void
 dt_config_idks_exec(
     struct QueryEngine* query_engine,
     struct QEQuery* q,
@@ -687,6 +759,7 @@ query_executor_dat_step_active(
         dt_config_locs_exec(query_engine, q, io, buildcachedat, fn, action);
         break;
     case QEDAT_DT_CONFIG_NPCS:
+        dt_config_npcs_exec(query_engine, q, io, buildcachedat, fn, action);
         break;
     case QEDAT_DT_CONFIG_IDKS:
         dt_config_idks_exec(query_engine, q, io, buildcachedat, fn, action);
