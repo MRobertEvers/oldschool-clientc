@@ -402,9 +402,7 @@ load_model(
 static struct SceneAnimation*
 load_model_animations_dat2(
     struct CacheConfigLocation* loc_config,
-
-    struct DashMap* sequences_configmap,
-    struct DashMap* frames_hmap)
+    struct BuildCache* buildcache)
 {
     struct SceneAnimation* scene_animation = NULL;
     struct FrameEntry* frame_entry = NULL;
@@ -413,14 +411,14 @@ load_model_animations_dat2(
     struct DashFrame* dash_frame = NULL;
     struct DashFramemap* dash_framemap = NULL;
 
-    if( loc_config->seq_id == -1 || !sequences_configmap )
+    if( loc_config->seq_id == -1 || !buildcache->config_sequence_hmap )
         return NULL;
 
     scene_animation = malloc(sizeof(struct SceneAnimation));
     memset(scene_animation, 0, sizeof(struct SceneAnimation));
 
     struct CacheConfigSequence* sequence =
-        (struct CacheConfigSequence*)configmap_get(sequences_configmap, loc_config->seq_id);
+        buildcache_get_config_sequence(buildcache, loc_config->seq_id);
     assert(sequence);
     assert(sequence->frame_lengths);
 
@@ -452,13 +450,12 @@ load_model_animations_dat2(
         //     the second 2 bytes are the frame file ID
         int frame_id = sequence->frame_ids[i];
 
-        frame_entry = (struct FrameEntry*)dashmap_search(frames_hmap, &frame_id, DASHMAP_FIND);
-        assert(frame_entry);
+        struct CacheFrame* frame = buildcache_get_frame_anim(buildcache, frame_id);
 
         scene_animation_push_frame(
             scene_animation,
-            dashframe_new_from_cache_frame(frame_entry->frame),
-            dashframemap_new_from_cache_framemap(frame_entry->frame->_framemap));
+            dashframe_new_from_cache_frame(frame),
+            dashframemap_new_from_cache_framemap(frame->_framemap));
     }
 
     return scene_animation;
@@ -467,63 +464,50 @@ load_model_animations_dat2(
 static struct SceneAnimation*
 load_model_animations_dati(
     int sequence_id,
-    struct DashMap* sequences_configmap,
-    struct DashMap* frames_hmap)
+    struct BuildCacheDat* buildcachedat)
 {
     struct SceneAnimation* scene_animation = NULL;
-    struct AnimframeEntry* animframe_entry = NULL;
-    struct DatSequenceEntry* dat_sequence_entry = NULL;
+    struct CacheDatSequence* sequence = NULL;
+    struct CacheAnimframe* animframe = NULL;
 
     struct DashFrame* dash_frame = NULL;
     struct DashFramemap* dash_framemap = NULL;
 
-    if( sequence_id == -1 || !sequences_configmap )
+    if( sequence_id == -1 || !buildcachedat->sequences_hmap )
         return NULL;
 
     scene_animation = malloc(sizeof(struct SceneAnimation));
     memset(scene_animation, 0, sizeof(struct SceneAnimation));
 
-    dat_sequence_entry =
-        (struct DatSequenceEntry*)dashmap_search(sequences_configmap, &sequence_id, DASHMAP_FIND);
-    assert(dat_sequence_entry);
+    sequence = buildcachedat_get_sequence(buildcachedat, sequence_id);
+    assert(sequence);
 
-    scene_animation->frame_lengths =
-        malloc(dat_sequence_entry->dat_sequence->frame_count * sizeof(int));
-    memset(
-        scene_animation->frame_lengths,
-        0,
-        dat_sequence_entry->dat_sequence->frame_count * sizeof(int));
+    scene_animation->frame_lengths = malloc(sequence->frame_count * sizeof(int));
+    memset(scene_animation->frame_lengths, 0, sequence->frame_count * sizeof(int));
 
-    // scene_animation->config_sequence = dat_sequence_entry->dat_sequence;
-
-    for( int i = 0; i < dat_sequence_entry->dat_sequence->frame_count; i++ )
+    for( int i = 0; i < sequence->frame_count; i++ )
     {
         // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
         //     first 2 bytes are the sequence ID,
         //     the second 2 bytes are the frame file ID
-        int frame_id = dat_sequence_entry->dat_sequence->frames[i];
+        int frame_id = sequence->frames[i];
 
-        animframe_entry =
-            (struct AnimframeEntry*)dashmap_search(frames_hmap, &frame_id, DASHMAP_FIND);
-        assert(animframe_entry);
+        animframe = buildcachedat_get_animframe(buildcachedat, frame_id);
+        assert(animframe);
 
         if( !dash_framemap )
         {
-            dash_framemap = dashframemap_new_from_animframe(animframe_entry->animframe);
+            dash_framemap = dashframemap_new_from_animframe(animframe);
         }
 
         // From Client-TS 245.2
-        int length = dat_sequence_entry->dat_sequence->delay[i];
+        int length = sequence->delay[i];
         if( length == 0 )
-        {
-            length = animframe_entry->animframe->delay;
-        }
+            length = animframe->delay;
         scene_animation->frame_lengths[i] = length;
 
         scene_animation_push_frame(
-            scene_animation,
-            dashframe_new_from_animframe(animframe_entry->animframe),
-            dash_framemap);
+            scene_animation, dashframe_new_from_animframe(animframe), dash_framemap);
     }
 
     return scene_animation;
@@ -532,8 +516,7 @@ load_model_animations_dati(
 static struct SceneAnimation*
 load_model_animations_dat(
     struct CacheConfigLocation* loc_config,
-    struct DashMap* sequences_configmap,
-    struct DashMap* frames_hmap)
+    struct BuildCacheDat* buildcachedat)
 {
     struct SceneAnimation* scene_animation = NULL;
     struct AnimframeEntry* animframe_entry = NULL;
@@ -542,9 +525,9 @@ load_model_animations_dat(
     struct DashFrame* dash_frame = NULL;
     struct DashFramemap* dash_framemap = NULL;
 
-    if( loc_config->seq_id == -1 || !sequences_configmap )
+    if( loc_config->seq_id == -1 || !buildcachedat->sequences_hmap )
         return NULL;
-    return load_model_animations_dati(loc_config->seq_id, sequences_configmap, frames_hmap);
+    return load_model_animations_dati(loc_config->seq_id, buildcachedat);
 }
 
 static struct SceneAnimation*
@@ -552,17 +535,14 @@ scenebuilder_load_model_animations(
     struct SceneBuilder* scene_builder,
     struct CacheConfigLocation* loc_config)
 {
-    return NULL;
-    // if( scene_builder->config_locs_configmap != NULL )
-    // {
-    //     return load_model_animations_dat2(
-    //         loc_config, scene_builder->sequences_configmap, scene_builder->frames_hmap);
-    // }
-    // else
-    // {
-    //     return load_model_animations_dat(
-    //         loc_config, scene_builder->sequences_configmap, scene_builder->frames_hmap);
-    // }
+    if( scene_builder->buildcache != NULL )
+    {
+        return load_model_animations_dat2(loc_config, scene_builder->buildcachedat);
+    }
+    else
+    {
+        return load_model_animations_dat(loc_config, scene_builder->buildcachedat);
+    }
 }
 
 static struct DashPosition*
@@ -1637,7 +1617,7 @@ scenery_add(
     // config_loc = config_loc_entry->config_loc;
 
     config_loc = scenebuilder_compat_get_config_loc(scene_builder, map_loc->loc_id);
-    if (!config_loc)
+    if( !config_loc )
         return;
 
     if( !tile_in_bounds_from_maploc(

@@ -562,6 +562,18 @@ buildcachedat_add_animframe(
     animframe_entry->animframe = animframe;
 }
 
+struct CacheAnimframe*
+buildcachedat_get_animframe(
+    struct BuildCacheDat* buildcachedat,
+    int animframe_id)
+{
+    struct AnimframeEntry* animframe_entry = (struct AnimframeEntry*)dashmap_search(
+        buildcachedat->animframes_hmap, &animframe_id, DASHMAP_FIND);
+    if( !animframe_entry )
+        return NULL;
+    return animframe_entry->animframe;
+}
+
 void
 buildcachedat_add_animbaseframes(
     struct BuildCacheDat* buildcachedat,
@@ -586,6 +598,18 @@ buildcachedat_add_sequence(
     assert(sequence_entry && "Sequence must be inserted into hmap");
     sequence_entry->id = sequence_id;
     sequence_entry->sequence = sequence;
+}
+
+struct CacheDatSequence*
+buildcachedat_get_sequence(
+    struct BuildCacheDat* buildcachedat,
+    int sequence_id)
+{
+    struct SequenceEntry* sequence_entry = (struct SequenceEntry*)dashmap_search(
+        buildcachedat->sequences_hmap, &sequence_id, DASHMAP_FIND);
+    if( !sequence_entry )
+        return NULL;
+    return sequence_entry->sequence;
 }
 
 void

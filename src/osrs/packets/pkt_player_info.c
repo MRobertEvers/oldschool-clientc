@@ -62,6 +62,15 @@ push_op_set_player_opbits_idx(
 }
 
 static void
+push_op_clear_player_opbits_idx(
+    struct PktPlayerInfoOp* op,
+    int player_idx)
+{
+    op->kind = PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX;
+    op->_bitvalue = player_idx;
+}
+
+static void
 push_bits_info(
     struct PktPlayerInfoOp* op,
     int info)
@@ -235,11 +244,11 @@ pkt_player_info_reader_read(
     }
 
     // Player Old Vis
-    int idx = 0;
+    int new_idx = 0;
     int count = gbits(&buf, 8);
-    for( int i = 0; i < count; i++ )
+    for( int old_idx = 0; old_idx < count; old_idx++ )
     {
-        push_op_add_player_old_opbits_idx(next_op(reader, ops, ops_capacity), i);
+        push_op_add_player_old_opbits_idx(next_op(reader, ops, ops_capacity), old_idx);
 
         int info = gbits(&buf, 1);
         push_bits_info(next_op(reader, ops, ops_capacity), info);
@@ -261,8 +270,9 @@ pkt_player_info_reader_read(
                     int has_extended_info = gbits(&buf, 1);
                     if( has_extended_info )
                     {
-                        reader->extended_queue[reader->extended_count++] = i;
+                        reader->extended_queue[reader->extended_count++] = new_idx;
                     }
+                    new_idx += 1;
                 }
                 break;
             case 2:
@@ -276,19 +286,19 @@ pkt_player_info_reader_read(
                 int has_extended_info = gbits(&buf, 1);
                 if( has_extended_info )
                 {
-                    reader->extended_queue[reader->extended_count++] = i;
+                    reader->extended_queue[reader->extended_count++] = new_idx;
                 }
+                new_idx += 1;
             }
             break;
             case 3:
-                //
+                push_op_clear_player_opbits_idx(next_op(reader, ops, ops_capacity), old_idx);
                 break;
             }
         }
     }
 
     // Player New Vis
-    idx = count;
     while( ((buf.byte_position * 8) + buf.bit_offset + 10) < pkt->length * 8 )
     {
         int player_id = gbits(&buf, 11);
@@ -313,10 +323,10 @@ pkt_player_info_reader_read(
         int has_extended_info = gbits(&buf, 1);
         if( has_extended_info )
         {
-            reader->extended_queue[reader->extended_count++] = idx;
+            reader->extended_queue[reader->extended_count++] = new_idx;
         }
 
-        idx++;
+        new_idx++;
     }
 
     // Extended Info

@@ -140,11 +140,11 @@ pkt_npc_info_reader_read(
     bits(&buf);
 
     // NPC Old Vis
-    int npc_count = 0;
+    int new_idx = 0;
     int count = gbits(&buf, 8);
     push_op_bits_count_reset(next_op(reader, ops, ops_capacity), count);
     printf("NPC Old Vis count: %d\n", count);
-    for( int i = 0; i < count; i++ )
+    for( int old_idx = 0; old_idx < count; old_idx++ )
     {
         int info = gbits(&buf, 1);
 
@@ -155,17 +155,17 @@ pkt_npc_info_reader_read(
             {
             case 0:
             {
-                push_op_add_npc_old_opbits_idx(next_op(reader, ops, ops_capacity), i);
+                push_op_add_npc_old_opbits_idx(next_op(reader, ops, ops_capacity), old_idx);
                 push_bits_info(next_op(reader, ops, ops_capacity), info);
 
-                reader->extended_queue[reader->extended_count++] = npc_count;
-                npc_count += 1;
+                reader->extended_queue[reader->extended_count++] = new_idx;
+                new_idx += 1;
                 break;
             }
             case 1:
                 // walkdir
                 {
-                    push_op_add_npc_old_opbits_idx(next_op(reader, ops, ops_capacity), i);
+                    push_op_add_npc_old_opbits_idx(next_op(reader, ops, ops_capacity), old_idx);
                     push_bits_info(next_op(reader, ops, ops_capacity), info);
 
                     int walkdir = gbits(&buf, 3);
@@ -175,15 +175,15 @@ pkt_npc_info_reader_read(
                     int has_extended_info = gbits(&buf, 1);
                     if( has_extended_info )
                     {
-                        reader->extended_queue[reader->extended_count++] = npc_count;
+                        reader->extended_queue[reader->extended_count++] = new_idx;
                     }
 
-                    npc_count += 1;
+                    new_idx += 1;
                 }
                 break;
             case 2:
             { // walkdir
-                push_op_add_npc_old_opbits_idx(next_op(reader, ops, ops_capacity), i);
+                push_op_add_npc_old_opbits_idx(next_op(reader, ops, ops_capacity), old_idx);
                 push_bits_info(next_op(reader, ops, ops_capacity), info);
 
                 int walkdir = gbits(&buf, 3);
@@ -195,15 +195,15 @@ pkt_npc_info_reader_read(
                 int has_extended_info = gbits(&buf, 1);
                 if( has_extended_info )
                 {
-                    reader->extended_queue[reader->extended_count++] = npc_count;
+                    reader->extended_queue[reader->extended_count++] = new_idx;
                 }
 
-                npc_count += 1;
+                new_idx += 1;
             }
             break;
             case 3:
             {
-                push_op_clear_npc_opbits_idx(next_op(reader, ops, ops_capacity), i);
+                push_op_clear_npc_opbits_idx(next_op(reader, ops, ops_capacity), old_idx);
                 break;
             }
             //
@@ -212,10 +212,10 @@ pkt_npc_info_reader_read(
         }
         else
         {
-            push_op_add_npc_old_opbits_idx(next_op(reader, ops, ops_capacity), i);
+            push_op_add_npc_old_opbits_idx(next_op(reader, ops, ops_capacity), old_idx);
             push_bits_info(next_op(reader, ops, ops_capacity), info);
 
-            npc_count += 1;
+            new_idx += 1;
         }
     }
 
@@ -251,10 +251,10 @@ pkt_npc_info_reader_read(
         int has_extended_info = gbits(&buf, 1);
         if( has_extended_info )
         {
-            reader->extended_queue[reader->extended_count++] = npc_count;
+            reader->extended_queue[reader->extended_count++] = new_idx;
         }
 
-        npc_count += 1;
+        new_idx += 1;
     }
 
     // Extended Info

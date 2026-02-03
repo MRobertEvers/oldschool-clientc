@@ -210,6 +210,11 @@ buildcachedat_add_animframe(
     struct CacheAnimframe* animframe);
 
 struct CacheAnimframe*
+buildcachedat_get_animframe(
+    struct BuildCacheDat* buildcachedat,
+    int animframe_id);
+
+struct CacheAnimframe*
 buildcachedat_iter_next_animframe(struct DashMapIter* iter);
 
 struct DashMapIter*
@@ -232,6 +237,11 @@ buildcachedat_add_sequence(
     struct BuildCacheDat* buildcachedat,
     int sequence_id,
     struct CacheDatSequence* sequence);
+
+struct CacheDatSequence*
+buildcachedat_get_sequence(
+    struct BuildCacheDat* buildcachedat,
+    int sequence_id);
 
 struct CacheDatSequence*
 buildcachedat_iter_next_sequence(struct DashMapIter* iter);

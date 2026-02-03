@@ -140,10 +140,8 @@ npc_model(
     struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, npc_id);
     assert(npc && "Npc must be found");
 
-    assert(npc->size > 0 && "Npc size must be greater than 0");
-
-    struct DashModel* dash_model = NULL;
     struct CacheModel* model = buildcachedat_get_npc_model(game->buildcachedat, npc_id);
+    struct DashModel* dash_model = NULL;
     if( model )
     {
         model = model_new_copy(model);
@@ -182,6 +180,81 @@ npc_model(
     _light_model_default(dash_model, 0, 0);
 
     return dash_model;
+}
+
+static void
+npc_move(
+    struct GGame* game,
+    int npc_entity_id,
+    int x,
+    int z)
+{
+    struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
+
+    // Hack
+    struct SceneElement* scene_element = (struct SceneElement*)npc_entity->scene_element;
+
+    int dx = x / 128 - npc_entity->pathing.route_x[0];
+    int dz = z / 128 - npc_entity->pathing.route_z[0];
+    int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
+    if( animatable_distance )
+    {
+        if( npc_entity->pathing.route_length < 9 )
+            npc_entity->pathing.route_length++;
+
+        for( int i = npc_entity->pathing.route_length; i > 0; i-- )
+        {
+            npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i - 1];
+            npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i - 1];
+        }
+        npc_entity->pathing.route_x[0] = x / 128;
+        npc_entity->pathing.route_z[0] = z / 128;
+        npc_entity->pathing.route_run[0] = 0;
+    }
+    else
+    {
+        npc_entity->pathing.route_length = 0;
+        npc_entity->pathing.route_x[0] = x / 128;
+        npc_entity->pathing.route_z[0] = z / 128;
+
+        npc_entity->position.x = x + 64;
+        npc_entity->position.z = z + 64;
+    }
+
+    scene_element->dash_position->x = npc_entity->position.x;
+    scene_element->dash_position->z = npc_entity->position.z;
+}
+
+static void
+init_npc_entity(
+    struct GGame* game,
+    int npc_entity_id,
+    int npc_id)
+{
+    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, npc_id);
+    assert(npc && "Npc must be found");
+
+    struct DashModel* dash_model = npc_model(game, npc_id);
+
+    struct SceneElement* scene_element = (struct SceneElement*)malloc(sizeof(struct SceneElement));
+    memset(scene_element, 0, sizeof(struct SceneElement));
+    scene_element->dash_model = dash_model;
+
+    struct DashPosition* dash_position = (struct DashPosition*)malloc(sizeof(struct DashPosition));
+    memset(dash_position, 0, sizeof(struct DashPosition));
+    scene_element->dash_position = dash_position;
+
+    struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
+    npc_entity->scene_element = (void*)scene_element;
+    npc_entity->size_x = npc->size;
+    npc_entity->size_z = npc->size;
+
+    npc_entity->animation.readyanim = npc->readyanim;
+    npc_entity->animation.walkanim = npc->walkanim;
+    // npc_entity->animation.turnanim = npc->turnanim;
+    npc_entity->animation.walkanim_b = npc->walkanim_b;
+    npc_entity->animation.walkanim_r = npc->walkanim_r;
+    npc_entity->animation.walkanim_l = npc->walkanim_l;
 }
 
 static struct PktNpcInfoReader npc_info_reader = { 0 };
@@ -269,21 +342,22 @@ add_npc_info(
         case PKT_NPC_INFO_OPBITS_DZ:
         {
             int dz = op->_bitvalue;
-            npc->position.sz = dz + player->position.sz;
+            npc->position.z = (dz * 128) + (player->position.z / 128 * 128);
+            npc_move(game, npc_id, npc->position.x, npc->position.z);
             break;
         }
         case PKT_NPC_INFO_OPBITS_DX:
         {
             int dx = op->_bitvalue;
-            npc->position.sx = dx + player->position.sx;
+            npc->position.x = (dx * 128) + (player->position.x / 128 * 128);
             break;
         }
         case PKT_NPC_INFO_OPBITS_WALKDIR:
         case PKT_NPC_INFO_OPBITS_RUNDIR:
         {
             int direction = op->_bitvalue;
-            int next_x = npc->position.sx;
-            int next_z = npc->position.sz;
+            int next_x = npc->pathing.route_x[0];
+            int next_z = npc->pathing.route_z[0];
             if( direction == 0 )
             {
                 next_x--;
@@ -320,27 +394,27 @@ add_npc_info(
                 next_x++;
                 next_z--;
             }
-            npc->position.sx = next_x;
-            npc->position.sz = next_z;
+
+            if( npc->pathing.route_length < 9 )
+                npc->pathing.route_length++;
+
+            for( int i = npc->pathing.route_length; i > 0; i-- )
+            {
+                npc->pathing.route_x[i] = npc->pathing.route_x[i - 1];
+                npc->pathing.route_z[i] = npc->pathing.route_z[i - 1];
+                npc->pathing.route_run[i] = npc->pathing.route_run[i - 1];
+            }
+
+            npc->pathing.route_x[0] = next_x;
+            npc->pathing.route_z[0] = next_z;
+            npc->pathing.route_run[0] = 0;
             break;
         }
         case PKT_NPC_INFO_OPBITS_NPCTYPE:
         {
             if( npc && !npc->scene_element )
             {
-                struct SceneElement* scene_element =
-                    (struct SceneElement*)malloc(sizeof(struct SceneElement));
-                memset(scene_element, 0, sizeof(struct SceneElement));
-                scene_element->dash_model = npc_model(game, op->_bitvalue);
-                npc->scene_element = scene_element;
-                // TODO: Get from npctype.
-                npc->size_x = 1;
-                npc->size_z = 1;
-
-                struct DashPosition* dash_position =
-                    (struct DashPosition*)malloc(sizeof(struct DashPosition));
-                memset(dash_position, 0, sizeof(struct DashPosition));
-                scene_element->dash_position = dash_position;
+                init_npc_entity(game, npc_id, op->_bitvalue);
             }
             break;
         }
@@ -349,6 +423,73 @@ add_npc_info(
 }
 
 static struct PktPlayerInfoReader player_info_reader = { 0 };
+
+static void
+player_move(
+    struct GGame* game,
+    int player_id,
+    int x,
+    int z)
+{
+    struct PlayerEntity* player = &game->players[player_id];
+
+    // Hack
+    struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
+
+    int dx = x / 128 - player->pathing.route_x[0];
+    int dz = z / 128 - player->pathing.route_z[0];
+    int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
+    if( animatable_distance )
+    {
+        if( player->pathing.route_length < 9 )
+            player->pathing.route_length++;
+
+        for( int i = player->pathing.route_length; i > 0; i-- )
+        {
+            player->pathing.route_x[i] = player->pathing.route_x[i - 1];
+            player->pathing.route_z[i] = player->pathing.route_z[i - 1];
+        }
+        player->pathing.route_x[0] = x / 128;
+        player->pathing.route_z[0] = z / 128;
+        player->pathing.route_run[0] = 0;
+    }
+    else
+    {
+        player->pathing.route_length = 0;
+        player->pathing.route_x[0] = x / 128;
+        player->pathing.route_z[0] = z / 128;
+
+        player->position.x = x + 64;
+        player->position.z = z + 64;
+    }
+}
+
+// static void
+// init_player_entity(
+//     struct GGame* game,
+//     int player_id,
+//     struct PlayerAppearance* appearance)
+// {
+//     struct SceneElement* scene_element = (struct SceneElement*)malloc(sizeof(struct
+//     SceneElement)); memset(scene_element, 0, sizeof(struct SceneElement));
+//     scene_element->dash_model = dash_model;
+
+//     struct DashPosition* dash_position = (struct DashPosition*)malloc(sizeof(struct
+//     DashPosition)); memset(dash_position, 0, sizeof(struct DashPosition));
+//     scene_element->dash_position = dash_position;
+
+//     struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
+//     npc_entity->scene_element = (void*)scene_element;
+//     npc_entity->size_x = npc->size;
+//     npc_entity->size_z = npc->size;
+
+//     npc_entity->animation.readyanim = npc->readyanim;
+//     npc_entity->animation.walkanim = npc->walkanim;
+//     // npc_entity->animation.turnanim = npc->turnanim;
+//     npc_entity->animation.walkanim_b = npc->walkanim_b;
+//     npc_entity->animation.walkanim_r = npc->walkanim_r;
+//     npc_entity->animation.walkanim_l = npc->walkanim_l;
+// }
 
 void
 add_player_info(
@@ -404,6 +545,7 @@ add_player_info(
         case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
         {
             player_id = game->active_players[op->_bitvalue];
+            game->active_players[game->player_count] = player_id;
             game->player_count += 1;
             break;
         }
@@ -419,12 +561,21 @@ add_player_info(
             player_id = game->active_players[op->_bitvalue];
             break;
         }
+        case PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX:
+        {
+            player_id = game->active_players[op->_bitvalue];
+            // TODO: Free player
+            memset(&game->players[player_id], 0, sizeof(struct PlayerEntity));
+            game->active_players[op->_bitvalue] = -1;
+            player_id = -1;
+            break;
+        }
         case PKT_PLAYER_INFO_OPBITS_WALKDIR:
         case PKT_PLAYER_INFO_OPBITS_RUNDIR:
         {
             int direction = op->_bitvalue;
-            int next_x = player->position.sx;
-            int next_z = player->position.sz;
+            int next_x = player->pathing.route_x[0];
+            int next_z = player->pathing.route_z[0];
             if( direction == 0 )
             {
                 next_x--;
@@ -461,38 +612,57 @@ add_player_info(
                 next_x++;
                 next_z--;
             }
-            player->position.sx = next_x;
-            player->position.sz = next_z;
+
+            if( player->pathing.route_length < 9 )
+                player->pathing.route_length++;
+
+            for( int i = player->pathing.route_length; i > 0; i-- )
+            {
+                player->pathing.route_x[i] = player->pathing.route_x[i - 1];
+                player->pathing.route_z[i] = player->pathing.route_z[i - 1];
+            }
+
+            player->pathing.route_x[0] = next_x;
+            player->pathing.route_z[0] = next_z;
+            player->pathing.route_run[0] = 0;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_DX:
         {
-            int x = game->players[ACTIVE_PLAYER_SLOT].position.sx;
+            int x = (game->players[ACTIVE_PLAYER_SLOT].position.x / 128 * 128);
 
-            player->position.sx = op->_bitvalue + x;
+            player->position.x = (op->_bitvalue * 128) + x;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_DZ:
         {
-            int z = game->players[ACTIVE_PLAYER_SLOT].position.sz;
+            int z = (game->players[ACTIVE_PLAYER_SLOT].position.z / 128 * 128);
 
-            player->position.sz = op->_bitvalue + z;
+            player->position.z = (op->_bitvalue * 128) + z;
+            player_move(game, player_id, player->position.x, player->position.z);
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_LOCAL_X:
         {
-            player->position.sx = op->_bitvalue;
+            player->position.x = (op->_bitvalue * 128) + 64;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_LOCAL_Z:
         {
-            player->position.sz = op->_bitvalue;
+            player->position.z = (op->_bitvalue * 128) + 64;
             break;
         }
         case PKT_PLAYER_INFO_OP_APPEARANCE:
         {
             struct PlayerAppearance appearance;
             player_appearance_decode(&appearance, op->_appearance.appearance, op->_appearance.len);
+            player->animation.readyanim = appearance.readyanim;
+            player->animation.turnanim = appearance.turnanim;
+            player->animation.walkanim = appearance.walkanim;
+            player->animation.walkanim_b = appearance.walkanim_b;
+            player->animation.walkanim_l = appearance.walkanim_l;
+            player->animation.walkanim_r = appearance.walkanim_r;
+            player->animation.runanim = appearance.runanim;
             struct DashModel* dash_model = player_appearance_model(game, &appearance);
             scene_element->dash_model = dash_model;
         }

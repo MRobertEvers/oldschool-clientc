@@ -241,8 +241,7 @@ scenebuilder_push_dynamic_element(
 
     int height_center = scene_terrain_height_center(scene, sx, sz, slevel);
 
-    scene_element.dash_model = element->dash_model;
-    scene_element.dash_position = element->dash_position;
+    memcpy(&scene_element, element, sizeof(struct SceneElement));
     dash_position_from_offset_wxh_elem(&scene_element, sx, sz, height_center, size_x, size_z);
 
     int element_id = scene_scenery_push_dynamic_element_move(scene->scenery, &scene_element);

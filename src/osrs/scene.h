@@ -28,6 +28,7 @@ struct SceneAnimation
 
 struct SceneElement
 {
+    int isnpc;
     int id;
 
     bool interactable;
