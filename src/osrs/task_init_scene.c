@@ -640,6 +640,8 @@ step_scenery_config_load(struct TaskInitScene* task)
             iter = dashmap_iter_new(task->scenery_configmap);
             while( (config_loc = (struct CacheConfigLocation*)configmap_iter_next(iter, &id)) )
             {
+                if (id == 5650)
+                printf("Config loc: %d\n", id);
                 buildcache_add_config_location(buildcache, id, config_loc);
             }
             dashmap_iter_free(iter);
@@ -1422,8 +1424,14 @@ task_init_scene_step(struct TaskInitScene* task)
         int twz = task->world_z * 64;
         int tne_x = (task->world_x + task->chunks_width) * 64 - 1;
         int tne_z = (task->world_z + task->chunks_count / task->chunks_width) * 64 - 1;
+        int size_x = 104;
+        int size_z = 104;
+        if (size_x > (tne_x - twx + 1))
+            size_x = tne_x - twx;
+        if (size_z > (tne_z - twz + 1))
+            size_z = tne_z - twz;
         task->game->scene = scenebuilder_load_from_buildcache(
-            task->scene_builder, twx, twz, tne_x, tne_z, 104, 104, task->game->buildcache);
+            task->scene_builder, twx, twz, tne_x, tne_z, size_x+1, size_z+1, task->game->buildcache);
 
         task->step = STEP_INIT_SCENE_14_BUILD_TERRAIN3D;
     }

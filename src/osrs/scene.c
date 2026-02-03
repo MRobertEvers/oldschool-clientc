@@ -276,9 +276,9 @@ scene_terrain_height_center(
     struct SceneTerrainTile* tile = scene_terrain_tile_at(terrain, sx, sz, slevel);
     int height_sw = tile->height;
 
-    int height_se = 0;
-    int height_ne = 0;
-    int height_nw = 0;
+    int height_se = height_sw;
+    int height_ne = height_sw;
+    int height_nw = height_sw;
 
     if( inbounds(terrain, sx + 1, sz, slevel) )
     {

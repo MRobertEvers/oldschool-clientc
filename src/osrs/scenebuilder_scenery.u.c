@@ -1637,7 +1637,8 @@ scenery_add(
     // config_loc = config_loc_entry->config_loc;
 
     config_loc = scenebuilder_compat_get_config_loc(scene_builder, map_loc->loc_id);
-    assert(config_loc && "Config loc must be valid");
+    if (!config_loc)
+        return;
 
     if( !tile_in_bounds_from_maploc(
             terrain_grid, mapx, mapz, map_loc->chunk_pos_x, map_loc->chunk_pos_z) )

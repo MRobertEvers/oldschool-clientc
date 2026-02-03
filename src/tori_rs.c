@@ -115,8 +115,9 @@ LibToriRS_GameNew(
     game->buildcache = buildcache_new();
 
     gametask_new_init_io((void*)game, game->io);
-    gametask_new_init_scene_dat((void*)game, 50, 50, 51, 51);
-    // gametask_new_init_scene(game, 50, 50, 51, 51);
+    
+    // gametask_new_init_scene_dat((void*)game, 50, 50, 51, 51);
+    gametask_new_init_scene(game, 50, 50, 50, 50);
     // gametask_new_init_scene(game, 35, 83, 35, 83);
 
     //     {
@@ -764,6 +765,8 @@ LibToriRS_FrameNextCommand(
             int sx = cmd->_terrain._bf_terrain_x;
             int sz = cmd->_terrain._bf_terrain_z;
             int slevel = cmd->_terrain._bf_terrain_y;
+            assert(sz <= 63 && game->scene->terrain->tile_width_z);
+            assert(sz >= 0);
 
             tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
             if( !tile_model || !tile_model->dash_model )

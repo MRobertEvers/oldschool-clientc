@@ -300,7 +300,7 @@ gioqb_cache_fullfill(
     }
     else
     {
-        if( !archive && null_ok )
+        if( !archive && !null_ok )
         {
             assert(false && "Failed to load archive");
         }

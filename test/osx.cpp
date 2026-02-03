@@ -114,7 +114,7 @@ main(
     struct SockStream* login_stream = NULL;
     sockstream_init();
     // Create socket connection to login server
-    login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
+    // login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
     if( !login_stream )
     {
         printf("Failed to create login socket\n");
