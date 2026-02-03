@@ -173,6 +173,11 @@ npc_model(
 
     struct CacheModel* copy = model_new_copy(merged);
 
+    for( int i = 0; i < npc->recol_count; i++ )
+    {
+        model_transform_recolor(copy, npc->recol_s[i], npc->recol_d[i]);
+    }
+
     dash_model = dashmodel_new_from_cache_model(copy);
     _light_model_default(dash_model, 0, 0);
 
@@ -328,6 +333,9 @@ add_npc_info(
                 memset(scene_element, 0, sizeof(struct SceneElement));
                 scene_element->dash_model = npc_model(game, op->_bitvalue);
                 npc->scene_element = scene_element;
+                // TODO: Get from npctype.
+                npc->size_x = 1;
+                npc->size_z = 1;
 
                 struct DashPosition* dash_position =
                     (struct DashPosition*)malloc(sizeof(struct DashPosition));
