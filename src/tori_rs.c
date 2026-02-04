@@ -14,6 +14,7 @@
 #include "osrs/query_engine.h"
 #include "osrs/query_executor_dat.h"
 #include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_versionlist_mapsquare.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/scenebuilder.h"
@@ -24,7 +25,7 @@
 // clang-format on
 
 #define CACHE_PATH "../cache"
-#define CACHE_DAT_PATH "../cache245_2"
+#define CACHE_DAT_PATH "../cache254"
 
 #include <math.h>
 #include <stdlib.h>
@@ -154,24 +155,34 @@ LibToriRS_GameNew(
     gametask_new_init_io((void*)game, game->io);
 
     gametask_new_init_scene_dat((void*)game, 50, 50, 51, 51);
-    // gametask_new_init_scene(game, 50, 50, 50, 50);
-    // gametask_new_init_scene(game, 35, 83, 35, 83);
 
-    //     {
-    // #define MAPXZR(x, z) ((x) << 8 | (z))
-    //         int regions[2] = {
-    //             MAPXZR(48, 48),
-    //             MAPXZR(48, 49),
-    //         };
+    struct CacheDat* cachedat = cache_dat_new_from_directory(CACHE_DAT_PATH);
 
-    //         struct QEQuery* q = query_engine_qnew();
-    //         query_engine_qpush_op(q, QEDAT_DT_MAPS_SCENERY, QE_FN_0, QE_STORE_SET_0);
-    //         query_engine_qpush_argx(q, regions, 2);
-    //         query_engine_qpush_op(q, QEDAT_DT_CONFIG_LOCIDS, QE_FN_FROM_0, QE_STORE_DISCARD);
-    //         query_engine_qpush_op(q, QEDAT_DT_MAPS_TERRAIN, QE_FN_0, QE_STORE_DISCARD);
+    struct CacheDatArchive* archive =
+        cache_dat_archive_new_load(cachedat, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES);
 
-    //         gametask_new_query(game, q);
-    //     }
+    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
+
+    int idx = -1;
+    int name_hash = archive_name_hash_dat("data");
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+        {
+            idx = i;
+            break;
+        }
+    }
+
+    assert(idx != -1);
+
+    char* file_data = filelist->files[idx];
+    int file_data_size = filelist->file_sizes[idx];
+
+    struct CacheDatConfigComponentList* config_interface_list =
+        cache_dat_config_component_list_new_decode(file_data, file_data_size);
+
+    assert(config_interface_list != NULL);
 
     return game;
 }
@@ -820,6 +831,29 @@ anim:;
     }
 }
 
+static void
+advance_animation(
+    struct SceneAnimation* animation,
+    int cycles)
+{
+    if( !animation )
+        return;
+
+    for( int i = 0; i < cycles; i++ )
+    {
+        animation->cycle++;
+        if( animation->cycle >= animation->frame_lengths[animation->frame_index] )
+        {
+            animation->cycle = 0;
+            animation->frame_index++;
+            if( animation->frame_index >= animation->frame_count )
+            {
+                animation->frame_index = 0;
+            }
+        }
+    }
+}
+
 void
 LibToriRS_GameStep(
     struct GGame* game,
@@ -885,21 +919,7 @@ LibToriRS_GameStep(
             scene_element->dash_position->z = npc->position.z;
             scene_element->isnpc = true;
 
-            if( scene_element->animation && game->cycles_elapsed != 0 )
-            {
-                scene_element->animation->cycle++;
-                if( scene_element->animation->cycle >=
-                    scene_element->animation->frame_lengths[scene_element->animation->frame_index] )
-                {
-                    scene_element->animation->cycle = 0;
-                    scene_element->animation->frame_index++;
-                    if( scene_element->animation->frame_index >=
-                        scene_element->animation->frame_count )
-                    {
-                        scene_element->animation->frame_index = 0;
-                    }
-                }
-            }
+            advance_animation(scene_element->animation, game->cycles_elapsed);
         }
     }
 
@@ -929,21 +949,7 @@ LibToriRS_GameStep(
             scene_element->dash_position->z = player->position.z;
             scene_element->isnpc = false;
 
-            if( scene_element->animation && game->cycles_elapsed != 0 )
-            {
-                scene_element->animation->cycle++;
-                if( scene_element->animation->cycle >=
-                    scene_element->animation->frame_lengths[scene_element->animation->frame_index] )
-                {
-                    scene_element->animation->cycle = 0;
-                    scene_element->animation->frame_index++;
-                    if( scene_element->animation->frame_index >=
-                        scene_element->animation->frame_count )
-                    {
-                        scene_element->animation->frame_index = 0;
-                    }
-                }
-            }
+            advance_animation(scene_element->animation, game->cycles_elapsed);
         }
     }
 
@@ -969,20 +975,7 @@ LibToriRS_GameStep(
         scene_element->dash_position->x = game->players[ACTIVE_PLAYER_SLOT].position.x;
         scene_element->dash_position->z = game->players[ACTIVE_PLAYER_SLOT].position.z;
 
-        if( scene_element->animation && game->cycles_elapsed != 0 )
-        {
-            scene_element->animation->cycle++;
-            if( scene_element->animation->cycle >=
-                scene_element->animation->frame_lengths[scene_element->animation->frame_index] )
-            {
-                scene_element->animation->cycle = 0;
-                scene_element->animation->frame_index++;
-                if( scene_element->animation->frame_index >= scene_element->animation->frame_count )
-                {
-                    scene_element->animation->frame_index = 0;
-                }
-            }
-        }
+        advance_animation(scene_element->animation, game->cycles_elapsed);
     }
 
     while( game->cycles_elapsed > 0 )
@@ -993,149 +986,15 @@ LibToriRS_GameStep(
 
         game->cycle++;
 
-        // if( game->player_walk_animation && game->player_walk_animation->frame_count > 0 )
-        // {
-        //     game->player_walk_animation->cycle++;
-        //     if( game->player_walk_animation->cycle >=
-        //         game->player_walk_animation
-        //             ->frame_lengths[game->player_walk_animation->frame_index] )
-        //     {
-        //         game->player_walk_animation->cycle = 0;
-        //         game->player_walk_animation->frame_index++;
-        //         if( game->player_walk_animation->frame_index >=
-        //             game->player_walk_animation->frame_count )
-        //         {
-        //             game->player_walk_animation->frame_index = 0;
-        //         }
-        //     }
-        // }
-
         for( int i = 0; i < game->scene->scenery->elements_length; i++ )
         {
             struct SceneElement* element = scene_element_at(game->scene->scenery, i);
             if( element->animation )
             {
-                element->animation->cycle++;
-                if( element->animation->cycle >=
-                    element->animation->frame_lengths[element->animation->frame_index] )
-                {
-                    element->animation->cycle = 0;
-                    element->animation->frame_index++;
-                    if( element->animation->frame_index >= element->animation->frame_count )
-                    {
-                        element->animation->frame_index = 0;
-                    }
-                }
+                advance_animation(element->animation, 1);
             }
         }
-
-        // Get current time (using tick_ms as fallback, or we can use a platform-specific timer)
-        // For now, we'll use a simple approach: track time in game structure
-        // The timestamp will be updated by the platform layer
-        // if( game->player_tx != -1 )
-        // {
-        //     int player_target_draw_x = game->player_tx * 128;
-        //     int player_target_draw_z = game->player_tz * 128;
-        //     if( player_target_draw_x != game->player_draw_x ||
-        //         player_target_draw_z != game->player_draw_z )
-        //     {
-        //         // Move one tile if enough time has passed
-
-        //         int xdiff = player_target_draw_x - game->player_draw_x;
-        //         int zdiff = player_target_draw_z - game->player_draw_z;
-        //         int xmove = 0;
-        //         int zmove = 0;
-        //         int pxmove = 0;
-        //         int pzmove = 0;
-        //         // 4 6
-        //         static const int move_speed = 4;
-        //         if( abs(xdiff) > move_speed )
-        //         {
-        //             xmove = xdiff > 0 ? 1 : -1;
-        //             pxmove = xmove * move_speed;
-        //         }
-        //         else
-        //         {
-        //             pxmove = player_target_draw_x - game->player_draw_x;
-        //         }
-        //         if( abs(zdiff) > move_speed )
-        //         {
-        //             zmove = zdiff > 0 ? 1 : -1;
-        //             pzmove = zmove * move_speed;
-        //         }
-        //         else
-        //         {
-        //             pzmove = player_target_draw_z - game->player_draw_z;
-        //         }
-
-        //         // Update camera world position
-        //         game->player_draw_x += pxmove;
-        //         game->player_draw_z += pzmove;
-
-        //         if( xdiff >= 2 || zdiff >= 2 )
-        //         {
-        //             game->player_state = 2;
-        //         }
-        //         else
-        //         {
-        //             game->player_state = 1;
-        //         }
-        //         if( xdiff == 0 )
-        //         {
-        //             if( zdiff > 0 )
-        //             {
-        //                 game->player_draw_yaw = 1024;
-        //             }
-        //             else
-        //             {
-        //                 game->player_draw_yaw = 0;
-        //             }
-        //         }
-        //         else if( zdiff == 0 )
-        //         {
-        //             if( xdiff > 0 )
-        //             {
-        //                 game->player_draw_yaw = 1536;
-        //             }
-        //             else
-        //             {
-        //                 game->player_draw_yaw = 512;
-        //             }
-        //         }
-
-        //         else if( xdiff > 0 && zdiff > 0 )
-        //         {
-        //             game->player_draw_yaw = 1024 + 256;
-        //         }
-        //         else if( xdiff > 0 && zdiff < 0 )
-        //         {
-        //             game->player_draw_yaw = 1536 + 256;
-        //         }
-        //         else if( xdiff < 0 && zdiff > 0 )
-        //         {
-        //             game->player_draw_yaw = 512 + 256;
-        //         }
-        //         else if( xdiff < 0 && zdiff < 0 )
-        //         {
-        //             game->player_draw_yaw = 256;
-        //         }
-        //     }
-        //     else
-        //     {
-        //         game->player_state = 0;
-        //     }
-        // }
     }
-
-    // tori_rs_render_command_buffer_reset(render_command_buffer);
-    // struct ToriRSRenderCommand command = {
-    //     .kind = TORIRS_GFX_MODEL_DRAW,
-    //     ._model_draw = {
-    //         .model = game->model,
-    //         .position = *game->position,
-    //     },
-    // };
-    // tori_rs_render_command_buffer_add_command(render_command_buffer, command);
 
     return;
 }
@@ -1328,18 +1187,9 @@ LibToriRS_FrameNextCommand(
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
                         .model = element->dash_model,
-                        // .position = position,
                     },
                 };
             memcpy(&command->_model_draw.position, &position, sizeof(struct DashPosition));
-
-            // dash3d_raster_projected_model(
-            //     game->sys_dash,
-            //     scene_element_model(game->scene, cmd->_entity._bf_entity),
-            //     &position,
-            //     game->view_port,
-            //     game->camera,
-            //     renderer->dash_buffer);
         }
         break;
         case PNTR_CMD_TERRAIN:
@@ -1528,7 +1378,6 @@ LibToriRS_NetConnect(
     char* password)
 {
     game->net_state = GAME_NET_STATE_LOGIN;
-    // lclogin_start(game->login, username, password, false);
 }
 
 void

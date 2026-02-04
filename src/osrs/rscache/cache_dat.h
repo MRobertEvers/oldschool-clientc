@@ -152,7 +152,7 @@ struct CacheDat
 };
 
 struct CacheDat*
-cache_dat_new(char const* path);
+cache_dat_new_from_directory(char const* path);
 
 void
 cache_dat_free(struct CacheDat* cache_dat);

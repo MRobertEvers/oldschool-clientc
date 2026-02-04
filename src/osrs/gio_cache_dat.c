@@ -39,7 +39,7 @@ filebuffer_free(struct FileBuffer* filebuffer)
 struct CacheDat*
 gioqb_cache_dat_new(void)
 {
-    struct CacheDat* cache_dat = cache_dat_new(CACHE_PATH);
+    struct CacheDat* cache_dat = cache_dat_new_from_directory(CACHE_PATH);
     if( !cache_dat )
     {
         printf("Failed to load cache from directory: %s\n", CACHE_PATH);

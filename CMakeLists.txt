@@ -20,7 +20,18 @@ endif()
     if(WIN32)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
     endif()
+
+
+    file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
+    # Do this:
+    # Exclude standalone interpreter
+    list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c")  
+    # Exclude standalone compiler
+    list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c") 
+
+
     add_executable(osx
+        ${LUA_SOURCES}
         test/osx.cpp
         src/osrs/lclogin.c
         src/osrs/isaac.c
@@ -74,6 +85,8 @@ endif()
         src/osrs/gio_assets.c
         src/osrs/gio_cache.c
 
+
+        src/osrs/rscache/tables_dat/config_component.c
         src/osrs/gio_cache_dat.c
         src/osrs/task_init_io.c
         src/osrs/task_init_scene.c
@@ -132,7 +145,9 @@ endif()
     )
 
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(osx PRIVATE MAKE_LIB)
     target_compile_options(osx PRIVATE -fpermissive) 
+
 endif()
 
 

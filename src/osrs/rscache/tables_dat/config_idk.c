@@ -105,10 +105,6 @@ cache_dat_config_idk_list_new_decode(
 
     for( int i = 0; i < idk_count; i++ )
     {
-        if( i == 18 )
-        {
-            printf("Decoding idk %d\n", i);
-        }
         idk_list->idks[i] = decode_idk(&buffer);
         if( idk_list->idks[i] == NULL )
         {

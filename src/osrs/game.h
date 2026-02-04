@@ -121,6 +121,7 @@ struct GGame
     struct DashPixFont* pixfont_p11;
     struct DashPixFont* pixfont_p12;
     struct DashPixFont* pixfont_q8;
+
     struct GIOQueue* io;
     struct GameTask* tasks_nullable;
 

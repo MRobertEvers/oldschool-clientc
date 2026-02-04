@@ -59,6 +59,9 @@ animate(
         // ORIGIN
     case 0:
     {
+        if( !vertex_bones || !vertex_bones_sizes )
+            return;
+
         int avg_x = 0;
         int avg_y = 0;
         int avg_z = 0;
@@ -100,6 +103,9 @@ animate(
     // TRANSLATE
     case 1:
     {
+        if( !vertex_bones || !vertex_bones_sizes )
+            return;
+
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];
@@ -122,6 +128,9 @@ animate(
     // ROTATE
     case 2:
     {
+        if( !vertex_bones || !vertex_bones_sizes )
+            return;
+
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];
@@ -189,6 +198,9 @@ animate(
     }
     case 3:
     {
+        if( !vertex_bones || !vertex_bones_sizes )
+            return;
+
         for( int i = 0; i < bone_group_length; i++ )
         {
             int bone_index = bone_group[i];

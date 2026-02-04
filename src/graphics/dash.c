@@ -1724,7 +1724,6 @@ dashmodel_animate(
 {
     reset_original_values(model);
     assert(model->original_vertices_x != NULL);
-    assert(model->vertex_bones != NULL);
     if( frame == NULL )
         return;
     anim_frame_apply(
@@ -1734,9 +1733,9 @@ dashmodel_animate(
         model->vertices_y,
         model->vertices_z,
         model->face_alphas,
-        model->vertex_bones->bones_count,
-        model->vertex_bones->bones,
-        model->vertex_bones->bones_sizes,
+        model->vertex_bones ? model->vertex_bones->bones_count : 0,
+        model->vertex_bones ? model->vertex_bones->bones : NULL,
+        model->vertex_bones ? model->vertex_bones->bones_sizes : NULL,
         model->face_bones ? model->face_bones->bones_count : 0,
         model->face_bones ? model->face_bones->bones : NULL,
         model->face_bones ? model->face_bones->bones_sizes : NULL);

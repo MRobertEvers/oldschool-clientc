@@ -58,7 +58,7 @@ error:;
 }
 
 struct CacheDat*
-cache_dat_new(char const* directory)
+cache_dat_new_from_directory(char const* directory)
 {
     struct CacheDatArchive* archive = NULL;
     struct FileListDat* filelist = NULL;
