@@ -1240,8 +1240,8 @@ decode_ob3(
     return def;
 }
 
-struct CacheModel*
-decode_version2(
+static struct CacheModel*
+decode_version2__osrs_extended(
     const unsigned char* var1,
     int var1_length)
 {
@@ -1954,8 +1954,8 @@ decode_version2(
 //         }
 //     }
 
-struct CacheModel*
-decode_version3(
+static struct CacheModel*
+decode_version3__osrs_material(
     const unsigned char* var1,
     int var1_length)
 {
@@ -2426,14 +2426,14 @@ model_new_decode(
 
         if( lastByte == 0xFD && secondLastByte == 0xFF )
         { // -3, -1
-            model = decode_version3(inputData, inputLength);
+            model = decode_version3__osrs_material(inputData, inputLength);
             assert(model != NULL);
 
             model->_model_type = 3;
         }
         else if( lastByte == 0xFE && secondLastByte == 0xFF )
         { // -2, -1
-            model = decode_version2(inputData, inputLength);
+            model = decode_version2__osrs_extended(inputData, inputLength);
             assert(model != NULL);
             model->_model_type = 2;
         }
