@@ -7,7 +7,6 @@
 #include "osrs/gio.h"
 #include "osrs/painters.h"
 #include "osrs/scene.h"
-#include "tori_rs_render.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,6 +16,9 @@ struct DashModel;
 struct DashPosition;
 struct DashViewPort;
 struct DashCamera;
+
+struct ToriRSRenderCommandBuffer;
+struct ToriRSRenderCommand;
 
 struct GGame*
 LibToriRS_GameNew(
@@ -28,15 +30,6 @@ void
 LibToriRS_GameProcessInput(
     struct GGame* game,
     struct GInput* input);
-
-/**
- * @deprecated Not needed.
- */
-void
-LibToriRS_GameStepTasks(
-    struct GGame* game,
-    struct GInput* input,
-    struct ToriRSRenderCommandBuffer* render_command_buffer);
 
 void
 LibToriRS_FrameBegin(

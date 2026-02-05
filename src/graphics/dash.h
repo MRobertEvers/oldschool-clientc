@@ -99,8 +99,6 @@ struct DashModelBones
     int* bones_sizes;
 };
 
-struct DashModelAnimation
-{};
 struct DashModel
 {
     int _dbg_ids[10];

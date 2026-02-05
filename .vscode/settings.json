@@ -243,6 +243,7 @@
         "config_obj.h": "c",
         "config_npc.h": "c",
         "config_component.h": "c",
-        "lauxlib.h": "c"
+        "lauxlib.h": "c",
+        "tori_rs.h": "c"
     },
 }

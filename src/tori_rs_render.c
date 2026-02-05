@@ -1,18 +1,13 @@
 #include "tori_rs_render.h"
 
+#include "command_buffer.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
-struct ToriRSRenderCommandBuffer
-{
-    struct ToriRSRenderCommand* commands;
-    int command_count;
-    int command_capacity;
-};
-
 struct ToriRSRenderCommandBuffer*
-tori_rs_render_command_buffer_new(int capacity)
+LibToriRS_RenderCommandBufferNew(int capacity)
 {
     struct ToriRSRenderCommandBuffer* buffer = malloc(sizeof(struct ToriRSRenderCommandBuffer));
     buffer->commands = malloc(capacity * sizeof(struct ToriRSRenderCommand));
@@ -22,7 +17,7 @@ tori_rs_render_command_buffer_new(int capacity)
 }
 
 void
-tori_rs_render_command_buffer_add_command(
+LibToriRS_RenderCommandBufferAddCommand(
     struct ToriRSRenderCommandBuffer* buffer,
     struct ToriRSRenderCommand command)
 {
@@ -36,13 +31,13 @@ tori_rs_render_command_buffer_add_command(
 }
 
 void
-tori_rs_render_command_buffer_reset(struct ToriRSRenderCommandBuffer* buffer)
+LibToriRS_RenderCommandBufferReset(struct ToriRSRenderCommandBuffer* buffer)
 {
     buffer->command_count = 0;
 }
 
 struct ToriRSRenderCommand*
-tori_rs_render_command_buffer_at(
+LibToriRS_RenderCommandBufferAt(
     struct ToriRSRenderCommandBuffer* buffer,
     int index)
 {
@@ -51,7 +46,7 @@ tori_rs_render_command_buffer_at(
 }
 
 int
-tori_rs_render_command_buffer_count(struct ToriRSRenderCommandBuffer* buffer)
+LibToriRS_RenderCommandBufferCount(struct ToriRSRenderCommandBuffer* buffer)
 {
     return buffer->command_count;
 }

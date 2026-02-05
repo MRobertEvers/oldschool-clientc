@@ -70,7 +70,7 @@ main(
     struct GGame* game = LibToriRS_GameNew(io, 513, 335);
     struct GInput input = { 0 };
     struct ToriRSRenderCommandBuffer* render_command_buffer =
-        tori_rs_render_command_buffer_new(1024);
+        LibToriRS_RenderCommandBufferNew(1024);
     struct GIOMessage message = { 0 };
     struct Platform2_OSX_SDL2* platform = Platform2_OSX_SDL2_New();
     if( !platform )

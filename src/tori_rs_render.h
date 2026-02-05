@@ -37,22 +37,20 @@ struct ToriRSRenderCommand
 struct ToriRSRenderCommandBuffer;
 
 struct ToriRSRenderCommandBuffer*
-tori_rs_render_command_buffer_new(int capacity);
-void
-tori_rs_render_command_buffer_free(struct ToriRSRenderCommandBuffer* buffer);
-void
-tori_rs_render_command_buffer_add_command(
-    struct ToriRSRenderCommandBuffer* buffer,
-    struct ToriRSRenderCommand command);
+LibToriRS_RenderCommandBufferNew(int capacity);
 
 void
-tori_rs_render_command_buffer_reset(struct ToriRSRenderCommandBuffer* buffer);
+LibToriRS_RenderCommandBufferFree(struct ToriRSRenderCommandBuffer* buffer);
+
+void
+LibToriRS_RenderCommandBufferReset(struct ToriRSRenderCommandBuffer* buffer);
 
 struct ToriRSRenderCommand*
-tori_rs_render_command_buffer_at(
+LibToriRS_RenderCommandBufferAt(
     struct ToriRSRenderCommandBuffer* buffer,
     int index);
+
 int
-tori_rs_render_command_buffer_count(struct ToriRSRenderCommandBuffer* buffer);
+LibToriRS_RenderCommandBufferCount(struct ToriRSRenderCommandBuffer* buffer);
 
 #endif
