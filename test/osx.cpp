@@ -154,57 +154,57 @@ main(
 
     uint8_t buffer[4096];
 
-    // 1. Setup the persistent environment
-    lua_State* L = luaL_newstate();
-    luaL_openlibs(L);
+    // // 1. Setup the persistent environment
+    // lua_State* L = luaL_newstate();
+    // luaL_openlibs(L);
 
-    bool running = true;
-    FILE* file = fopen("test.lua", "r");
-    if( !file )
-    {
-        printf("Failed to open test.lua\n");
-        return 1;
-    }
-    fseek(file, 0, SEEK_END);
-    int filelen = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    char* file_content = (char*)malloc(filelen + 1);
-    file_content[filelen] = '\0';
-    fread(file_content, 1, filelen, file);
-    fclose(file);
+    // bool running = true;
+    // FILE* file = fopen("test.lua", "r");
+    // if( !file )
+    // {
+    //     printf("Failed to open test.lua\n");
+    //     return 1;
+    // }
+    // fseek(file, 0, SEEK_END);
+    // int filelen = ftell(file);
+    // fseek(file, 0, SEEK_SET);
+    // char* file_content = (char*)malloc(filelen + 1);
+    // file_content[filelen] = '\0';
+    // fread(file_content, 1, filelen, file);
+    // fclose(file);
 
-    lua_State* L_coro = lua_newthread(L);
+    // lua_State* L_coro = lua_newthread(L);
 
-    // 3. Get the function onto the COROUTINE'S stack
-    luaL_dostring(L, file_content);
-    lua_getglobal(L_coro, "download_task");
+    // // 3. Get the function onto the COROUTINE'S stack
+    // luaL_dostring(L, file_content);
+    // lua_getglobal(L_coro, "download_task");
 
-    free(file_content);
-    int nres = 0;
-    int status = lua_resume(L_coro, L, 0, &nres);
+    // free(file_content);
+    // int nres = 0;
+    // int status = lua_resume(L_coro, L, 0, &nres);
 
-    if( status == LUA_YIELD )
-    {
-        // Lua is now suspended at the 'yield' line
-        const char* filename = lua_tostring(L_coro, -1);
-        printf("C: Lua is asking to download: %s\n", filename);
+    // if( status == LUA_YIELD )
+    // {
+    //     // Lua is now suspended at the 'yield' line
+    //     const char* filename = lua_tostring(L_coro, -1);
+    //     printf("C: Lua is asking to download: %s\n", filename);
 
-        // --- SIMULATE ASYNC WORK ---
-        printf("C: (Simulating download delay...)\n");
-        const char* downloaded_content = "This is the text from the file!";
+    //     // --- SIMULATE ASYNC WORK ---
+    //     printf("C: (Simulating download delay...)\n");
+    //     const char* downloaded_content = "This is the text from the file!";
 
-        // 4. Push the result of the "download" to the coroutine stack
-        lua_pushstring(L_coro, downloaded_content);
+    //     // 4. Push the result of the "download" to the coroutine stack
+    //     lua_pushstring(L_coro, downloaded_content);
 
-        // 5. Second Resume: Send the result into the coroutine
-        // Note: We pass 1 as the nargs because we are providing the yield result
-        status = lua_resume(L_coro, L, 1, &nres);
-    }
+    //     // 5. Second Resume: Send the result into the coroutine
+    //     // Note: We pass 1 as the nargs because we are providing the yield result
+    //     status = lua_resume(L_coro, L, 1, &nres);
+    // }
 
-    if( status == LUA_OK )
-    {
-        printf("C: Coroutine hit the end of the function successfully.\n");
-    }
+    // if( status == LUA_OK )
+    // {
+    //     printf("C: Coroutine hit the end of the function successfully.\n");
+    // }
 
     LibToriRS_NetConnect(game, "asdf2", "a");
     while( LibToriRS_GameIsRunning(game) )

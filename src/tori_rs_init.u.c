@@ -9,6 +9,7 @@
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/loginproto.h"
+#include "osrs/lua_scripts.h"
 #include "osrs/scenebuilder.h"
 #include "tori_rs.h"
 
@@ -18,6 +19,7 @@
 
 #define CACHE_PATH "../cache"
 #define CACHE_DAT_PATH "../cache254"
+#define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3d-raster/src/osrs/scripts"
 
 static void
 init_rsa(struct GGame* game)
@@ -132,13 +134,9 @@ LibToriRS_GameNew(
     game->loginproto =
         loginproto_new(game->random_in, game->random_out, &game->rsa, "asdf2", "a", NULL);
 
-    game->L = luaL_newstate();
-    luaL_openlibs(game->L);
-    game->L_coro = lua_newthread(game->L);
-
     gametask_new_init_io((void*)game, game->io);
 
-    gametask_new_init_scene_dat((void*)game, 50, 50, 51, 51);
+    // gametask_new_init_scene_dat((void*)game, 50, 50, 51, 51);
 
     struct CacheDat* cachedat = cache_dat_new_from_directory(CACHE_DAT_PATH);
 
@@ -167,6 +165,61 @@ LibToriRS_GameNew(
         cache_dat_config_component_list_new_decode(file_data, file_data_size);
 
     assert(config_interface_list != NULL);
+
+    game->L = luaL_newstate();
+    luaL_openlibs(game->L);
+    game->L_coro = lua_newthread(game->L);
+
+    register_host_io(game->L, game->io);
+
+    // Add scripts dir to package.path so require("hostio_utils") and require("load_scene_dat") find .lua files
+    lua_getglobal(game->L, "package");
+    lua_getfield(game->L, -1, "path");
+    const char* old_path = lua_tostring(game->L, -1);
+    lua_pushfstring(game->L, LUA_SCRIPTS_DIR "/?.lua;%s", old_path ? old_path : "");
+    lua_setfield(game->L, -3, "path");
+    lua_pop(game->L, 2);
+
+    // Load load_scene_dat.lua (returns one function) and call it with game.
+    if( luaL_dofile(
+            game->L,
+            LUA_SCRIPTS_DIR "/load_scene_dat.lua") != LUA_OK )
+    {
+        const char* err = lua_tostring(game->L, -1);
+        fprintf(stderr, "Error loading load_scene_dat.lua: %s\n", err);
+        lua_pop(game->L, 1);
+    }
+    else
+    {
+        // Call the returned load_scene_dat(game) on the coroutine (it yields in HostIOUtils.await).
+        lua_xmove(game->L, game->L_coro, 1);
+        lua_pushlightuserdata(game->L_coro, game);
+
+        int nargs = 1;
+        for( ;; )
+        {
+            int nres;
+            int status = lua_resume(game->L_coro, game->L, nargs, &nres);
+            nargs = 0; // subsequent resumes pass no arguments
+
+            if( status == LUA_YIELD )
+            {
+                // Coroutine yielded (e.g. waiting on async I/O). Resume again.
+                continue;
+            }
+            if( status == LUA_OK )
+            {
+                // Coroutine finished. Result(s) on L_coro stack.
+                lua_pop(game->L_coro, nres);
+                break;
+            }
+            // Error
+            const char* err = lua_tostring(game->L_coro, -1);
+            fprintf(stderr, "Error in load_scene_dat coroutine: %s\n", err);
+            lua_pop(game->L_coro, 1);
+            break;
+        }
+    }
 
     return game;
 }

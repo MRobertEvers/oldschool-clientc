@@ -29,8 +29,8 @@ struct GIOMessage
     enum GIORequestKind kind;
 
     uint32_t command;
-    uint64_t param_b;
     uint64_t param_a;
+    uint64_t param_b;
 
     void* data;
     int data_size;
@@ -38,8 +38,12 @@ struct GIOMessage
 
 struct GIOQueue*
 gioq_new(void);
+
 void
 gioq_free(struct GIOQueue* q);
+
+bool
+gioq_is_empty(struct GIOQueue* q);
 
 /* Submit multiple requests */
 uint32_t
@@ -59,6 +63,17 @@ gioq_release(
 bool
 gioq_poll(
     struct GIOQueue* q,
+    struct GIOMessage* out);
+
+bool
+gioq_poll_for(
+    struct GIOQueue* q,
+    uint32_t req_id);
+
+bool
+gioq_read(
+    struct GIOQueue* q,
+    uint32_t req_id,
     struct GIOMessage* out);
 
 bool

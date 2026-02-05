@@ -555,7 +555,8 @@ LibToriRS_GameStep(
         game->outbound_buffer[game->outbound_size++] = op;
     }
 
-    scenebuilder_reset_dynamic_elements(game->scenebuilder, game->scene);
+    if( game->scenebuilder )
+        scenebuilder_reset_dynamic_elements(game->scenebuilder, game->scene);
 
     for( int i = 0; i < game->npc_count; i++ )
     {

@@ -57,6 +57,12 @@ gioq_free(struct GIOQueue* q)
     free(q);
 }
 
+bool
+gioq_is_empty(struct GIOQueue* q)
+{
+    return q->requests_list == NULL;
+}
+
 uint32_t
 gioq_submit(
     struct GIOQueue* q,
@@ -147,6 +153,56 @@ gioq_poll(
     {
         assert(iter->status != GIO_STATUS_STALE);
         if( iter->status == GIO_STATUS_DONE )
+        {
+            iter->status = GIO_STATUS_STALE;
+            out->message_id = iter->message_id;
+            out->status = iter->status;
+            out->kind = iter->kind;
+            out->command = iter->command;
+            out->param_b = iter->param_b;
+            out->param_a = iter->param_a;
+            out->data = iter->data;
+            out->data_size = iter->data_size;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+gioq_poll_for(
+    struct GIOQueue* q,
+    uint32_t req_id)
+{
+    struct GIORequest* iter = NULL;
+
+    ll_foreach(q->requests_list, iter)
+    {
+        assert(iter->status != GIO_STATUS_STALE);
+        if( iter->status == GIO_STATUS_DONE && iter->message_id == req_id )
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+gioq_read(
+    struct GIOQueue* q,
+    uint32_t req_id,
+    struct GIOMessage* out)
+{
+    struct GIORequest* iter = NULL;
+    memset(out, 0, sizeof(struct GIOMessage));
+    out->status = GIO_STATUS_PENDING;
+
+    ll_foreach(q->requests_list, iter)
+    {
+        assert(iter->status != GIO_STATUS_STALE);
+        if( iter->status == GIO_STATUS_DONE && iter->message_id == req_id )
         {
             iter->status = GIO_STATUS_STALE;
             out->message_id = iter->message_id;
