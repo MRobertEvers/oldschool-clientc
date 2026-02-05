@@ -1,6 +1,9 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include "3rd/lua/lauxlib.h"
+#include "3rd/lua/lua.h"
+#include "3rd/lua/lualib.h"
 #include "datastruct/ringbuf.h"
 #include "datastruct/vec.h"
 #include "game_entity.h"
@@ -40,6 +43,9 @@ enum GameNetState
 
 struct GGame
 {
+    lua_State* L;
+    lua_State* L_coro;
+
     bool running;
     int at_render_command_index;
     int at_painters_command_index;

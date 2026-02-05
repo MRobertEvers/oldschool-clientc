@@ -64,7 +64,9 @@ PlatformImpl_Emscripten_SDL2_InitForSoft3D(
 
 bool
 PlatformImpl_Emscripten_SDL2_InitForWebGL1(
-    struct Platform* platform, int canvas_width, int canvas_height)
+    struct Platform* platform,
+    int canvas_width,
+    int canvas_height)
 {
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {

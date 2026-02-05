@@ -1,10 +1,14 @@
 #ifndef TORI_RS_INIT_U_C
 #define TORI_RS_INIT_U_C
 
+#include "3rd/lua/lauxlib.h"
+#include "3rd/lua/lua.h"
+#include "3rd/lua/lualib.h"
 #include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
+#include "osrs/loginproto.h"
 #include "osrs/scenebuilder.h"
 #include "tori_rs.h"
 
@@ -127,6 +131,10 @@ LibToriRS_GameNew(
 
     game->loginproto =
         loginproto_new(game->random_in, game->random_out, &game->rsa, "asdf2", "a", NULL);
+
+    game->L = luaL_newstate();
+    luaL_openlibs(game->L);
+    game->L_coro = lua_newthread(game->L);
 
     gametask_new_init_io((void*)game, game->io);
 

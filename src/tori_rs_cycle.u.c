@@ -501,23 +501,6 @@ advance_animation(
 }
 
 static void
-on_completed_task(
-    struct GGame* game,
-    struct GInput* input,
-    struct ToriRSRenderCommandBuffer* render_command_buffer,
-    struct GameTask* task)
-{
-    switch( task->kind )
-    {
-    case GAMETASK_KIND_INIT_IO:
-        break;
-    case GAMETASK_KIND_INIT_SCENE:
-        // game->model = gtask_init_scene_value(task->_init_scene);
-        break;
-    }
-}
-
-static void
 LibToriRS_GameStepTasks(
     struct GGame* game,
     struct GInput* input,
@@ -530,8 +513,6 @@ LibToriRS_GameStepTasks(
         status = gametask_step(task);
         if( status != GAMETASK_STATUS_COMPLETED )
             break;
-
-        on_completed_task(game, input, render_command_buffer, task);
 
         game->tasks_nullable = game->tasks_nullable->next;
         gametask_free(task);
