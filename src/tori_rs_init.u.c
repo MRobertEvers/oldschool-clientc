@@ -137,6 +137,9 @@ LibToriRS_GameNew(
     gametask_new_init_io((void*)game, game->io);
 
     // gametask_new_init_scene_dat((void*)game, 50, 50, 51, 51);
+    game->L = luaL_newstate();
+    luaL_openlibs(game->L);
+    game->L_coro = lua_newthread(game->L);
 
     struct CacheDat* cachedat = cache_dat_new_from_directory(CACHE_DAT_PATH);
 
@@ -172,7 +175,8 @@ LibToriRS_GameNew(
 
     register_host_io(game->L, game->io);
 
-    // Add scripts dir to package.path so require("hostio_utils") and require("load_scene_dat") find .lua files
+    // Add scripts dir to package.path so require("hostio_utils") and require("load_scene_dat") find
+    // .lua files
     lua_getglobal(game->L, "package");
     lua_getfield(game->L, -1, "path");
     const char* old_path = lua_tostring(game->L, -1);
@@ -181,9 +185,7 @@ LibToriRS_GameNew(
     lua_pop(game->L, 2);
 
     // Load load_scene_dat.lua (returns one function) and call it with game.
-    if( luaL_dofile(
-            game->L,
-            LUA_SCRIPTS_DIR "/load_scene_dat.lua") != LUA_OK )
+    if( luaL_dofile(game->L, LUA_SCRIPTS_DIR "/load_scene_dat.lua") != LUA_OK )
     {
         const char* err = lua_tostring(game->L, -1);
         fprintf(stderr, "Error loading load_scene_dat.lua: %s\n", err);

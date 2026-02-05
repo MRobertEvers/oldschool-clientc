@@ -1,6 +1,7 @@
 #ifndef TORI_RS_CYCLE_U_C
 #define TORI_RS_CYCLE_U_C
 
+#include "3rd/lua/lua.h"
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/scenebuilder.h"
@@ -500,26 +501,6 @@ advance_animation(
     }
 }
 
-static void
-LibToriRS_GameStepTasks(
-    struct GGame* game,
-    struct GInput* input,
-    struct ToriRSRenderCommandBuffer* render_command_buffer)
-{
-    struct GameTask* task = game->tasks_nullable;
-    enum GameTaskStatus status = GAMETASK_STATUS_FAILED;
-    while( task )
-    {
-        status = gametask_step(task);
-        if( status != GAMETASK_STATUS_COMPLETED )
-            break;
-
-        game->tasks_nullable = game->tasks_nullable->next;
-        gametask_free(task);
-        task = game->tasks_nullable;
-    }
-}
-
 void
 LibToriRS_GameStep(
     struct GGame* game,
@@ -537,12 +518,16 @@ LibToriRS_GameStep(
 
     gameproto_process(game, game->io);
 
-    LibToriRS_GameStepTasks(game, input, render_command_buffer);
-    task = game->tasks_nullable;
-    if( task && task->status != GAMETASK_STATUS_COMPLETED )
+    int lua_yielded = 0;
+    if( game->L && game->L_coro && lua_status(game->L_coro) == LUA_YIELD )
     {
-        return;
+        int nres = 0;
+        int status = lua_resume(game->L_coro, game->L, 0, &nres);
+        lua_yielded = (status == LUA_YIELD);
     }
+
+    if( lua_yielded )
+        return;
 
     LibToriRS_GameProcessInput(game, input);
 
@@ -662,8 +647,6 @@ LibToriRS_GameStep(
             }
         }
     }
-
-    return;
 }
 
 #endif
