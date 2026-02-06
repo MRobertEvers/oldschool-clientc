@@ -563,20 +563,23 @@ LibToriRS_GameStep(
 
     if( ran_lua )
     {
-        if( lua_ret == LUA_YIELD )
+        switch( lua_ret )
         {
+        case LUA_YIELD:
+            // Exit early, the lua script is running
             return;
-        }
-        if( lua_ret == LUA_OK )
-        {
+        case LUA_OK:
             lua_pop(game->L_coro, nres);
+            break;
+        default:
+        {
+            const char* err = lua_tostring(game->L_coro, -1);
+            fprintf(stderr, "Error in Lua coroutine: %s\n", err);
+            lua_pop(game->L_coro, 1);
+            game->running = false;
             return;
         }
-        const char* err = lua_tostring(game->L_coro, -1);
-        fprintf(stderr, "Error in Lua coroutine: %s\n", err);
-        lua_pop(game->L_coro, 1);
-        game->running = false;
-        return;
+        }
     }
 
     LibToriRS_GameProcessInput(game, input);
