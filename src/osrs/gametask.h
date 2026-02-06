@@ -4,7 +4,6 @@
 #include "osrs/game.h"
 #include "osrs/gametask_status.h"
 #include "osrs/gio.h"
-#include "query_engine.h"
 
 enum GameTaskKind
 {
@@ -12,13 +11,11 @@ enum GameTaskKind
     GAMETASK_KIND_INIT_SCENE,
     GAMETASK_KIND_INIT_SCENE_DAT,
     GAMETASK_KIND_PACKET,
-    GAMETASK_KIND_QUERY,
 };
 
 struct TaskInitIO;
 struct TaskInitScene;
 struct TaskInitSceneDat;
-struct TaskQuery;
 struct TaskPacket;
 struct GameTask
 {
@@ -30,7 +27,6 @@ struct GameTask
         struct TaskInitIO* _init_io;
         struct TaskInitScene* _init_scene;
         struct TaskInitSceneDat* _init_scene_dat;
-        struct TaskQuery* _query;
         struct TaskPacket* _packet;
     };
 
@@ -57,11 +53,6 @@ gametask_new_init_scene_dat(
     int map_sw_z,
     int map_ne_x,
     int map_ne_z);
-
-struct GameTask*
-gametask_new_query(
-    struct GGame* game,
-    struct QEQuery* q);
 
 struct GameTask*
 gametask_new_packet(

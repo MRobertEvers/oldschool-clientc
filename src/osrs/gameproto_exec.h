@@ -3,7 +3,6 @@
 
 #include "game.h"
 #include "packets/revpacket_lc245_2.h"
-#include "query_engine.h"
 
 void
 gameproto_exec_lc245_2(

@@ -11,8 +11,6 @@
 #include "osrs/loginproto.h"
 #include "osrs/packetbuffer.h"
 #include "osrs/packetin.h"
-#include "osrs/query_engine.h"
-#include "osrs/query_executor_dat.h"
 #include "osrs/rscache/cache.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables/model.h"

@@ -127,9 +127,6 @@ endif()
         src/osrs/rscache/rsbuf.c
         src/osrs/rscache/bitbuffer.c
         src/osrs/rscache/xtea.c
-        src/osrs/query_engine.c
-        src/osrs/query_executor_dat.c
-        src/osrs/task_query.c
         src/osrs/revs/revpacket_lc245_2_query.c
 
         src/platforms/platform_impl2_osx_sdl2.cpp

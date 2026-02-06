@@ -4,7 +4,6 @@
 #include "game.h"
 #include "gametask_status.h"
 #include "gio.h"
-#include "query_engine.h"
 
 struct TaskPacket;
 

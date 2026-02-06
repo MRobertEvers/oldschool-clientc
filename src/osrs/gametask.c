@@ -2,7 +2,6 @@
 
 #include "task_init_scene.h"
 #include "task_packet.h"
-#include "task_query.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -54,8 +53,6 @@ gametask_step(struct GameTask* task)
         // return task_init_scene_dat_step(task->_init_scene_dat);
     case GAMETASK_KIND_PACKET:
         return task_packet_step(task->_packet);
-    case GAMETASK_KIND_QUERY:
-        return task_query_step(task->_query);
     }
 
     return GAMETASK_STATUS_FAILED;
@@ -116,23 +113,6 @@ gametask_new_packet(
     return task;
 }
 
-struct GameTask*
-gametask_new_query(
-    struct GGame* game,
-    struct QEQuery* q)
-{
-    struct GameTask* task = malloc(sizeof(struct GameTask));
-    memset(task, 0, sizeof(struct GameTask));
-    task->status = GAMETASK_STATUS_PENDING;
-
-    task->kind = GAMETASK_KIND_QUERY;
-    task->_query = task_query_new(game, q);
-
-    append_task(game, task);
-
-    return task;
-}
-
 void
 gametask_free(struct GameTask* task)
 {
@@ -149,9 +129,6 @@ gametask_free(struct GameTask* task)
         break;
     case GAMETASK_KIND_PACKET:
         task_packet_free(task->_packet);
-        break;
-    case GAMETASK_KIND_QUERY:
-        task_query_free(task->_query);
         break;
     }
 
