@@ -30,15 +30,15 @@ gametask_new_init_io(
     struct GGame* game,
     struct GIOQueue* io)
 {
-    struct GameTask* task = malloc(sizeof(struct GameTask));
-    memset(task, 0, sizeof(struct GameTask));
-    task->status = GAMETASK_STATUS_PENDING;
-    task->kind = GAMETASK_KIND_INIT_IO;
-    task->_init_io = task_init_io_new(io);
+    // struct GameTask* task = malloc(sizeof(struct GameTask));
+    // memset(task, 0, sizeof(struct GameTask));
+    // task->status = GAMETASK_STATUS_PENDING;
+    // task->kind = GAMETASK_KIND_INIT_IO;
+    // task->_init_io = task_init_io_new(io);
 
-    append_task(game, task);
+    // append_task(game, task);
 
-    return task;
+    return NULL;
 }
 
 enum GameTaskStatus
@@ -47,11 +47,11 @@ gametask_step(struct GameTask* task)
     switch( task->kind )
     {
     case GAMETASK_KIND_INIT_IO:
-        return task_init_io_step(task->_init_io);
+        // return task_init_io_step(task->_init_io);
     case GAMETASK_KIND_INIT_SCENE:
         return task_init_scene_step(task->_init_scene);
     case GAMETASK_KIND_INIT_SCENE_DAT:
-        return task_init_scene_dat_step(task->_init_scene_dat);
+        // return task_init_scene_dat_step(task->_init_scene_dat);
     case GAMETASK_KIND_PACKET:
         return task_packet_step(task->_packet);
     case GAMETASK_KIND_QUERY:
@@ -88,15 +88,16 @@ gametask_new_init_scene_dat(
     int map_ne_x,
     int map_ne_z)
 {
-    struct GameTask* task = malloc(sizeof(struct GameTask));
-    memset(task, 0, sizeof(struct GameTask));
-    task->status = GAMETASK_STATUS_PENDING;
-    task->kind = GAMETASK_KIND_INIT_SCENE_DAT;
-    task->_init_scene_dat = task_init_scene_dat_new(game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    // struct GameTask* task = malloc(sizeof(struct GameTask));
+    // memset(task, 0, sizeof(struct GameTask));
+    // task->status = GAMETASK_STATUS_PENDING;
+    // task->kind = GAMETASK_KIND_INIT_SCENE_DAT;
+    // task->_init_scene_dat = task_init_scene_dat_new(game, map_sw_x, map_sw_z, map_ne_x,
+    // map_ne_z);
 
-    append_task(game, task);
+    // append_task(game, task);
 
-    return task;
+    return NULL;
 }
 
 struct GameTask*
@@ -138,13 +139,13 @@ gametask_free(struct GameTask* task)
     switch( task->kind )
     {
     case GAMETASK_KIND_INIT_IO:
-        task_init_io_free(task->_init_io);
+        // task_init_io_free(task->_init_io);
         break;
     case GAMETASK_KIND_INIT_SCENE:
         task_init_scene_free(task->_init_scene);
         break;
     case GAMETASK_KIND_INIT_SCENE_DAT:
-        task_init_scene_dat_free(task->_init_scene_dat);
+        // task_init_scene_dat_free(task->_init_scene_dat);
         break;
     case GAMETASK_KIND_PACKET:
         task_packet_free(task->_packet);

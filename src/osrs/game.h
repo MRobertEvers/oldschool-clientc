@@ -19,6 +19,7 @@
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
+#include "osrs/script_queue.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -45,7 +46,8 @@ struct GGame
 {
     lua_State* L;
     lua_State* L_coro;
-    const char* lua_pending_script; /* path or name under LUA_SCRIPTS_DIR; run on next cycle */
+    struct ScriptQueue script_queue;
+    struct ScriptQueueItem* lua_current_script_item; /* script we're running from queue */
 
     bool running;
     int at_render_command_index;

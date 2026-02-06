@@ -11,6 +11,7 @@
 #include "osrs/loginproto.h"
 #include "osrs/lua_scripts.h"
 #include "osrs/scenebuilder.h"
+#include "osrs/script_queue.h"
 #include "tori_rs.h"
 
 #include <assert.h>
@@ -22,22 +23,11 @@
 #define CACHE_DAT_PATH "../cache254"
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
 
-/* Embedded so require("hostio_utils") works from any script without filesystem path. */
-static const char hostio_utils_lua[] =
-    "local Module = {}\n"
-    "function Module.await(req_id)\n"
-    "  if not req_id or req_id == 0 then return false, \"Invalid Request ID\" end\n"
-    "  while not HostIO.poll(req_id) do coroutine.yield() end\n"
-    "  return HostIO.read(req_id)\n"
-    "end\n"
-    "return Module\n";
-
+/** Return the module table stored as upvalue (so require("hostio_utils") works). */
 static int
-l_preload_hostio_utils(lua_State* L)
+hostio_utils_loader(lua_State *L)
 {
-    if( luaL_loadstring(L, hostio_utils_lua) != LUA_OK )
-        return lua_error(L);
-    lua_call(L, 0, 1);
+    lua_pushvalue(L, lua_upvalueindex(1));
     return 1;
 }
 
@@ -192,17 +182,36 @@ LibToriRS_GameNew(
     luaL_dostring(game->L, "HostIO.init()");
 
     /* Register package.preload["hostio_utils"] so require("hostio_utils") works from any
-     * script/coro */
-    {
-        lua_getglobal(game->L, "package");
-        lua_getfield(game->L, -1, "preload");
-        lua_pushstring(game->L, "hostio_utils");
-        lua_pushcfunction(game->L, l_preload_hostio_utils);
-        lua_settable(game->L, -3);
-        lua_pop(game->L, 2);
+     * script/coro. preload must hold a loader function (require() calls it), not the table. */
+    lua_getglobal(game->L, "package");
+    lua_getfield(game->L, -1, "preload");
+    lua_pushstring(game->L, "hostio_utils");
+    if (luaL_dofile(game->L, LUA_SCRIPTS_DIR "/hostio_utils.lua") != 0) {
+        fprintf(stderr, "hostio_utils.lua: %s\n", lua_tostring(game->L, -1));
+        lua_pop(game->L, 1);
+        assert(0 && "failed to load hostio_utils.lua");
     }
+    lua_pushvalue(game->L, -1);                    /* duplicate module table for upvalue */
+    lua_pushcclosure(game->L, hostio_utils_loader, 1); /* loader that returns that table */
+    lua_remove(game->L, -2);                      /* stack: ..., "hostio_utils", loader */
+    lua_settable(game->L, -3);                     /* preload["hostio_utils"] = loader */
+    lua_pop(game->L, 2);                          /* drop package, preload */
 
-    game->lua_pending_script = "load_scene_dat.lua";
+    script_queue_init(&game->script_queue);
+    {
+        struct ScriptArgs args = {
+            .tag = SCRIPT_LOAD_SCENE_DAT,
+            .u.load_scene_dat = {
+                .wx_sw = 50 * 64,
+                .wz_sw = 50 * 64,
+                .wx_ne = 51 * 64,
+                .wz_ne = 51 * 64,
+                .size_x = 104,
+                .size_z = 104,
+            },
+        };
+        script_queue_push(&game->script_queue, &args);
+    }
 
     return game;
 }

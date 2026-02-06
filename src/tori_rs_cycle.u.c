@@ -6,6 +6,7 @@
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/scenebuilder.h"
+#include "osrs/script_queue.h"
 #include "tori_rs.h"
 
 #include <assert.h>
@@ -14,6 +15,67 @@
 #include <string.h>
 
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
+
+static const char*
+script_path_for_kind(enum ScriptKind kind)
+{
+    switch( kind )
+    {
+    case SCRIPT_LOAD_SCENE_DAT:
+        return "load_scene_dat.lua";
+    default:
+        return NULL;
+    }
+}
+
+/* Load script by path (under LUA_SCRIPTS_DIR if path has no '/'), run chunk in L to get
+ * returned function, move to L_coro, push args for kind + game, resume. Returns lua_resume
+ * status (LUA_OK, LUA_YIELD, or error). Optionally writes result count to nres_out. */
+static int
+start_script_from_item(
+    struct GGame* game,
+    struct ScriptQueueItem* item,
+    int* nres_out)
+{
+    const char* path = script_path_for_kind(item->args.tag);
+    if( !path )
+        return LUA_ERRRUN;
+    char fullpath[512];
+    if( !strchr(path, '/') )
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", LUA_SCRIPTS_DIR, path);
+    else
+        snprintf(fullpath, sizeof(fullpath), "%s", path);
+
+    if( luaL_loadfile(game->L, fullpath) != LUA_OK )
+        return LUA_ERRRUN;
+
+    int nres;
+    int nargs = 0;
+    lua_xmove(game->L, game->L_coro, 1);
+
+    switch( item->args.tag )
+    {
+    case SCRIPT_LOAD_SCENE_DAT:
+    {
+        struct ScriptArgsLoadSceneDat* a = &item->args.u.load_scene_dat;
+        lua_pushinteger(game->L_coro, a->wx_sw);
+        lua_pushinteger(game->L_coro, a->wz_sw);
+        lua_pushinteger(game->L_coro, a->wx_ne);
+        lua_pushinteger(game->L_coro, a->wz_ne);
+        lua_pushinteger(game->L_coro, a->size_x);
+        lua_pushinteger(game->L_coro, a->size_z);
+        nargs = 6;
+        break;
+    }
+    default:
+        return LUA_ERRRUN;
+    }
+
+    int ret = lua_resume(game->L_coro, game->L, nargs, &nres);
+    if( nres_out )
+        *nres_out = nres;
+    return ret;
+}
 
 static struct SceneAnimation*
 load_model_animations_dati(
@@ -523,42 +585,26 @@ LibToriRS_GameStep(
     gameproto_process(game, game->io);
 
     int lua_ret = 0;
-    int nargs = 0;
     int nres = 0;
     int ran_lua = 0;
 
-    if( game->L && game->L_coro && game->lua_pending_script )
+    if( game->L && game->L_coro )
     {
-        const char* path = game->lua_pending_script;
-        char fullpath[512];
-        if( !strchr(path, '/') )
+        if( lua_status(game->L_coro) == LUA_YIELD )
         {
-            snprintf(fullpath, sizeof(fullpath), "%s/%s", LUA_SCRIPTS_DIR, path);
-        }
-        if( luaL_loadfile(game->L, fullpath) != LUA_OK )
-        {
-            // /Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts/load_scene_dat.lua
-            const char* err = lua_tostring(game->L, -1);
-            fprintf(stderr, "Error loading Lua script %s: %s\n", game->lua_pending_script, err);
-            lua_pop(game->L, 1);
-            game->lua_pending_script = NULL;
-        }
-        else
-        {
-            lua_xmove(game->L, game->L_coro, 1);
+            /* Resume current script. */
             lua_pushlightuserdata(game->L_coro, game);
-            nargs = 1;
-            game->lua_pending_script = NULL;
-            lua_ret = lua_resume(game->L_coro, game->L, nargs, &nres);
+            lua_ret = lua_resume(game->L_coro, game->L, 1, &nres);
             ran_lua = 1;
         }
-    }
-    else if( game->L && game->L_coro && lua_status(game->L_coro) == LUA_YIELD )
-    {
-        lua_pushlightuserdata(game->L_coro, game);
-        nargs = 1;
-        lua_ret = lua_resume(game->L_coro, game->L, nargs, &nres);
-        ran_lua = 1;
+        else if( !script_queue_empty(&game->script_queue) )
+        {
+            /* No script running; start one from queue. */
+            struct ScriptQueueItem* item = script_queue_pop(&game->script_queue);
+            game->lua_current_script_item = item;
+            lua_ret = start_script_from_item(game, item, &nres);
+            ran_lua = 1;
+        }
     }
 
     if( ran_lua )
@@ -566,16 +612,42 @@ LibToriRS_GameStep(
         switch( lua_ret )
         {
         case LUA_YIELD:
-            // Exit early, the lua script is running
             return;
         case LUA_OK:
+        {
             lua_pop(game->L_coro, nres);
+            if( game->lua_current_script_item )
+            {
+                script_queue_free_item(game->lua_current_script_item);
+                game->lua_current_script_item = NULL;
+            }
+            /* Attempt to run the next script from queue. */
+            if( game->L && game->L_coro && !script_queue_empty(&game->script_queue) )
+            {
+                struct ScriptQueueItem* next_item = script_queue_pop(&game->script_queue);
+                game->lua_current_script_item = next_item;
+                lua_ret = start_script_from_item(game, next_item, &nres);
+                if( lua_ret == LUA_YIELD )
+                    return;
+                if( lua_ret != LUA_OK )
+                    goto lua_error;
+                lua_pop(game->L_coro, nres);
+                script_queue_free_item(game->lua_current_script_item);
+                game->lua_current_script_item = NULL;
+            }
             break;
+        }
         default:
+        lua_error:
         {
             const char* err = lua_tostring(game->L_coro, -1);
-            fprintf(stderr, "Error in Lua coroutine: %s\n", err);
+            fprintf(stderr, "Error in Lua coroutine: %s\n", err ? err : "unknown");
             lua_pop(game->L_coro, 1);
+            if( game->lua_current_script_item )
+            {
+                script_queue_free_item(game->lua_current_script_item);
+                game->lua_current_script_item = NULL;
+            }
             game->running = false;
             return;
         }

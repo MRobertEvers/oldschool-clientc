@@ -259,7 +259,7 @@ buildcachedat_loader_cache_model(
 }
 
 void
-buildcachedat_loader_load_textures(
+buildcachedat_loader_cache_textures(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game,
     int data_size,
