@@ -583,8 +583,6 @@ step_scripts(struct GGame* game)
 step:;
     if( lua_status(game->L_coro) == LUA_YIELD )
     {
-        /* Resume current script. */
-        lua_pushlightuserdata(game->L_coro, game);
         lua_ret = lua_resume(game->L_coro, game->L, 1, &nres);
         ran_lua = 1;
     }
