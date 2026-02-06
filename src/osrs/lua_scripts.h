@@ -3,10 +3,20 @@
 
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
+#include "osrs/buildcachedat.h"
+#include "osrs/buildcachedat_loader.h"
 #include "osrs/gio.h"
 #include "osrs/gio_assets.h"
 
 #include <stdbool.h>
+
+static int
+l_host_io_init(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    gioq_submit(io, GIO_REQ_INIT, 0, 0, 0);
+    return 0;
+}
 
 static int
 l_host_io_dat_map_scenery_load(lua_State* L)
@@ -105,6 +115,7 @@ l_host_io_read(lua_State* L)
 }
 
 static const luaL_Reg host_io_funcs[] = {
+    { "init",                            l_host_io_init                            },
     { "read",                            l_host_io_read                            },
     { "poll",                            l_host_io_poll                            },
     { "dat_map_scenery_load",            l_host_io_dat_map_scenery_load            },
@@ -131,6 +142,42 @@ register_host_io(
     luaL_setfuncs(L, host_io_funcs, 1);
 
     lua_setglobal(L, "HostIO");
+}
+
+static int
+l_buildcachedat_cache_map_scenery(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int param_a = luaL_checkinteger(L, 1);
+    int param_b = luaL_checkinteger(L, 2);
+    int data_size = luaL_checkinteger(L, 3);
+    void* data = lua_touserdata(L, 4);
+
+    buildcachedat_loader_cache_map_scenery(buildcachedat, param_a, param_b, data_size, data);
+
+    return 0;
+}
+
+static const luaL_Reg buildcachedat_funcs[] = {
+    { "cache_map_scenery", l_buildcachedat_cache_map_scenery },
+    { NULL,                NULL                              }
+};
+
+static void
+register_buildcachedat(
+    lua_State* L,
+    struct BuildCacheDat* buildcachedat)
+{
+    lua_newtable(L);
+
+    // Push your BuildCacheDat pointer onto the stack
+    lua_pushlightuserdata(L, buildcachedat);
+
+    // luaL_setfuncs adds functions in buildcachedat_funcs to the table on top of stack
+    // The '1' tells Lua to associate the 1 lightuserdata as an upvalue for all functions
+    luaL_setfuncs(L, buildcachedat_funcs, 1);
+    lua_setglobal(L, "BuildCacheDat");
 }
 
 #endif

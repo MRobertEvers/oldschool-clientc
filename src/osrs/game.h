@@ -45,6 +45,7 @@ struct GGame
 {
     lua_State* L;
     lua_State* L_coro;
+    const char* lua_pending_script; /* path or name under LUA_SCRIPTS_DIR; run on next cycle */
 
     bool running;
     int at_render_command_index;

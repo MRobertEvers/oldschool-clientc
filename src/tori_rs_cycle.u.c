@@ -1,6 +1,7 @@
 #ifndef TORI_RS_CYCLE_U_C
 #define TORI_RS_CYCLE_U_C
 
+#include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
@@ -8,8 +9,11 @@
 #include "tori_rs.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
 
 static struct SceneAnimation*
 load_model_animations_dati(
@@ -518,16 +522,62 @@ LibToriRS_GameStep(
 
     gameproto_process(game, game->io);
 
-    int lua_yielded = 0;
-    if( game->L && game->L_coro && lua_status(game->L_coro) == LUA_YIELD )
+    int lua_ret = 0;
+    int nargs = 0;
+    int nres = 0;
+    int ran_lua = 0;
+
+    if( game->L && game->L_coro && game->lua_pending_script )
     {
-        int nres = 0;
-        int status = lua_resume(game->L_coro, game->L, 0, &nres);
-        lua_yielded = (status == LUA_YIELD);
+        const char* path = game->lua_pending_script;
+        char fullpath[512];
+        if( !strchr(path, '/') )
+        {
+            snprintf(fullpath, sizeof(fullpath), "%s/%s", LUA_SCRIPTS_DIR, path);
+        }
+        if( luaL_loadfile(game->L, fullpath) != LUA_OK )
+        {
+            // /Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts/load_scene_dat.lua
+            const char* err = lua_tostring(game->L, -1);
+            fprintf(stderr, "Error loading Lua script %s: %s\n", game->lua_pending_script, err);
+            lua_pop(game->L, 1);
+            game->lua_pending_script = NULL;
+        }
+        else
+        {
+            lua_xmove(game->L, game->L_coro, 1);
+            lua_pushlightuserdata(game->L_coro, game);
+            nargs = 1;
+            game->lua_pending_script = NULL;
+            lua_ret = lua_resume(game->L_coro, game->L, nargs, &nres);
+            ran_lua = 1;
+        }
+    }
+    else if( game->L && game->L_coro && lua_status(game->L_coro) == LUA_YIELD )
+    {
+        lua_pushlightuserdata(game->L_coro, game);
+        nargs = 1;
+        lua_ret = lua_resume(game->L_coro, game->L, nargs, &nres);
+        ran_lua = 1;
     }
 
-    if( lua_yielded )
+    if( ran_lua )
+    {
+        if( lua_ret == LUA_YIELD )
+        {
+            return;
+        }
+        if( lua_ret == LUA_OK )
+        {
+            lua_pop(game->L_coro, nres);
+            return;
+        }
+        const char* err = lua_tostring(game->L_coro, -1);
+        fprintf(stderr, "Error in Lua coroutine: %s\n", err);
+        lua_pop(game->L_coro, 1);
+        game->running = false;
         return;
+    }
 
     LibToriRS_GameProcessInput(game, input);
 

@@ -29,9 +29,33 @@ endif()
     # Exclude standalone compiler
     list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c") 
 
+    # Compile osrs/scripts/*.lua into C byte arrays (scripts_gen/*.c) for embedding
+    set(LUA_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/osrs/scripts")
+    set(LUA_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/osrs/scripts_gen")
+    set(LUA_EMBED_HEADER "${LUA_GEN_DIR}/lua_embed.h")
+    file(GLOB LUA_SCRIPT_FILES "${LUA_SCRIPT_DIR}/*.lua")
+    set(LUA_GEN_SOURCES "")
+    foreach(LUA_FILE ${LUA_SCRIPT_FILES})
+        get_filename_component(BASE "${LUA_FILE}" NAME_WE)
+        string(REGEX REPLACE "[^a-zA-Z0-9_]" "_" SAFE "${BASE}")
+        list(APPEND LUA_GEN_SOURCES "${LUA_GEN_DIR}/${SAFE}_lua.c")
+    endforeach()
+    find_package(Python3 REQUIRED)
+    add_custom_command(
+        OUTPUT ${LUA_GEN_SOURCES} ${LUA_EMBED_HEADER}
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/scripts/lua_to_c.py"
+            "${LUA_SCRIPT_DIR}"
+            "${LUA_GEN_DIR}"
+            --header "${LUA_EMBED_HEADER}"
+        DEPENDS ${LUA_SCRIPT_FILES} "${CMAKE_CURRENT_SOURCE_DIR}/scripts/lua_to_c.py"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Compiling Lua scripts to C (osrs/scripts -> scripts_gen)"
+        VERBATIM
+    )
 
     add_executable(osx
         ${LUA_SOURCES}
+        ${LUA_GEN_SOURCES}
         test/osx.cpp
         src/osrs/lclogin.c
         src/osrs/isaac.c
@@ -40,6 +64,7 @@ endif()
         src/bmp.c
         src/server/server.c
         src/osrs/buildcachedat.c
+        src/osrs/buildcachedat_loader.c
         src/osrs/buildcache.c
         src/server/prot.c
         src/datastruct/list.c
