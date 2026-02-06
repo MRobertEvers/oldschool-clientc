@@ -23,6 +23,12 @@ script_path_for_kind(enum ScriptKind kind)
     {
     case SCRIPT_LOAD_SCENE_DAT:
         return "load_scene_dat.lua";
+    case SCRIPT_PKT_NPC_INFO:
+        return "pkt_npc_info.lua";
+    case SCRIPT_PKT_REBUILD_NORMAL:
+        return "pkt_rebuild_normal.lua";
+    case SCRIPT_PKT_PLAYER_INFO:
+        return "pkt_player_info.lua";
     default:
         return NULL;
     }
@@ -65,6 +71,30 @@ start_script_from_item(
         lua_pushinteger(game->L_coro, a->size_x);
         lua_pushinteger(game->L_coro, a->size_z);
         nargs = 6;
+        break;
+    }
+    case SCRIPT_PKT_NPC_INFO:
+    {
+        struct ScriptArgsPktNpcInfo* a = &item->args.u.pkt_npc_info;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        nargs = 2;
+        break;
+    }
+    case SCRIPT_PKT_REBUILD_NORMAL:
+    {
+        struct ScriptArgsPktRebuildNormal* a = &item->args.u.pkt_rebuild_normal;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        nargs = 2;
+        break;
+    }
+    case SCRIPT_PKT_PLAYER_INFO:
+    {
+        struct ScriptArgsPktPlayerInfo* a = &item->args.u.pkt_player_info;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        nargs = 2;
         break;
     }
     default:

@@ -25,7 +25,7 @@
 
 /** Return the module table stored as upvalue (so require("hostio_utils") works). */
 static int
-hostio_utils_loader(lua_State *L)
+hostio_utils_loader(lua_State* L)
 {
     lua_pushvalue(L, lua_upvalueindex(1));
     return 1;
@@ -178,6 +178,7 @@ LibToriRS_GameNew(
 
     register_host_io(game->L, game->io);
     register_buildcachedat(game->L, game->buildcachedat, game);
+    register_gameproto(game->L, game);
 
     luaL_dostring(game->L, "HostIO.init()");
 
@@ -186,16 +187,17 @@ LibToriRS_GameNew(
     lua_getglobal(game->L, "package");
     lua_getfield(game->L, -1, "preload");
     lua_pushstring(game->L, "hostio_utils");
-    if (luaL_dofile(game->L, LUA_SCRIPTS_DIR "/hostio_utils.lua") != 0) {
+    if( luaL_dofile(game->L, LUA_SCRIPTS_DIR "/hostio_utils.lua") != 0 )
+    {
         fprintf(stderr, "hostio_utils.lua: %s\n", lua_tostring(game->L, -1));
         lua_pop(game->L, 1);
         assert(0 && "failed to load hostio_utils.lua");
     }
-    lua_pushvalue(game->L, -1);                    /* duplicate module table for upvalue */
+    lua_pushvalue(game->L, -1);                        /* duplicate module table for upvalue */
     lua_pushcclosure(game->L, hostio_utils_loader, 1); /* loader that returns that table */
-    lua_remove(game->L, -2);                      /* stack: ..., "hostio_utils", loader */
-    lua_settable(game->L, -3);                     /* preload["hostio_utils"] = loader */
-    lua_pop(game->L, 2);                          /* drop package, preload */
+    lua_remove(game->L, -2);                           /* stack: ..., "hostio_utils", loader */
+    lua_settable(game->L, -3);                         /* preload["hostio_utils"] = loader */
+    lua_pop(game->L, 2);                               /* drop package, preload */
 
     script_queue_init(&game->script_queue);
     {

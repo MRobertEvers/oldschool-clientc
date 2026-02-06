@@ -5,6 +5,9 @@
 enum ScriptKind
 {
     SCRIPT_LOAD_SCENE_DAT,
+    SCRIPT_PKT_NPC_INFO,
+    SCRIPT_PKT_REBUILD_NORMAL,
+    SCRIPT_PKT_PLAYER_INFO,
     SCRIPT_COUNT
 };
 
@@ -19,6 +22,25 @@ struct ScriptArgsLoadSceneDat
     int size_z;
 };
 
+/* Args for pkt_npc_info: item = RevPacket_LC245_2_Item*, io = GIOQueue* */
+struct ScriptArgsPktNpcInfo
+{
+    void* item;
+    void* io;
+};
+
+/* Args for pkt_rebuild_normal / pkt_player_info: same as pkt_npc_info */
+struct ScriptArgsPktRebuildNormal
+{
+    void* item;
+    void* io;
+};
+struct ScriptArgsPktPlayerInfo
+{
+    void* item;
+    void* io;
+};
+
 /* Tagged union of all script argument structs (one member per runnable script). */
 struct ScriptArgs
 {
@@ -26,6 +48,9 @@ struct ScriptArgs
     union
     {
         struct ScriptArgsLoadSceneDat load_scene_dat;
+        struct ScriptArgsPktNpcInfo pkt_npc_info;
+        struct ScriptArgsPktRebuildNormal pkt_rebuild_normal;
+        struct ScriptArgsPktPlayerInfo pkt_player_info;
     } u;
 };
 

@@ -422,6 +422,14 @@ add_npc_info(
     }
 }
 
+void
+gameproto_exec_npc_info(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    add_npc_info(game, packet);
+}
+
 static struct PktPlayerInfoReader player_info_reader = { 0 };
 
 static void
@@ -672,6 +680,45 @@ add_player_info(
 }
 
 void
+gameproto_exec_rebuild_normal(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+#define SCENE_WIDTH 104
+    int zone_padding = SCENE_WIDTH / (2 * 8);
+    int zone_sw_x = packet->_map_rebuild.zonex - zone_padding;
+    int zone_sw_z = packet->_map_rebuild.zonez - zone_padding;
+    int zone_ne_x = packet->_map_rebuild.zonex + zone_padding;
+    int zone_ne_z = packet->_map_rebuild.zonez + zone_padding;
+
+    int levels = MAP_TERRAIN_LEVELS;
+
+    game->sys_painter = painter_new(SCENE_WIDTH, SCENE_WIDTH, levels);
+    game->sys_painter_buffer = painter_buffer_new();
+    game->sys_minimap = minimap_new(
+        zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104, levels);
+    game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
+
+    game->scene = scenebuilder_load_from_buildcachedat(
+        game->scenebuilder,
+        zone_sw_x * 8,
+        zone_sw_z * 8,
+        zone_ne_x * 8,
+        zone_ne_z * 8,
+        104,
+        104,
+        game->buildcachedat);
+}
+
+void
+gameproto_exec_player_info(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    add_player_info(game, packet);
+}
+
+void
 gameproto_exec_lc245_2(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
@@ -679,56 +726,16 @@ gameproto_exec_lc245_2(
     switch( packet->packet_type )
     {
     case PKTIN_LC245_2_REBUILD_NORMAL:
-    {
-#define SCENE_WIDTH 104
-        int zone_padding = SCENE_WIDTH / (2 * 8);
-        int zone_sw_x = packet->_map_rebuild.zonex - zone_padding;
-        int zone_sw_z = packet->_map_rebuild.zonez - zone_padding;
-        int zone_ne_x = packet->_map_rebuild.zonex + zone_padding;
-        int zone_ne_z = packet->_map_rebuild.zonez + zone_padding;
-
-        int map_sw_x = (zone_sw_x) / 8;
-        int map_sw_z = (zone_sw_z) / 8;
-        int map_ne_x = (zone_ne_x) / 8;
-        int map_ne_z = (zone_ne_z) / 8;
-
-        // this.sceneBaseTileX = (this.sceneCenterZoneX - 6) * 8;
-        // this.sceneBaseTileZ = (this.sceneCenterZoneZ - 6) * 8;
-        // const offsetx: number = (this.sceneMapIndex[i] >> 8) * 64 - this.sceneBaseTileX;
-        // const offsetz: number = (this.sceneMapIndex[i] & 0xff) * 64 - this.sceneBaseTileZ;
-
-        int base_tile_x = (packet->_map_rebuild.zonex - 6) * 8;
-        int base_tile_z = (packet->_map_rebuild.zonez - 6) * 8;
-
-        int levels = MAP_TERRAIN_LEVELS;
-
-        game->sys_painter = painter_new(SCENE_WIDTH, SCENE_WIDTH, levels);
-        game->sys_painter_buffer = painter_buffer_new();
-        game->sys_minimap = minimap_new(
-            zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104, levels);
-        game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
-
-        game->scene = scenebuilder_load_from_buildcachedat(
-            game->scenebuilder,
-            zone_sw_x * 8,
-            zone_sw_z * 8,
-            zone_ne_x * 8,
-            zone_ne_z * 8,
-            104,
-            104,
-            game->buildcachedat);
-    }
-    break;
+        gameproto_exec_rebuild_normal(game, packet);
+        break;
     case PKTIN_LC245_2_NPC_INFO:
     {
         add_npc_info(game, packet);
     }
     break;
     case PKTIN_LC245_2_PLAYER_INFO:
-    {
-        add_player_info(game, packet);
-    }
-    break;
+        gameproto_exec_player_info(game, packet);
+        break;
     default:
         break;
     }

@@ -7,6 +7,7 @@
 #include "jbase37.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/maps.h"
+#include "osrs/script_queue.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
 #include "query_engine.h"
@@ -194,105 +195,30 @@ gameproto_process(
         {
         case PKTIN_LC245_2_REBUILD_NORMAL:
         {
-            int regions[20] = { 0 };
-
-            int zone_padding = 104 / (2 * 8);
-            int map_sw_x = (item->packet._map_rebuild.zonex - zone_padding) / 8;
-            int map_sw_z = (item->packet._map_rebuild.zonez - zone_padding) / 8;
-            int map_ne_x = (item->packet._map_rebuild.zonex + zone_padding) / 8;
-            int map_ne_z = (item->packet._map_rebuild.zonez + zone_padding) / 8;
-
-            int index = 0;
-            for( int x = map_sw_x; x <= map_ne_x; x++ )
-            {
-                for( int z = map_sw_z; z <= map_ne_z; z++ )
-                {
-                    regions[index] = MAPREGIONXZ(x, z);
-                    index++;
-                }
-            }
-
-            struct QEQuery* q = query_engine_qnew();
-            query_engine_qpush_op(q, QEDAT_DT_MAPS_SCENERY, QE_FN_0, QE_STORE_SET_0);
-            query_engine_qpush_argx(q, regions, index);
-            query_engine_qpush_op(q, QEDAT_DT_CONFIG_LOCIDS, QE_FN_FROM_0, QE_STORE_DISCARD);
-            query_engine_qpush_op(q, QEDAT_DT_MODELS, QE_FN_FROM_0, QE_STORE_DISCARD);
-            query_engine_qpush_op(q, QEDAT_DT_MAPS_TERRAIN, QE_FN_0, QE_STORE_DISCARD);
-            query_engine_qpush_argx(q, regions, index);
-
-            gametask_new_query(game, q);
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_REBUILD_NORMAL,
+                .u.pkt_rebuild_normal = { .item = item, .io = io },
+            };
+            script_queue_push(&game->script_queue, &args);
+            goto skip_append;
         }
-        break;
         case PKTIN_LC245_2_PLAYER_INFO:
         {
-            struct BitBuffer buf;
-            struct RSBuffer rsbuf;
-            rsbuf_init(&rsbuf, item->packet._player_info.data, item->packet._player_info.length);
-            bitbuffer_init_from_rsbuf(&buf, &rsbuf);
-            bits(&buf);
-
-            struct PktPlayerInfoReader reader;
-            reader.extended_count = 0;
-            reader.current_op = 0;
-            reader.max_ops = 2048;
-
-            struct PktPlayerInfoOp ops[2048];
-            int count = pkt_player_info_reader_read(&reader, &item->packet._player_info, ops, 2048);
-            for( int i = 0; i < count; i++ )
-            {
-                struct PktPlayerInfoOp* op = &ops[i];
-                switch( op->kind )
-                {
-                case PKT_PLAYER_INFO_OP_APPEARANCE:
-                {
-                    struct PlayerAppearance appearance;
-                    player_appearance_decode(
-                        &appearance, op->_appearance.appearance, op->_appearance.len);
-                    process_appearance(game, appearance.appearance);
-                }
-                break;
-                }
-            }
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_PLAYER_INFO,
+                .u.pkt_player_info = { .item = item, .io = io },
+            };
+            script_queue_push(&game->script_queue, &args);
+            goto skip_append;
         }
-        break;
         case PKTIN_LC245_2_NPC_INFO:
         {
-            struct BitBuffer buf;
-            struct RSBuffer rsbuf;
-            rsbuf_init(&rsbuf, item->packet._npc_info.data, item->packet._npc_info.length);
-            bitbuffer_init_from_rsbuf(&buf, &rsbuf);
-            bits(&buf);
-
-            struct PktNpcInfoReader reader = { 0 };
-            reader.extended_count = 0;
-            reader.current_op = 0;
-            reader.max_ops = 2048;
-
-            struct PktNpcInfoOp ops[2048];
-            int npc_ids[2048];
-            int npc_ids_count = 0;
-            int count = pkt_npc_info_reader_read(&reader, &item->packet._npc_info, ops, 2048);
-
-            for( int i = 0; i < count; i++ )
-            {
-                struct PktNpcInfoOp* op = &ops[i];
-                switch( op->kind )
-                {
-                case PKT_NPC_INFO_OPBITS_NPCTYPE:
-                {
-                    int npc_type = op->_bitvalue;
-                    npc_ids[npc_ids_count++] = npc_type;
-                }
-                break;
-                }
-            }
-
-            struct QEQuery* q = query_engine_qnew();
-            query_engine_qpush_op(q, QEDAT_DT_CONFIG_NPCS, QE_FN_0, QE_STORE_SET_0);
-            query_engine_qpush_argx(q, npc_ids, npc_ids_count);
-            query_engine_qpush_op(q, QEDAT_DT_MODELS, QE_FN_FROM_0, QE_STORE_DISCARD);
-            gametask_new_query(game, q);
-            break;
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_NPC_INFO,
+                .u.pkt_npc_info = { .item = item, .io = io },
+            };
+            script_queue_push(&game->script_queue, &args);
+            goto skip_append;
         }
         default:
             break;
@@ -309,14 +235,10 @@ gameproto_process(
         else
         {
             struct RevPacket_LC245_2_Item* list = game->packets_lc245_2_inflight;
-            int count = 0;
             while( list->next_nullable )
-            {
-                count++;
                 list = list->next_nullable;
-            }
-            printf("Adding to count Count: %d\n", count);
             list->next_nullable = item;
         }
+skip_append:;
     }
 }

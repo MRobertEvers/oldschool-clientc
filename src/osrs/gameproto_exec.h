@@ -10,4 +10,19 @@ gameproto_exec_lc245_2(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
+void
+gameproto_exec_npc_info(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_rebuild_normal(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_player_info(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
 #endif

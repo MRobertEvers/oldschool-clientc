@@ -5,8 +5,14 @@
 #include "3rd/lua/lua.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/game.h"
+#include "osrs/gameproto_exec.h"
 #include "osrs/gio.h"
 #include "osrs/gio_assets.h"
+#include "datatypes/appearances.h"
+#include "datatypes/player_appearance.h"
+#include "packets/pkt_npc_info.h"
+#include "packets/pkt_player_info.h"
 
 #include <stdbool.h>
 
@@ -319,6 +325,83 @@ l_buildcachedat_get_scenery_model_ids(lua_State* L)
 }
 
 static int
+l_buildcachedat_get_npc_model_ids(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int npc_id = luaL_checkinteger(L, 1);
+
+    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
+    lua_newtable(L);
+    if( !npc || !npc->models )
+        return 1;
+    for( int i = 0; i < npc->models_count; i++ )
+    {
+        lua_pushinteger(L, npc->models[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+static int
+l_buildcachedat_get_idk_model_ids(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int idk_id = luaL_checkinteger(L, 1);
+
+    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+    lua_newtable(L);
+    if( !idk || !idk->models )
+        return 1;
+    for( int i = 0; i < idk->models_count; i++ )
+    {
+        lua_pushinteger(L, idk->models[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+static int
+l_buildcachedat_get_obj_model_ids(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int obj_id = luaL_checkinteger(L, 1);
+
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    lua_newtable(L);
+    if( !obj )
+        return 1;
+    int idx = 0;
+    if( obj->model != -1 )
+    {
+        idx++;
+        lua_pushinteger(L, obj->model);
+        lua_rawseti(L, -2, idx);
+    }
+    if( obj->manwear != -1 )
+    {
+        idx++;
+        lua_pushinteger(L, obj->manwear);
+        lua_rawseti(L, -2, idx);
+    }
+    if( obj->manwear2 != -1 )
+    {
+        idx++;
+        lua_pushinteger(L, obj->manwear2);
+        lua_rawseti(L, -2, idx);
+    }
+    if( obj->manwear3 != -1 )
+    {
+        idx++;
+        lua_pushinteger(L, obj->manwear3);
+        lua_rawseti(L, -2, idx);
+    }
+    return 1;
+}
+
+static int
 l_buildcachedat_cache_model(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
@@ -462,6 +545,9 @@ static const luaL_Reg buildcachedat_funcs[] = {
      l_buildcachedat_init_scenery_configs_from_config_jagfile                                                  },
     { "get_all_scenery_locs",                              l_buildcachedat_get_all_scenery_locs                },
     { "get_scenery_model_ids",                             l_buildcachedat_get_scenery_model_ids               },
+    { "get_npc_model_ids",                                 l_buildcachedat_get_npc_model_ids                   },
+    { "get_idk_model_ids",                                 l_buildcachedat_get_idk_model_ids                   },
+    { "get_obj_model_ids",                                 l_buildcachedat_get_obj_model_ids                   },
     { "cache_model",                                       l_buildcachedat_cache_model                         },
     { "cache_textures",                                    l_buildcachedat_cache_textures                      },
     { "init_sequences_from_config_jagfile",                l_buildcachedat_init_sequences_from_config_jagfile  },
@@ -492,6 +578,146 @@ register_buildcachedat(
     // The '2' tells Lua to associate the 2 lightuserdata as upvalues for all functions
     luaL_setfuncs(L, buildcachedat_funcs, 2);
     lua_setglobal(L, "BuildCacheDat");
+}
+
+static int
+l_gameproto_get_npc_ids_from_packet(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    (void)game;
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    static struct PktNpcInfoReader reader;
+    reader.extended_count = 0;
+    reader.current_op = 0;
+    reader.max_ops = 2048;
+    struct PktNpcInfoOp ops[2048];
+    int count = pkt_npc_info_reader_read(&reader, &item->packet._npc_info, ops, 2048);
+
+    lua_newtable(L);
+    int idx = 0;
+    for( int i = 0; i < count; i++ )
+    {
+        if( ops[i].kind == PKT_NPC_INFO_OPBITS_NPCTYPE )
+        {
+            idx++;
+            lua_pushinteger(L, ops[i]._bitvalue);
+            lua_rawseti(L, -2, idx);
+        }
+    }
+    return 1;
+}
+
+static int
+l_gameproto_exec_npc_info(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    gameproto_exec_npc_info(game, &item->packet);
+    return 0;
+}
+
+static int
+l_gameproto_get_rebuild_bounds(lua_State* L)
+{
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    lua_pushinteger(L, item->packet._map_rebuild.zonex);
+    lua_pushinteger(L, item->packet._map_rebuild.zonez);
+    return 2;
+}
+
+static int
+l_gameproto_exec_rebuild(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    gameproto_exec_rebuild_normal(game, &item->packet);
+    return 0;
+}
+
+static int
+l_gameproto_get_player_appearance_ids(lua_State* L)
+{
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    static struct PktPlayerInfoReader reader;
+    reader.extended_count = 0;
+    reader.current_op = 0;
+    reader.max_ops = 2048;
+    struct PktPlayerInfoOp ops[2048];
+    int count = pkt_player_info_reader_read(&reader, &item->packet._player_info, ops, 2048);
+
+    lua_newtable(L); /* idk_ids */
+    lua_newtable(L); /* obj_ids */
+    int idk_idx = 0;
+    int obj_idx = 0;
+
+    for( int i = 0; i < count; i++ )
+    {
+        if( ops[i].kind != PKT_PLAYER_INFO_OP_APPEARANCE )
+            continue;
+        struct PlayerAppearance appearance;
+        player_appearance_decode(
+            &appearance,
+            ops[i]._appearance.appearance,
+            ops[i]._appearance.len);
+        struct AppearanceOp op;
+        for( int slot = 0; slot < 12; slot++ )
+        {
+            appearances_decode(&op, appearance.appearance, slot);
+            if( op.kind == APPEARANCE_KIND_IDK )
+            {
+                idk_idx++;
+                lua_pushinteger(L, op.id);
+                lua_rawseti(L, -3, idk_idx);
+            }
+            else if( op.kind == APPEARANCE_KIND_OBJ )
+            {
+                obj_idx++;
+                lua_pushinteger(L, op.id);
+                lua_rawseti(L, -2, obj_idx);
+            }
+        }
+    }
+    return 2;
+}
+
+static int
+l_gameproto_exec_player_info(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    gameproto_exec_player_info(game, &item->packet);
+    return 0;
+}
+
+static const luaL_Reg gameproto_funcs[] = {
+    { "get_npc_ids_from_packet",    l_gameproto_get_npc_ids_from_packet    },
+    { "exec_npc_info",              l_gameproto_exec_npc_info              },
+    { "get_rebuild_bounds",         l_gameproto_get_rebuild_bounds         },
+    { "exec_rebuild",               l_gameproto_exec_rebuild              },
+    { "get_player_appearance_ids",  l_gameproto_get_player_appearance_ids  },
+    { "exec_player_info",           l_gameproto_exec_player_info           },
+    { NULL,                         NULL                                   }
+};
+
+static void
+register_gameproto(lua_State* L, struct GGame* game)
+{
+    lua_newtable(L);
+    lua_pushlightuserdata(L, game);
+    luaL_setfuncs(L, gameproto_funcs, 1);
+    lua_setglobal(L, "GameProto");
 }
 
 #endif
