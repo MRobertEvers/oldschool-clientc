@@ -1,7 +1,6 @@
 #ifndef GAMEPROTO_PACKETS_U_C
 #define GAMEPROTO_PACKETS_U_C
 
-#include "osrs/gametask.h"
 #include "packetin.h"
 #include "rscache/rsbuf.h"
 

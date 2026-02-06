@@ -21,7 +21,7 @@ gameproto_process(
                 .u.pkt_rebuild_normal = { .item = item, .io = io },
             };
             script_queue_push(&game->script_queue, &args);
-            goto skip_append;
+            break;
         }
         case PKTIN_LC245_2_PLAYER_INFO:
         {
@@ -30,7 +30,7 @@ gameproto_process(
                 .u.pkt_player_info = { .item = item, .io = io },
             };
             script_queue_push(&game->script_queue, &args);
-            goto skip_append;
+            break;
         }
         case PKTIN_LC245_2_NPC_INFO:
         {
@@ -39,14 +39,10 @@ gameproto_process(
                 .u.pkt_npc_info = { .item = item, .io = io },
             };
             script_queue_push(&game->script_queue, &args);
-            goto skip_append;
+            break;
         }
         default:
             break;
         }
-
-        gametask_new_packet(game, io, item);
-
-skip_append:;
     }
 }

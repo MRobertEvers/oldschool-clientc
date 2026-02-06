@@ -2,7 +2,6 @@
 #define GAMEPROTO_PROCESS_H
 
 #include "game.h"
-#include "gametask_status.h"
 #include "gio.h"
 
 void

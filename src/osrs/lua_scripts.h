@@ -3,12 +3,33 @@
 
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
+#include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/cache_utils.h"
+#include "osrs/configmap.h"
 #include "osrs/game.h"
 #include "osrs/gameproto_exec.h"
 #include "osrs/gio.h"
 #include "osrs/gio_assets.h"
+#include "osrs/painters.h"
+#include "osrs/rscache/tables/frame.h"
+#include "osrs/rscache/tables/framemap.h"
+#include "osrs/rscache/tables/maps.h"
+#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/tables/sprites.h"
+#include "osrs/scenebuilder.h"
+#include "osrs/texture.h"
+#include "graphics/dash.h"
+#include "graphics/dashmap.h"
+#include "osrs/minimap.h"
+#include "osrs/rscache/filelist.h"
+#include "osrs/rscache/tables/config_floortype.h"
+#include "osrs/rscache/tables/config_locs.h"
+#include "osrs/rscache/tables/config_sequence.h"
+#include "osrs/rscache/tables/textures.h"
+#include <stdlib.h>
+#include <string.h>
 #include "datatypes/appearances.h"
 #include "datatypes/player_appearance.h"
 #include "packets/pkt_npc_info.h"
@@ -124,6 +145,104 @@ l_host_io_dat_config_title_load(lua_State* L)
     return 1;
 }
 
+/* Asset loaders for BuildCache path (non-Dat; same as task_init_scene) */
+static int
+l_host_io_asset_map_scenery_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int chunk_x = luaL_checkinteger(L, 1);
+    int chunk_z = luaL_checkinteger(L, 2);
+    int req_id = gio_assets_map_scenery_load(io, chunk_x, chunk_z);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_config_scenery_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int req_id = gio_assets_config_scenery_load(io);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_model_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int model_id = luaL_checkinteger(L, 1);
+    int req_id = gio_assets_model_load(io, model_id);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_map_terrain_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int chunk_x = luaL_checkinteger(L, 1);
+    int chunk_z = luaL_checkinteger(L, 2);
+    int req_id = gio_assets_map_terrain_load(io, chunk_x, chunk_z);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_config_underlay_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int req_id = gio_assets_config_underlay_load(io);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_config_overlay_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int req_id = gio_assets_config_overlay_load(io);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_texture_definitions_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int req_id = gio_assets_texture_definitions_load(io);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_spritepack_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int spritepack_id = luaL_checkinteger(L, 1);
+    int req_id = gio_assets_spritepack_load(io, spritepack_id);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_config_sequences_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int req_id = gio_assets_config_sequences_load(io);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_animation_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int frame_archive_id = luaL_checkinteger(L, 1);
+    int req_id = gio_assets_animation_load(io, frame_archive_id);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+static int
+l_host_io_asset_framemap_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int framemap_id = luaL_checkinteger(L, 1);
+    int req_id = gio_assets_framemap_load(io, framemap_id);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+
 static int
 l_host_io_poll(lua_State* L)
 {
@@ -170,6 +289,17 @@ static const luaL_Reg host_io_funcs[] = {
     { "dat_config_version_list_load",    l_host_io_dat_config_version_list_load    },
     { "dat_config_media_load",           l_host_io_dat_config_media_load           },
     { "dat_config_title_load",           l_host_io_dat_config_title_load           },
+    { "asset_map_scenery_load",          l_host_io_asset_map_scenery_load          },
+    { "asset_config_scenery_load",      l_host_io_asset_config_scenery_load        },
+    { "asset_model_load",                l_host_io_asset_model_load                },
+    { "asset_map_terrain_load",          l_host_io_asset_map_terrain_load          },
+    { "asset_config_underlay_load",      l_host_io_asset_config_underlay_load      },
+    { "asset_config_overlay_load",       l_host_io_asset_config_overlay_load       },
+    { "asset_texture_definitions_load",   l_host_io_asset_texture_definitions_load  },
+    { "asset_spritepack_load",           l_host_io_asset_spritepack_load            },
+    { "asset_config_sequences_load",     l_host_io_asset_config_sequences_load      },
+    { "asset_animation_load",             l_host_io_asset_animation_load             },
+    { "asset_framemap_load",             l_host_io_asset_framemap_load               },
     { NULL,                              NULL                                      }
 };
 
@@ -578,6 +708,671 @@ register_buildcachedat(
     // The '2' tells Lua to associate the 2 lightuserdata as upvalues for all functions
     luaL_setfuncs(L, buildcachedat_funcs, 2);
     lua_setglobal(L, "BuildCacheDat");
+}
+
+/* BuildCache (game->buildcache) API for init_scene.lua - same flow as task_init_scene.c */
+#define LUA_BUILDCACHE_MAX_IDS 2048
+
+static void
+lua_buildcache_free_init_configmaps(struct GGame* game)
+{
+    if( game->init_scenery_configmap )
+    {
+        configmap_free(game->init_scenery_configmap);
+        game->init_scenery_configmap = NULL;
+    }
+    if( game->init_texture_definitions_configmap )
+    {
+        configmap_free(game->init_texture_definitions_configmap);
+        game->init_texture_definitions_configmap = NULL;
+    }
+    if( game->init_sequences_configmap )
+    {
+        configmap_free(game->init_sequences_configmap);
+        game->init_sequences_configmap = NULL;
+    }
+}
+
+static int
+l_buildcache_ensure(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int map_sw_x = luaL_checkinteger(L, 1);
+    int map_sw_z = luaL_checkinteger(L, 2);
+    int map_ne_x = luaL_checkinteger(L, 3);
+    int map_ne_z = luaL_checkinteger(L, 4);
+
+    if( !game->buildcache )
+        game->buildcache = buildcache_new();
+
+    int chunks_w = (map_ne_x - map_sw_x + 1);
+    int chunks_h = (map_ne_z - map_sw_z + 1);
+    if( !game->sys_painter )
+    {
+        game->sys_painter = painter_new(chunks_w * 64, chunks_h * 64, MAP_TERRAIN_LEVELS);
+        game->sys_painter_buffer = painter_buffer_new();
+    }
+    if( !game->sys_minimap )
+    {
+        game->sys_minimap = minimap_new(
+            map_sw_x * 64, map_sw_z * 64,
+            (map_ne_x + 1) * 64, (map_ne_z + 1) * 64,
+            MAP_TERRAIN_LEVELS);
+    }
+    if( !game->scenebuilder )
+        game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
+
+    lua_buildcache_free_init_configmaps(game);
+    return 0;
+}
+
+static int
+l_buildcache_add_map_scenery(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int mapx = luaL_checkinteger(L, 1);
+    int mapz = luaL_checkinteger(L, 2);
+    (void)luaL_checkinteger(L, 3); /* param_b unused; mapx/mapz passed explicitly */
+    int data_size = luaL_checkinteger(L, 4);
+    void* data = lua_touserdata(L, 5);
+
+    struct CacheMapLocs* locs = map_locs_new_from_decode(data, data_size);
+    locs->_chunk_mapx = mapx;
+    locs->_chunk_mapz = mapz;
+    buildcache_add_map_scenery(game->buildcache, mapx, mapz, locs);
+    return 0;
+}
+
+static int
+l_buildcache_get_scenery_ids(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int seen[LUA_BUILDCACHE_MAX_IDS];
+    int nseen = 0;
+    memset(seen, 0, sizeof(seen));
+
+    struct DashMapIter* iter = buildcache_iter_new_map_scenery(game->buildcache);
+    int mapx = 0, mapz = 0;
+    struct CacheMapLocs* locs = NULL;
+    while( (locs = buildcache_iter_next_map_scenery(iter, &mapx, &mapz)) )
+    {
+        for( int i = 0; i < locs->locs_count; i++ )
+        {
+            int id = locs->locs[i].loc_id;
+            int j = 0;
+            for( ; j < nseen && seen[j] != id; j++ )
+                ;
+            if( j == nseen && nseen < LUA_BUILDCACHE_MAX_IDS )
+                seen[nseen++] = id;
+        }
+    }
+    buildcache_iter_free_map_scenery(iter);
+
+    lua_createtable(L, nseen, 0);
+    for( int i = 0; i < nseen; i++ )
+    {
+        lua_pushinteger(L, seen[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+static int
+l_buildcache_add_config_scenery(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int data_size = luaL_checkinteger(L, 1);
+    void* data = lua_touserdata(L, 2);
+    luaL_checktype(L, 3, LUA_TTABLE);
+    int ids_size = (int)lua_rawlen(L, 3);
+    int ids[LUA_BUILDCACHE_MAX_IDS];
+    if( ids_size > LUA_BUILDCACHE_MAX_IDS )
+        ids_size = LUA_BUILDCACHE_MAX_IDS;
+    for( int i = 0; i < ids_size; i++ )
+    {
+        lua_rawgeti(L, 3, i + 1);
+        ids[i] = (int)lua_tointeger(L, -1);
+        lua_pop(L, 1);
+    }
+
+    if( game->init_scenery_configmap )
+        configmap_free(game->init_scenery_configmap);
+    game->init_scenery_configmap = configmap_new_from_filepack(data, data_size, ids, ids_size);
+    int id = 0;
+    struct DashMapIter* iter = dashmap_iter_new(game->init_scenery_configmap);
+    struct CacheConfigLocation* config_loc = NULL;
+    while( (config_loc = (struct CacheConfigLocation*)configmap_iter_next(iter, &id)) )
+    {
+        buildcache_add_config_location(game->buildcache, id, config_loc);
+    }
+    dashmap_iter_free(iter);
+    return 0;
+}
+
+static int
+l_buildcache_get_queued_models_and_sequences(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int models[LUA_BUILDCACHE_MAX_IDS], sequences[LUA_BUILDCACHE_MAX_IDS];
+    int nmodels = 0, nseq = 0;
+    memset(models, 0, sizeof(models));
+    memset(sequences, 0, sizeof(sequences));
+
+    struct DashMapIter* iter = buildcache_iter_new_map_scenery(game->buildcache);
+    int mapx = 0, mapz = 0;
+    struct CacheMapLocs* locs = NULL;
+    while( (locs = buildcache_iter_next_map_scenery(iter, &mapx, &mapz)) )
+    {
+        for( int i = 0; i < locs->locs_count; i++ )
+        {
+            struct CacheConfigLocation* config_loc = configmap_get(game->init_scenery_configmap, locs->locs[i].loc_id);
+            if( !config_loc )
+                continue;
+            if( config_loc->seq_id > 0 )
+            {
+                int sid = config_loc->seq_id;
+                int j = 0;
+                for( ; j < nseq && sequences[j] != sid; j++ )
+                    ;
+                if( j == nseq && nseq < LUA_BUILDCACHE_MAX_IDS )
+                    sequences[nseq++] = sid;
+            }
+            int* shapes = config_loc->shapes;
+            int** model_id_sets = config_loc->models;
+            int* lengths = config_loc->lengths;
+            int shapes_and_model_count = config_loc->shapes_and_model_count;
+            if( !model_id_sets )
+                continue;
+            if( !shapes )
+            {
+                int count = lengths[0];
+                for( int k = 0; k < count && nmodels < LUA_BUILDCACHE_MAX_IDS; k++ )
+                {
+                    int mid = model_id_sets[0][k];
+                    if( !mid )
+                continue;
+                    int j = 0;
+                    for( ; j < nmodels && models[j] != mid; j++ )
+                        ;
+                    if( j == nmodels )
+                        models[nmodels++] = mid;
+                }
+            }
+            else
+            {
+                for( int k = 0; k < shapes_and_model_count && nmodels < LUA_BUILDCACHE_MAX_IDS; k++ )
+                {
+                    int count_inner = lengths[k];
+                    for( int j = 0; j < count_inner; j++ )
+                    {
+                        int mid = model_id_sets[k][j];
+                        if( !mid )
+                            continue;
+                        int jj = 0;
+                        for( ; jj < nmodels && models[jj] != mid; jj++ )
+                            ;
+                        if( jj == nmodels )
+                            models[nmodels++] = mid;
+                    }
+                }
+            }
+        }
+    }
+    buildcache_iter_free_map_scenery(iter);
+
+    lua_createtable(L, 0, 2);
+    lua_createtable(L, nmodels, 0);
+    for( int i = 0; i < nmodels; i++ )
+    {
+        lua_pushinteger(L, models[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "models");
+    lua_createtable(L, nseq, 0);
+    for( int i = 0; i < nseq; i++ )
+    {
+        lua_pushinteger(L, sequences[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "sequences");
+    return 1;
+}
+
+static int
+l_buildcache_add_model(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int model_id = luaL_checkinteger(L, 1);
+    int data_size = luaL_checkinteger(L, 2);
+    void* data = lua_touserdata(L, 3);
+    struct CacheModel* model = model_new_decode(data, data_size);
+    buildcache_add_model(game->buildcache, model_id, model);
+    return 0;
+}
+
+static int
+l_buildcache_add_map_terrain(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int mapx = luaL_checkinteger(L, 1);
+    int mapz = luaL_checkinteger(L, 2);
+    int data_size = luaL_checkinteger(L, 3);
+    void* data = lua_touserdata(L, 4);
+    struct CacheMapTerrain* terrain = map_terrain_new_from_decode(data, data_size, mapx, mapz);
+    buildcache_add_map_terrain(game->buildcache, mapx, mapz, terrain);
+    return 0;
+}
+
+static int
+l_buildcache_add_config_underlay(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int data_size = luaL_checkinteger(L, 1);
+    void* data = lua_touserdata(L, 2);
+    struct DashMap* configmap = configmap_new_from_filepack(data, data_size, NULL, 0);
+    struct DashMapIter* iter = dashmap_iter_new(configmap);
+    int id = 0;
+    struct CacheConfigUnderlay* underlay = NULL;
+    while( (underlay = (struct CacheConfigUnderlay*)configmap_iter_next(iter, &id)) )
+    {
+        buildcache_add_config_underlay(game->buildcache, id, underlay);
+    }
+    dashmap_iter_free(iter);
+    configmap_free(configmap);
+    return 0;
+}
+
+static int
+l_buildcache_add_config_overlay(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int data_size = luaL_checkinteger(L, 1);
+    void* data = lua_touserdata(L, 2);
+    struct DashMap* configmap = configmap_new_from_filepack(data, data_size, NULL, 0);
+    struct DashMapIter* iter = dashmap_iter_new(configmap);
+    int id = 0;
+    struct CacheConfigOverlay* overlay = NULL;
+    while( (overlay = (struct CacheConfigOverlay*)configmap_iter_next(iter, &id)) )
+    {
+        buildcache_add_config_overlay(game->buildcache, id, overlay);
+    }
+    dashmap_iter_free(iter);
+    configmap_free(configmap);
+    return 0;
+}
+
+static int
+l_buildcache_get_queued_texture_ids(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int ids[LUA_BUILDCACHE_MAX_IDS];
+    int n = 0;
+    memset(ids, 0, sizeof(ids));
+
+    struct CacheConfigOverlay* config_overlay = NULL;
+    struct DashMapIter* iter = buildcache_iter_new_config_overlay(game->buildcache);
+    while( (config_overlay = buildcache_iter_next_config_overlay(iter)) )
+    {
+        if( config_overlay->texture > 0 )
+        {
+            int tid = config_overlay->texture;
+            int j = 0;
+            for( ; j < n && ids[j] != tid; j++ )
+                ;
+            if( j == n && n < LUA_BUILDCACHE_MAX_IDS )
+                ids[n++] = tid;
+        }
+    }
+    buildcache_iter_free_config_overlay(iter);
+
+    int model_id = 0;
+    struct CacheModel* model = NULL;
+    iter = buildcache_iter_new_models(game->buildcache);
+    while( (model = buildcache_iter_next_models(iter, &model_id)) )
+    {
+        if( !model->face_textures )
+            continue;
+        for( int i = 0; i < model->face_count; i++ )
+        {
+            int ft = model->face_textures[i];
+            if( ft != -1 && n < LUA_BUILDCACHE_MAX_IDS )
+            {
+                int j = 0;
+                for( ; j < n && ids[j] != ft; j++ )
+                    ;
+                if( j == n )
+                    ids[n++] = ft;
+            }
+        }
+    }
+    buildcache_iter_free_models(iter);
+
+    iter = buildcache_iter_new_map_scenery(game->buildcache);
+    int mapx = 0, mapz = 0;
+    struct CacheMapLocs* locs = NULL;
+    while( (locs = buildcache_iter_next_map_scenery(iter, &mapx, &mapz)) )
+    {
+        for( int i = 0; i < locs->locs_count; i++ )
+        {
+            struct CacheConfigLocation* config_loc = configmap_get(game->init_scenery_configmap, locs->locs[i].loc_id);
+            if( !config_loc || !config_loc->retexture_count || !config_loc->retextures_to )
+                continue;
+            for( int r = 0; r < config_loc->retexture_count && n < LUA_BUILDCACHE_MAX_IDS; r++ )
+            {
+                int tid = config_loc->retextures_to[r];
+                int j = 0;
+                for( ; j < n && ids[j] != tid; j++ )
+                    ;
+                if( j == n )
+                    ids[n++] = tid;
+            }
+        }
+    }
+    buildcache_iter_free_map_scenery(iter);
+
+    lua_createtable(L, n, 0);
+    for( int i = 0; i < n; i++ )
+    {
+        lua_pushinteger(L, ids[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+static int
+l_buildcache_add_texture_definitions(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int data_size = luaL_checkinteger(L, 1);
+    void* data = lua_touserdata(L, 2);
+    luaL_checktype(L, 3, LUA_TTABLE);
+    int ids_size = (int)lua_rawlen(L, 3);
+    int ids[LUA_BUILDCACHE_MAX_IDS];
+    if( ids_size > LUA_BUILDCACHE_MAX_IDS )
+        ids_size = LUA_BUILDCACHE_MAX_IDS;
+    for( int i = 0; i < ids_size; i++ )
+    {
+        lua_rawgeti(L, 3, i + 1);
+        ids[i] = (int)lua_tointeger(L, -1);
+        lua_pop(L, 1);
+    }
+    if( game->init_texture_definitions_configmap )
+        configmap_free(game->init_texture_definitions_configmap);
+    game->init_texture_definitions_configmap = configmap_new_from_filepack(data, data_size, ids, ids_size);
+    return 0;
+}
+
+static int
+l_buildcache_get_queued_spritepack_ids(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int ids[LUA_BUILDCACHE_MAX_IDS];
+    int n = 0;
+    memset(ids, 0, sizeof(ids));
+    struct CacheTexture* tex = NULL;
+    struct DashMapIter* iter = dashmap_iter_new(game->init_texture_definitions_configmap);
+    while( (tex = (struct CacheTexture*)configmap_iter_next(iter, NULL)) )
+    {
+        for( int i = 0; tex->sprite_ids && i < tex->sprite_ids_count && n < LUA_BUILDCACHE_MAX_IDS; i++ )
+        {
+            int sid = tex->sprite_ids[i];
+            int j = 0;
+            for( ; j < n && ids[j] != sid; j++ )
+                ;
+            if( j == n )
+                ids[n++] = sid;
+        }
+    }
+    dashmap_iter_free(iter);
+    lua_createtable(L, n, 0);
+    for( int i = 0; i < n; i++ )
+    {
+        lua_pushinteger(L, ids[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+static int
+l_buildcache_add_spritepack(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int id = luaL_checkinteger(L, 1);
+    int data_size = luaL_checkinteger(L, 2);
+    void* data = lua_touserdata(L, 3);
+    struct CacheSpritePack* spritepack = sprite_pack_new_decode(data, data_size, SPRITELOAD_FLAG_NORMALIZE);
+    buildcache_add_spritepack(game->buildcache, id, spritepack);
+    return 0;
+}
+
+static int
+l_buildcache_build_textures(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int id = 0;
+    struct CacheTexture* texture_definition = NULL;
+    struct DashMapIter* iter = dashmap_iter_new(game->init_texture_definitions_configmap);
+    while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter, &id)) )
+    {
+        struct DashTexture* texture = texture_new_from_definition(texture_definition, game->buildcache->spritepacks_hmap);
+        buildcache_add_texture(game->buildcache, id, texture);
+        dash3d_add_texture(game->sys_dash, id, texture);
+    }
+    dashmap_iter_free(iter);
+    return 0;
+}
+
+static int
+l_buildcache_add_config_sequences(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int data_size = luaL_checkinteger(L, 1);
+    void* data = lua_touserdata(L, 2);
+    luaL_checktype(L, 3, LUA_TTABLE);
+    int ids_size = (int)lua_rawlen(L, 3);
+    int ids[LUA_BUILDCACHE_MAX_IDS];
+    if( ids_size > LUA_BUILDCACHE_MAX_IDS )
+        ids_size = LUA_BUILDCACHE_MAX_IDS;
+    for( int i = 0; i < ids_size; i++ )
+    {
+        lua_rawgeti(L, 3, i + 1);
+        ids[i] = (int)lua_tointeger(L, -1);
+        lua_pop(L, 1);
+    }
+    if( game->init_sequences_configmap )
+        configmap_free(game->init_sequences_configmap);
+    game->init_sequences_configmap = configmap_new_from_filepack(data, data_size, ids, ids_size);
+    struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
+    int seq_id = 0;
+    struct CacheConfigSequence* seq = NULL;
+    while( (seq = (struct CacheConfigSequence*)configmap_iter_next(iter, &seq_id)) )
+    {
+        buildcache_add_config_sequence(game->buildcache, seq_id, seq);
+    }
+    dashmap_iter_free(iter);
+    return 0;
+}
+
+static int
+l_buildcache_get_queued_frame_archive_ids(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int ids[LUA_BUILDCACHE_MAX_IDS];
+    int n = 0;
+    memset(ids, 0, sizeof(ids));
+    struct CacheConfigSequence* sequence = NULL;
+    struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
+    while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
+    {
+        for( int i = 0; sequence->frame_ids && i < sequence->frame_count; i++ )
+        {
+            int frame_id = sequence->frame_ids[i];
+            int archive_id = (frame_id >> 16) & 0xFFFF;
+            int j = 0;
+            for( ; j < n && ids[j] != archive_id; j++ )
+                ;
+            if( j == n && n < LUA_BUILDCACHE_MAX_IDS )
+                ids[n++] = archive_id;
+        }
+    }
+    dashmap_iter_free(iter);
+    lua_createtable(L, n, 0);
+    for( int i = 0; i < n; i++ )
+    {
+        lua_pushinteger(L, ids[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+static int
+l_buildcache_add_frame_blob(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int id = luaL_checkinteger(L, 1);
+    int data_size = luaL_checkinteger(L, 2);
+    void* data = lua_touserdata(L, 3);
+    struct CacheFrameBlob* blob = (struct CacheFrameBlob*)cu_filelist_new_from_filepack(data, data_size);
+    buildcache_add_frame_blob(game->buildcache, id, blob);
+    return 0;
+}
+
+static int
+l_buildcache_get_queued_framemap_ids(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int ids[LUA_BUILDCACHE_MAX_IDS];
+    int n = 0;
+    memset(ids, 0, sizeof(ids));
+    struct CacheConfigSequence* sequence = NULL;
+    struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
+    while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
+    {
+        for( int i = 0; i < sequence->frame_count; i++ )
+        {
+            int frame_id = sequence->frame_ids[i];
+            int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+            int frame_file_id = frame_id & 0xFFFF;
+            struct CacheFrameBlob* frame_blob = buildcache_get_frame_blob(game->buildcache, frame_archive_id);
+            if( !frame_blob )
+                continue;
+            struct FileList* fl = (struct FileList*)frame_blob;
+            if( frame_file_id < 1 || frame_file_id - 1 >= fl->file_count )
+                continue;
+            char* file_data = fl->files[frame_file_id - 1];
+            int file_data_size = fl->file_sizes[frame_file_id - 1];
+            int framemap_id = frame_framemap_id_from_file(file_data, file_data_size);
+            int j = 0;
+            for( ; j < n && ids[j] != framemap_id; j++ )
+                ;
+            if( j == n && n < LUA_BUILDCACHE_MAX_IDS )
+                ids[n++] = framemap_id;
+        }
+    }
+    dashmap_iter_free(iter);
+    lua_createtable(L, n, 0);
+    for( int i = 0; i < n; i++ )
+    {
+        lua_pushinteger(L, ids[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
+static int
+l_buildcache_add_framemap(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int id = luaL_checkinteger(L, 1);
+    int data_size = luaL_checkinteger(L, 2);
+    void* data = lua_touserdata(L, 3);
+    struct CacheFramemap* framemap = framemap_new_decode2(id, data, data_size);
+    buildcache_add_framemap(game->buildcache, id, framemap);
+    return 0;
+}
+
+static int
+l_buildcache_build_frame_anims(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct CacheConfigSequence* sequence = NULL;
+    struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
+    while( (sequence = (struct CacheConfigSequence*)configmap_iter_next(iter, NULL)) )
+    {
+        for( int i = 0; i < sequence->frame_count; i++ )
+        {
+            int frame_id = sequence->frame_ids[i];
+            int frame_archive_id = (frame_id >> 16) & 0xFFFF;
+            int frame_file_id = sequence->frame_ids[i] & 0xFFFF;
+            struct CacheFrameBlob* frame_blob = buildcache_get_frame_blob(game->buildcache, frame_archive_id);
+            if( !frame_blob )
+                continue;
+            struct FileList* fl = (struct FileList*)frame_blob;
+            if( frame_file_id - 1 >= fl->file_count )
+                frame_file_id = fl->file_count;
+            if( frame_file_id < 1 || frame_file_id - 1 >= fl->file_count )
+                continue;
+            char* file_data = fl->files[frame_file_id - 1];
+            int file_data_size = fl->file_sizes[frame_file_id - 1];
+            int framemap_id = frame_framemap_id_from_file(file_data, file_data_size);
+            struct CacheFramemap* framemap = buildcache_get_framemap(game->buildcache, framemap_id);
+            if( !framemap )
+                continue;
+            struct CacheFrame* cache_frame = frame_new_decode2(frame_id, framemap, file_data, file_data_size);
+            buildcache_add_frame_anim(game->buildcache, frame_id, cache_frame);
+        }
+    }
+    dashmap_iter_free(iter);
+    return 0;
+}
+
+static int
+l_buildcache_build_scene(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    int wx_sw = luaL_checkinteger(L, 1);
+    int wz_sw = luaL_checkinteger(L, 2);
+    int wx_ne = luaL_checkinteger(L, 3);
+    int wz_ne = luaL_checkinteger(L, 4);
+    int size_x = luaL_checkinteger(L, 5);
+    int size_z = luaL_checkinteger(L, 6);
+    game->scene = scenebuilder_load_from_buildcache(
+        game->scenebuilder, wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z, game->buildcache);
+    return 0;
+}
+
+static const luaL_Reg buildcache_funcs[] = {
+    { "ensure",                      l_buildcache_ensure                    },
+    { "add_map_scenery",              l_buildcache_add_map_scenery            },
+    { "get_scenery_ids",              l_buildcache_get_scenery_ids            },
+    { "add_config_scenery",           l_buildcache_add_config_scenery          },
+    { "get_queued_models_and_sequences", l_buildcache_get_queued_models_and_sequences },
+    { "add_model",                    l_buildcache_add_model                  },
+    { "add_map_terrain",              l_buildcache_add_map_terrain            },
+    { "add_config_underlay",          l_buildcache_add_config_underlay        },
+    { "add_config_overlay",           l_buildcache_add_config_overlay        },
+    { "get_queued_texture_ids",       l_buildcache_get_queued_texture_ids     },
+    { "add_texture_definitions",      l_buildcache_add_texture_definitions    },
+    { "get_queued_spritepack_ids",    l_buildcache_get_queued_spritepack_ids   },
+    { "add_spritepack",               l_buildcache_add_spritepack             },
+    { "build_textures",               l_buildcache_build_textures             },
+    { "add_config_sequences",         l_buildcache_add_config_sequences       },
+    { "get_queued_frame_archive_ids", l_buildcache_get_queued_frame_archive_ids },
+    { "add_frame_blob",               l_buildcache_add_frame_blob             },
+    { "get_queued_framemap_ids",      l_buildcache_get_queued_framemap_ids     },
+    { "add_framemap",                 l_buildcache_add_framemap               },
+    { "build_frame_anims",            l_buildcache_build_frame_anims          },
+    { "build_scene",                  l_buildcache_build_scene                },
+    { NULL,                           NULL                                    }
+};
+
+static void
+register_buildcache(lua_State* L, struct GGame* game)
+{
+    lua_newtable(L);
+    lua_pushlightuserdata(L, game);
+    luaL_setfuncs(L, buildcache_funcs, 1);
+    lua_setglobal(L, "BuildCache");
 }
 
 static int

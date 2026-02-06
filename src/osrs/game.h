@@ -10,7 +10,6 @@
 #include "lclogin.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
-#include "osrs/gametask.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/packetbuffer.h"
@@ -104,6 +103,11 @@ struct GGame
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
+
+    /* Used by init_scene (BuildCache path) when driving from Lua; NULL when not in use */
+    struct DashMap* init_scenery_configmap;
+    struct DashMap* init_texture_definitions_configmap;
+    struct DashMap* init_sequences_configmap;
 
     struct SceneBuilder* scenebuilder;
 

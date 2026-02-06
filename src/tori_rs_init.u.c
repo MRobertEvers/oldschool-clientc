@@ -178,6 +178,7 @@ LibToriRS_GameNew(
 
     register_host_io(game->L, game->io);
     register_buildcachedat(game->L, game->buildcachedat, game);
+    register_buildcache(game->L, game);
     register_gameproto(game->L, game);
 
     luaL_dostring(game->L, "HostIO.init()");
