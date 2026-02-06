@@ -3,6 +3,10 @@
 
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
+#include "datatypes/appearances.h"
+#include "datatypes/player_appearance.h"
+#include "graphics/dash.h"
+#include "graphics/dashmap.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
@@ -12,30 +16,26 @@
 #include "osrs/gameproto_exec.h"
 #include "osrs/gio.h"
 #include "osrs/gio_assets.h"
+#include "osrs/minimap.h"
 #include "osrs/painters.h"
+#include "osrs/rscache/filelist.h"
+#include "osrs/rscache/tables/config_floortype.h"
+#include "osrs/rscache/tables/config_locs.h"
+#include "osrs/rscache/tables/config_sequence.h"
 #include "osrs/rscache/tables/frame.h"
 #include "osrs/rscache/tables/framemap.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables/sprites.h"
+#include "osrs/rscache/tables/textures.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/texture.h"
-#include "graphics/dash.h"
-#include "graphics/dashmap.h"
-#include "osrs/minimap.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables/config_floortype.h"
-#include "osrs/rscache/tables/config_locs.h"
-#include "osrs/rscache/tables/config_sequence.h"
-#include "osrs/rscache/tables/textures.h"
-#include <stdlib.h>
-#include <string.h>
-#include "datatypes/appearances.h"
-#include "datatypes/player_appearance.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
 
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 
 static int
 l_host_io_init(lua_State* L)
@@ -290,16 +290,16 @@ static const luaL_Reg host_io_funcs[] = {
     { "dat_config_media_load",           l_host_io_dat_config_media_load           },
     { "dat_config_title_load",           l_host_io_dat_config_title_load           },
     { "asset_map_scenery_load",          l_host_io_asset_map_scenery_load          },
-    { "asset_config_scenery_load",      l_host_io_asset_config_scenery_load        },
+    { "asset_config_scenery_load",       l_host_io_asset_config_scenery_load       },
     { "asset_model_load",                l_host_io_asset_model_load                },
     { "asset_map_terrain_load",          l_host_io_asset_map_terrain_load          },
     { "asset_config_underlay_load",      l_host_io_asset_config_underlay_load      },
     { "asset_config_overlay_load",       l_host_io_asset_config_overlay_load       },
-    { "asset_texture_definitions_load",   l_host_io_asset_texture_definitions_load  },
-    { "asset_spritepack_load",           l_host_io_asset_spritepack_load            },
-    { "asset_config_sequences_load",     l_host_io_asset_config_sequences_load      },
-    { "asset_animation_load",             l_host_io_asset_animation_load             },
-    { "asset_framemap_load",             l_host_io_asset_framemap_load               },
+    { "asset_texture_definitions_load",  l_host_io_asset_texture_definitions_load  },
+    { "asset_spritepack_load",           l_host_io_asset_spritepack_load           },
+    { "asset_config_sequences_load",     l_host_io_asset_config_sequences_load     },
+    { "asset_animation_load",            l_host_io_asset_animation_load            },
+    { "asset_framemap_load",             l_host_io_asset_framemap_load             },
     { NULL,                              NULL                                      }
 };
 
@@ -737,27 +737,24 @@ static int
 l_buildcache_ensure(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    int map_sw_x = luaL_checkinteger(L, 1);
-    int map_sw_z = luaL_checkinteger(L, 2);
-    int map_ne_x = luaL_checkinteger(L, 3);
-    int map_ne_z = luaL_checkinteger(L, 4);
+    int wx_sw = luaL_checkinteger(L, 1);
+    int wz_sw = luaL_checkinteger(L, 2);
+    int wx_ne = luaL_checkinteger(L, 3);
+    int wz_ne = luaL_checkinteger(L, 4);
+    int size_x = luaL_checkinteger(L, 5);
+    int size_z = luaL_checkinteger(L, 6);
 
     if( !game->buildcache )
         game->buildcache = buildcache_new();
 
-    int chunks_w = (map_ne_x - map_sw_x + 1);
-    int chunks_h = (map_ne_z - map_sw_z + 1);
     if( !game->sys_painter )
     {
-        game->sys_painter = painter_new(chunks_w * 64, chunks_h * 64, MAP_TERRAIN_LEVELS);
+        game->sys_painter = painter_new(size_x, size_z, MAP_TERRAIN_LEVELS);
         game->sys_painter_buffer = painter_buffer_new();
     }
     if( !game->sys_minimap )
     {
-        game->sys_minimap = minimap_new(
-            map_sw_x * 64, map_sw_z * 64,
-            (map_ne_x + 1) * 64, (map_ne_z + 1) * 64,
-            MAP_TERRAIN_LEVELS);
+        game->sys_minimap = minimap_new(wx_sw, wz_sw, wx_ne, wz_ne, MAP_TERRAIN_LEVELS);
     }
     if( !game->scenebuilder )
         game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
@@ -865,7 +862,8 @@ l_buildcache_get_queued_models_and_sequences(lua_State* L)
     {
         for( int i = 0; i < locs->locs_count; i++ )
         {
-            struct CacheConfigLocation* config_loc = configmap_get(game->init_scenery_configmap, locs->locs[i].loc_id);
+            struct CacheConfigLocation* config_loc =
+                configmap_get(game->init_scenery_configmap, locs->locs[i].loc_id);
             if( !config_loc )
                 continue;
             if( config_loc->seq_id > 0 )
@@ -890,7 +888,7 @@ l_buildcache_get_queued_models_and_sequences(lua_State* L)
                 {
                     int mid = model_id_sets[0][k];
                     if( !mid )
-                continue;
+                        continue;
                     int j = 0;
                     for( ; j < nmodels && models[j] != mid; j++ )
                         ;
@@ -900,7 +898,8 @@ l_buildcache_get_queued_models_and_sequences(lua_State* L)
             }
             else
             {
-                for( int k = 0; k < shapes_and_model_count && nmodels < LUA_BUILDCACHE_MAX_IDS; k++ )
+                for( int k = 0; k < shapes_and_model_count && nmodels < LUA_BUILDCACHE_MAX_IDS;
+                     k++ )
                 {
                     int count_inner = lengths[k];
                     for( int j = 0; j < count_inner; j++ )
@@ -978,7 +977,7 @@ l_buildcache_add_config_underlay(lua_State* L)
         buildcache_add_config_underlay(game->buildcache, id, underlay);
     }
     dashmap_iter_free(iter);
-    configmap_free(configmap);
+    // configmap_free(configmap);
     return 0;
 }
 
@@ -997,7 +996,7 @@ l_buildcache_add_config_overlay(lua_State* L)
         buildcache_add_config_overlay(game->buildcache, id, overlay);
     }
     dashmap_iter_free(iter);
-    configmap_free(configmap);
+    // configmap_free(configmap);
     return 0;
 }
 
@@ -1054,7 +1053,8 @@ l_buildcache_get_queued_texture_ids(lua_State* L)
     {
         for( int i = 0; i < locs->locs_count; i++ )
         {
-            struct CacheConfigLocation* config_loc = configmap_get(game->init_scenery_configmap, locs->locs[i].loc_id);
+            struct CacheConfigLocation* config_loc =
+                configmap_get(game->init_scenery_configmap, locs->locs[i].loc_id);
             if( !config_loc || !config_loc->retexture_count || !config_loc->retextures_to )
                 continue;
             for( int r = 0; r < config_loc->retexture_count && n < LUA_BUILDCACHE_MAX_IDS; r++ )
@@ -1098,7 +1098,8 @@ l_buildcache_add_texture_definitions(lua_State* L)
     }
     if( game->init_texture_definitions_configmap )
         configmap_free(game->init_texture_definitions_configmap);
-    game->init_texture_definitions_configmap = configmap_new_from_filepack(data, data_size, ids, ids_size);
+    game->init_texture_definitions_configmap =
+        configmap_new_from_filepack(data, data_size, ids, ids_size);
     return 0;
 }
 
@@ -1113,7 +1114,8 @@ l_buildcache_get_queued_spritepack_ids(lua_State* L)
     struct DashMapIter* iter = dashmap_iter_new(game->init_texture_definitions_configmap);
     while( (tex = (struct CacheTexture*)configmap_iter_next(iter, NULL)) )
     {
-        for( int i = 0; tex->sprite_ids && i < tex->sprite_ids_count && n < LUA_BUILDCACHE_MAX_IDS; i++ )
+        for( int i = 0; tex->sprite_ids && i < tex->sprite_ids_count && n < LUA_BUILDCACHE_MAX_IDS;
+             i++ )
         {
             int sid = tex->sprite_ids[i];
             int j = 0;
@@ -1140,7 +1142,8 @@ l_buildcache_add_spritepack(lua_State* L)
     int id = luaL_checkinteger(L, 1);
     int data_size = luaL_checkinteger(L, 2);
     void* data = lua_touserdata(L, 3);
-    struct CacheSpritePack* spritepack = sprite_pack_new_decode(data, data_size, SPRITELOAD_FLAG_NORMALIZE);
+    struct CacheSpritePack* spritepack =
+        sprite_pack_new_decode(data, data_size, SPRITELOAD_FLAG_NORMALIZE);
     buildcache_add_spritepack(game->buildcache, id, spritepack);
     return 0;
 }
@@ -1154,7 +1157,8 @@ l_buildcache_build_textures(lua_State* L)
     struct DashMapIter* iter = dashmap_iter_new(game->init_texture_definitions_configmap);
     while( (texture_definition = (struct CacheTexture*)configmap_iter_next(iter, &id)) )
     {
-        struct DashTexture* texture = texture_new_from_definition(texture_definition, game->buildcache->spritepacks_hmap);
+        struct DashTexture* texture =
+            texture_new_from_definition(texture_definition, game->buildcache->spritepacks_hmap);
         buildcache_add_texture(game->buildcache, id, texture);
         dash3d_add_texture(game->sys_dash, id, texture);
     }
@@ -1232,7 +1236,8 @@ l_buildcache_add_frame_blob(lua_State* L)
     int id = luaL_checkinteger(L, 1);
     int data_size = luaL_checkinteger(L, 2);
     void* data = lua_touserdata(L, 3);
-    struct CacheFrameBlob* blob = (struct CacheFrameBlob*)cu_filelist_new_from_filepack(data, data_size);
+    struct CacheFrameBlob* blob =
+        (struct CacheFrameBlob*)cu_filelist_new_from_filepack(data, data_size);
     buildcache_add_frame_blob(game->buildcache, id, blob);
     return 0;
 }
@@ -1253,7 +1258,8 @@ l_buildcache_get_queued_framemap_ids(lua_State* L)
             int frame_id = sequence->frame_ids[i];
             int frame_archive_id = (frame_id >> 16) & 0xFFFF;
             int frame_file_id = frame_id & 0xFFFF;
-            struct CacheFrameBlob* frame_blob = buildcache_get_frame_blob(game->buildcache, frame_archive_id);
+            struct CacheFrameBlob* frame_blob =
+                buildcache_get_frame_blob(game->buildcache, frame_archive_id);
             if( !frame_blob )
                 continue;
             struct FileList* fl = (struct FileList*)frame_blob;
@@ -1304,7 +1310,8 @@ l_buildcache_build_frame_anims(lua_State* L)
             int frame_id = sequence->frame_ids[i];
             int frame_archive_id = (frame_id >> 16) & 0xFFFF;
             int frame_file_id = sequence->frame_ids[i] & 0xFFFF;
-            struct CacheFrameBlob* frame_blob = buildcache_get_frame_blob(game->buildcache, frame_archive_id);
+            struct CacheFrameBlob* frame_blob =
+                buildcache_get_frame_blob(game->buildcache, frame_archive_id);
             if( !frame_blob )
                 continue;
             struct FileList* fl = (struct FileList*)frame_blob;
@@ -1318,7 +1325,8 @@ l_buildcache_build_frame_anims(lua_State* L)
             struct CacheFramemap* framemap = buildcache_get_framemap(game->buildcache, framemap_id);
             if( !framemap )
                 continue;
-            struct CacheFrame* cache_frame = frame_new_decode2(frame_id, framemap, file_data, file_data_size);
+            struct CacheFrame* cache_frame =
+                frame_new_decode2(frame_id, framemap, file_data, file_data_size);
             buildcache_add_frame_anim(game->buildcache, frame_id, cache_frame);
         }
     }
@@ -1342,32 +1350,34 @@ l_buildcache_build_scene(lua_State* L)
 }
 
 static const luaL_Reg buildcache_funcs[] = {
-    { "ensure",                      l_buildcache_ensure                    },
-    { "add_map_scenery",              l_buildcache_add_map_scenery            },
-    { "get_scenery_ids",              l_buildcache_get_scenery_ids            },
-    { "add_config_scenery",           l_buildcache_add_config_scenery          },
+    { "ensure",                          l_buildcache_ensure                          },
+    { "add_map_scenery",                 l_buildcache_add_map_scenery                 },
+    { "get_scenery_ids",                 l_buildcache_get_scenery_ids                 },
+    { "add_config_scenery",              l_buildcache_add_config_scenery              },
     { "get_queued_models_and_sequences", l_buildcache_get_queued_models_and_sequences },
-    { "add_model",                    l_buildcache_add_model                  },
-    { "add_map_terrain",              l_buildcache_add_map_terrain            },
-    { "add_config_underlay",          l_buildcache_add_config_underlay        },
-    { "add_config_overlay",           l_buildcache_add_config_overlay        },
-    { "get_queued_texture_ids",       l_buildcache_get_queued_texture_ids     },
-    { "add_texture_definitions",      l_buildcache_add_texture_definitions    },
-    { "get_queued_spritepack_ids",    l_buildcache_get_queued_spritepack_ids   },
-    { "add_spritepack",               l_buildcache_add_spritepack             },
-    { "build_textures",               l_buildcache_build_textures             },
-    { "add_config_sequences",         l_buildcache_add_config_sequences       },
-    { "get_queued_frame_archive_ids", l_buildcache_get_queued_frame_archive_ids },
-    { "add_frame_blob",               l_buildcache_add_frame_blob             },
-    { "get_queued_framemap_ids",      l_buildcache_get_queued_framemap_ids     },
-    { "add_framemap",                 l_buildcache_add_framemap               },
-    { "build_frame_anims",            l_buildcache_build_frame_anims          },
-    { "build_scene",                  l_buildcache_build_scene                },
-    { NULL,                           NULL                                    }
+    { "add_model",                       l_buildcache_add_model                       },
+    { "add_map_terrain",                 l_buildcache_add_map_terrain                 },
+    { "add_config_underlay",             l_buildcache_add_config_underlay             },
+    { "add_config_overlay",              l_buildcache_add_config_overlay              },
+    { "get_queued_texture_ids",          l_buildcache_get_queued_texture_ids          },
+    { "add_texture_definitions",         l_buildcache_add_texture_definitions         },
+    { "get_queued_spritepack_ids",       l_buildcache_get_queued_spritepack_ids       },
+    { "add_spritepack",                  l_buildcache_add_spritepack                  },
+    { "build_textures",                  l_buildcache_build_textures                  },
+    { "add_config_sequences",            l_buildcache_add_config_sequences            },
+    { "get_queued_frame_archive_ids",    l_buildcache_get_queued_frame_archive_ids    },
+    { "add_frame_blob",                  l_buildcache_add_frame_blob                  },
+    { "get_queued_framemap_ids",         l_buildcache_get_queued_framemap_ids         },
+    { "add_framemap",                    l_buildcache_add_framemap                    },
+    { "build_frame_anims",               l_buildcache_build_frame_anims               },
+    { "build_scene",                     l_buildcache_build_scene                     },
+    { NULL,                              NULL                                         }
 };
 
 static void
-register_buildcache(lua_State* L, struct GGame* game)
+register_buildcache(
+    lua_State* L,
+    struct GGame* game)
 {
     lua_newtable(L);
     lua_pushlightuserdata(L, game);
@@ -1380,8 +1390,7 @@ l_gameproto_get_npc_ids_from_packet(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     (void)game;
-    struct RevPacket_LC245_2_Item* item =
-        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
     static struct PktNpcInfoReader reader;
     reader.extended_count = 0;
@@ -1408,8 +1417,7 @@ static int
 l_gameproto_exec_npc_info(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item =
-        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
     gameproto_exec_npc_info(game, &item->packet);
     return 0;
@@ -1418,8 +1426,7 @@ l_gameproto_exec_npc_info(lua_State* L)
 static int
 l_gameproto_get_rebuild_bounds(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item =
-        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
     lua_pushinteger(L, item->packet._map_rebuild.zonex);
     lua_pushinteger(L, item->packet._map_rebuild.zonez);
@@ -1430,8 +1437,7 @@ static int
 l_gameproto_exec_rebuild(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item =
-        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
     gameproto_exec_rebuild_normal(game, &item->packet);
     return 0;
@@ -1440,8 +1446,7 @@ l_gameproto_exec_rebuild(lua_State* L)
 static int
 l_gameproto_get_player_appearance_ids(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item =
-        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
     static struct PktPlayerInfoReader reader;
     reader.extended_count = 0;
@@ -1461,9 +1466,7 @@ l_gameproto_get_player_appearance_ids(lua_State* L)
             continue;
         struct PlayerAppearance appearance;
         player_appearance_decode(
-            &appearance,
-            ops[i]._appearance.appearance,
-            ops[i]._appearance.len);
+            &appearance, ops[i]._appearance.appearance, ops[i]._appearance.len);
         struct AppearanceOp op;
         for( int slot = 0; slot < 12; slot++ )
         {
@@ -1489,25 +1492,26 @@ static int
 l_gameproto_exec_player_info(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item =
-        (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
     gameproto_exec_player_info(game, &item->packet);
     return 0;
 }
 
 static const luaL_Reg gameproto_funcs[] = {
-    { "get_npc_ids_from_packet",    l_gameproto_get_npc_ids_from_packet    },
-    { "exec_npc_info",              l_gameproto_exec_npc_info              },
-    { "get_rebuild_bounds",         l_gameproto_get_rebuild_bounds         },
-    { "exec_rebuild",               l_gameproto_exec_rebuild              },
-    { "get_player_appearance_ids",  l_gameproto_get_player_appearance_ids  },
-    { "exec_player_info",           l_gameproto_exec_player_info           },
-    { NULL,                         NULL                                   }
+    { "get_npc_ids_from_packet",   l_gameproto_get_npc_ids_from_packet   },
+    { "exec_npc_info",             l_gameproto_exec_npc_info             },
+    { "get_rebuild_bounds",        l_gameproto_get_rebuild_bounds        },
+    { "exec_rebuild",              l_gameproto_exec_rebuild              },
+    { "get_player_appearance_ids", l_gameproto_get_player_appearance_ids },
+    { "exec_player_info",          l_gameproto_exec_player_info          },
+    { NULL,                        NULL                                  }
 };
 
 static void
-register_gameproto(lua_State* L, struct GGame* game)
+register_gameproto(
+    lua_State* L,
+    struct GGame* game)
 {
     lua_newtable(L);
     lua_pushlightuserdata(L, game);

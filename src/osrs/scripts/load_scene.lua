@@ -28,7 +28,15 @@ function init_scene(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
 
     local success, param_a, param_b, data_size, data
 
-    BuildCache.ensure(map_sw_x, map_sw_z, map_ne_x, map_ne_z)
+    local twx = map_sw_x * 64
+    local twz = map_sw_z * 64
+    local tne_x = (map_ne_x + 1) * 64 - 1
+    local tne_z = (map_ne_z + 1) * 64 - 1
+    local sz_x = size_x
+    local sz_z = size_z
+    if sz_x > (tne_x - twx + 1) then sz_x = tne_x - twx end
+    if sz_z > (tne_z - twz + 1) then sz_z = tne_z - twz end
+    BuildCache.ensure(twx, twz, tne_x, tne_z, sz_x, sz_z)
 
     -- Step 1: Load scenery (map chunks)
     print("=== Step 1: Load Scenery ===")
@@ -145,15 +153,7 @@ function init_scene(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
 
     -- Step 13: Build world 3D from buildcache
     print("=== Step 13: Build World 3D ===")
-    local twx = map_sw_x * 64
-    local twz = map_sw_z * 64
-    local tne_x = (map_ne_x + 1) * 64 - 1
-    local tne_z = (map_ne_z + 1) * 64 - 1
-    local sz_x = size_x
-    local sz_z = size_z
-    if sz_x > (tne_x - twx + 1) then sz_x = tne_x - twx end
-    if sz_z > (tne_z - twz + 1) then sz_z = tne_z - twz end
-    BuildCache.build_scene(twx, twz, tne_x, tne_z, sz_x + 1, sz_z + 1)
+    BuildCache.build_scene(twx, twz, tne_x, tne_z, sz_x, sz_z)
 
     print("=== Init Scene Complete ===")
 end

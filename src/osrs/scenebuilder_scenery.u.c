@@ -1822,64 +1822,64 @@ build_scene_scenery(
      * Buffer Level 2: Nothing
      * Buffer Level 3: Tile := (Previous Level 0)
      */
-    // struct CacheMapFloor* ground = NULL;
-    // struct CacheMapFloor* bridge = NULL;
-    // struct PaintersTile bridge_tile_tmp = { 0 };
-    // for( int x = 0; x < scene->tile_width_x; x++ )
-    // {
-    //     for( int z = 0; z < scene->tile_width_z; z++ )
-    //     {
-    //         /**
-    //          * OS1:
-    //          * 	for (int var76 = 0; var76 < 104; var76++) {
-    //          *	for (int var77 = 0; var77 < 104; var77++) {
-    //          *		if ((mapl[1][var76][var77] & 0x2) == 2) {
-    //          *			arg0.pushDown(var76, var77);
-    //          *		}
-    //          *	}
-    //          * }
-    //          * Dane's 317
-    //          *   for (int x = 0; x < maxTileX; x++) {
-    //          *     for (int z = 0; z < maxTileZ; z++) {
-    //          *         if ((levelTileFlags[1][x][z] & 0x2) == 2) {
-    //          *             scene.setBridge(x, z);
-    //          *         }
-    //          *     }
-    //          * }
-    //          */
-    //         ground = tile_from_sw_origin(terrain_grid, x, z, 0);
-    //         bridge = tile_from_sw_origin(terrain_grid, x, z, 1);
+    struct CacheMapFloor* ground = NULL;
+    struct CacheMapFloor* bridge = NULL;
+    struct PaintersTile bridge_tile_tmp = { 0 };
+    for( int x = 0; x < scene->tile_width_x; x++ )
+    {
+        for( int z = 0; z < scene->tile_width_z; z++ )
+        {
+            /**
+             * OS1:
+             * 	for (int var76 = 0; var76 < 104; var76++) {
+             *	for (int var77 = 0; var77 < 104; var77++) {
+             *		if ((mapl[1][var76][var77] & 0x2) == 2) {
+             *			arg0.pushDown(var76, var77);
+             *		}
+             *	}
+             * }
+             * Dane's 317
+             *   for (int x = 0; x < maxTileX; x++) {
+             *     for (int z = 0; z < maxTileZ; z++) {
+             *         if ((levelTileFlags[1][x][z] & 0x2) == 2) {
+             *             scene.setBridge(x, z);
+             *         }
+             *     }
+             * }
+             */
+            ground = tile_from_sw_origin(terrain_grid, x, z, 0);
+            bridge = tile_from_sw_origin(terrain_grid, x, z, 1);
 
-    //         if( (bridge->settings & FLOFLAG_BRIDGE) != 0 )
-    //         {
-    //             bridge_tile_tmp = *painter_tile_at(scene_builder->painter, x, z, 0);
+            if( (bridge->settings & FLOFLAG_BRIDGE) != 0 )
+            {
+                bridge_tile_tmp = *painter_tile_at(scene_builder->painter, x, z, 0);
 
-    //             /**
-    //              * Shift tile definitions down
-    //              */
-    //             for( int level = 0; level < painter_max_levels(scene_builder->painter) - 1;
-    //                  level++ )
-    //             {
-    //                 painter_tile_copyto(
-    //                     scene_builder->painter,
-    //                     // From
-    //                     x,
-    //                     z,
-    //                     level + 1,
-    //                     // To
-    //                     x,
-    //                     z,
-    //                     level);
+                /**
+                 * Shift tile definitions down
+                 */
+                for( int level = 0; level < painter_max_levels(scene_builder->painter) - 1;
+                     level++ )
+                {
+                    painter_tile_copyto(
+                        scene_builder->painter,
+                        // From
+                        x,
+                        z,
+                        level + 1,
+                        // To
+                        x,
+                        z,
+                        level);
 
-    //                 painter_tile_set_draw_level(scene_builder->painter, x, z, level, level);
-    //             }
+                    painter_tile_set_draw_level(scene_builder->painter, x, z, level, level);
+                }
 
-    //             // Use the newly unused tile on level 3 as the bridge slot.
-    //             *painter_tile_at(scene_builder->painter, x, z, 3) = bridge_tile_tmp;
-    //             painter_tile_set_bridge(scene_builder->painter, x, z, 0, x, z, 3);
-    //         }
-    //     }
-    // }
+                // Use the newly unused tile on level 3 as the bridge slot.
+                *painter_tile_at(scene_builder->painter, x, z, 3) = bridge_tile_tmp;
+                painter_tile_set_bridge(scene_builder->painter, x, z, 0, x, z, 3);
+            }
+        }
+    }
 
     // Here:
     // Build model lighting

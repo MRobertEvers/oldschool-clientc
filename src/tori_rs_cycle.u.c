@@ -680,6 +680,8 @@ step:;
         }
         }
     }
+
+    return SCRIPTS_IDLE;
 }
 
 void

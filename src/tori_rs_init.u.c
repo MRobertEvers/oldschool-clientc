@@ -167,10 +167,10 @@ LibToriRS_GameNew(
     char* file_data = filelist->files[idx];
     int file_data_size = filelist->file_sizes[idx];
 
-    struct CacheDatConfigComponentList* config_interface_list =
-        cache_dat_config_component_list_new_decode(file_data, file_data_size);
+    // struct CacheDatConfigComponentList* config_interface_list =
+    //     cache_dat_config_component_list_new_decode(file_data, file_data_size);
 
-    assert(config_interface_list != NULL);
+    // assert(config_interface_list != NULL);
 
     game->L = luaL_newstate();
     luaL_openlibs(game->L);

@@ -524,8 +524,7 @@ build_scene_terrain(
                     }
                 }
 
-                
-                tile = scene_terrain_tile_at(terrain, x, z, level);
+                                tile = scene_terrain_tile_at(terrain, x, z, level);
                 tile->height = height_sw;
                 tile->sx = x;
                 tile->sz = z;
