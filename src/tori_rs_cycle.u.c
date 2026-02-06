@@ -23,6 +23,8 @@ script_path_for_kind(enum ScriptKind kind)
     {
     case SCRIPT_LOAD_SCENE_DAT:
         return "load_scene_dat.lua";
+    case SCRIPT_LOAD_SCENE:
+        return "load_scene.lua";
     case SCRIPT_PKT_NPC_INFO:
         return "pkt_npc_info.lua";
     case SCRIPT_PKT_REBUILD_NORMAL:
@@ -53,7 +55,12 @@ start_script_from_item(
         snprintf(fullpath, sizeof(fullpath), "%s", path);
 
     if( luaL_loadfile(game->L, fullpath) != LUA_OK )
+    {
+        fprintf(stderr, "Failed to load script %s: %s\n", path, lua_tostring(game->L, -1));
+        lua_pop(game->L, 1);
+        game->running = false;
         return LUA_ERRRUN;
+    }
 
     int nres;
     int nargs = 0;
@@ -64,6 +71,18 @@ start_script_from_item(
     case SCRIPT_LOAD_SCENE_DAT:
     {
         struct ScriptArgsLoadSceneDat* a = &item->args.u.load_scene_dat;
+        lua_pushinteger(game->L_coro, a->wx_sw);
+        lua_pushinteger(game->L_coro, a->wz_sw);
+        lua_pushinteger(game->L_coro, a->wx_ne);
+        lua_pushinteger(game->L_coro, a->wz_ne);
+        lua_pushinteger(game->L_coro, a->size_x);
+        lua_pushinteger(game->L_coro, a->size_z);
+        nargs = 6;
+        break;
+    }
+    case SCRIPT_LOAD_SCENE:
+    {
+        struct ScriptArgsLoadScene* a = &item->args.u.load_scene;
         lua_pushinteger(game->L_coro, a->wx_sw);
         lua_pushinteger(game->L_coro, a->wz_sw);
         lua_pushinteger(game->L_coro, a->wx_ne);

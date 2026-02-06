@@ -5,6 +5,7 @@
 enum ScriptKind
 {
     SCRIPT_LOAD_SCENE_DAT,
+    SCRIPT_LOAD_SCENE,
     SCRIPT_PKT_NPC_INFO,
     SCRIPT_PKT_REBUILD_NORMAL,
     SCRIPT_PKT_PLAYER_INFO,
@@ -13,6 +14,16 @@ enum ScriptKind
 
 /* Args for load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z) */
 struct ScriptArgsLoadSceneDat
+{
+    int wx_sw;
+    int wz_sw;
+    int wx_ne;
+    int wz_ne;
+    int size_x;
+    int size_z;
+};
+
+struct ScriptArgsLoadScene
 {
     int wx_sw;
     int wz_sw;
@@ -48,6 +59,7 @@ struct ScriptArgs
     union
     {
         struct ScriptArgsLoadSceneDat load_scene_dat;
+        struct ScriptArgsLoadScene load_scene;
         struct ScriptArgsPktNpcInfo pkt_npc_info;
         struct ScriptArgsPktRebuildNormal pkt_rebuild_normal;
         struct ScriptArgsPktPlayerInfo pkt_player_info;

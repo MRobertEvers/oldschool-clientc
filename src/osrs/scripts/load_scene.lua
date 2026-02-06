@@ -49,12 +49,16 @@ function init_scene(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     if not success then error("Failed to load config scenery") end
     BuildCache.add_config_scenery(data_size, data, scenery_ids)
 
-    -- Step 3: Queue models and sequences, then load models
+    -- Step 3: Queue models and sequences, then load models (all in parallel)
     print("=== Step 3: Load Scenery Models ===")
     local queued = BuildCache.get_queued_models_and_sequences()
+    local model_req_ids = {}
     for _, model_id in ipairs(queued.models) do
-        req_id = HostIO.asset_model_load(model_id)
-        success, param_a, param_b, data_size, data = HostIOUtils.await(req_id)
+        model_req_ids[#model_req_ids + 1] = HostIO.asset_model_load(model_id)
+    end
+    local model_results = HostIOUtils.await_all(model_req_ids)
+    for _, r in ipairs(model_results) do
+        success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
         if success then
             BuildCache.add_model(param_b, data_size, data)
         end

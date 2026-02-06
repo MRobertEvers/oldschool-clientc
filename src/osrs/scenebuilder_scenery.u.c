@@ -536,7 +536,7 @@ scenebuilder_load_model_animations(
 {
     if( scene_builder->buildcache != NULL )
     {
-        return load_model_animations_dat2(loc_config, scene_builder->buildcachedat);
+        return load_model_animations_dat2(loc_config, scene_builder->buildcache);
     }
     else
     {
