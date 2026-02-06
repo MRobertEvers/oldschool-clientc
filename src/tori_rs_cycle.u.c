@@ -567,6 +567,74 @@ advance_animation(
     }
 }
 
+#define SCRIPTS_IN_PROGRESS 1
+#define SCRIPTS_IDLE 0
+
+static int
+step_scripts(struct GGame* game)
+{
+    if( !game->L || !game->L_coro )
+        return SCRIPTS_IDLE;
+
+    int lua_ret = 0;
+    int nres = 0;
+    int ran_lua = 0;
+
+step:;
+    if( lua_status(game->L_coro) == LUA_YIELD )
+    {
+        /* Resume current script. */
+        lua_pushlightuserdata(game->L_coro, game);
+        lua_ret = lua_resume(game->L_coro, game->L, 1, &nres);
+        ran_lua = 1;
+    }
+    else if( !script_queue_empty(&game->script_queue) )
+    {
+        /* No script running; start one from queue. */
+        struct ScriptQueueItem* item = script_queue_pop(&game->script_queue);
+        game->lua_current_script_item = item;
+        lua_ret = start_script_from_item(game, item, &nres);
+        ran_lua = 1;
+    }
+
+    if( ran_lua )
+    {
+        switch( lua_ret )
+        {
+        case LUA_YIELD:
+            return SCRIPTS_IN_PROGRESS;
+        case LUA_OK:
+        {
+            lua_pop(game->L_coro, nres);
+            if( game->lua_current_script_item )
+            {
+                script_queue_free_item(game->lua_current_script_item);
+                game->lua_current_script_item = NULL;
+            }
+            /* Attempt to run the next script from queue. */
+            if( !script_queue_empty(&game->script_queue) )
+                goto step;
+
+            return SCRIPTS_IDLE;
+        }
+        default:
+        lua_error:
+        {
+            const char* err = lua_tostring(game->L_coro, -1);
+            fprintf(stderr, "Error in Lua coroutine: %s\n", err ? err : "unknown");
+            lua_pop(game->L_coro, 1);
+            if( game->lua_current_script_item )
+            {
+                script_queue_free_item(game->lua_current_script_item);
+                game->lua_current_script_item = NULL;
+            }
+            game->running = false;
+            return SCRIPTS_IDLE;
+        }
+        }
+    }
+}
+
 void
 LibToriRS_GameStep(
     struct GGame* game,
@@ -584,75 +652,9 @@ LibToriRS_GameStep(
 
     gameproto_process(game, game->io);
 
-    int lua_ret = 0;
-    int nres = 0;
-    int ran_lua = 0;
-
-    if( game->L && game->L_coro )
-    {
-        if( lua_status(game->L_coro) == LUA_YIELD )
-        {
-            /* Resume current script. */
-            lua_pushlightuserdata(game->L_coro, game);
-            lua_ret = lua_resume(game->L_coro, game->L, 1, &nres);
-            ran_lua = 1;
-        }
-        else if( !script_queue_empty(&game->script_queue) )
-        {
-            /* No script running; start one from queue. */
-            struct ScriptQueueItem* item = script_queue_pop(&game->script_queue);
-            game->lua_current_script_item = item;
-            lua_ret = start_script_from_item(game, item, &nres);
-            ran_lua = 1;
-        }
-    }
-
-    if( ran_lua )
-    {
-        switch( lua_ret )
-        {
-        case LUA_YIELD:
-            return;
-        case LUA_OK:
-        {
-            lua_pop(game->L_coro, nres);
-            if( game->lua_current_script_item )
-            {
-                script_queue_free_item(game->lua_current_script_item);
-                game->lua_current_script_item = NULL;
-            }
-            /* Attempt to run the next script from queue. */
-            if( game->L && game->L_coro && !script_queue_empty(&game->script_queue) )
-            {
-                struct ScriptQueueItem* next_item = script_queue_pop(&game->script_queue);
-                game->lua_current_script_item = next_item;
-                lua_ret = start_script_from_item(game, next_item, &nres);
-                if( lua_ret == LUA_YIELD )
-                    return;
-                if( lua_ret != LUA_OK )
-                    goto lua_error;
-                lua_pop(game->L_coro, nres);
-                script_queue_free_item(game->lua_current_script_item);
-                game->lua_current_script_item = NULL;
-            }
-            break;
-        }
-        default:
-        lua_error:
-        {
-            const char* err = lua_tostring(game->L_coro, -1);
-            fprintf(stderr, "Error in Lua coroutine: %s\n", err ? err : "unknown");
-            lua_pop(game->L_coro, 1);
-            if( game->lua_current_script_item )
-            {
-                script_queue_free_item(game->lua_current_script_item);
-                game->lua_current_script_item = NULL;
-            }
-            game->running = false;
-            return;
-        }
-        }
-    }
+    int scripts_status = step_scripts(game);
+    if( scripts_status == SCRIPTS_IN_PROGRESS )
+        return;
 
     LibToriRS_GameProcessInput(game, input);
 
