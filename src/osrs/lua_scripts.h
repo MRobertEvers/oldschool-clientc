@@ -241,23 +241,23 @@ l_buildcachedat_cache_map_terrain(lua_State* L)
 }
 
 static int
-l_buildcachedat_load_floortype(lua_State* L)
+l_buildcachedat_init_floortypes_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    buildcachedat_loader_load_floortype(buildcachedat);
+    buildcachedat_loader_init_floortypes_from_config_jagfile(buildcachedat);
 
     return 0;
 }
 
 static int
-l_buildcachedat_load_scenery_configs(lua_State* L)
+l_buildcachedat_init_scenery_configs_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    buildcachedat_loader_load_scenery_configs(buildcachedat);
+    buildcachedat_loader_init_scenery_configs_from_config_jagfile(buildcachedat);
 
     return 0;
 }
@@ -267,14 +267,14 @@ l_buildcachedat_get_all_scenery_locs(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
-    
+
     int* loc_ids = NULL;
     int* chunk_x = NULL;
     int* chunk_z = NULL;
-    
-    int count = buildcachedat_loader_get_all_scenery_locs(
-        buildcachedat, &loc_ids, &chunk_x, &chunk_z);
-    
+
+    int count =
+        buildcachedat_loader_get_all_scenery_locs(buildcachedat, &loc_ids, &chunk_x, &chunk_z);
+
     lua_newtable(L);
     for( int i = 0; i < count; i++ )
     {
@@ -287,11 +287,11 @@ l_buildcachedat_get_all_scenery_locs(lua_State* L)
         lua_setfield(L, -2, "chunk_z");
         lua_rawseti(L, -2, i + 1);
     }
-    
+
     free(loc_ids);
     free(chunk_x);
     free(chunk_z);
-    
+
     return 1;
 }
 
@@ -301,21 +301,20 @@ l_buildcachedat_get_scenery_model_ids(lua_State* L)
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int loc_id = luaL_checkinteger(L, 1);
-    
+
     int* model_ids = NULL;
-    int count = buildcachedat_loader_get_scenery_model_ids(
-        buildcachedat, loc_id, &model_ids);
-    
+    int count = buildcachedat_loader_get_scenery_model_ids(buildcachedat, loc_id, &model_ids);
+
     lua_newtable(L);
     for( int i = 0; i < count; i++ )
     {
         lua_pushinteger(L, model_ids[i]);
         lua_rawseti(L, -2, i + 1);
     }
-    
+
     if( model_ids )
         free(model_ids);
-    
+
     return 1;
 }
 
@@ -334,7 +333,7 @@ l_buildcachedat_cache_model(lua_State* L)
 }
 
 static int
-l_buildcachedat_load_textures(lua_State* L)
+l_buildcachedat_cache_textures(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
@@ -342,30 +341,31 @@ l_buildcachedat_load_textures(lua_State* L)
     int data_size = luaL_checkinteger(L, 1);
     void* data = lua_touserdata(L, 2);
 
-    buildcachedat_loader_load_textures(buildcachedat, game, data_size, data);
+    buildcachedat_loader_cache_textures(buildcachedat, game, data_size, data);
 
     return 0;
 }
 
 static int
-l_buildcachedat_load_sequences(lua_State* L)
+l_buildcachedat_init_sequences_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    buildcachedat_loader_load_sequences(buildcachedat);
+    buildcachedat_loader_init_sequences_from_config_jagfile(buildcachedat);
 
     return 0;
 }
 
 static int
-l_buildcachedat_get_animbaseframes_count(lua_State* L)
+l_buildcachedat_get_animbaseframes_count_from_versionlist_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    int count = buildcachedat_loader_get_animbaseframes_count(buildcachedat);
-    
+    int count =
+        buildcachedat_loader_get_animbaseframes_count_from_versionlist_jagfile(buildcachedat);
+
     lua_pushinteger(L, count);
 
     return 1;
@@ -386,7 +386,7 @@ l_buildcachedat_cache_animbaseframes(lua_State* L)
 }
 
 static int
-l_buildcachedat_load_media(lua_State* L)
+l_buildcachedat_cache_media(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
@@ -394,13 +394,13 @@ l_buildcachedat_load_media(lua_State* L)
     int data_size = luaL_checkinteger(L, 1);
     void* data = lua_touserdata(L, 2);
 
-    buildcachedat_loader_load_media(buildcachedat, game, data_size, data);
+    buildcachedat_loader_cache_media(buildcachedat, game, data_size, data);
 
     return 0;
 }
 
 static int
-l_buildcachedat_load_title(lua_State* L)
+l_buildcachedat_cache_title(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
@@ -408,29 +408,29 @@ l_buildcachedat_load_title(lua_State* L)
     int data_size = luaL_checkinteger(L, 1);
     void* data = lua_touserdata(L, 2);
 
-    buildcachedat_loader_load_title(buildcachedat, game, data_size, data);
+    buildcachedat_loader_cache_title(buildcachedat, game, data_size, data);
 
     return 0;
 }
 
 static int
-l_buildcachedat_load_idkits(lua_State* L)
+l_buildcachedat_init_idkits_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    buildcachedat_loader_load_idkits(buildcachedat);
+    buildcachedat_loader_init_idkits_from_config_jagfile(buildcachedat);
 
     return 0;
 }
 
 static int
-l_buildcachedat_load_objects(lua_State* L)
+l_buildcachedat_init_objects_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    buildcachedat_loader_load_objects(buildcachedat);
+    buildcachedat_loader_init_objects_from_config_jagfile(buildcachedat);
 
     return 0;
 }
@@ -446,31 +446,34 @@ l_buildcachedat_finalize_scene(lua_State* L)
     int map_ne_x = luaL_checkinteger(L, 3);
     int map_ne_z = luaL_checkinteger(L, 4);
 
-    buildcachedat_loader_finalize_scene(buildcachedat, game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    buildcachedat_loader_finalize_scene(
+        buildcachedat, game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
 
     return 0;
 }
 
 static const luaL_Reg buildcachedat_funcs[] = {
-    { "cache_map_scenery",        l_buildcachedat_cache_map_scenery        },
-    { "set_config_jagfile",       l_buildcachedat_set_config_jagfile       },
-    { "set_versionlist_jagfile",  l_buildcachedat_set_versionlist_jagfile  },
-    { "cache_map_terrain",        l_buildcachedat_cache_map_terrain        },
-    { "load_floortype",           l_buildcachedat_load_floortype           },
-    { "load_scenery_configs",     l_buildcachedat_load_scenery_configs     },
-    { "get_all_scenery_locs",     l_buildcachedat_get_all_scenery_locs     },
-    { "get_scenery_model_ids",    l_buildcachedat_get_scenery_model_ids    },
-    { "cache_model",              l_buildcachedat_cache_model              },
-    { "load_textures",            l_buildcachedat_load_textures            },
-    { "load_sequences",           l_buildcachedat_load_sequences           },
-    { "get_animbaseframes_count", l_buildcachedat_get_animbaseframes_count },
-    { "cache_animbaseframes",     l_buildcachedat_cache_animbaseframes     },
-    { "load_media",               l_buildcachedat_load_media               },
-    { "load_title",               l_buildcachedat_load_title               },
-    { "load_idkits",              l_buildcachedat_load_idkits              },
-    { "load_objects",             l_buildcachedat_load_objects             },
-    { "finalize_scene",           l_buildcachedat_finalize_scene           },
-    { NULL,                       NULL                                     }
+    { "cache_map_scenery",                                 l_buildcachedat_cache_map_scenery                   },
+    { "set_config_jagfile",                                l_buildcachedat_set_config_jagfile                  },
+    { "set_versionlist_jagfile",                           l_buildcachedat_set_versionlist_jagfile             },
+    { "cache_map_terrain",                                 l_buildcachedat_cache_map_terrain                   },
+    { "init_floortypes_from_config_jagfile",               l_buildcachedat_init_floortypes_from_config_jagfile },
+    { "init_scenery_configs_from_config_jagfile",
+     l_buildcachedat_init_scenery_configs_from_config_jagfile                                                  },
+    { "get_all_scenery_locs",                              l_buildcachedat_get_all_scenery_locs                },
+    { "get_scenery_model_ids",                             l_buildcachedat_get_scenery_model_ids               },
+    { "cache_model",                                       l_buildcachedat_cache_model                         },
+    { "cache_textures",                                    l_buildcachedat_cache_textures                      },
+    { "init_sequences_from_config_jagfile",                l_buildcachedat_init_sequences_from_config_jagfile  },
+    { "get_animbaseframes_count_from_versionlist_jagfile",
+     l_buildcachedat_get_animbaseframes_count_from_versionlist_jagfile                                         },
+    { "cache_animbaseframes",                              l_buildcachedat_cache_animbaseframes                },
+    { "cache_media",                                       l_buildcachedat_cache_media                         },
+    { "cache_title",                                       l_buildcachedat_cache_title                         },
+    { "init_idkits_from_config_jagfile",                   l_buildcachedat_init_idkits_from_config_jagfile     },
+    { "init_objects_from_config_jagfile",                  l_buildcachedat_init_objects_from_config_jagfile    },
+    { "finalize_scene",                                    l_buildcachedat_finalize_scene                      },
+    { NULL,                                                NULL                                                }
 };
 
 static void

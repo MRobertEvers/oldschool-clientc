@@ -89,9 +89,7 @@ endif()
 
         src/osrs/rscache/tables_dat/config_component.c
         src/osrs/gio_cache_dat.c
-        src/osrs/task_init_io.c
         src/osrs/task_init_scene.c
-        src/osrs/task_init_scene_dat.c
         src/osrs/task_packet.c
         src/osrs/configmap.c
         src/osrs/filepack.c

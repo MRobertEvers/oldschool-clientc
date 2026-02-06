@@ -80,7 +80,7 @@ for _, chunk in ipairs(chunks) do
 end
 
 print("=== Step 2: Load Floor Types ===")
-BuildCacheDat.load_floortype()
+BuildCacheDat.init_floortypes_from_config_jagfile()
 
 print("=== Step 3: Load Scenery ===")
 for _, chunk in ipairs(chunks) do
@@ -93,7 +93,7 @@ for _, chunk in ipairs(chunks) do
 end
 
 print("=== Step 4: Load Scenery Configs ===")
-BuildCacheDat.load_scenery_configs()
+BuildCacheDat.init_scenery_configs_from_config_jagfile()
 
 print("=== Step 5: Queue and Load Models ===")
 -- Queue all models from scenery configs
@@ -125,13 +125,13 @@ print("=== Step 6: Load Textures ===")
 local textures_promise = HostIO.dat_config_texture_sprites_load()
 success, param_a, param_b, data_size, data = HostIOUtils.await(textures_promise)
 if not success then error("Failed to load textures") end
-BuildCacheDat.load_textures(data_size, data)
+BuildCacheDat.cache_textures(data_size, data)
 
 print("=== Step 7: Load Sequences ===")
-BuildCacheDat.load_sequences()
+BuildCacheDat.init_sequences_from_config_jagfile()
 
 print("=== Step 8: Load Animation Frame Index ===")
-local animbaseframes_count = BuildCacheDat.get_animbaseframes_count()
+local animbaseframes_count = BuildCacheDat.get_animbaseframes_count_from_versionlist_jagfile()
 
 print("=== Step 9: Load Animation Base Frames ===")
 print(string.format("Loading %d animation base frames...", animbaseframes_count))
@@ -150,19 +150,19 @@ print("=== Step 11: Load Media ===")
 local media_promise = HostIO.dat_config_media_load()
 success, param_a, param_b, data_size, data = HostIOUtils.await(media_promise)
 if not success then error("Failed to load media") end
-BuildCacheDat.load_media(data_size, data)
+BuildCacheDat.cache_media(data_size, data)
 
 print("=== Step 12: Load Title/Fonts ===")
 local title_promise = HostIO.dat_config_title_load()
 success, param_a, param_b, data_size, data = HostIOUtils.await(title_promise)
 if not success then error("Failed to load title") end
-BuildCacheDat.load_title(data_size, data)
+BuildCacheDat.cache_title(data_size, data)
 
 print("=== Step 13: Load IDKits ===")
-BuildCacheDat.load_idkits()
+BuildCacheDat.init_idkits_from_config_jagfile()
 
 print("=== Step 14: Load Objects ===")
-BuildCacheDat.load_objects()
+BuildCacheDat.init_objects_from_config_jagfile()
 
 print("=== Scene Loading Complete ===")
 BuildCacheDat.finalize_scene(MAP_SW_X, MAP_SW_Z, MAP_NE_X, MAP_NE_Z)

@@ -1,8 +1,8 @@
 #ifndef BUILD_CACHE_DAT_LOADER_H
 #define BUILD_CACHE_DAT_LOADER_H
 
-#include "osrs/buildcachedat.h"
 #include "game.h"
+#include "osrs/buildcachedat.h"
 
 void
 buildcachedat_loader_set_config_jagfile(
@@ -33,10 +33,10 @@ buildcachedat_loader_cache_map_scenery(
     void* data);
 
 void
-buildcachedat_loader_load_floortype(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_init_floortypes_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
-buildcachedat_loader_load_scenery_configs(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_init_scenery_configs_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 int
 buildcachedat_loader_get_all_scenery_locs(
@@ -59,17 +59,18 @@ buildcachedat_loader_cache_model(
     void* data);
 
 void
-buildcachedat_loader_load_textures(
+buildcachedat_loader_cache_textures(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game,
     int data_size,
     void* data);
 
 void
-buildcachedat_loader_load_sequences(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_init_sequences_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 int
-buildcachedat_loader_get_animbaseframes_count(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_get_animbaseframes_count_from_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_loader_cache_animbaseframes(
@@ -79,24 +80,24 @@ buildcachedat_loader_cache_animbaseframes(
     void* data);
 
 void
-buildcachedat_loader_load_media(
+buildcachedat_loader_cache_media(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game,
     int data_size,
     void* data);
 
 void
-buildcachedat_loader_load_title(
+buildcachedat_loader_cache_title(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game,
     int data_size,
     void* data);
 
 void
-buildcachedat_loader_load_idkits(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
-buildcachedat_loader_load_objects(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_init_objects_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_loader_finalize_scene(

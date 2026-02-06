@@ -1,8 +1,6 @@
 #include "gametask.h"
 
-#include "task_init_io.h"
 #include "task_init_scene.h"
-#include "task_init_scene_dat.h"
 #include "task_packet.h"
 #include "task_query.h"
 
