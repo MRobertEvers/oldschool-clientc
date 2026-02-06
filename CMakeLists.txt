@@ -33,7 +33,6 @@ endif()
         ${LUA_SOURCES}
         ${LUA_GEN_SOURCES}
         test/osx.cpp
-        src/osrs/lclogin.c
         src/osrs/isaac.c
         src/jbase37.c
         src/tori_rs.c

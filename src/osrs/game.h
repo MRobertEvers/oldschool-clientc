@@ -7,7 +7,6 @@
 #include "datastruct/ringbuf.h"
 #include "datastruct/vec.h"
 #include "game_entity.h"
-#include "lclogin.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/ginput.h"
@@ -15,6 +14,7 @@
 #include "osrs/packetbuffer.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
+#include "osrs/rsa.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
@@ -62,7 +62,6 @@ struct GGame
     struct RingBuf* netout;
 
     enum GameNetState net_state;
-    struct LCLogin* login;
     uint8_t outbound_buffer[4096];
     int outbound_size;
     struct PacketBuffer* packet_buffer;

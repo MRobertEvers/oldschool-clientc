@@ -74,11 +74,6 @@ LibToriRS_GameNew(
     game->netin = ringbuf_new(4096);
     game->netout = ringbuf_new(4096);
 
-    game->login = malloc(sizeof(struct LCLogin));
-    memset(game->login, 0, sizeof(struct LCLogin));
-    lclogin_init(game->login, 245, NULL, false);
-    lclogin_load_rsa_public_key_from_env(game->login);
-
     game->packet_buffer = malloc(sizeof(struct PacketBuffer));
     memset(game->packet_buffer, 0, sizeof(struct PacketBuffer));
 
