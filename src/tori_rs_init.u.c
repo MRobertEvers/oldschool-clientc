@@ -198,8 +198,8 @@ LibToriRS_GameNew(
     script_queue_init(&game->script_queue);
     {
         struct ScriptArgs args = {
-            .tag = SCRIPT_LOAD_SCENE,
-            .u.load_scene = {
+            .tag = SCRIPT_LOAD_SCENE_DAT,
+            .u.load_scene_dat = {
                 .wx_sw = 50 * 64,
                 .wz_sw = 50 * 64,
                 .wx_ne = 51 * 64,

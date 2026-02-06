@@ -52,11 +52,15 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     BuildCacheDat.set_versionlist_jagfile(data_size, data)
 
     print("=== Step 1: Load Terrain ===")
+    local terrain_req_ids = {}
     for _, chunk in ipairs(chunks) do
-        local promise = HostIO.dat_map_terrain_load(chunk.x, chunk.z)
-        success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
-        if not success then 
-            error(string.format("Failed to load terrain %d, %d", chunk.x, chunk.z))
+        terrain_req_ids[#terrain_req_ids + 1] = HostIO.dat_map_terrain_load(chunk.x, chunk.z)
+    end
+    local terrain_results = HostIOUtils.await_all(terrain_req_ids)
+    for i, r in ipairs(terrain_results) do
+        success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
+        if not success then
+            error(string.format("Failed to load terrain %d, %d", chunks[i].x, chunks[i].z))
         end
         BuildCacheDat.cache_map_terrain(param_a, param_b, data_size, data)
     end
@@ -65,11 +69,15 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     BuildCacheDat.init_floortypes_from_config_jagfile()
 
     print("=== Step 3: Load Scenery ===")
+    local scenery_req_ids = {}
     for _, chunk in ipairs(chunks) do
-        local promise = HostIO.dat_map_scenery_load(chunk.x, chunk.z)
-        success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
-        if not success then 
-            error(string.format("Failed to load scenery %d, %d", chunk.x, chunk.z))
+        scenery_req_ids[#scenery_req_ids + 1] = HostIO.dat_map_scenery_load(chunk.x, chunk.z)
+    end
+    local scenery_results = HostIOUtils.await_all(scenery_req_ids)
+    for i, r in ipairs(scenery_results) do
+        success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
+        if not success then
+            error(string.format("Failed to load scenery %d, %d", chunks[i].x, chunks[i].z))
         end
         BuildCacheDat.cache_map_scenery(param_a, param_b, data_size, data)
     end
@@ -90,11 +98,15 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     end
 
     print(string.format("Loading %d models...", #queued_model_ids))
+    local model_req_ids = {}
     for _, model_id in ipairs(queued_model_ids) do
-        local promise = HostIO.dat_models_load(model_id)
-        success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
+        model_req_ids[#model_req_ids + 1] = HostIO.dat_models_load(model_id)
+    end
+    local model_results = HostIOUtils.await_all(model_req_ids)
+    for i, r in ipairs(model_results) do
+        success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
         if success then
-            BuildCacheDat.cache_model(model_id, data_size, data)
+            BuildCacheDat.cache_model(queued_model_ids[i], data_size, data)
         end
     end
 
@@ -112,11 +124,15 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
 
     print("=== Step 9: Load Animation Base Frames ===")
     print(string.format("Loading %d animation base frames...", animbaseframes_count))
+    local animbase_req_ids = {}
     for i = 0, animbaseframes_count - 1 do
-        local promise = HostIO.dat_animbaseframes_load(i)
-        success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
+        animbase_req_ids[#animbase_req_ids + 1] = HostIO.dat_animbaseframes_load(i)
+    end
+    local animbase_results = HostIOUtils.await_all(animbase_req_ids)
+    for i, r in ipairs(animbase_results) do
+        success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
         if success and data_size > 0 then
-            BuildCacheDat.cache_animbaseframes(i, data_size, data)
+            BuildCacheDat.cache_animbaseframes(i - 1, data_size, data)
         end
     end
 
