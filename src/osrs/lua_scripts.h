@@ -8,6 +8,7 @@
 #include "graphics/dash.h"
 #include "graphics/dashmap.h"
 #include "osrs/buildcache.h"
+#include "osrs/buildcache_loader.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/cache_utils.h"
@@ -773,10 +774,7 @@ l_buildcache_add_map_scenery(lua_State* L)
     int data_size = luaL_checkinteger(L, 4);
     void* data = lua_touserdata(L, 5);
 
-    struct CacheMapLocs* locs = map_locs_new_from_decode(data, data_size);
-    locs->_chunk_mapx = mapx;
-    locs->_chunk_mapz = mapz;
-    buildcache_add_map_scenery(game->buildcache, mapx, mapz, locs);
+    buildcache_loader_add_map_scenery(game->buildcache, mapx, mapz, data_size, data);
     return 0;
 }
 
@@ -832,17 +830,8 @@ l_buildcache_add_config_scenery(lua_State* L)
         lua_pop(L, 1);
     }
 
-    if( game->init_scenery_configmap )
-        configmap_free(game->init_scenery_configmap);
-    game->init_scenery_configmap = configmap_new_from_filepack(data, data_size, ids, ids_size);
-    int id = 0;
-    struct DashMapIter* iter = dashmap_iter_new(game->init_scenery_configmap);
-    struct CacheConfigLocation* config_loc = NULL;
-    while( (config_loc = (struct CacheConfigLocation*)configmap_iter_next(iter, &id)) )
-    {
-        buildcache_add_config_location(game->buildcache, id, config_loc);
-    }
-    dashmap_iter_free(iter);
+    buildcache_loader_add_config_scenery(
+        game->buildcache, game, data_size, data, ids, ids_size);
     return 0;
 }
 
@@ -944,8 +933,7 @@ l_buildcache_add_model(lua_State* L)
     int model_id = luaL_checkinteger(L, 1);
     int data_size = luaL_checkinteger(L, 2);
     void* data = lua_touserdata(L, 3);
-    struct CacheModel* model = model_new_decode(data, data_size);
-    buildcache_add_model(game->buildcache, model_id, model);
+    buildcache_loader_add_model(game->buildcache, model_id, data_size, data);
     return 0;
 }
 
@@ -957,8 +945,8 @@ l_buildcache_add_map_terrain(lua_State* L)
     int mapz = luaL_checkinteger(L, 2);
     int data_size = luaL_checkinteger(L, 3);
     void* data = lua_touserdata(L, 4);
-    struct CacheMapTerrain* terrain = map_terrain_new_from_decode(data, data_size, mapx, mapz);
-    buildcache_add_map_terrain(game->buildcache, mapx, mapz, terrain);
+    buildcache_loader_add_map_terrain(
+        game->buildcache, mapx, mapz, data_size, data);
     return 0;
 }
 
@@ -968,16 +956,7 @@ l_buildcache_add_config_underlay(lua_State* L)
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     int data_size = luaL_checkinteger(L, 1);
     void* data = lua_touserdata(L, 2);
-    struct DashMap* configmap = configmap_new_from_filepack(data, data_size, NULL, 0);
-    struct DashMapIter* iter = dashmap_iter_new(configmap);
-    int id = 0;
-    struct CacheConfigUnderlay* underlay = NULL;
-    while( (underlay = (struct CacheConfigUnderlay*)configmap_iter_next(iter, &id)) )
-    {
-        buildcache_add_config_underlay(game->buildcache, id, underlay);
-    }
-    dashmap_iter_free(iter);
-    // configmap_free(configmap);
+    buildcache_loader_add_config_underlay(game->buildcache, data_size, data);
     return 0;
 }
 
@@ -987,16 +966,7 @@ l_buildcache_add_config_overlay(lua_State* L)
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     int data_size = luaL_checkinteger(L, 1);
     void* data = lua_touserdata(L, 2);
-    struct DashMap* configmap = configmap_new_from_filepack(data, data_size, NULL, 0);
-    struct DashMapIter* iter = dashmap_iter_new(configmap);
-    int id = 0;
-    struct CacheConfigOverlay* overlay = NULL;
-    while( (overlay = (struct CacheConfigOverlay*)configmap_iter_next(iter, &id)) )
-    {
-        buildcache_add_config_overlay(game->buildcache, id, overlay);
-    }
-    dashmap_iter_free(iter);
-    // configmap_free(configmap);
+    buildcache_loader_add_config_overlay(game->buildcache, data_size, data);
     return 0;
 }
 
@@ -1096,10 +1066,8 @@ l_buildcache_add_texture_definitions(lua_State* L)
         ids[i] = (int)lua_tointeger(L, -1);
         lua_pop(L, 1);
     }
-    if( game->init_texture_definitions_configmap )
-        configmap_free(game->init_texture_definitions_configmap);
-    game->init_texture_definitions_configmap =
-        configmap_new_from_filepack(data, data_size, ids, ids_size);
+    buildcache_loader_add_texture_definitions(
+        game->buildcache, game, data_size, data, ids, ids_size);
     return 0;
 }
 
@@ -1142,9 +1110,7 @@ l_buildcache_add_spritepack(lua_State* L)
     int id = luaL_checkinteger(L, 1);
     int data_size = luaL_checkinteger(L, 2);
     void* data = lua_touserdata(L, 3);
-    struct CacheSpritePack* spritepack =
-        sprite_pack_new_decode(data, data_size, SPRITELOAD_FLAG_NORMALIZE);
-    buildcache_add_spritepack(game->buildcache, id, spritepack);
+    buildcache_loader_add_spritepack(game->buildcache, id, data_size, data);
     return 0;
 }
 
@@ -1183,17 +1149,8 @@ l_buildcache_add_config_sequences(lua_State* L)
         ids[i] = (int)lua_tointeger(L, -1);
         lua_pop(L, 1);
     }
-    if( game->init_sequences_configmap )
-        configmap_free(game->init_sequences_configmap);
-    game->init_sequences_configmap = configmap_new_from_filepack(data, data_size, ids, ids_size);
-    struct DashMapIter* iter = dashmap_iter_new(game->init_sequences_configmap);
-    int seq_id = 0;
-    struct CacheConfigSequence* seq = NULL;
-    while( (seq = (struct CacheConfigSequence*)configmap_iter_next(iter, &seq_id)) )
-    {
-        buildcache_add_config_sequence(game->buildcache, seq_id, seq);
-    }
-    dashmap_iter_free(iter);
+    buildcache_loader_add_config_sequences(
+        game->buildcache, game, data_size, data, ids, ids_size);
     return 0;
 }
 
@@ -1236,9 +1193,7 @@ l_buildcache_add_frame_blob(lua_State* L)
     int id = luaL_checkinteger(L, 1);
     int data_size = luaL_checkinteger(L, 2);
     void* data = lua_touserdata(L, 3);
-    struct CacheFrameBlob* blob =
-        (struct CacheFrameBlob*)cu_filelist_new_from_filepack(data, data_size);
-    buildcache_add_frame_blob(game->buildcache, id, blob);
+    buildcache_loader_add_frame_blob(game->buildcache, id, data_size, data);
     return 0;
 }
 
@@ -1292,8 +1247,7 @@ l_buildcache_add_framemap(lua_State* L)
     int id = luaL_checkinteger(L, 1);
     int data_size = luaL_checkinteger(L, 2);
     void* data = lua_touserdata(L, 3);
-    struct CacheFramemap* framemap = framemap_new_decode2(id, data, data_size);
-    buildcache_add_framemap(game->buildcache, id, framemap);
+    buildcache_loader_add_framemap(game->buildcache, id, data_size, data);
     return 0;
 }
 

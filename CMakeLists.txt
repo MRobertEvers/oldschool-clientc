@@ -41,6 +41,7 @@ endif()
         src/osrs/buildcachedat.c
         src/osrs/buildcachedat_loader.c
         src/osrs/buildcache.c
+        src/osrs/buildcache_loader.c
         src/server/prot.c
         src/datastruct/list.c
         src/datastruct/vec.c
