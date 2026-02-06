@@ -3,7 +3,6 @@
 #include "datastruct/vec.h"
 #include "graphics/dash.h"
 #include "osrs/dash_utils.h"
-#include "osrs/dashlib.h"
 #include "osrs/minimap.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/filelist.h"

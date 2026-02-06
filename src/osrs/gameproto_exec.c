@@ -1,6 +1,6 @@
 #include "gameproto_exec.h"
 
-#include "dashlib.h"
+#include "dash_utils.h"
 #include "datatypes/appearances.h"
 #include "datatypes/player_appearance.h"
 #include "model_transforms.h"
@@ -695,8 +695,8 @@ gameproto_exec_rebuild_normal(
 
     game->sys_painter = painter_new(SCENE_WIDTH, SCENE_WIDTH, levels);
     game->sys_painter_buffer = painter_buffer_new();
-    game->sys_minimap = minimap_new(
-        zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104, levels);
+    game->sys_minimap =
+        minimap_new(zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104, levels);
     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
 
     game->scene = scenebuilder_load_from_buildcachedat(

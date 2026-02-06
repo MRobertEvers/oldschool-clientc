@@ -3,7 +3,7 @@
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
 #include "osrs/buildcachedat.h"
-#include "osrs/dashlib.h"
+#include "osrs/dash_utils.h"
 #include "osrs/gameproto_parse.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/gio.h"

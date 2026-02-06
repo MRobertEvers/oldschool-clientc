@@ -8,7 +8,6 @@ extern "C" {
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/dash_utils.h"
-#include "osrs/dashlib.h"
 #include "osrs/minimap.h"
 #include "osrs/model_transforms.h"
 #include "osrs/rscache/rsbuf.h"

@@ -1,7 +1,6 @@
 #ifndef SCENE_BUILDER_SCENERY_U_C
 #define SCENE_BUILDER_SCENERY_U_C
 
-#include "dashlib.h"
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
 #include "model_transforms.h"
