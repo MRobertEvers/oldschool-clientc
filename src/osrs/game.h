@@ -111,7 +111,6 @@ struct GGame
     uint64_t next_tick_ms;
 
     struct RevPacket_LC245_2_Item* packets_lc245_2;
-    struct RevPacket_LC245_2_Item* packets_lc245_2_inflight;
 
     struct Vec* scene_elements;
     struct Scene* scene;

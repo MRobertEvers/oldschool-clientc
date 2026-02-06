@@ -13,35 +13,37 @@ struct TaskPacket
 {
     struct GGame* game;
     struct GIOQueue* io;
+    struct RevPacket_LC245_2_Item* item;
 };
 
 struct TaskPacket*
 task_packet_new(
     struct GGame* game,
-    struct GIOQueue* io)
+    struct GIOQueue* io,
+    struct RevPacket_LC245_2_Item* item)
 {
     struct TaskPacket* task = malloc(sizeof(struct TaskPacket));
     memset(task, 0, sizeof(struct TaskPacket));
     task->game = game;
     task->io = io;
+    task->item = item;
     return task;
 }
 
 void
 task_packet_free(struct TaskPacket* task)
 {
+    free(task->item);
     free(task);
 }
 
 enum GameTaskStatus
 task_packet_step(struct TaskPacket* task)
 {
-    struct RevPacket_LC245_2_Item* item = task->game->packets_lc245_2_inflight;
+    struct RevPacket_LC245_2_Item* item = task->item;
     assert(item);
 
     gameproto_exec_lc245_2(task->game, &item->packet);
-
-    task->game->packets_lc245_2_inflight = item->next_nullable;
 
     return GAMETASK_STATUS_COMPLETED;
 }

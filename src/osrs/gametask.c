@@ -100,13 +100,14 @@ gametask_new_init_scene_dat(
 struct GameTask*
 gametask_new_packet(
     struct GGame* game,
-    struct GIOQueue* io)
+    struct GIOQueue* io,
+    struct RevPacket_LC245_2_Item* item)
 {
     struct GameTask* task = malloc(sizeof(struct GameTask));
     memset(task, 0, sizeof(struct GameTask));
     task->status = GAMETASK_STATUS_PENDING;
     task->kind = GAMETASK_KIND_PACKET;
-    task->_packet = task_packet_new(game, io);
+    task->_packet = task_packet_new(game, io, item);
 
     append_task(game, task);
 

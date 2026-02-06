@@ -10,7 +10,8 @@ struct TaskPacket;
 struct TaskPacket*
 task_packet_new(
     struct GGame* game,
-    struct GIOQueue* io);
+    struct GIOQueue* io,
+    struct RevPacket_LC245_2_Item* item);
 
 void
 task_packet_free(struct TaskPacket* task);

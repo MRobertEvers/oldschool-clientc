@@ -45,21 +45,8 @@ gameproto_process(
             break;
         }
 
-        gametask_new_packet(game, io);
+        gametask_new_packet(game, io, item);
 
-        item->next_nullable = NULL;
-
-        if( !game->packets_lc245_2_inflight )
-        {
-            game->packets_lc245_2_inflight = item;
-        }
-        else
-        {
-            struct RevPacket_LC245_2_Item* list = game->packets_lc245_2_inflight;
-            while( list->next_nullable )
-                list = list->next_nullable;
-            list->next_nullable = item;
-        }
 skip_append:;
     }
 }

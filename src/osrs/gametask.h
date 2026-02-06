@@ -57,7 +57,8 @@ gametask_new_init_scene_dat(
 struct GameTask*
 gametask_new_packet(
     struct GGame* game,
-    struct GIOQueue* io);
+    struct GIOQueue* io,
+    struct RevPacket_LC245_2_Item* item);
 
 enum GameTaskStatus
 gametask_step(struct GameTask* task);
