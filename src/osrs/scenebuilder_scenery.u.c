@@ -398,10 +398,11 @@ load_model(
     return dash_model;
 }
 
-static struct SceneAnimation*
+static void
 load_model_animations_dat2(
     struct CacheConfigLocation* loc_config,
-    struct BuildCache* buildcache)
+    struct BuildCache* buildcache,
+    struct SceneElement* element)
 {
     struct SceneAnimation* scene_animation = NULL;
     struct FrameEntry* frame_entry = NULL;
@@ -411,10 +412,9 @@ load_model_animations_dat2(
     struct DashFramemap* dash_framemap = NULL;
 
     if( loc_config->seq_id == -1 || !buildcache->config_sequence_hmap )
-        return NULL;
+        return;
 
-    scene_animation = malloc(sizeof(struct SceneAnimation));
-    memset(scene_animation, 0, sizeof(struct SceneAnimation));
+    scene_animation = scene_element_animation_new(element, 10);
 
     struct CacheConfigSequence* sequence =
         buildcache_get_config_sequence(buildcache, loc_config->seq_id);
@@ -434,14 +434,6 @@ load_model_animations_dat2(
         scene_animation->frame_index = 0;
     }
 
-    scene_animation->frame_lengths = malloc(sequence->frame_count * sizeof(int));
-    memset(scene_animation->frame_lengths, 0, sequence->frame_count * sizeof(int));
-
-    for( int i = 0; i < sequence->frame_count; i++ )
-    {
-        scene_animation->frame_lengths[i] = sequence->frame_lengths[i];
-    }
-
     for( int i = 0; i < sequence->frame_count; i++ )
     {
         // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
@@ -451,17 +443,17 @@ load_model_animations_dat2(
 
         struct CacheFrame* frame = buildcache_get_frame_anim(buildcache, frame_id);
 
-        scene_animation_push_frame(
-            scene_animation,
+        scene_element_animation_push_frame(
+            element,
             dashframe_new_from_cache_frame(frame),
-            dashframemap_new_from_cache_framemap(frame->_framemap));
+            dashframemap_new_from_cache_framemap(frame->_framemap),
+            sequence->frame_lengths[i]);
     }
-
-    return scene_animation;
 }
 
-static struct SceneAnimation*
+static void
 load_model_animations_dati(
+    struct SceneElement* element,
     int sequence_id,
     struct BuildCacheDat* buildcachedat)
 {
@@ -473,16 +465,11 @@ load_model_animations_dati(
     struct DashFramemap* dash_framemap = NULL;
 
     if( sequence_id == -1 || !buildcachedat->sequences_hmap )
-        return NULL;
+        return;
 
-    scene_animation = malloc(sizeof(struct SceneAnimation));
-    memset(scene_animation, 0, sizeof(struct SceneAnimation));
-
+    scene_animation = scene_element_animation_new(element, 10);
     sequence = buildcachedat_get_sequence(buildcachedat, sequence_id);
     assert(sequence);
-
-    scene_animation->frame_lengths = malloc(sequence->frame_count * sizeof(int));
-    memset(scene_animation->frame_lengths, 0, sequence->frame_count * sizeof(int));
 
     for( int i = 0; i < sequence->frame_count; i++ )
     {
@@ -503,44 +490,36 @@ load_model_animations_dati(
         int length = sequence->delay[i];
         if( length == 0 )
             length = animframe->delay;
-        scene_animation->frame_lengths[i] = length;
 
-        scene_animation_push_frame(
-            scene_animation, dashframe_new_from_animframe(animframe), dash_framemap);
+        scene_element_animation_push_frame(
+            element, dashframe_new_from_animframe(animframe), dash_framemap, length);
     }
-
-    return scene_animation;
 }
 
-static struct SceneAnimation*
+static void
 load_model_animations_dat(
     struct CacheConfigLocation* loc_config,
-    struct BuildCacheDat* buildcachedat)
+    struct BuildCacheDat* buildcachedat,
+    struct SceneElement* element)
 {
-    struct SceneAnimation* scene_animation = NULL;
-    struct AnimframeEntry* animframe_entry = NULL;
-    struct DatSequenceEntry* dat_sequence_entry = NULL;
-
-    struct DashFrame* dash_frame = NULL;
-    struct DashFramemap* dash_framemap = NULL;
-
     if( loc_config->seq_id == -1 || !buildcachedat->sequences_hmap )
-        return NULL;
-    return load_model_animations_dati(loc_config->seq_id, buildcachedat);
+        return;
+    load_model_animations_dati(element, loc_config->seq_id, buildcachedat);
 }
 
-static struct SceneAnimation*
+static void
 scenebuilder_load_model_animations(
     struct SceneBuilder* scene_builder,
-    struct CacheConfigLocation* loc_config)
+    struct CacheConfigLocation* loc_config,
+    struct SceneElement* element)
 {
     if( scene_builder->buildcache != NULL )
     {
-        return load_model_animations_dat2(loc_config, scene_builder->buildcache);
+        load_model_animations_dat2(loc_config, scene_builder->buildcache, element);
     }
     else
     {
-        return load_model_animations_dat(loc_config, scene_builder->buildcachedat);
+        load_model_animations_dat(loc_config, scene_builder->buildcachedat, element);
     }
 }
 
@@ -995,9 +974,7 @@ scenery_add_wall_decor_inside(
     dash_model =
         load_model(scene_builder, config_loc, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, tile_heights);
 
-    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
-
-    scene_element.animation = scene_animation;
+    scenebuilder_load_model_animations(scene_builder, config_loc, &scene_element);
 
     dash_position = dash_position_from_offset_1x1(offset, tile_heights->height_center);
 
@@ -1066,7 +1043,7 @@ scenery_add_wall_decor_outside(
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
 
-    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
+    scenebuilder_load_model_animations(scene_builder, config_loc, &scene_element);
 
     scene_element.animation = scene_animation;
 
@@ -1143,9 +1120,7 @@ scenery_add_wall_decor_diagonal_outside(
     }
     scene_element.dash_position->yaw %= 2048;
 
-    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
-
-    scene_element.animation = scene_animation;
+    scenebuilder_load_model_animations(scene_builder, config_loc, &scene_element);
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
@@ -1190,7 +1165,6 @@ scenery_add_wall_decor_diagonal_inside(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
-    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
@@ -1218,9 +1192,7 @@ scenery_add_wall_decor_diagonal_inside(
         scene_element.dash_position->yaw += 512 * (orientation);
     scene_element.dash_position->yaw %= 2048;
 
-    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
-
-    scene_element.animation = scene_animation;
+    scenebuilder_load_model_animations(scene_builder, config_loc, &scene_element);
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
@@ -1264,7 +1236,6 @@ scenery_add_wall_decor_diagonal_double(
     struct DashPosition* dash_position_one = NULL;
     struct DashPosition* dash_position_two = NULL;
     struct SceneElement scene_element = { 0 };
-    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_one_id = -1;
     int element_two_id = -1;
@@ -1292,9 +1263,7 @@ scenery_add_wall_decor_diagonal_double(
         scene_element.dash_position->yaw += 512 * (outside_orientation);
     scene_element.dash_position->yaw %= 2048;
 
-    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
-
-    scene_element.animation = scene_animation;
+    scenebuilder_load_model_animations(scene_builder, config_loc, &scene_element);
 
     element_one_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_one_id != -1);
@@ -1318,9 +1287,7 @@ scenery_add_wall_decor_diagonal_double(
         scene_element.dash_position->yaw += 512 * (inside_orientation);
     scene_element.dash_position->yaw %= 2048;
 
-    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
-
-    scene_element.animation = scene_animation;
+    scenebuilder_load_model_animations(scene_builder, config_loc, &scene_element);
 
     element_two_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_two_id != -1);
@@ -1472,9 +1439,7 @@ scenery_add_normal(
         scene_element.dash_position->yaw %= 2048;
     }
 
-    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
-
-    scene_element.animation = scene_animation;
+    scenebuilder_load_model_animations(scene_builder, config_loc, &scene_element);
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);
@@ -1557,7 +1522,6 @@ scenery_add_floor_decoration(
     struct DashModel* dash_model = NULL;
     struct DashPosition* dash_position = NULL;
     struct SceneElement scene_element = { 0 };
-    struct SceneAnimation* scene_animation = NULL;
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
@@ -1571,8 +1535,7 @@ scenery_add_floor_decoration(
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
 
-    scene_animation = scenebuilder_load_model_animations(scene_builder, config_loc);
-    scene_element.animation = scene_animation;
+    scenebuilder_load_model_animations(scene_builder, config_loc, &scene_element);
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);

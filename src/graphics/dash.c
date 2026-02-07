@@ -1615,6 +1615,66 @@ dash_animate_textures(
     dashmap_iter_free(iter);
 }
 
+struct DashPosition*
+dashposition_new(void)
+{
+    struct DashPosition* position = (struct DashPosition*)malloc(sizeof(struct DashPosition));
+    memset(position, 0, sizeof(struct DashPosition));
+    return position;
+}
+
+void
+dashposition_free(struct DashPosition* position)
+{
+    free(position);
+    position = NULL;
+}
+
+struct DashModel*
+dashmodel_new(void)
+{
+    struct DashModel* model = (struct DashModel*)malloc(sizeof(struct DashModel));
+    memset(model, 0, sizeof(struct DashModel));
+
+    return model;
+}
+
+void
+dashmodel_free(struct DashModel* model)
+{
+    if( !model )
+        return;
+    free(model->vertices_x);
+    free(model->vertices_y);
+    free(model->vertices_z);
+    free(model->original_vertices_x);
+    free(model->original_vertices_y);
+    free(model->original_vertices_z);
+    free(model->face_indices_a);
+    free(model->face_indices_b);
+    free(model->face_indices_c);
+    free(model->face_alphas);
+    free(model->original_face_alphas);
+    free(model->face_infos);
+    free(model->face_priorities);
+    free(model->face_colors);
+    free(model->textured_p_coordinate);
+    free(model->textured_m_coordinate);
+    free(model->textured_n_coordinate);
+    free(model->face_textures);
+    free(model->face_texture_coords);
+    free(model->normals->lighting_vertex_normals);
+    free(model->normals->lighting_face_normals);
+    free(model->lighting->face_colors_hsl_a);
+    free(model->lighting->face_colors_hsl_b);
+    free(model->lighting->face_colors_hsl_c);
+    free(model->vertex_bones);
+    free(model->face_bones);
+    free(model->bounds_cylinder);
+    free(model);
+    model = NULL;
+}
+
 struct DashModelNormals*
 dashmodel_normals_new(
     int vertex_count,
@@ -2343,4 +2403,34 @@ dash2d_blit_rotated(
     // } catch (e) {
     //     /* empty */
     // }
+}
+
+void
+dashframe_free(struct DashFrame* frame)
+{
+    if( !frame )
+        return;
+
+    free(frame->index_frame_ids);
+    free(frame->translator_arg_x);
+    free(frame->translator_arg_y);
+    free(frame->translator_arg_z);
+    free(frame);
+    frame = NULL;
+}
+
+void
+dashframemap_free(struct DashFramemap* framemap)
+{
+    if( !framemap )
+        return;
+
+    for( int i = 0; i < framemap->length; i++ )
+    {
+        free(framemap->bone_groups[i]);
+    }
+    free(framemap->bone_groups);
+    free(framemap->bone_groups_lengths);
+    free(framemap->types);
+    free(framemap);
 }

@@ -182,4 +182,14 @@ struct GGame
     struct DashSprite* sprite_backhmid2;
 };
 
+void
+game_npc_add(
+    struct GGame* game,
+    int npc_type_id);
+
+void
+game_npc_remove(
+    struct GGame* game,
+    int npc_type_id);
+
 #endif

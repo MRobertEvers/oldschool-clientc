@@ -126,8 +126,9 @@ start_script_from_item(
     return ret;
 }
 
-static struct SceneAnimation*
+static void
 load_model_animations_dati(
+    struct SceneElement* element,
     int sequence_id,
     struct BuildCacheDat* buildcachedat)
 {
@@ -139,16 +140,12 @@ load_model_animations_dati(
     struct DashFramemap* dash_framemap = NULL;
 
     if( sequence_id == -1 || !buildcachedat->sequences_hmap )
-        return NULL;
+        return;
 
-    scene_animation = malloc(sizeof(struct SceneAnimation));
-    memset(scene_animation, 0, sizeof(struct SceneAnimation));
-
+    scene_element_animation_free(element);
+    scene_animation = scene_element_animation_new(element, 10);
     sequence = buildcachedat_get_sequence(buildcachedat, sequence_id);
     assert(sequence);
-
-    scene_animation->frame_lengths = malloc(sequence->frame_count * sizeof(int));
-    memset(scene_animation->frame_lengths, 0, sequence->frame_count * sizeof(int));
 
     for( int i = 0; i < sequence->frame_count; i++ )
     {
@@ -169,13 +166,10 @@ load_model_animations_dati(
         int length = sequence->delay[i];
         if( length == 0 )
             length = animframe->delay;
-        scene_animation->frame_lengths[i] = length;
 
-        scene_animation_push_frame(
-            scene_animation, dashframe_new_from_animframe(animframe), dash_framemap);
+        scene_element_animation_push_frame(
+            element, dashframe_new_from_animframe(animframe), dash_framemap, length);
     }
-
-    return scene_animation;
 }
 
 static void
@@ -376,12 +370,13 @@ anim:;
     if( npc_entity->curranim != seqId && seqId != -1 )
     {
         npc_entity->curranim = seqId;
-        scene_element->animation = load_model_animations_dati(seqId, game->buildcachedat);
+
+        load_model_animations_dati(scene_element, seqId, game->buildcachedat);
     }
     else if( seqId == -1 )
     {
         npc_entity->curranim = -1;
-        scene_element->animation = NULL;
+        scene_element_animation_free(scene_element);
     }
 }
 
@@ -584,12 +579,12 @@ anim:;
     if( player_entity->curranim != seqId && seqId != -1 )
     {
         player_entity->curranim = seqId;
-        scene_element->animation = load_model_animations_dati(seqId, game->buildcachedat);
+        load_model_animations_dati(scene_element, seqId, game->buildcachedat);
     }
     else if( seqId == -1 )
     {
         player_entity->curranim = -1;
-        scene_element->animation = NULL;
+        scene_element_animation_free(scene_element);
     }
 }
 
@@ -727,6 +722,11 @@ LibToriRS_GameStep(
         struct NPCEntity* npc = &game->npcs[game->active_npcs[i]];
         if( npc->alive && npc->scene_element )
         {
+            if( game->cycles_elapsed != 0 )
+            {
+                update_npc_anim(game, game->active_npcs[i]);
+            }
+
             scenebuilder_push_dynamic_element(
                 game->scenebuilder,
                 game->scene,
@@ -737,15 +737,10 @@ LibToriRS_GameStep(
                 npc->size_z,
                 npc->scene_element);
 
-            if( game->cycles_elapsed != 0 )
-            {
-                update_npc_anim(game, game->active_npcs[i]);
-            }
             struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
             scene_element->dash_position->yaw = npc->orientation.yaw;
             scene_element->dash_position->x = npc->position.x;
             scene_element->dash_position->z = npc->position.z;
-            scene_element->isnpc = true;
 
             advance_animation(scene_element->animation, game->cycles_elapsed);
         }
@@ -757,6 +752,11 @@ LibToriRS_GameStep(
         struct PlayerEntity* player = &game->players[player_id];
         if( player->alive && player->scene_element )
         {
+            if( game->cycles_elapsed != 0 )
+            {
+                update_player_anim(game, player_id);
+            }
+
             scenebuilder_push_dynamic_element(
                 game->scenebuilder,
                 game->scene,
@@ -767,15 +767,10 @@ LibToriRS_GameStep(
                 1,
                 player->scene_element);
 
-            if( game->cycles_elapsed != 0 )
-            {
-                update_player_anim(game, player_id);
-            }
             struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
             scene_element->dash_position->yaw = player->orientation.yaw;
             scene_element->dash_position->x = player->position.x;
             scene_element->dash_position->z = player->position.z;
-            scene_element->isnpc = false;
 
             advance_animation(scene_element->animation, game->cycles_elapsed);
         }
@@ -783,6 +778,11 @@ LibToriRS_GameStep(
 
     if( game->players[ACTIVE_PLAYER_SLOT].alive && game->players[ACTIVE_PLAYER_SLOT].scene_element )
     {
+        if( game->cycles_elapsed != 0 )
+        {
+            update_player_anim(game, ACTIVE_PLAYER_SLOT);
+        }
+
         scenebuilder_push_dynamic_element(
             game->scenebuilder,
             game->scene,
@@ -793,10 +793,6 @@ LibToriRS_GameStep(
             1,
             game->players[ACTIVE_PLAYER_SLOT].scene_element);
 
-        if( game->cycles_elapsed != 0 )
-        {
-            update_player_anim(game, ACTIVE_PLAYER_SLOT);
-        }
         struct SceneElement* scene_element =
             (struct SceneElement*)game->players[ACTIVE_PLAYER_SLOT].scene_element;
         scene_element->dash_position->yaw = game->players[ACTIVE_PLAYER_SLOT].orientation.yaw;

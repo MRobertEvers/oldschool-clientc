@@ -1,34 +1,19 @@
 #include "scene.h"
 
+#include "graphics/dash.h"
 #include "rscache/tables/maps.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-struct SceneAnimation*
-scene_animation_new(int frame_count_hint)
-{
-    struct SceneAnimation* animation =
-        (struct SceneAnimation*)malloc(sizeof(struct SceneAnimation));
-    memset(animation, 0, sizeof(struct SceneAnimation));
-
-    animation->dash_frames = malloc(frame_count_hint * sizeof(struct DashFrame));
-    memset(animation->dash_frames, 0, frame_count_hint * sizeof(struct DashFrame));
-
-    animation->frame_capacity = frame_count_hint;
-
-    animation->dash_framemap = NULL;
-    animation->frame_count = 0;
-
-    return animation;
-}
-
-struct SceneAnimation*
-scene_animation_push_frame(
-    struct SceneAnimation* animation,
+void
+scene_element_animation_push_frame(
+    struct SceneElement* element,
     struct DashFrame* dash_frame,
-    struct DashFramemap* dash_framemap)
+    struct DashFramemap* dash_framemap,
+    int length)
 {
+    struct SceneAnimation* animation = element->animation;
     if( animation->frame_count >= animation->frame_capacity )
     {
         if( animation->frame_capacity == 0 )
@@ -36,20 +21,53 @@ scene_animation_push_frame(
         animation->frame_capacity *= 2;
         animation->dash_frames =
             realloc(animation->dash_frames, animation->frame_capacity * sizeof(struct DashFrame*));
+        animation->frame_lengths =
+            realloc(animation->frame_lengths, animation->frame_capacity * sizeof(int));
     }
     animation->dash_frames[animation->frame_count] = dash_frame;
+    animation->frame_lengths[animation->frame_count] = length;
     animation->frame_count++;
 
     animation->dash_framemap = dash_framemap;
-
-    return animation;
 }
 
 void
-scene_animation_free(struct SceneAnimation* animation)
+scene_element_animation_free(struct SceneElement* element)
 {
-    free(animation->dash_frames);
-    free(animation);
+    if( !element->animation )
+        return;
+
+    for( int i = 0; i < element->animation->frame_count; i++ )
+    {
+        dashframe_free(element->animation->dash_frames[i]);
+    }
+    free(element->animation->dash_frames);
+    free(element->animation->frame_lengths);
+    memset(element->animation, 0, sizeof(struct SceneAnimation));
+    free(element->animation);
+    element->animation = NULL;
+}
+
+struct SceneElement*
+scene_element_new(struct Scene* scene)
+{
+    struct SceneElement* element = (struct SceneElement*)malloc(sizeof(struct SceneElement));
+    memset(element, 0, sizeof(struct SceneElement));
+
+    element->dash_position = dashposition_new();
+    element->animation = scene_element_animation_new(element, 10);
+
+    return element;
+}
+
+void
+scene_element_free(struct SceneElement* element)
+{
+    scene_element_animation_free(element);
+    dashmodel_free(element->dash_model);
+    dashposition_free(element->dash_position);
+    free(element);
+    element = NULL;
 }
 
 static struct SceneScenery*
@@ -128,6 +146,32 @@ scene_free(struct Scene* scene)
     scene_scenery_free(scene->scenery);
     scene_terrain_free(scene->terrain);
     free(scene);
+}
+
+struct SceneAnimation*
+scene_element_animation_new(
+    struct SceneElement* element,
+    int frame_count_hint)
+{
+    assert(element->animation == NULL);
+    struct SceneAnimation* animation =
+        (struct SceneAnimation*)malloc(sizeof(struct SceneAnimation));
+    memset(animation, 0, sizeof(struct SceneAnimation));
+
+    animation->dash_frames = malloc(frame_count_hint * sizeof(struct DashFrame));
+    memset(animation->dash_frames, 0, frame_count_hint * sizeof(struct DashFrame));
+
+    animation->frame_lengths = malloc(frame_count_hint * sizeof(int));
+    memset(animation->frame_lengths, 0, frame_count_hint * sizeof(int));
+
+    animation->frame_capacity = frame_count_hint;
+
+    animation->dash_framemap = NULL;
+    animation->frame_count = 0;
+
+    element->animation = animation;
+
+    return animation;
 }
 
 static bool
@@ -225,14 +269,6 @@ scene_element_at(
     return &scenery->elements[element_idx];
 }
 
-int
-scene_push_element_move(
-    struct Scene* scene,
-    struct SceneElement* element)
-{
-    return scene_scenery_push_element_move(scene->scenery, element);
-}
-
 bool
 scene_element_interactable(
     struct Scene* scene,
@@ -247,6 +283,16 @@ scene_element_model(
     int element)
 {
     return scene_element_at(scene->scenery, element)->dash_model;
+}
+
+void
+scene_element_reset(struct SceneElement* element)
+{
+    dashmodel_free(element->dash_model);
+    scene_element_animation_free(element);
+
+    memset(element->dash_position, 0, sizeof(struct DashPosition));
+    element->dash_model = dashmodel_new();
 }
 
 struct DashPosition*

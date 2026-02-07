@@ -43,6 +43,11 @@ dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont);
 struct DashModel*
 dashmodel_new_from_cache_model(struct CacheModel* model);
 
+void
+dashmodel_move_from_cache_model(
+    struct DashModel* dash_model,
+    struct CacheModel* model);
+
 struct DashModelBones*
 dashmodel_bones_new(
     int* bone_map,

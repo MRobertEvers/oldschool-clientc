@@ -101,6 +101,7 @@ struct DashModelBones
 
 struct DashModel
 {
+    bool loaded;
     int _dbg_ids[10];
     int vertex_count;
     int* vertices_x;
@@ -352,6 +353,18 @@ dash_animate_textures(
     struct DashGraphics* dash,
     int time_delta);
 
+struct DashPosition*
+dashposition_new(void);
+
+void
+dashposition_free(struct DashPosition* position);
+
+struct DashModel*
+dashmodel_new(void);
+
+void
+dashmodel_free(struct DashModel* model);
+
 struct DashModelNormals* //
 dashmodel_normals_new(
     int vertex_count,
@@ -460,4 +473,9 @@ dash2d_blit_rotated(
     int anchor_y,
     int angle_r2pi2048);
 
+void
+dashframe_free(struct DashFrame* frame);
+
+void
+dashframemap_free(struct DashFramemap* framemap);
 #endif

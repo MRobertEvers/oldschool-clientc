@@ -3,6 +3,7 @@
 #include "dash_utils.h"
 #include "datatypes/appearances.h"
 #include "datatypes/player_appearance.h"
+#include "entity_scenebuild.h"
 #include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
 #include "packets/pkt_npc_info.h"
@@ -10,177 +11,6 @@
 #include "rscache/bitbuffer.h"
 #include "rscache/rsbuf.h"
 #include "rscache/tables/model.h"
-
-static struct CacheModel*
-idk_model(
-    struct GGame* game,
-    int idk_id)
-{
-    struct CacheModel* idk_model = buildcachedat_get_idk_model(game->buildcachedat, idk_id);
-    if( idk_model )
-    {
-        return idk_model;
-    }
-
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(game->buildcachedat, idk_id);
-    if( !idk )
-    {
-        return NULL;
-    }
-
-    struct CacheModel* models[12] = { 0 };
-    int model_count = 0;
-    for( int i = 0; i < idk->models_count; i++ )
-    {
-        models[model_count] = buildcachedat_get_model(game->buildcachedat, idk->models[i]);
-        model_count++;
-    }
-
-    struct CacheModel* merged = model_new_merge(models, model_count);
-    buildcachedat_add_idk_model(game->buildcachedat, idk_id, merged);
-    return merged;
-}
-
-static struct CacheModel*
-obj_model(
-    struct GGame* game,
-    int obj_id)
-{
-    struct CacheModel* obj_model = buildcachedat_get_obj_model(game->buildcachedat, obj_id);
-    if( obj_model )
-    {
-        return obj_model;
-    }
-
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
-    if( !obj )
-    {
-        return NULL;
-    }
-    struct CacheModel* models[12] = { 0 };
-    int model_count = 0;
-
-    if( obj->manwear != -1 )
-    {
-        models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear);
-        assert(models[model_count] && "Model must be found");
-        model_count++;
-    }
-    if( obj->manwear2 != -1 )
-    {
-        models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear2);
-        assert(models[model_count] && "Model must be found");
-        model_count++;
-    }
-    if( obj->manwear3 != -1 )
-    {
-        models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear3);
-        assert(models[model_count] && "Model must be found");
-        model_count++;
-    }
-
-    struct CacheModel* merged = model_new_merge(models, model_count);
-    buildcachedat_add_obj_model(game->buildcachedat, obj_id, merged);
-
-    for( int i = 0; i < obj->recol_count; i++ )
-    {
-        model_transform_recolor(merged, obj->recol_s[i], obj->recol_d[i]);
-    }
-
-    return merged;
-}
-
-static struct DashModel*
-player_appearance_model(
-    struct GGame* game,
-    struct PlayerAppearance* appearance)
-{
-    struct CacheModel* model = NULL;
-    struct AppearanceOp op;
-    int model_count = 0;
-    struct CacheModel* models[12];
-    for( int i = 0; i < 12; i++ )
-    {
-        model = NULL;
-        appearances_decode(&op, appearance->appearance, i);
-        switch( op.kind )
-        {
-        case APPEARANCE_KIND_IDK:
-            model = idk_model(game, op.id);
-            break;
-        case APPEARANCE_KIND_OBJ:
-            model = obj_model(game, op.id);
-            break;
-        default:
-            break;
-        }
-        if( model )
-        {
-            models[model_count] = model;
-            model_count++;
-        }
-    }
-
-    struct CacheModel* merged = model_new_merge(models, model_count);
-    assert(merged->vertices_x && "Merged model must have vertices");
-    assert(merged->vertices_y && "Merged model must have vertices");
-    assert(merged->vertices_z && "Merged model must have vertices");
-
-    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_new_copy(merged));
-    _light_model_default(dash_model, 0, 0);
-
-    return dash_model;
-}
-
-static struct DashModel*
-npc_model(
-    struct GGame* game,
-    int npc_id)
-{
-    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, npc_id);
-    assert(npc && "Npc must be found");
-
-    struct CacheModel* model = buildcachedat_get_npc_model(game->buildcachedat, npc_id);
-    struct DashModel* dash_model = NULL;
-    if( model )
-    {
-        model = model_new_copy(model);
-        dash_model = dashmodel_new_from_cache_model(model);
-        _light_model_default(dash_model, 0, 0);
-        return dash_model;
-    }
-
-    struct CacheModel* models[20];
-    int model_count = 0;
-    for( int i = 0; i < npc->models_count; i++ )
-    {
-        struct CacheModel* got_model = buildcachedat_get_model(game->buildcachedat, npc->models[i]);
-        assert(got_model && "Model must be found");
-
-        models[model_count] = got_model;
-        model_count++;
-    }
-
-    struct CacheModel* merged = model_new_merge(models, model_count);
-
-    assert(merged->vertices_x && "Merged model must have vertices");
-    assert(merged->vertices_y && "Merged model must have vertices");
-    assert(merged->vertices_z && "Merged model must have vertices");
-
-    buildcachedat_add_npc_model(game->buildcachedat, npc_id, merged);
-
-    struct CacheModel* copy = model_new_copy(merged);
-
-    for( int i = 0; i < npc->recol_count; i++ )
-    {
-        model_transform_recolor(copy, npc->recol_s[i], npc->recol_d[i]);
-    }
-
-    dash_model = dashmodel_new_from_cache_model(copy);
-    _light_model_default(dash_model, 0, 0);
-
-    return dash_model;
-}
 
 static void
 npc_move(
@@ -207,8 +37,8 @@ npc_move(
             npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i - 1];
             npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i - 1];
         }
-        npc_entity->pathing.route_x[0] = x / 128;
-        npc_entity->pathing.route_z[0] = z / 128;
+        npc_entity->pathing.route_x[0] = x / 128 + 64;
+        npc_entity->pathing.route_z[0] = z / 128 + 64;
         npc_entity->pathing.route_run[0] = 0;
     }
     else
@@ -225,42 +55,10 @@ npc_move(
     scene_element->dash_position->z = npc_entity->position.z;
 }
 
-static void
-init_npc_entity(
-    struct GGame* game,
-    int npc_entity_id,
-    int npc_id)
-{
-    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, npc_id);
-    assert(npc && "Npc must be found");
-
-    struct DashModel* dash_model = npc_model(game, npc_id);
-
-    struct SceneElement* scene_element = (struct SceneElement*)malloc(sizeof(struct SceneElement));
-    memset(scene_element, 0, sizeof(struct SceneElement));
-    scene_element->dash_model = dash_model;
-
-    struct DashPosition* dash_position = (struct DashPosition*)malloc(sizeof(struct DashPosition));
-    memset(dash_position, 0, sizeof(struct DashPosition));
-    scene_element->dash_position = dash_position;
-
-    struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
-    npc_entity->scene_element = (void*)scene_element;
-    npc_entity->size_x = npc->size;
-    npc_entity->size_z = npc->size;
-
-    npc_entity->animation.readyanim = npc->readyanim;
-    npc_entity->animation.walkanim = npc->walkanim;
-    // npc_entity->animation.turnanim = npc->turnanim;
-    npc_entity->animation.walkanim_b = npc->walkanim_b;
-    npc_entity->animation.walkanim_r = npc->walkanim_r;
-    npc_entity->animation.walkanim_l = npc->walkanim_l;
-}
-
 static struct PktNpcInfoReader npc_info_reader = { 0 };
 
-static void
-add_npc_info(
+void
+gameproto_exec_npc_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -278,6 +76,7 @@ add_npc_info(
     int prev_count = game->npc_count;
     int removed_count = 0;
     game->npc_count = 0;
+    struct SceneElement* scene_element = NULL;
     struct NPCEntity* npc = NULL;
     for( int i = 0; i < count; i++ )
     {
@@ -285,11 +84,14 @@ add_npc_info(
 
         if( npc_id != -1 )
         {
-            npc = &game->npcs[npc_id];
-            npc->alive = true;
+            npc = entity_scenebuild_npc_get(game, npc_id);
+            scene_element = (struct SceneElement*)npc->scene_element;
         }
         else
+        {
+            scene_element = NULL;
             npc = NULL;
+        }
 
         switch( op->kind )
         {
@@ -326,7 +128,7 @@ add_npc_info(
         {
             npc_id = game->active_npcs[op->_bitvalue];
             printf("PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX: %d, %d\n", npc_id, op->_bitvalue);
-            memset(&game->npcs[npc_id], 0, sizeof(struct NPCEntity));
+            entity_scenebuild_npc_release(game, npc_id);
             game->active_npcs[op->_bitvalue] = -1;
             npc_id = -1;
             break;
@@ -335,7 +137,7 @@ add_npc_info(
         {
             for( int idx = op->_bitvalue; idx < prev_count; idx++ )
             {
-                memset(&game->npcs[game->active_npcs[idx]], 0, sizeof(struct NPCEntity));
+                entity_scenebuild_npc_release(game, game->active_npcs[idx]);
             }
             break;
         }
@@ -412,22 +214,11 @@ add_npc_info(
         }
         case PKT_NPC_INFO_OPBITS_NPCTYPE:
         {
-            if( npc && !npc->scene_element )
-            {
-                init_npc_entity(game, npc_id, op->_bitvalue);
-            }
+            entity_scenebuild_npc_change_type(game, npc_id, op->_bitvalue);
             break;
         }
         }
     }
-}
-
-void
-gameproto_exec_npc_info(
-    struct GGame* game,
-    struct RevPacket_LC245_2* packet)
-{
-    add_npc_info(game, packet);
 }
 
 static struct PktPlayerInfoReader player_info_reader = { 0 };
@@ -472,33 +263,6 @@ player_move(
     }
 }
 
-// static void
-// init_player_entity(
-//     struct GGame* game,
-//     int player_id,
-//     struct PlayerAppearance* appearance)
-// {
-//     struct SceneElement* scene_element = (struct SceneElement*)malloc(sizeof(struct
-//     SceneElement)); memset(scene_element, 0, sizeof(struct SceneElement));
-//     scene_element->dash_model = dash_model;
-
-//     struct DashPosition* dash_position = (struct DashPosition*)malloc(sizeof(struct
-//     DashPosition)); memset(dash_position, 0, sizeof(struct DashPosition));
-//     scene_element->dash_position = dash_position;
-
-//     struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
-//     npc_entity->scene_element = (void*)scene_element;
-//     npc_entity->size_x = npc->size;
-//     npc_entity->size_z = npc->size;
-
-//     npc_entity->animation.readyanim = npc->readyanim;
-//     npc_entity->animation.walkanim = npc->walkanim;
-//     // npc_entity->animation.turnanim = npc->turnanim;
-//     npc_entity->animation.walkanim_b = npc->walkanim_b;
-//     npc_entity->animation.walkanim_r = npc->walkanim_r;
-//     npc_entity->animation.walkanim_l = npc->walkanim_l;
-// }
-
 void
 add_player_info(
     struct GGame* game,
@@ -523,25 +287,7 @@ add_player_info(
     {
         struct PktPlayerInfoOp* op = &ops[i];
 
-        struct PlayerEntity* player = &game->players[player_id];
-        player->alive = true;
-
-        if( !player->scene_element )
-        {
-            scene_element = (struct SceneElement*)malloc(sizeof(struct SceneElement));
-            memset(scene_element, 0, sizeof(struct SceneElement));
-
-            struct DashPosition* dash_position =
-                (struct DashPosition*)malloc(sizeof(struct DashPosition));
-            memset(dash_position, 0, sizeof(struct DashPosition));
-            scene_element->dash_position = dash_position;
-
-            player->scene_element = (void*)scene_element;
-        }
-        else
-        {
-            scene_element = (struct SceneElement*)player->scene_element;
-        }
+        struct PlayerEntity* player = entity_scenebuild_player_get(game, player_id);
 
         switch( op->kind )
         {
@@ -572,8 +318,7 @@ add_player_info(
         case PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX:
         {
             player_id = game->active_players[op->_bitvalue];
-            // TODO: Free player
-            memset(&game->players[player_id], 0, sizeof(struct PlayerEntity));
+            entity_scenebuild_player_release(game, player_id);
             game->active_players[op->_bitvalue] = -1;
             player_id = -1;
             break;
@@ -664,15 +409,8 @@ add_player_info(
         {
             struct PlayerAppearance appearance;
             player_appearance_decode(&appearance, op->_appearance.appearance, op->_appearance.len);
-            player->animation.readyanim = appearance.readyanim;
-            player->animation.turnanim = appearance.turnanim;
-            player->animation.walkanim = appearance.walkanim;
-            player->animation.walkanim_b = appearance.walkanim_b;
-            player->animation.walkanim_l = appearance.walkanim_l;
-            player->animation.walkanim_r = appearance.walkanim_r;
-            player->animation.runanim = appearance.runanim;
-            struct DashModel* dash_model = player_appearance_model(game, &appearance);
-            scene_element->dash_model = dash_model;
+
+            entity_scenebuild_player_change_appearance(game, player_id, &appearance);
         }
         break;
         }
@@ -729,10 +467,8 @@ gameproto_exec_lc245_2(
         gameproto_exec_rebuild_normal(game, packet);
         break;
     case PKTIN_LC245_2_NPC_INFO:
-    {
-        add_npc_info(game, packet);
-    }
-    break;
+        gameproto_exec_npc_info(game, packet);
+        break;
     case PKTIN_LC245_2_PLAYER_INFO:
         gameproto_exec_player_info(game, packet);
         break;

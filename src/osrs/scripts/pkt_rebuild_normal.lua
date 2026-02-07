@@ -47,22 +47,30 @@ local chunks, map_sw_x, map_sw_z, map_ne_x, map_ne_z = world_to_map_chunks(wx_sw
 
 local success, param_a, param_b, data_size, data
 
+local terrain_req_ids = {}
 for _, chunk in ipairs(chunks) do
-    local promise = HostIO.dat_map_terrain_load(chunk.x, chunk.z)
-    success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
+    terrain_req_ids[#terrain_req_ids + 1] = HostIO.dat_map_terrain_load(chunk.x, chunk.z)
+end
+local terrain_results = HostIOUtils.await_all(terrain_req_ids)
+for i, r in ipairs(terrain_results) do
+    success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
     if not success then
-        error(string.format("Failed to load terrain %d, %d", chunk.x, chunk.z))
+        error(string.format("Failed to load terrain %d, %d", chunks[i].x, chunks[i].z))
     end
     BuildCacheDat.cache_map_terrain(param_a, param_b, data_size, data)
 end
 
 BuildCacheDat.init_floortypes_from_config_jagfile()
 
+local scenery_req_ids = {}
 for _, chunk in ipairs(chunks) do
-    local promise = HostIO.dat_map_scenery_load(chunk.x, chunk.z)
-    success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
+    scenery_req_ids[#scenery_req_ids + 1] = HostIO.dat_map_scenery_load(chunk.x, chunk.z)
+end
+local scenery_results = HostIOUtils.await_all(scenery_req_ids)
+for i, r in ipairs(scenery_results) do
+    success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
     if not success then
-        error(string.format("Failed to load scenery %d, %d", chunk.x, chunk.z))
+        error(string.format("Failed to load scenery %d, %d", chunks[i].x, chunks[i].z))
     end
     BuildCacheDat.cache_map_scenery(param_a, param_b, data_size, data)
 end
@@ -83,11 +91,15 @@ for _, loc in ipairs(scenery_locs) do
     end
 end
 
+local model_req_ids = {}
 for _, model_id in ipairs(queued_model_ids) do
-    local promise = HostIO.dat_models_load(model_id)
-    success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
+    model_req_ids[#model_req_ids + 1] = HostIO.dat_models_load(model_id)
+end
+local model_results = HostIOUtils.await_all(model_req_ids)
+for i, r in ipairs(model_results) do
+    success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
     if success then
-        BuildCacheDat.cache_model(model_id, data_size, data)
+        BuildCacheDat.cache_model(queued_model_ids[i], data_size, data)
     end
 end
 

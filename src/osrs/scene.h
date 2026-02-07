@@ -28,7 +28,6 @@ struct SceneAnimation
 
 struct SceneElement
 {
-    int isnpc;
     int id;
 
     bool interactable;
@@ -107,16 +106,25 @@ void
 scene_free(struct Scene* scene);
 
 struct SceneAnimation*
-scene_animation_new(int frame_count_hint);
-
-struct SceneAnimation*
-scene_animation_push_frame(
-    struct SceneAnimation* animation,
-    struct DashFrame* dash_frame,
-    struct DashFramemap* dash_framemap);
+scene_element_animation_new(
+    struct SceneElement* element,
+    int frame_count_hint);
 
 void
-scene_animation_free(struct SceneAnimation* animation);
+scene_element_animation_free(struct SceneElement* element);
+
+struct SceneElement*
+scene_element_new(struct Scene* scene);
+
+void
+scene_element_free(struct SceneElement* element);
+
+void
+scene_element_animation_push_frame(
+    struct SceneElement* element,
+    struct DashFrame* dash_frame,
+    struct DashFramemap* dash_framemap,
+    int length);
 
 int
 scene_scenery_push_element_move(
@@ -143,11 +151,6 @@ scene_element_at(
     struct SceneScenery* scenery,
     int element_idx);
 
-int
-scene_push_element_move(
-    struct Scene* scene,
-    struct SceneElement* element);
-
 bool
 scene_element_interactable(
     struct Scene* scene,
@@ -157,6 +160,9 @@ struct DashModel*
 scene_element_model(
     struct Scene* scene,
     int element);
+
+void
+scene_element_reset(struct SceneElement* element);
 
 struct DashPosition*
 scene_element_position(

@@ -124,6 +124,7 @@ endif()
         src/osrs/rscache/bitbuffer.c
         src/osrs/rscache/xtea.c
         src/osrs/revs/revpacket_lc245_2_query.c
+        src/osrs/entity_scenebuild.c
 
         src/platforms/platform_impl2_osx_sdl2.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp

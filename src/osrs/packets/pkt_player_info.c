@@ -35,6 +35,15 @@ push_op_set_local_player(struct PktPlayerInfoOp* op)
 }
 
 static void
+push_op_bits_count_reset(
+    struct PktPlayerInfoOp* op,
+    int count)
+{
+    op->kind = PKT_PLAYER_INFO_OPBITS_COUNT_RESET;
+    op->_bitvalue = count;
+}
+
+static void
 push_op_add_player_new_opbits_pid(
     struct PktPlayerInfoOp* op,
     int player_id)
@@ -246,6 +255,7 @@ pkt_player_info_reader_read(
     // Player Old Vis
     int new_idx = 0;
     int count = gbits(&buf, 8);
+    push_op_bits_count_reset(next_op(reader, ops, ops_capacity), count);
     for( int old_idx = 0; old_idx < count; old_idx++ )
     {
         push_op_add_player_old_opbits_idx(next_op(reader, ops, ops_capacity), old_idx);

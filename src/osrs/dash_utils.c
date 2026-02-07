@@ -192,12 +192,11 @@ dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont)
     return dashpixfont;
 }
 
-struct DashModel*
-dashmodel_new_from_cache_model(struct CacheModel* model)
+void
+dashmodel_move_from_cache_model(
+    struct DashModel* dash_model,
+    struct CacheModel* model)
 {
-    struct DashModel* dash_model = (struct DashModel*)malloc(sizeof(struct DashModel));
-    memset(dash_model, 0, sizeof(struct DashModel));
-
     if( model->_ids[0] != 0 )
     {
         for( int i = 0; i < 10; i++ )
@@ -265,6 +264,15 @@ dashmodel_new_from_cache_model(struct CacheModel* model)
         dash_model->vertices_y,
         dash_model->vertices_z);
 
+    dash_model->loaded = true;
+}
+
+struct DashModel*
+dashmodel_new_from_cache_model(struct CacheModel* model)
+{
+    struct DashModel* dash_model = (struct DashModel*)malloc(sizeof(struct DashModel));
+    memset(dash_model, 0, sizeof(struct DashModel));
+    dashmodel_move_from_cache_model(dash_model, model);
     return dash_model;
 }
 
