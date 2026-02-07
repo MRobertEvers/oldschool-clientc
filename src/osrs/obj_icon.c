@@ -1,6 +1,7 @@
 #include "obj_icon.h"
 
 #include "bmp.h"
+#include "dash_utils.h"
 #include "entity_scenebuild.h"
 #include "graphics/dash.h"
 #include "model_transforms.h"
@@ -126,86 +127,86 @@ obj_icon_get(
     icon->width = 32;
     icon->height = 32;
     icon->pixels_argb = (int*)malloc(32 * 32 * sizeof(int));
+
+    // Clear the icon buffer to black/transparent
     memset(icon->pixels_argb, 0, 32 * 32 * sizeof(int));
 
-    // Clear the icon buffer to black
-    memset(icon->pixels_argb, 0, 32 * 32 * sizeof(int));
+    // Setup viewport for 32x32 rendering (matching Pix2D.bind)
+    struct DashViewPort view_port;
+    view_port.width = 32;
+    view_port.height = 32;
+    view_port.clip_left = 0;
+    view_port.clip_top = 0;
+    view_port.clip_right = 32;
+    view_port.clip_bottom = 32;
+    view_port.x_center = 16; // Center of 32x32
+    view_port.y_center = 16;
+    view_port.stride = 32;
 
-    // Calculate zoom and angles for rendering
+    // Calculate zoom (matching ObjType.ts lines 435-440)
     int zoom = obj->zoom2d;
     if( zoom == 0 )
         zoom = 2000; // Default zoom
 
-    // Calculate sine and cosine for pitch rotation
-    int xan = obj->xan2d;
-    int yan = obj->yan2d;
-    int zan = obj->zan2d;
+    // For now, use simplified projection without sin/cos tables
+    // TODO: Need to access sin/cos tables from DashGraphics or use math.h
+    int sinPitch = 0;    // Simplified for now
+    int cosPitch = zoom; // Use zoom as the main distance
 
-    // Calculate center offsets
-    int xof = obj->xof2d;
-    int yof = obj->yof2d;
+    // Setup camera for orthographic-style projection (matching Pix3D.init2D)
+    struct DashCamera camera;
+    memset(&camera, 0, sizeof(camera));
+    camera.pitch = 0;
+    camera.yaw = 0;
+    camera.roll = 0;
+    camera.fov_rpi2048 = 512; // Orthographic-like FOV
+    camera.near_plane_z = 1;  // Very close near plane to prevent culling
 
-    // Use sine/cosine tables for rotation
-    // For now, skip the complex 3D rendering and create a placeholder
+    // Position for rendering - use NEGATIVE Z to place model in front of camera
+    struct DashPosition position = { 0 };
+    position.pitch = obj->zan2d & 0x7FF; // Use obj rotations directly
+    position.yaw = obj->xan2d & 0x7FF;
+    position.roll = obj->yan2d & 0x7FF;
 
-    // Calculate base color from the model's first face color
-    int base_color = 0x808080; // Gray base
-    if( model->face_count > 0 && model->face_colors )
+    // Position the model in front of the camera
+    position.x = 0;
+    position.y = 0;
+    position.z = 1600; // NEGATIVE Z puts it in front of camera
+
+    // Convert CacheModel to DashModel using the proper utility function
+    // IMPORTANT: Make a copy first! dashmodel_new_from_cache_model moves ownership
+    // and would invalidate the cached model. See entity_scenebuild.c:219 for reference.
+    struct CacheModel* model_copy = model_new_copy(model);
+    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
+    if( !dash_model )
     {
-        // Use the first face color as the base
-        base_color = model->face_colors[0];
+        printf("  ERROR: Failed to create DashModel\n");
+        free(icon->pixels_argb);
+        free(icon);
+        return NULL;
     }
 
-    // Draw a simple filled circle/square representing the item
-    int center_x = 16;
-    int center_y_pixel = 16;
-    int radius = 12;
+    // Calculate normals and apply lighting (matching ObjType.ts line 332)
+    // calculateNormals(ambient + 64, contrast + 768, -50, -10, -50, true)
+    // In C, this is done via _light_model_default with ambient and contrast from config
+    _light_model_default(dash_model, obj->contrast, obj->ambient);
+    printf("  Normals and lighting calculated\n");
 
-    for( int y = 0; y < 32; y++ )
+    // Project and raster the model (matching model.drawSimple)
+    int cull = dash3d_project_model(game->sys_dash, dash_model, &position, &view_port, &camera);
+
+    if( cull == DASHCULL_VISIBLE )
     {
-        for( int x = 0; x < 32; x++ )
-        {
-            int dx = x - center_x;
-            int dy = y - center_y_pixel;
-            int dist_sq = dx * dx + dy * dy;
-
-            if( dist_sq < radius * radius )
-            {
-                // Inside the circle
-                int shade = 255 - (dist_sq * 100 / (radius * radius));
-                int r = ((base_color >> 16) & 0xFF) * shade / 255;
-                int g = ((base_color >> 8) & 0xFF) * shade / 255;
-                int b = (base_color & 0xFF) * shade / 255;
-                icon->pixels_argb[y * 32 + x] = 0xFF000000 | (r << 16) | (g << 8) | b;
-            }
-        }
+        dash3d_raster_projected_model(
+            game->sys_dash, dash_model, &position, &view_port, &camera, icon->pixels_argb);
+    }
+    else
+    {
+        printf("  Warning: Model culled during projection (cull=%d)\n", cull);
     }
 
-    // Add a simple outline (1 pixel border in darker color)
-    for( int y = 1; y < 31; y++ )
-    {
-        for( int x = 1; x < 31; x++ )
-        {
-            if( icon->pixels_argb[y * 32 + x] == 0 )
-            {
-                // Check if any neighbor pixel is filled
-                bool has_filled_neighbor = false;
-                if( x > 0 && icon->pixels_argb[y * 32 + x - 1] != 0 )
-                    has_filled_neighbor = true;
-                if( y > 0 && icon->pixels_argb[(y - 1) * 32 + x] != 0 )
-                    has_filled_neighbor = true;
-                if( x < 31 && icon->pixels_argb[y * 32 + x + 1] != 0 )
-                    has_filled_neighbor = true;
-                if( y < 31 && icon->pixels_argb[(y + 1) * 32 + x] != 0 )
-                    has_filled_neighbor = true;
-
-                if( has_filled_neighbor )
-                {
-                    icon->pixels_argb[y * 32 + x] = 0xFF000000; // Black outline
-                }
-            }
-        }
-    }
+    // Clean up the dash model
+    dashmodel_free(dash_model);
 
     // DEBUG: Save sprite to BMP file
     char filename[256];
