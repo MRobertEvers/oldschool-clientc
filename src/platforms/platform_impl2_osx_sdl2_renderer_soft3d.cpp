@@ -5,9 +5,15 @@
 #include "imgui_impl_sdlrenderer2.h"
 
 extern "C" {
+#include "3rd/lua/lauxlib.h"
+#include "3rd/lua/lua.h"
+#include "3rd/lua/lualib.h"
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
+#include "osrs/buildcachedat_loader.h"
 #include "osrs/dash_utils.h"
+#include "osrs/gio.h"
+#include "osrs/gio_cache_dat.h"
 #include "osrs/interface.h"
 #include "osrs/minimap.h"
 #include "osrs/model_transforms.h"
@@ -15,10 +21,13 @@ extern "C" {
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
+#include "osrs/script_queue.h"
 #include "server/prot.h"
 #include "server/server.h"
 #include "tori_rs.h"
 }
+
+#define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
 
 #include <SDL.h>
 #include <stdio.h>
@@ -307,8 +316,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Init(
 }
 
 // Forward declarations for example interface functions
-static void create_example_interface(struct GGame* game);
-static void init_example_interface(struct GGame* game);
+static void
+create_example_interface(struct GGame* game);
+static void
+init_example_interface(struct GGame* game);
 
 // Public function to initialize the example interface after game is loaded
 void
@@ -489,8 +500,8 @@ create_example_inventory(struct GGame* game)
     inv_layer->type = COMPONENT_TYPE_LAYER;
     inv_layer->layer = -1;
     inv_layer->buttonType = -1;
-    inv_layer->width = 190;   // Sidebar width
-    inv_layer->height = 261;  // Sidebar height (466-205)
+    inv_layer->width = 190;  // Sidebar width
+    inv_layer->height = 261; // Sidebar height (466-205)
     inv_layer->x = 0;
     inv_layer->y = 0;
 
@@ -519,8 +530,8 @@ create_example_inventory(struct GGame* game)
     inventory->height = 7; // 7 rows (28 slots total)
     inventory->x = 0;
     inventory->y = 0;
-    inventory->marginX = 5;  // 5px horizontal margin between slots
-    inventory->marginY = 5;  // 5px vertical margin between slots
+    inventory->marginX = 5; // 5px horizontal margin between slots
+    inventory->marginY = 5; // 5px vertical margin between slots
 
     // Allocate inventory slots (28 slots = 4x7)
     int total_slots = 28;
@@ -543,38 +554,38 @@ create_example_inventory(struct GGame* game)
         inventory->invSlotOffsetY[i] = 0;
     }
 
-    // Add example items with realistic OSRS item IDs
-    // Bronze dagger
-    inventory->invSlotObjId[0] = 1205;
+    // Add classic OSRS items that exist in old cache
+    // Bones
+    inventory->invSlotObjId[0] = 526;
     inventory->invSlotObjCount[0] = 1;
 
     // Coins
     inventory->invSlotObjId[1] = 995;
     inventory->invSlotObjCount[1] = 10000;
 
-    // Lobster
-    inventory->invSlotObjId[2] = 379;
+    // Logs
+    inventory->invSlotObjId[2] = 1511;
     inventory->invSlotObjCount[2] = 15;
 
-    // Rune pickaxe
-    inventory->invSlotObjId[5] = 1275;
+    // Ball of wool
+    inventory->invSlotObjId[3] = 1759;
+    inventory->invSlotObjCount[3] = 5;
+
+    // Rune scimitar
+    inventory->invSlotObjId[5] = 1333;
     inventory->invSlotObjCount[5] = 1;
 
-    // Sharks
-    inventory->invSlotObjId[10] = 385;
-    inventory->invSlotObjCount[10] = 20;
+    // Bronze sword
+    inventory->invSlotObjId[10] = 1277;
+    inventory->invSlotObjCount[10] = 1;
 
-    // Dragon scimitar
-    inventory->invSlotObjId[15] = 4587;
-    inventory->invSlotObjCount[15] = 1;
+    // Iron ore
+    inventory->invSlotObjId[15] = 440;
+    inventory->invSlotObjCount[15] = 20;
 
-    // Prayer potion
-    inventory->invSlotObjId[20] = 2434;
+    // Cooked meat
+    inventory->invSlotObjId[20] = 2142;
     inventory->invSlotObjCount[20] = 4;
-    
-    // Fire runes
-    inventory->invSlotObjId[3] = 554;
-    inventory->invSlotObjCount[3] = 500;
 
     buildcachedat_add_component(game->buildcachedat, 10102, inventory);
 
@@ -584,7 +595,8 @@ create_example_inventory(struct GGame* game)
 }
 
 // Function to initialize the example interface (forward declaration)
-static void init_example_interface(struct GGame* game);
+static void
+init_example_interface(struct GGame* game);
 
 // Function to initialize the example interface
 static void
@@ -597,19 +609,27 @@ init_example_interface(struct GGame* game)
     }
 
     printf("Initializing example interface...\n");
-    printf("  buildcachedat: %p\n", (void*)game->buildcachedat);
-    printf("  component_hmap: %p\n", (void*)game->buildcachedat->component_hmap);
-    printf("  component_sprites_hmap: %p\n",
-           (void*)game->buildcachedat->component_sprites_hmap);
 
-    // Create the example interface components
+    // Queue Lua script to load object configs and models asynchronously
+    printf("Queuing Lua script to load inventory models...\n");
+    
+    struct ScriptArgs args = { 
+        .tag = SCRIPT_LOAD_INVENTORY_MODELS,
+        .u.load_inventory_models = { .dummy = 0 } 
+    };
+    script_queue_push(&game->script_queue, &args);
+    
+    printf("  Script queued: load_inventory_models.lua\n");
+    printf("  Note: Models will load asynchronously. Icons will generate once models are loaded.\n");
+
+    // Create the example interface components (UI structure can be created immediately)
     create_example_interface(game);
     create_example_inventory(game);
 
     // Don't display it immediately - let user toggle with 'I' key
     game->viewport_interface_id = -1;
 
-    printf("Example interface ready. Press 'I' key to toggle visibility.\n");
+    printf("Example interface ready. Use ImGui buttons to toggle visibility.\n");
 }
 
 void
@@ -1204,16 +1224,50 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 game, viewport_component, 0, 0, 0, renderer->pixel_buffer, renderer->width);
         }
     }
-    
+
     // Render sidebar interface (inventory area at 553, 205)
     if( game->sidebar_interface_id != -1 )
     {
+        printf(
+            "DEBUG: Attempting to render sidebar interface ID: %d\n", game->sidebar_interface_id);
+
+        // First, draw a test rectangle to verify rendering works
+        printf("DEBUG: Drawing test rectangle at sidebar position (553, 205)\n");
+        for( int y = 0; y < 100; y++ )
+        {
+            for( int x = 0; x < 100; x++ )
+            {
+                int screen_x = 553 + x;
+                int screen_y = 205 + y;
+                if( screen_x >= 0 && screen_x < renderer->width && screen_y >= 0 &&
+                    screen_y < renderer->height )
+                {
+                    // Draw red test pattern
+                    renderer->pixel_buffer[screen_y * renderer->width + screen_x] = 0xFFFF0000;
+                }
+            }
+        }
+
         struct CacheDatConfigComponent* sidebar_component =
             buildcachedat_get_component(game->buildcachedat, game->sidebar_interface_id);
+
         if( sidebar_component )
         {
+            printf("DEBUG: Sidebar component found, drawing at (553, 205)\n");
+            printf(
+                "  Component type: %d, width: %d, height: %d\n",
+                sidebar_component->type,
+                sidebar_component->width,
+                sidebar_component->height);
             interface_draw_component(
                 game, sidebar_component, 553, 205, 0, renderer->pixel_buffer, renderer->width);
+            printf("DEBUG: Sidebar component drawn\n");
+        }
+        else
+        {
+            printf(
+                "DEBUG: WARNING - Sidebar component %d not found in buildcachedat!\n",
+                game->sidebar_interface_id);
         }
     }
 

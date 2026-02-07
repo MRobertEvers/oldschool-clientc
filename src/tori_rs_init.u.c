@@ -144,10 +144,11 @@ LibToriRS_GameNew(
     game->loginproto =
         loginproto_new(game->random_in, game->random_out, &game->rsa, "asdf2", "a", NULL);
 
-    struct CacheDat* cachedat = cache_dat_new_from_directory(CACHE_DAT_PATH);
+    // Load and store cache_dat for synchronous asset loading
+    game->cache_dat = cache_dat_new_from_directory(CACHE_DAT_PATH);
 
     struct CacheDatArchive* archive =
-        cache_dat_archive_new_load(cachedat, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES);
+        cache_dat_archive_new_load(game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES);
 
     struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
 

@@ -16,6 +16,7 @@
 #include "osrs/painters.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/rscache/cache_dat.h"
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
@@ -102,6 +103,7 @@ struct GGame
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
+    struct CacheDat* cache_dat; // Raw cache.dat accessor for synchronous loading
 
     /* Used by init_scene (BuildCache path) when driving from Lua; NULL when not in use */
     struct DashMap* init_scenery_configmap;

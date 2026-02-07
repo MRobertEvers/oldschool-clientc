@@ -31,6 +31,8 @@ script_path_for_kind(enum ScriptKind kind)
         return "pkt_rebuild_normal.lua";
     case SCRIPT_PKT_PLAYER_INFO:
         return "pkt_player_info.lua";
+    case SCRIPT_LOAD_INVENTORY_MODELS:
+        return "load_inventory_models.lua";
     default:
         return NULL;
     }
@@ -114,6 +116,12 @@ start_script_from_item(
         lua_pushlightuserdata(game->L_coro, a->item);
         lua_pushlightuserdata(game->L_coro, a->io);
         nargs = 2;
+        break;
+    }
+    case SCRIPT_LOAD_INVENTORY_MODELS:
+    {
+        // No args needed
+        nargs = 0;
         break;
     }
     default:

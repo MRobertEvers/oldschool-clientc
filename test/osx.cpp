@@ -203,12 +203,13 @@ main(
 
         LibToriRS_GameStep(game, &input, render_command_buffer);
         
-        // Initialize example interface after sprites are loaded (compass sprite is a good indicator)
-        if (!example_interface_initialized && game->sprite_compass != NULL) {
+        // Initialize example interface once at startup
+        // The models will load asynchronously via the queued Lua script
+        if (!example_interface_initialized) {
             printf("\n");
-            printf("===================================================\n");
-            printf("  Sprites loaded - initializing example interface\n");
-            printf("===================================================\n");
+            printf("=====================================================\n");
+            printf("  Initializing example interface\n");
+            printf("=====================================================\n");
             PlatformImpl2_OSX_SDL2_Renderer_Soft3D_InitExampleInterface(renderer, game);
             example_interface_initialized = true;
         }

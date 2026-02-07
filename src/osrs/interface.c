@@ -1,6 +1,7 @@
 #include "interface.h"
 
 #include "graphics/dash.h"
+#include "obj_icon.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 
@@ -19,45 +20,46 @@ interface_draw_component(
 {
     if( !component )
         return;
-        
+
     // Only process layer components (type 0) that have children
     if( component->type != COMPONENT_TYPE_LAYER || !component->children )
         return;
-    
+
     // Save current bounds
     struct DashViewPort* view_port = game->iface_view_port;
     int saved_left = view_port->clip_left;
     int saved_top = view_port->clip_top;
     int saved_right = view_port->clip_right;
     int saved_bottom = view_port->clip_bottom;
-    
+
     // Set bounds for this component
     dash2d_set_bounds(view_port, x, y, x + component->width, y + component->height);
-    
+
     // Iterate through children
     for( int i = 0; i < component->children_count; i++ )
     {
         if( !component->childX || !component->childY )
             continue;
-            
+
         int child_id = component->children[i];
         int childX = component->childX[i] + x;
         int childY = component->childY[i] + y - scroll_y;
-        
-        struct CacheDatConfigComponent* child = buildcachedat_get_component(
-            game->buildcachedat, child_id);
-            
+
+        struct CacheDatConfigComponent* child =
+            buildcachedat_get_component(game->buildcachedat, child_id);
+
         if( !child )
             continue;
-            
+
         childX += child->x;
         childY += child->y;
-        
+
         // Render based on child type
         switch( child->type )
         {
         case COMPONENT_TYPE_LAYER:
-            interface_draw_component_layer(game, child, childX, childY, child->scroll, pixel_buffer, stride);
+            interface_draw_component_layer(
+                game, child, childX, childY, child->scroll, pixel_buffer, stride);
             break;
         case COMPONENT_TYPE_RECT:
             interface_draw_component_rect(game, child, childX, childY, pixel_buffer, stride);
@@ -76,7 +78,7 @@ interface_draw_component(
             break;
         }
     }
-    
+
     // Restore bounds
     dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
 }
@@ -105,16 +107,18 @@ interface_draw_component_rect(
     int stride)
 {
     int colour = component->colour;
-    
+
     if( component->alpha == 0 )
     {
         if( component->fill )
         {
-            dash2d_fill_rect(pixel_buffer, stride, x, y, component->width, component->height, colour);
+            dash2d_fill_rect(
+                pixel_buffer, stride, x, y, component->width, component->height, colour);
         }
         else
         {
-            dash2d_draw_rect(pixel_buffer, stride, x, y, component->width, component->height, colour);
+            dash2d_draw_rect(
+                pixel_buffer, stride, x, y, component->width, component->height, colour);
         }
     }
     else
@@ -122,11 +126,13 @@ interface_draw_component_rect(
         int alpha = 256 - (component->alpha & 0xFF);
         if( component->fill )
         {
-            dash2d_fill_rect_alpha(pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
+            dash2d_fill_rect_alpha(
+                pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
         }
         else
         {
-            dash2d_draw_rect_alpha(pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
+            dash2d_draw_rect_alpha(
+                pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
         }
     }
 }
@@ -142,7 +148,7 @@ interface_draw_component_text(
 {
     if( !component->text )
         return;
-        
+
     // Get the font based on component->font
     struct DashPixFont* font = NULL;
     switch( component->font )
@@ -163,15 +169,16 @@ interface_draw_component_text(
         font = game->pixfont_p12;
         break;
     }
-    
+
     if( !font )
         return;
-        
+
     int colour = component->colour;
-    
+
     // For now, just draw the text at the position
     // TODO: Handle center alignment, shadowed text, word wrapping, etc.
-    dashfont_draw_text(font, (uint8_t*)component->text, x, y + font->height2d, colour, pixel_buffer, stride);
+    dashfont_draw_text(
+        font, (uint8_t*)component->text, x, y + font->height2d, colour, pixel_buffer, stride);
 }
 
 void
@@ -185,14 +192,14 @@ interface_draw_component_graphic(
 {
     if( !component->graphic )
         return;
-        
+
     // Get the sprite from the cache
-    struct DashSprite* sprite = buildcachedat_get_component_sprite(
-        game->buildcachedat, component->graphic);
-        
+    struct DashSprite* sprite =
+        buildcachedat_get_component_sprite(game->buildcachedat, component->graphic);
+
     if( !sprite )
         return;
-        
+
     // Draw the sprite
     dash2d_blit_sprite(game->sys_dash, sprite, game->iface_view_port, x, y, pixel_buffer);
 }
@@ -208,12 +215,12 @@ interface_draw_component_inv(
 {
     // Inventory components render items in a grid
     // Based on Client.ts lines 9438-9534
-    
+
     if( !component->invSlotObjId || !component->invSlotObjCount )
         return;
-        
+
     int slot = 0;
-    
+
     // Iterate through grid: rows x cols
     for( int row = 0; row < component->height; row++ )
     {
@@ -223,46 +230,67 @@ interface_draw_component_inv(
             // Each slot is 32x32 with margins
             int slotX = x + col * (component->marginX + 32);
             int slotY = y + row * (component->marginY + 32);
-            
+
             // Apply slot-specific offsets (for first 20 slots)
             if( slot < 20 && component->invSlotOffsetX && component->invSlotOffsetY )
             {
                 slotX += component->invSlotOffsetX[slot];
                 slotY += component->invSlotOffsetY[slot];
             }
-            
+
             // Draw item if present
             if( component->invSlotObjId[slot] > 0 )
             {
-                // In the real implementation, this would:
-                // 1. Get ObjType for the item ID
-                // 2. Render the item icon (Pix32)
-                // 3. Draw item count text overlay
-                
-                // For now, draw a placeholder colored square for each item
+                // Get item ID and count (obj IDs in the array are stored as ID+1, so subtract 1)
                 int item_id = component->invSlotObjId[slot];
                 int item_count = component->invSlotObjCount[slot];
-                
-                // Use item_id to determine color (simple hash)
-                int color = 0x00FF00 | ((item_id * 12345) & 0xFF0000);
-                
-                // Draw 32x32 item placeholder
-                dash2d_fill_rect_alpha(
-                    pixel_buffer, stride, slotX, slotY, 32, 32, color, 200);
-                
-                // Draw item count if > 1
-                if( item_count > 1 && game->pixfont_p11 )
+
+                // Get or generate the item icon sprite
+                struct DashSprite* icon = obj_icon_get(game, item_id, item_count);
+
+                if( icon )
                 {
-                    char count_str[32];
-                    snprintf(count_str, sizeof(count_str), "%d", item_count);
-                    
-                    // Draw count text with shadow (black then yellow)
-                    dashfont_draw_text(
-                        game->pixfont_p11, (uint8_t*)count_str,
-                        slotX + 1, slotY + 10, 0x000000, pixel_buffer, stride);
-                    dashfont_draw_text(
-                        game->pixfont_p11, (uint8_t*)count_str,
-                        slotX, slotY + 9, 0xFFFF00, pixel_buffer, stride);
+                    // Draw the item icon
+                    dash2d_blit_sprite(
+                        game->sys_dash, icon, game->iface_view_port, slotX, slotY, pixel_buffer);
+
+                    // Draw item count if > 1
+                    if( item_count > 1 && game->pixfont_p11 )
+                    {
+                        char count_str[32];
+
+                        // Format count with K/M suffixes for large numbers
+                        if( item_count >= 1000000 )
+                        {
+                            snprintf(count_str, sizeof(count_str), "%dM", item_count / 1000000);
+                        }
+                        else if( item_count >= 1000 )
+                        {
+                            snprintf(count_str, sizeof(count_str), "%dK", item_count / 1000);
+                        }
+                        else
+                        {
+                            snprintf(count_str, sizeof(count_str), "%d", item_count);
+                        }
+
+                        // Draw count text with shadow (black then yellow)
+                        dashfont_draw_text(
+                            game->pixfont_p11,
+                            (uint8_t*)count_str,
+                            slotX + 1,
+                            slotY + 10,
+                            0x000000,
+                            pixel_buffer,
+                            stride);
+                        dashfont_draw_text(
+                            game->pixfont_p11,
+                            (uint8_t*)count_str,
+                            slotX,
+                            slotY + 9,
+                            0xFFFF00,
+                            pixel_buffer,
+                            stride);
+                    }
                 }
             }
             else if( component->invSlotGraphic && slot < 20 )
@@ -271,18 +299,22 @@ interface_draw_component_inv(
                 const char* graphic_name = component->invSlotGraphic[slot];
                 if( graphic_name )
                 {
-                    struct DashSprite* sprite = buildcachedat_get_component_sprite(
-                        game->buildcachedat, graphic_name);
+                    struct DashSprite* sprite =
+                        buildcachedat_get_component_sprite(game->buildcachedat, graphic_name);
                     if( sprite )
                     {
                         dash2d_blit_sprite(
-                            game->sys_dash, sprite, game->iface_view_port, slotX, slotY, pixel_buffer);
+                            game->sys_dash,
+                            sprite,
+                            game->iface_view_port,
+                            slotX,
+                            slotY,
+                            pixel_buffer);
                     }
                 }
             }
-            
+
             slot++;
         }
     }
 }
-

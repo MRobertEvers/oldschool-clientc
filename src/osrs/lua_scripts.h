@@ -76,6 +76,10 @@ l_host_io_dat_models_load(lua_State* L)
 {
     struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
     int model_id = luaL_checkinteger(L, 1);
+    if( model_id == 1333 )
+    {
+        printf("Loading model %d\n", model_id);
+    }
     int req_id = gio_assets_dat_models_load(io, model_id);
     lua_pushinteger(L, req_id);
     return 1;
@@ -533,6 +537,49 @@ l_buildcachedat_get_obj_model_ids(lua_State* L)
 }
 
 static int
+l_buildcachedat_get_obj(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int obj_id = luaL_checkinteger(L, 1);
+
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    if( !obj )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    // Return a table with obj properties
+    lua_newtable(L);
+
+    lua_pushstring(L, "model");
+    lua_pushinteger(L, obj->model);
+    lua_settable(L, -3);
+
+    if( obj->name )
+    {
+        lua_pushstring(L, "name");
+        lua_pushstring(L, obj->name);
+        lua_settable(L, -3);
+    }
+
+    lua_pushstring(L, "manwear");
+    lua_pushinteger(L, obj->manwear);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "manwear2");
+    lua_pushinteger(L, obj->manwear2);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "manwear3");
+    lua_pushinteger(L, obj->manwear3);
+    lua_settable(L, -3);
+
+    return 1;
+}
+
+static int
 l_buildcachedat_cache_model(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
@@ -540,6 +587,11 @@ l_buildcachedat_cache_model(lua_State* L)
     int model_id = luaL_checkinteger(L, 1);
     int data_size = luaL_checkinteger(L, 2);
     void* data = lua_touserdata(L, 3);
+
+    if( model_id == 2373 )
+    {
+        printf("Caching model %d\n", model_id);
+    }
 
     buildcachedat_loader_cache_model(buildcachedat, model_id, data_size, data);
 
@@ -679,6 +731,7 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "get_npc_model_ids",                                 l_buildcachedat_get_npc_model_ids                   },
     { "get_idk_model_ids",                                 l_buildcachedat_get_idk_model_ids                   },
     { "get_obj_model_ids",                                 l_buildcachedat_get_obj_model_ids                   },
+    { "get_obj",                                           l_buildcachedat_get_obj                             },
     { "cache_model",                                       l_buildcachedat_cache_model                         },
     { "cache_textures",                                    l_buildcachedat_cache_textures                      },
     { "init_sequences_from_config_jagfile",                l_buildcachedat_init_sequences_from_config_jagfile  },
@@ -830,8 +883,7 @@ l_buildcache_add_config_scenery(lua_State* L)
         lua_pop(L, 1);
     }
 
-    buildcache_loader_add_config_scenery(
-        game->buildcache, game, data_size, data, ids, ids_size);
+    buildcache_loader_add_config_scenery(game->buildcache, game, data_size, data, ids, ids_size);
     return 0;
 }
 
@@ -945,8 +997,7 @@ l_buildcache_add_map_terrain(lua_State* L)
     int mapz = luaL_checkinteger(L, 2);
     int data_size = luaL_checkinteger(L, 3);
     void* data = lua_touserdata(L, 4);
-    buildcache_loader_add_map_terrain(
-        game->buildcache, mapx, mapz, data_size, data);
+    buildcache_loader_add_map_terrain(game->buildcache, mapx, mapz, data_size, data);
     return 0;
 }
 
@@ -1149,8 +1200,7 @@ l_buildcache_add_config_sequences(lua_State* L)
         ids[i] = (int)lua_tointeger(L, -1);
         lua_pop(L, 1);
     }
-    buildcache_loader_add_config_sequences(
-        game->buildcache, game, data_size, data, ids, ids_size);
+    buildcache_loader_add_config_sequences(game->buildcache, game, data_size, data, ids, ids_size);
     return 0;
 }
 
