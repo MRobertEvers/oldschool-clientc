@@ -111,6 +111,7 @@ struct CacheDatConfigComponent
     int seqFrame;
     int seqCycle;
     int* children;
+    int children_count;
     int activeModelType;
     int activeModel;
     int anim;

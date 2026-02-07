@@ -64,6 +64,11 @@ LibToriRS_GameNew(
     dash_init();
 
     game->io = io;
+    
+    // Initialize interface IDs to -1 (no interface)
+    game->viewport_interface_id = -1;
+    game->sidebar_interface_id = -1;
+    game->chat_interface_id = -1;
     game->running = true;
 
     game->players[ACTIVE_PLAYER_SLOT].alive = false;

@@ -151,6 +151,9 @@ main(
 
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;
+    
+    // Flag to track if we've initialized the example interface
+    bool example_interface_initialized = false;
 
     uint8_t buffer[4096];
 
@@ -199,6 +202,16 @@ main(
         game->tick_ms = timestamp_ms;
 
         LibToriRS_GameStep(game, &input, render_command_buffer);
+        
+        // Initialize example interface after sprites are loaded (compass sprite is a good indicator)
+        if (!example_interface_initialized && game->sprite_compass != NULL) {
+            printf("\n");
+            printf("===================================================\n");
+            printf("  Sprites loaded - initializing example interface\n");
+            printf("===================================================\n");
+            PlatformImpl2_OSX_SDL2_Renderer_Soft3D_InitExampleInterface(renderer, game);
+            example_interface_initialized = true;
+        }
 
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, render_command_buffer);
     }

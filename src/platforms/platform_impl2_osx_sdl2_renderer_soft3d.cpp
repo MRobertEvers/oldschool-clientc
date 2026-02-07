@@ -8,6 +8,7 @@ extern "C" {
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/dash_utils.h"
+#include "osrs/interface.h"
 #include "osrs/minimap.h"
 #include "osrs/model_transforms.h"
 #include "osrs/rscache/rsbuf.h"
@@ -146,6 +147,49 @@ render_imgui(
 
     // Add camera speed slider
     ImGui::Separator();
+
+    // Interface controls
+    ImGui::Separator();
+    ImGui::Text("Interface System:");
+    ImGui::Text("Current viewport ID: %d", game->viewport_interface_id);
+    ImGui::Text("Current sidebar ID: %d", game->sidebar_interface_id);
+
+    if( ImGui::Button("Toggle Example Interface") )
+    {
+        if( game->viewport_interface_id == 10000 )
+        {
+            game->viewport_interface_id = -1;
+            printf("Example interface hidden\n");
+        }
+        else
+        {
+            game->viewport_interface_id = 10000;
+            printf("Example interface shown (ID: 10000)\n");
+        }
+    }
+
+    ImGui::SameLine();
+
+    if( ImGui::Button("Toggle Inventory") )
+    {
+        if( game->sidebar_interface_id == 10100 )
+        {
+            game->sidebar_interface_id = -1;
+            printf("Inventory hidden\n");
+        }
+        else
+        {
+            game->sidebar_interface_id = 10100;
+            printf("Inventory shown in sidebar (ID: 10100)\n");
+        }
+    }
+
+    ImGui::SameLine();
+    if( ImGui::Button("Hide Interface") )
+    {
+        game->viewport_interface_id = -1;
+    }
+
     ImGui::End();
 
     ImGui::Render();
@@ -262,9 +306,311 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Init(
     return true;
 }
 
+// Forward declarations for example interface functions
+static void create_example_interface(struct GGame* game);
+static void init_example_interface(struct GGame* game);
+
+// Public function to initialize the example interface after game is loaded
+void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_InitExampleInterface(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    struct GGame* game)
+{
+    printf("\n=== Initializing Example Interface ===\n");
+    init_example_interface(game);
+    printf("=====================================\n\n");
+}
+
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer);
+
+// Helper function to create a test interface for demonstration
+static void
+create_example_interface(struct GGame* game)
+{
+    printf("Creating example interface components...\n");
+
+    // Create root layer component (ID: 10000)
+    struct CacheDatConfigComponent* root =
+        (struct CacheDatConfigComponent*)malloc(sizeof(struct CacheDatConfigComponent));
+    memset(root, 0, sizeof(struct CacheDatConfigComponent));
+
+    root->id = 10000;
+    root->layer = -1;
+    root->type = COMPONENT_TYPE_LAYER;
+    root->buttonType = -1;
+    root->clientCode = 0;
+    root->width = 400;
+    root->height = 300;
+    root->x = 0;
+    root->y = 0;
+    root->alpha = 0;
+    root->hide = false;
+    root->scroll = 0;
+
+    // This layer has 4 children: background, title, description, and icon
+    root->children_count = 4;
+    root->children = (int*)malloc(4 * sizeof(int));
+    root->childX = (int*)malloc(4 * sizeof(int));
+    root->childY = (int*)malloc(4 * sizeof(int));
+
+    root->children[0] = 10001; // Background
+    root->childX[0] = 50;
+    root->childY[0] = 50;
+
+    root->children[1] = 10002; // Title
+    root->childX[1] = 60;
+    root->childY[1] = 60;
+
+    root->children[2] = 10003; // Description
+    root->childX[2] = 60;
+    root->childY[2] = 90;
+
+    root->children[3] = 10004; // Icon
+    root->childX[3] = 350;
+    root->childY[3] = 60;
+
+    buildcachedat_add_component(game->buildcachedat, 10000, root);
+
+    // Child 0: Semi-transparent background rectangle (ID: 10001)
+    struct CacheDatConfigComponent* bg =
+        (struct CacheDatConfigComponent*)malloc(sizeof(struct CacheDatConfigComponent));
+    memset(bg, 0, sizeof(struct CacheDatConfigComponent));
+
+    bg->id = 10001;
+    bg->layer = 10000;
+    bg->type = COMPONENT_TYPE_RECT;
+    bg->buttonType = -1;
+    bg->width = 400;
+    bg->height = 300;
+    bg->x = 0;
+    bg->y = 0;
+    bg->fill = true;
+    bg->colour = 0x2C1810; // Dark brown
+    bg->alpha = 180;       // Semi-transparent
+
+    buildcachedat_add_component(game->buildcachedat, 10001, bg);
+
+    // Child 1: Title text (ID: 10002)
+    struct CacheDatConfigComponent* title =
+        (struct CacheDatConfigComponent*)malloc(sizeof(struct CacheDatConfigComponent));
+    memset(title, 0, sizeof(struct CacheDatConfigComponent));
+
+    title->id = 10002;
+    title->layer = 10000;
+    title->type = COMPONENT_TYPE_TEXT;
+    title->buttonType = -1;
+    title->width = 380;
+    title->height = 20;
+    title->x = 0;
+    title->y = 0;
+    title->font = 2; // Bold font
+    title->text = strdup("Example Interface - 2D UI System");
+    title->colour = 0xFFFF00; // Yellow
+    title->center = false;
+    title->shadowed = true;
+
+    buildcachedat_add_component(game->buildcachedat, 10002, title);
+
+    // Child 2: Description text (ID: 10003)
+    struct CacheDatConfigComponent* desc =
+        (struct CacheDatConfigComponent*)malloc(sizeof(struct CacheDatConfigComponent));
+    memset(desc, 0, sizeof(struct CacheDatConfigComponent));
+
+    desc->id = 10003;
+    desc->layer = 10000;
+    desc->type = COMPONENT_TYPE_TEXT;
+    desc->buttonType = -1;
+    desc->width = 380;
+    desc->height = 200;
+    desc->x = 0;
+    desc->y = 0;
+    desc->font = 1; // Regular font
+    desc->text = strdup(
+        "This is a test interface created programmatically.\\nIt demonstrates:  Layers  Rectangles "
+        "with alpha  Text rendering  Sprite graphics\\nPress 'I' to toggle interface visibility.");
+    desc->colour = 0xFFFFFF; // White
+    desc->center = false;
+    desc->shadowed = false;
+
+    buildcachedat_add_component(game->buildcachedat, 10003, desc);
+
+    // Child 3: Compass icon (ID: 10004)
+    struct CacheDatConfigComponent* icon =
+        (struct CacheDatConfigComponent*)malloc(sizeof(struct CacheDatConfigComponent));
+    memset(icon, 0, sizeof(struct CacheDatConfigComponent));
+
+    icon->id = 10004;
+    icon->layer = 10000;
+    icon->type = COMPONENT_TYPE_GRAPHIC;
+    icon->buttonType = -1;
+    icon->width = 33;
+    icon->height = 33;
+    icon->x = 0;
+    icon->y = 0;
+    icon->graphic = strdup("example_compass");
+
+    buildcachedat_add_component(game->buildcachedat, 10004, icon);
+
+    // Register the compass sprite for the icon
+    if( game->sprite_compass )
+    {
+        printf("  Registering compass sprite for interface...\n");
+        buildcachedat_add_component_sprite(
+            game->buildcachedat, "example_compass", game->sprite_compass);
+        printf("  Compass sprite registered successfully\n");
+    }
+    else
+    {
+        printf("  Warning: compass sprite not loaded yet\n");
+    }
+
+    printf("Example interface created with 5 components (IDs: 10000-10004)\n");
+    printf("  - Layer container (10000)\n");
+    printf("  - Background rectangle (10001)\n");
+    printf("  - Title text (10002)\n");
+    printf("  - Description text (10003)\n");
+    printf("  - Compass icon (10004)\n");
+}
+
+// Create an example inventory interface
+static void
+create_example_inventory(struct GGame* game)
+{
+    printf("Creating example inventory interface...\n");
+
+    // Parent Layer (ID: 10100) - positioned at 0,0 relative to sidebar (553, 205)
+    struct CacheDatConfigComponent* inv_layer =
+        (struct CacheDatConfigComponent*)malloc(sizeof(struct CacheDatConfigComponent));
+    memset(inv_layer, 0, sizeof(struct CacheDatConfigComponent));
+
+    inv_layer->id = 10100;
+    inv_layer->type = COMPONENT_TYPE_LAYER;
+    inv_layer->layer = -1;
+    inv_layer->buttonType = -1;
+    inv_layer->width = 190;   // Sidebar width
+    inv_layer->height = 261;  // Sidebar height (466-205)
+    inv_layer->x = 0;
+    inv_layer->y = 0;
+
+    // Allocate children array (1 child: inventory grid, no background to see invback sprite)
+    inv_layer->children_count = 1;
+    inv_layer->children = (int*)malloc(sizeof(int) * 1);
+    inv_layer->childX = (int*)malloc(sizeof(int) * 1);
+    inv_layer->childY = (int*)malloc(sizeof(int) * 1);
+
+    inv_layer->children[0] = 10102; // Inventory grid
+    inv_layer->childX[0] = 10;
+    inv_layer->childY[0] = 10;
+
+    buildcachedat_add_component(game->buildcachedat, 10100, inv_layer);
+
+    // Inventory component (ID: 10102)
+    struct CacheDatConfigComponent* inventory =
+        (struct CacheDatConfigComponent*)malloc(sizeof(struct CacheDatConfigComponent));
+    memset(inventory, 0, sizeof(struct CacheDatConfigComponent));
+
+    inventory->id = 10102;
+    inventory->layer = 10100;
+    inventory->type = COMPONENT_TYPE_INV;
+    inventory->buttonType = -1;
+    inventory->width = 4;  // 4 columns
+    inventory->height = 7; // 7 rows (28 slots total)
+    inventory->x = 0;
+    inventory->y = 0;
+    inventory->marginX = 5;  // 5px horizontal margin between slots
+    inventory->marginY = 5;  // 5px vertical margin between slots
+
+    // Allocate inventory slots (28 slots = 4x7)
+    int total_slots = 28;
+    inventory->invSlotObjId = (int*)malloc(sizeof(int) * total_slots);
+    inventory->invSlotObjCount = (int*)malloc(sizeof(int) * total_slots);
+    inventory->invSlotOffsetX = (int*)malloc(sizeof(int) * 20);
+    inventory->invSlotOffsetY = (int*)malloc(sizeof(int) * 20);
+
+    // Initialize all slots to empty
+    for( int i = 0; i < total_slots; i++ )
+    {
+        inventory->invSlotObjId[i] = 0;
+        inventory->invSlotObjCount[i] = 0;
+    }
+
+    // Initialize offsets to 0
+    for( int i = 0; i < 20; i++ )
+    {
+        inventory->invSlotOffsetX[i] = 0;
+        inventory->invSlotOffsetY[i] = 0;
+    }
+
+    // Add example items with realistic OSRS item IDs
+    // Bronze dagger
+    inventory->invSlotObjId[0] = 1205;
+    inventory->invSlotObjCount[0] = 1;
+
+    // Coins
+    inventory->invSlotObjId[1] = 995;
+    inventory->invSlotObjCount[1] = 10000;
+
+    // Lobster
+    inventory->invSlotObjId[2] = 379;
+    inventory->invSlotObjCount[2] = 15;
+
+    // Rune pickaxe
+    inventory->invSlotObjId[5] = 1275;
+    inventory->invSlotObjCount[5] = 1;
+
+    // Sharks
+    inventory->invSlotObjId[10] = 385;
+    inventory->invSlotObjCount[10] = 20;
+
+    // Dragon scimitar
+    inventory->invSlotObjId[15] = 4587;
+    inventory->invSlotObjCount[15] = 1;
+
+    // Prayer potion
+    inventory->invSlotObjId[20] = 2434;
+    inventory->invSlotObjCount[20] = 4;
+    
+    // Fire runes
+    inventory->invSlotObjId[3] = 554;
+    inventory->invSlotObjCount[3] = 500;
+
+    buildcachedat_add_component(game->buildcachedat, 10102, inventory);
+
+    printf("Example inventory created with ID 10100\n");
+    printf("  - Inventory layer (10100)\n");
+    printf("  - Inventory grid 4x7 (10102) with 8 items\n");
+}
+
+// Function to initialize the example interface (forward declaration)
+static void init_example_interface(struct GGame* game);
+
+// Function to initialize the example interface
+static void
+init_example_interface(struct GGame* game)
+{
+    if( !game || !game->buildcachedat )
+    {
+        printf("ERROR: Cannot initialize example interface - game or buildcachedat is null\n");
+        return;
+    }
+
+    printf("Initializing example interface...\n");
+    printf("  buildcachedat: %p\n", (void*)game->buildcachedat);
+    printf("  component_hmap: %p\n", (void*)game->buildcachedat->component_hmap);
+    printf("  component_sprites_hmap: %p\n",
+           (void*)game->buildcachedat->component_sprites_hmap);
+
+    // Create the example interface components
+    create_example_interface(game);
+    create_example_inventory(game);
+
+    // Don't display it immediately - let user toggle with 'I' key
+    game->viewport_interface_id = -1;
+
+    printf("Example interface ready. Press 'I' key to toggle visibility.\n");
+}
 
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(
@@ -834,6 +1180,41 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             bind_x + 208,
             bind_y + 13,
             renderer->pixel_buffer);
+    }
+
+    // Initialize clipping bounds for interface viewport
+    if( game->iface_view_port )
+    {
+        dash2d_set_bounds(
+            game->iface_view_port,
+            0,
+            0,
+            game->iface_view_port->width,
+            game->iface_view_port->height);
+    }
+
+    // Render interfaces if set
+    if( game->viewport_interface_id != -1 )
+    {
+        struct CacheDatConfigComponent* viewport_component =
+            buildcachedat_get_component(game->buildcachedat, game->viewport_interface_id);
+        if( viewport_component )
+        {
+            interface_draw_component(
+                game, viewport_component, 0, 0, 0, renderer->pixel_buffer, renderer->width);
+        }
+    }
+    
+    // Render sidebar interface (inventory area at 553, 205)
+    if( game->sidebar_interface_id != -1 )
+    {
+        struct CacheDatConfigComponent* sidebar_component =
+            buildcachedat_get_component(game->buildcachedat, game->sidebar_interface_id);
+        if( sidebar_component )
+        {
+            interface_draw_component(
+                game, sidebar_component, 553, 205, 0, renderer->pixel_buffer, renderer->width);
+        }
     }
 
     // Draw a vertical line at x = 550

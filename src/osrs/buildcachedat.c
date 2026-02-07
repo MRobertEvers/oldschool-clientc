@@ -96,6 +96,18 @@ struct NpcModelEntry
     struct CacheModel* model;
 };
 
+struct ComponentEntry
+{
+    int id;
+    struct CacheDatConfigComponent* component;
+};
+
+struct ComponentSpriteEntry
+{
+    char sprite_name[64];  // Key must be first field and fixed size for DashMap
+    struct DashSprite* sprite;
+};
+
 struct BuildCacheDat*
 buildcachedat_new(void)
 {
@@ -225,6 +237,23 @@ buildcachedat_new(void)
         .entry_size = sizeof(struct NpcModelEntry),
     };
     buildcachedat->npc_models_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct ComponentEntry),
+    };
+    buildcachedat->component_hmap = dashmap_new(&config, 0);
+
+    buffer_size = 1024 * sizeof(struct ComponentSpriteEntry) * 4;
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = 64,  // Max sprite name length
+        .entry_size = sizeof(struct ComponentSpriteEntry),
+    };
+    buildcachedat->component_sprites_hmap = dashmap_new(&config, 0);
 
     return buildcachedat;
 }
@@ -721,4 +750,55 @@ buildcachedat_get_map_terrain(
     if( !map_terrain_entry )
         return NULL;
     return map_terrain_entry->map_terrain;
+}
+
+void
+buildcachedat_add_component(
+    struct BuildCacheDat* buildcachedat,
+    int component_id,
+    struct CacheDatConfigComponent* component)
+{
+    struct ComponentEntry* component_entry = (struct ComponentEntry*)dashmap_search(
+        buildcachedat->component_hmap, &component_id, DASHMAP_INSERT);
+    assert(component_entry && "Component must be inserted into hmap");
+    component_entry->id = component_id;
+    component_entry->component = component;
+}
+
+struct CacheDatConfigComponent*
+buildcachedat_get_component(
+    struct BuildCacheDat* buildcachedat,
+    int component_id)
+{
+    struct ComponentEntry* component_entry = (struct ComponentEntry*)dashmap_search(
+        buildcachedat->component_hmap, &component_id, DASHMAP_FIND);
+    if( !component_entry )
+        return NULL;
+    return component_entry->component;
+}
+
+void
+buildcachedat_add_component_sprite(
+    struct BuildCacheDat* buildcachedat,
+    const char* sprite_name,
+    struct DashSprite* sprite)
+{
+    struct ComponentSpriteEntry* sprite_entry = (struct ComponentSpriteEntry*)dashmap_search(
+        buildcachedat->component_sprites_hmap, sprite_name, DASHMAP_INSERT);
+    assert(sprite_entry && "Component sprite must be inserted into hmap");
+    strncpy(sprite_entry->sprite_name, sprite_name, 63);
+    sprite_entry->sprite_name[63] = '\0';  // Ensure null termination
+    sprite_entry->sprite = sprite;
+}
+
+struct DashSprite*
+buildcachedat_get_component_sprite(
+    struct BuildCacheDat* buildcachedat,
+    const char* sprite_name)
+{
+    struct ComponentSpriteEntry* sprite_entry = (struct ComponentSpriteEntry*)dashmap_search(
+        buildcachedat->component_sprites_hmap, sprite_name, DASHMAP_FIND);
+    if( !sprite_entry )
+        return NULL;
+    return sprite_entry->sprite;
 }

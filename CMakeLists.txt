@@ -87,6 +87,7 @@ endif()
 
 
         src/osrs/rscache/tables_dat/config_component.c
+        src/osrs/interface.c
         src/osrs/gio_cache_dat.c
         src/osrs/configmap.c
         src/osrs/filepack.c

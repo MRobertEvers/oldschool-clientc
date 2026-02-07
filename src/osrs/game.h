@@ -180,6 +180,11 @@ struct GGame
     struct DashSprite* sprite_backvmid2;
     struct DashSprite* sprite_backvmid3;
     struct DashSprite* sprite_backhmid2;
+    
+    // Interface IDs (which interface is currently shown in each area)
+    int viewport_interface_id;
+    int sidebar_interface_id;
+    int chat_interface_id;
 };
 
 void

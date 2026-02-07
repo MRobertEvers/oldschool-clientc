@@ -2102,6 +2102,199 @@ dash2d_fill_rect(
     }
 }
 
+void
+dash2d_draw_rect(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb)
+{
+    // Top and bottom edges
+    for( int j = 0; j < width; j++ )
+    {
+        pixel_buffer[y * stride + (x + j)] = color_rgb;
+        pixel_buffer[(y + height - 1) * stride + (x + j)] = color_rgb;
+    }
+    // Left and right edges
+    for( int i = 1; i < height - 1; i++ )
+    {
+        pixel_buffer[(y + i) * stride + x] = color_rgb;
+        pixel_buffer[(y + i) * stride + (x + width - 1)] = color_rgb;
+    }
+}
+
+void
+dash2d_fill_rect_alpha(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb,
+    int alpha)
+{
+    int r = (color_rgb >> 16) & 0xFF;
+    int g = (color_rgb >> 8) & 0xFF;
+    int b = color_rgb & 0xFF;
+    
+    for( int i = 0; i < height; i++ )
+    {
+        for( int j = 0; j < width; j++ )
+        {
+            int pixel_buffer_index = (y + i) * stride + (x + j);
+            int dst_pixel = pixel_buffer[pixel_buffer_index];
+            int dst_r = (dst_pixel >> 16) & 0xFF;
+            int dst_g = (dst_pixel >> 8) & 0xFF;
+            int dst_b = dst_pixel & 0xFF;
+            
+            // Alpha blend
+            int out_r = (r * alpha + dst_r * (256 - alpha)) >> 8;
+            int out_g = (g * alpha + dst_g * (256 - alpha)) >> 8;
+            int out_b = (b * alpha + dst_b * (256 - alpha)) >> 8;
+            
+            pixel_buffer[pixel_buffer_index] = (out_r << 16) | (out_g << 8) | out_b;
+        }
+    }
+}
+
+void
+dash2d_draw_rect_alpha(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb,
+    int alpha)
+{
+    int r = (color_rgb >> 16) & 0xFF;
+    int g = (color_rgb >> 8) & 0xFF;
+    int b = color_rgb & 0xFF;
+    
+    // Top and bottom edges
+    for( int j = 0; j < width; j++ )
+    {
+        int top_idx = y * stride + (x + j);
+        int bot_idx = (y + height - 1) * stride + (x + j);
+        
+        int dst_pixel = pixel_buffer[top_idx];
+        int dst_r = (dst_pixel >> 16) & 0xFF;
+        int dst_g = (dst_pixel >> 8) & 0xFF;
+        int dst_b = dst_pixel & 0xFF;
+        int out_r = (r * alpha + dst_r * (256 - alpha)) >> 8;
+        int out_g = (g * alpha + dst_g * (256 - alpha)) >> 8;
+        int out_b = (b * alpha + dst_b * (256 - alpha)) >> 8;
+        pixel_buffer[top_idx] = (out_r << 16) | (out_g << 8) | out_b;
+        
+        dst_pixel = pixel_buffer[bot_idx];
+        dst_r = (dst_pixel >> 16) & 0xFF;
+        dst_g = (dst_pixel >> 8) & 0xFF;
+        dst_b = dst_pixel & 0xFF;
+        out_r = (r * alpha + dst_r * (256 - alpha)) >> 8;
+        out_g = (g * alpha + dst_g * (256 - alpha)) >> 8;
+        out_b = (b * alpha + dst_b * (256 - alpha)) >> 8;
+        pixel_buffer[bot_idx] = (out_r << 16) | (out_g << 8) | out_b;
+    }
+    
+    // Left and right edges
+    for( int i = 1; i < height - 1; i++ )
+    {
+        int left_idx = (y + i) * stride + x;
+        int right_idx = (y + i) * stride + (x + width - 1);
+        
+        int dst_pixel = pixel_buffer[left_idx];
+        int dst_r = (dst_pixel >> 16) & 0xFF;
+        int dst_g = (dst_pixel >> 8) & 0xFF;
+        int dst_b = dst_pixel & 0xFF;
+        int out_r = (r * alpha + dst_r * (256 - alpha)) >> 8;
+        int out_g = (g * alpha + dst_g * (256 - alpha)) >> 8;
+        int out_b = (b * alpha + dst_b * (256 - alpha)) >> 8;
+        pixel_buffer[left_idx] = (out_r << 16) | (out_g << 8) | out_b;
+        
+        dst_pixel = pixel_buffer[right_idx];
+        dst_r = (dst_pixel >> 16) & 0xFF;
+        dst_g = (dst_pixel >> 8) & 0xFF;
+        dst_b = dst_pixel & 0xFF;
+        out_r = (r * alpha + dst_r * (256 - alpha)) >> 8;
+        out_g = (g * alpha + dst_g * (256 - alpha)) >> 8;
+        out_b = (b * alpha + dst_b * (256 - alpha)) >> 8;
+        pixel_buffer[right_idx] = (out_r << 16) | (out_g << 8) | out_b;
+    }
+}
+
+void
+dash2d_blit_sprite_alpha(
+    struct DashGraphics* dash,
+    struct DashSprite* sprite,
+    struct DashViewPort* view_port,
+    int x,
+    int y,
+    int alpha,
+    int* pixel_buffer)
+{
+    if( !sprite )
+        return;
+        
+    int* src_pixels = sprite->pixels_argb;
+    int src_width = sprite->width;
+    int src_height = sprite->height;
+    int stride = view_port->stride;
+    
+    for( int src_y = 0; src_y < src_height; src_y++ )
+    {
+        for( int src_x = 0; src_x < src_width; src_x++ )
+        {
+            int src_pixel = src_pixels[src_y * src_width + src_x];
+            if( src_pixel == 0 )
+                continue;
+                
+            int dst_x = x + src_x;
+            int dst_y = y + src_y;
+            
+            // Apply clipping bounds
+            if( dst_x < view_port->clip_left || dst_x >= view_port->clip_right || 
+                dst_y < view_port->clip_top || dst_y >= view_port->clip_bottom )
+                continue;
+                
+            int dst_idx = dst_y * stride + dst_x;
+            int dst_pixel = pixel_buffer[dst_idx];
+            
+            int src_r = (src_pixel >> 16) & 0xFF;
+            int src_g = (src_pixel >> 8) & 0xFF;
+            int src_b = src_pixel & 0xFF;
+            
+            int dst_r = (dst_pixel >> 16) & 0xFF;
+            int dst_g = (dst_pixel >> 8) & 0xFF;
+            int dst_b = dst_pixel & 0xFF;
+            
+            int out_r = (src_r * alpha + dst_r * (256 - alpha)) >> 8;
+            int out_g = (src_g * alpha + dst_g * (256 - alpha)) >> 8;
+            int out_b = (src_b * alpha + dst_b * (256 - alpha)) >> 8;
+            
+            pixel_buffer[dst_idx] = (out_r << 16) | (out_g << 8) | out_b;
+        }
+    }
+}
+
+void
+dash2d_set_bounds(
+    struct DashViewPort* view_port,
+    int left,
+    int top,
+    int right,
+    int bottom)
+{
+    view_port->clip_left = left;
+    view_port->clip_top = top;
+    view_port->clip_right = right;
+    view_port->clip_bottom = bottom;
+}
+
 static int g_minimap_tile_rotation_map[4][16] = {
     { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15 },
     { 12, 8,  4,  0,  13, 9,  5,  1,  14, 10, 6,  2,  15, 11, 7,  3  },

@@ -26,6 +26,7 @@ init_component(struct CacheDatConfigComponent* component)
     component->seqFrame = 0;
     component->seqCycle = 0;
     component->children = NULL;
+    component->children_count = 0;
     component->activeModelType = 0;
     component->activeModel = 0;
     component->anim = -1;
@@ -150,6 +151,7 @@ decode_component(struct RSBuffer* inb)
             component->hide = g1(inb) == 1;
 
             int childCount = g2(inb);
+            component->children_count = childCount;
             component->children = malloc(childCount * sizeof(int));
             memset(component->children, 0, childCount * sizeof(int));
             component->childX = malloc(childCount * sizeof(int));

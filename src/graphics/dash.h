@@ -174,6 +174,12 @@ struct DashViewPort
 
     int x_center;
     int y_center;
+    
+    // Clipping bounds (Pix2D.setBounds equivalent)
+    int clip_left;
+    int clip_top;
+    int clip_right;
+    int clip_bottom;
 };
 
 struct DashCamera
@@ -267,6 +273,7 @@ struct DashPixFont
     int char_offset_y[DASH_FONT_CHAR_COUNT];
     int char_advance[DASH_FONT_CHAR_COUNT + 1];
     int draw_width[256];
+    int height2d;
 };
 
 void
@@ -423,6 +430,66 @@ dashfont_draw_text(
     int color_rgb,
     int* pixels,
     int stride);
+
+void
+dash2d_fill_rect(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb);
+
+void
+dash2d_draw_rect(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb);
+
+void
+dash2d_fill_rect_alpha(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb,
+    int alpha);
+
+void
+dash2d_draw_rect_alpha(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb,
+    int alpha);
+
+void
+dash2d_blit_sprite_alpha(
+    struct DashGraphics* dash,
+    struct DashSprite* sprite,
+    struct DashViewPort* view_port,
+    int x,
+    int y,
+    int alpha,
+    int* pixel_buffer);
+
+void
+dash2d_set_bounds(
+    struct DashViewPort* view_port,
+    int left,
+    int top,
+    int right,
+    int bottom);
 
 int
 dash_texture_average_hsl(struct DashTexture* texture);

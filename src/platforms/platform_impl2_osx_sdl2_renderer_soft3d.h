@@ -78,6 +78,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(
     int offset_y);
 
 void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_InitExampleInterface(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    struct GGame* game);
+
+void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
     struct Server* server,

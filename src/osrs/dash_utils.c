@@ -186,6 +186,14 @@ dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont)
     memcpy(
         dashpixfont->char_advance, pixfont->char_advance, sizeof(int) * (DASH_FONT_CHAR_COUNT + 1));
     memcpy(dashpixfont->draw_width, pixfont->draw_width, sizeof(int) * 256);
+    
+    // Calculate height2d as max char height
+    dashpixfont->height2d = 0;
+    for (int i = 0; i < DASH_FONT_CHAR_COUNT; i++) {
+        if (dashpixfont->char_mask_height[i] > dashpixfont->height2d) {
+            dashpixfont->height2d = dashpixfont->char_mask_height[i];
+        }
+    }
 
     // Moved out of.
     memset(pixfont, 0x00, sizeof(struct CacheDatPixfont));

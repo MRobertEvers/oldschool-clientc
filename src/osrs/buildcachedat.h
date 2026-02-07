@@ -14,6 +14,7 @@
 #include "osrs/rscache/tables_dat/animframe.h"
 #include "osrs/rscache/tables_dat/config_idk.h"
 #include "osrs/rscache/tables_dat/config_npc.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/rscache/tables_dat/pix32.h"
@@ -42,6 +43,8 @@ struct BuildCacheDat
     struct DashMap* idk_hmap;
     struct DashMap* obj_hmap;
     struct DashMap* npc_hmap;
+    struct DashMap* component_hmap;
+    struct DashMap* component_sprites_hmap;
 };
 
 struct BuildCacheDat*
@@ -295,5 +298,27 @@ buildcachedat_get_map_terrain(
     struct BuildCacheDat* buildcachedat,
     int mapx,
     int mapz);
+
+void
+buildcachedat_add_component(
+    struct BuildCacheDat* buildcachedat,
+    int component_id,
+    struct CacheDatConfigComponent* component);
+
+struct CacheDatConfigComponent*
+buildcachedat_get_component(
+    struct BuildCacheDat* buildcachedat,
+    int component_id);
+
+void
+buildcachedat_add_component_sprite(
+    struct BuildCacheDat* buildcachedat,
+    const char* sprite_name,
+    struct DashSprite* sprite);
+
+struct DashSprite*
+buildcachedat_get_component_sprite(
+    struct BuildCacheDat* buildcachedat,
+    const char* sprite_name);
 
 #endif
