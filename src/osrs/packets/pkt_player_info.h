@@ -109,8 +109,8 @@ struct PktPlayerInfo_ExactMove
 
 struct PktPlayerInfo_Damage2
 {
-    int32_t entity_id;
     uint8_t damage;
+    uint8_t damage_type;
     uint8_t health;
     uint8_t total_health;
 };

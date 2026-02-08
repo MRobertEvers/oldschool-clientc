@@ -191,6 +191,59 @@ push_op_face_entity(
     op->_face_entity.entity_id = entity_id;
 }
 
+static void
+push_op_damage(
+    struct PktPlayerInfoOp* op,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health)
+{
+    op->kind = PKT_PLAYER_INFO_OP_DAMAGE;
+    op->_damage.damage_type = damage_type;
+    op->_damage.damage = damage;
+    op->_damage.health = health;
+    op->_damage.total_health = total_health;
+}
+
+static void
+push_op_damage2(
+    struct PktPlayerInfoOp* op,
+    int damage,
+    int damage_type,
+    int health,
+    int total_health)
+{
+    op->kind = PKT_PLAYER_INFO_OP_DAMAGE2;
+    op->_damage2.damage = damage;
+    op->_damage2.damage_type = damage_type;
+    op->_damage2.health = health;
+    op->_damage2.total_health = total_health;
+}
+
+static void
+push_op_face_coord(
+    struct PktPlayerInfoOp* op,
+    int target_x,
+    int target_z)
+{
+    op->kind = PKT_PLAYER_INFO_OP_FACE_COORD;
+    op->_face_coord.entity_id = -1;
+    op->_face_coord.x = (int16_t)target_x;
+    op->_face_coord.z = (int16_t)target_z;
+}
+
+static void
+push_op_spotanim(
+    struct PktPlayerInfoOp* op,
+    int spotanim_id,
+    int height_delay)
+{
+    op->kind = PKT_PLAYER_INFO_OP_SPOTANIM;
+    op->_spotanim.spotanim_id = spotanim_id;
+    op->_spotanim.delay = height_delay; /* Client.ts: height = >>16, cycleDelay = &0xffff */
+}
+
 int
 pkt_player_info_reader_read(
     struct PktPlayerInfoReader* reader,
@@ -418,13 +471,19 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_DAMAGE) != 0 )
         {
-            assert(0);
+            int damage_type = g1(&rsbuf);
+            int damage = g1(&rsbuf);
+            int health = g1(&rsbuf);
+            int total_health = g1(&rsbuf);
+            push_op_damage(
+                next_op(reader, ops, ops_capacity), damage_type, damage, health, total_health);
         }
 
         if( (mask & MASK_FACE_COORD) != 0 )
         {
             int target_x = g2(&rsbuf);
             int target_z = g2(&rsbuf);
+            push_op_face_coord(next_op(reader, ops, ops_capacity), target_x, target_z);
         }
 
         if( (mask & MASK_CHAT) != 0 )
@@ -439,7 +498,10 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_SPOTANIM) != 0 )
         {
-            assert(0);
+            /* Client.ts 8062-8077: spotanimId = g2(), heightDelay = g4() */
+            int spotanim_id = g2(&rsbuf);
+            int height_delay = g4(&rsbuf);
+            push_op_spotanim(next_op(reader, ops, ops_capacity), spotanim_id, height_delay);
         }
 
         if( (mask & MASK_EXACT_MOVE) != 0 )
@@ -449,7 +511,12 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_DAMAGE2) != 0 )
         {
-            assert(0);
+            int damage = g1(&rsbuf);
+            int damage_type = g1(&rsbuf);
+            int health = g1(&rsbuf);
+            int total_health = g1(&rsbuf);
+            push_op_damage2(
+                next_op(reader, ops, ops_capacity), damage, damage_type, health, total_health);
         }
     }
 

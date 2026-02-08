@@ -732,7 +732,7 @@ LibToriRS_GameStep(
 
     LibToriRS_GameProcessInput(game, input);
     
-    // Handle interface clicks (inventory items, etc.)
+    // Handle interface clicks (tab bar, then inventory items, etc.)
     if( game->mouse_clicked )
     {
         int mouse_x = game->mouse_clicked_x;
@@ -740,8 +740,29 @@ LibToriRS_GameStep(
         
         printf("Mouse clicked at: (%d, %d)\n", mouse_x, mouse_y);
         
-        // Check if click is in sidebar area (553, 205, 210x293)
-        if( mouse_x >= 553 && mouse_x < 763 && mouse_y >= 205 && mouse_y < 498 )
+        // Tab bar click (Client.ts handleTabInput 3018-3072): same bounds, only if tab has interface
+        int tab_clicked = -1;
+        if(      mouse_x >= 539 && mouse_x <= 573 && mouse_y >= 169 && mouse_y < 205 && game->tab_interface_id[0] != -1 ) tab_clicked = 0;
+        else if( mouse_x >= 569 && mouse_x <= 599 && mouse_y >= 168 && mouse_y < 205 && game->tab_interface_id[1] != -1 ) tab_clicked = 1;
+        else if( mouse_x >= 597 && mouse_x <= 627 && mouse_y >= 168 && mouse_y < 205 && game->tab_interface_id[2] != -1 ) tab_clicked = 2;
+        else if( mouse_x >= 625 && mouse_x <= 669 && mouse_y >= 168 && mouse_y < 203 && game->tab_interface_id[3] != -1 ) tab_clicked = 3;
+        else if( mouse_x >= 666 && mouse_x <= 696 && mouse_y >= 168 && mouse_y < 205 && game->tab_interface_id[4] != -1 ) tab_clicked = 4;
+        else if( mouse_x >= 694 && mouse_x <= 724 && mouse_y >= 168 && mouse_y < 205 && game->tab_interface_id[5] != -1 ) tab_clicked = 5;
+        else if( mouse_x >= 722 && mouse_x <= 756 && mouse_y >= 169 && mouse_y < 205 && game->tab_interface_id[6] != -1 ) tab_clicked = 6;
+        else if( mouse_x >= 540 && mouse_x <= 574 && mouse_y >= 466 && mouse_y < 502 && game->tab_interface_id[7] != -1 ) tab_clicked = 7;
+        else if( mouse_x >= 572 && mouse_x <= 602 && mouse_y >= 466 && mouse_y < 503 && game->tab_interface_id[8] != -1 ) tab_clicked = 8;
+        else if( mouse_x >= 599 && mouse_x <= 629 && mouse_y >= 466 && mouse_y < 503 && game->tab_interface_id[9] != -1 ) tab_clicked = 9;
+        else if( mouse_x >= 627 && mouse_x <= 671 && mouse_y >= 467 && mouse_y < 502 && game->tab_interface_id[10] != -1 ) tab_clicked = 10;
+        else if( mouse_x >= 669 && mouse_x <= 699 && mouse_y >= 466 && mouse_y < 503 && game->tab_interface_id[11] != -1 ) tab_clicked = 11;
+        else if( mouse_x >= 696 && mouse_x <= 726 && mouse_y >= 466 && mouse_y < 503 && game->tab_interface_id[12] != -1 ) tab_clicked = 12;
+        else if( mouse_x >= 724 && mouse_x <= 758 && mouse_y >= 466 && mouse_y < 502 && game->tab_interface_id[13] != -1 ) tab_clicked = 13;
+        if( tab_clicked >= 0 )
+        {
+            game->selected_tab = tab_clicked;
+            printf("Tab clicked: selected_tab = %d\n", tab_clicked);
+            /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE */
+        }
+        else if( mouse_x >= 553 && mouse_x < 763 && mouse_y >= 205 && mouse_y < 498 )
         {
             printf("Click detected in sidebar area\n");
             
