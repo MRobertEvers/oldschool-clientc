@@ -105,7 +105,7 @@ draw_rect_clipped(
 }
 
 /* Blit subsprite (src_w x src_h) to pixel_buffer at (dx, dy), clipped to clip rect.
- * Skips source pixels that are 0 (transparent). */
+ * Skips source pixels that are 0 (transparent). Used for blitting sprites etc. */
 static void
 blit_subsprite_clipped(
     const int* src,
@@ -348,42 +348,20 @@ interface_draw_component(
             if( scroll_pos < 0 )
                 scroll_pos = 0;
 
-            /* Draw layer into a subsprite so text/graphics cannot overdraw parent */
+            /* Match Client.ts drawInterface: set bounds to layer rect and draw directly
+             * onto main buffer (no subsprite). This draws black (0) and all colours
+             * correctly; subsprite+blit had to treat 0 as transparent. */
             int saved_left = view_port->clip_left;
             int saved_top = view_port->clip_top;
             int saved_right = view_port->clip_right;
             int saved_bottom = view_port->clip_bottom;
-            size_t layer_pixels = (size_t)child->width * (size_t)child->height;
-            int* subsprite = (int*)malloc(layer_pixels * sizeof(int));
-            if( subsprite )
-            {
-                memset(subsprite, 0, layer_pixels * sizeof(int));
-                int saved_stride = view_port->stride;
-                view_port->clip_left = 0;
-                view_port->clip_top = 0;
-                view_port->clip_right = child->width;
-                view_port->clip_bottom = child->height;
-                view_port->stride = child->width;
-
-                interface_draw_component(game, child, 0, 0, scroll_pos, subsprite, child->width);
-
-                view_port->clip_left = saved_left;
-                view_port->clip_top = saved_top;
-                view_port->clip_right = saved_right;
-                view_port->clip_bottom = saved_bottom;
-                view_port->stride = saved_stride;
-
-                blit_subsprite_clipped(
-                    subsprite, child->width, child->height,
-                    pixel_buffer, stride, childX, childY,
-                    saved_left, saved_top, saved_right, saved_bottom);
-                free(subsprite);
-            }
-            else
-            {
-                /* Fallback if alloc fails */
-                interface_draw_component(game, child, childX, childY, scroll_pos, pixel_buffer, stride);
-            }
+            dash2d_set_bounds(view_port,
+                childX,
+                childY,
+                childX + child->width,
+                childY + child->height);
+            interface_draw_component(game, child, childX, childY, scroll_pos, pixel_buffer, stride);
+            dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
 
             if( child->scroll > child->height )
             {
