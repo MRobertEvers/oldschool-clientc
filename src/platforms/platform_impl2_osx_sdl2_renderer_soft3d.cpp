@@ -1385,6 +1385,103 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
+    /* Client.ts redrawPrivacySettings: backbase1 at (0, 453), 496x50; four buttons:
+     * Public chat (center 55), Private chat (184), Trade/duel (324), Report abuse (458).
+     * If buffer height < 503, draw panel at bottom so it is visible. */
+#define PRIVACY_PANEL_X 0
+#define PRIVACY_PANEL_W 496
+#define PRIVACY_PANEL_H 50
+    int privacy_panel_y =
+        (453 + PRIVACY_PANEL_H <= renderer->height)
+            ? 453
+            : (renderer->height - PRIVACY_PANEL_H);
+    if( privacy_panel_y < 0 )
+        privacy_panel_y = 0;
+    if( game->sprite_backbase1 && privacy_panel_y + PRIVACY_PANEL_H <= renderer->height )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backbase1,
+            game->iface_view_port,
+            PRIVACY_PANEL_X,
+            privacy_panel_y,
+            renderer->pixel_buffer);
+        if( game->pixfont_p12 )
+        {
+            struct DashViewPort* vp = game->iface_view_port;
+            int cl = vp->clip_left;
+            int ct = vp->clip_top;
+            int cr = vp->clip_right;
+            int cb = vp->clip_bottom;
+            dash2d_set_bounds(
+                vp,
+                PRIVACY_PANEL_X,
+                privacy_panel_y,
+                PRIVACY_PANEL_X + PRIVACY_PANEL_W,
+                privacy_panel_y + PRIVACY_PANEL_H);
+            int py = privacy_panel_y;
+            int stride = renderer->width;
+            int* pix = renderer->pixel_buffer;
+            int fh = game->pixfont_p12->height2d;
+            /* Client.ts: drawStringTaggableCenter(centerX, lineY, ...); font does y -= height2d */
+            int label_y = py + 28 - fh;
+            int value_y = py + 41 - fh;
+            int report_y = py + 33 - fh;
+            static const int white = 0xFFFFFF;
+            static const int green = 0x00FF00;
+            static const int yellow = 0xFFFF00;
+            static const int red = 0xFF0000;
+            static const int cyan = 0x00FFFF;
+
+            auto draw_center = [&](int center_x, int y, const char* text, int colour) {
+                int w = dashfont_text_width(game->pixfont_p12, (uint8_t*)text);
+                int x = center_x - (w / 2);
+                dashfont_draw_text_clipped(
+                    game->pixfont_p12,
+                    (uint8_t*)text,
+                    x,
+                    y,
+                    colour,
+                    pix,
+                    stride,
+                    vp->clip_left,
+                    vp->clip_top,
+                    vp->clip_right,
+                    vp->clip_bottom);
+            };
+
+            draw_center(55, label_y, "Public chat", white);
+            if( game->chat_public_mode == 0 )
+                draw_center(55, value_y, "On", green);
+            else if( game->chat_public_mode == 1 )
+                draw_center(55, value_y, "Friends", yellow);
+            else if( game->chat_public_mode == 2 )
+                draw_center(55, value_y, "Off", red);
+            else
+                draw_center(55, value_y, "Hide", cyan);
+
+            draw_center(184, label_y, "Private chat", white);
+            if( game->chat_private_mode == 0 )
+                draw_center(184, value_y, "On", green);
+            else if( game->chat_private_mode == 1 )
+                draw_center(184, value_y, "Friends", yellow);
+            else
+                draw_center(184, value_y, "Off", red);
+
+            draw_center(324, label_y, "Trade/duel", white);
+            if( game->chat_trade_mode == 0 )
+                draw_center(324, value_y, "On", green);
+            else if( game->chat_trade_mode == 1 )
+                draw_center(324, value_y, "Friends", yellow);
+            else
+                draw_center(324, value_y, "Off", red);
+
+            draw_center(458, report_y, "Report abuse", white);
+
+            dash2d_set_bounds(vp, cl, ct, cr, cb);
+        }
+    }
+
     // Draw a vertical line at x = 550
     // for( int y = 0; y < renderer->height; y++ )
     // {

@@ -70,6 +70,10 @@ LibToriRS_GameNew(
     game->sidebar_interface_id = -1;
     game->chat_interface_id = -1;
 
+    game->chat_public_mode = 0;
+    game->chat_private_mode = 0;
+    game->chat_trade_mode = 0;
+
     // Initialize tab system
     game->selected_tab = 3; // Default to inventory tab (tab 3)
     for( int i = 0; i < 14; i++ )

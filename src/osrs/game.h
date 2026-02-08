@@ -193,6 +193,11 @@ struct GGame
     int viewport_interface_id;
     int sidebar_interface_id;
     int chat_interface_id;
+
+    // Chat privacy (Client.ts chatPublicMode, chatPrivateMode, chatTradeMode; packet sync)
+    int chat_public_mode;   /* 0=On, 1=Friends, 2=Off, 3=Hide */
+    int chat_private_mode;  /* 0=On, 1=Friends, 2=Off */
+    int chat_trade_mode;    /* 0=On, 1=Friends, 2=Off */
     
     // Tab system
     int selected_tab;

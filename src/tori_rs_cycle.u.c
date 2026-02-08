@@ -1002,6 +1002,39 @@ LibToriRS_GameStep(
             /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE
              */
         }
+        /* Client.ts handleChatModeInput: four buttons in bottom strip (panel matches platform
+         * privacy_panel_y = bottom 50px when height < 503, else y 453). */
+        else
+        {
+            int panel_h = 50;
+            int panel_top =
+                (game->iface_view_port && game->iface_view_port->height > panel_h)
+                    ? (game->iface_view_port->height - panel_h)
+                    : 453;
+            if( mouse_y >= panel_top && mouse_y < panel_top + panel_h )
+            {
+                if( mouse_x >= 6 && mouse_x <= 106 )
+                {
+                    game->chat_public_mode = (game->chat_public_mode + 1) % 4;
+                    game->mouse_clicked = false;
+                }
+                else if( mouse_x >= 135 && mouse_x <= 235 )
+                {
+                    game->chat_private_mode = (game->chat_private_mode + 1) % 3;
+                    game->mouse_clicked = false;
+                }
+                else if( mouse_x >= 273 && mouse_x <= 373 )
+                {
+                    game->chat_trade_mode = (game->chat_trade_mode + 1) % 3;
+                    game->mouse_clicked = false;
+                }
+                else if( mouse_x >= 412 && mouse_x <= 512 )
+                {
+                    game->mouse_clicked = false;
+                    /* TODO: open report abuse interface (clientCode 600) */
+                }
+            }
+        }
         else if( mouse_x >= 553 && mouse_x < 763 && mouse_y >= 205 && mouse_y < 498 )
         {
             printf("Click detected in sidebar area\n");
