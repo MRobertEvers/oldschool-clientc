@@ -387,7 +387,8 @@ dash3d_raster_model_face(
     int screen_height,
     int stride,
     int camera_fov,
-    struct DashMap* textures_hmap)
+    struct DashMap* textures_hmap,
+    bool smooth)
 {
     struct DashTextureEntry* texture_entry = NULL;
     struct DashTexture* texture = NULL;
@@ -496,28 +497,56 @@ dash3d_raster_model_face(
         {
         case FACE_TYPE_GOURAUD:
 
-            raster_face_gouraud(
-                pixel_buffer,
-                face,
-                face_indices_a,
-                face_indices_b,
-                face_indices_c,
-                vertex_x,
-                vertex_y,
-                vertex_z,
-                orthographic_vertex_x_nullable,
-                orthographic_vertex_y_nullable,
-                orthographic_vertex_z_nullable,
-                colors_a,
-                colors_b,
-                colors_c,
-                face_alphas_nullable,
-                near_plane_z,
-                offset_x,
-                offset_y,
-                stride,
-                screen_width,
-                screen_height);
+            if( smooth )
+            {
+                raster_face_gouraud_s1(
+                    pixel_buffer,
+                    face,
+                    face_indices_a,
+                    face_indices_b,
+                    face_indices_c,
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    orthographic_vertex_x_nullable,
+                    orthographic_vertex_y_nullable,
+                    orthographic_vertex_z_nullable,
+                    colors_a,
+                    colors_b,
+                    colors_c,
+                    face_alphas_nullable,
+                    near_plane_z,
+                    offset_x,
+                    offset_y,
+                    stride,
+                    screen_width,
+                    screen_height);
+            }
+            else
+            {
+                raster_face_gouraud(
+                    pixel_buffer,
+                    face,
+                    face_indices_a,
+                    face_indices_b,
+                    face_indices_c,
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    orthographic_vertex_x_nullable,
+                    orthographic_vertex_y_nullable,
+                    orthographic_vertex_z_nullable,
+                    colors_a,
+                    colors_b,
+                    colors_c,
+                    face_alphas_nullable,
+                    near_plane_z,
+                    offset_x,
+                    offset_y,
+                    stride,
+                    screen_width,
+                    screen_height);
+            }
 
             break;
         case FACE_TYPE_FLAT:
@@ -1103,7 +1132,8 @@ dash3d_raster(
     struct DashModel* model,
     struct DashViewPort* view_port,
     struct DashCamera* camera,
-    int* pixel_buffer)
+    int* pixel_buffer,
+    bool smooth)
 {
     int model_min_depth = model->bounds_cylinder->min_z_depth_any_rotation;
     memset(
@@ -1171,7 +1201,8 @@ dash3d_raster(
                     view_port->height,
                     view_port->stride,
                     camera->fov_rpi2048,
-                    dash->textures_hmap);
+                    dash->textures_hmap,
+                    smooth);
             }
         }
     }
@@ -1240,7 +1271,8 @@ dash3d_raster(
                 view_port->height,
                 view_port->stride,
                 camera->fov_rpi2048,
-                dash->textures_hmap);
+                dash->textures_hmap,
+                smooth);
         }
     }
 }
@@ -1381,9 +1413,10 @@ dash3d_raster_projected_model(
     struct DashPosition* position,
     struct DashViewPort* view_port,
     struct DashCamera* camera,
-    int* pixel_buffer)
+    int* pixel_buffer,
+    bool smooth)
 {
-    dash3d_raster(dash, model, view_port, camera, pixel_buffer);
+    dash3d_raster(dash, model, view_port, camera, pixel_buffer, smooth);
 }
 
 static inline bool
@@ -1493,7 +1526,7 @@ dash3d_render_model( //
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
-    dash3d_raster(dash, model, view_port, camera, pixel_buffer);
+    dash3d_raster(dash, model, view_port, camera, pixel_buffer, false);
     return DASHCULL_VISIBLE;
 }
 

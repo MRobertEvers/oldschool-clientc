@@ -174,7 +174,7 @@ struct DashViewPort
 
     int x_center;
     int y_center;
-    
+
     // Clipping bounds (Pix2D.setBounds equivalent)
     int clip_left;
     int clip_top;
@@ -240,7 +240,7 @@ struct DashPix32
 
 struct DashSprite
 {
-    int* pixels_argb;
+    uint32_t* pixels_argb;
     int width;
     int height;
 };
@@ -330,7 +330,8 @@ dash3d_raster_projected_model(
     struct DashPosition* position,
     struct DashViewPort* view_port,
     struct DashCamera* camera,
-    int* pixel_buffer);
+    int* pixel_buffer,
+    bool smooth);
 
 bool
 dash3d_projected_model_contains(

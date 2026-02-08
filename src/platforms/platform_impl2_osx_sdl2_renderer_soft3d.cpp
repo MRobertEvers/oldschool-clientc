@@ -612,15 +612,14 @@ init_example_interface(struct GGame* game)
 
     // Queue Lua script to load object configs and models asynchronously
     printf("Queuing Lua script to load inventory models...\n");
-    
-    struct ScriptArgs args = { 
-        .tag = SCRIPT_LOAD_INVENTORY_MODELS,
-        .u.load_inventory_models = { .dummy = 0 } 
-    };
+
+    struct ScriptArgs args = { .tag = SCRIPT_LOAD_INVENTORY_MODELS,
+                               .u.load_inventory_models = { .dummy = 0 } };
     script_queue_push(&game->script_queue, &args);
-    
+
     printf("  Script queued: load_inventory_models.lua\n");
-    printf("  Note: Models will load asynchronously. Icons will generate once models are loaded.\n");
+    printf(
+        "  Note: Models will load asynchronously. Icons will generate once models are loaded.\n");
 
     // Create the example interface components (UI structure can be created immediately)
     create_example_interface(game);
@@ -847,7 +846,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 &command._model_draw.position,
                 game->view_port,
                 game->camera,
-                renderer->dash_buffer);
+                renderer->dash_buffer,
+                false);
             break;
         default:
             break;
@@ -965,7 +965,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
     if( game->sprite_compass )
         blit_rotated_buffer(
-            game->sprite_compass->pixels_argb,
+            (int*)game->sprite_compass->pixels_argb,
             game->sprite_compass->width,
             game->sprite_compass->height,
             game->sprite_compass->width >> 1,
@@ -1230,23 +1230,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     {
         printf(
             "DEBUG: Attempting to render sidebar interface ID: %d\n", game->sidebar_interface_id);
-
-        // First, draw a test rectangle to verify rendering works
-        printf("DEBUG: Drawing test rectangle at sidebar position (553, 205)\n");
-        for( int y = 0; y < 100; y++ )
-        {
-            for( int x = 0; x < 100; x++ )
-            {
-                int screen_x = 553 + x;
-                int screen_y = 205 + y;
-                if( screen_x >= 0 && screen_x < renderer->width && screen_y >= 0 &&
-                    screen_y < renderer->height )
-                {
-                    // Draw red test pattern
-                    renderer->pixel_buffer[screen_y * renderer->width + screen_x] = 0xFFFF0000;
-                }
-            }
-        }
 
         struct CacheDatConfigComponent* sidebar_component =
             buildcachedat_get_component(game->buildcachedat, game->sidebar_interface_id);

@@ -222,7 +222,7 @@ obj_icon_get(
     if( cull == DASHCULL_VISIBLE )
     {
         dash3d_raster_projected_model(
-            game->sys_dash, dash_model, &position, &view_port, &camera, icon->pixels_argb);
+            game->sys_dash, dash_model, &position, &view_port, &camera, icon->pixels_argb, true);
     }
     else
     {
@@ -231,46 +231,67 @@ obj_icon_get(
 
     // Post-processing: Draw outline (matching ObjType.ts lines 448-464)
     // First pass: mark outline pixels as 1
+    // for( int x = 31; x >= 0; x-- )
+    // {
+    //     for( int y = 31; y >= 0; y-- )
+    //     {
+    //         int idx = x + y * 32;
+    //         if( icon->pixels_argb[idx] != 0 )
+    //         {
+    //             continue;
+    //         }
+
+    //         // Check neighbors to detect edges
+    //         if( (x > 0 && icon->pixels_argb[idx - 1] > 1) ||
+    //             (y > 0 && icon->pixels_argb[idx - 32] > 1) ||
+    //             (x < 31 && icon->pixels_argb[idx + 1] > 1) ||
+    //             (y < 31 && icon->pixels_argb[idx + 32] > 1) )
+    //         {
+    //             icon->pixels_argb[idx] = 1;
+    //         }
+    //     }
+    // }
+
     for( int x = 31; x >= 0; x-- )
     {
         for( int y = 31; y >= 0; y-- )
         {
-            int idx = x + y * 32;
-            if( icon->pixels_argb[idx] != 0 )
-            {
+            if( icon->pixels_argb[x + y * 32] != 0 )
                 continue;
-            }
 
-            // Check neighbors to detect edges
-            if( (x > 0 && icon->pixels_argb[idx - 1] > 1) ||
-                (y > 0 && icon->pixels_argb[idx - 32] > 1) ||
-                (x < 31 && icon->pixels_argb[idx + 1] > 1) ||
-                (y < 31 && icon->pixels_argb[idx + 32] > 1) )
+            if( x > 0 && icon->pixels_argb[(x - 1) + y * 32] > 1 )
             {
-                icon->pixels_argb[idx] = 1;
+                icon->pixels_argb[x + y * 32] = 1;
+            }
+            else if( y > 0 && icon->pixels_argb[x + (y - 1) * 32] > 1 )
+            {
+                icon->pixels_argb[x + y * 32] = 1;
+            }
+            else if( x < 31 && icon->pixels_argb[x + 1 + y * 32] > 1 )
+            {
+                icon->pixels_argb[x + y * 32] = 1;
+            }
+            else if( y < 31 && icon->pixels_argb[x + (y + 1) * 32] > 1 )
+            {
+                icon->pixels_argb[x + y * 32] = 1;
             }
         }
     }
-
     // Draw shadow (matching ObjType.ts lines 485-492)
     // Shadow is drawn at bottom-right diagonal
+
+    // draw shadow
     for( int x = 31; x >= 0; x-- )
     {
         for( int y = 31; y >= 0; y-- )
         {
-            int idx = x + y * 32;
-            // Check: current pixel empty, and diagonal neighbor (x-1, y-1) has content
-            if( icon->pixels_argb[idx] == 0 && x > 0 && y > 0 )
+            if( icon->pixels_argb[x + y * 32] == 0 && x > 0 && y > 0 &&
+                icon->pixels_argb[(x - 1) + (y - 1) * 32] > 0 )
             {
-                int diag_idx = (x - 1) + (y - 1) * 32;  // x + (y-1)*32 - 1
-                if( icon->pixels_argb[diag_idx] > 0 )  // Changed from > 1 to > 0
-                {
-                    icon->pixels_argb[idx] = 0x00301E0E; // RGB(48, 30, 14) = 3153952
-                }
+                icon->pixels_argb[x + y * 32] = 1;
             }
         }
     }
-
     // Clean up the dash model
     dashmodel_free(dash_model);
 
