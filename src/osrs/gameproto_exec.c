@@ -260,7 +260,9 @@ add_player_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    //
+    if( !game->scene )
+        return;
+
     struct BitBuffer buf;
     struct RSBuffer rsbuf;
     rsbuf_init(&rsbuf, packet->_player_info.data, packet->_player_info.length);
@@ -279,7 +281,7 @@ add_player_info(
     {
         struct PktPlayerInfoOp* op = &ops[i];
 
-        struct PlayerEntity* player = entity_scenebuild_player_get(game, player_id);
+        struct PlayerEntity* player = (player_id >= 0) ? entity_scenebuild_player_get(game, player_id) : NULL;
 
         switch( op->kind )
         {
@@ -318,6 +320,8 @@ add_player_info(
         case PKT_PLAYER_INFO_OPBITS_WALKDIR:
         case PKT_PLAYER_INFO_OPBITS_RUNDIR:
         {
+            if( !player )
+                break;
             int direction = op->_bitvalue;
             int next_x = player->pathing.route_x[0];
             int next_z = player->pathing.route_z[0];
@@ -374,6 +378,8 @@ add_player_info(
         }
         case PKT_PLAYER_INFO_OPBITS_DX:
         {
+            if( !player )
+                break;
             int x = (game->players[ACTIVE_PLAYER_SLOT].position.x / 128 * 128);
 
             player->position.x = (op->_bitvalue * 128) + x;
@@ -381,6 +387,8 @@ add_player_info(
         }
         case PKT_PLAYER_INFO_OPBITS_DZ:
         {
+            if( !player )
+                break;
             int z = (game->players[ACTIVE_PLAYER_SLOT].position.z / 128 * 128);
 
             player->position.z = (op->_bitvalue * 128) + z;
@@ -389,16 +397,29 @@ add_player_info(
         }
         case PKT_PLAYER_INFO_OPBITS_LOCAL_X:
         {
+            if( !player )
+                break;
             player->position.x = (op->_bitvalue * 128) + 64;
+            player->pathing.route_length = 1;
+            player->pathing.route_x[0] = player->position.x / 128;
+            player->pathing.route_z[0] = player->position.z / 128;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_LOCAL_Z:
         {
+            if( !player )
+                break;
             player->position.z = (op->_bitvalue * 128) + 64;
+            /* Pathing at rest at this tile so update_player_anim doesn't use stale route. */
+            player->pathing.route_length = 1;
+            player->pathing.route_x[0] = player->position.x / 128;
+            player->pathing.route_z[0] = player->position.z / 128;
             break;
         }
         case PKT_PLAYER_INFO_OP_APPEARANCE:
         {
+            if( player_id < 0 )
+                break;
             struct PlayerAppearance appearance;
             player_appearance_decode(&appearance, op->_appearance.appearance, op->_appearance.len);
 

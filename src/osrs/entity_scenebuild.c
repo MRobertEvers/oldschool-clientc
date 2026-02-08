@@ -148,6 +148,8 @@ entity_scenebuild_player_get(
     struct PlayerEntity* player = &game->players[player_id];
     if( player->alive )
         return player;
+    if( !game->scene )
+        return player;
 
     player->alive = true;
     player->scene_element = (void*)scene_element_new(game->scene);

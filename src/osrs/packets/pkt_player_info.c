@@ -385,8 +385,8 @@ pkt_player_info_reader_read(
         }
     }
 
-    // Player New Vis
-    while( ((buf.byte_position * 8) + buf.bit_offset + 10) < pkt->length * 8 )
+    // Player New Vis: each entry needs 11 (pid) + 5 (dx) + 5 (dz) + 1 (jump) + 1 (ext) = 23 bits
+    while( ((buf.byte_position * 8) + buf.bit_offset + 23) <= pkt->length * 8 )
     {
         int player_id = gbits(&buf, 11);
         if( player_id == 2047 )
@@ -416,11 +416,13 @@ pkt_player_info_reader_read(
         new_idx++;
     }
 
-    // Extended Info
+    // Extended Info (byte-aligned); do not read past buffer
     uint8_t* appearance_buf = NULL;
     rsbuf.position = buf.byte_position + (buf.bit_offset + 7) / 8;
-    for( int i = 0; i < reader->extended_count; i++ )
+    for( int i = 0; i < reader->extended_count && rsbuf.position < pkt->length; i++ )
     {
+        if( reader->current_op >= ops_capacity )
+            break;
         int idx = reader->extended_queue[i];
         if( idx == 2047 )
         {
@@ -431,8 +433,10 @@ pkt_player_info_reader_read(
             push_op_set_player_opbits_idx(next_op(reader, ops, ops_capacity), idx);
         }
 
+        if( rsbuf.position >= pkt->length )
+            break;
         int mask = g1(&rsbuf);
-        if( (mask & 0x80) != 0 )
+        if( (mask & 0x80) != 0 && rsbuf.position < pkt->length )
         {
             mask += g1(&rsbuf) << 8;
         }

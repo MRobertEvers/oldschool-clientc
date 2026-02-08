@@ -575,6 +575,8 @@ update_player_anim(
     if( player_entity->position.x == dstX && player_entity->position.z == dstZ )
     {
         player_entity->pathing.route_length--;
+        if( player_entity->pathing.route_length < 0 )
+            player_entity->pathing.route_length = 0;
     }
 
     int remainingYaw =
@@ -1312,6 +1314,19 @@ LibToriRS_GameStep(
                         int delta_z = path_z[i] - start_z;
                         game->outbound_buffer[game->outbound_size++] = (uint8_t)(delta_x & 0xff);
                         game->outbound_buffer[game->outbound_size++] = (uint8_t)(delta_z & 0xff);
+                    }
+                    /* Set local player path so they walk immediately (client-side); route is scene-local, max 10. */
+                    if( game->players[ACTIVE_PLAYER_SLOT].alive && game->players[ACTIVE_PLAYER_SLOT].scene_element )
+                    {
+                        int steps = (waypoints < 10) ? waypoints : 10;
+                        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+                        pl->pathing.route_length = steps;
+                        for( int i = 0; i < steps; i++ )
+                        {
+                            pl->pathing.route_x[i] = path_x[i + 1] - game->scene_base_tile_x;
+                            pl->pathing.route_z[i] = path_z[i + 1] - game->scene_base_tile_z;
+                            pl->pathing.route_run[i] = 0;
+                        }
                     }
                     game->mouse_clicked = false;
                     game->clicked_tile_valid = 0;
