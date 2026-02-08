@@ -221,9 +221,13 @@ struct GGame
     int selected_cycle;
 
     /* Terrain tile click (set during frame when a drawn tile contains mouse; consumed in cycle) */
-    int clicked_tile_x;   /* world tile X for MOVE_GAMECLICK */
-    int clicked_tile_z;   /* world tile Z for MOVE_GAMECLICK */
+    int clicked_tile_x;   /* scene-local tile X (add scene_base_tile_x for world) */
+    int clicked_tile_z;   /* scene-local tile Z (add scene_base_tile_z for world) */
     int clicked_tile_valid; /* 1 if click was on a tile this frame, 0 otherwise */
+
+    /* Scene SW world tile (set on rebuild normal); add to clicked_tile to get world tile for server */
+    int scene_base_tile_x;
+    int scene_base_tile_z;
 
     /* Highlight tile: set when MOVE_GAMECLICK is sent; cleared when active player reaches the tile */
     int highlight_tile_x;

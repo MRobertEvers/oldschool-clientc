@@ -831,11 +831,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     /* Draw highlighted tile overlay (convex hull of projected tile) until player reaches it */
     if( game->highlight_tile_valid && game->scene && game->scene->terrain )
     {
-        struct SceneTerrainTile* tile = scene_terrain_tile_at(
-            game->scene->terrain,
-            game->highlight_tile_x,
-            game->highlight_tile_z,
-            0);
+        int local_x = game->highlight_tile_x - game->scene_base_tile_x;
+        int local_z = game->highlight_tile_z - game->scene_base_tile_z;
+        struct SceneTerrain* terrain = game->scene->terrain;
+        if( local_x >= 0 && local_x < terrain->tile_width_x &&
+            local_z >= 0 && local_z < terrain->tile_width_z )
+        {
+        struct SceneTerrainTile* tile = scene_terrain_tile_at(terrain, local_x, local_z, 0);
         if( tile && tile->dash_model && tile->dash_model->vertex_count > 0 &&
              tile->dash_model->vertex_count <= 4096 )
         {
@@ -886,6 +888,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         renderer->dash_buffer_height);
                 }
             }
+        }
         }
     }
 

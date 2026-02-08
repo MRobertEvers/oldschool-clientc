@@ -991,8 +991,6 @@ LibToriRS_GameStep(
             }
         }
 
-        printf("Mouse clicked at: (%d, %d)\n", mouse_x, mouse_y);
-
         // Tab bar click (Client.ts handleTabInput 3018-3072): same bounds, only if tab has
         // interface
         int tab_clicked = -1;
@@ -1248,35 +1246,91 @@ LibToriRS_GameStep(
             }
         }
 
-        /* Terrain tile click: send MOVE_GAMECLICK (Client.ts tryMove type 0). */
+        /* Terrain tile click: send MOVE_GAMECLICK. Server reads: ctrlHeld=g1(), startX=g2(), startZ=g2(),
+         * then waypoints as (startX+g1b(), startZ+g1b()) per waypoint. So payload is:
+         * ctrlHeld(1) + startX(2) + startZ(2) + (waypoints * 2) bytes; waypoints = (length - 5) / 2.
+         * Path: start = current player (world tile), then steps toward dest (world), max 25 points. */
         if( game->mouse_clicked && game->clicked_tile_valid &&
-            GAME_NET_STATE_GAME == game->net_state &&
-            game->outbound_size + 8 <= (int)sizeof(game->outbound_buffer) )
+            GAME_NET_STATE_GAME == game->net_state )
         {
-            int x = game->clicked_tile_x;
-            int z = game->clicked_tile_z;
-            uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-            game->outbound_buffer[game->outbound_size++] = 5;   /* payload size: bufferSize*2+3 = 1*2+3 */
-            game->outbound_buffer[game->outbound_size++] = 0;   /* run flag */
-            game->outbound_buffer[game->outbound_size++] = (x >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = x & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (z >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = z & 0xff;
-            game->mouse_clicked = false;
-            game->clicked_tile_valid = 0;
-            game->highlight_tile_x = x;
-            game->highlight_tile_z = z;
-            game->highlight_tile_valid = 1;
+            /* Convert scene-local to world tile: server expects world (scene base SW + local). ~3200 range. */
+            int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
+            int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
+            /* Current tile in world coords: scene base + local (position is scene-local). */
+            int cur_x = game->players[ACTIVE_PLAYER_SLOT].alive
+                ? (game->scene_base_tile_x + game->players[ACTIVE_PLAYER_SLOT].position.x / 128)
+                : game->scene_base_tile_x;
+            int cur_z = game->players[ACTIVE_PLAYER_SLOT].alive
+                ? (game->scene_base_tile_z + game->players[ACTIVE_PLAYER_SLOT].position.z / 128)
+                : game->scene_base_tile_z;
+            if( cur_x != dest_x || cur_z != dest_z )
+            {
+                /* Highlight the END destination tile (drawn until player reaches it). */
+                game->highlight_tile_x = dest_x;
+                game->highlight_tile_z = dest_z;
+                game->highlight_tile_valid = 1;
+
+                /* Build path: at most 25 waypoints, one tile step at a time toward dest (world tiles) */
+                int path_x[26];
+                int path_z[26];
+                int n = 0;
+                path_x[0] = cur_x;
+                path_z[0] = cur_z;
+                while( n < 25 && (path_x[n] != dest_x || path_z[n] != dest_z) )
+                {
+                    int dx = dest_x - path_x[n];
+                    int dz = dest_z - path_z[n];
+                    if( dx != 0 )
+                        path_x[n + 1] = path_x[n] + (dx > 0 ? 1 : -1);
+                    else
+                        path_x[n + 1] = path_x[n];
+                    if( dz != 0 )
+                        path_z[n + 1] = path_z[n] + (dz > 0 ? 1 : -1);
+                    else
+                        path_z[n + 1] = path_z[n];
+                    n++;
+                }
+                int buffer_size = n + 1; /* number of path points */
+                int waypoints = buffer_size - 1; /* points after start; server: path[0]=start, then waypoints */
+                int payload_size = 1 + 2 + 2 + waypoints * 2; /* ctrlHeld + startX + startZ + (g1b,g1b)*waypoints */
+                if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
+                {
+                    uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                    game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+                    game->outbound_buffer[game->outbound_size++] = 0; /* ctrlHeld (run flag) */
+                    int start_x = path_x[0];
+                    int start_z = path_z[0];
+                    game->outbound_buffer[game->outbound_size++] = (start_x >> 8) & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = start_x & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = (start_z >> 8) & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = start_z & 0xff;
+                    /* Waypoints as deltas from start (server: startX + g1b(), startZ + g1b()) */
+                    for( int i = 1; i < buffer_size; i++ )
+                    {
+                        int delta_x = path_x[i] - start_x;
+                        int delta_z = path_z[i] - start_z;
+                        game->outbound_buffer[game->outbound_size++] = (uint8_t)(delta_x & 0xff);
+                        game->outbound_buffer[game->outbound_size++] = (uint8_t)(delta_z & 0xff);
+                    }
+                    game->mouse_clicked = false;
+                    game->clicked_tile_valid = 0;
+                }
+            }
+            else
+            {
+                game->mouse_clicked = false;
+                game->clicked_tile_valid = 0;
+            }
         }
         else if( game->clicked_tile_valid )
             game->clicked_tile_valid = 0;
 
-        /* Clear highlight when active player reaches the target tile (128 units per tile). */
+        /* Clear highlight when active player reaches the target tile (world tile = scene base + local). */
         if( game->highlight_tile_valid && game->players[ACTIVE_PLAYER_SLOT].alive )
         {
-            int px = game->players[ACTIVE_PLAYER_SLOT].position.x / 128;
-            int pz = game->players[ACTIVE_PLAYER_SLOT].position.z / 128;
+            int px = game->scene_base_tile_x + game->players[ACTIVE_PLAYER_SLOT].position.x / 128;
+            int pz = game->scene_base_tile_z + game->players[ACTIVE_PLAYER_SLOT].position.z / 128;
             if( px == game->highlight_tile_x && pz == game->highlight_tile_z )
                 game->highlight_tile_valid = 0;
         }

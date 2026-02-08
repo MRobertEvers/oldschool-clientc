@@ -814,6 +814,10 @@ buildcachedat_loader_finalize_scene(
         game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
     }
 
+    /* World tile SW: CHUNK = WORLD_TILE / 64, so WORLD_TILE = chunk * 64 (pkt_rebuild_normal.lua) */
+    game->scene_base_tile_x = map_sw_x * 64;
+    game->scene_base_tile_z = map_sw_z * 64;
+
     // Build the final scene from cached data
     game->scene = scenebuilder_load_from_buildcachedat(
         game->scenebuilder,

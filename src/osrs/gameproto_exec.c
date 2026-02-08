@@ -429,6 +429,10 @@ gameproto_exec_rebuild_normal(
         minimap_new(zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104, levels);
     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
 
+    /* REBUILD_NORMAL: zone is in 8-tile units (pkt_rebuild_normal.lua wx_sw = zone_sw_x * 8). */
+    game->scene_base_tile_x = zone_sw_x * 8;
+    game->scene_base_tile_z = zone_sw_z * 8;
+
     game->scene = scenebuilder_load_from_buildcachedat(
         game->scenebuilder,
         zone_sw_x * 8,
