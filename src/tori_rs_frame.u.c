@@ -1,6 +1,7 @@
 #ifndef TORI_RS_FRAME_U_C
 #define TORI_RS_FRAME_U_C
 
+#include "graphics/dash.h"
 #include "osrs/dash_utils.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
@@ -211,32 +212,6 @@ LibToriRS_FrameNextCommand(
                 game->sys_dash, tile_model->dash_model, &position, game->view_port, game->camera);
             if( cull != DASHCULL_VISIBLE )
                 continue;
-
-            // Check for tile click detection
-            if( game->mouse_clicked && tile_model->dash_model )
-            {
-                // Project the tile model to get its screen bounds
-
-                if( cull == DASHCULL_VISIBLE )
-                {
-                    // // Adjust mouse coordinates for dash buffer offset
-                    // int mouse_x_adjusted = game->mouse_clicked_x - renderer->dash_offset_x;
-                    // int mouse_y_adjusted = game->mouse_clicked_y - renderer->dash_offset_y;
-
-                    // // Check if click point is within the tile's projected geometry
-                    // if( dash3d_projected_model_contains(
-                    //         game->sys_dash,
-                    //         tile_model->dash_model,
-                    //         game->view_port,
-                    //         mouse_x_adjusted,
-                    //         mouse_y_adjusted) )
-                    // {
-                    //     renderer->clicked_tile_x = sx;
-                    //     renderer->clicked_tile_z = sz;
-                    //     renderer->clicked_tile_level = slevel;
-                    // }
-                }
-            }
 
             // dash3d_render_model(
             //     game->sys_dash,

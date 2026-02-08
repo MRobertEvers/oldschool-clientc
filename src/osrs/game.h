@@ -219,6 +219,11 @@ struct GGame
     int selected_interface;
     int selected_area;
     int selected_cycle;
+
+    /* Terrain tile click (set during frame when a drawn tile contains mouse; consumed in cycle) */
+    int clicked_tile_x;   /* world tile X for MOVE_GAMECLICK */
+    int clicked_tile_z;   /* world tile Z for MOVE_GAMECLICK */
+    int clicked_tile_valid; /* 1 if click was on a tile this frame, 0 otherwise */
 };
 
 void

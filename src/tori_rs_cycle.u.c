@@ -3,10 +3,13 @@
 
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
+#include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/interface.h"
+#include "osrs/painters.h"
+#include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
 #include "tori_rs.h"
@@ -15,6 +18,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Client.ts ClientProt.MOVE_GAMECLICK = 182 (index 255) */
+#define MOVE_GAMECLICK_OPCODE 182
 
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
 
@@ -934,6 +940,56 @@ LibToriRS_GameStep(
     {
         int mouse_x = game->mouse_clicked_x;
         int mouse_y = game->mouse_clicked_y;
+        int panel_h = 50;
+        int panel_top =
+            (game->iface_view_port && game->iface_view_port->height > panel_h)
+                ? (game->iface_view_port->height - panel_h)
+                : 453;
+
+        /* Terrain tile hit-test: find first drawn tile that contains the click (Client.ts
+         * World3D.clickTileX/Z). Use painter buffer and current camera to project. */
+        game->clicked_tile_valid = 0;
+        if( game->scene && game->scene->terrain && game->sys_painter_buffer && game->sys_dash &&
+            game->view_port && game->camera )
+        {
+            struct DashPosition pos = { 0 };
+            for( int i = 0; i < game->sys_painter_buffer->command_count; i++ )
+            {
+                struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
+                if( cmd->_bf_kind != PNTR_CMD_TERRAIN )
+                    continue;
+                int sx = (int)cmd->_terrain._bf_terrain_x;
+                int sz = (int)cmd->_terrain._bf_terrain_z;
+                int slevel = (int)cmd->_terrain._bf_terrain_y;
+                struct SceneTerrainTile* tile_model =
+                    scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
+                if( !tile_model || !tile_model->dash_model )
+                    continue;
+                pos.x = sx * 128 - game->camera_world_x;
+                pos.z = sz * 128 - game->camera_world_z;
+                pos.y = -game->camera_world_y;
+                int cull = dash3d_project_model(
+                    game->sys_dash,
+                    tile_model->dash_model,
+                    &pos,
+                    game->view_port,
+                    game->camera);
+                if( cull != DASHCULL_VISIBLE )
+                    continue;
+                if( dash3d_projected_model_contains(
+                        game->sys_dash,
+                        tile_model->dash_model,
+                        game->view_port,
+                        mouse_x,
+                        mouse_y) )
+                {
+                    game->clicked_tile_x = sx;
+                    game->clicked_tile_z = sz;
+                    game->clicked_tile_valid = 1;
+                    break;
+                }
+            }
+        }
 
         printf("Mouse clicked at: (%d, %d)\n", mouse_x, mouse_y);
 
@@ -1004,35 +1060,27 @@ LibToriRS_GameStep(
         }
         /* Client.ts handleChatModeInput: four buttons in bottom strip (panel matches platform
          * privacy_panel_y = bottom 50px when height < 503, else y 453). */
-        else
+        else if( mouse_y >= panel_top && mouse_y < panel_top + panel_h )
         {
-            int panel_h = 50;
-            int panel_top =
-                (game->iface_view_port && game->iface_view_port->height > panel_h)
-                    ? (game->iface_view_port->height - panel_h)
-                    : 453;
-            if( mouse_y >= panel_top && mouse_y < panel_top + panel_h )
+            if( mouse_x >= 6 && mouse_x <= 106 )
             {
-                if( mouse_x >= 6 && mouse_x <= 106 )
-                {
-                    game->chat_public_mode = (game->chat_public_mode + 1) % 4;
-                    game->mouse_clicked = false;
-                }
-                else if( mouse_x >= 135 && mouse_x <= 235 )
-                {
-                    game->chat_private_mode = (game->chat_private_mode + 1) % 3;
-                    game->mouse_clicked = false;
-                }
-                else if( mouse_x >= 273 && mouse_x <= 373 )
-                {
-                    game->chat_trade_mode = (game->chat_trade_mode + 1) % 3;
-                    game->mouse_clicked = false;
-                }
-                else if( mouse_x >= 412 && mouse_x <= 512 )
-                {
-                    game->mouse_clicked = false;
-                    /* TODO: open report abuse interface (clientCode 600) */
-                }
+                game->chat_public_mode = (game->chat_public_mode + 1) % 4;
+                game->mouse_clicked = false;
+            }
+            else if( mouse_x >= 135 && mouse_x <= 235 )
+            {
+                game->chat_private_mode = (game->chat_private_mode + 1) % 3;
+                game->mouse_clicked = false;
+            }
+            else if( mouse_x >= 273 && mouse_x <= 373 )
+            {
+                game->chat_trade_mode = (game->chat_trade_mode + 1) % 3;
+                game->mouse_clicked = false;
+            }
+            else if( mouse_x >= 412 && mouse_x <= 512 )
+            {
+                game->mouse_clicked = false;
+                /* TODO: open report abuse interface (clientCode 600) */
             }
         }
         else if( mouse_x >= 553 && mouse_x < 763 && mouse_y >= 205 && mouse_y < 498 )
@@ -1199,6 +1247,27 @@ LibToriRS_GameStep(
                 printf("Click outside sidebar area\n");
             }
         }
+
+        /* Terrain tile click: send MOVE_GAMECLICK (Client.ts tryMove type 0). */
+        if( game->mouse_clicked && game->clicked_tile_valid &&
+            GAME_NET_STATE_GAME == game->net_state &&
+            game->outbound_size + 8 <= (int)sizeof(game->outbound_buffer) )
+        {
+            int x = game->clicked_tile_x;
+            int z = game->clicked_tile_z;
+            uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+            game->outbound_buffer[game->outbound_size++] = 5;   /* payload size: bufferSize*2+3 = 1*2+3 */
+            game->outbound_buffer[game->outbound_size++] = 0;   /* run flag */
+            game->outbound_buffer[game->outbound_size++] = (x >> 8) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = x & 0xff;
+            game->outbound_buffer[game->outbound_size++] = (z >> 8) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = z & 0xff;
+            game->mouse_clicked = false;
+            game->clicked_tile_valid = 0;
+        }
+        else if( game->clicked_tile_valid )
+            game->clicked_tile_valid = 0;
 
         dash_animate_textures(game->sys_dash, game->cycles_elapsed);
         if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )

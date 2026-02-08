@@ -93,6 +93,10 @@ LibToriRS_GameNew(
     game->current_hovered_interface_id = -1;
     game->scroll_arrow_hold_cycles_last = 0;
 
+    game->clicked_tile_valid = 0;
+    game->clicked_tile_x = 0;
+    game->clicked_tile_z = 0;
+
     game->running = true;
 
     game->players[ACTIVE_PLAYER_SLOT].alive = false;
