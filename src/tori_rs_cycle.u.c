@@ -222,8 +222,9 @@ update_npc_anim(
 
     int x = npc_entity->position.x;
     int z = npc_entity->position.z;
-    int dstX = npc_entity->pathing.route_x[route_length - 1] * 128 + npc_entity->size_x * 64;
-    int dstZ = npc_entity->pathing.route_z[route_length - 1] * 128 + npc_entity->size_z * 64;
+    /* Route is [0]=next step, [1]=step after, ...; walk to route[0] then pop front. */
+    int dstX = npc_entity->pathing.route_x[0] * 128 + npc_entity->size_x * 64;
+    int dstZ = npc_entity->pathing.route_z[0] * 128 + npc_entity->size_z * 64;
 
     if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
     {
@@ -320,7 +321,7 @@ update_npc_anim(
     //     npc_entity->animation.seq_delay_move--;
     // }
 
-    if( npc_entity->pathing.route_run[route_length - 1] )
+    if( npc_entity->pathing.route_run[0] )
     {
         moveSpeed <<= 0x1;
     }
@@ -366,7 +367,16 @@ update_npc_anim(
 
     if( npc_entity->position.x == dstX && npc_entity->position.z == dstZ )
     {
+        /* Pop front: shift route down so next step becomes route[0]. */
+        for( int i = 0; i < npc_entity->pathing.route_length - 1; i++ )
+        {
+            npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i + 1];
+            npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i + 1];
+            npc_entity->pathing.route_run[i] = npc_entity->pathing.route_run[i + 1];
+        }
         npc_entity->pathing.route_length--;
+        if( npc_entity->pathing.route_length < 0 )
+            npc_entity->pathing.route_length = 0;
     }
 
     int remainingYaw = (npc_entity->orientation.dst_yaw - npc_entity->orientation.yaw) & 0x7ff;
@@ -430,8 +440,9 @@ update_player_anim(
 
     int x = player_entity->position.x;
     int z = player_entity->position.z;
-    int dstX = player_entity->pathing.route_x[route_length - 1] * 128 + 1 * 64;
-    int dstZ = player_entity->pathing.route_z[route_length - 1] * 128 + 1 * 64;
+    /* Route is [0]=next step, [1]=step after, ...; walk to route[0] then pop front (like NPC / Client.ts). */
+    int dstX = player_entity->pathing.route_x[0] * 128 + 1 * 64;
+    int dstZ = player_entity->pathing.route_z[0] * 128 + 1 * 64;
 
     if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
     {
@@ -528,7 +539,7 @@ update_player_anim(
     //     npc_entity->animation.seq_delay_move--;
     // }
 
-    if( player_entity->pathing.route_run[route_length - 1] )
+    if( player_entity->pathing.route_run[0] )
     {
         moveSpeed <<= 0x1;
     }
@@ -574,6 +585,13 @@ update_player_anim(
 
     if( player_entity->position.x == dstX && player_entity->position.z == dstZ )
     {
+        /* Pop front: shift route down so next step becomes route[0]. */
+        for( int i = 0; i < player_entity->pathing.route_length - 1; i++ )
+        {
+            player_entity->pathing.route_x[i] = player_entity->pathing.route_x[i + 1];
+            player_entity->pathing.route_z[i] = player_entity->pathing.route_z[i + 1];
+            player_entity->pathing.route_run[i] = player_entity->pathing.route_run[i + 1];
+        }
         player_entity->pathing.route_length--;
         if( player_entity->pathing.route_length < 0 )
             player_entity->pathing.route_length = 0;
