@@ -182,6 +182,26 @@ obj_icon_get(
     _light_model_default(dash_model, obj->contrast, obj->ambient);
     printf("  Normals and lighting calculated\n");
 
+    // // Calculate Y position (matching ObjType.ts line 445)
+    // // eyeY = sinPitch + (model.minY / 2) + obj.yof2d
+    // int zoom = obj->zoom2d;
+    // if( zoom == 0 )
+    //     zoom = 2000;
+
+    // // Get sin/cos tables (matching Client.ts)
+    // extern int g_sin_table[2048];
+    // extern int g_cos_table[2048];
+
+    // int sinPitch = (g_sin_table[obj->xan2d] * zoom) >> 16;
+    // int cosPitch = (g_cos_table[obj->xan2d] * zoom) >> 16;
+
+    // // Calculate min_y from bounds_cylinder
+    // int model_min_y = dash_model->bounds_cylinder->min_y;
+
+    // // Adjust position Y (matching TypeScript: sinPitch + (model.minY / 2) + obj.yof2d)
+    // position.y = sinPitch + (model_min_y / 2) + obj->yof2d;
+    // position.z = cosPitch + obj->yof2d;
+
     // Project and raster the model (matching model.drawSimple)
     // Use dash3d_project_model6 for full 6DOF support (pitch, yaw, roll)
     int cull = dash3d_project_model6(game->sys_dash, dash_model, &position, &view_port, &camera);
@@ -194,6 +214,47 @@ obj_icon_get(
     else
     {
         printf("  Warning: Model culled during projection (cull=%d)\n", cull);
+    }
+
+    // Post-processing: Draw outline (matching ObjType.ts lines 448-464)
+    // First pass: mark outline pixels as 1
+    for( int x = 31; x >= 0; x-- )
+    {
+        for( int y = 31; y >= 0; y-- )
+        {
+            int idx = x + y * 32;
+            if( icon->pixels_argb[idx] != 0 )
+            {
+                continue;
+            }
+
+            // Check neighbors to detect edges
+            if( (x > 0 && icon->pixels_argb[idx - 1] > 1) ||
+                (y > 0 && icon->pixels_argb[idx - 32] > 1) ||
+                (x < 31 && icon->pixels_argb[idx + 1] > 1) ||
+                (y < 31 && icon->pixels_argb[idx + 32] > 1) )
+            {
+                icon->pixels_argb[idx] = 1;
+            }
+        }
+    }
+
+    // Draw shadow (matching ObjType.ts lines 485-492)
+    // Shadow is drawn at bottom-right diagonal
+    for( int x = 31; x >= 0; x-- )
+    {
+        for( int y = 31; y >= 0; y-- )
+        {
+            int idx = x + y * 32;
+            if( icon->pixels_argb[idx] == 0 && x > 0 && y > 0 )
+            {
+                int diag_idx = idx - 32 - 1; // (y-1) * 32 + (x-1)
+                if( icon->pixels_argb[diag_idx] > 0 )
+                {
+                    icon->pixels_argb[idx] = 0x00301E0E; // RGB(48, 30, 14) = 3153952
+                }
+            }
+        }
     }
 
     // Clean up the dash model
