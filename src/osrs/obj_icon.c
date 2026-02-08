@@ -146,22 +146,39 @@ obj_icon_get(
     // Setup camera for orthographic-style projection (matching Pix3D.init2D)
     struct DashCamera camera;
     memset(&camera, 0, sizeof(camera));
-    camera.pitch = 0;
+    camera.pitch = obj->xan2d; // eyePitch from drawSimple - this is the camera pitch!
     camera.yaw = 0;
     camera.roll = 0;
     camera.fov_rpi2048 = 512; // Orthographic-like FOV
     camera.near_plane_z = 1;  // Very close near plane to prevent culling
 
-    // Position for rendering - use NEGATIVE Z to place model in front of camera
-    struct DashPosition position = { 0 };
-    position.pitch = obj->xan2d; // Use obj rotations directly
-    position.yaw = obj->yan2d;
-    position.roll = obj->zan2d;
+    // Calculate zoom (matching ObjType.ts lines 435-440)
+    // outlineRgb is 0 for normal icons, so no zoom modification
+    int zoom = obj->zoom2d;
+    if( zoom == 0 )
+        zoom = 2000;
 
-    // Position the model in front of the camera
-    position.x = obj->xof2d;
-    position.y = obj->yof2d;
-    position.z = obj->zoom2d; // NEGATIVE Z puts it in front of camera
+    // Get sin/cos tables for eyePitch rotation
+    extern int g_sin_table[2048];
+    extern int g_cos_table[2048];
+
+    // Calculate eye position from zoom and xan2d (matching ObjType.ts lines 442-443)
+    int sinPitch = (g_sin_table[obj->xan2d] * zoom) >> 16;
+    int cosPitch = (g_cos_table[obj->xan2d] * zoom) >> 16;
+
+    // Position for rendering (matching drawSimple parameters on line 445)
+    struct DashPosition position = { 0 };
+    position.pitch = 0;         // pitch parameter in drawSimple
+    position.yaw = obj->yan2d;  // yaw parameter in drawSimple
+    position.roll = obj->zan2d; // roll parameter in drawSimple
+
+    // Scene position (eye position in drawSimple)
+    position.x = obj->xof2d; // eyeX parameter in drawSimple
+    // eyeY = sinPitch + (model.minY / 2) + obj.yof2d - but we need model first
+    // eyeZ = cosPitch + obj.yof2d
+    // We'll calculate these after getting the model
+    position.y = 0; // Temporary
+    position.z = 0; // Temporary
 
     // Convert CacheModel to DashModel using the proper utility function
     // IMPORTANT: Make a copy first! dashmodel_new_from_cache_model moves ownership
@@ -182,25 +199,21 @@ obj_icon_get(
     _light_model_default(dash_model, obj->contrast, obj->ambient);
     printf("  Normals and lighting calculated\n");
 
-    // // Calculate Y position (matching ObjType.ts line 445)
-    // // eyeY = sinPitch + (model.minY / 2) + obj.yof2d
-    // int zoom = obj->zoom2d;
-    // if( zoom == 0 )
-    //     zoom = 2000;
+    // Now calculate eyeY and eyeZ using model.minY (matching ObjType.ts line 445)
+    // eyeY = sinPitch + (model.minY / 2) + obj.yof2d
+    // eyeZ = cosPitch + obj.yof2d
+    int model_min_y = -dash_model->bounds_cylinder->min_y;
+    position.y = sinPitch + (model_min_y / 2) + obj->yof2d;
+    position.z = cosPitch + obj->yof2d;
 
-    // // Get sin/cos tables (matching Client.ts)
-    // extern int g_sin_table[2048];
-    // extern int g_cos_table[2048];
-
-    // int sinPitch = (g_sin_table[obj->xan2d] * zoom) >> 16;
-    // int cosPitch = (g_cos_table[obj->xan2d] * zoom) >> 16;
-
-    // // Calculate min_y from bounds_cylinder
-    // int model_min_y = dash_model->bounds_cylinder->min_y;
-
-    // // Adjust position Y (matching TypeScript: sinPitch + (model.minY / 2) + obj.yof2d)
-    // position.y = sinPitch + (model_min_y / 2) + obj->yof2d;
-    // position.z = cosPitch + obj->yof2d;
+    printf(
+        "  Position: x=%d, y=%d, z=%d (sinPitch=%d, cosPitch=%d, model_min_y=%d)\n",
+        position.x,
+        position.y,
+        position.z,
+        sinPitch,
+        cosPitch,
+        model_min_y);
 
     // Project and raster the model (matching model.drawSimple)
     // Use dash3d_project_model6 for full 6DOF support (pitch, yaw, roll)
