@@ -77,6 +77,12 @@ LibToriRS_GameNew(
         game->tab_interface_id[i] = -1;
     }
     
+    // Initialize item selection
+    game->selected_item = -1;
+    game->selected_interface = -1;
+    game->selected_area = 0;
+    game->selected_cycle = 0;
+    
     game->running = true;
 
     game->players[ACTIVE_PLAYER_SLOT].alive = false;

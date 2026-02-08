@@ -64,4 +64,23 @@ interface_draw_component_inv(
     int* pixel_buffer,
     int stride);
 
+// Check if a mouse click hits an inventory item, returns slot number or -1
+int
+interface_check_inv_click(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int x,
+    int y,
+    int mouse_x,
+    int mouse_y);
+
+// Handle inventory button click (sends packet to server)
+void
+interface_handle_inv_button(
+    struct GGame* game,
+    int action,
+    int obj_id,
+    int slot,
+    int component_id);
+
 #endif

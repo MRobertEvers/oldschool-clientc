@@ -3,8 +3,10 @@
 
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
+#include "osrs/interface.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
 #include "tori_rs.h"
@@ -729,6 +731,123 @@ LibToriRS_GameStep(
         return;
 
     LibToriRS_GameProcessInput(game, input);
+    
+    // Handle interface clicks (inventory items, etc.)
+    if( game->mouse_clicked )
+    {
+        int mouse_x = game->mouse_clicked_x;
+        int mouse_y = game->mouse_clicked_y;
+        
+        printf("Mouse clicked at: (%d, %d)\n", mouse_x, mouse_y);
+        
+        // Check if click is in sidebar area (553, 205, 210x293)
+        if( mouse_x >= 553 && mouse_x < 763 && mouse_y >= 205 && mouse_y < 498 )
+        {
+            printf("Click detected in sidebar area\n");
+            
+            // Determine which interface to check
+            int component_id = -1;
+            struct CacheDatConfigComponent* component = NULL;
+            
+            if( game->sidebar_interface_id != -1 )
+            {
+                component_id = game->sidebar_interface_id;
+                component = buildcachedat_get_component(game->buildcachedat, component_id);
+                printf("Using sidebar_interface_id: %d, component=%p\n", component_id, (void*)component);
+            }
+            else if( game->selected_tab >= 0 && game->selected_tab < 14 &&
+                    game->tab_interface_id[game->selected_tab] != -1 )
+            {
+                component_id = game->tab_interface_id[game->selected_tab];
+                component = buildcachedat_get_component(game->buildcachedat, component_id);
+                printf("Using tab_interface_id[%d]: %d, component=%p\n", 
+                       game->selected_tab, component_id, (void*)component);
+            }
+            else
+            {
+                printf("No active interface found\n");
+            }
+            
+            if( component )
+            {
+                printf("Component type: %d (LAYER=%d, INV=%d)\n", 
+                       component->type, COMPONENT_TYPE_LAYER, COMPONENT_TYPE_INV);
+                
+                // If it's a layer, check children for inventory components
+                if( component->type == COMPONENT_TYPE_LAYER && component->children )
+                {
+                    printf("Checking %d children for inventory\n", component->children_count);
+                    
+                    for( int i = 0; i < component->children_count; i++ )
+                    {
+                        if( !component->childX || !component->childY )
+                            continue;
+                        
+                        int child_id = component->children[i];
+                        int childX = 553 + component->childX[i];
+                        int childY = 205 + component->childY[i];
+                        
+                        struct CacheDatConfigComponent* child =
+                            buildcachedat_get_component(game->buildcachedat, child_id);
+                        
+                        if( !child )
+                            continue;
+                        
+                        childX += child->x;
+                        childY += child->y;
+                        
+                        printf("  Child %d: id=%d, type=%d, pos=(%d,%d)\n", 
+                               i, child_id, child->type, childX, childY);
+                        
+                        if( child->type == COMPONENT_TYPE_INV )
+                        {
+                            int slot = interface_check_inv_click(
+                                game, child, childX, childY, mouse_x, mouse_y);
+                            
+                            if( slot != -1 )
+                            {
+                                int obj_id = child->invSlotObjId[slot] - 1;
+                                int action = 602; // INV_BUTTON1
+                                
+                                printf("Inventory click detected: slot=%d, obj_id=%d, child=%d\n", 
+                                       slot, obj_id, child_id);
+                                
+                                interface_handle_inv_button(game, action, obj_id, slot, child_id);
+                                break;
+                            }
+                        }
+                    }
+                }
+                else if( component->type == COMPONENT_TYPE_INV )
+                {
+                    // Direct inventory component (not in a layer)
+                    int slot = interface_check_inv_click(
+                        game, component, 553, 205, mouse_x, mouse_y);
+                    
+                    printf("Slot clicked: %d\n", slot);
+                    
+                    if( slot != -1 )
+                    {
+                        int obj_id = component->invSlotObjId[slot] - 1;
+                        int action = 602; // INV_BUTTON1
+                        
+                        printf("Inventory click detected: slot=%d, obj_id=%d, component=%d\n", 
+                               slot, obj_id, component_id);
+                        
+                        interface_handle_inv_button(game, action, obj_id, slot, component_id);
+                    }
+                }
+                else
+                {
+                    printf("Component is not an inventory or layer type\n");
+                }
+            }
+        }
+        else
+        {
+            printf("Click outside sidebar area\n");
+        }
+    }
 
     dash_animate_textures(game->sys_dash, game->cycles_elapsed);
     if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
@@ -846,6 +965,14 @@ LibToriRS_GameStep(
                 advance_animation(element->animation, 1);
             }
         }
+    }
+    
+    // Flush outbound buffer to network
+    if( game->outbound_size > 0 && GAME_NET_STATE_GAME == game->net_state )
+    {
+        printf("Flushing %d bytes to network\n", game->outbound_size);
+        ringbuf_write(game->netout, game->outbound_buffer, game->outbound_size);
+        game->outbound_size = 0;
     }
 }
 

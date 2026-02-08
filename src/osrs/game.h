@@ -191,6 +191,12 @@ struct GGame
     // Tab system
     int selected_tab;
     int tab_interface_id[14];
+    
+    // Item selection (for inventory clicks)
+    int selected_item;
+    int selected_interface;
+    int selected_area;
+    int selected_cycle;
 };
 
 void

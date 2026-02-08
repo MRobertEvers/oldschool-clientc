@@ -243,21 +243,21 @@ interface_draw_component_inv(
 
     if( !component->invSlotObjId || !component->invSlotObjCount )
     {
-        printf(
-            "DEBUG INV: No slot data (invSlotObjId=%p, invSlotObjCount=%p)\n",
-            (void*)component->invSlotObjId,
-            (void*)component->invSlotObjCount);
+        // printf(
+        //     "DEBUG INV: No slot data (invSlotObjId=%p, invSlotObjCount=%p)\n",
+        //     (void*)component->invSlotObjId,
+        //     (void*)component->invSlotObjCount);
         return;
     }
 
-    printf(
-        "DEBUG INV: Drawing inventory at (%d, %d), size=%dx%d, marginX=%d, marginY=%d\n",
-        x,
-        y,
-        component->width,
-        component->height,
-        component->marginX,
-        component->marginY);
+    // printf(
+    //     "DEBUG INV: Drawing inventory at (%d, %d), size=%dx%d, marginX=%d, marginY=%d\n",
+    //     x,
+    //     y,
+    //     component->width,
+    //     component->height,
+    //     component->marginX,
+    //     component->marginY);
 
     int slot = 0;
     int items_drawn = 0;
@@ -282,19 +282,20 @@ interface_draw_component_inv(
             // Draw item if present
             if( component->invSlotObjId[slot] > 0 )
             {
-                // Item IDs are stored as 1-indexed in invSlotObjId, subtract 1 for actual obj lookup
-                // (matching Client.ts line 9458: const id: number = child.invSlotObjId[slot] - 1;)
+                // Item IDs are stored as 1-indexed in invSlotObjId, subtract 1 for actual obj
+                // lookup (matching Client.ts line 9458: const id: number = child.invSlotObjId[slot]
+                // - 1;)
                 int item_id = component->invSlotObjId[slot] - 1;
                 int item_count = component->invSlotObjCount[slot];
 
-                printf(
-                    "DEBUG INV: Slot %d: item_id=%d (stored as %d), item_count=%d at (%d, %d)\n",
-                    slot,
-                    item_id,
-                    component->invSlotObjId[slot],
-                    item_count,
-                    slotX,
-                    slotY);
+                // printf(
+                //     "DEBUG INV: Slot %d: item_id=%d (stored as %d), item_count=%d at (%d, %d)\n",
+                //     slot,
+                //     item_id,
+                //     component->invSlotObjId[slot],
+                //     item_count,
+                //     slotX,
+                //     slotY);
 
                 // Get or generate the item icon sprite
                 struct DashSprite* icon = obj_icon_get(game, item_id, item_count);
@@ -302,9 +303,35 @@ interface_draw_component_inv(
                 if( icon )
                 {
                     items_drawn++;
-                    // Draw the item icon
-                    dash2d_blit_sprite(
-                        game->sys_dash, icon, game->iface_view_port, slotX, slotY, pixel_buffer);
+
+                    // Check if this item is selected (dim it) - Client.ts line 9514-9515
+                    bool is_selected =
+                        (game->selected_area != 0 && game->selected_item == slot &&
+                         game->selected_interface == component->id);
+
+                    if( is_selected )
+                    {
+                        // Draw with alpha (dimmed) - drawAlpha(128, ...)
+                        dash2d_blit_sprite_alpha(
+                            game->sys_dash,
+                            icon,
+                            game->iface_view_port,
+                            slotX,
+                            slotY,
+                            128,
+                            pixel_buffer);
+                    }
+                    else
+                    {
+                        // Draw normally
+                        dash2d_blit_sprite(
+                            game->sys_dash,
+                            icon,
+                            game->iface_view_port,
+                            slotX,
+                            slotY,
+                            pixel_buffer);
+                    }
 
                     // Draw item count if > 1
                     if( item_count > 1 && game->pixfont_p11 )
@@ -371,5 +398,147 @@ interface_draw_component_inv(
         }
     }
 
-    printf("DEBUG INV: Total items drawn: %d\n", items_drawn);
+    // printf("DEBUG INV: Total items drawn: %d\n", items_drawn);
+}
+
+int
+interface_check_inv_click(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int x,
+    int y,
+    int mouse_x,
+    int mouse_y)
+{
+    if( !component || !component->invSlotObjId || !component->invSlotObjCount )
+    {
+        printf("interface_check_inv_click: invalid component or no inv data\n");
+        return -1;
+    }
+
+    printf(
+        "interface_check_inv_click: checking grid %dx%d, margins=%d,%d at (%d,%d) for mouse "
+        "(%d,%d)\n",
+        component->width,
+        component->height,
+        component->marginX,
+        component->marginY,
+        x,
+        y,
+        mouse_x,
+        mouse_y);
+
+    int slot = 0;
+
+    // Iterate through grid to find which slot was clicked
+    for( int row = 0; row < component->height; row++ )
+    {
+        for( int col = 0; col < component->width; col++ )
+        {
+            // Calculate slot position
+            int slotX = x + col * (component->marginX + 32);
+            int slotY = y + row * (component->marginY + 32);
+
+            // Apply slot-specific offsets (for first 20 slots)
+            if( slot < 20 && component->invSlotOffsetX && component->invSlotOffsetY )
+            {
+                slotX += component->invSlotOffsetX[slot];
+                slotY += component->invSlotOffsetY[slot];
+            }
+
+            // Check if mouse is within this slot (32x32)
+            if( mouse_x >= slotX && mouse_x < slotX + 32 && mouse_y >= slotY &&
+                mouse_y < slotY + 32 )
+            {
+                printf(
+                    "Mouse hit slot %d at (%d,%d), has item: %d\n",
+                    slot,
+                    slotX,
+                    slotY,
+                    component->invSlotObjId[slot]);
+
+                // Only return slot if it has an item
+                if( component->invSlotObjId[slot] > 0 )
+                {
+                    return slot;
+                }
+                return -1;
+            }
+
+            slot++;
+        }
+    }
+
+    printf("No slot hit\n");
+    return -1;
+}
+
+void
+interface_handle_inv_button(
+    struct GGame* game,
+    int action,
+    int obj_id,
+    int slot,
+    int component_id)
+{
+    // Based on Client.ts lines 9012-9067
+    // action codes: 602=button1, 596=button2, 22=button3, 892=button4, 415=button5
+
+    uint8_t opcode = 0;
+
+    // Map action to opcode (from ClientProt.ts)
+    if( action == 602 )
+    {
+        opcode = 13; // INV_BUTTON1
+        printf("INV_BUTTON1: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
+    }
+    else if( action == 596 )
+    {
+        opcode = 58; // INV_BUTTON2
+        printf("INV_BUTTON2: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
+    }
+    else if( action == 22 )
+    {
+        opcode = 48; // INV_BUTTON3
+        printf("INV_BUTTON3: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
+    }
+    else if( action == 892 )
+    {
+        opcode = 183; // INV_BUTTON4
+        printf("INV_BUTTON4: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
+    }
+    else if( action == 415 )
+    {
+        opcode = 242; // INV_BUTTON5
+        printf("INV_BUTTON5: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
+    }
+    else
+    {
+        printf("Unknown inventory action: %d\n", action);
+        return;
+    }
+
+    // Send packet with Isaac cipher encryption (p1isaac)
+    // Based on Client.ts out.p1isaac() and example at tori_rs_cycle.u.c:788-790
+    uint32_t encrypted_opcode = (opcode + isaac_next(game->random_out)) & 0xff;
+    game->outbound_buffer[game->outbound_size++] = encrypted_opcode;
+
+    // Send payload: p2(obj_id) + p2(slot) + p2(component_id)
+    // Based on Client.ts lines 9051-9053
+    game->outbound_buffer[game->outbound_size++] = (obj_id >> 8) & 0xFF;
+    game->outbound_buffer[game->outbound_size++] = obj_id & 0xFF;
+    game->outbound_buffer[game->outbound_size++] = (slot >> 8) & 0xFF;
+    game->outbound_buffer[game->outbound_size++] = slot & 0xFF;
+    game->outbound_buffer[game->outbound_size++] = (component_id >> 8) & 0xFF;
+    game->outbound_buffer[game->outbound_size++] = component_id & 0xFF;
+
+    // Update selection state (Client.ts lines 9055-9066)
+    game->selected_cycle = 0;
+    game->selected_interface = component_id;
+    game->selected_item = slot;
+    game->selected_area = 2; // Sidebar area
+
+    // Check if this component belongs to viewport or chat (would change area)
+    // For now we assume it's in sidebar (area 2)
+    // TODO: Check component->layer against game->viewport_interface_id and game->chat_interface_id
 }
