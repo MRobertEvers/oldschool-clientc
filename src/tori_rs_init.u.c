@@ -64,11 +64,19 @@ LibToriRS_GameNew(
     dash_init();
 
     game->io = io;
-    
+
     // Initialize interface IDs to -1 (no interface)
     game->viewport_interface_id = -1;
     game->sidebar_interface_id = -1;
     game->chat_interface_id = -1;
+    
+    // Initialize tab system
+    game->selected_tab = 3; // Default to inventory tab (tab 3)
+    for( int i = 0; i < 14; i++ )
+    {
+        game->tab_interface_id[i] = -1;
+    }
+    
     game->running = true;
 
     game->players[ACTIVE_PLAYER_SLOT].alive = false;

@@ -55,22 +55,22 @@ obj_icon_get(
     int obj_id,
     int count)
 {
-    // Object IDs in the protocol are 1-indexed, so subtract 1 for lookups
-    int actual_obj_id = obj_id - 1;
-    
+    // obj_id is already 0-indexed (caller subtracts 1 from stored value)
+
     // Get the object configuration
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, actual_obj_id);
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
     if( !obj )
     {
-        printf("obj_icon_get: Could not find obj %d (network id %d) in buildcachedat\n", actual_obj_id, obj_id);
+        printf("obj_icon_get: Could not find obj %d in buildcachedat\n", obj_id);
         return NULL;
     }
 
     // DEBUG: Print detailed object configuration
-    printf("\n=== obj_icon_get DEBUG: obj_id=%d (network=%d), count=%d ===\n", actual_obj_id, obj_id, count);
+    printf("\n=== obj_icon_get DEBUG: obj_id=%d, count=%d ===\n", obj_id, count);
     printf("  name: %s\n", obj->name ? obj->name : "(null)");
     printf("  model: %d\n", obj->model);
-    printf("  manwear: %d, manwear2: %d, manwear3: %d\n", obj->manwear, obj->manwear2, obj->manwear3);
+    printf(
+        "  manwear: %d, manwear2: %d, manwear3: %d\n", obj->manwear, obj->manwear2, obj->manwear3);
     printf("  zoom2d: %d\n", obj->zoom2d);
     printf("  xan2d: %d, yan2d: %d, zan2d: %d\n", obj->xan2d, obj->yan2d, obj->zan2d);
     printf("  xof2d: %d, yof2d: %d\n", obj->xof2d, obj->yof2d);
@@ -179,6 +179,12 @@ obj_icon_get(
     // and would invalidate the cached model. See entity_scenebuild.c:219 for reference.
     struct CacheModel* model_copy = model_new_copy(model);
     struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
+
+    for( int i = 0; i < obj->recol_count; i++ )
+    {
+        model_transform_recolor(dash_model, obj->recol_s[i], obj->recol_d[i]);
+    }
+
     if( !dash_model )
     {
         printf("  ERROR: Failed to create DashModel\n");

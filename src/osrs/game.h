@@ -15,8 +15,8 @@
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/rsa.h"
-#include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
@@ -182,11 +182,15 @@ struct GGame
     struct DashSprite* sprite_backvmid2;
     struct DashSprite* sprite_backvmid3;
     struct DashSprite* sprite_backhmid2;
-    
+
     // Interface IDs (which interface is currently shown in each area)
     int viewport_interface_id;
     int sidebar_interface_id;
     int chat_interface_id;
+    
+    // Tab system
+    int selected_tab;
+    int tab_interface_id[14];
 };
 
 void

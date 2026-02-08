@@ -282,14 +282,16 @@ interface_draw_component_inv(
             // Draw item if present
             if( component->invSlotObjId[slot] > 0 )
             {
-                // Get item ID and count (obj IDs in the array are stored as ID+1, so subtract 1)
-                int item_id = component->invSlotObjId[slot];
+                // Item IDs are stored as 1-indexed in invSlotObjId, subtract 1 for actual obj lookup
+                // (matching Client.ts line 9458: const id: number = child.invSlotObjId[slot] - 1;)
+                int item_id = component->invSlotObjId[slot] - 1;
                 int item_count = component->invSlotObjCount[slot];
 
                 printf(
-                    "DEBUG INV: Slot %d: item_id=%d, item_count=%d at (%d, %d)\n",
+                    "DEBUG INV: Slot %d: item_id=%d (stored as %d), item_count=%d at (%d, %d)\n",
                     slot,
                     item_id,
+                    component->invSlotObjId[slot],
                     item_count,
                     slotX,
                     slotY);

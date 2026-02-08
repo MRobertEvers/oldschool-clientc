@@ -1337,6 +1337,38 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 game->sidebar_interface_id);
         }
     }
+    else if( game->selected_tab >= 0 && game->selected_tab < 14 && 
+             game->tab_interface_id[game->selected_tab] != -1 )
+    {
+        // If no sidebar interface override, draw the active tab interface
+        int tab_component_id = game->tab_interface_id[game->selected_tab];
+        printf(
+            "DEBUG: Rendering tab %d interface ID: %d\n", 
+            game->selected_tab, 
+            tab_component_id);
+
+        struct CacheDatConfigComponent* tab_component =
+            buildcachedat_get_component(game->buildcachedat, tab_component_id);
+
+        if( tab_component )
+        {
+            printf("DEBUG: Tab component found\n");
+            printf(
+                "  Component type: %d, width: %d, height: %d\n",
+                tab_component->type,
+                tab_component->width,
+                tab_component->height);
+            interface_draw_component(
+                game, tab_component, 553, 205, 0, renderer->pixel_buffer, renderer->width);
+            printf("DEBUG: Tab component drawn\n");
+        }
+        else
+        {
+            printf(
+                "DEBUG: WARNING - Tab component %d not found in buildcachedat!\n",
+                tab_component_id);
+        }
+    }
 
     // Draw a vertical line at x = 550
     // for( int y = 0; y < renderer->height; y++ )

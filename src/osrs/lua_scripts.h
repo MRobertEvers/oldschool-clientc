@@ -1556,6 +1556,26 @@ l_gameproto_exec_update_inv_full(lua_State* L)
     return 0;
 }
 
+static int
+l_gameproto_get_if_settab_data(lua_State* L)
+{
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    lua_pushinteger(L, item->packet._if_settab.component_id);
+    lua_pushinteger(L, item->packet._if_settab.tab_id);
+    return 2;
+}
+
+static int
+l_gameproto_exec_if_settab(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    gameproto_exec_if_settab(game, &item->packet);
+    return 0;
+}
+
 static const luaL_Reg gameproto_funcs[] = {
     { "get_npc_ids_from_packet",   l_gameproto_get_npc_ids_from_packet   },
     { "exec_npc_info",             l_gameproto_exec_npc_info             },
@@ -1565,6 +1585,8 @@ static const luaL_Reg gameproto_funcs[] = {
     { "exec_player_info",          l_gameproto_exec_player_info          },
     { "get_inv_obj_ids",           l_gameproto_get_inv_obj_ids           },
     { "exec_update_inv_full",      l_gameproto_exec_update_inv_full      },
+    { "get_if_settab_data",        l_gameproto_get_if_settab_data        },
+    { "exec_if_settab",            l_gameproto_exec_if_settab            },
     { NULL,                        NULL                                  }
 };
 

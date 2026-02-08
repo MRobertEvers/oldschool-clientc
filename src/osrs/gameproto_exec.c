@@ -499,6 +499,53 @@ gameproto_exec_update_inv_full(
 }
 
 void
+gameproto_exec_if_settab(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_settab.component_id;
+    int tab_id = packet->_if_settab.tab_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+
+    if( !component )
+    {
+        printf("IF_SETTAB: Component %d not found\n", component_id);
+        return;
+    }
+
+    // Store the component in the tab interface array
+    if( tab_id >= 0 && tab_id < 14 )
+    {
+        game->tab_interface_id[tab_id] = component_id;
+        printf("IF_SETTAB: Set tab %d to component %d\n", tab_id, component_id);
+    }
+    else
+    {
+        printf("IF_SETTAB: Invalid tab_id %d (must be 0-13)\n", tab_id);
+    }
+}
+
+void
+gameproto_exec_if_settab_active(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int tab_id = packet->_if_settab_active.tab_id;
+
+    if( tab_id >= 0 && tab_id < 14 )
+    {
+        game->selected_tab = tab_id;
+        printf("IF_SETTAB_ACTIVE: Set active tab to %d\n", tab_id);
+    }
+    else
+    {
+        printf("IF_SETTAB_ACTIVE: Invalid tab_id %d (must be 0-13)\n", tab_id);
+    }
+}
+
+void
 gameproto_exec_lc245_2(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
@@ -516,6 +563,12 @@ gameproto_exec_lc245_2(
         break;
     case PKTIN_LC245_2_UPDATE_INV_FULL:
         gameproto_exec_update_inv_full(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETTAB:
+        gameproto_exec_if_settab(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
+        gameproto_exec_if_settab_active(game, packet);
         break;
     default:
         break;

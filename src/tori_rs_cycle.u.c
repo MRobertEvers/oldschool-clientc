@@ -35,6 +35,8 @@ script_path_for_kind(enum ScriptKind kind)
         return "load_inventory_models.lua";
     case SCRIPT_PKT_UPDATE_INV_FULL:
         return "pkt_update_inv_full.lua";
+    case SCRIPT_PKT_IF_SETTAB:
+        return "pkt_if_settab.lua";
     default:
         return NULL;
     }
@@ -123,6 +125,14 @@ start_script_from_item(
     case SCRIPT_PKT_UPDATE_INV_FULL:
     {
         struct ScriptArgsPktUpdateInvFull* a = &item->args.u.pkt_update_inv_full;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        nargs = 2;
+        break;
+    }
+    case SCRIPT_PKT_IF_SETTAB:
+    {
+        struct ScriptArgsPktIfSetTab* a = &item->args.u.pkt_if_settab;
         lua_pushlightuserdata(game->L_coro, a->item);
         lua_pushlightuserdata(game->L_coro, a->io);
         nargs = 2;

@@ -29,4 +29,14 @@ gameproto_exec_update_inv_full(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
+void
+gameproto_exec_if_settab(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_settab_active(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
 #endif

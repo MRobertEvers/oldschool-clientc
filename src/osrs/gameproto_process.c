@@ -1,5 +1,6 @@
 #include "gameproto_process.h"
 
+#include "osrs/gameproto_exec.h"
 #include "osrs/script_queue.h"
 
 void
@@ -48,6 +49,21 @@ gameproto_process(
                 .u.pkt_update_inv_full = { .item = item, .io = io },
             };
             script_queue_push(&game->script_queue, &args);
+            break;
+        }
+        case PKTIN_LC245_2_IF_SETTAB:
+        {
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_IF_SETTAB,
+                .u.pkt_if_settab = { .item = item, .io = io },
+            };
+            script_queue_push(&game->script_queue, &args);
+            break;
+        }
+        case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
+        {
+            // IF_SETTAB_ACTIVE doesn't need async loading, execute directly
+            gameproto_exec_if_settab_active(game, &item->packet);
             break;
         }
         default:

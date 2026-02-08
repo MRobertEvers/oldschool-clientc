@@ -74,6 +74,26 @@ gameproto_parse_lc245_2(
 
         return 1;
     }
+    case PKTIN_LC245_2_IF_SETTAB:
+    {
+        packet->_if_settab.component_id = g2(&buffer);
+        packet->_if_settab.tab_id = g1(&buffer);
+        printf(
+            "PKTIN_LC245_2_IF_SETTAB: component_id=%d, tab_id=%d\n",
+            packet->_if_settab.component_id,
+            packet->_if_settab.tab_id);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
+    {
+        packet->_if_settab_active.tab_id = g1(&buffer);
+        printf(
+            "PKTIN_LC245_2_IF_SETTAB_ACTIVE: tab_id=%d\n",
+            packet->_if_settab_active.tab_id);
+        assert(buffer.position == data_size);
+        return 1;
+    }
     default:
         printf("Unknown packet type: %d\n", packet_type);
         break;
