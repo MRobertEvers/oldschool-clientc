@@ -4,6 +4,7 @@
 #include "osrs/rscache/rsbuf.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #define MASK_APPEARANCE 0x01
@@ -290,6 +291,8 @@ pkt_player_info_reader_read(
             {
             case 0:
                 //
+                reader->extended_queue[reader->extended_count++] = new_idx;
+                new_idx += 1;
                 break;
             case 1:
                 // walkdir
