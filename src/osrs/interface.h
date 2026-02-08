@@ -75,6 +75,17 @@ interface_draw_scrollbar(
     int* pixel_buffer,
     int stride);
 
+// Find topmost component id that has (overlayer >= 0 || overColour != 0) and contains (mouse_x, mouse_y).
+// Set game->current_hovered_interface_id to this before drawing so hide=true components only draw when hovered.
+int
+interface_find_hovered_interface_id(
+    struct GGame* game,
+    struct CacheDatConfigComponent* root,
+    int root_x,
+    int root_y,
+    int mouse_x,
+    int mouse_y);
+
 // Find scrollable layer whose scrollbar contains (mouse_x, mouse_y). Returns component id or -1.
 // Fills out_scrollbar_y, out_height, out_scroll_height for the hit layer when found.
 int

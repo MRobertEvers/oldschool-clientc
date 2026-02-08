@@ -86,6 +86,8 @@ LibToriRS_GameNew(
     for( int i = 0; i < MAX_COMPONENT_SCROLL_IDS; i++ )
         game->component_scroll_position[i] = 0;
 
+    game->current_hovered_interface_id = -1;
+
     game->running = true;
 
     game->players[ACTIVE_PLAYER_SLOT].alive = false;

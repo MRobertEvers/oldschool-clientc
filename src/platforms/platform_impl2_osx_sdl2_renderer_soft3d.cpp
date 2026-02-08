@@ -1192,6 +1192,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             buildcachedat_get_component(game->buildcachedat, game->viewport_interface_id);
         if( viewport_component )
         {
+            game->current_hovered_interface_id = interface_find_hovered_interface_id(
+                game, viewport_component, 0, 0, game->mouse_x, game->mouse_y);
             interface_draw_component(
                 game, viewport_component, 0, 0, 0, renderer->pixel_buffer, renderer->width);
         }
@@ -1208,6 +1210,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
         if( sidebar_component )
         {
+            game->current_hovered_interface_id = interface_find_hovered_interface_id(
+                game, sidebar_component, 553, 205, game->mouse_x, game->mouse_y);
             printf("DEBUG: Sidebar component found\n");
             printf(
                 "  Component type: %d, width: %d, height: %d\n",
@@ -1257,6 +1261,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
         if( tab_component )
         {
+            game->current_hovered_interface_id = interface_find_hovered_interface_id(
+                game, tab_component, 553, 205, game->mouse_x, game->mouse_y);
             // printf("DEBUG: Tab component found\n");
             // printf(
             //     "  Component type: %d, width: %d, height: %d\n",

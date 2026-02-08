@@ -201,6 +201,10 @@ struct GGame
 #define MAX_COMPONENT_SCROLL_IDS 16384
     int component_scroll_position[MAX_COMPONENT_SCROLL_IDS];
 
+    // Hovered component id for current draw area (viewport/sidebar/chat). Set before drawing;
+    // components with hide==true are only drawn when component->id == current_hovered_interface_id.
+    int current_hovered_interface_id;
+
     // Item selection (for inventory clicks)
     int selected_item;
     int selected_interface;

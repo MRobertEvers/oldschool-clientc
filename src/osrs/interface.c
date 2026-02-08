@@ -6,10 +6,137 @@
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 #define INV_MENU_MAX 24
+
+/* Fill rect clipped to viewport to prevent scroll layers overdrawing parent. */
+static void
+fill_rect_clipped(
+    struct DashViewPort* vp,
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb)
+{
+    int x0 = x < vp->clip_left ? vp->clip_left : x;
+    int y0 = y < vp->clip_top ? vp->clip_top : y;
+    int x1 = x + width > vp->clip_right ? vp->clip_right : x + width;
+    int y1 = y + height > vp->clip_bottom ? vp->clip_bottom : y + height;
+    if( x0 >= x1 || y0 >= y1 )
+        return;
+    for( int py = y0; py < y1; py++ )
+        for( int px = x0; px < x1; px++ )
+            pixel_buffer[py * stride + px] = color_rgb;
+}
+
+static void
+fill_rect_alpha_clipped(
+    struct DashViewPort* vp,
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb,
+    int alpha)
+{
+    int x0 = x < vp->clip_left ? vp->clip_left : x;
+    int y0 = y < vp->clip_top ? vp->clip_top : y;
+    int x1 = x + width > vp->clip_right ? vp->clip_right : x + width;
+    int y1 = y + height > vp->clip_bottom ? vp->clip_bottom : y + height;
+    if( x0 >= x1 || y0 >= y1 )
+        return;
+    int r = (color_rgb >> 16) & 0xFF;
+    int g = (color_rgb >> 8) & 0xFF;
+    int b = color_rgb & 0xFF;
+    for( int py = y0; py < y1; py++ )
+        for( int px = x0; px < x1; px++ )
+        {
+            int idx = py * stride + px;
+            int existing = pixel_buffer[idx];
+            int er = (existing >> 16) & 0xFF, eg = (existing >> 8) & 0xFF, eb = existing & 0xFF;
+            int nr = (r * (256 - alpha) + er * alpha) >> 8;
+            int ng = (g * (256 - alpha) + eg * alpha) >> 8;
+            int nb = (b * (256 - alpha) + eb * alpha) >> 8;
+            pixel_buffer[idx] = (nr << 16) | (ng << 8) | nb;
+        }
+}
+
+static void
+draw_rect_clipped(
+    struct DashViewPort* vp,
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb)
+{
+    int x0 = x < vp->clip_left ? vp->clip_left : x;
+    int x1 = x + width > vp->clip_right ? vp->clip_right : x + width;
+    int y0 = y < vp->clip_top ? vp->clip_top : y;
+    int y1 = y + height > vp->clip_bottom ? vp->clip_bottom : y + height;
+    if( x0 >= x1 || y0 >= y1 )
+        return;
+    /* Top edge */
+    if( y >= vp->clip_top && y < vp->clip_bottom )
+        for( int px = x0; px < x1; px++ )
+            pixel_buffer[y * stride + px] = color_rgb;
+    /* Bottom edge */
+    if( y + height - 1 >= vp->clip_top && y + height - 1 < vp->clip_bottom )
+        for( int px = x0; px < x1; px++ )
+            pixel_buffer[(y + height - 1) * stride + px] = color_rgb;
+    /* Left edge */
+    if( x >= vp->clip_left && x < vp->clip_right )
+        for( int py = y0; py < y1; py++ )
+            pixel_buffer[py * stride + x] = color_rgb;
+    /* Right edge */
+    if( x + width - 1 >= vp->clip_left && x + width - 1 < vp->clip_right )
+        for( int py = y0; py < y1; py++ )
+            pixel_buffer[py * stride + (x + width - 1)] = color_rgb;
+}
+
+/* Blit subsprite (src_w x src_h) to pixel_buffer at (dx, dy), clipped to clip rect.
+ * Skips source pixels that are 0 (transparent). */
+static void
+blit_subsprite_clipped(
+    const int* src,
+    int src_w,
+    int src_h,
+    int* pixel_buffer,
+    int stride,
+    int dx,
+    int dy,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom)
+{
+    for( int sy = 0; sy < src_h; sy++ )
+    {
+        int py = dy + sy;
+        if( py < clip_top || py >= clip_bottom )
+            continue;
+        for( int sx = 0; sx < src_w; sx++ )
+        {
+            int px = dx + sx;
+            if( px < clip_left || px >= clip_right )
+                continue;
+            int c = src[sy * src_w + sx];
+            if( c == 0 )
+                continue;
+            pixel_buffer[py * stride + px] = c;
+        }
+    }
+}
 
 /* Build menu options in same order as Client.ts handleInterfaceInput (inv slot),
  * then sort exactly as Client.ts (2498-2522): swap when [i] < 1000 && [i+1] > 1000
@@ -143,6 +270,10 @@ interface_draw_component(
     if( !component )
         return;
 
+    /* Client.ts drawInterface (9396): skip entire subtree if hide && not hovered */
+    if( component->hide && component->id != game->current_hovered_interface_id )
+        return;
+
     // Handle non-layer components directly
     if( component->type != COMPONENT_TYPE_LAYER )
     {
@@ -216,9 +347,50 @@ interface_draw_component(
                 scroll_pos = max_scroll;
             if( scroll_pos < 0 )
                 scroll_pos = 0;
-            interface_draw_component_layer(
-                game, child, childX, childY, scroll_pos, pixel_buffer, stride);
+
+            /* Draw layer into a subsprite so text/graphics cannot overdraw parent */
+            int saved_left = view_port->clip_left;
+            int saved_top = view_port->clip_top;
+            int saved_right = view_port->clip_right;
+            int saved_bottom = view_port->clip_bottom;
+            size_t layer_pixels = (size_t)child->width * (size_t)child->height;
+            int* subsprite = (int*)malloc(layer_pixels * sizeof(int));
+            if( subsprite )
+            {
+                memset(subsprite, 0, layer_pixels * sizeof(int));
+                int saved_stride = view_port->stride;
+                view_port->clip_left = 0;
+                view_port->clip_top = 0;
+                view_port->clip_right = child->width;
+                view_port->clip_bottom = child->height;
+                view_port->stride = child->width;
+
+                interface_draw_component(game, child, 0, 0, scroll_pos, subsprite, child->width);
+
+                view_port->clip_left = saved_left;
+                view_port->clip_top = saved_top;
+                view_port->clip_right = saved_right;
+                view_port->clip_bottom = saved_bottom;
+                view_port->stride = saved_stride;
+
+                blit_subsprite_clipped(
+                    subsprite, child->width, child->height,
+                    pixel_buffer, stride, childX, childY,
+                    saved_left, saved_top, saved_right, saved_bottom);
+                free(subsprite);
+            }
+            else
+            {
+                /* Fallback if alloc fails */
+                interface_draw_component(game, child, childX, childY, scroll_pos, pixel_buffer, stride);
+            }
+
             if( child->scroll > child->height )
+            {
+                int sb_right = childX + child->width + 16;
+                int saved_right_sb = view_port->clip_right;
+                if( sb_right > saved_right_sb )
+                    view_port->clip_right = sb_right;
                 interface_draw_scrollbar(
                     game,
                     childX + child->width,
@@ -228,6 +400,8 @@ interface_draw_component(
                     child->height,
                     pixel_buffer,
                     stride);
+                view_port->clip_right = saved_right_sb;
+            }
             break;
         }
         case COMPONENT_TYPE_RECT:
@@ -264,6 +438,80 @@ interface_draw_component_layer(
 {
     // Recursive call to draw this layer and its children
     interface_draw_component(game, component, x, y, scroll_y, pixel_buffer, stride);
+}
+
+/* Recursive hit-test for hover; mirrors Client.ts handleInterfaceInput (10004-10009).
+ * Updates *out_hovered_id when a child has (overlayer >= 0 || overColour != 0) and contains
+ * (mouse_x, mouse_y). Last hit in draw order wins (topmost). */
+static void
+find_hovered_interface_id_recursive(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int x,
+    int y,
+    int scroll_y,
+    int mouse_x,
+    int mouse_y,
+    int* out_hovered_id)
+{
+    if( !component->children || !component->childX || !component->childY )
+        return;
+    for( int i = 0; i < component->children_count; i++ )
+    {
+        int child_id = component->children[i];
+        int childX = component->childX[i] + x;
+        int childY = component->childY[i] + y - scroll_y;
+
+        struct CacheDatConfigComponent* child =
+            buildcachedat_get_component(game->buildcachedat, child_id);
+        if( !child )
+            continue;
+
+        childX += child->x;
+        childY += child->y;
+
+        if( (child->overlayer >= 0 || child->overColour != 0) &&
+            mouse_x >= childX && mouse_y >= childY &&
+            mouse_x < childX + child->width && mouse_y < childY + child->height )
+        {
+            *out_hovered_id = (child->overlayer >= 0) ? child->overlayer : child->id;
+        }
+
+        if( child->type == COMPONENT_TYPE_LAYER )
+        {
+            int scroll_pos = 0;
+            if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
+                scroll_pos = game->component_scroll_position[child_id];
+            int max_scroll = child->scroll - child->height;
+            if( max_scroll < 0 )
+                max_scroll = 0;
+            if( scroll_pos > max_scroll )
+                scroll_pos = max_scroll;
+            if( scroll_pos < 0 )
+                scroll_pos = 0;
+            find_hovered_interface_id_recursive(
+                game, child, childX, childY, scroll_pos,
+                mouse_x, mouse_y, out_hovered_id);
+        }
+    }
+}
+
+/* Return the hovered component id for the given root and area (root_x, root_y).
+ * Used to set game->current_hovered_interface_id before drawing. */
+int
+interface_find_hovered_interface_id(
+    struct GGame* game,
+    struct CacheDatConfigComponent* root,
+    int root_x,
+    int root_y,
+    int mouse_x,
+    int mouse_y)
+{
+    if( !root || root->type != COMPONENT_TYPE_LAYER )
+        return -1;
+    int id = -1;
+    find_hovered_interface_id_recursive(game, root, root_x, root_y, 0, mouse_x, mouse_y, &id);
+    return id;
 }
 
 /* Recursive hit-test for scrollbar; mirrors layer child loop in interface_draw_component.
@@ -394,33 +642,26 @@ interface_draw_component_rect(
     int stride)
 {
     int colour = component->colour;
+    struct DashViewPort* vp = game->iface_view_port;
 
     if( component->alpha == 0 )
     {
         if( component->fill )
-        {
-            dash2d_fill_rect(
-                pixel_buffer, stride, x, y, component->width, component->height, colour);
-        }
+            fill_rect_clipped(vp, pixel_buffer, stride, x, y,
+                component->width, component->height, colour);
         else
-        {
-            dash2d_draw_rect(
-                pixel_buffer, stride, x, y, component->width, component->height, colour);
-        }
+            draw_rect_clipped(vp, pixel_buffer, stride, x, y,
+                component->width, component->height, colour);
     }
     else
     {
         int alpha = 256 - (component->alpha & 0xFF);
         if( component->fill )
-        {
-            dash2d_fill_rect_alpha(
-                pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
-        }
+            fill_rect_alpha_clipped(vp, pixel_buffer, stride, x, y,
+                component->width, component->height, colour, alpha);
         else
-        {
-            dash2d_draw_rect_alpha(
-                pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
-        }
+            draw_rect_clipped(vp, pixel_buffer, stride, x, y,
+                component->width, component->height, colour);
     }
 }
 
@@ -467,6 +708,12 @@ interface_draw_component_text(
     char line_buf[512];
     int line_buf_size = (int)sizeof(line_buf);
 
+    struct DashViewPort* vp = game->iface_view_port;
+    int cl = vp->clip_left;
+    int ct = vp->clip_top;
+    int cr = vp->clip_right;
+    int cb = vp->clip_bottom;
+
     while( rest[0] != '\0' )
     {
         /* Find end of line: Client.ts uses indexOf('\\n') -> backslash then 'n' */
@@ -492,19 +739,16 @@ interface_draw_component_text(
                 draw_x = x;
             }
 
+            /* Client.ts PixFont.drawStringTaggable does y -= this.height2d before drawing (line 150) */
+            int draw_y = line_y - font->height2d;
             if( component->shadowed )
             {
-                dashfont_draw_text(
-                    font,
-                    (uint8_t*)line_buf,
-                    draw_x + 1,
-                    line_y + 1,
-                    0x000000,
-                    pixel_buffer,
-                    stride);
+                dashfont_draw_text_clipped(
+                    font, (uint8_t*)line_buf, draw_x + 1, draw_y + 1,
+                    0x000000, pixel_buffer, stride, cl, ct, cr, cb);
             }
-            dashfont_draw_text(
-                font, (uint8_t*)line_buf, draw_x, line_y, colour, pixel_buffer, stride);
+            dashfont_draw_text_clipped(
+                font, (uint8_t*)line_buf, draw_x, draw_y, colour, pixel_buffer, stride, cl, ct, cr, cb);
         }
         line_y += font->height2d;
         rest = (line_end[0] == '\\' && line_end[1] == 'n') ? line_end + 2 : line_end;
@@ -524,7 +768,7 @@ interface_draw_scrollbar(
     int* pixel_buffer,
     int stride)
 {
-    /* Client.ts drawScrollbar: 16px wide, track from y+16 to y+height-16, grip sized by ratio */
+    /* Client.ts drawScrollbar: 16px wide; top/bottom 16px = arrows; track y+16 to y+height-16 */
     if( scroll_height <= height )
         return;
     int track_h = height - 32;
@@ -541,11 +785,39 @@ interface_draw_scrollbar(
         grip_y = 0;
     if( grip_y > track_h - grip_size )
         grip_y = track_h - grip_size;
-    /* Track (Client.ts SCROLLBAR_TRACK) */
-    dash2d_fill_rect(pixel_buffer, stride, x, y + 16, 16, track_h, 0x4D4233);
-    /* Grip (Client.ts SCROLLBAR_GRIP) */
-    dash2d_fill_rect(pixel_buffer, stride, x, y + 16 + grip_y, 16, grip_size, 0x6D6253);
-    (void)game;
+
+    struct DashViewPort* vp = game->iface_view_port;
+    int cl = vp->clip_left;
+    int ct = vp->clip_top;
+    int cr = vp->clip_right;
+    int cb = vp->clip_bottom;
+
+    /* Arrows: clientts/src/client/Client.ts drawScrollbar (9767-9769) imageScrollbar0 at (x,y), imageScrollbar1 at (x, y+height-16); loaded from scrollbar archive 0/1 (811-812) */
+    if( game->sprite_scrollbar0 )
+        dash2d_blit_sprite(game->sys_dash, game->sprite_scrollbar0, vp, x, y, pixel_buffer);
+    if( game->sprite_scrollbar1 )
+        dash2d_blit_sprite(game->sys_dash, game->sprite_scrollbar1, vp, x, y + height - 16, pixel_buffer);
+
+    /* Draw track (y+16, track_h) clipped to viewport */
+    int track_y = y + 16;
+    int draw_y0 = track_y < ct ? ct : track_y;
+    int draw_y1 = track_y + track_h;
+    if( draw_y1 > cb )
+        draw_y1 = cb;
+    for( int py = draw_y0; py < draw_y1; py++ )
+        for( int px = x; px < x + 16 && px < cr; px++ )
+            if( px >= cl )
+                pixel_buffer[py * stride + px] = 0x4D4233;
+
+    /* Draw grip (y+16+grip_y, grip_size) clipped to viewport */
+    int grip_y0 = y + 16 + grip_y;
+    int grip_y1 = grip_y0 + grip_size;
+    draw_y0 = grip_y0 < ct ? ct : grip_y0;
+    draw_y1 = grip_y1 > cb ? cb : grip_y1;
+    for( int py = draw_y0; py < draw_y1; py++ )
+        for( int px = x; px < x + 16 && px < cr; px++ )
+            if( px >= cl )
+                pixel_buffer[py * stride + px] = 0x6D6253;
 }
 
 void

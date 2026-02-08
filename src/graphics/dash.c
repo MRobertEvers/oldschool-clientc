@@ -2001,15 +2001,24 @@ dash2d_blit_sprite(
     int y_offset,
     int* pixel_buffer)
 {
+    int cl = view_port->clip_left;
+    int ct = view_port->clip_top;
+    int cr = view_port->clip_right;
+    int cb = view_port->clip_bottom;
+    int stride = view_port->stride;
+
     for( int y = 0; y < sprite->height; y++ )
     {
+        int dst_y = y + y_offset;
+        if( dst_y < ct || dst_y >= cb )
+            continue;
         for( int x = 0; x < sprite->width; x++ )
         {
-            if( x + x_offset < 0 || x + x_offset >= view_port->stride || y + y_offset < 0 ||
-                y + y_offset >= view_port->stride )
+            int dst_x = x + x_offset;
+            if( dst_x < cl || dst_x >= cr )
                 continue;
 
-            int pixel_buffer_index = (y + y_offset) * view_port->stride + (x + x_offset);
+            int pixel_buffer_index = dst_y * stride + dst_x;
             int pixel = sprite->pixels_argb[x + y * sprite->width];
             if( pixel == 0 )
                 continue;
@@ -2098,6 +2107,65 @@ dashfont_draw_mask(
     }
 }
 
+/* Like dashfont_draw_mask but only writes pixels inside [clip_left, clip_right) x [clip_top, clip_bottom).
+ * base_x, base_y = top-left of character in buffer coords; stride used to compute row. */
+static void
+dashfont_draw_mask_clipped(
+    int w,
+    int h,
+    int* src,
+    int src_offset,
+    int src_step,
+    int* dst,
+    int dst_offset,
+    int dst_step,
+    int stride,
+    int base_x,
+    int base_y,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom,
+    int rgb)
+{
+    int hw = -(w >> 2);
+    int w_rem = -(w & 0x3);
+    for( int y = -h; y < 0; y++ )
+    {
+        int row = h + y;
+        int buf_y = base_y + row;
+        if( buf_y < clip_top || buf_y >= clip_bottom )
+        {
+            src_offset += (w >> 2) * 4 + (w & 3);
+            src_offset += src_step;
+            dst_offset += w + dst_step;
+            continue;
+        }
+        int col = 0;
+        for( int x = hw; x < 0; x++ )
+        {
+            for( int i = 0; i < 4 && col < w; i++, col++ )
+            {
+                int buf_x = base_x + col;
+                if( buf_x >= clip_left && buf_x < clip_right && src[src_offset] != 0 )
+                    dst[dst_offset] = rgb;
+                src_offset++;
+                dst_offset++;
+            }
+        }
+        for( int x = w_rem; x < 0; x++, col++ )
+        {
+            int buf_x = base_x + col;
+            if( buf_x >= clip_left && buf_x < clip_right && src[src_offset] != 0 )
+                dst[dst_offset] = rgb;
+            src_offset++;
+            dst_offset++;
+        }
+        dst_offset += dst_step;
+        src_offset += src_step;
+    }
+}
+
 void
 dashfont_draw_text(
     struct DashPixFont* pixfont,
@@ -2134,6 +2202,46 @@ dashfont_draw_text(
                 pixels,
                 dst_offset,
                 stride - w,
+                color_rgb);
+        }
+        x += pixfont->char_advance[c];
+    }
+}
+
+void
+dashfont_draw_text_clipped(
+    struct DashPixFont* pixfont,
+    uint8_t* text,
+    int x,
+    int y,
+    int color_rgb,
+    int* pixels,
+    int stride,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom)
+{
+    if( clip_left >= clip_right || clip_top >= clip_bottom )
+        return;
+    int length = (int)strlen((char*)text);
+    for( int i = 0; i < length; i++ )
+    {
+        uint8_t code_point = text[i];
+        int c = DASH_FONT_CHARCODESET[code_point];
+        if( c < DASH_FONT_CHAR_COUNT )
+        {
+            int w = pixfont->char_mask_width[c];
+            int h = pixfont->char_mask_height[c];
+            int* mask = pixfont->char_mask[c];
+            int base_x = x + pixfont->char_offset_x[c];
+            int base_y = y + pixfont->char_offset_y[c];
+            int dst_offset = base_y * stride + base_x;
+            dashfont_draw_mask_clipped(
+                w, h, mask, 0, 0,
+                pixels, dst_offset, stride - w, stride,
+                base_x, base_y,
+                clip_left, clip_top, clip_right, clip_bottom,
                 color_rgb);
         }
         x += pixfont->char_advance[c];
