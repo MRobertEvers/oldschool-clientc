@@ -157,112 +157,15 @@ render_imgui(
     // Add camera speed slider
     ImGui::Separator();
 
-    // Interface controls
+    // Interface controls removed - now server-controlled via IF_SETTAB/IF_SETTAB_ACTIVE packets
     ImGui::Separator();
     ImGui::Text("Interface System:");
     ImGui::Text("Current viewport ID: %d", game->viewport_interface_id);
     ImGui::Text("Current sidebar ID: %d", game->sidebar_interface_id);
-
-    if( ImGui::Button("Toggle Example Interface") )
+    ImGui::Text("Selected tab: %d", game->selected_tab);
+    if( game->selected_tab >= 0 && game->selected_tab < 14 )
     {
-        if( game->viewport_interface_id == 10000 )
-        {
-            game->viewport_interface_id = -1;
-            printf("Example interface hidden\n");
-        }
-        else
-        {
-            game->viewport_interface_id = 10000;
-            printf("Example interface shown (ID: 10000)\n");
-        }
-    }
-
-    ImGui::SameLine();
-
-    if( ImGui::Button("Toggle Inventory") )
-    {
-        if( game->sidebar_interface_id == 10100 )
-        {
-            game->sidebar_interface_id = -1;
-            printf("Inventory hidden\n");
-        }
-        else
-        {
-            game->sidebar_interface_id = 10100;
-            printf("Inventory shown in sidebar (ID: 10100)\n");
-        }
-    }
-
-    ImGui::SameLine();
-
-    if( ImGui::Button("Cycle Sidebar Components") )
-    {
-        // Collect all component IDs
-        static int component_ids[1000];
-        static int component_count = 0;
-        static int current_index = -1;
-
-        // First time or refresh: scan all components
-        if( component_count == 0 || current_index == -1 )
-        {
-            component_count = 0;
-            struct DashMapIter* iter = buildcachedat_component_iter_new(game->buildcachedat);
-            int comp_id;
-            struct CacheDatConfigComponent* comp;
-            while( (comp = buildcachedat_component_iter_next(iter, &comp_id)) != NULL )
-            {
-                // Only include inventory components
-                if( comp->type == COMPONENT_TYPE_INV && component_count < 1000 )
-                {
-                    component_ids[component_count++] = comp_id;
-                }
-            }
-            dashmap_iter_free(iter);
-            printf("Found %d inventory components\n", component_count);
-            current_index = 0;
-        }
-
-        // Cycle to next component
-        if( component_count > 0 )
-        {
-            current_index = (current_index + 1) % component_count;
-            int selected_id = component_ids[current_index];
-            struct CacheDatConfigComponent* comp =
-                buildcachedat_get_component(game->buildcachedat, selected_id);
-
-            game->sidebar_interface_id = selected_id;
-
-            const char* type_name = "unknown";
-            if( comp )
-            {
-                if( comp->type == COMPONENT_TYPE_INV )
-                    type_name = "INV";
-            }
-
-            printf(
-                "Sidebar inventory component: ID=%d type=%s (%d/%d)\n",
-                selected_id,
-                type_name,
-                current_index + 1,
-                component_count);
-        }
-        else
-        {
-            printf("No components loaded yet\n");
-        }
-    }
-
-    ImGui::SameLine();
-    if( ImGui::Button("Hide Interface") )
-    {
-        game->viewport_interface_id = -1;
-    }
-
-    ImGui::SameLine();
-    if( ImGui::Button("Show 3214") )
-    {
-        game->sidebar_interface_id = 3214;
-        printf("Sidebar component set to 3214\n");
+        ImGui::Text("Tab %d interface ID: %d", game->selected_tab, game->tab_interface_id[game->selected_tab]);
     }
 
     ImGui::End();

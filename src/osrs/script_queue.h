@@ -9,7 +9,7 @@ enum ScriptKind
     SCRIPT_PKT_NPC_INFO,
     SCRIPT_PKT_REBUILD_NORMAL,
     SCRIPT_PKT_PLAYER_INFO,
-    SCRIPT_LOAD_INVENTORY_MODELS,  // New script for loading inventory models
+    SCRIPT_LOAD_INVENTORY_MODELS, // New script for loading inventory models
     SCRIPT_PKT_UPDATE_INV_FULL,
     SCRIPT_PKT_IF_SETTAB,
     SCRIPT_COUNT
@@ -70,7 +70,7 @@ struct ScriptArgsPktIfSetTab
 /* Args for load_inventory_models: no args needed */
 struct ScriptArgsLoadInventoryModels
 {
-    int dummy;  // Unused, but C doesn't allow empty structs
+    int dummy; // Unused, but C doesn't allow empty structs
 };
 
 /* Tagged union of all script argument structs (one member per runnable script). */

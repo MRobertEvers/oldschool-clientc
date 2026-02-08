@@ -178,12 +178,11 @@ obj_icon_get(
     // IMPORTANT: Make a copy first! dashmodel_new_from_cache_model moves ownership
     // and would invalidate the cached model. See entity_scenebuild.c:219 for reference.
     struct CacheModel* model_copy = model_new_copy(model);
-    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
-
     for( int i = 0; i < obj->recol_count; i++ )
     {
-        model_transform_recolor(dash_model, obj->recol_s[i], obj->recol_d[i]);
+        model_transform_recolor(model_copy, obj->recol_s[i], obj->recol_d[i]);
     }
+    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
 
     if( !dash_model )
     {
