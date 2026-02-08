@@ -259,10 +259,11 @@ obj_icon_get(
         for( int y = 31; y >= 0; y-- )
         {
             int idx = x + y * 32;
+            // Check: current pixel empty, and diagonal neighbor (x-1, y-1) has content
             if( icon->pixels_argb[idx] == 0 && x > 0 && y > 0 )
             {
-                int diag_idx = idx - 32 - 1; // (y-1) * 32 + (x-1)
-                if( icon->pixels_argb[diag_idx] > 0 )
+                int diag_idx = (x - 1) + (y - 1) * 32;  // x + (y-1)*32 - 1
+                if( icon->pixels_argb[diag_idx] > 0 )  // Changed from > 1 to > 0
                 {
                     icon->pixels_argb[idx] = 0x00301E0E; // RGB(48, 30, 14) = 3153952
                 }

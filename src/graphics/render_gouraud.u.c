@@ -8,6 +8,8 @@
 #include "render_clip.u.c"
 #include "render_face_alpha.u.c"
 #include "gouraud_branching_barycentric.c"
+#include "gouraud_branching_barycentric.c"
+
 // clang-format on
 
 static inline void
@@ -92,7 +94,6 @@ raster_face_gouraud_near_clip(
     int screen_width,
     int screen_height)
 {
-    return;
     int clipped_count = 0;
     int a = face_indices_a[face];
     int b = face_indices_b[face];
