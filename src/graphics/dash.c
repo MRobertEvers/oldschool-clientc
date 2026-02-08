@@ -1311,6 +1311,69 @@ dash3d_project_model(
     return cull;
 }
 
+static inline int
+dash3d_project6(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    struct ProjectedVertex center_projection;
+    int cull = DASHCULL_VISIBLE;
+
+    if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
+        return DASHCULL_ERROR;
+
+    cull = dash3d_fast_cull(view_port, model, position, camera, &center_projection);
+    if( cull != DASHCULL_VISIBLE )
+        return cull;
+
+    dash3d_calculate_aabb(&dash->aabb, model, position, view_port, camera);
+
+    cull = dash3d_aabb_cull(&dash->aabb, view_port, camera);
+    if( cull != DASHCULL_VISIBLE )
+        return cull;
+
+    project_vertices_array6(
+        dash->orthographic_vertices_x,
+        dash->orthographic_vertices_y,
+        dash->orthographic_vertices_z,
+        dash->screen_vertices_x,
+        dash->screen_vertices_y,
+        dash->screen_vertices_z,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
+        model->vertex_count,
+        position->pitch,
+        position->yaw,
+        position->roll,
+        center_projection.z,
+        position->x,
+        position->y,
+        position->z,
+        camera->near_plane_z,
+        camera->fov_rpi2048,
+        camera->pitch,
+        camera->yaw,
+        camera->roll);
+
+    return DASHCULL_VISIBLE;
+}
+
+int
+dash3d_project_model6(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    int cull = dash3d_project6(dash, model, position, view_port, camera);
+    return cull;
+}
+
 void
 dash3d_raster_projected_model(
     struct DashGraphics* dash,

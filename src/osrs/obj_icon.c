@@ -143,16 +143,6 @@ obj_icon_get(
     view_port.y_center = 16;
     view_port.stride = 32;
 
-    // Calculate zoom (matching ObjType.ts lines 435-440)
-    int zoom = obj->zoom2d;
-    if( zoom == 0 )
-        zoom = 2000; // Default zoom
-
-    // For now, use simplified projection without sin/cos tables
-    // TODO: Need to access sin/cos tables from DashGraphics or use math.h
-    int sinPitch = 0;    // Simplified for now
-    int cosPitch = zoom; // Use zoom as the main distance
-
     // Setup camera for orthographic-style projection (matching Pix3D.init2D)
     struct DashCamera camera;
     memset(&camera, 0, sizeof(camera));
@@ -164,14 +154,14 @@ obj_icon_get(
 
     // Position for rendering - use NEGATIVE Z to place model in front of camera
     struct DashPosition position = { 0 };
-    position.pitch = obj->zan2d & 0x7FF; // Use obj rotations directly
-    position.yaw = obj->xan2d & 0x7FF;
-    position.roll = obj->yan2d & 0x7FF;
+    position.pitch = obj->xan2d; // Use obj rotations directly
+    position.yaw = obj->yan2d;
+    position.roll = obj->zan2d;
 
     // Position the model in front of the camera
-    position.x = 0;
-    position.y = 0;
-    position.z = 1600; // NEGATIVE Z puts it in front of camera
+    position.x = obj->xof2d;
+    position.y = obj->yof2d;
+    position.z = obj->zoom2d; // NEGATIVE Z puts it in front of camera
 
     // Convert CacheModel to DashModel using the proper utility function
     // IMPORTANT: Make a copy first! dashmodel_new_from_cache_model moves ownership
@@ -193,7 +183,8 @@ obj_icon_get(
     printf("  Normals and lighting calculated\n");
 
     // Project and raster the model (matching model.drawSimple)
-    int cull = dash3d_project_model(game->sys_dash, dash_model, &position, &view_port, &camera);
+    // Use dash3d_project_model6 for full 6DOF support (pitch, yaw, roll)
+    int cull = dash3d_project_model6(game->sys_dash, dash_model, &position, &view_port, &camera);
 
     if( cull == DASHCULL_VISIBLE )
     {

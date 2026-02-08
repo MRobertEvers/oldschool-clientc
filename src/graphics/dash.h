@@ -315,6 +315,14 @@ dash3d_project_model(
     struct DashViewPort* view_port,
     struct DashCamera* camera);
 
+int
+dash3d_project_model6(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera);
+
 void
 dash3d_raster_projected_model(
     struct DashGraphics* dash,

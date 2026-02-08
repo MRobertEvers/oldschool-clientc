@@ -1993,4 +1993,86 @@ project_vertices_array(
 }
 #endif
 
+/**
+ * Project vertices array with full 6DOF support (pitch, yaw, roll for model and camera)
+ * Uses the full project_orthographic function instead of project_orthographic_fast
+ * This function is available for all platforms, regardless of SIMD support
+ */
+static inline void
+project_vertices_array6(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    int num_vertices,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    for( int i = 0; i < num_vertices; i++ )
+    {
+        struct ProjectedVertex projected_vertex;
+        
+        // Use full 6DOF projection
+        projected_vertex = project_orthographic(
+            vertex_x[i],
+            vertex_y[i],
+            vertex_z[i],
+            model_pitch,
+            model_yaw,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll);
+
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+        int z = projected_vertex.z;
+
+        orthographic_vertices_x[i] = x;
+        orthographic_vertices_y[i] = y;
+        orthographic_vertices_z[i] = z;
+
+        // Apply perspective projection
+        if( z < near_plane_z )
+        {
+            screen_vertices_x[i] = -5000;
+            screen_vertices_y[i] = -5000;
+            screen_vertices_z[i] = z - model_mid_z;
+        }
+        else
+        {
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            screen_vertices_x[i] = SCALE_UNIT(x) / z;
+            screen_vertices_y[i] = SCALE_UNIT(y) / z;
+            screen_vertices_z[i] = z - model_mid_z;
+        }
+    }
+}
+
 #endif
