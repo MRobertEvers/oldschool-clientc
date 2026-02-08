@@ -602,6 +602,47 @@ interface_find_scrollbar_at(
         mouse_x, mouse_y, out_scrollbar_y, out_height, out_scroll_height);
 }
 
+/* Client.ts handleScrollInput (9825-9831): up arrow scrollPosition -= dragCycles*4, down += dragCycles*4.
+ * step = rate (4) * game_cycles for hold scrolling. */
+#define SCROLLBAR_ARROW_DELTA 4
+
+void
+interface_handle_scrollbar_arrow_step(
+    struct GGame* game,
+    int component_id,
+    int max_scroll,
+    int up_not_down,
+    int step)
+{
+    if( component_id < 0 || component_id >= MAX_COMPONENT_SCROLL_IDS || step <= 0 )
+        return;
+    int pos = game->component_scroll_position[component_id];
+    if( up_not_down )
+    {
+        pos -= step;
+        if( pos < 0 )
+            pos = 0;
+    }
+    else
+    {
+        pos += step;
+        if( max_scroll > 0 && pos > max_scroll )
+            pos = max_scroll;
+    }
+    game->component_scroll_position[component_id] = pos;
+}
+
+void
+interface_handle_scrollbar_arrow(
+    struct GGame* game,
+    int component_id,
+    int max_scroll,
+    int up_not_down)
+{
+    interface_handle_scrollbar_arrow_step(
+        game, component_id, max_scroll, up_not_down, SCROLLBAR_ARROW_DELTA);
+}
+
 void
 interface_handle_scrollbar_click(
     struct GGame* game,

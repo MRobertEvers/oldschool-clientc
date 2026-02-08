@@ -24,6 +24,7 @@ LibToriRS_GameProcessInput(
 
     game->mouse_x = input->mouse_x;
     game->mouse_y = input->mouse_y;
+    game->mouse_button_down = input->mouse_button_down;
 
     for( int i = 0; i < time_quanta; i++ )
     {

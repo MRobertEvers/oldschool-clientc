@@ -83,6 +83,7 @@ struct GGame
     int mouse_clicked;
     int mouse_clicked_x;
     int mouse_clicked_y;
+    int mouse_button_down; /* 1 while left button held, 0 on release */
     int mouse_x;
     int mouse_y;
 
@@ -204,6 +205,9 @@ struct GGame
     // Hovered component id for current draw area (viewport/sidebar/chat). Set before drawing;
     // components with hide==true are only drawn when component->id == current_hovered_interface_id.
     int current_hovered_interface_id;
+
+    // For scrollbar arrow hold: cycles_elapsed when we last applied scroll (so step = rate * delta).
+    int scroll_arrow_hold_cycles_last;
 
     // Item selection (for inventory clicks)
     int selected_item;

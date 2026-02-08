@@ -87,6 +87,7 @@ LibToriRS_GameNew(
         game->component_scroll_position[i] = 0;
 
     game->current_hovered_interface_id = -1;
+    game->scroll_arrow_hold_cycles_last = 0;
 
     game->running = true;
 

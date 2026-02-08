@@ -135,6 +135,11 @@ Platform2_OSX_SDL2_PollEvents(
     input->mouse_clicked = 0;
     input->mouse_clicked_x = -1;
     input->mouse_clicked_y = -1;
+    /* Sync mouse_button_down with actual SDL state so we don't miss events */
+    {
+        Uint32 buttons = SDL_GetMouseState(nullptr, nullptr);
+        input->mouse_button_down = (buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) ? 1 : 0;
+    }
 
     uint64_t current_frame_time = SDL_GetTicks64();
     input->time_delta_accumulator_seconds +=
@@ -193,14 +198,9 @@ Platform2_OSX_SDL2_PollEvents(
         }
         else if( event.type == SDL_MOUSEBUTTONDOWN )
         {
-            if( !imgui_wants_mouse )
+            if( !imgui_wants_mouse && event.button.button == SDL_BUTTON_LEFT )
             {
-                // event.button.x,
-                // event.button.y,
-                // input->mouse_clicked_x = event.button.x;
-                // input->mouse_clicked_y = event.button.y;
-                // Mouse click coordinates are stored in input if needed
-                // For now, we just update the mouse position
+                input->mouse_button_down = 1;
                 input->mouse_clicked = 1;
                 transform_mouse_coordinates(
                     event.button.x,
@@ -209,6 +209,11 @@ Platform2_OSX_SDL2_PollEvents(
                     &input->mouse_clicked_y,
                     platform);
             }
+        }
+        else if( event.type == SDL_MOUSEBUTTONUP )
+        {
+            if( event.button.button == SDL_BUTTON_LEFT )
+                input->mouse_button_down = 0;
         }
         else if( event.type == SDL_KEYDOWN )
         {

@@ -100,6 +100,23 @@ interface_find_scrollbar_at(
     int* out_height,
     int* out_scroll_height);
 
+// Up/down arrow: scroll by step pixels. step = rate * game_cycles when holding.
+void
+interface_handle_scrollbar_arrow_step(
+    struct GGame* game,
+    int component_id,
+    int max_scroll,
+    int up_not_down,
+    int step);
+
+// Single click: scroll by SCROLLBAR_ARROW_DELTA (4 px).
+void
+interface_handle_scrollbar_arrow(
+    struct GGame* game,
+    int component_id,
+    int max_scroll,
+    int up_not_down);
+
 void
 interface_handle_scrollbar_click(
     struct GGame* game,

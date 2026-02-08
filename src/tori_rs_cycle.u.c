@@ -771,6 +771,64 @@ LibToriRS_GameStep(
 
     LibToriRS_GameProcessInput(game, input);
 
+    /* Scrollbar arrow hold: while mouse is down and over up/down arrow, scroll at rate * game_cycles */
+    if( game->mouse_button_down && game->mouse_x >= 553 && game->mouse_x < 763 &&
+        game->mouse_y >= 205 && game->mouse_y < 498 )
+    {
+        struct CacheDatConfigComponent* hold_component = NULL;
+        int hold_root_x = 553, hold_root_y = 205;
+        if( game->sidebar_interface_id != -1 )
+        {
+            hold_component = buildcachedat_get_component(
+                game->buildcachedat, game->sidebar_interface_id);
+        }
+        else if( game->selected_tab >= 0 && game->selected_tab < 14 &&
+                 game->tab_interface_id[game->selected_tab] != -1 )
+        {
+            hold_component = buildcachedat_get_component(
+                game->buildcachedat, game->tab_interface_id[game->selected_tab]);
+        }
+        if( hold_component )
+        {
+            int sb_y = 0, sb_height = 0, sb_scroll_height = 0;
+            int scrollbar_hit = interface_find_scrollbar_at(
+                game, hold_component, hold_root_x, hold_root_y,
+                game->mouse_x, game->mouse_y,
+                &sb_y, &sb_height, &sb_scroll_height);
+            if( scrollbar_hit >= 0 )
+            {
+                int local_y = game->mouse_y - sb_y;
+                int max_scroll = sb_scroll_height - sb_height;
+                if( max_scroll < 0 )
+                    max_scroll = 0;
+                if( local_y < 16 )
+                {
+                    int delta = game->cycles_elapsed - game->scroll_arrow_hold_cycles_last;
+                    int step = 4 * (delta > 0 ? delta : 1);
+                    interface_handle_scrollbar_arrow_step(
+                        game, scrollbar_hit, max_scroll, 1, step);
+                    game->scroll_arrow_hold_cycles_last = game->cycles_elapsed;
+                }
+                else if( local_y >= sb_height - 16 )
+                {
+                    int delta = game->cycles_elapsed - game->scroll_arrow_hold_cycles_last;
+                    int step = 4 * (delta > 0 ? delta : 1);
+                    interface_handle_scrollbar_arrow_step(
+                        game, scrollbar_hit, max_scroll, 0, step);
+                    game->scroll_arrow_hold_cycles_last = game->cycles_elapsed;
+                }
+                else
+                    game->scroll_arrow_hold_cycles_last = game->cycles_elapsed;
+            }
+            else
+                game->scroll_arrow_hold_cycles_last = game->cycles_elapsed;
+        }
+        else
+            game->scroll_arrow_hold_cycles_last = game->cycles_elapsed;
+    }
+    else
+        game->scroll_arrow_hold_cycles_last = game->cycles_elapsed;
+
     // Handle interface clicks (tab bar, then inventory items, etc.)
     if( game->mouse_clicked )
     {
@@ -893,8 +951,18 @@ LibToriRS_GameStep(
                     &sb_scroll_height);
                 if( scrollbar_hit >= 0 )
                 {
-                    interface_handle_scrollbar_click(
-                        game, scrollbar_hit, sb_y, sb_height, sb_scroll_height, mouse_y);
+                    /* Client.ts: top 16px = up arrow, bottom 16px = down arrow, else track */
+                    int local_y = mouse_y - sb_y;
+                    int max_scroll = sb_scroll_height - sb_height;
+                    if( max_scroll < 0 )
+                        max_scroll = 0;
+                    if( local_y < 16 )
+                        interface_handle_scrollbar_arrow(game, scrollbar_hit, max_scroll, 1);
+                    else if( local_y >= sb_height - 16 )
+                        interface_handle_scrollbar_arrow(game, scrollbar_hit, max_scroll, 0);
+                    else
+                        interface_handle_scrollbar_click(
+                            game, scrollbar_hit, sb_y, sb_height, sb_scroll_height, mouse_y);
                     game->mouse_clicked = false;
                 }
                 else
