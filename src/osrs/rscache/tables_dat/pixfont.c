@@ -127,7 +127,10 @@ cache_dat_pixfont_new_decode(
         }
     }
 
-    // space is the 94th char. It has the same offset as the 8th char.
+    // space is the 94th char (index 93). It often has empty/small mask so advance can become 0;
+    // ensure space advances by at least the same as digit '8' so spaces are visible between words.
+    if( pixfont->char_advance[93] < 4 )
+        pixfont->char_advance[93] = pixfont->char_advance[8];
     pixfont->char_advance[94] = pixfont->char_advance[8];
     for( int i = 0; i < 256; i++ )
     {

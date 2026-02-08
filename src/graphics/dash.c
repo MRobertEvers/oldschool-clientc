@@ -2204,7 +2204,10 @@ dashfont_draw_text(
                 stride - w,
                 color_rgb);
         }
-        x += pixfont->char_advance[c];
+        int adv = pixfont->char_advance[c];
+        if( adv <= 0 )
+            adv = 4; /* space (and any empty glyph) must still advance */
+        x += adv;
     }
 }
 
@@ -2244,7 +2247,10 @@ dashfont_draw_text_clipped(
                 clip_left, clip_top, clip_right, clip_bottom,
                 color_rgb);
         }
-        x += pixfont->char_advance[c];
+        int adv = pixfont->char_advance[c];
+        if( adv <= 0 )
+            adv = 4; /* space (and any empty glyph) must still advance */
+        x += adv;
     }
 }
 
@@ -2258,7 +2264,12 @@ dashfont_text_width(struct DashPixFont* pixfont, uint8_t* text)
         uint8_t code_point = text[i];
         int c = DASH_FONT_CHARCODESET[code_point];
         if( c < DASH_FONT_CHAR_COUNT )
-            width += pixfont->char_advance[c];
+        {
+            int adv = pixfont->char_advance[c];
+            if( adv <= 0 )
+                adv = 4; /* space (and any empty glyph) must still advance */
+            width += adv;
+        }
     }
     return width;
 }
