@@ -213,6 +213,7 @@ l_host_io_asset_config_overlay_load(lua_State* L)
     lua_pushinteger(L, req_id);
     return 1;
 }
+
 static int
 l_host_io_asset_texture_definitions_load(lua_State* L)
 {
@@ -221,6 +222,7 @@ l_host_io_asset_texture_definitions_load(lua_State* L)
     lua_pushinteger(L, req_id);
     return 1;
 }
+
 static int
 l_host_io_asset_spritepack_load(lua_State* L)
 {
@@ -622,6 +624,18 @@ l_buildcachedat_load_interfaces(lua_State* L)
 }
 
 static int
+l_buildcachedat_load_component_sprites_from_media(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(2));
+
+    buildcachedat_loader_load_component_sprites_from_media(buildcachedat, game);
+
+    return 0;
+}
+
+static int
 l_buildcachedat_cache_textures(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
@@ -757,6 +771,7 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "get_obj",                                           l_buildcachedat_get_obj                             },
     { "cache_model",                                       l_buildcachedat_cache_model                         },
     { "load_interfaces",                                   l_buildcachedat_load_interfaces                     },
+    { "load_component_sprites_from_media",                 l_buildcachedat_load_component_sprites_from_media   },
     { "cache_textures",                                    l_buildcachedat_cache_textures                      },
     { "init_sequences_from_config_jagfile",                l_buildcachedat_init_sequences_from_config_jagfile  },
     { "get_animbaseframes_count_from_versionlist_jagfile",
@@ -1481,6 +1496,7 @@ l_gameproto_get_player_appearance_ids(lua_State* L)
     reader.current_op = 0;
     reader.max_ops = 2048;
     struct PktPlayerInfoOp ops[2048];
+
     int count = pkt_player_info_reader_read(&reader, &item->packet._player_info, ops, 2048);
 
     lua_newtable(L); /* idk_ids */

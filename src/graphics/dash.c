@@ -1735,6 +1735,8 @@ dashmodel_new(void)
     return model;
 }
 
+
+
 void
 dashmodel_free(struct DashModel* model)
 {
@@ -2121,6 +2123,8 @@ dashfont_draw_text(
             int w = pixfont->char_mask_width[c];
             int h = pixfont->char_mask_height[c];
             int* mask = pixfont->char_mask[c];
+            /* Row-major: pixel (px, py) is at py*stride + px; include y so text draws at correct row */
+            int dst_offset = y * stride + x + pixfont->char_offset_x[c] + pixfont->char_offset_y[c] * stride;
             dashfont_draw_mask(
                 w,
                 h,
@@ -2128,12 +2132,27 @@ dashfont_draw_text(
                 0,
                 0,
                 pixels,
-                x + pixfont->char_offset_x[c] + pixfont->char_offset_y[c] * stride,
+                dst_offset,
                 stride - w,
                 color_rgb);
         }
         x += pixfont->char_advance[c];
     }
+}
+
+int
+dashfont_text_width(struct DashPixFont* pixfont, uint8_t* text)
+{
+    int width = 0;
+    size_t length = strlen((char*)text);
+    for( size_t i = 0; i < length; i++ )
+    {
+        uint8_t code_point = text[i];
+        int c = DASH_FONT_CHARCODESET[code_point];
+        if( c < DASH_FONT_CHAR_COUNT )
+            width += pixfont->char_advance[c];
+    }
+    return width;
 }
 
 int

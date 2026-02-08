@@ -99,6 +99,7 @@ endif()
         src/osrs/gameproto_process.c
         src/osrs/game_entity.c
         src/osrs/loginproto.c
+        src/osrs/datatypes/appearances.c
         src/osrs/datatypes/player_appearance.c
         src/osrs/packets/pkt_player_info.c
         src/osrs/packets/pkt_npc_info.c
@@ -169,6 +170,8 @@ endif()
     endif()
 
 set_target_properties(osx PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )

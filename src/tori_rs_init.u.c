@@ -12,7 +12,7 @@
 #include "osrs/lua_scripts.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
-#include "tori_rs.h"
+// #include "tori_rs.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -69,20 +69,23 @@ LibToriRS_GameNew(
     game->viewport_interface_id = -1;
     game->sidebar_interface_id = -1;
     game->chat_interface_id = -1;
-    
+
     // Initialize tab system
     game->selected_tab = 3; // Default to inventory tab (tab 3)
     for( int i = 0; i < 14; i++ )
     {
         game->tab_interface_id[i] = -1;
     }
-    
+
     // Initialize item selection
     game->selected_item = -1;
     game->selected_interface = -1;
     game->selected_area = 0;
     game->selected_cycle = 0;
-    
+
+    for( int i = 0; i < MAX_COMPONENT_SCROLL_IDS; i++ )
+        game->component_scroll_position[i] = 0;
+
     game->running = true;
 
     game->players[ACTIVE_PLAYER_SLOT].alive = false;

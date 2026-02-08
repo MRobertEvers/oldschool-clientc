@@ -244,6 +244,9 @@
         "config_npc.h": "c",
         "config_component.h": "c",
         "lauxlib.h": "c",
-        "tori_rs.h": "c"
+        "tori_rs.h": "c",
+        "tori_rs_render.h": "c",
+        "gameproto_process.h": "c",
+        "loginproto.h": "c"
     },
 }

@@ -497,7 +497,80 @@ buildcachedat_loader_cache_media(
     game->sprite_backvmid3 = load_sprite_pix8(filelist, "backvmid3.dat", index_file_idx, 0);
     game->sprite_backhmid2 = load_sprite_pix8(filelist, "backhmid2.dat", index_file_idx, 0);
 
-    filelist_dat_free(filelist);
+    /* Keep filelist so we can load component sprites when interfaces are loaded */
+    if( game->media_filelist )
+        filelist_dat_free(game->media_filelist);
+    game->media_filelist = filelist;
+}
+
+/** Try to load a single component sprite by name (e.g. "miscgraphics,0") from media filelist. */
+static void
+load_one_component_sprite(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
+    struct FileListDat* filelist,
+    int index_file_idx,
+    const char* sprite_name)
+{
+    char filename_buf[256];
+    int sprite_idx = 0;
+    if( !sprite_name || !sprite_name[0] )
+        return;
+    if( buildcachedat_get_component_sprite(buildcachedat, sprite_name) )
+        return; /* already loaded */
+    if( sscanf(sprite_name, "%255[^,],%d", filename_buf, &sprite_idx) != 2 )
+    {
+        snprintf(filename_buf, sizeof(filename_buf), "%s", sprite_name);
+        sprite_idx = 0;
+    }
+    size_t len = strlen(filename_buf);
+    if( len + 5 > sizeof(filename_buf) )
+        return;
+    if( len < 4 || strcmp(filename_buf + len - 4, ".dat") != 0 )
+    {
+        memcpy(filename_buf + len, ".dat", 4);
+        filename_buf[len + 4] = '\0';
+    }
+    struct DashSprite* sprite = load_sprite_pix32(filelist, filename_buf, index_file_idx, sprite_idx);
+    if( !sprite )
+        sprite = load_sprite_pix8(filelist, filename_buf, index_file_idx, sprite_idx);
+    if( sprite )
+        buildcachedat_add_component_sprite(buildcachedat, sprite_name, sprite);
+}
+
+void
+buildcachedat_loader_load_component_sprites_from_media(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game)
+{
+    struct FileListDat* filelist = game->media_filelist;
+    if( !filelist )
+        return;
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+    if( index_file_idx == -1 )
+        return;
+
+    struct DashMapIter* iter = buildcachedat_component_iter_new(buildcachedat);
+    int id;
+    struct CacheDatConfigComponent* component;
+    while( (component = buildcachedat_component_iter_next(iter, &id)) != NULL )
+    {
+        load_one_component_sprite(
+            buildcachedat, game, filelist, index_file_idx, component->graphic);
+        load_one_component_sprite(
+            buildcachedat, game, filelist, index_file_idx, component->activeGraphic);
+        if( component->invSlotGraphic )
+        {
+            for( int i = 0; i < 20; i++ )
+            {
+                if( component->invSlotGraphic[i] )
+                    load_one_component_sprite(
+                        buildcachedat, game, filelist, index_file_idx,
+                        component->invSlotGraphic[i]);
+            }
+        }
+    }
+    dashmap_iter_free(iter);
 }
 
 void

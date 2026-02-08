@@ -429,6 +429,9 @@ dash2d_blit_sprite(
 void
 dashsprite_free(struct DashSprite* sprite);
 
+int
+dashfont_text_width(struct DashPixFont* pixfont, uint8_t* text);
+
 void
 dashfont_draw_text(
     struct DashPixFont* pixfont,

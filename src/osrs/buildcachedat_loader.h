@@ -105,6 +105,13 @@ buildcachedat_loader_load_interfaces(
     void* data,
     int data_size);
 
+/** Load sprites for all component graphics (graphic, activeGraphic, invSlotGraphic) from
+ * game->media_filelist and register them. No-op if media_filelist is NULL. */
+void
+buildcachedat_loader_load_component_sprites_from_media(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game);
+
 void
 buildcachedat_loader_finalize_scene(
     struct BuildCacheDat* buildcachedat,

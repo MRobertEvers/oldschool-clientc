@@ -802,8 +802,10 @@ buildcachedat_add_component_sprite(
     const char* sprite_name,
     struct DashSprite* sprite)
 {
+    char buffer[65] = { 0 };
+    strncpy(buffer, sprite_name, 64);
     struct ComponentSpriteEntry* sprite_entry = (struct ComponentSpriteEntry*)dashmap_search(
-        buildcachedat->component_sprites_hmap, sprite_name, DASHMAP_INSERT);
+        buildcachedat->component_sprites_hmap, buffer, DASHMAP_INSERT);
     assert(sprite_entry && "Component sprite must be inserted into hmap");
     strncpy(sprite_entry->sprite_name, sprite_name, 63);
     sprite_entry->sprite_name[63] = '\0'; // Ensure null termination
@@ -815,11 +817,8 @@ buildcachedat_get_component_sprite(
     struct BuildCacheDat* buildcachedat,
     const char* sprite_name)
 {
-    // 1688 is wornicons
-    // 3214 is inv.
     char buffer[65] = { 0 };
     strncpy(buffer, sprite_name, 64);
-    printf("buildcachedat_get_component_sprite: %s\n", buffer);
     struct ComponentSpriteEntry* sprite_entry = (struct ComponentSpriteEntry*)dashmap_search(
         buildcachedat->component_sprites_hmap, buffer, DASHMAP_FIND);
     if( !sprite_entry )

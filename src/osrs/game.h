@@ -24,6 +24,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct FileListDat;
+
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
 
@@ -104,6 +106,9 @@ struct GGame
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
     struct CacheDat* cache_dat; // Raw cache.dat accessor for synchronous loading
+
+    /* Media filelist kept after cache_media so we can load component sprites when interfaces load */
+    struct FileListDat* media_filelist; /* forward decl; include osrs/rscache/filelist.h when using */
 
     /* Used by init_scene (BuildCache path) when driving from Lua; NULL when not in use */
     struct DashMap* init_scenery_configmap;
@@ -191,7 +196,11 @@ struct GGame
     // Tab system
     int selected_tab;
     int tab_interface_id[14];
-    
+
+    // Scroll position per component (for scrollable layers). Index by component id.
+#define MAX_COMPONENT_SCROLL_IDS 16384
+    int component_scroll_position[MAX_COMPONENT_SCROLL_IDS];
+
     // Item selection (for inventory clicks)
     int selected_item;
     int selected_interface;

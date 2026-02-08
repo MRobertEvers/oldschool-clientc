@@ -21,6 +21,7 @@ if not _G.interfaces_loaded_flag then
     local success, param_a, param_b, data_size, data = HostIOUtils.await(interfaces_promise)
     if success then
         BuildCacheDat.load_interfaces(data_size, data)
+        BuildCacheDat.load_component_sprites_from_media()
         print("Interface components loaded successfully")
         _G.interfaces_loaded_flag = true
     else

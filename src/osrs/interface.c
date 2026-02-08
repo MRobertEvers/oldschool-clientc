@@ -204,9 +204,32 @@ interface_draw_component(
         switch( child->type )
         {
         case COMPONENT_TYPE_LAYER:
+        {
+            /* Use scroll position (Client.ts scrollPosition), not total scroll height */
+            int scroll_pos = 0;
+            if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
+                scroll_pos = game->component_scroll_position[child_id];
+            int max_scroll = child->scroll - child->height;
+            if( max_scroll < 0 )
+                max_scroll = 0;
+            if( scroll_pos > max_scroll )
+                scroll_pos = max_scroll;
+            if( scroll_pos < 0 )
+                scroll_pos = 0;
             interface_draw_component_layer(
-                game, child, childX, childY, child->scroll, pixel_buffer, stride);
+                game, child, childX, childY, scroll_pos, pixel_buffer, stride);
+            if( child->scroll > child->height )
+                interface_draw_scrollbar(
+                    game,
+                    childX + child->width,
+                    childY,
+                    scroll_pos,
+                    child->scroll,
+                    child->height,
+                    pixel_buffer,
+                    stride);
             break;
+        }
         case COMPONENT_TYPE_RECT:
             interface_draw_component_rect(game, child, childX, childY, pixel_buffer, stride);
             break;
@@ -241,6 +264,124 @@ interface_draw_component_layer(
 {
     // Recursive call to draw this layer and its children
     interface_draw_component(game, component, x, y, scroll_y, pixel_buffer, stride);
+}
+
+/* Recursive hit-test for scrollbar; mirrors layer child loop in interface_draw_component.
+ * Returns component id of scrollable layer whose scrollbar contains (mouse_x, mouse_y), or -1.
+ * On hit, sets *out_scrollbar_y, *out_height, *out_scroll_height for that layer. */
+static int
+find_scrollbar_at_recursive(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int x,
+    int y,
+    int scroll_y,
+    int mouse_x,
+    int mouse_y,
+    int* out_scrollbar_y,
+    int* out_height,
+    int* out_scroll_height)
+{
+    if( component->children && component->childX && component->childY )
+    {
+        for( int i = 0; i < component->children_count; i++ )
+        {
+            int child_id = component->children[i];
+            int childX = component->childX[i] + x;
+            int childY = component->childY[i] + y - scroll_y;
+
+            struct CacheDatConfigComponent* child =
+                buildcachedat_get_component(game->buildcachedat, child_id);
+            if( !child )
+                continue;
+
+            childX += child->x;
+            childY += child->y;
+
+            if( child->type == COMPONENT_TYPE_LAYER )
+            {
+                int scroll_pos = 0;
+                if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
+                    scroll_pos = game->component_scroll_position[child_id];
+                int max_scroll = child->scroll - child->height;
+                if( max_scroll < 0 )
+                    max_scroll = 0;
+                if( scroll_pos > max_scroll )
+                    scroll_pos = max_scroll;
+                if( scroll_pos < 0 )
+                    scroll_pos = 0;
+
+                int hit = find_scrollbar_at_recursive(
+                    game, child, childX, childY, scroll_pos,
+                    mouse_x, mouse_y, out_scrollbar_y, out_height, out_scroll_height);
+                if( hit >= 0 )
+                    return hit;
+            }
+        }
+    }
+
+    if( component->type == COMPONENT_TYPE_LAYER && component->scroll > component->height )
+    {
+        int sb_x = x + component->width;
+        if( mouse_x >= sb_x && mouse_x < sb_x + 16 &&
+            mouse_y >= y && mouse_y < y + component->height )
+        {
+            *out_scrollbar_y = y;
+            *out_height = component->height;
+            *out_scroll_height = component->scroll;
+            return component->id;
+        }
+    }
+    return -1;
+}
+
+int
+interface_find_scrollbar_at(
+    struct GGame* game,
+    struct CacheDatConfigComponent* root,
+    int root_x,
+    int root_y,
+    int mouse_x,
+    int mouse_y,
+    int* out_scrollbar_y,
+    int* out_height,
+    int* out_scroll_height)
+{
+    if( !root || root->type != COMPONENT_TYPE_LAYER )
+        return -1;
+    return find_scrollbar_at_recursive(
+        game, root, root_x, root_y, 0,
+        mouse_x, mouse_y, out_scrollbar_y, out_height, out_scroll_height);
+}
+
+void
+interface_handle_scrollbar_click(
+    struct GGame* game,
+    int component_id,
+    int scrollbar_y,
+    int height,
+    int scroll_height,
+    int click_y)
+{
+    int track_h = height - 32;
+    if( track_h <= 0 )
+        return;
+    int max_scroll = scroll_height - height;
+    if( max_scroll <= 0 )
+        return;
+    /* Map click Y (screen) to position along track: track goes from scrollbar_y+16 to scrollbar_y+height-16 */
+    int local_y = click_y - (scrollbar_y + 16);
+    if( local_y < 0 )
+        local_y = 0;
+    if( local_y > track_h )
+        local_y = track_h;
+    int new_pos = (int)((long)max_scroll * (long)local_y / (long)track_h);
+    if( new_pos < 0 )
+        new_pos = 0;
+    if( new_pos > max_scroll )
+        new_pos = max_scroll;
+    if( component_id >= 0 && component_id < MAX_COMPONENT_SCROLL_IDS )
+        game->component_scroll_position[component_id] = new_pos;
 }
 
 void
@@ -295,7 +436,6 @@ interface_draw_component_text(
     if( !component->text )
         return;
 
-    // Get the font based on component->font
     struct DashPixFont* font = NULL;
     switch( component->font )
     {
@@ -320,11 +460,92 @@ interface_draw_component_text(
         return;
 
     int colour = component->colour;
+    /* Client.ts 9614-9681: first line at childY + font.height2d, then lineY += font.height2d per
+     * line */
+    int line_y = y + font->height2d;
+    const char* rest = component->text;
+    char line_buf[512];
+    int line_buf_size = (int)sizeof(line_buf);
 
-    // For now, just draw the text at the position
-    // TODO: Handle center alignment, shadowed text, word wrapping, etc.
-    dashfont_draw_text(
-        font, (uint8_t*)component->text, x, y + font->height2d, colour, pixel_buffer, stride);
+    while( rest[0] != '\0' )
+    {
+        /* Find end of line: Client.ts uses indexOf('\\n') -> backslash then 'n' */
+        const char* line_end = rest;
+        while( line_end[0] != '\0' && !(line_end[0] == '\\' && line_end[1] == 'n') )
+            line_end++;
+        int line_len = (int)(line_end - rest);
+        if( line_len >= line_buf_size )
+            line_len = line_buf_size - 1;
+        if( line_len > 0 )
+        {
+            memcpy(line_buf, rest, (size_t)line_len);
+            line_buf[line_len] = '\0';
+
+            int draw_x;
+            if( component->center )
+            {
+                int text_w = dashfont_text_width(font, (uint8_t*)line_buf);
+                draw_x = x + (component->width / 2) - (text_w / 2);
+            }
+            else
+            {
+                draw_x = x;
+            }
+
+            if( component->shadowed )
+            {
+                dashfont_draw_text(
+                    font,
+                    (uint8_t*)line_buf,
+                    draw_x + 1,
+                    line_y + 1,
+                    0x000000,
+                    pixel_buffer,
+                    stride);
+            }
+            dashfont_draw_text(
+                font, (uint8_t*)line_buf, draw_x, line_y, colour, pixel_buffer, stride);
+        }
+        line_y += font->height2d;
+        rest = (line_end[0] == '\\' && line_end[1] == 'n') ? line_end + 2 : line_end;
+        if( rest[0] == '\0' )
+            break;
+    }
+}
+
+void
+interface_draw_scrollbar(
+    struct GGame* game,
+    int x,
+    int y,
+    int scroll_pos,
+    int scroll_height,
+    int height,
+    int* pixel_buffer,
+    int stride)
+{
+    /* Client.ts drawScrollbar: 16px wide, track from y+16 to y+height-16, grip sized by ratio */
+    if( scroll_height <= height )
+        return;
+    int track_h = height - 32;
+    if( track_h <= 0 )
+        return;
+    int grip_size = (track_h * height) / scroll_height;
+    if( grip_size < 8 )
+        grip_size = 8;
+    if( grip_size > track_h )
+        grip_size = track_h;
+    int range = scroll_height - height;
+    int grip_y = range > 0 ? ((track_h - grip_size) * scroll_pos) / range : 0;
+    if( grip_y < 0 )
+        grip_y = 0;
+    if( grip_y > track_h - grip_size )
+        grip_y = track_h - grip_size;
+    /* Track (Client.ts SCROLLBAR_TRACK) */
+    dash2d_fill_rect(pixel_buffer, stride, x, y + 16, 16, track_h, 0x4D4233);
+    /* Grip (Client.ts SCROLLBAR_GRIP) */
+    dash2d_fill_rect(pixel_buffer, stride, x, y + 16 + grip_y, 16, grip_size, 0x6D6253);
+    (void)game;
 }
 
 void
@@ -339,8 +560,6 @@ interface_draw_component_graphic(
     if( !component->graphic )
         return;
 
-    // Get the sprite from the cache
-    printf("DEBUG GRAPHIC: Getting sprite for %s\n", component->graphic);
     struct DashSprite* sprite =
         buildcachedat_get_component_sprite(game->buildcachedat, component->graphic);
 
@@ -604,18 +823,22 @@ interface_handle_inv_button(
     int component_id)
 {
     // Based on Client.ts: INV_BUTTON1-5 (component iop) and OPHELD1-5 (object iop)
-    // Component options: 602=INV_BUTTON1, 596=INV_BUTTON2, 22=INV_BUTTON3, 892=INV_BUTTON4, 415=INV_BUTTON5
-    // Object options:    405=OPHELD1, 38=OPHELD2, 422=OPHELD3, 478=OPHELD4, 347=OPHELD5
+    // Component options: 602=INV_BUTTON1, 596=INV_BUTTON2, 22=INV_BUTTON3, 892=INV_BUTTON4,
+    // 415=INV_BUTTON5 Object options:    405=OPHELD1, 38=OPHELD2, 422=OPHELD3, 478=OPHELD4,
+    // 347=OPHELD5
 
     // Check if this component has inventory options (iop)
-    struct CacheDatConfigComponent* component = 
+    struct CacheDatConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
-    
+
     if( component )
     {
-        printf("Component found: id=%d, type=%d, iop=%p\n", 
-               component->id, component->type, (void*)component->iop);
-        
+        printf(
+            "Component found: id=%d, type=%d, iop=%p\n",
+            component->id,
+            component->type,
+            (void*)component->iop);
+
         if( component->iop )
         {
             printf("Component has inventory options:\n");
