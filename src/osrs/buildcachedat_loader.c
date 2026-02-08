@@ -481,6 +481,27 @@ buildcachedat_loader_cache_media(
     game->sprite_redstone3v = load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
     game->sprite_redstone1hv = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
     game->sprite_redstone2hv = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    /* Client.ts: h = flipHorizontally, v = flipVertically, hv = both */
+    if( game->sprite_redstone1h )
+        dashsprite_flip_horizontal(game->sprite_redstone1h);
+    if( game->sprite_redstone2h )
+        dashsprite_flip_horizontal(game->sprite_redstone2h);
+    if( game->sprite_redstone1v )
+        dashsprite_flip_vertical(game->sprite_redstone1v);
+    if( game->sprite_redstone2v )
+        dashsprite_flip_vertical(game->sprite_redstone2v);
+    if( game->sprite_redstone3v )
+        dashsprite_flip_vertical(game->sprite_redstone3v);
+    if( game->sprite_redstone1hv )
+    {
+        dashsprite_flip_horizontal(game->sprite_redstone1hv);
+        dashsprite_flip_vertical(game->sprite_redstone1hv);
+    }
+    if( game->sprite_redstone2hv )
+    {
+        dashsprite_flip_horizontal(game->sprite_redstone2hv);
+        dashsprite_flip_vertical(game->sprite_redstone2hv);
+    }
 
     for( int i = 0; i < 2; i++ )
     {

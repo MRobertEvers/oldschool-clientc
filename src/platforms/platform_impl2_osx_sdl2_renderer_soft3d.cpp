@@ -1083,6 +1083,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             renderer->pixel_buffer);
     }
 
+    /* Top tab strip at (516, 160) - Client.ts areaBackhmid1.draw(516, 160) */
     int bind_x = 516;
     int bind_y = 160;
 
@@ -1095,6 +1096,28 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             bind_x,
             bind_y,
             renderer->pixel_buffer);
+    }
+
+    /* Redstone for selected tab (top row 0-6) - Client.ts lines 4459-4471, only when sidebar is -1 */
+    if( game->sidebar_interface_id == -1 && game->selected_tab >= 0 && game->selected_tab <= 6 )
+    {
+        struct DashSprite* redstone = NULL;
+        int rx = 0, ry = 0;
+        switch( game->selected_tab )
+        {
+        case 0: redstone = game->sprite_redstone1; rx = 22; ry = 10; break;
+        case 1: redstone = game->sprite_redstone2; rx = 54; ry = 8; break;
+        case 2: redstone = game->sprite_redstone2; rx = 82; ry = 8; break;
+        case 3: redstone = game->sprite_redstone3; rx = 110; ry = 8; break;
+        case 4: redstone = game->sprite_redstone2h; rx = 153; ry = 8; break;
+        case 5: redstone = game->sprite_redstone2h; rx = 181; ry = 8; break;
+        case 6: redstone = game->sprite_redstone1h; rx = 209; ry = 9; break;
+        default: break;
+        }
+        if( redstone )
+            dash2d_blit_sprite(
+                game->sys_dash, redstone, game->iface_view_port,
+                bind_x + rx, bind_y + ry, renderer->pixel_buffer);
     }
 
     if( game->sprite_sideicons[0] )
@@ -1126,7 +1149,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             game->sprite_sideicons[2],
             game->iface_view_port,
             bind_x + 82,
-            bind_y + 13,
+            bind_y + 11,
             renderer->pixel_buffer);
     }
 
@@ -1173,6 +1196,62 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             bind_y + 13,
             renderer->pixel_buffer);
     }
+
+    /* Bottom tab strip at (496, 466) - Client.ts areaBackbase2.draw(496, 466) */
+    int bind_bottom_x = 496;
+    int bind_bottom_y = 466;
+    if( game->sprite_backbase2 )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_backbase2,
+            game->iface_view_port,
+            bind_bottom_x,
+            bind_bottom_y,
+            renderer->pixel_buffer);
+    }
+
+    /* Redstone for selected tab (bottom row 7-13) - Client.ts lines 4512-4526 */
+    if( game->sidebar_interface_id == -1 && game->selected_tab >= 7 && game->selected_tab <= 13 )
+    {
+        struct DashSprite* redstone = NULL;
+        int rx = 0, ry = 0;
+        switch( game->selected_tab )
+        {
+        case 7: redstone = game->sprite_redstone1v; rx = 42; ry = 0; break;
+        case 8: redstone = game->sprite_redstone2v; rx = 74; ry = 0; break;
+        case 9: redstone = game->sprite_redstone2v; rx = 102; ry = 0; break;
+        case 10: redstone = game->sprite_redstone3v; rx = 130; ry = 1; break;
+        case 11: redstone = game->sprite_redstone2hv; rx = 173; ry = 0; break;
+        case 12: redstone = game->sprite_redstone2hv; rx = 201; ry = 0; break;
+        case 13: redstone = game->sprite_redstone1hv; rx = 229; ry = 0; break;
+        default: break;
+        }
+        if( redstone )
+            dash2d_blit_sprite(
+                game->sys_dash, redstone, game->iface_view_port,
+                bind_bottom_x + rx, bind_bottom_y + ry, renderer->pixel_buffer);
+    }
+
+    /* Bottom row sideicons (tabs 7-13) - Client.ts lines 4529-4551 */
+    if( game->sprite_sideicons[7] )
+        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[7], game->iface_view_port,
+            bind_bottom_x + 74, bind_bottom_y + 2, renderer->pixel_buffer);
+    if( game->sprite_sideicons[8] )
+        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[8], game->iface_view_port,
+            bind_bottom_x + 102, bind_bottom_y + 3, renderer->pixel_buffer);
+    if( game->sprite_sideicons[9] )
+        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[9], game->iface_view_port,
+            bind_bottom_x + 137, bind_bottom_y + 4, renderer->pixel_buffer);
+    if( game->sprite_sideicons[10] )
+        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[10], game->iface_view_port,
+            bind_bottom_x + 174, bind_bottom_y + 2, renderer->pixel_buffer);
+    if( game->sprite_sideicons[11] )
+        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[11], game->iface_view_port,
+            bind_bottom_x + 201, bind_bottom_y + 2, renderer->pixel_buffer);
+    if( game->sprite_sideicons[12] )
+        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[12], game->iface_view_port,
+            bind_bottom_x + 226, bind_bottom_y + 2, renderer->pixel_buffer);
 
     // Initialize clipping bounds for interface viewport
     if( game->iface_view_port )
@@ -1278,6 +1357,31 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             printf(
                 "DEBUG: WARNING - Tab component %d not found in buildcachedat!\n",
                 tab_component_id);
+        }
+    }
+
+    /* Chat area at (17, 357) - Client.ts drawChat: areaChatback.bind(), imageChatback.draw(0,0),
+     * drawInterface(chat), areaChatback.draw(17, 357) */
+    if( game->sprite_chatback )
+    {
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_chatback,
+            game->iface_view_port,
+            17,
+            357,
+            renderer->pixel_buffer);
+    }
+    if( game->chat_interface_id != -1 )
+    {
+        struct CacheDatConfigComponent* chat_component =
+            buildcachedat_get_component(game->buildcachedat, game->chat_interface_id);
+        if( chat_component )
+        {
+            game->current_hovered_interface_id = interface_find_hovered_interface_id(
+                game, chat_component, 17, 357, game->mouse_x, game->mouse_y);
+            interface_draw_component(
+                game, chat_component, 17, 357, 0, renderer->pixel_buffer, renderer->width);
         }
     }
 

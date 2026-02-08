@@ -163,6 +163,11 @@ dashsprite_new_from_cache_pix8_palette(struct CacheDatPix8Palette* pix8_palette)
     struct DashSprite* dashsprite = dashsprite_new_from_pix8(dashpix8, dashpixpalette);
     dashpix8_free(dashpix8);
     dashpixpalette_free(dashpixpalette);
+    if( dashsprite && pix8_palette )
+    {
+        dashsprite->crop_x = pix8_palette->crop_x;
+        dashsprite->crop_y = pix8_palette->crop_y;
+    }
     return dashsprite;
 }
 

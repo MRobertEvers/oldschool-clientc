@@ -243,6 +243,9 @@ struct DashSprite
     uint32_t* pixels_argb;
     int width;
     int height;
+    /* Pix8 crop offset: draw(x,y) blits at (x+crop_x, y+crop_y) per Client.ts Pix8.draw */
+    int crop_x;
+    int crop_y;
 };
 
 // We have to use UTF16 here because '£' is gets compiled to 0x00A3, which is 2 bytes wide, even in
@@ -426,6 +429,10 @@ dash2d_blit_sprite(
     int y,
     int* pixel_buffer);
 
+void
+dashsprite_flip_horizontal(struct DashSprite* sprite);
+void
+dashsprite_flip_vertical(struct DashSprite* sprite);
 void
 dashsprite_free(struct DashSprite* sprite);
 

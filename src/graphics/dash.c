@@ -2001,6 +2001,12 @@ dash2d_blit_sprite(
     int y_offset,
     int* pixel_buffer)
 {
+    if( !sprite )
+        return;
+    /* Client.ts Pix8.draw(x,y): destination is (x + cropX, y + cropY) */
+    x_offset += sprite->crop_x;
+    y_offset += sprite->crop_y;
+
     int cl = view_port->clip_left;
     int ct = view_port->clip_top;
     int cr = view_port->clip_right;
@@ -2026,6 +2032,44 @@ dash2d_blit_sprite(
             pixel_buffer[pixel_buffer_index] = pixel;
         }
     }
+}
+
+void
+dashsprite_flip_horizontal(struct DashSprite* sprite)
+{
+    if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return;
+    int w = sprite->width;
+    int h = sprite->height;
+    uint32_t* p = sprite->pixels_argb;
+    for( int y = 0; y < h; y++ )
+        for( int x = 0; x < (w / 2); x++ )
+        {
+            int a = x + y * w;
+            int b = (w - 1 - x) + y * w;
+            uint32_t t = p[a];
+            p[a] = p[b];
+            p[b] = t;
+        }
+}
+
+void
+dashsprite_flip_vertical(struct DashSprite* sprite)
+{
+    if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return;
+    int w = sprite->width;
+    int h = sprite->height;
+    uint32_t* p = sprite->pixels_argb;
+    for( int y = 0; y < (h / 2); y++ )
+        for( int x = 0; x < w; x++ )
+        {
+            int a = x + y * w;
+            int b = x + (h - 1 - y) * w;
+            uint32_t t = p[a];
+            p[a] = p[b];
+            p[b] = t;
+        }
 }
 
 void
@@ -2473,6 +2517,8 @@ dash2d_blit_sprite_alpha(
 {
     if( !sprite )
         return;
+    x += sprite->crop_x;
+    y += sprite->crop_y;
 
     int* src_pixels = sprite->pixels_argb;
     int src_width = sprite->width;
