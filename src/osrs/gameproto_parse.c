@@ -50,6 +50,30 @@ gameproto_parse_lc245_2(
         packet->_player_info.data = commandstream;
         return 1;
     }
+    case PKTIN_LC245_2_UPDATE_INV_FULL:
+    {
+        printf("PKTIN_LC245_2_UPDATE_INV_FULL\n");
+        packet->_update_inv_full.component_id = g2(&buffer);
+        packet->_update_inv_full.size = g1(&buffer);
+
+        // Allocate arrays for obj_ids and obj_counts
+        packet->_update_inv_full.obj_ids = malloc(packet->_update_inv_full.size * sizeof(int));
+        packet->_update_inv_full.obj_counts = malloc(packet->_update_inv_full.size * sizeof(int));
+
+        for( int i = 0; i < packet->_update_inv_full.size; i++ )
+        {
+            packet->_update_inv_full.obj_ids[i] = g2(&buffer);
+
+            int count = g1(&buffer);
+            if( count == 255 )
+            {
+                count = g4(&buffer);
+            }
+            packet->_update_inv_full.obj_counts[i] = count;
+        }
+
+        return 1;
+    }
     default:
         printf("Unknown packet type: %d\n", packet_type);
         break;

@@ -21,8 +21,32 @@ interface_draw_component(
     if( !component )
         return;
 
-    // Only process layer components (type 0) that have children
-    if( component->type != COMPONENT_TYPE_LAYER || !component->children )
+    // Handle non-layer components directly
+    if( component->type != COMPONENT_TYPE_LAYER )
+    {
+        switch( component->type )
+        {
+        case COMPONENT_TYPE_RECT:
+            interface_draw_component_rect(game, component, x, y, pixel_buffer, stride);
+            break;
+        case COMPONENT_TYPE_TEXT:
+            interface_draw_component_text(game, component, x, y, pixel_buffer, stride);
+            break;
+        case COMPONENT_TYPE_GRAPHIC:
+            interface_draw_component_graphic(game, component, x, y, pixel_buffer, stride);
+            break;
+        case COMPONENT_TYPE_INV:
+            interface_draw_component_inv(game, component, x, y, pixel_buffer, stride);
+            break;
+        case COMPONENT_TYPE_MODEL:
+            // TODO: Implement model rendering
+            break;
+        }
+        return;
+    }
+
+    // Only process layer components that have children
+    if( !component->children )
         return;
 
     // Save current bounds
@@ -194,6 +218,7 @@ interface_draw_component_graphic(
         return;
 
     // Get the sprite from the cache
+    printf("DEBUG GRAPHIC: Getting sprite for %s\n", component->graphic);
     struct DashSprite* sprite =
         buildcachedat_get_component_sprite(game->buildcachedat, component->graphic);
 
@@ -217,9 +242,25 @@ interface_draw_component_inv(
     // Based on Client.ts lines 9438-9534
 
     if( !component->invSlotObjId || !component->invSlotObjCount )
+    {
+        printf(
+            "DEBUG INV: No slot data (invSlotObjId=%p, invSlotObjCount=%p)\n",
+            (void*)component->invSlotObjId,
+            (void*)component->invSlotObjCount);
         return;
+    }
+
+    printf(
+        "DEBUG INV: Drawing inventory at (%d, %d), size=%dx%d, marginX=%d, marginY=%d\n",
+        x,
+        y,
+        component->width,
+        component->height,
+        component->marginX,
+        component->marginY);
 
     int slot = 0;
+    int items_drawn = 0;
 
     // Iterate through grid: rows x cols
     for( int row = 0; row < component->height; row++ )
@@ -245,11 +286,20 @@ interface_draw_component_inv(
                 int item_id = component->invSlotObjId[slot];
                 int item_count = component->invSlotObjCount[slot];
 
+                printf(
+                    "DEBUG INV: Slot %d: item_id=%d, item_count=%d at (%d, %d)\n",
+                    slot,
+                    item_id,
+                    item_count,
+                    slotX,
+                    slotY);
+
                 // Get or generate the item icon sprite
                 struct DashSprite* icon = obj_icon_get(game, item_id, item_count);
 
                 if( icon )
                 {
+                    items_drawn++;
                     // Draw the item icon
                     dash2d_blit_sprite(
                         game->sys_dash, icon, game->iface_view_port, slotX, slotY, pixel_buffer);
@@ -293,10 +343,11 @@ interface_draw_component_inv(
                     }
                 }
             }
-            else if( component->invSlotGraphic && slot < 20 )
+            else if( component->invSlotGraphic && slot < 20 && component->invSlotGraphic[slot] )
             {
                 // Draw empty slot graphic if specified
                 const char* graphic_name = component->invSlotGraphic[slot];
+                // Validate the string pointer is not corrupted
                 if( graphic_name )
                 {
                     struct DashSprite* sprite =
@@ -317,4 +368,6 @@ interface_draw_component_inv(
             slot++;
         }
     }
+
+    printf("DEBUG INV: Total items drawn: %d\n", items_drawn);
 }

@@ -18,6 +18,14 @@ struct PktPlayerInfoLC245_2
     uint8_t* data;
 };
 
+struct PktUpdateInvFull
+{
+    int component_id;
+    int size;
+    int* obj_ids;
+    int* obj_counts;
+};
+
 struct RevPacket_LC245_2
 {
     enum PacketInType_LC245_2 packet_type;
@@ -27,6 +35,7 @@ struct RevPacket_LC245_2
         struct PktMapRebuild _map_rebuild;
         struct PktNpcInfoLC245_2 _npc_info;
         struct PktPlayerInfoLC245_2 _player_info;
+        struct PktUpdateInvFull _update_inv_full;
     };
 };
 

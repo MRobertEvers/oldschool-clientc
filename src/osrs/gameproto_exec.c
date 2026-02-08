@@ -100,7 +100,6 @@ gameproto_exec_npc_info(
             npc_id = op->_bitvalue;
             game->active_npcs[game->npc_count] = npc_id;
             game->npc_count += 1;
-            printf("PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID: %d\n", npc_id);
 
             break;
         }
@@ -109,11 +108,6 @@ gameproto_exec_npc_info(
             assert(op->_bitvalue >= game->npc_count);
             npc_id = game->active_npcs[op->_bitvalue];
             game->active_npcs[game->npc_count] = npc_id;
-            printf(
-                "PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX: %d, %d, %d\n",
-                npc_id,
-                op->_bitvalue,
-                game->npc_count);
             game->npc_count += 1;
 
             break;
@@ -121,13 +115,11 @@ gameproto_exec_npc_info(
         case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
         {
             npc_id = game->active_npcs[op->_bitvalue];
-            printf("PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX: %d, %d\n", npc_id, op->_bitvalue);
             break;
         }
         case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
         {
             npc_id = game->active_npcs[op->_bitvalue];
-            printf("PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX: %d, %d\n", npc_id, op->_bitvalue);
             entity_scenebuild_npc_release(game, npc_id);
             game->active_npcs[op->_bitvalue] = -1;
             npc_id = -1;
@@ -457,6 +449,56 @@ gameproto_exec_player_info(
 }
 
 void
+gameproto_exec_update_inv_full(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_update_inv_full.component_id;
+    int size = packet->_update_inv_full.size;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+
+    if( !component )
+    {
+        printf("UPDATE_INV_FULL: Component %d not found\n", component_id);
+        return;
+    }
+
+    if( !component->invSlotObjId || !component->invSlotObjCount )
+    {
+        printf("UPDATE_INV_FULL: Component %d is not an inventory component\n", component_id);
+        return;
+    }
+
+    int max_slots = component->width * component->height;
+
+    // Update inventory slots with new data
+    for( int i = 0; i < size && i < max_slots; i++ )
+    {
+        component->invSlotObjId[i] = packet->_update_inv_full.obj_ids[i];
+        component->invSlotObjCount[i] = packet->_update_inv_full.obj_counts[i];
+    }
+
+    // Clear remaining slots
+    for( int i = size; i < max_slots; i++ )
+    {
+        component->invSlotObjId[i] = 0;
+        component->invSlotObjCount[i] = 0;
+    }
+
+    printf("UPDATE_INV_FULL: Updated component %d with %d items\n", component_id, size);
+    
+    // Debug: Print first few items to verify
+    printf("UPDATE_INV_FULL: First 5 items in component %d:\n", component_id);
+    for( int i = 0; i < 5 && i < size; i++ )
+    {
+        printf("  Slot %d: ID=%d, Count=%d\n", 
+               i, component->invSlotObjId[i], component->invSlotObjCount[i]);
+    }
+}
+
+void
 gameproto_exec_lc245_2(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
@@ -471,6 +513,9 @@ gameproto_exec_lc245_2(
         break;
     case PKTIN_LC245_2_PLAYER_INFO:
         gameproto_exec_player_info(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_INV_FULL:
+        gameproto_exec_update_inv_full(game, packet);
         break;
     default:
         break;

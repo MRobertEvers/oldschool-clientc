@@ -41,6 +41,15 @@ gameproto_process(
             script_queue_push(&game->script_queue, &args);
             break;
         }
+        case PKTIN_LC245_2_UPDATE_INV_FULL:
+        {
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_UPDATE_INV_FULL,
+                .u.pkt_update_inv_full = { .item = item, .io = io },
+            };
+            script_queue_push(&game->script_queue, &args);
+            break;
+        }
         default:
             break;
         }

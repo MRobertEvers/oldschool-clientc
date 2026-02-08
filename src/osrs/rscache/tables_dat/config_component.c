@@ -21,6 +21,9 @@ init_component(struct CacheDatConfigComponent* component)
     component->overlayer = -1;
     component->scriptComparator = NULL;
     component->scriptOperand = NULL;
+    component->scripts = NULL;
+    component->scripts_count = 0;
+    component->scripts_lengths = NULL;
     component->invSlotObjId = NULL;
     component->invSlotObjCount = NULL;
     component->seqFrame = 0;
@@ -71,24 +74,20 @@ init_component(struct CacheDatConfigComponent* component)
 }
 
 static struct CacheDatConfigComponent*
-decode_component(struct RSBuffer* inb)
+decode_component(struct RSBuffer* inb, int* layer_inout)
 {
     struct CacheDatConfigComponent* component = malloc(sizeof(struct CacheDatConfigComponent));
     init_component(component);
 
-    int layer = -1;
-
-    while( inb->position < inb->size )
+    int id = g2(inb);
+    if( id == 65535 )
     {
-        int id = g2(inb);
-        if( id == 65535 )
-        {
-            layer = g2(inb);
-            id = g2(inb);
-        }
+        *layer_inout = g2(inb);
+        id = g2(inb);
+    }
 
-        component->id = id;
-        component->layer = layer;
+    component->id = id;
+    component->layer = *layer_inout;
         component->type = g1(inb);
         component->buttonType = g1(inb);
         component->clientCode = g2(inb);
@@ -124,6 +123,7 @@ decode_component(struct RSBuffer* inb)
         int scriptCount = g1(inb);
         if( scriptCount > 0 )
         {
+            component->scripts_count = scriptCount;
             component->scripts = malloc(scriptCount * sizeof(int*));
             memset(component->scripts, 0, scriptCount * sizeof(int*));
 
@@ -172,101 +172,92 @@ decode_component(struct RSBuffer* inb)
             inb->position += 3;
         }
 
-        if( component->type == COMPONENT_TYPE_INV )
+    if( component->type == COMPONENT_TYPE_INV )
+    {
+        component->invSlotObjId = malloc(component->width * component->height * sizeof(int));
+        memset(component->invSlotObjId, 0, component->width * component->height * sizeof(int));
+        component->invSlotObjCount = malloc(component->width * component->height * sizeof(int));
+        memset(
+            component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
+
+        component->draggable = g1(inb) == 1;
+        component->interactable = g1(inb) == 1;
+        component->usable = g1(inb) == 1;
+        component->swappable = g1(inb) == 1;
+        component->marginX = g1(inb);
+        component->marginY = g1(inb);
+
+        component->invSlotOffsetX = malloc(20 * sizeof(int));
+        memset(component->invSlotOffsetX, 0, 20 * sizeof(int));
+        component->invSlotOffsetY = malloc(20 * sizeof(int));
+        memset(component->invSlotOffsetY, 0, 20 * sizeof(int));
+        component->invSlotGraphic = malloc(20 * sizeof(char*));
+        memset(component->invSlotGraphic, 0, 20 * sizeof(char*));
+
+        for( int i = 0; i < 20; i++ )
         {
-            component->invSlotObjId = malloc(component->width * component->height * sizeof(int));
-            memset(component->invSlotObjId, 0, component->width * component->height * sizeof(int));
-            component->invSlotObjCount = malloc(component->width * component->height * sizeof(int));
-            memset(
-                component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
-
-            component->draggable = g1(inb) == 1;
-            component->interactable = g1(inb) == 1;
-            component->usable = g1(inb) == 1;
-            component->swappable = g1(inb) == 1;
-            component->marginX = g1(inb);
-            component->marginY = g1(inb);
-
-            component->invSlotOffsetX = malloc(20 * sizeof(int));
-            memset(component->invSlotOffsetX, 0, 20 * sizeof(int));
-            component->invSlotOffsetY = malloc(20 * sizeof(int));
-            memset(component->invSlotOffsetY, 0, 20 * sizeof(int));
-            component->usable = g1(inb) == 1;
-            component->swappable = g1(inb) == 1;
-            component->marginX = g1(inb);
-            component->marginY = g1(inb);
-
-            component->invSlotOffsetX = malloc(20 * sizeof(int));
-            memset(component->invSlotOffsetX, 0, 20 * sizeof(int));
-            component->invSlotOffsetY = malloc(20 * sizeof(int));
-            memset(component->invSlotOffsetY, 0, 20 * sizeof(int));
-            component->invSlotGraphic = malloc(20 * sizeof(char*));
-            memset(component->invSlotGraphic, 0, 20 * sizeof(char*));
-
-            for( int i = 0; i < 20; i++ )
+            if( g1(inb) == 1 )
             {
-                if( g1(inb) == 1 )
-                {
-                    component->invSlotOffsetX[i] = g2b(inb);
-                    component->invSlotOffsetY[i] = g2b(inb);
+                component->invSlotOffsetX[i] = g2b(inb);
+                component->invSlotOffsetY[i] = g2b(inb);
 
-                    char* graphic = gstringnewline(inb);
-                    component->invSlotGraphic[i] = graphic;
-                }
-            }
-
-            component->iop = malloc(5 * sizeof(char*));
-            memset(component->iop, 0, 5 * sizeof(char*));
-            for( int i = 0; i < 5; i++ )
-            {
-                component->iop[i] = gstringnewline(inb);
-                if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
-                    component->iop[i] = NULL;
+                char* graphic = gstringnewline(inb);
+                component->invSlotGraphic[i] = graphic;
             }
         }
 
-        if( component->type == COMPONENT_TYPE_RECT )
+        component->iop = malloc(5 * sizeof(char*));
+        memset(component->iop, 0, 5 * sizeof(char*));
+        for( int i = 0; i < 5; i++ )
         {
-            component->fill = g1(inb) == 1;
+            component->iop[i] = gstringnewline(inb);
+            if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+                component->iop[i] = NULL;
         }
+    }
 
-        if( component->type == COMPONENT_TYPE_TEXT || component->type == COMPONENT_TYPE_UNUSED )
+    if( component->type == COMPONENT_TYPE_RECT )
+    {
+        component->fill = g1(inb) == 1;
+    }
+
+    if( component->type == COMPONENT_TYPE_TEXT || component->type == COMPONENT_TYPE_UNUSED )
         {
             component->center = g1(inb) == 1;
             int font = g1(inb);
             component->font = font;
-            component->shadowed = g1(inb) == 1;
-        }
+        component->shadowed = g1(inb) == 1;
+    }
 
-        if( component->type == COMPONENT_TYPE_TEXT )
-        {
-            component->text = gstringnewline(inb);
-            component->activeText = gstringnewline(inb);
-        }
+    if( component->type == COMPONENT_TYPE_TEXT )
+    {
+        component->text = gstringnewline(inb);
+        component->activeText = gstringnewline(inb);
+    }
 
-        if( component->type == COMPONENT_TYPE_UNUSED || component->type == COMPONENT_TYPE_RECT ||
-            component->type == COMPONENT_TYPE_TEXT )
-        {
-            component->colour = g4(inb);
-        }
+    if( component->type == COMPONENT_TYPE_UNUSED || component->type == COMPONENT_TYPE_RECT ||
+        component->type == COMPONENT_TYPE_TEXT )
+    {
+        component->colour = g4(inb);
+    }
 
-        if( component->type == COMPONENT_TYPE_RECT || component->type == COMPONENT_TYPE_TEXT )
-        {
-            component->activeColour = g4(inb);
-            component->overColour = g4(inb);
-            component->activeOverColour = g4(inb);
-        }
+    if( component->type == COMPONENT_TYPE_RECT || component->type == COMPONENT_TYPE_TEXT )
+    {
+        component->activeColour = g4(inb);
+        component->overColour = g4(inb);
+        component->activeOverColour = g4(inb);
+    }
 
-        if( component->type == COMPONENT_TYPE_GRAPHIC )
-        {
-            char* graphic = gstringnewline(inb);
-            component->graphic = graphic;
+    if( component->type == COMPONENT_TYPE_GRAPHIC )
+    {
+        char* graphic = gstringnewline(inb);
+        component->graphic = graphic;
 
-            char* activeGraphic = gstringnewline(inb);
-            component->activeGraphic = activeGraphic;
-        }
+        char* activeGraphic = gstringnewline(inb);
+        component->activeGraphic = activeGraphic;
+    }
 
-        if( component->type == COMPONENT_TYPE_MODEL )
+    if( component->type == COMPONENT_TYPE_MODEL )
         {
             int model = g1(inb);
             if( model != 0 )
@@ -302,12 +293,12 @@ decode_component(struct RSBuffer* inb)
                 component->activeAnim = ((component->activeAnim - 1) << 8) + g1(inb);
             }
 
-            component->zoom = g2(inb);
-            component->xan = g2(inb);
-            component->yan = g2(inb);
-        }
+        component->zoom = g2(inb);
+        component->xan = g2(inb);
+        component->yan = g2(inb);
+    }
 
-        if( component->type == COMPONENT_TYPE_INV_TEXT )
+    if( component->type == COMPONENT_TYPE_INV_TEXT )
         {
             component->invSlotObjId = malloc(component->width * component->height * sizeof(int));
             memset(component->invSlotObjId, 0, component->width * component->height * sizeof(int));
@@ -329,9 +320,8 @@ decode_component(struct RSBuffer* inb)
             for( int i = 0; i < 5; i++ )
             {
                 component->iop[i] = gstringnewline(inb);
-                if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
-                    component->iop[i] = NULL;
-            }
+            if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+                component->iop[i] = NULL;
         }
     }
 
@@ -394,14 +384,22 @@ cache_dat_config_component_list_new_decode(
 
     component_list->components_count = component_count;
 
-    for( int i = 0; i < component_count; i++ )
+    int layer = -1;
+    while( buffer.position < buffer.size )
     {
-        component_list->components[i] = decode_component(&buffer);
-        if( component_list->components[i] == NULL )
+        struct CacheDatConfigComponent* comp = decode_component(&buffer, &layer);
+        if( comp == NULL )
         {
             assert(false && "Failed to decode component");
             return NULL;
         }
+        
+        // Store component at its ID index
+        if( comp->id >= 0 && comp->id < component_count )
+        {
+            component_list->components[comp->id] = comp;
+        }
     }
+    
     return component_list;
 }

@@ -104,7 +104,7 @@ struct ComponentEntry
 
 struct ComponentSpriteEntry
 {
-    char sprite_name[64];  // Key must be first field and fixed size for DashMap
+    char sprite_name[64]; // Key must be first field and fixed size for DashMap
     struct DashSprite* sprite;
 };
 
@@ -250,7 +250,7 @@ buildcachedat_new(void)
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
-        .key_size = 64,  // Max sprite name length
+        .key_size = 64, // Max sprite name length
         .entry_size = sizeof(struct ComponentSpriteEntry),
     };
     buildcachedat->component_sprites_hmap = dashmap_new(&config, 0);
@@ -777,6 +777,25 @@ buildcachedat_get_component(
     return component_entry->component;
 }
 
+struct DashMapIter*
+buildcachedat_component_iter_new(struct BuildCacheDat* buildcachedat)
+{
+    return dashmap_iter_new(buildcachedat->component_hmap);
+}
+
+struct CacheDatConfigComponent*
+buildcachedat_component_iter_next(
+    struct DashMapIter* iter,
+    int* id_out)
+{
+    struct ComponentEntry* component_entry = (struct ComponentEntry*)dashmap_iter_next(iter);
+    if( !component_entry )
+        return NULL;
+    if( id_out )
+        *id_out = component_entry->id;
+    return component_entry->component;
+}
+
 void
 buildcachedat_add_component_sprite(
     struct BuildCacheDat* buildcachedat,
@@ -787,7 +806,7 @@ buildcachedat_add_component_sprite(
         buildcachedat->component_sprites_hmap, sprite_name, DASHMAP_INSERT);
     assert(sprite_entry && "Component sprite must be inserted into hmap");
     strncpy(sprite_entry->sprite_name, sprite_name, 63);
-    sprite_entry->sprite_name[63] = '\0';  // Ensure null termination
+    sprite_entry->sprite_name[63] = '\0'; // Ensure null termination
     sprite_entry->sprite = sprite;
 }
 
@@ -796,8 +815,13 @@ buildcachedat_get_component_sprite(
     struct BuildCacheDat* buildcachedat,
     const char* sprite_name)
 {
+    // 1688 is wornicons
+    // 3214 is inv.
+    char buffer[65] = { 0 };
+    strncpy(buffer, sprite_name, 64);
+    printf("buildcachedat_get_component_sprite: %s\n", buffer);
     struct ComponentSpriteEntry* sprite_entry = (struct ComponentSpriteEntry*)dashmap_search(
-        buildcachedat->component_sprites_hmap, sprite_name, DASHMAP_FIND);
+        buildcachedat->component_sprites_hmap, buffer, DASHMAP_FIND);
     if( !sprite_entry )
         return NULL;
     return sprite_entry->sprite;

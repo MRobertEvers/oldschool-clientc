@@ -10,6 +10,7 @@ enum ScriptKind
     SCRIPT_PKT_REBUILD_NORMAL,
     SCRIPT_PKT_PLAYER_INFO,
     SCRIPT_LOAD_INVENTORY_MODELS,  // New script for loading inventory models
+    SCRIPT_PKT_UPDATE_INV_FULL,
     SCRIPT_COUNT
 };
 
@@ -53,6 +54,12 @@ struct ScriptArgsPktPlayerInfo
     void* io;
 };
 
+struct ScriptArgsPktUpdateInvFull
+{
+    void* item;
+    void* io;
+};
+
 /* Args for load_inventory_models: no args needed */
 struct ScriptArgsLoadInventoryModels
 {
@@ -71,6 +78,7 @@ struct ScriptArgs
         struct ScriptArgsPktRebuildNormal pkt_rebuild_normal;
         struct ScriptArgsPktPlayerInfo pkt_player_info;
         struct ScriptArgsLoadInventoryModels load_inventory_models;
+        struct ScriptArgsPktUpdateInvFull pkt_update_inv_full;
     } u;
 };
 

@@ -150,6 +150,15 @@ l_host_io_dat_config_title_load(lua_State* L)
     return 1;
 }
 
+static int
+l_host_io_dat_config_interfaces_load(lua_State* L)
+{
+    struct GIOQueue* io = (struct GIOQueue*)lua_touserdata(L, lua_upvalueindex(1));
+    int req_id = gio_assets_dat_config_interfaces_load(io);
+    lua_pushinteger(L, req_id);
+    return 1;
+}
+
 /* Asset loaders for BuildCache path (non-Dat; same as task_init_scene) */
 static int
 l_host_io_asset_map_scenery_load(lua_State* L)
@@ -294,6 +303,7 @@ static const luaL_Reg host_io_funcs[] = {
     { "dat_config_version_list_load",    l_host_io_dat_config_version_list_load    },
     { "dat_config_media_load",           l_host_io_dat_config_media_load           },
     { "dat_config_title_load",           l_host_io_dat_config_title_load           },
+    { "dat_config_interfaces_load",      l_host_io_dat_config_interfaces_load      },
     { "asset_map_scenery_load",          l_host_io_asset_map_scenery_load          },
     { "asset_config_scenery_load",       l_host_io_asset_config_scenery_load       },
     { "asset_model_load",                l_host_io_asset_model_load                },
@@ -599,6 +609,19 @@ l_buildcachedat_cache_model(lua_State* L)
 }
 
 static int
+l_buildcachedat_load_interfaces(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int data_size = luaL_checkinteger(L, 1);
+    void* data = lua_touserdata(L, 2);
+
+    buildcachedat_loader_load_interfaces(buildcachedat, data, data_size);
+
+    return 0;
+}
+
+static int
 l_buildcachedat_cache_textures(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
@@ -733,6 +756,7 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "get_obj_model_ids",                                 l_buildcachedat_get_obj_model_ids                   },
     { "get_obj",                                           l_buildcachedat_get_obj                             },
     { "cache_model",                                       l_buildcachedat_cache_model                         },
+    { "load_interfaces",                                   l_buildcachedat_load_interfaces                     },
     { "cache_textures",                                    l_buildcachedat_cache_textures                      },
     { "init_sequences_from_config_jagfile",                l_buildcachedat_init_sequences_from_config_jagfile  },
     { "get_animbaseframes_count_from_versionlist_jagfile",
@@ -1502,6 +1526,36 @@ l_gameproto_exec_player_info(lua_State* L)
     return 0;
 }
 
+static int
+l_gameproto_get_inv_obj_ids(lua_State* L)
+{
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    lua_newtable(L);
+    int idx = 0;
+    for( int i = 0; i < item->packet._update_inv_full.size; i++ )
+    {
+        int obj_id = item->packet._update_inv_full.obj_ids[i];
+        if( obj_id > 0 )
+        {
+            idx++;
+            lua_pushinteger(L, obj_id);
+            lua_rawseti(L, -2, idx);
+        }
+    }
+    return 1;
+}
+
+static int
+l_gameproto_exec_update_inv_full(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    gameproto_exec_update_inv_full(game, &item->packet);
+    return 0;
+}
+
 static const luaL_Reg gameproto_funcs[] = {
     { "get_npc_ids_from_packet",   l_gameproto_get_npc_ids_from_packet   },
     { "exec_npc_info",             l_gameproto_exec_npc_info             },
@@ -1509,6 +1563,8 @@ static const luaL_Reg gameproto_funcs[] = {
     { "exec_rebuild",              l_gameproto_exec_rebuild              },
     { "get_player_appearance_ids", l_gameproto_get_player_appearance_ids },
     { "exec_player_info",          l_gameproto_exec_player_info          },
+    { "get_inv_obj_ids",           l_gameproto_get_inv_obj_ids           },
+    { "exec_update_inv_full",      l_gameproto_exec_update_inv_full      },
     { NULL,                        NULL                                  }
 };
 

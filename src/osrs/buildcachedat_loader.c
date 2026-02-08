@@ -5,6 +5,7 @@
 #include "osrs/dash_utils.h"
 #include "osrs/minimap.h"
 #include "osrs/painters.h"
+#include "osrs/rscache/archive.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/config_floortype.h"
@@ -13,6 +14,7 @@
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/animframe.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_idk.h"
 #include "osrs/rscache/tables_dat/config_npc.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
@@ -604,8 +606,86 @@ buildcachedat_loader_init_objects_from_config_jagfile(struct BuildCacheDat* buil
 
     for( int i = 0; i < obj_list->objs_count; i++ )
     {
+        if( i == 842 )
+            printf("buildcachedat_loader_init_objects_from_config_jagfile: %d\n", i);
         buildcachedat_add_obj(buildcachedat, i, obj_list->objs[i]);
     }
+}
+
+void
+buildcachedat_loader_load_interfaces(
+    struct BuildCacheDat* buildcachedat,
+    void* archive_data,
+    int archive_data_size)
+{
+    if( !archive_data || archive_data_size == 0 )
+    {
+        printf("buildcachedat_loader_load_interfaces: No data provided\n");
+        return;
+    }
+
+    // Create a temporary archive structure to extract the filelist
+    struct CacheDatArchive archive;
+    archive.data = archive_data;
+    archive.data_size = archive_data_size;
+
+    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(&archive);
+    if( !filelist )
+    {
+        printf("buildcachedat_loader_load_interfaces: Failed to create filelist from archive\n");
+        return;
+    }
+
+    // Find the "data" file in the archive
+    int idx = -1;
+    int name_hash = archive_name_hash_dat("data");
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+        {
+            idx = i;
+            break;
+        }
+    }
+
+    if( idx == -1 )
+    {
+        printf("buildcachedat_loader_load_interfaces: 'data' file not found in archive\n");
+        filelist_dat_free(filelist);
+        return;
+    }
+
+    char* file_data = filelist->files[idx];
+    int file_data_size = filelist->file_sizes[idx];
+
+    // Decode the component list from the "data" file
+    struct CacheDatConfigComponentList* component_list =
+        cache_dat_config_component_list_new_decode(file_data, file_data_size);
+
+    if( !component_list )
+    {
+        printf("buildcachedat_loader_load_interfaces: Failed to decode component list\n");
+        filelist_dat_free(filelist);
+        return;
+    }
+
+    printf(
+        "buildcachedat_loader_load_interfaces: Loaded %d components\n",
+        component_list->components_count);
+
+    for( int i = 0; i < component_list->components_count; i++ )
+    {
+        struct CacheDatConfigComponent* component = component_list->components[i];
+        if( component )
+        {
+            buildcachedat_add_component(buildcachedat, component->id, component);
+        }
+    }
+
+    // Don't free components, they're owned by buildcachedat now
+    free(component_list->components);
+    free(component_list);
+    filelist_dat_free(filelist);
 }
 
 void

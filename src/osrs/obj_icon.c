@@ -32,7 +32,7 @@ get_obj_inv_model(
     struct CacheModel* model = buildcachedat_get_model(game->buildcachedat, obj->model);
     if( !model )
     {
-        printf("get_obj_inv_model: Could not load model %d\n", obj->model);
+        // printf("get_obj_inv_model: Could not load model %d\n", obj->model);
         return NULL;
     }
 
@@ -55,29 +55,34 @@ obj_icon_get(
     int obj_id,
     int count)
 {
+    // Object IDs in the protocol are 1-indexed, so subtract 1 for lookups
+    int actual_obj_id = obj_id - 1;
+    
     // Get the object configuration
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, actual_obj_id);
     if( !obj )
     {
-        printf("obj_icon_get: Could not find obj %d\n", obj_id);
+        printf("obj_icon_get: Could not find obj %d (network id %d) in buildcachedat\n", actual_obj_id, obj_id);
         return NULL;
     }
 
-    // // DEBUG: Print detailed object configuration
-    // printf("\n=== obj_icon_get DEBUG: obj_id=%d, count=%d ===\n", obj_id, count);
-    // printf("  name: %s\n", obj->name ? obj->name : "(null)");
-    // printf("  model: %d\n", obj->model);
-    // printf("  manwear: %d, manwear2: %d, manwear3: %d\n", obj->manwear, obj->manwear2,
-    // obj->manwear3); printf("  zoom2d: %d\n", obj->zoom2d); printf("  xan2d: %d, yan2d: %d, zan2d:
-    // %d\n", obj->xan2d, obj->yan2d, obj->zan2d); printf("  xof2d: %d, yof2d: %d\n", obj->xof2d,
-    // obj->yof2d); printf("  stackable: %d\n", obj->stackable); if( obj->recol_count > 0 )
-    // {
-    //     printf("  recolor count: %d\n", obj->recol_count);
-    //     for( int i = 0; i < obj->recol_count && i < 3; i++ )
-    //     {
-    //         printf("    recol[%d]: 0x%04X -> 0x%04X\n", i, obj->recol_s[i], obj->recol_d[i]);
-    //     }
-    // }
+    // DEBUG: Print detailed object configuration
+    printf("\n=== obj_icon_get DEBUG: obj_id=%d (network=%d), count=%d ===\n", actual_obj_id, obj_id, count);
+    printf("  name: %s\n", obj->name ? obj->name : "(null)");
+    printf("  model: %d\n", obj->model);
+    printf("  manwear: %d, manwear2: %d, manwear3: %d\n", obj->manwear, obj->manwear2, obj->manwear3);
+    printf("  zoom2d: %d\n", obj->zoom2d);
+    printf("  xan2d: %d, yan2d: %d, zan2d: %d\n", obj->xan2d, obj->yan2d, obj->zan2d);
+    printf("  xof2d: %d, yof2d: %d\n", obj->xof2d, obj->yof2d);
+    printf("  stackable: %d\n", obj->stackable);
+    if( obj->recol_count > 0 )
+    {
+        printf("  recolor count: %d\n", obj->recol_count);
+        for( int i = 0; i < obj->recol_count && i < 3; i++ )
+        {
+            printf("    recol[%d]: 0x%04X -> 0x%04X\n", i, obj->recol_s[i], obj->recol_d[i]);
+        }
+    }
 
     // Handle count-based object variations (e.g., coin stacks)
     if( obj->countobj && obj->countco && count > 1 )
@@ -93,7 +98,7 @@ obj_icon_get(
 
         if( countobj_id != -1 )
         {
-            printf("  Using count variant: %d -> %d (count=%d)\n", obj_id, countobj_id, count);
+            // printf("  Using count variant: %d -> %d (count=%d)\n", obj_id, countobj_id, count);
             return obj_icon_get(game, countobj_id, 1);
         }
     }
@@ -107,17 +112,6 @@ obj_icon_get(
             obj_id,
             obj->model);
         return NULL;
-    }
-
-    // DEBUG: Print model information
-    printf("  Model loaded: %d\n", obj->model);
-    printf("    vertex_count: %d\n", model->vertex_count);
-    printf("    face_count: %d\n", model->face_count);
-    if( model->face_count > 0 && model->face_colors )
-    {
-        printf("    face_colors[0]: 0x%04X\n", model->face_colors[0]);
-        if( model->face_count > 1 )
-            printf("    face_colors[1]: 0x%04X\n", model->face_colors[1]);
     }
 
     // Create a 32x32 sprite for the icon
@@ -197,7 +191,7 @@ obj_icon_get(
     // calculateNormals(ambient + 64, contrast + 768, -50, -10, -50, true)
     // In C, this is done via _light_model_default with ambient and contrast from config
     _light_model_default(dash_model, obj->contrast, obj->ambient);
-    printf("  Normals and lighting calculated\n");
+    // printf("  Normals and lighting calculated\n");
 
     // Now calculate eyeY and eyeZ using model.minY (matching ObjType.ts line 445)
     // eyeY = sinPitch + (model.minY / 2) + obj.yof2d
@@ -206,14 +200,14 @@ obj_icon_get(
     position.y = sinPitch + (model_min_y / 2) + obj->yof2d;
     position.z = cosPitch + obj->yof2d;
 
-    printf(
-        "  Position: x=%d, y=%d, z=%d (sinPitch=%d, cosPitch=%d, model_min_y=%d)\n",
-        position.x,
-        position.y,
-        position.z,
-        sinPitch,
-        cosPitch,
-        model_min_y);
+    // printf(
+    //     "  Position: x=%d, y=%d, z=%d (sinPitch=%d, cosPitch=%d, model_min_y=%d)\n",
+    //     position.x,
+    //     position.y,
+    //     position.z,
+    //     sinPitch,
+    //     cosPitch,
+    //     model_min_y);
 
     // Project and raster the model (matching model.drawSimple)
     // Use dash3d_project_model6 for full 6DOF support (pitch, yaw, roll)
@@ -295,12 +289,12 @@ obj_icon_get(
     // Clean up the dash model
     dashmodel_free(dash_model);
 
-    // DEBUG: Save sprite to BMP file
-    char filename[256];
-    snprintf(filename, sizeof(filename), "debug_obj_%d_count_%d.bmp", obj_id, count);
-    bmp_write_file(filename, icon->pixels_argb, 32, 32);
-    printf("  Saved sprite to: %s\n", filename);
-    printf("========================================\n\n");
+    // // DEBUG: Save sprite to BMP file
+    // char filename[256];
+    // snprintf(filename, sizeof(filename), "debug_obj_%d_count_%d.bmp", obj_id, count);
+    // bmp_write_file(filename, icon->pixels_argb, 32, 32);
+    // printf("  Saved sprite to: %s\n", filename);
+    // printf("========================================\n\n");
 
     return icon;
 }

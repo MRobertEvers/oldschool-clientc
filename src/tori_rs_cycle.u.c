@@ -33,6 +33,8 @@ script_path_for_kind(enum ScriptKind kind)
         return "pkt_player_info.lua";
     case SCRIPT_LOAD_INVENTORY_MODELS:
         return "load_inventory_models.lua";
+    case SCRIPT_PKT_UPDATE_INV_FULL:
+        return "pkt_update_inv_full.lua";
     default:
         return NULL;
     }
@@ -113,6 +115,14 @@ start_script_from_item(
     case SCRIPT_PKT_PLAYER_INFO:
     {
         struct ScriptArgsPktPlayerInfo* a = &item->args.u.pkt_player_info;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        nargs = 2;
+        break;
+    }
+    case SCRIPT_PKT_UPDATE_INV_FULL:
+    {
+        struct ScriptArgsPktUpdateInvFull* a = &item->args.u.pkt_update_inv_full;
         lua_pushlightuserdata(game->L_coro, a->item);
         lua_pushlightuserdata(game->L_coro, a->io);
         nargs = 2;

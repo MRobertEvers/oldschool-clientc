@@ -143,7 +143,6 @@ pkt_npc_info_reader_read(
     int new_idx = 0;
     int count = gbits(&buf, 8);
     push_op_bits_count_reset(next_op(reader, ops, ops_capacity), count);
-    printf("NPC Old Vis count: %d\n", count);
     for( int old_idx = 0; old_idx < count; old_idx++ )
     {
         int info = gbits(&buf, 1);

@@ -100,6 +100,12 @@ void
 buildcachedat_loader_init_objects_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
+buildcachedat_loader_load_interfaces(
+    struct BuildCacheDat* buildcachedat,
+    void* data,
+    int data_size);
+
+void
 buildcachedat_loader_finalize_scene(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game,

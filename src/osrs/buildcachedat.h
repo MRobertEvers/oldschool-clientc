@@ -310,6 +310,14 @@ buildcachedat_get_component(
     struct BuildCacheDat* buildcachedat,
     int component_id);
 
+struct DashMapIter*
+buildcachedat_component_iter_new(struct BuildCacheDat* buildcachedat);
+
+struct CacheDatConfigComponent*
+buildcachedat_component_iter_next(
+    struct DashMapIter* iter,
+    int* id_out);
+
 void
 buildcachedat_add_component_sprite(
     struct BuildCacheDat* buildcachedat,
