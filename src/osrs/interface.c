@@ -4,9 +4,131 @@
 #include "obj_icon.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/tables_dat/config_obj.h"
 
 #include <stdio.h>
 #include <string.h>
+
+#define INV_MENU_MAX 24
+
+/* Build menu options in same order as Client.ts handleInterfaceInput (inv slot),
+ * then sort exactly as Client.ts (2498-2522): swap when [i] < 1000 && [i+1] > 1000
+ * so primaries move right. Left-click uses useMenuOption(menuSize - 1) so default
+ * is the last option after sort = actions[n-1].
+ */
+int
+interface_get_inv_default_action(
+    struct GGame* game,
+    struct CacheDatConfigComponent* child,
+    int obj_id,
+    int slot)
+{
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    int actions[INV_MENU_MAX];
+    int n = 0;
+
+    if( !obj )
+        return 602;
+
+    /* No obj selected, no spell: same order as Client.ts 10064-10152 */
+    /* 1. child.interactable: obj.iop op 4, 3 (Drop / op3); else if op===4 add Drop */
+    if( child->interactable )
+    {
+        for( int op = 4; op >= 3; op-- )
+        {
+            if( obj->iop[op] )
+            {
+                actions[n++] = (op == 4) ? 347 : 478;
+                if( n >= INV_MENU_MAX )
+                    goto done;
+            }
+            else if( op == 4 )
+            {
+                actions[n++] = 347; /* Drop @lre@ obj.name */
+                if( n >= INV_MENU_MAX )
+                    goto done;
+            }
+        }
+    }
+
+    /* 2. child.usable: Use */
+    if( child->usable )
+    {
+        actions[n++] = 188;
+        if( n >= INV_MENU_MAX )
+            goto done;
+    }
+
+    /* 3. child.interactable && obj.iop: op 2, 1, 0 (e.g. Wield, Wear) */
+    if( child->interactable )
+    {
+        for( int op = 2; op >= 0; op-- )
+        {
+            if( obj->iop[op] )
+            {
+                if( op == 0 )
+                    actions[n++] = 405;
+                else if( op == 1 )
+                    actions[n++] = 38;
+                else
+                    actions[n++] = 422;
+                if( n >= INV_MENU_MAX )
+                    goto done;
+            }
+        }
+    }
+
+    /* 4. child.iop: component inventory options op 4 down to 0 */
+    if( child->iop )
+    {
+        for( int op = 4; op >= 0; op-- )
+        {
+            if( child->iop[op] )
+            {
+                if( op == 0 )
+                    actions[n++] = 602;
+                else if( op == 1 )
+                    actions[n++] = 596;
+                else if( op == 2 )
+                    actions[n++] = 22;
+                else if( op == 3 )
+                    actions[n++] = 892;
+                else
+                    actions[n++] = 415;
+                if( n >= INV_MENU_MAX )
+                    goto done;
+            }
+        }
+    }
+
+    /* 5. Examine (always last added) */
+    actions[n++] = 1773;
+
+done:
+    if( n == 0 )
+        return 602;
+
+    /* Sort: same as Client.ts 2498-2522 - swap when [i] < 1000 && [i+1] > 1000 */
+    for( ;; )
+    {
+        int done_sort = 1;
+        for( int i = 0; i < n - 1; i++ )
+        {
+            if( actions[i] < 1000 && actions[i + 1] > 1000 )
+            {
+                int t = actions[i];
+                actions[i] = actions[i + 1];
+                actions[i + 1] = t;
+                done_sort = 0;
+            }
+        }
+        if( done_sort )
+            break;
+    }
+
+    /* Left-click uses useMenuOption(menuSize - 1) -> last option after sort */
+    return actions[n - 1];
+}
 
 void
 interface_draw_component(
@@ -481,8 +603,34 @@ interface_handle_inv_button(
     int slot,
     int component_id)
 {
-    // Based on Client.ts lines 9012-9067
-    // action codes: 602=button1, 596=button2, 22=button3, 892=button4, 415=button5
+    // Based on Client.ts: INV_BUTTON1-5 (component iop) and OPHELD1-5 (object iop)
+    // Component options: 602=INV_BUTTON1, 596=INV_BUTTON2, 22=INV_BUTTON3, 892=INV_BUTTON4, 415=INV_BUTTON5
+    // Object options:    405=OPHELD1, 38=OPHELD2, 422=OPHELD3, 478=OPHELD4, 347=OPHELD5
+
+    // Check if this component has inventory options (iop)
+    struct CacheDatConfigComponent* component = 
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    
+    if( component )
+    {
+        printf("Component found: id=%d, type=%d, iop=%p\n", 
+               component->id, component->type, (void*)component->iop);
+        
+        if( component->iop )
+        {
+            printf("Component has inventory options:\n");
+            for( int i = 0; i < 5; i++ )
+            {
+                if( component->iop[i] )
+                    printf("  iop[%d] = %s\n", i, component->iop[i]);
+            }
+        }
+        else
+        {
+            printf("WARNING: Component %d has NO inventory options (iop=NULL)!\n", component_id);
+            printf("The server will likely discard this packet.\n");
+        }
+    }
 
     uint8_t opcode = 0;
 
@@ -511,6 +659,37 @@ interface_handle_inv_button(
     {
         opcode = 242; // INV_BUTTON5
         printf("INV_BUTTON5: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
+    }
+    /* Object options (obj.iop): Wield, Wear, etc. - Client.ts 405/38/422/478/347 block */
+    else if( action == 405 )
+    {
+        opcode = 104; // OPHELD1
+    }
+    else if( action == 38 )
+    {
+        opcode = 193; // OPHELD2
+    }
+    else if( action == 422 )
+    {
+        opcode = 115; // OPHELD3
+    }
+    else if( action == 478 )
+    {
+        opcode = 194; // OPHELD4
+    }
+    else if( action == 347 )
+    {
+        opcode = 9; // OPHELD5 (e.g. Drop)
+    }
+    else if( action == 188 )
+    {
+        /* Use: select item for use-with; no packet (Client.ts 8927-8936) */
+        return;
+    }
+    else if( action == 1773 )
+    {
+        /* Examine: client-side only, no packet */
+        return;
     }
     else
     {

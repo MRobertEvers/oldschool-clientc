@@ -807,10 +807,10 @@ LibToriRS_GameStep(
                             if( slot != -1 )
                             {
                                 int obj_id = child->invSlotObjId[slot] - 1;
-                                int action = 602; // INV_BUTTON1
+                                int action = interface_get_inv_default_action(game, child, obj_id, slot);
                                 
-                                printf("Inventory click detected: slot=%d, obj_id=%d, child=%d\n", 
-                                       slot, obj_id, child_id);
+                                printf("Inventory click detected: slot=%d, obj_id=%d, child=%d, action=%d\n", 
+                                       slot, obj_id, child_id, action);
                                 
                                 interface_handle_inv_button(game, action, obj_id, slot, child_id);
                                 break;
@@ -829,10 +829,10 @@ LibToriRS_GameStep(
                     if( slot != -1 )
                     {
                         int obj_id = component->invSlotObjId[slot] - 1;
-                        int action = 602; // INV_BUTTON1
+                        int action = interface_get_inv_default_action(game, component, obj_id, slot);
                         
-                        printf("Inventory click detected: slot=%d, obj_id=%d, component=%d\n", 
-                               slot, obj_id, component_id);
+                        printf("Inventory click detected: slot=%d, obj_id=%d, component=%d, action=%d\n", 
+                               slot, obj_id, component_id, action);
                         
                         interface_handle_inv_button(game, action, obj_id, slot, component_id);
                     }

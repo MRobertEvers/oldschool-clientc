@@ -64,6 +64,14 @@ interface_draw_component_inv(
     int* pixel_buffer,
     int stride);
 
+// Get default (left-click) action for an inventory slot from menu logic (Client.ts order + sort)
+int
+interface_get_inv_default_action(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int obj_id,
+    int slot);
+
 // Check if a mouse click hits an inventory item, returns slot number or -1
 int
 interface_check_inv_click(

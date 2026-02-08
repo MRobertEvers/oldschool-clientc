@@ -170,6 +170,26 @@ push_op_appearance(
     op->_appearance.len = len;
 }
 
+static void
+push_op_sequence(
+    struct PktPlayerInfoOp* op,
+    uint16_t sequence_id,
+    uint8_t delay)
+{
+    op->kind = PKT_PLAYER_INFO_OP_SEQUENCE;
+    op->_sequence.sequence_id = sequence_id;
+    op->_sequence.delay = delay;
+}
+
+static void
+push_op_face_entity(
+    struct PktPlayerInfoOp* op,
+    int entity_id)
+{
+    op->kind = PKT_PLAYER_INFO_OP_FACE_ENTITY;
+    op->_face_entity.entity_id = entity_id;
+}
+
 int
 pkt_player_info_reader_read(
     struct PktPlayerInfoReader* reader,
@@ -375,16 +395,17 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_SEQUENCE) != 0 )
         {
-            assert(0);
-            // int len = g1(&rsbuf);
-            // uint8_t* sequence_buf = malloc(len);
-            // greadto(&rsbuf, sequence_buf, len, len);
-            // push_op_sequence(&ops[reader->current_op++], sequence_buf, len);
+            /* Client.ts PlayerUpdate.ANIM: seqId = buf.g2(), 65535 -> -1; delay = buf.g1() */
+            int seq_raw = g2(&rsbuf);
+            uint16_t sequence_id = (uint16_t)(seq_raw & 0xFFFF);
+            uint8_t delay = (uint8_t)g1(&rsbuf);
+            push_op_sequence(next_op(reader, ops, ops_capacity), sequence_id, delay);
         }
 
         if( (mask & MASK_FACE_ENTITY) != 0 )
         {
-            assert(0);
+            int entity_id = g2(&rsbuf);
+            push_op_face_entity(next_op(reader, ops, ops_capacity), entity_id);
         }
 
         if( (mask & MASK_SAY) != 0 )
