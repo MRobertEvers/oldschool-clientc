@@ -251,6 +251,7 @@ pkt_player_info_reader_read(
     struct PktPlayerInfoOp* ops,
     int ops_capacity)
 {
+    printf("DEBUG PKT_PLAYER_INFO: pkt_player_info_reader_read length: %d\n", pkt->length);
     reader->current_op = 0;
     reader->extended_count = 0;
     struct BitBuffer buf;

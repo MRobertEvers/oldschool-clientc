@@ -96,6 +96,9 @@ LibToriRS_GameNew(
     game->clicked_tile_valid = 0;
     game->clicked_tile_x = 0;
     game->clicked_tile_z = 0;
+    game->highlight_tile_valid = 0;
+    game->highlight_tile_x = 0;
+    game->highlight_tile_z = 0;
 
     game->running = true;
 

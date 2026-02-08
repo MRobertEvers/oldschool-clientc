@@ -25,6 +25,7 @@ extern "C" {
 #include "server/prot.h"
 #include "server/server.h"
 #include "tori_rs.h"
+#include "graphics/convex_hull.u.c"
 }
 
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
@@ -826,6 +827,67 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
     LibToriRS_FrameEnd(game);
+
+    /* Draw highlighted tile overlay (convex hull of projected tile) until player reaches it */
+    if( game->highlight_tile_valid && game->scene && game->scene->terrain )
+    {
+        struct SceneTerrainTile* tile = scene_terrain_tile_at(
+            game->scene->terrain,
+            game->highlight_tile_x,
+            game->highlight_tile_z,
+            0);
+        if( tile && tile->dash_model && tile->dash_model->vertex_count > 0 &&
+             tile->dash_model->vertex_count <= 4096 )
+        {
+            struct DashPosition pos;
+            pos.x = game->highlight_tile_x * 128 - game->camera_world_x;
+            pos.y = -game->camera_world_y;
+            pos.z = game->highlight_tile_z * 128 - game->camera_world_z;
+            pos.yaw = 0;
+            pos.pitch = 0;
+            pos.roll = 0;
+            int cull = dash3d_project_model(
+                game->sys_dash,
+                tile->dash_model,
+                &pos,
+                game->view_port,
+                game->camera);
+            if( cull == DASHCULL_VISIBLE )
+            {
+                static float hull_in_x[4096];
+                static float hull_in_y[4096];
+                static float hull_out_x[4096];
+                static float hull_out_y[4096];
+                static int poly_x[4096];
+                static int poly_y[4096];
+                int n = (int)tile->dash_model->vertex_count;
+                int cx = game->view_port->x_center;
+                int cy = game->view_port->y_center;
+                dash3d_copy_screen_vertices_float(game->sys_dash, hull_in_x, hull_in_y, n);
+                size_t hull_n = compute_convex_hull(hull_in_x, hull_in_y, (size_t)n, hull_out_x, hull_out_y);
+                if( hull_n >= 3 )
+                {
+                    for( size_t i = 0; i < hull_n; i++ )
+                    {
+                        poly_x[i] = (int)hull_out_x[i] + cx;
+                        poly_y[i] = (int)hull_out_y[i] + cy;
+                    }
+                    dash2d_fill_polygon_alpha(
+                        renderer->dash_buffer,
+                        renderer->dash_buffer_width,
+                        poly_x,
+                        poly_y,
+                        (int)hull_n,
+                        0x00FF00,
+                        80,
+                        0,
+                        0,
+                        renderer->dash_buffer_width,
+                        renderer->dash_buffer_height);
+                }
+            }
+        }
+    }
 
     int camera_tile_x = game->camera_world_x / 128;
     int camera_tile_z = game->camera_world_z / 128;

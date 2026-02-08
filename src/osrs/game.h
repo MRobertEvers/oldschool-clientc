@@ -224,6 +224,11 @@ struct GGame
     int clicked_tile_x;   /* world tile X for MOVE_GAMECLICK */
     int clicked_tile_z;   /* world tile Z for MOVE_GAMECLICK */
     int clicked_tile_valid; /* 1 if click was on a tile this frame, 0 otherwise */
+
+    /* Highlight tile: set when MOVE_GAMECLICK is sent; cleared when active player reaches the tile */
+    int highlight_tile_x;
+    int highlight_tile_z;
+    int highlight_tile_valid; /* 1 while highlight should be drawn, 0 when cleared */
 };
 
 void

@@ -310,6 +310,13 @@ dash3d_render_model( //
 struct DashAABB*
 dash3d_projected_model_aabb(struct DashGraphics* dash);
 
+void
+dash3d_copy_screen_vertices_float(
+    struct DashGraphics* dash,
+    float* out_x,
+    float* out_y,
+    int count);
+
 int
 dash3d_project_model(
     struct DashGraphics* dash,
@@ -494,6 +501,20 @@ dash2d_fill_rect_alpha(
     int height,
     int color_rgb,
     int alpha);
+
+void
+dash2d_fill_polygon_alpha(
+    int* pixel_buffer,
+    int stride,
+    const int* x,
+    const int* y,
+    int n,
+    int color_rgb,
+    int alpha,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom);
 
 void
 dash2d_draw_rect_alpha(

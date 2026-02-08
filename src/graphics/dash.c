@@ -1343,6 +1343,20 @@ dash3d_project_model(
     return cull;
 }
 
+void
+dash3d_copy_screen_vertices_float(
+    struct DashGraphics* dash,
+    float* out_x,
+    float* out_y,
+    int count)
+{
+    for( int i = 0; i < count; i++ )
+    {
+        out_x[i] = (float)dash->screen_vertices_x[i];
+        out_y[i] = (float)dash->screen_vertices_y[i];
+    }
+}
+
 static inline int
 dash3d_project6(
     struct DashGraphics* dash,
@@ -2436,6 +2450,123 @@ dash2d_fill_rect_alpha(
 
             pixel_buffer[pixel_buffer_index] = (out_r << 16) | (out_g << 8) | out_b;
         }
+    }
+}
+
+static void
+dash2d_fill_triangle_alpha(
+    int* pixel_buffer,
+    int stride,
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    int x3,
+    int y3,
+    int color_rgb,
+    int alpha,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom)
+{
+    int min_x = x1;
+    if( x2 < min_x )
+        min_x = x2;
+    if( x3 < min_x )
+        min_x = x3;
+    int max_x = x1;
+    if( x2 > max_x )
+        max_x = x2;
+    if( x3 > max_x )
+        max_x = x3;
+    int min_y = y1;
+    if( y2 < min_y )
+        min_y = y2;
+    if( y3 < min_y )
+        min_y = y3;
+    int max_y = y1;
+    if( y2 > max_y )
+        max_y = y2;
+    if( y3 > max_y )
+        max_y = y3;
+    if( min_x > clip_right || max_x < clip_left || min_y > clip_bottom || max_y < clip_top )
+        return;
+    if( min_x < clip_left )
+        min_x = clip_left;
+    if( max_x > clip_right )
+        max_x = clip_right;
+    if( min_y < clip_top )
+        min_y = clip_top;
+    if( max_y > clip_bottom )
+        max_y = clip_bottom;
+
+    int r = (color_rgb >> 16) & 0xFF;
+    int g = (color_rgb >> 8) & 0xFF;
+    int b = color_rgb & 0xFF;
+
+    for( int py = min_y; py <= max_y; py++ )
+    {
+        for( int px = min_x; px <= max_x; px++ )
+        {
+            if( !triangle_contains_point(x1, y1, x2, y2, x3, y3, px, py) )
+                continue;
+            int idx = py * stride + px;
+            int dst_pixel = pixel_buffer[idx];
+            int dst_r = (dst_pixel >> 16) & 0xFF;
+            int dst_g = (dst_pixel >> 8) & 0xFF;
+            int dst_b = dst_pixel & 0xFF;
+            int out_r = (r * alpha + dst_r * (256 - alpha)) >> 8;
+            int out_g = (g * alpha + dst_g * (256 - alpha)) >> 8;
+            int out_b = (b * alpha + dst_b * (256 - alpha)) >> 8;
+            pixel_buffer[idx] = (out_r << 16) | (out_g << 8) | out_b;
+        }
+    }
+}
+
+void
+dash2d_fill_polygon_alpha(
+    int* pixel_buffer,
+    int stride,
+    const int* x,
+    const int* y,
+    int n,
+    int color_rgb,
+    int alpha,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom)
+{
+    if( n < 3 )
+        return;
+    int cx = 0;
+    int cy = 0;
+    for( int i = 0; i < n; i++ )
+    {
+        cx += x[i];
+        cy += y[i];
+    }
+    cx /= n;
+    cy /= n;
+    for( int i = 0; i < n; i++ )
+    {
+        int j = (i + 1) % n;
+        dash2d_fill_triangle_alpha(
+            pixel_buffer,
+            stride,
+            cx,
+            cy,
+            x[i],
+            y[i],
+            x[j],
+            y[j],
+            color_rgb,
+            alpha,
+            clip_left,
+            clip_top,
+            clip_right,
+            clip_bottom);
     }
 }
 

@@ -1265,9 +1265,21 @@ LibToriRS_GameStep(
             game->outbound_buffer[game->outbound_size++] = z & 0xff;
             game->mouse_clicked = false;
             game->clicked_tile_valid = 0;
+            game->highlight_tile_x = x;
+            game->highlight_tile_z = z;
+            game->highlight_tile_valid = 1;
         }
         else if( game->clicked_tile_valid )
             game->clicked_tile_valid = 0;
+
+        /* Clear highlight when active player reaches the target tile (128 units per tile). */
+        if( game->highlight_tile_valid && game->players[ACTIVE_PLAYER_SLOT].alive )
+        {
+            int px = game->players[ACTIVE_PLAYER_SLOT].position.x / 128;
+            int pz = game->players[ACTIVE_PLAYER_SLOT].position.z / 128;
+            if( px == game->highlight_tile_x && pz == game->highlight_tile_z )
+                game->highlight_tile_valid = 0;
+        }
 
         dash_animate_textures(game->sys_dash, game->cycles_elapsed);
         if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
