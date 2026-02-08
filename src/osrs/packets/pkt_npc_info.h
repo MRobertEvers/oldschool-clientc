@@ -28,6 +28,7 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OPBITS_JUMP,
     PKT_NPC_INFO_OPBITS_DX,
     PKT_NPC_INFO_OPBITS_DZ,
+    PKT_NPC_INFO_OP_SEQUENCE,
     PKT_NPC_INFO_OP_FACE_ENTITY,
     PKT_NPC_INFO_OP_SAY,
     PKT_NPC_INFO_OP_DAMAGE,
@@ -77,6 +78,7 @@ struct PktNpcInfoOp
     union
     {
         uint64_t _bitvalue;
+        struct PktNpcInfo_Sequence _sequence;
         struct PktNpcInfo_Damage2 _damage2;
     };
 };

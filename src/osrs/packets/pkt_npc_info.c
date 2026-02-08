@@ -124,6 +124,17 @@ push_bits_dz(
     op->_bitvalue = dz;
 }
 
+static void
+push_op_sequence(
+    struct PktNpcInfoOp* op,
+    int sequence_id,
+    int delay)
+{
+    op->kind = PKT_NPC_INFO_OP_SEQUENCE;
+    op->_sequence.sequence_id = sequence_id;
+    op->_sequence.delay = delay;
+}
+
 int
 pkt_npc_info_reader_read(
     struct PktNpcInfoReader* reader,
@@ -289,7 +300,9 @@ pkt_npc_info_reader_read(
 
         if( (mask & MASK_ANIM) != 0 )
         {
-            assert(0);
+            int sequence_id = g2(&rsbuf);
+            int delay = g1(&rsbuf);
+            push_op_sequence(next_op(reader, ops, ops_capacity), sequence_id, delay);
             // int len = g1(&rsbuf);
             // uint8_t* sequence_buf = malloc(len);
             // greadto(&rsbuf, sequence_buf, len, len);

@@ -103,7 +103,8 @@ player_appearance_model(
     struct PlayerAppearance* appearance,
     struct DashModel* dash_model)
 {
-    assert(dash_model && !dash_model->loaded && "Dash model must be provided");
+    // assert(dash_model && !dash_model->loaded && "Dash model must be provided");
+    assert(dash_model && "Dash model must be provided");
     struct CacheModel* model = NULL;
     struct CacheModel* merged = NULL;
     struct AppearanceOp op;
@@ -171,7 +172,11 @@ entity_scenebuild_player_change_appearance(
     player->animation.walkanim_r = appearance->walkanim_r;
     player->animation.runanim = appearance->runanim;
 
-    scene_element_reset(scene_element);
+    // scene_element_reset(scene_element);
+
+    // TODO: Cleanup.
+    if( !scene_element->dash_model )
+        scene_element->dash_model = dashmodel_new();
     player_appearance_model(game, appearance, scene_element->dash_model);
 }
 
