@@ -1623,26 +1623,27 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     //     }
     // }
 
-    /* Draw highlight polygon on top of pixel_buffer (convex_hull.u.c logic) so it is visible. */
+    /* Draw highlight polygon into dash_buffer (viewport-local); alpha-blends with 3D scene. */
     if( renderer->highlight_poly_valid && renderer->highlight_poly_n >= 3 &&
-        renderer->highlight_poly_n <= PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX )
+        renderer->highlight_poly_n <= PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX && renderer->dash_buffer )
     {
-        int ox = renderer->dash_offset_x;
-        int oy = renderer->dash_offset_y;
         int px[PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX];
         int py[PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX];
+        int dw = renderer->dash_buffer_width;
+        int dh = renderer->dash_buffer_height;
         for( int i = 0; i < renderer->highlight_poly_n; i++ )
         {
-            px[i] = renderer->highlight_poly_x[i] + ox;
-            py[i] = renderer->highlight_poly_y[i] + oy;
+            px[i] = renderer->highlight_poly_x[i];
+            py[i] = renderer->highlight_poly_y[i];
         }
+        /* Inclusive clip bounds so we never write past the buffer (valid x: 0..dw-1, y: 0..dh-1). */
         int clip_l = 0;
         int clip_t = 0;
-        int clip_r = renderer->width;
-        int clip_b = renderer->height;
+        int clip_r = dw > 0 ? dw - 1 : 0;
+        int clip_b = dh > 0 ? dh - 1 : 0;
         dash2d_fill_polygon_alpha(
-            renderer->pixel_buffer,
-            renderer->width,
+            renderer->dash_buffer,
+            dw,
             px,
             py,
             renderer->highlight_poly_n,

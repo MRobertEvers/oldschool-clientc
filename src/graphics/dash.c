@@ -2531,6 +2531,18 @@ dash2d_fill_triangle_alpha(
         min_y = clip_top;
     if( max_y > clip_bottom )
         max_y = clip_bottom;
+    /* Ensure we never write past the buffer: clip_right/clip_bottom are inclusive,
+     * so valid indices are [0, stride-1] and y in [0, clip_bottom]. */
+    if( max_x >= stride )
+        max_x = stride - 1;
+    if( min_x < 0 )
+        min_x = 0;
+    if( min_y < 0 )
+        min_y = 0;
+    if( max_y >= clip_bottom )
+        max_y = clip_bottom - 1;
+    if( min_x > max_x || min_y > max_y )
+        return;
 
     int r = (color_rgb >> 16) & 0xFF;
     int g = (color_rgb >> 8) & 0xFF;
