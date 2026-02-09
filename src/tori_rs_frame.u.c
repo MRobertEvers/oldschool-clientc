@@ -243,7 +243,8 @@ LibToriRS_FrameNextCommand(
         }
     }
 
-    if( game->tile_clicked_x != -1 && game->tile_clicked_z != -1 )
+    if( game->tile_clicked_x != -1 && game->tile_clicked_z != -1 &&
+        command->kind == TORIRS_GFX_NONE )
     {
         tile_model = scene_terrain_tile_at(
             game->scene->terrain,
