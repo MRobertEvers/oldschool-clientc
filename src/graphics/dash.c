@@ -236,6 +236,9 @@ dash3d_aabb_cull(
     return DASHCULL_VISIBLE;
 }
 
+/**
+ * TODO: Fix this to use the correct cylinder aabb.
+ */
 static void
 dash3d_calculate_aabb(
     struct DashAABB* aabb,
@@ -1357,6 +1360,29 @@ dash3d_copy_screen_vertices_float(
     }
 }
 
+int
+dash3d_project_point(
+    struct DashGraphics* dash,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera,
+    int* out_screen_x,
+    int* out_screen_y)
+{
+    struct ProjectedVertex pv;
+    project_orthographic_fast(
+        &pv, 0, 0, 0, 0, scene_x, scene_y, scene_z, camera->pitch, camera->yaw);
+    project_perspective_fast(&pv, pv.x, pv.y, pv.z, camera->fov_rpi2048, camera->near_plane_z);
+    if( pv.clipped )
+        return 0;
+    *out_screen_x = pv.x + view_port->x_center;
+    *out_screen_y = pv.y + view_port->y_center;
+    (void)dash;
+    return 1;
+}
+
 static inline int
 dash3d_project6(
     struct DashGraphics* dash,
@@ -1748,8 +1774,6 @@ dashmodel_new(void)
 
     return model;
 }
-
-
 
 void
 dashmodel_free(struct DashModel* model)
@@ -2165,8 +2189,9 @@ dashfont_draw_mask(
     }
 }
 
-/* Like dashfont_draw_mask but only writes pixels inside [clip_left, clip_right) x [clip_top, clip_bottom).
- * base_x, base_y = top-left of character in buffer coords; stride used to compute row. */
+/* Like dashfont_draw_mask but only writes pixels inside [clip_left, clip_right) x [clip_top,
+ * clip_bottom). base_x, base_y = top-left of character in buffer coords; stride used to compute
+ * row. */
 static void
 dashfont_draw_mask_clipped(
     int w,
@@ -2249,18 +2274,11 @@ dashfont_draw_text(
             int w = pixfont->char_mask_width[c];
             int h = pixfont->char_mask_height[c];
             int* mask = pixfont->char_mask[c];
-            /* Row-major: pixel (px, py) is at py*stride + px; include y so text draws at correct row */
-            int dst_offset = y * stride + x + pixfont->char_offset_x[c] + pixfont->char_offset_y[c] * stride;
-            dashfont_draw_mask(
-                w,
-                h,
-                mask,
-                0,
-                0,
-                pixels,
-                dst_offset,
-                stride - w,
-                color_rgb);
+            /* Row-major: pixel (px, py) is at py*stride + px; include y so text draws at correct
+             * row */
+            int dst_offset =
+                y * stride + x + pixfont->char_offset_x[c] + pixfont->char_offset_y[c] * stride;
+            dashfont_draw_mask(w, h, mask, 0, 0, pixels, dst_offset, stride - w, color_rgb);
         }
         int adv = pixfont->char_advance[c];
         if( adv <= 0 )
@@ -2299,10 +2317,21 @@ dashfont_draw_text_clipped(
             int base_y = y + pixfont->char_offset_y[c];
             int dst_offset = base_y * stride + base_x;
             dashfont_draw_mask_clipped(
-                w, h, mask, 0, 0,
-                pixels, dst_offset, stride - w, stride,
-                base_x, base_y,
-                clip_left, clip_top, clip_right, clip_bottom,
+                w,
+                h,
+                mask,
+                0,
+                0,
+                pixels,
+                dst_offset,
+                stride - w,
+                stride,
+                base_x,
+                base_y,
+                clip_left,
+                clip_top,
+                clip_right,
+                clip_bottom,
                 color_rgb);
         }
         int adv = pixfont->char_advance[c];
@@ -2313,7 +2342,9 @@ dashfont_draw_text_clipped(
 }
 
 int
-dashfont_text_width(struct DashPixFont* pixfont, uint8_t* text)
+dashfont_text_width(
+    struct DashPixFont* pixfont,
+    uint8_t* text)
 {
     int width = 0;
     size_t length = strlen((char*)text);
@@ -2633,6 +2664,88 @@ dash2d_draw_rect_alpha(
         out_g = (g * alpha + dst_g * (256 - alpha)) >> 8;
         out_b = (b * alpha + dst_b * (256 - alpha)) >> 8;
         pixel_buffer[right_idx] = (out_r << 16) | (out_g << 8) | out_b;
+    }
+}
+
+void
+dash2d_draw_line_alpha(
+    int* pixel_buffer,
+    int stride,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int color_rgb,
+    int alpha,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom)
+{
+    int r = (color_rgb >> 16) & 0xFF;
+    int g = (color_rgb >> 8) & 0xFF;
+    int b = color_rgb & 0xFF;
+
+    int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+    int dy = (y1 > y0) ? (y1 - y0) : (y0 - y1);
+    int sx = (x1 >= x0) ? 1 : -1;
+    int sy = (y1 >= y0) ? 1 : -1;
+
+    if( dx >= dy )
+    {
+        int err = (dy << 1) - dx;
+        while( 1 )
+        {
+            if( x0 >= clip_left && x0 < clip_right && y0 >= clip_top && y0 < clip_bottom )
+            {
+                int idx = y0 * stride + x0;
+                int dst = pixel_buffer[idx];
+                int dr = (dst >> 16) & 0xFF;
+                int dg = (dst >> 8) & 0xFF;
+                int db = dst & 0xFF;
+                int or_ = (r * alpha + dr * (256 - alpha)) >> 8;
+                int og = (g * alpha + dg * (256 - alpha)) >> 8;
+                int ob = (b * alpha + db * (256 - alpha)) >> 8;
+                pixel_buffer[idx] = (or_ << 16) | (og << 8) | ob;
+            }
+            if( x0 == x1 )
+                break;
+            x0 += sx;
+            if( err > 0 )
+            {
+                y0 += sy;
+                err -= (dx << 1);
+            }
+            err += (dy << 1);
+        }
+    }
+    else
+    {
+        int err = (dx << 1) - dy;
+        while( 1 )
+        {
+            if( x0 >= clip_left && x0 < clip_right && y0 >= clip_top && y0 < clip_bottom )
+            {
+                int idx = y0 * stride + x0;
+                int dst = pixel_buffer[idx];
+                int dr = (dst >> 16) & 0xFF;
+                int dg = (dst >> 8) & 0xFF;
+                int db = dst & 0xFF;
+                int or_ = (r * alpha + dr * (256 - alpha)) >> 8;
+                int og = (g * alpha + dg * (256 - alpha)) >> 8;
+                int ob = (b * alpha + db * (256 - alpha)) >> 8;
+                pixel_buffer[idx] = (or_ << 16) | (og << 8) | ob;
+            }
+            if( y0 == y1 )
+                break;
+            y0 += sy;
+            if( err > 0 )
+            {
+                x0 += sx;
+                err -= (dy << 1);
+            }
+            err += (dx << 1);
+        }
     }
 }
 

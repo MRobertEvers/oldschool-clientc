@@ -333,8 +333,7 @@ update_npc_anim(
 
     /* Use run animation only when this step has run flag set. */
     if( npc_entity->pathing.route_run[0] && moveSpeed >= 8 &&
-        seqId == npc_entity->animation.walkanim &&
-        npc_entity->animation.runanim != -1 )
+        seqId == npc_entity->animation.walkanim && npc_entity->animation.runanim != -1 )
     {
         seqId = npc_entity->animation.runanim;
     }
@@ -447,7 +446,8 @@ update_player_anim(
 
     int x = player_entity->position.x;
     int z = player_entity->position.z;
-    /* Route is [0]=next step, [1]=step after, ...; walk to route[0] then pop front (like NPC / Client.ts). */
+    /* Route is [0]=next step, [1]=step after, ...; walk to route[0] then pop front (like NPC /
+     * Client.ts). */
     int dstX = player_entity->pathing.route_x[0] * 128 + 1 * 64;
     int dstZ = player_entity->pathing.route_z[0] * 128 + 1 * 64;
 
@@ -551,8 +551,7 @@ update_player_anim(
 
     /* Use run animation only when this step has run flag set (Client.ts routeRun[0]). */
     if( player_entity->pathing.route_run[0] && moveSpeed >= 8 &&
-        seqId == player_entity->animation.walkanim &&
-        player_entity->animation.runanim != -1 )
+        seqId == player_entity->animation.walkanim && player_entity->animation.runanim != -1 )
     {
         seqId = player_entity->animation.runanim;
     }
@@ -968,55 +967,9 @@ LibToriRS_GameStep(
         int mouse_x = game->mouse_clicked_x;
         int mouse_y = game->mouse_clicked_y;
         int panel_h = 50;
-        int panel_top =
-            (game->iface_view_port && game->iface_view_port->height > panel_h)
-                ? (game->iface_view_port->height - panel_h)
-                : 453;
-
-        /* Terrain tile hit-test: find first drawn tile that contains the click (Client.ts
-         * World3D.clickTileX/Z). Use painter buffer and current camera to project. */
-        game->clicked_tile_valid = 0;
-        if( game->scene && game->scene->terrain && game->sys_painter_buffer && game->sys_dash &&
-            game->view_port && game->camera )
-        {
-            struct DashPosition pos = { 0 };
-            for( int i = 0; i < game->sys_painter_buffer->command_count; i++ )
-            {
-                struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
-                if( cmd->_bf_kind != PNTR_CMD_TERRAIN )
-                    continue;
-                int sx = (int)cmd->_terrain._bf_terrain_x;
-                int sz = (int)cmd->_terrain._bf_terrain_z;
-                int slevel = (int)cmd->_terrain._bf_terrain_y;
-                struct SceneTerrainTile* tile_model =
-                    scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
-                if( !tile_model || !tile_model->dash_model )
-                    continue;
-                pos.x = sx * 128 - game->camera_world_x;
-                pos.z = sz * 128 - game->camera_world_z;
-                pos.y = -game->camera_world_y;
-                int cull = dash3d_project_model(
-                    game->sys_dash,
-                    tile_model->dash_model,
-                    &pos,
-                    game->view_port,
-                    game->camera);
-                if( cull != DASHCULL_VISIBLE )
-                    continue;
-                if( dash3d_projected_model_contains(
-                        game->sys_dash,
-                        tile_model->dash_model,
-                        game->view_port,
-                        mouse_x,
-                        mouse_y) )
-                {
-                    game->clicked_tile_x = sx;
-                    game->clicked_tile_z = sz;
-                    game->clicked_tile_valid = 1;
-                    break;
-                }
-            }
-        }
+        int panel_top = (game->iface_view_port && game->iface_view_port->height > panel_h)
+                            ? (game->iface_view_port->height - panel_h)
+                            : 453;
 
         // Tab bar click (Client.ts handleTabInput 3018-3072): same bounds, only if tab has
         // interface
@@ -1273,30 +1226,29 @@ LibToriRS_GameStep(
             }
         }
 
-        /* Terrain tile click: send MOVE_GAMECLICK. Server reads: ctrlHeld=g1(), startX=g2(), startZ=g2(),
-         * then waypoints as (startX+g1b(), startZ+g1b()) per waypoint. So payload is:
-         * ctrlHeld(1) + startX(2) + startZ(2) + (waypoints * 2) bytes; waypoints = (length - 5) / 2.
-         * Path: start = current player (world tile), then steps toward dest (world), max 25 points. */
+        /* Terrain tile click: send MOVE_GAMECLICK. Server reads: ctrlHeld=g1(), startX=g2(),
+         * startZ=g2(), then waypoints as (startX+g1b(), startZ+g1b()) per waypoint. So payload is:
+         * ctrlHeld(1) + startX(2) + startZ(2) + (waypoints * 2) bytes; waypoints = (length - 5)
+         * / 2. Path: start = current player (world tile), then steps toward dest (world), max 25
+         * points. */
         if( game->mouse_clicked && game->clicked_tile_valid &&
             GAME_NET_STATE_GAME == game->net_state )
         {
-            /* Convert scene-local to world tile: server expects world (scene base SW + local). ~3200 range. */
+            /* Convert scene-local to world tile: server expects world (scene base SW + local).
+             * ~3200 range. */
             int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
             int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
             /* Current tile in world coords: scene base + local (position is scene-local). */
-            int cur_x = game->players[ACTIVE_PLAYER_SLOT].alive
-                ? (game->scene_base_tile_x + game->players[ACTIVE_PLAYER_SLOT].position.x / 128)
-                : game->scene_base_tile_x;
-            int cur_z = game->players[ACTIVE_PLAYER_SLOT].alive
-                ? (game->scene_base_tile_z + game->players[ACTIVE_PLAYER_SLOT].position.z / 128)
-                : game->scene_base_tile_z;
+            int cur_x =
+                game->players[ACTIVE_PLAYER_SLOT].alive
+                    ? (game->scene_base_tile_x + game->players[ACTIVE_PLAYER_SLOT].position.x / 128)
+                    : game->scene_base_tile_x;
+            int cur_z =
+                game->players[ACTIVE_PLAYER_SLOT].alive
+                    ? (game->scene_base_tile_z + game->players[ACTIVE_PLAYER_SLOT].position.z / 128)
+                    : game->scene_base_tile_z;
             if( cur_x != dest_x || cur_z != dest_z )
             {
-                /* Highlight the END destination tile (scene-local so draw works regardless of scene_base). */
-                game->highlight_tile_x = game->clicked_tile_x;
-                game->highlight_tile_z = game->clicked_tile_z;
-                game->highlight_tile_valid = 1;
-
                 /* Build path via BFS on collision map (same logic as Client.ts tryMove). */
                 int src_local_x = cur_x - game->scene_base_tile_x;
                 int src_local_z = cur_z - game->scene_base_tile_z;
@@ -1326,8 +1278,11 @@ LibToriRS_GameStep(
                 {
                     if( waypoints > 25 )
                         waypoints = 25;
-                    int payload_size = 1 + 2 + 2 + waypoints * 2; /* ctrlHeld + startX + startZ + (g1b,g1b)*waypoints */
-                    if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
+                    int payload_size =
+                        1 + 2 + 2 +
+                        waypoints * 2; /* ctrlHeld + startX + startZ + (g1b,g1b)*waypoints */
+                    if( game->outbound_size + 2 + payload_size <=
+                        (int)sizeof(game->outbound_buffer) )
                     {
                         uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
                         game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
@@ -1337,7 +1292,8 @@ LibToriRS_GameStep(
                         game->outbound_buffer[game->outbound_size++] = cur_x & 0xff;
                         game->outbound_buffer[game->outbound_size++] = (cur_z >> 8) & 0xff;
                         game->outbound_buffer[game->outbound_size++] = cur_z & 0xff;
-                        /* Waypoints as incremental deltas (server: startX += g1b(), startZ += g1b() per waypoint) */
+                        /* Waypoints as incremental deltas (server: startX += g1b(), startZ += g1b()
+                         * per waypoint) */
                         int prev_x = src_local_x;
                         int prev_z = src_local_z;
                         for( int i = 0; i < waypoints; i++ )
@@ -1346,10 +1302,13 @@ LibToriRS_GameStep(
                             int delta_z = path_local_z[i] - prev_z;
                             prev_x = path_local_x[i];
                             prev_z = path_local_z[i];
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)(delta_x & 0xff);
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)(delta_z & 0xff);
+                            game->outbound_buffer[game->outbound_size++] =
+                                (uint8_t)(delta_x & 0xff);
+                            game->outbound_buffer[game->outbound_size++] =
+                                (uint8_t)(delta_z & 0xff);
                         }
-                        if( game->players[ACTIVE_PLAYER_SLOT].alive && game->players[ACTIVE_PLAYER_SLOT].scene_element )
+                        if( game->players[ACTIVE_PLAYER_SLOT].alive &&
+                            game->players[ACTIVE_PLAYER_SLOT].scene_element )
                         {
                             int steps = (waypoints < 10) ? waypoints : 10;
                             struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
@@ -1360,6 +1319,18 @@ LibToriRS_GameStep(
                                 pl->pathing.route_z[i] = path_local_z[i];
                                 pl->pathing.route_run[i] = 0;
                             }
+                        }
+                        /* Store path for overlay: [0]=start, [1..waypoints]=steps to dest (convex
+                         * hull + line). */
+                        game->path_tile_count = waypoints + 1;
+                        if( game->path_tile_count > GAME_PATH_TILE_MAX )
+                            game->path_tile_count = GAME_PATH_TILE_MAX;
+                        game->path_tile_x[0] = src_local_x;
+                        game->path_tile_z[0] = src_local_z;
+                        for( int i = 0; i < waypoints && i < GAME_PATH_TILE_MAX - 1; i++ )
+                        {
+                            game->path_tile_x[i + 1] = path_local_x[i];
+                            game->path_tile_z[i + 1] = path_local_z[i];
                         }
                         game->mouse_clicked = false;
                         game->clicked_tile_valid = 0;
@@ -1374,24 +1345,15 @@ LibToriRS_GameStep(
         }
         else if( game->clicked_tile_valid )
             game->clicked_tile_valid = 0;
+    }
 
-        /* Clear highlight when active player reaches the target tile (highlight is scene-local; position is scene-local). */
-        if( game->highlight_tile_valid && game->players[ACTIVE_PLAYER_SLOT].alive )
-        {
-            int px = game->players[ACTIVE_PLAYER_SLOT].position.x / 128;
-            int pz = game->players[ACTIVE_PLAYER_SLOT].position.z / 128;
-            if( px == game->highlight_tile_x && pz == game->highlight_tile_z )
-                game->highlight_tile_valid = 0;
-        }
-
-        dash_animate_textures(game->sys_dash, game->cycles_elapsed);
-        if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
-        {
-            game->next_notimeout_cycle = game->cycle + 50;
-            int opcode = 206;
-            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = op;
-        }
+    dash_animate_textures(game->sys_dash, game->cycles_elapsed);
+    if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
+    {
+        game->next_notimeout_cycle = game->cycle + 50;
+        int opcode = 206;
+        uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+        game->outbound_buffer[game->outbound_size++] = op;
     }
 
     /* Scene dynamic elements (players/NPCs) are updated earlier in GameStep so they

@@ -8,6 +8,7 @@ extern "C" {
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
+#include "graphics/convex_hull.u.c"
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat_loader.h"
@@ -25,7 +26,6 @@ extern "C" {
 #include "server/prot.h"
 #include "server/server.h"
 #include "tori_rs.h"
-#include "graphics/convex_hull.u.c"
 }
 
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
@@ -829,83 +829,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
     LibToriRS_FrameEnd(game);
 
-    /* Draw highlighted tile overlay (convex hull of projected tile) until player reaches it.
-     * highlight_tile_x/z are scene-local; convert to world for projection.
-     * Draw into dash_buffer and store polygon for later draw into pixel_buffer (on top of UI). */
-    renderer->highlight_poly_valid = 0;
-    if( game->highlight_tile_valid && game->scene && game->scene->terrain )
-    {
-        int local_x = game->highlight_tile_x;
-        int local_z = game->highlight_tile_z;
-        struct SceneTerrain* terrain = game->scene->terrain;
-        if( local_x >= 0 && local_x < terrain->tile_width_x &&
-            local_z >= 0 && local_z < terrain->tile_width_z )
-        {
-        struct SceneTerrainTile* tile = scene_terrain_tile_at(terrain, local_x, local_z, 0);
-        if( tile && tile->dash_model && tile->dash_model->vertex_count > 0 &&
-             tile->dash_model->vertex_count <= 4096 )
-        {
-            int world_x = game->scene_base_tile_x + local_x;
-            int world_z = game->scene_base_tile_z + local_z;
-            struct DashPosition pos;
-            pos.x = world_x * 128 - game->camera_world_x;
-            pos.y = -game->camera_world_y;
-            pos.z = world_z * 128 - game->camera_world_z;
-            pos.yaw = 0;
-            pos.pitch = 0;
-            pos.roll = 0;
-            int cull = dash3d_project_model(
-                game->sys_dash,
-                tile->dash_model,
-                &pos,
-                game->view_port,
-                game->camera);
-            if( cull == DASHCULL_VISIBLE )
-            {
-                static float hull_in_x[4096];
-                static float hull_in_y[4096];
-                static float hull_out_x[4096];
-                static float hull_out_y[4096];
-                static int poly_x[4096];
-                static int poly_y[4096];
-                int n = (int)tile->dash_model->vertex_count;
-                int cx = game->view_port->x_center;
-                int cy = game->view_port->y_center;
-                dash3d_copy_screen_vertices_float(game->sys_dash, hull_in_x, hull_in_y, n);
-                size_t hull_n = compute_convex_hull(hull_in_x, hull_in_y, (size_t)n, hull_out_x, hull_out_y);
-                if( hull_n >= 3 && (size_t)hull_n <= PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX )
-                {
-                    for( size_t i = 0; i < hull_n; i++ )
-                    {
-                        poly_x[i] = (int)hull_out_x[i] + cx;
-                        poly_y[i] = (int)hull_out_y[i] + cy;
-                    }
-                    dash2d_fill_polygon_alpha(
-                        renderer->dash_buffer,
-                        renderer->dash_buffer_width,
-                        poly_x,
-                        poly_y,
-                        (int)hull_n,
-                        0x00FF00,
-                        80,
-                        0,
-                        0,
-                        renderer->dash_buffer_width,
-                        renderer->dash_buffer_height);
-                    /* Store for pixel_buffer overlay so highlight is on top of UI. */
-                    for( size_t i = 0; i < hull_n; i++ )
-                    {
-                        renderer->highlight_poly_x[i] = poly_x[i];
-                        renderer->highlight_poly_y[i] = poly_y[i];
-                    }
-                    renderer->highlight_poly_n = (int)hull_n;
-                    renderer->highlight_poly_valid = 1;
-                }
-            }
-        }
-        }
-    }
-
     int camera_tile_x = game->camera_world_x / 128;
     int camera_tile_z = game->camera_world_z / 128;
 
@@ -1177,26 +1100,60 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             renderer->pixel_buffer);
     }
 
-    /* Redstone for selected tab (top row 0-6) - Client.ts lines 4459-4471, only when sidebar is -1 */
+    /* Redstone for selected tab (top row 0-6) - Client.ts lines 4459-4471, only when sidebar is -1
+     */
     if( game->sidebar_interface_id == -1 && game->selected_tab >= 0 && game->selected_tab <= 6 )
     {
         struct DashSprite* redstone = NULL;
         int rx = 0, ry = 0;
         switch( game->selected_tab )
         {
-        case 0: redstone = game->sprite_redstone1; rx = 22; ry = 10; break;
-        case 1: redstone = game->sprite_redstone2; rx = 54; ry = 8; break;
-        case 2: redstone = game->sprite_redstone2; rx = 82; ry = 8; break;
-        case 3: redstone = game->sprite_redstone3; rx = 110; ry = 8; break;
-        case 4: redstone = game->sprite_redstone2h; rx = 153; ry = 8; break;
-        case 5: redstone = game->sprite_redstone2h; rx = 181; ry = 8; break;
-        case 6: redstone = game->sprite_redstone1h; rx = 209; ry = 9; break;
-        default: break;
+        case 0:
+            redstone = game->sprite_redstone1;
+            rx = 22;
+            ry = 10;
+            break;
+        case 1:
+            redstone = game->sprite_redstone2;
+            rx = 54;
+            ry = 8;
+            break;
+        case 2:
+            redstone = game->sprite_redstone2;
+            rx = 82;
+            ry = 8;
+            break;
+        case 3:
+            redstone = game->sprite_redstone3;
+            rx = 110;
+            ry = 8;
+            break;
+        case 4:
+            redstone = game->sprite_redstone2h;
+            rx = 153;
+            ry = 8;
+            break;
+        case 5:
+            redstone = game->sprite_redstone2h;
+            rx = 181;
+            ry = 8;
+            break;
+        case 6:
+            redstone = game->sprite_redstone1h;
+            rx = 209;
+            ry = 9;
+            break;
+        default:
+            break;
         }
         if( redstone )
             dash2d_blit_sprite(
-                game->sys_dash, redstone, game->iface_view_port,
-                bind_x + rx, bind_y + ry, renderer->pixel_buffer);
+                game->sys_dash,
+                redstone,
+                game->iface_view_port,
+                bind_x + rx,
+                bind_y + ry,
+                renderer->pixel_buffer);
     }
 
     if( game->sprite_sideicons[0] )
@@ -1297,40 +1254,103 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         int rx = 0, ry = 0;
         switch( game->selected_tab )
         {
-        case 7: redstone = game->sprite_redstone1v; rx = 42; ry = 0; break;
-        case 8: redstone = game->sprite_redstone2v; rx = 74; ry = 0; break;
-        case 9: redstone = game->sprite_redstone2v; rx = 102; ry = 0; break;
-        case 10: redstone = game->sprite_redstone3v; rx = 130; ry = 1; break;
-        case 11: redstone = game->sprite_redstone2hv; rx = 173; ry = 0; break;
-        case 12: redstone = game->sprite_redstone2hv; rx = 201; ry = 0; break;
-        case 13: redstone = game->sprite_redstone1hv; rx = 229; ry = 0; break;
-        default: break;
+        case 7:
+            redstone = game->sprite_redstone1v;
+            rx = 42;
+            ry = 0;
+            break;
+        case 8:
+            redstone = game->sprite_redstone2v;
+            rx = 74;
+            ry = 0;
+            break;
+        case 9:
+            redstone = game->sprite_redstone2v;
+            rx = 102;
+            ry = 0;
+            break;
+        case 10:
+            redstone = game->sprite_redstone3v;
+            rx = 130;
+            ry = 1;
+            break;
+        case 11:
+            redstone = game->sprite_redstone2hv;
+            rx = 173;
+            ry = 0;
+            break;
+        case 12:
+            redstone = game->sprite_redstone2hv;
+            rx = 201;
+            ry = 0;
+            break;
+        case 13:
+            redstone = game->sprite_redstone1hv;
+            rx = 229;
+            ry = 0;
+            break;
+        default:
+            break;
         }
         if( redstone )
             dash2d_blit_sprite(
-                game->sys_dash, redstone, game->iface_view_port,
-                bind_bottom_x + rx, bind_bottom_y + ry, renderer->pixel_buffer);
+                game->sys_dash,
+                redstone,
+                game->iface_view_port,
+                bind_bottom_x + rx,
+                bind_bottom_y + ry,
+                renderer->pixel_buffer);
     }
 
     /* Bottom row sideicons (tabs 7-13) - Client.ts lines 4529-4551 */
     if( game->sprite_sideicons[7] )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[7], game->iface_view_port,
-            bind_bottom_x + 74, bind_bottom_y + 2, renderer->pixel_buffer);
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[7],
+            game->iface_view_port,
+            bind_bottom_x + 74,
+            bind_bottom_y + 2,
+            renderer->pixel_buffer);
     if( game->sprite_sideicons[8] )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[8], game->iface_view_port,
-            bind_bottom_x + 102, bind_bottom_y + 3, renderer->pixel_buffer);
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[8],
+            game->iface_view_port,
+            bind_bottom_x + 102,
+            bind_bottom_y + 3,
+            renderer->pixel_buffer);
     if( game->sprite_sideicons[9] )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[9], game->iface_view_port,
-            bind_bottom_x + 137, bind_bottom_y + 4, renderer->pixel_buffer);
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[9],
+            game->iface_view_port,
+            bind_bottom_x + 137,
+            bind_bottom_y + 4,
+            renderer->pixel_buffer);
     if( game->sprite_sideicons[10] )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[10], game->iface_view_port,
-            bind_bottom_x + 174, bind_bottom_y + 2, renderer->pixel_buffer);
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[10],
+            game->iface_view_port,
+            bind_bottom_x + 174,
+            bind_bottom_y + 2,
+            renderer->pixel_buffer);
     if( game->sprite_sideicons[11] )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[11], game->iface_view_port,
-            bind_bottom_x + 201, bind_bottom_y + 2, renderer->pixel_buffer);
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[11],
+            game->iface_view_port,
+            bind_bottom_x + 201,
+            bind_bottom_y + 2,
+            renderer->pixel_buffer);
     if( game->sprite_sideicons[12] )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_sideicons[12], game->iface_view_port,
-            bind_bottom_x + 226, bind_bottom_y + 2, renderer->pixel_buffer);
+        dash2d_blit_sprite(
+            game->sys_dash,
+            game->sprite_sideicons[12],
+            game->iface_view_port,
+            bind_bottom_x + 226,
+            bind_bottom_y + 2,
+            renderer->pixel_buffer);
 
     // Initialize clipping bounds for interface viewport
     if( game->iface_view_port )
@@ -1471,9 +1491,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 #define PRIVACY_PANEL_W 496
 #define PRIVACY_PANEL_H 50
     int privacy_panel_y =
-        (453 + PRIVACY_PANEL_H <= renderer->height)
-            ? 453
-            : (renderer->height - PRIVACY_PANEL_H);
+        (453 + PRIVACY_PANEL_H <= renderer->height) ? 453 : (renderer->height - PRIVACY_PANEL_H);
     if( privacy_panel_y < 0 )
         privacy_panel_y = 0;
     if( game->sprite_backbase1 && privacy_panel_y + PRIVACY_PANEL_H <= renderer->height )
@@ -1599,6 +1617,64 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             clip_t,
             clip_r,
             clip_b);
+    }
+
+    /* Draw path line into pixel_buffer (viewport offset) so it is visible in final image. */
+    if( game->path_tile_count > 1 && game->sys_dash && game->view_port && game->camera )
+    {
+        int ox = renderer->dash_offset_x;
+        int oy = renderer->dash_offset_y;
+        int clip_l = 0;
+        int clip_t = 0;
+        int clip_r = renderer->width;
+        int clip_b = renderer->height;
+        int prev_sx = 0, prev_sy = 0;
+        int prev_ok = 0;
+
+        for( int i = 0; i < game->path_tile_count; i++ )
+        {
+            int tx = game->path_tile_x[i];
+            int tz = game->path_tile_z[i];
+            int scene_x = (game->scene_base_tile_x + tx) * 128 + 64 - game->camera_world_x;
+            int scene_z = (game->scene_base_tile_z + tz) * 128 + 64 - game->camera_world_z;
+            int scene_y = -game->camera_world_y;
+
+            int screen_x, screen_y;
+            if( dash3d_project_point(
+                    game->sys_dash,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    game->view_port,
+                    game->camera,
+                    &screen_x,
+                    &screen_y) )
+            {
+                int px = screen_x + ox;
+                int py = screen_y + oy;
+                if( prev_ok )
+                {
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        prev_sx,
+                        prev_sy,
+                        px,
+                        py,
+                        0x00FFFF,
+                        220,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                }
+                prev_sx = px;
+                prev_sy = py;
+                prev_ok = 1;
+            }
+            else
+                prev_ok = 0;
+        }
     }
 
     // Render minimap to buffer starting at (0,0)

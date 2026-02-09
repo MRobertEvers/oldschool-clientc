@@ -364,6 +364,8 @@ collision_map_bfs_path(
     int tmp_x[256], tmp_z[256];
     assert(max_path <= 256);
 
+    /* dir at (trace_x,trace_z) = direction we moved TO get here (from previous cell).
+     * To backtrace to src we must step in the OPPOSITE direction. */
     while( path_len < max_path && (trace_x != src_x || trace_z != src_z) )
     {
         int dir = bfs_direction[trace_x * cm->size_z + trace_z];
@@ -372,13 +374,13 @@ collision_map_bfs_path(
         path_len++;
 
         if( (dir & DIR_EAST) != 0 )
-            trace_x++;
-        else if( (dir & DIR_WEST) != 0 )
             trace_x--;
+        else if( (dir & DIR_WEST) != 0 )
+            trace_x++;
         if( (dir & DIR_NORTH) != 0 )
-            trace_z++;
-        else if( (dir & DIR_SOUTH) != 0 )
             trace_z--;
+        else if( (dir & DIR_SOUTH) != 0 )
+            trace_z++;
     }
 
     /* Reverse into path_x, path_z so path[0] = first step from src */

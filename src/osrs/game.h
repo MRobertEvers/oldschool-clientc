@@ -56,6 +56,10 @@ struct GGame
     int at_painters_command_index;
     int rebuilt;
 
+    int tile_clicked_x;
+    int tile_clicked_z;
+    int tile_clicked_level;
+
     int awaiting_models;
     int build_player;
     int cc;
@@ -108,8 +112,10 @@ struct GGame
     struct BuildCache* buildcache;
     struct CacheDat* cache_dat; // Raw cache.dat accessor for synchronous loading
 
-    /* Media filelist kept after cache_media so we can load component sprites when interfaces load */
-    struct FileListDat* media_filelist; /* forward decl; include osrs/rscache/filelist.h when using */
+    /* Media filelist kept after cache_media so we can load component sprites when interfaces load
+     */
+    struct FileListDat*
+        media_filelist; /* forward decl; include osrs/rscache/filelist.h when using */
 
     /* Used by init_scene (BuildCache path) when driving from Lua; NULL when not in use */
     struct DashMap* init_scenery_configmap;
@@ -195,10 +201,10 @@ struct GGame
     int chat_interface_id;
 
     // Chat privacy (Client.ts chatPublicMode, chatPrivateMode, chatTradeMode; packet sync)
-    int chat_public_mode;   /* 0=On, 1=Friends, 2=Off, 3=Hide */
-    int chat_private_mode;  /* 0=On, 1=Friends, 2=Off */
-    int chat_trade_mode;    /* 0=On, 1=Friends, 2=Off */
-    
+    int chat_public_mode;  /* 0=On, 1=Friends, 2=Off, 3=Hide */
+    int chat_private_mode; /* 0=On, 1=Friends, 2=Off */
+    int chat_trade_mode;   /* 0=On, 1=Friends, 2=Off */
+
     // Tab system
     int selected_tab;
     int tab_interface_id[14];
@@ -211,7 +217,8 @@ struct GGame
     // components with hide==true are only drawn when component->id == current_hovered_interface_id.
     int current_hovered_interface_id;
 
-    // For scrollbar arrow hold: cycles_elapsed when we last applied scroll (so step = rate * delta).
+    // For scrollbar arrow hold: cycles_elapsed when we last applied scroll (so step = rate *
+    // delta).
     int scroll_arrow_hold_cycles_last;
 
     // Item selection (for inventory clicks)
@@ -221,18 +228,20 @@ struct GGame
     int selected_cycle;
 
     /* Terrain tile click (set during frame when a drawn tile contains mouse; consumed in cycle) */
-    int clicked_tile_x;   /* scene-local tile X (add scene_base_tile_x for world) */
-    int clicked_tile_z;   /* scene-local tile Z (add scene_base_tile_z for world) */
+    int clicked_tile_x;     /* scene-local tile X (add scene_base_tile_x for world) */
+    int clicked_tile_z;     /* scene-local tile Z (add scene_base_tile_z for world) */
     int clicked_tile_valid; /* 1 if click was on a tile this frame, 0 otherwise */
 
-    /* Scene SW world tile (set on rebuild normal); add to clicked_tile to get world tile for server */
+    /* Scene SW world tile (set on rebuild normal); add to clicked_tile to get world tile for server
+     */
     int scene_base_tile_x;
     int scene_base_tile_z;
 
-    /* Highlight tile (scene-local): set when MOVE_GAMECLICK is sent; cleared when player reaches it */
-    int highlight_tile_x;
-    int highlight_tile_z;
-    int highlight_tile_valid; /* 1 while highlight should be drawn, 0 when cleared */
+/* BFS path for move (scene-local tiles); drawn as line overlay. Cleared when highlight cleared. */
+#define GAME_PATH_TILE_MAX 26
+    int path_tile_x[GAME_PATH_TILE_MAX];
+    int path_tile_z[GAME_PATH_TILE_MAX];
+    int path_tile_count; /* 0 = no path to draw */
 };
 
 void

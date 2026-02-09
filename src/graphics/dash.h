@@ -318,6 +318,17 @@ dash3d_copy_screen_vertices_float(
     int count);
 
 int
+dash3d_project_point(
+    struct DashGraphics* dash,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera,
+    int* out_screen_x,
+    int* out_screen_y);
+
+int
 dash3d_project_model(
     struct DashGraphics* dash,
     struct DashModel* model,
@@ -526,6 +537,21 @@ dash2d_draw_rect_alpha(
     int height,
     int color_rgb,
     int alpha);
+
+void
+dash2d_draw_line_alpha(
+    int* pixel_buffer,
+    int stride,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int color_rgb,
+    int alpha,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom);
 
 void
 dash2d_blit_sprite_alpha(

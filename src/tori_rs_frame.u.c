@@ -17,6 +17,10 @@ LibToriRS_FrameBegin(
     game->at_painters_command_index = 0;
     game->at_render_command_index = 0;
 
+    game->tile_clicked_x = -1;
+    game->tile_clicked_z = -1;
+    game->tile_clicked_level = -1;
+
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
     game->camera->roll = game->camera_roll;
@@ -42,6 +46,7 @@ LibToriRS_FrameNextCommand(
 
     struct DashPosition position = { 0 };
     struct SceneElement* element = NULL;
+    struct SceneTerrainTile* tile_model = NULL;
 
     if( !game->sys_painter_buffer )
         return false;
@@ -195,7 +200,6 @@ LibToriRS_FrameNextCommand(
         break;
         case PNTR_CMD_TERRAIN:
         {
-            struct SceneTerrainTile* tile_model = NULL;
             int sx = cmd->_terrain._bf_terrain_x;
             int sz = cmd->_terrain._bf_terrain_z;
             int slevel = cmd->_terrain._bf_terrain_y;
@@ -213,13 +217,18 @@ LibToriRS_FrameNextCommand(
             if( cull != DASHCULL_VISIBLE )
                 continue;
 
-            // dash3d_render_model(
-            //     game->sys_dash,
-            //     tile_model->dash_model,
-            //     &position,
-            //     game->view_port,
-            //     game->camera,
-            //     renderer->dash_buffer);
+            if( dash3d_projected_model_contains(
+                    game->sys_dash,
+                    tile_model->dash_model,
+                    game->view_port,
+                    game->mouse_x,
+                    game->mouse_y) )
+            {
+                game->tile_clicked_x = sx;
+                game->tile_clicked_z = sz;
+                game->tile_clicked_level = slevel;
+            }
+
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
@@ -233,6 +242,36 @@ LibToriRS_FrameNextCommand(
             break;
         }
     }
+
+    if( game->tile_clicked_x != -1 && game->tile_clicked_z != -1 )
+    {
+        tile_model = scene_terrain_tile_at(
+            game->scene->terrain,
+            game->tile_clicked_x,
+            game->tile_clicked_z,
+            game->tile_clicked_level);
+        if( !tile_model || !tile_model->dash_model )
+            goto skip_highlight;
+
+        position.x = game->tile_clicked_x * 128 - game->camera_world_x;
+        position.z = game->tile_clicked_z * 128 - game->camera_world_z;
+        position.y = -game->camera_world_y;
+
+        int cull = dash3d_project_model(
+            game->sys_dash, tile_model->dash_model, &position, game->view_port, game->camera);
+        assert(cull == DASHCULL_VISIBLE);
+        if( cull != DASHCULL_VISIBLE )
+            goto skip_highlight;
+
+        *command = (struct ToriRSRenderCommand) {
+            .kind = TORIRS_GFX_MODEL_DRAW_HIGHLIGHT,
+            ._model_draw = {
+                .model = tile_model->dash_model,
+                .position = position,
+            },
+        };
+    }
+skip_highlight:;
 
     return command->kind != TORIRS_GFX_NONE;
 }
