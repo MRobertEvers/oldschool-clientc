@@ -217,12 +217,12 @@ LibToriRS_FrameNextCommand(
             if( cull != DASHCULL_VISIBLE )
                 continue;
 
+            /* Client.ts: click(mouseX-8, mouseY-11); draw tests pointInsideTriangle(World3D.mouseX,
+             * World3D.mouseY). Only record tile when we have a click (taking input). */
+            int click_x = game->mouse_clicked_x - 8;
+            int click_y = game->mouse_clicked_y - 11;
             if( dash3d_projected_model_contains(
-                    game->sys_dash,
-                    tile_model->dash_model,
-                    game->view_port,
-                    game->mouse_x,
-                    game->mouse_y) )
+                    game->sys_dash, tile_model->dash_model, game->view_port, click_x, click_y) )
             {
                 game->tile_clicked_x = sx;
                 game->tile_clicked_z = sz;
@@ -264,6 +264,14 @@ LibToriRS_FrameNextCommand(
         if( cull != DASHCULL_VISIBLE )
             goto skip_highlight;
 
+        /* Client.ts: click stores mouse; draw sets clickTileX/Z. Copy to clicked_tile for next tick
+         * tryMove (updateGame). */
+        if( game->mouse_clicked )
+        {
+            game->clicked_tile_x = game->tile_clicked_x;
+            game->clicked_tile_z = game->tile_clicked_z;
+            game->clicked_tile_valid = 1;
+        }
         game->tile_clicked_x = -1;
         game->tile_clicked_z = -1;
         game->tile_clicked_level = -1;
@@ -280,8 +288,127 @@ skip_highlight:;
     return command->kind != TORIRS_GFX_NONE;
 }
 
+/* Client.ts ClientProt.MOVE_GAMECLICK = 182 (index 255) */
+#define MOVE_GAMECLICK_OPCODE 182
+
 void
 LibToriRS_FrameEnd(struct GGame* game)
-{}
+{
+    if( game->mouse_clicked && game->clicked_tile_valid && GAME_NET_STATE_GAME == game->net_state )
+    {
+        int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
+        int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
+        /* Source = route head (Client.ts localPlayer.routeTileX[0], routeTileZ[0]). */
+        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+        int src_local_x = pl->pathing.route_x[0];
+        int src_local_z = pl->pathing.route_z[0];
+        int start_world_x = game->scene_base_tile_x + src_local_x;
+        int start_world_z = game->scene_base_tile_z + src_local_z;
+        if( start_world_x != dest_x || start_world_z != dest_z )
+        {
+            int dst_local_x = game->clicked_tile_x;
+            int dst_local_z = game->clicked_tile_z;
+
+            int path_local_x[25];
+            int path_local_z[25];
+            int waypoints = 0;
+            int have_path = 0;
+
+            if( game->scene && game->scene->collision_maps[0] )
+            {
+                waypoints = collision_map_bfs_path(
+                    game->scene->collision_maps[0],
+                    src_local_x,
+                    src_local_z,
+                    dst_local_x,
+                    dst_local_z,
+                    path_local_x,
+                    path_local_z,
+                    25);
+                have_path = (waypoints >= 0);
+            }
+
+            if( have_path && waypoints > 0 )
+            {
+                /* Client.ts: bufferSize = Math.min(length, 25); size = bufferSize+bufferSize+3. */
+                int buffer_size = waypoints + 1; /* start + waypoints steps */
+                if( buffer_size > 25 )
+                    buffer_size = 25;
+                int steps_to_send = buffer_size - 1; /* waypoint count in packet */
+                int payload_size =
+                    1 + 2 + 2 + steps_to_send * 2; /* run + startX + startZ + (g1b,g1b) per step */
+                if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
+                {
+                    uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                    game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+                    game->outbound_buffer[game->outbound_size++] = 0; /* run flag (actionKey[5]) */
+                    game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
+                    /* Client.ts: for i=1..bufferSize-1: p1(bfsStepX-startX), p1(bfsStepZ-startZ)
+                     * (g1b) */
+                    for( int i = 0; i < steps_to_send && i < waypoints; i++ )
+                    {
+                        int dx = path_local_x[i] - src_local_x;
+                        int dz = path_local_z[i] - src_local_z;
+                        game->outbound_buffer[game->outbound_size++] = (uint8_t)(int8_t)dx;
+                        game->outbound_buffer[game->outbound_size++] = (uint8_t)(int8_t)dz;
+                    }
+                    if( pl->alive && pl->scene_element )
+                    {
+                        int steps = (waypoints < 10) ? waypoints : 10;
+                        pl->pathing.route_length = steps;
+                        for( int i = 0; i < steps; i++ )
+                        {
+                            pl->pathing.route_x[i] = path_local_x[i];
+                            pl->pathing.route_z[i] = path_local_z[i];
+                            pl->pathing.route_run[i] = 0;
+                        }
+                    }
+                    /* Store path for overlay: [0]=start, [1..waypoints]=steps to dest (convex
+                     * hull + line). */
+                    game->path_tile_count = waypoints + 1;
+                    if( game->path_tile_count > GAME_PATH_TILE_MAX )
+                        game->path_tile_count = GAME_PATH_TILE_MAX;
+                    game->path_tile_x[0] = src_local_x;
+                    game->path_tile_z[0] = src_local_z;
+                    for( int i = 0; i < waypoints && i < GAME_PATH_TILE_MAX - 1; i++ )
+                    {
+                        game->path_tile_x[i + 1] = path_local_x[i];
+                        game->path_tile_z[i + 1] = path_local_z[i];
+                    }
+                    /* Debug: print waypoints (scene-local tile coords). */
+                    printf(
+                        "[path] waypoints=%d (start + %d steps)\n",
+                        game->path_tile_count,
+                        waypoints);
+                    for( int i = 0; i < game->path_tile_count; i++ )
+                        printf(
+                            "  [%d] tile=(%d,%d)\n", i, game->path_tile_x[i], game->path_tile_z[i]);
+                    game->mouse_clicked = false;
+                    game->clicked_tile_valid = 0;
+                }
+            }
+            else
+            {
+                /* No path (e.g. blocked); consume click anyway (Client.ts clears clickTileX after
+                 * tryMove). */
+                game->mouse_clicked = false;
+                game->clicked_tile_valid = 0;
+            }
+        }
+        else
+        {
+            game->mouse_clicked = false;
+            game->clicked_tile_valid = 0;
+        }
+    }
+    else if( game->clicked_tile_valid )
+    {
+        game->clicked_tile_valid = 0;
+    }
+}
 
 #endif

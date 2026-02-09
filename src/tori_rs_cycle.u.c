@@ -1043,21 +1043,17 @@ LibToriRS_GameStep(
             if( mouse_x >= 6 && mouse_x <= 106 )
             {
                 game->chat_public_mode = (game->chat_public_mode + 1) % 4;
-                game->mouse_clicked = false;
             }
             else if( mouse_x >= 135 && mouse_x <= 235 )
             {
                 game->chat_private_mode = (game->chat_private_mode + 1) % 3;
-                game->mouse_clicked = false;
             }
             else if( mouse_x >= 273 && mouse_x <= 373 )
             {
                 game->chat_trade_mode = (game->chat_trade_mode + 1) % 3;
-                game->mouse_clicked = false;
             }
             else if( mouse_x >= 412 && mouse_x <= 512 )
             {
-                game->mouse_clicked = false;
                 /* TODO: open report abuse interface (clientCode 600) */
             }
         }
@@ -1122,7 +1118,6 @@ LibToriRS_GameStep(
                     else
                         interface_handle_scrollbar_click(
                             game, scrollbar_hit, sb_y, sb_height, sb_scroll_height, mouse_y);
-                    game->mouse_clicked = false;
                 }
                 else
                 {
@@ -1225,127 +1220,12 @@ LibToriRS_GameStep(
                 printf("Click outside sidebar area\n");
             }
         }
-
-        /* Terrain tile click: send MOVE_GAMECLICK. Server reads: ctrlHeld=g1(), startX=g2(),
-         * startZ=g2(), then waypoints as (startX+g1b(), startZ+g1b()) per waypoint. So payload is:
-         * ctrlHeld(1) + startX(2) + startZ(2) + (waypoints * 2) bytes; waypoints = (length - 5)
-         * / 2. Path: start = current player (world tile), then steps toward dest (world), max 25
-         * points. */
-        if( game->mouse_clicked && game->clicked_tile_valid &&
-            GAME_NET_STATE_GAME == game->net_state )
-        {
-            /* Convert scene-local to world tile: server expects world (scene base SW + local).
-             * ~3200 range. */
-            int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
-            int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
-            /* Current tile in world coords: scene base + local (position is scene-local). */
-            int cur_x =
-                game->players[ACTIVE_PLAYER_SLOT].alive
-                    ? (game->scene_base_tile_x + game->players[ACTIVE_PLAYER_SLOT].position.x / 128)
-                    : game->scene_base_tile_x;
-            int cur_z =
-                game->players[ACTIVE_PLAYER_SLOT].alive
-                    ? (game->scene_base_tile_z + game->players[ACTIVE_PLAYER_SLOT].position.z / 128)
-                    : game->scene_base_tile_z;
-            if( cur_x != dest_x || cur_z != dest_z )
-            {
-                /* Build path via BFS on collision map (same logic as Client.ts tryMove). */
-                int src_local_x = cur_x - game->scene_base_tile_x;
-                int src_local_z = cur_z - game->scene_base_tile_z;
-                int dst_local_x = game->clicked_tile_x;
-                int dst_local_z = game->clicked_tile_z;
-
-                int path_local_x[25];
-                int path_local_z[25];
-                int waypoints = 0;
-                int have_path = 0;
-
-                if( game->scene && game->scene->collision_maps[0] )
-                {
-                    waypoints = collision_map_bfs_path(
-                        game->scene->collision_maps[0],
-                        src_local_x,
-                        src_local_z,
-                        dst_local_x,
-                        dst_local_z,
-                        path_local_x,
-                        path_local_z,
-                        25);
-                    have_path = (waypoints >= 0);
-                }
-
-                if( have_path && waypoints > 0 )
-                {
-                    if( waypoints > 25 )
-                        waypoints = 25;
-                    int payload_size =
-                        1 + 2 + 2 +
-                        waypoints * 2; /* ctrlHeld + startX + startZ + (g1b,g1b)*waypoints */
-                    if( game->outbound_size + 2 + payload_size <=
-                        (int)sizeof(game->outbound_buffer) )
-                    {
-                        uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                        game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
-                        game->outbound_buffer[game->outbound_size++] = 0; /* ctrlHeld (run flag) */
-                        game->outbound_buffer[game->outbound_size++] = (cur_x >> 8) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = cur_x & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = (cur_z >> 8) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = cur_z & 0xff;
-                        /* Waypoints as incremental deltas (server: startX += g1b(), startZ += g1b()
-                         * per waypoint) */
-                        int prev_x = src_local_x;
-                        int prev_z = src_local_z;
-                        for( int i = 0; i < waypoints; i++ )
-                        {
-                            int delta_x = path_local_x[i] - prev_x;
-                            int delta_z = path_local_z[i] - prev_z;
-                            prev_x = path_local_x[i];
-                            prev_z = path_local_z[i];
-                            game->outbound_buffer[game->outbound_size++] =
-                                (uint8_t)(delta_x & 0xff);
-                            game->outbound_buffer[game->outbound_size++] =
-                                (uint8_t)(delta_z & 0xff);
-                        }
-                        if( game->players[ACTIVE_PLAYER_SLOT].alive &&
-                            game->players[ACTIVE_PLAYER_SLOT].scene_element )
-                        {
-                            int steps = (waypoints < 10) ? waypoints : 10;
-                            struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
-                            pl->pathing.route_length = steps;
-                            for( int i = 0; i < steps; i++ )
-                            {
-                                pl->pathing.route_x[i] = path_local_x[i];
-                                pl->pathing.route_z[i] = path_local_z[i];
-                                pl->pathing.route_run[i] = 0;
-                            }
-                        }
-                        /* Store path for overlay: [0]=start, [1..waypoints]=steps to dest (convex
-                         * hull + line). */
-                        game->path_tile_count = waypoints + 1;
-                        if( game->path_tile_count > GAME_PATH_TILE_MAX )
-                            game->path_tile_count = GAME_PATH_TILE_MAX;
-                        game->path_tile_x[0] = src_local_x;
-                        game->path_tile_z[0] = src_local_z;
-                        for( int i = 0; i < waypoints && i < GAME_PATH_TILE_MAX - 1; i++ )
-                        {
-                            game->path_tile_x[i + 1] = path_local_x[i];
-                            game->path_tile_z[i + 1] = path_local_z[i];
-                        }
-                        game->mouse_clicked = false;
-                        game->clicked_tile_valid = 0;
-                    }
-                }
-            }
-            else
-            {
-                game->mouse_clicked = false;
-                game->clicked_tile_valid = 0;
-            }
-        }
-        else if( game->clicked_tile_valid )
-            game->clicked_tile_valid = 0;
     }
+
+    /* Terrain tile click: send MOVE_GAMECLICK. Client.ts tryMove(routeTileX[0], routeTileZ[0],
+     * x, z, 0, ..., true). Payload: p1(size), p1(run), p2(startX+sceneBase), p2(startZ+sceneBase),
+     * then for i=1..bufferSize-1: p1(bfsStepX-startX), p1(bfsStepZ-startZ) (signed byte offset
+     * from start). bufferSize = min(length, 25); start = first path point (route head). */
 
     dash_animate_textures(game->sys_dash, game->cycles_elapsed);
     if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )

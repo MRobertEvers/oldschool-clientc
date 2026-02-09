@@ -1655,7 +1655,32 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             clip_b);
     }
 
-    /* Draw path line into pixel_buffer (viewport offset) so it is visible in final image. */
+    /* Blit 3D view (dash_buffer) into pixel_buffer at viewport offset so path overlay draws on top. */
+    if( renderer->dash_buffer && renderer->dash_buffer_width > 0 && renderer->dash_buffer_height > 0 )
+    {
+        int* dash_buf = renderer->dash_buffer;
+        int dash_w = renderer->dash_buffer_width;
+        int dash_h = renderer->dash_buffer_height;
+        int off_x = renderer->dash_offset_x;
+        int off_y = renderer->dash_offset_y;
+        int* pix = renderer->pixel_buffer;
+        int pix_stride = renderer->width;
+        for( int y = 0; y < dash_h; y++ )
+        {
+            int dst_y = y + off_y;
+            if( dst_y >= 0 && dst_y < renderer->height )
+                for( int x = 0; x < dash_w; x++ )
+                {
+                    int dst_x = x + off_x;
+                    if( dst_x >= 0 && dst_x < renderer->width )
+                        pix[dst_y * pix_stride + dst_x] = dash_buf[y * dash_w + x];
+                }
+        }
+    }
+
+    /* Draw path: line from waypoint to waypoint, then a small marker at each waypoint.
+     * path_tile_x/z are scene-local (same as terrain sx,sz in tori_rs_frame). Use same coords
+     * as terrain: position.x = tx*128 - camera_world_x. */
     if( game->path_tile_count > 1 && game->sys_dash && game->view_port && game->camera )
     {
         int ox = renderer->dash_offset_x;
@@ -1666,13 +1691,15 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         int clip_b = renderer->height;
         int prev_sx = 0, prev_sy = 0;
         int prev_ok = 0;
+        const int marker_size = 4; /* half-size of waypoint marker (pixels) */
 
         for( int i = 0; i < game->path_tile_count; i++ )
         {
             int tx = game->path_tile_x[i];
             int tz = game->path_tile_z[i];
-            int scene_x = (game->scene_base_tile_x + tx) * 128 + 64 - game->camera_world_x;
-            int scene_z = (game->scene_base_tile_z + tz) * 128 + 64 - game->camera_world_z;
+            /* Scene position (match tori_rs_frame terrain: sx*128 - camera_world_x). */
+            int scene_x = tx * 128 - game->camera_world_x;
+            int scene_z = tz * 128 - game->camera_world_z;
             int scene_y = -game->camera_world_y;
 
             int screen_x, screen_y;
@@ -1704,6 +1731,35 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_r,
                         clip_b);
                 }
+                /* Draw small filled square at this waypoint. */
+                int m_l = px - marker_size;
+                int m_t = py - marker_size;
+                int m_w = marker_size * 2;
+                int m_h = marker_size * 2;
+                if( m_l < clip_l )
+                {
+                    m_w -= (clip_l - m_l);
+                    m_l = clip_l;
+                }
+                if( m_t < clip_t )
+                {
+                    m_h -= (clip_t - m_t);
+                    m_t = clip_t;
+                }
+                if( m_l + m_w > clip_r )
+                    m_w = clip_r - m_l;
+                if( m_t + m_h > clip_b )
+                    m_h = clip_b - m_t;
+                if( m_w > 0 && m_h > 0 )
+                    dash2d_fill_rect_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        m_l,
+                        m_t,
+                        m_w,
+                        m_h,
+                        0xFF00FF,
+                        200);
                 prev_sx = px;
                 prev_sy = py;
                 prev_ok = 1;
