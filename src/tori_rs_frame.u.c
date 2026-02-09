@@ -263,6 +263,9 @@ LibToriRS_FrameNextCommand(
         if( cull != DASHCULL_VISIBLE )
             goto skip_highlight;
 
+        game->tile_clicked_x = -1;
+        game->tile_clicked_z = -1;
+        game->tile_clicked_level = -1;
         *command = (struct ToriRSRenderCommand) {
             .kind = TORIRS_GFX_MODEL_DRAW_HIGHLIGHT,
             ._model_draw = {
