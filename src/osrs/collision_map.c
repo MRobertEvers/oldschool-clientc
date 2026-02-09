@@ -4,11 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Direction encoding for BFS backtrace (DirectionFlag in Client.ts: 1=S, 2=W, 4=N, 8=E) */
-#define DIR_SOUTH  1
-#define DIR_WEST   2
-#define DIR_NORTH  4
-#define DIR_EAST   8
+/* Direction encoding: match Client.ts DirectionFlag (direction TO parent when backtracking).
+ * NORTH=1, EAST=2, SOUTH=4, WEST=8. When we step to (x-1,z), parent is east -> store EAST (2). */
+#define DIR_NORTH  1
+#define DIR_EAST   2
+#define DIR_SOUTH  4
+#define DIR_WEST   8
 #define DIR_SOUTH_WEST  (DIR_SOUTH | DIR_WEST)   /* 3 */
 #define DIR_SOUTH_EAST  (DIR_SOUTH | DIR_EAST)   /* 9 */
 #define DIR_NORTH_WEST  (DIR_NORTH | DIR_WEST)   /* 6 */
@@ -272,20 +273,21 @@ collision_map_bfs_path(
             } \
         } while(0)
 
-        /* West: step to (x-1,z); tile must have BLOCK_EAST open */
+        /* West: step to (x-1,z); parent is east -> store EAST (2). Client.ts step to x-1,z sets 2. */
         if( x > 0 )
-            TRY_NBOR(x - 1, z, DIR_WEST, COLL_FLAG_BLOCK_EAST);
-        /* East: step to (x+1,z); tile must have BLOCK_WEST open */
+            TRY_NBOR(x - 1, z, DIR_EAST, COLL_FLAG_BLOCK_EAST);
+        /* East: step to (x+1,z); parent is west -> store WEST (8). */
         if( x < scene_width - 1 )
-            TRY_NBOR(x + 1, z, DIR_EAST, COLL_FLAG_BLOCK_WEST);
-        /* South: step to (x,z-1); tile must have BLOCK_NORTH open */
+            TRY_NBOR(x + 1, z, DIR_WEST, COLL_FLAG_BLOCK_WEST);
+        /* South: step to (x,z-1); parent is north -> store NORTH (1). */
         if( z > 0 )
-            TRY_NBOR(x, z - 1, DIR_SOUTH, COLL_FLAG_BLOCK_NORTH);
-        /* North: step to (x,z+1); tile must have BLOCK_SOUTH open */
+            TRY_NBOR(x, z - 1, DIR_NORTH, COLL_FLAG_BLOCK_NORTH);
+        /* North: step to (x,z+1); parent is south -> store SOUTH (4). */
         if( z < scene_length - 1 )
-            TRY_NBOR(x, z + 1, DIR_NORTH, COLL_FLAG_BLOCK_SOUTH);
+            TRY_NBOR(x, z + 1, DIR_SOUTH, COLL_FLAG_BLOCK_SOUTH);
 
         /* Diagonals: need both cardinals open and diagonal tile not blocked */
+        /* Diagonals: store direction to parent (Client.ts 3,9,6,12 = NE,NW,SE,SW). */
         if( x > 0 && z > 0 )
         {
             int idx = (x - 1) * cm->size_z + (z - 1);
@@ -297,7 +299,7 @@ collision_map_bfs_path(
                 bfs_step_x[steps] = x - 1;
                 bfs_step_z[steps] = z - 1;
                 steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_SOUTH_WEST;
+                bfs_direction[idx] = DIR_NORTH_EAST; /* (x-1,z-1) parent (x,z) is NE = 3 */
                 bfs_cost[idx] = next_cost;
             }
         }
@@ -312,7 +314,7 @@ collision_map_bfs_path(
                 bfs_step_x[steps] = x + 1;
                 bfs_step_z[steps] = z - 1;
                 steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_SOUTH_EAST;
+                bfs_direction[idx] = DIR_NORTH_WEST; /* parent is NW = 9 */
                 bfs_cost[idx] = next_cost;
             }
         }
@@ -327,7 +329,7 @@ collision_map_bfs_path(
                 bfs_step_x[steps] = x - 1;
                 bfs_step_z[steps] = z + 1;
                 steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_NORTH_WEST;
+                bfs_direction[idx] = DIR_SOUTH_EAST; /* parent is SE = 6 */
                 bfs_cost[idx] = next_cost;
             }
         }
@@ -342,7 +344,7 @@ collision_map_bfs_path(
                 bfs_step_x[steps] = x + 1;
                 bfs_step_z[steps] = z + 1;
                 steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_NORTH_EAST;
+                bfs_direction[idx] = DIR_SOUTH_WEST; /* parent is SW = 12 */
                 bfs_cost[idx] = next_cost;
             }
         }
@@ -358,14 +360,13 @@ collision_map_bfs_path(
         return -1;
     }
 
-    /* Backtrace from end_x, end_z to src; build path in reverse then we output forward */
+    /* Backtrace from end to src. Stored value = direction TO parent (Client.ts).
+     * Step in that direction: (next & EAST) x++, (next & WEST) x--, (next & NORTH) z++, (next & SOUTH) z--. */
     int trace_x = end_x, trace_z = end_z;
     int path_len = 0;
     int tmp_x[256], tmp_z[256];
     assert(max_path <= 256);
 
-    /* dir at (trace_x,trace_z) = direction we moved TO get here (from previous cell).
-     * To backtrace to src we must step in the OPPOSITE direction. */
     while( path_len < max_path && (trace_x != src_x || trace_z != src_z) )
     {
         int dir = bfs_direction[trace_x * cm->size_z + trace_z];
@@ -374,13 +375,13 @@ collision_map_bfs_path(
         path_len++;
 
         if( (dir & DIR_EAST) != 0 )
-            trace_x--;
-        else if( (dir & DIR_WEST) != 0 )
             trace_x++;
+        else if( (dir & DIR_WEST) != 0 )
+            trace_x--;
         if( (dir & DIR_NORTH) != 0 )
-            trace_z--;
-        else if( (dir & DIR_SOUTH) != 0 )
             trace_z++;
+        else if( (dir & DIR_SOUTH) != 0 )
+            trace_z--;
     }
 
     /* Reverse into path_x, path_z so path[0] = first step from src */
