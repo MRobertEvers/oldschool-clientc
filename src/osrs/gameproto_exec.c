@@ -37,8 +37,8 @@ npc_move(
             npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i - 1];
             npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i - 1];
         }
-        npc_entity->pathing.route_x[0] = x / 128 + 64;
-        npc_entity->pathing.route_z[0] = z / 128 + 64;
+        npc_entity->pathing.route_x[0] = x / 128;
+        npc_entity->pathing.route_z[0] = z / 128;
         npc_entity->pathing.route_run[0] = 0;
     }
     else
@@ -135,15 +135,20 @@ gameproto_exec_npc_info(
         }
         case PKT_NPC_INFO_OPBITS_DZ:
         {
+            /* Client.ts: npc.move(..., localPlayer.routeTileX[0] + dx, localPlayer.routeTileZ[0] + dz). */
+            int base_x = player->pathing.route_x[0];
+            int base_z = player->pathing.route_z[0];
             int dz = op->_bitvalue;
-            npc->position.z = (dz * 128) + (player->position.z / 128 * 128);
+            npc->position.z = (base_z + dz) * 128 + npc->size_z * 64;
             npc_move(game, npc_id, npc->position.x, npc->position.z);
             break;
         }
         case PKT_NPC_INFO_OPBITS_DX:
         {
+            int base_x = player->pathing.route_x[0];
+            int base_z = player->pathing.route_z[0];
             int dx = op->_bitvalue;
-            npc->position.x = (dx * 128) + (player->position.x / 128 * 128);
+            npc->position.x = (base_x + dx) * 128 + npc->size_x * 64;
             break;
         }
         case PKT_NPC_INFO_OPBITS_WALKDIR:
@@ -380,18 +385,24 @@ add_player_info(
         {
             if( !player )
                 break;
-            int x = (game->players[ACTIVE_PLAYER_SLOT].position.x / 128 * 128);
-
-            player->position.x = (op->_bitvalue * 128) + x;
+            /* Client.ts: new player tile = localPlayer.routeTileX[0] + dx (same for dz). */
+            int base_x = game->players[ACTIVE_PLAYER_SLOT].pathing.route_x[0];
+            int dx = (int)op->_bitvalue;
+            if( dx > 15 )
+                dx -= 32;
+            player->position.x = (base_x + dx) * 128 + 64;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_DZ:
         {
             if( !player )
                 break;
-            int z = (game->players[ACTIVE_PLAYER_SLOT].position.z / 128 * 128);
-
-            player->position.z = (op->_bitvalue * 128) + z;
+            int base_x = game->players[ACTIVE_PLAYER_SLOT].pathing.route_x[0];
+            int base_z = game->players[ACTIVE_PLAYER_SLOT].pathing.route_z[0];
+            int dz = (int)op->_bitvalue;
+            if( dz > 15 )
+                dz -= 32;
+            player->position.z = (base_z + dz) * 128 + 64;
             player_move(game, player_id, player->position.x, player->position.z);
             break;
         }
@@ -410,10 +421,25 @@ add_player_info(
             if( !player )
                 break;
             player->position.z = (op->_bitvalue * 128) + 64;
-            /* Pathing at rest at this tile so update_player_anim doesn't use stale route. */
+            /* Pathing: route[0] = this tile (set in JUMP or leave for step). */
             player->pathing.route_length = 1;
             player->pathing.route_x[0] = player->position.x / 128;
             player->pathing.route_z[0] = player->position.z / 128;
+            break;
+        }
+        case PKT_PLAYER_INFO_OPBITS_JUMP:
+        {
+            /* Client.ts move(teleport=true): clear route, set position to route[0] tile. */
+            if( !player || player_id != ACTIVE_PLAYER_SLOT )
+                break;
+            if( op->_bitvalue == 1 )
+            {
+                player->pathing.route_length = 0;
+                player->pathing.route_x[0] = player->position.x / 128;
+                player->pathing.route_z[0] = player->position.z / 128;
+                player->position.x = player->pathing.route_x[0] * 128 + 64;
+                player->position.z = player->pathing.route_z[0] * 128 + 64;
+            }
             break;
         }
         case PKT_PLAYER_INFO_OP_APPEARANCE:

@@ -21,6 +21,13 @@ struct Platform2_OSX_SDL2_Renderer_Soft3D
     int dash_offset_x;
     int dash_offset_y;
 
+    /* Highlight overlay: convex hull in viewport coords; draw into pixel_buffer with dash offset. */
+    #define PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX 64
+    int highlight_poly_x[PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX];
+    int highlight_poly_y[PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX];
+    int highlight_poly_n;
+    int highlight_poly_valid;
+
     // Separate buffer for minimap rendering
     int* minimap_buffer;
     int minimap_buffer_width;

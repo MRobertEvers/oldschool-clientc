@@ -2,7 +2,9 @@
 #define SCENE2_H
 
 #include "graphics/dash.h"
+#include "osrs/collision_map.h"
 #include "rscache/tables/config_sequence.h"
+/* MAP_TERRAIN_LEVELS from collision_map.h -> rscache/tables/maps.h */
 
 struct SceneAction
 {
@@ -91,6 +93,9 @@ struct Scene
 {
     struct SceneTerrain* terrain;
     struct SceneScenery* scenery;
+
+    /* Per-level collision maps for pathfinding (BFS). Populated during build_scene_scenery. */
+    struct CollisionMap* collision_maps[MAP_TERRAIN_LEVELS];
 
     int tile_width_x;
     int tile_width_z;

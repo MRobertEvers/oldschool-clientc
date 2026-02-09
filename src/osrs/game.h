@@ -229,7 +229,7 @@ struct GGame
     int scene_base_tile_x;
     int scene_base_tile_z;
 
-    /* Highlight tile: set when MOVE_GAMECLICK is sent; cleared when active player reaches the tile */
+    /* Highlight tile (scene-local): set when MOVE_GAMECLICK is sent; cleared when player reaches it */
     int highlight_tile_x;
     int highlight_tile_z;
     int highlight_tile_valid; /* 1 while highlight should be drawn, 0 when cleared */

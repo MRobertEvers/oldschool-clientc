@@ -1,6 +1,7 @@
 #include "scene.h"
 
 #include "graphics/dash.h"
+#include "osrs/collision_map.h"
 #include "rscache/tables/maps.h"
 
 #include <stdlib.h>
@@ -138,11 +139,24 @@ scene_new(
     scene->scenery = scene_scenery_new(tile_width_x, tile_width_z, element_count_hint);
     scene->terrain = scene_terrain_new_sized(tile_width_x, tile_width_z);
 
+    for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+    {
+        scene->collision_maps[level] = collision_map_new(tile_width_x, tile_width_z);
+    }
+
     return scene;
 }
 void
 scene_free(struct Scene* scene)
 {
+    for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+    {
+        if( scene->collision_maps[level] )
+        {
+            collision_map_free(scene->collision_maps[level]);
+            scene->collision_maps[level] = NULL;
+        }
+    }
     scene_scenery_free(scene->scenery);
     scene_terrain_free(scene->terrain);
     free(scene);

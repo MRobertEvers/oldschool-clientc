@@ -77,6 +77,7 @@ endif()
         src/graphics/dashmap.c
 
         src/osrs/texture.c
+        src/osrs/collision_map.c
         src/osrs/scene.c
         src/osrs/scenebuilder.c
         src/osrs/rscache/filelist.c

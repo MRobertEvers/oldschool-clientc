@@ -4,6 +4,7 @@
 #include "graphics/dash.h"
 #include "graphics/lighting.h"
 #include "model_transforms.h"
+#include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
 #include "osrs/minimap.h"
 #include "osrs/rscache/tables/config_locs.h"
@@ -1559,7 +1560,8 @@ scenery_add(
     int mapx,
     int mapz,
     struct CacheMapLoc* map_loc,
-    struct SceneScenery* scenery)
+    struct SceneScenery* scenery,
+    struct Scene* scene)
 {
     struct CacheConfigLocation* config_loc = NULL;
     struct TileHeights tile_heights;
@@ -1685,6 +1687,64 @@ scenery_add(
             scene_builder, &offset, &tile_heights, map_loc, config_loc, scenery);
         break;
     }
+
+    /* Collision map for pathfinding (BFS): match World.ts addLoc / CollisionMap.addLoc/addWall/addFloor */
+    if( scene && config_loc->clip_type )
+    {
+        struct CollisionMap* cm = scene->collision_maps[offset.level];
+        if( cm )
+        {
+            enum CollisionLocAngle angle = (enum CollisionLocAngle)(map_loc->orientation & 0x3);
+            int blockrange = config_loc->blocks_projectiles ? 1 : 0;
+            int sx = config_loc->size_x;
+            int sz = config_loc->size_z;
+            if( scene_builder->buildcachedat == NULL )
+            {
+                sx = 1;
+                sz = 1;
+            }
+
+            switch( map_loc->shape_select )
+            {
+            case LOC_SHAPE_FLOOR_DECORATION:
+                collision_map_add_floor(cm, offset.x, offset.z);
+                break;
+            case LOC_SHAPE_WALL_SINGLE_SIDE:
+                collision_map_add_wall(cm, offset.x, offset.z, LOC_SHAPE_WALL_SINGLE_SIDE, angle, blockrange);
+                break;
+            case LOC_SHAPE_WALL_TRI_CORNER:
+                collision_map_add_wall(cm, offset.x, offset.z, LOC_SHAPE_WALL_TRI_CORNER, angle, blockrange);
+                break;
+            case LOC_SHAPE_WALL_TWO_SIDES:
+                collision_map_add_wall(cm, offset.x, offset.z, LOC_SHAPE_WALL_TWO_SIDES, angle, blockrange);
+                break;
+            case LOC_SHAPE_WALL_RECT_CORNER:
+                collision_map_add_wall(cm, offset.x, offset.z, LOC_SHAPE_WALL_RECT_CORNER, angle, blockrange);
+                break;
+            case LOC_SHAPE_WALL_DIAGONAL:
+                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+                break;
+            case LOC_SHAPE_SCENERY:
+            case LOC_SHAPE_SCENERY_DIAGIONAL:
+                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+                break;
+            case LOC_SHAPE_ROOF_SLOPED:
+            case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_FLAT:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
+                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+                break;
+            default:
+                break;
+            }
+        }
+    }
 }
 
 static void
@@ -1759,7 +1819,7 @@ build_scene_scenery(
                 map_loc = &map_locs->locs[i];
                 assert(map_loc && "Map loc must be valid");
 
-                scenery_add(scene_builder, terrain_grid, mapx, mapz, map_loc, scene->scenery);
+                scenery_add(scene_builder, terrain_grid, mapx, mapz, map_loc, scene->scenery, scene);
             }
         }
     }

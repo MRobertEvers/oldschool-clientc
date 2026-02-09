@@ -209,6 +209,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(
     renderer->dash_buffer_height = 0;
     renderer->dash_offset_x = 0;
     renderer->dash_offset_y = 0;
+    renderer->highlight_poly_valid = 0;
 
     // Initialize minimap buffer (will be allocated when needed)
     renderer->minimap_buffer = NULL;
@@ -828,11 +829,14 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
     LibToriRS_FrameEnd(game);
 
-    /* Draw highlighted tile overlay (convex hull of projected tile) until player reaches it */
+    /* Draw highlighted tile overlay (convex hull of projected tile) until player reaches it.
+     * highlight_tile_x/z are scene-local; convert to world for projection.
+     * Draw into dash_buffer and store polygon for later draw into pixel_buffer (on top of UI). */
+    renderer->highlight_poly_valid = 0;
     if( game->highlight_tile_valid && game->scene && game->scene->terrain )
     {
-        int local_x = game->highlight_tile_x - game->scene_base_tile_x;
-        int local_z = game->highlight_tile_z - game->scene_base_tile_z;
+        int local_x = game->highlight_tile_x;
+        int local_z = game->highlight_tile_z;
         struct SceneTerrain* terrain = game->scene->terrain;
         if( local_x >= 0 && local_x < terrain->tile_width_x &&
             local_z >= 0 && local_z < terrain->tile_width_z )
@@ -841,10 +845,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         if( tile && tile->dash_model && tile->dash_model->vertex_count > 0 &&
              tile->dash_model->vertex_count <= 4096 )
         {
+            int world_x = game->scene_base_tile_x + local_x;
+            int world_z = game->scene_base_tile_z + local_z;
             struct DashPosition pos;
-            pos.x = game->highlight_tile_x * 128 - game->camera_world_x;
+            pos.x = world_x * 128 - game->camera_world_x;
             pos.y = -game->camera_world_y;
-            pos.z = game->highlight_tile_z * 128 - game->camera_world_z;
+            pos.z = world_z * 128 - game->camera_world_z;
             pos.yaw = 0;
             pos.pitch = 0;
             pos.roll = 0;
@@ -867,7 +873,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 int cy = game->view_port->y_center;
                 dash3d_copy_screen_vertices_float(game->sys_dash, hull_in_x, hull_in_y, n);
                 size_t hull_n = compute_convex_hull(hull_in_x, hull_in_y, (size_t)n, hull_out_x, hull_out_y);
-                if( hull_n >= 3 )
+                if( hull_n >= 3 && (size_t)hull_n <= PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX )
                 {
                     for( size_t i = 0; i < hull_n; i++ )
                     {
@@ -886,6 +892,14 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         0,
                         renderer->dash_buffer_width,
                         renderer->dash_buffer_height);
+                    /* Store for pixel_buffer overlay so highlight is on top of UI. */
+                    for( size_t i = 0; i < hull_n; i++ )
+                    {
+                        renderer->highlight_poly_x[i] = poly_x[i];
+                        renderer->highlight_poly_y[i] = poly_y[i];
+                    }
+                    renderer->highlight_poly_n = (int)hull_n;
+                    renderer->highlight_poly_valid = 1;
                 }
             }
         }
@@ -1555,6 +1569,37 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     //         renderer->pixel_buffer[y * renderer->width + 550] = 0xFFFFFF; // white color
     //     }
     // }
+
+    /* Draw highlight polygon on top of pixel_buffer (convex_hull.u.c logic) so it is visible. */
+    if( renderer->highlight_poly_valid && renderer->highlight_poly_n >= 3 &&
+        renderer->highlight_poly_n <= PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX )
+    {
+        int ox = renderer->dash_offset_x;
+        int oy = renderer->dash_offset_y;
+        int px[PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX];
+        int py[PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX];
+        for( int i = 0; i < renderer->highlight_poly_n; i++ )
+        {
+            px[i] = renderer->highlight_poly_x[i] + ox;
+            py[i] = renderer->highlight_poly_y[i] + oy;
+        }
+        int clip_l = 0;
+        int clip_t = 0;
+        int clip_r = renderer->width;
+        int clip_b = renderer->height;
+        dash2d_fill_polygon_alpha(
+            renderer->pixel_buffer,
+            renderer->width,
+            px,
+            py,
+            renderer->highlight_poly_n,
+            0x00FF00,
+            80,
+            clip_l,
+            clip_t,
+            clip_r,
+            clip_b);
+    }
 
     // Render minimap to buffer starting at (0,0)
     // Calculate the center of the minimap content for rotation anchor
