@@ -1713,44 +1713,44 @@ scenery_add(
 
             switch( map_loc->shape_select )
             {
-            // case LOC_SHAPE_FLOOR_DECORATION: /* Client: LocShape.GROUND_DECOR -> blockGround */
-            //     collision_map_add_floor(cm, offset.x, offset.z);
-            //     break;
-            // case LOC_SHAPE_WALL_SINGLE_SIDE:
-            //     collision_map_add_wall(
-            //         cm, offset.x, offset.z, LOC_SHAPE_WALL_SINGLE_SIDE, angle, blockrange);
-            //     break;
-            // case LOC_SHAPE_WALL_TRI_CORNER:
-            //     collision_map_add_wall(
-            //         cm, offset.x, offset.z, LOC_SHAPE_WALL_TRI_CORNER, angle, blockrange);
-            //     break;
-            // case LOC_SHAPE_WALL_TWO_SIDES:
-            //     collision_map_add_wall(
-            //         cm, offset.x, offset.z, LOC_SHAPE_WALL_TWO_SIDES, angle, blockrange);
-            //     break;
-            // case LOC_SHAPE_WALL_RECT_CORNER:
-            //     collision_map_add_wall(
-            //         cm, offset.x, offset.z, LOC_SHAPE_WALL_RECT_CORNER, angle, blockrange);
-            //     break;
-            // case LOC_SHAPE_WALL_DIAGONAL:
-            //     collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
-            //     break;
+            case LOC_SHAPE_FLOOR_DECORATION: /* Client: LocShape.GROUND_DECOR -> blockGround */
+                collision_map_add_floor(cm, offset.x, offset.z);
+                break;
+            case LOC_SHAPE_WALL_SINGLE_SIDE:
+                collision_map_add_wall(
+                    cm, offset.x, offset.z, LOC_SHAPE_WALL_SINGLE_SIDE, angle, blockrange);
+                break;
+            case LOC_SHAPE_WALL_TRI_CORNER:
+                collision_map_add_wall(
+                    cm, offset.x, offset.z, LOC_SHAPE_WALL_TRI_CORNER, angle, blockrange);
+                break;
+            case LOC_SHAPE_WALL_TWO_SIDES:
+                collision_map_add_wall(
+                    cm, offset.x, offset.z, LOC_SHAPE_WALL_TWO_SIDES, angle, blockrange);
+                break;
+            case LOC_SHAPE_WALL_RECT_CORNER:
+                collision_map_add_wall(
+                    cm, offset.x, offset.z, LOC_SHAPE_WALL_RECT_CORNER, angle, blockrange);
+                break;
+            case LOC_SHAPE_WALL_DIAGONAL:
+                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+                break;
             case LOC_SHAPE_SCENERY:
             case LOC_SHAPE_SCENERY_DIAGIONAL:
                 collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
                 break;
-            // case LOC_SHAPE_ROOF_SLOPED:
-            // case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
-            // case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
-            // case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
-            // case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
-            // case LOC_SHAPE_ROOF_FLAT:
-            // case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
-            // case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
-            // case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
-            // case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
-            //     collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
-            //     break;
+            case LOC_SHAPE_ROOF_SLOPED:
+            case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_FLAT:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
+                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+                break;
             default:
                 break;
             }

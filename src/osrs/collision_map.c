@@ -13,17 +13,19 @@
 
 /* Direction encoding: match Client.ts DirectionFlag (direction TO parent when backtracking).
  * NORTH=1, EAST=2, SOUTH=4, WEST=8. When we step to (x-1,z), parent is east -> store EAST (2). */
-#define DIR_NORTH  1
-#define DIR_EAST   2
-#define DIR_SOUTH  4
-#define DIR_WEST   8
-#define DIR_SOUTH_WEST  (DIR_SOUTH | DIR_WEST)   /* 3 */
-#define DIR_SOUTH_EAST  (DIR_SOUTH | DIR_EAST)   /* 9 */
-#define DIR_NORTH_WEST  (DIR_NORTH | DIR_WEST)   /* 6 */
-#define DIR_NORTH_EAST  (DIR_NORTH | DIR_EAST)   /* 12 */
+#define DIR_NORTH 1
+#define DIR_EAST 2
+#define DIR_SOUTH 4
+#define DIR_WEST 8
+#define DIR_SOUTH_WEST (DIR_SOUTH | DIR_WEST) /* 3 */
+#define DIR_SOUTH_EAST (DIR_SOUTH | DIR_EAST) /* 9 */
+#define DIR_NORTH_WEST (DIR_NORTH | DIR_WEST) /* 6 */
+#define DIR_NORTH_EAST (DIR_NORTH | DIR_EAST) /* 12 */
 
 struct CollisionMap*
-collision_map_new(int size_x, int size_z)
+collision_map_new(
+    int size_x,
+    int size_z)
 {
     struct CollisionMap* cm = (struct CollisionMap*)malloc(sizeof(struct CollisionMap));
     memset(cm, 0, sizeof(struct CollisionMap));
@@ -61,7 +63,11 @@ collision_map_reset(struct CollisionMap* cm)
 }
 
 static void
-collision_map_add(struct CollisionMap* cm, int x, int z, int flags)
+collision_map_add(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int flags)
 {
     if( x < 0 || x >= cm->size_x || z < 0 || z >= cm->size_z )
         return;
@@ -69,7 +75,11 @@ collision_map_add(struct CollisionMap* cm, int x, int z, int flags)
 }
 
 static void
-collision_map_remove(struct CollisionMap* cm, int x, int z, int flags)
+collision_map_remove(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int flags)
 {
     if( x < 0 || x >= cm->size_x || z < 0 || z >= cm->size_z )
         return;
@@ -78,7 +88,10 @@ collision_map_remove(struct CollisionMap* cm, int x, int z, int flags)
 
 /* Client: blockGround(tileX, tileZ) for LocShape.GROUND_DECOR when loc.blockwalk && loc.active. */
 void
-collision_map_add_floor(struct CollisionMap* cm, int tile_x, int tile_z)
+collision_map_add_floor(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z)
 {
     collision_map_add(cm, tile_x, tile_z, COLL_FLAG_FLOOR);
 }
@@ -112,8 +125,9 @@ collision_map_add_loc(
     }
 }
 
-/* Client: addWall(x, z, shape, angle, loc.blockrange). Shapes: WALL_STRAIGHT=0, WALL_DIAGONAL_CORNER=1,
- * WALL_L=2, WALL_SQUARE_CORNER=3. When blockrange, client calls addWall(..., false) again to add both PROJ and normal. */
+/* Client: addWall(x, z, shape, angle, loc.blockrange). Shapes: WALL_STRAIGHT=0,
+ * WALL_DIAGONAL_CORNER=1, WALL_L=2, WALL_SQUARE_CORNER=3. When blockrange, client calls
+ * addWall(..., false) again to add both PROJ and normal. */
 void
 collision_map_add_wall(
     struct CollisionMap* cm,
@@ -271,20 +285,24 @@ collision_map_bfs_path(
 
         int next_cost = bfs_cost[x * cm->size_z + z] + 1;
 
-/* Check tile (nx,nz) is enterable from (x,z). For west step we need (nx,nz) to have BLOCK_EAST open. */
-#define TRY_NBOR(nx, nz, dir_val, block_flag) \
-        do { \
-            int idx = (nx) * cm->size_z + (nz); \
-            if( bfs_direction[idx] == 0 && (flags[idx] & (block_flag)) == COLL_FLAG_OPEN ) { \
-                bfs_step_x[steps] = (nx); \
-                bfs_step_z[steps] = (nz); \
-                steps = (steps + 1) % buf_size; \
-                bfs_direction[idx] = (dir_val); \
-                bfs_cost[idx] = next_cost; \
-            } \
-        } while(0)
+/* Check tile (nx,nz) is enterable from (x,z). For west step we need (nx,nz) to have BLOCK_EAST
+ * open. */
+#define TRY_NBOR(nx, nz, dir_val, block_flag)                                                      \
+    do                                                                                             \
+    {                                                                                              \
+        int idx = (nx) * cm->size_z + (nz);                                                        \
+        if( bfs_direction[idx] == 0 && (flags[idx] & (block_flag)) == COLL_FLAG_OPEN )             \
+        {                                                                                          \
+            bfs_step_x[steps] = (nx);                                                              \
+            bfs_step_z[steps] = (nz);                                                              \
+            steps = (steps + 1) % buf_size;                                                        \
+            bfs_direction[idx] = (dir_val);                                                        \
+            bfs_cost[idx] = next_cost;                                                             \
+        }                                                                                          \
+    } while( 0 )
 
-        /* West: step to (x-1,z); parent is east -> store EAST (2). Client.ts step to x-1,z sets 2. */
+        /* West: step to (x-1,z); parent is east -> store EAST (2). Client.ts step to x-1,z sets 2.
+         */
         if( x > 0 )
             TRY_NBOR(x - 1, z, DIR_EAST, COLL_FLAG_BLOCK_EAST);
         /* East: step to (x+1,z); parent is west -> store WEST (8). */
@@ -302,8 +320,7 @@ collision_map_bfs_path(
         if( x > 0 && z > 0 )
         {
             int idx = (x - 1) * cm->size_z + (z - 1);
-            if( bfs_direction[idx] == 0 &&
-                (flags[idx] & COLL_FLAG_BLOCK_SOUTH_WEST) == 0 &&
+            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_SOUTH_WEST) == 0 &&
                 (flags[(x - 1) * cm->size_z + z] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN &&
                 (flags[x * cm->size_z + (z - 1)] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
             {
@@ -317,8 +334,7 @@ collision_map_bfs_path(
         if( x < scene_width - 1 && z > 0 )
         {
             int idx = (x + 1) * cm->size_z + (z - 1);
-            if( bfs_direction[idx] == 0 &&
-                (flags[idx] & COLL_FLAG_BLOCK_SOUTH_EAST) == 0 &&
+            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_SOUTH_EAST) == 0 &&
                 (flags[(x + 1) * cm->size_z + z] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN &&
                 (flags[x * cm->size_z + (z - 1)] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
             {
@@ -332,8 +348,7 @@ collision_map_bfs_path(
         if( x > 0 && z < scene_length - 1 )
         {
             int idx = (x - 1) * cm->size_z + (z + 1);
-            if( bfs_direction[idx] == 0 &&
-                (flags[idx] & COLL_FLAG_BLOCK_NORTH_WEST) == 0 &&
+            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_NORTH_WEST) == 0 &&
                 (flags[(x - 1) * cm->size_z + z] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN &&
                 (flags[x * cm->size_z + (z + 1)] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
             {
@@ -347,8 +362,7 @@ collision_map_bfs_path(
         if( x < scene_width - 1 && z < scene_length - 1 )
         {
             int idx = (x + 1) * cm->size_z + (z + 1);
-            if( bfs_direction[idx] == 0 &&
-                (flags[idx] & COLL_FLAG_BLOCK_NORTH_EAST) == 0 &&
+            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_NORTH_EAST) == 0 &&
                 (flags[(x + 1) * cm->size_z + z] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN &&
                 (flags[x * cm->size_z + (z + 1)] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
             {
@@ -372,7 +386,8 @@ collision_map_bfs_path(
     }
 
     /* Backtrace from end to src. Stored value = direction TO parent (Client.ts).
-     * Step in that direction: (next & EAST) x++, (next & WEST) x--, (next & NORTH) z++, (next & SOUTH) z--. */
+     * Step in that direction: (next & EAST) x++, (next & WEST) x--, (next & NORTH) z++, (next &
+     * SOUTH) z--. */
     int trace_x = end_x, trace_z = end_z;
     int path_len = 0;
     int tmp_x[256], tmp_z[256];

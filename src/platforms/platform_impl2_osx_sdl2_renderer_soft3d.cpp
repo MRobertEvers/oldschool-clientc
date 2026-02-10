@@ -1785,7 +1785,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             for( int z = 0; z < cm->size_z; z++ )
             {
                 int idx = x * cm->size_z + z;
-                if( cm->flags[idx] == 0 )
+                if( cm->flags[idx] == 0 || cm->flags[idx] == COLL_FLAG_FLOOR )
                 {
                     continue;
                 }
@@ -1845,14 +1845,22 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 bool ne_ok = ok[2];
                 bool nw_ok = ok[3];
 
-                bool block_south = (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH) != 0;
-                bool block_west = (cm->flags[idx] & COLL_FLAG_BLOCK_WEST) != 0;
-                bool block_south_west = (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH_WEST) != 0;
-                bool block_north = (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH) != 0;
-                bool block_north_west = (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH_WEST) != 0;
-                bool block_east = (cm->flags[idx] & COLL_FLAG_BLOCK_EAST) != 0;
-                bool block_south_east = (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH_EAST) != 0;
-                bool block_north_east = (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH_EAST) != 0;
+                bool block_south =
+                    (cm->flags[idx] & (COLL_FLAG_BLOCK_SOUTH | COLL_FLAG_WALL_SOUTH_PROJ)) != 0;
+                bool block_west =
+                    (cm->flags[idx] & (COLL_FLAG_BLOCK_WEST | COLL_FLAG_WALL_WEST_PROJ)) != 0;
+                bool block_south_west = (cm->flags[idx] & (COLL_FLAG_BLOCK_SOUTH_WEST |
+                                                           COLL_FLAG_WALL_SOUTH_WEST_PROJ)) != 0;
+                bool block_north =
+                    (cm->flags[idx] & (COLL_FLAG_BLOCK_NORTH | COLL_FLAG_WALL_NORTH_PROJ)) != 0;
+                bool block_north_west = (cm->flags[idx] & (COLL_FLAG_BLOCK_NORTH_WEST |
+                                                           COLL_FLAG_WALL_NORTH_WEST_PROJ)) != 0;
+                bool block_east =
+                    (cm->flags[idx] & (COLL_FLAG_BLOCK_EAST | COLL_FLAG_WALL_EAST_PROJ)) != 0;
+                bool block_south_east = (cm->flags[idx] & (COLL_FLAG_BLOCK_SOUTH_EAST |
+                                                           COLL_FLAG_WALL_SOUTH_EAST_PROJ)) != 0;
+                bool block_north_east = (cm->flags[idx] & (COLL_FLAG_BLOCK_NORTH_EAST |
+                                                           COLL_FLAG_WALL_NORTH_EAST_PROJ)) != 0;
 
                 int px[4], py[4];
                 for( int i = 0; i < 4; i++ )
@@ -1927,7 +1935,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( nw_ok && se_ok && block_north_west )
+                if( nw_ok && se_ok && (block_north_west || block_south_east) )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1941,7 +1949,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( ne_ok && sw_ok && block_north_east )
+                if( ne_ok && sw_ok && (block_north_east || block_south_west) )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
