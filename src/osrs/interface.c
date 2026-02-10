@@ -3,11 +3,13 @@
 #include "graphics/dash.h"
 #include "obj_icon.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/minimenu_action.h"
+#include "osrs/packetout.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define INV_MENU_MAX 24
@@ -155,7 +157,7 @@ interface_get_inv_default_action(
     int n = 0;
 
     if( !obj )
-        return 602;
+        return MINIMENU_ACTION_CANCEL;
 
     /* No obj selected, no spell: same order as Client.ts 10064-10152 */
     /* 1. child.interactable: obj.iop op 4, 3 (Drop / op3); else if op===4 add Drop */
@@ -165,13 +167,13 @@ interface_get_inv_default_action(
         {
             if( obj->iop[op] )
             {
-                actions[n++] = (op == 4) ? 347 : 478;
+                actions[n++] = (op == 4) ? MINIMENU_ACTION_OPHELD5 : MINIMENU_ACTION_OPHELD4;
                 if( n >= INV_MENU_MAX )
                     goto done;
             }
             else if( op == 4 )
             {
-                actions[n++] = 347; /* Drop @lre@ obj.name */
+                actions[n++] = MINIMENU_ACTION_OPHELD5; /* Drop @lre@ obj.name */
                 if( n >= INV_MENU_MAX )
                     goto done;
             }
@@ -181,7 +183,7 @@ interface_get_inv_default_action(
     /* 2. child.usable: Use */
     if( child->usable )
     {
-        actions[n++] = 188;
+        actions[n++] = MINIMENU_ACTION_OPHELDT_START;
         if( n >= INV_MENU_MAX )
             goto done;
     }
@@ -194,11 +196,11 @@ interface_get_inv_default_action(
             if( obj->iop[op] )
             {
                 if( op == 0 )
-                    actions[n++] = 405;
+                    actions[n++] = MINIMENU_ACTION_OPHELD1;
                 else if( op == 1 )
-                    actions[n++] = 38;
+                    actions[n++] = MINIMENU_ACTION_OPHELD2;
                 else
-                    actions[n++] = 422;
+                    actions[n++] = MINIMENU_ACTION_OPHELD3;
                 if( n >= INV_MENU_MAX )
                     goto done;
             }
@@ -213,15 +215,15 @@ interface_get_inv_default_action(
             if( child->iop[op] )
             {
                 if( op == 0 )
-                    actions[n++] = 602;
+                    actions[n++] = MINIMENU_ACTION_INV_BUTTON1;
                 else if( op == 1 )
-                    actions[n++] = 596;
+                    actions[n++] = MINIMENU_ACTION_INV_BUTTON2;
                 else if( op == 2 )
-                    actions[n++] = 22;
+                    actions[n++] = MINIMENU_ACTION_INV_BUTTON3;
                 else if( op == 3 )
-                    actions[n++] = 892;
+                    actions[n++] = MINIMENU_ACTION_INV_BUTTON4;
                 else
-                    actions[n++] = 415;
+                    actions[n++] = MINIMENU_ACTION_INV_BUTTON5;
                 if( n >= INV_MENU_MAX )
                     goto done;
             }
@@ -229,11 +231,11 @@ interface_get_inv_default_action(
     }
 
     /* 5. Examine (always last added) */
-    actions[n++] = 1773;
+    actions[n++] = MINIMENU_ACTION_OPHELD6;
 
 done:
     if( n == 0 )
-        return 602;
+        return MINIMENU_ACTION_INV_BUTTON1;
 
     /* Sort: same as Client.ts 2498-2522 - swap when [i] < 1000 && [i+1] > 1000 */
     for( ;; )
@@ -355,11 +357,8 @@ interface_draw_component(
             int saved_top = view_port->clip_top;
             int saved_right = view_port->clip_right;
             int saved_bottom = view_port->clip_bottom;
-            dash2d_set_bounds(view_port,
-                childX,
-                childY,
-                childX + child->width,
-                childY + child->height);
+            dash2d_set_bounds(
+                view_port, childX, childY, childX + child->width, childY + child->height);
             interface_draw_component(game, child, childX, childY, scroll_pos, pixel_buffer, stride);
             dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
 
@@ -448,9 +447,9 @@ find_hovered_interface_id_recursive(
         childX += child->x;
         childY += child->y;
 
-        if( (child->overlayer >= 0 || child->overColour != 0) &&
-            mouse_x >= childX && mouse_y >= childY &&
-            mouse_x < childX + child->width && mouse_y < childY + child->height )
+        if( (child->overlayer >= 0 || child->overColour != 0) && mouse_x >= childX &&
+            mouse_y >= childY && mouse_x < childX + child->width &&
+            mouse_y < childY + child->height )
         {
             *out_hovered_id = (child->overlayer >= 0) ? child->overlayer : child->id;
         }
@@ -468,8 +467,7 @@ find_hovered_interface_id_recursive(
             if( scroll_pos < 0 )
                 scroll_pos = 0;
             find_hovered_interface_id_recursive(
-                game, child, childX, childY, scroll_pos,
-                mouse_x, mouse_y, out_hovered_id);
+                game, child, childX, childY, scroll_pos, mouse_x, mouse_y, out_hovered_id);
         }
     }
 }
@@ -538,8 +536,16 @@ find_scrollbar_at_recursive(
                     scroll_pos = 0;
 
                 int hit = find_scrollbar_at_recursive(
-                    game, child, childX, childY, scroll_pos,
-                    mouse_x, mouse_y, out_scrollbar_y, out_height, out_scroll_height);
+                    game,
+                    child,
+                    childX,
+                    childY,
+                    scroll_pos,
+                    mouse_x,
+                    mouse_y,
+                    out_scrollbar_y,
+                    out_height,
+                    out_scroll_height);
                 if( hit >= 0 )
                     return hit;
             }
@@ -549,8 +555,8 @@ find_scrollbar_at_recursive(
     if( component->type == COMPONENT_TYPE_LAYER && component->scroll > component->height )
     {
         int sb_x = x + component->width;
-        if( mouse_x >= sb_x && mouse_x < sb_x + 16 &&
-            mouse_y >= y && mouse_y < y + component->height )
+        if( mouse_x >= sb_x && mouse_x < sb_x + 16 && mouse_y >= y &&
+            mouse_y < y + component->height )
         {
             *out_scrollbar_y = y;
             *out_height = component->height;
@@ -576,12 +582,20 @@ interface_find_scrollbar_at(
     if( !root || root->type != COMPONENT_TYPE_LAYER )
         return -1;
     return find_scrollbar_at_recursive(
-        game, root, root_x, root_y, 0,
-        mouse_x, mouse_y, out_scrollbar_y, out_height, out_scroll_height);
+        game,
+        root,
+        root_x,
+        root_y,
+        0,
+        mouse_x,
+        mouse_y,
+        out_scrollbar_y,
+        out_height,
+        out_scroll_height);
 }
 
-/* Client.ts handleScrollInput (9825-9831): up arrow scrollPosition -= dragCycles*4, down += dragCycles*4.
- * step = rate (4) * game_cycles for hold scrolling. */
+/* Client.ts handleScrollInput (9825-9831): up arrow scrollPosition -= dragCycles*4, down +=
+ * dragCycles*4. step = rate (4) * game_cycles for hold scrolling. */
 #define SCROLLBAR_ARROW_DELTA 4
 
 void
@@ -636,7 +650,8 @@ interface_handle_scrollbar_click(
     int max_scroll = scroll_height - height;
     if( max_scroll <= 0 )
         return;
-    /* Map click Y (screen) to position along track: track goes from scrollbar_y+16 to scrollbar_y+height-16 */
+    /* Map click Y (screen) to position along track: track goes from scrollbar_y+16 to
+     * scrollbar_y+height-16 */
     int local_y = click_y - (scrollbar_y + 16);
     if( local_y < 0 )
         local_y = 0;
@@ -666,21 +681,21 @@ interface_draw_component_rect(
     if( component->alpha == 0 )
     {
         if( component->fill )
-            fill_rect_clipped(vp, pixel_buffer, stride, x, y,
-                component->width, component->height, colour);
+            fill_rect_clipped(
+                vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
         else
-            draw_rect_clipped(vp, pixel_buffer, stride, x, y,
-                component->width, component->height, colour);
+            draw_rect_clipped(
+                vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
     }
     else
     {
         int alpha = 256 - (component->alpha & 0xFF);
         if( component->fill )
-            fill_rect_alpha_clipped(vp, pixel_buffer, stride, x, y,
-                component->width, component->height, colour, alpha);
+            fill_rect_alpha_clipped(
+                vp, pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
         else
-            draw_rect_clipped(vp, pixel_buffer, stride, x, y,
-                component->width, component->height, colour);
+            draw_rect_clipped(
+                vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
     }
 }
 
@@ -758,16 +773,36 @@ interface_draw_component_text(
                 draw_x = x;
             }
 
-            /* Client.ts PixFont.drawStringTaggable does y -= this.height2d before drawing (line 150) */
+            /* Client.ts PixFont.drawStringTaggable does y -= this.height2d before drawing (line
+             * 150) */
             int draw_y = line_y - font->height2d;
             if( component->shadowed )
             {
                 dashfont_draw_text_clipped(
-                    font, (uint8_t*)line_buf, draw_x + 1, draw_y + 1,
-                    0x000000, pixel_buffer, stride, cl, ct, cr, cb);
+                    font,
+                    (uint8_t*)line_buf,
+                    draw_x + 1,
+                    draw_y + 1,
+                    0x000000,
+                    pixel_buffer,
+                    stride,
+                    cl,
+                    ct,
+                    cr,
+                    cb);
             }
             dashfont_draw_text_clipped(
-                font, (uint8_t*)line_buf, draw_x, draw_y, colour, pixel_buffer, stride, cl, ct, cr, cb);
+                font,
+                (uint8_t*)line_buf,
+                draw_x,
+                draw_y,
+                colour,
+                pixel_buffer,
+                stride,
+                cl,
+                ct,
+                cr,
+                cb);
         }
         line_y += font->height2d;
         rest = (line_end[0] == '\\' && line_end[1] == 'n') ? line_end + 2 : line_end;
@@ -811,11 +846,13 @@ interface_draw_scrollbar(
     int cr = vp->clip_right;
     int cb = vp->clip_bottom;
 
-    /* Arrows: clientts/src/client/Client.ts drawScrollbar (9767-9769) imageScrollbar0 at (x,y), imageScrollbar1 at (x, y+height-16); loaded from scrollbar archive 0/1 (811-812) */
+    /* Arrows: clientts/src/client/Client.ts drawScrollbar (9767-9769) imageScrollbar0 at (x,y),
+     * imageScrollbar1 at (x, y+height-16); loaded from scrollbar archive 0/1 (811-812) */
     if( game->sprite_scrollbar0 )
         dash2d_blit_sprite(game->sys_dash, game->sprite_scrollbar0, vp, x, y, pixel_buffer);
     if( game->sprite_scrollbar1 )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_scrollbar1, vp, x, y + height - 16, pixel_buffer);
+        dash2d_blit_sprite(
+            game->sys_dash, game->sprite_scrollbar1, vp, x, y + height - 16, pixel_buffer);
 
     /* Draw track (y+16, track_h) clipped to viewport */
     int track_y = y + 16;
@@ -1149,58 +1186,58 @@ interface_handle_inv_button(
     uint8_t opcode = 0;
 
     // Map action to opcode (from ClientProt.ts)
-    if( action == 602 )
+    if( action == MINIMENU_ACTION_INV_BUTTON1 )
     {
-        opcode = 13; // INV_BUTTON1
+        opcode = PKTOUT_LC245_2_INV_BUTTON1; // INV_BUTTON1
         printf("INV_BUTTON1: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
     }
-    else if( action == 596 )
+    else if( action == MINIMENU_ACTION_INV_BUTTON2 )
     {
-        opcode = 58; // INV_BUTTON2
+        opcode = PKTOUT_LC245_2_INV_BUTTON2; // INV_BUTTON2
         printf("INV_BUTTON2: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
     }
-    else if( action == 22 )
+    else if( action == MINIMENU_ACTION_INV_BUTTON3 )
     {
-        opcode = 48; // INV_BUTTON3
+        opcode = PKTOUT_LC245_2_INV_BUTTON3; // INV_BUTTON3
         printf("INV_BUTTON3: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
     }
-    else if( action == 892 )
+    else if( action == MINIMENU_ACTION_INV_BUTTON4 )
     {
-        opcode = 183; // INV_BUTTON4
+        opcode = PKTOUT_LC245_2_INV_BUTTON4; // INV_BUTTON4
         printf("INV_BUTTON4: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
     }
-    else if( action == 415 )
+    else if( action == MINIMENU_ACTION_INV_BUTTON5 )
     {
-        opcode = 242; // INV_BUTTON5
+        opcode = PKTOUT_LC245_2_INV_BUTTON5; // INV_BUTTON5
         printf("INV_BUTTON5: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
     }
     /* Object options (obj.iop): Wield, Wear, etc. - Client.ts 405/38/422/478/347 block */
-    else if( action == 405 )
+    else if( action == MINIMENU_ACTION_OPHELD1 )
     {
-        opcode = 104; // OPHELD1
+        opcode = PKTOUT_LC245_2_OPHELD1; // OPHELD1
     }
-    else if( action == 38 )
+    else if( action == MINIMENU_ACTION_OPHELD2 )
     {
-        opcode = 193; // OPHELD2
+        opcode = PKTOUT_LC245_2_OPHELD2; // OPHELD2
     }
-    else if( action == 422 )
+    else if( action == MINIMENU_ACTION_OPHELD3 )
     {
-        opcode = 115; // OPHELD3
+        opcode = PKTOUT_LC245_2_OPHELD3; // OPHELD3
     }
-    else if( action == 478 )
+    else if( action == MINIMENU_ACTION_OPHELD4 )
     {
-        opcode = 194; // OPHELD4
+        opcode = PKTOUT_LC245_2_OPHELD4; // OPHELD4
     }
-    else if( action == 347 )
+    else if( action == MINIMENU_ACTION_OPHELD5 )
     {
-        opcode = 9; // OPHELD5 (e.g. Drop)
+        opcode = PKTOUT_LC245_2_OPHELD5; // OPHELD5 (e.g. Drop)
     }
-    else if( action == 188 )
+    else if( action == MINIMENU_ACTION_OPHELDT )
     {
         /* Use: select item for use-with; no packet (Client.ts 8927-8936) */
         return;
     }
-    else if( action == 1773 )
+    else if( action == MINIMENU_ACTION_IF_BUTTON )
     {
         /* Examine: client-side only, no packet */
         return;
