@@ -21,6 +21,7 @@ extern "C" {
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/collision_map.h"
 #include "osrs/scene.h"
 #include "osrs/script_queue.h"
 #include "server/prot.h"
@@ -1766,6 +1767,76 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             }
             else
                 prev_ok = 0;
+        }
+    }
+
+    /* Draw collision map: red lines for each tile that has floor (tile boundaries). */
+    if( game->scene && game->scene->collision_maps[0] && game->sys_dash && game->view_port && game->camera )
+    {
+        struct CollisionMap* cm = game->scene->collision_maps[0];
+        int ox = renderer->dash_offset_x;
+        int oy = renderer->dash_offset_y;
+        int clip_l = 0;
+        int clip_t = 0;
+        int clip_r = renderer->width;
+        int clip_b = renderer->height;
+        const int red = 0xFF0000;
+        const int alpha = 200;
+
+        for( int x = 0; x < cm->size_x; x++ )
+        {
+            for( int z = 0; z < cm->size_z; z++ )
+            {
+                int idx = x * cm->size_z + z;
+                if( (cm->flags[idx] & COLL_FLAG_FLOOR) == 0 )
+                    continue;
+
+                /* Tile corners in scene space (same as path: tx*128 - camera_world_x). */
+                int sx0 = x * 128 - game->camera_world_x;
+                int sz0 = z * 128 - game->camera_world_z;
+                int sx1 = (x + 1) * 128 - game->camera_world_x;
+                int sz1 = (z + 1) * 128 - game->camera_world_z;
+                int scene_y = -game->camera_world_y;
+
+                int screen_x[4], screen_y[4];
+                int ok[4];
+                ok[0] = dash3d_project_point(
+                    game->sys_dash, sx0, scene_y, sz0, game->view_port, game->camera,
+                    &screen_x[0], &screen_y[0]);
+                ok[1] = dash3d_project_point(
+                    game->sys_dash, sx1, scene_y, sz0, game->view_port, game->camera,
+                    &screen_x[1], &screen_y[1]);
+                ok[2] = dash3d_project_point(
+                    game->sys_dash, sx1, scene_y, sz1, game->view_port, game->camera,
+                    &screen_x[2], &screen_y[2]);
+                ok[3] = dash3d_project_point(
+                    game->sys_dash, sx0, scene_y, sz1, game->view_port, game->camera,
+                    &screen_x[3], &screen_y[3]);
+
+                int px[4], py[4];
+                for( int i = 0; i < 4; i++ )
+                {
+                    px[i] = screen_x[i] + ox;
+                    py[i] = screen_y[i] + oy;
+                }
+                /* Draw four tile edges. */
+                if( ok[0] && ok[1] )
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer, renderer->width,
+                        px[0], py[0], px[1], py[1], red, alpha, clip_l, clip_t, clip_r, clip_b);
+                if( ok[1] && ok[2] )
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer, renderer->width,
+                        px[1], py[1], px[2], py[2], red, alpha, clip_l, clip_t, clip_r, clip_b);
+                if( ok[2] && ok[3] )
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer, renderer->width,
+                        px[2], py[2], px[3], py[3], red, alpha, clip_l, clip_t, clip_r, clip_b);
+                if( ok[3] && ok[0] )
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer, renderer->width,
+                        px[3], py[3], px[0], py[0], red, alpha, clip_l, clip_t, clip_r, clip_b);
+            }
         }
     }
 
