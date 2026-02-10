@@ -1688,7 +1688,14 @@ scenery_add(
         break;
     }
 
-    /* Collision map for pathfinding (BFS): match World.ts addLoc / CollisionMap.addLoc/addWall/addFloor */
+    /* Collision map for pathfinding (BFS). Must match Client-TS ClientBuild.addLoc() and
+     * CollisionMap: Client: only updates collision when loc.blockwalk (C: config_loc->clip_type !=
+     * 0). GROUND_DECOR(22) -> blockGround(x,z) [Client also requires loc.active]
+     *   CENTREPIECE_STRAIGHT/DIAGONAL = SCENERY(10)/SCENERY_DIAGIONAL(11) -> addLoc
+     *   WALL_STRAIGHT(0)/DIAGONAL_CORNER(1)/L(2)/SQUARE_CORNER(3) -> addWall
+     *   WALL_DIAGONAL(9), ROOF_*, SCENERY* -> addLoc
+     *   LocAngle: 0=WEST, 1=NORTH, 2=EAST, 3=SOUTH (same as map_loc->orientation & 0x3)
+     */
     if( scene && config_loc->clip_type )
     {
         struct CollisionMap* cm = scene->collision_maps[offset.level];
@@ -1706,40 +1713,44 @@ scenery_add(
 
             switch( map_loc->shape_select )
             {
-            case LOC_SHAPE_FLOOR_DECORATION:
-                collision_map_add_floor(cm, offset.x, offset.z);
-                break;
-            case LOC_SHAPE_WALL_SINGLE_SIDE:
-                collision_map_add_wall(cm, offset.x, offset.z, LOC_SHAPE_WALL_SINGLE_SIDE, angle, blockrange);
-                break;
-            case LOC_SHAPE_WALL_TRI_CORNER:
-                collision_map_add_wall(cm, offset.x, offset.z, LOC_SHAPE_WALL_TRI_CORNER, angle, blockrange);
-                break;
-            case LOC_SHAPE_WALL_TWO_SIDES:
-                collision_map_add_wall(cm, offset.x, offset.z, LOC_SHAPE_WALL_TWO_SIDES, angle, blockrange);
-                break;
-            case LOC_SHAPE_WALL_RECT_CORNER:
-                collision_map_add_wall(cm, offset.x, offset.z, LOC_SHAPE_WALL_RECT_CORNER, angle, blockrange);
-                break;
-            case LOC_SHAPE_WALL_DIAGONAL:
-                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
-                break;
+            // case LOC_SHAPE_FLOOR_DECORATION: /* Client: LocShape.GROUND_DECOR -> blockGround */
+            //     collision_map_add_floor(cm, offset.x, offset.z);
+            //     break;
+            // case LOC_SHAPE_WALL_SINGLE_SIDE:
+            //     collision_map_add_wall(
+            //         cm, offset.x, offset.z, LOC_SHAPE_WALL_SINGLE_SIDE, angle, blockrange);
+            //     break;
+            // case LOC_SHAPE_WALL_TRI_CORNER:
+            //     collision_map_add_wall(
+            //         cm, offset.x, offset.z, LOC_SHAPE_WALL_TRI_CORNER, angle, blockrange);
+            //     break;
+            // case LOC_SHAPE_WALL_TWO_SIDES:
+            //     collision_map_add_wall(
+            //         cm, offset.x, offset.z, LOC_SHAPE_WALL_TWO_SIDES, angle, blockrange);
+            //     break;
+            // case LOC_SHAPE_WALL_RECT_CORNER:
+            //     collision_map_add_wall(
+            //         cm, offset.x, offset.z, LOC_SHAPE_WALL_RECT_CORNER, angle, blockrange);
+            //     break;
+            // case LOC_SHAPE_WALL_DIAGONAL:
+            //     collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+            //     break;
             case LOC_SHAPE_SCENERY:
             case LOC_SHAPE_SCENERY_DIAGIONAL:
                 collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
                 break;
-            case LOC_SHAPE_ROOF_SLOPED:
-            case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
-            case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
-            case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
-            case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
-            case LOC_SHAPE_ROOF_FLAT:
-            case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
-            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
-            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
-            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
-                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
-                break;
+            // case LOC_SHAPE_ROOF_SLOPED:
+            // case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+            // case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+            // case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+            // case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+            // case LOC_SHAPE_ROOF_FLAT:
+            // case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+            // case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+            // case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+            // case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
+            //     collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+            //     break;
             default:
                 break;
             }
@@ -1819,7 +1830,8 @@ build_scene_scenery(
                 map_loc = &map_locs->locs[i];
                 assert(map_loc && "Map loc must be valid");
 
-                scenery_add(scene_builder, terrain_grid, mapx, mapz, map_loc, scene->scenery, scene);
+                scenery_add(
+                    scene_builder, terrain_grid, mapx, mapz, map_loc, scene->scenery, scene);
             }
         }
     }

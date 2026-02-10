@@ -12,6 +12,7 @@ extern "C" {
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
 #include "osrs/gio.h"
 #include "osrs/gio_cache_dat.h"
@@ -21,7 +22,6 @@ extern "C" {
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
-#include "osrs/collision_map.h"
 #include "osrs/scene.h"
 #include "osrs/script_queue.h"
 #include "server/prot.h"
@@ -1637,7 +1637,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             px[i] = renderer->highlight_poly_x[i];
             py[i] = renderer->highlight_poly_y[i];
         }
-        /* Inclusive clip bounds so we never write past the buffer (valid x: 0..dw-1, y: 0..dh-1). */
+        /* Inclusive clip bounds so we never write past the buffer (valid x: 0..dw-1, y: 0..dh-1).
+         */
         int clip_l = 0;
         int clip_t = 0;
         int clip_r = dw > 0 ? dw - 1 : 0;
@@ -1656,8 +1657,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             clip_b);
     }
 
-    /* Blit 3D view (dash_buffer) into pixel_buffer at viewport offset so path overlay draws on top. */
-    if( renderer->dash_buffer && renderer->dash_buffer_width > 0 && renderer->dash_buffer_height > 0 )
+    /* Blit 3D view (dash_buffer) into pixel_buffer at viewport offset so path overlay draws on top.
+     */
+    if( renderer->dash_buffer && renderer->dash_buffer_width > 0 &&
+        renderer->dash_buffer_height > 0 )
     {
         int* dash_buf = renderer->dash_buffer;
         int dash_w = renderer->dash_buffer_width;
@@ -1753,14 +1756,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     m_h = clip_b - m_t;
                 if( m_w > 0 && m_h > 0 )
                     dash2d_fill_rect_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        m_l,
-                        m_t,
-                        m_w,
-                        m_h,
-                        0xFF00FF,
-                        200);
+                        renderer->pixel_buffer, renderer->width, m_l, m_t, m_w, m_h, 0xFF00FF, 200);
                 prev_sx = px;
                 prev_sy = py;
                 prev_ok = 1;
@@ -1771,7 +1767,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
 
     /* Draw collision map: red lines for each tile that has floor (tile boundaries). */
-    if( game->scene && game->scene->collision_maps[0] && game->sys_dash && game->view_port && game->camera )
+    if( game->scene && game->scene->collision_maps[0] && game->sys_dash && game->view_port &&
+        game->camera )
     {
         struct CollisionMap* cm = game->scene->collision_maps[0];
         int ox = renderer->dash_offset_x;
@@ -1788,8 +1785,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             for( int z = 0; z < cm->size_z; z++ )
             {
                 int idx = x * cm->size_z + z;
-                if( (cm->flags[idx] & COLL_FLAG_FLOOR) == 0 )
+                if( cm->flags[idx] == 0 )
+                {
                     continue;
+                }
 
                 /* Tile corners in scene space (same as path: tx*128 - camera_world_x). */
                 int sx0 = x * 128 - game->camera_world_x;
@@ -1800,18 +1799,60 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
                 int screen_x[4], screen_y[4];
                 int ok[4];
+                // sw
                 ok[0] = dash3d_project_point(
-                    game->sys_dash, sx0, scene_y, sz0, game->view_port, game->camera,
-                    &screen_x[0], &screen_y[0]);
+                    game->sys_dash,
+                    sx0,
+                    scene_y,
+                    sz0,
+                    game->view_port,
+                    game->camera,
+                    &screen_x[0],
+                    &screen_y[0]);
+                // se
                 ok[1] = dash3d_project_point(
-                    game->sys_dash, sx1, scene_y, sz0, game->view_port, game->camera,
-                    &screen_x[1], &screen_y[1]);
+                    game->sys_dash,
+                    sx1,
+                    scene_y,
+                    sz0,
+                    game->view_port,
+                    game->camera,
+                    &screen_x[1],
+                    &screen_y[1]);
+                // ne
                 ok[2] = dash3d_project_point(
-                    game->sys_dash, sx1, scene_y, sz1, game->view_port, game->camera,
-                    &screen_x[2], &screen_y[2]);
+                    game->sys_dash,
+                    sx1,
+                    scene_y,
+                    sz1,
+                    game->view_port,
+                    game->camera,
+                    &screen_x[2],
+                    &screen_y[2]);
+                // nw
                 ok[3] = dash3d_project_point(
-                    game->sys_dash, sx0, scene_y, sz1, game->view_port, game->camera,
-                    &screen_x[3], &screen_y[3]);
+                    game->sys_dash,
+                    sx0,
+                    scene_y,
+                    sz1,
+                    game->view_port,
+                    game->camera,
+                    &screen_x[3],
+                    &screen_y[3]);
+
+                bool sw_ok = ok[0];
+                bool se_ok = ok[1];
+                bool ne_ok = ok[2];
+                bool nw_ok = ok[3];
+
+                bool block_south = (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH) != 0;
+                bool block_west = (cm->flags[idx] & COLL_FLAG_BLOCK_WEST) != 0;
+                bool block_south_west = (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH_WEST) != 0;
+                bool block_north = (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH) != 0;
+                bool block_north_west = (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH_WEST) != 0;
+                bool block_east = (cm->flags[idx] & COLL_FLAG_BLOCK_EAST) != 0;
+                bool block_south_east = (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH_EAST) != 0;
+                bool block_north_east = (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH_EAST) != 0;
 
                 int px[4], py[4];
                 for( int i = 0; i < 4; i++ )
@@ -1819,23 +1860,101 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     px[i] = screen_x[i] + ox;
                     py[i] = screen_y[i] + oy;
                 }
+
+                int px_sw = px[0];
+                int py_sw = py[0];
+                int px_se = px[1];
+                int py_se = py[1];
+                int px_ne = px[2];
+                int py_ne = py[2];
+                int px_nw = px[3];
+                int py_nw = py[3];
+
                 /* Draw four tile edges. */
-                if( ok[0] && ok[1] )
+                if( sw_ok && se_ok && block_south )
                     dash2d_draw_line_alpha(
-                        renderer->pixel_buffer, renderer->width,
-                        px[0], py[0], px[1], py[1], red, alpha, clip_l, clip_t, clip_r, clip_b);
-                if( ok[1] && ok[2] )
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_sw,
+                        py_sw,
+                        px_se,
+                        py_se,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                if( se_ok && ne_ok && block_east )
                     dash2d_draw_line_alpha(
-                        renderer->pixel_buffer, renderer->width,
-                        px[1], py[1], px[2], py[2], red, alpha, clip_l, clip_t, clip_r, clip_b);
-                if( ok[2] && ok[3] )
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_se,
+                        py_se,
+                        px_ne,
+                        py_ne,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                if( ne_ok && nw_ok && block_north )
                     dash2d_draw_line_alpha(
-                        renderer->pixel_buffer, renderer->width,
-                        px[2], py[2], px[3], py[3], red, alpha, clip_l, clip_t, clip_r, clip_b);
-                if( ok[3] && ok[0] )
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_ne,
+                        py_ne,
+                        px_nw,
+                        py_nw,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                if( nw_ok && sw_ok && block_west )
                     dash2d_draw_line_alpha(
-                        renderer->pixel_buffer, renderer->width,
-                        px[3], py[3], px[0], py[0], red, alpha, clip_l, clip_t, clip_r, clip_b);
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_nw,
+                        py_nw,
+                        px_sw,
+                        py_sw,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                if( nw_ok && se_ok && block_north_west )
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_nw,
+                        py_nw,
+                        px_se,
+                        py_se,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                if( ne_ok && sw_ok && block_north_east )
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_ne,
+                        py_ne,
+                        px_sw,
+                        py_sw,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
             }
         }
     }

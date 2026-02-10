@@ -4,6 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Collision map logic must match Client-TS:
+ *   Client-TS/src/dash3d/CollisionMap.ts (addLoc, addWall, blockGround/unblockGround)
+ *   Client-TS/src/dash3d/ClientBuild.ts (addLoc -> shape/blockwalk checks)
+ * Reset: border = BOUNDS, interior = OPEN (walkable). We only add FLOOR for floor decor (block),
+ * LOC for scenery/roof/centrepiece, WALL_* for walls. BFS uses BLOCK_* composite flags.
+ */
+
 /* Direction encoding: match Client.ts DirectionFlag (direction TO parent when backtracking).
  * NORTH=1, EAST=2, SOUTH=4, WEST=8. When we step to (x-1,z), parent is east -> store EAST (2). */
 #define DIR_NORTH  1
@@ -69,12 +76,14 @@ collision_map_remove(struct CollisionMap* cm, int x, int z, int flags)
     cm->flags[x * cm->size_z + z] &= (COLL_FLAG_BOUNDS - flags);
 }
 
+/* Client: blockGround(tileX, tileZ) for LocShape.GROUND_DECOR when loc.blockwalk && loc.active. */
 void
 collision_map_add_floor(struct CollisionMap* cm, int tile_x, int tile_z)
 {
     collision_map_add(cm, tile_x, tile_z, COLL_FLAG_FLOOR);
 }
 
+/* Client: addLoc(x, z, loc.width, loc.length, angle, loc.blockrange). Swap size when angle N/S. */
 void
 collision_map_add_loc(
     struct CollisionMap* cm,
@@ -103,6 +112,8 @@ collision_map_add_loc(
     }
 }
 
+/* Client: addWall(x, z, shape, angle, loc.blockrange). Shapes: WALL_STRAIGHT=0, WALL_DIAGONAL_CORNER=1,
+ * WALL_L=2, WALL_SQUARE_CORNER=3. When blockrange, client calls addWall(..., false) again to add both PROJ and normal. */
 void
 collision_map_add_wall(
     struct CollisionMap* cm,
