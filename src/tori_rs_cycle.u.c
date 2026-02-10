@@ -219,7 +219,13 @@ update_npc_anim(
     int seqId = npc_entity->animation.readyanim;
     int route_length = npc_entity->pathing.route_length;
     if( route_length == 0 )
+    {
+        /* Client.ts: when idle, position is anchored to route head (e.x = e.routeTileX[0]*128+...).
+         */
+        npc_entity->position.x = npc_entity->pathing.route_x[0] * 128 + npc_entity->size_x * 64;
+        npc_entity->position.z = npc_entity->pathing.route_z[0] * 128 + npc_entity->size_z * 64;
         goto anim;
+    }
 
     int x = npc_entity->position.x;
     int z = npc_entity->position.z;
@@ -442,29 +448,34 @@ update_player_anim(
     int seqId = player_entity->animation.readyanim;
     int route_length = player_entity->pathing.route_length;
     if( route_length == 0 )
-        goto anim;
-
-    int x = player_entity->position.x;
-    int z = player_entity->position.z;
-    /* Route is [0]=next step, [1]=step after, ...; walk to route[0] then pop front (like NPC /
-     * Client.ts). */
-    int dstX = player_entity->pathing.route_x[0] * 128 + 1 * 64;
-    int dstZ = player_entity->pathing.route_z[0] * 128 + 1 * 64;
-
-    if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
     {
-        player_entity->position.x = dstX;
-        player_entity->position.z = dstZ;
+        /* Client.ts: when idle, position is anchored to route head (e.x = e.routeTileX[0]*128+...).
+         */
+        player_entity->position.x = player_entity->pathing.route_x[0] * 128 + 64;
+        player_entity->position.z = player_entity->pathing.route_z[0] * 128 + 64;
+        goto anim;
+    }
+
+    int draw_x = player_entity->position.x;
+    int draw_z = player_entity->position.z;
+    int dest_draw_x = player_entity->pathing.route_x[route_length - 1] * 128 + 1 * 64;
+    int dest_draw_z = player_entity->pathing.route_z[route_length - 1] * 128 + 1 * 64;
+
+    if( draw_x - dest_draw_x > 256 || draw_x - dest_draw_x < -256 || draw_z - dest_draw_z > 256 ||
+        draw_z - dest_draw_z < -256 )
+    {
+        player_entity->position.x = dest_draw_x;
+        player_entity->position.z = dest_draw_z;
         return;
     }
 
-    if( x < dstX )
+    if( draw_x < dest_draw_x )
     {
-        if( z < dstZ )
+        if( draw_z < dest_draw_z )
         {
             player_entity->orientation.dst_yaw = 1280;
         }
-        else if( z > dstZ )
+        else if( draw_z > dest_draw_z )
         {
             player_entity->orientation.dst_yaw = 1792;
         }
@@ -473,13 +484,13 @@ update_player_anim(
             player_entity->orientation.dst_yaw = 1536;
         }
     }
-    else if( x > dstX )
+    else if( draw_x > dest_draw_x )
     {
-        if( z < dstZ )
+        if( draw_z < dest_draw_z )
         {
             player_entity->orientation.dst_yaw = 768;
         }
-        else if( z > dstZ )
+        else if( draw_z > dest_draw_z )
         {
             player_entity->orientation.dst_yaw = 256;
         }
@@ -488,7 +499,7 @@ update_player_anim(
             player_entity->orientation.dst_yaw = 512;
         }
     }
-    else if( z < dstZ )
+    else if( draw_z < dest_draw_z )
     {
         player_entity->orientation.dst_yaw = 1024;
     }
@@ -556,48 +567,41 @@ update_player_anim(
         seqId = player_entity->animation.runanim;
     }
 
-    if( x < dstX )
+    if( draw_x < dest_draw_x )
     {
         player_entity->position.x += moveSpeed;
-        if( player_entity->position.x > dstX )
+        if( player_entity->position.x > dest_draw_x )
         {
-            player_entity->position.x = dstX;
+            player_entity->position.x = dest_draw_x;
         }
     }
-    else if( x > dstX )
+    else if( draw_x > dest_draw_x )
     {
         player_entity->position.x -= moveSpeed;
-        if( player_entity->position.x < dstX )
+        if( player_entity->position.x < dest_draw_x )
         {
-            player_entity->position.x = dstX;
+            player_entity->position.x = dest_draw_x;
         }
     }
-    if( z < dstZ )
+    if( draw_z < dest_draw_z )
     {
         player_entity->position.z += moveSpeed;
-        if( player_entity->position.z > dstZ )
+        if( player_entity->position.z > dest_draw_z )
         {
-            player_entity->position.z = dstZ;
+            player_entity->position.z = dest_draw_z;
         }
     }
-    else if( z > dstZ )
+    else if( draw_z > dest_draw_z )
     {
         player_entity->position.z -= moveSpeed;
-        if( player_entity->position.z < dstZ )
+        if( player_entity->position.z < dest_draw_z )
         {
-            player_entity->position.z = dstZ;
+            player_entity->position.z = dest_draw_z;
         }
     }
 
-    if( player_entity->position.x == dstX && player_entity->position.z == dstZ )
+    if( player_entity->position.x == dest_draw_x && player_entity->position.z == dest_draw_z )
     {
-        /* Pop front: shift route down so next step becomes route[0]. */
-        for( int i = 0; i < player_entity->pathing.route_length - 1; i++ )
-        {
-            player_entity->pathing.route_x[i] = player_entity->pathing.route_x[i + 1];
-            player_entity->pathing.route_z[i] = player_entity->pathing.route_z[i + 1];
-            player_entity->pathing.route_run[i] = player_entity->pathing.route_run[i + 1];
-        }
         player_entity->pathing.route_length--;
         if( player_entity->pathing.route_length < 0 )
             player_entity->pathing.route_length = 0;
@@ -830,7 +834,9 @@ LibToriRS_GameStep(
             struct NPCEntity* npc = &game->npcs[game->active_npcs[i]];
             if( npc->alive && npc->scene_element )
             {
-                if( game->cycles_elapsed != 0 )
+                /* Client.ts: one updateMovement per loop cycle; move at most moveSpeed per cycle
+                 * and stop at each waypoint. */
+                for( int c = 0; c < game->cycles_elapsed; c++ )
                     update_npc_anim(game, game->active_npcs[i]);
                 scenebuilder_push_dynamic_element(
                     game->scenebuilder,
@@ -852,10 +858,13 @@ LibToriRS_GameStep(
         for( int i = 0; i < game->player_count; i++ )
         {
             int player_id = game->active_players[i];
+            /* Active player is updated and pushed in the block below; avoid double movement. */
+            if( player_id == ACTIVE_PLAYER_SLOT )
+                continue;
             struct PlayerEntity* player = &game->players[player_id];
             if( player->alive && player->scene_element )
             {
-                if( game->cycles_elapsed != 0 )
+                for( int c = 0; c < game->cycles_elapsed; c++ )
                     update_player_anim(game, player_id);
                 scenebuilder_push_dynamic_element(
                     game->scenebuilder,
@@ -877,7 +886,7 @@ LibToriRS_GameStep(
         if( game->players[ACTIVE_PLAYER_SLOT].alive &&
             game->players[ACTIVE_PLAYER_SLOT].scene_element )
         {
-            if( game->cycles_elapsed != 0 )
+            for( int c = 0; c < game->cycles_elapsed; c++ )
                 update_player_anim(game, ACTIVE_PLAYER_SLOT);
             scenebuilder_push_dynamic_element(
                 game->scenebuilder,

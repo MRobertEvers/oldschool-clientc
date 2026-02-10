@@ -1,0 +1,3 @@
+[submodule "Client-TS"]
+	path = Client-TS
+	url = https://github.com/LostCityRS/Client-TS.git

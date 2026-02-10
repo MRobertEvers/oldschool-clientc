@@ -247,6 +247,7 @@
         "tori_rs.h": "c",
         "tori_rs_render.h": "c",
         "gameproto_process.h": "c",
-        "loginproto.h": "c"
+        "loginproto.h": "c",
+        "pkt_player_info.h": "c"
     },
 }

@@ -16,16 +16,16 @@ static void
 npc_move(
     struct GGame* game,
     int npc_entity_id,
-    int x,
-    int z)
+    int tile_x,
+    int tile_z)
 {
     struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
 
     // Hack
     struct SceneElement* scene_element = (struct SceneElement*)npc_entity->scene_element;
 
-    int dx = x / 128 - npc_entity->pathing.route_x[0];
-    int dz = z / 128 - npc_entity->pathing.route_z[0];
+    int dx = tile_x - npc_entity->pathing.route_x[0];
+    int dz = tile_z - npc_entity->pathing.route_z[0];
     int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
     if( animatable_distance )
     {
@@ -37,19 +37,19 @@ npc_move(
             npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i - 1];
             npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i - 1];
         }
-        npc_entity->pathing.route_x[0] = x / 128;
-        npc_entity->pathing.route_z[0] = z / 128;
+        npc_entity->pathing.route_x[0] = tile_x;
+        npc_entity->pathing.route_z[0] = tile_z;
         npc_entity->pathing.route_run[0] = 0;
     }
     else
     {
         npc_entity->pathing.route_length = 0;
-        npc_entity->pathing.route_x[0] = x / 128;
-        npc_entity->pathing.route_z[0] = z / 128;
-
-        npc_entity->position.x = x + 64;
-        npc_entity->position.z = z + 64;
+        npc_entity->pathing.route_x[0] = tile_x;
+        npc_entity->pathing.route_z[0] = tile_z;
     }
+
+    npc_entity->position.x = tile_x * 128 + npc_entity->size_x * 64;
+    npc_entity->position.z = tile_z * 128 + npc_entity->size_z * 64;
 
     scene_element->dash_position->x = npc_entity->position.x;
     scene_element->dash_position->z = npc_entity->position.z;
@@ -135,12 +135,13 @@ gameproto_exec_npc_info(
         }
         case PKT_NPC_INFO_OPBITS_DZ:
         {
-            /* Client.ts: npc.move(..., localPlayer.routeTileX[0] + dx, localPlayer.routeTileZ[0] + dz). */
+            /* Client.ts: npc.move(..., localPlayer.routeTileX[0] + dx,
+             * localPlayer.routeTileZ[0] + dz). */
             int base_x = player->pathing.route_x[0];
             int base_z = player->pathing.route_z[0];
             int dz = op->_bitvalue;
-            npc->position.z = (base_z + dz) * 128 + npc->size_z * 64;
-            npc_move(game, npc_id, npc->position.x, npc->position.z);
+            npc->pathing.route_z[0] = base_z + dz;
+            npc_move(game, npc_id, npc->pathing.route_x[0], npc->pathing.route_z[0]);
             break;
         }
         case PKT_NPC_INFO_OPBITS_DX:
@@ -148,7 +149,7 @@ gameproto_exec_npc_info(
             int base_x = player->pathing.route_x[0];
             int base_z = player->pathing.route_z[0];
             int dx = op->_bitvalue;
-            npc->position.x = (base_x + dx) * 128 + npc->size_x * 64;
+            npc->pathing.route_x[0] = base_x + dx;
             break;
         }
         case PKT_NPC_INFO_OPBITS_WALKDIR:
@@ -204,6 +205,10 @@ gameproto_exec_npc_info(
                 npc->pathing.route_run[i] = npc->pathing.route_run[i - 1];
             }
 
+            /**
+             * This is the authoritative position of the npc.
+             * Always in route[0]
+             */
             npc->pathing.route_x[0] = next_x;
             npc->pathing.route_z[0] = next_z;
             npc->pathing.route_run[0] = 0;
@@ -255,8 +260,8 @@ player_move(
         player->pathing.route_x[0] = x / 128;
         player->pathing.route_z[0] = z / 128;
 
-        player->position.x = x + 64;
-        player->position.z = z + 64;
+        player->position.x = player->pathing.route_x[0] * 128 + 64;
+        player->position.z = player->pathing.route_z[0] * 128 + 64;
     }
 }
 
@@ -277,6 +282,7 @@ add_player_info(
     struct PktPlayerInfoOp ops[2048];
 
     struct SceneElement* scene_element = NULL;
+    struct PlayerEntity* active_player = &game->players[ACTIVE_PLAYER_SLOT];
 
     int count = pkt_player_info_reader_read(&player_info_reader, &packet->_player_info, ops, 2048);
     int player_id = ACTIVE_PLAYER_SLOT;
@@ -286,7 +292,8 @@ add_player_info(
     {
         struct PktPlayerInfoOp* op = &ops[i];
 
-        struct PlayerEntity* player = (player_id >= 0) ? entity_scenebuild_player_get(game, player_id) : NULL;
+        struct PlayerEntity* player =
+            (player_id >= 0) ? entity_scenebuild_player_get(game, player_id) : NULL;
 
         switch( op->kind )
         {
@@ -400,8 +407,6 @@ add_player_info(
             int base_x = game->players[ACTIVE_PLAYER_SLOT].pathing.route_x[0];
             int base_z = game->players[ACTIVE_PLAYER_SLOT].pathing.route_z[0];
             int dz = (int)op->_bitvalue;
-            if( dz > 15 )
-                dz -= 32;
             player->position.z = (base_z + dz) * 128 + 64;
             player_move(game, player_id, player->position.x, player->position.z);
             break;
@@ -410,21 +415,20 @@ add_player_info(
         {
             if( !player )
                 break;
-            player->position.x = (op->_bitvalue * 128) + 64;
-            player->pathing.route_length = 1;
-            player->pathing.route_x[0] = player->position.x / 128;
-            player->pathing.route_z[0] = player->position.z / 128;
+            int dx = (op->_bitvalue);
+            player->pathing.route_x[0] = active_player->pathing.route_x[0] + dx;
+
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_LOCAL_Z:
         {
             if( !player )
                 break;
-            player->position.z = (op->_bitvalue * 128) + 64;
-            /* Pathing: route[0] = this tile (set in JUMP or leave for step). */
+
+            int dz = (op->_bitvalue);
             player->pathing.route_length = 1;
-            player->pathing.route_x[0] = player->position.x / 128;
-            player->pathing.route_z[0] = player->position.z / 128;
+
+            player->pathing.route_z[0] = active_player->pathing.route_z[0] + dz;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_JUMP:
@@ -476,7 +480,8 @@ gameproto_exec_rebuild_normal(
         minimap_new(zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104, levels);
     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
 
-    /* REBUILD_NORMAL: zone is in 8-tile units (pkt_rebuild_normal.lua wx_sw = zone_sw_x * 8). */
+    /* REBUILD_NORMAL: zone is in 8-tile units (pkt_rebuild_normal.lua wx_sw = zone_sw_x * 8).
+     */
     game->scene_base_tile_x = zone_sw_x * 8;
     game->scene_base_tile_z = zone_sw_z * 8;
 
@@ -539,13 +544,16 @@ gameproto_exec_update_inv_full(
     }
 
     printf("UPDATE_INV_FULL: Updated component %d with %d items\n", component_id, size);
-    
+
     // Debug: Print first few items to verify
     printf("UPDATE_INV_FULL: First 5 items in component %d:\n", component_id);
     for( int i = 0; i < 5 && i < size; i++ )
     {
-        printf("  Slot %d: ID=%d, Count=%d\n", 
-               i, component->invSlotObjId[i], component->invSlotObjCount[i]);
+        printf(
+            "  Slot %d: ID=%d, Count=%d\n",
+            i,
+            component->invSlotObjId[i],
+            component->invSlotObjCount[i]);
     }
 }
 
