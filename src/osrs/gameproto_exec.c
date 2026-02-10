@@ -137,7 +137,6 @@ gameproto_exec_npc_info(
         {
             /* Client.ts: npc.move(..., localPlayer.routeTileX[0] + dx,
              * localPlayer.routeTileZ[0] + dz). */
-            int base_x = player->pathing.route_x[0];
             int base_z = player->pathing.route_z[0];
             int dz = op->_bitvalue;
             npc->pathing.route_z[0] = base_z + dz;
@@ -147,7 +146,6 @@ gameproto_exec_npc_info(
         case PKT_NPC_INFO_OPBITS_DX:
         {
             int base_x = player->pathing.route_x[0];
-            int base_z = player->pathing.route_z[0];
             int dx = op->_bitvalue;
             npc->pathing.route_x[0] = base_x + dx;
             break;
@@ -158,6 +156,7 @@ gameproto_exec_npc_info(
             int direction = op->_bitvalue;
             int next_x = npc->pathing.route_x[0];
             int next_z = npc->pathing.route_z[0];
+
             if( direction == 0 )
             {
                 next_x--;
@@ -373,6 +372,13 @@ add_player_info(
                 next_x++;
                 next_z--;
             }
+
+            printf(
+                "npc_move: %d %d %d %d\n",
+                player_id,
+                next_x - player->pathing.route_x[0],
+                next_z - player->pathing.route_z[0],
+                player->pathing.route_length);
 
             if( player->pathing.route_length < 9 )
                 player->pathing.route_length++;

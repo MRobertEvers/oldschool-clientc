@@ -7,6 +7,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
+#include "osrs/game_entity.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/interface.h"
 #include "osrs/painters.h"
@@ -209,233 +210,194 @@ load_model_animations_dati(
     }
 }
 
-static void
-update_npc_anim(
-    struct GGame* game,
-    int npc_entity_id)
+/* View of common pathing/movement/animation state shared by NPCs and players. */
+struct EntityAnimUpdateView
 {
-    struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
+    struct EntityPathing* pathing;
+    struct EntityPosition* position;
+    struct EntityOrientation* orientation;
+    struct EntityAnimation* animation;
+    int size_x;
+    int size_z;
+    void* scene_element;
+    int* curranim;
+};
 
-    int seqId = npc_entity->animation.readyanim;
-    int route_length = npc_entity->pathing.route_length;
+static void
+update_entity_anim(
+    struct GGame* game,
+    struct EntityAnimUpdateView* view)
+{
+    int seqId = view->animation->readyanim;
+    int route_length = view->pathing->route_length;
     if( route_length == 0 )
     {
-        /* Client.ts: when idle, position is anchored to route head (e.x = e.routeTileX[0]*128+...).
-         */
-        npc_entity->position.x = npc_entity->pathing.route_x[0] * 128 + npc_entity->size_x * 64;
-        npc_entity->position.z = npc_entity->pathing.route_z[0] * 128 + npc_entity->size_z * 64;
+        /* Client.ts: when idle, position is anchored to route head. */
+        view->position->x = view->pathing->route_x[0] * 128 + view->size_x * 64;
+        view->position->z = view->pathing->route_z[0] * 128 + view->size_z * 64;
         goto anim;
     }
 
-    int x = npc_entity->position.x;
-    int z = npc_entity->position.z;
-    /* Route is [0]=next step, [1]=step after, ...; walk to route[0] then pop front. */
-    int dstX = npc_entity->pathing.route_x[0] * 128 + npc_entity->size_x * 64;
-    int dstZ = npc_entity->pathing.route_z[0] * 128 + npc_entity->size_z * 64;
+    int x = view->position->x;
+    int z = view->position->z;
+    int dstX = view->pathing->route_x[route_length - 1] * 128 + view->size_x * 64;
+    int dstZ = view->pathing->route_z[route_length - 1] * 128 + view->size_z * 64;
 
     if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
     {
-        npc_entity->position.x = dstX;
-        npc_entity->position.z = dstZ;
+        view->position->x = dstX;
+        view->position->z = dstZ;
         return;
     }
 
     if( x < dstX )
     {
         if( z < dstZ )
-        {
-            npc_entity->orientation.dst_yaw = 1280;
-        }
+            view->orientation->dst_yaw = 1280;
         else if( z > dstZ )
-        {
-            npc_entity->orientation.dst_yaw = 1792;
-        }
+            view->orientation->dst_yaw = 1792;
         else
-        {
-            npc_entity->orientation.dst_yaw = 1536;
-        }
+            view->orientation->dst_yaw = 1536;
     }
     else if( x > dstX )
     {
         if( z < dstZ )
-        {
-            npc_entity->orientation.dst_yaw = 768;
-        }
+            view->orientation->dst_yaw = 768;
         else if( z > dstZ )
-        {
-            npc_entity->orientation.dst_yaw = 256;
-        }
+            view->orientation->dst_yaw = 256;
         else
-        {
-            npc_entity->orientation.dst_yaw = 512;
-        }
+            view->orientation->dst_yaw = 512;
     }
     else if( z < dstZ )
-    {
-        npc_entity->orientation.dst_yaw = 1024;
-    }
+        view->orientation->dst_yaw = 1024;
     else
-    {
-        npc_entity->orientation.dst_yaw = 0;
-    }
+        view->orientation->dst_yaw = 0;
 
-    int deltaYaw = (npc_entity->orientation.dst_yaw - npc_entity->orientation.yaw) & 0x7ff;
+    int deltaYaw = (view->orientation->dst_yaw - view->orientation->yaw) & 0x7ff;
     if( deltaYaw > 1024 )
-    {
         deltaYaw -= 2048;
-    }
 
-    seqId = npc_entity->animation.walkanim_b;
+    seqId = view->animation->walkanim_b;
     if( deltaYaw >= -256 && deltaYaw <= 256 )
-    {
-        seqId = npc_entity->animation.walkanim;
-    }
+        seqId = view->animation->walkanim;
     else if( deltaYaw >= 256 && deltaYaw < 768 )
-    {
-        seqId = npc_entity->animation.walkanim_r;
-    }
+        seqId = view->animation->walkanim_r;
     else if( deltaYaw >= -768 && deltaYaw <= -256 )
-    {
-        seqId = npc_entity->animation.walkanim_l;
-    }
+        seqId = view->animation->walkanim_l;
 
     if( seqId == -1 )
-    {
-        seqId = npc_entity->animation.walkanim;
-    }
-
-    // e.secondarySeqId = seqId;
+        seqId = view->animation->walkanim;
 
     int moveSpeed = 4;
-    if( npc_entity->orientation.yaw != npc_entity->orientation.dst_yaw )
-    {
+    if( view->orientation->yaw != view->orientation->dst_yaw )
         moveSpeed = 2;
-    }
-
     if( route_length > 2 )
-    {
         moveSpeed = 6;
-    }
-
     if( route_length > 3 )
-    {
         moveSpeed = 8;
-    }
-
-    // if( npc_entity->animation.seq_delay_move > 0 && route_length > 1 )
-    // {
-    //     moveSpeed = 8;
-    //     npc_entity->animation.seq_delay_move--;
-    // }
 
     /* When not running, cap speed to walk. */
-    if( !npc_entity->pathing.route_run[0] && moveSpeed > 4 )
+    if( !view->pathing->route_run[0] && moveSpeed > 4 )
         moveSpeed = 4;
-
-    if( npc_entity->pathing.route_run[0] )
-    {
+    if( view->pathing->route_run[0] )
         moveSpeed <<= 0x1;
-    }
 
-    /* Use run animation only when this step has run flag set. */
-    if( npc_entity->pathing.route_run[0] && moveSpeed >= 8 &&
-        seqId == npc_entity->animation.walkanim && npc_entity->animation.runanim != -1 )
-    {
-        seqId = npc_entity->animation.runanim;
-    }
+    if( view->pathing->route_run[0] && moveSpeed >= 8 && seqId == view->animation->walkanim &&
+        view->animation->runanim != -1 )
+        seqId = view->animation->runanim;
 
     if( x < dstX )
     {
-        npc_entity->position.x += moveSpeed;
-        if( npc_entity->position.x > dstX )
-        {
-            npc_entity->position.x = dstX;
-        }
+        view->position->x += moveSpeed;
+        if( view->position->x > dstX )
+            view->position->x = dstX;
     }
     else if( x > dstX )
     {
-        npc_entity->position.x -= moveSpeed;
-        if( npc_entity->position.x < dstX )
-        {
-            npc_entity->position.x = dstX;
-        }
+        view->position->x -= moveSpeed;
+        if( view->position->x < dstX )
+            view->position->x = dstX;
     }
     if( z < dstZ )
     {
-        npc_entity->position.z += moveSpeed;
-        if( npc_entity->position.z > dstZ )
-        {
-            npc_entity->position.z = dstZ;
-        }
+        view->position->z += moveSpeed;
+        if( view->position->z > dstZ )
+            view->position->z = dstZ;
     }
     else if( z > dstZ )
     {
-        npc_entity->position.z -= moveSpeed;
-        if( npc_entity->position.z < dstZ )
-        {
-            npc_entity->position.z = dstZ;
-        }
+        view->position->z -= moveSpeed;
+        if( view->position->z < dstZ )
+            view->position->z = dstZ;
     }
 
-    if( npc_entity->position.x == dstX && npc_entity->position.z == dstZ )
+    if( view->position->x == dstX && view->position->z == dstZ )
     {
-        /* Pop front: shift route down so next step becomes route[0]. */
-        for( int i = 0; i < npc_entity->pathing.route_length - 1; i++ )
+        for( int i = view->pathing->route_length; i > 0; i-- )
         {
-            npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i + 1];
-            npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i + 1];
-            npc_entity->pathing.route_run[i] = npc_entity->pathing.route_run[i + 1];
+            view->pathing->route_x[i] = view->pathing->route_x[i + 1];
+            view->pathing->route_z[i] = view->pathing->route_z[i + 1];
+            view->pathing->route_run[i] = view->pathing->route_run[i + 1];
         }
-        npc_entity->pathing.route_length--;
-        if( npc_entity->pathing.route_length < 0 )
-            npc_entity->pathing.route_length = 0;
+        view->pathing->route_length--;
+        if( view->pathing->route_length < 0 )
+            view->pathing->route_length = 0;
     }
 
-    int remainingYaw = (npc_entity->orientation.dst_yaw - npc_entity->orientation.yaw) & 0x7ff;
+    int remainingYaw = (view->orientation->dst_yaw - view->orientation->yaw) & 0x7ff;
     if( remainingYaw != 0 )
     {
         if( remainingYaw < 32 || remainingYaw > 2016 )
-        {
-            npc_entity->orientation.yaw = npc_entity->orientation.dst_yaw;
-        }
+            view->orientation->yaw = view->orientation->dst_yaw;
         else if( remainingYaw > 1024 )
-        {
-            npc_entity->orientation.yaw -= 32;
-        }
+            view->orientation->yaw -= 32;
         else
-        {
-            npc_entity->orientation.yaw += 32;
-        }
+            view->orientation->yaw += 32;
+        view->orientation->yaw &= 0x7ff;
 
-        npc_entity->orientation.yaw &= 0x7ff;
-
-        if( seqId == npc_entity->animation.readyanim &&
-            npc_entity->orientation.yaw != npc_entity->orientation.dst_yaw )
+        if( seqId == view->animation->readyanim &&
+            view->orientation->yaw != view->orientation->dst_yaw )
         {
-            // if( npc_entity->animation.turnanim != -1 )
-            // {
-            //     seqId = npc_entity->animation.turnanim;
-            // }
-            // else
-            {
-                seqId = npc_entity->animation.walkanim;
-            }
+            if( view->animation->turnanim != -1 )
+                seqId = view->animation->turnanim;
+            else
+                seqId = view->animation->walkanim;
         }
     }
 
 anim:;
-    struct SceneElement* scene_element = (struct SceneElement*)npc_entity->scene_element;
-    if( npc_entity->curranim != seqId && seqId != -1 )
     {
-        npc_entity->curranim = seqId;
+        struct SceneElement* scene_element = (struct SceneElement*)view->scene_element;
+        if( *view->curranim != seqId && seqId != -1 )
+        {
+            *view->curranim = seqId;
+            load_model_animations_dati(scene_element, seqId, game->buildcachedat);
+        }
+        else if( seqId == -1 )
+        {
+            *view->curranim = -1;
+            scene_element_animation_free(scene_element);
+        }
+    }
+}
 
-        load_model_animations_dati(scene_element, seqId, game->buildcachedat);
-    }
-    else if( seqId == -1 )
-    {
-        npc_entity->curranim = -1;
-        scene_element_animation_free(scene_element);
-    }
+static void
+update_npc_anim(
+    struct GGame* game,
+    int npc_entity_id)
+{
+    struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
+    struct EntityAnimUpdateView view = {
+        .pathing = &npc_entity->pathing,
+        .position = &npc_entity->position,
+        .orientation = &npc_entity->orientation,
+        .animation = &npc_entity->animation,
+        .size_x = npc_entity->size_x,
+        .size_z = npc_entity->size_z,
+        .scene_element = npc_entity->scene_element,
+        .curranim = &npc_entity->curranim,
+    };
+    update_entity_anim(game, &view);
 }
 
 static void
@@ -444,214 +406,17 @@ update_player_anim(
     int player_entity_id)
 {
     struct PlayerEntity* player_entity = &game->players[player_entity_id];
-
-    int seqId = player_entity->animation.readyanim;
-    int route_length = player_entity->pathing.route_length;
-    if( route_length == 0 )
-    {
-        /* Client.ts: when idle, position is anchored to route head (e.x = e.routeTileX[0]*128+...).
-         */
-        player_entity->position.x = player_entity->pathing.route_x[0] * 128 + 64;
-        player_entity->position.z = player_entity->pathing.route_z[0] * 128 + 64;
-        goto anim;
-    }
-
-    int draw_x = player_entity->position.x;
-    int draw_z = player_entity->position.z;
-    int dest_draw_x = player_entity->pathing.route_x[route_length - 1] * 128 + 1 * 64;
-    int dest_draw_z = player_entity->pathing.route_z[route_length - 1] * 128 + 1 * 64;
-
-    if( draw_x - dest_draw_x > 256 || draw_x - dest_draw_x < -256 || draw_z - dest_draw_z > 256 ||
-        draw_z - dest_draw_z < -256 )
-    {
-        player_entity->position.x = dest_draw_x;
-        player_entity->position.z = dest_draw_z;
-        return;
-    }
-
-    if( draw_x < dest_draw_x )
-    {
-        if( draw_z < dest_draw_z )
-        {
-            player_entity->orientation.dst_yaw = 1280;
-        }
-        else if( draw_z > dest_draw_z )
-        {
-            player_entity->orientation.dst_yaw = 1792;
-        }
-        else
-        {
-            player_entity->orientation.dst_yaw = 1536;
-        }
-    }
-    else if( draw_x > dest_draw_x )
-    {
-        if( draw_z < dest_draw_z )
-        {
-            player_entity->orientation.dst_yaw = 768;
-        }
-        else if( draw_z > dest_draw_z )
-        {
-            player_entity->orientation.dst_yaw = 256;
-        }
-        else
-        {
-            player_entity->orientation.dst_yaw = 512;
-        }
-    }
-    else if( draw_z < dest_draw_z )
-    {
-        player_entity->orientation.dst_yaw = 1024;
-    }
-    else
-    {
-        player_entity->orientation.dst_yaw = 0;
-    }
-
-    int deltaYaw = (player_entity->orientation.dst_yaw - player_entity->orientation.yaw) & 0x7ff;
-    if( deltaYaw > 1024 )
-    {
-        deltaYaw -= 2048;
-    }
-
-    seqId = player_entity->animation.walkanim_b;
-    if( deltaYaw >= -256 && deltaYaw <= 256 )
-    {
-        seqId = player_entity->animation.walkanim;
-    }
-    else if( deltaYaw >= 256 && deltaYaw < 768 )
-    {
-        seqId = player_entity->animation.walkanim_r;
-    }
-    else if( deltaYaw >= -768 && deltaYaw <= -256 )
-    {
-        seqId = player_entity->animation.walkanim_l;
-    }
-
-    if( seqId == -1 )
-    {
-        seqId = player_entity->animation.walkanim;
-    }
-
-    // e.secondarySeqId = seqId;
-
-    int moveSpeed = 4;
-    if( player_entity->orientation.yaw != player_entity->orientation.dst_yaw )
-    {
-        moveSpeed = 2;
-    }
-
-    if( route_length > 2 )
-    {
-        moveSpeed = 6;
-    }
-
-    if( route_length > 3 )
-    {
-        moveSpeed = 8;
-    }
-
-    /* When not running, cap speed to walk (so we never look like running). */
-    if( !player_entity->pathing.route_run[0] && moveSpeed > 4 )
-        moveSpeed = 4;
-
-    if( player_entity->pathing.route_run[0] )
-    {
-        moveSpeed <<= 0x1;
-    }
-
-    /* Use run animation only when this step has run flag set (Client.ts routeRun[0]). */
-    if( player_entity->pathing.route_run[0] && moveSpeed >= 8 &&
-        seqId == player_entity->animation.walkanim && player_entity->animation.runanim != -1 )
-    {
-        seqId = player_entity->animation.runanim;
-    }
-
-    if( draw_x < dest_draw_x )
-    {
-        player_entity->position.x += moveSpeed;
-        if( player_entity->position.x > dest_draw_x )
-        {
-            player_entity->position.x = dest_draw_x;
-        }
-    }
-    else if( draw_x > dest_draw_x )
-    {
-        player_entity->position.x -= moveSpeed;
-        if( player_entity->position.x < dest_draw_x )
-        {
-            player_entity->position.x = dest_draw_x;
-        }
-    }
-    if( draw_z < dest_draw_z )
-    {
-        player_entity->position.z += moveSpeed;
-        if( player_entity->position.z > dest_draw_z )
-        {
-            player_entity->position.z = dest_draw_z;
-        }
-    }
-    else if( draw_z > dest_draw_z )
-    {
-        player_entity->position.z -= moveSpeed;
-        if( player_entity->position.z < dest_draw_z )
-        {
-            player_entity->position.z = dest_draw_z;
-        }
-    }
-
-    if( player_entity->position.x == dest_draw_x && player_entity->position.z == dest_draw_z )
-    {
-        player_entity->pathing.route_length--;
-        if( player_entity->pathing.route_length < 0 )
-            player_entity->pathing.route_length = 0;
-    }
-
-    int remainingYaw =
-        (player_entity->orientation.dst_yaw - player_entity->orientation.yaw) & 0x7ff;
-    if( remainingYaw != 0 )
-    {
-        if( remainingYaw < 32 || remainingYaw > 2016 )
-        {
-            player_entity->orientation.yaw = player_entity->orientation.dst_yaw;
-        }
-        else if( remainingYaw > 1024 )
-        {
-            player_entity->orientation.yaw -= 32;
-        }
-        else
-        {
-            player_entity->orientation.yaw += 32;
-        }
-
-        player_entity->orientation.yaw &= 0x7ff;
-
-        if( seqId == player_entity->animation.readyanim &&
-            player_entity->orientation.yaw != player_entity->orientation.dst_yaw )
-        {
-            if( player_entity->animation.turnanim != -1 )
-            {
-                seqId = player_entity->animation.turnanim;
-            }
-            else
-            {
-                seqId = player_entity->animation.walkanim;
-            }
-        }
-    }
-
-anim:;
-    struct SceneElement* scene_element = (struct SceneElement*)player_entity->scene_element;
-    if( player_entity->curranim != seqId && seqId != -1 )
-    {
-        player_entity->curranim = seqId;
-        load_model_animations_dati(scene_element, seqId, game->buildcachedat);
-    }
-    else if( seqId == -1 )
-    {
-        player_entity->curranim = -1;
-        scene_element_animation_free(scene_element);
-    }
+    struct EntityAnimUpdateView view = {
+        .pathing = &player_entity->pathing,
+        .position = &player_entity->position,
+        .orientation = &player_entity->orientation,
+        .animation = &player_entity->animation,
+        .size_x = 1,
+        .size_z = 1,
+        .scene_element = player_entity->scene_element,
+        .curranim = &player_entity->curranim,
+    };
+    update_entity_anim(game, &view);
 }
 
 static void
