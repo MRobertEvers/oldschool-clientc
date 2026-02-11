@@ -32,6 +32,7 @@ extern "C" {
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
 
 #include <SDL.h>
+#include <cmath>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1865,18 +1866,23 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 bool ne_ok = ok[2];
                 bool nw_ok = ok[3];
 
-                /* BFS: BLOCK_<dir> = wall that blocks entry from that direction (e.g. BLOCK_WEST =
-                 * east wall). So draw south edge when BLOCK_NORTH (south wall), north when
-                 * BLOCK_SOUTH (north wall), east when BLOCK_WEST (east wall), west when BLOCK_EAST.
-                 */
-                bool has_block_north =
-                    (cm->flags[idx] & (COLL_FLAG_BLOCK_NORTH | COLL_FLAG_WALL_NORTH_PROJ)) != 0;
-                bool has_block_south =
-                    (cm->flags[idx] & (COLL_FLAG_BLOCK_SOUTH | COLL_FLAG_WALL_SOUTH_PROJ)) != 0;
-                bool has_block_west =
-                    (cm->flags[idx] & (COLL_FLAG_BLOCK_WEST | COLL_FLAG_WALL_WEST_PROJ)) != 0;
-                bool has_block_east =
-                    (cm->flags[idx] & (COLL_FLAG_BLOCK_EAST | COLL_FLAG_WALL_EAST_PROJ)) != 0;
+                /* BFS checks the DESTINATION tile when stepping. E.g. step west to (x-1,z): dest
+                 * (x-1,z) must not have BLOCK_WEST. So the west edge of (x,z) is blocked when our
+                 * west neighbor (x-1,z) has BLOCK_WEST. Likewise: east edge when (x+1,z) has
+                 * BLOCK_EAST; south edge when (x,z-1) has BLOCK_SOUTH; north edge when (x,z+1) has
+                 * BLOCK_NORTH. */
+                bool draw_south_edge = (z > 0) &&
+                    (cm->flags[(x)*cm->size_z + (z - 1)] &
+                     (COLL_FLAG_BLOCK_SOUTH | COLL_FLAG_WALL_SOUTH_PROJ)) != 0;
+                bool draw_north_edge = (z < cm->size_z - 1) &&
+                    (cm->flags[(x)*cm->size_z + (z + 1)] &
+                     (COLL_FLAG_BLOCK_NORTH | COLL_FLAG_WALL_NORTH_PROJ)) != 0;
+                bool draw_east_edge = (x < cm->size_x - 1) &&
+                    (cm->flags[(x + 1) * cm->size_z + (z)] &
+                     (COLL_FLAG_BLOCK_EAST | COLL_FLAG_WALL_EAST_PROJ)) != 0;
+                bool draw_west_edge = (x > 0) &&
+                    (cm->flags[(x - 1) * cm->size_z + (z)] &
+                     (COLL_FLAG_BLOCK_WEST | COLL_FLAG_WALL_WEST_PROJ)) != 0;
                 bool has_block_south_west =
                     (cm->flags[idx] &
                      (COLL_FLAG_BLOCK_SOUTH_WEST | COLL_FLAG_WALL_SOUTH_WEST_PROJ)) != 0;
@@ -1906,8 +1912,36 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 int px_nw = px[3];
                 int py_nw = py[3];
 
-                /* Draw four tile edges: south edge (sw-se) when south wall (BLOCK_NORTH), etc. */
-                if( sw_ok && se_ok && has_block_north )
+                int cx = (px_sw + px_se + px_ne + px_nw) / 4;
+                int cy = (py_sw + py_se + py_ne + py_nw) / 4;
+                const int dash_len = 6;
+
+                auto draw_edge_dash = [&](int mx, int my) {
+                    int dx = cx - mx;
+                    int dy = cy - my;
+                    double len = std::sqrt(double(dx * dx + dy * dy));
+                    if( len < 0.5 )
+                        return;
+                    int ex = mx + (int)(dx * dash_len / len);
+                    int ey = my + (int)(dy * dash_len / len);
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        mx,
+                        my,
+                        ex,
+                        ey,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                };
+
+                /* Draw four tile edges based on neighbor flags (BFS checks dest tile). */
+                if( sw_ok && se_ok && draw_south_edge )
+                {
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1921,7 +1955,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( se_ok && ne_ok && has_block_west )
+                    draw_edge_dash((px_sw + px_se) / 2, (py_sw + py_se) / 2);
+                }
+                if( se_ok && ne_ok && draw_east_edge )
+                {
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1935,7 +1972,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( ne_ok && nw_ok && has_block_south )
+                    draw_edge_dash((px_se + px_ne) / 2, (py_se + py_ne) / 2);
+                }
+                if( ne_ok && nw_ok && draw_north_edge )
+                {
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1949,7 +1989,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( nw_ok && sw_ok && has_block_east )
+                    draw_edge_dash((px_nw + px_ne) / 2, (py_nw + py_ne) / 2);
+                }
+                if( nw_ok && sw_ok && draw_west_edge )
+                {
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1963,6 +2006,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
+                    draw_edge_dash((px_nw + px_sw) / 2, (py_nw + py_sw) / 2);
+                }
 
                 /* Draw small x at blocked corners (diagonal blocks). */
                 const int corner_x_size = 4;

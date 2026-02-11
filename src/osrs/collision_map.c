@@ -285,41 +285,66 @@ collision_map_bfs_path(
 
         int next_cost = bfs_cost[x * cm->size_z + z] + 1;
 
-/* Check destination (nx,nz) is enterable from (x,z). Client.ts: when stepping to (nx,nz) we check
- * (flags[dest] & BLOCK_<dir>) === OPEN where BLOCK_<dir> is the flag that blocks entry from the
- * direction we came from. E.g. step west to (x-1,z): we came from east, so dest must not have
- * BLOCK_WEST (WALL_EAST | WALK_BLOCKED). */
-#define TRY_NBOR(nx, nz, dir_val, block_flag)                                                      \
-    do                                                                                             \
-    {                                                                                              \
-        int idx = (nx) * cm->size_z + (nz);                                                        \
-        if( bfs_direction[idx] == 0 && (flags[idx] & (block_flag)) == COLL_FLAG_OPEN )             \
-        {                                                                                          \
-            bfs_step_x[steps] = (nx);                                                              \
-            bfs_step_z[steps] = (nz);                                                              \
-            steps = (steps + 1) % buf_size;                                                        \
-            bfs_direction[idx] = (dir_val);                                                        \
-            bfs_cost[idx] = next_cost;                                                             \
-        }                                                                                          \
-    } while( 0 )
-
         /* West: step to (x-1,z); check dest has no BLOCK_WEST (no east wall). Client.ts line 5906.
          */
         if( x > 0 )
-            TRY_NBOR(x - 1, z, DIR_EAST, COLL_FLAG_BLOCK_WEST);
+        {
+            int idx = (x - 1) * cm->size_z + z;
+            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN )
+            {
+                bfs_step_x[steps] = x - 1;
+                bfs_step_z[steps] = z;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_EAST;
+                bfs_cost[idx] = next_cost;
+            }
+        }
         /* East: step to (x+1,z); check dest has no BLOCK_EAST (no west wall). Client.ts line 5915.
          */
         if( x < scene_width - 1 )
-            TRY_NBOR(x + 1, z, DIR_WEST, COLL_FLAG_BLOCK_EAST);
+        {
+            int idx = (x + 1) * cm->size_z + z;
+            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN )
+            {
+                bfs_step_x[steps] = x + 1;
+                bfs_step_z[steps] = z;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_WEST;
+                bfs_cost[idx] = next_cost;
+            }
+        }
         /* South: step to (x,z-1); check dest has no BLOCK_SOUTH (no north wall). Client.ts 5924. */
         if( z > 0 )
-            TRY_NBOR(x, z - 1, DIR_NORTH, COLL_FLAG_BLOCK_SOUTH);
-        /* North: step to (x,z+1); check dest has no BLOCK_NORTH (no south wall). Client.ts 5933. */
+        {
+            int idx = x * cm->size_z + (z - 1);
+            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+            {
+                bfs_step_x[steps] = x;
+                bfs_step_z[steps] = z - 1;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_NORTH;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+
+        /* North: step to (x,z+1); check dest has no BLOCK_NORTH (no south wall). Client.ts
+         * 5933. */
         if( z < scene_length - 1 )
-            TRY_NBOR(x, z + 1, DIR_SOUTH, COLL_FLAG_BLOCK_NORTH);
+        {
+            int idx = x * cm->size_z + (z + 1);
+            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+            {
+                bfs_step_x[steps] = x;
+                bfs_step_z[steps] = z + 1;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_SOUTH;
+                bfs_cost[idx] = next_cost;
+            }
+        }
 
         /* Diagonals: need both cardinals open and diagonal tile not blocked */
-        /* Diagonals: store direction to parent (Client.ts 3,9,6,12 = NE,NW,SE,SW). */
+        /* Diagonals: store direction to parent (Client.ts 3,9,6,12 = NE,NW,SE,SW).
+         */
         if( x > 0 && z > 0 )
         {
             int idx = (x - 1) * cm->size_z + (z - 1);
@@ -376,7 +401,6 @@ collision_map_bfs_path(
                 bfs_cost[idx] = next_cost;
             }
         }
-#undef TRY_NBOR
     }
 
     if( !arrived )
@@ -389,8 +413,8 @@ collision_map_bfs_path(
     }
 
     /* Backtrace from end to src. Stored value = direction TO parent (Client.ts).
-     * Step in that direction: (next & EAST) x++, (next & WEST) x--, (next & NORTH) z++, (next &
-     * SOUTH) z--. */
+     * Step in that direction: (next & EAST) x++, (next & WEST) x--, (next & NORTH)
+     * z++, (next & SOUTH) z--. */
     int trace_x = end_x, trace_z = end_z;
     int path_len = 0;
     int tmp_x[256], tmp_z[256];
