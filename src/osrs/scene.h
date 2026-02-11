@@ -79,6 +79,15 @@ struct SceneTerrainTile
     int slevel;
 };
 
+struct SceneTileHeights
+{
+    int sw_height;
+    int se_height;
+    int ne_height;
+    int nw_height;
+    int height_center;
+};
+
 struct SceneTerrain
 {
     struct SceneTerrainTile* tiles;
@@ -185,6 +194,14 @@ scene_terrain_height_center(
     int sx,
     int sz,
     int slevel);
+
+void
+scene_terrain_tile_heights(
+    struct Scene* scene,
+    int sx,
+    int sz,
+    int slevel,
+    struct SceneTileHeights* tile_heights);
 
 /** Returns height of tile at (sx, sz, slevel), or 0 if out of bounds. */
 int

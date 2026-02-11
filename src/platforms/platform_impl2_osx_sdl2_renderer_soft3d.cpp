@@ -1805,10 +1805,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 int sz0 = z * 128 - game->camera_world_z;
                 int sx1 = (x + 1) * 128 - game->camera_world_x;
                 int sz1 = (z + 1) * 128 - game->camera_world_z;
-                int h_sw = scene_terrain_height_at_tile(scene, x, z, coll_level);
-                int h_se = scene_terrain_height_at_tile(scene, x + 1, z, coll_level);
-                int h_ne = scene_terrain_height_at_tile(scene, x + 1, z + 1, coll_level);
-                int h_nw = scene_terrain_height_at_tile(scene, x, z + 1, coll_level);
+
+                struct SceneTileHeights tile_heights = { 0 };
+                scene_terrain_tile_heights(scene, x, z, coll_level, &tile_heights);
+                int h_sw = tile_heights.sw_height;
+                int h_se = tile_heights.se_height;
+                int h_ne = tile_heights.ne_height;
+                int h_nw = tile_heights.nw_height;
                 int scene_y_sw = h_sw - game->camera_world_y;
                 int scene_y_se = h_se - game->camera_world_y;
                 int scene_y_ne = h_ne - game->camera_world_y;
@@ -1862,22 +1865,30 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 bool ne_ok = ok[2];
                 bool nw_ok = ok[3];
 
-                bool block_south =
-                    (cm->flags[idx] & (COLL_FLAG_BLOCK_SOUTH | COLL_FLAG_WALL_SOUTH_PROJ)) != 0;
-                bool block_west =
-                    (cm->flags[idx] & (COLL_FLAG_BLOCK_WEST | COLL_FLAG_WALL_WEST_PROJ)) != 0;
-                bool block_south_west = (cm->flags[idx] & (COLL_FLAG_BLOCK_SOUTH_WEST |
-                                                           COLL_FLAG_WALL_SOUTH_WEST_PROJ)) != 0;
-                bool block_north =
+                /* BFS: BLOCK_<dir> = wall that blocks entry from that direction (e.g. BLOCK_WEST =
+                 * east wall). So draw south edge when BLOCK_NORTH (south wall), north when
+                 * BLOCK_SOUTH (north wall), east when BLOCK_WEST (east wall), west when BLOCK_EAST.
+                 */
+                bool has_block_north =
                     (cm->flags[idx] & (COLL_FLAG_BLOCK_NORTH | COLL_FLAG_WALL_NORTH_PROJ)) != 0;
-                bool block_north_west = (cm->flags[idx] & (COLL_FLAG_BLOCK_NORTH_WEST |
-                                                           COLL_FLAG_WALL_NORTH_WEST_PROJ)) != 0;
-                bool block_east =
+                bool has_block_south =
+                    (cm->flags[idx] & (COLL_FLAG_BLOCK_SOUTH | COLL_FLAG_WALL_SOUTH_PROJ)) != 0;
+                bool has_block_west =
+                    (cm->flags[idx] & (COLL_FLAG_BLOCK_WEST | COLL_FLAG_WALL_WEST_PROJ)) != 0;
+                bool has_block_east =
                     (cm->flags[idx] & (COLL_FLAG_BLOCK_EAST | COLL_FLAG_WALL_EAST_PROJ)) != 0;
-                bool block_south_east = (cm->flags[idx] & (COLL_FLAG_BLOCK_SOUTH_EAST |
-                                                           COLL_FLAG_WALL_SOUTH_EAST_PROJ)) != 0;
-                bool block_north_east = (cm->flags[idx] & (COLL_FLAG_BLOCK_NORTH_EAST |
-                                                           COLL_FLAG_WALL_NORTH_EAST_PROJ)) != 0;
+                bool has_block_south_west =
+                    (cm->flags[idx] &
+                     (COLL_FLAG_BLOCK_SOUTH_WEST | COLL_FLAG_WALL_SOUTH_WEST_PROJ)) != 0;
+                bool has_block_north_west =
+                    (cm->flags[idx] &
+                     (COLL_FLAG_BLOCK_NORTH_WEST | COLL_FLAG_WALL_NORTH_WEST_PROJ)) != 0;
+                bool has_block_south_east =
+                    (cm->flags[idx] &
+                     (COLL_FLAG_BLOCK_SOUTH_EAST | COLL_FLAG_WALL_SOUTH_EAST_PROJ)) != 0;
+                bool has_block_north_east =
+                    (cm->flags[idx] &
+                     (COLL_FLAG_BLOCK_NORTH_EAST | COLL_FLAG_WALL_NORTH_EAST_PROJ)) != 0;
 
                 int px[4], py[4];
                 for( int i = 0; i < 4; i++ )
@@ -1895,8 +1906,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 int px_nw = px[3];
                 int py_nw = py[3];
 
-                /* Draw four tile edges. */
-                if( sw_ok && se_ok && block_south )
+                /* Draw four tile edges: south edge (sw-se) when south wall (BLOCK_NORTH), etc. */
+                if( sw_ok && se_ok && has_block_north )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1910,7 +1921,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( se_ok && ne_ok && block_east )
+                if( se_ok && ne_ok && has_block_west )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1924,7 +1935,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( ne_ok && nw_ok && block_north )
+                if( ne_ok && nw_ok && has_block_south )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1938,7 +1949,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( nw_ok && sw_ok && block_west )
+                if( nw_ok && sw_ok && has_block_east )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1952,7 +1963,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( nw_ok && se_ok && (block_north_west || block_south_east) )
+                if( nw_ok && se_ok && (has_block_north_west || has_block_south_east) )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
@@ -1966,7 +1977,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( ne_ok && sw_ok && (block_north_east || block_south_west) )
+                if( ne_ok && sw_ok && (has_block_north_east || has_block_south_west) )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,

@@ -325,12 +325,13 @@ scene_element_name(
     return scene_element_at(scene->scenery, element)->_dbg_name;
 }
 
-int
-scene_terrain_height_center(
+void
+scene_terrain_tile_heights(
     struct Scene* scene,
     int sx,
     int sz,
-    int slevel)
+    int slevel,
+    struct SceneTileHeights* tile_heights)
 {
     struct SceneTerrain* terrain = scene->terrain;
     struct SceneTerrainTile* other = NULL;
@@ -369,7 +370,23 @@ scene_terrain_height_center(
             height_nw = other->height;
     }
 
-    return (height_sw + height_se + height_ne + height_nw) >> 2;
+    tile_heights->sw_height = height_sw;
+    tile_heights->se_height = height_se;
+    tile_heights->ne_height = height_ne;
+    tile_heights->nw_height = height_nw;
+    tile_heights->height_center = (height_sw + height_se + height_ne + height_nw) >> 2;
+}
+
+int
+scene_terrain_height_center(
+    struct Scene* scene,
+    int sx,
+    int sz,
+    int slevel)
+{
+    struct SceneTileHeights tile_heights = { 0 };
+    scene_terrain_tile_heights(scene, sx, sz, slevel, &tile_heights);
+    return tile_heights.height_center;
 }
 
 int
