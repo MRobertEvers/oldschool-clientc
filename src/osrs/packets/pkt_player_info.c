@@ -493,10 +493,8 @@ pkt_player_info_reader_read(
             assert(0);
         }
 
-        if( (mask & MASK_BIG_UPDATE) != 0 )
-        {
-            assert(0);
-        }
+        /* MASK_BIG_UPDATE: already consumed at mask read (lines 436-438); extends mask to 16 bits.
+         * No additional fields to decode here. */
 
         if( (mask & MASK_SPOTANIM) != 0 )
         {

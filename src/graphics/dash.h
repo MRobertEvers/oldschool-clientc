@@ -493,6 +493,20 @@ dash2d_fill_rect(
     int color_rgb);
 
 void
+dash2d_fill_rect_clipped(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom);
+
+void
 dash2d_draw_rect(
     int* pixel_buffer,
     int stride,

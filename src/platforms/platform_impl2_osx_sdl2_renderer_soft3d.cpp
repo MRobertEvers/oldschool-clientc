@@ -902,15 +902,15 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         struct SceneTerrain* terrain = game->scene->terrain;
 
         auto draw_entity_overlays = [&](void* scene_element_ptr,
-                                        int scene_local_x,
-                                        int scene_local_height,
-                                        int scene_local_z,
                                         int* damage_values,
                                         int* damage_types,
                                         int* damage_cycles,
                                         int combat_cycle,
                                         int health,
                                         int total_health) {
+            int scene_local_x = ((struct SceneElement*)scene_element_ptr)->dash_position->x;
+            int scene_local_z = ((struct SceneElement*)scene_element_ptr)->dash_position->z;
+            int scene_local_height = ((struct SceneElement*)scene_element_ptr)->dash_position->y;
             scene_local_x -= game->camera_world_x;
             scene_local_z -= game->camera_world_z;
             scene_local_height -= game->camera_world_y;
@@ -924,7 +924,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             /* Health bar: Client.ts getOverlayPosEntity(entity, entity.height + 15) */
             if( combat_cycle > game->cycle + 100 && total_health > 0 )
             {
-                int bar_y_world = scene_local_height - (entity_height + 15);
+                int bar_y_world = scene_local_height - (entity_height - 15);
                 int rel_y = bar_y_world;
                 if( dash3d_project_point(
                         game->sys_dash,
@@ -939,9 +939,30 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     int bar_w = (health * 30) / total_health;
                     if( bar_w > 30 )
                         bar_w = 30;
-                    dash2d_fill_rect(db, stride, screen_x - 15, screen_y - 3, bar_w, 5, GREEN);
-                    dash2d_fill_rect(
-                        db, stride, screen_x - 15 + bar_w, screen_y - 3, 30 - bar_w, 5, RED);
+                    dash2d_fill_rect_clipped(
+                        db,
+                        stride,
+                        screen_x - 15,
+                        screen_y - 3,
+                        bar_w,
+                        5,
+                        GREEN,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                    dash2d_fill_rect_clipped(
+                        db,
+                        stride,
+                        screen_x - 15 + bar_w,
+                        screen_y - 3,
+                        30 - bar_w,
+                        5,
+                        RED,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
                 }
             }
 
@@ -1025,41 +1046,35 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         };
 
         /* Local player */
-        // {
-        //     struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
-        //     if( pl->alive )
-        //         draw_entity_overlays(
-        //             pl->scene_element,
-        //             pl->position.x,
-        //             pl->position.height,
-        //             pl->position.z,
-        //             pl->damage_values,
-        //             pl->damage_types,
-        //             pl->damage_cycles,
-        //             pl->combat_cycle,
-        //             pl->health,
-        //             pl->total_health);
-        // }
-        // /* Other players */
-        // for( int i = 0; i < game->player_count; i++ )
-        // {
-        //     int pid = game->active_players[i];
-        //     if( pid == ACTIVE_PLAYER_SLOT )
-        //         continue;
-        //     struct PlayerEntity* pl = &game->players[pid];
-        //     if( pl->alive )
-        //         draw_entity_overlays(
-        //             pl->scene_element,
-        //             pl->position.x,
-        //             pl->position.height,
-        //             pl->position.z,
-        //             pl->damage_values,
-        //             pl->damage_types,
-        //             pl->damage_cycles,
-        //             pl->combat_cycle,
-        //             pl->health,
-        //             pl->total_health);
-        // }
+        {
+            struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+            if( pl->alive )
+                draw_entity_overlays(
+                    pl->scene_element,
+                    pl->damage_values,
+                    pl->damage_types,
+                    pl->damage_cycles,
+                    pl->combat_cycle,
+                    pl->health,
+                    pl->total_health);
+        }
+        /* Other players */
+        for( int i = 0; i < game->player_count; i++ )
+        {
+            int pid = game->active_players[i];
+            if( pid == ACTIVE_PLAYER_SLOT )
+                continue;
+            struct PlayerEntity* pl = &game->players[pid];
+            if( pl->alive )
+                draw_entity_overlays(
+                    pl->scene_element,
+                    pl->damage_values,
+                    pl->damage_types,
+                    pl->damage_cycles,
+                    pl->combat_cycle,
+                    pl->health,
+                    pl->total_health);
+        }
         /* NPCs */
         for( int i = 0; i < game->npc_count; i++ )
         {
@@ -1069,9 +1084,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             {
                 draw_entity_overlays(
                     npc->scene_element,
-                    npc->position.x,
-                    npc->position.height,
-                    npc->position.z,
                     npc->damage_values,
                     npc->damage_types,
                     npc->damage_cycles,

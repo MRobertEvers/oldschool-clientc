@@ -2439,6 +2439,38 @@ dash2d_fill_rect(
 }
 
 void
+dash2d_fill_rect_clipped(
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int color_rgb,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom)
+{
+    int rx = x < clip_left ? clip_left : x;
+    int ry = y < clip_top ? clip_top : y;
+    int rx2 = x + width > clip_right ? clip_right : x + width;
+    int ry2 = y + height > clip_bottom ? clip_bottom : y + height;
+    int rw = rx2 - rx;
+    int rh = ry2 - ry;
+    if( rw <= 0 || rh <= 0 )
+        return;
+    for( int i = 0; i < rh; i++ )
+    {
+        for( int j = 0; j < rw; j++ )
+        {
+            int pixel_buffer_index = (ry + i) * stride + (rx + j);
+            pixel_buffer[pixel_buffer_index] = color_rgb;
+        }
+    }
+}
+
+void
 dash2d_draw_rect(
     int* pixel_buffer,
     int stride,
