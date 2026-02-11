@@ -1147,6 +1147,7 @@ LibToriRS_GameStep(
         game->scroll_arrow_hold_cycles_last = game->cycles_elapsed;
 
     // Handle interface clicks (tab bar, then inventory items, etc.)
+    game->interface_consumed_click = 0;
     if( game->mouse_clicked )
     {
         int mouse_x = game->mouse_clicked_x;
@@ -1216,6 +1217,7 @@ LibToriRS_GameStep(
             tab_clicked = 13;
         if( tab_clicked >= 0 )
         {
+            game->interface_consumed_click = 1;
             game->selected_tab = tab_clicked;
             printf("Tab clicked: selected_tab = %d\n", tab_clicked);
             /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE
@@ -1225,6 +1227,7 @@ LibToriRS_GameStep(
          * privacy_panel_y = bottom 50px when height < 503, else y 453). */
         else if( mouse_y >= panel_top && mouse_y < panel_top + panel_h )
         {
+            game->interface_consumed_click = 1;
             if( mouse_x >= 6 && mouse_x <= 106 )
             {
                 game->chat_public_mode = (game->chat_public_mode + 1) % 4;
@@ -1242,8 +1245,15 @@ LibToriRS_GameStep(
                 /* TODO: open report abuse interface (clientCode 600) */
             }
         }
+        /* Viewport overlay (e.g. bank, inventory): blocks 3D world clicks when interface covers
+         * viewport. Sidebar starts at x 553. */
+        else if( game->viewport_interface_id != -1 && mouse_x < 553 )
+        {
+            game->interface_consumed_click = 1;
+        }
         else if( mouse_x >= 553 && mouse_x < 763 && mouse_y >= 205 && mouse_y < 498 )
         {
+            game->interface_consumed_click = 1;
             printf("Click detected in sidebar area\n");
 
             // Determine which interface to check

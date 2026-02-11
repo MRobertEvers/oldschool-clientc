@@ -87,6 +87,7 @@ struct GGame
     int mouse_clicked;
     int mouse_clicked_x;
     int mouse_clicked_y;
+    int interface_consumed_click; /* 1 if click was handled by interface (tab, sidebar, etc.) */
     int mouse_button_down; /* 1 while left button held, 0 on release */
     int mouse_x;
     int mouse_y;

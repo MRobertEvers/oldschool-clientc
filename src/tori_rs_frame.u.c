@@ -234,10 +234,14 @@ LibToriRS_FrameNextCommand(
                 continue;
 
             /* Client.ts: click(mouseX-8, mouseY-11); draw tests pointInsideTriangle(World3D.mouseX,
-             * World3D.mouseY). Only record tile when we have a click (taking input). */
+             * World3D.mouseY). Only record tile when we have a click (taking input).
+             * Only acknowledge 3D clicks within the viewport bounds (graphics3d_width x height). */
             int click_x = game->mouse_clicked_x - 8;
             int click_y = game->mouse_clicked_y - 11;
-            if( dash3d_projected_model_contains(
+            bool in_viewport = game->view_port &&
+                game->mouse_clicked_x >= 0 && game->mouse_clicked_x < game->view_port->width &&
+                game->mouse_clicked_y >= 0 && game->mouse_clicked_y < game->view_port->height;
+            if( in_viewport && dash3d_projected_model_contains(
                     game->sys_dash, tile_model->dash_model, game->view_port, click_x, click_y) )
             {
                 game->tile_clicked_x = sx;
@@ -260,7 +264,7 @@ LibToriRS_FrameNextCommand(
     }
 
     if( game->tile_clicked_x != -1 && game->tile_clicked_z != -1 &&
-        command->kind == TORIRS_GFX_NONE )
+        command->kind == TORIRS_GFX_NONE && !game->interface_consumed_click )
     {
         tile_model = scene_terrain_tile_at(
             game->scene->terrain,
@@ -310,7 +314,8 @@ skip_highlight:;
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
-    if( game->mouse_clicked && game->clicked_tile_valid && GAME_NET_STATE_GAME == game->net_state )
+    if( game->mouse_clicked && game->clicked_tile_valid && !game->interface_consumed_click &&
+        GAME_NET_STATE_GAME == game->net_state )
     {
         int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
         int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
