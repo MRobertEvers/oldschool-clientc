@@ -142,4 +142,144 @@ collision_map_tile(
     return cm->flags[collision_map_index(tile_x, tile_z)];
 }
 
+static inline bool
+collision_map_can_step_west(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( x > 0 )
+    {
+        if( (cm->flags[collision_map_index(x - 1, z)] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool
+collision_map_can_step_east(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( x < cm->size_x - 1 )
+    {
+        if( (cm->flags[collision_map_index(x + 1, z)] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool
+collision_map_can_step_south(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( z > 0 )
+    {
+        if( (cm->flags[collision_map_index(x, z - 1)] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool
+collision_map_can_step_north(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( z < cm->size_z - 1 )
+    {
+        if( (cm->flags[collision_map_index(x, z + 1)] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool
+collision_map_can_step_diagonal_south_west(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( x > 0 && z > 0 )
+    {
+        if( (cm->flags[collision_map_index(x - 1, z - 1)] & COLL_FLAG_BLOCK_SOUTH_WEST) ==
+                COLL_FLAG_OPEN &&
+            (cm->flags[collision_map_index(x - 1, z)] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN &&
+            (cm->flags[collision_map_index(x, z - 1)] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool
+collision_map_can_step_diagonal_south_east(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( x < cm->size_x - 1 && z > 0 )
+    {
+        if( (cm->flags[collision_map_index(x + 1, z - 1)] & COLL_FLAG_BLOCK_SOUTH_EAST) ==
+                COLL_FLAG_OPEN &&
+            (cm->flags[collision_map_index(x + 1, z)] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN &&
+            (cm->flags[collision_map_index(x, z - 1)] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool
+collision_map_can_step_diagonal_north_west(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( x > 0 && z < cm->size_z - 1 )
+    {
+        if( (cm->flags[collision_map_index(x - 1, z + 1)] & COLL_FLAG_BLOCK_NORTH_WEST) ==
+                COLL_FLAG_OPEN &&
+            (cm->flags[collision_map_index(x - 1, z)] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN &&
+            (cm->flags[collision_map_index(x, z + 1)] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool
+collision_map_can_step_diagonal_north_east(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( x < cm->size_x - 1 && z < cm->size_z - 1 )
+    {
+        if( (cm->flags[collision_map_index(x + 1, z + 1)] & COLL_FLAG_BLOCK_NORTH_EAST) ==
+                COLL_FLAG_OPEN &&
+            (cm->flags[collision_map_index(x + 1, z)] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN &&
+            (cm->flags[collision_map_index(x, z + 1)] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 #endif

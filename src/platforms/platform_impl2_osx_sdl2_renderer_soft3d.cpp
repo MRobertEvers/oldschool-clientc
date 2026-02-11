@@ -1871,68 +1871,30 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                  * west neighbor (x-1,z) has BLOCK_WEST. Likewise: east edge when (x+1,z) has
                  * BLOCK_EAST; south edge when (x,z-1) has BLOCK_SOUTH; north edge when (x,z+1) has
                  * BLOCK_NORTH. */
-                bool draw_south_edge =
-                    (z > 0) && (cm->flags[(x)*cm->size_z + (z - 1)] & (COLL_FLAG_BLOCK_SOUTH)) != 0;
-                bool draw_north_edge =
-                    (z < cm->size_z - 1) &&
-                    (cm->flags[(x)*cm->size_z + (z + 1)] & (COLL_FLAG_BLOCK_NORTH)) != 0;
-                bool draw_east_edge =
-                    (x < cm->size_x - 1) &&
-                    (cm->flags[(x + 1) * cm->size_z + (z)] & (COLL_FLAG_BLOCK_EAST)) != 0;
-                bool draw_west_edge = (x > 0) && (cm->flags[(x - 1) * cm->size_z + (z)] &
-                                                  (COLL_FLAG_BLOCK_WEST)) != 0;
+                bool draw_south_edge = !collision_map_can_step_south(cm, x, z);
+                bool draw_north_edge = !collision_map_can_step_north(cm, x, z);
+                bool draw_east_edge = !collision_map_can_step_east(cm, x, z);
+                bool draw_west_edge = !collision_map_can_step_west(cm, x, z);
 
                 bool has_block_south_west = true;
                 bool has_block_south_east = true;
                 bool has_block_north_west = true;
                 bool has_block_north_east = true;
-                if( x > 0 && z > 0 )
+                if( collision_map_can_step_diagonal_south_west(cm, x, z) )
                 {
-                    int idx = (x - 1) * cm->size_z + (z - 1);
-                    if( (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH_WEST) == 0 &&
-                        (cm->flags[(x - 1) * cm->size_z + z] & COLL_FLAG_BLOCK_WEST) ==
-                            COLL_FLAG_OPEN &&
-                        (cm->flags[x * cm->size_z + (z - 1)] & COLL_FLAG_BLOCK_SOUTH) ==
-                            COLL_FLAG_OPEN )
-                    {
-                        has_block_south_west = false;
-                    }
+                    has_block_south_west = false;
                 }
-                if( x < cm->size_x - 1 && z > 0 )
+                if( collision_map_can_step_diagonal_south_east(cm, x, z) )
                 {
-                    int idx = (x + 1) * cm->size_z + (z - 1);
-                    if( (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH_EAST) == 0 &&
-                        (cm->flags[(x + 1) * cm->size_z + z] & COLL_FLAG_BLOCK_EAST) ==
-                            COLL_FLAG_OPEN &&
-                        (cm->flags[x * cm->size_z + (z - 1)] & COLL_FLAG_BLOCK_SOUTH) ==
-                            COLL_FLAG_OPEN )
-                    {
-                        has_block_south_east = false;
-                    }
+                    has_block_south_east = false;
                 }
-                if( x > 0 && z < cm->size_z - 1 )
+                if( collision_map_can_step_diagonal_north_west(cm, x, z) )
                 {
-                    int idx = (x - 1) * cm->size_z + (z + 1);
-                    if( (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH_WEST) == 0 &&
-                        (cm->flags[(x - 1) * cm->size_z + z] & COLL_FLAG_BLOCK_WEST) ==
-                            COLL_FLAG_OPEN &&
-                        (cm->flags[x * cm->size_z + (z + 1)] & COLL_FLAG_BLOCK_NORTH) ==
-                            COLL_FLAG_OPEN )
-                    {
-                        has_block_north_west = false;
-                    }
+                    has_block_north_west = false;
                 }
-                if( x < cm->size_x - 1 && z < cm->size_z - 1 )
+                if( collision_map_can_step_diagonal_north_east(cm, x, z) )
                 {
-                    int idx = (x + 1) * cm->size_z + (z + 1);
-                    if( (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH_EAST) == 0 &&
-                        (cm->flags[(x + 1) * cm->size_z + z] & COLL_FLAG_BLOCK_EAST) ==
-                            COLL_FLAG_OPEN &&
-                        (cm->flags[x * cm->size_z + (z + 1)] & COLL_FLAG_BLOCK_NORTH) ==
-                            COLL_FLAG_OPEN )
-                    {
-                        has_block_north_east = false;
-                    }
+                    has_block_north_east = false;
                 }
 
                 int px[4], py[4];

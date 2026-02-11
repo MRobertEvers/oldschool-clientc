@@ -284,13 +284,13 @@ collision_map_bfs_path(
         }
 
         int next_cost = bfs_cost[x * cm->size_z + z] + 1;
-
+        int idx = 0;
         /* West: step to (x-1,z); check dest has no BLOCK_WEST (no east wall). Client.ts line 5906.
          */
-        if( x > 0 )
+        if( collision_map_can_step_west(cm, x, z) )
         {
-            int idx = (x - 1) * cm->size_z + z;
-            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN )
+            idx = collision_map_index(x - 1, z);
+            if( bfs_direction[idx] == 0 )
             {
                 bfs_step_x[steps] = x - 1;
                 bfs_step_z[steps] = z;
@@ -299,12 +299,13 @@ collision_map_bfs_path(
                 bfs_cost[idx] = next_cost;
             }
         }
+
         /* East: step to (x+1,z); check dest has no BLOCK_EAST (no west wall). Client.ts line 5915.
          */
-        if( x < scene_width - 1 )
+        if( collision_map_can_step_east(cm, x, z) )
         {
-            int idx = (x + 1) * cm->size_z + z;
-            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN )
+            idx = collision_map_index(x + 1, z);
+            if( bfs_direction[idx] == 0 )
             {
                 bfs_step_x[steps] = x + 1;
                 bfs_step_z[steps] = z;
@@ -314,10 +315,10 @@ collision_map_bfs_path(
             }
         }
         /* South: step to (x,z-1); check dest has no BLOCK_SOUTH (no north wall). Client.ts 5924. */
-        if( z > 0 )
+        if( collision_map_can_step_south(cm, x, z) )
         {
-            int idx = x * cm->size_z + (z - 1);
-            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+            idx = collision_map_index(x, z - 1);
+            if( bfs_direction[idx] == 0 )
             {
                 bfs_step_x[steps] = x;
                 bfs_step_z[steps] = z - 1;
@@ -329,10 +330,10 @@ collision_map_bfs_path(
 
         /* North: step to (x,z+1); check dest has no BLOCK_NORTH (no south wall). Client.ts
          * 5933. */
-        if( z < scene_length - 1 )
+        if( collision_map_can_step_north(cm, x, z) )
         {
-            int idx = x * cm->size_z + (z + 1);
-            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+            idx = collision_map_index(x, z + 1);
+            if( bfs_direction[idx] == 0 )
             {
                 bfs_step_x[steps] = x;
                 bfs_step_z[steps] = z + 1;
@@ -345,40 +346,34 @@ collision_map_bfs_path(
         /* Diagonals: need both cardinals open and diagonal tile not blocked */
         /* Diagonals: store direction to parent (Client.ts 3,9,6,12 = NE,NW,SE,SW).
          */
-        if( x > 0 && z > 0 )
+        if( collision_map_can_step_diagonal_south_west(cm, x, z) )
         {
-            int idx = (x - 1) * cm->size_z + (z - 1);
-            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_SOUTH_WEST) == 0 &&
-                (flags[(x - 1) * cm->size_z + z] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN &&
-                (flags[x * cm->size_z + (z - 1)] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+            idx = collision_map_index(x - 1, z - 1);
+            if( bfs_direction[idx] == 0 )
             {
                 bfs_step_x[steps] = x - 1;
                 bfs_step_z[steps] = z - 1;
                 steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_NORTH_EAST; /* (x-1,z-1) parent (x,z) is NE = 3 */
+                bfs_direction[idx] = DIR_NORTH_EAST;
                 bfs_cost[idx] = next_cost;
             }
         }
-        if( x < scene_width - 1 && z > 0 )
+        if( collision_map_can_step_diagonal_south_east(cm, x, z) )
         {
-            int idx = (x + 1) * cm->size_z + (z - 1);
-            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_SOUTH_EAST) == 0 &&
-                (flags[(x + 1) * cm->size_z + z] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN &&
-                (flags[x * cm->size_z + (z - 1)] & COLL_FLAG_BLOCK_SOUTH) == COLL_FLAG_OPEN )
+            idx = collision_map_index(x + 1, z - 1);
+            if( bfs_direction[idx] == 0 )
             {
                 bfs_step_x[steps] = x + 1;
                 bfs_step_z[steps] = z - 1;
                 steps = (steps + 1) % buf_size;
-                bfs_direction[idx] = DIR_NORTH_WEST; /* parent is NW = 9 */
+                bfs_direction[idx] = DIR_NORTH_WEST;
                 bfs_cost[idx] = next_cost;
             }
         }
-        if( x > 0 && z < scene_length - 1 )
+        if( collision_map_can_step_diagonal_north_west(cm, x, z) )
         {
-            int idx = (x - 1) * cm->size_z + (z + 1);
-            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_NORTH_WEST) == 0 &&
-                (flags[(x - 1) * cm->size_z + z] & COLL_FLAG_BLOCK_WEST) == COLL_FLAG_OPEN &&
-                (flags[x * cm->size_z + (z + 1)] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+            idx = collision_map_index(x - 1, z + 1);
+            if( bfs_direction[idx] == 0 )
             {
                 bfs_step_x[steps] = x - 1;
                 bfs_step_z[steps] = z + 1;
@@ -387,12 +382,10 @@ collision_map_bfs_path(
                 bfs_cost[idx] = next_cost;
             }
         }
-        if( x < scene_width - 1 && z < scene_length - 1 )
+        if( collision_map_can_step_diagonal_north_east(cm, x, z) )
         {
-            int idx = (x + 1) * cm->size_z + (z + 1);
-            if( bfs_direction[idx] == 0 && (flags[idx] & COLL_FLAG_BLOCK_NORTH_EAST) == 0 &&
-                (flags[(x + 1) * cm->size_z + z] & COLL_FLAG_BLOCK_EAST) == COLL_FLAG_OPEN &&
-                (flags[x * cm->size_z + (z + 1)] & COLL_FLAG_BLOCK_NORTH) == COLL_FLAG_OPEN )
+            idx = collision_map_index(x + 1, z + 1);
+            if( bfs_direction[idx] == 0 )
             {
                 bfs_step_x[steps] = x + 1;
                 bfs_step_z[steps] = z + 1;
