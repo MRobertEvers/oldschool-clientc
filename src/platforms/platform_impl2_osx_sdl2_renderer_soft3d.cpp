@@ -1963,34 +1963,125 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_t,
                         clip_r,
                         clip_b);
-                if( nw_ok && se_ok && (has_block_north_west || has_block_south_east) )
+
+                /* Draw small x at blocked corners (diagonal blocks). */
+                const int corner_x_size = 4;
+                if( sw_ok && has_block_south_west )
+                {
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
-                        px_nw,
-                        py_nw,
-                        px_se,
-                        py_se,
+                        px_sw - corner_x_size,
+                        py_sw - corner_x_size,
+                        px_sw + corner_x_size,
+                        py_sw + corner_x_size,
                         red,
                         alpha,
                         clip_l,
                         clip_t,
                         clip_r,
                         clip_b);
-                if( ne_ok && sw_ok && (has_block_north_east || has_block_south_west) )
                     dash2d_draw_line_alpha(
                         renderer->pixel_buffer,
                         renderer->width,
-                        px_ne,
-                        py_ne,
-                        px_sw,
-                        py_sw,
+                        px_sw - corner_x_size,
+                        py_sw + corner_x_size,
+                        px_sw + corner_x_size,
+                        py_sw - corner_x_size,
                         red,
                         alpha,
                         clip_l,
                         clip_t,
                         clip_r,
                         clip_b);
+                }
+                if( se_ok && has_block_south_east )
+                {
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_se - corner_x_size,
+                        py_se - corner_x_size,
+                        px_se + corner_x_size,
+                        py_se + corner_x_size,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_se - corner_x_size,
+                        py_se + corner_x_size,
+                        px_se + corner_x_size,
+                        py_se - corner_x_size,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                }
+                if( ne_ok && has_block_north_east )
+                {
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_ne - corner_x_size,
+                        py_ne - corner_x_size,
+                        px_ne + corner_x_size,
+                        py_ne + corner_x_size,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_ne - corner_x_size,
+                        py_ne + corner_x_size,
+                        px_ne + corner_x_size,
+                        py_ne - corner_x_size,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                }
+                if( nw_ok && has_block_north_west )
+                {
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_nw - corner_x_size,
+                        py_nw - corner_x_size,
+                        px_nw + corner_x_size,
+                        py_nw + corner_x_size,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                    dash2d_draw_line_alpha(
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        px_nw - corner_x_size,
+                        py_nw + corner_x_size,
+                        px_nw + corner_x_size,
+                        py_nw - corner_x_size,
+                        red,
+                        alpha,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                }
             }
         }
     }

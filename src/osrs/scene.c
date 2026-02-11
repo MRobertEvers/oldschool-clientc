@@ -357,17 +357,17 @@ scene_terrain_tile_heights(
             height_ne = other->height;
     }
 
-    if( inbounds(terrain, sx - 1, sz, slevel) )
+    if( inbounds(terrain, sx + 1, sz + 1, slevel) )
     {
-        other = scene_terrain_tile_at(terrain, sx - 1, sz, slevel);
+        other = scene_terrain_tile_at(terrain, sx + 1, sz + 1, slevel);
         if( tile->slevel == other->slevel )
             height_nw = other->height;
     }
-    if( inbounds(terrain, sx, sz - 1, slevel) )
+    if( inbounds(terrain, sx + 1, sz, slevel) )
     {
-        other = scene_terrain_tile_at(terrain, sx, sz - 1, slevel);
+        other = scene_terrain_tile_at(terrain, sx + 1, sz, slevel);
         if( tile->slevel == other->slevel )
-            height_nw = other->height;
+            height_se = other->height;
     }
 
     tile_heights->sw_height = height_sw;
