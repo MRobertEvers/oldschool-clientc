@@ -132,6 +132,76 @@ gameproto_parse_lc245_2(
         assert(buffer.position == data_size);
         return 1;
     }
+    case PKTIN_LC245_2_IF_SETCOLOUR:
+    {
+        packet->_if_setcolour.component_id = g2(&buffer);
+        packet->_if_setcolour.colour = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETHIDE:
+    {
+        packet->_if_sethide.component_id = g2(&buffer);
+        packet->_if_sethide.hide = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETOBJECT:
+    {
+        packet->_if_setobject.component_id = g2(&buffer);
+        packet->_if_setobject.obj_id = g2(&buffer);
+        packet->_if_setobject.zoom = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETMODEL:
+    {
+        packet->_if_setmodel.component_id = g2(&buffer);
+        packet->_if_setmodel.model_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETANIM:
+    {
+        packet->_if_setanim.component_id = g2(&buffer);
+        packet->_if_setanim.anim_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETPLAYERHEAD:
+    {
+        packet->_if_setplayerhead.component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETTEXT:
+    {
+        packet->_if_settext.component_id = g2(&buffer);
+        packet->_if_settext.text = gstringnewline(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETNPCHEAD:
+    {
+        packet->_if_setnpchead.component_id = g2(&buffer);
+        packet->_if_setnpchead.npc_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETPOSITION:
+    {
+        packet->_if_setposition.component_id = g2(&buffer);
+        packet->_if_setposition.x = g2b(&buffer);
+        packet->_if_setposition.z = g2b(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_SETSCROLLPOS:
+    {
+        packet->_if_setscrollpos.component_id = g2(&buffer);
+        packet->_if_setscrollpos.pos = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
     default:
         printf("Unknown packet type: %d\n", packet_type);
         break;

@@ -39,4 +39,54 @@ gameproto_exec_if_settab_active(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
+void
+gameproto_exec_if_setcolour(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_sethide(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_setobject(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_setmodel(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_setanim(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_setplayerhead(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_settext(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_setnpchead(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_setposition(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
+void
+gameproto_exec_if_setscrollpos(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
 #endif

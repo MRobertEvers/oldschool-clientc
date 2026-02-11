@@ -7,11 +7,17 @@
 #include "game_entity.h"
 #include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
+#include "osrs/buildcachedat.h"
+#include "osrs/game.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
 #include "rscache/bitbuffer.h"
 #include "rscache/rsbuf.h"
 #include "rscache/tables/model.h"
+#include "rscache/tables_dat/config_component.h"
+#include "rscache/tables_dat/config_obj.h"
+
+#include <stdlib.h>
 
 struct StepCoord
 {
@@ -744,6 +750,206 @@ gameproto_exec_if_settab_active(
 }
 
 void
+gameproto_exec_if_setcolour(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setcolour.component_id;
+    int colour15 = packet->_if_setcolour.colour;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    int r = (colour15 >> 10) & 0x1f;
+    int g = (colour15 >> 5) & 0x1f;
+    int b = colour15 & 0x1f;
+    component->colour = (r << 19) | (g << 11) | (b << 3);
+}
+
+void
+gameproto_exec_if_sethide(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_sethide.component_id;
+    int hide_val = packet->_if_sethide.hide;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->hide = (hide_val == 1);
+}
+
+void
+gameproto_exec_if_setobject(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setobject.component_id;
+    int obj_id = packet->_if_setobject.obj_id;
+    int zoom = packet->_if_setobject.zoom;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    if( !obj )
+        return;
+
+    component->modelType = 4;
+    component->model = obj_id;
+    component->xan = obj->xan2d;
+    component->yan = obj->yan2d;
+    component->zoom = (obj->zoom2d * 100) / zoom;
+}
+
+void
+gameproto_exec_if_setmodel(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setmodel.component_id;
+    int model_id = packet->_if_setmodel.model_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->modelType = 1;
+    component->model = model_id;
+}
+
+void
+gameproto_exec_if_setanim(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setanim.component_id;
+    int anim_id = packet->_if_setanim.anim_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->anim = anim_id;
+}
+
+void
+gameproto_exec_if_setplayerhead(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setplayerhead.component_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    struct PlayerEntity* local_player = &game->players[ACTIVE_PLAYER_SLOT];
+    if( !local_player->alive )
+        return;
+
+    int* slots = local_player->appearance.slots;
+    int* colors = local_player->appearance.colors;
+
+    component->modelType = 3;
+    component->model =
+        (slots[8] << 6) + (slots[0] << 12) + (colors[0] << 24) + (colors[4] << 18) + slots[11];
+}
+
+void
+gameproto_exec_if_settext(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_settext.component_id;
+    char* new_text = packet->_if_settext.text;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+    {
+        free(new_text);
+        return;
+    }
+
+    free(component->text);
+    component->text = new_text;
+}
+
+void
+gameproto_exec_if_setnpchead(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setnpchead.component_id;
+    int npc_id = packet->_if_setnpchead.npc_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->modelType = 2;
+    component->model = npc_id;
+}
+
+void
+gameproto_exec_if_setposition(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setposition.component_id;
+    int x = packet->_if_setposition.x;
+    int z = packet->_if_setposition.z;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->x = x;
+    component->y = z;
+}
+
+void
+gameproto_exec_if_setscrollpos(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setscrollpos.component_id;
+    int pos = packet->_if_setscrollpos.pos;
+
+    if( component_id < 0 || component_id >= MAX_COMPONENT_SCROLL_IDS )
+        return;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    if( component->type == COMPONENT_TYPE_LAYER )
+    {
+        if( pos < 0 )
+            pos = 0;
+        int max_scroll = component->scroll - component->height;
+        if( max_scroll > 0 && pos > max_scroll )
+            pos = max_scroll;
+    }
+
+    game->component_scroll_position[component_id] = pos;
+}
+
+void
 gameproto_exec_lc245_2(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
@@ -767,6 +973,36 @@ gameproto_exec_lc245_2(
         break;
     case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
         gameproto_exec_if_settab_active(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETCOLOUR:
+        gameproto_exec_if_setcolour(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETHIDE:
+        gameproto_exec_if_sethide(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETOBJECT:
+        gameproto_exec_if_setobject(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETMODEL:
+        gameproto_exec_if_setmodel(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETANIM:
+        gameproto_exec_if_setanim(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETPLAYERHEAD:
+        gameproto_exec_if_setplayerhead(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETTEXT:
+        gameproto_exec_if_settext(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETNPCHEAD:
+        gameproto_exec_if_setnpchead(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETPOSITION:
+        gameproto_exec_if_setposition(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETSCROLLPOS:
+        gameproto_exec_if_setscrollpos(game, packet);
         break;
     default:
         break;

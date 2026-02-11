@@ -1024,10 +1024,20 @@ interface_draw_component_rect(
     int* pixel_buffer,
     int stride)
 {
-    /* Client.ts 10278-10290: getIfActive -> colour2/activeColour, else colour */
+    /* Client.ts 10278-10290: getIfActive -> colour2/activeColour, else colour.
+     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive). */
     int colour = component->colour;
-    if( component->scriptComparator && interface_get_if_active(game, component) )
+    bool active = component->scriptComparator && interface_get_if_active(game, component);
+    if( active )
         colour = component->activeColour;
+    bool hovered = (component->id == game->current_hovered_interface_id);
+    if( hovered )
+    {
+        if( active && component->activeOverColour != 0 )
+            colour = component->activeOverColour;
+        else if( !active && component->overColour != 0 )
+            colour = component->overColour;
+    }
 
     struct DashViewPort* vp = game->iface_view_port;
 
@@ -1084,14 +1094,24 @@ interface_draw_component_text(
     if( !font )
         return;
 
-    /* Client.ts 10315-10330: getIfActive -> colour2/activeColour + text2/activeText, else colour */
+    /* Client.ts 10315-10330: getIfActive -> colour2/activeColour + text2/activeText, else colour.
+     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive). */
     int colour = component->colour;
     const char* text_src = component->text;
-    if( component->scriptComparator && interface_get_if_active(game, component) )
+    bool active = component->scriptComparator && interface_get_if_active(game, component);
+    if( active )
     {
         colour = component->activeColour;
         if( component->activeText && component->activeText[0] != '\0' )
             text_src = component->activeText;
+    }
+    bool hovered = (component->id == game->current_hovered_interface_id);
+    if( hovered )
+    {
+        if( active && component->activeOverColour != 0 )
+            colour = component->activeOverColour;
+        else if( !active && component->overColour != 0 )
+            colour = component->overColour;
     }
 
     if( !text_src )
@@ -1280,16 +1300,23 @@ interface_draw_component_graphic(
     int* pixel_buffer,
     int stride)
 {
-    if( !component->graphic )
+    /* Client.ts 10417-10423: getIfActive -> graphic2/activeGraphic, else graphic */
+    char const* graphic_name = component->graphic;
+    if( component->scriptComparator && interface_get_if_active(game, component) &&
+        component->activeGraphic && component->activeGraphic[0] != '\0' )
+    {
+        graphic_name = component->activeGraphic;
+    }
+
+    if( !graphic_name )
         return;
 
     struct DashSprite* sprite =
-        buildcachedat_get_component_sprite(game->buildcachedat, component->graphic);
+        buildcachedat_get_component_sprite(game->buildcachedat, graphic_name);
 
     if( !sprite )
         return;
 
-    // Draw the sprite
     dash2d_blit_sprite(game->sys_dash, sprite, game->iface_view_port, x, y, pixel_buffer);
 }
 

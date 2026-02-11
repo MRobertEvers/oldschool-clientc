@@ -107,6 +107,36 @@ gameproto_process(
             game->player_run_energy = item->packet._update_run_energy.run_energy;
             break;
         }
+        case PKTIN_LC245_2_IF_SETCOLOUR:
+            gameproto_exec_if_setcolour(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETHIDE:
+            gameproto_exec_if_sethide(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETOBJECT:
+            gameproto_exec_if_setobject(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETMODEL:
+            gameproto_exec_if_setmodel(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETANIM:
+            gameproto_exec_if_setanim(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETPLAYERHEAD:
+            gameproto_exec_if_setplayerhead(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETTEXT:
+            gameproto_exec_if_settext(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETNPCHEAD:
+            gameproto_exec_if_setnpchead(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETPOSITION:
+            gameproto_exec_if_setposition(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_IF_SETSCROLLPOS:
+            gameproto_exec_if_setscrollpos(game, &item->packet);
+            break;
         default:
             break;
         }
