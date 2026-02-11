@@ -520,6 +520,7 @@ add_player_info(
             if( entity_id == 65535 )
                 entity_id = -1;
             player->orientation.face_entity = entity_id;
+
             break;
         }
         case PKT_PLAYER_INFO_OP_FACE_COORD:

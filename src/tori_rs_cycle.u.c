@@ -233,7 +233,8 @@ struct EntityAnimUpdateView
     int face_entity;
 };
 
-/* Client.ts entityFace: set dstYaw from faceEntity or faceSquare target. 325.949 ≈ 2048/(2π) for rad->yaw. */
+/* Client.ts entityFace: set dstYaw from faceEntity or faceSquare target. 325.949 ≈ 2048/(2π) for
+ * rad->yaw. */
 static void
 entity_face(
     struct GGame* game,
@@ -244,6 +245,14 @@ entity_face(
     int fe = view->face_entity;
     if( fe >= 0 )
     {
+        if( !is_player )
+        {
+            printf(
+                "NPC face coord: %d, %d, %d\n",
+                fe,
+                view->orientation->face_square_x,
+                view->orientation->face_square_z);
+        }
         int target_x = 0;
         int target_z = 0;
         int has_target = 0;
@@ -264,24 +273,16 @@ entity_face(
         }
         else
         {
-            /* Player target: index = fe - 32768. Client.ts: if index === selfSlot, use LOCAL_PLAYER */
-            int index = fe - 32768;
-            int self_slot = -1;
-            for( int i = 0; i < game->player_count; i++ )
-            {
-                if( game->active_players[i] == ACTIVE_PLAYER_SLOT )
-                {
-                    self_slot = i;
-                    break;
-                }
-            }
-            int pid;
-            if( index == self_slot )
+            /* Player target: index = fe - 32768. Client.ts: if index === selfSlot, use LOCAL_PLAYER
+             */
+            int pid = fe - 32768;
+            if( pid == ACTIVE_PLAYER_SLOT )
                 pid = ACTIVE_PLAYER_SLOT;
-            else if( index >= 0 && index < game->player_count )
-                pid = game->active_players[index];
+            else if( pid < MAX_PLAYERS )
+                pid = pid;
             else
                 pid = -1;
+
             if( pid >= 0 && game->players[pid].alive )
             {
                 struct PlayerEntity* target = &game->players[pid];
@@ -541,7 +542,8 @@ sequence_get_frame_duration(
     int d = seq->delay[frame_i];
     if( d == 0 )
     {
-        struct CacheAnimframe* af = buildcachedat_get_animframe(buildcachedat, seq->frames[frame_i]);
+        struct CacheAnimframe* af =
+            buildcachedat_get_animframe(buildcachedat, seq->frames[frame_i]);
         d = af ? af->delay : 1;
     }
     return d > 0 ? d : 1;
@@ -572,8 +574,8 @@ entity_advance_anim(
             if( seq )
             {
                 (*secondary_anim_cycle)++;
-                int dur = sequence_get_frame_duration(
-                    game->buildcachedat, seq, *secondary_anim_frame);
+                int dur =
+                    sequence_get_frame_duration(game->buildcachedat, seq, *secondary_anim_frame);
                 if( *secondary_anim_cycle > dur )
                 {
                     *secondary_anim_cycle = 0;
@@ -603,11 +605,11 @@ entity_advance_anim(
 
         (*primary_anim_cycle)++;
         while( *primary_anim_frame < seq->frame_count &&
-               *primary_anim_cycle > sequence_get_frame_duration(
-                   game->buildcachedat, seq, *primary_anim_frame) )
+               *primary_anim_cycle >
+                   sequence_get_frame_duration(game->buildcachedat, seq, *primary_anim_frame) )
         {
-            *primary_anim_cycle -= sequence_get_frame_duration(
-                game->buildcachedat, seq, *primary_anim_frame);
+            *primary_anim_cycle -=
+                sequence_get_frame_duration(game->buildcachedat, seq, *primary_anim_frame);
             (*primary_anim_frame)++;
         }
 
@@ -684,7 +686,7 @@ entity_sync_anim_to_scene(
 
     /* Load sequence only if it changed */
     struct SceneAnimation* anim = scene_element->animation;
-    int need_load = ( anim == NULL || anim->_anim_sequence_id != active );
+    int need_load = (anim == NULL || anim->_anim_sequence_id != active);
 
     if( need_load )
         load_model_animations_dati(scene_element, active, game->buildcachedat);
