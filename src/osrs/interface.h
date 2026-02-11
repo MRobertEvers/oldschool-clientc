@@ -154,6 +154,13 @@ enum InterfaceButtonAction
     IF_BUTTON_ACTION_RESUME_PAUSEBUTTON = 2,
 };
 
+/** Client.ts doAction: when TOGGLE/SELECT button clicked, optimistically update varp
+ * so getIfActive reflects new state before server responds. */
+void
+interface_apply_button_click_varp_optimistic(
+    struct GGame* game,
+    int component_id);
+
 // Find clickable button at (mouse_x, mouse_y). Returns 1 if found, 0 else.
 // Matches buttonType (OK/TOGGLE/SELECT/CLOSE/CONTINUE) or clientCode > 0.
 // Sets *out_component_id, *out_client_code, *out_button_action, and menu params.

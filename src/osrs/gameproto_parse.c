@@ -94,7 +94,6 @@ gameproto_parse_lc245_2(
     }
     case PKTIN_LC245_2_VARP_SMALL:
     {
-        printf("PKTIN_LC245_2_VARP_SMALL\n");
         packet->_varp_small.variable = g2(&buffer);
         packet->_varp_small.value = g1b(&buffer);
         printf(

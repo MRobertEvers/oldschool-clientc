@@ -62,6 +62,7 @@ endif()
         src/osrs/rscache/tables/sprites.c
         src/osrs/rscache/tables_dat/config_textures.c
         src/osrs/rscache/tables_dat/config_idk.c
+        src/osrs/rscache/tables_dat/config_varp.c
         src/osrs/rscache/tables_dat/config_obj.c
         src/osrs/rscache/tables_dat/animframe.c
         src/osrs/rscache/tables_dat/pix8.c

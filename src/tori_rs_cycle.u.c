@@ -1329,6 +1329,8 @@ LibToriRS_GameStep(
                             uint16_t c = menu_param_c;
                             game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
                             game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                            /* Client.ts doAction: optimistic varp update for TOGGLE/SELECT */
+                            interface_apply_button_click_varp_optimistic(game, menu_param_c);
                         }
                     }
                     else if( viewport_component->type == COMPONENT_TYPE_LAYER && viewport_component->children )
@@ -1469,6 +1471,8 @@ LibToriRS_GameStep(
                             uint16_t c = menu_param_c;
                             game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
                             game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                            /* Client.ts doAction: optimistic varp update for TOGGLE/SELECT */
+                            interface_apply_button_click_varp_optimistic(game, menu_param_c);
                         }
                     }
                     else

@@ -5,8 +5,8 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/packetout.h"
-#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/player_stats.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/varp_varbit_manager.h"
 
@@ -17,8 +17,8 @@
 #define INV_MENU_MAX 24
 
 /* Run component script and return result. Mirrors Client.ts getIfVar (10625-10765).
- * Uses varp_varbit_manager for opcodes 5 (pushvar), 7 (var*100/46875), 13 (testbit), 14 (push_varbit).
- * Other opcodes return 0 for now. */
+ * Uses varp_varbit_manager for opcodes 5 (pushvar), 7 (var*100/46875), 13 (testbit), 14
+ * (push_varbit). Other opcodes return 0 for now. */
 int
 interface_get_if_var(
     struct GGame* game,
@@ -51,48 +51,48 @@ interface_get_if_var(
         {
         case 1:
             /* stat_level {skill} */
-        {
-            int skill = script[pc++];
-            register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                ? game->player_stat_effective_level[skill]
-                : 0;
-            break;
-        }
+            {
+                int skill = script[pc++];
+                register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                                   ? game->player_stat_effective_level[skill]
+                                   : 0;
+                break;
+            }
         case 2:
             /* stat_base_level {skill} */
-        {
-            int skill = script[pc++];
-            register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                ? game->player_stat_base_level[skill]
-                : 0;
-            break;
-        }
+            {
+                int skill = script[pc++];
+                register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                                   ? game->player_stat_base_level[skill]
+                                   : 0;
+                break;
+            }
         case 3:
             /* stat_xp {skill} */
-        {
-            int skill = script[pc++];
-            register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                ? game->player_stat_xp[skill]
-                : 0;
-            break;
-        }
+            {
+                int skill = script[pc++];
+                register_val =
+                    (skill >= 0 && skill < PLAYER_STAT_COUNT) ? game->player_stat_xp[skill] : 0;
+                break;
+            }
         case 5:
             /* pushvar {id} */
+
             register_val = varp_varbit_get_varp(mgr, script[pc++]);
             break;
         case 6:
             /* stat_xp_remaining {skill} - xp required for next level */
-        {
-            int skill = script[pc++];
-            int base_level = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                ? game->player_stat_base_level[skill]
-                : 1;
-            if( base_level >= PLAYER_LEVEL_MAX )
-                register_val = 0;
-            else
-                register_val = g_player_level_experience[base_level - 1];
-            break;
-        }
+            {
+                int skill = script[pc++];
+                int base_level = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                                     ? game->player_stat_base_level[skill]
+                                     : 1;
+                if( base_level >= PLAYER_LEVEL_MAX )
+                    register_val = 0;
+                else
+                    register_val = g_player_level_experience[base_level - 1];
+                break;
+            }
         case 7:
             /* register = (var[id] * 100) / 46875 */
             register_val = (varp_varbit_get_varp(mgr, script[pc++]) * 100) / 46875;
@@ -117,16 +117,16 @@ interface_get_if_var(
             break;
         case 9:
             /* total_level - sum of base levels (0-18, 20; skip 19 runecraft) */
-        {
-            register_val = 0;
-            for( int i = 0; i < PLAYER_STAT_COUNT; i++ )
             {
-                if( i == 19 )
-                    continue;
-                register_val += game->player_stat_base_level[i];
+                register_val = 0;
+                for( int i = 0; i < PLAYER_STAT_COUNT; i++ )
+                {
+                    if( i == 19 )
+                        continue;
+                    register_val += game->player_stat_base_level[i];
+                }
+                break;
             }
-            break;
-        }
         case 11:
             /* runenergy */
             register_val = game->player_run_energy;
@@ -170,7 +170,8 @@ interface_get_if_var(
     }
 }
 
-/* Return whether component passes script comparator check. Mirrors Client.ts getIfActive (10592-10623). */
+/* Return whether component passes script comparator check. Mirrors Client.ts getIfActive
+ * (10592-10623). */
 bool
 interface_get_if_active(
     struct GGame* game,
@@ -804,11 +805,12 @@ is_clickable_button(struct CacheDatConfigComponent* child)
 {
     if( child->clientCode > 0 )
         return 1;
-    /* Client.ts addComponentOptions: BUTTON_OK needs clientCode or buttonText. Config sets option to
-     * "Ok" when empty. */
+    /* Client.ts addComponentOptions: BUTTON_OK needs clientCode or buttonText. Config sets option
+     * to "Ok" when empty. */
     if( child->buttonType == COMPONENT_BUTTON_TYPE_OK )
         return 1;
-    if( child->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE || child->buttonType == COMPONENT_BUTTON_TYPE_SELECT )
+    if( child->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE ||
+        child->buttonType == COMPONENT_BUTTON_TYPE_SELECT )
         return 1;
     if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
         return 1;
@@ -887,7 +889,8 @@ find_button_click_at_recursive(
             {
                 *out_component_id = child_id;
                 *out_client_code = child->clientCode;
-                /* Client.ts: CLOSE_BUTTON -> closeModal (CLOSE_MODAL), PAUSE_BUTTON -> RESUME_PAUSEBUTTON */
+                /* Client.ts: CLOSE_BUTTON -> closeModal (CLOSE_MODAL), PAUSE_BUTTON ->
+                 * RESUME_PAUSEBUTTON */
                 if( out_button_action )
                 {
                     if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
@@ -941,6 +944,92 @@ interface_find_button_click_at(
         out_menu_param_a,
         out_menu_param_b,
         out_menu_param_c);
+}
+
+void
+interface_apply_button_click_varp_optimistic(
+    struct GGame* game,
+    int component_id)
+{
+    struct CacheDatConfigComponent* com =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !com )
+        return;
+
+    /* Client.ts doAction: scripts[0][0]==5 (pushvar) or [0]==14 (push_varbit).
+     * Client only does optimistic update for opcode 5; we extend to 14 for varbit toggles. */
+    if( !com->scripts || com->scripts_count < 1 || !com->scripts[0] )
+        return;
+    int* script = com->scripts[0];
+    int opcode = script[0];
+
+    if( opcode == 5 )
+    {
+        /* pushvar {id} */
+        int varp = script[1];
+        int current = varp_varbit_get_varp(&game->varp_varbit, varp);
+
+        if( com->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE )
+        {
+            varp_varbit_set_varp_optimistic(&game->varp_varbit, varp, 1 - current);
+        }
+        else if( com->buttonType == COMPONENT_BUTTON_TYPE_SELECT && com->scriptOperand )
+        {
+            int operand = com->scriptOperand[0];
+            if( current != operand )
+                varp_varbit_set_varp_optimistic(&game->varp_varbit, varp, operand);
+        }
+    }
+    else if( opcode == 14 && com->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE )
+    {
+        /* push_varbit {varbit} - toggle the varbit's bits in the base varp */
+        int varbit_id = script[1];
+        int current = varp_varbit_get_varbit(&game->varp_varbit, varbit_id);
+        int new_val = 1 - current;
+
+        struct VarPVarBitManager* mgr = &game->varp_varbit;
+        if( varbit_id < 0 || varbit_id >= mgr->varbit_count )
+            return;
+        const struct VarBitType* vb = &mgr->varbit_types[varbit_id];
+        if( vb->basevar < 0 || vb->basevar >= mgr->varp_count )
+            return;
+
+        int bit_count = vb->endbit - vb->startbit;
+        if( bit_count <= 0 || bit_count >= VARP_VARBIT_READBIT_MAX )
+            return;
+
+        int mask = mgr->readbit[bit_count];
+        int base_val = varp_varbit_get_varp(mgr, vb->basevar);
+        int cleared = base_val & ~(mask << vb->startbit);
+        int updated = cleared | ((new_val & mask) << vb->startbit);
+        varp_varbit_set_varp_optimistic(mgr, vb->basevar, updated);
+    }
+    else if( opcode == 14 && com->buttonType == COMPONENT_BUTTON_TYPE_SELECT && com->scriptOperand )
+    {
+        /* push_varbit + SELECT: set varbit to operand */
+        int varbit_id = script[1];
+        int operand = com->scriptOperand[0];
+        int current = varp_varbit_get_varbit(&game->varp_varbit, varbit_id);
+        if( current == operand )
+            return;
+
+        struct VarPVarBitManager* mgr = &game->varp_varbit;
+        if( varbit_id < 0 || varbit_id >= mgr->varbit_count )
+            return;
+        const struct VarBitType* vb = &mgr->varbit_types[varbit_id];
+        if( vb->basevar < 0 || vb->basevar >= mgr->varp_count )
+            return;
+
+        int bit_count = vb->endbit - vb->startbit;
+        if( bit_count <= 0 || bit_count >= VARP_VARBIT_READBIT_MAX )
+            return;
+
+        int mask = mgr->readbit[bit_count];
+        int base_val = varp_varbit_get_varp(mgr, vb->basevar);
+        int cleared = base_val & ~(mask << vb->startbit);
+        int updated = cleared | ((operand & mask) << vb->startbit);
+        varp_varbit_set_varp_optimistic(mgr, vb->basevar, updated);
+    }
 }
 
 /* Client.ts handleScrollInput (9825-9831): up arrow scrollPosition -= dragCycles*4, down +=
@@ -1025,7 +1114,8 @@ interface_draw_component_rect(
     int stride)
 {
     /* Client.ts 10278-10290: getIfActive -> colour2/activeColour, else colour.
-     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive). */
+     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive).
+     */
     int colour = component->colour;
     bool active = component->scriptComparator && interface_get_if_active(game, component);
     if( active )
@@ -1095,7 +1185,8 @@ interface_draw_component_text(
         return;
 
     /* Client.ts 10315-10330: getIfActive -> colour2/activeColour + text2/activeText, else colour.
-     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive). */
+     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive).
+     */
     int colour = component->colour;
     const char* text_src = component->text;
     bool active = component->scriptComparator && interface_get_if_active(game, component);

@@ -83,6 +83,14 @@ varp_varbit_apply_large(
 void
 varp_varbit_apply_sync(struct VarPVarBitManager* mgr);
 
+/** Optimistic update: set var locally (e.g. TOGGLE/SELECT button click).
+ * Does not update var_serv; server will send VARP_SMALL/LARGE to confirm. */
+void
+varp_varbit_set_varp_optimistic(
+    struct VarPVarBitManager* mgr,
+    int variable,
+    int value);
+
 void
 varp_varbit_set_client_var_callback(
     struct VarPVarBitManager* mgr,

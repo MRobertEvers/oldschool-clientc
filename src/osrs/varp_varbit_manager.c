@@ -2,55 +2,12 @@
 
 #include "rscache/filelist.h"
 #include "rscache/rsbuf.h"
+#include "rscache/tables_dat/config_varp.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static void
-decode_varp_type(
-    struct VarPType* varp,
-    struct RSBuffer* buffer)
-{
-    memset(varp, 0, sizeof(struct VarPType));
-
-    while( 1 )
-    {
-        int code = g1(buffer);
-        if( code == 0 )
-            break;
-
-        switch( code )
-        {
-        case 1:
-        case 2:
-            buffer->position += 1;
-            break;
-        case 3:
-        case 4:
-        case 6:
-        case 8:
-        case 11:
-            /* server-side, no client data */
-            break;
-        case 5:
-            varp->clientcode = g2(buffer);
-            break;
-        case 7:
-            buffer->position += 4;
-            break;
-        case 10:
-        {
-            char* s = gstringnewline(buffer);
-            free(s);
-            break;
-        }
-        default:
-            break;
-        }
-    }
-}
 
 static void
 decode_varbit_type(
@@ -126,35 +83,29 @@ varp_varbit_load_from_config_jagfile(
         return false;
 
     int varp_idx = filelist_dat_find_file_by_name(config_jagfile, "varp.dat");
-    int varbit_idx = filelist_dat_find_file_by_name(config_jagfile, "varbit.dat");
-
-    if( varp_idx == -1 || varbit_idx == -1 )
+    if( varp_idx == -1 )
         return false;
 
-    struct RSBuffer varp_buf = {
-        .data = (int8_t*)config_jagfile->files[varp_idx],
-        .size = config_jagfile->file_sizes[varp_idx],
-        .position = 0,
-    };
+    struct CacheDatConfigVarpList* list = cache_dat_config_varp_list_new_decode(
+        config_jagfile->files[varp_idx],
+        config_jagfile->file_sizes[varp_idx]);
+    if( !list )
+        return false;
 
-    struct RSBuffer varbit_buf = {
-        .data = (int8_t*)config_jagfile->files[varbit_idx],
-        .size = config_jagfile->file_sizes[varbit_idx],
-        .position = 0,
-    };
-
-    /* Load varp types */
-    int varp_count = g2(&varp_buf);
+    int varp_count = list->varps_count;
     mgr->varp_types = malloc((size_t)varp_count * sizeof(struct VarPType));
     if( !mgr->varp_types )
+    {
+        cache_dat_config_varp_list_free(list);
         return false;
+    }
 
     mgr->varp_count = varp_count;
-
     for( int i = 0; i < varp_count; i++ )
     {
-        decode_varp_type(&mgr->varp_types[i], &varp_buf);
+        mgr->varp_types[i].clientcode = list->varps[i]->clientcode;
     }
+    cache_dat_config_varp_list_free(list);
 
     /* Allocate var arrays */
     mgr->var = calloc((size_t)varp_count, sizeof(int));
@@ -163,22 +114,6 @@ varp_varbit_load_from_config_jagfile(
     {
         varp_varbit_free(mgr);
         return false;
-    }
-
-    /* Load varbit types */
-    int varbit_count = g2(&varbit_buf);
-    mgr->varbit_types = malloc((size_t)varbit_count * sizeof(struct VarBitType));
-    if( !mgr->varbit_types )
-    {
-        varp_varbit_free(mgr);
-        return false;
-    }
-
-    mgr->varbit_count = varbit_count;
-
-    for( int i = 0; i < varbit_count; i++ )
-    {
-        decode_varbit_type(&mgr->varbit_types[i], &varbit_buf);
     }
 
     return true;
@@ -191,6 +126,7 @@ varp_varbit_get_varp(
 {
     if( !mgr || id < 0 || id >= mgr->varp_count )
         return 0;
+    printf("varp_varbit_get_varp: id=%d value=%d\n", id, mgr->var[id]);
     return mgr->var[id];
 }
 
@@ -276,6 +212,22 @@ varp_varbit_apply_large(
     if( !mgr )
         return;
     apply_varp_value(mgr, variable, value);
+}
+
+void
+varp_varbit_set_varp_optimistic(
+    struct VarPVarBitManager* mgr,
+    int variable,
+    int value)
+{
+    if( !mgr || variable < 0 || variable >= mgr->varp_count )
+        return;
+
+    if( mgr->var[variable] != value )
+    {
+        mgr->var[variable] = value;
+        notify_client_var(mgr, variable);
+    }
 }
 
 void
