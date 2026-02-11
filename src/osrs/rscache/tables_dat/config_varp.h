@@ -3,6 +3,10 @@
 
 #include <stdbool.h>
 
+/**
+ * The format of the varp changes in 254.
+ *
+ */
 struct CacheDatConfigVarp
 {
     int code1;
