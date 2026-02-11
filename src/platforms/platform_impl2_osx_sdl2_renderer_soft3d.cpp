@@ -1740,6 +1740,198 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 game, chat_component, 17, 357, 0, renderer->pixel_buffer, renderer->width);
         }
     }
+    else if( game->pixfont_p12 )
+    {
+        /* Client.ts drawChat: draw messages and input line when chat interface is closed. */
+        int chat_x = 17 + 4;
+        int chat_y_base = 357;
+        int line_height = 14;
+        int line = 0;
+        int stride = renderer->width;
+        int* pix = renderer->pixel_buffer;
+        static const int black = 0x000000;
+        static const int blue = 0x0000FF;
+        static const int dark_red = 0x8B0000;
+        struct DashViewPort* vp = game->iface_view_port;
+        int cl = vp->clip_left;
+        int ct = vp->clip_top;
+        int cr = vp->clip_right;
+        int cb = vp->clip_bottom;
+
+        for( int i = 0; i < GAME_CHAT_MAX; i++ )
+        {
+            if( !game->message_text[i][0] )
+                continue;
+            int y = chat_y_base + game->chat_scroll_offset + 70 - line * line_height;
+            if( y < chat_y_base - 20 )
+                break;
+            int type = game->message_type[i];
+            const char* sender = game->message_sender[i];
+            const char* text = game->message_text[i];
+            bool draw_line = false;
+            if( type == 0 )
+            {
+                if( y > chat_y_base && y < chat_y_base + 110 )
+                {
+                    dashfont_draw_text_clipped(
+                        game->pixfont_p12,
+                        (uint8_t*)text,
+                        chat_x,
+                        y,
+                        black,
+                        pix,
+                        stride,
+                        cl,
+                        ct,
+                        cr,
+                        cb);
+                }
+                draw_line = true;
+            }
+            else if( (type == 1 || type == 2) &&
+                     (type == 1 || game->chat_public_mode == 0 || game->chat_public_mode == 1) )
+            {
+                if( y > chat_y_base && y < chat_y_base + 110 )
+                {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf), "%s: ", sender);
+                    dashfont_draw_text_clipped(
+                        game->pixfont_p12,
+                        (uint8_t*)buf,
+                        chat_x,
+                        y,
+                        black,
+                        pix,
+                        stride,
+                        cl,
+                        ct,
+                        cr,
+                        cb);
+                    int sx = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 8;
+                    dashfont_draw_text_clipped(
+                        game->pixfont_p12,
+                        (uint8_t*)text,
+                        sx,
+                        y,
+                        blue,
+                        pix,
+                        stride,
+                        cl,
+                        ct,
+                        cr,
+                        cb);
+                }
+                draw_line = true;
+            }
+            else if( (type == 3 || type == 7) &&
+                     (type == 7 || game->chat_private_mode == 0 || game->chat_private_mode == 1) )
+            {
+                if( y > chat_y_base && y < chat_y_base + 110 )
+                {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf), "From %s: ", sender);
+                    dashfont_draw_text_clipped(
+                        game->pixfont_p12,
+                        (uint8_t*)"From ",
+                        chat_x,
+                        y,
+                        black,
+                        pix,
+                        stride,
+                        cl,
+                        ct,
+                        cr,
+                        cb);
+                    int x = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)"From ");
+                    snprintf(buf, sizeof(buf), "%s: ", sender);
+                    dashfont_draw_text_clipped(
+                        game->pixfont_p12,
+                        (uint8_t*)buf,
+                        x,
+                        y,
+                        black,
+                        pix,
+                        stride,
+                        cl,
+                        ct,
+                        cr,
+                        cb);
+                    x += dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 8;
+                    dashfont_draw_text_clipped(
+                        game->pixfont_p12,
+                        (uint8_t*)text,
+                        x,
+                        y,
+                        dark_red,
+                        pix,
+                        stride,
+                        cl,
+                        ct,
+                        cr,
+                        cb);
+                }
+                draw_line = true;
+            }
+            else if( type == 5 || type == 6 )
+            {
+                if( y > chat_y_base && y < chat_y_base + 110 && game->chat_private_mode < 2 )
+                {
+                    if( type == 6 )
+                    {
+                        char buf[256];
+                        snprintf(buf, sizeof(buf), "To %s: ", sender);
+                        dashfont_draw_text_clipped(
+                            game->pixfont_p12,
+                            (uint8_t*)buf,
+                            chat_x,
+                            y,
+                            black,
+                            pix,
+                            stride,
+                            cl,
+                            ct,
+                            cr,
+                            cb);
+                        int sx = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 12;
+                        dashfont_draw_text_clipped(
+                            game->pixfont_p12,
+                            (uint8_t*)text,
+                            sx,
+                            y,
+                            dark_red,
+                            pix,
+                            stride,
+                            cl,
+                            ct,
+                            cr,
+                            cb);
+                    }
+                    else
+                    {
+                        dashfont_draw_text_clipped(
+                            game->pixfont_p12,
+                            (uint8_t*)text,
+                            chat_x,
+                            y,
+                            dark_red,
+                            pix,
+                            stride,
+                            cl,
+                            ct,
+                            cr,
+                            cb);
+                    }
+                }
+                draw_line = true;
+            }
+            if( draw_line )
+                line++;
+        }
+
+        game->chat_scroll_height = line * line_height + 7;
+        if( game->chat_scroll_height < 78 )
+            game->chat_scroll_height = 78;
+    }
 
     /* Client.ts redrawPrivacySettings: backbase1 at (0, 453), 496x50; four buttons:
      * Public chat (center 55), Private chat (184), Trade/duel (324), Report abuse (458).
@@ -1833,6 +2025,61 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             draw_center(458, report_y, "Report abuse", white);
 
             dash2d_set_bounds(vp, cl, ct, cr, cb);
+        }
+    }
+
+    /* Draw chat input line on top of privacy panel (Client.ts font.drawString(4, 90, username+':')) */
+    if( game->chat_interface_id == -1 && game->pixfont_p12 )
+    {
+        int chat_x = 17 + 4;
+        int chat_y_base = 357;
+        static const int black = 0x000000;
+        static const int blue = 0x0000FF;
+        struct DashViewPort* vp = game->iface_view_port;
+        int stride = renderer->width;
+        int* pix = renderer->pixel_buffer;
+        const char* username = "Player";
+        char user_prefix[64];
+        snprintf(user_prefix, sizeof(user_prefix), "%s: ", username);
+        dashfont_draw_text_clipped(
+            game->pixfont_p12,
+            (uint8_t*)user_prefix,
+            chat_x,
+            chat_y_base + 90,
+            black,
+            pix,
+            stride,
+            vp->clip_left,
+            vp->clip_top,
+            vp->clip_right,
+            vp->clip_bottom);
+        int ix = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)user_prefix) + 6;
+        dashfont_draw_text_clipped(
+            game->pixfont_p12,
+            (uint8_t*)game->chat_typed,
+            ix,
+            chat_y_base + 90,
+            blue,
+            pix,
+            stride,
+            vp->clip_left,
+            vp->clip_top,
+            vp->clip_right,
+            vp->clip_bottom);
+        if( game->chat_typed[0] )
+        {
+            dashfont_draw_text_clipped(
+                game->pixfont_p12,
+                (uint8_t*)"*",
+                ix + dashfont_text_width(game->pixfont_p12, (uint8_t*)game->chat_typed),
+                chat_y_base + 90,
+                blue,
+                pix,
+                stride,
+                vp->clip_left,
+                vp->clip_top,
+                vp->clip_right,
+                vp->clip_bottom);
         }
     }
 

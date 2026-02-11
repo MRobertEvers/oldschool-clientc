@@ -41,6 +41,11 @@ struct GInput
     int comma_pressed;
     int period_pressed;
 
+    /* Chat input: when chat_interface_id==-1, these capture typing. Reset each frame. */
+    int chat_key_char;     /* 0=none, else ASCII e.g. 'a' */
+    int chat_key_return;   /* 1 if Enter/Return pressed */
+    int chat_key_backspace; /* 1 if Backspace pressed */
+
     double time_delta_accumulator_seconds;
 };
 

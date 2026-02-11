@@ -101,7 +101,9 @@ endif()
         src/osrs/gameproto_exec.c
         src/osrs/gameproto_parse.c
         src/osrs/gameproto_process.c
+        src/osrs/game.c
         src/osrs/game_entity.c
+        src/osrs/wordpack.c
         src/osrs/loginproto.c
         src/osrs/datatypes/appearances.c
         src/osrs/datatypes/player_appearance.c

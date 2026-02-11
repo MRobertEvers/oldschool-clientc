@@ -47,6 +47,7 @@ int
 rsbuf_g2(struct RSBuffer* buffer)
 {
     buffer->position += 2;
+    assert(buffer->position - 2 < buffer->size);
     return (buffer->data[buffer->position - 2] & 0xff) << 8 |
            (buffer->data[buffer->position - 1] & 0xff);
 }

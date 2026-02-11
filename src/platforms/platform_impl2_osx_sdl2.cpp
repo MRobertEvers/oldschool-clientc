@@ -130,11 +130,15 @@ Platform2_OSX_SDL2_InitForSoft3D(
 void
 Platform2_OSX_SDL2_PollEvents(
     struct Platform2_OSX_SDL2* platform,
-    struct GInput* input)
+    struct GInput* input,
+    int chat_focused)
 {
     input->mouse_clicked = 0;
     input->mouse_clicked_x = -1;
     input->mouse_clicked_y = -1;
+    input->chat_key_char = 0;
+    input->chat_key_return = 0;
+    input->chat_key_backspace = 0;
     /* Sync mouse_button_down with actual SDL state so we don't miss events */
     {
         Uint32 buttons = SDL_GetMouseState(nullptr, nullptr);
@@ -217,74 +221,149 @@ Platform2_OSX_SDL2_PollEvents(
         }
         else if( event.type == SDL_KEYDOWN )
         {
+            Uint16 mod = SDL_GetModState();
+            int shift = (mod & KMOD_SHIFT) ? 1 : 0;
+            int skip_movement = chat_focused;
             switch( event.key.keysym.sym )
             {
+            case SDLK_RETURN:
+            case SDLK_KP_ENTER:
+                input->chat_key_return = 1;
+                break;
+            case SDLK_BACKSPACE:
+                input->chat_key_backspace = 1;
+                break;
+            case SDLK_SPACE:
+                input->chat_key_char = ' ';
+                if( !skip_movement )
+                    input->space_pressed = 1;
+                break;
             case SDLK_ESCAPE:
                 input->quit = true;
                 break;
             case SDLK_UP:
-                input->up_pressed = 1;
+                if( !skip_movement )
+                    input->up_pressed = 1;
                 break;
             case SDLK_DOWN:
-                input->down_pressed = 1;
+                if( !skip_movement )
+                    input->down_pressed = 1;
                 break;
             case SDLK_LEFT:
-                input->left_pressed = 1;
+                if( !skip_movement )
+                    input->left_pressed = 1;
                 break;
             case SDLK_RIGHT:
-                input->right_pressed = 1;
+                if( !skip_movement )
+                    input->right_pressed = 1;
                 break;
             case SDLK_s:
-                input->s_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'S' : 's';
+                else
+                    input->s_pressed = 1;
                 break;
             case SDLK_w:
-                input->w_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'W' : 'w';
+                else
+                    input->w_pressed = 1;
                 break;
             case SDLK_d:
-                input->d_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'D' : 'd';
+                else
+                    input->d_pressed = 1;
                 break;
             case SDLK_a:
-                input->a_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'A' : 'a';
+                else
+                    input->a_pressed = 1;
                 break;
             case SDLK_r:
-                input->r_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'R' : 'r';
+                else
+                    input->r_pressed = 1;
                 break;
             case SDLK_f:
-                input->f_pressed = 1;
-                break;
-            case SDLK_SPACE:
-                input->space_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'F' : 'f';
+                else
+                    input->f_pressed = 1;
                 break;
             case SDLK_m:
-                input->m_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'M' : 'm';
+                else
+                    input->m_pressed = 1;
                 break;
             case SDLK_n:
-                input->n_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'N' : 'n';
+                else
+                    input->n_pressed = 1;
                 break;
             case SDLK_i:
-                input->i_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'I' : 'i';
+                else
+                    input->i_pressed = 1;
                 break;
             case SDLK_k:
-                input->k_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'K' : 'k';
+                else
+                    input->k_pressed = 1;
                 break;
             case SDLK_l:
-                input->l_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'L' : 'l';
+                else
+                    input->l_pressed = 1;
                 break;
             case SDLK_j:
-                input->j_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'J' : 'j';
+                else
+                    input->j_pressed = 1;
                 break;
             case SDLK_q:
-                input->q_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'Q' : 'q';
+                else
+                    input->q_pressed = 1;
                 break;
             case SDLK_e:
-                input->e_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = shift ? 'E' : 'e';
+                else
+                    input->e_pressed = 1;
                 break;
             case SDLK_PERIOD:
-                input->period_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = '.';
+                else
+                    input->period_pressed = 1;
                 break;
             case SDLK_COMMA:
-                input->comma_pressed = 1;
+                if( skip_movement )
+                    input->chat_key_char = ',';
+                else
+                    input->comma_pressed = 1;
                 break;
+            default:
+            {
+                SDL_Keycode sym = event.key.keysym.sym;
+                if( sym >= SDLK_a && sym <= SDLK_z )
+                    input->chat_key_char = shift ? (sym - 32) : sym;
+                else if( sym >= SDLK_0 && sym <= SDLK_9 )
+                    input->chat_key_char = sym;
+                else if( sym >= 32 && sym <= 126 )
+                    input->chat_key_char = sym;
+                break;
+            }
             }
         }
         else if( event.type == SDL_KEYUP )

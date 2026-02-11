@@ -10,11 +10,15 @@
 #include "osrs/game_entity.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/interface.h"
+#include "osrs/isaac.h"
 #include "osrs/packetout.h"
+#include "osrs/game.h"
+#include "osrs/rscache/rsbuf.h"
 #include "osrs/painters.h"
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
+#include "osrs/wordpack.h"
 #include "tori_rs.h"
 
 #include <assert.h>
@@ -918,6 +922,65 @@ LibToriRS_GameStep(
         return;
     }
 
+    /* Chat input (Client.ts handleInputKey when chatInterfaceId === -1).
+     * chat_input_focused: 0=unfocused (keys go to movement); 1=focused (typing).
+     * Enter when unfocused: focus. Enter when focused+empty: unfocus. Enter when focused+text: send. */
+    if( game->chat_interface_id == -1 && GAME_NET_STATE_GAME == game->net_state )
+    {
+        if( input->chat_key_return )
+        {
+            if( !game->chat_input_focused )
+                game->chat_input_focused = 1;
+            else if( !game->chat_typed[0] )
+                game->chat_input_focused = 0;
+        }
+        if( game->chat_input_focused )
+        {
+        if( input->chat_key_backspace )
+        {
+            size_t len = strlen(game->chat_typed);
+            if( len > 0 )
+                game->chat_typed[len - 1] = '\0';
+        }
+        if( input->chat_key_char && strlen(game->chat_typed) < (size_t)(GAME_CHAT_TYPED_LEN - 1) )
+        {
+            char c = (char)input->chat_key_char;
+            if( (c >= 32 && c <= 122) || (c >= 48 && c <= 57) )
+            {
+                size_t len = strlen(game->chat_typed);
+                game->chat_typed[len] = c;
+                game->chat_typed[len + 1] = '\0';
+            }
+        }
+        if( input->chat_key_return && game->chat_typed[0] )
+        {
+            int color = 0;
+            int effect = 0;
+            uint8_t temp_buf[256];
+            struct RSBuffer buf;
+            rsbuf_init(&buf, (int8_t*)temp_buf, sizeof(temp_buf));
+            wordpack_pack(&buf, game->chat_typed);
+            int wordpack_len = buf.position;
+            int payload_len = 2 + wordpack_len;
+            if( game->outbound_size + 2 + payload_len <= (int)sizeof(game->outbound_buffer) )
+            {
+                uint32_t op = (PKTOUT_LC245_2_MESSAGE_PUBLIC + isaac_next(game->random_out)) & 0xff;
+                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                game->outbound_buffer[game->outbound_size++] = 0;
+                int start = game->outbound_size;
+                game->outbound_buffer[game->outbound_size++] = (uint8_t)color;
+                game->outbound_buffer[game->outbound_size++] = (uint8_t)effect;
+                memcpy(game->outbound_buffer + game->outbound_size, temp_buf, (size_t)wordpack_len);
+                game->outbound_size += wordpack_len;
+                game->outbound_buffer[start - 1] = (uint8_t)payload_len;
+                game_add_message(game, 2, game->chat_typed, "Player");
+                game->chat_typed[0] = '\0';
+                game->chat_input_focused = 0;
+            }
+        }
+        }
+    }
+
     gameproto_process(game, game->io);
 
     int scripts_status = step_scripts(game);
@@ -1228,6 +1291,13 @@ LibToriRS_GameStep(
             game->mouse_cycle = -1; /* No cross when clicking on 2D interface */
             game->selected_tab = tab_clicked;
             /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE */
+        }
+        /* Chat area click: focus chat input (Client.ts chat at 17,357 size ~536x96) */
+        else if( game->chat_interface_id == -1 && mouse_x >= 17 && mouse_x < 553 &&
+                 mouse_y >= 357 && mouse_y < 453 )
+        {
+            game->interface_consumed_click = 1;
+            game->chat_input_focused = 1;
         }
         /* Client.ts handleChatModeInput: four buttons in bottom strip (panel matches platform
          * privacy_panel_y = bottom 50px when height < 503, else y 453). */

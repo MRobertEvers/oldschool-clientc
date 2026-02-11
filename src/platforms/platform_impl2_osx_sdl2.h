@@ -49,7 +49,8 @@ Platform2_OSX_SDL2_Shutdown(struct Platform2_OSX_SDL2* platform);
 void
 Platform2_OSX_SDL2_PollEvents(
     struct Platform2_OSX_SDL2* platform,
-    struct GInput* input);
+    struct GInput* input,
+    int chat_focused); /* 1=typing to chat, don't use keys for movement */
 void
 Platform2_OSX_SDL2_PollIO(
     struct Platform2_OSX_SDL2* platform,

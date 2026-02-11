@@ -124,6 +124,26 @@ struct PktIfSetScrollPos
     int pos;          /* g2 */
 };
 
+struct PktMessageGame
+{
+    char* text; /* gjstr / newline-terminated */
+};
+
+struct PktMessagePrivate
+{
+    int64_t from;       /* g8: base37 username */
+    int message_id;    /* g4 */
+    int staff_mod;     /* g1 */
+    char* text;        /* WordPack.unpack(psize-13) */
+};
+
+struct PktChatFilterSettings
+{
+    int chat_public_mode;  /* g1 */
+    int chat_private_mode; /* g1 */
+    int chat_trade_mode;   /* g1 */
+};
+
 struct RevPacket_LC245_2
 {
     enum PacketInType_LC245_2 packet_type;
@@ -150,6 +170,9 @@ struct RevPacket_LC245_2
         struct PktIfSetNpcHead _if_setnpchead;
         struct PktIfSetPosition _if_setposition;
         struct PktIfSetScrollPos _if_setscrollpos;
+        struct PktMessageGame _message_game;
+        struct PktMessagePrivate _message_private;
+        struct PktChatFilterSettings _chat_filter_settings;
     };
 };
 

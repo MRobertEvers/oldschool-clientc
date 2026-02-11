@@ -261,7 +261,30 @@ struct GGame
     int cross_mode;
     int cross_x;
     int cross_y;
+
+    /* Chat messages (Client.ts addMessage). type: 0=game, 1=public filtered, 2=public, 3=private,
+     * 4=trade, 5=friend, 6=private out, 7=private staff, 8=duel. */
+#define GAME_CHAT_MAX 100
+#define GAME_CHAT_SENDER_LEN 64
+#define GAME_CHAT_TEXT_LEN 128
+    int message_type[GAME_CHAT_MAX];
+    char message_sender[GAME_CHAT_MAX][GAME_CHAT_SENDER_LEN];
+    char message_text[GAME_CHAT_MAX][GAME_CHAT_TEXT_LEN];
+
+    /* Chat input and scroll (Client.ts chatTyped, chatScrollOffset, chatScrollHeight) */
+#define GAME_CHAT_TYPED_LEN 128
+    char chat_typed[GAME_CHAT_TYPED_LEN];
+    int chat_scroll_offset;
+    int chat_scroll_height;
+    int chat_input_focused; /* 1=typing to chat (keys go to chat, not movement); 0=unfocused */
 };
+
+void
+game_add_message(
+    struct GGame* game,
+    int type,
+    const char* text,
+    const char* sender);
 
 void
 game_npc_add(

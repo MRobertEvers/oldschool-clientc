@@ -196,7 +196,10 @@ main(
 
         // Poll backend
         Platform2_OSX_SDL2_PollIO(platform, io);
-        Platform2_OSX_SDL2_PollEvents(platform, &input);
+        Platform2_OSX_SDL2_PollEvents(
+            platform,
+            &input,
+            (game->chat_interface_id == -1 && game->chat_input_focused) ? 1 : 0);
 
         // Update game tick time for camera movement timing
         game->tick_ms = timestamp_ms;

@@ -3,6 +3,7 @@
 #include "packetin.h"
 #include "rscache/bitbuffer.h"
 #include "rscache/rsbuf.h"
+#include "wordpack.h"
 
 // clang-format off
 #include "gameproto_lc254.u.c"
@@ -16,7 +17,7 @@ gameproto_parse_lc245_2(
     struct RevPacket_LC245_2* packet)
 {
     struct RSBuffer buffer;
-    rsbuf_init(&buffer, data, data_size);
+    rsbuf_init(&buffer, (int8_t*)data, data_size);
 
     packet->packet_type = packet_type;
 
@@ -198,6 +199,31 @@ gameproto_parse_lc245_2(
     {
         packet->_if_setscrollpos.component_id = g2(&buffer);
         packet->_if_setscrollpos.pos = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_MESSAGE_GAME:
+    {
+        packet->_message_game.text = gstringnewline(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_MESSAGE_PRIVATE:
+    {
+        if( data_size < 13 )
+            return 0;
+        packet->_message_private.from = g8(&buffer);
+        packet->_message_private.message_id = g4(&buffer);
+        packet->_message_private.staff_mod = g1(&buffer);
+        packet->_message_private.text = wordpack_unpack(&buffer, data_size - 13);
+        if( !packet->_message_private.text )
+            return 0;
+        return 1;
+    }
+    case PKTIN_LC245_2_CHAT_FILTER_SETTINGS:
+    {
+        packet->_chat_filter_settings.chat_public_mode = g1(&buffer);
+        packet->_chat_filter_settings.chat_private_mode = g1(&buffer);
+        packet->_chat_filter_settings.chat_trade_mode = g1(&buffer);
         assert(buffer.position == data_size);
         return 1;
     }

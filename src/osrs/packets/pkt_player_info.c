@@ -192,6 +192,15 @@ push_op_face_entity(
 }
 
 static void
+push_op_say(
+    struct PktPlayerInfoOp* op,
+    char* chat_message)
+{
+    op->kind = PKT_PLAYER_INFO_OP_SAY;
+    op->_say.text = chat_message;
+}
+
+static void
 push_op_damage(
     struct PktPlayerInfoOp* op,
     int damage_type,
@@ -433,7 +442,7 @@ pkt_player_info_reader_read(
         if( rsbuf.position >= pkt->length )
             break;
         int mask = g1(&rsbuf);
-        if( (mask & 0x80) != 0 && rsbuf.position < pkt->length )
+        if( (mask & MASK_BIG_UPDATE) != 0 && rsbuf.position < pkt->length )
         {
             mask += g1(&rsbuf) << 8;
         }
@@ -468,7 +477,8 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_SAY) != 0 )
         {
-            assert(0);
+            char* chat_message = gstringnewline(&rsbuf);
+            push_op_say(next_op(reader, ops, ops_capacity), chat_message);
         }
 
         if( (mask & MASK_DAMAGE) != 0 )
@@ -490,7 +500,13 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_CHAT) != 0 )
         {
-            assert(0);
+            // const colourEffect: number = buf.g2();
+            // const type: number = buf.g1();
+            // const length: number = buf.g1();
+            int colour_effect = g2(&rsbuf);
+            int type = g1(&rsbuf);
+            int length = g1(&rsbuf);
+            // push_op_chat(next_op(reader, ops, ops_capacity), colour_effect, type, length);
         }
 
         /* MASK_BIG_UPDATE: already consumed at mask read (lines 436-438); extends mask to 16 bits.

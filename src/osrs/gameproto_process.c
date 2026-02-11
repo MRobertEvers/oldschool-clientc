@@ -1,9 +1,16 @@
 #include "gameproto_process.h"
 
+#include "jbase37.h"
+#include "osrs/game.h"
 #include "osrs/gameproto_exec.h"
 #include "osrs/player_stats.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 void
 gameproto_process(
@@ -137,6 +144,43 @@ gameproto_process(
         case PKTIN_LC245_2_IF_SETSCROLLPOS:
             gameproto_exec_if_setscrollpos(game, &item->packet);
             break;
+        case PKTIN_LC245_2_MESSAGE_GAME:
+        {
+            const char* text = item->packet._message_game.text;
+            if( text )
+            {
+                game_add_message(game, 0, text, "");
+                free((void*)text);
+            }
+            break;
+        }
+        case PKTIN_LC245_2_MESSAGE_PRIVATE:
+        {
+            char sender_buf[GAME_CHAT_SENDER_LEN];
+            base37tostr(
+                (uint64_t)item->packet._message_private.from,
+                sender_buf,
+                sizeof(sender_buf));
+            int staff_mod = item->packet._message_private.staff_mod;
+            int type = (staff_mod >= 2) ? 7 : (staff_mod == 1 ? 7 : 3);
+            if( item->packet._message_private.text )
+            {
+                game_add_message(
+                    game,
+                    type,
+                    item->packet._message_private.text,
+                    sender_buf);
+                free(item->packet._message_private.text);
+            }
+            break;
+        }
+        case PKTIN_LC245_2_CHAT_FILTER_SETTINGS:
+        {
+            game->chat_public_mode = item->packet._chat_filter_settings.chat_public_mode;
+            game->chat_private_mode = item->packet._chat_filter_settings.chat_private_mode;
+            game->chat_trade_mode = item->packet._chat_filter_settings.chat_trade_mode;
+            break;
+        }
         default:
             break;
         }
