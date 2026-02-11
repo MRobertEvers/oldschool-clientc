@@ -374,13 +374,13 @@ add_player_info(
             }
 
             printf(
-                "npc_move: %d %d %d %d\n",
+                "player_move: %d %d %d %d\n",
                 player_id,
                 next_x - player->pathing.route_x[0],
                 next_z - player->pathing.route_z[0],
                 player->pathing.route_length);
 
-            if( player->pathing.route_length < 9 )
+                        if( player->pathing.route_length < 9 )
                 player->pathing.route_length++;
 
             for( int i = player->pathing.route_length; i > 0; i-- )

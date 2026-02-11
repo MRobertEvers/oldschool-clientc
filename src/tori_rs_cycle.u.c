@@ -226,15 +226,13 @@ struct EntityAnimUpdateView
 static void
 update_entity_anim(
     struct GGame* game,
-    struct EntityAnimUpdateView* view)
+    struct EntityAnimUpdateView* view,
+    bool player)
 {
     int seqId = view->animation->readyanim;
     int route_length = view->pathing->route_length;
     if( route_length == 0 )
     {
-        /* Client.ts: when idle, position is anchored to route head. */
-        view->position->x = view->pathing->route_x[0] * 128 + view->size_x * 64;
-        view->position->z = view->pathing->route_z[0] * 128 + view->size_z * 64;
         goto anim;
     }
 
@@ -242,6 +240,23 @@ update_entity_anim(
     int z = view->position->z;
     int dstX = view->pathing->route_x[route_length - 1] * 128 + view->size_x * 64;
     int dstZ = view->pathing->route_z[route_length - 1] * 128 + view->size_z * 64;
+
+    if( player )
+    {
+        printf("player route_length: %d\n", route_length);
+        for( int i = 0; i < route_length; i++ )
+        {
+            printf(
+                "  [%d] route_x: %d, route_z: %d, x: %d, z: %d, dstX: %d, dstZ: %d\n",
+                i,
+                view->pathing->route_x[i],
+                view->pathing->route_z[i],
+                x,
+                z,
+                dstX,
+                dstZ);
+        }
+    }
 
     if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
     {
@@ -297,13 +312,13 @@ update_entity_anim(
         moveSpeed = 8;
 
     /* When not running, cap speed to walk. */
-    if( !view->pathing->route_run[0] && moveSpeed > 4 )
+    if( !view->pathing->route_run[route_length - 1] && moveSpeed > 4 )
         moveSpeed = 4;
-    if( view->pathing->route_run[0] )
+    if( view->pathing->route_run[route_length - 1] )
         moveSpeed <<= 0x1;
 
-    if( view->pathing->route_run[0] && moveSpeed >= 8 && seqId == view->animation->walkanim &&
-        view->animation->runanim != -1 )
+    if( view->pathing->route_run[route_length - 1] && moveSpeed >= 8 &&
+        seqId == view->animation->walkanim && view->animation->runanim != -1 )
         seqId = view->animation->runanim;
 
     if( x < dstX )
@@ -333,12 +348,6 @@ update_entity_anim(
 
     if( view->position->x == dstX && view->position->z == dstZ )
     {
-        for( int i = view->pathing->route_length; i > 0; i-- )
-        {
-            view->pathing->route_x[i] = view->pathing->route_x[i + 1];
-            view->pathing->route_z[i] = view->pathing->route_z[i + 1];
-            view->pathing->route_run[i] = view->pathing->route_run[i + 1];
-        }
         view->pathing->route_length--;
         if( view->pathing->route_length < 0 )
             view->pathing->route_length = 0;
@@ -397,7 +406,7 @@ update_npc_anim(
         .scene_element = npc_entity->scene_element,
         .curranim = &npc_entity->curranim,
     };
-    update_entity_anim(game, &view);
+    update_entity_anim(game, &view, false);
 }
 
 static void
@@ -416,7 +425,7 @@ update_player_anim(
         .scene_element = player_entity->scene_element,
         .curranim = &player_entity->curranim,
     };
-    update_entity_anim(game, &view);
+    update_entity_anim(game, &view, true);
 }
 
 static void
@@ -620,33 +629,33 @@ LibToriRS_GameStep(
             }
         }
 
-        for( int i = 0; i < game->player_count; i++ )
-        {
-            int player_id = game->active_players[i];
-            /* Active player is updated and pushed in the block below; avoid double movement. */
-            if( player_id == ACTIVE_PLAYER_SLOT )
-                continue;
-            struct PlayerEntity* player = &game->players[player_id];
-            if( player->alive && player->scene_element )
-            {
-                for( int c = 0; c < game->cycles_elapsed; c++ )
-                    update_player_anim(game, player_id);
-                scenebuilder_push_dynamic_element(
-                    game->scenebuilder,
-                    game->scene,
-                    player->position.x / 128,
-                    player->position.z / 128,
-                    0,
-                    1,
-                    1,
-                    player->scene_element);
-                struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
-                scene_element->dash_position->yaw = player->orientation.yaw;
-                scene_element->dash_position->x = player->position.x;
-                scene_element->dash_position->z = player->position.z;
-                advance_animation(scene_element->animation, game->cycles_elapsed);
-            }
-        }
+        // for( int i = 0; i < game->player_count; i++ )
+        // {
+        //     int player_id = game->active_players[i];
+        //     /* Active player is updated and pushed in the block below; avoid double movement. */
+        //     if( player_id == ACTIVE_PLAYER_SLOT )
+        //         continue;
+        //     struct PlayerEntity* player = &game->players[player_id];
+        //     if( player->alive && player->scene_element )
+        //     {
+        //         for( int c = 0; c < game->cycles_elapsed; c++ )
+        //             update_player_anim(game, player_id);
+        //         scenebuilder_push_dynamic_element(
+        //             game->scenebuilder,
+        //             game->scene,
+        //             player->position.x / 128,
+        //             player->position.z / 128,
+        //             0,
+        //             1,
+        //             1,
+        //             player->scene_element);
+        //         struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
+        //         scene_element->dash_position->yaw = player->orientation.yaw;
+        //         scene_element->dash_position->x = player->position.x;
+        //         scene_element->dash_position->z = player->position.z;
+        //         advance_animation(scene_element->animation, game->cycles_elapsed);
+        //     }
+        // }
 
         if( game->players[ACTIVE_PLAYER_SLOT].alive &&
             game->players[ACTIVE_PLAYER_SLOT].scene_element )
@@ -668,6 +677,14 @@ LibToriRS_GameStep(
             scene_element->dash_position->x = game->players[ACTIVE_PLAYER_SLOT].position.x;
             scene_element->dash_position->z = game->players[ACTIVE_PLAYER_SLOT].position.z;
             advance_animation(scene_element->animation, game->cycles_elapsed);
+
+            printf(
+                "player route_length: %d\n",
+                game->players[ACTIVE_PLAYER_SLOT].pathing.route_length);
+            printf(
+                "Player position: x: %d, z: %d\n",
+                game->players[ACTIVE_PLAYER_SLOT].position.x,
+                game->players[ACTIVE_PLAYER_SLOT].position.z);
         }
     }
 

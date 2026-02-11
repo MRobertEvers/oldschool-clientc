@@ -186,4 +186,12 @@ scene_terrain_height_center(
     int sz,
     int slevel);
 
+/** Returns height of tile at (sx, sz, slevel), or 0 if out of bounds. */
+int
+scene_terrain_height_at_tile(
+    struct Scene* scene,
+    int sx,
+    int sz,
+    int slevel);
+
 #endif

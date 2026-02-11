@@ -1683,9 +1683,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
 
     /* Draw path: line from waypoint to waypoint, then a small marker at each waypoint.
-     * path_tile_x/z are scene-local (same as terrain sx,sz in tori_rs_frame). Use same coords
-     * as terrain: position.x = tx*128 - camera_world_x. */
-    if( game->path_tile_count > 1 && game->sys_dash && game->view_port && game->camera )
+     * path_tile_x/z are scene-local (same as terrain sx,sz). Draw at tile center height. */
+    if( game->path_tile_count > 1 && game->sys_dash && game->view_port && game->camera &&
+        game->scene && game->scene->terrain )
     {
         int ox = renderer->dash_offset_x;
         int oy = renderer->dash_offset_y;
@@ -1696,15 +1696,18 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         int prev_sx = 0, prev_sy = 0;
         int prev_ok = 0;
         const int marker_size = 4; /* half-size of waypoint marker (pixels) */
+        const int path_level = 0;
 
         for( int i = 0; i < game->path_tile_count; i++ )
         {
             int tx = game->path_tile_x[i];
             int tz = game->path_tile_z[i];
-            /* Scene position (match tori_rs_frame terrain: sx*128 - camera_world_x). */
-            int scene_x = tx * 128 - game->camera_world_x;
-            int scene_z = tz * 128 - game->camera_world_z;
-            int scene_y = -game->camera_world_y;
+            /* Scene position: center of tile (tx*128+64, tz*128+64), y = tile center height - camera. */
+            int scene_x = tx * 128 + 64 - game->camera_world_x;
+            int scene_z = tz * 128 + 64 - game->camera_world_z;
+            int height_center =
+                scene_terrain_height_center(game->scene, tx, tz, path_level);
+            int scene_y = height_center - game->camera_world_y;
 
             int screen_x, screen_y;
             if( dash3d_project_point(
@@ -1766,11 +1769,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
-    /* Draw collision map: red lines for each tile that has floor (tile boundaries). */
-    if( game->scene && game->scene->collision_maps[0] && game->sys_dash && game->view_port &&
-        game->camera )
+    /* Draw collision map: red lines at terrain height. Use scene terrain corner heights. */
+    if( game->scene && game->scene->collision_maps[0] && game->scene->terrain &&
+        game->sys_dash && game->view_port && game->camera )
     {
         struct CollisionMap* cm = game->scene->collision_maps[0];
+        struct Scene* scene = game->scene;
         int ox = renderer->dash_offset_x;
         int oy = renderer->dash_offset_y;
         int clip_l = 0;
@@ -1779,6 +1783,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         int clip_b = renderer->height;
         const int red = 0xFF0000;
         const int alpha = 200;
+        const int coll_level = 0;
 
         for( int x = 0; x < cm->size_x; x++ )
         {
@@ -1790,50 +1795,57 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     continue;
                 }
 
-                /* Tile corners in scene space (same as path: tx*128 - camera_world_x). */
+                /* Tile corners in scene space; each corner uses that tile's height. */
                 int sx0 = x * 128 - game->camera_world_x;
                 int sz0 = z * 128 - game->camera_world_z;
                 int sx1 = (x + 1) * 128 - game->camera_world_x;
                 int sz1 = (z + 1) * 128 - game->camera_world_z;
-                int scene_y = -game->camera_world_y;
+                int h_sw = scene_terrain_height_at_tile(scene, x, z, coll_level);
+                int h_se = scene_terrain_height_at_tile(scene, x + 1, z, coll_level);
+                int h_ne = scene_terrain_height_at_tile(scene, x + 1, z + 1, coll_level);
+                int h_nw = scene_terrain_height_at_tile(scene, x, z + 1, coll_level);
+                int scene_y_sw = h_sw - game->camera_world_y;
+                int scene_y_se = h_se - game->camera_world_y;
+                int scene_y_ne = h_ne - game->camera_world_y;
+                int scene_y_nw = h_nw - game->camera_world_y;
 
                 int screen_x[4], screen_y[4];
                 int ok[4];
-                // sw
+                /* sw */
                 ok[0] = dash3d_project_point(
                     game->sys_dash,
                     sx0,
-                    scene_y,
+                    scene_y_sw,
                     sz0,
                     game->view_port,
                     game->camera,
                     &screen_x[0],
                     &screen_y[0]);
-                // se
+                /* se */
                 ok[1] = dash3d_project_point(
                     game->sys_dash,
                     sx1,
-                    scene_y,
+                    scene_y_se,
                     sz0,
                     game->view_port,
                     game->camera,
                     &screen_x[1],
                     &screen_y[1]);
-                // ne
+                /* ne */
                 ok[2] = dash3d_project_point(
                     game->sys_dash,
                     sx1,
-                    scene_y,
+                    scene_y_ne,
                     sz1,
                     game->view_port,
                     game->camera,
                     &screen_x[2],
                     &screen_y[2]);
-                // nw
+                /* nw */
                 ok[3] = dash3d_project_point(
                     game->sys_dash,
                     sx0,
-                    scene_y,
+                    scene_y_nw,
                     sz1,
                     game->view_port,
                     game->camera,

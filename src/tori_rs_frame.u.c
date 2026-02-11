@@ -356,17 +356,18 @@ LibToriRS_FrameEnd(struct GGame* game)
                         game->outbound_buffer[game->outbound_size++] = (uint8_t)(int8_t)dx;
                         game->outbound_buffer[game->outbound_size++] = (uint8_t)(int8_t)dz;
                     }
-                    if( pl->alive && pl->scene_element )
-                    {
-                        int steps = (waypoints < 10) ? waypoints : 10;
-                        pl->pathing.route_length = steps;
-                        for( int i = 0; i < steps; i++ )
-                        {
-                            pl->pathing.route_x[i] = path_local_x[i];
-                            pl->pathing.route_z[i] = path_local_z[i];
-                            pl->pathing.route_run[i] = 0;
-                        }
-                    }
+                    // if( pl->alive && pl->scene_element )
+                    // {
+                    //     int steps = (waypoints < 10) ? waypoints : 10;
+                    //     pl->pathing.route_length = steps;
+                    //     // Reverse the path so that the first element is the destination
+                    //     for( int i = 0; i < steps; i++ )
+                    //     {
+                    //         pl->pathing.route_x[i] = path_local_x[steps - i - 1];
+                    //         pl->pathing.route_z[i] = path_local_z[steps - i - 1];
+                    //         pl->pathing.route_run[i] = 0;
+                    //     }
+                    // }
                     /* Store path for overlay: [0]=start, [1..waypoints]=steps to dest (convex
                      * hull + line). */
                     game->path_tile_count = waypoints + 1;

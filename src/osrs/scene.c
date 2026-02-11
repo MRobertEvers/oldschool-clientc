@@ -360,3 +360,17 @@ scene_terrain_height_center(
 
     return (height_sw + height_se + height_ne + height_nw) >> 2;
 }
+
+int
+scene_terrain_height_at_tile(
+    struct Scene* scene,
+    int sx,
+    int sz,
+    int slevel)
+{
+    struct SceneTerrain* terrain = scene->terrain;
+    if( !terrain || sx < 0 || sx >= terrain->tile_width_x || sz < 0 ||
+        sz >= terrain->tile_width_z || slevel < 0 || slevel >= MAP_TERRAIN_LEVELS )
+        return 0;
+    return scene_terrain_tile_at(terrain, sx, sz, slevel)->height;
+}
