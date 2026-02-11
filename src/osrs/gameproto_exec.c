@@ -12,6 +12,60 @@
 #include "rscache/rsbuf.h"
 #include "rscache/tables/model.h"
 
+struct StepCoord
+{
+    int x;
+    int z;
+};
+
+static void
+coord_step(
+    struct StepCoord* step,
+    int direction)
+{
+    int next_x = step->x;
+    int next_z = step->z;
+    if( direction == 0 )
+    {
+        next_x--;
+        next_z++;
+    }
+    else if( direction == 1 )
+    {
+        next_z++;
+    }
+    else if( direction == 2 )
+    {
+        next_x++;
+        next_z++;
+    }
+    else if( direction == 3 )
+    {
+        next_x--;
+    }
+    else if( direction == 4 )
+    {
+        next_x++;
+    }
+    else if( direction == 5 )
+    {
+        next_x--;
+        next_z--;
+    }
+    else if( direction == 6 )
+    {
+        next_z--;
+    }
+    else if( direction == 7 )
+    {
+        next_x++;
+        next_z--;
+    }
+
+    step->x = next_x;
+    step->z = next_z;
+}
+
 static void
 npc_move(
     struct GGame* game,
@@ -66,6 +120,7 @@ gameproto_exec_npc_info(
     npc_info_reader.current_op = 0;
     npc_info_reader.max_ops = 2048;
     struct PktNpcInfoOp ops[2048];
+    struct StepCoord step = { 0 };
     int count = pkt_npc_info_reader_read(&npc_info_reader, &packet->_npc_info, ops, 2048);
 
     struct PlayerEntity* player = &game->players[ACTIVE_PLAYER_SLOT];
@@ -151,48 +206,24 @@ gameproto_exec_npc_info(
             break;
         }
         case PKT_NPC_INFO_OPBITS_WALKDIR:
-        case PKT_NPC_INFO_OPBITS_RUNDIR:
+        case PKT_NPC_INFO_OP_RUNDIR:
         {
-            int direction = op->_bitvalue;
-            int next_x = npc->pathing.route_x[0];
-            int next_z = npc->pathing.route_z[0];
+            int direction;
+            if( op->kind == PKT_NPC_INFO_OPBITS_WALKDIR )
+            {
+                direction = op->_bitvalue;
+            }
+            else
+            {
+                direction = op->_rundir.rundir_one;
+            }
 
-            if( direction == 0 )
-            {
-                next_x--;
-                next_z++;
-            }
-            else if( direction == 1 )
-            {
-                next_z++;
-            }
-            else if( direction == 2 )
-            {
-                next_x++;
-                next_z++;
-            }
-            else if( direction == 3 )
-            {
-                next_x--;
-            }
-            else if( direction == 4 )
-            {
-                next_x++;
-            }
-            else if( direction == 5 )
-            {
-                next_x--;
-                next_z--;
-            }
-            else if( direction == 6 )
-            {
-                next_z--;
-            }
-            else if( direction == 7 )
-            {
-                next_x++;
-                next_z--;
-            }
+            step.x = npc->pathing.route_x[0];
+            step.z = npc->pathing.route_z[0];
+            coord_step(&step, direction);
+
+            if( op->kind == PKT_NPC_INFO_OP_RUNDIR )
+                coord_step(&step, op->_rundir.rundir_two);
 
             if( npc->pathing.route_length < 9 )
                 npc->pathing.route_length++;
@@ -208,9 +239,9 @@ gameproto_exec_npc_info(
              * This is the authoritative position of the npc.
              * Always in route[0]
              */
-            npc->pathing.route_x[0] = next_x;
-            npc->pathing.route_z[0] = next_z;
-            npc->pathing.route_run[0] = 0;
+            npc->pathing.route_x[0] = step.x;
+            npc->pathing.route_z[0] = step.z;
+            npc->pathing.route_run[0] = op->kind == PKT_NPC_INFO_OP_RUNDIR ? 1 : 0;
             break;
         }
         case PKT_NPC_INFO_OPBITS_NPCTYPE:
@@ -248,6 +279,7 @@ player_move(
         {
             player->pathing.route_x[i] = player->pathing.route_x[i - 1];
             player->pathing.route_z[i] = player->pathing.route_z[i - 1];
+            player->pathing.route_run[i] = player->pathing.route_run[i - 1];
         }
         player->pathing.route_x[0] = x / 128;
         player->pathing.route_z[0] = z / 128;
@@ -258,6 +290,7 @@ player_move(
         player->pathing.route_length = 0;
         player->pathing.route_x[0] = x / 128;
         player->pathing.route_z[0] = z / 128;
+        player->pathing.route_run[0] = 0;
 
         player->position.x = player->pathing.route_x[0] * 128 + 64;
         player->position.z = player->pathing.route_z[0] * 128 + 64;
@@ -274,6 +307,7 @@ add_player_info(
 
     struct BitBuffer buf;
     struct RSBuffer rsbuf;
+    struct StepCoord step = { 0 };
     rsbuf_init(&rsbuf, packet->_player_info.data, packet->_player_info.length);
     bitbuffer_init_from_rsbuf(&buf, &rsbuf);
     bits(&buf);
@@ -329,48 +363,27 @@ add_player_info(
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_WALKDIR:
-        case PKT_PLAYER_INFO_OPBITS_RUNDIR:
+        case PKT_PLAYER_INFO_OP_RUNDIR:
         {
             if( !player )
                 break;
-            int direction = op->_bitvalue;
-            int next_x = player->pathing.route_x[0];
-            int next_z = player->pathing.route_z[0];
-            if( direction == 0 )
+            int direction;
+            if( op->kind == PKT_PLAYER_INFO_OPBITS_WALKDIR )
             {
-                next_x--;
-                next_z++;
+                direction = op->_bitvalue;
             }
-            else if( direction == 1 )
+            else
             {
-                next_z++;
+                direction = op->_rundir.rundir_one;
             }
-            else if( direction == 2 )
+
+            step.x = player->pathing.route_x[0];
+            step.z = player->pathing.route_z[0];
+            coord_step(&step, direction);
+
+            if( op->kind == PKT_PLAYER_INFO_OP_RUNDIR )
             {
-                next_x++;
-                next_z++;
-            }
-            else if( direction == 3 )
-            {
-                next_x--;
-            }
-            else if( direction == 4 )
-            {
-                next_x++;
-            }
-            else if( direction == 5 )
-            {
-                next_x--;
-                next_z--;
-            }
-            else if( direction == 6 )
-            {
-                next_z--;
-            }
-            else if( direction == 7 )
-            {
-                next_x++;
-                next_z--;
+                coord_step(&step, op->_rundir.rundir_two);
             }
 
             if( player->pathing.route_length < 9 )
@@ -380,11 +393,12 @@ add_player_info(
             {
                 player->pathing.route_x[i] = player->pathing.route_x[i - 1];
                 player->pathing.route_z[i] = player->pathing.route_z[i - 1];
+                player->pathing.route_run[i] = player->pathing.route_run[i - 1];
             }
 
-            player->pathing.route_x[0] = next_x;
-            player->pathing.route_z[0] = next_z;
-            player->pathing.route_run[0] = 0;
+            player->pathing.route_x[0] = step.x;
+            player->pathing.route_z[0] = step.z;
+            player->pathing.route_run[0] = op->kind == PKT_PLAYER_INFO_OP_RUNDIR ? 1 : 0;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_DX:
@@ -394,8 +408,6 @@ add_player_info(
             /* Client.ts: new player tile = localPlayer.routeTileX[0] + dx (same for dz). */
             int base_x = game->players[ACTIVE_PLAYER_SLOT].pathing.route_x[0];
             int dx = (int)op->_bitvalue;
-            if( dx > 15 )
-                dx -= 32;
             player->position.x = (base_x + dx) * 128 + 64;
             break;
         }
@@ -403,7 +415,6 @@ add_player_info(
         {
             if( !player )
                 break;
-            int base_x = game->players[ACTIVE_PLAYER_SLOT].pathing.route_x[0];
             int base_z = game->players[ACTIVE_PLAYER_SLOT].pathing.route_z[0];
             int dz = (int)op->_bitvalue;
             player->position.z = (base_z + dz) * 128 + 64;
@@ -426,7 +437,6 @@ add_player_info(
 
             int dz = (op->_bitvalue);
             player->pathing.route_length = 1;
-
             player->pathing.route_z[0] = active_player->pathing.route_z[0] + dz;
             break;
         }

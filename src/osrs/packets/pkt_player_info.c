@@ -98,12 +98,14 @@ push_bits_walkdir(
 }
 
 static void
-push_bits_rundir(
+push_op_rundir(
     struct PktPlayerInfoOp* op,
-    int rundir)
+    int rundir_one,
+    int rundir_two)
 {
-    op->kind = PKT_PLAYER_INFO_OPBITS_RUNDIR;
-    op->_bitvalue = rundir;
+    op->kind = PKT_PLAYER_INFO_OP_RUNDIR;
+    op->_rundir.rundir_one = rundir_one;
+    op->_rundir.rundir_two = rundir_two;
 }
 
 static void
@@ -286,12 +288,9 @@ pkt_player_info_reader_read(
         break;
         case 2:
         { //
-            // walkdir
-            int walkdir = gbits(&buf, 3);
-            push_bits_walkdir(next_op(reader, ops, ops_capacity), walkdir);
-            // rundir
-            int rundir = gbits(&buf, 3);
-            push_bits_rundir(next_op(reader, ops, ops_capacity), rundir);
+            int rundir_one = gbits(&buf, 3);
+            int rundir_two = gbits(&buf, 3);
+            push_op_rundir(next_op(reader, ops, ops_capacity), rundir_one, rundir_two);
 
             // has extended info
             int has_extended_info = gbits(&buf, 1);
@@ -362,12 +361,11 @@ pkt_player_info_reader_read(
                 }
                 break;
             case 2:
-            { // walkdir
-                int walkdir = gbits(&buf, 3);
-                push_bits_walkdir(next_op(reader, ops, ops_capacity), walkdir);
+            {
                 // rundir
-                int rundir = gbits(&buf, 3);
-                push_bits_rundir(next_op(reader, ops, ops_capacity), rundir);
+                int rundir_one = gbits(&buf, 3);
+                int rundir_two = gbits(&buf, 3);
+                push_op_rundir(next_op(reader, ops, ops_capacity), rundir_one, rundir_two);
                 // has extended info
                 int has_extended_info = gbits(&buf, 1);
                 if( has_extended_info )

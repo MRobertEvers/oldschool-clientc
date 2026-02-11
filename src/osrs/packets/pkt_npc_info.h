@@ -24,7 +24,7 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OPBITS_INFO,
     PKT_NPC_INFO_OPBITS_NPCTYPE,
     PKT_NPC_INFO_OPBITS_WALKDIR,
-    PKT_NPC_INFO_OPBITS_RUNDIR,
+    PKT_NPC_INFO_OP_RUNDIR,
     PKT_NPC_INFO_OPBITS_JUMP,
     PKT_NPC_INFO_OPBITS_DX,
     PKT_NPC_INFO_OPBITS_DZ,
@@ -71,6 +71,12 @@ struct PktNpcInfo_Damage2
     uint8_t total_health;
 };
 
+struct PktNpcInfo_Rundir
+{
+    int32_t rundir_one;
+    int32_t rundir_two;
+};
+
 struct PktNpcInfoOp
 {
     enum PktNpcInfoOpKind kind;
@@ -80,6 +86,7 @@ struct PktNpcInfoOp
         uint64_t _bitvalue;
         struct PktNpcInfo_Sequence _sequence;
         struct PktNpcInfo_Damage2 _damage2;
+        struct PktNpcInfo_Rundir _rundir;
     };
 };
 

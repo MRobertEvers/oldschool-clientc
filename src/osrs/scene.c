@@ -384,6 +384,52 @@ scene_terrain_height_at_tile(
         sz >= terrain->tile_width_z || slevel < 0 || slevel >= MAP_TERRAIN_LEVELS )
         return 0;
     struct SceneTerrainTile* tile = scene_terrain_tile_at(terrain, sx, sz, slevel);
-    tile = scene_terrain_tile_at(terrain, sx, sz, tile->slevel);
     return tile->height;
+}
+
+/* Client-TS getAvH: bilinear interpolation of terrain height at (scene_x, scene_z).
+ * scene_x, scene_z are in 128 units per tile (same as entity position). */
+int
+scene_terrain_height_at_interpolated(
+    struct Scene* scene,
+    int scene_x,
+    int scene_z,
+    int slevel)
+{
+    int tile_x = scene_x >> 7;
+    int tile_z = scene_z >> 7;
+    int local_x = scene_x & 0x7f;
+    int local_z = scene_z & 0x7f;
+    struct SceneTerrainTile* tile = scene_terrain_tile_at(scene->terrain, tile_x, tile_z, slevel);
+    struct SceneTerrainTile* other = NULL;
+
+    int h_sw = tile->height;
+    int h_se = h_sw;
+    int h_ne = h_sw;
+    int h_nw = h_sw;
+
+    if( inbounds(scene->terrain, tile_x + 1, tile_z, slevel) )
+    {
+        other = scene_terrain_tile_at(scene->terrain, tile_x + 1, tile_z, slevel);
+        if( tile->slevel == other->slevel )
+            h_se = other->height;
+    }
+
+    if( inbounds(scene->terrain, tile_x + 1, tile_z + 1, slevel) )
+    {
+        other = scene_terrain_tile_at(scene->terrain, tile_x + 1, tile_z + 1, slevel);
+        if( tile->slevel == other->slevel )
+            h_ne = other->height;
+    }
+
+    if( inbounds(scene->terrain, tile_x, tile_z + 1, slevel) )
+    {
+        other = scene_terrain_tile_at(scene->terrain, tile_x, tile_z + 1, slevel);
+        if( tile->slevel == other->slevel )
+            h_nw = other->height;
+    }
+
+    int y00 = (h_sw * (128 - local_x) + h_se * local_x) >> 7;
+    int y11 = (h_nw * (128 - local_x) + h_ne * local_x) >> 7;
+    return (y00 * (128 - local_z) + y11 * local_z) >> 7;
 }

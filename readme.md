@@ -1458,3 +1458,8 @@ The local player position is sent in the first Player Info packet.
 ## Mingw
 
 pacman -S mingw-w64-x86_64-gdb
+
+
+## Runescape Character Encoding
+
+Use Windows CP1252 for characters and fonts.

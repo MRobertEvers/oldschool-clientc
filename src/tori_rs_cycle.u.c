@@ -605,40 +605,46 @@ LibToriRS_GameStep(
                     npc->size_z,
                     npc->scene_element);
                 struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
+
                 scene_element->dash_position->yaw = npc->orientation.yaw;
                 scene_element->dash_position->x = npc->position.x;
                 scene_element->dash_position->z = npc->position.z;
+                /* Client-TS getAvH: bilinear terrain height at (x,z) so height follows smoothly. */
+                scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+                    game->scene, npc->position.x, npc->position.z, 0);
                 advance_animation(scene_element->animation, game->cycles_elapsed);
             }
         }
 
-        // for( int i = 0; i < game->player_count; i++ )
-        // {
-        //     int player_id = game->active_players[i];
-        //     /* Active player is updated and pushed in the block below; avoid double movement. */
-        //     if( player_id == ACTIVE_PLAYER_SLOT )
-        //         continue;
-        //     struct PlayerEntity* player = &game->players[player_id];
-        //     if( player->alive && player->scene_element )
-        //     {
-        //         for( int c = 0; c < game->cycles_elapsed; c++ )
-        //             update_player_anim(game, player_id);
-        //         scenebuilder_push_dynamic_element(
-        //             game->scenebuilder,
-        //             game->scene,
-        //             player->position.x / 128,
-        //             player->position.z / 128,
-        //             0,
-        //             1,
-        //             1,
-        //             player->scene_element);
-        //         struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
-        //         scene_element->dash_position->yaw = player->orientation.yaw;
-        //         scene_element->dash_position->x = player->position.x;
-        //         scene_element->dash_position->z = player->position.z;
-        //         advance_animation(scene_element->animation, game->cycles_elapsed);
-        //     }
-        // }
+        for( int i = 0; i < game->player_count; i++ )
+        {
+            int player_id = game->active_players[i];
+            /* Active player is updated and pushed in the block below; avoid double movement. */
+            if( player_id == ACTIVE_PLAYER_SLOT )
+                continue;
+            struct PlayerEntity* player = &game->players[player_id];
+            if( player->alive && player->scene_element )
+            {
+                for( int c = 0; c < game->cycles_elapsed; c++ )
+                    update_player_anim(game, player_id);
+                scenebuilder_push_dynamic_element(
+                    game->scenebuilder,
+                    game->scene,
+                    player->position.x / 128,
+                    player->position.z / 128,
+                    0,
+                    1,
+                    1,
+                    player->scene_element);
+                struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
+                scene_element->dash_position->yaw = player->orientation.yaw;
+                scene_element->dash_position->x = player->position.x;
+                scene_element->dash_position->z = player->position.z;
+                scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+                    game->scene, player->position.x, player->position.z, 0);
+                advance_animation(scene_element->animation, game->cycles_elapsed);
+            }
+        }
 
         if( game->players[ACTIVE_PLAYER_SLOT].alive &&
             game->players[ACTIVE_PLAYER_SLOT].scene_element )
@@ -659,6 +665,12 @@ LibToriRS_GameStep(
             scene_element->dash_position->yaw = game->players[ACTIVE_PLAYER_SLOT].orientation.yaw;
             scene_element->dash_position->x = game->players[ACTIVE_PLAYER_SLOT].position.x;
             scene_element->dash_position->z = game->players[ACTIVE_PLAYER_SLOT].position.z;
+            /* Client-TS getAvH: bilinear terrain height at (x,z) so height follows smoothly. */
+            scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+                game->scene,
+                game->players[ACTIVE_PLAYER_SLOT].position.x,
+                game->players[ACTIVE_PLAYER_SLOT].position.z,
+                0);
             advance_animation(scene_element->animation, game->cycles_elapsed);
         }
     }

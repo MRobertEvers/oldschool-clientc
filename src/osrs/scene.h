@@ -194,4 +194,12 @@ scene_terrain_height_at_tile(
     int sz,
     int slevel);
 
+/** Bilinear terrain height at (scene_x, scene_z), 128 units per tile (Client-TS getAvH). */
+int
+scene_terrain_height_at_interpolated(
+    struct Scene* scene,
+    int scene_x,
+    int scene_z,
+    int slevel);
+
 #endif
