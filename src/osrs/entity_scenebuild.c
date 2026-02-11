@@ -211,6 +211,7 @@ entity_scenebuild_npc_get(
 
     assert(!npc->scene_element && "Npc must not have a scene element");
     npc->alive = true;
+    npc->npc_type_id = -1;
     npc->scene_element = (void*)scene_element_new(game->scene);
     npc->orientation.face_entity = -1;
     npc->orientation.face_square_x = 0;
@@ -278,6 +279,7 @@ entity_scenebuild_npc_change_type(
     struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(game->buildcachedat, npc_type);
     struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
 
+    npc->npc_type_id = npc_type;
     npc->size_x = npc_config->size;
     npc->size_z = npc_config->size;
 

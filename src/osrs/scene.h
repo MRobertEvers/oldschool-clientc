@@ -57,6 +57,11 @@ struct SceneElement
     char _dbg_name[64];
     int model_ids[10];
     int config_loc_id;
+
+    /* For dynamic elements (NPCs, players): set before push, used for hover tooltip. */
+    void* entity_ptr;    /* NPCEntity* or PlayerEntity* */
+    int entity_kind;    /* 0=loc, 1=npc, 2=player */
+    int entity_npc_type_id; /* when entity_kind==1 */
 };
 
 struct SceneScenery

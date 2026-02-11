@@ -253,6 +253,9 @@ struct GGame
     int path_tile_x[GAME_PATH_TILE_MAX];
     int path_tile_z[GAME_PATH_TILE_MAX];
     int path_tile_count; /* 0 = no path to draw */
+
+    /* Hovered interactable loc (Client.ts pickedBitsets for entityType 2). Last hit in draw order. */
+    struct SceneElement* hovered_scene_element;
 };
 
 void

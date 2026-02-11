@@ -47,6 +47,7 @@ struct NPCEntity
 {
     int alive;
     void* scene_element;
+    int npc_type_id; /* CacheDatConfigNpc id for name/options */
     int size_x;
     int size_z;
     struct EntityPosition position;

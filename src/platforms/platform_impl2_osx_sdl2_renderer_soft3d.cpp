@@ -11,9 +11,11 @@ extern "C" {
 #include "graphics/convex_hull.u.c"
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
+#include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/collision_map.h"
 #include "osrs/colors.h"
+#include "osrs/rscache/tables/config_locs.h"
 #include "osrs/dash_utils.h"
 #include "osrs/game_entity.h"
 #include "osrs/gio.h"
@@ -1996,6 +1998,108 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             }
             else
                 prev_ok = 0;
+        }
+    }
+
+    /* Client.ts drawTooltip: draw hovered loc/NPC/player text at (4, 15) in top left. */
+    if( game->hovered_scene_element && game->pixfont_b12 )
+    {
+        struct SceneElement* el = game->hovered_scene_element;
+        char tooltip_buf[128];
+        const char* action = "Examine";
+        const char* name = NULL;
+
+        if( el->entity_kind == 1 )
+        {
+            /* NPC: Client.ts addNpcOptions - first op (4..0) or Examine, npc.name */
+            struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
+            int npc_type_id = el->entity_npc_type_id >= 0 ? el->entity_npc_type_id : (npc ? npc->npc_type_id : -1);
+            if( npc && game->buildcachedat && npc_type_id >= 0 )
+            {
+                struct CacheDatConfigNpc* npc_cfg =
+                    buildcachedat_get_npc(game->buildcachedat, npc_type_id);
+                if( npc_cfg && npc_cfg->name )
+                {
+                    name = npc_cfg->name;
+                    for( int i = 4; i >= 0; i-- )
+                    {
+                        if( npc_cfg->op[i] && npc_cfg->op[i][0] )
+                        {
+                            action = npc_cfg->op[i];
+                            break;
+                        }
+                    }
+                    if( !action || !action[0] )
+                        action = "Examine";
+                }
+            }
+            else if( npc )
+            {
+                name = "NPC";
+            }
+        }
+        else if( el->entity_kind == 2 )
+        {
+            /* Player: Client.ts addPlayerOptions - Follow, Trade, Attack, etc. */
+            struct PlayerEntity* player = (struct PlayerEntity*)el->entity_ptr;
+            if( player && player != &game->players[ACTIVE_PLAYER_SLOT] )
+            {
+                (void)player;
+                action = "Follow";
+                name = "Player";
+            }
+        }
+        else if( el->config_loc && el->config_loc->name )
+        {
+            /* Loc */
+            struct CacheConfigLocation* loc = el->config_loc;
+            name = loc->name;
+            for( int i = 0; i < 10; i++ )
+            {
+                if( loc->actions[i] && loc->actions[i][0] )
+                {
+                    action = loc->actions[i];
+                    break;
+                }
+            }
+        }
+
+        if( name )
+        {
+            int len = snprintf(tooltip_buf, sizeof(tooltip_buf), "%s %s", action, name);
+            if( len > 0 && len < (int)sizeof(tooltip_buf) )
+            {
+                int tlx = 4 + renderer->dash_offset_x;
+                int tly = 15 + renderer->dash_offset_y;
+                int clip_l = 0;
+                int clip_t = 0;
+                int clip_r = renderer->width;
+                int clip_b = renderer->height;
+                dashfont_draw_text_clipped(
+                    game->pixfont_b12,
+                    (uint8_t*)tooltip_buf,
+                    tlx + 1,
+                    tly + 1,
+                    BLACK,
+                    renderer->pixel_buffer,
+                    renderer->width,
+                    clip_l,
+                    clip_t,
+                    clip_r,
+                    clip_b);
+                dashfont_draw_text_clipped(
+                    game->pixfont_b12,
+                    (uint8_t*)tooltip_buf,
+                    tlx,
+                    tly,
+                    WHITE,
+                    renderer->pixel_buffer,
+                    renderer->width,
+                    clip_l,
+                    clip_t,
+                    clip_r,
+                    clip_b);
+            }
         }
     }
 

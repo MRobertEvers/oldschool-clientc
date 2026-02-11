@@ -973,6 +973,9 @@ LibToriRS_GameStep(
                 scene_element->dash_position->z = npc->position.z;
                 scene_element->dash_position->y = scene_terrain_height_at_interpolated(
                     game->scene, npc->position.x, npc->position.z, 0);
+                scene_element->entity_ptr = npc;
+                scene_element->entity_kind = 1;
+                scene_element->entity_npc_type_id = npc->npc_type_id;
                 scenebuilder_push_dynamic_element(
                     game->scenebuilder,
                     game->scene,
@@ -1024,6 +1027,8 @@ LibToriRS_GameStep(
                 scene_element->dash_position->z = player->position.z;
                 scene_element->dash_position->y = scene_terrain_height_at_interpolated(
                     game->scene, player->position.x, player->position.z, 0);
+                scene_element->entity_ptr = player;
+                scene_element->entity_kind = 2;
                 scenebuilder_push_dynamic_element(
                     game->scenebuilder,
                     game->scene,
@@ -1070,6 +1075,8 @@ LibToriRS_GameStep(
             scene_element->dash_position->z = ap->position.z;
             scene_element->dash_position->y = scene_terrain_height_at_interpolated(
                 game->scene, ap->position.x, ap->position.z, 0);
+            scene_element->entity_ptr = ap;
+            scene_element->entity_kind = 2;
             scenebuilder_push_dynamic_element(
                 game->scenebuilder,
                 game->scene,

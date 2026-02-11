@@ -20,6 +20,7 @@ LibToriRS_FrameBegin(
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
+    game->hovered_scene_element = NULL;
 
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
@@ -113,97 +114,21 @@ LibToriRS_FrameNextCommand(
             if( cull != DASHCULL_VISIBLE )
                 break;
 
-            // if( (scene_element_interactable(game->scene, cmd->_entity._bf_entity)) )
-            // {
-            // Adjust mouse coordinates for dash buffer offset
-            //     int mouse_x_adjusted = game->mouse_x - renderer->dash_offset_x;
-            //     int mouse_y_adjusted = game->mouse_y - renderer->dash_offset_y;
-            //     if( dash3d_projected_model_contains(
-            //             game->sys_dash,
-            //             scene_element_model(game->scene, cmd->_entity._bf_entity),
-            //             game->view_port,
-            //             mouse_x_adjusted,
-            //             mouse_y_adjusted) )
-            //     {
-            //         // 1637
-            //         // interacting_scene_element = cmd->_entity._bf_entity;
-            //         // printf(
-            //         //     "Interactable: %s\n",
-            //         //     scene_element_name(game->scene, cmd->_entity._bf_entity));
-
-            //         // for( struct SceneAction* action = element->actions; action;
-            //         //      action = action->next )
-            //         // {
-            //         //     printf("Action: %s\n", action->action);
-            //         // }
-
-            //         // Draw AABB rectangle outline on dash buffer
-            //         // AABB coordinates are in screen space relative to viewport center
-            //         struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
-
-            //         // AABB coordinates are already in viewport space (0 to viewport->width,
-            //         0
-            //         // to viewport->height)
-            //         int db_min_x = aabb->min_screen_x;
-            //         int db_min_y = aabb->min_screen_y;
-            //         int db_max_x = aabb->max_screen_x;
-            //         int db_max_y = aabb->max_screen_y;
-
-            //         // // Draw on dash buffer if it exists
-            //         // if( renderer->dash_buffer )
-            //         // {
-            //         //     // Draw top and bottom horizontal lines
-            //         //     for( int x = db_min_x; x <= db_max_x; x++ )
-            //         //     {
-            //         //         if( x >= 0 && x < renderer->dash_buffer_width )
-            //         //         {
-            //         //             // Top line
-            //         //             if( db_min_y >= 0 && db_min_y <
-            //         renderer->dash_buffer_height
-            //         //             )
-            //         //             {
-            //         //                 renderer->dash_buffer
-            //         //                     [db_min_y * renderer->dash_buffer_width + x] =
-            //         //                     0xFFFFFF;
-            //         //             }
-            //         //             // Bottom line
-            //         //             if( db_max_y >= 0 && db_max_y <
-            //         renderer->dash_buffer_height
-            //         //             )
-            //         //             {
-            //         //                 renderer->dash_buffer
-            //         //                     [db_max_y * renderer->dash_buffer_width + x] =
-            //         //                     0xFFFFFF;
-            //         //             }
-            //         //         }
-            //         //     }
-
-            //         //     // Draw left and right vertical lines
-            //         //     for( int y = db_min_y; y <= db_max_y; y++ )
-            //         //     {
-            //         //         if( y >= 0 && y < renderer->dash_buffer_height )
-            //         //         {
-            //         //             // Left line
-            //         //             if( db_min_x >= 0 && db_min_x <
-            //         renderer->dash_buffer_width )
-            //         //             {
-            //         //                 renderer->dash_buffer
-            //         //                     [y * renderer->dash_buffer_width + db_min_x] =
-            //         //                     0xFFFFFF;
-            //         //             }
-            //         //             // Right line
-            //         //             if( db_max_x >= 0 && db_max_x <
-            //         renderer->dash_buffer_width )
-            //         //             {
-            //         //                 renderer->dash_buffer
-            //         //                     [y * renderer->dash_buffer_width + db_max_x] =
-            //         //                     0xFFFFFF;
-            //         //             }
-            //         //         }
-            //         //     }
-            //         // }
-            //     }
-            // }
+            /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit wins. */
+            bool is_interactable =
+                element->interactable || element->entity_kind == 1 || element->entity_kind == 2;
+            if( is_interactable && game->view_port &&
+                game->mouse_x >= 0 && game->mouse_x < game->view_port->width &&
+                game->mouse_y >= 0 && game->mouse_y < game->view_port->height &&
+                dash3d_projected_model_contains(
+                    game->sys_dash,
+                    element->dash_model,
+                    game->view_port,
+                    game->mouse_x,
+                    game->mouse_y) )
+            {
+                game->hovered_scene_element = element;
+            }
 
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
