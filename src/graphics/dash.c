@@ -1661,6 +1661,24 @@ dash3d_add_texture(
     entry->texture = texture;
 }
 
+/* Texture animation - matches Java animate_texture (res/animate_texture.java) and Client.ts.
+ * RuneScape uses: direction 1,3 = V (vertical), 2,4 = U (horizontal);
+ * direction 1,2 = DOWN (negate offset), 3,4 = UP.
+ * In-place: process by cycles (one temp int per cycle) to avoid overwrite. */
+static int
+gcd(int a, int b)
+{
+    a = a < 0 ? -a : a;
+    b = b < 0 ? -b : b;
+    while( b )
+    {
+        int t = b;
+        b = a % b;
+        a = t;
+    }
+    return a;
+}
+
 static void
 animate_texture(
     struct DashTexture* texture,
@@ -1673,69 +1691,61 @@ animate_texture(
     int animation_direction = texture->animation_direction;
 
     int width = texture->width;
-    int height = texture->height;
-    int length = width * height;
+    int length = width * texture->height;
 
     int* pixels = texture->texels;
 
-    int v_offset = width * time_delta * animation_speed;
-    if( animation_direction == TEXANIM_DIRECTION_V_DOWN )
+    /* V direction (1 or 3): shift by whole rows. Java: var4 = arg0 * width * animationSpeed */
+    if( animation_direction == TEXANIM_DIRECTION_V_DOWN ||
+        animation_direction == TEXANIM_DIRECTION_V_UP )
     {
-        v_offset = -v_offset;
-    }
+        int v_offset = width * time_delta * animation_speed;
+        if( animation_direction == TEXANIM_DIRECTION_V_DOWN )
+            v_offset = -v_offset;
 
-    if( v_offset > 0 )
-    {
-        for( int offset = 0; offset < length - 1; offset++ )
+        int mask = length - 1;
+        int g = gcd(v_offset, length);
+        for( int start = 0; start < g; start++ )
         {
-            int index = (v_offset + (offset)) & (length - 1);
-            pixels[offset] = pixels[index];
+            int saved = pixels[start];
+            int pos = start;
+            int next = (pos + v_offset) & mask;
+            while( next != start )
+            {
+                pixels[pos] = pixels[next];
+                pos = next;
+                next = (pos + v_offset) & mask;
+            }
+            pixels[pos] = saved;
         }
     }
-    else
+    /* U direction (2 or 4): shift by columns within each row. Java: var11 = animationSpeed * arg0 */
+    else if( animation_direction == TEXANIM_DIRECTION_U_DOWN ||
+             animation_direction == TEXANIM_DIRECTION_U_UP )
     {
-        for( int offset = length - 2; offset >= 0; offset-- )
+        int u_offset = animation_speed * time_delta;
+        if( animation_direction == TEXANIM_DIRECTION_U_DOWN )
+            u_offset = -u_offset;
+
+        int col_mask = width - 1;
+        int g = gcd(u_offset, width);
+        for( int row_start = 0; row_start < length; row_start += width )
         {
-            int index = (v_offset + (offset)) & (length - 1);
-            pixels[offset] = pixels[index];
+            for( int start = 0; start < g; start++ )
+            {
+                int saved = pixels[row_start + start];
+                int pos = start;
+                int next = (pos + u_offset) & col_mask;
+                while( next != start )
+                {
+                    pixels[row_start + pos] = pixels[row_start + next];
+                    pos = next;
+                    next = (pos + u_offset) & col_mask;
+                }
+                pixels[row_start + pos] = saved;
+            }
         }
     }
-    // else if( animation_direction == TEXTURE_DIRECTION_V_UP )
-    // {
-    //     for( int y = height - 1; y >= 0; y-- )
-    //     {
-    //         for( int x = 0; x < width; x++ )
-    //         {
-    //             int index = y * width + x;
-    //             int pixel = pixels[index];
-    //             pixels[index] = pixel;
-    //         }
-    //     }
-    // }
-    // else if( animation_direction == TEXTURE_DIRECTION_U_DOWN )
-    // {
-    //     for( int y = 0; y < height; y++ )
-    //     {
-    //         for( int x = width - 1; x >= 0; x-- )
-    //         {
-    //             int index = y * width + x;
-    //             int pixel = pixels[index];
-    //             pixels[index] = pixel;
-    //         }
-    //     }
-    // }
-    // else if( animation_direction == TEXTURE_DIRECTION_U_UP )
-    // {
-    //     for( int y = height - 1; y >= 0; y-- )
-    //     {
-    //         for( int x = width - 1; x >= 0; x-- )
-    //         {
-    //             int index = y * width + x;
-    //             int pixel = pixels[index];
-    //             pixels[index] = pixel;
-    //         }
-    //     }
-    // }
 }
 
 void
