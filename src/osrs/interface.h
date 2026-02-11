@@ -147,9 +147,16 @@ interface_get_inv_default_action(
     int obj_id,
     int slot);
 
-// Find component with clientCode at (mouse_x, mouse_y). Returns 1 if found, 0 else.
-// Sets *out_component_id, *out_client_code, and menu params (Client.ts menuParamA/B/C).
-// For interface buttons: menuParamA=0, menuParamB=0, menuParamC=component_id.
+enum InterfaceButtonAction
+{
+    IF_BUTTON_ACTION_IF_BUTTON = 0,
+    IF_BUTTON_ACTION_CLOSE_MODAL = 1,
+    IF_BUTTON_ACTION_RESUME_PAUSEBUTTON = 2,
+};
+
+// Find clickable button at (mouse_x, mouse_y). Returns 1 if found, 0 else.
+// Matches buttonType (OK/TOGGLE/SELECT/CLOSE/CONTINUE) or clientCode > 0.
+// Sets *out_component_id, *out_client_code, *out_button_action, and menu params.
 int
 interface_find_button_click_at(
     struct GGame* game,
@@ -160,6 +167,7 @@ interface_find_button_click_at(
     int mouse_y,
     int* out_component_id,
     int* out_client_code,
+    int* out_button_action,
     int* out_menu_param_a,
     int* out_menu_param_b,
     int* out_menu_param_c);

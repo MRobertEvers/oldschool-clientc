@@ -796,11 +796,27 @@ interface_find_scrollbar_at(
         out_scroll_height);
 }
 
-/* Client.ts CC_LOGOUT = 205. Find component with clientCode at (mouse_x, mouse_y).
- * Recursively walks layer children; returns topmost (last in draw order) component that has
- * clientCode > 0 and contains the point. Sets *out_component_id, *out_client_code, and
- * menu params (Client.ts menuParamA/B/C). For interface buttons: a=0, b=0, c=component_id.
- * Returns 1 if found, 0 else. */
+/* Client.ts addComponentOptions: buttons are clickable if buttonType (OK/TOGGLE/SELECT/CLOSE/
+ * CONTINUE) or clientCode > 0. IF_BUTTON, TOGGLE_BUTTON, SELECT_BUTTON all send IF_BUTTON p2(c).
+ * CLOSE_BUTTON sends CLOSE_MODAL. PAUSE_BUTTON sends RESUME_PAUSEBUTTON p2(c). */
+static int
+is_clickable_button(struct CacheDatConfigComponent* child)
+{
+    if( child->clientCode > 0 )
+        return 1;
+    /* Client.ts addComponentOptions: BUTTON_OK needs clientCode or buttonText. Config sets option to
+     * "Ok" when empty. */
+    if( child->buttonType == COMPONENT_BUTTON_TYPE_OK )
+        return 1;
+    if( child->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE || child->buttonType == COMPONENT_BUTTON_TYPE_SELECT )
+        return 1;
+    if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
+        return 1;
+    if( child->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
+        return 1;
+    return 0;
+}
+
 static int
 find_button_click_at_recursive(
     struct GGame* game,
@@ -812,6 +828,7 @@ find_button_click_at_recursive(
     int mouse_y,
     int* out_component_id,
     int* out_client_code,
+    int* out_button_action,
     int* out_menu_param_a,
     int* out_menu_param_b,
     int* out_menu_param_c)
@@ -858,6 +875,7 @@ find_button_click_at_recursive(
                         mouse_y,
                         out_component_id,
                         out_client_code,
+                        out_button_action,
                         out_menu_param_a,
                         out_menu_param_b,
                         out_menu_param_c) )
@@ -865,11 +883,20 @@ find_button_click_at_recursive(
                     found = 1;
                 }
             }
-            else if( child->clientCode > 0 )
+            else if( is_clickable_button(child) )
             {
                 *out_component_id = child_id;
                 *out_client_code = child->clientCode;
-                /* Client.ts addComponentOptions for IF_BUTTON: menuParamC = child.id only */
+                /* Client.ts: CLOSE_BUTTON -> closeModal (CLOSE_MODAL), PAUSE_BUTTON -> RESUME_PAUSEBUTTON */
+                if( out_button_action )
+                {
+                    if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
+                        *out_button_action = IF_BUTTON_ACTION_CLOSE_MODAL;
+                    else if( child->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
+                        *out_button_action = IF_BUTTON_ACTION_RESUME_PAUSEBUTTON;
+                    else
+                        *out_button_action = IF_BUTTON_ACTION_IF_BUTTON;
+                }
                 if( out_menu_param_a )
                     *out_menu_param_a = 0;
                 if( out_menu_param_b )
@@ -893,6 +920,7 @@ interface_find_button_click_at(
     int mouse_y,
     int* out_component_id,
     int* out_client_code,
+    int* out_button_action,
     int* out_menu_param_a,
     int* out_menu_param_b,
     int* out_menu_param_c)
@@ -909,6 +937,7 @@ interface_find_button_click_at(
         mouse_y,
         out_component_id,
         out_client_code,
+        out_button_action,
         out_menu_param_a,
         out_menu_param_b,
         out_menu_param_c);

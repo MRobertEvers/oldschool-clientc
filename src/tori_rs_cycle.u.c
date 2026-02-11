@@ -1219,9 +1219,7 @@ LibToriRS_GameStep(
         {
             game->interface_consumed_click = 1;
             game->selected_tab = tab_clicked;
-            printf("Tab clicked: selected_tab = %d\n", tab_clicked);
-            /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE
-             */
+            /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE */
         }
         /* Client.ts handleChatModeInput: four buttons in bottom strip (panel matches platform
          * privacy_panel_y = bottom 50px when height < 503, else y 453). */
@@ -1245,16 +1243,131 @@ LibToriRS_GameStep(
                 /* TODO: open report abuse interface (clientCode 600) */
             }
         }
-        /* Viewport overlay (e.g. bank, inventory): blocks 3D world clicks when interface covers
-         * viewport. Sidebar starts at x 553. */
+        /* Viewport overlay (e.g. bank, inventory): hit-test buttons and inventory, else block 3D.
+         * Sidebar starts at x 553. */
         else if( game->viewport_interface_id != -1 && mouse_x < 553 )
         {
             game->interface_consumed_click = 1;
+            struct CacheDatConfigComponent* viewport_component =
+                buildcachedat_get_component(game->buildcachedat, game->viewport_interface_id);
+            if( viewport_component )
+            {
+                int sb_y = 0, sb_height = 0, sb_scroll_height = 0;
+                int scrollbar_hit = interface_find_scrollbar_at(
+                    game,
+                    viewport_component,
+                    0,
+                    0,
+                    mouse_x,
+                    mouse_y,
+                    &sb_y,
+                    &sb_height,
+                    &sb_scroll_height);
+                if( scrollbar_hit >= 0 )
+                {
+                    int local_y = mouse_y - sb_y;
+                    int max_scroll = sb_scroll_height - sb_height;
+                    if( max_scroll < 0 )
+                        max_scroll = 0;
+                    if( local_y < 16 )
+                        interface_handle_scrollbar_arrow(game, scrollbar_hit, max_scroll, 1);
+                    else if( local_y >= sb_height - 16 )
+                        interface_handle_scrollbar_arrow(game, scrollbar_hit, max_scroll, 0);
+                    else
+                        interface_handle_scrollbar_click(
+                            game, scrollbar_hit, sb_y, sb_height, sb_scroll_height, mouse_y);
+                }
+                else
+                {
+                    int hit_component_id = -1;
+                    int hit_client_code = 0;
+                    int button_action = IF_BUTTON_ACTION_IF_BUTTON;
+                    int menu_param_a = 0, menu_param_b = 0, menu_param_c = 0;
+                    if( interface_find_button_click_at(
+                            game,
+                            viewport_component,
+                            0,
+                            0,
+                            mouse_x,
+                            mouse_y,
+                            &hit_component_id,
+                            &hit_client_code,
+                            &button_action,
+                            &menu_param_a,
+                            &menu_param_b,
+                            &menu_param_c) )
+                    {
+                        if( hit_client_code == CC_LOGOUT )
+                        {
+                            int opcode = PKTOUT_LC245_2_LOGOUT;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                            uint16_t c = menu_param_c;
+                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                        }
+                        else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
+                        {
+                            int opcode = PKTOUT_LC245_2_CLOSE_MODAL;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                        }
+                        else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
+                        {
+                            int opcode = PKTOUT_LC245_2_RESUME_PAUSEBUTTON;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                            uint16_t c = menu_param_c;
+                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                        }
+                        else
+                        {
+                            int opcode = PKTOUT_LC245_2_IF_BUTTON;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                            uint16_t c = menu_param_c;
+                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                        }
+                    }
+                    else if( viewport_component->type == COMPONENT_TYPE_LAYER && viewport_component->children )
+                    {
+                        for( int i = 0; i < viewport_component->children_count; i++ )
+                        {
+                            if( !viewport_component->childX || !viewport_component->childY )
+                                continue;
+                            int child_id = viewport_component->children[i];
+                            int childX = viewport_component->childX[i];
+                            int childY = viewport_component->childY[i];
+                            struct CacheDatConfigComponent* child =
+                                buildcachedat_get_component(game->buildcachedat, child_id);
+                            if( !child )
+                                continue;
+                            childX += child->x;
+                            childY += child->y;
+                            if( child->type == COMPONENT_TYPE_INV )
+                            {
+                                int slot = interface_check_inv_click(
+                                    game, child, childX, childY, mouse_x, mouse_y);
+                                if( slot != -1 )
+                                {
+                                    int obj_id = child->invSlotObjId[slot] - 1;
+                                    int action = interface_get_inv_default_action(
+                                        game, child, obj_id, slot);
+                                    interface_handle_inv_button(
+                                        game, action, obj_id, slot, child_id);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         else if( mouse_x >= 553 && mouse_x < 763 && mouse_y >= 205 && mouse_y < 498 )
         {
             game->interface_consumed_click = 1;
-            printf("Click detected in sidebar area\n");
 
             // Determine which interface to check
             int component_id = -1;
@@ -1264,10 +1377,6 @@ LibToriRS_GameStep(
             {
                 component_id = game->sidebar_interface_id;
                 component = buildcachedat_get_component(game->buildcachedat, component_id);
-                printf(
-                    "Using sidebar_interface_id: %d, component=%p\n",
-                    component_id,
-                    (void*)component);
             }
             else if(
                 game->selected_tab >= 0 && game->selected_tab < 14 &&
@@ -1275,17 +1384,7 @@ LibToriRS_GameStep(
             {
                 component_id = game->tab_interface_id[game->selected_tab];
                 component = buildcachedat_get_component(game->buildcachedat, component_id);
-                printf(
-                    "Using tab_interface_id[%d]: %d, component=%p\n",
-                    game->selected_tab,
-                    component_id,
-                    (void*)component);
             }
-            else
-            {
-                printf("No active interface found\n");
-            }
-
             if( component )
             {
                 int sb_y = 0, sb_height = 0, sb_scroll_height = 0;
@@ -1316,16 +1415,12 @@ LibToriRS_GameStep(
                 }
                 else
                 {
-                    printf(
-                        "Component type: %d (LAYER=%d, INV=%d)\n",
-                        component->type,
-                        COMPONENT_TYPE_LAYER,
-                        COMPONENT_TYPE_INV);
-
-                    // Client.ts: when button (clientCode) is clicked, send packet. menuParamA/B/C
-                    // match Client.ts addComponentOptions + menuAction handling.
+                    // Client.ts: when button is clicked, send packet per addComponentOptions +
+                    // doAction. IF_BUTTON/TOGGLE/SELECT send IF_BUTTON p2(c). CLOSE sends CLOSE_MODAL.
+                    // PAUSE sends RESUME_PAUSEBUTTON p2(c). LOGOUT sends LOGOUT p2(c).
                     int hit_component_id = -1;
                     int hit_client_code = 0;
+                    int button_action = IF_BUTTON_ACTION_IF_BUTTON;
                     int menu_param_a = 0, menu_param_b = 0, menu_param_c = 0;
                     if( interface_find_button_click_at(
                             game,
@@ -1336,6 +1431,7 @@ LibToriRS_GameStep(
                             mouse_y,
                             &hit_component_id,
                             &hit_client_code,
+                            &button_action,
                             &menu_param_a,
                             &menu_param_b,
                             &menu_param_c) )
@@ -1345,20 +1441,34 @@ LibToriRS_GameStep(
                             int opcode = PKTOUT_LC245_2_LOGOUT;
                             uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
                             game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            printf("Logout button clicked, sent logout opcode\n");
+                            uint16_t c = menu_param_c;
+                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                        }
+                        else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
+                        {
+                            int opcode = PKTOUT_LC245_2_CLOSE_MODAL;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                        }
+                        else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
+                        {
+                            int opcode = PKTOUT_LC245_2_RESUME_PAUSEBUTTON;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
                             uint16_t c = menu_param_c;
                             game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
                             game->outbound_buffer[game->outbound_size++] = c & 0xFF;
                         }
                         else
                         {
-                            /* Client.ts: IF_BUTTON sends p2(c) = menuParamC = component_id */
+                            /* IF_BUTTON, TOGGLE_BUTTON, SELECT_BUTTON: all send IF_BUTTON p2(c) */
                             int opcode = PKTOUT_LC245_2_IF_BUTTON;
                             uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
                             game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            game->outbound_buffer[game->outbound_size++] =
-                                (menu_param_c >> 8) & 0xFF;
-                            game->outbound_buffer[game->outbound_size++] = menu_param_c & 0xFF;
+                            uint16_t c = menu_param_c;
+                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
                         }
                     }
                     else
@@ -1366,9 +1476,6 @@ LibToriRS_GameStep(
                         // If it's a layer, check children for inventory components
                         if( component->type == COMPONENT_TYPE_LAYER && component->children )
                         {
-                            printf(
-                                "Checking %d children for inventory\n", component->children_count);
-
                             for( int i = 0; i < component->children_count; i++ )
                             {
                                 if( !component->childX || !component->childY )
@@ -1387,14 +1494,6 @@ LibToriRS_GameStep(
                                 childX += child->x;
                                 childY += child->y;
 
-                                printf(
-                                    "  Child %d: id=%d, type=%d, pos=(%d,%d)\n",
-                                    i,
-                                    child_id,
-                                    child->type,
-                                    childX,
-                                    childY);
-
                                 if( child->type == COMPONENT_TYPE_INV )
                                 {
                                     int slot = interface_check_inv_click(
@@ -1405,15 +1504,6 @@ LibToriRS_GameStep(
                                         int obj_id = child->invSlotObjId[slot] - 1;
                                         int action = interface_get_inv_default_action(
                                             game, child, obj_id, slot);
-
-                                        printf(
-                                            "Inventory click detected: slot=%d, obj_id=%d, "
-                                            "child=%d, "
-                                            "action=%d\n",
-                                            slot,
-                                            obj_id,
-                                            child_id,
-                                            action);
 
                                         interface_handle_inv_button(
                                             game, action, obj_id, slot, child_id);
@@ -1428,36 +1518,18 @@ LibToriRS_GameStep(
                             int slot = interface_check_inv_click(
                                 game, component, 553, 205, mouse_x, mouse_y);
 
-                            printf("Slot clicked: %d\n", slot);
-
                             if( slot != -1 )
                             {
                                 int obj_id = component->invSlotObjId[slot] - 1;
                                 int action =
                                     interface_get_inv_default_action(game, component, obj_id, slot);
 
-                                printf(
-                                    "Inventory click detected: slot=%d, obj_id=%d, component=%d, "
-                                    "action=%d\n",
-                                    slot,
-                                    obj_id,
-                                    component_id,
-                                    action);
-
                                 interface_handle_inv_button(
                                     game, action, obj_id, slot, component_id);
                             }
                         }
-                        else
-                        {
-                            printf("Component is not an inventory or layer type\n");
-                        }
                     }
                 }
-            }
-            else
-            {
-                printf("Click outside sidebar area\n");
             }
         }
     }
