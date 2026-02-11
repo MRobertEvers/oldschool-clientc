@@ -1312,12 +1312,112 @@ LibToriRS_GameStep(
             game->selected_tab = tab_clicked;
             /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE */
         }
-        /* Chat area click: focus chat input (Client.ts chat at 17,357 size ~536x96) */
+        /* Chat area click: focus chat input when no chat interface (Client.ts chat at 17,357 size ~536x96) */
         else if( game->chat_interface_id == -1 && mouse_x >= 17 && mouse_x < 553 &&
                  mouse_y >= 357 && mouse_y < 453 )
         {
             game->interface_consumed_click = 1;
             game->chat_input_focused = 1;
+        }
+        /* Chat interface buttons: when chat_interface_id is set, hit-test chat component for clicks */
+        else if( game->chat_interface_id != -1 )
+        {
+            int chat_y = (game->view_port && game->view_port->height > 0)
+                             ? (game->view_port->height + 19)
+                             : 357;
+            int chat_height = 96;
+            if( mouse_x >= 17 && mouse_x < 553 && mouse_y >= chat_y &&
+                mouse_y < chat_y + chat_height && mouse_y < panel_top )
+            {
+                game->interface_consumed_click = 1;
+                game->mouse_cycle = -1;
+                struct CacheDatConfigComponent* chat_component =
+                    buildcachedat_get_component(game->buildcachedat, game->chat_interface_id);
+                if( chat_component )
+                {
+                    int sb_y = 0, sb_height = 0, sb_scroll_height = 0;
+                    int scrollbar_hit = interface_find_scrollbar_at(
+                        game,
+                        chat_component,
+                        17,
+                        chat_y,
+                        mouse_x,
+                        mouse_y,
+                        &sb_y,
+                        &sb_height,
+                        &sb_scroll_height);
+                    if( scrollbar_hit >= 0 )
+                    {
+                        int local_y = mouse_y - sb_y;
+                        int max_scroll = sb_scroll_height - sb_height;
+                        if( max_scroll < 0 )
+                            max_scroll = 0;
+                        if( local_y < 16 )
+                            interface_handle_scrollbar_arrow(game, scrollbar_hit, max_scroll, 1);
+                        else if( local_y >= sb_height - 16 )
+                            interface_handle_scrollbar_arrow(game, scrollbar_hit, max_scroll, 0);
+                        else
+                            interface_handle_scrollbar_click(
+                                game, scrollbar_hit, sb_y, sb_height, sb_scroll_height, mouse_y);
+                    }
+                    else
+                    {
+                        int hit_component_id = -1;
+                        int hit_client_code = 0;
+                        int button_action = IF_BUTTON_ACTION_IF_BUTTON;
+                        int menu_param_a = 0, menu_param_b = 0, menu_param_c = 0;
+                        if( interface_find_button_click_at(
+                                game,
+                                chat_component,
+                                17,
+                                chat_y,
+                                mouse_x,
+                                mouse_y,
+                                &hit_component_id,
+                                &hit_client_code,
+                                &button_action,
+                                &menu_param_a,
+                                &menu_param_b,
+                                &menu_param_c) )
+                        {
+                            if( hit_client_code == CC_LOGOUT )
+                            {
+                                int opcode = PKTOUT_LC245_2_LOGOUT;
+                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                                uint16_t c = menu_param_c;
+                                game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                                game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                            }
+                            else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
+                            {
+                                int opcode = PKTOUT_LC245_2_CLOSE_MODAL;
+                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                            }
+                            else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
+                            {
+                                int opcode = PKTOUT_LC245_2_RESUME_PAUSEBUTTON;
+                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                                uint16_t c = menu_param_c;
+                                game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                                game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                            }
+                            else
+                            {
+                                int opcode = PKTOUT_LC245_2_IF_BUTTON;
+                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                                uint16_t c = menu_param_c;
+                                game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                                game->outbound_buffer[game->outbound_size++] = c & 0xFF;
+                                interface_apply_button_click_varp_optimistic(game, menu_param_c);
+                            }
+                        }
+                    }
+                }
+            }
         }
         /* Client.ts handleChatModeInput: four buttons in bottom strip (panel matches platform
          * privacy_panel_y = bottom 50px when height < 503, else y 453). */

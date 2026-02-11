@@ -3,6 +3,7 @@
 #include "graphics/dash.h"
 #include "obj_icon.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/dash_utils.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/packetout.h"
 #include "osrs/player_stats.h"
@@ -1613,16 +1614,59 @@ interface_draw_component_model(
     if( !head_model )
         return;
 
+    /* Apply idle animation (readyanim) for chat head - cycle through sequence frames */
+    int sequence_id = -1;
+    if( component->modelType == 2 )
+    {
+        struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, component->model);
+        if( npc )
+            sequence_id = npc->readyanim;
+    }
+    else if( component->modelType == 3 )
+    {
+        struct PlayerEntity* local = &game->players[ACTIVE_PLAYER_SLOT];
+        if( local->alive )
+            sequence_id = local->animation.readyanim;
+    }
+    if( sequence_id >= 0 && game->buildcachedat->sequences_hmap )
+    {
+        struct CacheDatSequence* seq =
+            buildcachedat_get_sequence(game->buildcachedat, sequence_id);
+        if( seq && seq->frame_count > 0 && seq->frames )
+        {
+            int frame_i = (game->cycles_elapsed / 5) % seq->frame_count;
+            int frame_id = seq->frames[frame_i];
+            struct CacheAnimframe* animframe =
+                buildcachedat_get_animframe(game->buildcachedat, frame_id);
+            if( animframe )
+            {
+                struct DashFrame* dash_frame = dashframe_new_from_animframe(animframe);
+                struct DashFramemap* dash_framemap =
+                    dashframemap_new_from_animframe(animframe);
+                if( dash_frame && dash_framemap )
+                {
+                    dashmodel_animate(head_model, dash_frame, dash_framemap);
+                    dashframe_free(dash_frame);
+                    dashframemap_free(dash_framemap);
+                }
+            }
+        }
+    }
+
     int w = component->width;
     int h = component->height;
     if( w <= 0 )
-        w = 64;
-    if( h <= 0 )
-        h = 64;
-    if( w > 128 )
         w = 128;
-    if( h > 128 )
+    if( h <= 0 )
         h = 128;
+    if( w < 128 )
+        w = 128;
+    if( h < 128 )
+        h = 128;
+    if( w > 512 )
+        w = 512;
+    if( h > 512 )
+        h = 512;
 
     int* buf = (int*)malloc((size_t)w * h * sizeof(int));
     if( !buf )

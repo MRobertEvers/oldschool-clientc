@@ -2034,7 +2034,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
-    /* Draw chat input line on top of privacy panel (Client.ts font.drawString(4, 90, username+':')) */
+    /* Draw chat input line (Client.ts font.drawString(4, 90) but GameShell insideChatInputArea Y1=434;
+     * chatback at 357, so input at 434-357=77. Use 77 to align with clickable input area.) */
     if( game->chat_interface_id == -1 && game->pixfont_p12 )
     {
         int chat_y_base = chat_y;
@@ -2051,7 +2052,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             game->pixfont_p12,
             (uint8_t*)user_prefix,
             chat_x,
-            chat_y_base + 90,
+            chat_y_base + 77,
             black,
             pix,
             stride,
@@ -2064,7 +2065,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             game->pixfont_p12,
             (uint8_t*)game->chat_typed,
             ix,
-            chat_y_base + 90,
+            chat_y_base + 77,
             blue,
             pix,
             stride,
@@ -2078,7 +2079,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 game->pixfont_p12,
                 (uint8_t*)"*",
                 ix + dashfont_text_width(game->pixfont_p12, (uint8_t*)game->chat_typed),
-                chat_y_base + 90,
+                chat_y_base + 77,
                 blue,
                 pix,
                 stride,
