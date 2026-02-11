@@ -37,6 +37,8 @@ struct EntityAnimation
     int walkanim_l;
 };
 
+#define ENTITY_DAMAGE_SLOTS 4
+
 struct NPCEntity
 {
     int alive;
@@ -55,6 +57,14 @@ struct NPCEntity
     void* scene_walkanim_b;
     void* scene_walkanim_r;
     void* scene_walkanim_l;
+
+    /* Client.ts: damage/health for hitsplat and health bar */
+    int damage_values[ENTITY_DAMAGE_SLOTS];
+    int damage_types[ENTITY_DAMAGE_SLOTS];
+    int damage_cycles[ENTITY_DAMAGE_SLOTS];
+    int combat_cycle;
+    int health;
+    int total_health;
 };
 
 struct PlayerAppearanceSlots
@@ -74,6 +84,24 @@ struct PlayerEntity
 
     struct PlayerAppearanceSlots appearance;
     struct EntityPathing pathing;
+
+    /* Client.ts: damage/health for hitsplat and health bar */
+    int damage_values[ENTITY_DAMAGE_SLOTS];
+    int damage_types[ENTITY_DAMAGE_SLOTS];
+    int damage_cycles[ENTITY_DAMAGE_SLOTS];
+    int combat_cycle;
+    int health;
+    int total_health;
 };
+
+/* Client.ts addHitmark: add damage to first expired slot; display for 70 cycles */
+void
+entity_add_hitmark(
+    int* damage_values,
+    int* damage_types,
+    int* damage_cycles,
+    int loop_cycle,
+    int damage_type,
+    int damage_value);
 
 #endif

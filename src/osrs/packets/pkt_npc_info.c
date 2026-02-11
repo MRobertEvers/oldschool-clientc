@@ -137,6 +137,21 @@ push_op_sequence(
     op->_sequence.delay = delay;
 }
 
+static void
+push_op_damage(
+    struct PktNpcInfoOp* op,
+    int damage_type,
+    int damage,
+    int health,
+    int total_health)
+{
+    op->kind = PKT_NPC_INFO_OP_DAMAGE;
+    op->_damage.damage_type = (uint8_t)damage_type;
+    op->_damage.damage = (uint8_t)damage;
+    op->_damage.health = (uint8_t)health;
+    op->_damage.total_health = (uint8_t)total_health;
+}
+
 int
 pkt_npc_info_reader_read(
     struct PktNpcInfoReader* reader,
@@ -298,6 +313,8 @@ pkt_npc_info_reader_read(
             int damage_type = g1(&rsbuf);
             int health = g1(&rsbuf);
             int total_health = g1(&rsbuf);
+            push_op_damage(
+                next_op(reader, ops, ops_capacity), damage_type, damage, health, total_health);
         }
 
         if( (mask & MASK_ANIM) != 0 )
@@ -325,7 +342,12 @@ pkt_npc_info_reader_read(
 
         if( (mask & MASK_DAMAGE) != 0 )
         {
-            assert(0);
+            int damage_type = g1(&rsbuf);
+            int damage = g1(&rsbuf);
+            int health = g1(&rsbuf);
+            int total_health = g1(&rsbuf);
+            push_op_damage(
+                next_op(reader, ops, ops_capacity), damage_type, damage, health, total_health);
         }
 
         if( (mask & MASK_CHANGE_TYPE) != 0 )

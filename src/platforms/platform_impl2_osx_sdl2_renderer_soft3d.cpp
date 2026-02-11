@@ -13,7 +13,9 @@ extern "C" {
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/collision_map.h"
+#include "osrs/colors.h"
 #include "osrs/dash_utils.h"
+#include "osrs/game_entity.h"
 #include "osrs/gio.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/interface.h"
@@ -682,6 +684,19 @@ blit_rotated_buffer(
     }
 }
 
+int
+height_of_entity(
+    struct GGame* game,
+    struct SceneElement* element)
+{
+    struct DashModel* model = element->dash_model;
+    if( model )
+    {
+        return model->bounds_cylinder->min_y - model->bounds_cylinder->max_y;
+    }
+    return 0;
+}
+
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
@@ -870,6 +885,202 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
     LibToriRS_FrameEnd(game);
+
+    /* Client.ts entityOverlays: draw health bars and hitsplats for entities with damage */
+    if( renderer->dash_buffer && game->sys_dash && game->view_port && game->camera && game->scene &&
+        game->scene->terrain && game->pixfont_p12 )
+    {
+        dash2d_set_bounds(
+            game->view_port, 0, 0, renderer->dash_buffer_width, renderer->dash_buffer_height);
+        int* db = renderer->dash_buffer;
+        int stride = renderer->dash_buffer_width;
+        int clip_l = 0;
+        int clip_t = 0;
+        int clip_r = renderer->dash_buffer_width;
+        int clip_b = renderer->dash_buffer_height;
+
+        struct SceneTerrain* terrain = game->scene->terrain;
+
+        auto draw_entity_overlays = [&](void* scene_element_ptr,
+                                        int scene_local_x,
+                                        int scene_local_height,
+                                        int scene_local_z,
+                                        int* damage_values,
+                                        int* damage_types,
+                                        int* damage_cycles,
+                                        int combat_cycle,
+                                        int health,
+                                        int total_health) {
+            scene_local_x -= game->camera_world_x;
+            scene_local_z -= game->camera_world_z;
+            scene_local_height -= game->camera_world_y;
+            /* Entity height from dash_model bounds_cylinder (Client.ts entity.height) */
+            int entity_height = height_of_entity(game, (struct SceneElement*)scene_element_ptr);
+
+            /* World position for projection */
+
+            int screen_x, screen_y;
+
+            /* Health bar: Client.ts getOverlayPosEntity(entity, entity.height + 15) */
+            if( combat_cycle > game->cycle + 100 && total_health > 0 )
+            {
+                int bar_y_world = scene_local_height + (entity_height + 15);
+                int rel_y = bar_y_world;
+                if( dash3d_project_point(
+                        game->sys_dash,
+                        scene_local_x,
+                        rel_y,
+                        scene_local_z,
+                        game->view_port,
+                        game->camera,
+                        &screen_x,
+                        &screen_y) )
+                {
+                    int bar_w = (health * 30) / total_health;
+                    if( bar_w > 30 )
+                        bar_w = 30;
+                    dash2d_fill_rect(db, stride, screen_x - 15, screen_y - 3, bar_w, 5, GREEN);
+                    dash2d_fill_rect(
+                        db, stride, screen_x - 15 + bar_w, screen_y - 3, 30 - bar_w, 5, RED);
+                }
+            }
+
+            /* Hitsplats: Client.ts getOverlayPosEntity(entity, entity.height / 2) */
+            for( int i = 0; i < ENTITY_DAMAGE_SLOTS; i++ )
+            {
+                if( damage_cycles[i] <= game->cycle )
+                    continue;
+
+                int splat_y_world = scene_local_height - (entity_height / 2);
+                int rel_y = splat_y_world;
+                if( !dash3d_project_point(
+                        game->sys_dash,
+                        scene_local_x,
+                        rel_y,
+                        scene_local_z,
+                        game->view_port,
+                        game->camera,
+                        &screen_x,
+                        &screen_y) )
+                    continue;
+
+                int px = screen_x;
+                int py = screen_y;
+                if( i == 1 )
+                    py -= 20;
+                else if( i == 2 )
+                {
+                    px -= 15;
+                    py -= 10;
+                }
+                else if( i == 3 )
+                {
+                    px += 15;
+                    py -= 10;
+                }
+
+                int type = damage_types[i];
+                if( type >= 0 && type < 20 && game->sprite_hitmarks[type] )
+                {
+                    dash2d_blit_sprite_alpha(
+                        game->sys_dash,
+                        game->sprite_hitmarks[type],
+                        game->view_port,
+                        px - 12,
+                        py - 12,
+                        255,
+                        db);
+                }
+                char buf[16];
+                int len = snprintf(buf, sizeof(buf), "%d", damage_values[i]);
+                if( len > 0 )
+                {
+                    int w = dashfont_text_width(game->pixfont_p12, (uint8_t*)buf);
+                    dashfont_draw_text_clipped(
+                        game->pixfont_p12,
+                        (uint8_t*)buf,
+                        px - w / 2,
+                        py + 4,
+                        BLACK,
+                        db,
+                        stride,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                    dashfont_draw_text_clipped(
+                        game->pixfont_p12,
+                        (uint8_t*)buf,
+                        px - w / 2 - 1,
+                        py + 3,
+                        WHITE,
+                        db,
+                        stride,
+                        clip_l,
+                        clip_t,
+                        clip_r,
+                        clip_b);
+                }
+            }
+        };
+
+        /* Local player */
+        // {
+        //     struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+        //     if( pl->alive )
+        //         draw_entity_overlays(
+        //             pl->scene_element,
+        //             pl->position.x,
+        //             pl->position.height,
+        //             pl->position.z,
+        //             pl->damage_values,
+        //             pl->damage_types,
+        //             pl->damage_cycles,
+        //             pl->combat_cycle,
+        //             pl->health,
+        //             pl->total_health);
+        // }
+        // /* Other players */
+        // for( int i = 0; i < game->player_count; i++ )
+        // {
+        //     int pid = game->active_players[i];
+        //     if( pid == ACTIVE_PLAYER_SLOT )
+        //         continue;
+        //     struct PlayerEntity* pl = &game->players[pid];
+        //     if( pl->alive )
+        //         draw_entity_overlays(
+        //             pl->scene_element,
+        //             pl->position.x,
+        //             pl->position.height,
+        //             pl->position.z,
+        //             pl->damage_values,
+        //             pl->damage_types,
+        //             pl->damage_cycles,
+        //             pl->combat_cycle,
+        //             pl->health,
+        //             pl->total_health);
+        // }
+        /* NPCs */
+        for( int i = 0; i < game->npc_count; i++ )
+        {
+            int nid = game->active_npcs[i];
+            struct NPCEntity* npc = &game->npcs[nid];
+            if( npc->alive )
+            {
+                draw_entity_overlays(
+                    npc->scene_element,
+                    npc->position.x,
+                    npc->position.height,
+                    npc->position.z,
+                    npc->damage_values,
+                    npc->damage_types,
+                    npc->damage_cycles,
+                    npc->combat_cycle,
+                    npc->health,
+                    npc->total_health);
+            }
+        }
+    }
 
     int camera_tile_x = game->camera_world_x / 128;
     int camera_tile_z = game->camera_world_z / 128;

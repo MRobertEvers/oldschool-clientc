@@ -1666,7 +1666,8 @@ dash3d_add_texture(
  * direction 1,2 = DOWN (negate offset), 3,4 = UP.
  * In-place: process by cycles (one temp int per cycle) to avoid overwrite. */
 static int
-gcd(int a, int b)
+gcd(int a,
+    int b)
 {
     a = a < 0 ? -a : a;
     b = b < 0 ? -b : b;
@@ -1719,9 +1720,11 @@ animate_texture(
             pixels[pos] = saved;
         }
     }
-    /* U direction (2 or 4): shift by columns within each row. Java: var11 = animationSpeed * arg0 */
-    else if( animation_direction == TEXANIM_DIRECTION_U_DOWN ||
-             animation_direction == TEXANIM_DIRECTION_U_UP )
+    /* U direction (2 or 4): shift by columns within each row. Java: var11 = animationSpeed * arg0
+     */
+    else if(
+        animation_direction == TEXANIM_DIRECTION_U_DOWN ||
+        animation_direction == TEXANIM_DIRECTION_U_UP )
     {
         int u_offset = animation_speed * time_delta;
         if( animation_direction == TEXANIM_DIRECTION_U_DOWN )

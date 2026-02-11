@@ -4,6 +4,7 @@
 #include "datatypes/appearances.h"
 #include "datatypes/player_appearance.h"
 #include "entity_scenebuild.h"
+#include "game_entity.h"
 #include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
 #include "packets/pkt_npc_info.h"
@@ -249,6 +250,20 @@ gameproto_exec_npc_info(
             entity_scenebuild_npc_change_type(game, npc_id, op->_bitvalue);
             break;
         }
+        case PKT_NPC_INFO_OP_DAMAGE:
+        {
+            entity_add_hitmark(
+                npc->damage_values,
+                npc->damage_types,
+                npc->damage_cycles,
+                game->cycle,
+                op->_damage.damage_type,
+                op->_damage.damage);
+            npc->combat_cycle = game->cycle + 400;
+            npc->health = op->_damage.health;
+            npc->total_health = op->_damage.total_health;
+            break;
+        }
         }
     }
 }
@@ -465,6 +480,38 @@ add_player_info(
             entity_scenebuild_player_change_appearance(game, player_id, &appearance);
         }
         break;
+        case PKT_PLAYER_INFO_OP_DAMAGE:
+        {
+            if( !player )
+                break;
+            entity_add_hitmark(
+                player->damage_values,
+                player->damage_types,
+                player->damage_cycles,
+                game->cycle,
+                op->_damage.damage_type,
+                op->_damage.damage);
+            player->combat_cycle = game->cycle + 400;
+            player->health = op->_damage.health;
+            player->total_health = op->_damage.total_health;
+            break;
+        }
+        case PKT_PLAYER_INFO_OP_DAMAGE2:
+        {
+            if( !player )
+                break;
+            entity_add_hitmark(
+                player->damage_values,
+                player->damage_types,
+                player->damage_cycles,
+                game->cycle,
+                op->_damage2.damage_type,
+                op->_damage2.damage);
+            player->combat_cycle = game->cycle + 400;
+            player->health = op->_damage2.health;
+            player->total_health = op->_damage2.total_health;
+            break;
+        }
         }
     }
 }
