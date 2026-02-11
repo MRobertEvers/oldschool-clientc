@@ -138,6 +138,14 @@ LibToriRS_GameProcessInput(
         game->mouse_clicked_x = input->mouse_clicked_x;
         game->mouse_clicked_y = input->mouse_clicked_y;
     }
+
+    game->mouse_clicked_right = false;
+    if( input->mouse_clicked_right )
+    {
+        game->mouse_clicked_right = true;
+        game->mouse_clicked_right_x = input->mouse_clicked_right_x;
+        game->mouse_clicked_right_y = input->mouse_clicked_right_y;
+    }
 }
 
 #endif

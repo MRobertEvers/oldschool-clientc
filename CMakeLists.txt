@@ -71,6 +71,7 @@ endif()
         src/osrs/painters.c
         src/osrs/cache_utils.c
         src/osrs/minimap.c
+        src/osrs/minimenu.c
         src/osrs/model_transforms.c
         src/tori_rs_render.c
 

@@ -7,6 +7,7 @@
 #include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
 #include "osrs/isaac.h"
+#include "osrs/minimenu.h"
 #include "osrs/packetout.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
@@ -122,15 +123,17 @@ LibToriRS_FrameNextCommand(
             /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit wins. */
             bool is_interactable =
                 element->interactable || element->entity_kind == 1 || element->entity_kind == 2;
+            int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
+            int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
             if( is_interactable && game->view_port &&
-                game->mouse_x >= 0 && game->mouse_x < game->view_port->width &&
-                game->mouse_y >= 0 && game->mouse_y < game->view_port->height &&
+                mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
+                mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
                 dash3d_projected_model_contains(
                     game->sys_dash,
                     element->dash_model,
                     game->view_port,
-                    game->mouse_x,
-                    game->mouse_y) )
+                    mouse_vp_x,
+                    mouse_vp_y) )
             {
                 game->hovered_scene_element = element;
             }
@@ -166,13 +169,15 @@ LibToriRS_FrameNextCommand(
             /* Client.ts: click(mouseX-8, mouseY-11); draw tests pointInsideTriangle(World3D.mouseX,
              * World3D.mouseY). Only record tile when we have a click (taking input).
              * Only acknowledge 3D clicks within the viewport bounds (graphics3d_width x height). */
-            int click_x = game->mouse_clicked_x - 8;
-            int click_y = game->mouse_clicked_y - 11;
+            int click_vp_x = game->mouse_clicked_x - game->viewport_offset_x - 8;
+            int click_vp_y = game->mouse_clicked_y - game->viewport_offset_y - 11;
             bool in_viewport = game->view_port &&
-                game->mouse_clicked_x >= 0 && game->mouse_clicked_x < game->view_port->width &&
-                game->mouse_clicked_y >= 0 && game->mouse_clicked_y < game->view_port->height;
+                game->mouse_clicked_x >= game->viewport_offset_x &&
+                game->mouse_clicked_x < game->viewport_offset_x + game->view_port->width &&
+                game->mouse_clicked_y >= game->viewport_offset_y &&
+                game->mouse_clicked_y < game->viewport_offset_y + game->view_port->height;
             if( in_viewport && dash3d_projected_model_contains(
-                    game->sys_dash, tile_model->dash_model, game->view_port, click_x, click_y) )
+                    game->sys_dash, tile_model->dash_model, game->view_port, click_vp_x, click_vp_y) )
             {
                 game->tile_clicked_x = sx;
                 game->tile_clicked_z = sz;
@@ -248,9 +253,13 @@ LibToriRS_FrameEnd(struct GGame* game)
      * No cross when clicking on 2D interface. */
     if( game->mouse_clicked && game->view_port )
     {
+        int vp_ox = game->viewport_offset_x;
+        int vp_oy = game->viewport_offset_y;
         int in_viewport =
-            game->mouse_clicked_x >= 0 && game->mouse_clicked_x < game->view_port->width &&
-            game->mouse_clicked_y >= 0 && game->mouse_clicked_y < game->view_port->height;
+            game->mouse_clicked_x >= vp_ox &&
+            game->mouse_clicked_x < vp_ox + game->view_port->width &&
+            game->mouse_clicked_y >= vp_oy &&
+            game->mouse_clicked_y < vp_oy + game->view_port->height;
         if( game->interface_consumed_click || !in_viewport )
         {
             game->mouse_cycle = -1;
@@ -259,19 +268,154 @@ LibToriRS_FrameEnd(struct GGame* game)
         else
         {
             game->cross_mode = game->clicked_tile_valid ? 1 : 2;
-            game->cross_x = game->mouse_clicked_x;
-            game->cross_y = game->mouse_clicked_y;
+            game->cross_x = game->mouse_clicked_x - vp_ox;
+            game->cross_y = game->mouse_clicked_y - vp_oy;
         }
     }
 
-    /* Client.ts: when hovering NPC/player/loc and clicking, send first action packet instead of
-     * pathing to tile. useMenuOption(menuSize-1) for left-click on entity. */
-    if( game->hovered_scene_element && game->mouse_clicked && !game->interface_consumed_click &&
+    /* Right-click: show minimenu. Client.ts button===2 -> showContextMenu.
+     * Show even when no entity hovered: "Walk Here" + "Cancel". */
+    if( game->mouse_clicked_right && !game->interface_consumed_click &&
         GAME_NET_STATE_GAME == game->net_state && game->view_port )
     {
+        int vp_ox = game->viewport_offset_x;
+        int vp_oy = game->viewport_offset_y;
         int in_viewport =
-            game->mouse_clicked_x >= 0 && game->mouse_clicked_x < game->view_port->width &&
-            game->mouse_clicked_y >= 0 && game->mouse_clicked_y < game->view_port->height;
+            game->mouse_clicked_right_x >= vp_ox &&
+            game->mouse_clicked_right_x < vp_ox + game->view_port->width &&
+            game->mouse_clicked_right_y >= vp_oy &&
+            game->mouse_clicked_right_y < vp_oy + game->view_port->height;
+        if( in_viewport )
+        {
+            minimenu_show(game,
+                game->mouse_clicked_right_x - vp_ox,
+                game->mouse_clicked_right_y - vp_oy);
+            game->cross_mode = 2;
+            game->cross_x = game->mouse_clicked_right_x - vp_ox;
+            game->cross_y = game->mouse_clicked_right_y - vp_oy;
+        }
+    }
+
+    /* Menu visible: left-click to select option or click to close. Client.ts always closes menu on click. */
+    if( game->menu_visible && game->mouse_clicked && !game->interface_consumed_click &&
+        game->view_port )
+    {
+        int vp_ox = game->viewport_offset_x;
+        int vp_oy = game->viewport_offset_y;
+        int in_viewport =
+            game->mouse_clicked_x >= vp_ox &&
+            game->mouse_clicked_x < vp_ox + game->view_port->width &&
+            game->mouse_clicked_y >= vp_oy &&
+            game->mouse_clicked_y < vp_oy + game->view_port->height;
+        int option = -1;
+        if( in_viewport )
+            option = minimenu_click_option(game,
+                game->mouse_clicked_x - vp_ox,
+                game->mouse_clicked_y - vp_oy);
+        /* Always close menu on any click (Client.ts menuVisible = false). */
+        game->menu_visible = 0;
+        if( in_viewport && option >= 0 )
+            {
+                int action = game->menu_option_action[option];
+                if( action == 100 )
+                {
+                    /* Walk Here: find tile at right-click position and path there. */
+                    int tile_x, tile_z, level;
+                    if( LibToriRS_FindTileAtViewport(
+                            game,
+                            game->menu_walk_click_x,
+                            game->menu_walk_click_y,
+                            &tile_x,
+                            &tile_z,
+                            &level) )
+                    {
+                        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+                        int src_local_x = pl->pathing.route_x[0];
+                        int src_local_z = pl->pathing.route_z[0];
+                        int path_local_x[25];
+                        int path_local_z[25];
+                        int waypoints = 0;
+                        if( game->scene && game->scene->collision_maps[0] )
+                        {
+                            waypoints = collision_map_bfs_path(
+                                game->scene->collision_maps[0],
+                                src_local_x,
+                                src_local_z,
+                                tile_x,
+                                tile_z,
+                                path_local_x,
+                                path_local_z,
+                                25);
+                        }
+                        if( waypoints >= 0 && waypoints > 0 )
+                        {
+                            int buffer_size = waypoints + 1;
+                            if( buffer_size > 25 )
+                                buffer_size = 25;
+                            int steps_to_send = buffer_size - 1;
+                            int payload_size = 1 + 2 + 2 + steps_to_send * 2;
+                            int start_world_x = game->scene_base_tile_x + src_local_x;
+                            int start_world_z = game->scene_base_tile_z + src_local_z;
+                            if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
+                            {
+                                uint32_t op =
+                                    (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                                game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+                                game->outbound_buffer[game->outbound_size++] = 0;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (start_world_x >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    start_world_x & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (start_world_z >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    start_world_z & 0xff;
+                                for( int i = 0; i < steps_to_send && i < waypoints; i++ )
+                                {
+                                    game->outbound_buffer[game->outbound_size++] =
+                                        (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
+                                    game->outbound_buffer[game->outbound_size++] =
+                                        (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
+                                }
+                                game->path_tile_count = waypoints + 1;
+                                if( game->path_tile_count > GAME_PATH_TILE_MAX )
+                                    game->path_tile_count = GAME_PATH_TILE_MAX;
+                                game->path_tile_x[0] = src_local_x;
+                                game->path_tile_z[0] = src_local_z;
+                                for( int i = 0; i < waypoints && i < GAME_PATH_TILE_MAX - 1; i++ )
+                                {
+                                    game->path_tile_x[i + 1] = path_local_x[i];
+                                    game->path_tile_z[i + 1] = path_local_z[i];
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    minimenu_use_option(game, option);
+                }
+                game->mouse_clicked = false;
+                game->cross_mode = 2;
+                game->cross_x = game->mouse_clicked_x - vp_ox;
+                game->cross_y = game->mouse_clicked_y - vp_oy;
+            }
+    }
+
+    /* Client.ts: when hovering NPC/player/loc and left-clicking, send first action packet instead of
+     * pathing to tile. useMenuOption(menuSize-1) for left-click on entity. Skip if menu visible. */
+    if( !game->menu_visible && game->hovered_scene_element && game->mouse_clicked &&
+        !game->interface_consumed_click && GAME_NET_STATE_GAME == game->net_state &&
+        game->view_port )
+    {
+        int vp_ox = game->viewport_offset_x;
+        int vp_oy = game->viewport_offset_y;
+        int in_viewport =
+            game->mouse_clicked_x >= vp_ox &&
+            game->mouse_clicked_x < vp_ox + game->view_port->width &&
+            game->mouse_clicked_y >= vp_oy &&
+            game->mouse_clicked_y < vp_oy + game->view_port->height;
         if( in_viewport )
         {
             struct SceneElement* el = game->hovered_scene_element;
@@ -608,6 +752,59 @@ LibToriRS_FrameEnd(struct GGame* game)
     {
         game->clicked_tile_valid = 0;
     }
+}
+
+bool
+LibToriRS_FindTileAtViewport(
+    struct GGame* game,
+    int vp_x,
+    int vp_y,
+    int* out_tile_x,
+    int* out_tile_z,
+    int* out_level)
+{
+    if( !game->sys_painter_buffer || !game->scene || !game->sys_dash || !game->view_port ||
+        !game->camera || !out_tile_x || !out_tile_z || !out_level )
+        return false;
+
+    int click_x = vp_x - 8;
+    int click_y = vp_y - 11;
+
+    for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
+    {
+        struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
+        if( cmd->_bf_kind != PNTR_CMD_TERRAIN )
+            continue;
+
+        int sx = cmd->_terrain._bf_terrain_x;
+        int sz = cmd->_terrain._bf_terrain_z;
+        int slevel = cmd->_terrain._bf_terrain_y;
+
+        struct SceneTerrainTile* tile_model =
+            scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
+        if( !tile_model || !tile_model->dash_model )
+            continue;
+
+        struct DashPosition position = { 0 };
+        position.x = sx * 128 - game->camera_world_x;
+        position.z = sz * 128 - game->camera_world_z;
+        position.y = -game->camera_world_y;
+
+        int cull = dash3d_project_model(
+            game->sys_dash, tile_model->dash_model, &position, game->view_port, game->camera);
+        if( cull != DASHCULL_VISIBLE )
+            continue;
+
+        if( dash3d_projected_model_contains(
+                game->sys_dash, tile_model->dash_model, game->view_port, click_x, click_y) )
+        {
+            *out_tile_x = sx;
+            *out_tile_z = sz;
+            *out_level = slevel;
+            return true;
+        }
+    }
+    return false;
 }
 
 #endif

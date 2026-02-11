@@ -1312,15 +1312,17 @@ LibToriRS_GameStep(
             game->selected_tab = tab_clicked;
             /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE */
         }
-        /* Chat area click: focus chat input when no chat interface (Client.ts chat at 17,357 size ~536x96) */
-        else if( game->chat_interface_id == -1 && mouse_x >= 17 && mouse_x < 553 &&
-                 mouse_y >= 357 && mouse_y < 453 )
+        /* Chat area click: focus chat input when no chat interface (Client.ts chat at 17,357 size ~536x96).
+         * Skip when menu visible - frame handles menu clicks. */
+        else if( !game->menu_visible && game->chat_interface_id == -1 && mouse_x >= 17 &&
+                 mouse_x < 553 && mouse_y >= 357 && mouse_y < 453 )
         {
             game->interface_consumed_click = 1;
             game->chat_input_focused = 1;
         }
-        /* Chat interface buttons: when chat_interface_id is set, hit-test chat component for clicks */
-        else if( game->chat_interface_id != -1 )
+        /* Chat interface buttons: when chat_interface_id is set, hit-test chat component for clicks.
+         * Skip when menu visible. */
+        else if( !game->menu_visible && game->chat_interface_id != -1 )
         {
             int chat_y = (game->view_port && game->view_port->height > 0)
                              ? (game->view_port->height + 19)
@@ -1443,8 +1445,8 @@ LibToriRS_GameStep(
             }
         }
         /* Viewport overlay (e.g. bank, inventory): hit-test buttons and inventory, else block 3D.
-         * Sidebar starts at x 553. */
-        else if( game->viewport_interface_id != -1 && mouse_x < 553 )
+         * Sidebar starts at x 553. Skip when menu visible - frame handles menu clicks. */
+        else if( !game->menu_visible && game->viewport_interface_id != -1 && mouse_x < 553 )
         {
             game->interface_consumed_click = 1;
             game->mouse_cycle = -1; /* No cross when clicking on 2D interface */

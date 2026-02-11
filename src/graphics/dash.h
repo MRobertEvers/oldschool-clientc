@@ -465,6 +465,9 @@ dashsprite_free(struct DashSprite* sprite);
 int
 dashfont_text_width(struct DashPixFont* pixfont, uint8_t* text);
 
+int
+dashfont_text_width_taggable(struct DashPixFont* pixfont, uint8_t* text);
+
 void
 dashfont_draw_text(
     struct DashPixFont* pixfont,
@@ -489,6 +492,21 @@ dashfont_draw_text_clipped(
     int clip_top,
     int clip_right,
     int clip_bottom);
+
+void
+dashfont_draw_text_clipped_taggable(
+    struct DashPixFont* pixfont,
+    uint8_t* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    int* pixels,
+    int stride,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom,
+    bool shadowed);
 
 void
 dash2d_fill_rect(

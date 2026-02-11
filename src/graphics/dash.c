@@ -1,6 +1,7 @@
 #include "dash.h"
 
 #include "dashmap.h"
+#include "osrs/colors.h"
 #include "osrs/minimap.h"
 #include "osrs/palette.h"
 #include "shared_tables.h"
@@ -2388,6 +2389,33 @@ dashfont_draw_text_clipped(
 }
 
 int
+dashfont_text_width_taggable(
+    struct DashPixFont* pixfont,
+    uint8_t* text)
+{
+    int width = 0;
+    size_t length = strlen((char*)text);
+    for( size_t i = 0; i < length; i++ )
+    {
+        if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
+        {
+            i += 4;
+            continue;
+        }
+        uint8_t code_point = text[i];
+        int c = DASH_FONT_CHARCODESET[code_point];
+        if( c < DASH_FONT_CHAR_COUNT )
+        {
+            int adv = pixfont->char_advance[c];
+            if( adv <= 0 )
+                adv = 4;
+            width += adv;
+        }
+    }
+    return width;
+}
+
+int
 dashfont_text_width(
     struct DashPixFont* pixfont,
     uint8_t* text)
@@ -2407,6 +2435,115 @@ dashfont_text_width(
         }
     }
     return width;
+}
+
+/* Evaluate @XXX@ color tag. Returns new color or -1 if not a color tag. */
+static int
+dashfont_evaluate_tag(const char* tag)
+{
+    if( tag[0] == 'c' && tag[1] == 'y' && tag[2] == 'a' )
+        return CYAN;
+    if( tag[0] == 'w' && tag[1] == 'h' && tag[2] == 'i' )
+        return WHITE;
+    if( tag[0] == 'y' && tag[1] == 'e' && tag[2] == 'l' )
+        return YELLOW;
+    if( tag[0] == 'r' && tag[1] == 'e' && tag[2] == 'd' )
+        return RED;
+    if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == 'e' )
+        return GREEN;
+    if( tag[0] == 'm' && tag[1] == 'a' && tag[2] == 'g' )
+        return MAGENTA;
+    if( tag[0] == 'b' && tag[1] == 'l' && tag[2] == 'a' )
+        return BLACK;
+    return -1;
+}
+
+void
+dashfont_draw_text_clipped_taggable(
+    struct DashPixFont* pixfont,
+    uint8_t* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    int* pixels,
+    int stride,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom,
+    bool shadowed)
+{
+    if( clip_left >= clip_right || clip_top >= clip_bottom )
+        return;
+    int length = (int)strlen((char*)text);
+    int color = default_color_rgb;
+    int shadow_color = 0xFF000000 | BLACK;
+    for( int i = 0; i < length; i++ )
+    {
+        if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
+        {
+            int new_color = dashfont_evaluate_tag((char*)&text[i + 1]);
+            if( new_color >= 0 )
+                color = 0xFF000000 | new_color;
+            i += 4;
+            continue;
+        }
+        uint8_t code_point = text[i];
+        int c = DASH_FONT_CHARCODESET[code_point];
+        if( c < DASH_FONT_CHAR_COUNT )
+        {
+            int w = pixfont->char_mask_width[c];
+            int h = pixfont->char_mask_height[c];
+            int* mask = pixfont->char_mask[c];
+            int base_x = x + pixfont->char_offset_x[c];
+            int base_y = y + pixfont->char_offset_y[c];
+            if( shadowed )
+            {
+                int shadow_x = base_x + 1;
+                int shadow_y = base_y + 1;
+                int shadow_offset = shadow_y * stride + shadow_x;
+                dashfont_draw_mask_clipped(
+                    w,
+                    h,
+                    mask,
+                    0,
+                    0,
+                    pixels,
+                    shadow_offset,
+                    stride - w,
+                    stride,
+                    shadow_x,
+                    shadow_y,
+                    clip_left,
+                    clip_top,
+                    clip_right,
+                    clip_bottom,
+                    shadow_color);
+            }
+            int dst_offset = base_y * stride + base_x;
+            dashfont_draw_mask_clipped(
+                w,
+                h,
+                mask,
+                0,
+                0,
+                pixels,
+                dst_offset,
+                stride - w,
+                stride,
+                base_x,
+                base_y,
+                clip_left,
+                clip_top,
+                clip_right,
+                clip_bottom,
+                color);
+        }
+        int adv = (c >= 0 && c < DASH_FONT_CHAR_COUNT) ? pixfont->char_advance[c] : 4;
+        if( adv <= 0 )
+            adv = 4;
+        x += adv;
+    }
 }
 
 int

@@ -89,6 +89,9 @@ struct GGame
     int mouse_clicked;
     int mouse_clicked_x;
     int mouse_clicked_y;
+    int mouse_clicked_right;
+    int mouse_clicked_right_x;
+    int mouse_clicked_right_y;
     int interface_consumed_click; /* 1 if click was handled by interface (tab, sidebar, etc.) */
     int mouse_button_down; /* 1 while left button held, 0 on release */
     int mouse_x;
@@ -256,6 +259,26 @@ struct GGame
 
     /* Hovered interactable loc (Client.ts pickedBitsets for entityType 2). Last hit in draw order. */
     struct SceneElement* hovered_scene_element;
+
+    /* Viewport offset in screen coords (Client.ts menuArea 0: mouseX-=4, mouseY-=4). */
+    int viewport_offset_x;
+    int viewport_offset_y;
+
+    /* Minimenu (right-click context menu). Client.ts menuVisible, menuX, menuOption, etc. */
+#define MINIMENU_MAX_OPTIONS 32
+#define MINIMENU_OPTION_LEN 64
+    int menu_visible;
+    int menu_area; /* 0=viewport, 1=sidebar, 2=chatbox */
+    int menu_x;
+    int menu_y;
+    int menu_width;
+    int menu_height;
+    int menu_size;
+    char menu_options[MINIMENU_MAX_OPTIONS][MINIMENU_OPTION_LEN];
+    int menu_option_action[MINIMENU_MAX_OPTIONS]; /* op index 0-4 for NPC/loc/player; 5=Examine; 100=Walk here */
+    struct SceneElement* menu_entity; /* entity when menu was built */
+    int menu_walk_click_x; /* viewport x for Walk Here */
+    int menu_walk_click_y; /* viewport y for Walk Here */
 
     /* Click cross: 0=none, 1=yellow (tile), 2=red (viewport but not tile). Client.ts crossMode. */
     int cross_mode;

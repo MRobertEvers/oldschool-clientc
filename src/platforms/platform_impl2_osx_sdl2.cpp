@@ -136,6 +136,9 @@ Platform2_OSX_SDL2_PollEvents(
     input->mouse_clicked = 0;
     input->mouse_clicked_x = -1;
     input->mouse_clicked_y = -1;
+    input->mouse_clicked_right = 0;
+    input->mouse_clicked_right_x = -1;
+    input->mouse_clicked_right_y = -1;
     input->chat_key_char = 0;
     input->chat_key_return = 0;
     input->chat_key_backspace = 0;
@@ -211,6 +214,16 @@ Platform2_OSX_SDL2_PollEvents(
                     event.button.y,
                     &input->mouse_clicked_x,
                     &input->mouse_clicked_y,
+                    platform);
+            }
+            else if( !imgui_wants_mouse && event.button.button == SDL_BUTTON_RIGHT )
+            {
+                input->mouse_clicked_right = 1;
+                transform_mouse_coordinates(
+                    event.button.x,
+                    event.button.y,
+                    &input->mouse_clicked_right_x,
+                    &input->mouse_clicked_right_y,
                     platform);
             }
         }

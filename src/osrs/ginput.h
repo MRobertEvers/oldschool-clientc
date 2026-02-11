@@ -11,6 +11,9 @@ struct GInput
     int mouse_clicked;
     int mouse_clicked_x;
     int mouse_clicked_y;
+    int mouse_clicked_right; /* 1 on right button click */
+    int mouse_clicked_right_x;
+    int mouse_clicked_right_y;
     int mouse_button_down; /* 1 while left button is held, 0 on release */
     int mouse_x;
     int mouse_y;

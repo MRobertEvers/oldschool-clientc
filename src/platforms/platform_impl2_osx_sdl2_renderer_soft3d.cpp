@@ -21,6 +21,7 @@ extern "C" {
 #include "osrs/gio_cache_dat.h"
 #include "osrs/interface.h"
 #include "osrs/minimap.h"
+#include "osrs/minimenu.h"
 #include "osrs/model_transforms.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/config_locs.h"
@@ -705,6 +706,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
+    /* Sync viewport offset so frame logic (menu, cross, hover) uses correct coords. */
+    game->viewport_offset_x = renderer->dash_offset_x;
+    game->viewport_offset_y = renderer->dash_offset_y;
+
     // Ensure viewport center matches viewport dimensions (critical for coordinate transformations)
 
     // Handle window resize: update renderer dimensions up to max size
@@ -2609,6 +2614,25 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     draw_edge_dash(px_nw, py_nw);
             }
         }
+    }
+
+    /* Draw minimenu last so it appears on top of everything. Client.ts drawMenu. */
+    if( game->menu_visible && game->menu_area == 0 && game->pixfont_b12 )
+    {
+        int clip_l = 0;
+        int clip_t = 0;
+        int clip_r = renderer->width;
+        int clip_b = renderer->height;
+        minimenu_draw(
+            game,
+            renderer->pixel_buffer,
+            renderer->width,
+            clip_l,
+            clip_t,
+            clip_r,
+            clip_b,
+            renderer->dash_offset_x,
+            renderer->dash_offset_y);
     }
 
     // Render minimap to buffer starting at (0,0)

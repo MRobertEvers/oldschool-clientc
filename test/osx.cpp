@@ -104,6 +104,8 @@ main(
     game->iface_view_port->stride = renderer->width;
 
     PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 4, 4);
+    game->viewport_offset_x = 4;
+    game->viewport_offset_y = 4;
 
     // Create server instance (independent of renderer)
     struct Server* server = server_new();
