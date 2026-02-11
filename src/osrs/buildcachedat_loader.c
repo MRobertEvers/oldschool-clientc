@@ -8,6 +8,7 @@
 #include "osrs/rscache/archive.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/rsbuf.h"
+#include "osrs/varp_varbit_manager.h"
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/config_sequence.h"
@@ -791,6 +792,13 @@ buildcachedat_loader_finalize_scene(
     int map_ne_x,
     int map_ne_z)
 {
+    /* Load varp/varbit config from config jagfile (for network protocol) */
+    struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    if( config_jagfile )
+    {
+        varp_varbit_load_from_config_jagfile(&game->varp_varbit, config_jagfile);
+    }
+
     // Initialize painter and minimap if not already done
     if( !game->sys_painter )
     {

@@ -94,6 +94,23 @@ gameproto_parse_lc245_2(
         assert(buffer.position == data_size);
         return 1;
     }
+    case PKTIN_LC245_2_VARP_SMALL:
+    {
+        packet->_varp_small.variable = g2(&buffer);
+        packet->_varp_small.value = g1b(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_VARP_LARGE:
+    {
+        packet->_varp_large.variable = g2(&buffer);
+        packet->_varp_large.value = g4(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
+        /* VARP_SYNC: no payload, sync all vars to server authoritative set */
+        return 1;
     default:
         printf("Unknown packet type: %d\n", packet_type);
         break;

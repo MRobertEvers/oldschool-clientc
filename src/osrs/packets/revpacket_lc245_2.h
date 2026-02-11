@@ -39,6 +39,18 @@ struct PktIfSetTabActive
     int tab_id;
 };
 
+struct PktVarpSmall
+{
+    int variable;
+    int value; /* g1b signed byte */
+};
+
+struct PktVarpLarge
+{
+    int variable;
+    int value; /* g4 */
+};
+
 struct RevPacket_LC245_2
 {
     enum PacketInType_LC245_2 packet_type;
@@ -51,6 +63,8 @@ struct RevPacket_LC245_2
         struct PktUpdateInvFull _update_inv_full;
         struct PktIfSetTab _if_settab;
         struct PktIfSetTabActive _if_settab_active;
+        struct PktVarpSmall _varp_small;
+        struct PktVarpLarge _varp_large;
     };
 };
 

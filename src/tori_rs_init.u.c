@@ -168,6 +168,8 @@ LibToriRS_GameNew(
     game->buildcachedat = buildcachedat_new();
     game->buildcache = buildcache_new();
 
+    varp_varbit_init(&game->varp_varbit);
+
     game->random_in = isaac_new(NULL, 0);
     game->random_out = isaac_new(NULL, 0);
     init_rsa(game);

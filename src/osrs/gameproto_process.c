@@ -2,6 +2,7 @@
 
 #include "osrs/gameproto_exec.h"
 #include "osrs/script_queue.h"
+#include "osrs/varp_varbit_manager.h"
 
 void
 gameproto_process(
@@ -64,6 +65,27 @@ gameproto_process(
         {
             // IF_SETTAB_ACTIVE doesn't need async loading, execute directly
             gameproto_exec_if_settab_active(game, &item->packet);
+            break;
+        }
+        case PKTIN_LC245_2_VARP_SMALL:
+        {
+            varp_varbit_apply_small(
+                &game->varp_varbit,
+                item->packet._varp_small.variable,
+                item->packet._varp_small.value);
+            break;
+        }
+        case PKTIN_LC245_2_VARP_LARGE:
+        {
+            varp_varbit_apply_large(
+                &game->varp_varbit,
+                item->packet._varp_large.variable,
+                item->packet._varp_large.value);
+            break;
+        }
+        case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
+        {
+            varp_varbit_apply_sync(&game->varp_varbit);
             break;
         }
         default:

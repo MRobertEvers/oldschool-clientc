@@ -20,6 +20,7 @@
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
+#include "osrs/varp_varbit_manager.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -111,6 +112,8 @@ struct GGame
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
+
+    struct VarPVarBitManager varp_varbit;
     struct CacheDat* cache_dat; // Raw cache.dat accessor for synchronous loading
 
     /* Media filelist kept after cache_media so we can load component sprites when interfaces load

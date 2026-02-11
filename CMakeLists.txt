@@ -95,6 +95,7 @@ endif()
         src/osrs/filepack.c
         src/osrs/dash_utils.c
         src/osrs/script_queue.c
+        src/osrs/varp_varbit_manager.c
         src/osrs/gameproto_exec.c
         src/osrs/gameproto_parse.c
         src/osrs/gameproto_process.c
