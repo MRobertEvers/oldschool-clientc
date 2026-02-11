@@ -335,6 +335,7 @@ scene_terrain_height_center(
     struct SceneTerrain* terrain = scene->terrain;
     struct SceneTerrainTile* other = NULL;
     struct SceneTerrainTile* tile = scene_terrain_tile_at(terrain, sx, sz, slevel);
+
     int height_sw = tile->height;
 
     int height_se = height_sw;
@@ -344,26 +345,27 @@ scene_terrain_height_center(
     if( inbounds(terrain, sx + 1, sz, slevel) )
     {
         other = scene_terrain_tile_at(terrain, sx + 1, sz, slevel);
-        if( other->slevel == slevel )
+        if( tile->slevel == other->slevel )
             height_se = other->height;
     }
+
     if( inbounds(terrain, sx, sz + 1, slevel) )
     {
         other = scene_terrain_tile_at(terrain, sx, sz + 1, slevel);
-        if( other->slevel == slevel )
+        if( tile->slevel == other->slevel )
             height_ne = other->height;
     }
 
     if( inbounds(terrain, sx - 1, sz, slevel) )
     {
         other = scene_terrain_tile_at(terrain, sx - 1, sz, slevel);
-        if( other->slevel == slevel )
+        if( tile->slevel == other->slevel )
             height_nw = other->height;
     }
     if( inbounds(terrain, sx, sz - 1, slevel) )
     {
         other = scene_terrain_tile_at(terrain, sx, sz - 1, slevel);
-        if( other->slevel == slevel )
+        if( tile->slevel == other->slevel )
             height_nw = other->height;
     }
 
@@ -381,5 +383,7 @@ scene_terrain_height_at_tile(
     if( !terrain || sx < 0 || sx >= terrain->tile_width_x || sz < 0 ||
         sz >= terrain->tile_width_z || slevel < 0 || slevel >= MAP_TERRAIN_LEVELS )
         return 0;
-    return scene_terrain_tile_at(terrain, sx, sz, slevel)->height;
+    struct SceneTerrainTile* tile = scene_terrain_tile_at(terrain, sx, sz, slevel);
+    tile = scene_terrain_tile_at(terrain, sx, sz, tile->slevel);
+    return tile->height;
 }

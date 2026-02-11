@@ -243,8 +243,6 @@ scenebuiler_build(
                         scene_terrain_tile_at(scene->terrain, x, z, i + 1);
 
                     tile_below->height = tile_above->height;
-                    tile_below->sx = x;
-                    tile_below->sz = z;
                     tile_below->slevel = i + 1;
                 }
             }
