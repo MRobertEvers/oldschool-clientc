@@ -80,6 +80,7 @@ enum PacketOutType_LC245_2
                                       // system, this makes more sense
 
     PKTOUT_LC245_2_IF_BUTTON = 177,            // index: 200 - NXT naming
+    PKTOUT_LC245_2_LOGOUT = 36,                // client sends to request logout (opcode 36)
     PKTOUT_LC245_2_RESUME_PAUSEBUTTON = 239,   // index: 201 - NXT naming
     PKTOUT_LC245_2_CLOSE_MODAL = 245,          // index: 202 - NXT naming
     PKTOUT_LC245_2_RESUME_P_COUNTDIALOG = 241, // index: 203 - NXT naming

@@ -134,6 +134,23 @@ interface_get_inv_default_action(
     int obj_id,
     int slot);
 
+// Find component with clientCode at (mouse_x, mouse_y). Returns 1 if found, 0 else.
+// Sets *out_component_id, *out_client_code, and menu params (Client.ts menuParamA/B/C).
+// For interface buttons: menuParamA=0, menuParamB=0, menuParamC=component_id.
+int
+interface_find_button_click_at(
+    struct GGame* game,
+    struct CacheDatConfigComponent* root,
+    int root_x,
+    int root_y,
+    int mouse_x,
+    int mouse_y,
+    int* out_component_id,
+    int* out_client_code,
+    int* out_menu_param_a,
+    int* out_menu_param_b,
+    int* out_menu_param_c);
+
 // Check if a mouse click hits an inventory item, returns slot number or -1
 int
 interface_check_inv_click(

@@ -10,6 +10,7 @@
 #include "osrs/game_entity.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/interface.h"
+#include "osrs/packetout.h"
 #include "osrs/painters.h"
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
@@ -23,6 +24,9 @@
 
 /* Client.ts ClientProt.MOVE_GAMECLICK = 182 (index 255) */
 #define MOVE_GAMECLICK_OPCODE 182
+
+/* Client.ts ClientCode.CC_LOGOUT = 205 */
+#define CC_LOGOUT 205
 
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
 
@@ -905,91 +909,136 @@ LibToriRS_GameStep(
                         COMPONENT_TYPE_LAYER,
                         COMPONENT_TYPE_INV);
 
-                    // If it's a layer, check children for inventory components
-                    if( component->type == COMPONENT_TYPE_LAYER && component->children )
+                    // Client.ts: when button (clientCode) is clicked, send packet. menuParamA/B/C
+                    // match Client.ts addComponentOptions + menuAction handling.
+                    int hit_component_id = -1;
+                    int hit_client_code = 0;
+                    int menu_param_a = 0, menu_param_b = 0, menu_param_c = 0;
+                    if( interface_find_button_click_at(
+                            game,
+                            component,
+                            553,
+                            205,
+                            mouse_x,
+                            mouse_y,
+                            &hit_component_id,
+                            &hit_client_code,
+                            &menu_param_a,
+                            &menu_param_b,
+                            &menu_param_c) )
                     {
-                        printf("Checking %d children for inventory\n", component->children_count);
-
-                        for( int i = 0; i < component->children_count; i++ )
+                        if( hit_client_code == CC_LOGOUT )
                         {
-                            if( !component->childX || !component->childY )
-                                continue;
-
-                            int child_id = component->children[i];
-                            int childX = 553 + component->childX[i];
-                            int childY = 205 + component->childY[i];
-
-                            struct CacheDatConfigComponent* child =
-                                buildcachedat_get_component(game->buildcachedat, child_id);
-
-                            if( !child )
-                                continue;
-
-                            childX += child->x;
-                            childY += child->y;
-
-                            printf(
-                                "  Child %d: id=%d, type=%d, pos=(%d,%d)\n",
-                                i,
-                                child_id,
-                                child->type,
-                                childX,
-                                childY);
-
-                            if( child->type == COMPONENT_TYPE_INV )
-                            {
-                                int slot = interface_check_inv_click(
-                                    game, child, childX, childY, mouse_x, mouse_y);
-
-                                if( slot != -1 )
-                                {
-                                    int obj_id = child->invSlotObjId[slot] - 1;
-                                    int action =
-                                        interface_get_inv_default_action(game, child, obj_id, slot);
-
-                                    printf(
-                                        "Inventory click detected: slot=%d, obj_id=%d, child=%d, "
-                                        "action=%d\n",
-                                        slot,
-                                        obj_id,
-                                        child_id,
-                                        action);
-
-                                    interface_handle_inv_button(
-                                        game, action, obj_id, slot, child_id);
-                                    break;
-                                }
-                            }
+                            int opcode = PKTOUT_LC245_2_LOGOUT;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                            printf("Logout button clicked, sent logout opcode\n");
+                            uint16_t c = menu_param_c;
+                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
+                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
                         }
-                    }
-                    else if( component->type == COMPONENT_TYPE_INV )
-                    {
-                        // Direct inventory component (not in a layer)
-                        int slot =
-                            interface_check_inv_click(game, component, 553, 205, mouse_x, mouse_y);
-
-                        printf("Slot clicked: %d\n", slot);
-
-                        if( slot != -1 )
+                        else
                         {
-                            int obj_id = component->invSlotObjId[slot] - 1;
-                            int action =
-                                interface_get_inv_default_action(game, component, obj_id, slot);
-
-                            printf(
-                                "Inventory click detected: slot=%d, obj_id=%d, component=%d, "
-                                "action=%d\n",
-                                slot,
-                                obj_id,
-                                component_id,
-                                action);
-
-                            interface_handle_inv_button(game, action, obj_id, slot, component_id);
+                            /* Client.ts: IF_BUTTON sends p2(c) = menuParamC = component_id */
+                            int opcode = PKTOUT_LC245_2_IF_BUTTON;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                            game->outbound_buffer[game->outbound_size++] =
+                                (menu_param_c >> 8) & 0xFF;
+                            game->outbound_buffer[game->outbound_size++] = menu_param_c & 0xFF;
                         }
                     }
                     else
                     {
-                        printf("Component is not an inventory or layer type\n");
+                        // If it's a layer, check children for inventory components
+                        if( component->type == COMPONENT_TYPE_LAYER && component->children )
+                        {
+                            printf(
+                                "Checking %d children for inventory\n", component->children_count);
+
+                            for( int i = 0; i < component->children_count; i++ )
+                            {
+                                if( !component->childX || !component->childY )
+                                    continue;
+
+                                int child_id = component->children[i];
+                                int childX = 553 + component->childX[i];
+                                int childY = 205 + component->childY[i];
+
+                                struct CacheDatConfigComponent* child =
+                                    buildcachedat_get_component(game->buildcachedat, child_id);
+
+                                if( !child )
+                                    continue;
+
+                                childX += child->x;
+                                childY += child->y;
+
+                                printf(
+                                    "  Child %d: id=%d, type=%d, pos=(%d,%d)\n",
+                                    i,
+                                    child_id,
+                                    child->type,
+                                    childX,
+                                    childY);
+
+                                if( child->type == COMPONENT_TYPE_INV )
+                                {
+                                    int slot = interface_check_inv_click(
+                                        game, child, childX, childY, mouse_x, mouse_y);
+
+                                    if( slot != -1 )
+                                    {
+                                        int obj_id = child->invSlotObjId[slot] - 1;
+                                        int action = interface_get_inv_default_action(
+                                            game, child, obj_id, slot);
+
+                                        printf(
+                                            "Inventory click detected: slot=%d, obj_id=%d, "
+                                            "child=%d, "
+                                            "action=%d\n",
+                                            slot,
+                                            obj_id,
+                                            child_id,
+                                            action);
+
+                                        interface_handle_inv_button(
+                                            game, action, obj_id, slot, child_id);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        else if( component->type == COMPONENT_TYPE_INV )
+                        {
+                            // Direct inventory component (not in a layer)
+                            int slot = interface_check_inv_click(
+                                game, component, 553, 205, mouse_x, mouse_y);
+
+                            printf("Slot clicked: %d\n", slot);
+
+                            if( slot != -1 )
+                            {
+                                int obj_id = component->invSlotObjId[slot] - 1;
+                                int action =
+                                    interface_get_inv_default_action(game, component, obj_id, slot);
+
+                                printf(
+                                    "Inventory click detected: slot=%d, obj_id=%d, component=%d, "
+                                    "action=%d\n",
+                                    slot,
+                                    obj_id,
+                                    component_id,
+                                    action);
+
+                                interface_handle_inv_button(
+                                    game, action, obj_id, slot, component_id);
+                            }
+                        }
+                        else
+                        {
+                            printf("Component is not an inventory or layer type\n");
+                        }
                     }
                 }
             }

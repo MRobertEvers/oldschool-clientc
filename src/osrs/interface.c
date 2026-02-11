@@ -594,6 +594,124 @@ interface_find_scrollbar_at(
         out_scroll_height);
 }
 
+/* Client.ts CC_LOGOUT = 205. Find component with clientCode at (mouse_x, mouse_y).
+ * Recursively walks layer children; returns topmost (last in draw order) component that has
+ * clientCode > 0 and contains the point. Sets *out_component_id, *out_client_code, and
+ * menu params (Client.ts menuParamA/B/C). For interface buttons: a=0, b=0, c=component_id.
+ * Returns 1 if found, 0 else. */
+static int
+find_button_click_at_recursive(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int x,
+    int y,
+    int scroll_y,
+    int mouse_x,
+    int mouse_y,
+    int* out_component_id,
+    int* out_client_code,
+    int* out_menu_param_a,
+    int* out_menu_param_b,
+    int* out_menu_param_c)
+{
+    int found = 0;
+    if( !component->children || !component->childX || !component->childY )
+        return 0;
+    for( int i = 0; i < component->children_count; i++ )
+    {
+        int child_id = component->children[i];
+        int childX = component->childX[i] + x;
+        int childY = component->childY[i] + y - scroll_y;
+
+        struct CacheDatConfigComponent* child =
+            buildcachedat_get_component(game->buildcachedat, child_id);
+        if( !child )
+            continue;
+
+        childX += child->x;
+        childY += child->y;
+
+        if( mouse_x >= childX && mouse_y >= childY && mouse_x < childX + child->width &&
+            mouse_y < childY + child->height )
+        {
+            if( child->type == COMPONENT_TYPE_LAYER )
+            {
+                int scroll_pos = 0;
+                if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
+                    scroll_pos = game->component_scroll_position[child_id];
+                int max_scroll = child->scroll - child->height;
+                if( max_scroll < 0 )
+                    max_scroll = 0;
+                if( scroll_pos > max_scroll )
+                    scroll_pos = max_scroll;
+                if( scroll_pos < 0 )
+                    scroll_pos = 0;
+                if( find_button_click_at_recursive(
+                        game,
+                        child,
+                        childX,
+                        childY,
+                        scroll_pos,
+                        mouse_x,
+                        mouse_y,
+                        out_component_id,
+                        out_client_code,
+                        out_menu_param_a,
+                        out_menu_param_b,
+                        out_menu_param_c) )
+                {
+                    found = 1;
+                }
+            }
+            else if( child->clientCode > 0 )
+            {
+                *out_component_id = child_id;
+                *out_client_code = child->clientCode;
+                /* Client.ts addComponentOptions for IF_BUTTON: menuParamC = child.id only */
+                if( out_menu_param_a )
+                    *out_menu_param_a = 0;
+                if( out_menu_param_b )
+                    *out_menu_param_b = 0;
+                if( out_menu_param_c )
+                    *out_menu_param_c = child_id;
+                found = 1;
+            }
+        }
+    }
+    return found;
+}
+
+int
+interface_find_button_click_at(
+    struct GGame* game,
+    struct CacheDatConfigComponent* root,
+    int root_x,
+    int root_y,
+    int mouse_x,
+    int mouse_y,
+    int* out_component_id,
+    int* out_client_code,
+    int* out_menu_param_a,
+    int* out_menu_param_b,
+    int* out_menu_param_c)
+{
+    if( !root || root->type != COMPONENT_TYPE_LAYER )
+        return 0;
+    return find_button_click_at_recursive(
+        game,
+        root,
+        root_x,
+        root_y,
+        0,
+        mouse_x,
+        mouse_y,
+        out_component_id,
+        out_client_code,
+        out_menu_param_a,
+        out_menu_param_b,
+        out_menu_param_c);
+}
+
 /* Client.ts handleScrollInput (9825-9831): up arrow scrollPosition -= dragCycles*4, down +=
  * dragCycles*4. step = rate (4) * game_cycles for hold scrolling. */
 #define SCROLLBAR_ARROW_DELTA 4
