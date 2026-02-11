@@ -20,6 +20,7 @@
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
+#include "osrs/player_stats.h"
 #include "osrs/varp_varbit_manager.h"
 
 #include <stdbool.h>
@@ -115,6 +116,12 @@ struct GGame
 
     struct VarPVarBitManager varp_varbit;
     struct CacheDat* cache_dat; // Raw cache.dat accessor for synchronous loading
+
+    /* Local player stats (UPDATE_STAT, UPDATE_RUNENERGY) */
+    int player_stat_xp[PLAYER_STAT_COUNT];
+    int player_stat_effective_level[PLAYER_STAT_COUNT];
+    int player_stat_base_level[PLAYER_STAT_COUNT];
+    int player_run_energy;
 
     /* Media filelist kept after cache_media so we can load component sprites when interfaces load
      */

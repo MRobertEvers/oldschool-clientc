@@ -118,6 +118,20 @@ gameproto_parse_lc245_2(
     case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
         /* VARP_SYNC: no payload, sync all vars to server authoritative set */
         return 1;
+    case PKTIN_LC245_2_UPDATE_STAT:
+    {
+        packet->_update_stat.stat = g1(&buffer);
+        packet->_update_stat.xp = g4(&buffer);
+        packet->_update_stat.level = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_RUNENERGY:
+    {
+        packet->_update_run_energy.run_energy = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
     default:
         printf("Unknown packet type: %d\n", packet_type);
         break;

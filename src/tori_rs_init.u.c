@@ -15,6 +15,7 @@
 #include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
+#include "osrs/player_stats.h"
 #include "osrs/varp_varbit_manager.h"
 // #include "tori_rs.h"
 
@@ -172,6 +173,7 @@ LibToriRS_GameNew(
     game->buildcachedat = buildcachedat_new();
     game->buildcache = buildcache_new();
 
+    player_stats_init();
     varp_varbit_init(&game->varp_varbit);
 
     game->random_in = isaac_new(NULL, 0);

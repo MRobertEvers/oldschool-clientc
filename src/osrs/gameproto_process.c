@@ -1,6 +1,7 @@
 #include "gameproto_process.h"
 
 #include "osrs/gameproto_exec.h"
+#include "osrs/player_stats.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
 
@@ -86,6 +87,24 @@ gameproto_process(
         case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
         {
             varp_varbit_apply_sync(&game->varp_varbit);
+            break;
+        }
+        case PKTIN_LC245_2_UPDATE_STAT:
+        {
+            int stat = item->packet._update_stat.stat;
+            int xp = item->packet._update_stat.xp;
+            int level = item->packet._update_stat.level;
+            if( stat >= 0 && stat < PLAYER_STAT_COUNT )
+            {
+                game->player_stat_xp[stat] = xp;
+                game->player_stat_effective_level[stat] = level;
+                game->player_stat_base_level[stat] = player_stats_xp_to_level(xp);
+            }
+            break;
+        }
+        case PKTIN_LC245_2_UPDATE_RUNENERGY:
+        {
+            game->player_run_energy = item->packet._update_run_energy.run_energy;
             break;
         }
         default:

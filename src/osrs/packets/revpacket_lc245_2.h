@@ -51,6 +51,18 @@ struct PktVarpLarge
     int value; /* g4 */
 };
 
+struct PktUpdateStat
+{
+    int stat;   /* g1: 0-22 */
+    int xp;     /* g4 */
+    int level;  /* g1: effective level */
+};
+
+struct PktUpdateRunEnergy
+{
+    int run_energy; /* g1: 0-100 */
+};
+
 struct RevPacket_LC245_2
 {
     enum PacketInType_LC245_2 packet_type;
@@ -65,6 +77,8 @@ struct RevPacket_LC245_2
         struct PktIfSetTabActive _if_settab_active;
         struct PktVarpSmall _varp_small;
         struct PktVarpLarge _varp_large;
+        struct PktUpdateStat _update_stat;
+        struct PktUpdateRunEnergy _update_run_energy;
     };
 };
 
