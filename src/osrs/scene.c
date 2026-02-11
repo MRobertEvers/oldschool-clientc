@@ -354,14 +354,14 @@ scene_terrain_tile_heights(
     {
         other = scene_terrain_tile_at(terrain, sx, sz + 1, slevel);
         if( tile->slevel == other->slevel )
-            height_ne = other->height;
+            height_nw = other->height;
     }
 
     if( inbounds(terrain, sx + 1, sz + 1, slevel) )
     {
         other = scene_terrain_tile_at(terrain, sx + 1, sz + 1, slevel);
         if( tile->slevel == other->slevel )
-            height_nw = other->height;
+            height_ne = other->height;
     }
     if( inbounds(terrain, sx + 1, sz, slevel) )
     {

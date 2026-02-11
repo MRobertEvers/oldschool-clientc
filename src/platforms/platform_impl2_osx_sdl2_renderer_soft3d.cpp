@@ -1871,30 +1871,69 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                  * west neighbor (x-1,z) has BLOCK_WEST. Likewise: east edge when (x+1,z) has
                  * BLOCK_EAST; south edge when (x,z-1) has BLOCK_SOUTH; north edge when (x,z+1) has
                  * BLOCK_NORTH. */
-                bool draw_south_edge = (z > 0) &&
-                    (cm->flags[(x)*cm->size_z + (z - 1)] &
-                     (COLL_FLAG_BLOCK_SOUTH | COLL_FLAG_WALL_SOUTH_PROJ)) != 0;
-                bool draw_north_edge = (z < cm->size_z - 1) &&
-                    (cm->flags[(x)*cm->size_z + (z + 1)] &
-                     (COLL_FLAG_BLOCK_NORTH | COLL_FLAG_WALL_NORTH_PROJ)) != 0;
-                bool draw_east_edge = (x < cm->size_x - 1) &&
-                    (cm->flags[(x + 1) * cm->size_z + (z)] &
-                     (COLL_FLAG_BLOCK_EAST | COLL_FLAG_WALL_EAST_PROJ)) != 0;
-                bool draw_west_edge = (x > 0) &&
-                    (cm->flags[(x - 1) * cm->size_z + (z)] &
-                     (COLL_FLAG_BLOCK_WEST | COLL_FLAG_WALL_WEST_PROJ)) != 0;
-                bool has_block_south_west =
-                    (cm->flags[idx] &
-                     (COLL_FLAG_BLOCK_SOUTH_WEST | COLL_FLAG_WALL_SOUTH_WEST_PROJ)) != 0;
-                bool has_block_north_west =
-                    (cm->flags[idx] &
-                     (COLL_FLAG_BLOCK_NORTH_WEST | COLL_FLAG_WALL_NORTH_WEST_PROJ)) != 0;
-                bool has_block_south_east =
-                    (cm->flags[idx] &
-                     (COLL_FLAG_BLOCK_SOUTH_EAST | COLL_FLAG_WALL_SOUTH_EAST_PROJ)) != 0;
-                bool has_block_north_east =
-                    (cm->flags[idx] &
-                     (COLL_FLAG_BLOCK_NORTH_EAST | COLL_FLAG_WALL_NORTH_EAST_PROJ)) != 0;
+                bool draw_south_edge =
+                    (z > 0) && (cm->flags[(x)*cm->size_z + (z - 1)] & (COLL_FLAG_BLOCK_SOUTH)) != 0;
+                bool draw_north_edge =
+                    (z < cm->size_z - 1) &&
+                    (cm->flags[(x)*cm->size_z + (z + 1)] & (COLL_FLAG_BLOCK_NORTH)) != 0;
+                bool draw_east_edge =
+                    (x < cm->size_x - 1) &&
+                    (cm->flags[(x + 1) * cm->size_z + (z)] & (COLL_FLAG_BLOCK_EAST)) != 0;
+                bool draw_west_edge = (x > 0) && (cm->flags[(x - 1) * cm->size_z + (z)] &
+                                                  (COLL_FLAG_BLOCK_WEST)) != 0;
+
+                bool has_block_south_west = true;
+                bool has_block_south_east = true;
+                bool has_block_north_west = true;
+                bool has_block_north_east = true;
+                if( x > 0 && z > 0 )
+                {
+                    int idx = (x - 1) * cm->size_z + (z - 1);
+                    if( (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH_WEST) == 0 &&
+                        (cm->flags[(x - 1) * cm->size_z + z] & COLL_FLAG_BLOCK_WEST) ==
+                            COLL_FLAG_OPEN &&
+                        (cm->flags[x * cm->size_z + (z - 1)] & COLL_FLAG_BLOCK_SOUTH) ==
+                            COLL_FLAG_OPEN )
+                    {
+                        has_block_south_west = false;
+                    }
+                }
+                if( x < cm->size_x - 1 && z > 0 )
+                {
+                    int idx = (x + 1) * cm->size_z + (z - 1);
+                    if( (cm->flags[idx] & COLL_FLAG_BLOCK_SOUTH_EAST) == 0 &&
+                        (cm->flags[(x + 1) * cm->size_z + z] & COLL_FLAG_BLOCK_EAST) ==
+                            COLL_FLAG_OPEN &&
+                        (cm->flags[x * cm->size_z + (z - 1)] & COLL_FLAG_BLOCK_SOUTH) ==
+                            COLL_FLAG_OPEN )
+                    {
+                        has_block_south_east = false;
+                    }
+                }
+                if( x > 0 && z < cm->size_z - 1 )
+                {
+                    int idx = (x - 1) * cm->size_z + (z + 1);
+                    if( (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH_WEST) == 0 &&
+                        (cm->flags[(x - 1) * cm->size_z + z] & COLL_FLAG_BLOCK_WEST) ==
+                            COLL_FLAG_OPEN &&
+                        (cm->flags[x * cm->size_z + (z + 1)] & COLL_FLAG_BLOCK_NORTH) ==
+                            COLL_FLAG_OPEN )
+                    {
+                        has_block_north_west = false;
+                    }
+                }
+                if( x < cm->size_x - 1 && z < cm->size_z - 1 )
+                {
+                    int idx = (x + 1) * cm->size_z + (z + 1);
+                    if( (cm->flags[idx] & COLL_FLAG_BLOCK_NORTH_EAST) == 0 &&
+                        (cm->flags[(x + 1) * cm->size_z + z] & COLL_FLAG_BLOCK_EAST) ==
+                            COLL_FLAG_OPEN &&
+                        (cm->flags[x * cm->size_z + (z + 1)] & COLL_FLAG_BLOCK_NORTH) ==
+                            COLL_FLAG_OPEN )
+                    {
+                        has_block_north_east = false;
+                    }
+                }
 
                 int px[4], py[4];
                 for( int i = 0; i < 4; i++ )
@@ -2009,124 +2048,15 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     draw_edge_dash((px_nw + px_sw) / 2, (py_nw + py_sw) / 2);
                 }
 
-                /* Draw small x at blocked corners (diagonal blocks). */
-                const int corner_x_size = 4;
+                /* Draw diagonal line inward toward center for blocked corners (diagonal blocks). */
                 if( sw_ok && has_block_south_west )
-                {
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        px_sw - corner_x_size,
-                        py_sw - corner_x_size,
-                        px_sw + corner_x_size,
-                        py_sw + corner_x_size,
-                        red,
-                        alpha,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        px_sw - corner_x_size,
-                        py_sw + corner_x_size,
-                        px_sw + corner_x_size,
-                        py_sw - corner_x_size,
-                        red,
-                        alpha,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                }
+                    draw_edge_dash(px_sw, py_sw);
                 if( se_ok && has_block_south_east )
-                {
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        px_se - corner_x_size,
-                        py_se - corner_x_size,
-                        px_se + corner_x_size,
-                        py_se + corner_x_size,
-                        red,
-                        alpha,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        px_se - corner_x_size,
-                        py_se + corner_x_size,
-                        px_se + corner_x_size,
-                        py_se - corner_x_size,
-                        red,
-                        alpha,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                }
+                    draw_edge_dash(px_se, py_se);
                 if( ne_ok && has_block_north_east )
-                {
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        px_ne - corner_x_size,
-                        py_ne - corner_x_size,
-                        px_ne + corner_x_size,
-                        py_ne + corner_x_size,
-                        red,
-                        alpha,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        px_ne - corner_x_size,
-                        py_ne + corner_x_size,
-                        px_ne + corner_x_size,
-                        py_ne - corner_x_size,
-                        red,
-                        alpha,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                }
+                    draw_edge_dash(px_ne, py_ne);
                 if( nw_ok && has_block_north_west )
-                {
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        px_nw - corner_x_size,
-                        py_nw - corner_x_size,
-                        px_nw + corner_x_size,
-                        py_nw + corner_x_size,
-                        red,
-                        alpha,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        px_nw - corner_x_size,
-                        py_nw + corner_x_size,
-                        px_nw + corner_x_size,
-                        py_nw - corner_x_size,
-                        red,
-                        alpha,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                }
+                    draw_edge_dash(px_nw, py_nw);
             }
         }
     }
