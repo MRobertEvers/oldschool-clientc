@@ -1281,6 +1281,7 @@ scenery_add_wall_decor_diagonal_double(
 
     scene_element.dash_model = dash_model_two;
     scene_element.dash_position = dash_position_two;
+    scene_element.animation = NULL;
 
     scene_element.dash_position->yaw += WALL_DECOR_YAW_ADJUST;
 

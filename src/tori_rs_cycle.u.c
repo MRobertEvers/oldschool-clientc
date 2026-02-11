@@ -447,12 +447,11 @@ update_entity_anim(
     if( seqId == -1 )
         seqId = view->animation->walkanim;
 
-    /* Client.ts routeMove: only reduce speed when turning AND not facing entity AND turnspeed != 0 */
+    /* Client.ts routeMove: only reduce speed when turning AND not facing entity AND turnspeed != 0
+     */
     int moveSpeed = 4;
-    if( view->orientation->yaw != view->orientation->dst_yaw &&
-        view->face_entity < 0 &&
-        view->orientation->face_square_x == 0 &&
-        view->orientation->face_square_z == 0 )
+    if( view->orientation->yaw != view->orientation->dst_yaw && view->face_entity < 0 &&
+        view->orientation->face_square_x == 0 && view->orientation->face_square_z == 0 )
         moveSpeed = 2;
     if( route_length > 2 )
         moveSpeed = 6;
