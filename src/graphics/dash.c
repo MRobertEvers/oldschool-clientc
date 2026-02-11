@@ -1950,6 +1950,39 @@ dashmodel_animate(
         model->face_bones ? model->face_bones->bones_sizes : NULL);
 }
 
+void
+dashmodel_animate_mask(
+    struct DashModel* model,
+    struct DashFrame* primary_frame,
+    struct DashFrame* secondary_frame,
+    struct DashFramemap* framemap,
+    int* walkmerge)
+{
+    reset_original_values(model);
+    assert(model->original_vertices_x != NULL);
+    if( primary_frame == NULL || secondary_frame == NULL || walkmerge == NULL )
+    {
+        if( primary_frame )
+            dashmodel_animate(model, primary_frame, framemap);
+        return;
+    }
+    anim_frame_apply_mask(
+        primary_frame,
+        secondary_frame,
+        framemap,
+        walkmerge,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
+        model->face_alphas,
+        model->vertex_bones ? model->vertex_bones->bones_count : 0,
+        model->vertex_bones ? model->vertex_bones->bones : NULL,
+        model->vertex_bones ? model->vertex_bones->bones_sizes : NULL,
+        model->face_bones ? model->face_bones->bones_count : 0,
+        model->face_bones ? model->face_bones->bones : NULL,
+        model->face_bones ? model->face_bones->bones_sizes : NULL);
+}
+
 static int*
 dashpix8_to_argb(
     struct DashPix8* pix8,

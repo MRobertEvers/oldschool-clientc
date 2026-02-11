@@ -44,6 +44,14 @@ scene_element_animation_free(struct SceneElement* element)
     }
     free(element->animation->dash_frames);
     free(element->animation->frame_lengths);
+    if( element->animation->dash_frames_secondary )
+    {
+        for( int i = 0; i < element->animation->frame_count_secondary; i++ )
+        {
+            dashframe_free(element->animation->dash_frames_secondary[i]);
+        }
+        free(element->animation->dash_frames_secondary);
+    }
     memset(element->animation, 0, sizeof(struct SceneAnimation));
     free(element->animation);
     element->animation = NULL;

@@ -217,6 +217,65 @@ load_model_animations_dati(
         scene_animation->_anim_sequence_id = sequence_id;
 }
 
+/* Load primary + secondary sequences for walkmerge. Client.ts maskAnimate. */
+static void
+load_model_animations_walkmerge(
+    struct SceneElement* element,
+    int primary_sequence_id,
+    int secondary_sequence_id,
+    struct BuildCacheDat* buildcachedat)
+{
+    struct SceneAnimation* scene_animation = NULL;
+    struct CacheDatSequence* primary_seq = NULL;
+    struct CacheDatSequence* secondary_seq = NULL;
+    struct CacheAnimframe* animframe = NULL;
+    struct DashFramemap* dash_framemap = NULL;
+
+    if( primary_sequence_id == -1 || secondary_sequence_id == -1 || !buildcachedat->sequences_hmap )
+        return;
+
+    primary_seq = buildcachedat_get_sequence(buildcachedat, primary_sequence_id);
+    secondary_seq = buildcachedat_get_sequence(buildcachedat, secondary_sequence_id);
+    if( !primary_seq || !secondary_seq || !primary_seq->walkmerge )
+        return;
+
+    scene_element_animation_free(element);
+    scene_animation = scene_element_animation_new(element, 10);
+
+    /* Load primary frames */
+    for( int i = 0; i < primary_seq->frame_count; i++ )
+    {
+        int frame_id = primary_seq->frames[i];
+        animframe = buildcachedat_get_animframe(buildcachedat, frame_id);
+        assert(animframe);
+        if( !dash_framemap )
+            dash_framemap = dashframemap_new_from_animframe(animframe);
+        int length = primary_seq->delay[i];
+        if( length == 0 )
+            length = animframe->delay;
+        scene_element_animation_push_frame(
+            element, dashframe_new_from_animframe(animframe), dash_framemap, length);
+    }
+
+    /* Load secondary frames */
+    scene_animation->dash_frames_secondary =
+        malloc((size_t)secondary_seq->frame_count * sizeof(struct DashFrame*));
+    scene_animation->frame_count_secondary = secondary_seq->frame_count;
+    for( int i = 0; i < secondary_seq->frame_count; i++ )
+    {
+        int frame_id = secondary_seq->frames[i];
+        animframe = buildcachedat_get_animframe(buildcachedat, frame_id);
+        assert(animframe);
+        if( !dash_framemap )
+            dash_framemap = dashframemap_new_from_animframe(animframe);
+        scene_animation->dash_frames_secondary[i] = dashframe_new_from_animframe(animframe);
+    }
+    scene_animation->dash_framemap = dash_framemap;
+    scene_animation->_anim_sequence_id = primary_sequence_id;
+    scene_animation->_anim_secondary_sequence_id = secondary_sequence_id;
+    scene_animation->walkmerge = primary_seq->walkmerge;
+}
+
 /* View of common pathing/movement/animation state shared by NPCs and players. */
 struct EntityAnimUpdateView
 {
@@ -245,14 +304,6 @@ entity_face(
     int fe = view->face_entity;
     if( fe >= 0 )
     {
-        if( !is_player )
-        {
-            printf(
-                "NPC face coord: %d, %d, %d\n",
-                fe,
-                view->orientation->face_square_x,
-                view->orientation->face_square_z);
-        }
         int target_x = 0;
         int target_z = 0;
         int has_target = 0;
@@ -656,7 +707,8 @@ advance_animation(
     }
 }
 
-/* Pick active anim (primary if valid and delay==0, else secondary) and sync to scene. */
+/* Pick active anim (primary if valid and delay==0, else secondary) and sync to scene.
+ * Client.ts: when primary has walkmerge and secondary != primary, use maskAnimate. */
 static void
 entity_sync_anim_to_scene(
     struct GGame* game,
@@ -668,35 +720,64 @@ entity_sync_anim_to_scene(
     int secondary_anim_frame,
     int secondary_anim_cycle)
 {
-    int active = secondary_anim;
-    int active_frame = secondary_anim_frame;
-    int active_cycle = secondary_anim_cycle;
-    if( primary_anim >= 0 && primary_anim_delay == 0 )
-    {
-        active = primary_anim;
-        active_frame = primary_anim_frame;
-        active_cycle = 0; /* We don't store primary_anim_cycle in scene */
-    }
-
-    if( active < 0 )
+    if( secondary_anim < 0 )
     {
         scene_element_animation_free(scene_element);
         return;
     }
 
-    /* Load sequence only if it changed */
-    struct SceneAnimation* anim = scene_element->animation;
-    int need_load = (anim == NULL || anim->_anim_sequence_id != active);
+    struct CacheDatSequence* primary_seq =
+        (primary_anim >= 0) ? buildcachedat_get_sequence(game->buildcachedat, primary_anim) : NULL;
+    int use_walkmerge =
+        (primary_anim >= 0 && primary_anim_delay == 0 && secondary_anim >= 0 &&
+         secondary_anim != primary_anim && primary_seq && primary_seq->walkmerge);
 
-    if( need_load )
-        load_model_animations_dati(scene_element, active, game->buildcachedat);
-
-    anim = scene_element->animation;
-    if( anim )
+    if( use_walkmerge )
     {
-        anim->frame_index = active_frame;
-        if( active_frame < anim->frame_count )
-            anim->cycle = active_cycle;
+        /* Client.ts maskAnimate: blend primary + secondary using walkmerge */
+        struct SceneAnimation* anim = scene_element->animation;
+        int need_load =
+            (anim == NULL || anim->_anim_sequence_id != primary_anim ||
+             anim->_anim_secondary_sequence_id != secondary_anim);
+
+        if( need_load )
+            load_model_animations_walkmerge(
+                scene_element, primary_anim, secondary_anim, game->buildcachedat);
+
+        anim = scene_element->animation;
+        if( anim && anim->dash_frames_secondary )
+        {
+            anim->frame_index = primary_anim_frame;
+            anim->frame_index_secondary = secondary_anim_frame;
+            if( primary_anim_frame < anim->frame_count )
+                anim->cycle = 0;
+        }
+    }
+    else
+    {
+        int active = secondary_anim;
+        int active_frame = secondary_anim_frame;
+        int active_cycle = secondary_anim_cycle;
+        if( primary_anim >= 0 && primary_anim_delay == 0 )
+        {
+            active = primary_anim;
+            active_frame = primary_anim_frame;
+            active_cycle = 0;
+        }
+
+        struct SceneAnimation* anim = scene_element->animation;
+        int need_load = (anim == NULL || anim->_anim_sequence_id != active);
+
+        if( need_load )
+            load_model_animations_dati(scene_element, active, game->buildcachedat);
+
+        anim = scene_element->animation;
+        if( anim )
+        {
+            anim->frame_index = active_frame;
+            if( active_frame < anim->frame_count )
+                anim->cycle = active_cycle;
+        }
     }
 }
 

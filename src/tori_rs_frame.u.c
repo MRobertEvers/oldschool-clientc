@@ -82,10 +82,26 @@ LibToriRS_FrameNextCommand(
 
             if( element->dash_model && element->animation && element->animation->frame_count > 0 )
             {
-                dashmodel_animate(
-                    scene_element_model(game->scene, cmd->_entity._bf_entity),
-                    element->animation->dash_frames[element->animation->frame_index],
-                    element->animation->dash_framemap);
+                struct SceneAnimation* anim = element->animation;
+                int pi = anim->frame_index;
+                int si = anim->frame_index_secondary;
+                if( anim->dash_frames_secondary && anim->walkmerge && pi < anim->frame_count &&
+                    si >= 0 && si < anim->frame_count_secondary )
+                {
+                    dashmodel_animate_mask(
+                        scene_element_model(game->scene, cmd->_entity._bf_entity),
+                        anim->dash_frames[pi],
+                        anim->dash_frames_secondary[si],
+                        anim->dash_framemap,
+                        anim->walkmerge);
+                }
+                else
+                {
+                    dashmodel_animate(
+                        scene_element_model(game->scene, cmd->_entity._bf_entity),
+                        anim->dash_frames[pi],
+                        anim->dash_framemap);
+                }
             }
 
             int cull = dash3d_project_model(

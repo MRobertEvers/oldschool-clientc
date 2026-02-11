@@ -27,6 +27,13 @@ struct SceneAnimation
     int frame_index;
     int cycle;
     int _anim_sequence_id; /* last loaded sequence id for entity sync */
+
+    /* Walkmerge: primary + secondary blended. Client.ts maskAnimate. */
+    struct DashFrame** dash_frames_secondary;
+    int frame_count_secondary;
+    int frame_index_secondary;
+    int _anim_secondary_sequence_id;
+    int* walkmerge; /* from primary sequence */
 };
 
 struct SceneElement

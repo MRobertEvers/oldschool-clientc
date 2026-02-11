@@ -313,4 +313,105 @@ anim_frame_apply(
     }
 }
 
+/* Client.ts Model.maskAnimate: blend primary and secondary frames using walkmerge mask.
+ * Primary provides bones where base !== maskBase (or type 0). Secondary provides bones where base === maskBase (or type 0). */
+static inline void
+anim_frame_apply_mask(
+    struct DashFrame* primary_frame,
+    struct DashFrame* secondary_frame,
+    struct DashFramemap* framemap,
+    int* walkmerge,
+    int* vertices_x,
+    int* vertices_y,
+    int* vertices_z,
+    int* face_alphas,
+    int vertex_bones_count,
+    int** vertex_bones,
+    int* vertex_bones_sizes,
+    int face_bones_count,
+    int** face_bones,
+    int* face_bones_sizes)
+{
+    struct Transformation transformation = { 0 };
+    int walkmerge_len = 0;
+    if( walkmerge )
+    {
+        while( walkmerge[walkmerge_len] != 9999999 )
+            walkmerge_len++;
+    }
+
+    /* Primary: apply bones where base !== maskBase || type === 0 */
+    int mask_idx = 0;
+    int mask_base = walkmerge_len > 0 ? walkmerge[0] : 9999999;
+    for( int i = 0; i < primary_frame->translator_count; i++ )
+    {
+        int base = primary_frame->index_frame_ids[i];
+        while( walkmerge && mask_idx < walkmerge_len && base > mask_base )
+            mask_base = walkmerge[++mask_idx];
+        int type = base < framemap->length ? framemap->types[base] : 0;
+        int use_primary = (base != mask_base || type == 0);
+        if( !use_primary || base >= framemap->length )
+            continue;
+
+        int* bone_group = framemap->bone_groups[base];
+        int bone_group_length = framemap->bone_groups_lengths[base];
+        animate(
+            &transformation,
+            type,
+            bone_group,
+            bone_group_length,
+            primary_frame->translator_arg_x[i],
+            primary_frame->translator_arg_y[i],
+            primary_frame->translator_arg_z[i],
+            vertex_bones_count,
+            vertex_bones,
+            vertex_bones_sizes,
+            face_bones_count,
+            face_bones,
+            face_bones_sizes,
+            vertices_x,
+            vertices_y,
+            vertices_z,
+            face_alphas);
+    }
+
+    /* Secondary: apply bones where base === maskBase || type === 0 */
+    transformation.origin_x = 0;
+    transformation.origin_y = 0;
+    transformation.origin_z = 0;
+    mask_idx = 0;
+    mask_base = walkmerge_len > 0 ? walkmerge[0] : 9999999;
+    for( int i = 0; i < secondary_frame->translator_count; i++ )
+    {
+        int base = secondary_frame->index_frame_ids[i];
+        while( walkmerge && mask_idx < walkmerge_len && base > mask_base )
+            mask_base = walkmerge[++mask_idx];
+        int type = base < framemap->length ? framemap->types[base] : 0;
+        int use_secondary = (base == mask_base || type == 0);
+        if( !use_secondary || base >= framemap->length )
+            continue;
+
+        int* bone_group = framemap->bone_groups[base];
+        int bone_group_length = framemap->bone_groups_lengths[base];
+        animate(
+            &transformation,
+            type,
+            bone_group,
+            bone_group_length,
+            secondary_frame->translator_arg_x[i],
+            secondary_frame->translator_arg_y[i],
+            secondary_frame->translator_arg_z[i],
+            vertex_bones_count,
+            vertex_bones,
+            vertex_bones_sizes,
+            face_bones_count,
+            face_bones,
+            face_bones_sizes,
+            vertices_x,
+            vertices_y,
+            vertices_z,
+            face_alphas);
+    }
+}
+
 #endif

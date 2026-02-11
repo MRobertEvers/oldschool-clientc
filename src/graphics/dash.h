@@ -425,6 +425,14 @@ dashmodel_animate(
     struct DashFrame* frame,
     struct DashFramemap* framemap);
 
+void
+dashmodel_animate_mask(
+    struct DashModel* model,
+    struct DashFrame* primary_frame,
+    struct DashFrame* secondary_frame,
+    struct DashFramemap* framemap,
+    int* walkmerge);
+
 struct DashSprite*
 dashsprite_new_from_pix8(
     struct DashPix8* pix8,
