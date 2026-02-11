@@ -207,24 +207,13 @@ gameproto_exec_npc_info(
             break;
         }
         case PKT_NPC_INFO_OPBITS_WALKDIR:
-        case PKT_NPC_INFO_OP_RUNDIR:
+        case PKT_NPC_INFO_OPBITS_RUNDIR:
         {
-            int direction;
-            if( op->kind == PKT_NPC_INFO_OPBITS_WALKDIR )
-            {
-                direction = op->_bitvalue;
-            }
-            else
-            {
-                direction = op->_rundir.rundir_one;
-            }
+            int direction = op->_bitvalue;
 
             step.x = npc->pathing.route_x[0];
             step.z = npc->pathing.route_z[0];
             coord_step(&step, direction);
-
-            if( op->kind == PKT_NPC_INFO_OP_RUNDIR )
-                coord_step(&step, op->_rundir.rundir_two);
 
             if( npc->pathing.route_length < 9 )
                 npc->pathing.route_length++;
@@ -242,7 +231,7 @@ gameproto_exec_npc_info(
              */
             npc->pathing.route_x[0] = step.x;
             npc->pathing.route_z[0] = step.z;
-            npc->pathing.route_run[0] = op->kind == PKT_NPC_INFO_OP_RUNDIR ? 1 : 0;
+            npc->pathing.route_run[0] = op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ? 1 : 0;
             break;
         }
         case PKT_NPC_INFO_OPBITS_NPCTYPE:
@@ -410,28 +399,15 @@ add_player_info(
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_WALKDIR:
-        case PKT_PLAYER_INFO_OP_RUNDIR:
+        case PKT_PLAYER_INFO_OPBITS_RUNDIR:
         {
             if( !player )
                 break;
-            int direction;
-            if( op->kind == PKT_PLAYER_INFO_OPBITS_WALKDIR )
-            {
-                direction = op->_bitvalue;
-            }
-            else
-            {
-                direction = op->_rundir.rundir_one;
-            }
+            int direction = op->_bitvalue;
 
             step.x = player->pathing.route_x[0];
             step.z = player->pathing.route_z[0];
             coord_step(&step, direction);
-
-            if( op->kind == PKT_PLAYER_INFO_OP_RUNDIR )
-            {
-                coord_step(&step, op->_rundir.rundir_two);
-            }
 
             if( player->pathing.route_length < 9 )
                 player->pathing.route_length++;
@@ -445,7 +421,7 @@ add_player_info(
 
             player->pathing.route_x[0] = step.x;
             player->pathing.route_z[0] = step.z;
-            player->pathing.route_run[0] = op->kind == PKT_PLAYER_INFO_OP_RUNDIR ? 1 : 0;
+            player->pathing.route_run[0] = op->kind == PKT_PLAYER_INFO_OPBITS_RUNDIR ? 1 : 0;
             break;
         }
         case PKT_PLAYER_INFO_OPBITS_DX:

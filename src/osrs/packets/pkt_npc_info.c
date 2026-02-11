@@ -98,14 +98,12 @@ push_bits_walkdir(
 }
 
 static void
-push_op_rundir(
+push_bits_rundir(
     struct PktNpcInfoOp* op,
-    int rundir_one,
-    int rundir_two)
+    int rundir)
 {
-    op->kind = PKT_NPC_INFO_OP_RUNDIR;
-    op->_rundir.rundir_one = rundir_one;
-    op->_rundir.rundir_two = rundir_two;
+    op->kind = PKT_NPC_INFO_OPBITS_RUNDIR;
+    op->_bitvalue = rundir;
 }
 
 static void
@@ -235,8 +233,9 @@ pkt_npc_info_reader_read(
 
                 // rundir
                 int rundir_one = gbits(&buf, 3);
+                push_bits_rundir(next_op(reader, ops, ops_capacity), rundir_one);
                 int rundir_two = gbits(&buf, 3);
-                push_op_rundir(next_op(reader, ops, ops_capacity), rundir_one, rundir_two);
+                push_bits_rundir(next_op(reader, ops, ops_capacity), rundir_two);
 
                 // has extended info
                 int has_extended_info = gbits(&buf, 1);

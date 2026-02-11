@@ -24,7 +24,7 @@ enum PktPlayerInfoOpKind
     PKT_PLAYER_INFO_OPBITS_COUNT_RESET,
     PKT_PLAYER_INFO_OPBITS_INFO,
     PKT_PLAYER_INFO_OPBITS_WALKDIR,
-    PKT_PLAYER_INFO_OP_RUNDIR,
+    PKT_PLAYER_INFO_OPBITS_RUNDIR,
     PKT_PLAYER_INFO_OPBITS_LEVEL,
     PKT_PLAYER_INFO_OPBITS_LOCAL_X,
     PKT_PLAYER_INFO_OPBITS_LOCAL_Z,
@@ -96,12 +96,6 @@ struct PktPlayerInfo_SpotAnim
     int32_t delay;
 };
 
-struct PktPlayerInfo_Rundir
-{
-    int32_t rundir_one;
-    int32_t rundir_two;
-};
-
 struct PktPlayerInfo_ExactMove
 {
     uint8_t forcemove_start_x;
@@ -138,7 +132,6 @@ struct PktPlayerInfoOp
         struct PktPlayerInfo_SpotAnim _spotanim;
         struct PktPlayerInfo_ExactMove _exactmove;
         struct PktPlayerInfo_Damage2 _damage2;
-        struct PktPlayerInfo_Rundir _rundir;
     };
 };
 
