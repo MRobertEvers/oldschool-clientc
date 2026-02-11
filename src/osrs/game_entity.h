@@ -79,7 +79,9 @@ struct PlayerEntity
     void* scene_element;
     struct EntityPosition position;
     struct EntityOrientation orientation;
-    int curranim;
+    int primary_anim;
+    int primary_anim_delay;
+    int secondary_anim;
     struct EntityAnimation animation;
 
     struct PlayerAppearanceSlots appearance;

@@ -480,6 +480,14 @@ add_player_info(
             entity_scenebuild_player_change_appearance(game, player_id, &appearance);
         }
         break;
+        case PKT_PLAYER_INFO_OP_SEQUENCE:
+        {
+            if( !player )
+                break;
+            player->sequence_id = op->_sequence.sequence_id;
+            player->sequence_delay = op->_sequence.delay;
+            break;
+        }
         case PKT_PLAYER_INFO_OP_DAMAGE:
         {
             if( !player )

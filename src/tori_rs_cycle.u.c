@@ -410,7 +410,7 @@ update_player_anim(
         .size_x = 1,
         .size_z = 1,
         .scene_element = player_entity->scene_element,
-        .curranim = &player_entity->curranim,
+        .curranim = &player_entity->primary_anim,
     };
     update_entity_anim(game, &view, true);
 }
