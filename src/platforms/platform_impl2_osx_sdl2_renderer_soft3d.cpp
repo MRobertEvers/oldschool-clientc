@@ -2279,7 +2279,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 if( npc_cfg && npc_cfg->name )
                 {
                     name = npc_cfg->name;
-                    for( int i = 4; i >= 0; i-- )
+                    for( int i = 0; i <= 4; i++ )
                     {
                         if( npc_cfg->op[i] && npc_cfg->op[i][0] )
                         {

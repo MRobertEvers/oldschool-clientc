@@ -87,8 +87,7 @@ varp_varbit_load_from_config_jagfile(
         return false;
 
     struct CacheDatConfigVarpList* list = cache_dat_config_varp_list_new_decode(
-        config_jagfile->files[varp_idx],
-        config_jagfile->file_sizes[varp_idx]);
+        config_jagfile->files[varp_idx], config_jagfile->file_sizes[varp_idx]);
     if( !list )
         return false;
 
@@ -126,7 +125,6 @@ varp_varbit_get_varp(
 {
     if( !mgr || id < 0 || id >= mgr->varp_count )
         return 0;
-    printf("varp_varbit_get_varp: id=%d value=%d\n", id, mgr->var[id]);
     return mgr->var[id];
 }
 

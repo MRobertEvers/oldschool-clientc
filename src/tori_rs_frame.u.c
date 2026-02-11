@@ -1,6 +1,7 @@
 #ifndef TORI_RS_FRAME_U_C
 #define TORI_RS_FRAME_U_C
 
+#include <stdio.h>
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
@@ -278,7 +279,9 @@ LibToriRS_FrameEnd(struct GGame* game)
 
             if( el->entity_kind == 1 )
             {
-                /* NPC: Client.ts addNpcOptions - first op (4..0), OPNPC1-5, p2(npc_id). */
+                /* NPC: Client.ts addNpcOptions - left-click uses menuSize-1 which after sort is
+                 * the primary (type 0 = op[0] = OPNPC1). Client adds op[4]..op[0] then sort moves
+                 * action<1000 to end, so primary op[0] is last. We need first non-empty from 0..4. */
                 struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
                 int npc_type_id =
                     el->entity_npc_type_id >= 0 ? el->entity_npc_type_id : (npc ? npc->npc_type_id : -1);
@@ -286,22 +289,31 @@ LibToriRS_FrameEnd(struct GGame* game)
                 {
                     struct CacheDatConfigNpc* npc_cfg =
                         buildcachedat_get_npc(game->buildcachedat, npc_type_id);
-                    int first_op = -1;
+                    int primary_op = -1;
                     if( npc_cfg )
                     {
-                        for( int i = 4; i >= 0; i-- )
+                        for( int i = 0; i <= 4; i++ )
                         {
                             if( npc_cfg->op[i] && npc_cfg->op[i][0] )
                             {
-                                first_op = i;
+                                primary_op = i;
                                 break;
                             }
                         }
+                        /* Debug: print NPC menu options (Client.ts order: op[4]..op[0], then Examine) */
+                        {
+                            fprintf(stderr, "[NPC menu] type_id=%d name=%s options:", npc_type_id,
+                                npc_cfg->name ? npc_cfg->name : "(null)");
+                            for( int i = 0; i < 5; i++ )
+                                fprintf(stderr, " [%d]%s", i, npc_cfg->op[i] ? npc_cfg->op[i] : "-");
+                            fprintf(stderr, " -> primary_op=%d (OPNPC%d)\n", primary_op,
+                                primary_op >= 0 ? primary_op + 1 : 0);
+                        }
                     }
-                    if( first_op >= 0 )
+                    if( primary_op >= 0 )
                     {
                         int npc_id = (int)(npc - game->npcs);
-                        int opcode = PKTOUT_LC245_2_OPNPC1 + first_op;
+                        int opcode = PKTOUT_LC245_2_OPNPC1 + primary_op;
                         if( game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
                         {
                             uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
@@ -481,12 +493,11 @@ LibToriRS_FrameEnd(struct GGame* game)
                 }
             }
 
-            if( sent )
-            {
-                game->cross_mode = 2;
-                game->cross_x = game->mouse_clicked_x;
-                game->cross_y = game->mouse_clicked_y;
-            }
+            /* Red cross when clicking on entity (NPC/player/loc) - show even when packet not sent
+             * (e.g. loc with no path). Client.ts shows cross for all entity clicks. */
+            game->cross_mode = 2;
+            game->cross_x = game->mouse_clicked_x;
+            game->cross_y = game->mouse_clicked_y;
             /* Always consume click when hovering entity - do not path to tile. */
             game->mouse_clicked = false;
             game->clicked_tile_valid = 0;

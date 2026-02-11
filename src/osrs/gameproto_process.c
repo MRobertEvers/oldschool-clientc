@@ -69,6 +69,26 @@ gameproto_process(
             script_queue_push(&game->script_queue, &args);
             break;
         }
+        case PKTIN_LC245_2_IF_OPENCHAT:
+        {
+            /* Client.ts IF_OPENCHAT: resetInterfaceAnimation(comId); sidebar=-1; chat=comId;
+             * viewport=-1; chatbackInputOpen=false */
+            int com_id = item->packet._if_openchat.component_id;
+            game->sidebar_interface_id = -1;
+            game->chat_interface_id = com_id;
+            game->viewport_interface_id = -1;
+            game->chat_input_focused = 0;
+            break;
+        }
+        case PKTIN_LC245_2_IF_CLOSE:
+        {
+            /* Client.ts IF_CLOSE: sidebar=-1; chat=-1; chatbackInputOpen=false; viewport=-1 */
+            game->sidebar_interface_id = -1;
+            game->chat_interface_id = -1;
+            game->viewport_interface_id = -1;
+            game->chat_input_focused = 0;
+            break;
+        }
         case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
         {
             // IF_SETTAB_ACTIVE doesn't need async loading, execute directly

@@ -86,6 +86,19 @@ gameproto_parse_lc245_2(
         assert(buffer.position == data_size);
         return 1;
     }
+    case PKTIN_LC245_2_IF_OPENCHAT:
+    {
+        packet->_if_openchat.component_id = g2(&buffer);
+        printf("PKTIN_LC245_2_IF_OPENCHAT: component_id=%d\n", packet->_if_openchat.component_id);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_CLOSE:
+    {
+        printf("PKTIN_LC245_2_IF_CLOSE\n");
+        assert(buffer.position == data_size);
+        return 1;
+    }
     case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
     {
         packet->_if_settab_active.tab_id = g1(&buffer);

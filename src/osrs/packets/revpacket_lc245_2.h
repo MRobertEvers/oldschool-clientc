@@ -34,6 +34,16 @@ struct PktIfSetTab
     int tab_id;
 };
 
+struct PktIfOpenChat
+{
+    int component_id; /* g2: chat interface component to show */
+};
+
+struct PktIfClose
+{
+    /* No payload - closes sidebar, chat, viewport */
+};
+
 struct PktIfSetTabActive
 {
     int tab_id;
@@ -155,6 +165,8 @@ struct RevPacket_LC245_2
         struct PktPlayerInfoLC245_2 _player_info;
         struct PktUpdateInvFull _update_inv_full;
         struct PktIfSetTab _if_settab;
+        struct PktIfOpenChat _if_openchat;
+        struct PktIfClose _if_close;
         struct PktIfSetTabActive _if_settab_active;
         struct PktVarpSmall _varp_small;
         struct PktVarpLarge _varp_large;
