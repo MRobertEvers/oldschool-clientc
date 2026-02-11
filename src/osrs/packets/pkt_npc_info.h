@@ -50,6 +50,12 @@ struct PktNpcInfo_FaceEntity
     int32_t entity_id;
 };
 
+struct PktNpcInfo_FaceCoord
+{
+    int16_t x;
+    int16_t z;
+};
+
 struct PktNpcInfo_Say
 {
     char* text;
@@ -86,6 +92,7 @@ struct PktNpcInfoOp
         uint64_t _bitvalue;
         struct PktNpcInfo_Sequence _sequence;
         struct PktNpcInfo_FaceEntity _face_entity;
+        struct PktNpcInfo_FaceCoord _face_coord;
         struct PktNpcInfo_Damage _damage;
         struct PktNpcInfo_Damage2 _damage2;
         struct PktNpcInfo_Rundir _rundir;

@@ -147,6 +147,17 @@ push_op_face_entity(
 }
 
 static void
+push_op_face_coord(
+    struct PktNpcInfoOp* op,
+    int target_x,
+    int target_z)
+{
+    op->kind = PKT_NPC_INFO_OP_FACE_COORD;
+    op->_face_coord.x = (int16_t)target_x;
+    op->_face_coord.z = (int16_t)target_z;
+}
+
+static void
 push_op_damage(
     struct PktNpcInfoOp* op,
     int damage_type,
@@ -374,6 +385,7 @@ pkt_npc_info_reader_read(
         {
             int target_x = g2(&rsbuf);
             int target_z = g2(&rsbuf);
+            push_op_face_coord(next_op(reader, ops, ops_capacity), target_x, target_z);
         }
     }
 

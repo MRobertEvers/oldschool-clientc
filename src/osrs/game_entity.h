@@ -25,6 +25,9 @@ struct EntityOrientation
     int yaw;
     int dst_yaw;
     int face_entity; /* Client.ts: -1 = none; < 32768 = npc id; >= 32768 = player index + 32768 */
+    /* Client.ts FACESQUARE: world tile coords, cleared after use */
+    int face_square_x;
+    int face_square_z;
 };
 
 struct EntityAnimation

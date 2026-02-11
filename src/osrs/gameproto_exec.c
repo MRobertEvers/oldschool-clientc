@@ -260,6 +260,14 @@ gameproto_exec_npc_info(
             npc->orientation.face_entity = entity_id;
             break;
         }
+        case PKT_NPC_INFO_OP_FACE_COORD:
+        {
+            if( !npc )
+                break;
+            npc->orientation.face_square_x = (int)op->_face_coord.x;
+            npc->orientation.face_square_z = (int)op->_face_coord.z;
+            break;
+        }
         case PKT_NPC_INFO_OP_SEQUENCE:
         {
             if( !npc )
@@ -512,6 +520,14 @@ add_player_info(
             if( entity_id == 65535 )
                 entity_id = -1;
             player->orientation.face_entity = entity_id;
+            break;
+        }
+        case PKT_PLAYER_INFO_OP_FACE_COORD:
+        {
+            if( !player )
+                break;
+            player->orientation.face_square_x = (int)op->_face_coord.x;
+            player->orientation.face_square_z = (int)op->_face_coord.z;
             break;
         }
         case PKT_PLAYER_INFO_OP_SEQUENCE:

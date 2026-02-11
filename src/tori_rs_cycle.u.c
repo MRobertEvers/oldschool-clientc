@@ -233,7 +233,7 @@ struct EntityAnimUpdateView
     int face_entity;
 };
 
-/* Client.ts entityFace: set dstYaw from faceEntity target. 325.949 ≈ 2048/(2π) for rad->yaw. */
+/* Client.ts entityFace: set dstYaw from faceEntity or faceSquare target. 325.949 ≈ 2048/(2π) for rad->yaw. */
 static void
 entity_face(
     struct GGame* game,
@@ -242,61 +242,92 @@ entity_face(
 {
     (void)is_player;
     int fe = view->face_entity;
-    if( fe < 0 )
-        return;
-
-    int target_x = 0;
-    int target_z = 0;
-
-    if( fe < 32768 )
+    if( fe >= 0 )
     {
-        /* NPC target */
-        if( fe >= MAX_NPCS )
-            return;
-        struct NPCEntity* target = &game->npcs[fe];
-        if( !target->alive )
-            return;
-        target_x = target->position.x;
-        target_z = target->position.z;
-    }
-    else
-    {
-        /* Player target: index = fe - 32768. Client.ts: if index === selfSlot, use LOCAL_PLAYER */
-        int index = fe - 32768;
-        int self_slot = -1;
-        for( int i = 0; i < game->player_count; i++ )
+        int target_x = 0;
+        int target_z = 0;
+        int has_target = 0;
+
+        if( fe < 32768 )
         {
-            if( game->active_players[i] == ACTIVE_PLAYER_SLOT )
+            /* NPC target */
+            if( fe < MAX_NPCS )
             {
-                self_slot = i;
-                break;
+                struct NPCEntity* target = &game->npcs[fe];
+                if( target->alive )
+                {
+                    target_x = target->position.x;
+                    target_z = target->position.z;
+                    has_target = 1;
+                }
             }
         }
-        int pid;
-        if( index == self_slot )
-            pid = ACTIVE_PLAYER_SLOT;
-        else if( index >= 0 && index < game->player_count )
-            pid = game->active_players[index];
         else
-            return;
-        if( pid < 0 || !game->players[pid].alive )
-            return;
-        struct PlayerEntity* target = &game->players[pid];
-        target_x = target->position.x;
-        target_z = target->position.z;
+        {
+            /* Player target: index = fe - 32768. Client.ts: if index === selfSlot, use LOCAL_PLAYER */
+            int index = fe - 32768;
+            int self_slot = -1;
+            for( int i = 0; i < game->player_count; i++ )
+            {
+                if( game->active_players[i] == ACTIVE_PLAYER_SLOT )
+                {
+                    self_slot = i;
+                    break;
+                }
+            }
+            int pid;
+            if( index == self_slot )
+                pid = ACTIVE_PLAYER_SLOT;
+            else if( index >= 0 && index < game->player_count )
+                pid = game->active_players[index];
+            else
+                pid = -1;
+            if( pid >= 0 && game->players[pid].alive )
+            {
+                struct PlayerEntity* target = &game->players[pid];
+                target_x = target->position.x;
+                target_z = target->position.z;
+                has_target = 1;
+            }
+        }
+
+        if( has_target )
+        {
+            int dst_x = view->position->x - target_x;
+            int dst_z = view->position->z - target_z;
+            if( dst_x != 0 || dst_z != 0 )
+            {
+                /* Client.ts: dstYaw = ((Math.atan2(dstX, dstZ) * 325.949) | 0) & 0x7ff */
+                double angle = atan2((double)dst_x, (double)dst_z);
+                int yaw = (int)(angle * 325.949) & 0x7ff;
+                if( yaw < 0 )
+                    yaw += 2048;
+                view->orientation->dst_yaw = yaw;
+            }
+        }
     }
 
-    int dst_x = view->position->x - target_x;
-    int dst_z = view->position->z - target_z;
-    if( dst_x == 0 && dst_z == 0 )
-        return;
-
-    /* Client.ts: dstYaw = ((Math.atan2(dstX, dstZ) * 325.949) | 0) & 0x7ff */
-    double angle = atan2((double)dst_x, (double)dst_z);
-    int yaw = (int)(angle * 325.949) & 0x7ff;
-    if( yaw < 0 )
-        yaw += 2048;
-    view->orientation->dst_yaw = yaw;
+    /* Client.ts FACESQUARE: face tile; cleared after use */
+    if( view->orientation->face_square_x != 0 || view->orientation->face_square_z != 0 )
+    {
+        /* Client: dstX = e.x - (faceSquareX - mapBuildBaseX) * 64; same for Z */
+        int base_x = game->scene_base_tile_x;
+        int base_z = game->scene_base_tile_z;
+        int target_x = (view->orientation->face_square_x - base_x) * 128;
+        int target_z = (view->orientation->face_square_z - base_z) * 128;
+        int dst_x = view->position->x - target_x;
+        int dst_z = view->position->z - target_z;
+        if( dst_x != 0 || dst_z != 0 )
+        {
+            double angle = atan2((double)dst_x, (double)dst_z);
+            int yaw = (int)(angle * 325.949) & 0x7ff;
+            if( yaw < 0 )
+                yaw += 2048;
+            view->orientation->dst_yaw = yaw;
+        }
+        view->orientation->face_square_x = 0;
+        view->orientation->face_square_z = 0;
+    }
 }
 
 static void
