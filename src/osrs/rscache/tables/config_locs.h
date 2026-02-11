@@ -72,8 +72,12 @@ struct CacheConfigLocation
     int size_x;
     int size_z;
 
-    // TODO: This is blockwalk.
-    int clip_type;
+    // Block walk can be 0, 1, or 2.
+    // 2 is the default.
+    // For ground-decor locs, 2 is NOT blocked walk.
+    // For other locs, != 0 is blocked walk.
+    // The '2' special case basically changes the default for ground-decor locs.
+    int blocks_walk;
     int blocks_projectiles;
 
     // Both x and z.
@@ -126,7 +130,7 @@ struct CacheConfigLocation
     int offset_z;
 
     int obstructs_ground;
-    int is_hollow;
+    int break_routefinding;
 
     // If true, items on the same tile as are raised from the
     // ground height. For example, to appear as if they're sitting

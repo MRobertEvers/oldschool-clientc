@@ -1696,49 +1696,80 @@ scenery_add(
      *   WALL_DIAGONAL(9), ROOF_*, SCENERY* -> addLoc
      *   LocAngle: 0=WEST, 1=NORTH, 2=EAST, 3=SOUTH (same as map_loc->orientation & 0x3)
      */
-    if( scene && config_loc->clip_type )
+    if( scene )
     {
         struct CollisionMap* cm = scene->collision_maps[offset.level];
         if( cm )
         {
             enum CollisionLocAngle angle = (enum CollisionLocAngle)(map_loc->orientation & 0x3);
             int blockrange = config_loc->blocks_projectiles ? 1 : 0;
-            int sx = config_loc->size_x;
-            int sz = config_loc->size_z;
-            if( scene_builder->buildcachedat == NULL )
-            {
-                sx = 1;
-                sz = 1;
-            }
+            int size_x = config_loc->size_x;
+            int size_z = config_loc->size_z;
 
             switch( map_loc->shape_select )
             {
             case LOC_SHAPE_FLOOR_DECORATION: /* Client: LocShape.GROUND_DECOR -> blockGround */
-                collision_map_add_floor(cm, offset.x, offset.z);
+            {
+                // Seen in OS1. LC254 only has true and false.
+                // The default for Ground Decor is to NOT block walk.
+                // The default for other locs is to block walk.
+                if( config_loc->blocks_walk == 1 )
+                    collision_map_add_floor(cm, offset.x, offset.z);
                 break;
+            }
             case LOC_SHAPE_WALL_SINGLE_SIDE:
-                collision_map_add_wall(
-                    cm, offset.x, offset.z, LOC_SHAPE_WALL_SINGLE_SIDE, angle, blockrange);
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_wall(
+                        cm, offset.x, offset.z, LOC_SHAPE_WALL_SINGLE_SIDE, angle, blockrange);
                 break;
+            }
             case LOC_SHAPE_WALL_TRI_CORNER:
-                collision_map_add_wall(
-                    cm, offset.x, offset.z, LOC_SHAPE_WALL_TRI_CORNER, angle, blockrange);
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_wall(
+                        cm, offset.x, offset.z, LOC_SHAPE_WALL_TRI_CORNER, angle, blockrange);
                 break;
+            }
             case LOC_SHAPE_WALL_TWO_SIDES:
-                collision_map_add_wall(
-                    cm, offset.x, offset.z, LOC_SHAPE_WALL_TWO_SIDES, angle, blockrange);
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_wall(
+                        cm, offset.x, offset.z, LOC_SHAPE_WALL_TWO_SIDES, angle, blockrange);
                 break;
+            }
             case LOC_SHAPE_WALL_RECT_CORNER:
-                collision_map_add_wall(
-                    cm, offset.x, offset.z, LOC_SHAPE_WALL_RECT_CORNER, angle, blockrange);
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_wall(
+                        cm, offset.x, offset.z, LOC_SHAPE_WALL_RECT_CORNER, angle, blockrange);
                 break;
+            }
             case LOC_SHAPE_WALL_DIAGONAL:
-                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_loc(
+                        cm, offset.x, offset.z, size_x, size_z, angle, blockrange);
                 break;
+            }
             case LOC_SHAPE_SCENERY:
-            case LOC_SHAPE_SCENERY_DIAGIONAL:
-                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_loc(
+                        cm, offset.x, offset.z, size_x, size_z, angle, blockrange);
                 break;
+            }
+            case LOC_SHAPE_SCENERY_DIAGIONAL:
+                /* Client-TS uses same addLoc(x, z, loc.width, loc.length, angle) for both
+                 * CENTREPIECE_STRAIGHT and CENTREPIECE_DIAGONAL. Diagonal only adds yaw for
+                 * rendering. Use 1x1 so diagonal blocks only the placement tile; full (sx,sz)
+                 * can over-block and break pathfinding. */
+                {
+                    if( config_loc->blocks_walk != 0 )
+                        collision_map_add_loc(
+                            cm, offset.x, offset.z, size_x, size_z, angle, blockrange);
+                    break;
+                }
             case LOC_SHAPE_ROOF_SLOPED:
             case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
             case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
@@ -1749,8 +1780,12 @@ scenery_add(
             case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
             case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
             case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
-                collision_map_add_loc(cm, offset.x, offset.z, sx, sz, angle, blockrange);
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_loc(
+                        cm, offset.x, offset.z, size_x, size_z, angle, blockrange);
                 break;
+            }
             default:
                 break;
             }

@@ -241,23 +241,6 @@ update_entity_anim(
     int dstX = view->pathing->route_x[route_length - 1] * 128 + view->size_x * 64;
     int dstZ = view->pathing->route_z[route_length - 1] * 128 + view->size_z * 64;
 
-    if( player )
-    {
-        printf("player route_length: %d\n", route_length);
-        for( int i = 0; i < route_length; i++ )
-        {
-            printf(
-                "  [%d] route_x: %d, route_z: %d, x: %d, z: %d, dstX: %d, dstZ: %d\n",
-                i,
-                view->pathing->route_x[i],
-                view->pathing->route_z[i],
-                x,
-                z,
-                dstX,
-                dstZ);
-        }
-    }
-
     if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
     {
         view->position->x = dstX;
@@ -677,14 +660,6 @@ LibToriRS_GameStep(
             scene_element->dash_position->x = game->players[ACTIVE_PLAYER_SLOT].position.x;
             scene_element->dash_position->z = game->players[ACTIVE_PLAYER_SLOT].position.z;
             advance_animation(scene_element->animation, game->cycles_elapsed);
-
-            printf(
-                "player route_length: %d\n",
-                game->players[ACTIVE_PLAYER_SLOT].pathing.route_length);
-            printf(
-                "Player position: x: %d, z: %d\n",
-                game->players[ACTIVE_PLAYER_SLOT].position.x,
-                game->players[ACTIVE_PLAYER_SLOT].position.z);
         }
     }
 

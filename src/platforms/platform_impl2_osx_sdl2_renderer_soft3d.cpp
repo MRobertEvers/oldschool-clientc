@@ -1702,11 +1702,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         {
             int tx = game->path_tile_x[i];
             int tz = game->path_tile_z[i];
-            /* Scene position: center of tile (tx*128+64, tz*128+64), y = tile center height - camera. */
+            /* Scene position: center of tile (tx*128+64, tz*128+64), y = tile center height -
+             * camera. */
             int scene_x = tx * 128 + 64 - game->camera_world_x;
             int scene_z = tz * 128 + 64 - game->camera_world_z;
-            int height_center =
-                scene_terrain_height_center(game->scene, tx, tz, path_level);
+            int height_center = scene_terrain_height_center(game->scene, tx, tz, path_level);
             int scene_y = height_center - game->camera_world_y;
 
             int screen_x, screen_y;
@@ -1770,8 +1770,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
 
     /* Draw collision map: red lines at terrain height. Use scene terrain corner heights. */
-    if( game->scene && game->scene->collision_maps[0] && game->scene->terrain &&
-        game->sys_dash && game->view_port && game->camera )
+    if( game->scene && game->scene->collision_maps[0] && game->scene->terrain && game->sys_dash &&
+        game->view_port && game->camera )
     {
         struct CollisionMap* cm = game->scene->collision_maps[0];
         struct Scene* scene = game->scene;
@@ -1790,10 +1790,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             for( int z = 0; z < cm->size_z; z++ )
             {
                 int idx = x * cm->size_z + z;
-                if( cm->flags[idx] == 0 || cm->flags[idx] == COLL_FLAG_FLOOR )
-                {
-                    continue;
-                }
+                // if( cm->flags[idx] == 0 || cm->flags[idx] == COLL_FLAG_FLOOR )
+                // {
+                //     continue;
+                // }
 
                 /* Tile corners in scene space; each corner uses that tile's height. */
                 int sx0 = x * 128 - game->camera_world_x;

@@ -140,7 +140,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->name = NULL;
     loc->size_x = 1;
     loc->size_z = 1;
-    loc->clip_type = 2;
+    loc->blocks_walk = 2;
     loc->blocks_projectiles = 1;
     loc->is_interactive = -1;
     loc->contoured_ground = -1;
@@ -160,7 +160,7 @@ init_loc(struct CacheConfigLocation* loc)
     loc->offset_z = 0;
     loc->offset_y = 0;
     loc->obstructs_ground = 0;
-    loc->is_hollow = 0;
+    loc->break_routefinding = 0;
     loc->support_items = -1;
     loc->transform_varbit = -1;
     loc->transform_varp = -1;
@@ -304,7 +304,7 @@ decode_loc(
             loc->size_z = rsbuf_g1(&buffer);
             break;
         case 17:
-            loc->clip_type = 0;
+            loc->blocks_walk = 0;
             loc->blocks_projectiles = 0;
             break;
         case 18:
@@ -337,7 +337,7 @@ decode_loc(
             // disposeAlpha? - skip for now
             break;
         case 27:
-            loc->clip_type = 1;
+            loc->blocks_walk = 1;
             break;
         case 28:
             loc->wall_width = rsbuf_g1(&buffer);
@@ -451,7 +451,7 @@ decode_loc(
             loc->obstructs_ground = 1;
             break;
         case 74:
-            loc->is_hollow = 1;
+            loc->break_routefinding = 1;
             break;
         case 75:
             loc->support_items = rsbuf_g1(&buffer);
@@ -677,6 +677,13 @@ decode_loc(
             break;
         }
     }
+
+    if( loc->break_routefinding )
+    {
+        loc->blocks_walk = 0;
+        loc->blocks_projectiles = 0;
+    }
+
     // if (interactable == -1) {
     //     this.interactable = (modelIDs != null) && ((modelKinds == null) || (modelKinds[0] ==
     //     10));

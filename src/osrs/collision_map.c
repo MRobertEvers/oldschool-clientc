@@ -17,10 +17,10 @@
 #define DIR_EAST 2
 #define DIR_SOUTH 4
 #define DIR_WEST 8
-#define DIR_SOUTH_WEST (DIR_SOUTH | DIR_WEST) /* 3 */
-#define DIR_SOUTH_EAST (DIR_SOUTH | DIR_EAST) /* 9 */
-#define DIR_NORTH_WEST (DIR_NORTH | DIR_WEST) /* 6 */
-#define DIR_NORTH_EAST (DIR_NORTH | DIR_EAST) /* 12 */
+#define DIR_NORTH_EAST (DIR_NORTH | DIR_EAST) /* 3: step to (x-1,z-1), parent NE */
+#define DIR_NORTH_WEST (DIR_NORTH | DIR_WEST) /* 9: step to (x+1,z-1), parent NW */
+#define DIR_SOUTH_EAST (DIR_SOUTH | DIR_EAST) /* 6: step to (x-1,z+1), parent SE */
+#define DIR_SOUTH_WEST (DIR_SOUTH | DIR_WEST) /* 12: step to (x+1,z+1), parent SW */
 
 struct CollisionMap*
 collision_map_new(
@@ -285,8 +285,10 @@ collision_map_bfs_path(
 
         int next_cost = bfs_cost[x * cm->size_z + z] + 1;
 
-/* Check tile (nx,nz) is enterable from (x,z). For west step we need (nx,nz) to have BLOCK_EAST
- * open. */
+/* Check destination (nx,nz) is enterable from (x,z). Client.ts: when stepping to (nx,nz) we check
+ * (flags[dest] & BLOCK_<dir>) === OPEN where BLOCK_<dir> is the flag that blocks entry from the
+ * direction we came from. E.g. step west to (x-1,z): we came from east, so dest must not have
+ * BLOCK_WEST (WALL_EAST | WALK_BLOCKED). */
 #define TRY_NBOR(nx, nz, dir_val, block_flag)                                                      \
     do                                                                                             \
     {                                                                                              \
@@ -301,19 +303,20 @@ collision_map_bfs_path(
         }                                                                                          \
     } while( 0 )
 
-        /* West: step to (x-1,z); parent is east -> store EAST (2). Client.ts step to x-1,z sets 2.
+        /* West: step to (x-1,z); check dest has no BLOCK_WEST (no east wall). Client.ts line 5906.
          */
         if( x > 0 )
-            TRY_NBOR(x - 1, z, DIR_EAST, COLL_FLAG_BLOCK_EAST);
-        /* East: step to (x+1,z); parent is west -> store WEST (8). */
+            TRY_NBOR(x - 1, z, DIR_EAST, COLL_FLAG_BLOCK_WEST);
+        /* East: step to (x+1,z); check dest has no BLOCK_EAST (no west wall). Client.ts line 5915.
+         */
         if( x < scene_width - 1 )
-            TRY_NBOR(x + 1, z, DIR_WEST, COLL_FLAG_BLOCK_WEST);
-        /* South: step to (x,z-1); parent is north -> store NORTH (1). */
+            TRY_NBOR(x + 1, z, DIR_WEST, COLL_FLAG_BLOCK_EAST);
+        /* South: step to (x,z-1); check dest has no BLOCK_SOUTH (no north wall). Client.ts 5924. */
         if( z > 0 )
-            TRY_NBOR(x, z - 1, DIR_NORTH, COLL_FLAG_BLOCK_NORTH);
-        /* North: step to (x,z+1); parent is south -> store SOUTH (4). */
+            TRY_NBOR(x, z - 1, DIR_NORTH, COLL_FLAG_BLOCK_SOUTH);
+        /* North: step to (x,z+1); check dest has no BLOCK_NORTH (no south wall). Client.ts 5933. */
         if( z < scene_length - 1 )
-            TRY_NBOR(x, z + 1, DIR_SOUTH, COLL_FLAG_BLOCK_SOUTH);
+            TRY_NBOR(x, z + 1, DIR_SOUTH, COLL_FLAG_BLOCK_NORTH);
 
         /* Diagonals: need both cardinals open and diagonal tile not blocked */
         /* Diagonals: store direction to parent (Client.ts 3,9,6,12 = NE,NW,SE,SW). */
