@@ -10,12 +10,12 @@
 #include "osrs/gameproto_process.h"
 #include "osrs/loginproto.h"
 #include "osrs/lua_scripts.h"
+#include "osrs/player_stats.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
-#include "osrs/player_stats.h"
 #include "osrs/varp_varbit_manager.h"
 // #include "tori_rs.h"
 
@@ -189,8 +189,7 @@ LibToriRS_GameNew(
     /* Load varp/varbit from config at init so vars are ready before any packets arrive */
     {
         struct CacheDatArchive* config_archive =
-            cache_dat_archive_new_load(
-                game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
+            cache_dat_archive_new_load(game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
         if( config_archive )
         {
             struct FileListDat* config_jagfile =
@@ -264,9 +263,9 @@ LibToriRS_GameNew(
             .tag = SCRIPT_LOAD_SCENE_DAT,
             .u.load_scene_dat = {
                 .wx_sw = 50 * 64,
-                .wz_sw = 50 * 64,
+                .wz_sw = 52 * 64,
                 .wx_ne = 51 * 64,
-                .wz_ne = 51 * 64,
+                .wz_ne = 53 * 64,
                 .size_x = 104,
                 .size_z = 104,
             },

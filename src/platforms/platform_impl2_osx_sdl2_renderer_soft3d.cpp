@@ -94,6 +94,15 @@ render_imgui(
     // Display mouse position (game screen coordinates)
     ImGui::Text("Mouse (game x, y): %d, %d", game->mouse_x, game->mouse_y);
 
+    if( game->hovered_scene_element )
+    {
+        struct SceneElement* el = game->hovered_scene_element;
+        if( el->config_loc_id >= 0 )
+            ImGui::Text("Hover config_loc_id: %d (tile %d, %d)", el->config_loc_id, el->tile_sx, el->tile_sz);
+        else
+            ImGui::Text("Hover (no config_loc_id) (tile %d, %d)", el->tile_sx, el->tile_sz);
+    }
+
     // Also show window mouse position for debugging
     if( renderer->platform && renderer->platform->window )
     {

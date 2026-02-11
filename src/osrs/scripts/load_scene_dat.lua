@@ -187,7 +187,7 @@ end
 
 -- When run as main script (not required), load with default bounds
 if not debug.getinfo(2) then
-    load_scene_dat(50 * 64, 50 * 64, 51 * 64, 51 * 64, 104, 104)
+    load_scene_dat(50 * 64, 52 * 64, 51 * 64, 54 * 64, 104, 104)
 end
 
 return load_scene_dat

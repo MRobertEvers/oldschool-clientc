@@ -902,8 +902,9 @@ scenery_add_wall_rect_corner(
     init_scene_element(&scene_element, config_loc);
     int element_id = -1;
 
-    if( offset->x == 161 )
+    if( config_loc->_id == 1281 )
     {
+        // 83 96
         printf("scenery_add_wall_rect_corner: %d, %d\n", offset->x, offset->z);
     }
 
@@ -916,10 +917,6 @@ scenery_add_wall_rect_corner(
 
     scene_element.dash_model = dash_model;
     scene_element.dash_position = dash_position;
-
-    // scene_element.dash_position->x += config_loc->offset_x;
-    // scene_element.dash_position->z += config_loc->offset_z;
-    // scene_element.dash_position->y += config_loc->offset_y;
 
     element_id = scene_scenery_push_element_move(scenery, &scene_element);
     assert(element_id != -1);

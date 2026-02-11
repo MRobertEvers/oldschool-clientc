@@ -1,5 +1,6 @@
 #include "painters.h"
 
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,6 +80,42 @@ struct Painter
     struct IntQueue queue;
     struct IntQueue catchup_queue;
 };
+
+static struct Painter* s_scenery_sort_painter;
+static int s_scenery_sort_camera_sx;
+static int s_scenery_sort_camera_sz;
+
+static int
+scenery_min_dist_sq(const struct PaintersElement* el)
+{
+    int min_dist_sq = INT_MAX;
+    for( int tx = 0; tx < el->_scenery.size_x; tx++ )
+    {
+        for( int tz = 0; tz < el->_scenery.size_z; tz++ )
+        {
+            int dx = (el->sx + tx) - s_scenery_sort_camera_sx;
+            int dz = (el->sz + tz) - s_scenery_sort_camera_sz;
+            int d = dx * dx + dz * dz;
+            if( d < min_dist_sq )
+                min_dist_sq = d;
+        }
+    }
+    return min_dist_sq;
+}
+
+static int
+scenery_distance_compare(
+    const void* a,
+    const void* b)
+{
+    int elem_a = *(const int*)a;
+    int elem_b = *(const int*)b;
+    struct PaintersElement* el_a = &s_scenery_sort_painter->elements[elem_a];
+    struct PaintersElement* el_b = &s_scenery_sort_painter->elements[elem_b];
+    int dist_sq_a = scenery_min_dist_sq(el_a);
+    int dist_sq_b = scenery_min_dist_sq(el_b);
+    return dist_sq_a - dist_sq_b; /* farthest first (painter's algorithm) */
+}
 
 static inline void
 painter_push_queue(
@@ -626,7 +663,7 @@ push_command_terrain(
 }
 
 static inline int
-near_wall_flags(
+far_wall_flags(
     int camera_sx,
     int camera_sz,
     int sx,
@@ -638,16 +675,16 @@ near_wall_flags(
     int camera_is_east = sx < camera_sx;
 
     if( camera_is_north )
-        flags |= WALL_SIDE_NORTH | WALL_CORNER_NORTHWEST | WALL_CORNER_NORTHEAST;
-
-    if( !camera_is_north )
         flags |= WALL_SIDE_SOUTH | WALL_CORNER_SOUTHEAST | WALL_CORNER_SOUTHWEST;
 
+    if( !camera_is_north )
+        flags |= WALL_SIDE_NORTH | WALL_CORNER_NORTHWEST | WALL_CORNER_NORTHEAST;
+
     if( camera_is_east )
-        flags |= WALL_SIDE_EAST | WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST;
+        flags |= WALL_SIDE_WEST | WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST;
 
     if( !camera_is_east )
-        flags |= WALL_SIDE_WEST | WALL_CORNER_NORTHWEST | WALL_CORNER_SOUTHWEST;
+        flags |= WALL_SIDE_EAST | WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST;
 
     return flags;
 }
@@ -856,7 +893,6 @@ painter_paint(
         {
             printf("tile_idx: %d\n", tile_idx);
 
-            
             // __builtin_debugtrap();
         }
         // https://discord.com/channels/788652898904309761/1069689552052166657/1172452179160870922
@@ -975,9 +1011,8 @@ painter_paint(
         {
             tile_paint->step = PAINT_STEP_WAIT_ADJACENT_GROUND;
 
-            int near_walls = near_wall_flags(camera_sx, camera_sz, tile_sx, tile_sz);
-            int far_walls = ~near_walls;
-            tile_paint->near_wall_flags |= near_walls;
+            int far_walls = far_wall_flags(camera_sx, camera_sz, tile_sx, tile_sz);
+            tile_paint->near_wall_flags |= ~far_walls;
 
             if( tile->bridge_tile != -1 )
             {
@@ -1210,6 +1245,15 @@ painter_paint(
 
         if( tile_paint->step == PAINT_STEP_LOCS )
         {
+            s_scenery_sort_painter = painter;
+            s_scenery_sort_camera_sx = camera_sx;
+            s_scenery_sort_camera_sz = camera_sz;
+            qsort(
+                scenery_queue,
+                (size_t)scenery_queue_length,
+                sizeof(scenery_queue[0]),
+                scenery_distance_compare);
+
             for( int j = 0; j < scenery_queue_length; j++ )
             {
                 int scenery_element = scenery_queue[j];

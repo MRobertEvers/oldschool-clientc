@@ -1,7 +1,6 @@
 #ifndef TORI_RS_FRAME_U_C
 #define TORI_RS_FRAME_U_C
 
-#include <stdio.h>
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
@@ -11,6 +10,8 @@
 #include "osrs/packetout.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
+
+#include <stdio.h>
 
 void
 LibToriRS_FrameBegin(
@@ -120,20 +121,16 @@ LibToriRS_FrameNextCommand(
             if( cull != DASHCULL_VISIBLE )
                 break;
 
-            /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit wins. */
+            /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit wins.
+             */
             bool is_interactable =
                 element->interactable || element->entity_kind == 1 || element->entity_kind == 2;
             int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
             int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
-            if( is_interactable && game->view_port &&
-                mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
+            if( game->view_port && mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
                 mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
                 dash3d_projected_model_contains(
-                    game->sys_dash,
-                    element->dash_model,
-                    game->view_port,
-                    mouse_vp_x,
-                    mouse_vp_y) )
+                    game->sys_dash, element->dash_model, game->view_port, mouse_vp_x, mouse_vp_y) )
             {
                 game->hovered_scene_element = element;
             }
@@ -171,13 +168,17 @@ LibToriRS_FrameNextCommand(
              * Only acknowledge 3D clicks within the viewport bounds (graphics3d_width x height). */
             int click_vp_x = game->mouse_clicked_x - game->viewport_offset_x - 8;
             int click_vp_y = game->mouse_clicked_y - game->viewport_offset_y - 11;
-            bool in_viewport = game->view_port &&
-                game->mouse_clicked_x >= game->viewport_offset_x &&
+            bool in_viewport =
+                game->view_port && game->mouse_clicked_x >= game->viewport_offset_x &&
                 game->mouse_clicked_x < game->viewport_offset_x + game->view_port->width &&
                 game->mouse_clicked_y >= game->viewport_offset_y &&
                 game->mouse_clicked_y < game->viewport_offset_y + game->view_port->height;
             if( in_viewport && dash3d_projected_model_contains(
-                    game->sys_dash, tile_model->dash_model, game->view_port, click_vp_x, click_vp_y) )
+                                   game->sys_dash,
+                                   tile_model->dash_model,
+                                   game->view_port,
+                                   click_vp_x,
+                                   click_vp_y) )
             {
                 game->tile_clicked_x = sx;
                 game->tile_clicked_z = sz;
@@ -249,17 +250,16 @@ skip_highlight:;
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
-    /* Client.ts crossMode: yellow (1) when tile clicked, red (2) when viewport clicked but not tile.
-     * No cross when clicking on 2D interface. */
+    /* Client.ts crossMode: yellow (1) when tile clicked, red (2) when viewport clicked but not
+     * tile. No cross when clicking on 2D interface. */
     if( game->mouse_clicked && game->view_port )
     {
         int vp_ox = game->viewport_offset_x;
         int vp_oy = game->viewport_offset_y;
-        int in_viewport =
-            game->mouse_clicked_x >= vp_ox &&
-            game->mouse_clicked_x < vp_ox + game->view_port->width &&
-            game->mouse_clicked_y >= vp_oy &&
-            game->mouse_clicked_y < vp_oy + game->view_port->height;
+        int in_viewport = game->mouse_clicked_x >= vp_ox &&
+                          game->mouse_clicked_x < vp_ox + game->view_port->width &&
+                          game->mouse_clicked_y >= vp_oy &&
+                          game->mouse_clicked_y < vp_oy + game->view_port->height;
         if( game->interface_consumed_click || !in_viewport )
         {
             game->mouse_cycle = -1;
@@ -280,142 +280,138 @@ LibToriRS_FrameEnd(struct GGame* game)
     {
         int vp_ox = game->viewport_offset_x;
         int vp_oy = game->viewport_offset_y;
-        int in_viewport =
-            game->mouse_clicked_right_x >= vp_ox &&
-            game->mouse_clicked_right_x < vp_ox + game->view_port->width &&
-            game->mouse_clicked_right_y >= vp_oy &&
-            game->mouse_clicked_right_y < vp_oy + game->view_port->height;
+        int in_viewport = game->mouse_clicked_right_x >= vp_ox &&
+                          game->mouse_clicked_right_x < vp_ox + game->view_port->width &&
+                          game->mouse_clicked_right_y >= vp_oy &&
+                          game->mouse_clicked_right_y < vp_oy + game->view_port->height;
         if( in_viewport )
         {
-            minimenu_show(game,
-                game->mouse_clicked_right_x - vp_ox,
-                game->mouse_clicked_right_y - vp_oy);
+            minimenu_show(
+                game, game->mouse_clicked_right_x - vp_ox, game->mouse_clicked_right_y - vp_oy);
             game->cross_mode = 2;
             game->cross_x = game->mouse_clicked_right_x - vp_ox;
             game->cross_y = game->mouse_clicked_right_y - vp_oy;
         }
     }
 
-    /* Menu visible: left-click to select option or click to close. Client.ts always closes menu on click. */
+    /* Menu visible: left-click to select option or click to close. Client.ts always closes menu on
+     * click. */
     if( game->menu_visible && game->mouse_clicked && !game->interface_consumed_click &&
         game->view_port )
     {
         int vp_ox = game->viewport_offset_x;
         int vp_oy = game->viewport_offset_y;
-        int in_viewport =
-            game->mouse_clicked_x >= vp_ox &&
-            game->mouse_clicked_x < vp_ox + game->view_port->width &&
-            game->mouse_clicked_y >= vp_oy &&
-            game->mouse_clicked_y < vp_oy + game->view_port->height;
+        int in_viewport = game->mouse_clicked_x >= vp_ox &&
+                          game->mouse_clicked_x < vp_ox + game->view_port->width &&
+                          game->mouse_clicked_y >= vp_oy &&
+                          game->mouse_clicked_y < vp_oy + game->view_port->height;
         int option = -1;
         if( in_viewport )
-            option = minimenu_click_option(game,
-                game->mouse_clicked_x - vp_ox,
-                game->mouse_clicked_y - vp_oy);
+            option = minimenu_click_option(
+                game, game->mouse_clicked_x - vp_ox, game->mouse_clicked_y - vp_oy);
         /* Always close menu on any click (Client.ts menuVisible = false). */
         game->menu_visible = 0;
         if( in_viewport && option >= 0 )
+        {
+            int action = game->menu_option_action[option];
+            if( action == 100 )
             {
-                int action = game->menu_option_action[option];
-                if( action == 100 )
+                /* Walk Here: find tile at right-click position and path there. */
+                int tile_x, tile_z, level;
+                if( LibToriRS_FindTileAtViewport(
+                        game,
+                        game->menu_walk_click_x,
+                        game->menu_walk_click_y,
+                        &tile_x,
+                        &tile_z,
+                        &level) )
                 {
-                    /* Walk Here: find tile at right-click position and path there. */
-                    int tile_x, tile_z, level;
-                    if( LibToriRS_FindTileAtViewport(
-                            game,
-                            game->menu_walk_click_x,
-                            game->menu_walk_click_y,
-                            &tile_x,
-                            &tile_z,
-                            &level) )
+                    struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+                    int src_local_x = pl->pathing.route_x[0];
+                    int src_local_z = pl->pathing.route_z[0];
+                    int path_local_x[25];
+                    int path_local_z[25];
+                    int waypoints = 0;
+                    if( game->scene && game->scene->collision_maps[0] )
                     {
-                        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
-                        int src_local_x = pl->pathing.route_x[0];
-                        int src_local_z = pl->pathing.route_z[0];
-                        int path_local_x[25];
-                        int path_local_z[25];
-                        int waypoints = 0;
-                        if( game->scene && game->scene->collision_maps[0] )
+                        waypoints = collision_map_bfs_path(
+                            game->scene->collision_maps[0],
+                            src_local_x,
+                            src_local_z,
+                            tile_x,
+                            tile_z,
+                            path_local_x,
+                            path_local_z,
+                            25);
+                    }
+                    if( waypoints >= 0 && waypoints > 0 )
+                    {
+                        int buffer_size = waypoints + 1;
+                        if( buffer_size > 25 )
+                            buffer_size = 25;
+                        int steps_to_send = buffer_size - 1;
+                        int payload_size = 1 + 2 + 2 + steps_to_send * 2;
+                        int start_world_x = game->scene_base_tile_x + src_local_x;
+                        int start_world_z = game->scene_base_tile_z + src_local_z;
+                        if( game->outbound_size + 2 + payload_size <=
+                            (int)sizeof(game->outbound_buffer) )
                         {
-                            waypoints = collision_map_bfs_path(
-                                game->scene->collision_maps[0],
-                                src_local_x,
-                                src_local_z,
-                                tile_x,
-                                tile_z,
-                                path_local_x,
-                                path_local_z,
-                                25);
-                        }
-                        if( waypoints >= 0 && waypoints > 0 )
-                        {
-                            int buffer_size = waypoints + 1;
-                            if( buffer_size > 25 )
-                                buffer_size = 25;
-                            int steps_to_send = buffer_size - 1;
-                            int payload_size = 1 + 2 + 2 + steps_to_send * 2;
-                            int start_world_x = game->scene_base_tile_x + src_local_x;
-                            int start_world_z = game->scene_base_tile_z + src_local_z;
-                            if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
+                            uint32_t op =
+                                (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                            game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+                            game->outbound_buffer[game->outbound_size++] = 0;
+                            game->outbound_buffer[game->outbound_size++] =
+                                (start_world_x >> 8) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
+                            game->outbound_buffer[game->outbound_size++] =
+                                (start_world_z >> 8) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
+                            for( int i = 0; i < steps_to_send && i < waypoints; i++ )
                             {
-                                uint32_t op =
-                                    (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
-                                game->outbound_buffer[game->outbound_size++] = 0;
                                 game->outbound_buffer[game->outbound_size++] =
-                                    (start_world_x >> 8) & 0xff;
+                                    (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
                                 game->outbound_buffer[game->outbound_size++] =
-                                    start_world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (start_world_z >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    start_world_z & 0xff;
-                                for( int i = 0; i < steps_to_send && i < waypoints; i++ )
-                                {
-                                    game->outbound_buffer[game->outbound_size++] =
-                                        (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
-                                    game->outbound_buffer[game->outbound_size++] =
-                                        (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
-                                }
-                                game->path_tile_count = waypoints + 1;
-                                if( game->path_tile_count > GAME_PATH_TILE_MAX )
-                                    game->path_tile_count = GAME_PATH_TILE_MAX;
-                                game->path_tile_x[0] = src_local_x;
-                                game->path_tile_z[0] = src_local_z;
-                                for( int i = 0; i < waypoints && i < GAME_PATH_TILE_MAX - 1; i++ )
-                                {
-                                    game->path_tile_x[i + 1] = path_local_x[i];
-                                    game->path_tile_z[i + 1] = path_local_z[i];
-                                }
+                                    (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
+                            }
+                            game->path_tile_count = waypoints + 1;
+                            if( game->path_tile_count > GAME_PATH_TILE_MAX )
+                                game->path_tile_count = GAME_PATH_TILE_MAX;
+                            game->path_tile_x[0] = src_local_x;
+                            game->path_tile_z[0] = src_local_z;
+                            for( int i = 0; i < waypoints && i < GAME_PATH_TILE_MAX - 1; i++ )
+                            {
+                                game->path_tile_x[i + 1] = path_local_x[i];
+                                game->path_tile_z[i + 1] = path_local_z[i];
                             }
                         }
                     }
                 }
-                else
-                {
-                    minimenu_use_option(game, option);
-                }
-                game->mouse_clicked = false;
-                game->cross_mode = 2;
-                game->cross_x = game->mouse_clicked_x - vp_ox;
-                game->cross_y = game->mouse_clicked_y - vp_oy;
             }
+            else
+            {
+                minimenu_use_option(game, option);
+            }
+            game->mouse_clicked = false;
+            game->cross_mode = 2;
+            game->cross_x = game->mouse_clicked_x - vp_ox;
+            game->cross_y = game->mouse_clicked_y - vp_oy;
+        }
     }
 
-    /* Client.ts: when hovering NPC/player/loc and left-clicking, send first action packet instead of
-     * pathing to tile. useMenuOption(menuSize-1) for left-click on entity. Skip if menu visible. */
+    /* Client.ts: when hovering NPC/player/loc and left-clicking, send first action packet instead
+     * of pathing to tile. useMenuOption(menuSize-1) for left-click on entity. Skip if menu visible.
+     */
     if( !game->menu_visible && game->hovered_scene_element && game->mouse_clicked &&
         !game->interface_consumed_click && GAME_NET_STATE_GAME == game->net_state &&
         game->view_port )
     {
         int vp_ox = game->viewport_offset_x;
         int vp_oy = game->viewport_offset_y;
-        int in_viewport =
-            game->mouse_clicked_x >= vp_ox &&
-            game->mouse_clicked_x < vp_ox + game->view_port->width &&
-            game->mouse_clicked_y >= vp_oy &&
-            game->mouse_clicked_y < vp_oy + game->view_port->height;
+        int in_viewport = game->mouse_clicked_x >= vp_ox &&
+                          game->mouse_clicked_x < vp_ox + game->view_port->width &&
+                          game->mouse_clicked_y >= vp_oy &&
+                          game->mouse_clicked_y < vp_oy + game->view_port->height;
         if( in_viewport )
         {
             struct SceneElement* el = game->hovered_scene_element;
@@ -425,10 +421,11 @@ LibToriRS_FrameEnd(struct GGame* game)
             {
                 /* NPC: Client.ts addNpcOptions - left-click uses menuSize-1 which after sort is
                  * the primary (type 0 = op[0] = OPNPC1). Client adds op[4]..op[0] then sort moves
-                 * action<1000 to end, so primary op[0] is last. We need first non-empty from 0..4. */
+                 * action<1000 to end, so primary op[0] is last. We need first non-empty from 0..4.
+                 */
                 struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
-                int npc_type_id =
-                    el->entity_npc_type_id >= 0 ? el->entity_npc_type_id : (npc ? npc->npc_type_id : -1);
+                int npc_type_id = el->entity_npc_type_id >= 0 ? el->entity_npc_type_id
+                                                              : (npc ? npc->npc_type_id : -1);
                 if( npc && game->buildcachedat && npc_type_id >= 0 )
                 {
                     struct CacheDatConfigNpc* npc_cfg =
@@ -444,13 +441,21 @@ LibToriRS_FrameEnd(struct GGame* game)
                                 break;
                             }
                         }
-                        /* Debug: print NPC menu options (Client.ts order: op[4]..op[0], then Examine) */
+                        /* Debug: print NPC menu options (Client.ts order: op[4]..op[0], then
+                         * Examine) */
                         {
-                            fprintf(stderr, "[NPC menu] type_id=%d name=%s options:", npc_type_id,
+                            fprintf(
+                                stderr,
+                                "[NPC menu] type_id=%d name=%s options:",
+                                npc_type_id,
                                 npc_cfg->name ? npc_cfg->name : "(null)");
                             for( int i = 0; i < 5; i++ )
-                                fprintf(stderr, " [%d]%s", i, npc_cfg->op[i] ? npc_cfg->op[i] : "-");
-                            fprintf(stderr, " -> primary_op=%d (OPNPC%d)\n", primary_op,
+                                fprintf(
+                                    stderr, " [%d]%s", i, npc_cfg->op[i] ? npc_cfg->op[i] : "-");
+                            fprintf(
+                                stderr,
+                                " -> primary_op=%d (OPNPC%d)\n",
+                                primary_op,
                                 primary_op >= 0 ? primary_op + 1 : 0);
                         }
                     }
@@ -471,7 +476,8 @@ LibToriRS_FrameEnd(struct GGame* game)
             }
             else if( el->entity_kind == 2 )
             {
-                /* Player: Client.ts addPlayerOptions - Follow (first), tryMove + OPPLAYER3, p2(id). */
+                /* Player: Client.ts addPlayerOptions - Follow (first), tryMove + OPPLAYER3, p2(id).
+                 */
                 struct PlayerEntity* player = (struct PlayerEntity*)el->entity_ptr;
                 if( player && player != &game->players[ACTIVE_PLAYER_SLOT] )
                 {
@@ -503,26 +509,35 @@ LibToriRS_FrameEnd(struct GGame* game)
                             int payload_size = 1 + 2 + 2 + steps_to_send * 2;
                             int start_world_x = game->scene_base_tile_x + src_local_x;
                             int start_world_z = game->scene_base_tile_z + src_local_z;
-                            if( game->outbound_size + 2 + payload_size + 3 <= (int)sizeof(game->outbound_buffer) )
+                            if( game->outbound_size + 2 + payload_size + 3 <=
+                                (int)sizeof(game->outbound_buffer) )
                             {
-                                uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+                                uint32_t op =
+                                    (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (uint8_t)payload_size;
                                 game->outbound_buffer[game->outbound_size++] = 0;
-                                game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (start_world_x >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (start_world_z >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
                                 for( int i = 0; i < steps_to_send && i < waypoints; i++ )
                                 {
                                     int dx = path_local_x[i] - src_local_x;
                                     int dz = path_local_z[i] - src_local_z;
-                                    game->outbound_buffer[game->outbound_size++] = (uint8_t)(int8_t)dx;
-                                    game->outbound_buffer[game->outbound_size++] = (uint8_t)(int8_t)dz;
+                                    game->outbound_buffer[game->outbound_size++] =
+                                        (uint8_t)(int8_t)dx;
+                                    game->outbound_buffer[game->outbound_size++] =
+                                        (uint8_t)(int8_t)dz;
                                 }
-                                op = (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) & 0xff;
+                                op = (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) &
+                                     0xff;
                                 game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] = (player_id >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (player_id >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
                                 sent = true;
                             }
@@ -532,9 +547,12 @@ LibToriRS_FrameEnd(struct GGame* game)
                             /* Already at player's tile; just send OPPLAYER3. */
                             if( game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
                             {
-                                uint32_t op = (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) & 0xff;
+                                uint32_t op =
+                                    (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) &
+                                    0xff;
                                 game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] = (player_id >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (player_id >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
                                 sent = true;
                             }
@@ -544,7 +562,8 @@ LibToriRS_FrameEnd(struct GGame* game)
             }
             else if( el->config_loc && el->config_loc_id >= 0 )
             {
-                /* Loc: Client.ts interactWithLoc - tryMove then OPLOC1-5, p2(x), p2(z), p2(locId). */
+                /* Loc: Client.ts interactWithLoc - tryMove then OPLOC1-5, p2(x), p2(z), p2(locId).
+                 */
                 int first_op = -1;
                 for( int i = 0; i < 5 && i < 10; i++ )
                 {
@@ -585,32 +604,43 @@ LibToriRS_FrameEnd(struct GGame* game)
                             int start_world_z = game->scene_base_tile_z + src_local_z;
                             int world_x = game->scene_base_tile_x + tile_sx;
                             int world_z = game->scene_base_tile_z + tile_sz;
-                            if( game->outbound_size + 2 + payload_size + 7 <= (int)sizeof(game->outbound_buffer) )
+                            if( game->outbound_size + 2 + payload_size + 7 <=
+                                (int)sizeof(game->outbound_buffer) )
                             {
-                                uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+                                uint32_t op =
+                                    (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (uint8_t)payload_size;
                                 game->outbound_buffer[game->outbound_size++] = 0;
-                                game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (start_world_x >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (start_world_z >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
                                 for( int i = 0; i < steps_to_send && i < waypoints; i++ )
                                 {
                                     int dx = path_local_x[i] - src_local_x;
                                     int dz = path_local_z[i] - src_local_z;
-                                    game->outbound_buffer[game->outbound_size++] = (uint8_t)(int8_t)dx;
-                                    game->outbound_buffer[game->outbound_size++] = (uint8_t)(int8_t)dz;
+                                    game->outbound_buffer[game->outbound_size++] =
+                                        (uint8_t)(int8_t)dx;
+                                    game->outbound_buffer[game->outbound_size++] =
+                                        (uint8_t)(int8_t)dz;
                                 }
                                 int opcode = PKTOUT_LC245_2_OPLOC1 + first_op;
                                 op = (opcode + isaac_next(game->random_out)) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] = (world_x >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (world_x >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (world_z >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (world_z >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (el->config_loc_id >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = el->config_loc_id & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (el->config_loc_id >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    el->config_loc_id & 0xff;
                                 sent = true;
                             }
                         }
@@ -624,12 +654,16 @@ LibToriRS_FrameEnd(struct GGame* game)
                                 int opcode = PKTOUT_LC245_2_OPLOC1 + first_op;
                                 uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] = (world_x >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (world_x >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (world_z >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (world_z >> 8) & 0xff;
                                 game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (el->config_loc_id >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = el->config_loc_id & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    (el->config_loc_id >> 8) & 0xff;
+                                game->outbound_buffer[game->outbound_size++] =
+                                    el->config_loc_id & 0xff;
                                 sent = true;
                             }
                         }
@@ -649,7 +683,7 @@ LibToriRS_FrameEnd(struct GGame* game)
     }
 
     if( game->mouse_clicked && game->clicked_tile_valid && !game->interface_consumed_click &&
-             GAME_NET_STATE_GAME == game->net_state )
+        GAME_NET_STATE_GAME == game->net_state )
     {
         int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
         int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
