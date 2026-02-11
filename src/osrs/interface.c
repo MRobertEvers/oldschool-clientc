@@ -6,6 +6,7 @@
 #include "osrs/minimenu_action.h"
 #include "osrs/packetout.h"
 #include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/player_stats.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/varp_varbit_manager.h"
 
@@ -48,10 +49,50 @@ interface_get_if_var(
 
         switch( opcode )
         {
+        case 1:
+            /* stat_level {skill} */
+        {
+            int skill = script[pc++];
+            register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                ? game->player_stat_effective_level[skill]
+                : 0;
+            break;
+        }
+        case 2:
+            /* stat_base_level {skill} */
+        {
+            int skill = script[pc++];
+            register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                ? game->player_stat_base_level[skill]
+                : 0;
+            break;
+        }
+        case 3:
+            /* stat_xp {skill} */
+        {
+            int skill = script[pc++];
+            register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                ? game->player_stat_xp[skill]
+                : 0;
+            break;
+        }
         case 5:
             /* pushvar {id} */
             register_val = varp_varbit_get_varp(mgr, script[pc++]);
             break;
+        case 6:
+            /* stat_xp_remaining {skill} - xp required for next level */
+        {
+            int skill = script[pc++];
+            int base_level = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                ? game->player_stat_base_level[skill]
+                : 1;
+            if( base_level >= PLAYER_LEVEL_MAX )
+                register_val = 0;
+            else
+                register_val = g_player_level_experience[base_level - 1];
+            break;
+        }
         case 7:
             /* register = (var[id] * 100) / 46875 */
             register_val = (varp_varbit_get_varp(mgr, script[pc++]) * 100) / 46875;
@@ -70,6 +111,30 @@ interface_get_if_var(
             register_val = varp_varbit_get_varbit(mgr, script[pc++]);
             break;
         }
+        case 8:
+            /* combat_level - not computed yet */
+            register_val = 0;
+            break;
+        case 9:
+            /* total_level - sum of base levels (0-18, 20; skip 19 runecraft) */
+        {
+            register_val = 0;
+            for( int i = 0; i < PLAYER_STAT_COUNT; i++ )
+            {
+                if( i == 19 )
+                    continue;
+                register_val += game->player_stat_base_level[i];
+            }
+            break;
+        }
+        case 11:
+            /* runenergy */
+            register_val = game->player_run_energy;
+            break;
+        case 12:
+            /* runweight - not from packet yet */
+            register_val = 0;
+            break;
         case 20:
             /* push_constant */
             register_val = script[pc++];
