@@ -26,6 +26,7 @@ struct SceneAnimation
 
     int frame_index;
     int cycle;
+    int _anim_sequence_id; /* last loaded sequence id for entity sync */
 };
 
 struct SceneElement

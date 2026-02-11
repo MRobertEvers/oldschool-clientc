@@ -212,6 +212,8 @@ load_model_animations_dati(
         scene_element_animation_push_frame(
             element, dashframe_new_from_animframe(animframe), dash_framemap, length);
     }
+    if( scene_animation )
+        scene_animation->_anim_sequence_id = sequence_id;
 }
 
 /* View of common pathing/movement/animation state shared by NPCs and players. */
@@ -224,7 +226,9 @@ struct EntityAnimUpdateView
     int size_x;
     int size_z;
     void* scene_element;
-    int* curranim;
+    int* secondary_anim;
+    int* secondary_anim_frame;
+    int* secondary_anim_cycle;
 };
 
 static void
@@ -363,17 +367,17 @@ update_entity_anim(
 
 anim:;
     {
-        struct SceneElement* scene_element = (struct SceneElement*)view->scene_element;
-        if( *view->curranim != seqId && seqId != -1 )
+        /* Client.ts routeMove: secondaryAnim = seqId (readyanim, walkanim, runanim, turnanim) */
+        *view->secondary_anim = seqId;
+        if( seqId == -1 )
         {
-            *view->curranim = seqId;
-            load_model_animations_dati(scene_element, seqId, game->buildcachedat);
-        }
-        else if( seqId == -1 )
-        {
-            *view->curranim = -1;
+            *view->secondary_anim_frame = 0;
+            *view->secondary_anim_cycle = 0;
+            struct SceneElement* scene_element = (struct SceneElement*)view->scene_element;
             scene_element_animation_free(scene_element);
         }
+        /* Scene sync happens in entity_advance_anim; we don't load here to avoid overwriting
+         * primary. */
     }
 }
 
@@ -391,7 +395,9 @@ update_npc_anim(
         .size_x = npc_entity->size_x,
         .size_z = npc_entity->size_z,
         .scene_element = npc_entity->scene_element,
-        .curranim = &npc_entity->curranim,
+        .secondary_anim = &npc_entity->secondary_anim,
+        .secondary_anim_frame = &npc_entity->secondary_anim_frame,
+        .secondary_anim_cycle = &npc_entity->secondary_anim_cycle,
     };
     update_entity_anim(game, &view, false);
 }
@@ -410,11 +416,114 @@ update_player_anim(
         .size_x = 1,
         .size_z = 1,
         .scene_element = player_entity->scene_element,
-        .curranim = &player_entity->primary_anim,
+        .secondary_anim = &player_entity->secondary_anim,
+        .secondary_anim_frame = &player_entity->secondary_anim_frame,
+        .secondary_anim_cycle = &player_entity->secondary_anim_cycle,
     };
     update_entity_anim(game, &view, true);
 }
 
+static int
+sequence_get_frame_duration(
+    struct BuildCacheDat* buildcachedat,
+    struct CacheDatSequence* seq,
+    int frame_i)
+{
+    if( !seq || frame_i < 0 || frame_i >= seq->frame_count )
+        return 1;
+    int d = seq->delay[frame_i];
+    if( d == 0 )
+    {
+        struct CacheAnimframe* af = buildcachedat_get_animframe(buildcachedat, seq->frames[frame_i]);
+        d = af ? af->delay : 1;
+    }
+    return d > 0 ? d : 1;
+}
+
+/* Client.ts entityAnim: advance primary and secondary anim cycles/frames. */
+static void
+entity_advance_anim(
+    struct GGame* game,
+    int* primary_anim,
+    int* primary_anim_frame,
+    int* primary_anim_cycle,
+    int* primary_anim_delay,
+    int* primary_anim_loop,
+    int secondary_anim,
+    int* secondary_anim_frame,
+    int* secondary_anim_cycle,
+    int cycles)
+{
+    struct CacheDatSequence* seq = NULL;
+
+    for( int c = 0; c < cycles; c++ )
+    {
+        /* Secondary: Client.ts e.secondaryAnimCycle++, advance frame when cycle > duration */
+        if( secondary_anim >= 0 )
+        {
+            seq = buildcachedat_get_sequence(game->buildcachedat, secondary_anim);
+            if( seq )
+            {
+                (*secondary_anim_cycle)++;
+                int dur = sequence_get_frame_duration(
+                    game->buildcachedat, seq, *secondary_anim_frame);
+                if( *secondary_anim_cycle > dur )
+                {
+                    *secondary_anim_cycle = 0;
+                    (*secondary_anim_frame)++;
+                }
+                if( *secondary_anim_frame >= seq->frame_count )
+                {
+                    *secondary_anim_cycle = 0;
+                    *secondary_anim_frame = 0;
+                }
+            }
+        }
+
+        /* Primary: decrement delay first; when 0, advance cycle/frame */
+        if( *primary_anim_delay > 0 )
+        {
+            (*primary_anim_delay)--;
+            continue;
+        }
+
+        if( *primary_anim < 0 )
+            continue;
+
+        seq = buildcachedat_get_sequence(game->buildcachedat, *primary_anim);
+        if( !seq )
+            continue;
+
+        (*primary_anim_cycle)++;
+        while( *primary_anim_frame < seq->frame_count &&
+               *primary_anim_cycle > sequence_get_frame_duration(
+                   game->buildcachedat, seq, *primary_anim_frame) )
+        {
+            *primary_anim_cycle -= sequence_get_frame_duration(
+                game->buildcachedat, seq, *primary_anim_frame);
+            (*primary_anim_frame)++;
+        }
+
+        if( *primary_anim_frame >= seq->frame_count )
+        {
+            int loops = seq->loops >= 0 ? seq->loops : seq->frame_count;
+            *primary_anim_frame -= loops;
+            (*primary_anim_loop)++;
+            if( *primary_anim_loop >= seq->maxloops )
+            {
+                *primary_anim = -1;
+                continue;
+            }
+            if( *primary_anim_frame < 0 || *primary_anim_frame >= seq->frame_count )
+            {
+                *primary_anim = -1;
+                continue;
+            }
+        }
+    }
+}
+
+/* Advance scene animation frame for static scenery (non-entity) elements. */
 static void
 advance_animation(
     struct SceneAnimation* animation,
@@ -435,6 +544,50 @@ advance_animation(
                 animation->frame_index = 0;
             }
         }
+    }
+}
+
+/* Pick active anim (primary if valid and delay==0, else secondary) and sync to scene. */
+static void
+entity_sync_anim_to_scene(
+    struct GGame* game,
+    struct SceneElement* scene_element,
+    int primary_anim,
+    int primary_anim_frame,
+    int primary_anim_delay,
+    int secondary_anim,
+    int secondary_anim_frame,
+    int secondary_anim_cycle)
+{
+    int active = secondary_anim;
+    int active_frame = secondary_anim_frame;
+    int active_cycle = secondary_anim_cycle;
+    if( primary_anim >= 0 && primary_anim_delay == 0 )
+    {
+        active = primary_anim;
+        active_frame = primary_anim_frame;
+        active_cycle = 0; /* We don't store primary_anim_cycle in scene */
+    }
+
+    if( active < 0 )
+    {
+        scene_element_animation_free(scene_element);
+        return;
+    }
+
+    /* Load sequence only if it changed */
+    struct SceneAnimation* anim = scene_element->animation;
+    int need_load = ( anim == NULL || anim->_anim_sequence_id != active );
+
+    if( need_load )
+        load_model_animations_dati(scene_element, active, game->buildcachedat);
+
+    anim = scene_element->animation;
+    if( anim )
+    {
+        anim->frame_index = active_frame;
+        if( active_frame < anim->frame_count )
+            anim->cycle = active_cycle;
     }
 }
 
@@ -599,6 +752,34 @@ LibToriRS_GameStep(
                  * and stop at each waypoint. */
                 for( int c = 0; c < game->cycles_elapsed; c++ )
                     update_npc_anim(game, game->active_npcs[i]);
+
+                struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
+                entity_advance_anim(
+                    game,
+                    &npc->primary_anim,
+                    &npc->primary_anim_frame,
+                    &npc->primary_anim_cycle,
+                    &npc->primary_anim_delay,
+                    &npc->primary_anim_loop,
+                    npc->secondary_anim,
+                    &npc->secondary_anim_frame,
+                    &npc->secondary_anim_cycle,
+                    game->cycles_elapsed);
+                entity_sync_anim_to_scene(
+                    game,
+                    scene_element,
+                    npc->primary_anim,
+                    npc->primary_anim_frame,
+                    npc->primary_anim_delay,
+                    npc->secondary_anim,
+                    npc->secondary_anim_frame,
+                    npc->secondary_anim_cycle);
+
+                scene_element->dash_position->yaw = npc->orientation.yaw;
+                scene_element->dash_position->x = npc->position.x;
+                scene_element->dash_position->z = npc->position.z;
+                scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+                    game->scene, npc->position.x, npc->position.z, 0);
                 scenebuilder_push_dynamic_element(
                     game->scenebuilder,
                     game->scene,
@@ -608,15 +789,6 @@ LibToriRS_GameStep(
                     npc->size_x,
                     npc->size_z,
                     npc->scene_element);
-                struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
-
-                scene_element->dash_position->yaw = npc->orientation.yaw;
-                scene_element->dash_position->x = npc->position.x;
-                scene_element->dash_position->z = npc->position.z;
-                /* Client-TS getAvH: bilinear terrain height at (x,z) so height follows smoothly. */
-                scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-                    game->scene, npc->position.x, npc->position.z, 0);
-                advance_animation(scene_element->animation, game->cycles_elapsed);
             }
         }
 
@@ -631,6 +803,34 @@ LibToriRS_GameStep(
             {
                 for( int c = 0; c < game->cycles_elapsed; c++ )
                     update_player_anim(game, player_id);
+
+                struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
+                entity_advance_anim(
+                    game,
+                    &player->primary_anim,
+                    &player->primary_anim_frame,
+                    &player->primary_anim_cycle,
+                    &player->primary_anim_delay,
+                    &player->primary_anim_loop,
+                    player->secondary_anim,
+                    &player->secondary_anim_frame,
+                    &player->secondary_anim_cycle,
+                    game->cycles_elapsed);
+                entity_sync_anim_to_scene(
+                    game,
+                    scene_element,
+                    player->primary_anim,
+                    player->primary_anim_frame,
+                    player->primary_anim_delay,
+                    player->secondary_anim,
+                    player->secondary_anim_frame,
+                    player->secondary_anim_cycle);
+
+                scene_element->dash_position->yaw = player->orientation.yaw;
+                scene_element->dash_position->x = player->position.x;
+                scene_element->dash_position->z = player->position.z;
+                scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+                    game->scene, player->position.x, player->position.z, 0);
                 scenebuilder_push_dynamic_element(
                     game->scenebuilder,
                     game->scene,
@@ -640,42 +840,52 @@ LibToriRS_GameStep(
                     1,
                     1,
                     player->scene_element);
-                struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
-                scene_element->dash_position->yaw = player->orientation.yaw;
-                scene_element->dash_position->x = player->position.x;
-                scene_element->dash_position->z = player->position.z;
-                scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-                    game->scene, player->position.x, player->position.z, 0);
-                advance_animation(scene_element->animation, game->cycles_elapsed);
             }
         }
 
         if( game->players[ACTIVE_PLAYER_SLOT].alive &&
             game->players[ACTIVE_PLAYER_SLOT].scene_element )
         {
+            struct PlayerEntity* ap = &game->players[ACTIVE_PLAYER_SLOT];
             for( int c = 0; c < game->cycles_elapsed; c++ )
                 update_player_anim(game, ACTIVE_PLAYER_SLOT);
+
+            struct SceneElement* scene_element = (struct SceneElement*)ap->scene_element;
+            entity_advance_anim(
+                game,
+                &ap->primary_anim,
+                &ap->primary_anim_frame,
+                &ap->primary_anim_cycle,
+                &ap->primary_anim_delay,
+                &ap->primary_anim_loop,
+                ap->secondary_anim,
+                &ap->secondary_anim_frame,
+                &ap->secondary_anim_cycle,
+                game->cycles_elapsed);
+            entity_sync_anim_to_scene(
+                game,
+                scene_element,
+                ap->primary_anim,
+                ap->primary_anim_frame,
+                ap->primary_anim_delay,
+                ap->secondary_anim,
+                ap->secondary_anim_frame,
+                ap->secondary_anim_cycle);
+
+            scene_element->dash_position->yaw = ap->orientation.yaw;
+            scene_element->dash_position->x = ap->position.x;
+            scene_element->dash_position->z = ap->position.z;
+            scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+                game->scene, ap->position.x, ap->position.z, 0);
             scenebuilder_push_dynamic_element(
                 game->scenebuilder,
                 game->scene,
-                game->players[ACTIVE_PLAYER_SLOT].position.x / 128,
-                game->players[ACTIVE_PLAYER_SLOT].position.z / 128,
+                ap->position.x / 128,
+                ap->position.z / 128,
                 0,
                 1,
                 1,
-                game->players[ACTIVE_PLAYER_SLOT].scene_element);
-            struct SceneElement* scene_element =
-                (struct SceneElement*)game->players[ACTIVE_PLAYER_SLOT].scene_element;
-            scene_element->dash_position->yaw = game->players[ACTIVE_PLAYER_SLOT].orientation.yaw;
-            scene_element->dash_position->x = game->players[ACTIVE_PLAYER_SLOT].position.x;
-            scene_element->dash_position->z = game->players[ACTIVE_PLAYER_SLOT].position.z;
-            /* Client-TS getAvH: bilinear terrain height at (x,z) so height follows smoothly. */
-            scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-                game->scene,
-                game->players[ACTIVE_PLAYER_SLOT].position.x,
-                game->players[ACTIVE_PLAYER_SLOT].position.z,
-                0);
-            advance_animation(scene_element->animation, game->cycles_elapsed);
+                ap->scene_element);
         }
     }
 

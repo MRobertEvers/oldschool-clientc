@@ -174,6 +174,10 @@ entity_scenebuild_player_change_appearance(
     player->animation.walkanim_r = appearance->walkanim_r;
     player->animation.runanim = appearance->runanim;
 
+    player->secondary_anim = appearance->readyanim;
+    player->secondary_anim_frame = 0;
+    player->secondary_anim_cycle = 0;
+
     // scene_element_reset(scene_element);
 
     // TODO: Cleanup.
@@ -273,10 +277,15 @@ entity_scenebuild_npc_change_type(
 
     npc->animation.readyanim = npc_config->readyanim;
     npc->animation.walkanim = npc_config->walkanim;
-    // npc->animation.turnanim = npc->turnanim;
+    npc->animation.turnanim = -1; /* CacheDatConfigNpc has no turnanim */
+    npc->animation.runanim = -1;   /* CacheDatConfigNpc has no runanim */
     npc->animation.walkanim_b = npc_config->walkanim_b;
     npc->animation.walkanim_r = npc_config->walkanim_r;
     npc->animation.walkanim_l = npc_config->walkanim_l;
+
+    npc->secondary_anim = npc_config->readyanim;
+    npc->secondary_anim_frame = 0;
+    npc->secondary_anim_cycle = 0;
 
     scene_element_reset(scene_element);
     npc_model(game, npc_type, scene_element->dash_model);

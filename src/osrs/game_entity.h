@@ -50,7 +50,15 @@ struct NPCEntity
     struct EntityAnimation animation;
     struct EntityPathing pathing;
 
-    int curranim;
+    /* Client.ts: primary from packet (attack/spell), secondary from movement */
+    int primary_anim;
+    int primary_anim_frame;
+    int primary_anim_cycle;
+    int primary_anim_delay;
+    int primary_anim_loop;
+    int secondary_anim;
+    int secondary_anim_frame;
+    int secondary_anim_cycle;
     void* scene_readyanim;
     void* scene_walkanim;
     void* scene_runanim;
@@ -79,9 +87,15 @@ struct PlayerEntity
     void* scene_element;
     struct EntityPosition position;
     struct EntityOrientation orientation;
+    /* Client.ts: primary from packet (attack/spell), secondary from movement */
     int primary_anim;
+    int primary_anim_frame;
+    int primary_anim_cycle;
     int primary_anim_delay;
+    int primary_anim_loop;
     int secondary_anim;
+    int secondary_anim_frame;
+    int secondary_anim_cycle;
     struct EntityAnimation animation;
 
     struct PlayerAppearanceSlots appearance;

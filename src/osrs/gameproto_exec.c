@@ -250,6 +250,20 @@ gameproto_exec_npc_info(
             entity_scenebuild_npc_change_type(game, npc_id, op->_bitvalue);
             break;
         }
+        case PKT_NPC_INFO_OP_SEQUENCE:
+        {
+            if( !npc )
+                break;
+            int seq_id = (int)op->_sequence.sequence_id;
+            if( seq_id == 65535 )
+                seq_id = -1;
+            npc->primary_anim = seq_id;
+            npc->primary_anim_frame = 0;
+            npc->primary_anim_cycle = 0;
+            npc->primary_anim_delay = op->_sequence.delay;
+            npc->primary_anim_loop = 0;
+            break;
+        }
         case PKT_NPC_INFO_OP_DAMAGE:
         {
             entity_add_hitmark(
@@ -484,8 +498,15 @@ add_player_info(
         {
             if( !player )
                 break;
-            player->sequence_id = op->_sequence.sequence_id;
-            player->sequence_delay = op->_sequence.delay;
+            /* Client.ts: seqId 65535 -> -1; primaryAnim = seqId, primaryAnimFrame = 0, etc. */
+            int seq_id = (int)op->_sequence.sequence_id;
+            if( seq_id == 65535 )
+                seq_id = -1;
+            player->primary_anim = seq_id;
+            player->primary_anim_frame = 0;
+            player->primary_anim_cycle = 0;
+            player->primary_anim_delay = op->_sequence.delay;
+            player->primary_anim_loop = 0;
             break;
         }
         case PKT_PLAYER_INFO_OP_DAMAGE:
