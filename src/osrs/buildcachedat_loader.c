@@ -8,7 +8,6 @@
 #include "osrs/rscache/archive.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/rsbuf.h"
-#include "osrs/varp_varbit_manager.h"
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/config_sequence.h"
@@ -25,6 +24,7 @@
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/texture.h"
+#include "osrs/varp_varbit_manager.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -38,6 +38,16 @@ buildcachedat_loader_set_config_jagfile(
 {
     struct FileListDat* jagfile = filelist_dat_new_from_decode(data, data_size);
     buildcachedat_set_config_jagfile(buildcachedat, jagfile);
+}
+
+void
+buildcachedat_loader_init_varp_varbit(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game)
+{
+    struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    if( config_jagfile )
+        varp_varbit_load_from_config_jagfile(&game->varp_varbit, config_jagfile);
 }
 
 void
@@ -553,7 +563,8 @@ load_one_component_sprite(
         memcpy(filename_buf + len, ".dat", 4);
         filename_buf[len + 4] = '\0';
     }
-    struct DashSprite* sprite = load_sprite_pix32(filelist, filename_buf, index_file_idx, sprite_idx);
+    struct DashSprite* sprite =
+        load_sprite_pix32(filelist, filename_buf, index_file_idx, sprite_idx);
     if( !sprite )
         sprite = load_sprite_pix8(filelist, filename_buf, index_file_idx, sprite_idx);
     if( sprite )
@@ -587,7 +598,10 @@ buildcachedat_loader_load_component_sprites_from_media(
             {
                 if( component->invSlotGraphic[i] )
                     load_one_component_sprite(
-                        buildcachedat, game, filelist, index_file_idx,
+                        buildcachedat,
+                        game,
+                        filelist,
+                        index_file_idx,
                         component->invSlotGraphic[i]);
             }
         }
@@ -792,12 +806,7 @@ buildcachedat_loader_finalize_scene(
     int map_ne_x,
     int map_ne_z)
 {
-    /* Load varp/varbit config from config jagfile (for network protocol) */
-    struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
-    if( config_jagfile )
-    {
-        varp_varbit_load_from_config_jagfile(&game->varp_varbit, config_jagfile);
-    }
+    /* varp/varbit loaded in init_varp_varbit (called right after config in load_scene_dat) */
 
     // Initialize painter and minimap if not already done
     if( !game->sys_painter )
@@ -822,7 +831,8 @@ buildcachedat_loader_finalize_scene(
         game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
     }
 
-    /* World tile SW: CHUNK = WORLD_TILE / 64, so WORLD_TILE = chunk * 64 (pkt_rebuild_normal.lua) */
+    /* World tile SW: CHUNK = WORLD_TILE / 64, so WORLD_TILE = chunk * 64 (pkt_rebuild_normal.lua)
+     */
     game->scene_base_tile_x = map_sw_x * 64;
     game->scene_base_tile_z = map_sw_z * 64;
 

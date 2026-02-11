@@ -4,11 +4,14 @@
 #include "rscache/rsbuf.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static void
-decode_varp_type(struct VarPType* varp, struct RSBuffer* buffer)
+decode_varp_type(
+    struct VarPType* varp,
+    struct RSBuffer* buffer)
 {
     memset(varp, 0, sizeof(struct VarPType));
 
@@ -50,7 +53,9 @@ decode_varp_type(struct VarPType* varp, struct RSBuffer* buffer)
 }
 
 static void
-decode_varbit_type(struct VarBitType* varbit, struct RSBuffer* buffer)
+decode_varbit_type(
+    struct VarBitType* varbit,
+    struct RSBuffer* buffer)
 {
     memset(varbit, 0, sizeof(struct VarBitType));
     varbit->basevar = -1;
@@ -180,7 +185,9 @@ varp_varbit_load_from_config_jagfile(
 }
 
 int
-varp_varbit_get_varp(const struct VarPVarBitManager* mgr, int id)
+varp_varbit_get_varp(
+    const struct VarPVarBitManager* mgr,
+    int id)
 {
     if( !mgr || id < 0 || id >= mgr->varp_count )
         return 0;
@@ -188,7 +195,9 @@ varp_varbit_get_varp(const struct VarPVarBitManager* mgr, int id)
 }
 
 int
-varp_varbit_get_varbit(const struct VarPVarBitManager* mgr, int id)
+varp_varbit_get_varbit(
+    const struct VarPVarBitManager* mgr,
+    int id)
 {
     if( !mgr || id < 0 || id >= mgr->varbit_count )
         return 0;
@@ -219,7 +228,9 @@ varp_varbit_set_client_var_callback(
 }
 
 static void
-notify_client_var(struct VarPVarBitManager* mgr, int varp_id)
+notify_client_var(
+    struct VarPVarBitManager* mgr,
+    int varp_id)
 {
     if( mgr->client_var_fn )
         mgr->client_var_fn(mgr->client_var_userdata, varp_id);
@@ -239,6 +250,7 @@ apply_varp_value(
     if( mgr->var[variable] != value )
     {
         mgr->var[variable] = value;
+        printf("varp set: id=%d value=%d\n", variable, value);
         notify_client_var(mgr, variable);
     }
 }
@@ -277,6 +289,7 @@ varp_varbit_apply_sync(struct VarPVarBitManager* mgr)
         if( mgr->var[i] != mgr->var_serv[i] )
         {
             mgr->var[i] = mgr->var_serv[i];
+            printf("varp sync: id=%d value=%d\n", i, mgr->var[i]);
             notify_client_var(mgr, i);
         }
     }

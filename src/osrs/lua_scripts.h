@@ -366,6 +366,18 @@ l_buildcachedat_set_config_jagfile(lua_State* L)
 }
 
 static int
+l_buildcachedat_init_varp_varbit_from_config_jagfile(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(2));
+
+    buildcachedat_loader_init_varp_varbit(buildcachedat, game);
+
+    return 0;
+}
+
+static int
 l_buildcachedat_set_versionlist_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
@@ -434,7 +446,8 @@ l_buildcachedat_has_animbaseframes(lua_State* L)
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
     int animbaseframes_id = luaL_checkinteger(L, 1);
-    struct CacheDatAnimBaseFrames* ab = buildcachedat_get_animbaseframes(buildcachedat, animbaseframes_id);
+    struct CacheDatAnimBaseFrames* ab =
+        buildcachedat_get_animbaseframes(buildcachedat, animbaseframes_id);
     lua_pushboolean(L, ab != NULL);
     return 1;
 }
@@ -804,12 +817,14 @@ l_buildcachedat_finalize_scene(lua_State* L)
 static const luaL_Reg buildcachedat_funcs[] = {
     { "cache_map_scenery",                                 l_buildcachedat_cache_map_scenery                   },
     { "set_config_jagfile",                                l_buildcachedat_set_config_jagfile                  },
+    { "init_varp_varbit_from_config_jagfile",
+     l_buildcachedat_init_varp_varbit_from_config_jagfile                                                      },
     { "set_versionlist_jagfile",                           l_buildcachedat_set_versionlist_jagfile             },
     { "cache_map_terrain",                                 l_buildcachedat_cache_map_terrain                   },
     { "has_map_terrain",                                   l_buildcachedat_has_map_terrain                     },
     { "has_map_scenery",                                   l_buildcachedat_has_map_scenery                     },
     { "has_model",                                         l_buildcachedat_has_model                           },
-    { "has_animbaseframes",                                 l_buildcachedat_has_animbaseframes                   },
+    { "has_animbaseframes",                                l_buildcachedat_has_animbaseframes                  },
     { "init_floortypes_from_config_jagfile",               l_buildcachedat_init_floortypes_from_config_jagfile },
     { "init_scenery_configs_from_config_jagfile",
      l_buildcachedat_init_scenery_configs_from_config_jagfile                                                  },

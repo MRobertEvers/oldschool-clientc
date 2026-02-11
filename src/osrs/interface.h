@@ -126,6 +126,19 @@ interface_handle_scrollbar_click(
     int scroll_height,
     int click_y);
 
+// Run component script and return result. Uses varp_varbit_manager for opcodes 5,7,13,14.
+int
+interface_get_if_var(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int script_id);
+
+// Return whether component passes script comparator check (Client.ts getIfActive).
+bool
+interface_get_if_active(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component);
+
 // Get default (left-click) action for an inventory slot from menu logic (Client.ts order + sort)
 int
 interface_get_inv_default_action(

@@ -7,12 +7,149 @@
 #include "osrs/packetout.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
+#include "osrs/varp_varbit_manager.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define INV_MENU_MAX 24
+
+/* Run component script and return result. Mirrors Client.ts getIfVar (10625-10765).
+ * Uses varp_varbit_manager for opcodes 5 (pushvar), 7 (var*100/46875), 13 (testbit), 14 (push_varbit).
+ * Other opcodes return 0 for now. */
+int
+interface_get_if_var(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int script_id)
+{
+    if( !component->scripts || script_id >= component->scripts_count )
+        return -2;
+
+    int* script = component->scripts[script_id];
+    if( !script )
+        return -1;
+
+    int acc = 0;
+    int pc = 0;
+    int arithmetic = 0;
+
+    struct VarPVarBitManager* mgr = &game->varp_varbit;
+
+    while( 1 )
+    {
+        int register_val = 0;
+        int next_arithmetic = 0;
+        int opcode = script[pc++];
+
+        if( opcode == 0 )
+            return acc;
+
+        switch( opcode )
+        {
+        case 5:
+            /* pushvar {id} */
+            register_val = varp_varbit_get_varp(mgr, script[pc++]);
+            break;
+        case 7:
+            /* register = (var[id] * 100) / 46875 */
+            register_val = (varp_varbit_get_varp(mgr, script[pc++]) * 100) / 46875;
+            break;
+        case 13:
+        {
+            /* testbit {varp} {bit: 0..31} */
+            int varp_val = varp_varbit_get_varp(mgr, script[pc++]);
+            int lsb = script[pc++];
+            register_val = (varp_val & (1 << lsb)) ? 1 : 0;
+            break;
+        }
+        case 14:
+        {
+            /* push_varbit {varbit} */
+            register_val = varp_varbit_get_varbit(mgr, script[pc++]);
+            break;
+        }
+        case 20:
+            /* push_constant */
+            register_val = script[pc++];
+            break;
+        default:
+            /* Other opcodes: advance pc, register_val stays 0 */
+            if( opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 )
+                pc += 1;
+            else if( opcode == 4 || opcode == 10 )
+                pc += 2;
+            else if( opcode == 15 || opcode == 16 || opcode == 17 )
+                next_arithmetic = (opcode == 15) ? 1 : (opcode == 16) ? 2 : 3;
+            /* 8,9,11,12,18,19: no operands */
+            break;
+        }
+
+        if( next_arithmetic == 0 )
+        {
+            if( arithmetic == 0 )
+                acc += register_val;
+            else if( arithmetic == 1 )
+                acc -= register_val;
+            else if( arithmetic == 2 && register_val != 0 )
+                acc = acc / register_val;
+            else if( arithmetic == 3 )
+                acc = acc * register_val;
+            arithmetic = 0;
+        }
+        else
+        {
+            arithmetic = next_arithmetic;
+        }
+    }
+}
+
+/* Return whether component passes script comparator check. Mirrors Client.ts getIfActive (10592-10623). */
+bool
+interface_get_if_active(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component)
+{
+    if( !component->scriptComparator || !component->scriptOperand )
+        return false;
+
+    /* scriptComparator count matches scripts_count (one compare per script) */
+    int count = component->scripts_count;
+    if( count <= 0 )
+        return false;
+
+    for( int i = 0; i < count; i++ )
+    {
+        if( !component->scriptOperand )
+            return false;
+
+        int value = interface_get_if_var(game, component, i);
+        int operand = component->scriptOperand[i];
+        int comp = component->scriptComparator[i];
+
+        if( comp == 2 )
+        {
+            if( value >= operand )
+                return false;
+        }
+        else if( comp == 3 )
+        {
+            if( value <= operand )
+                return false;
+        }
+        else if( comp == 4 )
+        {
+            if( value == operand )
+                return false;
+        }
+        else if( value != operand )
+        {
+            return false;
+        }
+    }
+    return true;
+}
 
 /* Fill rect clipped to viewport to prevent scroll layers overdrawing parent. */
 static void
@@ -793,7 +930,11 @@ interface_draw_component_rect(
     int* pixel_buffer,
     int stride)
 {
+    /* Client.ts 10278-10290: getIfActive -> colour2/activeColour, else colour */
     int colour = component->colour;
+    if( component->scriptComparator && interface_get_if_active(game, component) )
+        colour = component->activeColour;
+
     struct DashViewPort* vp = game->iface_view_port;
 
     if( component->alpha == 0 )
@@ -826,9 +967,6 @@ interface_draw_component_text(
     int* pixel_buffer,
     int stride)
 {
-    if( !component->text )
-        return;
-
     struct DashPixFont* font = NULL;
     switch( component->font )
     {
@@ -852,11 +990,23 @@ interface_draw_component_text(
     if( !font )
         return;
 
+    /* Client.ts 10315-10330: getIfActive -> colour2/activeColour + text2/activeText, else colour */
     int colour = component->colour;
+    const char* text_src = component->text;
+    if( component->scriptComparator && interface_get_if_active(game, component) )
+    {
+        colour = component->activeColour;
+        if( component->activeText && component->activeText[0] != '\0' )
+            text_src = component->activeText;
+    }
+
+    if( !text_src )
+        return;
+
     /* Client.ts 9614-9681: first line at childY + font.height2d, then lineY += font.height2d per
      * line */
     int line_y = y + font->height2d;
-    const char* rest = component->text;
+    const char* rest = text_src;
     char line_buf[512];
     int line_buf_size = (int)sizeof(line_buf);
 
@@ -880,10 +1030,43 @@ interface_draw_component_text(
             memcpy(line_buf, rest, (size_t)line_len);
             line_buf[line_len] = '\0';
 
+            /* Client.ts 10356-10395: substitute %1 .. %5 with getIfVar(component, 0..4) */
+            char expanded_buf[512];
+            int exp_len = 0;
+            for( int i = 0; i < line_len && exp_len < 511; i++ )
+            {
+                if( line_buf[i] == '%' && i + 1 < line_len )
+                {
+                    int script_idx = line_buf[i + 1] - '1';
+                    if( script_idx >= 0 && script_idx <= 4 )
+                    {
+                        int val = interface_get_if_var(game, component, script_idx);
+                        char val_buf[16];
+                        int n;
+                        if( val >= 999999999 )
+                        {
+                            val_buf[0] = '*';
+                            val_buf[1] = '\0';
+                            n = 1;
+                        }
+                        else
+                        {
+                            n = snprintf(val_buf, sizeof(val_buf), "%d", val);
+                        }
+                        for( int j = 0; j < n && val_buf[j] && exp_len < 511; j++ )
+                            expanded_buf[exp_len++] = val_buf[j];
+                        i++;
+                        continue;
+                    }
+                }
+                expanded_buf[exp_len++] = line_buf[i];
+            }
+            expanded_buf[exp_len] = '\0';
+
             int draw_x;
             if( component->center )
             {
-                int text_w = dashfont_text_width(font, (uint8_t*)line_buf);
+                int text_w = dashfont_text_width(font, (uint8_t*)expanded_buf);
                 draw_x = x + (component->width / 2) - (text_w / 2);
             }
             else
@@ -898,7 +1081,7 @@ interface_draw_component_text(
             {
                 dashfont_draw_text_clipped(
                     font,
-                    (uint8_t*)line_buf,
+                    (uint8_t*)expanded_buf,
                     draw_x + 1,
                     draw_y + 1,
                     0x000000,
@@ -911,7 +1094,7 @@ interface_draw_component_text(
             }
             dashfont_draw_text_clipped(
                 font,
-                (uint8_t*)line_buf,
+                (uint8_t*)expanded_buf,
                 draw_x,
                 draw_y,
                 colour,

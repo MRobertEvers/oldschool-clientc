@@ -10,8 +10,12 @@
 #include "osrs/gameproto_process.h"
 #include "osrs/loginproto.h"
 #include "osrs/lua_scripts.h"
+#include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/filelist.h"
+#include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
+#include "osrs/varp_varbit_manager.h"
 // #include "tori_rs.h"
 
 #include <assert.h>
@@ -179,6 +183,24 @@ LibToriRS_GameNew(
 
     // Load and store cache_dat for synchronous asset loading
     game->cache_dat = cache_dat_new_from_directory(CACHE_DAT_PATH);
+
+    /* Load varp/varbit from config at init so vars are ready before any packets arrive */
+    {
+        struct CacheDatArchive* config_archive =
+            cache_dat_archive_new_load(
+                game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
+        if( config_archive )
+        {
+            struct FileListDat* config_jagfile =
+                filelist_dat_new_from_cache_dat_archive(config_archive);
+            if( config_jagfile )
+            {
+                varp_varbit_load_from_config_jagfile(&game->varp_varbit, config_jagfile);
+                filelist_dat_free(config_jagfile);
+            }
+            cache_dat_archive_free(config_archive);
+        }
+    }
 
     struct CacheDatArchive* archive =
         cache_dat_archive_new_load(game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES);

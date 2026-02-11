@@ -88,16 +88,19 @@ gameproto_parse_lc245_2(
     case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
     {
         packet->_if_settab_active.tab_id = g1(&buffer);
-        printf(
-            "PKTIN_LC245_2_IF_SETTAB_ACTIVE: tab_id=%d\n",
-            packet->_if_settab_active.tab_id);
+        printf("PKTIN_LC245_2_IF_SETTAB_ACTIVE: tab_id=%d\n", packet->_if_settab_active.tab_id);
         assert(buffer.position == data_size);
         return 1;
     }
     case PKTIN_LC245_2_VARP_SMALL:
     {
+        printf("PKTIN_LC245_2_VARP_SMALL\n");
         packet->_varp_small.variable = g2(&buffer);
         packet->_varp_small.value = g1b(&buffer);
+        printf(
+            "PKTIN_LC245_2_VARP_SMALL: variable=%d value=%d\n",
+            packet->_varp_small.variable,
+            packet->_varp_small.value);
         assert(buffer.position == data_size);
         return 1;
     }
@@ -105,6 +108,10 @@ gameproto_parse_lc245_2(
     {
         packet->_varp_large.variable = g2(&buffer);
         packet->_varp_large.value = g4(&buffer);
+        printf(
+            "PKTIN_LC245_2_VARP_LARGE: variable=%d value=%d\n",
+            packet->_varp_large.variable,
+            packet->_varp_large.value);
         assert(buffer.position == data_size);
         return 1;
     }

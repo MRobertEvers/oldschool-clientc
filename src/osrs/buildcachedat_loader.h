@@ -10,6 +10,13 @@ buildcachedat_loader_set_config_jagfile(
     int data_size,
     void* data);
 
+/** Load varp/varbit from config jagfile into game. Call as soon as config is loaded
+ * so varp packets can be applied before scene finalize. */
+void
+buildcachedat_loader_init_varp_varbit(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game);
+
 void
 buildcachedat_loader_set_versionlist_jagfile(
     struct BuildCacheDat* buildcachedat,

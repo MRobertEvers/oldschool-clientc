@@ -45,7 +45,7 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     local success, param_a, param_b, data_size, data = HostIOUtils.await(configs_promise)
     if not success then error("Failed to load configs") end
     BuildCacheDat.set_config_jagfile(data_size, data)
-
+    BuildCacheDat.init_varp_varbit_from_config_jagfile()
 
     success, param_a, param_b, data_size, data = HostIOUtils.await(versionlist_promise)
     if not success then error("Failed to load versionlist") end
