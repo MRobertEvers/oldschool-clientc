@@ -40,6 +40,8 @@ extern int g_trap_command;
 extern int g_trap_x;
 extern int g_trap_z;
 
+static bool g_show_collision_map = false;
+
 static void
 render_imgui(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
@@ -158,6 +160,9 @@ render_imgui(
 
     // Add camera speed slider
     ImGui::Separator();
+
+    ImGui::Separator();
+    ImGui::Checkbox("Show collision map", &g_show_collision_map);
 
     // Interface controls removed - now server-controlled via IF_SETTAB/IF_SETTAB_ACTIVE packets
     ImGui::Separator();
@@ -1770,8 +1775,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
 
     /* Draw collision map: red lines at terrain height. Use scene terrain corner heights. */
-    if( game->scene && game->scene->collision_maps[0] && game->scene->terrain && game->sys_dash &&
-        game->view_port && game->camera )
+    if( g_show_collision_map && game->scene && game->scene->collision_maps[0] &&
+        game->scene->terrain && game->sys_dash && game->view_port && game->camera )
     {
         struct CollisionMap* cm = game->scene->collision_maps[0];
         struct Scene* scene = game->scene;
