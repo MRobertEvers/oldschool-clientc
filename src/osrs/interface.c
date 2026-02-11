@@ -1657,56 +1657,20 @@ interface_draw_component_model(
         }
     }
 
-    int w = component->width;
-    int h = component->height;
-    if( w <= 0 )
-        w = 128;
-    if( h <= 0 )
-        h = 128;
-    if( w < 128 )
-        w = 128;
-    if( h < 128 )
-        h = 128;
-    if( w > 256 )
-        w = 256;
-    if( h > 256 )
-        h = 256;
-
-    int* buf = (int*)malloc((size_t)w * h * sizeof(int));
-    if( !buf )
-    {
-        dashmodel_free(head_model);
-        return;
-    }
+    /* Client.ts ignores component width/height for MODEL - model size comes from zoom/perspective.
+     * Center at (x + width/2, y + height/2). Use fixed region size for chat heads. */
+    int cx = x + (component->width / 2);
+    int cy = y + (component->height / 2);
+    int region_size = 128;
+    int rx = cx - (region_size / 2);
+    int ry = cy - (region_size / 2);
 
     int zoom = component->zoom;
     int xan = component->xan;
     int yan = component->yan;
-    head_model_render(game, head_model, buf, w, h, zoom, xan, yan);
+    head_model_render_to_region(
+        game, head_model, pixel_buffer, stride, rx, ry, region_size, region_size, zoom, xan, yan);
     dashmodel_free(head_model);
-
-    /* Blit to pixel_buffer at (x, y), treating 0 as transparent */
-    struct DashViewPort* vp = game->iface_view_port;
-    int cl = vp->clip_left;
-    int ct = vp->clip_top;
-    int cr = vp->clip_right;
-    int cb = vp->clip_bottom;
-    for( int dy = 0; dy < h; dy++ )
-    {
-        int dst_y = y + dy;
-        if( dst_y < ct || dst_y >= cb )
-            continue;
-        for( int dx = 0; dx < w; dx++ )
-        {
-            int dst_x = x + dx;
-            if( dst_x < cl || dst_x >= cr )
-                continue;
-            int p = buf[dy * w + dx];
-            if( p != 0 )
-                pixel_buffer[dst_y * stride + dst_x] = p;
-        }
-    }
-    free(buf);
 }
 
 int

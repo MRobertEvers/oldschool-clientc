@@ -364,3 +364,70 @@ head_model_render(
             game->sys_dash, dash_model, &position, &view_port, &camera, buffer, true);
     }
 }
+
+/* Render head model directly to a region of the buffer.
+ * Client.ts: Pix3D.centerX = childX + (child.width/2), Pix3D.centerY = childY + (child.height/2).
+ * No intermediate buffer - draws to pixel_buffer at (x, y) with size (width, height). */
+void
+head_model_render_to_region(
+    struct GGame* game,
+    struct DashModel* dash_model,
+    int* pixel_buffer,
+    int stride,
+    int x,
+    int y,
+    int width,
+    int height,
+    int zoom,
+    int xan,
+    int yan)
+{
+    if( !game || !game->sys_dash || !dash_model || !pixel_buffer || width <= 0 || height <= 0 )
+        return;
+
+    if( zoom == 0 )
+        zoom = 2000;
+
+    extern int g_sin_table[2048];
+    extern int g_cos_table[2048];
+
+    int sinPitch = (g_sin_table[xan] * zoom) >> 16;
+    int cosPitch = (g_cos_table[xan] * zoom) >> 16;
+
+    int* dst = pixel_buffer + y * stride + x;
+
+    struct DashViewPort view_port;
+    view_port.width = width;
+    view_port.height = height;
+    view_port.clip_left = 0;
+    view_port.clip_top = 0;
+    view_port.clip_right = width;
+    view_port.clip_bottom = height;
+    view_port.x_center = width / 2;
+    view_port.y_center = height / 2;
+    view_port.stride = stride;
+
+    struct DashCamera camera;
+    memset(&camera, 0, sizeof(camera));
+    camera.pitch = xan;
+    camera.yaw = 0;
+    camera.roll = 0;
+    camera.fov_rpi2048 = 512;
+    camera.near_plane_z = 1;
+
+    struct DashPosition position = { 0 };
+    position.pitch = 0;
+    position.yaw = yan;
+    position.roll = 0;
+    position.x = 0;
+    int model_height = (dash_model->bounds_cylinder->max_y - dash_model->bounds_cylinder->min_y);
+    position.y = sinPitch - (height / 2) + (model_height / 2);
+    position.z = cosPitch;
+
+    int cull = dash3d_project_model6(game->sys_dash, dash_model, &position, &view_port, &camera);
+    if( cull == DASHCULL_VISIBLE )
+    {
+        dash3d_raster_projected_model(
+            game->sys_dash, dash_model, &position, &view_port, &camera, dst, true);
+    }
+}
