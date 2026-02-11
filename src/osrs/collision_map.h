@@ -132,4 +132,14 @@ collision_map_index(
     return x * COLLISION_SIZE + z;
 }
 
+static inline int
+collision_map_tile(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z)
+{
+    assert(tile_x >= 0 && tile_x < cm->size_x && tile_z >= 0 && tile_z < cm->size_z);
+    return cm->flags[collision_map_index(tile_x, tile_z)];
+}
+
 #endif
