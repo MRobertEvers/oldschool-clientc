@@ -153,6 +153,7 @@ entity_scenebuild_player_get(
 
     player->alive = true;
     player->scene_element = (void*)scene_element_new(game->scene);
+    player->orientation.face_entity = -1;
 
     return player;
 }
@@ -209,6 +210,7 @@ entity_scenebuild_npc_get(
     assert(!npc->scene_element && "Npc must not have a scene element");
     npc->alive = true;
     npc->scene_element = (void*)scene_element_new(game->scene);
+    npc->orientation.face_entity = -1;
 
     return npc;
 }

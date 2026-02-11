@@ -250,6 +250,16 @@ gameproto_exec_npc_info(
             entity_scenebuild_npc_change_type(game, npc_id, op->_bitvalue);
             break;
         }
+        case PKT_NPC_INFO_OP_FACE_ENTITY:
+        {
+            if( !npc )
+                break;
+            int entity_id = (int)op->_face_entity.entity_id;
+            if( entity_id == 65535 )
+                entity_id = -1;
+            npc->orientation.face_entity = entity_id;
+            break;
+        }
         case PKT_NPC_INFO_OP_SEQUENCE:
         {
             if( !npc )
@@ -494,6 +504,16 @@ add_player_info(
             entity_scenebuild_player_change_appearance(game, player_id, &appearance);
         }
         break;
+        case PKT_PLAYER_INFO_OP_FACE_ENTITY:
+        {
+            if( !player )
+                break;
+            int entity_id = (int)op->_face_entity.entity_id;
+            if( entity_id == 65535 )
+                entity_id = -1;
+            player->orientation.face_entity = entity_id;
+            break;
+        }
         case PKT_PLAYER_INFO_OP_SEQUENCE:
         {
             if( !player )

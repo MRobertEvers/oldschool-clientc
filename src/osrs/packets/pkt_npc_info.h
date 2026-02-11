@@ -85,6 +85,7 @@ struct PktNpcInfoOp
     {
         uint64_t _bitvalue;
         struct PktNpcInfo_Sequence _sequence;
+        struct PktNpcInfo_FaceEntity _face_entity;
         struct PktNpcInfo_Damage _damage;
         struct PktNpcInfo_Damage2 _damage2;
         struct PktNpcInfo_Rundir _rundir;

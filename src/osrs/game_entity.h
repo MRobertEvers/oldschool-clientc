@@ -24,6 +24,7 @@ struct EntityOrientation
 {
     int yaw;
     int dst_yaw;
+    int face_entity; /* Client.ts: -1 = none; < 32768 = npc id; >= 32768 = player index + 32768 */
 };
 
 struct EntityAnimation

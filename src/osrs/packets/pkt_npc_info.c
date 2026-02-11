@@ -138,6 +138,15 @@ push_op_sequence(
 }
 
 static void
+push_op_face_entity(
+    struct PktNpcInfoOp* op,
+    int entity_id)
+{
+    op->kind = PKT_NPC_INFO_OP_FACE_ENTITY;
+    op->_face_entity.entity_id = entity_id;
+}
+
+static void
 push_op_damage(
     struct PktNpcInfoOp* op,
     int damage_type,
@@ -331,6 +340,7 @@ pkt_npc_info_reader_read(
         if( (mask & MASK_FACE_ENTITY) != 0 )
         {
             int target_id = g2(&rsbuf);
+            push_op_face_entity(next_op(reader, ops, ops_capacity), target_id);
         }
 
         if( (mask & MASK_SAY) != 0 )

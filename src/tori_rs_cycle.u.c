@@ -18,6 +18,7 @@
 #include "tori_rs.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -229,7 +230,74 @@ struct EntityAnimUpdateView
     int* secondary_anim;
     int* secondary_anim_frame;
     int* secondary_anim_cycle;
+    int face_entity;
 };
+
+/* Client.ts entityFace: set dstYaw from faceEntity target. 325.949 ≈ 2048/(2π) for rad->yaw. */
+static void
+entity_face(
+    struct GGame* game,
+    struct EntityAnimUpdateView* view,
+    bool is_player)
+{
+    (void)is_player;
+    int fe = view->face_entity;
+    if( fe < 0 )
+        return;
+
+    int target_x = 0;
+    int target_z = 0;
+
+    if( fe < 32768 )
+    {
+        /* NPC target */
+        if( fe >= MAX_NPCS )
+            return;
+        struct NPCEntity* target = &game->npcs[fe];
+        if( !target->alive )
+            return;
+        target_x = target->position.x;
+        target_z = target->position.z;
+    }
+    else
+    {
+        /* Player target: index = fe - 32768. Client.ts: if index === selfSlot, use LOCAL_PLAYER */
+        int index = fe - 32768;
+        int self_slot = -1;
+        for( int i = 0; i < game->player_count; i++ )
+        {
+            if( game->active_players[i] == ACTIVE_PLAYER_SLOT )
+            {
+                self_slot = i;
+                break;
+            }
+        }
+        int pid;
+        if( index == self_slot )
+            pid = ACTIVE_PLAYER_SLOT;
+        else if( index >= 0 && index < game->player_count )
+            pid = game->active_players[index];
+        else
+            return;
+        if( pid < 0 || !game->players[pid].alive )
+            return;
+        struct PlayerEntity* target = &game->players[pid];
+        target_x = target->position.x;
+        target_z = target->position.z;
+    }
+
+    int dst_x = view->position->x - target_x;
+    int dst_z = view->position->z - target_z;
+    if( dst_x == 0 && dst_z == 0 )
+        return;
+
+    /* Client.ts: dstYaw = ((Math.atan2(dstX, dstZ) * 325.949) | 0) & 0x7ff */
+    double angle = atan2((double)dst_x, (double)dst_z);
+    int yaw = (int)(angle * 325.949) & 0x7ff;
+    if( yaw < 0 )
+        yaw += 2048;
+    view->orientation->dst_yaw = yaw;
+}
 
 static void
 update_entity_anim(
@@ -241,7 +309,9 @@ update_entity_anim(
     int route_length = view->pathing->route_length;
     if( route_length == 0 )
     {
-        goto anim;
+        /* Client.ts entityFace: when idle, still turn toward face_entity */
+        entity_face(game, view, player);
+        goto yaw_turn;
     }
 
     int x = view->position->x;
@@ -344,6 +414,10 @@ update_entity_anim(
             view->pathing->route_length = 0;
     }
 
+    /* Client.ts entityFace: overwrite dstYaw when face_entity is set */
+    entity_face(game, view, player);
+
+yaw_turn:;
     int remainingYaw = (view->orientation->dst_yaw - view->orientation->yaw) & 0x7ff;
     if( remainingYaw != 0 )
     {
@@ -398,6 +472,7 @@ update_npc_anim(
         .secondary_anim = &npc_entity->secondary_anim,
         .secondary_anim_frame = &npc_entity->secondary_anim_frame,
         .secondary_anim_cycle = &npc_entity->secondary_anim_cycle,
+        .face_entity = npc_entity->orientation.face_entity,
     };
     update_entity_anim(game, &view, false);
 }
@@ -419,6 +494,7 @@ update_player_anim(
         .secondary_anim = &player_entity->secondary_anim,
         .secondary_anim_frame = &player_entity->secondary_anim_frame,
         .secondary_anim_cycle = &player_entity->secondary_anim_cycle,
+        .face_entity = player_entity->orientation.face_entity,
     };
     update_entity_anim(game, &view, true);
 }
