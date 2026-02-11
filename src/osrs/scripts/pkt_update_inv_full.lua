@@ -53,12 +53,15 @@ for _, obj_id in ipairs(obj_ids) do
     end
 end
 
--- Load all models before processing the packet
+-- Load all models before processing the packet (skip if already cached)
+local success, param_a, param_b, data_size, data
 for _, model_id in ipairs(queued_model_ids) do
-    local promise = HostIO.dat_models_load(model_id)
-    success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
-    if success then
-        BuildCacheDat.cache_model(model_id, data_size, data)
+    if not BuildCacheDat.has_model(model_id) then
+        local promise = HostIO.dat_models_load(model_id)
+        success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
+        if success then
+            BuildCacheDat.cache_model(model_id, data_size, data)
+        end
     end
 end
 

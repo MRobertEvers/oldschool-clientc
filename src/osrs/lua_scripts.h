@@ -394,6 +394,52 @@ l_buildcachedat_cache_map_terrain(lua_State* L)
 }
 
 static int
+l_buildcachedat_has_map_terrain(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int chunk_x = luaL_checkinteger(L, 1);
+    int chunk_z = luaL_checkinteger(L, 2);
+    struct CacheMapTerrain* t = buildcachedat_get_map_terrain(buildcachedat, chunk_x, chunk_z);
+    lua_pushboolean(L, t != NULL);
+    return 1;
+}
+
+static int
+l_buildcachedat_has_map_scenery(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int chunk_x = luaL_checkinteger(L, 1);
+    int chunk_z = luaL_checkinteger(L, 2);
+    struct CacheMapLocs* s = buildcachedat_get_scenery(buildcachedat, chunk_x, chunk_z);
+    lua_pushboolean(L, s != NULL);
+    return 1;
+}
+
+static int
+l_buildcachedat_has_model(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int model_id = luaL_checkinteger(L, 1);
+    struct CacheModel* m = buildcachedat_get_model(buildcachedat, model_id);
+    lua_pushboolean(L, m != NULL);
+    return 1;
+}
+
+static int
+l_buildcachedat_has_animbaseframes(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int animbaseframes_id = luaL_checkinteger(L, 1);
+    struct CacheDatAnimBaseFrames* ab = buildcachedat_get_animbaseframes(buildcachedat, animbaseframes_id);
+    lua_pushboolean(L, ab != NULL);
+    return 1;
+}
+
+static int
 l_buildcachedat_init_floortypes_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
@@ -760,6 +806,10 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "set_config_jagfile",                                l_buildcachedat_set_config_jagfile                  },
     { "set_versionlist_jagfile",                           l_buildcachedat_set_versionlist_jagfile             },
     { "cache_map_terrain",                                 l_buildcachedat_cache_map_terrain                   },
+    { "has_map_terrain",                                   l_buildcachedat_has_map_terrain                     },
+    { "has_map_scenery",                                   l_buildcachedat_has_map_scenery                     },
+    { "has_model",                                         l_buildcachedat_has_model                           },
+    { "has_animbaseframes",                                 l_buildcachedat_has_animbaseframes                   },
     { "init_floortypes_from_config_jagfile",               l_buildcachedat_init_floortypes_from_config_jagfile },
     { "init_scenery_configs_from_config_jagfile",
      l_buildcachedat_init_scenery_configs_from_config_jagfile                                                  },

@@ -230,6 +230,11 @@ buildcachedat_add_animbaseframes(
     struct CacheDatAnimBaseFrames* animbaseframes);
 
 struct CacheDatAnimBaseFrames*
+buildcachedat_get_animbaseframes(
+    struct BuildCacheDat* buildcachedat,
+    int animbaseframes_id);
+
+struct CacheDatAnimBaseFrames*
 buildcachedat_iter_next_animbaseframes(struct DashMapIter* iter);
 
 struct DashMapIter*

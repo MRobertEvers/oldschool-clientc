@@ -616,6 +616,18 @@ buildcachedat_add_animbaseframes(
     animbaseframes_entry->animbaseframes = animbaseframes;
 }
 
+struct CacheDatAnimBaseFrames*
+buildcachedat_get_animbaseframes(
+    struct BuildCacheDat* buildcachedat,
+    int animbaseframes_id)
+{
+    struct AnimbaseframesEntry* animbaseframes_entry = (struct AnimbaseframesEntry*)dashmap_search(
+        buildcachedat->animbaseframes_hmap, &animbaseframes_id, DASHMAP_FIND);
+    if( !animbaseframes_entry )
+        return NULL;
+    return animbaseframes_entry->animbaseframes;
+}
+
 void
 buildcachedat_add_sequence(
     struct BuildCacheDat* buildcachedat,

@@ -47,30 +47,42 @@ local chunks, map_sw_x, map_sw_z, map_ne_x, map_ne_z = world_to_map_chunks(wx_sw
 
 local success, param_a, param_b, data_size, data
 
-local terrain_req_ids = {}
+local terrain_to_load = {}
 for _, chunk in ipairs(chunks) do
-    terrain_req_ids[#terrain_req_ids + 1] = HostIO.dat_map_terrain_load(chunk.x, chunk.z)
+    if not BuildCacheDat.has_map_terrain(chunk.x, chunk.z) then
+        terrain_to_load[#terrain_to_load + 1] = { chunk = chunk, req_id = HostIO.dat_map_terrain_load(chunk.x, chunk.z) }
+    end
+end
+local terrain_req_ids = {}
+for _, e in ipairs(terrain_to_load) do
+    terrain_req_ids[#terrain_req_ids + 1] = e.req_id
 end
 local terrain_results = HostIOUtils.await_all(terrain_req_ids)
 for i, r in ipairs(terrain_results) do
     success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
     if not success then
-        error(string.format("Failed to load terrain %d, %d", chunks[i].x, chunks[i].z))
+        error(string.format("Failed to load terrain %d, %d", terrain_to_load[i].chunk.x, terrain_to_load[i].chunk.z))
     end
     BuildCacheDat.cache_map_terrain(param_a, param_b, data_size, data)
 end
 
 BuildCacheDat.init_floortypes_from_config_jagfile()
 
-local scenery_req_ids = {}
+local scenery_to_load = {}
 for _, chunk in ipairs(chunks) do
-    scenery_req_ids[#scenery_req_ids + 1] = HostIO.dat_map_scenery_load(chunk.x, chunk.z)
+    if not BuildCacheDat.has_map_scenery(chunk.x, chunk.z) then
+        scenery_to_load[#scenery_to_load + 1] = { chunk = chunk, req_id = HostIO.dat_map_scenery_load(chunk.x, chunk.z) }
+    end
+end
+local scenery_req_ids = {}
+for _, e in ipairs(scenery_to_load) do
+    scenery_req_ids[#scenery_req_ids + 1] = e.req_id
 end
 local scenery_results = HostIOUtils.await_all(scenery_req_ids)
 for i, r in ipairs(scenery_results) do
     success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
     if not success then
-        error(string.format("Failed to load scenery %d, %d", chunks[i].x, chunks[i].z))
+        error(string.format("Failed to load scenery %d, %d", scenery_to_load[i].chunk.x, scenery_to_load[i].chunk.z))
     end
     BuildCacheDat.cache_map_scenery(param_a, param_b, data_size, data)
 end
@@ -91,15 +103,21 @@ for _, loc in ipairs(scenery_locs) do
     end
 end
 
-local model_req_ids = {}
+local models_to_load = {}
 for _, model_id in ipairs(queued_model_ids) do
-    model_req_ids[#model_req_ids + 1] = HostIO.dat_models_load(model_id)
+    if not BuildCacheDat.has_model(model_id) then
+        models_to_load[#models_to_load + 1] = { model_id = model_id, req_id = HostIO.dat_models_load(model_id) }
+    end
+end
+local model_req_ids = {}
+for _, e in ipairs(models_to_load) do
+    model_req_ids[#model_req_ids + 1] = e.req_id
 end
 local model_results = HostIOUtils.await_all(model_req_ids)
 for i, r in ipairs(model_results) do
     success, param_a, param_b, data_size, data = r[1], r[2], r[3], r[4], r[5]
     if success then
-        BuildCacheDat.cache_model(queued_model_ids[i], data_size, data)
+        BuildCacheDat.cache_model(models_to_load[i].model_id, data_size, data)
     end
 end
 

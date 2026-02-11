@@ -41,16 +41,18 @@ end
 
 print(string.format("Loading %d unique models...", #model_ids))
 
--- Load all models asynchronously
+-- Load all models asynchronously (skip if already cached)
 local success, param_a, param_b, data_size, data
 for _, model_id in ipairs(model_ids) do
-    local promise = HostIO.dat_models_load(model_id)
-    success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
-    if success then
-        BuildCacheDat.cache_model(model_id, data_size, data)
-        print(string.format("  ✓ Loaded model %d (%d bytes)", model_id, data_size))
-    else
-        print(string.format("  ✗ Failed to load model %d", model_id))
+    if not BuildCacheDat.has_model(model_id) then
+        local promise = HostIO.dat_models_load(model_id)
+        success, param_a, param_b, data_size, data = HostIOUtils.await(promise)
+        if success then
+            BuildCacheDat.cache_model(model_id, data_size, data)
+            print(string.format("  ✓ Loaded model %d (%d bytes)", model_id, data_size))
+        else
+            print(string.format("  ✗ Failed to load model %d", model_id))
+        end
     end
 end
 
