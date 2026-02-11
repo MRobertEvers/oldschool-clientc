@@ -1016,12 +1016,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 int len = snprintf(buf, sizeof(buf), "%d", damage_values[i]);
                 if( len > 0 )
                 {
-                    int w = dashfont_text_width(game->pixfont_p12, (uint8_t*)buf);
+                    int w = dashfont_text_width(game->pixfont_p11, (uint8_t*)buf);
+
                     dashfont_draw_text_clipped(
-                        game->pixfont_p12,
+                        game->pixfont_p11,
                         (uint8_t*)buf,
                         px - w / 2,
-                        py + 4,
+                        py - 9 + 4,
                         BLACK,
                         db,
                         stride,
@@ -1030,10 +1031,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         clip_r,
                         clip_b);
                     dashfont_draw_text_clipped(
-                        game->pixfont_p12,
+                        game->pixfont_p11,
                         (uint8_t*)buf,
                         px - w / 2 - 1,
-                        py + 3,
+                        py - 9 + 3,
                         WHITE,
                         db,
                         stride,
