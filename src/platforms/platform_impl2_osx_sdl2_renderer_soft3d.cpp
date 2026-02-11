@@ -692,7 +692,7 @@ height_of_entity(
     struct DashModel* model = element->dash_model;
     if( model )
     {
-        return model->bounds_cylinder->min_y - model->bounds_cylinder->max_y;
+        return model->bounds_cylinder->max_y - model->bounds_cylinder->min_y;
     }
     return 0;
 }
@@ -924,7 +924,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             /* Health bar: Client.ts getOverlayPosEntity(entity, entity.height + 15) */
             if( combat_cycle > game->cycle + 100 && total_health > 0 )
             {
-                int bar_y_world = scene_local_height + (entity_height + 15);
+                int bar_y_world = scene_local_height - (entity_height + 15);
                 int rel_y = bar_y_world;
                 if( dash3d_project_point(
                         game->sys_dash,
