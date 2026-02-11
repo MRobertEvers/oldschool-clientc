@@ -1,5 +1,5 @@
--- pkt_npc_info: load all NPC models via BuildCacheDat before processing the packet.
--- Ensures models are loaded then calls gameproto_exec (add_npc_info).
+-- pkt_if_setplayerhead: load player head models (IDK heads + obj heads) before processing
+-- IF_SETPLAYERHEAD packet. Ensures head models are loaded then calls gameproto_exec.
 local HostIOUtils = require("hostio_utils")
 
 local function add_unique(tbl, value)
@@ -11,22 +11,23 @@ local function add_unique(tbl, value)
     table.insert(tbl, value)
 end
 
--- Called with (item, io) from C when an NPC_INFO packet is received.
+-- Called with (item, io) from C when an IF_SETPLAYERHEAD packet is received.
 local item, io = ...
 
-local npc_ids = GameProto.get_npc_ids_from_packet(item)
+-- Get local player appearance from game state (already set by PLAYER_INFO)
+local idk_ids, obj_ids = GameProto.get_local_player_appearance_ids()
 
--- Collect unique model ids from all NPC configs (BuildCacheDat has configs from load_scene_dat).
 local queued_model_ids = {}
-for _, npc_id in ipairs(npc_ids) do
-    local model_ids = BuildCacheDat.get_npc_model_ids(npc_id)
-    for _, model_id in ipairs(model_ids) do
+for _, idk_id in ipairs(idk_ids) do
+    local head_ids = BuildCacheDat.get_idk_head_model_ids(idk_id)
+    for _, model_id in ipairs(head_ids) do
         if model_id ~= 0 then
             add_unique(queued_model_ids, model_id)
         end
     end
-    -- Also load head models for chat head (IF_SETNPCHEAD)
-    local head_ids = BuildCacheDat.get_npc_head_model_ids(npc_id)
+end
+for _, obj_id in ipairs(obj_ids) do
+    local head_ids = BuildCacheDat.get_obj_head_model_ids(obj_id, 0)
     for _, model_id in ipairs(head_ids) do
         if model_id ~= 0 then
             add_unique(queued_model_ids, model_id)
@@ -34,7 +35,6 @@ for _, npc_id in ipairs(npc_ids) do
     end
 end
 
--- Load all models before processing the packet (skip if already cached).
 local req_ids = {}
 local req_model_ids = {}
 for _, model_id in ipairs(queued_model_ids) do
@@ -51,5 +51,5 @@ for i, res in ipairs(results) do
     end
 end
 
--- All models loaded; run gameproto_exec NPC info handling.
-GameProto.exec_npc_info(item)
+-- All head models loaded; run gameproto_exec IF_SETPLAYERHEAD handling
+GameProto.exec_if_setplayerhead(item)

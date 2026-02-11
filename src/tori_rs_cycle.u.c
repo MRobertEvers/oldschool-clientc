@@ -56,6 +56,10 @@ script_path_for_kind(enum ScriptKind kind)
         return "pkt_update_inv_full.lua";
     case SCRIPT_PKT_IF_SETTAB:
         return "pkt_if_settab.lua";
+    case SCRIPT_PKT_IF_SETNPCHEAD:
+        return "pkt_if_setnpchead.lua";
+    case SCRIPT_PKT_IF_SETPLAYERHEAD:
+        return "pkt_if_setplayerhead.lua";
     default:
         return NULL;
     }
@@ -152,6 +156,22 @@ start_script_from_item(
     case SCRIPT_PKT_IF_SETTAB:
     {
         struct ScriptArgsPktIfSetTab* a = &item->args.u.pkt_if_settab;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        nargs = 2;
+        break;
+    }
+    case SCRIPT_PKT_IF_SETNPCHEAD:
+    {
+        struct ScriptArgsPktIfSetNpcHead* a = &item->args.u.pkt_if_setnpchead;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        nargs = 2;
+        break;
+    }
+    case SCRIPT_PKT_IF_SETPLAYERHEAD:
+    {
+        struct ScriptArgsPktIfSetPlayerHead* a = &item->args.u.pkt_if_setplayerhead;
         lua_pushlightuserdata(game->L_coro, a->item);
         lua_pushlightuserdata(game->L_coro, a->io);
         nargs = 2;

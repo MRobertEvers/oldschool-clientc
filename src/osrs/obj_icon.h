@@ -12,4 +12,18 @@ obj_icon_get(
     int obj_id,
     int count);
 
+// Render a head model to a buffer (for chat/interface MODEL components).
+// Client.ts drawInterface: model.drawSimple(0, yan, 0, xan, 0, eyeY, eyeZ)
+// zoom/xan/yan from component. Does not free dash_model.
+void
+head_model_render(
+    struct GGame* game,
+    struct DashModel* dash_model,
+    int* buffer,
+    int width,
+    int height,
+    int zoom,
+    int xan,
+    int yan);
+
 #endif

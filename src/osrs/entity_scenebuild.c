@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 static struct CacheModel*
 idk_model(
@@ -169,6 +170,12 @@ entity_scenebuild_player_change_appearance(
     struct PlayerEntity* player = entity_scenebuild_player_get(game, player_id);
     struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
 
+    /* Store appearance in entity for IF_SETPLAYERHEAD; copy to local player for head model */
+    for( int i = 0; i < 12; i++ )
+        player->appearance.slots[i] = appearance->appearance[i];
+    for( int i = 0; i < 5; i++ )
+        player->appearance.colors[i] = appearance->color[i];
+
     player->animation.readyanim = appearance->readyanim;
     player->animation.turnanim = appearance->turnanim;
     player->animation.walkanim = appearance->walkanim;
@@ -312,4 +319,203 @@ entity_scenebuild_npc_release(
     npc_entity->scene_element = NULL;
     npc_entity->alive = false;
     memset(npc_entity, 0, sizeof(struct NPCEntity));
+}
+
+/* Head model helpers for chat/interface MODEL components.
+ * Client.ts: IdkType.getHeadModel(), ObjType.getHeadModel(), NpcType.getHeadModel(),
+ * ClientPlayer.getHeadModel() */
+
+static struct CacheModel*
+idk_head_model(
+    struct GGame* game,
+    int idk_id)
+{
+    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(game->buildcachedat, idk_id);
+    if( !idk )
+    {
+        printf("idk_head_model: idk_id=%d not found in buildcachedat\n", idk_id);
+        return NULL;
+    }
+
+    struct CacheModel* models[5] = { 0 };
+    int model_count = 0;
+    for( int i = 0; i < 5; i++ )
+    {
+        if( idk->heads[i] != -1 && idk->heads[i] != 0 )
+        {
+            struct CacheModel* m = buildcachedat_get_model(game->buildcachedat, idk->heads[i]);
+            if( m )
+                models[model_count++] = m;
+            else
+                printf("idk_head_model: idk_id=%d heads[%d]=%d not loaded\n", idk_id, i, idk->heads[i]);
+        }
+    }
+    if( model_count == 0 )
+    {
+        printf("idk_head_model: idk_id=%d no head models could be loaded\n", idk_id);
+        return NULL;
+    }
+
+    struct CacheModel* merged = model_new_merge(models, model_count);
+    for( int i = 0; i < 10 && idk->recol_s[i] != 0; i++ )
+        model_transform_recolor(merged, idk->recol_s[i], idk->recol_d[i]);
+    return merged;
+}
+
+static struct CacheModel*
+obj_head_model(
+    struct GGame* game,
+    int obj_id,
+    int gender)
+{
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    if( !obj )
+    {
+        printf("obj_head_model: obj_id=%d not found in buildcachedat\n", obj_id);
+        return NULL;
+    }
+
+    int head1 = gender == 1 ? obj->womanhead : obj->manhead;
+    int head2 = gender == 1 ? obj->womanhead2 : obj->manhead2;
+
+    if( head1 == -1 )
+    {
+        printf("obj_head_model: obj_id=%d has no head model (manhead=-1)\n", obj_id);
+        return NULL;
+    }
+
+    struct CacheModel* m1 = buildcachedat_get_model(game->buildcachedat, head1);
+    if( !m1 )
+    {
+        printf("obj_head_model: obj_id=%d head model %d not loaded\n", obj_id, head1);
+        return NULL;
+    }
+
+    if( head2 != -1 )
+    {
+        struct CacheModel* m2 = buildcachedat_get_model(game->buildcachedat, head2);
+        if( m2 )
+        {
+            struct CacheModel* models[2] = { m1, m2 };
+            m1 = model_new_merge(models, 2);
+        }
+    }
+
+    for( int i = 0; i < obj->recol_count; i++ )
+        model_transform_recolor(m1, obj->recol_s[i], obj->recol_d[i]);
+
+    return m1;
+}
+
+/* Build player head model from appearance (ClientPlayer.getHeadModel).
+ * Uses slots as uint16_t appearance values. */
+static struct CacheModel*
+player_head_model(
+    struct GGame* game,
+    int* slots,
+    int* colors)
+{
+    struct AppearanceOp op;
+    struct CacheModel* models[12] = { 0 };
+    int model_count = 0;
+    for( int i = 0; i < 12; i++ )
+    {
+        uint16_t appearance_storage[12];
+        for( int j = 0; j < 12; j++ )
+            appearance_storage[j] = (uint16_t)slots[j];
+        appearances_decode(&op, appearance_storage, i);
+        struct CacheModel* model = NULL;
+        switch( op.kind )
+        {
+        case APPEARANCE_KIND_IDK:
+            model = idk_head_model(game, op.id);
+            break;
+        case APPEARANCE_KIND_OBJ:
+            model = obj_head_model(game, op.id, 0);
+            break;
+        default:
+            break;
+        }
+        if( model )
+            models[model_count++] = model;
+    }
+    if( model_count == 0 )
+        return NULL;
+
+    struct CacheModel* merged = model_new_merge(models, model_count);
+    /* TODO: apply colors (recol_s/recol_d from design) for hair, torso, etc. */
+    (void)colors;
+    return merged;
+}
+
+/* Build NPC head model from npc type (NpcType.getHeadModel). */
+static struct CacheModel*
+npc_head_model(
+    struct GGame* game,
+    int npc_type)
+{
+    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, npc_type);
+    if( !npc )
+    {
+        printf("npc_head_model: npc_type=%d not found in buildcachedat\n", npc_type);
+        return NULL;
+    }
+    if( !npc->heads )
+    {
+        printf("npc_head_model: npc_type=%d has no heads array\n", npc_type);
+        return NULL;
+    }
+
+    struct CacheModel* models[16] = { 0 };
+    int model_count = 0;
+    for( int i = 0; i < npc->heads_count; i++ )
+    {
+        if( npc->heads[i] != -1 )
+        {
+            struct CacheModel* m = buildcachedat_get_model(game->buildcachedat, npc->heads[i]);
+            if( m )
+                models[model_count++] = m;
+            else
+                printf(
+                    "npc_head_model: npc_type=%d heads[%d]=%d not loaded\n",
+                    npc_type,
+                    i,
+                    npc->heads[i]);
+        }
+    }
+    if( model_count == 0 )
+    {
+        printf("npc_head_model: npc_type=%d no head models could be loaded\n", npc_type);
+        return NULL;
+    }
+
+    struct CacheModel* merged = model_new_merge(models, model_count);
+    for( int i = 0; i < npc->recol_count; i++ )
+        model_transform_recolor(merged, npc->recol_s[i], npc->recol_d[i]);
+
+    return merged;
+}
+
+/* Get head model as DashModel for rendering. Caller must free dash_model via dashmodel_free. */
+struct DashModel*
+entity_scenebuild_head_model_for_component(
+    struct GGame* game,
+    int model_type,
+    int model_id,
+    int* slots,
+    int* colors)
+{
+    struct CacheModel* cache = NULL;
+    if( model_type == 2 )
+        cache = npc_head_model(game, model_id);
+    else if( model_type == 3 && slots )
+        cache = player_head_model(game, slots, colors);
+
+    if( !cache )
+        return NULL;
+
+    struct DashModel* dash = dashmodel_new_from_cache_model(cache);
+    if( dash )
+        _light_model_default(dash, 0, 0);
+    return dash;
 }

@@ -2,7 +2,6 @@
 
 #include "bmp.h"
 #include "dash_utils.h"
-#include "entity_scenebuild.h"
 #include "graphics/dash.h"
 #include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
@@ -303,4 +302,65 @@ obj_icon_get(
     // printf("========================================\n\n");
 
     return icon;
+}
+
+void
+head_model_render(
+    struct GGame* game,
+    struct DashModel* dash_model,
+    int* buffer,
+    int width,
+    int height,
+    int zoom,
+    int xan,
+    int yan)
+{
+    if( !game || !game->sys_dash || !dash_model || !buffer || width <= 0 || height <= 0 )
+        return;
+
+    if( zoom == 0 )
+        zoom = 2000;
+
+    extern int g_sin_table[2048];
+    extern int g_cos_table[2048];
+
+    int sinPitch = (g_sin_table[xan] * zoom) >> 16;
+    int cosPitch = (g_cos_table[xan] * zoom) >> 16;
+
+    struct DashViewPort view_port;
+    view_port.width = width;
+    view_port.height = height;
+    view_port.clip_left = 0;
+    view_port.clip_top = 0;
+    view_port.clip_right = width;
+    view_port.clip_bottom = height;
+    view_port.x_center = width / 2;
+    view_port.y_center = height / 2;
+    view_port.stride = width;
+
+    struct DashCamera camera;
+    memset(&camera, 0, sizeof(camera));
+    camera.pitch = xan;
+    camera.yaw = 0;
+    camera.roll = 0;
+    camera.fov_rpi2048 = 512;
+    camera.near_plane_z = 1;
+
+    struct DashPosition position = { 0 };
+    position.pitch = 0;
+    position.yaw = yan;
+    position.roll = 0;
+    position.x = 0;
+    int model_min_y = -dash_model->bounds_cylinder->min_y;
+    position.y = sinPitch + (model_min_y / 2);
+    position.z = cosPitch;
+
+    memset(buffer, 0, (size_t)width * height * sizeof(int));
+
+    int cull = dash3d_project_model6(game->sys_dash, dash_model, &position, &view_port, &camera);
+    if( cull == DASHCULL_VISIBLE )
+    {
+        dash3d_raster_projected_model(
+            game->sys_dash, dash_model, &position, &view_port, &camera, buffer, true);
+    }
 }

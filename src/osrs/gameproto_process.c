@@ -150,14 +150,26 @@ gameproto_process(
             gameproto_exec_if_setanim(game, &item->packet);
             break;
         case PKTIN_LC245_2_IF_SETPLAYERHEAD:
-            gameproto_exec_if_setplayerhead(game, &item->packet);
+        {
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_IF_SETPLAYERHEAD,
+                .u.pkt_if_setplayerhead = { .item = item, .io = io },
+            };
+            script_queue_push(&game->script_queue, &args);
             break;
+        }
         case PKTIN_LC245_2_IF_SETTEXT:
             gameproto_exec_if_settext(game, &item->packet);
             break;
         case PKTIN_LC245_2_IF_SETNPCHEAD:
-            gameproto_exec_if_setnpchead(game, &item->packet);
+        {
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_IF_SETNPCHEAD,
+                .u.pkt_if_setnpchead = { .item = item, .io = io },
+            };
+            script_queue_push(&game->script_queue, &args);
             break;
+        }
         case PKTIN_LC245_2_IF_SETPOSITION:
             gameproto_exec_if_setposition(game, &item->packet);
             break;

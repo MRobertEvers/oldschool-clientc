@@ -22,10 +22,24 @@ for _, idk_id in ipairs(idk_ids) do
             add_unique(queued_model_ids, model_id)
         end
     end
+    -- Also load head models for chat head (IF_SETPLAYERHEAD)
+    local head_ids = BuildCacheDat.get_idk_head_model_ids(idk_id)
+    for _, model_id in ipairs(head_ids) do
+        if model_id ~= 0 then
+            add_unique(queued_model_ids, model_id)
+        end
+    end
 end
 for _, obj_id in ipairs(obj_ids) do
     local model_ids = BuildCacheDat.get_obj_model_ids(obj_id)
     for _, model_id in ipairs(model_ids) do
+        if model_id ~= 0 then
+            add_unique(queued_model_ids, model_id)
+        end
+    end
+    -- Also load head models for chat head (IF_SETPLAYERHEAD)
+    local head_ids = BuildCacheDat.get_obj_head_model_ids(obj_id, 0)
+    for _, model_id in ipairs(head_ids) do
         if model_id ~= 0 then
             add_unique(queued_model_ids, model_id)
         end

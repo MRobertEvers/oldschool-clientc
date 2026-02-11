@@ -6,6 +6,7 @@
 #include "osrs/minimenu_action.h"
 #include "osrs/packetout.h"
 #include "osrs/player_stats.h"
+#include "osrs/entity_scenebuild.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/varp_varbit_manager.h"
@@ -497,7 +498,7 @@ interface_draw_component(
             interface_draw_component_inv(game, component, x, y, pixel_buffer, stride);
             break;
         case COMPONENT_TYPE_MODEL:
-            // TODO: Implement model rendering
+            interface_draw_component_model(game, component, x, y, pixel_buffer, stride);
             break;
         }
         return;
@@ -597,7 +598,7 @@ interface_draw_component(
             interface_draw_component_inv(game, child, childX, childY, pixel_buffer, stride);
             break;
         case COMPONENT_TYPE_MODEL:
-            // TODO: Implement model rendering
+            interface_draw_component_model(game, child, childX, childY, pixel_buffer, stride);
             break;
         }
     }
@@ -1581,6 +1582,83 @@ interface_draw_component_inv(
     }
 
     // printf("DEBUG INV: Total items drawn: %d\n", items_drawn);
+}
+
+void
+interface_draw_component_model(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int x,
+    int y,
+    int* pixel_buffer,
+    int stride)
+{
+    /* Client.ts: modelType 2 = NPC head, 3 = player head. Only support these for chat head. */
+    if( component->modelType != 2 && component->modelType != 3 )
+        return;
+
+    int* slots = NULL;
+    int* colors = NULL;
+    if( component->modelType == 3 )
+    {
+        struct PlayerEntity* local = &game->players[ACTIVE_PLAYER_SLOT];
+        if( !local->alive )
+            return;
+        slots = local->appearance.slots;
+        colors = local->appearance.colors;
+    }
+
+    struct DashModel* head_model = entity_scenebuild_head_model_for_component(
+        game, component->modelType, component->model, slots, colors);
+    if( !head_model )
+        return;
+
+    int w = component->width;
+    int h = component->height;
+    if( w <= 0 )
+        w = 64;
+    if( h <= 0 )
+        h = 64;
+    if( w > 128 )
+        w = 128;
+    if( h > 128 )
+        h = 128;
+
+    int* buf = (int*)malloc((size_t)w * h * sizeof(int));
+    if( !buf )
+    {
+        dashmodel_free(head_model);
+        return;
+    }
+
+    int zoom = component->zoom;
+    int xan = component->xan;
+    int yan = component->yan;
+    head_model_render(game, head_model, buf, w, h, zoom, xan, yan);
+    dashmodel_free(head_model);
+
+    /* Blit to pixel_buffer at (x, y), treating 0 as transparent */
+    struct DashViewPort* vp = game->iface_view_port;
+    int cl = vp->clip_left;
+    int ct = vp->clip_top;
+    int cr = vp->clip_right;
+    int cb = vp->clip_bottom;
+    for( int dy = 0; dy < h; dy++ )
+    {
+        int dst_y = y + dy;
+        if( dst_y < ct || dst_y >= cb )
+            continue;
+        for( int dx = 0; dx < w; dx++ )
+        {
+            int dst_x = x + dx;
+            if( dst_x < cl || dst_x >= cr )
+                continue;
+            int p = buf[dy * w + dx];
+            if( p != 0 )
+                pixel_buffer[dst_y * stride + dst_x] = p;
+        }
+    }
+    free(buf);
 }
 
 int

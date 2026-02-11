@@ -65,6 +65,15 @@ interface_draw_component_inv(
     int stride);
 
 void
+interface_draw_component_model(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int x,
+    int y,
+    int* pixel_buffer,
+    int stride);
+
+void
 interface_draw_scrollbar(
     struct GGame* game,
     int x,

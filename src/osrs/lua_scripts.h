@@ -569,6 +569,30 @@ l_buildcachedat_get_idk_model_ids(lua_State* L)
 }
 
 static int
+l_buildcachedat_get_idk_head_model_ids(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int idk_id = luaL_checkinteger(L, 1);
+
+    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
+    lua_newtable(L);
+    if( !idk )
+        return 1;
+    int idx = 0;
+    for( int i = 0; i < 10; i++ )
+    {
+        if( idk->heads[i] != -1 && idk->heads[i] != 0 )
+        {
+            idx++;
+            lua_pushinteger(L, idk->heads[i]);
+            lua_rawseti(L, -2, idx);
+        }
+    }
+    return 1;
+}
+
+static int
 l_buildcachedat_get_obj_model_ids(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
@@ -603,6 +627,58 @@ l_buildcachedat_get_obj_model_ids(lua_State* L)
         idx++;
         lua_pushinteger(L, obj->manwear3);
         lua_rawseti(L, -2, idx);
+    }
+    return 1;
+}
+
+static int
+l_buildcachedat_get_obj_head_model_ids(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int obj_id = luaL_checkinteger(L, 1);
+    int gender = luaL_optinteger(L, 2, 0);
+
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    lua_newtable(L);
+    if( !obj )
+        return 1;
+    int idx = 0;
+    int head1 = (gender == 1) ? obj->womanhead : obj->manhead;
+    int head2 = (gender == 1) ? obj->womanhead2 : obj->manhead2;
+    if( head1 != -1 )
+    {
+        idx++;
+        lua_pushinteger(L, head1);
+        lua_rawseti(L, -2, idx);
+    }
+    if( head2 != -1 )
+    {
+        idx++;
+        lua_pushinteger(L, head2);
+        lua_rawseti(L, -2, idx);
+    }
+    return 1;
+}
+
+static int
+l_buildcachedat_get_npc_head_model_ids(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+    int npc_id = luaL_checkinteger(L, 1);
+
+    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
+    lua_newtable(L);
+    if( !npc || !npc->heads )
+        return 1;
+    for( int i = 0; i < npc->heads_count; i++ )
+    {
+        if( npc->heads[i] != -1 )
+        {
+            lua_pushinteger(L, npc->heads[i]);
+            lua_rawseti(L, -2, i + 1);
+        }
     }
     return 1;
 }
@@ -831,8 +907,11 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "get_all_scenery_locs",                              l_buildcachedat_get_all_scenery_locs                },
     { "get_scenery_model_ids",                             l_buildcachedat_get_scenery_model_ids               },
     { "get_npc_model_ids",                                 l_buildcachedat_get_npc_model_ids                   },
+    { "get_npc_head_model_ids",                            l_buildcachedat_get_npc_head_model_ids            },
     { "get_idk_model_ids",                                 l_buildcachedat_get_idk_model_ids                   },
+    { "get_idk_head_model_ids",                            l_buildcachedat_get_idk_head_model_ids            },
     { "get_obj_model_ids",                                 l_buildcachedat_get_obj_model_ids                   },
+    { "get_obj_head_model_ids",                            l_buildcachedat_get_obj_head_model_ids            },
     { "get_obj",                                           l_buildcachedat_get_obj                             },
     { "cache_model",                                       l_buildcachedat_cache_model                         },
     { "load_interfaces",                                   l_buildcachedat_load_interfaces                     },
@@ -1659,6 +1738,74 @@ l_gameproto_exec_if_settab(lua_State* L)
     return 0;
 }
 
+static int
+l_gameproto_get_if_setnpchead_data(lua_State* L)
+{
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    lua_pushinteger(L, item->packet._if_setnpchead.component_id);
+    lua_pushinteger(L, item->packet._if_setnpchead.npc_id);
+    return 2;
+}
+
+static int
+l_gameproto_exec_if_setnpchead(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    gameproto_exec_if_setnpchead(game, &item->packet);
+    return 0;
+}
+
+static int
+l_gameproto_exec_if_setplayerhead(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+
+    gameproto_exec_if_setplayerhead(game, &item->packet);
+    return 0;
+}
+
+static int
+l_gameproto_get_local_player_appearance_ids(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+
+    lua_newtable(L); /* idk_ids */
+    lua_newtable(L); /* obj_ids */
+    int idk_idx = 0;
+    int obj_idx = 0;
+
+    struct PlayerEntity* local = &game->players[ACTIVE_PLAYER_SLOT];
+    if( !local->alive )
+        return 2;
+
+    struct AppearanceOp op;
+    uint16_t appearance_storage[12];
+    for( int i = 0; i < 12; i++ )
+        appearance_storage[i] = (uint16_t)local->appearance.slots[i];
+
+    for( int slot = 0; slot < 12; slot++ )
+    {
+        appearances_decode(&op, appearance_storage, slot);
+        if( op.kind == APPEARANCE_KIND_IDK )
+        {
+            idk_idx++;
+            lua_pushinteger(L, op.id);
+            lua_rawseti(L, -3, idk_idx);
+        }
+        else if( op.kind == APPEARANCE_KIND_OBJ )
+        {
+            obj_idx++;
+            lua_pushinteger(L, op.id);
+            lua_rawseti(L, -2, obj_idx);
+        }
+    }
+    return 2;
+}
+
 static const luaL_Reg gameproto_funcs[] = {
     { "get_npc_ids_from_packet",   l_gameproto_get_npc_ids_from_packet   },
     { "exec_npc_info",             l_gameproto_exec_npc_info             },
@@ -1670,6 +1817,10 @@ static const luaL_Reg gameproto_funcs[] = {
     { "exec_update_inv_full",      l_gameproto_exec_update_inv_full      },
     { "get_if_settab_data",        l_gameproto_get_if_settab_data        },
     { "exec_if_settab",            l_gameproto_exec_if_settab            },
+    { "get_if_setnpchead_data",    l_gameproto_get_if_setnpchead_data    },
+    { "exec_if_setnpchead",        l_gameproto_exec_if_setnpchead        },
+    { "exec_if_setplayerhead",     l_gameproto_exec_if_setplayerhead     },
+    { "get_local_player_appearance_ids", l_gameproto_get_local_player_appearance_ids },
     { NULL,                        NULL                                  }
 };
 

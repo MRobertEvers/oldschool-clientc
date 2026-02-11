@@ -1232,6 +1232,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             205,
             renderer->pixel_buffer);
 
+    /* Chat Y: below viewport. Client.ts viewport 334px -> bottom 338; bar at 338, chat at 357.
+     * C viewport may differ; align chat to viewport_bottom + 19. */
+    int chat_y = 357;
+    if( game->view_port )
+        chat_y = game->view_port->height + 19;
+
     if( game->sprite_backleft1 )
     {
         dash2d_blit_sprite(
@@ -1250,7 +1256,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             game->sprite_backleft2,
             game->iface_view_port,
             0,
-            357,
+            chat_y,
             renderer->pixel_buffer);
     }
 
@@ -1316,18 +1322,19 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             game->sprite_backvmid3,
             game->iface_view_port,
             496,
-            357,
+            chat_y,
             renderer->pixel_buffer);
     }
 
     if( game->sprite_backhmid2 )
     {
+        /* Bar between viewport and chat: 19px above chat */
         dash2d_blit_sprite(
             game->sys_dash,
             game->sprite_backhmid2,
             game->iface_view_port,
             0,
-            338,
+            chat_y - 19,
             renderer->pixel_buffer);
     }
 
@@ -1716,8 +1723,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
-    /* Chat area at (17, 357) - Client.ts drawChat: areaChatback.bind(), imageChatback.draw(0,0),
-     * drawInterface(chat), areaChatback.draw(17, 357) */
+    /* Chat area at (17, chat_y) - chat_y computed above from viewport */
     if( game->sprite_chatback )
     {
         dash2d_blit_sprite(
@@ -1725,7 +1731,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             game->sprite_chatback,
             game->iface_view_port,
             17,
-            357,
+            chat_y,
             renderer->pixel_buffer);
     }
     if( game->chat_interface_id != -1 )
@@ -1735,16 +1741,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         if( chat_component )
         {
             game->current_hovered_interface_id = interface_find_hovered_interface_id(
-                game, chat_component, 17, 357, game->mouse_x, game->mouse_y);
+                game, chat_component, 17, chat_y, game->mouse_x, game->mouse_y);
             interface_draw_component(
-                game, chat_component, 17, 357, 0, renderer->pixel_buffer, renderer->width);
+                game, chat_component, 17, chat_y, 0, renderer->pixel_buffer, renderer->width);
         }
     }
     else if( game->pixfont_p12 )
     {
         /* Client.ts drawChat: draw messages and input line when chat interface is closed. */
         int chat_x = 17 + 4;
-        int chat_y_base = 357;
+        int chat_y_base = chat_y;
         int line_height = 14;
         int line = 0;
         int stride = renderer->width;
@@ -2031,8 +2037,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     /* Draw chat input line on top of privacy panel (Client.ts font.drawString(4, 90, username+':')) */
     if( game->chat_interface_id == -1 && game->pixfont_p12 )
     {
+        int chat_y_base = chat_y;
         int chat_x = 17 + 4;
-        int chat_y_base = 357;
         static const int black = 0x000000;
         static const int blue = 0x0000FF;
         struct DashViewPort* vp = game->iface_view_port;
