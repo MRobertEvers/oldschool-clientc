@@ -256,6 +256,11 @@ struct GGame
 
     /* Hovered interactable loc (Client.ts pickedBitsets for entityType 2). Last hit in draw order. */
     struct SceneElement* hovered_scene_element;
+
+    /* Click cross: 0=none, 1=yellow (tile), 2=red (viewport but not tile). Client.ts crossMode. */
+    int cross_mode;
+    int cross_x;
+    int cross_y;
 };
 
 void

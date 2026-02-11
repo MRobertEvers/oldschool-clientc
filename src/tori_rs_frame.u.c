@@ -239,6 +239,26 @@ skip_highlight:;
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
+    /* Client.ts crossMode: yellow (1) when tile clicked, red (2) when viewport clicked but not tile.
+     * No cross when clicking on 2D interface. */
+    if( game->mouse_clicked && game->view_port )
+    {
+        int in_viewport =
+            game->mouse_clicked_x >= 0 && game->mouse_clicked_x < game->view_port->width &&
+            game->mouse_clicked_y >= 0 && game->mouse_clicked_y < game->view_port->height;
+        if( game->interface_consumed_click || !in_viewport )
+        {
+            game->mouse_cycle = -1;
+            game->cross_mode = 0;
+        }
+        else
+        {
+            game->cross_mode = game->clicked_tile_valid ? 1 : 2;
+            game->cross_x = game->mouse_clicked_x;
+            game->cross_y = game->mouse_clicked_y;
+        }
+    }
+
     if( game->mouse_clicked && game->clicked_tile_valid && !game->interface_consumed_click &&
         GAME_NET_STATE_GAME == game->net_state )
     {

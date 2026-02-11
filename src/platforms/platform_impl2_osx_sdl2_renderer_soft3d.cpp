@@ -1232,15 +1232,24 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             205,
             renderer->pixel_buffer);
 
-    if( game->sprite_cross[0] && game->mouse_cycle != -1 )
+    /* Client.ts: yellow cross (0-3) when tile clicked, red cross (4-7) when viewport clicked but not
+     * tile. No cross when clicking on 2D interface. */
+    if( game->sprite_cross[0] && game->mouse_cycle != -1 && game->cross_mode != 0 )
     {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_cross[game->mouse_cycle / 100],
-            game->iface_view_port,
-            game->mouse_clicked_x - 8 - 4,
-            game->mouse_clicked_y - 8 - 4,
-            renderer->pixel_buffer);
+        int frame = game->mouse_cycle / 100;
+        if( frame > 3 )
+            frame = 3;
+        int sprite_idx = frame + (game->cross_mode == 2 ? 4 : 0);
+        if( sprite_idx < 8 )
+        {
+            dash2d_blit_sprite(
+                game->sys_dash,
+                game->sprite_cross[sprite_idx],
+                game->iface_view_port,
+                game->cross_x - 8 - 4,
+                game->cross_y - 8 - 4,
+                renderer->pixel_buffer);
+        }
     }
 
     if( game->sprite_backleft1 )

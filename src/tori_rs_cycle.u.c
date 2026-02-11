@@ -1225,6 +1225,7 @@ LibToriRS_GameStep(
         if( tab_clicked >= 0 )
         {
             game->interface_consumed_click = 1;
+            game->mouse_cycle = -1; /* No cross when clicking on 2D interface */
             game->selected_tab = tab_clicked;
             /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE */
         }
@@ -1233,6 +1234,7 @@ LibToriRS_GameStep(
         else if( mouse_y >= panel_top && mouse_y < panel_top + panel_h )
         {
             game->interface_consumed_click = 1;
+            game->mouse_cycle = -1; /* No cross when clicking on 2D interface */
             if( mouse_x >= 6 && mouse_x <= 106 )
             {
                 game->chat_public_mode = (game->chat_public_mode + 1) % 4;
@@ -1255,6 +1257,7 @@ LibToriRS_GameStep(
         else if( game->viewport_interface_id != -1 && mouse_x < 553 )
         {
             game->interface_consumed_click = 1;
+            game->mouse_cycle = -1; /* No cross when clicking on 2D interface */
             struct CacheDatConfigComponent* viewport_component =
                 buildcachedat_get_component(game->buildcachedat, game->viewport_interface_id);
             if( viewport_component )
@@ -1377,6 +1380,7 @@ LibToriRS_GameStep(
         else if( mouse_x >= 553 && mouse_x < 763 && mouse_y >= 205 && mouse_y < 498 )
         {
             game->interface_consumed_click = 1;
+            game->mouse_cycle = -1; /* No cross when clicking on 2D interface */
 
             // Determine which interface to check
             int component_id = -1;
