@@ -351,8 +351,8 @@ head_model_render(
     position.yaw = yan;
     position.roll = 0;
     position.x = 0;
-    int model_min_y = -dash_model->bounds_cylinder->min_y;
-    position.y = sinPitch + (model_min_y / 2);
+    int model_min_y = dash_model->bounds_cylinder->min_y;
+    position.y = sinPitch - (model_min_y / 2);
     position.z = cosPitch;
 
     memset(buffer, 0, (size_t)width * height * sizeof(int));

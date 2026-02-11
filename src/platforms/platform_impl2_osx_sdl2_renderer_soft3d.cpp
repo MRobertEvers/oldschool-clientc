@@ -15,7 +15,6 @@ extern "C" {
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/collision_map.h"
 #include "osrs/colors.h"
-#include "osrs/rscache/tables/config_locs.h"
 #include "osrs/dash_utils.h"
 #include "osrs/game_entity.h"
 #include "osrs/gio.h"
@@ -24,6 +23,7 @@ extern "C" {
 #include "osrs/minimap.h"
 #include "osrs/model_transforms.h"
 #include "osrs/rscache/rsbuf.h"
+#include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
@@ -1794,8 +1794,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 }
                 draw_line = true;
             }
-            else if( (type == 1 || type == 2) &&
-                     (type == 1 || game->chat_public_mode == 0 || game->chat_public_mode == 1) )
+            else if(
+                (type == 1 || type == 2) &&
+                (type == 1 || game->chat_public_mode == 0 || game->chat_public_mode == 1) )
             {
                 if( y > chat_y_base && y < chat_y_base + 110 )
                 {
@@ -1829,8 +1830,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 }
                 draw_line = true;
             }
-            else if( (type == 3 || type == 7) &&
-                     (type == 7 || game->chat_private_mode == 0 || game->chat_private_mode == 1) )
+            else if(
+                (type == 3 || type == 7) &&
+                (type == 7 || game->chat_private_mode == 0 || game->chat_private_mode == 1) )
             {
                 if( y > chat_y_base && y < chat_y_base + 110 )
                 {
@@ -1851,17 +1853,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     int x = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)"From ");
                     snprintf(buf, sizeof(buf), "%s: ", sender);
                     dashfont_draw_text_clipped(
-                        game->pixfont_p12,
-                        (uint8_t*)buf,
-                        x,
-                        y,
-                        black,
-                        pix,
-                        stride,
-                        cl,
-                        ct,
-                        cr,
-                        cb);
+                        game->pixfont_p12, (uint8_t*)buf, x, y, black, pix, stride, cl, ct, cr, cb);
                     x += dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 8;
                     dashfont_draw_text_clipped(
                         game->pixfont_p12,
@@ -1898,7 +1890,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                             ct,
                             cr,
                             cb);
-                        int sx = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 12;
+                        int sx =
+                            chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 12;
                         dashfont_draw_text_clipped(
                             game->pixfont_p12,
                             (uint8_t*)text,
@@ -2034,8 +2027,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
-    /* Draw chat input line (Client.ts font.drawString(4, 90) but GameShell insideChatInputArea Y1=434;
-     * chatback at 357, so input at 434-357=77. Use 77 to align with clickable input area.) */
+    /* Draw chat input line (Client.ts font.drawString(4, 90) but GameShell insideChatInputArea
+     * Y1=434; chatback at 357, so input at 434-357=77. Use 77 to align with clickable input area.)
+     */
     if( game->chat_interface_id == -1 && game->pixfont_p12 )
     {
         int chat_y_base = chat_y;
@@ -2244,8 +2238,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
-    /* Client.ts: yellow cross (0-3) when tile clicked, red cross (4-7) when viewport clicked but not
-     * tile. Draw after dash buffer blit so cross appears on top of 3D view. */
+    /* Client.ts: yellow cross (0-3) when tile clicked, red cross (4-7) when viewport clicked but
+     * not tile. Draw after dash buffer blit so cross appears on top of 3D view. */
     if( game->sprite_cross[0] && game->mouse_cycle != -1 && game->cross_mode != 0 )
     {
         int frame = game->mouse_cycle / 100;
@@ -2278,7 +2272,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         {
             /* NPC: Client.ts addNpcOptions - first op (4..0) or Examine, npc.name */
             struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
-            int npc_type_id = el->entity_npc_type_id >= 0 ? el->entity_npc_type_id : (npc ? npc->npc_type_id : -1);
+            int npc_type_id = el->entity_npc_type_id >= 0 ? el->entity_npc_type_id
+                                                          : (npc ? npc->npc_type_id : -1);
             if( npc && game->buildcachedat && npc_type_id >= 0 )
             {
                 struct CacheDatConfigNpc* npc_cfg =
