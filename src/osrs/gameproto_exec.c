@@ -572,6 +572,14 @@ gameproto_exec_rebuild_normal(
 
     int levels = MAP_TERRAIN_LEVELS;
 
+    /* Client.ts: when scene base changes, update entity coordinates (route + position) */
+    int prev_base_x = game->scene_base_tile_x;
+    int prev_base_z = game->scene_base_tile_z;
+    int new_base_x = zone_sw_x * 8;
+    int new_base_z = zone_sw_z * 8;
+    int dx = new_base_x - prev_base_x;
+    int dz = new_base_z - prev_base_z;
+
     game->sys_painter = painter_new(SCENE_WIDTH, SCENE_WIDTH, levels);
     game->sys_painter_buffer = painter_buffer_new();
     game->sys_minimap =
@@ -580,8 +588,8 @@ gameproto_exec_rebuild_normal(
 
     /* REBUILD_NORMAL: zone is in 8-tile units (pkt_rebuild_normal.lua wx_sw = zone_sw_x * 8).
      */
-    game->scene_base_tile_x = zone_sw_x * 8;
-    game->scene_base_tile_z = zone_sw_z * 8;
+    game->scene_base_tile_x = new_base_x;
+    game->scene_base_tile_z = new_base_z;
 
     game->scene = scenebuilder_load_from_buildcachedat(
         game->scenebuilder,
@@ -592,6 +600,39 @@ gameproto_exec_rebuild_normal(
         104,
         104,
         game->buildcachedat);
+
+    /* Client.ts: npc.routeX[j] -= dx; npc.routeZ[j] -= dz; npc.x -= dx*128; npc.z -= dz*128 */
+    for( int i = 0; i < game->npc_count; i++ )
+    {
+        int npc_id = game->active_npcs[i];
+        if( npc_id < 0 )
+            continue;
+        struct NPCEntity* npc = &game->npcs[npc_id];
+        if( !npc->alive )
+            continue;
+        for( int j = 0; j < 10; j++ )
+        {
+            npc->pathing.route_x[j] -= dx;
+            npc->pathing.route_z[j] -= dz;
+        }
+        npc->position.x -= dx * 128;
+        npc->position.z -= dz * 128;
+    }
+
+    /* Client.ts: same for players (iterate all like Client does) */
+    for( int i = 0; i < MAX_PLAYERS; i++ )
+    {
+        struct PlayerEntity* player = &game->players[i];
+        if( !player->alive )
+            continue;
+        for( int j = 0; j < 10; j++ )
+        {
+            player->pathing.route_x[j] -= dx;
+            player->pathing.route_z[j] -= dz;
+        }
+        player->position.x -= dx * 128;
+        player->position.z -= dz * 128;
+    }
 }
 
 void
