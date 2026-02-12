@@ -103,6 +103,8 @@ LibToriRS_GameNew(
     game->clicked_tile_z = 0;
     game->scene_base_tile_x = 0;
     game->scene_base_tile_z = 0;
+    game->zone_base_x = 0;
+    game->zone_base_z = 0;
     game->path_tile_count = 0;
 
     game->running = true;

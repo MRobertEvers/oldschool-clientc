@@ -213,6 +213,59 @@ gameproto_process(
             game->chat_trade_mode = item->packet._chat_filter_settings.chat_trade_mode;
             break;
         }
+        case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS:
+        {
+            game->zone_base_x = item->packet._update_zone_partial_follows.base_x;
+            game->zone_base_z = item->packet._update_zone_partial_follows.base_z;
+            break;
+        }
+        case PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS:
+        {
+            game->zone_base_x = item->packet._update_zone_full_follows.base_x;
+            game->zone_base_z = item->packet._update_zone_full_follows.base_z;
+            break;
+        }
+        case PKTIN_LC245_2_OBJ_ADD:
+        {
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_OBJ_ADD,
+                .u.pkt_obj_add = {
+                    .item = item,
+                    .io = io,
+                    .zone_base_x = game->zone_base_x,
+                    .zone_base_z = game->zone_base_z,
+                },
+            };
+            script_queue_push(&game->script_queue, &args);
+            break;
+        }
+        case PKTIN_LC245_2_LOC_ADD_CHANGE:
+        {
+            struct ScriptArgs args = {
+                .tag = SCRIPT_PKT_LOC_ADD_CHANGE,
+                .u.pkt_loc_add_change = { .item = item, .io = io },
+            };
+            script_queue_push(&game->script_queue, &args);
+            break;
+        }
+        case PKTIN_LC245_2_OBJ_DEL:
+            gameproto_exec_obj_del(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_OBJ_REVEAL:
+            gameproto_exec_obj_reveal(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_OBJ_COUNT:
+            gameproto_exec_obj_count(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_LOC_DEL:
+            gameproto_exec_loc_del(game, &item->packet);
+            break;
+        case PKTIN_LC245_2_LOC_ANIM:
+        case PKTIN_LC245_2_LOC_MERGE:
+        case PKTIN_LC245_2_MAP_PROJANIM:
+        case PKTIN_LC245_2_MAP_ANIM:
+            /* TODO: implement */
+            break;
         default:
             break;
         }

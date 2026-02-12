@@ -1769,6 +1769,44 @@ l_gameproto_exec_if_setplayerhead(lua_State* L)
 }
 
 static int
+l_gameproto_get_obj_add_data(lua_State* L)
+{
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    lua_pushinteger(L, item->packet._obj_add.obj_id & 0x7fff);
+    lua_pushinteger(L, item->packet._obj_add.count);
+    return 2;
+}
+
+static int
+l_gameproto_exec_obj_add(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    int zone_base_x = luaL_checkinteger(L, 2);
+    int zone_base_z = luaL_checkinteger(L, 3);
+    gameproto_exec_obj_add(game, &item->packet, zone_base_x, zone_base_z);
+    return 0;
+}
+
+static int
+l_gameproto_get_loc_add_change_data(lua_State* L)
+{
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    lua_pushinteger(L, item->packet._loc_add_change.loc_id);
+    lua_pushinteger(L, item->packet._loc_add_change.info >> 2); /* shape */
+    return 2;
+}
+
+static int
+l_gameproto_exec_loc_add_change(lua_State* L)
+{
+    struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    gameproto_exec_loc_add_change(game, &item->packet);
+    return 0;
+}
+
+static int
 l_gameproto_get_local_player_appearance_ids(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
@@ -1821,6 +1859,10 @@ static const luaL_Reg gameproto_funcs[] = {
     { "exec_if_setnpchead",        l_gameproto_exec_if_setnpchead        },
     { "exec_if_setplayerhead",     l_gameproto_exec_if_setplayerhead     },
     { "get_local_player_appearance_ids", l_gameproto_get_local_player_appearance_ids },
+    { "get_obj_add_data",          l_gameproto_get_obj_add_data           },
+    { "exec_obj_add",              l_gameproto_exec_obj_add               },
+    { "get_loc_add_change_data",   l_gameproto_get_loc_add_change_data    },
+    { "exec_loc_add_change",       l_gameproto_exec_loc_add_change        },
     { NULL,                        NULL                                  }
 };
 

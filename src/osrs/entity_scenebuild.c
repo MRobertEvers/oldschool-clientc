@@ -8,6 +8,7 @@
 #include "osrs/game.h"
 #include "osrs/model_transforms.h"
 #include "osrs/scene.h"
+#include "osrs/zone_state.h"
 #include "rscache/tables/model.h"
 #include "rscache/tables_dat/config_idk.h"
 #include "rscache/tables_dat/config_npc.h"
@@ -18,6 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static struct CacheModel*
 idk_model(
@@ -47,6 +49,46 @@ idk_model(
     struct CacheModel* merged = model_new_merge(models, model_count);
     buildcachedat_add_idk_model(game->buildcachedat, idk_id, merged);
     return merged;
+}
+
+/* Ground object model (obj->model) for world-rendered items. Uses countobj for stack
+ * variations (e.g. coin stacks). Returns CacheModel*; caller must not free (cached). */
+static struct CacheModel*
+obj_ground_model(
+    struct GGame* game,
+    int obj_id,
+    int count)
+{
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    if( !obj )
+        return NULL;
+
+    /* Handle count-based object variations (e.g., coin stacks) */
+    if( obj->countobj && obj->countco && count > 1 )
+    {
+        int countobj_id = -1;
+        for( int i = 0; i < obj->countobj_count && i < 10; i++ )
+        {
+            if( count >= obj->countco[i] && obj->countco[i] != 0 )
+            {
+                countobj_id = obj->countobj[i];
+            }
+        }
+        if( countobj_id != -1 )
+            return obj_ground_model(game, countobj_id, 1);
+    }
+
+    if( obj->model == 0 || obj->model == -1 )
+        return NULL;
+
+    struct CacheModel* model = buildcachedat_get_model(game->buildcachedat, obj->model);
+    if( !model )
+        return NULL;
+
+    struct CacheModel* copy = model_new_copy(model);
+    for( int i = 0; i < obj->recol_count; i++ )
+        model_transform_recolor(copy, obj->recol_s[i], obj->recol_d[i]);
+    return copy;
 }
 
 static struct CacheModel*
@@ -96,6 +138,75 @@ obj_model(
     }
 
     return merged;
+}
+
+/** Update or create the SceneElement for the top obj at (level, sx, sz). Client.ts sortObjStacks:
+ * top by cost (stackable: cost *= count+1). Call after obj_add, obj_del, obj_count. */
+void
+entity_scenebuild_obj_stack_update_tile(
+    struct GGame* game,
+    int level,
+    int sx,
+    int sz)
+{
+    struct ObjStackEntry* head = game->obj_stacks[level][sx][sz];
+
+    if( !head )
+    {
+        if( game->obj_stack_elements[level][sx][sz] )
+        {
+            scene_element_free(game->obj_stack_elements[level][sx][sz]);
+            game->obj_stack_elements[level][sx][sz] = NULL;
+        }
+        return;
+    }
+
+    /* Find top obj by cost (Client.ts sortObjStacks) */
+    int top_cost = -99999999;
+    struct ObjStackEntry* top_entry = NULL;
+    for( struct ObjStackEntry* e = head; e; e = e->next )
+    {
+        struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, e->obj_id);
+        int cost = obj ? obj->cost : 0;
+        if( obj && obj->stackable )
+            cost *= e->count + 1;
+        if( cost > top_cost )
+        {
+            top_cost = cost;
+            top_entry = e;
+        }
+    }
+
+    if( !top_entry )
+        return;
+
+    struct CacheModel* cache_model = obj_ground_model(game, top_entry->obj_id, top_entry->count);
+    if( !cache_model )
+        return;
+
+    struct SceneElement* element = game->obj_stack_elements[level][sx][sz];
+    if( !element )
+    {
+        element = scene_element_new(game->scene);
+        element->dash_model = dashmodel_new();
+        game->obj_stack_elements[level][sx][sz] = element;
+    }
+    else
+    {
+        scene_element_reset(element);
+    }
+
+    dashmodel_move_from_cache_model(element->dash_model, cache_model);
+    model_free(cache_model);
+    _light_model_default(element->dash_model, 0, 0);
+
+    int scene_x = sx * 128 + 64;
+    int scene_z = sz * 128 + 64;
+    element->dash_position->x = scene_x;
+    element->dash_position->z = scene_z;
+    element->dash_position->y = scene_terrain_height_at_interpolated(
+        game->scene, scene_x, scene_z, level);
+    element->entity_kind = 0;
 }
 
 static void

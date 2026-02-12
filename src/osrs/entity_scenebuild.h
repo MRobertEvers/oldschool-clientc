@@ -37,6 +37,15 @@ entity_scenebuild_npc_release(
     struct GGame* game,
     int npc_id);
 
+/** Update or create SceneElement for top obj at (level, sx, sz). Call after obj_add, obj_del,
+ * obj_count. */
+void
+entity_scenebuild_obj_stack_update_tile(
+    struct GGame* game,
+    int level,
+    int sx,
+    int sz);
+
 /* Get head model for interface MODEL component (chat head). model_type 2=NPC, 3=player.
  * For player, slots and colors from entity appearance. Caller must dashmodel_free result. */
 struct DashModel*

@@ -14,6 +14,8 @@ enum ScriptKind
     SCRIPT_PKT_IF_SETTAB,
     SCRIPT_PKT_IF_SETNPCHEAD,
     SCRIPT_PKT_IF_SETPLAYERHEAD,
+    SCRIPT_PKT_OBJ_ADD,
+    SCRIPT_PKT_LOC_ADD_CHANGE,
     SCRIPT_COUNT
 };
 
@@ -81,6 +83,20 @@ struct ScriptArgsPktIfSetPlayerHead
     void* io;
 };
 
+struct ScriptArgsPktObjAdd
+{
+    void* item;
+    void* io;
+    int zone_base_x; /* captured when queued; used when exec runs */
+    int zone_base_z;
+};
+
+struct ScriptArgsPktLocAddChange
+{
+    void* item;
+    void* io;
+};
+
 /* Args for load_inventory_models: no args needed */
 struct ScriptArgsLoadInventoryModels
 {
@@ -103,6 +119,8 @@ struct ScriptArgs
         struct ScriptArgsPktIfSetTab pkt_if_settab;
         struct ScriptArgsPktIfSetNpcHead pkt_if_setnpchead;
         struct ScriptArgsPktIfSetPlayerHead pkt_if_setplayerhead;
+        struct ScriptArgsPktObjAdd pkt_obj_add;
+        struct ScriptArgsPktLocAddChange pkt_loc_add_change;
     } u;
 };
 

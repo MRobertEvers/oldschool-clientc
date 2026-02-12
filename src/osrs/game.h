@@ -22,6 +22,7 @@
 #include "osrs/script_queue.h"
 #include "osrs/player_stats.h"
 #include "osrs/varp_varbit_manager.h"
+#include "osrs/zone_state.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -250,6 +251,19 @@ struct GGame
      */
     int scene_base_tile_x;
     int scene_base_tile_z;
+
+    /* Zone packet base: set by UPDATE_ZONE_PARTIAL_FOLLOWS / UPDATE_ZONE_FULL_FOLLOWS. Used for
+     * LOC_ADD_CHANGE, OBJ_ADD, etc. x = zone_base_x + (pos>>4)&7, z = zone_base_z + pos&7 */
+    int zone_base_x;
+    int zone_base_z;
+
+    /* Dynamic zone state: obj stacks and loc changes (Client.ts objStacks, locChanges).
+     * Cleared on REBUILD_NORMAL. Full impl adds dynamic scene elements. */
+#define ZONE_SCENE_SIZE 104
+#define ZONE_LEVELS 4
+    struct ObjStackEntry* obj_stacks[ZONE_LEVELS][ZONE_SCENE_SIZE][ZONE_SCENE_SIZE];
+    struct SceneElement* obj_stack_elements[ZONE_LEVELS][ZONE_SCENE_SIZE][ZONE_SCENE_SIZE];
+    struct LocChangeEntry* loc_changes_head;
 
 /* BFS path for move (scene-local tiles); drawn as line overlay. Cleared when highlight cleared. */
 #define GAME_PATH_TILE_MAX 26

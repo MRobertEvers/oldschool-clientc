@@ -9,6 +9,7 @@
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
+#include "osrs/zone_state.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
 #include "rscache/bitbuffer.h"
@@ -602,6 +603,38 @@ gameproto_exec_rebuild_normal(
     game->scene_base_tile_x = new_base_x;
     game->scene_base_tile_z = new_base_z;
 
+    /* Clear dynamic zone state on rebuild (Client.ts clears objStacks and locChanges) */
+    for( int level = 0; level < ZONE_LEVELS; level++ )
+    {
+        for( int x = 0; x < ZONE_SCENE_SIZE; x++ )
+        {
+            for( int z = 0; z < ZONE_SCENE_SIZE; z++ )
+            {
+                if( game->obj_stack_elements[level][x][z] )
+                {
+                    scene_element_free(game->obj_stack_elements[level][x][z]);
+                    game->obj_stack_elements[level][x][z] = NULL;
+                }
+                struct ObjStackEntry* entry = game->obj_stacks[level][x][z];
+                while( entry )
+                {
+                    struct ObjStackEntry* next = entry->next;
+                    free(entry);
+                    entry = next;
+                }
+                game->obj_stacks[level][x][z] = NULL;
+            }
+        }
+    }
+    struct LocChangeEntry* loc = game->loc_changes_head;
+    while( loc )
+    {
+        struct LocChangeEntry* next = loc->next;
+        free(loc);
+        loc = next;
+    }
+    game->loc_changes_head = NULL;
+
     game->scene = scenebuilder_load_from_buildcachedat(
         game->scenebuilder,
         zone_sw_x * 8,
@@ -1009,7 +1042,204 @@ gameproto_exec_lc245_2(
     case PKTIN_LC245_2_IF_SETSCROLLPOS:
         gameproto_exec_if_setscrollpos(game, packet);
         break;
+    case PKTIN_LC245_2_OBJ_ADD:
+        gameproto_exec_obj_add(game, packet, game->zone_base_x, game->zone_base_z);
+        break;
+    case PKTIN_LC245_2_OBJ_DEL:
+        gameproto_exec_obj_del(game, packet);
+        break;
+    case PKTIN_LC245_2_OBJ_REVEAL:
+        gameproto_exec_obj_reveal(game, packet);
+        break;
+    case PKTIN_LC245_2_OBJ_COUNT:
+        gameproto_exec_obj_count(game, packet);
+        break;
+    case PKTIN_LC245_2_LOC_ADD_CHANGE:
+        gameproto_exec_loc_add_change(game, packet);
+        break;
+    case PKTIN_LC245_2_LOC_DEL:
+        gameproto_exec_loc_del(game, packet);
+        break;
     default:
         break;
     }
+}
+
+static int
+zone_tile_x(struct GGame* game, int pos)
+{
+    return game->zone_base_x + ((pos >> 4) & 0x7);
+}
+
+static int
+zone_tile_z(struct GGame* game, int pos)
+{
+    return game->zone_base_z + (pos & 0x7);
+}
+
+void
+gameproto_exec_obj_add(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet,
+    int zone_base_x,
+    int zone_base_z)
+{
+    /* Client.ts: x = baseX + (pos>>4)&7, z = baseZ + pos&7; use directly as scene indices */
+    int sx = zone_base_x + ((packet->_obj_add.pos >> 4) & 0x7);
+    int sz = zone_base_z + (packet->_obj_add.pos & 0x7);
+    int obj_id = packet->_obj_add.obj_id & 0x7fff;
+    int count = packet->_obj_add.count;
+    int level = 0; /* TODO: use current level */
+
+    if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+        return;
+
+    struct ObjStackEntry* entry = malloc(sizeof(struct ObjStackEntry));
+    entry->obj_id = obj_id;
+    entry->count = count;
+    entry->next = game->obj_stacks[level][sx][sz];
+    game->obj_stacks[level][sx][sz] = entry;
+
+    if( game->scene )
+        entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
+}
+
+void
+gameproto_exec_obj_del(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int sx = zone_tile_x(game, packet->_obj_del.pos);
+    int sz = zone_tile_z(game, packet->_obj_del.pos);
+    int obj_id = packet->_obj_del.obj_id & 0x7fff;
+    int level = 0;
+
+    if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+        return;
+
+    struct ObjStackEntry** prev = &game->obj_stacks[level][sx][sz];
+    for( struct ObjStackEntry* e = *prev; e; prev = &e->next, e = e->next )
+    {
+        if( e->obj_id == obj_id )
+        {
+            *prev = e->next;
+            free(e);
+            break;
+        }
+    }
+
+    if( game->scene )
+        entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
+}
+
+void
+gameproto_exec_obj_reveal(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( packet->_obj_reveal.receiver == ACTIVE_PLAYER_SLOT )
+        return; /* Client.ts: skip if receiver is local player */
+    struct RevPacket_LC245_2 add_pkt = { 0 };
+    add_pkt._obj_add.pos = packet->_obj_reveal.pos;
+    add_pkt._obj_add.obj_id = packet->_obj_reveal.obj_id;
+    add_pkt._obj_add.count = packet->_obj_reveal.count;
+    gameproto_exec_obj_add(game, &add_pkt, game->zone_base_x, game->zone_base_z);
+}
+
+void
+gameproto_exec_obj_count(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int sx = zone_tile_x(game, packet->_obj_count.pos);
+    int sz = zone_tile_z(game, packet->_obj_count.pos);
+    int obj_id = packet->_obj_count.obj_id & 0x7fff;
+    int old_count = packet->_obj_count.old_count;
+    int new_count = packet->_obj_count.new_count;
+    int level = 0;
+
+    if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+        return;
+
+    for( struct ObjStackEntry* e = game->obj_stacks[level][sx][sz]; e; e = e->next )
+    {
+        if( e->obj_id == obj_id && e->count == old_count )
+        {
+            e->count = new_count;
+            break;
+        }
+    }
+
+    if( game->scene )
+        entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
+}
+
+void
+gameproto_exec_loc_add_change(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int x = zone_tile_x(game, packet->_loc_add_change.pos);
+    int z = zone_tile_z(game, packet->_loc_add_change.pos);
+    int info = packet->_loc_add_change.info;
+    int shape = info >> 2;
+    int angle = info & 0x3;
+    int loc_id = packet->_loc_add_change.loc_id;
+    /* TODO: resolve layer from LocShape; add to loc_changes_head; apply when models ready */
+    (void)shape;
+    (void)angle;
+    (void)loc_id;
+
+    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+        return;
+
+    struct LocChangeEntry* entry = malloc(sizeof(struct LocChangeEntry));
+    entry->level = 0;
+    entry->x = x;
+    entry->z = z;
+    entry->layer = 0; /* TODO: LocShape.of(shape).layer */
+    entry->old_type = -1;
+    entry->new_type = loc_id;
+    entry->old_shape = 0;
+    entry->new_shape = shape;
+    entry->old_angle = 0;
+    entry->new_angle = angle;
+    entry->start_time = 0;
+    entry->end_time = -1;
+    entry->next = game->loc_changes_head;
+    game->loc_changes_head = entry;
+}
+
+void
+gameproto_exec_loc_del(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int x = zone_tile_x(game, packet->_loc_del.pos);
+    int z = zone_tile_z(game, packet->_loc_del.pos);
+    int info = packet->_loc_del.info;
+    int shape = info >> 2;
+    int angle = info & 0x3;
+    /* TODO: add LocChangeEntry with new_type=-1 to remove */
+    (void)shape;
+    (void)angle;
+
+    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+        return;
+
+    struct LocChangeEntry* entry = malloc(sizeof(struct LocChangeEntry));
+    entry->level = 0;
+    entry->x = x;
+    entry->z = z;
+    entry->layer = 0;
+    entry->old_type = 0; /* TODO: get from scene */
+    entry->new_type = -1;
+    entry->old_shape = shape;
+    entry->new_shape = 0;
+    entry->old_angle = angle;
+    entry->new_angle = 0;
+    entry->start_time = 0;
+    entry->end_time = -1;
+    entry->next = game->loc_changes_head;
+    game->loc_changes_head = entry;
 }

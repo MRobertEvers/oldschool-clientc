@@ -60,6 +60,10 @@ script_path_for_kind(enum ScriptKind kind)
         return "pkt_if_setnpchead.lua";
     case SCRIPT_PKT_IF_SETPLAYERHEAD:
         return "pkt_if_setplayerhead.lua";
+    case SCRIPT_PKT_OBJ_ADD:
+        return "pkt_obj_add.lua";
+    case SCRIPT_PKT_LOC_ADD_CHANGE:
+        return "pkt_loc_add_change.lua";
     default:
         return NULL;
     }
@@ -181,6 +185,24 @@ start_script_from_item(
     {
         // No args needed
         nargs = 0;
+        break;
+    }
+    case SCRIPT_PKT_OBJ_ADD:
+    {
+        struct ScriptArgsPktObjAdd* a = &item->args.u.pkt_obj_add;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        lua_pushinteger(game->L_coro, a->zone_base_x);
+        lua_pushinteger(game->L_coro, a->zone_base_z);
+        nargs = 4;
+        break;
+    }
+    case SCRIPT_PKT_LOC_ADD_CHANGE:
+    {
+        struct ScriptArgsPktLocAddChange* a = &item->args.u.pkt_loc_add_change;
+        lua_pushlightuserdata(game->L_coro, a->item);
+        lua_pushlightuserdata(game->L_coro, a->io);
+        nargs = 2;
         break;
     }
     default:
@@ -1173,6 +1195,30 @@ LibToriRS_GameStep(
                 1,
                 1,
                 ap->scene_element);
+        }
+
+        /* Push obj stack elements (ground items) as dynamic elements */
+        for( int level = 0; level < ZONE_LEVELS; level++ )
+        {
+            for( int sx = 0; sx < ZONE_SCENE_SIZE; sx++ )
+            {
+                for( int sz = 0; sz < ZONE_SCENE_SIZE; sz++ )
+                {
+                    struct SceneElement* elem = game->obj_stack_elements[level][sx][sz];
+                    if( elem )
+                    {
+                        scenebuilder_push_dynamic_element(
+                            game->scenebuilder,
+                            game->scene,
+                            sx,
+                            sz,
+                            level,
+                            1,
+                            1,
+                            elem);
+                    }
+                }
+            }
         }
     }
 

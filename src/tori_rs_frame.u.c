@@ -250,6 +250,19 @@ skip_highlight:;
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
+    /* Client.ts: if mouse outside menu bounds, menuVisible = false. Close minimenu when mouse
+     * moves off the menu. */
+    if( game->menu_visible && game->menu_area == 0 && game->view_port )
+    {
+        int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
+        int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
+        if( mouse_vp_x < game->menu_x - 10 || mouse_vp_x > game->menu_x + game->menu_width + 10 ||
+            mouse_vp_y < game->menu_y - 10 || mouse_vp_y > game->menu_y + game->menu_height + 10 )
+        {
+            game->menu_visible = 0;
+        }
+    }
+
     /* Client.ts crossMode: yellow (1) when tile clicked, red (2) when viewport clicked but not
      * tile. No cross when clicking on 2D interface. */
     if( game->mouse_clicked && game->view_port )

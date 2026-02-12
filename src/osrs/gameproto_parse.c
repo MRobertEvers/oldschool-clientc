@@ -240,6 +240,145 @@ gameproto_parse_lc245_2(
         assert(buffer.position == data_size);
         return 1;
     }
+    case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS:
+    {
+        printf("PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS\n");
+        packet->_update_zone_partial_follows.base_x = g1(&buffer);
+        packet->_update_zone_partial_follows.base_z = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS:
+    {
+        printf("PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS\n");
+        packet->_update_zone_full_follows.base_x = g1(&buffer);
+        packet->_update_zone_full_follows.base_z = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOC_ADD_CHANGE:
+    {
+        printf("PKTIN_LC245_2_LOC_ADD_CHANGE\n");
+        packet->_loc_add_change.pos = g1(&buffer);
+        packet->_loc_add_change.info = g1(&buffer);
+        packet->_loc_add_change.loc_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOC_DEL:
+    {
+        printf("PKTIN_LC245_2_LOC_DEL\n");
+        packet->_loc_del.pos = g1(&buffer);
+        packet->_loc_del.info = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOC_ANIM:
+    {
+        printf("PKTIN_LC245_2_LOC_ANIM\n");
+        packet->_loc_anim.pos = g1(&buffer);
+        packet->_loc_anim.info = g1(&buffer);
+        packet->_loc_anim.seq_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_OBJ_ADD:
+    {
+        packet->_obj_add.pos = g1(&buffer);
+        packet->_obj_add.obj_id = g2(&buffer);
+        packet->_obj_add.count = g2(&buffer);
+        printf(
+            "PKTIN_LC245_2_OBJ_ADD: pos=%d, obj_id=%d, count=%d\n",
+            packet->_obj_add.pos,
+            packet->_obj_add.obj_id,
+            packet->_obj_add.count);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_OBJ_DEL:
+    {
+        packet->_obj_del.pos = g1(&buffer);
+        packet->_obj_del.obj_id = g2(&buffer);
+        printf(
+            "PKTIN_LC245_2_OBJ_DEL: pos=%d, obj_id=%d\n",
+            packet->_obj_del.pos,
+            packet->_obj_del.obj_id);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_OBJ_REVEAL:
+    {
+        packet->_obj_reveal.pos = g1(&buffer);
+        packet->_obj_reveal.obj_id = g2(&buffer);
+        packet->_obj_reveal.count = g2(&buffer);
+        packet->_obj_reveal.receiver = g2(&buffer);
+        printf(
+            "PKTIN_LC245_2_OBJ_REVEAL: pos=%d, obj_id=%d, count=%d, receiver=%d\n",
+            packet->_obj_reveal.pos,
+            packet->_obj_reveal.obj_id,
+            packet->_obj_reveal.count,
+            packet->_obj_reveal.receiver);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_OBJ_COUNT:
+    {
+        packet->_obj_count.pos = g1(&buffer);
+        packet->_obj_count.obj_id = g2(&buffer);
+        packet->_obj_count.old_count = g2(&buffer);
+        packet->_obj_count.new_count = g2(&buffer);
+        printf(
+            "PKTIN_LC245_2_OBJ_COUNT: pos=%d, obj_id=%d, old_count=%d, new_count=%d\n",
+            packet->_obj_count.pos,
+            packet->_obj_count.obj_id,
+            packet->_obj_count.old_count,
+            packet->_obj_count.new_count);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOC_MERGE:
+    {
+        printf("PKTIN_LC245_2_LOC_MERGE\n");
+        packet->_loc_merge.pos = g1(&buffer);
+        packet->_loc_merge.info = g1(&buffer);
+        packet->_loc_merge.loc_id = g2(&buffer);
+        packet->_loc_merge.start = g2(&buffer);
+        packet->_loc_merge.end = g2(&buffer);
+        packet->_loc_merge.pid = g2(&buffer);
+        packet->_loc_merge.east = g1b(&buffer);
+        packet->_loc_merge.south = g1b(&buffer);
+        packet->_loc_merge.west = g1b(&buffer);
+        packet->_loc_merge.north = g1b(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_MAP_PROJANIM:
+    {
+        printf("PKTIN_LC245_2_MAP_PROJANIM\n");
+        packet->_map_projanim.pos = g1(&buffer);
+        packet->_map_projanim.dx_offset = g1b(&buffer);
+        packet->_map_projanim.dz_offset = g1b(&buffer);
+        packet->_map_projanim.target = g2b(&buffer);
+        packet->_map_projanim.spotanim = g2(&buffer);
+        packet->_map_projanim.src_height = g1(&buffer);
+        packet->_map_projanim.dst_height = g1(&buffer);
+        packet->_map_projanim.start_delay = g2(&buffer);
+        packet->_map_projanim.end_delay = g2(&buffer);
+        packet->_map_projanim.peak = g1(&buffer);
+        packet->_map_projanim.arc = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_MAP_ANIM:
+    {
+        printf("PKTIN_LC245_2_MAP_ANIM\n");
+        packet->_map_anim.pos = g1(&buffer);
+        packet->_map_anim.id = g2(&buffer);
+        packet->_map_anim.height = g1(&buffer);
+        packet->_map_anim.delay = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
     default:
         printf("Unknown packet type: %d\n", packet_type);
         break;
