@@ -433,28 +433,35 @@ update_entity_anim(
         return;
     }
 
-    if( x < dstX )
+    /* face_entity takes priority over pathing yaw: set dst_yaw from target first */
+    entity_face(game, view, player);
+
+    /* Only use pathing direction when face_entity did not set dst_yaw */
+    if( view->face_entity < 0 )
     {
-        if( z < dstZ )
-            view->orientation->dst_yaw = 1280;
-        else if( z > dstZ )
-            view->orientation->dst_yaw = 1792;
+        if( x < dstX )
+        {
+            if( z < dstZ )
+                view->orientation->dst_yaw = 1280;
+            else if( z > dstZ )
+                view->orientation->dst_yaw = 1792;
+            else
+                view->orientation->dst_yaw = 1536;
+        }
+        else if( x > dstX )
+        {
+            if( z < dstZ )
+                view->orientation->dst_yaw = 768;
+            else if( z > dstZ )
+                view->orientation->dst_yaw = 256;
+            else
+                view->orientation->dst_yaw = 512;
+        }
+        else if( z < dstZ )
+            view->orientation->dst_yaw = 1024;
         else
-            view->orientation->dst_yaw = 1536;
+            view->orientation->dst_yaw = 0;
     }
-    else if( x > dstX )
-    {
-        if( z < dstZ )
-            view->orientation->dst_yaw = 768;
-        else if( z > dstZ )
-            view->orientation->dst_yaw = 256;
-        else
-            view->orientation->dst_yaw = 512;
-    }
-    else if( z < dstZ )
-        view->orientation->dst_yaw = 1024;
-    else
-        view->orientation->dst_yaw = 0;
 
     int deltaYaw = (view->orientation->dst_yaw - view->orientation->yaw) & 0x7ff;
     if( deltaYaw > 1024 )
@@ -523,9 +530,6 @@ update_entity_anim(
         if( view->pathing->route_length < 0 )
             view->pathing->route_length = 0;
     }
-
-    /* Client.ts entityFace: overwrite dstYaw when face_entity is set */
-    entity_face(game, view, player);
 
 yaw_turn:;
     int remainingYaw = (view->orientation->dst_yaw - view->orientation->yaw) & 0x7ff;

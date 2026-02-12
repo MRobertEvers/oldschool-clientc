@@ -463,11 +463,27 @@ LibToriRS_FrameEnd(struct GGame* game)
                     {
                         int npc_id = (int)(npc - game->npcs);
                         int opcode = PKTOUT_LC245_2_OPNPC1 + primary_op;
-                        if( game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
+                        int dest_local_x = npc->pathing.route_x[0];
+                        int dest_local_z = npc->pathing.route_z[0];
+                        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+                        int src_local_x = pl->pathing.route_x[0];
+                        int src_local_z = pl->pathing.route_z[0];
+                        if( game->scene && game->scene->collision_maps[0] &&
+                            send_move_path_to(
+                                game,
+                                game->scene->collision_maps[0],
+                                src_local_x,
+                                src_local_z,
+                                dest_local_x,
+                                dest_local_z) &&
+                            game->outbound_size + 3 <=
+                                (int)sizeof(game->outbound_buffer) )
                         {
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                            uint32_t op =
+                                (opcode + isaac_next(game->random_out)) & 0xff;
                             game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            game->outbound_buffer[game->outbound_size++] = (npc_id >> 8) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] =
+                                (npc_id >> 8) & 0xff;
                             game->outbound_buffer[game->outbound_size++] = npc_id & 0xff;
                             sent = true;
                         }
@@ -487,76 +503,24 @@ LibToriRS_FrameEnd(struct GGame* game)
                     struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
                     int src_local_x = pl->pathing.route_x[0];
                     int src_local_z = pl->pathing.route_z[0];
-                    if( game->scene && game->scene->collision_maps[0] )
-                    {
-                        int path_local_x[25];
-                        int path_local_z[25];
-                        int waypoints = collision_map_bfs_path(
+                    if( game->scene && game->scene->collision_maps[0] &&
+                        send_move_path_to(
+                            game,
                             game->scene->collision_maps[0],
                             src_local_x,
                             src_local_z,
                             dest_local_x,
-                            dest_local_z,
-                            path_local_x,
-                            path_local_z,
-                            25);
-                        if( waypoints >= 0 && waypoints > 0 )
-                        {
-                            int buffer_size = waypoints + 1;
-                            if( buffer_size > 25 )
-                                buffer_size = 25;
-                            int steps_to_send = buffer_size - 1;
-                            int payload_size = 1 + 2 + 2 + steps_to_send * 2;
-                            int start_world_x = game->scene_base_tile_x + src_local_x;
-                            int start_world_z = game->scene_base_tile_z + src_local_z;
-                            if( game->outbound_size + 2 + payload_size + 3 <=
-                                (int)sizeof(game->outbound_buffer) )
-                            {
-                                uint32_t op =
-                                    (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (uint8_t)payload_size;
-                                game->outbound_buffer[game->outbound_size++] = 0;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (start_world_x >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (start_world_z >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
-                                for( int i = 0; i < steps_to_send && i < waypoints; i++ )
-                                {
-                                    int dx = path_local_x[i] - src_local_x;
-                                    int dz = path_local_z[i] - src_local_z;
-                                    game->outbound_buffer[game->outbound_size++] =
-                                        (uint8_t)(int8_t)dx;
-                                    game->outbound_buffer[game->outbound_size++] =
-                                        (uint8_t)(int8_t)dz;
-                                }
-                                op = (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) &
-                                     0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (player_id >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
-                                sent = true;
-                            }
-                        }
-                        else if( waypoints >= 0 && waypoints == 0 )
-                        {
-                            /* Already at player's tile; just send OPPLAYER3. */
-                            if( game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
-                            {
-                                uint32_t op =
-                                    (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) &
-                                    0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (player_id >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
-                                sent = true;
-                            }
-                        }
+                            dest_local_z) &&
+                        game->outbound_size + 3 <=
+                            (int)sizeof(game->outbound_buffer) )
+                    {
+                        uint32_t op =
+                            (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                        game->outbound_buffer[game->outbound_size++] =
+                            (player_id >> 8) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
+                        sent = true;
                     }
                 }
             }
@@ -580,93 +544,33 @@ LibToriRS_FrameEnd(struct GGame* game)
                     struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
                     int src_local_x = pl->pathing.route_x[0];
                     int src_local_z = pl->pathing.route_z[0];
-                    if( game->scene && game->scene->collision_maps[0] )
-                    {
-                        int path_local_x[25];
-                        int path_local_z[25];
-                        int waypoints = collision_map_bfs_path(
+                    int world_x = game->scene_base_tile_x + tile_sx;
+                    int world_z = game->scene_base_tile_z + tile_sz;
+                    if( game->scene && game->scene->collision_maps[0] &&
+                        send_move_path_to(
+                            game,
                             game->scene->collision_maps[0],
                             src_local_x,
                             src_local_z,
                             tile_sx,
-                            tile_sz,
-                            path_local_x,
-                            path_local_z,
-                            25);
-                        if( waypoints >= 0 && waypoints > 0 )
-                        {
-                            int buffer_size = waypoints + 1;
-                            if( buffer_size > 25 )
-                                buffer_size = 25;
-                            int steps_to_send = buffer_size - 1;
-                            int payload_size = 1 + 2 + 2 + steps_to_send * 2;
-                            int start_world_x = game->scene_base_tile_x + src_local_x;
-                            int start_world_z = game->scene_base_tile_z + src_local_z;
-                            int world_x = game->scene_base_tile_x + tile_sx;
-                            int world_z = game->scene_base_tile_z + tile_sz;
-                            if( game->outbound_size + 2 + payload_size + 7 <=
-                                (int)sizeof(game->outbound_buffer) )
-                            {
-                                uint32_t op =
-                                    (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (uint8_t)payload_size;
-                                game->outbound_buffer[game->outbound_size++] = 0;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (start_world_x >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (start_world_z >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
-                                for( int i = 0; i < steps_to_send && i < waypoints; i++ )
-                                {
-                                    int dx = path_local_x[i] - src_local_x;
-                                    int dz = path_local_z[i] - src_local_z;
-                                    game->outbound_buffer[game->outbound_size++] =
-                                        (uint8_t)(int8_t)dx;
-                                    game->outbound_buffer[game->outbound_size++] =
-                                        (uint8_t)(int8_t)dz;
-                                }
-                                int opcode = PKTOUT_LC245_2_OPLOC1 + first_op;
-                                op = (opcode + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (world_x >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (world_z >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (el->config_loc_id >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    el->config_loc_id & 0xff;
-                                sent = true;
-                            }
-                        }
-                        else if( waypoints >= 0 && waypoints == 0 )
-                        {
-                            /* Already at loc tile; just send OPLOC. */
-                            if( game->outbound_size + 7 <= (int)sizeof(game->outbound_buffer) )
-                            {
-                                int world_x = game->scene_base_tile_x + tile_sx;
-                                int world_z = game->scene_base_tile_z + tile_sz;
-                                int opcode = PKTOUT_LC245_2_OPLOC1 + first_op;
-                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (world_x >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (world_z >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    (el->config_loc_id >> 8) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] =
-                                    el->config_loc_id & 0xff;
-                                sent = true;
-                            }
-                        }
+                            tile_sz) &&
+                        game->outbound_size + 7 <=
+                            (int)sizeof(game->outbound_buffer) )
+                    {
+                        int opcode = PKTOUT_LC245_2_OPLOC1 + first_op;
+                        uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                        game->outbound_buffer[game->outbound_size++] =
+                            (world_x >> 8) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
+                        game->outbound_buffer[game->outbound_size++] =
+                            (world_z >> 8) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
+                        game->outbound_buffer[game->outbound_size++] =
+                            (el->config_loc_id >> 8) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] =
+                            el->config_loc_id & 0xff;
+                        sent = true;
                     }
                 }
             }

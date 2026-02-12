@@ -253,6 +253,7 @@ gameproto_exec_npc_info(
             if( entity_id == 65535 )
                 entity_id = -1;
             npc->orientation.face_entity = entity_id;
+            printf("npc_face_entity: %d\n", entity_id);
             break;
         }
         case PKT_NPC_INFO_OP_FACE_COORD:
@@ -261,6 +262,10 @@ gameproto_exec_npc_info(
                 break;
             npc->orientation.face_square_x = (int)op->_face_coord.x;
             npc->orientation.face_square_z = (int)op->_face_coord.z;
+            printf(
+                "npc_face_coord: %d, %d\n",
+                npc->orientation.face_square_x,
+                npc->orientation.face_square_z);
             break;
         }
         case PKT_NPC_INFO_OP_SEQUENCE:

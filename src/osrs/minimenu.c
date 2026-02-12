@@ -4,12 +4,11 @@
 #include "collision_map.h"
 #include "colors.h"
 #include "game_entity.h"
+#include "graphics/dash.h"
 #include "isaac.h"
 #include "osrs/packetout.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "rscache/tables/config_locs.h"
-
-#include "graphics/dash.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,8 +17,63 @@
 #define ACTIVE_PLAYER_SLOT 2047
 #define MOVE_GAMECLICK_OPCODE 182
 
+bool
+send_move_path_to(
+    struct GGame* game,
+    struct CollisionMap* cm,
+    int src_local_x,
+    int src_local_z,
+    int dest_local_x,
+    int dest_local_z)
+{
+    int path_local_x[25];
+    int path_local_z[25];
+    int waypoints = collision_map_bfs_path(
+        cm,
+        src_local_x,
+        src_local_z,
+        dest_local_x,
+        dest_local_z,
+        path_local_x,
+        path_local_z,
+        25);
+    if( waypoints < 0 )
+        return false;
+    if( waypoints > 0 )
+    {
+        int buffer_size = (waypoints + 1) > 25 ? 25 : waypoints + 1;
+        int steps_to_send = buffer_size - 1;
+        int payload_size = 1 + 2 + 2 + steps_to_send * 2;
+        int start_world_x = game->scene_base_tile_x + src_local_x;
+        int start_world_z = game->scene_base_tile_z + src_local_z;
+        if( game->outbound_size + 2 + payload_size <=
+            (int)sizeof(game->outbound_buffer) )
+        {
+            uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+            game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+            game->outbound_buffer[game->outbound_size++] = 0;
+            game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
+            game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
+            for( int i = 0; i < steps_to_send && i < waypoints; i++ )
+            {
+                game->outbound_buffer[game->outbound_size++] =
+                    (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
+                game->outbound_buffer[game->outbound_size++] =
+                    (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
+            }
+        }
+    }
+    return true;
+}
+
 static void
-add_option(struct GGame* game, const char* text, int op_index)
+add_option(
+    struct GGame* game,
+    const char* text,
+    int op_index)
 {
     if( game->menu_size >= MINIMENU_MAX_OPTIONS )
         return;
@@ -30,7 +84,9 @@ add_option(struct GGame* game, const char* text, int op_index)
 }
 
 static int
-string_width(struct DashPixFont* font, const char* s)
+string_width(
+    struct DashPixFont* font,
+    const char* s)
 {
     if( !font || !s )
         return 0;
@@ -38,7 +94,10 @@ string_width(struct DashPixFont* font, const char* s)
 }
 
 void
-minimenu_show(struct GGame* game, int click_x, int click_y)
+minimenu_show(
+    struct GGame* game,
+    int click_x,
+    int click_y)
 {
     game->menu_size = 0;
     game->menu_entity = NULL;
@@ -55,70 +114,70 @@ minimenu_show(struct GGame* game, int click_x, int click_y)
         game->menu_entity = el;
 
         if( el->entity_kind == 1 )
-    {
-        /* NPC: Client.ts addNpcOptions - op[4]..op[0], then Examine */
-        struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
-        int npc_type_id =
-            el->entity_npc_type_id >= 0 ? el->entity_npc_type_id : (npc ? npc->npc_type_id : -1);
-        if( npc && game->buildcachedat && npc_type_id >= 0 )
         {
-            struct CacheDatConfigNpc* npc_cfg =
-                buildcachedat_get_npc(game->buildcachedat, npc_type_id);
-            if( npc_cfg )
+            /* NPC: Client.ts addNpcOptions - op[4]..op[0], then Examine */
+            struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
+            int npc_type_id = el->entity_npc_type_id >= 0 ? el->entity_npc_type_id
+                                                          : (npc ? npc->npc_type_id : -1);
+            if( npc && game->buildcachedat && npc_type_id >= 0 )
             {
-                const char* name = npc_cfg->name ? npc_cfg->name : "NPC";
-                /* op[0]=Talk-to (primary) at top: add op[4]..op[1], op[0] so op0 drawn last. */
-                for( int i = 4; i >= 1; i-- )
+                struct CacheDatConfigNpc* npc_cfg =
+                    buildcachedat_get_npc(game->buildcachedat, npc_type_id);
+                if( npc_cfg )
                 {
-                    if( npc_cfg->op[i] && npc_cfg->op[i][0] )
+                    const char* name = npc_cfg->name ? npc_cfg->name : "NPC";
+                    /* op[0]=Talk-to (primary) at top: add op[4]..op[1], op[0] so op0 drawn last. */
+                    for( int i = 4; i >= 1; i-- )
+                    {
+                        if( npc_cfg->op[i] && npc_cfg->op[i][0] )
+                        {
+                            char buf[MINIMENU_OPTION_LEN];
+                            snprintf(buf, sizeof(buf), "%s @cya@%s", npc_cfg->op[i], name);
+                            add_option(game, buf, i);
+                        }
+                    }
+                    if( npc_cfg->op[0] && npc_cfg->op[0][0] )
                     {
                         char buf[MINIMENU_OPTION_LEN];
-                        snprintf(buf, sizeof(buf), "%s @cya@%s", npc_cfg->op[i], name);
-                        add_option(game, buf, i);
+                        snprintf(buf, sizeof(buf), "%s @cya@%s", npc_cfg->op[0], name);
+                        add_option(game, buf, 0);
                     }
                 }
-                if( npc_cfg->op[0] && npc_cfg->op[0][0] )
+            }
+        }
+        else if( el->entity_kind == 2 )
+        {
+            /* Player: Client.ts addPlayerOptions - Follow, Trade, Attack, etc. */
+            struct PlayerEntity* player = (struct PlayerEntity*)el->entity_ptr;
+            if( player && player != &game->players[ACTIVE_PLAYER_SLOT] )
+            {
+                add_option(game, "Follow", 0);
+                add_option(game, "Trade with", 1);
+                add_option(game, "Attack", 2);
+            }
+        }
+        else if( el->config_loc && el->config_loc_id >= 0 )
+        {
+            /* Loc: Client.ts - actions[4]..[0], then Examine */
+            struct CacheConfigLocation* loc = el->config_loc;
+            const char* name = loc->name ? loc->name : "Object";
+            /* actions[0] (primary) at top: add [4]..[1], [0] so action0 drawn last. */
+            for( int i = 4; i >= 1; i-- )
+            {
+                if( i < 10 && loc->actions[i] && loc->actions[i][0] )
                 {
                     char buf[MINIMENU_OPTION_LEN];
-                    snprintf(buf, sizeof(buf), "%s @cya@%s", npc_cfg->op[0], name);
-                    add_option(game, buf, 0);
+                    snprintf(buf, sizeof(buf), "%s @cya@%s", loc->actions[i], name);
+                    add_option(game, buf, i);
                 }
             }
-        }
-    }
-    else if( el->entity_kind == 2 )
-    {
-        /* Player: Client.ts addPlayerOptions - Follow, Trade, Attack, etc. */
-        struct PlayerEntity* player = (struct PlayerEntity*)el->entity_ptr;
-        if( player && player != &game->players[ACTIVE_PLAYER_SLOT] )
-        {
-            add_option(game, "Follow", 0);
-            add_option(game, "Trade with", 1);
-            add_option(game, "Attack", 2);
-        }
-    }
-    else if( el->config_loc && el->config_loc_id >= 0 )
-    {
-        /* Loc: Client.ts - actions[4]..[0], then Examine */
-        struct CacheConfigLocation* loc = el->config_loc;
-        const char* name = loc->name ? loc->name : "Object";
-        /* actions[0] (primary) at top: add [4]..[1], [0] so action0 drawn last. */
-        for( int i = 4; i >= 1; i-- )
-        {
-            if( i < 10 && loc->actions[i] && loc->actions[i][0] )
+            if( 0 < 10 && loc->actions[0] && loc->actions[0][0] )
             {
                 char buf[MINIMENU_OPTION_LEN];
-                snprintf(buf, sizeof(buf), "%s @cya@%s", loc->actions[i], name);
-                add_option(game, buf, i);
+                snprintf(buf, sizeof(buf), "%s @cya@%s", loc->actions[0], name);
+                add_option(game, buf, 0);
             }
         }
-        if( 0 < 10 && loc->actions[0] && loc->actions[0][0] )
-        {
-            char buf[MINIMENU_OPTION_LEN];
-            snprintf(buf, sizeof(buf), "%s @cya@%s", loc->actions[0], name);
-            add_option(game, buf, 0);
-        }
-    }
     }
 
     /* Walk here, then Examine (after Walk here), then Cancel at index 0. */
@@ -128,8 +187,8 @@ minimenu_show(struct GGame* game, int click_x, int click_y)
         if( el->entity_kind == 1 )
         {
             struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
-            int npc_type_id =
-                el->entity_npc_type_id >= 0 ? el->entity_npc_type_id : (npc ? npc->npc_type_id : -1);
+            int npc_type_id = el->entity_npc_type_id >= 0 ? el->entity_npc_type_id
+                                                          : (npc ? npc->npc_type_id : -1);
             if( npc && game->buildcachedat && npc_type_id >= 0 )
             {
                 struct CacheDatConfigNpc* npc_cfg =
@@ -166,6 +225,18 @@ minimenu_show(struct GGame* game, int click_x, int click_y)
     snprintf(game->menu_options[0], MINIMENU_OPTION_LEN, "Cancel");
     game->menu_option_action[0] = -1; /* Cancel = no action */
     game->menu_size++;
+
+    /* Reverse options 1..n-1 so order matches Client.ts (Cancel stays at top). */
+    for( int i = 1, j = game->menu_size - 1; i < j; i++, j-- )
+    {
+        char tmp_opt[MINIMENU_OPTION_LEN];
+        memcpy(tmp_opt, game->menu_options[i], MINIMENU_OPTION_LEN);
+        memcpy(game->menu_options[i], game->menu_options[j], MINIMENU_OPTION_LEN);
+        memcpy(game->menu_options[j], tmp_opt, MINIMENU_OPTION_LEN);
+        int tmp_act = game->menu_option_action[i];
+        game->menu_option_action[i] = game->menu_option_action[j];
+        game->menu_option_action[j] = tmp_act;
+    }
 
     /* Compute width from "Choose Option" and option strings */
     int width = 0;
@@ -229,11 +300,30 @@ minimenu_draw(
 
     /* Client.ts drawMenu: fill background, black header, border. Use 0xFF prefix for opaque. */
     dash2d_fill_rect_clipped(
-        pixel_buffer, stride, x, y, w, h, 0xFF000000 | OPTIONS_MENU, clip_l, clip_t, clip_r, clip_b);
+        pixel_buffer,
+        stride,
+        x,
+        y,
+        w,
+        h,
+        0xFF000000 | OPTIONS_MENU,
+        clip_l,
+        clip_t,
+        clip_r,
+        clip_b);
     dash2d_fill_rect_clipped(
-        pixel_buffer, stride, x + 1, y + 1, w - 2, 16, 0xFF000000 | BLACK, clip_l, clip_t, clip_r, clip_b);
-    dash2d_draw_rect(
-        pixel_buffer, stride, x + 1, y + 18, w - 2, h - 19, 0xFF000000 | BLACK);
+        pixel_buffer,
+        stride,
+        x + 1,
+        y + 1,
+        w - 2,
+        16,
+        0xFF000000 | BLACK,
+        clip_l,
+        clip_t,
+        clip_r,
+        clip_b);
+    dash2d_draw_rect(pixel_buffer, stride, x + 1, y + 18, w - 2, h - 19, 0xFF000000 | BLACK);
 
     dashfont_draw_text_clipped(
         game->pixfont_b12,
@@ -266,8 +356,8 @@ minimenu_draw(
         int row_top = menu_vp_y + 19 + (game->menu_size - 1 - i) * 15;
         int row_bot = row_top + 15;
         int rgb = 0xFF000000 | WHITE;
-        if( mouse_vp_x > menu_vp_x && mouse_vp_x < menu_vp_x + w &&
-            mouse_vp_y > row_top && mouse_vp_y < row_bot )
+        if( mouse_vp_x > menu_vp_x && mouse_vp_x < menu_vp_x + w && mouse_vp_y > row_top &&
+            mouse_vp_y < row_bot )
             rgb = 0xFF000000 | YELLOW;
 
         dashfont_draw_text_clipped_taggable(
@@ -287,7 +377,10 @@ minimenu_draw(
 }
 
 int
-minimenu_click_option(struct GGame* game, int click_x, int click_y)
+minimenu_click_option(
+    struct GGame* game,
+    int click_x,
+    int click_y)
 {
     if( !game->menu_visible )
         return -1;
@@ -301,16 +394,16 @@ minimenu_click_option(struct GGame* game, int click_x, int click_y)
     {
         int row_top = menu_y + 19 + (game->menu_size - 1 - i) * 15;
         int row_bot = row_top + 15;
-        if( click_x > menu_x && click_x < menu_x + menu_width &&
-            click_y > row_top && click_y < row_bot )
+        if( click_x > menu_x && click_x < menu_x + menu_width && click_y > row_top &&
+            click_y < row_bot )
         {
             return i;
         }
     }
 
     /* Click outside menu - hide. Client.ts: if mouse outside menu bounds, menuVisible = false */
-    if( click_x < menu_x - 10 || click_x > menu_x + menu_width + 10 ||
-        click_y < menu_y - 10 || click_y > menu_y + game->menu_height + 10 )
+    if( click_x < menu_x - 10 || click_x > menu_x + menu_width + 10 || click_y < menu_y - 10 ||
+        click_y > menu_y + game->menu_height + 10 )
     {
         game->menu_visible = 0;
         return -2;
@@ -320,7 +413,9 @@ minimenu_click_option(struct GGame* game, int click_x, int click_y)
 }
 
 void
-minimenu_use_option(struct GGame* game, int option_index)
+minimenu_use_option(
+    struct GGame* game,
+    int option_index)
 {
     if( option_index < 0 || option_index >= game->menu_size )
         return;
@@ -339,7 +434,7 @@ minimenu_use_option(struct GGame* game, int option_index)
 
     if( el->entity_kind == 1 )
     {
-        /* NPC */
+        /* NPC: Client.ts tryMove to entity tile, then OPNPC1-5 */
         struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
         if( !npc || action > 5 )
             return;
@@ -349,8 +444,41 @@ minimenu_use_option(struct GGame* game, int option_index)
             return;
         }
         int npc_id = (int)(npc - game->npcs);
-        int opcode = PKTOUT_LC245_2_OPNPC1 + action;
-        if( game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
+        int opcode = 0;
+        switch( action )
+        {
+        case 0:
+            opcode = PKTOUT_LC245_2_OPNPC1;
+            break;
+        case 1:
+            opcode = PKTOUT_LC245_2_OPNPC2;
+            break;
+        case 2:
+            opcode = PKTOUT_LC245_2_OPNPC3;
+            break;
+        case 3:
+            opcode = PKTOUT_LC245_2_OPNPC4;
+            break;
+        case 4:
+            opcode = PKTOUT_LC245_2_OPNPC5;
+            break;
+        default:
+            return;
+        }
+        int dest_local_x = npc->pathing.route_x[0];
+        int dest_local_z = npc->pathing.route_z[0];
+        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+        int src_local_x = pl->pathing.route_x[0];
+        int src_local_z = pl->pathing.route_z[0];
+        if( game->scene && game->scene->collision_maps[0] &&
+            send_move_path_to(
+                game,
+                game->scene->collision_maps[0],
+                src_local_x,
+                src_local_z,
+                dest_local_x,
+                dest_local_z) &&
+            game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
         {
             uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
             game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
@@ -373,66 +501,36 @@ minimenu_use_option(struct GGame* game, int option_index)
 
         if( action == 0 )
         { /* Follow */
-            if( game->scene && game->scene->collision_maps[0] )
-            {
-                int path_local_x[25];
-                int path_local_z[25];
-                int waypoints = collision_map_bfs_path(
+            int opcode = PKTOUT_LC245_2_OPPLAYER3;
+            if( game->scene && game->scene->collision_maps[0] &&
+                send_move_path_to(
+                    game,
                     game->scene->collision_maps[0],
                     src_local_x,
                     src_local_z,
                     dest_local_x,
-                    dest_local_z,
-                    path_local_x,
-                    path_local_z,
-                    25);
-                if( waypoints >= 0 && waypoints > 0 )
-                {
-                    int buffer_size = (waypoints + 1) > 25 ? 25 : waypoints + 1;
-                    int steps_to_send = buffer_size - 1;
-                    int payload_size = 1 + 2 + 2 + steps_to_send * 2;
-                    int start_world_x = game->scene_base_tile_x + src_local_x;
-                    int start_world_z = game->scene_base_tile_z + src_local_z;
-                    if( game->outbound_size + 2 + payload_size + 3 <= (int)sizeof(game->outbound_buffer) )
-                    {
-                        uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                        game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
-                        game->outbound_buffer[game->outbound_size++] = 0;
-                        game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
-                        for( int i = 0; i < steps_to_send && i < waypoints; i++ )
-                        {
-                            game->outbound_buffer[game->outbound_size++] =
-                                (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
-                            game->outbound_buffer[game->outbound_size++] =
-                                (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
-                        }
-                        op = (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                        game->outbound_buffer[game->outbound_size++] = (player_id >> 8) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
-                    }
-                }
-                else if( waypoints >= 0 && waypoints == 0 )
-                {
-                    if( game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
-                    {
-                        uint32_t op = (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                        game->outbound_buffer[game->outbound_size++] = (player_id >> 8) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
-                    }
-                }
+                    dest_local_z) &&
+                game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
+            {
+                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                game->outbound_buffer[game->outbound_size++] = (player_id >> 8) & 0xff;
+                game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
             }
         }
         else if( action == 1 || action == 2 )
         {
-            /* Trade, Attack - OPPLAYER2, OPPLAYER4 etc. */
+            /* Trade, Attack - Client.ts tryMove then OPPLAYER2, OPPLAYER4 */
             int opcode = action == 1 ? PKTOUT_LC245_2_OPPLAYER2 : PKTOUT_LC245_2_OPPLAYER4;
-            if( game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
+            if( game->scene && game->scene->collision_maps[0] &&
+                send_move_path_to(
+                    game,
+                    game->scene->collision_maps[0],
+                    src_local_x,
+                    src_local_z,
+                    dest_local_x,
+                    dest_local_z) &&
+                game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
             {
                 uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
                 game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
@@ -449,73 +547,28 @@ minimenu_use_option(struct GGame* game, int option_index)
         struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
         int src_local_x = pl->pathing.route_x[0];
         int src_local_z = pl->pathing.route_z[0];
+        int world_x = game->scene_base_tile_x + tile_sx;
+        int world_z = game->scene_base_tile_z + tile_sz;
 
-        if( game->scene && game->scene->collision_maps[0] )
-        {
-            int path_local_x[25];
-            int path_local_z[25];
-            int waypoints = collision_map_bfs_path(
+        if( game->scene && game->scene->collision_maps[0] &&
+            send_move_path_to(
+                game,
                 game->scene->collision_maps[0],
                 src_local_x,
                 src_local_z,
                 tile_sx,
-                tile_sz,
-                path_local_x,
-                path_local_z,
-                25);
-            int world_x = game->scene_base_tile_x + tile_sx;
-            int world_z = game->scene_base_tile_z + tile_sz;
-
-            if( waypoints >= 0 && waypoints > 0 )
-            {
-                int buffer_size = (waypoints + 1) > 25 ? 25 : waypoints + 1;
-                int steps_to_send = buffer_size - 1;
-                int payload_size = 1 + 2 + 2 + steps_to_send * 2;
-                int start_world_x = game->scene_base_tile_x + src_local_x;
-                int start_world_z = game->scene_base_tile_z + src_local_z;
-                if( game->outbound_size + 2 + payload_size + 7 <= (int)sizeof(game->outbound_buffer) )
-                {
-                    uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                    game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
-                    game->outbound_buffer[game->outbound_size++] = 0;
-                    game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
-                    for( int i = 0; i < steps_to_send && i < waypoints; i++ )
-                    {
-                        game->outbound_buffer[game->outbound_size++] =
-                            (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
-                        game->outbound_buffer[game->outbound_size++] =
-                            (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
-                    }
-                    int opcode = PKTOUT_LC245_2_OPLOC1 + action;
-                    op = (opcode + isaac_next(game->random_out)) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                    game->outbound_buffer[game->outbound_size++] = (world_x >> 8) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (world_z >> 8) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (el->config_loc_id >> 8) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = el->config_loc_id & 0xff;
-                }
-            }
-            else if( waypoints >= 0 && waypoints == 0 )
-            {
-                if( game->outbound_size + 7 <= (int)sizeof(game->outbound_buffer) )
-                {
-                    int opcode = PKTOUT_LC245_2_OPLOC1 + action;
-                    uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                    game->outbound_buffer[game->outbound_size++] = (world_x >> 8) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (world_z >> 8) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (el->config_loc_id >> 8) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = el->config_loc_id & 0xff;
-                }
-            }
+                tile_sz) &&
+            game->outbound_size + 7 <= (int)sizeof(game->outbound_buffer) )
+        {
+            int opcode = PKTOUT_LC245_2_OPLOC1 + action;
+            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+            game->outbound_buffer[game->outbound_size++] = (world_x >> 8) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
+            game->outbound_buffer[game->outbound_size++] = (world_z >> 8) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
+            game->outbound_buffer[game->outbound_size++] = (el->config_loc_id >> 8) & 0xff;
+            game->outbound_buffer[game->outbound_size++] = el->config_loc_id & 0xff;
         }
     }
 

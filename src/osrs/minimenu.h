@@ -1,9 +1,12 @@
 #ifndef MINIMENU_H
 #define MINIMENU_H
 
+#include "collision_map.h"
 #include "game.h"
 #include "graphics/dash.h"
 #include "scene.h"
+
+#include <stdbool.h>
 
 /* Build menu options from hovered_scene_element and show at (click_x, click_y).
  * Client.ts showContextMenu: positions menu, sets menuVisible. */
@@ -31,5 +34,15 @@ minimenu_click_option(struct GGame* game, int click_x, int click_y);
 /* Execute the selected menu option (send packet). Called after minimenu_click_option returns >= 0. */
 void
 minimenu_use_option(struct GGame* game, int option_index);
+
+/* BFS path to dest and send MOVE_GAMECLICK if path exists. Returns true if waypoints >= 0. */
+bool
+send_move_path_to(
+    struct GGame* game,
+    struct CollisionMap* cm,
+    int src_local_x,
+    int src_local_z,
+    int dest_local_x,
+    int dest_local_z);
 
 #endif
