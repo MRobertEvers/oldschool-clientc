@@ -169,6 +169,7 @@ struct PlayerEntity
 struct MapBuildLocEntity
 {
     struct EntitySceneElement scene_element;
+    struct EntitySceneElement scene_element_two;
     struct EntitySceneCoord scene_coord;
     struct EntityAction action[10];
 };

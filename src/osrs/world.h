@@ -1,6 +1,7 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+#include "decor_buildmap.h"
 #include "game_entity.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
@@ -33,12 +34,20 @@ struct World
     // ScenePool
     struct Scene2* scene2;
 
+    // Walloffsetmap
+    struct DecorOnWallBuildMap* decor_buildmap;
+
     int _base_tile_x;
     int _base_tile_z;
+
+    int _offset_x;
+    int _offset_z;
+
+    struct BuildCacheDat* buildcachedat;
 };
 
 struct World*
-world_new(void);
+world_new(struct BuildCacheDat* buildcachedat);
 
 void
 world_free(struct World* world);
@@ -46,7 +55,6 @@ world_free(struct World* world);
 void
 world_buildcachedat_rebuild_centerzone(
     struct World* world,
-    struct BuildCacheDat* buildcachedat,
     int zone_sw_x,
     int zone_sw_z,
     int zone_ne_x,

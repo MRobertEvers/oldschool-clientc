@@ -6,7 +6,9 @@
 struct Scene2Element
 {
     int id;
+    bool active;
     struct Scene2Element* next;
+    struct Scene2Element* prev;
 
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
@@ -16,8 +18,11 @@ struct Scene2Element
 struct Scene2
 {
     // Intrusive list. Elements point to their next element.
-    struct Scene2Element* element_list;
-    int element_count;
+    struct Scene2Element* elements;
+    int elements_count;
+
+    struct Scene2Element* active_list;
+    struct Scene2Element* free_list;
 };
 
 struct Scene2*
@@ -25,5 +30,18 @@ scene2_new(int size);
 
 void
 scene2_free(struct Scene2* scene2);
+
+int
+scene2_element_acquire(struct Scene2* scene2);
+
+void
+scene2_element_release(
+    struct Scene2* scene2,
+    int element_id);
+
+struct Scene2Element*
+scene2_element_at(
+    struct Scene2* scene2,
+    int element_id);
 
 #endif
