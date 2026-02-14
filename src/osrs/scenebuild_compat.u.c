@@ -15,7 +15,6 @@ scenebuilder_compat_get_map_terrain(
 {
     if( scene_builder->buildcachedat != NULL )
     {
-        int map_index = MAPREGIONXZ(mapx, mapz);
         return buildcachedat_get_map_terrain(scene_builder->buildcachedat, mapx, mapz);
     }
     if( scene_builder->buildcache != NULL )

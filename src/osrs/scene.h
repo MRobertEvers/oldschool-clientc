@@ -1,5 +1,5 @@
-#ifndef SCENE2_H
-#define SCENE2_H
+#ifndef SCENE_H
+#define SCENE_H
 
 #include "graphics/dash.h"
 #include "osrs/collision_map.h"
@@ -59,8 +59,8 @@ struct SceneElement
     int config_loc_id;
 
     /* For dynamic elements (NPCs, players): set before push, used for hover tooltip. */
-    void* entity_ptr;    /* NPCEntity* or PlayerEntity* */
-    int entity_kind;    /* 0=loc, 1=npc, 2=player */
+    void* entity_ptr;       /* NPCEntity* or PlayerEntity* */
+    int entity_kind;        /* 0=loc, 1=npc, 2=player */
     int entity_npc_type_id; /* when entity_kind==1 */
 };
 

@@ -395,6 +395,7 @@ enum PacketInType_LC245_2
     PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS = 203,
     PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS = 140,
     PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED = 15,
+    // Merges a loc with a player to fix animations and drawing orders.
     PKTIN_LC245_2_LOC_MERGE = 188,
     PKTIN_LC245_2_LOC_ANIM = 71,
     PKTIN_LC245_2_OBJ_DEL = 13,

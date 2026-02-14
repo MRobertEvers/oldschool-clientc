@@ -12,12 +12,54 @@ struct EntityPathing
     int route_run[10];
 };
 
+struct EntityDrawPosition
+{
+    int x;
+    int z;
+    int height;
+};
+
 struct EntityPosition
 {
     int x;
     int z;
-
     int height;
+};
+
+struct EntityAction
+{
+    int code;
+    char name[32];
+};
+
+struct EntityFacing
+{
+    int entity_id;
+};
+
+struct EntitySceneElement
+{
+    int element_id;
+};
+
+struct EntityMinimapElement
+{
+    int element_id;
+};
+
+struct EntitySceneCoord
+{
+    int sx;
+    int sz;
+    int slevel;
+};
+
+struct EntityDebugKey
+{
+    char name[32];
+    char svalue[32];
+    int ivalue;
+    float fvalue;
 };
 
 struct EntityOrientation
@@ -46,16 +88,21 @@ struct EntityAnimation
 struct NPCEntity
 {
     int alive;
+
+    struct EntityPathing pathing;
+    struct EntitySceneElement scene_element2;
+    struct EntityDrawPosition draw_position;
+
+    // Deprecated below
+    struct EntityPosition position;
+    struct EntityOrientation orientation;
+    struct EntityAnimation animation;
+
+    /* Client.ts: primary from packet (attack/spell), secondary from movement */
     void* scene_element;
     int npc_type_id; /* CacheDatConfigNpc id for name/options */
     int size_x;
     int size_z;
-    struct EntityPosition position;
-    struct EntityOrientation orientation;
-    struct EntityAnimation animation;
-    struct EntityPathing pathing;
-
-    /* Client.ts: primary from packet (attack/spell), secondary from movement */
     int primary_anim;
     int primary_anim_frame;
     int primary_anim_cycle;
@@ -89,7 +136,14 @@ struct PlayerAppearanceSlots
 struct PlayerEntity
 {
     int alive;
+    struct PlayerAppearanceSlots appearance;
+    struct EntityPathing pathing;
+    struct EntitySceneElement scene_element2;
+    struct EntityDrawPosition draw_position;
+
+    // Deprecated below
     void* scene_element;
+
     struct EntityPosition position;
     struct EntityOrientation orientation;
     /* Client.ts: primary from packet (attack/spell), secondary from movement */
@@ -103,9 +157,6 @@ struct PlayerEntity
     int secondary_anim_cycle;
     struct EntityAnimation animation;
 
-    struct PlayerAppearanceSlots appearance;
-    struct EntityPathing pathing;
-
     /* Client.ts: damage/health for hitsplat and health bar */
     int damage_values[ENTITY_DAMAGE_SLOTS];
     int damage_types[ENTITY_DAMAGE_SLOTS];
@@ -115,7 +166,19 @@ struct PlayerEntity
     int total_health;
 };
 
-/* Client.ts addHitmark: add damage to first expired slot; display for 70 cycles */
+struct MapBuildLocEntity
+{
+    struct EntitySceneElement scene_element;
+    struct EntitySceneCoord scene_coord;
+    struct EntityAction action[10];
+};
+
+struct MapBuildTileEntity
+{
+    struct EntitySceneElement scene_element;
+    struct EntitySceneCoord scene_coord;
+};
+
 void
 entity_add_hitmark(
     int* damage_values,

@@ -98,7 +98,11 @@ render_imgui(
     {
         struct SceneElement* el = game->hovered_scene_element;
         if( el->config_loc_id >= 0 )
-            ImGui::Text("Hover config_loc_id: %d (tile %d, %d)", el->config_loc_id, el->tile_sx, el->tile_sz);
+            ImGui::Text(
+                "Hover config_loc_id: %d (tile %d, %d)",
+                el->config_loc_id,
+                el->tile_sx,
+                el->tile_sz);
         else
             ImGui::Text("Hover (no config_loc_id) (tile %d, %d)", el->tile_sx, el->tile_sz);
     }
@@ -902,214 +906,215 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
     LibToriRS_FrameEnd(game);
 
-    /* Client.ts entityOverlays: draw health bars and hitsplats for entities with damage */
-    if( renderer->dash_buffer && game->sys_dash && game->view_port && game->camera && game->scene &&
-        game->scene->terrain && game->pixfont_p12 )
-    {
-        dash2d_set_bounds(
-            game->view_port, 0, 0, renderer->dash_buffer_width, renderer->dash_buffer_height);
-        int* db = renderer->dash_buffer;
-        int stride = renderer->dash_buffer_width;
-        int clip_l = 0;
-        int clip_t = 0;
-        int clip_r = renderer->dash_buffer_width;
-        int clip_b = renderer->dash_buffer_height;
+    // /* Client.ts entityOverlays: draw health bars and hitsplats for entities with damage */
+    // if( renderer->dash_buffer && game->sys_dash && game->view_port && game->camera && game->scene
+    // &&
+    //     game->scene->terrain && game->pixfont_p12 )
+    // {
+    //     dash2d_set_bounds(
+    //         game->view_port, 0, 0, renderer->dash_buffer_width, renderer->dash_buffer_height);
+    //     int* db = renderer->dash_buffer;
+    //     int stride = renderer->dash_buffer_width;
+    //     int clip_l = 0;
+    //     int clip_t = 0;
+    //     int clip_r = renderer->dash_buffer_width;
+    //     int clip_b = renderer->dash_buffer_height;
 
-        struct SceneTerrain* terrain = game->scene->terrain;
+    //     struct SceneTerrain* terrain = game->scene->terrain;
 
-        auto draw_entity_overlays = [&](void* scene_element_ptr,
-                                        int* damage_values,
-                                        int* damage_types,
-                                        int* damage_cycles,
-                                        int combat_cycle,
-                                        int health,
-                                        int total_health) {
-            int scene_local_x = ((struct SceneElement*)scene_element_ptr)->dash_position->x;
-            int scene_local_z = ((struct SceneElement*)scene_element_ptr)->dash_position->z;
-            int scene_local_height = ((struct SceneElement*)scene_element_ptr)->dash_position->y;
-            scene_local_x -= game->camera_world_x;
-            scene_local_z -= game->camera_world_z;
-            scene_local_height -= game->camera_world_y;
-            /* Entity height from dash_model bounds_cylinder (Client.ts entity.height) */
-            int entity_height = height_of_entity(game, (struct SceneElement*)scene_element_ptr);
+    //     auto draw_entity_overlays = [&](void* scene_element_ptr,
+    //                                     int* damage_values,
+    //                                     int* damage_types,
+    //                                     int* damage_cycles,
+    //                                     int combat_cycle,
+    //                                     int health,
+    //                                     int total_health) {
+    //         int scene_local_x = ((struct SceneElement*)scene_element_ptr)->dash_position->x;
+    //         int scene_local_z = ((struct SceneElement*)scene_element_ptr)->dash_position->z;
+    //         int scene_local_height = ((struct SceneElement*)scene_element_ptr)->dash_position->y;
+    //         scene_local_x -= game->camera_world_x;
+    //         scene_local_z -= game->camera_world_z;
+    //         scene_local_height -= game->camera_world_y;
+    //         /* Entity height from dash_model bounds_cylinder (Client.ts entity.height) */
+    //         int entity_height = height_of_entity(game, (struct SceneElement*)scene_element_ptr);
 
-            /* World position for projection */
+    //         /* World position for projection */
 
-            int screen_x, screen_y;
+    //         int screen_x, screen_y;
 
-            /* Health bar: Client.ts getOverlayPosEntity(entity, entity.height + 15) */
-            if( combat_cycle > game->cycle + 100 && total_health > 0 )
-            {
-                int bar_y_world = scene_local_height - (entity_height - 15);
-                int rel_y = bar_y_world;
-                if( dash3d_project_point(
-                        game->sys_dash,
-                        scene_local_x,
-                        rel_y,
-                        scene_local_z,
-                        game->view_port,
-                        game->camera,
-                        &screen_x,
-                        &screen_y) )
-                {
-                    int bar_w = (health * 30) / total_health;
-                    if( bar_w > 30 )
-                        bar_w = 30;
-                    dash2d_fill_rect_clipped(
-                        db,
-                        stride,
-                        screen_x - 15,
-                        screen_y - 3,
-                        bar_w,
-                        5,
-                        GREEN,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                    dash2d_fill_rect_clipped(
-                        db,
-                        stride,
-                        screen_x - 15 + bar_w,
-                        screen_y - 3,
-                        30 - bar_w,
-                        5,
-                        RED,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                }
-            }
+    //         /* Health bar: Client.ts getOverlayPosEntity(entity, entity.height + 15) */
+    //         if( combat_cycle > game->cycle + 100 && total_health > 0 )
+    //         {
+    //             int bar_y_world = scene_local_height - (entity_height - 15);
+    //             int rel_y = bar_y_world;
+    //             if( dash3d_project_point(
+    //                     game->sys_dash,
+    //                     scene_local_x,
+    //                     rel_y,
+    //                     scene_local_z,
+    //                     game->view_port,
+    //                     game->camera,
+    //                     &screen_x,
+    //                     &screen_y) )
+    //             {
+    //                 int bar_w = (health * 30) / total_health;
+    //                 if( bar_w > 30 )
+    //                     bar_w = 30;
+    //                 dash2d_fill_rect_clipped(
+    //                     db,
+    //                     stride,
+    //                     screen_x - 15,
+    //                     screen_y - 3,
+    //                     bar_w,
+    //                     5,
+    //                     GREEN,
+    //                     clip_l,
+    //                     clip_t,
+    //                     clip_r,
+    //                     clip_b);
+    //                 dash2d_fill_rect_clipped(
+    //                     db,
+    //                     stride,
+    //                     screen_x - 15 + bar_w,
+    //                     screen_y - 3,
+    //                     30 - bar_w,
+    //                     5,
+    //                     RED,
+    //                     clip_l,
+    //                     clip_t,
+    //                     clip_r,
+    //                     clip_b);
+    //             }
+    //         }
 
-            /* Hitsplats: Client.ts getOverlayPosEntity(entity, entity.height / 2) */
-            for( int i = 0; i < ENTITY_DAMAGE_SLOTS; i++ )
-            {
-                if( damage_cycles[i] <= game->cycle )
-                    continue;
+    //         /* Hitsplats: Client.ts getOverlayPosEntity(entity, entity.height / 2) */
+    //         for( int i = 0; i < ENTITY_DAMAGE_SLOTS; i++ )
+    //         {
+    //             if( damage_cycles[i] <= game->cycle )
+    //                 continue;
 
-                int splat_y_world = scene_local_height - (entity_height / 2);
-                int rel_y = splat_y_world;
-                if( !dash3d_project_point(
-                        game->sys_dash,
-                        scene_local_x,
-                        rel_y,
-                        scene_local_z,
-                        game->view_port,
-                        game->camera,
-                        &screen_x,
-                        &screen_y) )
-                    continue;
+    //             int splat_y_world = scene_local_height - (entity_height / 2);
+    //             int rel_y = splat_y_world;
+    //             if( !dash3d_project_point(
+    //                     game->sys_dash,
+    //                     scene_local_x,
+    //                     rel_y,
+    //                     scene_local_z,
+    //                     game->view_port,
+    //                     game->camera,
+    //                     &screen_x,
+    //                     &screen_y) )
+    //                 continue;
 
-                int px = screen_x;
-                int py = screen_y;
-                if( i == 1 )
-                    py -= 20;
-                else if( i == 2 )
-                {
-                    px -= 15;
-                    py -= 10;
-                }
-                else if( i == 3 )
-                {
-                    px += 15;
-                    py -= 10;
-                }
+    //             int px = screen_x;
+    //             int py = screen_y;
+    //             if( i == 1 )
+    //                 py -= 20;
+    //             else if( i == 2 )
+    //             {
+    //                 px -= 15;
+    //                 py -= 10;
+    //             }
+    //             else if( i == 3 )
+    //             {
+    //                 px += 15;
+    //                 py -= 10;
+    //             }
 
-                int type = damage_types[i];
-                if( type >= 0 && type < 20 && game->sprite_hitmarks[type] )
-                {
-                    dash2d_blit_sprite_alpha(
-                        game->sys_dash,
-                        game->sprite_hitmarks[type],
-                        game->view_port,
-                        px - 12,
-                        py - 12,
-                        255,
-                        db);
-                }
-                char buf[16];
-                int len = snprintf(buf, sizeof(buf), "%d", damage_values[i]);
-                if( len > 0 )
-                {
-                    int w = dashfont_text_width(game->pixfont_p11, (uint8_t*)buf);
+    //             int type = damage_types[i];
+    //             if( type >= 0 && type < 20 && game->sprite_hitmarks[type] )
+    //             {
+    //                 dash2d_blit_sprite_alpha(
+    //                     game->sys_dash,
+    //                     game->sprite_hitmarks[type],
+    //                     game->view_port,
+    //                     px - 12,
+    //                     py - 12,
+    //                     255,
+    //                     db);
+    //             }
+    //             char buf[16];
+    //             int len = snprintf(buf, sizeof(buf), "%d", damage_values[i]);
+    //             if( len > 0 )
+    //             {
+    //                 int w = dashfont_text_width(game->pixfont_p11, (uint8_t*)buf);
 
-                    dashfont_draw_text_clipped(
-                        game->pixfont_p11,
-                        (uint8_t*)buf,
-                        px - w / 2,
-                        py - 9 + 4,
-                        BLACK,
-                        db,
-                        stride,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                    dashfont_draw_text_clipped(
-                        game->pixfont_p11,
-                        (uint8_t*)buf,
-                        px - w / 2 - 1,
-                        py - 9 + 3,
-                        WHITE,
-                        db,
-                        stride,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                }
-            }
-        };
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p11,
+    //                     (uint8_t*)buf,
+    //                     px - w / 2,
+    //                     py - 9 + 4,
+    //                     BLACK,
+    //                     db,
+    //                     stride,
+    //                     clip_l,
+    //                     clip_t,
+    //                     clip_r,
+    //                     clip_b);
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p11,
+    //                     (uint8_t*)buf,
+    //                     px - w / 2 - 1,
+    //                     py - 9 + 3,
+    //                     WHITE,
+    //                     db,
+    //                     stride,
+    //                     clip_l,
+    //                     clip_t,
+    //                     clip_r,
+    //                     clip_b);
+    //             }
+    //         }
+    //     };
 
-        /* Local player */
-        {
-            struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
-            if( pl->alive )
-                draw_entity_overlays(
-                    pl->scene_element,
-                    pl->damage_values,
-                    pl->damage_types,
-                    pl->damage_cycles,
-                    pl->combat_cycle,
-                    pl->health,
-                    pl->total_health);
-        }
-        /* Other players */
-        for( int i = 0; i < game->player_count; i++ )
-        {
-            int pid = game->active_players[i];
-            if( pid == ACTIVE_PLAYER_SLOT )
-                continue;
-            struct PlayerEntity* pl = &game->players[pid];
-            if( pl->alive )
-                draw_entity_overlays(
-                    pl->scene_element,
-                    pl->damage_values,
-                    pl->damage_types,
-                    pl->damage_cycles,
-                    pl->combat_cycle,
-                    pl->health,
-                    pl->total_health);
-        }
-        /* NPCs */
-        for( int i = 0; i < game->npc_count; i++ )
-        {
-            int nid = game->active_npcs[i];
-            struct NPCEntity* npc = &game->npcs[nid];
-            if( npc->alive )
-            {
-                draw_entity_overlays(
-                    npc->scene_element,
-                    npc->damage_values,
-                    npc->damage_types,
-                    npc->damage_cycles,
-                    npc->combat_cycle,
-                    npc->health,
-                    npc->total_health);
-            }
-        }
-    }
+    //     /* Local player */
+    //     {
+    //         struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+    //         if( pl->alive )
+    //             draw_entity_overlays(
+    //                 pl->scene_element,
+    //                 pl->damage_values,
+    //                 pl->damage_types,
+    //                 pl->damage_cycles,
+    //                 pl->combat_cycle,
+    //                 pl->health,
+    //                 pl->total_health);
+    //     }
+    //     /* Other players */
+    //     for( int i = 0; i < game->player_count; i++ )
+    //     {
+    //         int pid = game->active_players[i];
+    //         if( pid == ACTIVE_PLAYER_SLOT )
+    //             continue;
+    //         struct PlayerEntity* pl = &game->players[pid];
+    //         if( pl->alive )
+    //             draw_entity_overlays(
+    //                 pl->scene_element,
+    //                 pl->damage_values,
+    //                 pl->damage_types,
+    //                 pl->damage_cycles,
+    //                 pl->combat_cycle,
+    //                 pl->health,
+    //                 pl->total_health);
+    //     }
+    //     /* NPCs */
+    //     for( int i = 0; i < game->npc_count; i++ )
+    //     {
+    //         int nid = game->active_npcs[i];
+    //         struct NPCEntity* npc = &game->npcs[nid];
+    //         if( npc->alive )
+    //         {
+    //             draw_entity_overlays(
+    //                 npc->scene_element,
+    //                 npc->damage_values,
+    //                 npc->damage_types,
+    //                 npc->damage_cycles,
+    //                 npc->combat_cycle,
+    //                 npc->health,
+    //                 npc->total_health);
+    //         }
+    //     }
+    // }
 
     int camera_tile_x = game->camera_world_x / 128;
     int camera_tile_z = game->camera_world_z / 128;
@@ -1631,111 +1636,112 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             renderer->pixel_buffer);
 
     // Initialize clipping bounds for interface viewport
-    if( game->iface_view_port )
-    {
-        dash2d_set_bounds(
-            game->iface_view_port,
-            0,
-            0,
-            game->iface_view_port->width,
-            game->iface_view_port->height);
-    }
+    // if( game->iface_view_port )
+    // {
+    //     dash2d_set_bounds(
+    //         game->iface_view_port,
+    //         0,
+    //         0,
+    //         game->iface_view_port->width,
+    //         game->iface_view_port->height);
+    // }
 
-    // Render interfaces if set
-    if( game->viewport_interface_id != -1 )
-    {
-        struct CacheDatConfigComponent* viewport_component =
-            buildcachedat_get_component(game->buildcachedat, game->viewport_interface_id);
-        if( viewport_component )
-        {
-            game->current_hovered_interface_id = interface_find_hovered_interface_id(
-                game, viewport_component, 0, 0, game->mouse_x, game->mouse_y);
-            interface_draw_component(
-                game, viewport_component, 0, 0, 0, renderer->pixel_buffer, renderer->width);
-        }
-    }
+    // // Render interfaces if set
+    // if( game->viewport_interface_id != -1 )
+    // {
+    //     struct CacheDatConfigComponent* viewport_component =
+    //         buildcachedat_get_component(game->buildcachedat, game->viewport_interface_id);
+    //     if( viewport_component )
+    //     {
+    //         game->current_hovered_interface_id = interface_find_hovered_interface_id(
+    //             game, viewport_component, 0, 0, game->mouse_x, game->mouse_y);
+    //         interface_draw_component(
+    //             game, viewport_component, 0, 0, 0, renderer->pixel_buffer, renderer->width);
+    //     }
+    // }
 
-    // Render sidebar interface (inventory area at 553, 205)
-    if( game->sidebar_interface_id != -1 )
-    {
-        printf(
-            "DEBUG: Attempting to render sidebar interface ID: %d\n", game->sidebar_interface_id);
+    // // Render sidebar interface (inventory area at 553, 205)
+    // if( game->sidebar_interface_id != -1 )
+    // {
+    //     printf(
+    //         "DEBUG: Attempting to render sidebar interface ID: %d\n",
+    //         game->sidebar_interface_id);
 
-        struct CacheDatConfigComponent* sidebar_component =
-            buildcachedat_get_component(game->buildcachedat, game->sidebar_interface_id);
+    //     struct CacheDatConfigComponent* sidebar_component =
+    //         buildcachedat_get_component(game->buildcachedat, game->sidebar_interface_id);
 
-        if( sidebar_component )
-        {
-            game->current_hovered_interface_id = interface_find_hovered_interface_id(
-                game, sidebar_component, 553, 205, game->mouse_x, game->mouse_y);
-            printf("DEBUG: Sidebar component found\n");
-            printf(
-                "  Component type: %d, width: %d, height: %d\n",
-                sidebar_component->type,
-                sidebar_component->width,
-                sidebar_component->height);
-            if( sidebar_component->type == COMPONENT_TYPE_INV )
-            {
-                printf(
-                    "  INV component - invSlotObjId=%p, invSlotObjCount=%p\n",
-                    (void*)sidebar_component->invSlotObjId,
-                    (void*)sidebar_component->invSlotObjCount);
-                if( sidebar_component->invSlotObjId )
-                {
-                    int total_slots = sidebar_component->width * sidebar_component->height;
-                    int filled_slots = 0;
-                    for( int i = 0; i < total_slots; i++ )
-                    {
-                        if( sidebar_component->invSlotObjId[i] > 0 )
-                            filled_slots++;
-                    }
-                    printf("  Filled slots: %d/%d\n", filled_slots, total_slots);
-                }
-            }
-            interface_draw_component(
-                game, sidebar_component, 553, 205, 0, renderer->pixel_buffer, renderer->width);
-            printf("DEBUG: Sidebar component drawn\n");
-        }
-        else
-        {
-            printf(
-                "DEBUG: WARNING - Sidebar component %d not found in buildcachedat!\n",
-                game->sidebar_interface_id);
-        }
-    }
-    else if(
-        game->selected_tab >= 0 && game->selected_tab < 14 &&
-        game->tab_interface_id[game->selected_tab] != -1 )
-    {
-        // If no sidebar interface override, draw the active tab interface
-        int tab_component_id = game->tab_interface_id[game->selected_tab];
-        // printf("DEBUG: Rendering tab %d interface ID: %d\n", game->selected_tab,
-        // tab_component_id);
+    //     if( sidebar_component )
+    //     {
+    //         game->current_hovered_interface_id = interface_find_hovered_interface_id(
+    //             game, sidebar_component, 553, 205, game->mouse_x, game->mouse_y);
+    //         printf("DEBUG: Sidebar component found\n");
+    //         printf(
+    //             "  Component type: %d, width: %d, height: %d\n",
+    //             sidebar_component->type,
+    //             sidebar_component->width,
+    //             sidebar_component->height);
+    //         if( sidebar_component->type == COMPONENT_TYPE_INV )
+    //         {
+    //             printf(
+    //                 "  INV component - invSlotObjId=%p, invSlotObjCount=%p\n",
+    //                 (void*)sidebar_component->invSlotObjId,
+    //                 (void*)sidebar_component->invSlotObjCount);
+    //             if( sidebar_component->invSlotObjId )
+    //             {
+    //                 int total_slots = sidebar_component->width * sidebar_component->height;
+    //                 int filled_slots = 0;
+    //                 for( int i = 0; i < total_slots; i++ )
+    //                 {
+    //                     if( sidebar_component->invSlotObjId[i] > 0 )
+    //                         filled_slots++;
+    //                 }
+    //                 printf("  Filled slots: %d/%d\n", filled_slots, total_slots);
+    //             }
+    //         }
+    //         interface_draw_component(
+    //             game, sidebar_component, 553, 205, 0, renderer->pixel_buffer, renderer->width);
+    //         printf("DEBUG: Sidebar component drawn\n");
+    //     }
+    //     else
+    //     {
+    //         printf(
+    //             "DEBUG: WARNING - Sidebar component %d not found in buildcachedat!\n",
+    //             game->sidebar_interface_id);
+    //     }
+    // }
+    // else if(
+    //     game->selected_tab >= 0 && game->selected_tab < 14 &&
+    //     game->tab_interface_id[game->selected_tab] != -1 )
+    // {
+    //     // If no sidebar interface override, draw the active tab interface
+    //     int tab_component_id = game->tab_interface_id[game->selected_tab];
+    //     // printf("DEBUG: Rendering tab %d interface ID: %d\n", game->selected_tab,
+    //     // tab_component_id);
 
-        struct CacheDatConfigComponent* tab_component =
-            buildcachedat_get_component(game->buildcachedat, tab_component_id);
+    //     struct CacheDatConfigComponent* tab_component =
+    //         buildcachedat_get_component(game->buildcachedat, tab_component_id);
 
-        if( tab_component )
-        {
-            game->current_hovered_interface_id = interface_find_hovered_interface_id(
-                game, tab_component, 553, 205, game->mouse_x, game->mouse_y);
-            // printf("DEBUG: Tab component found\n");
-            // printf(
-            //     "  Component type: %d, width: %d, height: %d\n",
-            //     tab_component->type,
-            //     tab_component->width,
-            //     tab_component->height);
-            interface_draw_component(
-                game, tab_component, 553, 205, 0, renderer->pixel_buffer, renderer->width);
-            // printf("DEBUG: Tab component drawn\n");
-        }
-        else
-        {
-            printf(
-                "DEBUG: WARNING - Tab component %d not found in buildcachedat!\n",
-                tab_component_id);
-        }
-    }
+    //     if( tab_component )
+    //     {
+    //         game->current_hovered_interface_id = interface_find_hovered_interface_id(
+    //             game, tab_component, 553, 205, game->mouse_x, game->mouse_y);
+    //         // printf("DEBUG: Tab component found\n");
+    //         // printf(
+    //         //     "  Component type: %d, width: %d, height: %d\n",
+    //         //     tab_component->type,
+    //         //     tab_component->width,
+    //         //     tab_component->height);
+    //         interface_draw_component(
+    //             game, tab_component, 553, 205, 0, renderer->pixel_buffer, renderer->width);
+    //         // printf("DEBUG: Tab component drawn\n");
+    //     }
+    //     else
+    //     {
+    //         printf(
+    //             "DEBUG: WARNING - Tab component %d not found in buildcachedat!\n",
+    //             tab_component_id);
+    //     }
+    // }
 
     /* Chat area at (17, chat_y) - chat_y computed above from viewport */
     if( game->sprite_chatback )
@@ -1748,355 +1754,354 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             chat_y,
             renderer->pixel_buffer);
     }
-    if( game->chat_interface_id != -1 )
-    {
-        struct CacheDatConfigComponent* chat_component =
-            buildcachedat_get_component(game->buildcachedat, game->chat_interface_id);
-        if( chat_component )
-        {
-            game->current_hovered_interface_id = interface_find_hovered_interface_id(
-                game, chat_component, 17, chat_y, game->mouse_x, game->mouse_y);
-            interface_draw_component(
-                game, chat_component, 17, chat_y, 0, renderer->pixel_buffer, renderer->width);
-        }
-    }
-    else if( game->pixfont_p12 )
-    {
-        /* Client.ts drawChat: draw messages and input line when chat interface is closed. */
-        int chat_x = 17 + 4;
-        int chat_y_base = chat_y;
-        int line_height = 14;
-        int line = 0;
-        int stride = renderer->width;
-        int* pix = renderer->pixel_buffer;
-        static const int black = 0x000000;
-        static const int blue = 0x0000FF;
-        static const int dark_red = 0x8B0000;
-        struct DashViewPort* vp = game->iface_view_port;
-        int cl = vp->clip_left;
-        int ct = vp->clip_top;
-        int cr = vp->clip_right;
-        int cb = vp->clip_bottom;
+    // if( game->chat_interface_id != -1 )
+    // {
+    //     struct CacheDatConfigComponent* chat_component =
+    //         buildcachedat_get_component(game->buildcachedat, game->chat_interface_id);
+    //     if( chat_component )
+    //     {
+    //         game->current_hovered_interface_id = interface_find_hovered_interface_id(
+    //             game, chat_component, 17, chat_y, game->mouse_x, game->mouse_y);
+    //         interface_draw_component(
+    //             game, chat_component, 17, chat_y, 0, renderer->pixel_buffer, renderer->width);
+    //     }
+    // }
+    // else if( game->pixfont_p12 )
+    // {
+    //     /* Client.ts drawChat: draw messages and input line when chat interface is closed. */
+    //     int chat_x = 17 + 4;
+    //     int chat_y_base = chat_y;
+    //     int line_height = 14;
+    //     int line = 0;
+    //     int stride = renderer->width;
+    //     int* pix = renderer->pixel_buffer;
+    //     static const int black = 0x000000;
+    //     static const int blue = 0x0000FF;
+    //     static const int dark_red = 0x8B0000;
+    //     struct DashViewPort* vp = game->iface_view_port;
+    //     int cl = vp->clip_left;
+    //     int ct = vp->clip_top;
+    //     int cr = vp->clip_right;
+    //     int cb = vp->clip_bottom;
 
-        for( int i = 0; i < GAME_CHAT_MAX; i++ )
-        {
-            if( !game->message_text[i][0] )
-                continue;
-            int y = chat_y_base + game->chat_scroll_offset + 70 - line * line_height;
-            if( y < chat_y_base - 20 )
-                break;
-            int type = game->message_type[i];
-            const char* sender = game->message_sender[i];
-            const char* text = game->message_text[i];
-            bool draw_line = false;
-            if( type == 0 )
-            {
-                if( y > chat_y_base && y < chat_y_base + 110 )
-                {
-                    dashfont_draw_text_clipped(
-                        game->pixfont_p12,
-                        (uint8_t*)text,
-                        chat_x,
-                        y,
-                        black,
-                        pix,
-                        stride,
-                        cl,
-                        ct,
-                        cr,
-                        cb);
-                }
-                draw_line = true;
-            }
-            else if(
-                (type == 1 || type == 2) &&
-                (type == 1 || game->chat_public_mode == 0 || game->chat_public_mode == 1) )
-            {
-                if( y > chat_y_base && y < chat_y_base + 110 )
-                {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf), "%s: ", sender);
-                    dashfont_draw_text_clipped(
-                        game->pixfont_p12,
-                        (uint8_t*)buf,
-                        chat_x,
-                        y,
-                        black,
-                        pix,
-                        stride,
-                        cl,
-                        ct,
-                        cr,
-                        cb);
-                    int sx = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 8;
-                    dashfont_draw_text_clipped(
-                        game->pixfont_p12,
-                        (uint8_t*)text,
-                        sx,
-                        y,
-                        blue,
-                        pix,
-                        stride,
-                        cl,
-                        ct,
-                        cr,
-                        cb);
-                }
-                draw_line = true;
-            }
-            else if(
-                (type == 3 || type == 7) &&
-                (type == 7 || game->chat_private_mode == 0 || game->chat_private_mode == 1) )
-            {
-                if( y > chat_y_base && y < chat_y_base + 110 )
-                {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf), "From %s: ", sender);
-                    dashfont_draw_text_clipped(
-                        game->pixfont_p12,
-                        (uint8_t*)"From ",
-                        chat_x,
-                        y,
-                        black,
-                        pix,
-                        stride,
-                        cl,
-                        ct,
-                        cr,
-                        cb);
-                    int x = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)"From ");
-                    snprintf(buf, sizeof(buf), "%s: ", sender);
-                    dashfont_draw_text_clipped(
-                        game->pixfont_p12, (uint8_t*)buf, x, y, black, pix, stride, cl, ct, cr, cb);
-                    x += dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 8;
-                    dashfont_draw_text_clipped(
-                        game->pixfont_p12,
-                        (uint8_t*)text,
-                        x,
-                        y,
-                        dark_red,
-                        pix,
-                        stride,
-                        cl,
-                        ct,
-                        cr,
-                        cb);
-                }
-                draw_line = true;
-            }
-            else if( type == 5 || type == 6 )
-            {
-                if( y > chat_y_base && y < chat_y_base + 110 && game->chat_private_mode < 2 )
-                {
-                    if( type == 6 )
-                    {
-                        char buf[256];
-                        snprintf(buf, sizeof(buf), "To %s: ", sender);
-                        dashfont_draw_text_clipped(
-                            game->pixfont_p12,
-                            (uint8_t*)buf,
-                            chat_x,
-                            y,
-                            black,
-                            pix,
-                            stride,
-                            cl,
-                            ct,
-                            cr,
-                            cb);
-                        int sx =
-                            chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 12;
-                        dashfont_draw_text_clipped(
-                            game->pixfont_p12,
-                            (uint8_t*)text,
-                            sx,
-                            y,
-                            dark_red,
-                            pix,
-                            stride,
-                            cl,
-                            ct,
-                            cr,
-                            cb);
-                    }
-                    else
-                    {
-                        dashfont_draw_text_clipped(
-                            game->pixfont_p12,
-                            (uint8_t*)text,
-                            chat_x,
-                            y,
-                            dark_red,
-                            pix,
-                            stride,
-                            cl,
-                            ct,
-                            cr,
-                            cb);
-                    }
-                }
-                draw_line = true;
-            }
-            if( draw_line )
-                line++;
-        }
+    //     for( int i = 0; i < GAME_CHAT_MAX; i++ )
+    //     {
+    //         if( !game->message_text[i][0] )
+    //             continue;
+    //         int y = chat_y_base + game->chat_scroll_offset + 70 - line * line_height;
+    //         if( y < chat_y_base - 20 )
+    //             break;
+    //         int type = game->message_type[i];
+    //         const char* sender = game->message_sender[i];
+    //         const char* text = game->message_text[i];
+    //         bool draw_line = false;
+    //         if( type == 0 )
+    //         {
+    //             if( y > chat_y_base && y < chat_y_base + 110 )
+    //             {
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p12,
+    //                     (uint8_t*)text,
+    //                     chat_x,
+    //                     y,
+    //                     black,
+    //                     pix,
+    //                     stride,
+    //                     cl,
+    //                     ct,
+    //                     cr,
+    //                     cb);
+    //             }
+    //             draw_line = true;
+    //         }
+    //         else if(
+    //             (type == 1 || type == 2) &&
+    //             (type == 1 || game->chat_public_mode == 0 || game->chat_public_mode == 1) )
+    //         {
+    //             if( y > chat_y_base && y < chat_y_base + 110 )
+    //             {
+    //                 char buf[256];
+    //                 snprintf(buf, sizeof(buf), "%s: ", sender);
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p12,
+    //                     (uint8_t*)buf,
+    //                     chat_x,
+    //                     y,
+    //                     black,
+    //                     pix,
+    //                     stride,
+    //                     cl,
+    //                     ct,
+    //                     cr,
+    //                     cb);
+    //                 int sx = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 8;
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p12,
+    //                     (uint8_t*)text,
+    //                     sx,
+    //                     y,
+    //                     blue,
+    //                     pix,
+    //                     stride,
+    //                     cl,
+    //                     ct,
+    //                     cr,
+    //                     cb);
+    //             }
+    //             draw_line = true;
+    //         }
+    //         else if(
+    //             (type == 3 || type == 7) &&
+    //             (type == 7 || game->chat_private_mode == 0 || game->chat_private_mode == 1) )
+    //         {
+    //             if( y > chat_y_base && y < chat_y_base + 110 )
+    //             {
+    //                 char buf[256];
+    //                 snprintf(buf, sizeof(buf), "From %s: ", sender);
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p12,
+    //                     (uint8_t*)"From ",
+    //                     chat_x,
+    //                     y,
+    //                     black,
+    //                     pix,
+    //                     stride,
+    //                     cl,
+    //                     ct,
+    //                     cr,
+    //                     cb);
+    //                 int x = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)"From ");
+    //                 snprintf(buf, sizeof(buf), "%s: ", sender);
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p12, (uint8_t*)buf, x, y, black, pix, stride, cl, ct, cr,
+    //                     cb);
+    //                 x += dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 8;
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p12,
+    //                     (uint8_t*)text,
+    //                     x,
+    //                     y,
+    //                     dark_red,
+    //                     pix,
+    //                     stride,
+    //                     cl,
+    //                     ct,
+    //                     cr,
+    //                     cb);
+    //             }
+    //             draw_line = true;
+    //         }
+    //         else if( type == 5 || type == 6 )
+    //         {
+    //             if( y > chat_y_base && y < chat_y_base + 110 && game->chat_private_mode < 2 )
+    //             {
+    //                 if( type == 6 )
+    //                 {
+    //                     char buf[256];
+    //                     snprintf(buf, sizeof(buf), "To %s: ", sender);
+    //                     dashfont_draw_text_clipped(
+    //                         game->pixfont_p12,
+    //                         (uint8_t*)buf,
+    //                         chat_x,
+    //                         y,
+    //                         black,
+    //                         pix,
+    //                         stride,
+    //                         cl,
+    //                         ct,
+    //                         cr,
+    //                         cb);
+    //                     int sx =
+    //                         chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)buf) + 12;
+    //                     dashfont_draw_text_clipped(
+    //                         game->pixfont_p12,
+    //                         (uint8_t*)text,
+    //                         sx,
+    //                         y,
+    //                         dark_red,
+    //                         pix,
+    //                         stride,
+    //                         cl,
+    //                         ct,
+    //                         cr,
+    //                         cb);
+    //                 }
+    //                 else
+    //                 {
+    //                     dashfont_draw_text_clipped(
+    //                         game->pixfont_p12,
+    //                         (uint8_t*)text,
+    //                         chat_x,
+    //                         y,
+    //                         dark_red,
+    //                         pix,
+    //                         stride,
+    //                         cl,
+    //                         ct,
+    //                         cr,
+    //                         cb);
+    //                 }
+    //             }
+    //             draw_line = true;
+    //         }
+    //         if( draw_line )
+    //             line++;
+    //     }
 
-        game->chat_scroll_height = line * line_height + 7;
-        if( game->chat_scroll_height < 78 )
-            game->chat_scroll_height = 78;
-    }
+    //     game->chat_scroll_height = line * line_height + 7;
+    //     if( game->chat_scroll_height < 78 )
+    //         game->chat_scroll_height = 78;
+    // }
 
-    /* Client.ts redrawPrivacySettings: backbase1 at (0, 453), 496x50; four buttons:
-     * Public chat (center 55), Private chat (184), Trade/duel (324), Report abuse (458).
-     * If buffer height < 503, draw panel at bottom so it is visible. */
-#define PRIVACY_PANEL_X 0
-#define PRIVACY_PANEL_W 496
-#define PRIVACY_PANEL_H 50
-    int privacy_panel_y =
-        (453 + PRIVACY_PANEL_H <= renderer->height) ? 453 : (renderer->height - PRIVACY_PANEL_H);
-    if( privacy_panel_y < 0 )
-        privacy_panel_y = 0;
-    if( game->sprite_backbase1 && privacy_panel_y + PRIVACY_PANEL_H <= renderer->height )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backbase1,
-            game->iface_view_port,
-            PRIVACY_PANEL_X,
-            privacy_panel_y,
-            renderer->pixel_buffer);
-        if( game->pixfont_p12 )
-        {
-            struct DashViewPort* vp = game->iface_view_port;
-            int cl = vp->clip_left;
-            int ct = vp->clip_top;
-            int cr = vp->clip_right;
-            int cb = vp->clip_bottom;
-            dash2d_set_bounds(
-                vp,
-                PRIVACY_PANEL_X,
-                privacy_panel_y,
-                PRIVACY_PANEL_X + PRIVACY_PANEL_W,
-                privacy_panel_y + PRIVACY_PANEL_H);
-            int py = privacy_panel_y;
-            int stride = renderer->width;
-            int* pix = renderer->pixel_buffer;
-            int fh = game->pixfont_p12->height2d;
-            /* Client.ts: drawStringTaggableCenter(centerX, lineY, ...); font does y -= height2d */
-            int label_y = py + 28 - fh;
-            int value_y = py + 41 - fh;
-            int report_y = py + 33 - fh;
-            static const int white = 0xFFFFFF;
-            static const int green = 0x00FF00;
-            static const int yellow = 0xFFFF00;
-            static const int red = 0xFF0000;
-            static const int cyan = 0x00FFFF;
+    //     /* Client.ts redrawPrivacySettings: backbase1 at (0, 453), 496x50; four buttons:
+    //      * Public chat (center 55), Private chat (184), Trade/duel (324), Report abuse (458).
+    //      * If buffer height < 503, draw panel at bottom so it is visible. */
+    // #define PRIVACY_PANEL_X 0
+    // #define PRIVACY_PANEL_W 496
+    // #define PRIVACY_PANEL_H 50
+    //     int privacy_panel_y =
+    //         (453 + PRIVACY_PANEL_H <= renderer->height) ? 453 : (renderer->height -
+    //         PRIVACY_PANEL_H);
+    //     if( privacy_panel_y < 0 )
+    //         privacy_panel_y = 0;
+    //     if( game->sprite_backbase1 && privacy_panel_y + PRIVACY_PANEL_H <= renderer->height )
+    //     {
+    //         dash2d_blit_sprite(
+    //             game->sys_dash,
+    //             game->sprite_backbase1,
+    //             game->iface_view_port,
+    //             PRIVACY_PANEL_X,
+    //             privacy_panel_y,
+    //             renderer->pixel_buffer);
+    //         if( game->pixfont_p12 )
+    //         {
+    //             struct DashViewPort* vp = game->iface_view_port;
+    //             int cl = vp->clip_left;
+    //             int ct = vp->clip_top;
+    //             int cr = vp->clip_right;
+    //             int cb = vp->clip_bottom;
+    //             dash2d_set_bounds(
+    //                 vp,
+    //                 PRIVACY_PANEL_X,
+    //                 privacy_panel_y,
+    //                 PRIVACY_PANEL_X + PRIVACY_PANEL_W,
+    //                 privacy_panel_y + PRIVACY_PANEL_H);
+    //             int py = privacy_panel_y;
+    //             int stride = renderer->width;
+    //             int* pix = renderer->pixel_buffer;
+    //             int fh = game->pixfont_p12->height2d;
+    //             /* Client.ts: drawStringTaggableCenter(centerX, lineY, ...); font does y -=
+    //             height2d */ int label_y = py + 28 - fh; int value_y = py + 41 - fh; int report_y
+    //             = py + 33 - fh; static const int white = 0xFFFFFF; static const int green =
+    //             0x00FF00; static const int yellow = 0xFFFF00; static const int red = 0xFF0000;
+    //             static const int cyan = 0x00FFFF;
 
-            auto draw_center = [&](int center_x, int y, const char* text, int colour) {
-                int w = dashfont_text_width(game->pixfont_p12, (uint8_t*)text);
-                int x = center_x - (w / 2);
-                dashfont_draw_text_clipped(
-                    game->pixfont_p12,
-                    (uint8_t*)text,
-                    x,
-                    y,
-                    colour,
-                    pix,
-                    stride,
-                    vp->clip_left,
-                    vp->clip_top,
-                    vp->clip_right,
-                    vp->clip_bottom);
-            };
+    //             auto draw_center = [&](int center_x, int y, const char* text, int colour) {
+    //                 int w = dashfont_text_width(game->pixfont_p12, (uint8_t*)text);
+    //                 int x = center_x - (w / 2);
+    //                 dashfont_draw_text_clipped(
+    //                     game->pixfont_p12,
+    //                     (uint8_t*)text,
+    //                     x,
+    //                     y,
+    //                     colour,
+    //                     pix,
+    //                     stride,
+    //                     vp->clip_left,
+    //                     vp->clip_top,
+    //                     vp->clip_right,
+    //                     vp->clip_bottom);
+    //             };
 
-            draw_center(55, label_y, "Public chat", white);
-            if( game->chat_public_mode == 0 )
-                draw_center(55, value_y, "On", green);
-            else if( game->chat_public_mode == 1 )
-                draw_center(55, value_y, "Friends", yellow);
-            else if( game->chat_public_mode == 2 )
-                draw_center(55, value_y, "Off", red);
-            else
-                draw_center(55, value_y, "Hide", cyan);
+    //             draw_center(55, label_y, "Public chat", white);
+    //             if( game->chat_public_mode == 0 )
+    //                 draw_center(55, value_y, "On", green);
+    //             else if( game->chat_public_mode == 1 )
+    //                 draw_center(55, value_y, "Friends", yellow);
+    //             else if( game->chat_public_mode == 2 )
+    //                 draw_center(55, value_y, "Off", red);
+    //             else
+    //                 draw_center(55, value_y, "Hide", cyan);
 
-            draw_center(184, label_y, "Private chat", white);
-            if( game->chat_private_mode == 0 )
-                draw_center(184, value_y, "On", green);
-            else if( game->chat_private_mode == 1 )
-                draw_center(184, value_y, "Friends", yellow);
-            else
-                draw_center(184, value_y, "Off", red);
+    //             draw_center(184, label_y, "Private chat", white);
+    //             if( game->chat_private_mode == 0 )
+    //                 draw_center(184, value_y, "On", green);
+    //             else if( game->chat_private_mode == 1 )
+    //                 draw_center(184, value_y, "Friends", yellow);
+    //             else
+    //                 draw_center(184, value_y, "Off", red);
 
-            draw_center(324, label_y, "Trade/duel", white);
-            if( game->chat_trade_mode == 0 )
-                draw_center(324, value_y, "On", green);
-            else if( game->chat_trade_mode == 1 )
-                draw_center(324, value_y, "Friends", yellow);
-            else
-                draw_center(324, value_y, "Off", red);
+    //             draw_center(324, label_y, "Trade/duel", white);
+    //             if( game->chat_trade_mode == 0 )
+    //                 draw_center(324, value_y, "On", green);
+    //             else if( game->chat_trade_mode == 1 )
+    //                 draw_center(324, value_y, "Friends", yellow);
+    //             else
+    //                 draw_center(324, value_y, "Off", red);
 
-            draw_center(458, report_y, "Report abuse", white);
+    //             draw_center(458, report_y, "Report abuse", white);
 
-            dash2d_set_bounds(vp, cl, ct, cr, cb);
-        }
-    }
+    //             dash2d_set_bounds(vp, cl, ct, cr, cb);
+    //         }
+    //     }
 
-    /* Draw chat input line (Client.ts font.drawString(4, 90) but GameShell insideChatInputArea
-     * Y1=434; chatback at 357, so input at 434-357=77. Use 77 to align with clickable input area.)
-     */
-    if( game->chat_interface_id == -1 && game->pixfont_p12 )
-    {
-        int chat_y_base = chat_y;
-        int chat_x = 17 + 4;
-        static const int black = 0x000000;
-        static const int blue = 0x0000FF;
-        struct DashViewPort* vp = game->iface_view_port;
-        int stride = renderer->width;
-        int* pix = renderer->pixel_buffer;
-        const char* username = "Player";
-        char user_prefix[64];
-        snprintf(user_prefix, sizeof(user_prefix), "%s: ", username);
-        dashfont_draw_text_clipped(
-            game->pixfont_p12,
-            (uint8_t*)user_prefix,
-            chat_x,
-            chat_y_base + 77,
-            black,
-            pix,
-            stride,
-            vp->clip_left,
-            vp->clip_top,
-            vp->clip_right,
-            vp->clip_bottom);
-        int ix = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)user_prefix) + 6;
-        dashfont_draw_text_clipped(
-            game->pixfont_p12,
-            (uint8_t*)game->chat_typed,
-            ix,
-            chat_y_base + 77,
-            blue,
-            pix,
-            stride,
-            vp->clip_left,
-            vp->clip_top,
-            vp->clip_right,
-            vp->clip_bottom);
-        if( game->chat_typed[0] )
-        {
-            dashfont_draw_text_clipped(
-                game->pixfont_p12,
-                (uint8_t*)"*",
-                ix + dashfont_text_width(game->pixfont_p12, (uint8_t*)game->chat_typed),
-                chat_y_base + 77,
-                blue,
-                pix,
-                stride,
-                vp->clip_left,
-                vp->clip_top,
-                vp->clip_right,
-                vp->clip_bottom);
-        }
-    }
+    // /* Draw chat input line (Client.ts font.drawString(4, 90) but GameShell insideChatInputArea
+    //  * Y1=434; chatback at 357, so input at 434-357=77. Use 77 to align with clickable input
+    //  area.)
+    //  */
+    // if( game->chat_interface_id == -1 && game->pixfont_p12 )
+    // {
+    //     int chat_y_base = chat_y;
+    //     int chat_x = 17 + 4;
+    //     static const int black = 0x000000;
+    //     static const int blue = 0x0000FF;
+    //     struct DashViewPort* vp = game->iface_view_port;
+    //     int stride = renderer->width;
+    //     int* pix = renderer->pixel_buffer;
+    //     const char* username = "Player";
+    //     char user_prefix[64];
+    //     snprintf(user_prefix, sizeof(user_prefix), "%s: ", username);
+    //     dashfont_draw_text_clipped(
+    //         game->pixfont_p12,
+    //         (uint8_t*)user_prefix,
+    //         chat_x,
+    //         chat_y_base + 77,
+    //         black,
+    //         pix,
+    //         stride,
+    //         vp->clip_left,
+    //         vp->clip_top,
+    //         vp->clip_right,
+    //         vp->clip_bottom);
+    //     int ix = chat_x + dashfont_text_width(game->pixfont_p12, (uint8_t*)user_prefix) + 6;
+    //     dashfont_draw_text_clipped(
+    //         game->pixfont_p12,
+    //         (uint8_t*)game->chat_typed,
+    //         ix,
+    //         chat_y_base + 77,
+    //         blue,
+    //         pix,
+    //         stride,
+    //         vp->clip_left,
+    //         vp->clip_top,
+    //         vp->clip_right,
+    //         vp->clip_bottom);
+    //     if( game->chat_typed[0] )
+    //     {
+    //         dashfont_draw_text_clipped(
+    //             game->pixfont_p12,
+    //             (uint8_t*)"*",
+    //             ix + dashfont_text_width(game->pixfont_p12, (uint8_t*)game->chat_typed),
+    //             chat_y_base + 77,
+    //             blue,
+    //             pix,
+    //             stride,
+    //             vp->clip_left,
+    //             vp->clip_top,
+    //             vp->clip_right,
+    //             vp->clip_bottom);
+    //     }
+    // }
 
     // Draw a vertical line at x = 550
     // for( int y = 0; y < renderer->height; y++ )
@@ -2165,92 +2170,93 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         }
     }
 
-    /* Draw path: line from waypoint to waypoint, then a small marker at each waypoint.
-     * path_tile_x/z are scene-local (same as terrain sx,sz). Draw at tile center height. */
-    if( game->path_tile_count > 1 && game->sys_dash && game->view_port && game->camera &&
-        game->scene && game->scene->terrain )
-    {
-        int ox = renderer->dash_offset_x;
-        int oy = renderer->dash_offset_y;
-        int clip_l = 0;
-        int clip_t = 0;
-        int clip_r = renderer->width;
-        int clip_b = renderer->height;
-        int prev_sx = 0, prev_sy = 0;
-        int prev_ok = 0;
-        const int marker_size = 4; /* half-size of waypoint marker (pixels) */
-        const int path_level = 0;
+    // /* Draw path: line from waypoint to waypoint, then a small marker at each waypoint.
+    //  * path_tile_x/z are scene-local (same as terrain sx,sz). Draw at tile center height. */
+    // if( game->path_tile_count > 1 && game->sys_dash && game->view_port && game->camera &&
+    //     game->scene && game->scene->terrain )
+    // {
+    //     int ox = renderer->dash_offset_x;
+    //     int oy = renderer->dash_offset_y;
+    //     int clip_l = 0;
+    //     int clip_t = 0;
+    //     int clip_r = renderer->width;
+    //     int clip_b = renderer->height;
+    //     int prev_sx = 0, prev_sy = 0;
+    //     int prev_ok = 0;
+    //     const int marker_size = 4; /* half-size of waypoint marker (pixels) */
+    //     const int path_level = 0;
 
-        for( int i = 0; i < game->path_tile_count; i++ )
-        {
-            int tx = game->path_tile_x[i];
-            int tz = game->path_tile_z[i];
-            /* Scene position: center of tile (tx*128+64, tz*128+64), y = tile center height -
-             * camera. */
-            int scene_x = tx * 128 + 64 - game->camera_world_x;
-            int scene_z = tz * 128 + 64 - game->camera_world_z;
-            int height_center = scene_terrain_height_center(game->scene, tx, tz, path_level);
-            int scene_y = height_center - game->camera_world_y;
+    //     for( int i = 0; i < game->path_tile_count; i++ )
+    //     {
+    //         int tx = game->path_tile_x[i];
+    //         int tz = game->path_tile_z[i];
+    //         /* Scene position: center of tile (tx*128+64, tz*128+64), y = tile center height -
+    //          * camera. */
+    //         int scene_x = tx * 128 + 64 - game->camera_world_x;
+    //         int scene_z = tz * 128 + 64 - game->camera_world_z;
+    //         int height_center = scene_terrain_height_center(game->scene, tx, tz, path_level);
+    //         int scene_y = height_center - game->camera_world_y;
 
-            int screen_x, screen_y;
-            if( dash3d_project_point(
-                    game->sys_dash,
-                    scene_x,
-                    scene_y,
-                    scene_z,
-                    game->view_port,
-                    game->camera,
-                    &screen_x,
-                    &screen_y) )
-            {
-                int px = screen_x + ox;
-                int py = screen_y + oy;
-                if( prev_ok )
-                {
-                    dash2d_draw_line_alpha(
-                        renderer->pixel_buffer,
-                        renderer->width,
-                        prev_sx,
-                        prev_sy,
-                        px,
-                        py,
-                        0x00FFFF,
-                        220,
-                        clip_l,
-                        clip_t,
-                        clip_r,
-                        clip_b);
-                }
-                /* Draw small filled square at this waypoint. */
-                int m_l = px - marker_size;
-                int m_t = py - marker_size;
-                int m_w = marker_size * 2;
-                int m_h = marker_size * 2;
-                if( m_l < clip_l )
-                {
-                    m_w -= (clip_l - m_l);
-                    m_l = clip_l;
-                }
-                if( m_t < clip_t )
-                {
-                    m_h -= (clip_t - m_t);
-                    m_t = clip_t;
-                }
-                if( m_l + m_w > clip_r )
-                    m_w = clip_r - m_l;
-                if( m_t + m_h > clip_b )
-                    m_h = clip_b - m_t;
-                if( m_w > 0 && m_h > 0 )
-                    dash2d_fill_rect_alpha(
-                        renderer->pixel_buffer, renderer->width, m_l, m_t, m_w, m_h, 0xFF00FF, 200);
-                prev_sx = px;
-                prev_sy = py;
-                prev_ok = 1;
-            }
-            else
-                prev_ok = 0;
-        }
-    }
+    //         int screen_x, screen_y;
+    //         if( dash3d_project_point(
+    //                 game->sys_dash,
+    //                 scene_x,
+    //                 scene_y,
+    //                 scene_z,
+    //                 game->view_port,
+    //                 game->camera,
+    //                 &screen_x,
+    //                 &screen_y) )
+    //         {
+    //             int px = screen_x + ox;
+    //             int py = screen_y + oy;
+    //             if( prev_ok )
+    //             {
+    //                 dash2d_draw_line_alpha(
+    //                     renderer->pixel_buffer,
+    //                     renderer->width,
+    //                     prev_sx,
+    //                     prev_sy,
+    //                     px,
+    //                     py,
+    //                     0x00FFFF,
+    //                     220,
+    //                     clip_l,
+    //                     clip_t,
+    //                     clip_r,
+    //                     clip_b);
+    //             }
+    //             /* Draw small filled square at this waypoint. */
+    //             int m_l = px - marker_size;
+    //             int m_t = py - marker_size;
+    //             int m_w = marker_size * 2;
+    //             int m_h = marker_size * 2;
+    //             if( m_l < clip_l )
+    //             {
+    //                 m_w -= (clip_l - m_l);
+    //                 m_l = clip_l;
+    //             }
+    //             if( m_t < clip_t )
+    //             {
+    //                 m_h -= (clip_t - m_t);
+    //                 m_t = clip_t;
+    //             }
+    //             if( m_l + m_w > clip_r )
+    //                 m_w = clip_r - m_l;
+    //             if( m_t + m_h > clip_b )
+    //                 m_h = clip_b - m_t;
+    //             if( m_w > 0 && m_h > 0 )
+    //                 dash2d_fill_rect_alpha(
+    //                     renderer->pixel_buffer, renderer->width, m_l, m_t, m_w, m_h, 0xFF00FF,
+    //                     200);
+    //             prev_sx = px;
+    //             prev_sy = py;
+    //             prev_ok = 1;
+    //         }
+    //         else
+    //             prev_ok = 0;
+    //     }
+    // }
 
     /* Client.ts: yellow cross (0-3) when tile clicked, red cross (4-7) when viewport clicked but
      * not tile. Draw after dash buffer blit so cross appears on top of 3D view. */
