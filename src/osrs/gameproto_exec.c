@@ -1066,13 +1066,17 @@ gameproto_exec_lc245_2(
 }
 
 static int
-zone_tile_x(struct GGame* game, int pos)
+zone_tile_x(
+    struct GGame* game,
+    int pos)
 {
     return game->zone_base_x + ((pos >> 4) & 0x7);
 }
 
 static int
-zone_tile_z(struct GGame* game, int pos)
+zone_tile_z(
+    struct GGame* game,
+    int pos)
 {
     return game->zone_base_z + (pos & 0x7);
 }

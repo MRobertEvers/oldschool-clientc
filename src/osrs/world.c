@@ -1,10 +1,15 @@
 #include "world.h"
 
+#include "blendmap.h"
+#include "heightmap.h"
+#include "terrain_shapemap.h"
+
 #include <stdlib.h>
 #include <string.h>
 
 // clang-format off
 #include "world_scenery.u.c"
+#include "world_terrain.u.c"
 // clang-format on
 
 static void
@@ -21,13 +26,17 @@ world_new(struct BuildCacheDat* buildcachedat)
     struct World* world = malloc(sizeof(struct World));
     memset(world, 0, sizeof(struct World));
 
-    world->scene2 = scene2_new(1024);
+    world->scene2 = scene2_new(65535);
     world->painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
     world->collision_map = collision_map_new(104, 104);
     world->heightmap = heightmap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->minimap = minimap_new(0, 0, 104, 104, MAP_TERRAIN_LEVELS);
+    world->lightmap = lightmap_new(104, 104, MAP_TERRAIN_LEVELS);
+    world->overlaymap = overlaymap_new(104, 104, MAP_TERRAIN_LEVELS);
 
+    world->blendmap = blendmap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->decor_buildmap = decor_buildmap_new(104, 104, MAP_TERRAIN_LEVELS);
+    world->terrain_shapemap = terrain_shape_map_new(104, 104, MAP_TERRAIN_LEVELS);
 
     world->buildcachedat = buildcachedat;
 
@@ -84,22 +93,39 @@ orientation_wall_flag_diagonal(int orientation)
     }
 }
 
+static inline int
+world_to_scene_x(
+    struct World* world,
+    int mapx,
+    int chunk_x)
+{
+    return (chunk_x - world->_offset_x) + (mapx - world->_chunk_sw_x) * MAP_TERRAIN_X;
+}
+
+static inline int
+world_to_scene_z(
+    struct World* world,
+    int mapz,
+    int chunk_z)
+{
+    return (chunk_z - world->_offset_z) + (mapz - world->_chunk_sw_z) * MAP_TERRAIN_Z;
+}
+
 void
 world_buildcachedat_rebuild_centerzone(
     struct World* world,
-    struct BuildCacheDat* buildcachedat,
-    int zone_sw_x,
-    int zone_sw_z,
-    int zone_ne_x,
-    int zone_ne_z,
+    int zone_center_x,
+    int zone_center_z,
     int scene_size)
 {
+    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+
     // Rebuild the center zone
     int zone_padding = scene_size / (2 * 8);
-    int zone_sw_x = zone_sw_x - zone_padding;
-    int zone_sw_z = zone_sw_z - zone_padding;
-    int zone_ne_x = zone_ne_x + zone_padding;
-    int zone_ne_z = zone_ne_z + zone_padding;
+    int zone_sw_x = zone_center_x - zone_padding;
+    int zone_sw_z = zone_center_z - zone_padding;
+    int zone_ne_x = zone_center_x + zone_padding;
+    int zone_ne_z = zone_center_z + zone_padding;
 
     int world_sw_x = zone_sw_x * 8;
     int world_sw_z = zone_sw_z * 8;
@@ -112,23 +138,28 @@ world_buildcachedat_rebuild_centerzone(
     world->_base_tile_x = zone_sw_x * 8;
     world->_base_tile_z = zone_sw_z * 8;
 
-    world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    // world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->collision_map = collision_map_new(scene_size, scene_size);
     world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
-    world->minimap =
-        minimap_new(world_sw_x, world_sw_z, world_ne_x, world_ne_z, MAP_TERRAIN_LEVELS);
-    world->scene2 = scene2_new(scene_size);
+    // world->minimap =
+    //     minimap_new(world_sw_x, world_sw_z, world_ne_x, world_ne_z, MAP_TERRAIN_LEVELS);
+    // world->scene2 = scene2_new(scene_size);
 
     int chunk_sw_x = zone_sw_x / 8;
     int chunk_sw_z = zone_sw_z / 8;
     int chunk_ne_x = zone_ne_x / 8;
     int chunk_ne_z = zone_ne_z / 8;
+    world->_chunk_sw_x = chunk_sw_x;
+    world->_chunk_sw_z = chunk_sw_z;
+    world->_scene_size = scene_size;
 
     /**
      * Heightmap.
      */
     int mapx;
     int mapz;
+    int offset_x;
+    int offset_z;
     struct CacheMapTerrain* map_terrain = NULL;
     struct CacheMapLocs* map_locs = NULL;
     for( mapx = chunk_sw_x; mapx <= chunk_ne_x; mapx++ )
@@ -144,8 +175,13 @@ world_buildcachedat_rebuild_centerzone(
                 {
                     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
                     {
-                        int offset_x = tile_x + (mapx - chunk_sw_x) * MAP_TERRAIN_X;
-                        int offset_z = tile_z + (mapz - chunk_sw_z) * MAP_TERRAIN_Z;
+                        offset_x = world_to_scene_x(world, mapx, tile_x);
+                        offset_z = world_to_scene_z(world, mapz, tile_z);
+
+                        if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                            offset_z >= scene_size )
+                            continue;
+
                         int chunk_index = MAP_TILE_COORD(tile_x, tile_z, level);
                         struct CacheMapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
                         int height = tile->height;
@@ -172,13 +208,12 @@ world_buildcachedat_rebuild_centerzone(
             {
                 map_tile = &map_locs->locs[i];
 
-                int offset_x =
-                    map_tile->chunk_pos_x - world->_offset_x + (mapx - chunk_sw_x) * MAP_TERRAIN_X;
-                int offset_z =
-                    map_tile->chunk_pos_z - world->_offset_z + (mapz - chunk_sw_z) * MAP_TERRAIN_Z;
+                offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
+                offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
 
-                int chunk_index = MAP_TILE_COORD(
-                    map_tile->chunk_pos_x, map_tile->chunk_pos_z, map_tile->chunk_pos_level);
+                if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                    offset_z >= scene_size )
+                    continue;
 
                 config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
                 assert(config_loc && "Config location must be found");
@@ -332,15 +367,14 @@ world_buildcachedat_rebuild_centerzone(
             for( int i = 0; i < map_locs->locs_count; i++ )
             {
                 map_tile = &map_locs->locs[i];
-                int offset_x =
-                    map_tile->chunk_pos_x - world->_offset_x + (mapx - chunk_sw_x) * MAP_TERRAIN_X;
-                int offset_z =
-                    map_tile->chunk_pos_z - world->_offset_z + (mapz - chunk_sw_z) * MAP_TERRAIN_Z;
+                offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
+                offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
+
+                if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                    offset_z >= scene_size )
+                    continue;
 
                 int level = map_tile->chunk_pos_level;
-                int chunk_index = MAP_TILE_COORD(
-                    map_tile->chunk_pos_x, map_tile->chunk_pos_z, map_tile->chunk_pos_level);
-
                 if( config_loc->map_scene_id != -1 )
                     continue;
 
@@ -419,9 +453,9 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
-    struct MapBuildLocEntity* map_build_loc_entities =
-        malloc(count * sizeof(struct MapBuildLocEntity));
-    memset(map_build_loc_entities, 0, count * sizeof(struct MapBuildLocEntity));
+    // struct MapBuildLocEntity* map_build_loc_entities =
+    //     malloc(count * sizeof(struct MapBuildLocEntity));
+    // memset(map_build_loc_entities, 0, count * sizeof(struct MapBuildLocEntity));
     struct MapBuildLocEntity* entity = NULL;
     int idx = 0;
     for( mapx = chunk_sw_x; mapx <= chunk_ne_x; mapx++ )
@@ -431,25 +465,25 @@ world_buildcachedat_rebuild_centerzone(
             map_locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
             assert(map_locs && "Map scenery must be found");
 
-            config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
-            assert(config_loc && "Config location must be found");
-
             for( int i = 0; i < map_locs->locs_count; i++ )
             {
-                entity = &map_build_loc_entities[idx++];
-                init_map_build_loc_entity(entity);
-
                 map_tile = &map_locs->locs[i];
-                int offset_x =
-                    map_tile->chunk_pos_x - world->_offset_x + (mapx - chunk_sw_x) * MAP_TERRAIN_X;
-                int offset_z =
-                    map_tile->chunk_pos_z - world->_offset_z + (mapz - chunk_sw_z) * MAP_TERRAIN_Z;
-                int chunk_index = MAP_TILE_COORD(
-                    map_tile->chunk_pos_x, map_tile->chunk_pos_z, map_tile->chunk_pos_level);
+                config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
+                assert(config_loc && "Config location must be found");
+
+                offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
+                offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
+
+                if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                    offset_z >= scene_size )
+                    continue;
+
+                entity = &world->map_build_loc_entities[idx++];
+                init_map_build_loc_entity(entity);
 
                 entity->scene_coord.sx = offset_x;
                 entity->scene_coord.sz = offset_z;
-                entity->scene_coord.slevel = chunk_index;
+                entity->scene_coord.slevel = map_tile->chunk_pos_level;
 
                 scenery_add(world, entity, map_tile, config_loc);
             }
@@ -503,4 +537,176 @@ world_buildcachedat_rebuild_centerzone(
             }
         }
     }
+
+    /**
+     * Shademap
+     */
+
+    /**
+     * Lightmap
+     */
+    lightmap_build(world->lightmap, world->heightmap);
+
+    /**
+     * Blendmap
+     */
+    struct CacheMapFloor* tile = NULL;
+    struct CacheConfigOverlay* flotype = NULL;
+    for( mapx = chunk_sw_x; mapx <= chunk_ne_x; mapx++ )
+    {
+        for( mapz = chunk_sw_z; mapz <= chunk_ne_z; mapz++ )
+        {
+            map_terrain = buildcachedat_get_map_terrain(buildcachedat, mapx, mapz);
+            assert(map_terrain && "Map terrain must be found");
+
+            for( int tile_x = 0; tile_x < MAP_TERRAIN_X; tile_x++ )
+            {
+                for( int tile_z = 0; tile_z < MAP_TERRAIN_Z; tile_z++ )
+                {
+                    for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+                    {
+                        offset_x = world_to_scene_x(world, mapx, tile_x);
+                        offset_z = world_to_scene_z(world, mapz, tile_z);
+
+                        if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                            offset_z >= scene_size )
+                            continue;
+
+                        tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
+                        if( tile->underlay_id > 0 )
+                        {
+                            flotype =
+                                buildcachedat_get_flotype(buildcachedat, tile->underlay_id - 1);
+                            assert(flotype && "Flotype must be found");
+
+                            blendmap_set_underlay_rgb(
+                                world->blendmap, offset_x, offset_z, level, flotype->rgb_color);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    blendmap_build(world->blendmap);
+
+    /**
+     * Overlaymap
+     */
+    struct DashTexture* dash_texture = NULL;
+    for( mapx = chunk_sw_x; mapx <= chunk_ne_x; mapx++ )
+    {
+        for( mapz = chunk_sw_z; mapz <= chunk_ne_z; mapz++ )
+        {
+            map_terrain = buildcachedat_get_map_terrain(buildcachedat, mapx, mapz);
+            assert(map_terrain && "Map terrain must be found");
+
+            for( int tile_x = 0; tile_x < MAP_TERRAIN_X; tile_x++ )
+            {
+                for( int tile_z = 0; tile_z < MAP_TERRAIN_Z; tile_z++ )
+                {
+                    for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+                    {
+                        offset_x = world_to_scene_x(world, mapx, tile_x);
+                        offset_z = world_to_scene_z(world, mapz, tile_z);
+
+                        if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                            offset_z >= scene_size )
+                            continue;
+
+                        tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
+
+                        int overlay_id = tile->overlay_id - 1;
+                        int underlay_id = tile->underlay_id - 1;
+
+                        if( overlay_id == -1 )
+                            continue;
+
+                        flotype = buildcachedat_get_flotype(buildcachedat, overlay_id);
+                        assert(flotype && "Flotype must be found");
+
+                        overlaymap_set_tile_rgb(
+                            world->overlaymap, offset_x, offset_z, level, flotype->rgb_color);
+
+                        if( flotype->texture != -1 )
+                        {
+                            dash_texture =
+                                buildcachedat_get_texture(buildcachedat, flotype->texture);
+                            assert(dash_texture && "Dash texture must be found");
+
+                            int average_hsl = dash_texture_average_hsl(dash_texture);
+                            overlaymap_set_tile_texture(
+                                world->overlaymap,
+                                offset_x,
+                                offset_z,
+                                level,
+                                flotype->texture,
+                                average_hsl);
+                        }
+
+                        if( flotype->secondary_rgb_color > 0 )
+                        {
+                            overlaymap_set_tile_minimap(
+                                world->overlaymap,
+                                offset_x,
+                                offset_z,
+                                level,
+                                flotype->secondary_rgb_color);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Shapemap
+     *
+     */
+    for( mapx = chunk_sw_x; mapx <= chunk_ne_x; mapx++ )
+    {
+        for( mapz = chunk_sw_z; mapz <= chunk_ne_z; mapz++ )
+        {
+            map_terrain = buildcachedat_get_map_terrain(buildcachedat, mapx, mapz);
+            assert(map_terrain && "Map terrain must be found");
+
+            for( int tile_x = 0; tile_x < MAP_TERRAIN_X; tile_x++ )
+            {
+                for( int tile_z = 0; tile_z < MAP_TERRAIN_Z; tile_z++ )
+                {
+                    for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+                    {
+                        offset_x = world_to_scene_x(world, mapx, tile_x);
+                        offset_z = world_to_scene_z(world, mapz, tile_z);
+
+                        if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                            offset_z >= scene_size )
+                            continue;
+
+                        tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
+
+                        int underlay_id = tile->underlay_id - 1;
+                        int overlay_id = tile->overlay_id - 1;
+
+                        if( underlay_id == -1 && overlay_id == -1 )
+                            continue;
+
+                        int shape = 0;
+                        int rotation = 0;
+
+                        if( overlay_id != -1 )
+                        {
+                            shape = tile->shape + 1;
+                            rotation = tile->rotation;
+                        }
+
+                        terrain_shape_map_set_tile(
+                            world->terrain_shapemap, offset_x, offset_z, level, shape, rotation);
+                    }
+                }
+            }
+        }
+    }
+
+    build_scene_terrain(world);
 }

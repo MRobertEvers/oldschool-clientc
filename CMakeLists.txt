@@ -93,6 +93,14 @@ endif()
     src/osrs/interface.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
+    src/osrs/world.c
+    src/osrs/decor_buildmap.c
+    src/osrs/scene2.c
+    src/osrs/heightmap.c
+    src/osrs/lightmap.c
+    src/osrs/blendmap.c
+    src/osrs/overlaymap.c
+    src/osrs/terrain_shapemap.c
         src/osrs/configmap.c
         src/osrs/filepack.c
         src/osrs/dash_utils.c

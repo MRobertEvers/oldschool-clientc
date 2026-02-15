@@ -14,14 +14,15 @@
 #include "osrs/packetbuffer.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
+#include "osrs/player_stats.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
-#include "osrs/player_stats.h"
 #include "osrs/varp_varbit_manager.h"
+#include "osrs/world.h"
 #include "osrs/zone_state.h"
 
 #include <stdbool.h>
@@ -94,7 +95,7 @@ struct GGame
     int mouse_clicked_right_x;
     int mouse_clicked_right_y;
     int interface_consumed_click; /* 1 if click was handled by interface (tab, sidebar, etc.) */
-    int mouse_button_down; /* 1 while left button held, 0 on release */
+    int mouse_button_down;        /* 1 while left button held, 0 on release */
     int mouse_x;
     int mouse_y;
 
@@ -146,6 +147,8 @@ struct GGame
 
     struct Vec* scene_elements;
     struct Scene* scene;
+
+    struct World* world;
 
     struct DashGraphics* sys_dash;
     struct Minimap* sys_minimap;
@@ -271,7 +274,8 @@ struct GGame
     int path_tile_z[GAME_PATH_TILE_MAX];
     int path_tile_count; /* 0 = no path to draw */
 
-    /* Hovered interactable loc (Client.ts pickedBitsets for entityType 2). Last hit in draw order. */
+    /* Hovered interactable loc (Client.ts pickedBitsets for entityType 2). Last hit in draw order.
+     */
     struct SceneElement* hovered_scene_element;
 
     /* Viewport offset in screen coords (Client.ts menuArea 0: mouseX-=4, mouseY-=4). */
@@ -289,10 +293,11 @@ struct GGame
     int menu_height;
     int menu_size;
     char menu_options[MINIMENU_MAX_OPTIONS][MINIMENU_OPTION_LEN];
-    int menu_option_action[MINIMENU_MAX_OPTIONS]; /* op index 0-4 for NPC/loc/player; 5=Examine; 100=Walk here */
-    struct SceneElement* menu_entity; /* entity when menu was built */
-    int menu_walk_click_x; /* viewport x for Walk Here */
-    int menu_walk_click_y; /* viewport y for Walk Here */
+    int menu_option_action[MINIMENU_MAX_OPTIONS]; /* op index 0-4 for NPC/loc/player; 5=Examine;
+                                                     100=Walk here */
+    struct SceneElement* menu_entity;             /* entity when menu was built */
+    int menu_walk_click_x;                        /* viewport x for Walk Here */
+    int menu_walk_click_y;                        /* viewport y for Walk Here */
 
     /* Click cross: 0=none, 1=yellow (tile), 2=red (viewport but not tile). Client.ts crossMode. */
     int cross_mode;

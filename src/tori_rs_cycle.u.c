@@ -7,14 +7,14 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
+#include "osrs/game.h"
 #include "osrs/game_entity.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/interface.h"
 #include "osrs/isaac.h"
 #include "osrs/packetout.h"
-#include "osrs/game.h"
-#include "osrs/rscache/rsbuf.h"
 #include "osrs/painters.h"
+#include "osrs/rscache/rsbuf.h"
 #include "osrs/scene.h"
 #include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
@@ -970,7 +970,8 @@ LibToriRS_GameStep(
 
     /* Chat input (Client.ts handleInputKey when chatInterfaceId === -1).
      * chat_input_focused: 0=unfocused (keys go to movement); 1=focused (typing).
-     * Enter when unfocused: focus. Enter when focused+empty: unfocus. Enter when focused+text: send. */
+     * Enter when unfocused: focus. Enter when focused+empty: unfocus. Enter when focused+text:
+     * send. */
     if( game->chat_interface_id == -1 && GAME_NET_STATE_GAME == game->net_state )
     {
         if( input->chat_key_return )
@@ -982,48 +983,53 @@ LibToriRS_GameStep(
         }
         if( game->chat_input_focused )
         {
-        if( input->chat_key_backspace )
-        {
-            size_t len = strlen(game->chat_typed);
-            if( len > 0 )
-                game->chat_typed[len - 1] = '\0';
-        }
-        if( input->chat_key_char && strlen(game->chat_typed) < (size_t)(GAME_CHAT_TYPED_LEN - 1) )
-        {
-            char c = (char)input->chat_key_char;
-            if( (c >= 32 && c <= 122) || (c >= 48 && c <= 57) )
+            if( input->chat_key_backspace )
             {
                 size_t len = strlen(game->chat_typed);
-                game->chat_typed[len] = c;
-                game->chat_typed[len + 1] = '\0';
+                if( len > 0 )
+                    game->chat_typed[len - 1] = '\0';
             }
-        }
-        if( input->chat_key_return && game->chat_typed[0] )
-        {
-            int color = 0;
-            int effect = 0;
-            uint8_t temp_buf[256];
-            struct RSBuffer buf;
-            rsbuf_init(&buf, (int8_t*)temp_buf, sizeof(temp_buf));
-            wordpack_pack(&buf, game->chat_typed);
-            int wordpack_len = buf.position;
-            int payload_len = 2 + wordpack_len;
-            if( game->outbound_size + 2 + payload_len <= (int)sizeof(game->outbound_buffer) )
+            if( input->chat_key_char &&
+                strlen(game->chat_typed) < (size_t)(GAME_CHAT_TYPED_LEN - 1) )
             {
-                uint32_t op = (PKTOUT_LC245_2_MESSAGE_PUBLIC + isaac_next(game->random_out)) & 0xff;
-                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                game->outbound_buffer[game->outbound_size++] = 0;
-                int start = game->outbound_size;
-                game->outbound_buffer[game->outbound_size++] = (uint8_t)color;
-                game->outbound_buffer[game->outbound_size++] = (uint8_t)effect;
-                memcpy(game->outbound_buffer + game->outbound_size, temp_buf, (size_t)wordpack_len);
-                game->outbound_size += wordpack_len;
-                game->outbound_buffer[start - 1] = (uint8_t)payload_len;
-                game_add_message(game, 2, game->chat_typed, "Player");
-                game->chat_typed[0] = '\0';
-                game->chat_input_focused = 0;
+                char c = (char)input->chat_key_char;
+                if( (c >= 32 && c <= 122) || (c >= 48 && c <= 57) )
+                {
+                    size_t len = strlen(game->chat_typed);
+                    game->chat_typed[len] = c;
+                    game->chat_typed[len + 1] = '\0';
+                }
             }
-        }
+            if( input->chat_key_return && game->chat_typed[0] )
+            {
+                int color = 0;
+                int effect = 0;
+                uint8_t temp_buf[256];
+                struct RSBuffer buf;
+                rsbuf_init(&buf, (int8_t*)temp_buf, sizeof(temp_buf));
+                wordpack_pack(&buf, game->chat_typed);
+                int wordpack_len = buf.position;
+                int payload_len = 2 + wordpack_len;
+                if( game->outbound_size + 2 + payload_len <= (int)sizeof(game->outbound_buffer) )
+                {
+                    uint32_t op =
+                        (PKTOUT_LC245_2_MESSAGE_PUBLIC + isaac_next(game->random_out)) & 0xff;
+                    game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+                    game->outbound_buffer[game->outbound_size++] = 0;
+                    int start = game->outbound_size;
+                    game->outbound_buffer[game->outbound_size++] = (uint8_t)color;
+                    game->outbound_buffer[game->outbound_size++] = (uint8_t)effect;
+                    memcpy(
+                        game->outbound_buffer + game->outbound_size,
+                        temp_buf,
+                        (size_t)wordpack_len);
+                    game->outbound_size += wordpack_len;
+                    game->outbound_buffer[start - 1] = (uint8_t)payload_len;
+                    game_add_message(game, 2, game->chat_typed, "Player");
+                    game->chat_typed[0] = '\0';
+                    game->chat_input_focused = 0;
+                }
+            }
         }
     }
 
@@ -1035,192 +1041,192 @@ LibToriRS_GameStep(
 
     LibToriRS_GameProcessInput(game, input);
 
-    /* Always update scene with current players/NPCs so they are drawn even when a script
-     * is yielded (e.g. interface loading). Otherwise we return early below and never push
-     * dynamic elements, so the renderer sees an empty scene. */
-    if( game->scenebuilder && game->scene )
-    {
-        scenebuilder_reset_dynamic_elements(game->scenebuilder, game->scene);
+    // /* Always update scene with current players/NPCs so they are drawn even when a script
+    //  * is yielded (e.g. interface loading). Otherwise we return early below and never push
+    //  * dynamic elements, so the renderer sees an empty scene. */
+    // if( game->scenebuilder && game->scene )
+    // {
+    //     scenebuilder_reset_dynamic_elements(game->scenebuilder, game->scene);
 
-        for( int i = 0; i < game->npc_count; i++ )
-        {
-            int npc_id = game->active_npcs[i];
-            if( npc_id == -1 )
-                continue;
-            struct NPCEntity* npc = &game->npcs[game->active_npcs[i]];
-            if( npc->alive && npc->scene_element )
-            {
-                /* Client.ts: one updateMovement per loop cycle; move at most moveSpeed per cycle
-                 * and stop at each waypoint. */
-                for( int c = 0; c < game->cycles_elapsed; c++ )
-                    update_npc_anim(game, game->active_npcs[i]);
+    //     for( int i = 0; i < game->npc_count; i++ )
+    //     {
+    //         int npc_id = game->active_npcs[i];
+    //         if( npc_id == -1 )
+    //             continue;
+    //         struct NPCEntity* npc = &game->npcs[game->active_npcs[i]];
+    //         if( npc->alive && npc->scene_element )
+    //         {
+    //             /* Client.ts: one updateMovement per loop cycle; move at most moveSpeed per cycle
+    //              * and stop at each waypoint. */
+    //             for( int c = 0; c < game->cycles_elapsed; c++ )
+    //                 update_npc_anim(game, game->active_npcs[i]);
 
-                struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
-                entity_advance_anim(
-                    game,
-                    &npc->primary_anim,
-                    &npc->primary_anim_frame,
-                    &npc->primary_anim_cycle,
-                    &npc->primary_anim_delay,
-                    &npc->primary_anim_loop,
-                    npc->secondary_anim,
-                    &npc->secondary_anim_frame,
-                    &npc->secondary_anim_cycle,
-                    game->cycles_elapsed);
-                entity_sync_anim_to_scene(
-                    game,
-                    scene_element,
-                    npc->primary_anim,
-                    npc->primary_anim_frame,
-                    npc->primary_anim_delay,
-                    npc->secondary_anim,
-                    npc->secondary_anim_frame,
-                    npc->secondary_anim_cycle);
+    //             struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
+    //             entity_advance_anim(
+    //                 game,
+    //                 &npc->primary_anim,
+    //                 &npc->primary_anim_frame,
+    //                 &npc->primary_anim_cycle,
+    //                 &npc->primary_anim_delay,
+    //                 &npc->primary_anim_loop,
+    //                 npc->secondary_anim,
+    //                 &npc->secondary_anim_frame,
+    //                 &npc->secondary_anim_cycle,
+    //                 game->cycles_elapsed);
+    //             entity_sync_anim_to_scene(
+    //                 game,
+    //                 scene_element,
+    //                 npc->primary_anim,
+    //                 npc->primary_anim_frame,
+    //                 npc->primary_anim_delay,
+    //                 npc->secondary_anim,
+    //                 npc->secondary_anim_frame,
+    //                 npc->secondary_anim_cycle);
 
-                scene_element->dash_position->yaw = npc->orientation.yaw;
-                scene_element->dash_position->x = npc->position.x;
-                scene_element->dash_position->z = npc->position.z;
-                scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-                    game->scene, npc->position.x, npc->position.z, 0);
-                scene_element->entity_ptr = npc;
-                scene_element->entity_kind = 1;
-                scene_element->entity_npc_type_id = npc->npc_type_id;
-                scenebuilder_push_dynamic_element(
-                    game->scenebuilder,
-                    game->scene,
-                    npc->position.x / 128,
-                    npc->position.z / 128,
-                    0,
-                    npc->size_x,
-                    npc->size_z,
-                    npc->scene_element);
-            }
-        }
+    //             scene_element->dash_position->yaw = npc->orientation.yaw;
+    //             scene_element->dash_position->x = npc->position.x;
+    //             scene_element->dash_position->z = npc->position.z;
+    //             scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+    //                 game->scene, npc->position.x, npc->position.z, 0);
+    //             scene_element->entity_ptr = npc;
+    //             scene_element->entity_kind = 1;
+    //             scene_element->entity_npc_type_id = npc->npc_type_id;
+    //             scenebuilder_push_dynamic_element(
+    //                 game->scenebuilder,
+    //                 game->scene,
+    //                 npc->position.x / 128,
+    //                 npc->position.z / 128,
+    //                 0,
+    //                 npc->size_x,
+    //                 npc->size_z,
+    //                 npc->scene_element);
+    //         }
+    //     }
 
-        for( int i = 0; i < game->player_count; i++ )
-        {
-            int player_id = game->active_players[i];
-            /* Active player is updated and pushed in the block below; avoid double movement. */
-            if( player_id == ACTIVE_PLAYER_SLOT )
-                continue;
-            struct PlayerEntity* player = &game->players[player_id];
-            if( player->alive && player->scene_element )
-            {
-                for( int c = 0; c < game->cycles_elapsed; c++ )
-                    update_player_anim(game, player_id);
+    //     for( int i = 0; i < game->player_count; i++ )
+    //     {
+    //         int player_id = game->active_players[i];
+    //         /* Active player is updated and pushed in the block below; avoid double movement. */
+    //         if( player_id == ACTIVE_PLAYER_SLOT )
+    //             continue;
+    //         struct PlayerEntity* player = &game->players[player_id];
+    //         if( player->alive && player->scene_element )
+    //         {
+    //             for( int c = 0; c < game->cycles_elapsed; c++ )
+    //                 update_player_anim(game, player_id);
 
-                struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
-                entity_advance_anim(
-                    game,
-                    &player->primary_anim,
-                    &player->primary_anim_frame,
-                    &player->primary_anim_cycle,
-                    &player->primary_anim_delay,
-                    &player->primary_anim_loop,
-                    player->secondary_anim,
-                    &player->secondary_anim_frame,
-                    &player->secondary_anim_cycle,
-                    game->cycles_elapsed);
-                entity_sync_anim_to_scene(
-                    game,
-                    scene_element,
-                    player->primary_anim,
-                    player->primary_anim_frame,
-                    player->primary_anim_delay,
-                    player->secondary_anim,
-                    player->secondary_anim_frame,
-                    player->secondary_anim_cycle);
+    //             struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
+    //             entity_advance_anim(
+    //                 game,
+    //                 &player->primary_anim,
+    //                 &player->primary_anim_frame,
+    //                 &player->primary_anim_cycle,
+    //                 &player->primary_anim_delay,
+    //                 &player->primary_anim_loop,
+    //                 player->secondary_anim,
+    //                 &player->secondary_anim_frame,
+    //                 &player->secondary_anim_cycle,
+    //                 game->cycles_elapsed);
+    //             entity_sync_anim_to_scene(
+    //                 game,
+    //                 scene_element,
+    //                 player->primary_anim,
+    //                 player->primary_anim_frame,
+    //                 player->primary_anim_delay,
+    //                 player->secondary_anim,
+    //                 player->secondary_anim_frame,
+    //                 player->secondary_anim_cycle);
 
-                scene_element->dash_position->yaw = player->orientation.yaw;
-                scene_element->dash_position->x = player->position.x;
-                scene_element->dash_position->z = player->position.z;
-                scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-                    game->scene, player->position.x, player->position.z, 0);
-                scene_element->entity_ptr = player;
-                scene_element->entity_kind = 2;
-                scenebuilder_push_dynamic_element(
-                    game->scenebuilder,
-                    game->scene,
-                    player->position.x / 128,
-                    player->position.z / 128,
-                    0,
-                    1,
-                    1,
-                    player->scene_element);
-            }
-        }
+    //             scene_element->dash_position->yaw = player->orientation.yaw;
+    //             scene_element->dash_position->x = player->position.x;
+    //             scene_element->dash_position->z = player->position.z;
+    //             scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+    //                 game->scene, player->position.x, player->position.z, 0);
+    //             scene_element->entity_ptr = player;
+    //             scene_element->entity_kind = 2;
+    //             scenebuilder_push_dynamic_element(
+    //                 game->scenebuilder,
+    //                 game->scene,
+    //                 player->position.x / 128,
+    //                 player->position.z / 128,
+    //                 0,
+    //                 1,
+    //                 1,
+    //                 player->scene_element);
+    //         }
+    //     }
 
-        if( game->players[ACTIVE_PLAYER_SLOT].alive &&
-            game->players[ACTIVE_PLAYER_SLOT].scene_element )
-        {
-            struct PlayerEntity* ap = &game->players[ACTIVE_PLAYER_SLOT];
-            for( int c = 0; c < game->cycles_elapsed; c++ )
-                update_player_anim(game, ACTIVE_PLAYER_SLOT);
+    //     if( game->players[ACTIVE_PLAYER_SLOT].alive &&
+    //         game->players[ACTIVE_PLAYER_SLOT].scene_element )
+    //     {
+    //         struct PlayerEntity* ap = &game->players[ACTIVE_PLAYER_SLOT];
+    //         for( int c = 0; c < game->cycles_elapsed; c++ )
+    //             update_player_anim(game, ACTIVE_PLAYER_SLOT);
 
-            struct SceneElement* scene_element = (struct SceneElement*)ap->scene_element;
-            entity_advance_anim(
-                game,
-                &ap->primary_anim,
-                &ap->primary_anim_frame,
-                &ap->primary_anim_cycle,
-                &ap->primary_anim_delay,
-                &ap->primary_anim_loop,
-                ap->secondary_anim,
-                &ap->secondary_anim_frame,
-                &ap->secondary_anim_cycle,
-                game->cycles_elapsed);
-            entity_sync_anim_to_scene(
-                game,
-                scene_element,
-                ap->primary_anim,
-                ap->primary_anim_frame,
-                ap->primary_anim_delay,
-                ap->secondary_anim,
-                ap->secondary_anim_frame,
-                ap->secondary_anim_cycle);
+    //         struct SceneElement* scene_element = (struct SceneElement*)ap->scene_element;
+    //         entity_advance_anim(
+    //             game,
+    //             &ap->primary_anim,
+    //             &ap->primary_anim_frame,
+    //             &ap->primary_anim_cycle,
+    //             &ap->primary_anim_delay,
+    //             &ap->primary_anim_loop,
+    //             ap->secondary_anim,
+    //             &ap->secondary_anim_frame,
+    //             &ap->secondary_anim_cycle,
+    //             game->cycles_elapsed);
+    //         entity_sync_anim_to_scene(
+    //             game,
+    //             scene_element,
+    //             ap->primary_anim,
+    //             ap->primary_anim_frame,
+    //             ap->primary_anim_delay,
+    //             ap->secondary_anim,
+    //             ap->secondary_anim_frame,
+    //             ap->secondary_anim_cycle);
 
-            scene_element->dash_position->yaw = ap->orientation.yaw;
-            scene_element->dash_position->x = ap->position.x;
-            scene_element->dash_position->z = ap->position.z;
-            scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-                game->scene, ap->position.x, ap->position.z, 0);
-            scene_element->entity_ptr = ap;
-            scene_element->entity_kind = 2;
-            scenebuilder_push_dynamic_element(
-                game->scenebuilder,
-                game->scene,
-                ap->position.x / 128,
-                ap->position.z / 128,
-                0,
-                1,
-                1,
-                ap->scene_element);
-        }
+    //         scene_element->dash_position->yaw = ap->orientation.yaw;
+    //         scene_element->dash_position->x = ap->position.x;
+    //         scene_element->dash_position->z = ap->position.z;
+    //         scene_element->dash_position->y = scene_terrain_height_at_interpolated(
+    //             game->scene, ap->position.x, ap->position.z, 0);
+    //         scene_element->entity_ptr = ap;
+    //         scene_element->entity_kind = 2;
+    //         scenebuilder_push_dynamic_element(
+    //             game->scenebuilder,
+    //             game->scene,
+    //             ap->position.x / 128,
+    //             ap->position.z / 128,
+    //             0,
+    //             1,
+    //             1,
+    //             ap->scene_element);
+    //     }
 
-        /* Push obj stack elements (ground items) as dynamic elements */
-        for( int level = 0; level < ZONE_LEVELS; level++ )
-        {
-            for( int sx = 0; sx < ZONE_SCENE_SIZE; sx++ )
-            {
-                for( int sz = 0; sz < ZONE_SCENE_SIZE; sz++ )
-                {
-                    struct SceneElement* elem = game->obj_stack_elements[level][sx][sz];
-                    if( elem )
-                    {
-                        scenebuilder_push_dynamic_element(
-                            game->scenebuilder,
-                            game->scene,
-                            sx,
-                            sz,
-                            level,
-                            1,
-                            1,
-                            elem);
-                    }
-                }
-            }
-        }
-    }
+    //     /* Push obj stack elements (ground items) as dynamic elements */
+    //     for( int level = 0; level < ZONE_LEVELS; level++ )
+    //     {
+    //         for( int sx = 0; sx < ZONE_SCENE_SIZE; sx++ )
+    //         {
+    //             for( int sz = 0; sz < ZONE_SCENE_SIZE; sz++ )
+    //             {
+    //                 struct SceneElement* elem = game->obj_stack_elements[level][sx][sz];
+    //                 if( elem )
+    //                 {
+    //                     scenebuilder_push_dynamic_element(
+    //                         game->scenebuilder,
+    //                         game->scene,
+    //                         sx,
+    //                         sz,
+    //                         level,
+    //                         1,
+    //                         1,
+    //                         elem);
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     /* Scrollbar arrow hold: while mouse is down and over up/down arrow, scroll at rate *
      * game_cycles */
@@ -1360,18 +1366,20 @@ LibToriRS_GameStep(
             game->interface_consumed_click = 1;
             game->mouse_cycle = -1; /* No cross when clicking on 2D interface */
             game->selected_tab = tab_clicked;
-            /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE */
+            /* Client.ts does not send a packet for tab change; server sets tab via IF_SETTAB_ACTIVE
+             */
         }
-        /* Chat area click: focus chat input when no chat interface (Client.ts chat at 17,357 size ~536x96).
-         * Skip when menu visible - frame handles menu clicks. */
-        else if( !game->menu_visible && game->chat_interface_id == -1 && mouse_x >= 17 &&
-                 mouse_x < 553 && mouse_y >= 357 && mouse_y < 453 )
+        /* Chat area click: focus chat input when no chat interface (Client.ts chat at 17,357 size
+         * ~536x96). Skip when menu visible - frame handles menu clicks. */
+        else if(
+            !game->menu_visible && game->chat_interface_id == -1 && mouse_x >= 17 &&
+            mouse_x < 553 && mouse_y >= 357 && mouse_y < 453 )
         {
             game->interface_consumed_click = 1;
             game->chat_input_focused = 1;
         }
-        /* Chat interface buttons: when chat_interface_id is set, hit-test chat component for clicks.
-         * Skip when menu visible. */
+        /* Chat interface buttons: when chat_interface_id is set, hit-test chat component for
+         * clicks. Skip when menu visible. */
         else if( !game->menu_visible && game->chat_interface_id != -1 )
         {
             int chat_y = (game->view_port && game->view_port->height > 0)
@@ -1585,7 +1593,9 @@ LibToriRS_GameStep(
                             interface_apply_button_click_varp_optimistic(game, menu_param_c);
                         }
                     }
-                    else if( viewport_component->type == COMPONENT_TYPE_LAYER && viewport_component->children )
+                    else if(
+                        viewport_component->type == COMPONENT_TYPE_LAYER &&
+                        viewport_component->children )
                     {
                         for( int i = 0; i < viewport_component->children_count; i++ )
                         {
@@ -1607,8 +1617,8 @@ LibToriRS_GameStep(
                                 if( slot != -1 )
                                 {
                                     int obj_id = child->invSlotObjId[slot] - 1;
-                                    int action = interface_get_inv_default_action(
-                                        game, child, obj_id, slot);
+                                    int action =
+                                        interface_get_inv_default_action(game, child, obj_id, slot);
                                     interface_handle_inv_button(
                                         game, action, obj_id, slot, child_id);
                                     break;
@@ -1671,8 +1681,8 @@ LibToriRS_GameStep(
                 else
                 {
                     // Client.ts: when button is clicked, send packet per addComponentOptions +
-                    // doAction. IF_BUTTON/TOGGLE/SELECT send IF_BUTTON p2(c). CLOSE sends CLOSE_MODAL.
-                    // PAUSE sends RESUME_PAUSEBUTTON p2(c). LOGOUT sends LOGOUT p2(c).
+                    // doAction. IF_BUTTON/TOGGLE/SELECT send IF_BUTTON p2(c). CLOSE sends
+                    // CLOSE_MODAL. PAUSE sends RESUME_PAUSEBUTTON p2(c). LOGOUT sends LOGOUT p2(c).
                     int hit_component_id = -1;
                     int hit_client_code = 0;
                     int button_action = IF_BUTTON_ACTION_IF_BUTTON;
@@ -1808,19 +1818,19 @@ LibToriRS_GameStep(
     /* Scene dynamic elements (players/NPCs) are updated earlier in GameStep so they
      * are always present for rendering even when a script is yielded. */
 
-    for( int i = 0; i < game->cycles_elapsed; i++ )
-    {
-        game->cycle++;
+    // for( int i = 0; i < game->cycles_elapsed; i++ )
+    // {
+    //     game->cycle++;
 
-        for( int i = 0; i < game->scene->scenery->elements_length; i++ )
-        {
-            struct SceneElement* element = scene_element_at(game->scene->scenery, i);
-            if( element->animation )
-            {
-                advance_animation(element->animation, 1);
-            }
-        }
-    }
+    //     for( int i = 0; i < game->scene->scenery->elements_length; i++ )
+    //     {
+    //         struct SceneElement* element = scene_element_at(game->scene->scenery, i);
+    //         if( element->animation )
+    //         {
+    //             advance_animation(element->animation, 1);
+    //         }
+    //     }
+    // }
     game->cycles_elapsed = 0;
 
     // Flush outbound buffer to network

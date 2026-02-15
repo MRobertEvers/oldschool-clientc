@@ -3,12 +3,16 @@
 
 #include "decor_buildmap.h"
 #include "game_entity.h"
+#include "osrs/blendmap.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
 #include "osrs/heightmap.h"
+#include "osrs/lightmap.h"
 #include "osrs/minimap.h"
+#include "osrs/overlaymap.h"
 #include "osrs/painters.h"
 #include "osrs/scene2.h"
+#include "osrs/terrain_shapemap.h"
 
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
@@ -29,16 +33,26 @@ struct World
     struct CollisionMap* collision_map;
     // Heightmap
     struct Heightmap* heightmap;
+    // Lightmap
+    struct Lightmap* lightmap;
     // Minimap
     struct Minimap* minimap;
     // ScenePool
     struct Scene2* scene2;
-
+    // Blendmap
+    struct Blendmap* blendmap;
+    // Overlaymap
+    struct Overlaymap* overlaymap;
+    // Shapemap
+    struct TerrainShapeMap* terrain_shapemap;
     // Walloffsetmap
     struct DecorOnWallBuildMap* decor_buildmap;
 
     int _base_tile_x;
     int _base_tile_z;
+    int _chunk_sw_x;
+    int _chunk_sw_z;
+    int _scene_size;
 
     int _offset_x;
     int _offset_z;
@@ -55,9 +69,15 @@ world_free(struct World* world);
 void
 world_buildcachedat_rebuild_centerzone(
     struct World* world,
-    int zone_sw_x,
-    int zone_sw_z,
-    int zone_ne_x,
-    int zone_ne_z);
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size);
+
+struct MapBuildTileEntity*
+world_tile_entity_at(
+    struct World* world,
+    int x,
+    int z,
+    int level);
 
 #endif

@@ -2,6 +2,7 @@
 #define WORLD_SCENERY_U_C
 
 #include "dash_utils.h"
+#include "model_transforms.h"
 #include "world.h"
 
 // clang-format off
@@ -80,9 +81,69 @@ scenery_element_position_init(
     int tile_x = entity_scene_coord->sx;
     int tile_z = entity_scene_coord->sz;
     int tile_level = entity_scene_coord->slevel;
+    scene_element->dash_position = dashposition_new();
     scene_element->dash_position->x = 128 * tile_x + 64 * size_x;
     scene_element->dash_position->z = 128 * tile_z + 64 * size_z;
     scene_element->dash_position->y = heights.height_center;
+}
+
+/**
+ * Transforms must be applied here so that hillskew is correctly applied.
+ * (As opposed to passing in rendering offsets/other params.)
+ */
+static void
+apply_transforms(
+    struct CacheConfigLocation* loc,
+    struct CacheModel* model,
+    int orientation,
+    int sw_height,
+    int se_height,
+    int ne_height,
+    int nw_height,
+    int old_revision)
+{
+    // This should never be called on a shared model.
+    assert((model->_flags & CMODEL_FLAG_SHARED) == 0);
+
+    for( int i = 0; i < loc->recolor_count; i++ )
+    {
+        model_transform_recolor(model, loc->recolors_from[i], loc->recolors_to[i]);
+
+        // From rsmapviewer
+        // const retexture =
+        // locType.cacheInfo.game === "runescape" && locType.cacheInfo.revision <= 464;
+        if( old_revision )
+        {
+            model_transform_retexture(model, loc->recolors_from[i], loc->recolors_to[i]);
+        }
+    }
+
+    for( int i = 0; i < loc->retexture_count; i++ )
+    {
+        model_transform_retexture(model, loc->retextures_from[i], loc->retextures_to[i]);
+    }
+
+    bool mirrored = (loc->mirrored != (orientation > 3));
+    bool oriented = orientation != 0;
+    bool scaled = loc->resize_x != 128 || loc->resize_height != 128 || loc->resize_z != 128;
+    bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_z != 0;
+    // TODO: handle the other contoured ground types.
+    bool hillskewed = loc->contour_ground_type == 1;
+
+    if( mirrored )
+        model_transform_mirror(model);
+
+    if( oriented )
+        model_transform_orient(model, orientation);
+
+    if( scaled )
+        model_transform_scale(model, loc->resize_x, loc->resize_z, loc->resize_height);
+
+    if( translated )
+        model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_z);
+
+    if( hillskewed )
+        model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
 }
 
 static void
@@ -96,10 +157,10 @@ scenery_element_load_model(
     struct CacheModel* model = NULL;
 
     int model_ids[10];
-    int model_ids_count;
+    int model_ids_count = 0;
 
     struct CacheModel* models[10];
-    int models_count;
+    int models_count = 0;
 
     int* shapes = config_loc->shapes;
     int** model_id_sets = config_loc->models;
@@ -164,16 +225,17 @@ scenery_element_load_model(
         model = model_new_copy(models[0]);
     }
 
+    apply_transforms(config_loc, model, rotation, 0, 0, 0, 0, true);
+
     struct DashModel* dash_model = dashmodel_new_from_cache_model(model);
     model_free(model);
 
     _light_model_default(dash_model, config_loc->contrast, config_loc->ambient);
 
-    struct SceneElement* scene_element =
+    struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity_scene_element->element_id);
 
     scene_element->dash_model = dash_model;
-    scene_element->dash_position = dashposition_new();
 }
 
 static void

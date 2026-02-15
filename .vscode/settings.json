@@ -248,6 +248,9 @@
         "tori_rs_render.h": "c",
         "gameproto_process.h": "c",
         "loginproto.h": "c",
-        "pkt_player_info.h": "c"
+        "pkt_player_info.h": "c",
+        "world.h": "c",
+        "overlaymap.h": "c",
+        "terrain_shapemap.h": "c"
     },
 }

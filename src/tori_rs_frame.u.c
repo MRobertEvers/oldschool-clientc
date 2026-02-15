@@ -18,9 +18,6 @@ LibToriRS_FrameBegin(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
-    if( !game->scene || !game->sys_painter )
-        return;
-
     game->at_painters_command_index = 0;
     game->at_render_command_index = 0;
 
@@ -35,13 +32,15 @@ LibToriRS_FrameBegin(
 
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
 
-    if( game->sys_painter )
+    if( game->world )
+    {
         painter_paint(
-            game->sys_painter,
+            game->world->painter,
             game->sys_painter_buffer,
             game->camera_world_x / 128,
             game->camera_world_z / 128,
             game->camera_world_y / 240);
+    }
 }
 
 bool
@@ -53,11 +52,10 @@ LibToriRS_FrameNextCommand(
     memset(command, 0, sizeof(*command));
 
     struct DashPosition position = { 0 };
-    struct SceneElement* element = NULL;
-    struct SceneTerrainTile* tile_model = NULL;
+    // struct SceneElement* element = NULL;
+    // struct SceneTerrainTile* tile_model = NULL;
 
-    if( !game->sys_painter_buffer )
-        return false;
+    struct Scene2Element* element = NULL;
 
     while( command->kind == TORIRS_GFX_NONE )
     {
@@ -76,64 +74,59 @@ LibToriRS_FrameNextCommand(
         {
         case PNTR_CMD_ELEMENT:
         {
-            element = scene_element_at(game->scene->scenery, cmd->_entity._bf_entity);
+            element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
             if( !element || !element->dash_model )
                 continue;
-            memcpy(
-                &position,
-                scene_element_position(game->scene, cmd->_entity._bf_entity),
-                sizeof(struct DashPosition));
+            memcpy(&position, element->dash_position, sizeof(struct DashPosition));
 
             position.x = position.x - game->camera_world_x;
             position.y = position.y - game->camera_world_y;
             position.z = position.z - game->camera_world_z;
 
-            if( element->dash_model && element->animation && element->animation->frame_count > 0 )
-            {
-                struct SceneAnimation* anim = element->animation;
-                int pi = anim->frame_index;
-                int si = anim->frame_index_secondary;
-                if( anim->dash_frames_secondary && anim->walkmerge && pi < anim->frame_count &&
-                    si >= 0 && si < anim->frame_count_secondary )
-                {
-                    dashmodel_animate_mask(
-                        scene_element_model(game->scene, cmd->_entity._bf_entity),
-                        anim->dash_frames[pi],
-                        anim->dash_frames_secondary[si],
-                        anim->dash_framemap,
-                        anim->walkmerge);
-                }
-                else
-                {
-                    dashmodel_animate(
-                        scene_element_model(game->scene, cmd->_entity._bf_entity),
-                        anim->dash_frames[pi],
-                        anim->dash_framemap);
-                }
-            }
+            // if( element->dash_model && element->animation && element->animation->frame_count > 0
+            // )
+            // {
+            //     struct SceneAnimation* anim = element->animation;
+            //     int pi = anim->frame_index;
+            //     int si = anim->frame_index_secondary;
+            //     if( anim->dash_frames_secondary && anim->walkmerge && pi < anim->frame_count &&
+            //         si >= 0 && si < anim->frame_count_secondary )
+            //     {
+            //         dashmodel_animate_mask(
+            //             scene_element_model(game->scene, cmd->_entity._bf_entity),
+            //             anim->dash_frames[pi],
+            //             anim->dash_frames_secondary[si],
+            //             anim->dash_framemap,
+            //             anim->walkmerge);
+            //     }
+            //     else
+            //     {
+            //         dashmodel_animate(
+            //             scene_element_model(game->scene, cmd->_entity._bf_entity),
+            //             anim->dash_frames[pi],
+            //             anim->dash_framemap);
+            //     }
+            // }
 
             int cull = dash3d_project_model(
-                game->sys_dash,
-                scene_element_model(game->scene, cmd->_entity._bf_entity),
-                &position,
-                game->view_port,
-                game->camera);
+                game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
             if( cull != DASHCULL_VISIBLE )
                 break;
 
             /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit wins.
              */
-            bool is_interactable =
-                element->interactable || element->entity_kind == 1 || element->entity_kind == 2;
-            int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
-            int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
-            if( game->view_port && mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
-                mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
-                dash3d_projected_model_contains(
-                    game->sys_dash, element->dash_model, game->view_port, mouse_vp_x, mouse_vp_y) )
-            {
-                game->hovered_scene_element = element;
-            }
+            // bool is_interactable =
+            //     element->interactable || element->entity_kind == 1 || element->entity_kind == 2;
+            // int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
+            // int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
+            // if( game->view_port && mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
+            //     mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
+            //     dash3d_projected_model_contains(
+            //         game->sys_dash, element->dash_model, game->view_port, mouse_vp_x, mouse_vp_y)
+            //         )
+            // {
+            //     game->hovered_scene_element = element;
+            // }
 
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
@@ -150,45 +143,68 @@ LibToriRS_FrameNextCommand(
             int sz = cmd->_terrain._bf_terrain_z;
             int slevel = cmd->_terrain._bf_terrain_y;
 
-            tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
-            if( !tile_model || !tile_model->dash_model )
+            struct MapBuildTileEntity* tile_entity = NULL;
+            tile_entity = world_tile_entity_at(game->world, sx, sz, slevel);
+            if( !tile_entity || tile_entity->scene_element.element_id == -1 )
                 break;
 
-            position.x = sx * 128 - game->camera_world_x;
-            position.z = sz * 128 - game->camera_world_z;
-            position.y = -game->camera_world_y;
+            element = scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
+            if( !element || !element->dash_model )
+                break;
+
+            memcpy(&position, element->dash_position, sizeof(struct DashPosition));
+
+            position.x = position.x - game->camera_world_x;
+            position.y = position.y - game->camera_world_y;
+            position.z = position.z - game->camera_world_z;
+
+            // tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
+            // if( !tile_model || !tile_model->dash_model )
+            //     break;
+
+            // position.x = sx * 128 - game->camera_world_x;
+            // position.z = sz * 128 - game->camera_world_z;
+            // position.y = -game->camera_world_y;
+
+            // int cull = dash3d_project_model(
+            //     game->sys_dash, tile_model->dash_model, &position, game->view_port,
+            //     game->camera);
+            // if( cull != DASHCULL_VISIBLE )
+            //     continue;
+
+            // /* Client.ts: click(mouseX-8, mouseY-11); draw tests
+            // pointInsideTriangle(World3D.mouseX,
+            //  * World3D.mouseY). Only record tile when we have a click (taking input).
+            //  * Only acknowledge 3D clicks within the viewport bounds (graphics3d_width x height).
+            //  */
+            // int click_vp_x = game->mouse_clicked_x - game->viewport_offset_x - 8;
+            // int click_vp_y = game->mouse_clicked_y - game->viewport_offset_y - 11;
+            // bool in_viewport =
+            //     game->view_port && game->mouse_clicked_x >= game->viewport_offset_x &&
+            //     game->mouse_clicked_x < game->viewport_offset_x + game->view_port->width &&
+            //     game->mouse_clicked_y >= game->viewport_offset_y &&
+            //     game->mouse_clicked_y < game->viewport_offset_y + game->view_port->height;
+            // if( in_viewport && dash3d_projected_model_contains(
+            //                        game->sys_dash,
+            //                        tile_model->dash_model,
+            //                        game->view_port,
+            //                        click_vp_x,
+            //                        click_vp_y) )
+            // {
+            //     game->tile_clicked_x = sx;
+            //     game->tile_clicked_z = sz;
+            //     game->tile_clicked_level = slevel;
+            // }
 
             int cull = dash3d_project_model(
-                game->sys_dash, tile_model->dash_model, &position, game->view_port, game->camera);
+                game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
             if( cull != DASHCULL_VISIBLE )
-                continue;
-
-            /* Client.ts: click(mouseX-8, mouseY-11); draw tests pointInsideTriangle(World3D.mouseX,
-             * World3D.mouseY). Only record tile when we have a click (taking input).
-             * Only acknowledge 3D clicks within the viewport bounds (graphics3d_width x height). */
-            int click_vp_x = game->mouse_clicked_x - game->viewport_offset_x - 8;
-            int click_vp_y = game->mouse_clicked_y - game->viewport_offset_y - 11;
-            bool in_viewport =
-                game->view_port && game->mouse_clicked_x >= game->viewport_offset_x &&
-                game->mouse_clicked_x < game->viewport_offset_x + game->view_port->width &&
-                game->mouse_clicked_y >= game->viewport_offset_y &&
-                game->mouse_clicked_y < game->viewport_offset_y + game->view_port->height;
-            if( in_viewport && dash3d_projected_model_contains(
-                                   game->sys_dash,
-                                   tile_model->dash_model,
-                                   game->view_port,
-                                   click_vp_x,
-                                   click_vp_y) )
-            {
-                game->tile_clicked_x = sx;
-                game->tile_clicked_z = sz;
-                game->tile_clicked_level = slevel;
-            }
+                break;
 
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
-                        .model = tile_model->dash_model,
+                        .model = element->dash_model,
                         .position = position,
                     },
                 };
@@ -199,46 +215,47 @@ LibToriRS_FrameNextCommand(
         }
     }
 
-    if( game->tile_clicked_x != -1 && game->tile_clicked_z != -1 &&
-        command->kind == TORIRS_GFX_NONE && !game->interface_consumed_click )
-    {
-        tile_model = scene_terrain_tile_at(
-            game->scene->terrain,
-            game->tile_clicked_x,
-            game->tile_clicked_z,
-            game->tile_clicked_level);
-        if( !tile_model || !tile_model->dash_model )
-            goto skip_highlight;
+    // if( game->tile_clicked_x != -1 && game->tile_clicked_z != -1 &&
+    //     command->kind == TORIRS_GFX_NONE && !game->interface_consumed_click )
+    // {
+    //     tile_model = scene_terrain_tile_at(
+    //         game->scene->terrain,
+    //         game->tile_clicked_x,
+    //         game->tile_clicked_z,
+    //         game->tile_clicked_level);
+    //     if( !tile_model || !tile_model->dash_model )
+    //         goto skip_highlight;
 
-        position.x = game->tile_clicked_x * 128 - game->camera_world_x;
-        position.z = game->tile_clicked_z * 128 - game->camera_world_z;
-        position.y = -game->camera_world_y;
+    //     position.x = game->tile_clicked_x * 128 - game->camera_world_x;
+    //     position.z = game->tile_clicked_z * 128 - game->camera_world_z;
+    //     position.y = -game->camera_world_y;
 
-        int cull = dash3d_project_model(
-            game->sys_dash, tile_model->dash_model, &position, game->view_port, game->camera);
-        assert(cull == DASHCULL_VISIBLE);
-        if( cull != DASHCULL_VISIBLE )
-            goto skip_highlight;
+    //     int cull = dash3d_project_model(
+    //         game->sys_dash, tile_model->dash_model, &position, game->view_port, game->camera);
+    //     assert(cull == DASHCULL_VISIBLE);
+    //     if( cull != DASHCULL_VISIBLE )
+    //         goto skip_highlight;
 
-        /* Client.ts: click stores mouse; draw sets clickTileX/Z. Copy to clicked_tile for next tick
-         * tryMove (updateGame). */
-        if( game->mouse_clicked )
-        {
-            game->clicked_tile_x = game->tile_clicked_x;
-            game->clicked_tile_z = game->tile_clicked_z;
-            game->clicked_tile_valid = 1;
-        }
-        game->tile_clicked_x = -1;
-        game->tile_clicked_z = -1;
-        game->tile_clicked_level = -1;
-        *command = (struct ToriRSRenderCommand) {
-            .kind = TORIRS_GFX_MODEL_DRAW_HIGHLIGHT,
-            ._model_draw = {
-                .model = tile_model->dash_model,
-                .position = position,
-            },
-        };
-    }
+    //     /* Client.ts: click stores mouse; draw sets clickTileX/Z. Copy to clicked_tile for next
+    //     tick
+    //      * tryMove (updateGame). */
+    //     if( game->mouse_clicked )
+    //     {
+    //         game->clicked_tile_x = game->tile_clicked_x;
+    //         game->clicked_tile_z = game->tile_clicked_z;
+    //         game->clicked_tile_valid = 1;
+    //     }
+    //     game->tile_clicked_x = -1;
+    //     game->tile_clicked_z = -1;
+    //     game->tile_clicked_level = -1;
+    //     *command = (struct ToriRSRenderCommand) {
+    //         .kind = TORIRS_GFX_MODEL_DRAW_HIGHLIGHT,
+    //         ._model_draw = {
+    //             .model = tile_model->dash_model,
+    //             .position = position,
+    //         },
+    //     };
+    // }
 skip_highlight:;
 
     return command->kind != TORIRS_GFX_NONE;
@@ -489,14 +506,11 @@ LibToriRS_FrameEnd(struct GGame* game)
                                 src_local_z,
                                 dest_local_x,
                                 dest_local_z) &&
-                            game->outbound_size + 3 <=
-                                (int)sizeof(game->outbound_buffer) )
+                            game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
                         {
-                            uint32_t op =
-                                (opcode + isaac_next(game->random_out)) & 0xff;
+                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
                             game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            game->outbound_buffer[game->outbound_size++] =
-                                (npc_id >> 8) & 0xff;
+                            game->outbound_buffer[game->outbound_size++] = (npc_id >> 8) & 0xff;
                             game->outbound_buffer[game->outbound_size++] = npc_id & 0xff;
                             sent = true;
                         }
@@ -524,14 +538,12 @@ LibToriRS_FrameEnd(struct GGame* game)
                             src_local_z,
                             dest_local_x,
                             dest_local_z) &&
-                        game->outbound_size + 3 <=
-                            (int)sizeof(game->outbound_buffer) )
+                        game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
                     {
                         uint32_t op =
                             (PKTOUT_LC245_2_OPPLAYER3 + isaac_next(game->random_out)) & 0xff;
                         game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                        game->outbound_buffer[game->outbound_size++] =
-                            (player_id >> 8) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = (player_id >> 8) & 0xff;
                         game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
                         sent = true;
                     }
@@ -567,22 +579,18 @@ LibToriRS_FrameEnd(struct GGame* game)
                             src_local_z,
                             tile_sx,
                             tile_sz) &&
-                        game->outbound_size + 7 <=
-                            (int)sizeof(game->outbound_buffer) )
+                        game->outbound_size + 7 <= (int)sizeof(game->outbound_buffer) )
                     {
                         int opcode = PKTOUT_LC245_2_OPLOC1 + first_op;
                         uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
                         game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                        game->outbound_buffer[game->outbound_size++] =
-                            (world_x >> 8) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = (world_x >> 8) & 0xff;
                         game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
-                        game->outbound_buffer[game->outbound_size++] =
-                            (world_z >> 8) & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = (world_z >> 8) & 0xff;
                         game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
                         game->outbound_buffer[game->outbound_size++] =
                             (el->config_loc_id >> 8) & 0xff;
-                        game->outbound_buffer[game->outbound_size++] =
-                            el->config_loc_id & 0xff;
+                        game->outbound_buffer[game->outbound_size++] = el->config_loc_id & 0xff;
                         sent = true;
                     }
                 }

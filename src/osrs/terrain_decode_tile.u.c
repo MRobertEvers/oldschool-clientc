@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define OVERLAY_HSL_LIGHTNESS_ONLY -1
+#define OVERLAY_HSL_TRANSPARENT -2
+
 static int g_tile_shape_vertex_indices[15][6] = {
     { 1, 3, 5, 7 },
     { 1, 3, 5, 7 },
@@ -189,9 +192,6 @@ decode_tile(
     int shape,
     int rotation,
     int texture_id,
-    // int tile_coord_x,
-    // int tile_coord_z,
-    // int tile_coord_level,
     int height_sw,
     int height_se,
     int height_ne,
@@ -217,13 +217,13 @@ decode_tile(
     int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
     int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
 
-    // Assumes the overlay hsl is simply lightness.
     int underlay_hsl_sw = multiply_lightness(underlay_hsl16, light_sw);
     int underlay_hsl_se = multiply_lightness(underlay_hsl16, light_se);
     int underlay_hsl_ne = multiply_lightness(underlay_hsl16, light_ne);
     int underlay_hsl_nw = multiply_lightness(underlay_hsl16, light_nw);
 
     // Assumes the overlay hsl is simply lightness.
+    // If overlay_hsl16 is -1, then these are just lightnesses.
     int overlay_hsl_sw = adjust_lightness(overlay_hsl16, light_sw);
     int overlay_hsl_se = adjust_lightness(overlay_hsl16, light_se);
     int overlay_hsl_ne = adjust_lightness(overlay_hsl16, light_ne);
@@ -444,7 +444,7 @@ decode_tile(
 
     for( int i = 0; i < face_count; i++ )
     {
-        bool is_textured = face_indices[i * 4] == 1;
+        bool is_overlay = face_indices[i * 4] == 1;
         int a = face_indices[i * 4 + 1];
         int b = face_indices[i * 4 + 2];
         int c = face_indices[i * 4 + 3];
@@ -465,9 +465,9 @@ decode_tile(
         int color_a;
         int color_b;
         int color_c;
-        int face_texture_id = -1;
 
-        if( is_textured )
+        int face_texture_id = -1;
+        if( is_overlay )
         {
             color_a = overlay_colors_hsl[a];
             color_b = overlay_colors_hsl[b];

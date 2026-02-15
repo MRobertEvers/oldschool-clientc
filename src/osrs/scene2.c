@@ -25,7 +25,7 @@ scene2_new(int size)
     }
 
     scene2->active_list = NULL;
-    scene2->free_list = NULL;
+    scene2->free_list = &scene2->elements[0];
 
     return scene2;
 }

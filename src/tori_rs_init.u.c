@@ -210,6 +210,8 @@ LibToriRS_GameNew(
 
     struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
 
+    game->sys_painter_buffer = painter_buffer_new();
+
     int idx = -1;
     int name_hash = archive_name_hash_dat("data");
     for( int i = 0; i < filelist->file_count; i++ )

@@ -25,6 +25,7 @@
 #include "osrs/scenebuilder.h"
 #include "osrs/texture.h"
 #include "osrs/varp_varbit_manager.h"
+#include "osrs/world.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -808,28 +809,31 @@ buildcachedat_loader_finalize_scene(
 {
     /* varp/varbit loaded in init_varp_varbit (called right after config in load_scene_dat) */
 
+    game->world = world_new(buildcachedat);
+
+    world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);
+
     // Initialize painter and minimap if not already done
-    if( !game->sys_painter )
-    {
-        game->sys_painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
-        game->sys_painter_buffer = painter_buffer_new();
-    }
+    // if( !game->sys_painter )
+    // {
+    //     game->sys_painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
+    // }
 
-    if( !game->sys_minimap )
-    {
-        game->sys_minimap = minimap_new(
-            map_sw_x * 64,
-            map_sw_z * 64,
-            (map_ne_x + 1) * 64,
-            (map_ne_z + 1) * 64,
-            MAP_TERRAIN_LEVELS);
-    }
+    // if( !game->sys_minimap )
+    // {
+    //     game->sys_minimap = minimap_new(
+    //         map_sw_x * 64,
+    //         map_sw_z * 64,
+    //         (map_ne_x + 1) * 64,
+    //         (map_ne_z + 1) * 64,
+    //         MAP_TERRAIN_LEVELS);
+    // }
 
-    // Initialize scene builder if not already done
-    if( !game->scenebuilder )
-    {
-        game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
-    }
+    // // Initialize scene builder if not already done
+    // if( !game->scenebuilder )
+    // {
+    //     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
+    // }
 
     /* World tile SW: CHUNK = WORLD_TILE / 64, so WORLD_TILE = chunk * 64 (pkt_rebuild_normal.lua)
      */
@@ -837,13 +841,13 @@ buildcachedat_loader_finalize_scene(
     game->scene_base_tile_z = map_sw_z * 64;
 
     // Build the final scene from cached data
-    game->scene = scenebuilder_load_from_buildcachedat(
-        game->scenebuilder,
-        map_sw_x * 64,
-        map_sw_z * 64,
-        map_ne_x * 64,
-        map_ne_z * 64,
-        104,
-        104,
-        buildcachedat);
+    // game->scene = scenebuilder_load_from_buildcachedat(
+    //     game->scenebuilder,
+    //     map_sw_x * 64,
+    //     map_sw_z * 64,
+    //     map_ne_x * 64,
+    //     map_ne_z * 64,
+    //     104,
+    //     104,
+    //     buildcachedat);
 }
