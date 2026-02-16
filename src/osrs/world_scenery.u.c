@@ -82,8 +82,8 @@ scenery_element_position_init(
     int tile_z = entity_scene_coord->sz;
     int tile_level = entity_scene_coord->slevel;
     scene_element->dash_position = dashposition_new();
-    scene_element->dash_position->x = 128 * tile_x + 64 * size_x;
-    scene_element->dash_position->z = 128 * tile_z + 64 * size_z;
+    scene_element->dash_position->x = 128 * tile_x + 64 * (size_x);
+    scene_element->dash_position->z = 128 * tile_z + 64 * (size_z);
     scene_element->dash_position->y = heights.height_center;
 }
 

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define BLENDMAP_HSL16_NONE -1
+
 enum BlendmapStatus
 {
     BLENDMAP_STATUS_UNBLENDED = 0,
@@ -14,7 +16,7 @@ struct Blendmap
     enum BlendmapStatus status;
 
     uint32_t* underlaymap;
-    uint16_t* blendmap;
+    int32_t* blendmap;
     int width;
     int height;
     int levels;
@@ -44,7 +46,7 @@ blendmap_get_underlay_rgb(
     int z,
     int level);
 
-uint16_t
+int32_t
 blendmap_get_blended_hsl16(
     struct Blendmap* blendmap,
     int x,

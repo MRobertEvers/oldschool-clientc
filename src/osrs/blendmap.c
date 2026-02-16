@@ -28,7 +28,7 @@ blendmap_set_blended_hsl16(
     int x,
     int z,
     int level,
-    uint16_t hsl16)
+    int32_t hsl16)
 {
     blendmap->blendmap[blendmap_coord_idx(blendmap, x, z, level)] = hsl16;
 }
@@ -43,15 +43,15 @@ blendmap_new(
     memset(blendmap, 0, sizeof(struct Blendmap));
     blendmap->underlaymap = malloc(width * height * levels * sizeof(uint32_t));
     memset(blendmap->underlaymap, 0, width * height * levels * sizeof(uint32_t));
-    blendmap->blendmap = malloc(width * height * levels * sizeof(uint16_t));
-    memset(blendmap->blendmap, 0, width * height * levels * sizeof(uint16_t));
+    blendmap->blendmap = malloc(width * height * levels * sizeof(int32_t));
+    memset(blendmap->blendmap, 0, width * height * levels * sizeof(int32_t));
     blendmap->width = width;
     blendmap->height = height;
     blendmap->levels = levels;
 
     for( int i = 0; i < width * height * levels; i++ )
     {
-        blendmap->blendmap[i] = -1;
+        blendmap->blendmap[i] = BLENDMAP_HSL16_NONE;
     }
 
     return blendmap;
@@ -86,7 +86,7 @@ blendmap_get_underlay_rgb(
     return blendmap->underlaymap[blendmap_coord_idx(blendmap, x, z, level)];
 }
 
-uint16_t
+int32_t
 blendmap_get_blended_hsl16(
     struct Blendmap* blendmap,
     int x,
@@ -117,8 +117,6 @@ blendmap_build(struct Blendmap* blendmap)
     int blend_end_x = size_x + BLEND_RADIUS;
     int blend_end_y = size_z + BLEND_RADIUS;
     uint32_t underlay_rgb = 0;
-
-    int underlay_id;
 
     for( int level = 0; level < blendmap->levels; level++ )
     {
@@ -246,6 +244,10 @@ blendmap_build(struct Blendmap* blendmap)
                     int hsl16 = palette_hsl24_to_hsl16(avg_hue, avg_sat, avg_light);
 
                     blendmap_set_blended_hsl16(blendmap, xi, zi, level, hsl16);
+                }
+                else
+                {
+                    blendmap_set_blended_hsl16(blendmap, xi, zi, level, -1);
                 }
             }
         }

@@ -205,8 +205,9 @@ build_scene_terrain(struct World* world)
                 //     config_underlay_map, underlay_id - 1);
                 // assert(underlay != NULL);
 
-                // underlay_hsl = palette_rgb_to_hsl16(underlay->rgb_color);
                 underlay_hsl = blendmap_get_blended_hsl16(world->blendmap, x, z, level);
+                if( underlay_hsl == BLENDMAP_HSL16_NONE )
+                    underlay_hsl = -1;
 
                 int shape = shape_tile->shape;
                 int rotation = shape_tile->rotation;
@@ -250,8 +251,8 @@ build_scene_terrain(struct World* world)
 
                 scene_element->dash_model = model;
                 scene_element->dash_position = dashposition_new();
-                scene_element->dash_position->x = x * TILE_SIZE + 64;
-                scene_element->dash_position->z = z * TILE_SIZE + 64;
+                scene_element->dash_position->x = x * TILE_SIZE;
+                scene_element->dash_position->z = z * TILE_SIZE;
                 // The height is built into the model.
                 scene_element->dash_position->y = 0;
 
@@ -278,7 +279,8 @@ build_scene_terrain(struct World* world)
                     assert(false && "Unexpected overlay hsl");
                 }
 
-                minimap_background_rgb = dash_hsl16_to_rgb(underlay_hsl);
+                if( underlay_hsl != -1 )
+                    minimap_background_rgb = dash_hsl16_to_rgb(underlay_hsl);
 
                 minimap_set_tile_color(
                     world->minimap, x, z, level, minimap_foreground_rgb, MINIMAP_FOREGROUND);
