@@ -207,7 +207,7 @@ build_scene_terrain(struct World* world)
 
                 underlay_hsl = blendmap_get_blended_hsl16(world->blendmap, x, z, level);
                 if( underlay_hsl == BLENDMAP_HSL16_NONE )
-                    underlay_hsl = -1;
+                    underlay_hsl = UNDERLAY_HSL_NONE;
 
                 int shape = shape_tile->shape;
                 int rotation = shape_tile->rotation;

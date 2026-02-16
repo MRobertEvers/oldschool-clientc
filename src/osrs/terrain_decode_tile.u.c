@@ -12,6 +12,7 @@
 
 #define OVERLAY_HSL_LIGHTNESS_ONLY -1
 #define OVERLAY_HSL_TRANSPARENT -2
+#define UNDERLAY_HSL_NONE -1
 
 static int g_tile_shape_vertex_indices[15][6] = {
     { 1, 3, 5, 7 },
