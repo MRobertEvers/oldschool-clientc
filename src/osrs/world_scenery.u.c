@@ -96,10 +96,6 @@ apply_transforms(
     struct CacheConfigLocation* loc,
     struct CacheModel* model,
     int orientation,
-    int sw_height,
-    int se_height,
-    int ne_height,
-    int nw_height,
     int old_revision)
 {
     // This should never be called on a shared model.
@@ -142,14 +138,39 @@ apply_transforms(
     if( translated )
         model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_z);
 
-    if( hillskewed )
-        model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
+    // if( hillskewed )
+    //     model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
 }
 
 static void
-scenery_element_load_model(
+apply_contour_ground(
     struct World* world,
-    struct EntitySceneElement* entity_scene_element,
+    struct EntitySceneCoord* entity_scene_coord,
+    struct CacheModel* model,
+    int contour_ground_type,
+    int contour_ground_param)
+{
+    if( contour_ground_type == 1 )
+    {
+        struct HeightmapHeights heights = { 0 };
+        heightmap_get_heights_sized(
+            world->heightmap,
+            entity_scene_coord->sx,
+            entity_scene_coord->sz,
+            entity_scene_coord->slevel,
+            1,
+            1,
+            &heights);
+
+        model_transform_hillskew(
+            model, heights.sw_height, heights.se_height, heights.ne_height, heights.nw_height);
+    }
+}
+
+static void
+world_load_scenery_model(
+    struct World* world,
+    struct MapBuildLocEntity* entity,
     int shape_select,
     int rotation,
     struct CacheConfigLocation* config_loc)
@@ -225,15 +246,25 @@ scenery_element_load_model(
         model = model_new_copy(models[0]);
     }
 
-    apply_transforms(config_loc, model, rotation, 0, 0, 0, 0, true);
+    struct EntitySceneCoord* entity_scene_coord = &entity->scene_coord;
+    struct EntitySceneElement* entity_scene_element = &entity->scene_element;
+    struct DashModel* dash_model = NULL;
+    struct Scene2Element* scene_element = NULL;
 
-    struct DashModel* dash_model = dashmodel_new_from_cache_model(model);
+    apply_transforms(config_loc, model, rotation, true);
+    apply_contour_ground(
+        world,
+        entity_scene_coord,
+        model,
+        config_loc->contour_ground_type,
+        config_loc->contour_ground_param);
+
+    dash_model = dashmodel_new_from_cache_model(model);
     model_free(model);
 
     _light_model_default(dash_model, config_loc->contrast, config_loc->ambient);
 
-    struct Scene2Element* scene_element =
-        scene2_element_at(world->scene2, entity_scene_element->element_id);
+    scene_element = scene2_element_at(world->scene2, entity_scene_element->element_id);
 
     scene_element->dash_model = dash_model;
 }
@@ -250,8 +281,7 @@ scenery_add_wall_single(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_SINGLE_SIDE, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_SINGLE_SIDE, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_wall(
@@ -283,8 +313,7 @@ scenery_add_wall_tri_corner(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_TRI_CORNER, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_TRI_CORNER, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_wall(
@@ -321,10 +350,8 @@ scenery_add_wall_two_sides(
     int next_orientation = (orientation + 1) & 0x3;
     int next_rotation = (rotation + 1) & 0x3;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_TWO_SIDES, rotation, config_loc);
-    scenery_element_load_model(
-        world, &entity->scene_element_two, LOC_SHAPE_WALL_TWO_SIDES, next_rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_TWO_SIDES, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_TWO_SIDES, next_rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element_two, 1, 1);
 
@@ -365,8 +392,7 @@ scenery_add_wall_rect_corner(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_RECT_CORNER, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_RECT_CORNER, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_wall(
@@ -398,8 +424,7 @@ scenery_add_wall_decor_inside(
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
@@ -441,8 +466,7 @@ scenery_add_wall_decor_outside(
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
@@ -486,8 +510,7 @@ scenery_add_wall_decor_diagonal_outside(
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
@@ -531,8 +554,7 @@ scenery_add_wall_decor_diagonal_inside(
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_DECOR_INSIDE, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
@@ -579,14 +601,10 @@ scenery_add_wall_decor_diagonal_double(
     int inside_rotation = config_loc->seq_id != -1 ? 0 : (outside_orientation + 2) & 0x3;
     int inside_orientation = (outside_orientation + 2) & 0x3;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_DECOR_INSIDE, outside_rotation, config_loc);
-    scenery_element_load_model(
-        world,
-        &entity->scene_element_two,
-        LOC_SHAPE_WALL_DECOR_INSIDE,
-        inside_rotation,
-        config_loc);
+    world_load_scenery_model(
+        world, entity, LOC_SHAPE_WALL_DECOR_INSIDE, outside_rotation, config_loc);
+    world_load_scenery_model(
+        world, entity, LOC_SHAPE_WALL_DECOR_INSIDE, inside_rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element_two, 1, 1);
 
@@ -653,8 +671,7 @@ scenery_add_wall_diagonal(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_WALL_DIAGONAL, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_WALL_DIAGONAL, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_normal_scenery(
@@ -695,10 +712,15 @@ scenery_add_normal(
         size_z = temp;
     }
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_SCENERY, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_SCENERY, rotation, config_loc);
     scenery_element_position_init(
         world, &entity->scene_coord, &entity->scene_element, size_x, size_z);
+
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, entity->scene_element.element_id);
+    if( config_loc->seq_id != -1 )
+        scene_element->dash_position->yaw += 256;
+    scene_element->dash_position->yaw %= 2048;
 
     painter_add_normal_scenery(
         world->painter,
@@ -722,8 +744,7 @@ scenery_add_roof(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, map_tile->shape_select, rotation, config_loc);
+    world_load_scenery_model(world, entity, map_tile->shape_select, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_normal_scenery(
@@ -748,8 +769,7 @@ scenery_add_floor_decoration(
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
 
-    scenery_element_load_model(
-        world, &entity->scene_element, LOC_SHAPE_FLOOR_DECORATION, rotation, config_loc);
+    world_load_scenery_model(world, entity, LOC_SHAPE_FLOOR_DECORATION, rotation, config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_ground_decor(
