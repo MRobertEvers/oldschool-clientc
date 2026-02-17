@@ -21,6 +21,7 @@ scene2_new(int size)
             scene2->elements[i].next = &scene2->elements[i + 1];
 
         scene2->elements[i].id = i;
+        scene2->elements[i].parent_entity_id = -1;
         scene2->elements[i].active = false;
     }
 
@@ -39,7 +40,9 @@ scene2_free(struct Scene2* scene2)
 }
 
 int
-scene2_element_acquire(struct Scene2* scene2)
+scene2_element_acquire(
+    struct Scene2* scene2,
+    int parent_entity_id)
 {
     if( scene2->free_list == NULL )
     {
@@ -49,6 +52,7 @@ scene2_element_acquire(struct Scene2* scene2)
     int element_id = scene2->free_list->id;
     struct Scene2Element* element = scene2->free_list;
     element->active = true;
+    element->parent_entity_id = parent_entity_id;
     scene2->free_list = element->next;
 
     element->next = scene2->active_list;
@@ -69,6 +73,7 @@ scene2_element_release(
     struct Scene2Element* element = scene2_element_at(scene2, element_id);
     assert(element->active && "Element must be active");
     element->active = false;
+    element->parent_entity_id = -1;
 
     if( element->next != NULL )
         element->next->prev = element->prev;

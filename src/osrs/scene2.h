@@ -7,6 +7,7 @@ struct Scene2Element
 {
     int id;
     bool active;
+    int parent_entity_id;
     struct Scene2Element* next;
     struct Scene2Element* prev;
 
@@ -32,7 +33,9 @@ void
 scene2_free(struct Scene2* scene2);
 
 int
-scene2_element_acquire(struct Scene2* scene2);
+scene2_element_acquire(
+    struct Scene2* scene2,
+    int parent_entity_id);
 
 void
 scene2_element_release(

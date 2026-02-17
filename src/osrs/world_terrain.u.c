@@ -101,10 +101,13 @@ lightmap_build(
 }
 
 static void
-init_map_build_tile_entity(struct MapBuildTileEntity* map_build_tile_entity)
+init_map_build_tile_entity(
+    struct MapBuildTileEntity* map_build_tile_entity,
+    int entity_id)
 {
     memset(map_build_tile_entity, 0, sizeof(struct MapBuildTileEntity));
     map_build_tile_entity->scene_element.element_id = -1;
+    map_build_tile_entity->entity_id = entity_id;
 }
 
 struct MapBuildTileEntity*
@@ -135,7 +138,7 @@ build_scene_terrain(struct World* world)
 
     for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
     {
-        init_map_build_tile_entity(&world->map_build_tile_entities[i]);
+        init_map_build_tile_entity(&world->map_build_tile_entities[i], i);
     }
 
     /**
@@ -234,7 +237,8 @@ build_scene_terrain(struct World* world)
                     texture_id = -1;
                 }
 
-                tile_entity->scene_element.element_id = scene2_element_acquire(world->scene2);
+                tile_entity->scene_element.element_id =
+                    scene2_element_acquire(world->scene2, tile_entity->entity_id);
                 scene_element =
                     scene2_element_at(world->scene2, tile_entity->scene_element.element_id);
 

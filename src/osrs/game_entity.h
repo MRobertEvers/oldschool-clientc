@@ -168,6 +168,7 @@ struct PlayerEntity
 
 struct MapBuildLocEntity
 {
+    int entity_id;
     struct EntitySceneElement scene_element;
     struct EntitySceneElement scene_element_two;
     struct EntitySceneCoord scene_coord;
@@ -176,6 +177,7 @@ struct MapBuildLocEntity
 
 struct MapBuildTileEntity
 {
+    int entity_id;
     struct EntitySceneElement scene_element;
     struct EntitySceneCoord scene_coord;
 };

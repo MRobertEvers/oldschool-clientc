@@ -13,11 +13,28 @@
 // clang-format on
 
 static void
-init_map_build_loc_entity(struct MapBuildLocEntity* map_build_loc_entity)
+init_map_build_loc_entity(
+    struct MapBuildLocEntity* map_build_loc_entity,
+    int entity_id)
 {
     memset(map_build_loc_entity, 0, sizeof(struct MapBuildLocEntity));
     map_build_loc_entity->scene_element.element_id = -1;
+    map_build_loc_entity->entity_id = entity_id;
     map_build_loc_entity->scene_element_two.element_id = -1;
+}
+
+static struct MapBuildLocEntity*
+next_map_build_loc_entity(struct World* world)
+{
+    if( world->map_build_loc_entity_count < MAX_MAP_BUILD_LOC_ENTITIES )
+    {
+        int entity_id = world->map_build_loc_entity_count;
+        init_map_build_loc_entity(&world->map_build_loc_entities[entity_id], entity_id);
+        world->map_build_loc_entity_count++;
+        return &world->map_build_loc_entities[entity_id];
+    }
+    assert(false && "No more map build loc entities");
+    return NULL;
 }
 
 struct World*
@@ -478,13 +495,10 @@ world_buildcachedat_rebuild_centerzone(
                     offset_z >= scene_size )
                     continue;
 
-                entity = &world->map_build_loc_entities[idx++];
-                init_map_build_loc_entity(entity);
-
+                entity = next_map_build_loc_entity(world);
                 entity->scene_coord.sx = offset_x;
                 entity->scene_coord.sz = offset_z;
                 entity->scene_coord.slevel = map_tile->chunk_pos_level;
-
                 scenery_add(world, entity, map_tile, config_loc);
             }
         }

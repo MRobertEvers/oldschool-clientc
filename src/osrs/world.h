@@ -27,18 +27,23 @@ struct World
     struct MapBuildLocEntity map_build_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
     struct MapBuildTileEntity map_build_tile_entities[MAX_MAP_BUILD_TILE_ENTITIES];
 
+    int map_build_loc_entity_count;
+
     // Painter
     struct Painter* painter;
     // Collisionmap
     struct CollisionMap* collision_map;
     // Heightmap
     struct Heightmap* heightmap;
-    // Lightmap
-    struct Lightmap* lightmap;
+
     // Minimap
     struct Minimap* minimap;
     // ScenePool
     struct Scene2* scene2;
+
+    // Todo: How to organize, these are only used at build time.
+    // Lightmap
+    struct Lightmap* lightmap;
     // Blendmap
     struct Blendmap* blendmap;
     // Overlaymap
