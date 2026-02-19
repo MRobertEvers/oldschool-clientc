@@ -1,5 +1,6 @@
 #include "scene2.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -28,6 +29,9 @@ scene2_new(int size)
     scene2->active_list = NULL;
     scene2->free_list = &scene2->elements[0];
 
+    scene2->active_len = 0;
+    scene2->free_len = size;
+
     return scene2;
 }
 
@@ -35,6 +39,10 @@ void
 scene2_free(struct Scene2* scene2)
 {
     // Free the elements
+    for( int i = 0; i < scene2->elements_count; i++ )
+    {
+        scene2_element_release(scene2, i);
+    }
     free(scene2->elements);
     free(scene2);
 }
@@ -61,6 +69,9 @@ scene2_element_acquire(
         scene2->active_list->prev = element;
 
     scene2->active_list = element;
+
+    scene2->active_len++;
+    scene2->free_len--;
 
     return element_id;
 }
@@ -188,14 +199,13 @@ scene2_element_release(
     assert(element->active && "Element must be active");
 
     dashmodel_free(element->dash_model);
+    element->dash_model = NULL;
     dashposition_free(element->dash_position);
+    element->dash_position = NULL;
     dashframemap_free(element->dash_framemap);
+    element->dash_framemap = NULL;
     scene2_element_clear_animation(element);
     scene2_element_clear_secondary_animation(element);
-
-    element->dash_model = NULL;
-    element->dash_position = NULL;
-    element->dash_framemap = NULL;
 
     element->active = false;
     element->parent_entity_id = -1;
@@ -211,6 +221,9 @@ scene2_element_release(
         scene2->free_list->prev = element;
 
     scene2->free_list = element;
+
+    scene2->active_len--;
+    scene2->free_len++;
 }
 
 struct Scene2Element*

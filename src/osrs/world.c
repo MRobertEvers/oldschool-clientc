@@ -4,6 +4,7 @@
 #include "datatypes/appearances.h"
 #include "heightmap.h"
 #include "terrain_shapemap.h"
+#include "world_scenebuild.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -27,11 +28,12 @@ init_map_build_loc_entity(
 static struct MapBuildLocEntity*
 next_map_build_loc_entity(struct World* world)
 {
-    if( world->map_build_loc_entity_count < MAX_MAP_BUILD_LOC_ENTITIES )
+    if( world->active_loc_entity_count < MAX_MAP_BUILD_LOC_ENTITIES )
     {
-        int entity_id = world->map_build_loc_entity_count;
+        int entity_id = world->active_loc_entity_count;
         init_map_build_loc_entity(&world->map_build_loc_entities[entity_id], entity_id);
-        world->map_build_loc_entity_count++;
+        world->active_loc_entities[world->active_loc_entity_count] = entity_id;
+        world->active_loc_entity_count++;
         return &world->map_build_loc_entities[entity_id];
     }
     assert(false && "No more map build loc entities");
@@ -48,7 +50,7 @@ world_new(struct BuildCacheDat* buildcachedat)
     world->painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
     world->collision_map = collision_map_new(104, 104);
     world->heightmap = heightmap_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->minimap = minimap_new(0, 0, 104, 104, MAP_TERRAIN_LEVELS);
+    world->minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->lightmap = lightmap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->overlaymap = overlaymap_new(104, 104, MAP_TERRAIN_LEVELS);
 
@@ -57,6 +59,15 @@ world_new(struct BuildCacheDat* buildcachedat)
     world->terrain_shapemap = terrain_shape_map_new(104, 104, MAP_TERRAIN_LEVELS);
 
     world->buildcachedat = buildcachedat;
+
+    for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
+    {
+        init_map_build_loc_entity(&world->map_build_loc_entities[i], i);
+    }
+    for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
+    {
+        init_map_build_tile_entity(&world->map_build_tile_entities[i], i);
+    }
 
     return world;
 }
@@ -156,12 +167,25 @@ world_buildcachedat_rebuild_centerzone(
     world->_base_tile_x = zone_sw_x * 8;
     world->_base_tile_z = zone_sw_z * 8;
 
-    // world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    if( world->painter )
+        painter_free(world->painter);
+    if( world->collision_map )
+        collision_map_free(world->collision_map);
+    if( world->heightmap )
+        heightmap_free(world->heightmap);
+    if( world->minimap )
+        minimap_free(world->minimap);
+
+    for( int i = 0; i < world->active_loc_entity_count; i++ )
+    {
+        world_cleanup_map_build_loc_entity(world, world->active_loc_entities[i]);
+    }
+    world->active_loc_entity_count = 0;
+
+    world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->collision_map = collision_map_new(scene_size, scene_size);
     world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
-    // world->minimap =
-    //     minimap_new(world_sw_x, world_sw_z, world_ne_x, world_ne_z, MAP_TERRAIN_LEVELS);
-    // world->scene2 = scene2_new(scene_size);
+    world->minimap = minimap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
 
     int chunk_sw_x = zone_sw_x / 8;
     int chunk_sw_z = zone_sw_z / 8;
@@ -786,50 +810,6 @@ world_cleanup_npc_entity(
     memset(&npc->orientation, 0, sizeof(struct EntityOrientation));
     memset(&npc->animation, 0, sizeof(struct EntityAnimation));
     npc->alive = false;
-}
-
-static void
-player_appearance_model(
-    struct World* world,
-    uint16_t* appearances,
-    uint16_t* colors,
-    struct DashModel* dash_model)
-{
-    // assert(dash_model && !dash_model->loaded && "Dash model must be provided");
-    assert(dash_model && "Dash model must be provided");
-    struct CacheModel* model = NULL;
-    struct CacheModel* merged = NULL;
-    struct AppearanceOp op;
-    int model_count = 0;
-    struct CacheModel* models[12];
-    for( int i = 0; i < 12; i++ )
-    {
-        model = NULL;
-        appearances_decode(&op, appearances, i);
-        switch( op.kind )
-        {
-        case APPEARANCE_KIND_IDK:
-            model = idk_model(world->buildcachedat, op.id);
-            break;
-        case APPEARANCE_KIND_OBJ:
-            model = obj_model(world->buildcachedat, op.id);
-            break;
-        default:
-            break;
-        }
-        if( model )
-        {
-            models[model_count] = model;
-            model_count++;
-        }
-    }
-
-    merged = model_new_merge(models, model_count);
-    assert(merged->vertices_x && "Merged model must have vertices");
-    assert(merged->vertices_y && "Merged model must have vertices");
-    assert(merged->vertices_z && "Merged model must have vertices");
-    dashmodel_move_from_cache_model(dash_model, merged);
-    _light_model_default(dash_model, 0, 0);
 }
 
 void

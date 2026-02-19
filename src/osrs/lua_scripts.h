@@ -907,11 +907,11 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "get_all_scenery_locs",                              l_buildcachedat_get_all_scenery_locs                },
     { "get_scenery_model_ids",                             l_buildcachedat_get_scenery_model_ids               },
     { "get_npc_model_ids",                                 l_buildcachedat_get_npc_model_ids                   },
-    { "get_npc_head_model_ids",                            l_buildcachedat_get_npc_head_model_ids            },
+    { "get_npc_head_model_ids",                            l_buildcachedat_get_npc_head_model_ids              },
     { "get_idk_model_ids",                                 l_buildcachedat_get_idk_model_ids                   },
-    { "get_idk_head_model_ids",                            l_buildcachedat_get_idk_head_model_ids            },
+    { "get_idk_head_model_ids",                            l_buildcachedat_get_idk_head_model_ids              },
     { "get_obj_model_ids",                                 l_buildcachedat_get_obj_model_ids                   },
-    { "get_obj_head_model_ids",                            l_buildcachedat_get_obj_head_model_ids            },
+    { "get_obj_head_model_ids",                            l_buildcachedat_get_obj_head_model_ids              },
     { "get_obj",                                           l_buildcachedat_get_obj                             },
     { "cache_model",                                       l_buildcachedat_cache_model                         },
     { "load_interfaces",                                   l_buildcachedat_load_interfaces                     },
@@ -991,7 +991,7 @@ l_buildcache_ensure(lua_State* L)
     }
     if( !game->sys_minimap )
     {
-        game->sys_minimap = minimap_new(wx_sw, wz_sw, wx_ne, wz_ne, MAP_TERRAIN_LEVELS);
+        game->sys_minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
     }
     if( !game->scenebuilder )
         game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
@@ -1845,25 +1845,25 @@ l_gameproto_get_local_player_appearance_ids(lua_State* L)
 }
 
 static const luaL_Reg gameproto_funcs[] = {
-    { "get_npc_ids_from_packet",   l_gameproto_get_npc_ids_from_packet   },
-    { "exec_npc_info",             l_gameproto_exec_npc_info             },
-    { "get_rebuild_bounds",        l_gameproto_get_rebuild_bounds        },
-    { "exec_rebuild",              l_gameproto_exec_rebuild              },
-    { "get_player_appearance_ids", l_gameproto_get_player_appearance_ids },
-    { "exec_player_info",          l_gameproto_exec_player_info          },
-    { "get_inv_obj_ids",           l_gameproto_get_inv_obj_ids           },
-    { "exec_update_inv_full",      l_gameproto_exec_update_inv_full      },
-    { "get_if_settab_data",        l_gameproto_get_if_settab_data        },
-    { "exec_if_settab",            l_gameproto_exec_if_settab            },
-    { "get_if_setnpchead_data",    l_gameproto_get_if_setnpchead_data    },
-    { "exec_if_setnpchead",        l_gameproto_exec_if_setnpchead        },
-    { "exec_if_setplayerhead",     l_gameproto_exec_if_setplayerhead     },
+    { "get_npc_ids_from_packet",         l_gameproto_get_npc_ids_from_packet         },
+    { "exec_npc_info",                   l_gameproto_exec_npc_info                   },
+    { "get_rebuild_bounds",              l_gameproto_get_rebuild_bounds              },
+    { "exec_rebuild",                    l_gameproto_exec_rebuild                    },
+    { "get_player_appearance_ids",       l_gameproto_get_player_appearance_ids       },
+    { "exec_player_info",                l_gameproto_exec_player_info                },
+    { "get_inv_obj_ids",                 l_gameproto_get_inv_obj_ids                 },
+    { "exec_update_inv_full",            l_gameproto_exec_update_inv_full            },
+    { "get_if_settab_data",              l_gameproto_get_if_settab_data              },
+    { "exec_if_settab",                  l_gameproto_exec_if_settab                  },
+    { "get_if_setnpchead_data",          l_gameproto_get_if_setnpchead_data          },
+    { "exec_if_setnpchead",              l_gameproto_exec_if_setnpchead              },
+    { "exec_if_setplayerhead",           l_gameproto_exec_if_setplayerhead           },
     { "get_local_player_appearance_ids", l_gameproto_get_local_player_appearance_ids },
-    { "get_obj_add_data",          l_gameproto_get_obj_add_data           },
-    { "exec_obj_add",              l_gameproto_exec_obj_add               },
-    { "get_loc_add_change_data",   l_gameproto_get_loc_add_change_data    },
-    { "exec_loc_add_change",       l_gameproto_exec_loc_add_change        },
-    { NULL,                        NULL                                  }
+    { "get_obj_add_data",                l_gameproto_get_obj_add_data                },
+    { "exec_obj_add",                    l_gameproto_exec_obj_add                    },
+    { "get_loc_add_change_data",         l_gameproto_get_loc_add_change_data         },
+    { "exec_loc_add_change",             l_gameproto_exec_loc_add_change             },
+    { NULL,                              NULL                                        }
 };
 
 static void

@@ -1790,35 +1790,6 @@ dashmodel_new(void)
 }
 
 void
-dashframe_free(struct DashFrame* frame)
-{
-    if( !frame )
-        return;
-    free(frame->index_frame_ids);
-    free(frame->translator_arg_x);
-    free(frame->translator_arg_y);
-    free(frame->translator_arg_z);
-    free(frame);
-    frame = NULL;
-}
-
-void
-dashframemap_free(struct DashFramemap* framemap)
-{
-    if( !framemap )
-        return;
-    free(framemap->types);
-    for( int i = 0; i < framemap->length; i++ )
-    {
-        free(framemap->bone_groups[i]);
-    }
-    free(framemap->bone_groups);
-    free(framemap->bone_groups_lengths);
-    free(framemap);
-    framemap = NULL;
-}
-
-void
 dashmodel_free(struct DashModel* model)
 {
     if( !model )
@@ -1842,11 +1813,18 @@ dashmodel_free(struct DashModel* model)
     free(model->textured_n_coordinate);
     free(model->face_textures);
     free(model->face_texture_coords);
-    free(model->normals->lighting_vertex_normals);
-    free(model->normals->lighting_face_normals);
-    free(model->lighting->face_colors_hsl_a);
-    free(model->lighting->face_colors_hsl_b);
-    free(model->lighting->face_colors_hsl_c);
+    if( model->normals )
+    {
+        free(model->normals->lighting_vertex_normals);
+        free(model->normals->lighting_face_normals);
+    }
+
+    if( model->lighting )
+    {
+        free(model->lighting->face_colors_hsl_a);
+        free(model->lighting->face_colors_hsl_b);
+        free(model->lighting->face_colors_hsl_c);
+    }
     free(model->vertex_bones);
     free(model->face_bones);
     free(model->bounds_cylinder);

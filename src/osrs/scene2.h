@@ -34,7 +34,9 @@ struct Scene2
     int elements_count;
 
     struct Scene2Element* active_list;
+    int active_len;
     struct Scene2Element* free_list;
+    int free_len;
 };
 
 struct Scene2*

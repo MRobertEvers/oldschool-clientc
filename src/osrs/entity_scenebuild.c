@@ -204,8 +204,8 @@ entity_scenebuild_obj_stack_update_tile(
     int scene_z = sz * 128 + 64;
     element->dash_position->x = scene_x;
     element->dash_position->z = scene_z;
-    element->dash_position->y = scene_terrain_height_at_interpolated(
-        game->scene, scene_x, scene_z, level);
+    element->dash_position->y =
+        scene_terrain_height_at_interpolated(game->scene, scene_x, scene_z, level);
     element->entity_kind = 0;
 }
 
@@ -265,9 +265,6 @@ entity_scenebuild_player_get(
 
     player->alive = true;
     player->scene_element = (void*)scene_element_new(game->scene);
-    player->orientation.face_entity = -1;
-    player->orientation.face_square_x = 0;
-    player->orientation.face_square_z = 0;
 
     return player;
 }
@@ -331,9 +328,6 @@ entity_scenebuild_npc_get(
     npc->alive = true;
     npc->npc_type_id = -1;
     npc->scene_element = (void*)scene_element_new(game->scene);
-    npc->orientation.face_entity = -1;
-    npc->orientation.face_square_x = 0;
-    npc->orientation.face_square_z = 0;
 
     return npc;
 }
@@ -404,7 +398,7 @@ entity_scenebuild_npc_change_type(
     npc->animation.readyanim = npc_config->readyanim;
     npc->animation.walkanim = npc_config->walkanim;
     npc->animation.turnanim = -1; /* CacheDatConfigNpc has no turnanim */
-    npc->animation.runanim = -1;   /* CacheDatConfigNpc has no runanim */
+    npc->animation.runanim = -1;  /* CacheDatConfigNpc has no runanim */
     npc->animation.walkanim_b = npc_config->walkanim_b;
     npc->animation.walkanim_r = npc_config->walkanim_r;
     npc->animation.walkanim_l = npc_config->walkanim_l;
@@ -458,7 +452,11 @@ idk_head_model(
             if( m )
                 models[model_count++] = m;
             else
-                printf("idk_head_model: idk_id=%d heads[%d]=%d not loaded\n", idk_id, i, idk->heads[i]);
+                printf(
+                    "idk_head_model: idk_id=%d heads[%d]=%d not loaded\n",
+                    idk_id,
+                    i,
+                    idk->heads[i]);
         }
     }
     if( model_count == 0 )

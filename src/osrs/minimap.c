@@ -40,22 +40,13 @@ minimap_commands_free(struct MinimapRenderCommandBuffer* command_buffer)
 
 struct Minimap*
 minimap_new(
-    int sw_x,
-    int sw_z,
-    int ne_x,
-    int ne_z,
+    int width,
+    int height,
     int levels)
 {
     struct Minimap* minimap = malloc(sizeof(struct Minimap));
     memset(minimap, 0, sizeof(struct Minimap));
 
-    minimap->sw_x = sw_x;
-    minimap->sw_z = sw_z;
-    minimap->ne_x = ne_x;
-    minimap->ne_z = ne_z;
-
-    int width = ne_x - sw_x + 1;
-    int height = ne_z - sw_z + 1;
     minimap->width = width;
     minimap->height = height;
     minimap->levels = levels;

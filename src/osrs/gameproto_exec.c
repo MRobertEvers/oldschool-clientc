@@ -5,10 +5,12 @@
 #include "datatypes/player_appearance.h"
 #include "entity_scenebuild.h"
 #include "game_entity.h"
+#include "graphics/dash.h"
 #include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
+#include "osrs/scene2.h"
 #include "osrs/zone_state.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
@@ -17,7 +19,9 @@
 #include "rscache/tables/model.h"
 #include "rscache/tables_dat/config_component.h"
 #include "rscache/tables_dat/config_obj.h"
+#include "world_scenebuild.h"
 
+#include <assert.h>
 #include <stdlib.h>
 
 struct StepCoord
@@ -115,6 +119,146 @@ npc_move(
 
     scene_element->dash_position->x = npc_entity->position.x;
     scene_element->dash_position->z = npc_entity->position.z;
+}
+
+static void
+npc_move_world(
+    struct World* world,
+    int npc_entity_id,
+    int tile_x,
+    int tile_z)
+{
+    struct NPCEntity* npc_entity = &world->npcs[npc_entity_id];
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, npc_entity->scene_element2.element_id);
+    if( !scene_element )
+        return;
+
+    int dx = tile_x - npc_entity->pathing.route_x[0];
+    int dz = tile_z - npc_entity->pathing.route_z[0];
+    int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
+    if( animatable_distance )
+    {
+        if( npc_entity->pathing.route_length < 9 )
+            npc_entity->pathing.route_length++;
+
+        for( int i = npc_entity->pathing.route_length; i > 0; i-- )
+        {
+            npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i - 1];
+            npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i - 1];
+            npc_entity->pathing.route_run[i] = npc_entity->pathing.route_run[i - 1];
+        }
+        npc_entity->pathing.route_x[0] = tile_x;
+        npc_entity->pathing.route_z[0] = tile_z;
+        npc_entity->pathing.route_run[0] = 0;
+    }
+    else
+    {
+        npc_entity->pathing.route_x[0] = tile_x;
+        npc_entity->pathing.route_z[0] = tile_z;
+        npc_entity->pathing.route_length = 0;
+    }
+
+    npc_entity->position.x = tile_x * 128 + npc_entity->size_x * 64;
+    npc_entity->position.z = tile_z * 128 + npc_entity->size_z * 64;
+
+    if( !scene_element->dash_position )
+        scene_element->dash_position = dashposition_new();
+    scene_element->dash_position->x = npc_entity->position.x;
+    scene_element->dash_position->z = npc_entity->position.z;
+}
+
+static void
+player_move_world(
+    struct World* world,
+    int player_id,
+    int x,
+    int z)
+{
+    struct PlayerEntity* player = &world->players[player_id];
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, player->scene_element2.element_id);
+    if( !scene_element )
+        return;
+
+    int dx = x / 128 - player->pathing.route_x[0];
+    int dz = z / 128 - player->pathing.route_z[0];
+    int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
+    if( animatable_distance )
+    {
+        if( player->pathing.route_length < 9 )
+            player->pathing.route_length++;
+
+        for( int i = player->pathing.route_length; i > 0; i-- )
+        {
+            player->pathing.route_x[i] = player->pathing.route_x[i - 1];
+            player->pathing.route_z[i] = player->pathing.route_z[i - 1];
+            player->pathing.route_run[i] = player->pathing.route_run[i - 1];
+        }
+        player->pathing.route_x[0] = x / 128;
+        player->pathing.route_z[0] = z / 128;
+        player->pathing.route_run[0] = 0;
+    }
+    else
+    {
+        player->pathing.route_length = 0;
+        player->pathing.route_x[0] = x / 128;
+        player->pathing.route_z[0] = z / 128;
+        player->pathing.route_run[0] = 0;
+
+        player->position.x = player->pathing.route_x[0] * 128 + 64;
+        player->position.z = player->pathing.route_z[0] * 128 + 64;
+    }
+
+    if( !scene_element->dash_position )
+        scene_element->dash_position = dashposition_new();
+    scene_element->dash_position->x = player->position.x;
+    scene_element->dash_position->z = player->position.z;
+}
+
+static struct NPCEntity*
+world_npc_ensure_scene_element(
+    struct World* world,
+    int npc_id)
+{
+    struct NPCEntity* npc = &world->npcs[npc_id];
+    if( npc->alive )
+        return npc;
+
+    npc->alive = true;
+    npc->scene_element2.element_id = scene2_element_acquire(world->scene2, npc_id);
+    npc->npc_type_id = -1;
+    // npc->orientation.face_entity = -1;
+    npc->orientation.dst_yaw = 0;
+
+    struct Scene2Element* element =
+        scene2_element_at(world->scene2, npc->scene_element2.element_id);
+    if( element && !element->dash_position )
+        element->dash_position = dashposition_new();
+
+    return npc;
+}
+
+static struct PlayerEntity*
+world_player_ensure_scene_element(
+    struct World* world,
+    int player_id)
+{
+    struct PlayerEntity* player = &world->players[player_id];
+    if( player->alive )
+        return player;
+
+    player->alive = true;
+    player->scene_element2.element_id = scene2_element_acquire(world->scene2, player_id);
+    // player->orientation.face_entity = -1;
+    player->orientation.dst_yaw = 0;
+
+    struct Scene2Element* element =
+        scene2_element_at(world->scene2, player->scene_element2.element_id);
+    if( element && !element->dash_position )
+        element->dash_position = dashposition_new();
+
+    return player;
 }
 
 static struct PktNpcInfoReader npc_info_reader = { 0 };
@@ -297,6 +441,145 @@ gameproto_exec_npc_info(
             npc->total_health = op->_damage.total_health;
             break;
         }
+        }
+    }
+}
+
+void
+gameproto_exec_npc_info_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    npc_info_reader.extended_count = 0;
+    npc_info_reader.current_op = 0;
+    npc_info_reader.max_ops = 2048;
+    struct PktNpcInfoOp ops[2048];
+    struct StepCoord step = { 0 };
+    int count = pkt_npc_info_reader_read(&npc_info_reader, &packet->_npc_info, ops, 2048);
+
+    struct PlayerEntity* player = &world->players[ACTIVE_PLAYER_SLOT];
+    if( !player->alive )
+        return;
+
+    int npc_id = -1;
+    int prev_count = world->active_npc_count;
+    world->active_npc_count = 0;
+    struct NPCEntity* npc = NULL;
+    for( int i = 0; i < count; i++ )
+    {
+        struct PktNpcInfoOp* op = &ops[i];
+
+        if( npc_id != -1 )
+            npc = world_npc_ensure_scene_element(world, npc_id);
+        else
+            npc = NULL;
+
+        switch( op->kind )
+        {
+        case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
+        {
+            npc_id = op->_bitvalue;
+            world->active_npcs[world->active_npc_count] = npc_id;
+            world->active_npc_count += 1;
+            break;
+        }
+        case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
+        {
+            assert(op->_bitvalue >= world->active_npc_count);
+            npc_id = world->active_npcs[op->_bitvalue];
+            world->active_npcs[world->active_npc_count] = npc_id;
+            world->active_npc_count += 1;
+            break;
+        }
+        case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
+        {
+            npc_id = world->active_npcs[op->_bitvalue];
+            break;
+        }
+        case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
+        {
+            npc_id = world->active_npcs[op->_bitvalue];
+            world_cleanup_npc_entity(world, npc_id);
+            world->active_npcs[op->_bitvalue] = -1;
+            npc_id = -1;
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_COUNT_RESET:
+        {
+            for( int idx = op->_bitvalue; idx < prev_count; idx++ )
+            {
+                world_cleanup_npc_entity(world, world->active_npcs[idx]);
+            }
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_DZ:
+        {
+            int base_z = player->pathing.route_z[0];
+            int dz = op->_bitvalue;
+            npc->pathing.route_z[0] = base_z + dz;
+            npc_move_world(world, npc_id, npc->pathing.route_x[0], npc->pathing.route_z[0]);
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_DX:
+        {
+            int base_x = player->pathing.route_x[0];
+            int dx = op->_bitvalue;
+            npc->pathing.route_x[0] = base_x + dx;
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_WALKDIR:
+        case PKT_NPC_INFO_OPBITS_RUNDIR:
+        {
+            int direction = op->_bitvalue;
+            step.x = npc->pathing.route_x[0];
+            step.z = npc->pathing.route_z[0];
+            coord_step(&step, direction);
+            if( npc->pathing.route_length < 9 )
+                npc->pathing.route_length++;
+            for( int i = npc->pathing.route_length; i > 0; i-- )
+            {
+                npc->pathing.route_x[i] = npc->pathing.route_x[i - 1];
+                npc->pathing.route_z[i] = npc->pathing.route_z[i - 1];
+                npc->pathing.route_run[i] = npc->pathing.route_run[i - 1];
+            }
+            npc->pathing.route_x[0] = step.x;
+            npc->pathing.route_z[0] = step.z;
+            npc->pathing.route_run[0] = op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ? 1 : 0;
+            break;
+        }
+        case PKT_NPC_INFO_OPBITS_NPCTYPE:
+        {
+            world_scenebuild_npc_entity_set_npc_type(world, npc_id, op->_bitvalue);
+            break;
+        }
+        case PKT_NPC_INFO_OP_FACE_ENTITY:
+        case PKT_NPC_INFO_OP_FACE_COORD:
+            break;
+        case PKT_NPC_INFO_OP_SEQUENCE:
+        {
+            if( !npc )
+                break;
+            int seq_id = (int)op->_sequence.sequence_id;
+            if( seq_id == 65535 )
+                seq_id = -1;
+            npc->primary_anim = seq_id;
+            npc->primary_anim_frame = 0;
+            npc->primary_anim_cycle = 0;
+            npc->primary_anim_delay = op->_sequence.delay;
+            npc->primary_anim_loop = 0;
+            break;
+        }
+        case PKT_NPC_INFO_OP_DAMAGE:
+        {
+            if( !npc )
+                break;
+            npc->combat_cycle = 0 + 400;
+            npc->health = op->_damage.health;
+            npc->total_health = op->_damage.total_health;
+            break;
+        }
+        default:
+            break;
         }
     }
 }
@@ -570,6 +853,191 @@ add_player_info(
     }
 }
 
+static void
+add_player_info_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    if( !world->scene2 )
+        return;
+
+    struct BitBuffer buf;
+    struct RSBuffer rsbuf;
+    struct StepCoord step = { 0 };
+    rsbuf_init(&rsbuf, packet->_player_info.data, packet->_player_info.length);
+    bitbuffer_init_from_rsbuf(&buf, &rsbuf);
+    bits(&buf);
+
+    struct PktPlayerInfoOp ops[2048];
+    struct PlayerEntity* active_player = &world->players[ACTIVE_PLAYER_SLOT];
+    int count = pkt_player_info_reader_read(&player_info_reader, &packet->_player_info, ops, 2048);
+    int player_id = ACTIVE_PLAYER_SLOT;
+
+    world->active_player_count = 0;
+    for( int i = 0; i < count; i++ )
+    {
+        struct PktPlayerInfoOp* op = &ops[i];
+        struct PlayerEntity* player =
+            (player_id >= 0) ? world_player_ensure_scene_element(world, player_id) : NULL;
+
+        switch( op->kind )
+        {
+        case PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER:
+            player_id = ACTIVE_PLAYER_SLOT;
+            break;
+        case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
+            player_id = world->active_players[op->_bitvalue];
+            world->active_players[world->active_player_count] = player_id;
+            world->active_player_count += 1;
+            break;
+        case PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID:
+            player_id = op->_bitvalue;
+            world->active_players[world->active_player_count] = player_id;
+            world->active_player_count += 1;
+            break;
+        case PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX:
+            player_id = world->active_players[op->_bitvalue];
+            break;
+        case PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX:
+            player_id = world->active_players[op->_bitvalue];
+            world_cleanup_player_entity(world, player_id);
+            world->active_players[op->_bitvalue] = -1;
+            player_id = -1;
+            break;
+        case PKT_PLAYER_INFO_OPBITS_WALKDIR:
+        case PKT_PLAYER_INFO_OPBITS_RUNDIR:
+            if( !player )
+                break;
+            {
+                int direction = op->_bitvalue;
+                step.x = player->pathing.route_x[0];
+                step.z = player->pathing.route_z[0];
+                coord_step(&step, direction);
+                if( player->pathing.route_length < 9 )
+                    player->pathing.route_length++;
+                for( int j = player->pathing.route_length; j > 0; j-- )
+                {
+                    player->pathing.route_x[j] = player->pathing.route_x[j - 1];
+                    player->pathing.route_z[j] = player->pathing.route_z[j - 1];
+                    player->pathing.route_run[j] = player->pathing.route_run[j - 1];
+                }
+                player->pathing.route_x[0] = step.x;
+                player->pathing.route_z[0] = step.z;
+                player->pathing.route_run[0] = op->kind == PKT_PLAYER_INFO_OPBITS_RUNDIR ? 1 : 0;
+            }
+            break;
+        case PKT_PLAYER_INFO_OPBITS_DX:
+            if( !player )
+                break;
+            {
+                int base_x = world->players[ACTIVE_PLAYER_SLOT].pathing.route_x[0];
+                int dx = (int)op->_bitvalue;
+                player->position.x = (base_x + dx) * 128 + 64;
+            }
+            break;
+        case PKT_PLAYER_INFO_OPBITS_DZ:
+            if( !player )
+                break;
+            {
+                int base_z = world->players[ACTIVE_PLAYER_SLOT].pathing.route_z[0];
+                int dz = (int)op->_bitvalue;
+                player->position.z = (base_z + dz) * 128 + 64;
+                player_move_world(world, player_id, player->position.x, player->position.z);
+            }
+            break;
+        case PKT_PLAYER_INFO_OPBITS_LOCAL_X:
+            if( !player )
+                break;
+            player->pathing.route_x[0] = active_player->pathing.route_x[0] + (int)op->_bitvalue;
+            break;
+        case PKT_PLAYER_INFO_OPBITS_LOCAL_Z:
+            if( !player )
+                break;
+            player->pathing.route_length = 1;
+            player->pathing.route_z[0] = active_player->pathing.route_z[0] + (int)op->_bitvalue;
+            break;
+        case PKT_PLAYER_INFO_OPBITS_JUMP:
+            if( !player || player_id != ACTIVE_PLAYER_SLOT )
+                break;
+            if( op->_bitvalue == 1 )
+            {
+                player->pathing.route_length = 0;
+                player->pathing.route_x[0] = player->position.x / 128;
+                player->pathing.route_z[0] = player->position.z / 128;
+                player->position.x = player->pathing.route_x[0] * 128 + 64;
+                player->position.z = player->pathing.route_z[0] * 128 + 64;
+            }
+            break;
+        case PKT_PLAYER_INFO_OP_APPEARANCE:
+            if( player_id < 0 )
+                break;
+            {
+                struct PlayerAppearance appearance;
+                player_appearance_decode(
+                    &appearance, op->_appearance.appearance, op->_appearance.len);
+                world_scenebuild_player_entity_set_appearance(
+                    world, player_id, appearance.appearance, appearance.color);
+            }
+            break;
+        case PKT_PLAYER_INFO_OP_FACE_ENTITY:
+        case PKT_PLAYER_INFO_OP_FACE_COORD:
+            break;
+        case PKT_PLAYER_INFO_OP_SEQUENCE:
+            if( !player )
+                break;
+            {
+                int seq_id = (int)op->_sequence.sequence_id;
+                if( seq_id == 65535 )
+                    seq_id = -1;
+                player->primary_anim = seq_id;
+                player->primary_anim_frame = 0;
+                player->primary_anim_cycle = 0;
+                player->primary_anim_delay = op->_sequence.delay;
+                player->primary_anim_loop = 0;
+            }
+            break;
+        case PKT_PLAYER_INFO_OP_DAMAGE:
+            if( !player )
+                break;
+            entity_add_hitmark(
+                player->damage_values,
+                player->damage_types,
+                player->damage_cycles,
+                0,
+                op->_damage.damage_type,
+                op->_damage.damage);
+            player->combat_cycle = 400;
+            player->health = op->_damage.health;
+            player->total_health = op->_damage.total_health;
+            break;
+        case PKT_PLAYER_INFO_OP_DAMAGE2:
+            if( !player )
+                break;
+            entity_add_hitmark(
+                player->damage_values,
+                player->damage_types,
+                player->damage_cycles,
+                0,
+                op->_damage2.damage_type,
+                op->_damage2.damage);
+            player->combat_cycle = 400;
+            player->health = op->_damage2.health;
+            player->total_health = op->_damage2.total_health;
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+void
+gameproto_exec_player_info_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    add_player_info_world(world, packet);
+}
+
 void
 gameproto_exec_rebuild_normal(
     struct GGame* game,
@@ -577,10 +1045,10 @@ gameproto_exec_rebuild_normal(
 {
 #define SCENE_WIDTH 104
     int zone_padding = SCENE_WIDTH / (2 * 8);
-    int zone_sw_x = packet->_map_rebuild.zonex - zone_padding;
-    int zone_sw_z = packet->_map_rebuild.zonez - zone_padding;
-    int zone_ne_x = packet->_map_rebuild.zonex + zone_padding;
-    int zone_ne_z = packet->_map_rebuild.zonez + zone_padding;
+    int zone_center_x = packet->_map_rebuild.zonex;
+    int zone_center_z = packet->_map_rebuild.zonez;
+    int zone_sw_x = zone_center_x - zone_padding;
+    int zone_sw_z = zone_center_z - zone_padding;
 
     int levels = MAP_TERRAIN_LEVELS;
 
@@ -592,66 +1060,122 @@ gameproto_exec_rebuild_normal(
     int dx = new_base_x - prev_base_x;
     int dz = new_base_z - prev_base_z;
 
-    game->sys_painter = painter_new(SCENE_WIDTH, SCENE_WIDTH, levels);
-    game->sys_painter_buffer = painter_buffer_new();
-    game->sys_minimap =
-        minimap_new(zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104, levels);
-    game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
+    world_buildcachedat_rebuild_centerzone(game->world, zone_center_x, zone_center_z, SCENE_WIDTH);
+
+    // game->sys_painter = painter_new(SCENE_WIDTH, SCENE_WIDTH, levels);
+    // game->sys_painter_buffer = painter_buffer_new();
+    // game->sys_minimap =
+    //     minimap_new(zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104,
+    //     levels);
+    // game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
 
     /* REBUILD_NORMAL: zone is in 8-tile units (pkt_rebuild_normal.lua wx_sw = zone_sw_x * 8).
      */
     game->scene_base_tile_x = new_base_x;
     game->scene_base_tile_z = new_base_z;
 
-    /* Clear dynamic zone state on rebuild (Client.ts clears objStacks and locChanges) */
-    for( int level = 0; level < ZONE_LEVELS; level++ )
-    {
-        for( int x = 0; x < ZONE_SCENE_SIZE; x++ )
-        {
-            for( int z = 0; z < ZONE_SCENE_SIZE; z++ )
-            {
-                if( game->obj_stack_elements[level][x][z] )
-                {
-                    scene_element_free(game->obj_stack_elements[level][x][z]);
-                    game->obj_stack_elements[level][x][z] = NULL;
-                }
-                struct ObjStackEntry* entry = game->obj_stacks[level][x][z];
-                while( entry )
-                {
-                    struct ObjStackEntry* next = entry->next;
-                    free(entry);
-                    entry = next;
-                }
-                game->obj_stacks[level][x][z] = NULL;
-            }
-        }
-    }
-    struct LocChangeEntry* loc = game->loc_changes_head;
-    while( loc )
-    {
-        struct LocChangeEntry* next = loc->next;
-        free(loc);
-        loc = next;
-    }
-    game->loc_changes_head = NULL;
+    // /* Clear dynamic zone state on rebuild (Client.ts clears objStacks and locChanges) */
+    // for( int level = 0; level < ZONE_LEVELS; level++ )
+    // {
+    //     for( int x = 0; x < ZONE_SCENE_SIZE; x++ )
+    //     {
+    //         for( int z = 0; z < ZONE_SCENE_SIZE; z++ )
+    //         {
+    //             if( game->obj_stack_elements[level][x][z] )
+    //             {
+    //                 scene_element_free(game->obj_stack_elements[level][x][z]);
+    //                 game->obj_stack_elements[level][x][z] = NULL;
+    //             }
+    //             struct ObjStackEntry* entry = game->obj_stacks[level][x][z];
+    //             while( entry )
+    //             {
+    //                 struct ObjStackEntry* next = entry->next;
+    //                 free(entry);
+    //                 entry = next;
+    //             }
+    //             game->obj_stacks[level][x][z] = NULL;
+    //         }
+    //     }
+    // }
+    // struct LocChangeEntry* loc = game->loc_changes_head;
+    // while( loc )
+    // {
+    //     struct LocChangeEntry* next = loc->next;
+    //     free(loc);
+    //     loc = next;
+    // }
+    // game->loc_changes_head = NULL;
 
-    game->scene = scenebuilder_load_from_buildcachedat(
-        game->scenebuilder,
-        zone_sw_x * 8,
-        zone_sw_z * 8,
-        zone_ne_x * 8,
-        zone_ne_z * 8,
-        104,
-        104,
-        game->buildcachedat);
+    // game->scene = scenebuilder_load_from_buildcachedat(
+    //     game->scenebuilder,
+    //     zone_sw_x * 8,
+    //     zone_sw_z * 8,
+    //     zone_ne_x * 8,
+    //     zone_ne_z * 8,
+    //     104,
+    //     104,
+    //     game->buildcachedat);
 
-    /* Client.ts: npc.routeX[j] -= dx; npc.routeZ[j] -= dz; npc.x -= dx*128; npc.z -= dz*128 */
-    for( int i = 0; i < game->npc_count; i++ )
+    // /* Client.ts: npc.routeX[j] -= dx; npc.routeZ[j] -= dz; npc.x -= dx*128; npc.z -= dz*128 */
+    // for( int i = 0; i < game->npc_count; i++ )
+    // {
+    //     int npc_id = game->active_npcs[i];
+    //     if( npc_id < 0 )
+    //         continue;
+    //     struct NPCEntity* npc = &game->npcs[npc_id];
+    //     if( !npc->alive )
+    //         continue;
+    //     for( int j = 0; j < 10; j++ )
+    //     {
+    //         npc->pathing.route_x[j] -= dx;
+    //         npc->pathing.route_z[j] -= dz;
+    //     }
+    //     npc->position.x -= dx * 128;
+    //     npc->position.z -= dz * 128;
+    // }
+
+    // /* Client.ts: same for players (iterate all like Client does) */
+    // for( int i = 0; i < MAX_PLAYERS; i++ )
+    // {
+    //     struct PlayerEntity* player = &game->players[i];
+    //     if( !player->alive )
+    //         continue;
+    //     for( int j = 0; j < 10; j++ )
+    //     {
+    //         player->pathing.route_x[j] -= dx;
+    //         player->pathing.route_z[j] -= dz;
+    //     }
+    //     player->position.x -= dx * 128;
+    //     player->position.z -= dz * 128;
+    // }
+}
+
+void
+gameproto_exec_rebuild_normal_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+#define SCENE_WIDTH 104
+    int zone_padding = SCENE_WIDTH / (2 * 8);
+    int zone_sw_x = packet->_map_rebuild.zonex - zone_padding;
+    int zone_sw_z = packet->_map_rebuild.zonez - zone_padding;
+
+    int prev_base_x = world->_base_tile_x;
+    int prev_base_z = world->_base_tile_z;
+    int new_base_x = zone_sw_x * 8;
+    int new_base_z = zone_sw_z * 8;
+    int dx = new_base_x - prev_base_x;
+    int dz = new_base_z - prev_base_z;
+
+    world_buildcachedat_rebuild_centerzone(
+        world, packet->_map_rebuild.zonex, packet->_map_rebuild.zonez, 104);
+
+    for( int i = 0; i < world->active_npc_count; i++ )
     {
-        int npc_id = game->active_npcs[i];
+        int npc_id = world->active_npcs[i];
         if( npc_id < 0 )
             continue;
-        struct NPCEntity* npc = &game->npcs[npc_id];
+        struct NPCEntity* npc = &world->npcs[npc_id];
         if( !npc->alive )
             continue;
         for( int j = 0; j < 10; j++ )
@@ -663,10 +1187,9 @@ gameproto_exec_rebuild_normal(
         npc->position.z -= dz * 128;
     }
 
-    /* Client.ts: same for players (iterate all like Client does) */
     for( int i = 0; i < MAX_PLAYERS; i++ )
     {
-        struct PlayerEntity* player = &game->players[i];
+        struct PlayerEntity* player = &world->players[i];
         if( !player->alive )
             continue;
         for( int j = 0; j < 10; j++ )
@@ -1246,4 +1769,406 @@ gameproto_exec_loc_del(
     entry->end_time = -1;
     entry->next = game->loc_changes_head;
     game->loc_changes_head = entry;
+}
+
+/* World equivalents */
+
+void
+gameproto_exec_lc245_2_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    switch( packet->packet_type )
+    {
+    case PKTIN_LC245_2_REBUILD_NORMAL:
+        gameproto_exec_rebuild_normal_world(world, packet);
+        break;
+    case PKTIN_LC245_2_NPC_INFO:
+        gameproto_exec_npc_info_world(world, packet);
+        break;
+    case PKTIN_LC245_2_PLAYER_INFO:
+        gameproto_exec_player_info_world(world, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_INV_FULL:
+        gameproto_exec_update_inv_full_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETTAB:
+        gameproto_exec_if_settab_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
+        gameproto_exec_if_settab_active_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETCOLOUR:
+        gameproto_exec_if_setcolour_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETHIDE:
+        gameproto_exec_if_sethide_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETOBJECT:
+        gameproto_exec_if_setobject_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETMODEL:
+        gameproto_exec_if_setmodel_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETANIM:
+        gameproto_exec_if_setanim_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETPLAYERHEAD:
+        gameproto_exec_if_setplayerhead_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETTEXT:
+        gameproto_exec_if_settext_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETNPCHEAD:
+        gameproto_exec_if_setnpchead_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETPOSITION:
+        gameproto_exec_if_setposition_world(world, packet);
+        break;
+    case PKTIN_LC245_2_IF_SETSCROLLPOS:
+        gameproto_exec_if_setscrollpos_world(world, packet);
+        break;
+    case PKTIN_LC245_2_OBJ_ADD:
+        gameproto_exec_obj_add_world(world, packet, 0, 0);
+        break;
+    case PKTIN_LC245_2_OBJ_DEL:
+        gameproto_exec_obj_del_world(world, packet);
+        break;
+    case PKTIN_LC245_2_OBJ_REVEAL:
+        gameproto_exec_obj_reveal_world(world, packet);
+        break;
+    case PKTIN_LC245_2_OBJ_COUNT:
+        gameproto_exec_obj_count_world(world, packet);
+        break;
+    case PKTIN_LC245_2_LOC_ADD_CHANGE:
+        gameproto_exec_loc_add_change_world(world, packet);
+        break;
+    case PKTIN_LC245_2_LOC_DEL:
+        gameproto_exec_loc_del_world(world, packet);
+        break;
+    default:
+        break;
+    }
+}
+
+void
+gameproto_exec_update_inv_full_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_update_inv_full.component_id;
+    int size = packet->_update_inv_full.size;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+
+    if( !component )
+    {
+        printf("UPDATE_INV_FULL: Component %d not found\n", component_id);
+        return;
+    }
+
+    if( !component->invSlotObjId || !component->invSlotObjCount )
+    {
+        printf("UPDATE_INV_FULL: Component %d is not an inventory component\n", component_id);
+        return;
+    }
+
+    int max_slots = component->width * component->height;
+
+    for( int i = 0; i < size && i < max_slots; i++ )
+    {
+        component->invSlotObjId[i] = packet->_update_inv_full.obj_ids[i];
+        component->invSlotObjCount[i] = packet->_update_inv_full.obj_counts[i];
+    }
+
+    for( int i = size; i < max_slots; i++ )
+    {
+        component->invSlotObjId[i] = 0;
+        component->invSlotObjCount[i] = 0;
+    }
+}
+
+void
+gameproto_exec_if_settab_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)world;
+    (void)packet;
+    /* World has no tab_interface_id state; no-op */
+}
+
+void
+gameproto_exec_if_settab_active_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)world;
+    (void)packet;
+    /* World has no selected_tab state; no-op */
+}
+
+void
+gameproto_exec_if_setcolour_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setcolour.component_id;
+    int colour15 = packet->_if_setcolour.colour;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    int r = (colour15 >> 10) & 0x1f;
+    int g = (colour15 >> 5) & 0x1f;
+    int b = colour15 & 0x1f;
+    component->colour = (r << 19) | (g << 11) | (b << 3);
+}
+
+void
+gameproto_exec_if_sethide_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_sethide.component_id;
+    int hide_val = packet->_if_sethide.hide;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->hide = hide_val;
+}
+
+void
+gameproto_exec_if_setobject_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setobject.component_id;
+    int obj_id = packet->_if_setobject.obj_id;
+    int zoom = packet->_if_setobject.zoom;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(world->buildcachedat, obj_id);
+    if( !obj )
+        return;
+
+    component->modelType = 4;
+    component->model = obj_id;
+    component->xan = obj->xan2d;
+    component->yan = obj->yan2d;
+    component->zoom = (obj->zoom2d * 100) / zoom;
+}
+
+void
+gameproto_exec_if_setmodel_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setmodel.component_id;
+    int model_id = packet->_if_setmodel.model_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->modelType = 1;
+    component->model = model_id;
+}
+
+void
+gameproto_exec_if_setanim_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setanim.component_id;
+    int anim_id = packet->_if_setanim.anim_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->anim = anim_id;
+}
+
+void
+gameproto_exec_if_setplayerhead_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setplayerhead.component_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    struct PlayerEntity* local_player = &world->players[ACTIVE_PLAYER_SLOT];
+    if( !local_player->alive )
+        return;
+
+    int* slots = local_player->appearance.slots;
+    int* colors = local_player->appearance.colors;
+
+    component->modelType = 3;
+    component->model =
+        (slots[8] << 6) + (slots[0] << 12) + (colors[0] << 24) + (colors[4] << 18) + slots[11];
+}
+
+void
+gameproto_exec_if_settext_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_settext.component_id;
+    char* new_text = packet->_if_settext.text;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+    {
+        free(new_text);
+        return;
+    }
+
+    free(component->text);
+    component->text = new_text;
+}
+
+void
+gameproto_exec_if_setnpchead_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setnpchead.component_id;
+    int npc_id = packet->_if_setnpchead.npc_id;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->modelType = 2;
+    component->model = npc_id;
+}
+
+void
+gameproto_exec_if_setposition_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setposition.component_id;
+    int x = packet->_if_setposition.x;
+    int z = packet->_if_setposition.z;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    component->x = x;
+    component->y = z;
+}
+
+void
+gameproto_exec_if_setscrollpos_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_if_setscrollpos.component_id;
+    int pos = packet->_if_setscrollpos.pos;
+
+    if( component_id < 0 || component_id >= MAX_COMPONENT_SCROLL_IDS )
+        return;
+
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(world->buildcachedat, component_id);
+    if( !component )
+        return;
+
+    if( component->type == COMPONENT_TYPE_LAYER )
+    {
+        if( pos < 0 )
+            pos = 0;
+        int max_scroll = component->scroll - component->height;
+        if( max_scroll > 0 && pos > max_scroll )
+            pos = max_scroll;
+    }
+    /* World has no component_scroll_position state; component state only */
+    (void)pos;
+}
+
+void
+gameproto_exec_obj_add_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet,
+    int zone_base_x,
+    int zone_base_z)
+{
+    (void)world;
+    (void)packet;
+    (void)zone_base_x;
+    (void)zone_base_z;
+    /* World has no obj_stacks; no-op */
+}
+
+void
+gameproto_exec_obj_del_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)world;
+    (void)packet;
+    /* World has no obj_stacks; no-op */
+}
+
+void
+gameproto_exec_obj_reveal_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)world;
+    (void)packet;
+    /* World has no obj_stacks; no-op */
+}
+
+void
+gameproto_exec_obj_count_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)world;
+    (void)packet;
+    /* World has no obj_stacks; no-op */
+}
+
+void
+gameproto_exec_loc_add_change_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)world;
+    (void)packet;
+    /* World has no loc_changes_head; no-op */
+}
+
+void
+gameproto_exec_loc_del_world(
+    struct World* world,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)world;
+    (void)packet;
+    /* World has no loc_changes_head; no-op */
 }

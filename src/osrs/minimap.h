@@ -52,11 +52,6 @@ struct MinimapLoc
 
 struct Minimap
 {
-    int sw_x;
-    int sw_z;
-    int ne_x;
-    int ne_z;
-
     int width;
     int height;
     int levels;
@@ -72,10 +67,8 @@ struct Minimap
 
 struct Minimap*
 minimap_new(
-    int sw_x,
-    int sw_z,
-    int ne_x,
-    int ne_z,
+    int width,
+    int height,
     int levels);
 
 enum MinimapRenderCommandKind
@@ -120,10 +113,8 @@ minimap_commands_free(struct MinimapRenderCommandBuffer* command_buffer);
 
 struct Minimap*
 minimap_new(
-    int sw_x,
-    int sw_z,
-    int ne_x,
-    int ne_z,
+    int width,
+    int height,
     int levels);
 
 void

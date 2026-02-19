@@ -125,6 +125,18 @@ world_tile_entity_at(
     return &world->map_build_tile_entities[idx];
 }
 
+struct MapBuildTileEntity*
+world_tile_entity_at_new(
+    struct World* world,
+    int x,
+    int z,
+    int level)
+{
+    struct MapBuildTileEntity* tile_entity = world_tile_entity_at(world, x, z, level);
+    world_cleanup_map_build_tile_entity(world, tile_entity->entity_id);
+    return tile_entity;
+}
+
 static void
 build_scene_terrain(struct World* world)
 {
@@ -136,11 +148,6 @@ build_scene_terrain(struct World* world)
     struct OverlaymapTile* overlay_tile = NULL;
     struct MapBuildTileEntity* tile_entity = NULL;
 
-    for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
-    {
-        init_map_build_tile_entity(&world->map_build_tile_entities[i], i);
-    }
-
     /**
      * Scene Tiles
      *
@@ -151,7 +158,7 @@ build_scene_terrain(struct World* world)
         {
             for( int x = 1; x < scene_size - 1; x++ )
             {
-                tile_entity = world_tile_entity_at(world, x, z, level);
+                tile_entity = world_tile_entity_at_new(world, x, z, level);
 
                 shape_tile = terrain_shape_map_get_tile(world->terrain_shapemap, x, z, level);
                 if( !shape_tile->active )

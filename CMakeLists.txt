@@ -101,6 +101,7 @@ endif()
     src/osrs/blendmap.c
     src/osrs/overlaymap.c
     src/osrs/terrain_shapemap.c
+    src/osrs/world_scenebuild.c
         src/osrs/configmap.c
         src/osrs/filepack.c
         src/osrs/dash_utils.c

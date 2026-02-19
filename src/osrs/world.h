@@ -26,14 +26,15 @@ struct World
     struct PlayerEntity players[MAX_PLAYERS];
     struct NPCEntity npcs[MAX_NPCS];
     struct MapBuildLocEntity map_build_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
-    int map_build_loc_entity_count;
 
     struct MapBuildTileEntity map_build_tile_entities[MAX_MAP_BUILD_TILE_ENTITIES];
 
     int active_players[MAX_PLAYERS];
     int active_npcs[MAX_NPCS];
+    int active_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
     int active_player_count;
     int active_npc_count;
+    int active_loc_entity_count;
 
     // Painter
     struct Painter* painter;

@@ -13,7 +13,7 @@
 int
 LibToriRS_NetIsReady(struct GGame* game)
 {
-    return game->scene != NULL;
+    return true;
 }
 
 static void

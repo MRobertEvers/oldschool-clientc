@@ -406,26 +406,26 @@ entity_face(
     }
 
     /* Client.ts FACESQUARE: face tile; cleared after use */
-    if( view->orientation->face_square_x != 0 || view->orientation->face_square_z != 0 )
-    {
-        /* Client: dstX = e.x - (faceSquareX - mapBuildBaseX) * 64; same for Z */
-        int base_x = game->scene_base_tile_x;
-        int base_z = game->scene_base_tile_z;
-        int target_x = (view->orientation->face_square_x - base_x) * 128;
-        int target_z = (view->orientation->face_square_z - base_z) * 128;
-        int dst_x = view->position->x - target_x;
-        int dst_z = view->position->z - target_z;
-        if( dst_x != 0 || dst_z != 0 )
-        {
-            double angle = atan2((double)dst_x, (double)dst_z);
-            int yaw = (int)(angle * 325.949) & 0x7ff;
-            if( yaw < 0 )
-                yaw += 2048;
-            view->orientation->dst_yaw = yaw;
-        }
-        view->orientation->face_square_x = 0;
-        view->orientation->face_square_z = 0;
-    }
+    // if( view->orientation->face_square_x != 0 || view->orientation->face_square_z != 0 )
+    // {
+    //     /* Client: dstX = e.x - (faceSquareX - mapBuildBaseX) * 64; same for Z */
+    //     int base_x = game->scene_base_tile_x;
+    //     int base_z = game->scene_base_tile_z;
+    //     int target_x = (view->orientation->face_square_x - base_x) * 128;
+    //     int target_z = (view->orientation->face_square_z - base_z) * 128;
+    //     int dst_x = view->position->x - target_x;
+    //     int dst_z = view->position->z - target_z;
+    //     if( dst_x != 0 || dst_z != 0 )
+    //     {
+    //         double angle = atan2((double)dst_x, (double)dst_z);
+    //         int yaw = (int)(angle * 325.949) & 0x7ff;
+    //         if( yaw < 0 )
+    //             yaw += 2048;
+    //         view->orientation->dst_yaw = yaw;
+    //     }
+    // view->orientation->face_square_x = 0;
+    // view->orientation->face_square_z = 0;
+    // }
 }
 
 static void
@@ -503,9 +503,9 @@ update_entity_anim(
     /* Client.ts routeMove: only reduce speed when turning AND not facing entity AND turnspeed != 0
      */
     int moveSpeed = 4;
-    if( view->orientation->yaw != view->orientation->dst_yaw && view->face_entity < 0 &&
-        view->orientation->face_square_x == 0 && view->orientation->face_square_z == 0 )
-        moveSpeed = 2;
+    // if( view->orientation->yaw != view->orientation->dst_yaw && view->face_entity < 0 &&
+    //     view->orientation->face_square_x == 0 && view->orientation->face_square_z == 0 )
+    //     moveSpeed = 2;
     if( route_length > 2 )
         moveSpeed = 6;
     if( route_length > 3 )
@@ -608,7 +608,7 @@ update_npc_anim(
         .secondary_anim = &npc_entity->secondary_anim,
         .secondary_anim_frame = &npc_entity->secondary_anim_frame,
         .secondary_anim_cycle = &npc_entity->secondary_anim_cycle,
-        .face_entity = npc_entity->orientation.face_entity,
+        // .face_entity = npc_entity->orientation.face_entity,
     };
     update_entity_anim(game, &view, false);
 }
@@ -630,7 +630,7 @@ update_player_anim(
         .secondary_anim = &player_entity->secondary_anim,
         .secondary_anim_frame = &player_entity->secondary_anim_frame,
         .secondary_anim_cycle = &player_entity->secondary_anim_cycle,
-        .face_entity = player_entity->orientation.face_entity,
+        // .face_entity = player_entity->orientation.face_entity,
     };
     update_entity_anim(game, &view, true);
 }
