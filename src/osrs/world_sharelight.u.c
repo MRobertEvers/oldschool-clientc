@@ -197,7 +197,7 @@ alloc_merged_normals(struct Scene2Element* scene_element)
         dashmodel_normals_new_copy(scene_element->dash_model->normals);
 }
 
-#define ADJACENT_TILES_COUNT 24
+#define ADJACENT_TILES_COUNT 48
 
 static void
 sharelight_build(struct World* world)
@@ -210,9 +210,6 @@ sharelight_build(struct World* world)
 
     struct Scene2Element* scene_element = NULL;
     struct Scene2Element* adjacent_scene_element = NULL;
-
-    struct MapBuildLocEntity* mapbuild_entity = NULL;
-    struct MapBuildLocEntity* adjacent_mapbuild_entity = NULL;
 
     for( int sx = 0; sx < world->sharelight_map->width; sx++ )
     {
@@ -227,8 +224,8 @@ sharelight_build(struct World* world)
                 {
                     map_element = &map_tile->elements[i];
 
-                    mapbuild_entity = &world->map_build_loc_entities[map_element->element_idx];
-                    if( mapbuild_entity->scene_element.element_id == -1 )
+                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
+                    if( !scene_element->dash_model )
                         continue;
 
                     int adjacent_tiles_count = gather_adjacent_tiles(
@@ -242,30 +239,24 @@ sharelight_build(struct World* world)
                         map_element->size_x,
                         map_element->size_z);
 
-                    for( int i = 0; i < adjacent_tiles_count; i++ )
+                    for( int j = 0; j < adjacent_tiles_count; j++ )
                     {
-                        struct TileCoord adjacent_tile_coord = adjacent_tiles[i];
+                        struct TileCoord adjacent_tile_coord = adjacent_tiles[j];
                         adjacent_map_tile = sharelight_map_tile_at(
                             world->sharelight_map,
                             adjacent_tile_coord.x,
                             adjacent_tile_coord.z,
                             adjacent_tile_coord.level);
-                        for( int j = 0; j < adjacent_map_tile->elements_count; j++ )
+                        for( int k = 0; k < adjacent_map_tile->elements_count; k++ )
                         {
-                            adjacent_map_element = &adjacent_map_tile->elements[j];
+                            adjacent_map_element = &adjacent_map_tile->elements[k];
                             if( adjacent_map_element->element_idx == map_element->element_idx )
                                 continue;
 
-                            adjacent_mapbuild_entity =
-                                &world->map_build_loc_entities[adjacent_map_element->element_idx];
-                            if( adjacent_mapbuild_entity->scene_element.element_id == -1 )
-                                continue;
-
-                            scene_element =
-                                &world->scene2->elements[mapbuild_entity->scene_element.element_id];
                             adjacent_scene_element =
-                                &world->scene2
-                                     ->elements[adjacent_mapbuild_entity->scene_element.element_id];
+                                scene2_element_at(world->scene2, adjacent_map_element->element_idx);
+                            if( !adjacent_scene_element->dash_model )
+                                continue;
 
                             int check_offset_x =
                                 (adjacent_tile_coord.x - sx) * 128 +
@@ -324,13 +315,7 @@ sharelight_build(struct World* world)
                 {
                     map_element = &map_tile->elements[i];
 
-                    mapbuild_entity = &world->map_build_loc_entities[map_element->element_idx];
-                    if( mapbuild_entity->scene_element.element_id == -1 )
-                        continue;
-
-                    scene_element =
-                        scene2_element_at(world->scene2, mapbuild_entity->scene_element.element_id);
-
+                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
                     if( !scene_element->dash_model )
                         continue;
 
@@ -349,6 +334,8 @@ sharelight_build(struct World* world)
                     int attenuation = (light_attenuation * light_magnitude) >> 8;
 
                     alloc_merged_normals(scene_element);
+                    if( !scene_element->dash_model->merged_normals )
+                        continue;
 
                     apply_lighting(
                         scene_element->dash_model->lighting->face_colors_hsl_a,
