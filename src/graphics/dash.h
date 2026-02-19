@@ -135,6 +135,7 @@ struct DashModel
     int* face_texture_coords;
 
     struct DashModelNormals* normals;
+    struct DashModelNormals* merged_normals;
 
     struct DashModelLighting* lighting;
     struct DashModelBones* vertex_bones;

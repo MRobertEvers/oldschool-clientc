@@ -299,6 +299,20 @@ scenery_add_wall_single(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         config_loc->wall_width);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -331,6 +345,20 @@ scenery_add_wall_tri_corner(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         config_loc->wall_width);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -378,6 +406,30 @@ scenery_add_wall_two_sides(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         config_loc->wall_width);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element_two.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -410,6 +462,20 @@ scenery_add_wall_rect_corner(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         config_loc->wall_width);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -452,6 +518,20 @@ scenery_add_wall_decor_inside(
         entity->scene_element.element_id,
         orientation,
         DECOR_DISPLACEMENT_KIND_STRAIGHT);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -495,6 +575,20 @@ scenery_add_wall_decor_outside(
         entity->scene_element.element_id,
         orientation,
         DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 // Lumbridge shield
@@ -540,6 +634,20 @@ scenery_add_wall_decor_diagonal_outside(
         entity->scene_element.element_id,
         orientation,
         DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -584,6 +692,31 @@ scenery_add_wall_decor_diagonal_inside(
         entity->scene_element.element_id,
         orientation,
         DECOR_DISPLACEMENT_KIND_DIAGONAL);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element_two.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -657,6 +790,30 @@ scenery_add_wall_decor_diagonal_double(
         entity->scene_element_two.element_id,
         inside_orientation,
         DECOR_DISPLACEMENT_KIND_DIAGONAL);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element_two.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -689,6 +846,20 @@ scenery_add_wall_diagonal(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         config_loc->wall_width);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -730,6 +901,20 @@ scenery_add_normal(
         entity->scene_element.element_id,
         size_x,
         size_z);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            size_x,
+            size_z,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -755,6 +940,20 @@ scenery_add_roof(
         entity->scene_element.element_id,
         1,
         1);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -778,6 +977,20 @@ scenery_add_floor_decoration(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         entity->scene_element.element_id);
+
+    if( config_loc->sharelight )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void

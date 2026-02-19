@@ -1817,6 +1817,8 @@ dashmodel_free(struct DashModel* model)
     {
         free(model->normals->lighting_vertex_normals);
         free(model->normals->lighting_face_normals);
+        free(model->normals);
+        model->normals = NULL;
     }
 
     if( model->lighting )
@@ -1824,6 +1826,8 @@ dashmodel_free(struct DashModel* model)
         free(model->lighting->face_colors_hsl_a);
         free(model->lighting->face_colors_hsl_b);
         free(model->lighting->face_colors_hsl_c);
+        free(model->lighting);
+        model->lighting = NULL;
     }
     free(model->vertex_bones);
     free(model->face_bones);

@@ -407,6 +407,10 @@ painter_add_normal_scenery(
     int size_z)
 {
     int element = painter_push_element(painter);
+    if( entity == 2246 )
+    {
+        printf("scenery_element: %d, %d, %d, %d, %d, %d\n", sx, sz, slevel, entity, size_x, size_z);
+    }
 
     compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);
 

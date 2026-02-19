@@ -13,6 +13,7 @@
 #include "osrs/overlaymap.h"
 #include "osrs/painters.h"
 #include "osrs/scene2.h"
+#include "osrs/sharelight_map.h"
 #include "osrs/terrain_shapemap.h"
 
 #define MAX_PLAYERS 2048
@@ -59,6 +60,8 @@ struct World
     struct TerrainShapeMap* terrain_shapemap;
     // Walloffsetmap
     struct DecorOnWallBuildMap* decor_buildmap;
+    // Sharelight Element Map
+    struct SharelightMap* sharelight_map;
 
     int _base_tile_x;
     int _base_tile_z;

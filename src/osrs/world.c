@@ -12,6 +12,7 @@
 // clang-format off
 #include "world_scenery.u.c"
 #include "world_terrain.u.c"
+#include "world_sharelight.u.c"
 // clang-format on
 
 static void
@@ -53,6 +54,7 @@ world_new(struct BuildCacheDat* buildcachedat)
     world->minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->lightmap = lightmap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->overlaymap = overlaymap_new(104, 104, MAP_TERRAIN_LEVELS);
+    world->sharelight_map = sharelight_map_new(104, 104, MAP_TERRAIN_LEVELS);
 
     world->blendmap = blendmap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->decor_buildmap = decor_buildmap_new(104, 104, MAP_TERRAIN_LEVELS);
@@ -64,6 +66,7 @@ world_new(struct BuildCacheDat* buildcachedat)
     {
         init_map_build_loc_entity(&world->map_build_loc_entities[i], i);
     }
+
     for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
     {
         init_map_build_tile_entity(&world->map_build_tile_entities[i], i);
@@ -176,6 +179,10 @@ world_buildcachedat_rebuild_centerzone(
     if( world->minimap )
         minimap_free(world->minimap);
 
+    for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
+    {
+        world_cleanup_map_build_tile_entity(world, i);
+    }
     for( int i = 0; i < world->active_loc_entity_count; i++ )
     {
         world_cleanup_map_build_loc_entity(world, world->active_loc_entities[i]);
@@ -748,6 +755,8 @@ world_buildcachedat_rebuild_centerzone(
     }
 
     build_scene_terrain(world);
+
+    sharelight_build(world);
 }
 
 void
@@ -761,7 +770,6 @@ world_cleanup_map_build_loc_entity(
     scene2_element_release(world->scene2, entity->scene_element_two.element_id);
     entity->scene_element.element_id = -1;
     entity->scene_element_two.element_id = -1;
-    entity->entity_id = -1;
     memset(&entity->scene_coord, 0, sizeof(struct EntitySceneCoord));
     memset(
         &entity->actions,
@@ -774,10 +782,17 @@ world_cleanup_map_build_tile_entity(
     struct World* world,
     int entity_id)
 {
+    if( entity_id == -1 )
+        return;
+
+    assert(entity_id >= 0 && entity_id < MAX_MAP_BUILD_TILE_ENTITIES);
     struct MapBuildTileEntity* entity = &world->map_build_tile_entities[entity_id];
+    if( entity->entity_id == -1 )
+        return;
+    assert(entity->entity_id == entity_id);
+
     scene2_element_release(world->scene2, entity->scene_element.element_id);
     entity->scene_element.element_id = -1;
-    entity->entity_id = -1;
     memset(&entity->scene_coord, 0, sizeof(struct EntitySceneCoord));
 }
 

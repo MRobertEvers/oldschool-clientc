@@ -255,6 +255,8 @@
         "heightmap.h": "c",
         "blendmap.h": "c",
         "appearances.h": "c",
-        "player_appearance.h": "c"
+        "player_appearance.h": "c",
+        "sharelight_map.h": "c",
+        "lightmap.h": "c"
     },
 }

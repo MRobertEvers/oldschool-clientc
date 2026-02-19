@@ -58,6 +58,18 @@ heightmap_get(
     return heightmap->heights[heightmap_coord_idx(heightmap, x, z, level)];
 }
 
+int
+heightmap_get_center(
+    struct Heightmap* heightmap,
+    int x,
+    int z,
+    int level)
+{
+    struct HeightmapHeights heights = { 0 };
+    heightmap_get_heights(heightmap, x, z, level, &heights);
+    return heights.height_center;
+}
+
 void
 heightmap_get_heights(
     struct Heightmap* heightmap,

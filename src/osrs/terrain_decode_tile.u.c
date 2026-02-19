@@ -545,7 +545,11 @@ decode_tile(
     dash_model->face_indices_b = faces_b;
     dash_model->face_indices_c = faces_c;
 
-    dash_model->face_textures = face_texture_ids;
+    if( face_texture_ids )
+    {
+        dash_model->face_textures = malloc(face_count * sizeof(int));
+        memcpy(dash_model->face_textures, face_texture_ids, face_count * sizeof(int));
+    }
 
     // Hide faces with color_c == -2.
     for( int i = 0; i < face_count; i++ )
@@ -553,12 +557,13 @@ decode_tile(
         if( !valid_faces[i] )
             face_colors_hsl_c[i] = -2;
     }
-    dash_model->face_colors = face_colors_hsl_a;
+    dash_model->face_colors = malloc(face_count * sizeof(int));
+    memcpy(dash_model->face_colors, face_colors_hsl_a, face_count * sizeof(int));
 
     dash_model->lighting = dashmodel_lighting_new(face_count);
-    dash_model->lighting->face_colors_hsl_a = face_colors_hsl_a;
-    dash_model->lighting->face_colors_hsl_b = face_colors_hsl_b;
-    dash_model->lighting->face_colors_hsl_c = face_colors_hsl_c;
+    memcpy(dash_model->lighting->face_colors_hsl_a, face_colors_hsl_a, face_count * sizeof(int));
+    memcpy(dash_model->lighting->face_colors_hsl_b, face_colors_hsl_b, face_count * sizeof(int));
+    memcpy(dash_model->lighting->face_colors_hsl_c, face_colors_hsl_c, face_count * sizeof(int));
 
     dash_model->bounds_cylinder = dashmodel_bounds_cylinder_new();
 
@@ -579,6 +584,11 @@ decode_tile(
     dash_model->textured_p_coordinate[0] = 0;
     dash_model->textured_m_coordinate[0] = 1;
     dash_model->textured_n_coordinate[0] = 3;
+
+    free(face_colors_hsl_a);
+    free(face_colors_hsl_b);
+    free(face_colors_hsl_c);
+    free(face_texture_ids);
 
     return dash_model;
     // error:;

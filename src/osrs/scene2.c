@@ -198,6 +198,7 @@ scene2_element_release(
     struct Scene2Element* element = scene2_element_at(scene2, element_id);
     assert(element->active && "Element must be active");
 
+    printf("scene2_element_release: element_id=%d\n", element_id);
     dashmodel_free(element->dash_model);
     element->dash_model = NULL;
     dashposition_free(element->dash_position);

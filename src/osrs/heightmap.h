@@ -27,6 +27,13 @@ heightmap_get(
     int z,
     int level);
 
+int
+heightmap_get_center(
+    struct Heightmap* heightmap,
+    int x,
+    int z,
+    int level);
+
 struct HeightmapHeights
 {
     int sw_height;

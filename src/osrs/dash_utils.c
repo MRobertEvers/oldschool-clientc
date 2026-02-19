@@ -109,7 +109,8 @@ dashframemap_new_from_animframe(struct CacheAnimframe* animframe)
     {
         int count = animframe->base->label_counts[i];
         dashframemap->bone_groups[i] = malloc((size_t)count * sizeof(int));
-        memcpy(dashframemap->bone_groups[i], animframe->base->labels[i], (size_t)count * sizeof(int));
+        memcpy(
+            dashframemap->bone_groups[i], animframe->base->labels[i], (size_t)count * sizeof(int));
     }
     return dashframemap;
 }

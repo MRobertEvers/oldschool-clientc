@@ -386,20 +386,6 @@ sharelight_build_scene(
                             int check_offset_level = adjacent_build_tile->height_center -
                                                      sharelight_build_tile->height_center;
 
-                            if( check_offset_z != 0 && check_offset_x != 0 &&
-                                check_offset_level == 0 &&
-                                (sx == 31 && (sz == 24 || sz == 23 || sz == 25)) )
-                            {
-                                printf(
-                                    "Merging normals for tile %d, %d, %d: %d %d %d\n",
-                                    sx,
-                                    sz,
-                                    slevel,
-                                    check_offset_x,
-                                    check_offset_z,
-                                    check_offset_level);
-                            }
-
                             dashmodel_alias_normals(
                                 sharelight_build_element,
                                 sharelight_scene_element->dash_model->normals);

@@ -110,6 +110,19 @@ init_map_build_tile_entity(
     map_build_tile_entity->entity_id = entity_id;
 }
 
+static inline int
+world_tile_entity_idx(
+    struct World* world,
+    int x,
+    int z,
+    int level)
+{
+    assert(x >= 0 && x < world->_scene_size);
+    assert(z >= 0 && z < world->_scene_size);
+    assert(level >= 0 && level < MAP_TERRAIN_LEVELS);
+    return x + z * world->_scene_size + level * world->_scene_size * world->_scene_size;
+}
+
 struct MapBuildTileEntity*
 world_tile_entity_at(
     struct World* world,
@@ -120,7 +133,7 @@ world_tile_entity_at(
     assert(x >= 0 && x < world->_scene_size);
     assert(z >= 0 && z < world->_scene_size);
     assert(level >= 0 && level < MAP_TERRAIN_LEVELS);
-    int idx = x + z * world->_scene_size + level * world->_scene_size * world->_scene_size;
+    int idx = world_tile_entity_idx(world, x, z, level);
     assert(idx >= 0 && idx < MAX_MAP_BUILD_TILE_ENTITIES);
     return &world->map_build_tile_entities[idx];
 }
@@ -134,6 +147,7 @@ world_tile_entity_at_new(
 {
     struct MapBuildTileEntity* tile_entity = world_tile_entity_at(world, x, z, level);
     world_cleanup_map_build_tile_entity(world, tile_entity->entity_id);
+    tile_entity->entity_id = world_tile_entity_idx(world, x, z, level);
     return tile_entity;
 }
 
@@ -246,6 +260,7 @@ build_scene_terrain(struct World* world)
 
                 tile_entity->scene_element.element_id =
                     scene2_element_acquire(world->scene2, tile_entity->entity_id);
+                assert(tile_entity->scene_element.element_id != 0);
                 scene_element =
                     scene2_element_at(world->scene2, tile_entity->scene_element.element_id);
 
