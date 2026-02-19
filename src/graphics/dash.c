@@ -1790,6 +1790,35 @@ dashmodel_new(void)
 }
 
 void
+dashframe_free(struct DashFrame* frame)
+{
+    if( !frame )
+        return;
+    free(frame->index_frame_ids);
+    free(frame->translator_arg_x);
+    free(frame->translator_arg_y);
+    free(frame->translator_arg_z);
+    free(frame);
+    frame = NULL;
+}
+
+void
+dashframemap_free(struct DashFramemap* framemap)
+{
+    if( !framemap )
+        return;
+    free(framemap->types);
+    for( int i = 0; i < framemap->length; i++ )
+    {
+        free(framemap->bone_groups[i]);
+    }
+    free(framemap->bone_groups);
+    free(framemap->bone_groups_lengths);
+    free(framemap);
+    framemap = NULL;
+}
+
+void
 dashmodel_free(struct DashModel* model)
 {
     if( !model )

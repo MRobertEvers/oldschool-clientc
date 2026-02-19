@@ -1,6 +1,7 @@
 #include "world.h"
 
 #include "blendmap.h"
+#include "datatypes/appearances.h"
 #include "heightmap.h"
 #include "terrain_shapemap.h"
 
@@ -723,4 +724,352 @@ world_buildcachedat_rebuild_centerzone(
     }
 
     build_scene_terrain(world);
+}
+
+void
+world_cleanup_map_build_loc_entity(
+    struct World* world,
+    int entity_id)
+{
+    struct MapBuildLocEntity* entity = &world->map_build_loc_entities[entity_id];
+
+    scene2_element_release(world->scene2, entity->scene_element.element_id);
+    scene2_element_release(world->scene2, entity->scene_element_two.element_id);
+    entity->scene_element.element_id = -1;
+    entity->scene_element_two.element_id = -1;
+    entity->entity_id = -1;
+    memset(&entity->scene_coord, 0, sizeof(struct EntitySceneCoord));
+    memset(
+        &entity->actions,
+        0,
+        sizeof(struct EntityAction) * (sizeof(entity->actions) / sizeof(struct EntityAction)));
+}
+
+void
+world_cleanup_map_build_tile_entity(
+    struct World* world,
+    int entity_id)
+{
+    struct MapBuildTileEntity* entity = &world->map_build_tile_entities[entity_id];
+    scene2_element_release(world->scene2, entity->scene_element.element_id);
+    entity->scene_element.element_id = -1;
+    entity->entity_id = -1;
+    memset(&entity->scene_coord, 0, sizeof(struct EntitySceneCoord));
+}
+
+void
+world_cleanup_player_entity(
+    struct World* world,
+    int entity_id)
+{
+    struct PlayerEntity* player = &world->players[entity_id];
+    scene2_element_release(world->scene2, player->scene_element2.element_id);
+    player->scene_element2.element_id = -1;
+    memset(&player->pathing, 0, sizeof(struct EntityPathing));
+    memset(&player->appearance, 0, sizeof(struct PlayerAppearanceSlots));
+    memset(&player->draw_position, 0, sizeof(struct EntityDrawPosition));
+    memset(&player->orientation, 0, sizeof(struct EntityOrientation));
+    memset(&player->animation, 0, sizeof(struct EntityAnimation));
+    player->alive = false;
+}
+
+void
+world_cleanup_npc_entity(
+    struct World* world,
+    int entity_id)
+{
+    struct NPCEntity* npc = &world->npcs[entity_id];
+    scene2_element_release(world->scene2, npc->scene_element2.element_id);
+    npc->scene_element2.element_id = -1;
+    memset(&npc->pathing, 0, sizeof(struct EntityPathing));
+    memset(&npc->draw_position, 0, sizeof(struct EntityDrawPosition));
+    memset(&npc->orientation, 0, sizeof(struct EntityOrientation));
+    memset(&npc->animation, 0, sizeof(struct EntityAnimation));
+    npc->alive = false;
+}
+
+static void
+player_appearance_model(
+    struct World* world,
+    uint16_t* appearances,
+    uint16_t* colors,
+    struct DashModel* dash_model)
+{
+    // assert(dash_model && !dash_model->loaded && "Dash model must be provided");
+    assert(dash_model && "Dash model must be provided");
+    struct CacheModel* model = NULL;
+    struct CacheModel* merged = NULL;
+    struct AppearanceOp op;
+    int model_count = 0;
+    struct CacheModel* models[12];
+    for( int i = 0; i < 12; i++ )
+    {
+        model = NULL;
+        appearances_decode(&op, appearances, i);
+        switch( op.kind )
+        {
+        case APPEARANCE_KIND_IDK:
+            model = idk_model(world->buildcachedat, op.id);
+            break;
+        case APPEARANCE_KIND_OBJ:
+            model = obj_model(world->buildcachedat, op.id);
+            break;
+        default:
+            break;
+        }
+        if( model )
+        {
+            models[model_count] = model;
+            model_count++;
+        }
+    }
+
+    merged = model_new_merge(models, model_count);
+    assert(merged->vertices_x && "Merged model must have vertices");
+    assert(merged->vertices_y && "Merged model must have vertices");
+    assert(merged->vertices_z && "Merged model must have vertices");
+    dashmodel_move_from_cache_model(dash_model, merged);
+    _light_model_default(dash_model, 0, 0);
+}
+
+void
+world_player_entity_set_appearance(
+    struct World* world,
+    int player_entity_id,
+    struct PlayerAppearance* appearance)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+
+    struct Scene2Element* element =
+        scene2_element_at(world->scene2, player->scene_element2.element_id);
+    assert(element && "Element must be found");
+
+    world_scenebuild_player_entity_set_appearance(
+        world, player_entity_id, appearance->appearance, appearance->color);
+}
+
+static void
+load_scene_animation(
+    struct World* world,
+    struct Scene2Element* element,
+    int animation_id)
+{
+    struct CacheAnimframe* animframe = NULL;
+    struct CacheDatSequence* sequence =
+        buildcachedat_get_sequence(world->buildcachedat, animation_id);
+    assert(sequence);
+
+    for( int i = 0; i < sequence->frame_count; i++ )
+    {
+        // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
+        //     first 2 bytes are the sequence ID,
+        //     the second 2 bytes are the frame file ID
+        int frame_id = sequence->frames[i];
+
+        animframe = buildcachedat_get_animframe(world->buildcachedat, frame_id);
+        assert(animframe);
+
+        if( !element->dash_framemap )
+        {
+            scene2_element_set_framemap(element, dashframemap_new_from_animframe(animframe));
+        }
+
+        // From Client-TS 245.2
+        int length = sequence->delay[i];
+        if( length == 0 )
+            length = animframe->delay;
+
+        scene2_element_push_animation_frame(
+            element, dashframe_new_from_animframe(animframe), length);
+    }
+}
+
+void
+world_player_entity_set_animation(
+    struct World* world,
+    int player_entity_id,
+    int animation_id)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+
+    load_scene_animation(world, &player->scene_element2, animation_id);
+
+    player->animation.primary_anim = animation_id;
+    player->animation.primary_anim_frame = 0;
+    player->animation.primary_anim_cycle = 0;
+    player->animation.primary_anim_delay = 0;
+    player->animation.primary_anim_loop = 0;
+}
+
+void
+world_npc_entity_set_animation(
+    struct World* world,
+    int npc_entity_id,
+    int animation_id)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+
+    load_scene_animation(world, &npc->scene_element2, animation_id);
+
+    npc->animation.primary_anim = animation_id;
+    npc->animation.primary_anim_frame = 0;
+    npc->animation.primary_anim_cycle = 0;
+    npc->animation.primary_anim_delay = 0;
+    npc->animation.primary_anim_loop = 0;
+}
+
+void
+world_player_entity_set_passive_animations(
+    struct World* world,
+    int player_entity_id,
+    struct PassiveAnimationInfo* passive_animation_info)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+    player->animation.readyanim = passive_animation_info->readyanim;
+    player->animation.walkanim = passive_animation_info->walkanim;
+    player->animation.turnanim = passive_animation_info->turnanim;
+    player->animation.runanim = passive_animation_info->runanim;
+    player->animation.walkanim_b = passive_animation_info->walkanim_b;
+    player->animation.walkanim_r = passive_animation_info->walkanim_r;
+    player->animation.walkanim_l = passive_animation_info->walkanim_l;
+}
+
+void
+world_npc_entity_set_passive_animations(
+    struct World* world,
+    int npc_entity_id,
+    struct PassiveAnimationInfo* passive_animation_info)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    npc->animation.readyanim = passive_animation_info->readyanim;
+    npc->animation.walkanim = passive_animation_info->walkanim;
+    npc->animation.turnanim = passive_animation_info->turnanim;
+    npc->animation.runanim = passive_animation_info->runanim;
+    npc->animation.walkanim_b = passive_animation_info->walkanim_b;
+    npc->animation.walkanim_r = passive_animation_info->walkanim_r;
+    npc->animation.walkanim_l = passive_animation_info->walkanim_l;
+}
+
+void
+world_player_entity_path_push_moveto(
+    struct World* world,
+    int player_entity_id,
+    int x,
+    int z)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+}
+
+void
+world_npc_entity_path_push_moveto(
+    struct World* world,
+    int npc_entity_id,
+    int x,
+    int z)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+}
+
+void
+world_player_entity_path_push_step(
+    struct World* world,
+    int player_entity_id,
+    int step_type,
+    int direction)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+
+    entity_pathing_push_step(&player->pathing, step_type, direction);
+}
+
+void
+world_npc_entity_path_push_step(
+    struct World* world,
+    int npc_entity_id,
+    int step_type,
+    int direction)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+
+    entity_pathing_push_step(&npc->pathing, step_type, direction);
+}
+
+void
+world_player_entity_path_jump(
+    struct World* world,
+    int player_entity_id,
+    bool force_teleport,
+    int x,
+    int z)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+
+    enum PathingJump jump = entity_pathing_jump(&player->pathing, force_teleport, x, z);
+    if( jump == PATHING_JUMP_TELEPORT )
+        entity_draw_position_set_to_tile(&player->draw_position, x, z, 1, 1);
+}
+
+void
+world_npc_entity_path_jump(
+    struct World* world,
+    int npc_entity_id,
+    bool force_teleport,
+    int x,
+    int z)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+
+    enum PathingJump jump = entity_pathing_jump(&npc->pathing, force_teleport, x, z);
+    if( jump == PATHING_JUMP_TELEPORT )
+        entity_draw_position_set_to_tile(&npc->draw_position, x, z, npc->size.x, npc->size.z);
+}
+
+void
+world_player_face_entity(
+    struct World* world,
+    int player_entity_id,
+    int entity_id)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+}
+
+void
+world_npc_face_entity(
+    struct World* world,
+    int npc_entity_id,
+    int entity_id)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+}
+
+void
+world_player_face_coord(
+    struct World* world,
+    int player_entity_id,
+    int tile_x,
+    int tile_z)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+}
+
+void
+world_npc_face_coord(
+    struct World* world,
+    int npc_entity_id,
+    int tile_x,
+    int tile_z)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+}
+
+void
+world_npc_set_size(
+    struct World* world,
+    int npc_entity_id,
+    int size_x,
+    int size_z)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    npc->size.x = size_x;
+    npc->size.z = size_z;
 }

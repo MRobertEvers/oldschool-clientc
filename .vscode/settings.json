@@ -251,6 +251,10 @@
         "pkt_player_info.h": "c",
         "world.h": "c",
         "overlaymap.h": "c",
-        "terrain_shapemap.h": "c"
+        "terrain_shapemap.h": "c",
+        "heightmap.h": "c",
+        "blendmap.h": "c",
+        "appearances.h": "c",
+        "player_appearance.h": "c"
     },
 }

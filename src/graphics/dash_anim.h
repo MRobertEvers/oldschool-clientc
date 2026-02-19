@@ -25,4 +25,10 @@ struct DashFramemap
     int length;
 };
 
+void
+dashframe_free(struct DashFrame* frame);
+
+void
+dashframemap_free(struct DashFramemap* framemap);
+
 #endif

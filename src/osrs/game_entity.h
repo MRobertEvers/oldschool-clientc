@@ -4,6 +4,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct EntitySize
+{
+    int x;
+    int z;
+};
+
 struct EntityPathing
 {
     int route_length;
@@ -66,10 +72,6 @@ struct EntityOrientation
 {
     int yaw;
     int dst_yaw;
-    int face_entity; /* Client.ts: -1 = none; < 32768 = npc id; >= 32768 = player index + 32768 */
-    /* Client.ts FACESQUARE: world tile coords, cleared after use */
-    int face_square_x;
-    int face_square_z;
 };
 
 struct EntityAnimation
@@ -81,6 +83,17 @@ struct EntityAnimation
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+
+    int primary_anim;
+    int primary_anim_frame;
+    int primary_anim_cycle;
+    int primary_anim_delay;
+    int primary_anim_loop;
+    int secondary_anim;
+    int secondary_anim_frame;
+    int secondary_anim_cycle;
+    int secondary_anim_delay;
+    int secondary_anim_loop;
 };
 
 #define ENTITY_DAMAGE_SLOTS 4
@@ -90,13 +103,14 @@ struct NPCEntity
     int alive;
 
     struct EntityPathing pathing;
+    struct EntitySize size;
     struct EntitySceneElement scene_element2;
     struct EntityDrawPosition draw_position;
+    struct EntityOrientation orientation;
+    struct EntityAnimation animation;
 
     // Deprecated below
     struct EntityPosition position;
-    struct EntityOrientation orientation;
-    struct EntityAnimation animation;
 
     /* Client.ts: primary from packet (attack/spell), secondary from movement */
     void* scene_element;
@@ -140,6 +154,7 @@ struct PlayerEntity
     struct EntityPathing pathing;
     struct EntitySceneElement scene_element2;
     struct EntityDrawPosition draw_position;
+    struct EntityAnimation animation;
 
     // Deprecated below
     void* scene_element;
@@ -155,7 +170,6 @@ struct PlayerEntity
     int secondary_anim;
     int secondary_anim_frame;
     int secondary_anim_cycle;
-    struct EntityAnimation animation;
 
     /* Client.ts: damage/health for hitsplat and health bar */
     int damage_values[ENTITY_DAMAGE_SLOTS];
@@ -172,7 +186,7 @@ struct MapBuildLocEntity
     struct EntitySceneElement scene_element;
     struct EntitySceneElement scene_element_two;
     struct EntitySceneCoord scene_coord;
-    struct EntityAction action[10];
+    struct EntityAction actions[10];
 };
 
 struct MapBuildTileEntity
@@ -190,5 +204,72 @@ entity_add_hitmark(
     int loop_cycle,
     int damage_type,
     int damage_value);
+
+enum EntityKind
+{
+    ENTITY_KIND_NONE,
+    ENTITY_KIND_PLAYER = 1,
+    ENTITY_KIND_NPC = 2,
+    ENTITY_KIND_MAP_BUILD_LOC = 3,
+    ENTITY_KIND_MAP_BUILD_TILE = 4,
+};
+
+static inline uint32_t
+entity_unified_id(
+    enum EntityKind kind,
+    int entity_id)
+{
+    uint8_t kind_bits = kind << 28;
+    return kind_bits | entity_id;
+}
+
+static inline enum EntityKind
+entity_kind_from_uid(uint32_t unified_id)
+{
+    return (enum EntityKind)(unified_id >> 28);
+}
+
+static inline int
+entity_id_from_uid(uint32_t unified_id)
+{
+    return unified_id & 0x0FFFFFFF;
+}
+
+#define PATHSTEP_RUN 1
+#define PATHSTEP_WALK 0
+
+void
+entity_pathing_push_xz(
+    struct EntityPathing* pathing,
+    int x,
+    int z,
+    int step_type);
+
+void
+entity_pathing_push_step(
+    struct EntityPathing* pathing,
+    int step_type,
+    int direction);
+
+enum PathingJump
+{
+    PATHING_JUMP_TELEPORT,
+    PATHING_JUMP_WALK,
+};
+
+enum PathingJump
+entity_pathing_jump(
+    struct EntityPathing* pathing,
+    bool force_teleport,
+    int x,
+    int z);
+
+void
+entity_draw_position_set_to_tile(
+    struct EntityDrawPosition* draw_position,
+    int tile_x,
+    int tile_z,
+    int size_x,
+    int size_z);
 
 #endif

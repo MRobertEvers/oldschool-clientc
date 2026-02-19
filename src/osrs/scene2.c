@@ -66,12 +66,137 @@ scene2_element_acquire(
 }
 
 void
+scene2_element_clear_animation(struct Scene2Element* element)
+{
+    if( !element->dash_frames )
+        return;
+
+    for( int i = 0; i < element->dash_frame_count; i++ )
+    {
+        dashframe_free(element->dash_frames[i]);
+    }
+    free(element->dash_frames);
+    free(element->dash_frame_lengths);
+
+    element->dash_frame_count = 0;
+    element->dash_frame_capacity = 0;
+    element->dash_frames = NULL;
+    element->dash_frame_lengths = NULL;
+}
+
+void
+scene2_element_clear_secondary_animation(struct Scene2Element* element)
+{
+    if( !element->dash_frames_secondary )
+        return;
+
+    for( int i = 0; i < element->dash_frame_count_secondary; i++ )
+    {
+        dashframe_free(element->dash_frames_secondary[i]);
+    }
+    free(element->dash_frames_secondary);
+    free(element->dash_frame_lengths_secondary);
+
+    element->dash_frame_count_secondary = 0;
+    element->dash_frame_capacity_secondary = 0;
+    element->dash_frames_secondary = NULL;
+    element->dash_frame_lengths_secondary = NULL;
+}
+
+void
+scene2_element_clear_framemap(struct Scene2Element* element)
+{
+    if( element->dash_framemap )
+        dashframemap_free(element->dash_framemap);
+    element->dash_framemap = NULL;
+}
+
+void
+scene2_element_set_dash_model(
+    struct Scene2Element* element,
+    struct DashModel* dash_model)
+{
+    if( element->dash_model )
+        dashmodel_free(element->dash_model);
+    element->dash_model = dash_model;
+}
+
+void
+scene2_element_push_animation_frame(
+    struct Scene2Element* element,
+    struct DashFrame* dash_frame,
+    int length)
+{
+    if( element->dash_frame_count >= element->dash_frame_capacity )
+    {
+        if( element->dash_frame_capacity == 0 )
+            element->dash_frame_capacity = 8;
+        element->dash_frame_capacity *= 2;
+        element->dash_frames =
+            realloc(element->dash_frames, element->dash_frame_capacity * sizeof(struct DashFrame*));
+        element->dash_frame_lengths =
+            realloc(element->dash_frame_lengths, element->dash_frame_capacity * sizeof(int));
+    }
+    element->dash_frames[element->dash_frame_count] = dash_frame;
+    element->dash_frame_lengths[element->dash_frame_count] = length;
+    element->dash_frame_count++;
+}
+
+void
+scene2_element_push_secondary_animation_frame(
+    struct Scene2Element* element,
+    struct DashFrame* dash_frame,
+    int length)
+{
+    if( element->dash_frame_count_secondary >= element->dash_frame_capacity_secondary )
+    {
+        if( element->dash_frame_capacity_secondary == 0 )
+            element->dash_frame_capacity_secondary = 8;
+        element->dash_frame_capacity_secondary *= 2;
+        element->dash_frames_secondary = realloc(
+            element->dash_frames_secondary,
+            element->dash_frame_capacity_secondary * sizeof(struct DashFrame*));
+        element->dash_frame_lengths_secondary = realloc(
+            element->dash_frame_lengths_secondary,
+            element->dash_frame_capacity_secondary * sizeof(int));
+    }
+
+    element->dash_frames_secondary[element->dash_frame_count_secondary] = dash_frame;
+    element->dash_frame_lengths_secondary[element->dash_frame_count_secondary] = length;
+    element->dash_frame_count_secondary++;
+}
+
+void
+scene2_element_set_framemap(
+    struct Scene2Element* element,
+    struct DashFramemap* dash_framemap)
+{
+    if( element->dash_framemap )
+        dashframemap_free(element->dash_framemap);
+    element->dash_framemap = dash_framemap;
+}
+
+void
 scene2_element_release(
     struct Scene2* scene2,
     int element_id)
 {
+    if( element_id == -1 )
+        return;
+
     struct Scene2Element* element = scene2_element_at(scene2, element_id);
     assert(element->active && "Element must be active");
+
+    dashmodel_free(element->dash_model);
+    dashposition_free(element->dash_position);
+    dashframemap_free(element->dash_framemap);
+    scene2_element_clear_animation(element);
+    scene2_element_clear_secondary_animation(element);
+
+    element->dash_model = NULL;
+    element->dash_position = NULL;
+    element->dash_framemap = NULL;
+
     element->active = false;
     element->parent_entity_id = -1;
 

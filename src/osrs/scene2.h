@@ -13,7 +13,18 @@ struct Scene2Element
 
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
-    struct DashAnimation* dash_animation;
+
+    struct DashFramemap* dash_framemap;
+
+    struct DashFrame** dash_frames;
+    int* dash_frame_lengths;
+    int dash_frame_count;
+    int dash_frame_capacity;
+
+    struct DashFrame** dash_frames_secondary;
+    int* dash_frame_lengths_secondary;
+    int dash_frame_count_secondary;
+    int dash_frame_capacity_secondary;
 };
 
 struct Scene2
@@ -41,6 +52,36 @@ void
 scene2_element_release(
     struct Scene2* scene2,
     int element_id);
+
+void
+scene2_element_clear_animation(struct Scene2Element* element);
+
+void
+scene2_element_clear_secondary_animation(struct Scene2Element* element);
+
+void
+scene2_element_clear_framemap(struct Scene2Element* element);
+
+void
+scene2_element_set_dash_model(
+    struct Scene2Element* element,
+    struct DashModel* dash_model);
+void
+scene2_element_push_animation_frame(
+    struct Scene2Element* element,
+    struct DashFrame* dash_frame,
+    int length);
+
+void
+scene2_element_push_secondary_animation_frame(
+    struct Scene2Element* element,
+    struct DashFrame* dash_frame,
+    int length);
+
+void
+scene2_element_set_framemap(
+    struct Scene2Element* element,
+    struct DashFramemap* dash_framemap);
 
 struct Scene2Element*
 scene2_element_at(

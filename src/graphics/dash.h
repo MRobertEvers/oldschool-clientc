@@ -463,10 +463,14 @@ void
 dashsprite_free(struct DashSprite* sprite);
 
 int
-dashfont_text_width(struct DashPixFont* pixfont, uint8_t* text);
+dashfont_text_width(
+    struct DashPixFont* pixfont,
+    uint8_t* text);
 
 int
-dashfont_text_width_taggable(struct DashPixFont* pixfont, uint8_t* text);
+dashfont_text_width_taggable(
+    struct DashPixFont* pixfont,
+    uint8_t* text);
 
 void
 dashfont_draw_text(

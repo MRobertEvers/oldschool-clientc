@@ -6,6 +6,7 @@
 #include "osrs/blendmap.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
+#include "osrs/datatypes/player_appearance.h"
 #include "osrs/heightmap.h"
 #include "osrs/lightmap.h"
 #include "osrs/minimap.h"
@@ -25,9 +26,14 @@ struct World
     struct PlayerEntity players[MAX_PLAYERS];
     struct NPCEntity npcs[MAX_NPCS];
     struct MapBuildLocEntity map_build_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
+    int map_build_loc_entity_count;
+
     struct MapBuildTileEntity map_build_tile_entities[MAX_MAP_BUILD_TILE_ENTITIES];
 
-    int map_build_loc_entity_count;
+    int active_players[MAX_PLAYERS];
+    int active_npcs[MAX_NPCS];
+    int active_player_count;
+    int active_npc_count;
 
     // Painter
     struct Painter* painter;
@@ -84,5 +90,143 @@ world_tile_entity_at(
     int x,
     int z,
     int level);
+
+void
+world_cleanup_map_build_loc_entity(
+    struct World* world,
+    int entity_id);
+
+void
+world_cleanup_map_build_tile_entity(
+    struct World* world,
+    int entity_id);
+
+void
+world_cleanup_player_entity(
+    struct World* world,
+    int entity_id);
+
+void
+world_cleanup_npc_entity(
+    struct World* world,
+    int entity_id);
+
+void
+world_player_entity_set_appearance(
+    struct World* world,
+    int player_entity_id,
+    struct PlayerAppearance* appearance);
+
+void
+world_player_entity_set_animation(
+    struct World* world,
+    int player_entity_id,
+    int animation_id);
+
+void
+world_npc_entity_set_animation(
+    struct World* world,
+    int npc_entity_id,
+    int animation_id);
+
+struct PassiveAnimationInfo
+{
+    int readyanim;
+    int walkanim;
+    int turnanim;
+    int runanim;
+    int walkanim_b;
+    int walkanim_r;
+    int walkanim_l;
+};
+
+void
+world_player_entity_set_passive_animations(
+    struct World* world,
+    int player_entity_id,
+    struct PassiveAnimationInfo* passive_animation_info);
+
+void
+world_npc_entity_set_passive_animations(
+    struct World* world,
+    int npc_entity_id,
+    struct PassiveAnimationInfo* passive_animation_info);
+
+void
+world_player_entity_path_push_moveto(
+    struct World* world,
+    int player_entity_id,
+    int x,
+    int z);
+
+void
+world_npc_entity_path_push_moveto(
+    struct World* world,
+    int npc_entity_id,
+    int x,
+    int z);
+
+void
+world_player_entity_path_push_step(
+    struct World* world,
+    int player_entity_id,
+    int step_type,
+    int direction);
+
+void
+world_npc_entity_path_push_step(
+    struct World* world,
+    int npc_entity_id,
+    int step_type,
+    int direction);
+
+void
+world_player_entity_path_jump(
+    struct World* world,
+    int player_entity_id,
+    bool force_teleport,
+    int x,
+    int z);
+
+void
+world_npc_entity_path_jump(
+    struct World* world,
+    int npc_entity_id,
+    bool force_teleport,
+    int x,
+    int z);
+
+void
+world_player_face_entity(
+    struct World* world,
+    int player_entity_id,
+    int entity_id);
+
+void
+world_npc_face_entity(
+    struct World* world,
+    int npc_entity_id,
+    int entity_id);
+
+void
+world_player_face_coord(
+    struct World* world,
+    int player_entity_id,
+    int x,
+    int z);
+
+void
+world_npc_face_coord(
+    struct World* world,
+    int npc_entity_id,
+    int x,
+    int z);
+
+void
+world_npc_set_size(
+    struct World* world,
+    int npc_entity_id,
+    int size_x,
+    int size_z);
 
 #endif

@@ -105,9 +105,9 @@ npc_move(
     }
     else
     {
-        npc_entity->pathing.route_length = 0;
         npc_entity->pathing.route_x[0] = tile_x;
         npc_entity->pathing.route_z[0] = tile_z;
+        npc_entity->pathing.route_length = 0;
     }
 
     npc_entity->position.x = tile_x * 128 + npc_entity->size_x * 64;
@@ -253,20 +253,20 @@ gameproto_exec_npc_info(
             int entity_id = (int)op->_face_entity.entity_id;
             if( entity_id == 65535 )
                 entity_id = -1;
-            npc->orientation.face_entity = entity_id;
-            printf("npc_face_entity: %d\n", entity_id);
+            // npc->orientation.face_entity = entity_id;
+            // printf("npc_face_entity: %d\n", entity_id);
             break;
         }
         case PKT_NPC_INFO_OP_FACE_COORD:
         {
             if( !npc )
                 break;
-            npc->orientation.face_square_x = (int)op->_face_coord.x;
-            npc->orientation.face_square_z = (int)op->_face_coord.z;
-            printf(
-                "npc_face_coord: %d, %d\n",
-                npc->orientation.face_square_x,
-                npc->orientation.face_square_z);
+            // npc->orientation.face_square_x = (int)op->_face_coord.x;
+            // npc->orientation.face_square_z = (int)op->_face_coord.z;
+            // printf(
+            //     "npc_face_coord: %d, %d\n",
+            //     npc->orientation.face_square_x,
+            //     npc->orientation.face_square_z);
             break;
         }
         case PKT_NPC_INFO_OP_SEQUENCE:
@@ -285,13 +285,13 @@ gameproto_exec_npc_info(
         }
         case PKT_NPC_INFO_OP_DAMAGE:
         {
-            entity_add_hitmark(
-                npc->damage_values,
-                npc->damage_types,
-                npc->damage_cycles,
-                game->cycle,
-                op->_damage.damage_type,
-                op->_damage.damage);
+            // entity_add_hitmark(
+            //     npc->damage_values,
+            //     npc->damage_types,
+            //     npc->damage_cycles,
+            //     game->cycle,
+            //     op->_damage.damage_type,
+            //     op->_damage.damage);
             npc->combat_cycle = game->cycle + 400;
             npc->health = op->_damage.health;
             npc->total_health = op->_damage.total_health;
@@ -507,7 +507,7 @@ add_player_info(
             int entity_id = (int)op->_face_entity.entity_id;
             if( entity_id == 65535 )
                 entity_id = -1;
-            player->orientation.face_entity = entity_id;
+            // player->orientation.face_entity = entity_id;
 
             break;
         }
@@ -515,8 +515,8 @@ add_player_info(
         {
             if( !player )
                 break;
-            player->orientation.face_square_x = (int)op->_face_coord.x;
-            player->orientation.face_square_z = (int)op->_face_coord.z;
+            // player->orientation.face_square_x = (int)op->_face_coord.x;
+            // player->orientation.face_square_z = (int)op->_face_coord.z;
             break;
         }
         case PKT_PLAYER_INFO_OP_SEQUENCE:
