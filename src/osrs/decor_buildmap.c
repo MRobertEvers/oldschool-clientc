@@ -80,9 +80,10 @@ decor_buildmap_add_element(
     int index = buildmap_idx(build_map, x, z, level);
     assert(build_map->elements[index].count < 2);
 
-    build_map->elements[index].element_id[build_map->elements[index].count] = element_id;
-    build_map->elements[index].displacement_kind[build_map->elements[index].count] =
-        displacement_kind;
+    int slot = build_map->elements[index].count;
+    build_map->elements[index].element_id[slot] = element_id;
+    build_map->elements[index].displacement_kind[slot] = displacement_kind;
+    build_map->elements[index].orientation[slot] = orientation;
     build_map->elements[index].count++;
 }
 

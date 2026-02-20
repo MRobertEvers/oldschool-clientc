@@ -558,6 +558,8 @@ world_buildcachedat_rebuild_centerzone(
 
                     bool diagonal = false;
                     int offset = 0;
+                    if( wall_width == 0 )
+                        wall_width = 32;
 
                     switch( displacement_kind )
                     {
