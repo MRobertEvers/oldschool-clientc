@@ -7,6 +7,7 @@
 #include "shared_tables.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -217,9 +218,11 @@ dash3d_aabb_cull(
  * Project cylinder extremes in camera space: (transX±radius, transY, transZ) for
  * left/right, (transX, transY+yMin, transZ) and (transX, transY+yMax, transZ) for
  * top/bottom. Build screen box from those four projected points.
+ * Not used for hit-test or draw AABB (we use vertex-based AABB); kept for callers
+ * that need a cylinder-derived screen box.
  */
 static void
-dash3d_calculate_aabb(
+dash3d_calculate_aabb_from_cylinder(
     struct DashAABB* aabb,
     struct DashModel* model,
     struct DashPosition* position,
@@ -260,6 +263,66 @@ dash3d_calculate_aabb(
     aabb->max_screen_x = screen_left < screen_right ? screen_right : screen_left;
     aabb->min_screen_y = screen_y_min < screen_y_max ? screen_y_min : screen_y_max;
     aabb->max_screen_y = screen_y_min < screen_y_max ? screen_y_max : screen_y_min;
+}
+
+/** Sentinel for clipped vertices (behind near plane). */
+#define DASH3D_CLIPPED_VERTEX_MARKER (-5000)
+
+/**
+ * Compute screen AABB from actual projected vertices.
+ * Tight and correct; use this instead of cylinder-based AABB so models are never outside the box.
+ */
+static void
+dash3d_calculate_aabb_from_vertices(
+    struct DashAABB* aabb,
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashViewPort* view_port)
+{
+    int center_x = view_port->x_center;
+    int center_y = view_port->y_center;
+    int n = model->vertex_count;
+    int* sx = dash->screen_vertices_x;
+    int* sy = dash->screen_vertices_y;
+
+    int min_x = INT_MAX;
+    int max_x = INT_MIN;
+    int min_y = INT_MAX;
+    int max_y = INT_MIN;
+    int valid = 0;
+
+    for( int i = 0; i < n; i++ )
+    {
+        if( sx[i] == DASH3D_CLIPPED_VERTEX_MARKER )
+            continue;
+        valid = 1;
+        int px = sx[i] + center_x;
+        int py = sy[i] + center_y;
+        if( px < min_x )
+            min_x = px;
+        if( px > max_x )
+            max_x = px;
+        if( py < min_y )
+            min_y = py;
+        if( py > max_y )
+            max_y = py;
+    }
+
+    if( valid )
+    {
+        aabb->min_screen_x = min_x;
+        aabb->max_screen_x = max_x;
+        aabb->min_screen_y = min_y;
+        aabb->max_screen_y = max_y;
+    }
+    else
+    {
+        /* All vertices clipped; use empty box so hit-test fails. */
+        aabb->min_screen_x = 0;
+        aabb->max_screen_x = 0;
+        aabb->min_screen_y = 0;
+        aabb->max_screen_y = 0;
+    }
 }
 
 static const int g_empty_texture_texels[128 * 128] = { 0 };
@@ -1214,8 +1277,6 @@ dash3d_project(
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
-    dash3d_calculate_aabb(&dash->aabb, model, position, view_port, camera);
-
     project_vertices_array(
         dash->orthographic_vertices_x,
         dash->orthographic_vertices_y,
@@ -1236,6 +1297,8 @@ dash3d_project(
         camera->fov_rpi2048,
         camera->pitch,
         camera->yaw);
+
+    dash3d_calculate_aabb_from_vertices(&dash->aabb, dash, model, view_port);
 
     return DASHCULL_VISIBLE;
 }
@@ -1313,8 +1376,6 @@ dash3d_project6(
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
-    dash3d_calculate_aabb(&dash->aabb, model, position, view_port, camera);
-
     project_vertices_array6(
         dash->orthographic_vertices_x,
         dash->orthographic_vertices_y,
@@ -1338,6 +1399,8 @@ dash3d_project6(
         camera->pitch,
         camera->yaw,
         camera->roll);
+
+    dash3d_calculate_aabb_from_vertices(&dash->aabb, dash, model, view_port);
 
     return DASHCULL_VISIBLE;
 }

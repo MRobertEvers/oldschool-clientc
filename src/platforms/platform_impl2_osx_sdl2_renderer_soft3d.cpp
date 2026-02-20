@@ -852,12 +852,35 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
     renderer->highlight_poly_valid = 0;
 
+    struct DashAABB hovered_aabb;
+    bool have_hovered_aabb = false;
+
     LibToriRS_FrameBegin(game, render_command_buffer);
     while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command) )
     {
         switch( command.kind )
         {
         case TORIRS_GFX_MODEL_DRAW:
+        {
+            /* Hit-test: when mouse is over this model, record its AABB for drawing. */
+            if( game->view_port && game->sys_dash )
+            {
+                int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
+                int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
+                if( mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
+                    mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
+                    dash3d_projected_model_contains(
+                        game->sys_dash,
+                        command._model_draw.model,
+                        game->view_port,
+                        mouse_vp_x,
+                        mouse_vp_y) )
+                {
+                    struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+                    hovered_aabb = *aabb;
+                    have_hovered_aabb = true;
+                }
+            }
             dash3d_raster_projected_model(
                 game->sys_dash,
                 command._model_draw.model,
@@ -867,6 +890,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 renderer->dash_buffer,
                 false);
             break;
+        }
         case TORIRS_GFX_MODEL_DRAW_HIGHLIGHT:
         {
             struct DashModel* model = command._model_draw.model;
@@ -904,6 +928,41 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             break;
         }
     }
+
+    /* Draw AABB outline for the model under the mouse. */
+    if( have_hovered_aabb && renderer->dash_buffer && renderer->dash_buffer_width > 0 &&
+        renderer->dash_buffer_height > 0 )
+    {
+        int dw = renderer->dash_buffer_width;
+        int dh = renderer->dash_buffer_height;
+        int* db = renderer->dash_buffer;
+        int min_x = hovered_aabb.min_screen_x;
+        int max_x = hovered_aabb.max_screen_x;
+        int min_y = hovered_aabb.min_screen_y;
+        int max_y = hovered_aabb.max_screen_y;
+        const int aabb_color = 0xFFFFFF;
+        for( int x = min_x; x <= max_x; x++ )
+        {
+            if( x >= 0 && x < dw )
+            {
+                if( min_y >= 0 && min_y < dh )
+                    db[min_y * dw + x] = aabb_color;
+                if( max_y >= 0 && max_y < dh )
+                    db[max_y * dw + x] = aabb_color;
+            }
+        }
+        for( int y = min_y; y <= max_y; y++ )
+        {
+            if( y >= 0 && y < dh )
+            {
+                if( min_x >= 0 && min_x < dw )
+                    db[y * dw + min_x] = aabb_color;
+                if( max_x >= 0 && max_x < dw )
+                    db[y * dw + max_x] = aabb_color;
+            }
+        }
+    }
+
     LibToriRS_FrameEnd(game);
 
     // /* Client.ts entityOverlays: draw health bars and hitsplats for entities with damage */
