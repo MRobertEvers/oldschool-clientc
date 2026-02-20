@@ -130,7 +130,7 @@ dash_free(struct DashGraphics* dash)
  * All tests done before perspective divide to avoid overflow.
  */
 static int
-dash3d_fast_cull(
+dash3d_cylinder_cull(
     struct DashViewPort* view_port,
     struct DashModel* model,
     struct DashPosition* position,
@@ -1210,15 +1210,11 @@ dash3d_project(
     if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
         return DASHCULL_ERROR;
 
-    cull = dash3d_fast_cull(view_port, model, position, camera, &center_projection);
+    cull = dash3d_cylinder_cull(view_port, model, position, camera, &center_projection);
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
     dash3d_calculate_aabb(&dash->aabb, model, position, view_port, camera);
-
-    cull = dash3d_aabb_cull(&dash->aabb, view_port, camera);
-    if( cull != DASHCULL_VISIBLE )
-        return cull;
 
     project_vertices_array(
         dash->orthographic_vertices_x,
@@ -1313,15 +1309,11 @@ dash3d_project6(
     if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
         return DASHCULL_ERROR;
 
-    cull = dash3d_fast_cull(view_port, model, position, camera, &center_projection);
+    cull = dash3d_cylinder_cull(view_port, model, position, camera, &center_projection);
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
     dash3d_calculate_aabb(&dash->aabb, model, position, view_port, camera);
-
-    cull = dash3d_aabb_cull(&dash->aabb, view_port, camera);
-    if( cull != DASHCULL_VISIBLE )
-        return cull;
 
     project_vertices_array6(
         dash->orthographic_vertices_x,
