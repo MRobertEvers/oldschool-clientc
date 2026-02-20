@@ -53,6 +53,7 @@ world_new(struct BuildCacheDat* buildcachedat)
     world->heightmap = heightmap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->lightmap = lightmap_new(104, 104, MAP_TERRAIN_LEVELS);
+    world->shademap = shademap2_new(104, 104, MAP_TERRAIN_LEVELS);
     world->overlaymap = overlaymap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->sharelight_map = sharelight_map_new(104, 104, MAP_TERRAIN_LEVELS);
 

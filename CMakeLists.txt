@@ -102,6 +102,7 @@ endif()
     src/osrs/overlaymap.c
     src/osrs/terrain_shapemap.c
     src/osrs/sharelight_map.c
+    src/osrs/shademap.c
     src/osrs/world_scenebuild.c
         src/osrs/configmap.c
         src/osrs/filepack.c

@@ -13,6 +13,7 @@
 #include "osrs/overlaymap.h"
 #include "osrs/painters.h"
 #include "osrs/scene2.h"
+#include "osrs/shademap.h"
 #include "osrs/sharelight_map.h"
 #include "osrs/terrain_shapemap.h"
 
@@ -52,6 +53,8 @@ struct World
     // Todo: How to organize, these are only used at build time.
     // Lightmap
     struct Lightmap* lightmap;
+    // Shademap
+    struct Shademap2* shademap;
     // Blendmap
     struct Blendmap* blendmap;
     // Overlaymap

@@ -101,6 +101,69 @@ lightmap_build(
 }
 
 static void
+apply_shade(
+    struct Lightmap* lightmap,
+    struct Shademap2* shademap2_nullable,
+    int level,
+    int xboundmin,
+    int xboundmax,
+    int zboundmin,
+    int zboundmax,
+    int xmin,
+    int xmax,
+    int zmin,
+    int zmax)
+{
+    if( shademap2_nullable == NULL )
+        return;
+
+    assert(xboundmin <= xmin);
+    assert(xboundmax >= xmax);
+    assert(zboundmin <= zmin);
+    assert(zboundmax >= zmax);
+
+    int shade_west;
+    int shade_east;
+    int shade_north;
+    int shade_south;
+
+    for( int z = zmin; z < zmax; z++ )
+    {
+        for( int x = xmin; x < xmax; x++ )
+        {
+            shade_west = 0;
+            shade_east = 0;
+            shade_north = 0;
+            shade_south = 0;
+
+            int shade = 0;
+            if( shademap2_nullable )
+            {
+                if( shademap2_in_bounds(shademap2_nullable, x - 1, z, level) )
+                    shade_west = shademap2_get(shademap2_nullable, x - 1, z, level);
+                if( shademap2_in_bounds(shademap2_nullable, x + 1, z, level) )
+                    shade_east = shademap2_get(shademap2_nullable, x + 1, z, level);
+                if( shademap2_in_bounds(shademap2_nullable, x, z + 1, level) )
+                    shade_north = shademap2_get(shademap2_nullable, x, z + 1, level);
+                if( shademap2_in_bounds(shademap2_nullable, x, z - 1, level) )
+                    shade_south = shademap2_get(shademap2_nullable, x, z - 1, level);
+
+                int shade_center = shademap2_get(shademap2_nullable, x, z, level);
+
+                shade = shade_center >> 1;
+                shade += shade_west >> 2;
+                shade += shade_east >> 3;
+                shade += shade_north >> 3;
+                shade += shade_south >> 2;
+            }
+            int light = lightmap_get(lightmap, x, z, level);
+
+            lightmap_set(lightmap, x, z, level, light - shade);
+        }
+    }
+}
+
+static void
 init_map_build_tile_entity(
     struct MapBuildTileEntity* map_build_tile_entity,
     int entity_id)
@@ -168,6 +231,19 @@ build_scene_terrain(struct World* world)
      */
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
+        apply_shade(
+            world->lightmap,
+            world->shademap,
+            level,
+            0,
+            scene_size,
+            0,
+            scene_size,
+            0,
+            scene_size,
+            0,
+            scene_size);
+
         for( int z = 1; z < scene_size - 1; z++ )
         {
             for( int x = 1; x < scene_size - 1; x++ )

@@ -305,6 +305,17 @@ scenery_add_wall_single(
         entity->scene_coord.slevel,
         config_loc->wall_width);
 
+    if( config_loc->shadowed )
+    {
+        shademap2_set_wall(
+            world->shademap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            orientation,
+            50);
+    }
+
     if( config_loc->sharelight )
     {
         sharelight_map_push(
@@ -356,6 +367,16 @@ scenery_add_wall_tri_corner(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         config_loc->wall_width);
+
+    /* Shademap */
+    if( config_loc->shadowed )
+        shademap2_set_wall_corner(
+            world->shademap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            orientation,
+            50);
 
     if( config_loc->sharelight )
     {
@@ -491,6 +512,15 @@ scenery_add_wall_rect_corner(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         config_loc->wall_width);
+
+    if( config_loc->shadowed )
+        shademap2_set_wall_corner(
+            world->shademap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            orientation,
+            50);
 
     if( config_loc->sharelight )
     {
@@ -697,6 +727,8 @@ scenery_add_wall_decor_diagonal_outside(
     }
 }
 
+// Lumbridge sconce
+// Support beams in lumbridge general store along wall.
 static void
 scenery_add_wall_decor_diagonal_inside(
     struct World* world,
@@ -706,8 +738,8 @@ scenery_add_wall_decor_diagonal_inside(
 {
     entity->scene_element.element_id = scene2_element_acquire(world->scene2, entity->entity_id);
 
-    int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
-    int orientation = map_tile->orientation;
+    int orientation = (map_tile->orientation + 2) & 0x3;
+    int rotation = config_loc->seq_id != -1 ? 0 : orientation;
 
     world_load_scenery_model(
         world,
@@ -964,8 +996,10 @@ scenery_add_normal(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
-    if( config_loc->seq_id != -1 )
+    if( map_tile->shape_select == LOC_SHAPE_SCENERY_DIAGIONAL )
         scene_element->dash_position->yaw += 256;
+    if( config_loc->seq_id != -1 )
+        scene_element->dash_position->yaw += 512 * orientation;
     scene_element->dash_position->yaw %= 2048;
 
     painter_add_normal_scenery(
@@ -976,6 +1010,20 @@ scenery_add_normal(
         entity->scene_element.element_id,
         size_x,
         size_z);
+
+    /* Shademap */
+    int shade = size_x * size_z * 11;
+    if( shade > 30 )
+        shade = 30;
+    if( config_loc->shadowed )
+        shademap2_set_sized(
+            world->shademap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            size_x,
+            size_z,
+            shade);
 
     if( config_loc->sharelight )
     {
