@@ -147,12 +147,13 @@ merge_normals(
      */
 
     // TODO: This isn't allow for locs. Only ground decor.
-    if( merged_vertex_count < 3 || true )
+    if( merged_vertex_count < 3 )
         return;
 
     // Can't have two faces with the same 3 points, so only need to check two.
     for( int face = 0; face < model->face_count; face++ )
     {
+        // If all three vertices of the face are merged, hide the face.
         if( g_vertex_a_merge_index[model->face_indices_a[face]] == g_merge_index &&
             g_vertex_a_merge_index[model->face_indices_b[face]] == g_merge_index &&
             g_vertex_a_merge_index[model->face_indices_c[face]] == g_merge_index )
@@ -165,11 +166,11 @@ merge_normals(
             }
             // Hidden face (facetype 2 is hidden)
             model->face_infos[face] = 2;
-            break;
         }
     }
     for( int face = 0; face < other_model->face_count; face++ )
     {
+        // If all three vertices of the face are merged, hide the face.
         if( g_vertex_b_merge_index[other_model->face_indices_a[face]] == g_merge_index &&
             g_vertex_b_merge_index[other_model->face_indices_b[face]] == g_merge_index &&
             g_vertex_b_merge_index[other_model->face_indices_c[face]] == g_merge_index )

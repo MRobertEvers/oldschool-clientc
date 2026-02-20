@@ -99,9 +99,12 @@ enum FloorFlags
     // the bridge is stored on level 1, with visbelow flag set.
     // This is the underpass.
     // This causes all the tiles to be "shifted down" by one level.
+    // SPECIAL NOTE: When this flag is set on level 1, it will cause ALL levels on a particular
+    // square to be shifted down by one level. Other it's ignored.
     // if ((mapl[1][var3][var4] & 0x2) == 2) {
     //     var5 = var2 - 1;
     // ((levelTileFlags[0][x0][z0] & 0x2) == 0) && (((levelTileFlags[level][x0][z0] & 0x10) != 0)
+
     FLOFLAG_BRIDGE = 0x02,
     FLOFLAG_DOWNLEVEL = 0x02,
     FLOFLAG_LINK_BELOW_PUSHDOWN = 0x02,
