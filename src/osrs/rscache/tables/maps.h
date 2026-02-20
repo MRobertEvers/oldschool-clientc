@@ -85,19 +85,24 @@ struct CacheMapLocs
 //     ForceHighDetail = 0x10,
 // }
 
-
 enum FloorFlags
 {
-    // Bridge underlay
     FLOFLAG_BLOCKGROUND = 0x01,
 
-    // Used for bridges.
+    // TODO: Rename this to draw below.
+    // TALL LOCS: For example res/link_below_nonbridge_flagbanner_is_linkbelow.png
+    // The flags/banners in the duel arena. The locs of the walkway are on level 0, but are
+    // 2 levels tall. The banners are on level 1, but have the link below flag.
+    // BRIDGE: Additionally, bridge
+    // This is also used for tiles under a bridge. Normally,
+    // the bridge is stored on level 1, with visbelow flag set.
+    // This is the underpass.
     // This causes all the tiles to be "shifted down" by one level.
     // if ((mapl[1][var3][var4] & 0x2) == 2) {
     //     var5 = var2 - 1;
     // ((levelTileFlags[0][x0][z0] & 0x2) == 0) && (((levelTileFlags[level][x0][z0] & 0x10) != 0)
     FLOFLAG_BRIDGE = 0x02,
-    // Somethign about roofs
+    // Indicates that this is a tile with a roof.
     FLOFLAG_ROOF = 0x04,
     // if ((mapl[arg0][arg1][arg2] & 0x8) != 0) {
     // var8 = 0;

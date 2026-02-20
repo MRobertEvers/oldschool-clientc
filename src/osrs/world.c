@@ -143,6 +143,69 @@ world_to_scene_z(
     return (chunk_z - world->_offset_z) + (mapz - world->_chunk_sw_z) * MAP_TERRAIN_Z;
 }
 
+struct FlagMap
+{
+    int* flags;
+    int size_x;
+    int size_z;
+    int levels;
+};
+
+struct FlagMap*
+flag_map_new(
+    int size_x,
+    int size_z,
+    int levels)
+{
+    struct FlagMap* flag_map = malloc(sizeof(struct FlagMap));
+    flag_map->flags = malloc(sizeof(int) * size_x * size_z * levels);
+    memset(flag_map->flags, 0, sizeof(int) * size_x * size_z * levels);
+    flag_map->size_x = size_x;
+    flag_map->size_z = size_z;
+    flag_map->levels = levels;
+    return flag_map;
+};
+
+void
+flag_map_free(struct FlagMap* flag_map)
+{
+    free(flag_map->flags);
+    free(flag_map);
+}
+
+static inline int
+flag_map_index(
+    struct FlagMap* flag_map,
+    int x,
+    int z,
+    int level)
+{
+    assert(x >= 0 && x < flag_map->size_x);
+    assert(z >= 0 && z < flag_map->size_z);
+    assert(level >= 0 && level < flag_map->levels);
+    return x + z * flag_map->size_x + level * flag_map->size_x * flag_map->size_z;
+}
+int
+flag_map_get(
+    struct FlagMap* flag_map,
+    int x,
+    int z,
+    int level)
+{
+    return flag_map->flags[flag_map_index(flag_map, x, z, level)];
+}
+
+void
+flag_map_set(
+    struct FlagMap* flag_map,
+    int x,
+    int z,
+    int level,
+    int flag)
+{
+    flag_map->flags[flag_map_index(flag_map, x, z, level)] = flag;
+}
+
 void
 world_buildcachedat_rebuild_centerzone(
     struct World* world,
@@ -202,6 +265,8 @@ world_buildcachedat_rebuild_centerzone(
     world->_chunk_sw_z = chunk_sw_z;
     world->_scene_size = scene_size;
 
+    struct FlagMap* flag_map = flag_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+
     /**
      * Heightmap.
      */
@@ -235,6 +300,8 @@ world_buildcachedat_rebuild_centerzone(
                         struct CacheMapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
                         int height = tile->height;
                         heightmap_set(world->heightmap, offset_x, offset_z, level, height);
+
+                        flag_map_set(flag_map, offset_x, offset_z, level, tile->settings);
                     }
                 }
             }
@@ -582,6 +649,86 @@ world_buildcachedat_rebuild_centerzone(
             }
         }
     }
+
+    // Adjust bridges.
+    /**
+     * Bridges are adjusted from an upper level.
+     *
+     * The "bridge_tile" is actually the tiles below the bridge.
+     * The bridge itself is taken from the level above.
+     *
+     * E.g.
+     *
+     * Buffer Level 0: Tile := (Water and Bridge Walls), Bridge := Nothing
+     * Buffer Level 1: Tile := (Bridge Walking Surface and Walls)
+     * Buffer Level 2: Nothing
+     * Buffer Level 3: Nothing
+     *
+     * After this adjustment,
+     *
+     * Buffer Level 0: Tile := (Previous Level 1),
+     * Buffer Level 1: Nothing
+     * Buffer Level 2: Nothing
+     * Buffer Level 3: Tile := (Previous Level 0)
+     */
+    int ground_flags = 0;
+    int bridge_flags = 0;
+    struct PaintersTile bridge_tile_tmp = { 0 };
+    for( int x = 0; x < scene_size; x++ )
+    {
+        for( int z = 0; z < scene_size; z++ )
+        {
+            /**
+             * Dane's 317
+             * 	for (int var76 = 0; var76 < 104; var76++) {
+             *	for (int var77 = 0; var77 < 104; var77++) {
+             *		if ((mapl[1][var76][var77] & 0x2) == 2) {
+             *			arg0.pushDown(var76, var77);
+             *		}
+             *	}
+             * }
+             * OS1:
+             *   for (int x = 0; x < maxTileX; x++) {
+             *     for (int z = 0; z < maxTileZ; z++) {
+             *         if ((levelTileFlags[1][x][z] & 0x2) == 2) {
+             *             scene.setBridge(x, z);
+             *         }
+             *     }
+             * }
+             */
+            bridge_flags = flag_map_get(flag_map, x, z, 1);
+
+            if( (bridge_flags & FLOFLAG_BRIDGE) != 0 )
+            {
+                bridge_tile_tmp = *painter_tile_at(world->painter, x, z, 0);
+
+                /**
+                 * Shift tile definitions down
+                 */
+                for( int level = 0; level < painter_max_levels(world->painter) - 1; level++ )
+                {
+                    painter_tile_copyto(
+                        world->painter,
+                        // From
+                        x,
+                        z,
+                        level + 1,
+                        // To
+                        x,
+                        z,
+                        level);
+
+                    painter_tile_set_draw_level(world->painter, x, z, level, level);
+                }
+
+                // Use the newly unused tile on level 3 as the bridge slot.
+                *painter_tile_at(world->painter, x, z, 3) = bridge_tile_tmp;
+                painter_tile_set_bridge(world->painter, x, z, 0, x, z, 3);
+            }
+        }
+    }
+
+    flag_map_free(flag_map);
 
     /**
      * Shademap

@@ -1898,7 +1898,7 @@ build_scene_scenery(
     //     for( int z = 0; z < scene->tile_width_z; z++ )
     //     {
     //         /**
-    //          * OS1:
+    //          * Dane's 317
     //          * 	for (int var76 = 0; var76 < 104; var76++) {
     //          *	for (int var77 = 0; var77 < 104; var77++) {
     //          *		if ((mapl[1][var76][var77] & 0x2) == 2) {
@@ -1906,7 +1906,7 @@ build_scene_scenery(
     //          *		}
     //          *	}
     //          * }
-    //          * Dane's 317
+    //          * OS1:
     //          *   for (int x = 0; x < maxTileX; x++) {
     //          *     for (int z = 0; z < maxTileZ; z++) {
     //          *         if ((levelTileFlags[1][x][z] & 0x2) == 2) {
