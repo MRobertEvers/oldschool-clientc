@@ -54,7 +54,7 @@ decor_buildmap_get_wall_offset(
     int index = buildmap_idx(build_map, x, z, level);
     return build_map->offsets[index];
 }
-
+#include <stdio.h>
 void
 decor_buildmap_set_wall_offset(
     struct DecorBuildMap* build_map,
@@ -64,6 +64,7 @@ decor_buildmap_set_wall_offset(
     int wall_offset)
 {
     int index = buildmap_idx(build_map, x, z, level);
+
     build_map->offsets[index] = wall_offset;
 }
 
