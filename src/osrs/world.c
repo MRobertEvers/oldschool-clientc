@@ -698,7 +698,7 @@ world_buildcachedat_rebuild_centerzone(
              */
             bridge_flags = flag_map_get(flag_map, x, z, 1);
 
-            if( (bridge_flags & FLOFLAG_BRIDGE) != 0 )
+            if( (bridge_flags & FLOFLAG_LINK_BELOW_PUSHDOWN) != 0 )
             {
                 bridge_tile_tmp = *painter_tile_at(world->painter, x, z, 0);
 

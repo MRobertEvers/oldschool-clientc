@@ -87,6 +87,7 @@ struct CacheMapLocs
 
 enum FloorFlags
 {
+    // Used with the collisionmap.
     FLOFLAG_BLOCKGROUND = 0x01,
 
     // TODO: Rename this to draw below.
@@ -102,13 +103,18 @@ enum FloorFlags
     //     var5 = var2 - 1;
     // ((levelTileFlags[0][x0][z0] & 0x2) == 0) && (((levelTileFlags[level][x0][z0] & 0x10) != 0)
     FLOFLAG_BRIDGE = 0x02,
+    FLOFLAG_DOWNLEVEL = 0x02,
+    FLOFLAG_LINK_BELOW_PUSHDOWN = 0x02,
     // Indicates that this is a tile with a roof.
     FLOFLAG_ROOF = 0x04,
     // if ((mapl[arg0][arg1][arg2] & 0x8) != 0) {
     // var8 = 0;
+    // When this is true, the tiles elements will be drawn even if the max
+    // draw level is below the tile's level.
+    // It DOES NOT change the painter level. It only effects whether is would be
+    // drawn if the max draw level is below the tile's level.
     FLOFLAG_DRAW_LEVEL_0 = 0x08,
-    // Seemingly only used in conjunction with FLOFLAG_DOWNLEVEL
-    FLOFLAG_IGNORE_DRAWLEVEL = 0x10,
+    FLOFLAG_FORCE_HIGH_DETAIL = 0x10,
 };
 
 struct CacheMapFloor
