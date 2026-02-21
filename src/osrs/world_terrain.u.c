@@ -160,7 +160,7 @@ apply_shade(
 
             int shaded = light - shade;
             if( shaded < 0 )
-                shaded = 2;
+                shaded = 0;
             lightmap_set(lightmap, x, z, level, shaded);
         }
     }
