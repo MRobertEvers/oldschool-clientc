@@ -23,8 +23,17 @@ struct DashBoundsCylinder
     int min_z_depth_any_rotation;
 };
 
+enum DashAABBKind
+{
+    DASHAABB_KIND_UNKNOWN,
+    DASHAABB_KIND_CYLINDER_4POINT,
+    DASHAABB_KIND_CYLINDER_8POINT,
+    DASHAABB_KIND_VERTICES_AABB,
+};
+
 struct DashAABB
 {
+    enum DashAABBKind kind;
     int min_screen_x;
     int min_screen_y;
     int max_screen_x;

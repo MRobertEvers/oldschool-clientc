@@ -7,6 +7,7 @@
 #include "datastruct/ringbuf.h"
 #include "datastruct/vec.h"
 #include "game_entity.h"
+#include "graphics/dash.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/ginput.h"

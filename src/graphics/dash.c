@@ -28,6 +28,7 @@ struct DashTextureEntry
 struct DashGraphics
 {
     struct DashAABB aabb;
+    struct DashAABB cylinder_fast_aabb;
 
     int screen_vertices_x[4096];
     int screen_vertices_y[4096];
@@ -120,78 +121,7 @@ dash_free(struct DashGraphics* dash)
     free(dash);
 }
 
-/** Far plane for bounding-cylinder frustum cull. */
-#define DASH3D_CYLINDER_FAR_PLANE_Z 3500
-
-/**
- * Bounding-cylinder frustum cull (Gemini-style).
- * Camera can pitch and yaw; models only rotate in yaw, so a cylinder (radius + Y extent)
- * is used. Checks in order: Z (near/far), then horizontal (X), then vertical (Y).
- * All tests done before perspective divide to avoid overflow.
- */
-static int
-dash3d_fast_cull(
-    struct DashViewPort* view_port,
-    struct DashModel* model,
-    struct DashPosition* position,
-    struct DashCamera* camera,
-    struct ProjectedVertex* projected_vertex)
-{
-    int model_yaw = position->yaw;
-    int scene_x = position->x;
-    int scene_y = position->y;
-    int scene_z = position->z;
-
-    int near_plane_z = camera->near_plane_z;
-    int fov = camera->fov_rpi2048;
-
-    /* Model center in camera space: translate then camera yaw then camera pitch. */
-    project_orthographic_fast(
-        projected_vertex,
-        0,
-        0,
-        0,
-        model_yaw,
-        scene_x,
-        scene_y,
-        scene_z,
-        camera->pitch,
-        camera->yaw);
-
-    int trans_x = projected_vertex->x;
-    int trans_y = projected_vertex->y;
-    int trans_z = projected_vertex->z;
-
-    int radius = model->bounds_cylinder->radius;
-    int y_min = model->bounds_cylinder->min_y;
-    int y_max = model->bounds_cylinder->max_y;
-
-    /* Z-cull: cylinder entirely behind near or beyond far. */
-    if( trans_z + radius < near_plane_z )
-        return DASHCULL_CULLED_FAST;
-    if( trans_z - radius > DASH3D_CYLINDER_FAR_PLANE_Z )
-        return DASHCULL_CULLED_FAST;
-
-    int safe_z = trans_z < near_plane_z ? near_plane_z : trans_z;
-    int half_width = view_port->width >> 1;
-    int half_height = view_port->height >> 1;
-
-    /* Horizontal (X) cull: cylinder left/right vs view wedge at this depth. */
-    int screen_x_left = project_divide(trans_x - radius, safe_z, fov);
-    int screen_x_right = project_divide(trans_x + radius, safe_z, fov);
-    if( screen_x_left > half_width || screen_x_right < -half_width )
-        return DASHCULL_CULLED_FAST;
-
-    /* Vertical (Y) cull: cylinder top/bottom vs screen height. */
-    int screen_y_top = project_divide(trans_y + y_min, safe_z, fov);
-    int screen_y_bottom = project_divide(trans_y + y_max, safe_z, fov);
-    if( screen_y_top > half_height || screen_y_bottom < -half_height )
-        return DASHCULL_CULLED_FAST;
-
-    return DASHCULL_VISIBLE;
-}
-
-static int
+static inline int
 dash3d_aabb_cull(
     struct DashAABB* aabb,
     struct DashViewPort* view_port,
@@ -212,54 +142,214 @@ dash3d_aabb_cull(
     return DASHCULL_VISIBLE;
 }
 
-/**
- * Cylinder to screen AABB (Gemini 4-point method).
- * Project cylinder extremes in camera space: (transX±radius, transY, transZ) for
- * left/right, (transX, transY+yMin, transZ) and (transX, transY+yMax, transZ) for
- * top/bottom. Build screen box from those four projected points.
- */
+/** Far plane for bounding-cylinder frustum cull. */
+#define DASH3D_CYLINDER_FAR_PLANE_Z 3500
+
+static int
+dash3d_fast_cull(
+    struct DashAABB* aabb,
+    struct DashViewPort* view_port,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashCamera* camera,
+    struct ProjectedVertex* projected_vertex)
+{
+    int model_yaw = position->yaw;
+    int scene_x = position->x;
+    int scene_y = position->y;
+    int scene_z = position->z;
+
+    int camera_pitch = camera->pitch;
+    int camera_yaw = camera->yaw;
+    int near_plane_z = camera->near_plane_z;
+
+    project_orthographic_fast(
+        projected_vertex, 0, 0, 0, model_yaw, scene_x, scene_y, scene_z, camera_pitch, camera_yaw);
+
+    int model_edge_radius = model->bounds_cylinder->radius;
+
+    // int a = (scene_z * cos_camera_yaw - scene_x * sin_camera_yaw) >> 16;
+    // // b is the z projection of the models origin (imagine a vertex at x=0,y=0 and z=0).
+    // // So the depth is the z projection distance from the origin of the model.
+    // int b = (scene_y * sin_camera_pitch + a * cos_camera_pitch) >> 16;
+
+    /**
+     * These checks are a significant performance improvement.
+     */
+    int mid_z = projected_vertex->z;
+    int max_z = model_edge_radius + mid_z;
+    if( max_z < near_plane_z )
+    {
+        // The edge of the model that is farthest from the camera is too close to the near plane.
+        return DASHCULL_CULLED_FAST;
+    }
+
+    if( mid_z > 3500 )
+    {
+        // Model too far away.
+        return DASHCULL_CULLED_FAST;
+    }
+
+    int mid_x = projected_vertex->x;
+    int mid_y = projected_vertex->y;
+
+    if( mid_z < near_plane_z )
+        mid_z = near_plane_z;
+
+    int ortho_screen_x_min = mid_x - model_edge_radius;
+    int ortho_screen_x_max = mid_x + model_edge_radius;
+
+    int screen_x_min_unoffset = project_divide(ortho_screen_x_min, max_z, camera->fov_rpi2048);
+    int screen_x_max_unoffset = project_divide(ortho_screen_x_max, max_z, camera->fov_rpi2048);
+    int screen_edge_width = view_port->width >> 1;
+
+    if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )
+    {
+        // All parts of the model left or right edges are projected off screen.
+        return DASHCULL_CULLED_FAST;
+    }
+
+    int model_center_to_top_edge = model->bounds_cylinder->center_to_top_edge;
+
+    int model_center_to_bottom_edge =
+        (model->bounds_cylinder->center_to_bottom_edge * g_cos_table[camera_pitch] >> 16) +
+        (model_edge_radius * g_sin_table[camera_pitch] >> 16);
+
+    int screen_y_min_unoffset =
+        project_divide(mid_y - abs(model_center_to_bottom_edge), mid_z, camera->fov_rpi2048);
+    int screen_y_max_unoffset =
+        project_divide(mid_y + abs(model_center_to_top_edge), mid_z, camera->fov_rpi2048);
+    int screen_edge_height = view_port->height >> 1;
+    if( screen_y_min_unoffset > screen_edge_height || screen_y_max_unoffset < -screen_edge_height )
+    {
+        // All parts of the model top or bottom edges are projected off screen.
+        return DASHCULL_CULLED_FAST;
+    }
+
+    aabb->min_screen_x = screen_x_min_unoffset;
+    aabb->min_screen_y = screen_y_min_unoffset;
+    aabb->max_screen_x = screen_x_max_unoffset;
+    aabb->max_screen_y = screen_y_max_unoffset;
+    aabb->kind = DASHAABB_KIND_CYLINDER_4POINT;
+
+    return DASHCULL_VISIBLE;
+}
+
+// The Fast Approximation (The 8-Point Method)
+// A very tight
+// approximation is achieved by calculating the AABB of the 8 "extreme" points of the cylinder in
+// world space:Transform the cylinder center to view space.Calculate the vectors in view space that
+// represent the cylinder's "sides" relative to the camera.Project these 8 points:Top & Bottom
+// center points: $(C_x, C_y \pm h, C_z)$The 4 "corners" of the cylinder aligned to the view
+// plane:Find the vector from the camera to the cylinder center.The "horizontal" extent of the
+// cylinder in view space is always perpendicular to the view vector and the cylinder's up-axis.
 static void
-dash3d_calculate_aabb(
+dash3d_calculate_cylinder_aabb_8point(
     struct DashAABB* aabb,
     struct DashModel* model,
     struct DashPosition* position,
     struct DashViewPort* view_port,
     struct DashCamera* camera)
 {
-    struct ProjectedVertex center;
     int model_yaw = position->yaw;
+    int model_edge_radius = model->bounds_cylinder->radius;
+    int model_center_to_top_edge = model->bounds_cylinder->center_to_top_edge;
+    int model_center_to_bottom_edge = model->bounds_cylinder->center_to_bottom_edge;
+    int model_min_y = model->bounds_cylinder->min_y;
+    int model_max_y = model->bounds_cylinder->max_y;
+    int screen_edge_width = view_port->x_center;
+    int screen_edge_height = view_port->y_center;
     int scene_x = position->x;
     int scene_y = position->y;
     int scene_z = position->z;
     int near_plane_z = camera->near_plane_z;
-    int fov = camera->fov_rpi2048;
-    int center_x = view_port->x_center;
-    int center_y = view_port->y_center;
+    int camera_pitch = camera->pitch;
+    int camera_yaw = camera->yaw;
+    int camera_fov = camera->fov_rpi2048;
 
-    /* Same camera-space transform as fast_cull: translate, yaw, pitch. */
-    project_orthographic_fast(
-        &center, 0, 0, 0, model_yaw, scene_x, scene_y, scene_z, camera->pitch, camera->yaw);
+    int bb_x[8];
+    int bb_y[8];
+    int bb_z[8];
 
-    int trans_x = center.x;
-    int trans_y = center.y;
-    int trans_z = center.z;
-    int radius = model->bounds_cylinder->radius;
-    int y_min = model->bounds_cylinder->min_y;
-    int y_max = model->bounds_cylinder->max_y;
+    int mz = 0;
+    int my = 0;
+    int mx = 0;
+    bb_x[0] = mx + model_edge_radius;
+    bb_x[1] = mx + model_edge_radius;
+    bb_x[2] = mx + model_edge_radius;
+    bb_x[3] = mx + model_edge_radius;
+    bb_x[4] = mx - model_edge_radius;
+    bb_x[5] = mx - model_edge_radius;
+    bb_x[6] = mx - model_edge_radius;
+    bb_x[7] = mx - model_edge_radius;
 
-    int safe_z = trans_z < near_plane_z ? near_plane_z : trans_z;
+    bb_y[0] = my + model_min_y;
+    bb_y[1] = my + model_min_y;
+    bb_y[2] = my + model_max_y;
+    bb_y[3] = my + model_max_y;
+    bb_y[4] = my + model_min_y;
+    bb_y[5] = my + model_min_y;
+    bb_y[6] = my + model_max_y;
+    bb_y[7] = my + model_max_y;
 
-    /* Left/right: project (transX ± radius, transY, transZ). */
-    int screen_left = center_x + project_divide(trans_x - radius, safe_z, fov);
-    int screen_right = center_x + project_divide(trans_x + radius, safe_z, fov);
-    /* Top/bottom: project (transX, transY + yMin/yMax, transZ). */
-    int screen_y_min = center_y + project_divide(trans_y + y_min, safe_z, fov);
-    int screen_y_max = center_y + project_divide(trans_y + y_max, safe_z, fov);
+    bb_z[0] = mz + model_edge_radius;
+    bb_z[1] = mz - model_edge_radius;
+    bb_z[2] = mz + model_edge_radius;
+    bb_z[3] = mz - model_edge_radius;
+    bb_z[4] = mz + model_edge_radius;
+    bb_z[5] = mz - model_edge_radius;
+    bb_z[6] = mz + model_edge_radius;
+    bb_z[7] = mz - model_edge_radius;
 
-    aabb->min_screen_x = screen_left < screen_right ? screen_left : screen_right;
-    aabb->max_screen_x = screen_left < screen_right ? screen_right : screen_left;
-    aabb->min_screen_y = screen_y_min < screen_y_max ? screen_y_min : screen_y_max;
-    aabb->max_screen_y = screen_y_min < screen_y_max ? screen_y_max : screen_y_min;
+    int sc_x[8] = { 0 };
+    int sc_y[8] = { 0 };
+    int sc_z[8] = { 0 };
+    int o_x[8] = { 0 };
+    int o_y[8] = { 0 };
+    int o_z[8] = { 0 };
+    project_vertices_array(
+        o_x,
+        o_y,
+        o_z,
+        sc_x,
+        sc_y,
+        sc_z,
+        bb_x,
+        bb_y,
+        bb_z,
+        8,
+        model_yaw,
+        0,
+        scene_x,
+        scene_y,
+        scene_z,
+        near_plane_z,
+        camera_fov,
+        camera_pitch,
+        camera_yaw);
+
+    aabb->min_screen_x = sc_x[0];
+    aabb->min_screen_y = sc_y[0];
+    aabb->max_screen_x = sc_x[0];
+    aabb->max_screen_y = sc_y[0];
+    for( int i = 0; i < 8; i++ )
+    {
+        if( sc_x[i] < aabb->min_screen_x )
+            aabb->min_screen_x = sc_x[i];
+        if( sc_x[i] > aabb->max_screen_x )
+            aabb->max_screen_x = sc_x[i];
+        if( sc_y[i] < aabb->min_screen_y )
+            aabb->min_screen_y = sc_y[i];
+        if( sc_y[i] > aabb->max_screen_y )
+            aabb->max_screen_y = sc_y[i];
+    }
+
+    aabb->min_screen_x += screen_edge_width;
+    aabb->min_screen_y += screen_edge_height;
+    aabb->max_screen_x += screen_edge_width;
+    aabb->max_screen_y += screen_edge_height;
+
+    aabb->kind = DASHAABB_KIND_CYLINDER_8POINT;
 }
 
 static const int g_empty_texture_texels[128 * 128] = { 0 };
@@ -1210,11 +1300,12 @@ dash3d_project(
     if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
         return DASHCULL_ERROR;
 
-    cull = dash3d_fast_cull(view_port, model, position, camera, &center_projection);
+    cull = dash3d_fast_cull(
+        &dash->cylinder_fast_aabb, view_port, model, position, camera, &center_projection);
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
-    dash3d_calculate_aabb(&dash->aabb, model, position, view_port, camera);
+    dash3d_calculate_cylinder_aabb_8point(&dash->aabb, model, position, view_port, camera);
 
     cull = dash3d_aabb_cull(&dash->aabb, view_port, camera);
     if( cull != DASHCULL_VISIBLE )
@@ -1313,11 +1404,12 @@ dash3d_project6(
     if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
         return DASHCULL_ERROR;
 
-    cull = dash3d_fast_cull(view_port, model, position, camera, &center_projection);
+    cull = dash3d_fast_cull(
+        &dash->cylinder_fast_aabb, view_port, model, position, camera, &center_projection);
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
-    dash3d_calculate_aabb(&dash->aabb, model, position, view_port, camera);
+    dash3d_calculate_cylinder_aabb_8point(&dash->aabb, model, position, view_port, camera);
 
     cull = dash3d_aabb_cull(&dash->aabb, view_port, camera);
     if( cull != DASHCULL_VISIBLE )
