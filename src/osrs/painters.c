@@ -391,7 +391,12 @@ compute_normal_scenery_spans(
             tile = painter_tile_at(painter, x, z, loc_level);
             tile->spans |= span_flags;
             assert(tile->scenery_count < MAX_SCENERY_COUNT);
-            tile->scenery[tile->scenery_count++] = element;
+
+            int idx = tile->scenery_count;
+            tile->scenery[idx] = element;
+            tile->scenery_spans[idx] = span_flags;
+
+            tile->scenery_count++;
         }
     }
 }
@@ -434,6 +439,16 @@ painter_mark_static_count(struct Painter* painter)
     painter->static_element_count = painter->element_count;
 }
 
+static void
+tile_recalculate_spans(struct PaintersTile* tile)
+{
+    tile->spans = 0;
+    for( int i = 0; i < tile->scenery_count; i++ )
+    {
+        tile->spans |= tile->scenery_spans[i];
+    }
+}
+
 void
 painter_reset_to_static(struct Painter* painter)
 {
@@ -441,8 +456,12 @@ painter_reset_to_static(struct Painter* painter)
     {
         struct PaintersTile* tile = painter_tile_at(
             painter, painter->elements[i].sx, painter->elements[i].sz, painter->elements[i].slevel);
+
+        assert(tile->scenery_count > 0);
         tile->scenery_count--;
+        tile_recalculate_spans(tile);
     }
+
     painter->element_count = painter->static_element_count;
 }
 

@@ -731,6 +731,8 @@ world_buildcachedat_rebuild_centerzone(
 
     flag_map_free(flag_map);
 
+    painter_mark_static_count(world->painter);
+
     /**
      * Shademap
      */

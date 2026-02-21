@@ -70,7 +70,12 @@ struct PaintersTile
     // As the underlays are drawn diagonally inwards from the corner, once each of the
     // underlays is drawn, the loc on top is drawn.
     // The spans are used to determine which tiles are waiting for us to draw.
+
+    // Combined spans for a single check during painting.
     uint8_t spans;
+
+    // Spans for each scenery element on the tile.
+    uint8_t scenery_spans[10];
 
     // These are stored on the tile. Sometimes to tile coordinates do not match the
     // index in the array coordinate (e.g. bridges)

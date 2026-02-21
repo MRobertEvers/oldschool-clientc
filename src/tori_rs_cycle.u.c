@@ -1041,6 +1041,32 @@ LibToriRS_GameStep(
 
     LibToriRS_GameProcessInput(game, input);
 
+    painter_reset_to_static(game->world->painter);
+    if( game->world )
+    {
+        struct PlayerEntity* player = &game->world->players[ACTIVE_PLAYER_SLOT];
+        if( player->alive && player->scene_element2.element_id != -1 )
+        {
+            // update_player_anim(game, player_id);
+            painter_add_normal_scenery(
+                game->world->painter,
+                player->pathing.route_x[0],
+                player->pathing.route_z[0],
+                0,
+                player->scene_element2.element_id,
+                1,
+                1);
+
+            struct Scene2Element* scene_element =
+                scene2_element_at(game->world->scene2, player->scene_element2.element_id);
+            scene_element->dash_position->yaw = player->orientation.yaw;
+            scene_element->dash_position->x = player->position.x;
+            scene_element->dash_position->z = player->position.z;
+            scene_element->dash_position->y = heightmap_get_interpolated(
+                game->world->heightmap, player->position.x, player->position.z, 0);
+        }
+    }
+
     // /* Always update scene with current players/NPCs so they are drawn even when a script
     //  * is yielded (e.g. interface loading). Otherwise we return early below and never push
     //  * dynamic elements, so the renderer sees an empty scene. */

@@ -866,52 +866,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 game->camera,
                 renderer->dash_buffer,
                 false);
-            if( command._model_draw.is_hovered && renderer->dash_buffer && game->sys_dash &&
-                game->view_port )
-            {
-                int dw = renderer->dash_buffer_width;
-                int dh = renderer->dash_buffer_height;
-                int stride = dw;
-                int clip_l = 0;
-                int clip_t = 0;
-                int clip_r = dw > 0 ? dw - 1 : 0;
-                int clip_b = dh > 0 ? dh - 1 : 0;
-
-                struct DashAABB* cyl_aabb =
-                    dash3d_projected_model_cylinder_fast_aabb(game->sys_dash);
-                int cx1 = cyl_aabb->min_screen_x < clip_l ? clip_l : cyl_aabb->min_screen_x;
-                int cy1 = cyl_aabb->min_screen_y < clip_t ? clip_t : cyl_aabb->min_screen_y;
-                int cx2 = cyl_aabb->max_screen_x > clip_r ? clip_r : cyl_aabb->max_screen_x;
-                int cy2 = cyl_aabb->max_screen_y > clip_b ? clip_b : cyl_aabb->max_screen_y;
-                if( cx1 <= cx2 && cy1 <= cy2 )
-                {
-                    dash2d_draw_rect(
-                        renderer->dash_buffer,
-                        stride,
-                        cx1,
-                        cy1,
-                        cx2 - cx1 + 1,
-                        cy2 - cy1 + 1,
-                        0xFF0000); /* red */
-                }
-
-                struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
-                int ax1 = aabb->min_screen_x < clip_l ? clip_l : aabb->min_screen_x;
-                int ay1 = aabb->min_screen_y < clip_t ? clip_t : aabb->min_screen_y;
-                int ax2 = aabb->max_screen_x > clip_r ? clip_r : aabb->max_screen_x;
-                int ay2 = aabb->max_screen_y > clip_b ? clip_b : aabb->max_screen_y;
-                if( ax1 <= ax2 && ay1 <= ay2 )
-                {
-                    dash2d_draw_rect(
-                        renderer->dash_buffer,
-                        stride,
-                        ax1,
-                        ay1,
-                        ax2 - ax1 + 1,
-                        ay2 - ay1 + 1,
-                        0xFFFFFF); /* white */
-                }
-            }
             break;
         case TORIRS_GFX_MODEL_DRAW_HIGHLIGHT:
         {

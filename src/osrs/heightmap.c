@@ -160,6 +160,42 @@ heightmap_get_heights_sized(
     heights->height_center = height_center;
 }
 
+int
+heightmap_get_interpolated(
+    struct Heightmap* heightmap,
+    int draw_x,
+    int draw_z,
+    int slevel)
+{
+    int tile_x = draw_x >> 7;
+    int tile_z = draw_z >> 7;
+    int local_x = draw_x & 0x7f;
+    int local_z = draw_z & 0x7f;
+    int h_sw = heightmap_get(heightmap, tile_x, tile_z, slevel);
+    int h_se = h_sw;
+    int h_ne = h_sw;
+    int h_nw = h_sw;
+
+    if( heightmap_in_bounds(heightmap, tile_x + 1, tile_z) )
+    {
+        h_se = heightmap_get(heightmap, tile_x + 1, tile_z, slevel);
+    }
+
+    if( heightmap_in_bounds(heightmap, tile_x, tile_z + 1) )
+    {
+        h_nw = heightmap_get(heightmap, tile_x, tile_z + 1, slevel);
+    }
+
+    if( heightmap_in_bounds(heightmap, tile_x + 1, tile_z + 1) )
+    {
+        h_ne = heightmap_get(heightmap, tile_x + 1, tile_z + 1, slevel);
+    }
+
+    int y00 = (h_sw * (128 - local_x) + h_se * local_x) >> 7;
+    int y11 = (h_nw * (128 - local_x) + h_ne * local_x) >> 7;
+    return (y00 * (128 - local_z) + y11 * local_z) >> 7;
+}
+
 void
 heightmap_set(
     struct Heightmap* heightmap,

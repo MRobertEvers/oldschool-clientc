@@ -276,7 +276,8 @@ entity_scenebuild_player_change_appearance(
     struct PlayerAppearance* appearance)
 {
     struct PlayerEntity* player = entity_scenebuild_player_get(game, player_id);
-    struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
+    struct Scene2Element* scene_element =
+        scene2_element_at(game->world->scene2, player->scene_element2.element_id);
 
     /* Store appearance in entity for IF_SETPLAYERHEAD; copy to local player for head model */
     for( int i = 0; i < 12; i++ )
@@ -296,9 +297,6 @@ entity_scenebuild_player_change_appearance(
     player->secondary_anim_frame = 0;
     player->secondary_anim_cycle = 0;
 
-    // scene_element_reset(scene_element);
-
-    // TODO: Cleanup.
     if( !scene_element->dash_model )
         scene_element->dash_model = dashmodel_new();
     player_appearance_model(game, appearance, scene_element->dash_model);

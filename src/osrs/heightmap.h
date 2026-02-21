@@ -61,6 +61,13 @@ heightmap_get_heights_sized(
     int size_z,
     struct HeightmapHeights* heights);
 
+int
+heightmap_get_interpolated(
+    struct Heightmap* heightmap,
+    int draw_x,
+    int draw_z,
+    int slevel);
+
 void
 heightmap_set(
     struct Heightmap* heightmap,
