@@ -1067,6 +1067,33 @@ LibToriRS_GameStep(
         }
     }
 
+    for( int i = 0; i < game->world->active_npc_count; i++ )
+    {
+        int npc_id = game->world->active_npcs[i];
+        if( npc_id == -1 )
+            continue;
+        struct NPCEntity* npc = &game->world->npcs[npc_id];
+        if( npc->alive && npc->scene_element2.element_id != -1 )
+        {
+            painter_add_normal_scenery(
+                game->world->painter,
+                npc->pathing.route_x[0],
+                npc->pathing.route_z[0],
+                0,
+                npc->scene_element2.element_id,
+                1,
+                1);
+        }
+
+        struct Scene2Element* scene_element =
+            scene2_element_at(game->world->scene2, npc->scene_element2.element_id);
+        scene_element->dash_position->yaw = npc->orientation.yaw;
+        scene_element->dash_position->x = npc->position.x;
+        scene_element->dash_position->z = npc->position.z;
+        scene_element->dash_position->y =
+            heightmap_get_interpolated(game->world->heightmap, npc->position.x, npc->position.z, 0);
+    }
+
     // /* Always update scene with current players/NPCs so they are drawn even when a script
     //  * is yielded (e.g. interface loading). Otherwise we return early below and never push
     //  * dynamic elements, so the renderer sees an empty scene. */

@@ -1148,6 +1148,25 @@ world_player_entity_path_jump_relative_to_active(
 }
 
 void
+world_npc_entity_path_jump_relative_to_active(
+    struct World* world,
+    int npc_entity_id,
+    bool force_teleport,
+    int dx,
+    int dz)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct PlayerEntity* active_player = &world->players[ACTIVE_PLAYER_SLOT];
+
+    int x = active_player->position.x + dx;
+    int z = active_player->position.z + dz;
+
+    enum PathingJump jump = entity_pathing_jump(&npc->pathing, force_teleport, x, z);
+    if( jump == PATHING_JUMP_TELEPORT )
+        entity_draw_position_set_to_tile(&npc->draw_position, x, z, 1, 1);
+}
+
+void
 world_player_entity_path_jump(
     struct World* world,
     int player_entity_id,

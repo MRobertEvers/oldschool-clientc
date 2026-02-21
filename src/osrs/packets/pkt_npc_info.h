@@ -25,9 +25,7 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OPBITS_NPCTYPE,
     PKT_NPC_INFO_OPBITS_WALKDIR,
     PKT_NPC_INFO_OPBITS_RUNDIR,
-    PKT_NPC_INFO_OPBITS_JUMP,
-    PKT_NPC_INFO_OPBITS_DX,
-    PKT_NPC_INFO_OPBITS_DZ,
+    PKT_NPC_INFO_OP_DELTA_XZ,
     PKT_NPC_INFO_OP_SEQUENCE,
     PKT_NPC_INFO_OP_FACE_ENTITY,
     PKT_NPC_INFO_OP_SAY,
@@ -37,6 +35,13 @@ enum PktNpcInfoOpKind
     PKT_NPC_INFO_OP_CHAT,
     PKT_NPC_INFO_OP_SPOTANIM
 
+};
+
+struct PktNpcInfo_DeltaXZ
+{
+    int16_t x;
+    int16_t z;
+    bool jump;
 };
 
 struct PktNpcInfo_Sequence
@@ -96,6 +101,7 @@ struct PktNpcInfoOp
         struct PktNpcInfo_Damage _damage;
         struct PktNpcInfo_Damage2 _damage2;
         struct PktNpcInfo_Rundir _rundir;
+        struct PktNpcInfo_DeltaXZ _delta_xz;
     };
 };
 

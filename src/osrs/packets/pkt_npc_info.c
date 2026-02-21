@@ -107,21 +107,16 @@ push_bits_rundir(
 }
 
 static void
-push_bits_dx(
+push_op_delta_xz(
     struct PktNpcInfoOp* op,
-    int dx)
+    int x,
+    int z,
+    bool jump)
 {
-    op->kind = PKT_NPC_INFO_OPBITS_DX;
-    op->_bitvalue = dx;
-}
-
-static void
-push_bits_dz(
-    struct PktNpcInfoOp* op,
-    int dz)
-{
-    op->kind = PKT_NPC_INFO_OPBITS_DZ;
-    op->_bitvalue = dz;
+    op->kind = PKT_NPC_INFO_OP_DELTA_XZ;
+    op->_delta_xz.x = x;
+    op->_delta_xz.z = z;
+    op->_delta_xz.jump = jump;
 }
 
 static void
@@ -288,11 +283,11 @@ pkt_npc_info_reader_read(
         int dx = gbits(&buf, 5);
         if( dx > 15 )
             dx -= 32;
-        push_bits_dx(next_op(reader, ops, ops_capacity), dx);
         int dy = gbits(&buf, 5);
         if( dy > 15 )
             dy -= 32;
-        push_bits_dz(next_op(reader, ops, ops_capacity), dy);
+
+        push_op_delta_xz(next_op(reader, ops, ops_capacity), dx, dy, false);
 
         int has_extended_info = gbits(&buf, 1);
         if( has_extended_info )

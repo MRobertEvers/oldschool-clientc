@@ -182,6 +182,14 @@ world_player_entity_path_jump_relative_to_active(
     int dz);
 
 void
+world_npc_entity_path_jump_relative_to_active(
+    struct World* world,
+    int npc_entity_id,
+    bool force_teleport,
+    int dx,
+    int dz);
+
+void
 world_player_entity_path_jump(
     struct World* world,
     int player_entity_id,

@@ -221,21 +221,21 @@ world_npc_ensure_scene_element(
     struct World* world,
     int npc_id)
 {
+    struct Scene2Element* element = NULL;
     struct NPCEntity* npc = &world->npcs[npc_id];
-    if( npc->alive )
-        return npc;
 
     npc->alive = true;
-    npc->scene_element2.element_id = scene2_element_acquire(world->scene2, npc_id);
-    npc->npc_type_id = -1;
-    // npc->orientation.face_entity = -1;
-    npc->orientation.dst_yaw = 0;
+    if( npc->scene_element2.element_id == -1 )
+    {
+        npc->scene_element2.element_id = scene2_element_acquire(world->scene2, npc_id);
+        npc->npc_type_id = -1;
+        // npc->orientation.face_entity = -1;
+        npc->orientation.dst_yaw = 0;
 
-    struct Scene2Element* element =
-        scene2_element_at(world->scene2, npc->scene_element2.element_id);
-    if( element && !element->dash_position )
-        element->dash_position = dashposition_new();
-
+        element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
+        if( element && !element->dash_position )
+            element->dash_position = dashposition_new();
+    }
     return npc;
 }
 
@@ -341,49 +341,21 @@ gameproto_exec_npc_info(
             }
             break;
         }
-        case PKT_NPC_INFO_OPBITS_DZ:
+        case PKT_NPC_INFO_OP_DELTA_XZ:
         {
-            /* Client.ts: npc.move(..., localPlayer.routeTileX[0] + dx,
-             * localPlayer.routeTileZ[0] + dz). */
-            int base_z = player->pathing.route_z[0];
-            int dz = op->_bitvalue;
-            npc->pathing.route_z[0] = base_z + dz;
-            npc_move(game, npc_id, npc->pathing.route_x[0], npc->pathing.route_z[0]);
-            break;
-        }
-        case PKT_NPC_INFO_OPBITS_DX:
-        {
-            int base_x = player->pathing.route_x[0];
-            int dx = op->_bitvalue;
-            npc->pathing.route_x[0] = base_x + dx;
+            world_npc_entity_path_jump_relative_to_active(
+                game, npc_id, false, op->_delta_xz.x, op->_delta_xz.z);
             break;
         }
         case PKT_NPC_INFO_OPBITS_WALKDIR:
         case PKT_NPC_INFO_OPBITS_RUNDIR:
         {
             int direction = op->_bitvalue;
-
-            step.x = npc->pathing.route_x[0];
-            step.z = npc->pathing.route_z[0];
-            coord_step(&step, direction);
-
-            if( npc->pathing.route_length < 9 )
-                npc->pathing.route_length++;
-
-            for( int i = npc->pathing.route_length; i > 0; i-- )
-            {
-                npc->pathing.route_x[i] = npc->pathing.route_x[i - 1];
-                npc->pathing.route_z[i] = npc->pathing.route_z[i - 1];
-                npc->pathing.route_run[i] = npc->pathing.route_run[i - 1];
-            }
-
-            /**
-             * This is the authoritative position of the npc.
-             * Always in route[0]
-             */
-            npc->pathing.route_x[0] = step.x;
-            npc->pathing.route_z[0] = step.z;
-            npc->pathing.route_run[0] = op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ? 1 : 0;
+            world_npc_entity_path_push_step(
+                game,
+                npc_id,
+                op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
+                direction);
             break;
         }
         case PKT_NPC_INFO_OPBITS_NPCTYPE:
@@ -442,145 +414,6 @@ gameproto_exec_npc_info(
             npc->total_health = op->_damage.total_health;
             break;
         }
-        }
-    }
-}
-
-void
-gameproto_exec_npc_info_world(
-    struct World* world,
-    struct RevPacket_LC245_2* packet)
-{
-    npc_info_reader.extended_count = 0;
-    npc_info_reader.current_op = 0;
-    npc_info_reader.max_ops = 2048;
-    struct PktNpcInfoOp ops[2048];
-    struct StepCoord step = { 0 };
-    int count = pkt_npc_info_reader_read(&npc_info_reader, &packet->_npc_info, ops, 2048);
-
-    struct PlayerEntity* player = &world->players[ACTIVE_PLAYER_SLOT];
-    if( !player->alive )
-        return;
-
-    int npc_id = -1;
-    int prev_count = world->active_npc_count;
-    world->active_npc_count = 0;
-    struct NPCEntity* npc = NULL;
-    for( int i = 0; i < count; i++ )
-    {
-        struct PktNpcInfoOp* op = &ops[i];
-
-        if( npc_id != -1 )
-            npc = world_npc_ensure_scene_element(world, npc_id);
-        else
-            npc = NULL;
-
-        switch( op->kind )
-        {
-        case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
-        {
-            npc_id = op->_bitvalue;
-            world->active_npcs[world->active_npc_count] = npc_id;
-            world->active_npc_count += 1;
-            break;
-        }
-        case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
-        {
-            assert(op->_bitvalue >= world->active_npc_count);
-            npc_id = world->active_npcs[op->_bitvalue];
-            world->active_npcs[world->active_npc_count] = npc_id;
-            world->active_npc_count += 1;
-            break;
-        }
-        case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
-        {
-            npc_id = world->active_npcs[op->_bitvalue];
-            break;
-        }
-        case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
-        {
-            npc_id = world->active_npcs[op->_bitvalue];
-            world_cleanup_npc_entity(world, npc_id);
-            world->active_npcs[op->_bitvalue] = -1;
-            npc_id = -1;
-            break;
-        }
-        case PKT_NPC_INFO_OPBITS_COUNT_RESET:
-        {
-            for( int idx = op->_bitvalue; idx < prev_count; idx++ )
-            {
-                world_cleanup_npc_entity(world, world->active_npcs[idx]);
-            }
-            break;
-        }
-        case PKT_NPC_INFO_OPBITS_DZ:
-        {
-            int base_z = player->pathing.route_z[0];
-            int dz = op->_bitvalue;
-            npc->pathing.route_z[0] = base_z + dz;
-            npc_move_world(world, npc_id, npc->pathing.route_x[0], npc->pathing.route_z[0]);
-            break;
-        }
-        case PKT_NPC_INFO_OPBITS_DX:
-        {
-            int base_x = player->pathing.route_x[0];
-            int dx = op->_bitvalue;
-            npc->pathing.route_x[0] = base_x + dx;
-            break;
-        }
-        case PKT_NPC_INFO_OPBITS_WALKDIR:
-        case PKT_NPC_INFO_OPBITS_RUNDIR:
-        {
-            int direction = op->_bitvalue;
-            step.x = npc->pathing.route_x[0];
-            step.z = npc->pathing.route_z[0];
-            coord_step(&step, direction);
-            if( npc->pathing.route_length < 9 )
-                npc->pathing.route_length++;
-            for( int i = npc->pathing.route_length; i > 0; i-- )
-            {
-                npc->pathing.route_x[i] = npc->pathing.route_x[i - 1];
-                npc->pathing.route_z[i] = npc->pathing.route_z[i - 1];
-                npc->pathing.route_run[i] = npc->pathing.route_run[i - 1];
-            }
-            npc->pathing.route_x[0] = step.x;
-            npc->pathing.route_z[0] = step.z;
-            npc->pathing.route_run[0] = op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ? 1 : 0;
-            break;
-        }
-        case PKT_NPC_INFO_OPBITS_NPCTYPE:
-        {
-            world_scenebuild_npc_entity_set_npc_type(world, npc_id, op->_bitvalue);
-            break;
-        }
-        case PKT_NPC_INFO_OP_FACE_ENTITY:
-        case PKT_NPC_INFO_OP_FACE_COORD:
-            break;
-        case PKT_NPC_INFO_OP_SEQUENCE:
-        {
-            if( !npc )
-                break;
-            int seq_id = (int)op->_sequence.sequence_id;
-            if( seq_id == 65535 )
-                seq_id = -1;
-            npc->primary_anim = seq_id;
-            npc->primary_anim_frame = 0;
-            npc->primary_anim_cycle = 0;
-            npc->primary_anim_delay = op->_sequence.delay;
-            npc->primary_anim_loop = 0;
-            break;
-        }
-        case PKT_NPC_INFO_OP_DAMAGE:
-        {
-            if( !npc )
-                break;
-            npc->combat_cycle = 0 + 400;
-            npc->health = op->_damage.health;
-            npc->total_health = op->_damage.total_health;
-            break;
-        }
-        default:
-            break;
         }
     }
 }
@@ -711,7 +544,7 @@ add_player_info(
                 break;
 
             world_player_entity_path_jump_relative_to_active(
-                game, player_id, op->_delta_xz.jump, op->_delta_xz.dx, op->_delta_xz.dz);
+                game->world, player_id, op->_delta_xz.jump, op->_delta_xz.dx, op->_delta_xz.dz);
             break;
         }
         case PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL:
