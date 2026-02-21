@@ -1095,16 +1095,6 @@ world_npc_entity_set_passive_animations(
 }
 
 void
-world_player_entity_path_push_moveto(
-    struct World* world,
-    int player_entity_id,
-    int x,
-    int z)
-{
-    struct PlayerEntity* player = &world->players[player_entity_id];
-}
-
-void
 world_npc_entity_path_push_moveto(
     struct World* world,
     int npc_entity_id,
@@ -1136,6 +1126,25 @@ world_npc_entity_path_push_step(
     struct NPCEntity* npc = &world->npcs[npc_entity_id];
 
     entity_pathing_push_step(&npc->pathing, step_type, direction);
+}
+
+void
+world_player_entity_path_jump_relative_to_active(
+    struct World* world,
+    int player_entity_id,
+    bool force_teleport,
+    int dx,
+    int dz)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* active_player = &world->players[ACTIVE_PLAYER_SLOT];
+
+    int x = active_player->position.x + dx;
+    int z = active_player->position.z + dz;
+
+    enum PathingJump jump = entity_pathing_jump(&player->pathing, force_teleport, x, z);
+    if( jump == PATHING_JUMP_TELEPORT )
+        entity_draw_position_set_to_tile(&player->draw_position, x, z, 1, 1);
 }
 
 void

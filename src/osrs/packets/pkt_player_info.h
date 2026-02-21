@@ -25,12 +25,8 @@ enum PktPlayerInfoOpKind
     PKT_PLAYER_INFO_OPBITS_INFO,
     PKT_PLAYER_INFO_OPBITS_WALKDIR,
     PKT_PLAYER_INFO_OPBITS_RUNDIR,
-    PKT_PLAYER_INFO_OPBITS_LEVEL,
-    PKT_PLAYER_INFO_OPBITS_LOCAL_X,
-    PKT_PLAYER_INFO_OPBITS_LOCAL_Z,
-    PKT_PLAYER_INFO_OPBITS_JUMP,
-    PKT_PLAYER_INFO_OPBITS_DX,
-    PKT_PLAYER_INFO_OPBITS_DZ,
+    PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL,
+    PKT_PLAYER_INFO_OP_DELTA_XZ,
     PKT_PLAYER_INFO_OP_APPEARANCE,
     PKT_PLAYER_INFO_OP_SEQUENCE,
     PKT_PLAYER_INFO_OP_FACE_ENTITY,
@@ -42,6 +38,21 @@ enum PktPlayerInfoOpKind
     PKT_PLAYER_INFO_OP_SPOTANIM,
     PKT_PLAYER_INFO_OP_EXACT_MOVE
 
+};
+
+struct PktPlayerInfo_LocalXZLevel
+{
+    int16_t x;
+    int16_t z;
+    uint8_t level;
+    bool jump;
+};
+
+struct PktPlayerInfo_DeltaXZ
+{
+    int16_t dx;
+    int16_t dz;
+    bool jump;
 };
 
 struct PktPlayerInfo_Appearance
@@ -132,6 +143,8 @@ struct PktPlayerInfoOp
         struct PktPlayerInfo_SpotAnim _spotanim;
         struct PktPlayerInfo_ExactMove _exactmove;
         struct PktPlayerInfo_Damage2 _damage2;
+        struct PktPlayerInfo_LocalXZLevel _local_xz_level;
+        struct PktPlayerInfo_DeltaXZ _delta_xz;
     };
 };
 

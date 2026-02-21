@@ -160,20 +160,6 @@ world_npc_entity_set_passive_animations(
     struct PassiveAnimationInfo* passive_animation_info);
 
 void
-world_player_entity_path_push_moveto(
-    struct World* world,
-    int player_entity_id,
-    int x,
-    int z);
-
-void
-world_npc_entity_path_push_moveto(
-    struct World* world,
-    int npc_entity_id,
-    int x,
-    int z);
-
-void
 world_player_entity_path_push_step(
     struct World* world,
     int player_entity_id,
@@ -186,6 +172,14 @@ world_npc_entity_path_push_step(
     int npc_entity_id,
     int step_type,
     int direction);
+
+void
+world_player_entity_path_jump_relative_to_active(
+    struct World* world,
+    int player_entity_id,
+    bool force_teleport,
+    int dx,
+    int dz);
 
 void
 world_player_entity_path_jump(

@@ -705,63 +705,27 @@ add_player_info(
                 direction);
             break;
         }
-        case PKT_PLAYER_INFO_OPBITS_DX:
-        {
-            if( !player )
-                break;
-            /* Client.ts: new player tile = localPlayer.routeTileX[0] + dx (same for dz). */
-            int base_x = game->players[ACTIVE_PLAYER_SLOT].pathing.route_x[0];
-            int dx = (int)op->_bitvalue;
-            player->position.x = (base_x + dx) * 128 + 64;
-            break;
-        }
-        case PKT_PLAYER_INFO_OPBITS_DZ:
-        {
-            if( !player )
-                break;
-            int base_z = game->players[ACTIVE_PLAYER_SLOT].pathing.route_z[0];
-            int dz = (int)op->_bitvalue;
-            player->position.z = (base_z + dz) * 128 + 64;
-            player_move(game, player_id, player->position.x, player->position.z);
-            break;
-        }
-        case PKT_PLAYER_INFO_OPBITS_LOCAL_X:
-        {
-            if( !player )
-                break;
-            int dx = (op->_bitvalue);
-            player->pathing.route_x[0] = active_player->pathing.route_x[0] + dx;
-
-            player->position.x = player->pathing.route_x[0] * 128 + 64;
-
-            break;
-        }
-        case PKT_PLAYER_INFO_OPBITS_LOCAL_Z:
+        case PKT_PLAYER_INFO_OP_DELTA_XZ:
         {
             if( !player )
                 break;
 
-            int dz = (op->_bitvalue);
-            player->pathing.route_length = 1;
-            player->pathing.route_z[0] = active_player->pathing.route_z[0] + dz;
-
-            player->position.z = player->pathing.route_z[0] * 128 + 64;
-
+            world_player_entity_path_jump_relative_to_active(
+                game, player_id, op->_delta_xz.jump, op->_delta_xz.dx, op->_delta_xz.dz);
             break;
         }
-        case PKT_PLAYER_INFO_OPBITS_JUMP:
+        case PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL:
         {
-            /* Client.ts move(teleport=true): clear route, set position to route[0] tile. */
-            if( !player || player_id != ACTIVE_PLAYER_SLOT )
+            if( !player )
                 break;
-            if( op->_bitvalue == 1 )
-            {
-                player->pathing.route_length = 0;
-                player->pathing.route_x[0] = player->position.x / 128;
-                player->pathing.route_z[0] = player->position.z / 128;
-                player->position.x = player->pathing.route_x[0] * 128 + 64;
-                player->position.z = player->pathing.route_z[0] * 128 + 64;
-            }
+
+            world_player_entity_path_jump(
+                game,
+                player_id,
+                op->_local_xz_level.jump,
+                op->_local_xz_level.x,
+                op->_local_xz_level.z);
+
             break;
         }
         case PKT_PLAYER_INFO_OP_APPEARANCE:

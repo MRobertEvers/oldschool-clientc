@@ -107,57 +107,31 @@ push_bits_rundir(
 }
 
 static void
-push_bits_level(
+push_op_local_xz_level(
     struct PktPlayerInfoOp* op,
-    int level)
+    int x,
+    int z,
+    int level,
+    bool jump)
 {
-    op->kind = PKT_PLAYER_INFO_OPBITS_LEVEL;
-    op->_bitvalue = level;
+    op->kind = PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL;
+    op->_local_xz_level.x = x;
+    op->_local_xz_level.z = z;
+    op->_local_xz_level.level = level;
+    op->_local_xz_level.jump = jump;
 }
 
 static void
-push_bits_local_x(
+push_op_delta_xz(
     struct PktPlayerInfoOp* op,
-    int local_x)
+    int dx,
+    int dz,
+    bool jump)
 {
-    op->kind = PKT_PLAYER_INFO_OPBITS_LOCAL_X;
-    op->_bitvalue = local_x;
-}
-
-static void
-push_bits_local_z(
-    struct PktPlayerInfoOp* op,
-    int local_z)
-{
-    op->kind = PKT_PLAYER_INFO_OPBITS_LOCAL_Z;
-    op->_bitvalue = local_z;
-}
-
-static void
-push_bits_jump(
-    struct PktPlayerInfoOp* op,
-    int jump)
-{
-    op->kind = PKT_PLAYER_INFO_OPBITS_JUMP;
-    op->_bitvalue = jump;
-}
-
-static void
-push_bits_dx(
-    struct PktPlayerInfoOp* op,
-    int dx)
-{
-    op->kind = PKT_PLAYER_INFO_OPBITS_DX;
-    op->_bitvalue = dx;
-}
-
-static void
-push_bits_dz(
-    struct PktPlayerInfoOp* op,
-    int dz)
-{
-    op->kind = PKT_PLAYER_INFO_OPBITS_DZ;
-    op->_bitvalue = dz;
+    op->kind = PKT_PLAYER_INFO_OP_DELTA_XZ;
+    op->_delta_xz.dx = dx;
+    op->_delta_xz.dz = dz;
+    op->_delta_xz.jump = jump;
 }
 
 static void
@@ -311,13 +285,10 @@ pkt_player_info_reader_read(
         case 3:
         {
             int level = gbits(&buf, 2);
-            push_bits_level(next_op(reader, ops, ops_capacity), level);
             int sx = gbits(&buf, 7);
-            push_bits_local_x(next_op(reader, ops, ops_capacity), sx);
             int sz = gbits(&buf, 7);
-            push_bits_local_z(next_op(reader, ops, ops_capacity), sz);
             int jump = gbits(&buf, 1);
-            push_bits_jump(next_op(reader, ops, ops_capacity), jump);
+            push_op_local_xz_level(next_op(reader, ops, ops_capacity), sx, sz, level, jump);
 
             int has_extended_info = gbits(&buf, 1);
             if( has_extended_info )
@@ -405,13 +376,11 @@ pkt_player_info_reader_read(
         int dx = gbits(&buf, 5);
         if( dx > 15 )
             dx -= 32;
-        push_bits_dx(next_op(reader, ops, ops_capacity), dx);
         int dy = gbits(&buf, 5);
         if( dy > 15 )
             dy -= 32;
-        push_bits_dz(next_op(reader, ops, ops_capacity), dy);
         int jump = gbits(&buf, 1);
-        push_bits_jump(next_op(reader, ops, ops_capacity), jump);
+        push_op_delta_xz(next_op(reader, ops, ops_capacity), dx, dy, jump);
 
         int has_extended_info = gbits(&buf, 1);
         if( has_extended_info )
