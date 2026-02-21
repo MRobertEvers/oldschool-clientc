@@ -279,6 +279,9 @@ struct GGame
      */
     struct SceneElement* hovered_scene_element;
 
+    /* Hovered dash model (Scene2Element) for debug AABB drawing. Last hit in draw order. */
+    struct Scene2Element* hovered_scene2_element;
+
     /* Viewport offset in screen coords (Client.ts menuArea 0: mouseX-=4, mouseY-=4). */
     int viewport_offset_x;
     int viewport_offset_y;

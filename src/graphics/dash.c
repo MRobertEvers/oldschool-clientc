@@ -226,10 +226,10 @@ dash3d_fast_cull(
         return DASHCULL_CULLED_FAST;
     }
 
-    aabb->min_screen_x = screen_x_min_unoffset;
-    aabb->min_screen_y = screen_y_min_unoffset;
-    aabb->max_screen_x = screen_x_max_unoffset;
-    aabb->max_screen_y = screen_y_max_unoffset;
+    aabb->min_screen_x = screen_x_min_unoffset + view_port->x_center;
+    aabb->min_screen_y = screen_y_min_unoffset + view_port->y_center;
+    aabb->max_screen_x = screen_x_max_unoffset + view_port->x_center;
+    aabb->max_screen_y = screen_y_max_unoffset + view_port->y_center;
     aabb->kind = DASHAABB_KIND_CYLINDER_4POINT;
 
     return DASHCULL_VISIBLE;
@@ -1339,6 +1339,12 @@ struct DashAABB*
 dash3d_projected_model_aabb(struct DashGraphics* dash)
 {
     return &dash->aabb;
+}
+
+struct DashAABB*
+dash3d_projected_model_cylinder_fast_aabb(struct DashGraphics* dash)
+{
+    return &dash->cylinder_fast_aabb;
 }
 
 int

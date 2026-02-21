@@ -11,6 +11,7 @@
 #include "tori_rs.h"
 #include "tori_rs_render.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 
 void
@@ -25,6 +26,7 @@ LibToriRS_FrameBegin(
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
     game->hovered_scene_element = NULL;
+    game->hovered_scene2_element = NULL;
 
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
@@ -115,23 +117,23 @@ LibToriRS_FrameNextCommand(
 
             /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit wins.
              */
-            // bool is_interactable =
-            //     element->interactable || element->entity_kind == 1 || element->entity_kind == 2;
-            // int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
-            // int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
-            // if( game->view_port && mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
-            //     mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
-            //     dash3d_projected_model_contains(
-            //         game->sys_dash, element->dash_model, game->view_port, mouse_vp_x, mouse_vp_y)
-            //         )
-            // {
-            //     game->hovered_scene_element = element;
-            // }
+            bool is_hovered = false;
+            int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
+            int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
+            if( game->view_port && mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
+                mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
+                dash3d_projected_model_contains(
+                    game->sys_dash, element->dash_model, game->view_port, mouse_vp_x, mouse_vp_y) )
+            {
+                game->hovered_scene2_element = element;
+                is_hovered = true;
+            }
 
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
                         .model = element->dash_model,
+                        .is_hovered = is_hovered,
                     },
                 };
             memcpy(&command->_model_draw.position, &position, sizeof(struct DashPosition));
@@ -201,11 +203,24 @@ LibToriRS_FrameNextCommand(
             if( cull != DASHCULL_VISIBLE )
                 break;
 
+            bool is_hovered = false;
+            int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
+            int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
+            if( game->view_port && mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
+                mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
+                dash3d_projected_model_contains(
+                    game->sys_dash, element->dash_model, game->view_port, mouse_vp_x, mouse_vp_y) )
+            {
+                game->hovered_scene2_element = element;
+                is_hovered = true;
+            }
+
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
                         .model = element->dash_model,
                         .position = position,
+                        .is_hovered = is_hovered,
                     },
                 };
         }

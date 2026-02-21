@@ -320,6 +320,9 @@ dash3d_render_model( //
 struct DashAABB*
 dash3d_projected_model_aabb(struct DashGraphics* dash);
 
+struct DashAABB*
+dash3d_projected_model_cylinder_fast_aabb(struct DashGraphics* dash);
+
 void
 dash3d_copy_screen_vertices_float(
     struct DashGraphics* dash,
