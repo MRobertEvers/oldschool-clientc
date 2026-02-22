@@ -6,7 +6,6 @@
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/painters.h"
-#include "osrs/scene.h"
 
 #include <stdbool.h>
 #include <stdint.h>

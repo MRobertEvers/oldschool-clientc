@@ -29,14 +29,7 @@ send_move_path_to(
     int path_local_x[25];
     int path_local_z[25];
     int waypoints = collision_map_bfs_path(
-        cm,
-        src_local_x,
-        src_local_z,
-        dest_local_x,
-        dest_local_z,
-        path_local_x,
-        path_local_z,
-        25);
+        cm, src_local_x, src_local_z, dest_local_x, dest_local_z, path_local_x, path_local_z, 25);
     if( waypoints < 0 )
         return false;
     if( waypoints > 0 )
@@ -46,8 +39,7 @@ send_move_path_to(
         int payload_size = 1 + 2 + 2 + steps_to_send * 2;
         int start_world_x = game->scene_base_tile_x + src_local_x;
         int start_world_z = game->scene_base_tile_z + src_local_z;
-        if( game->outbound_size + 2 + payload_size <=
-            (int)sizeof(game->outbound_buffer) )
+        if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
         {
             uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
             game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
@@ -100,121 +92,7 @@ minimenu_show(
     int click_y)
 {
     game->menu_size = 0;
-    game->menu_entity = NULL;
     game->menu_visible = 0;
-
-    struct SceneElement* el = game->hovered_scene_element;
-    game->menu_walk_click_x = click_x;
-    game->menu_walk_click_y = click_y;
-
-    /* Add entity options first, then Walk here, then Examine (after Walk here), then Cancel at 0.
-     * Order: top=entity, Walk here, Examine, Cancel. */
-    if( el )
-    {
-        game->menu_entity = el;
-
-        if( el->entity_kind == 1 )
-        {
-            /* NPC: Client.ts addNpcOptions - op[4]..op[0], then Examine */
-            struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
-            int npc_type_id = el->entity_npc_type_id >= 0 ? el->entity_npc_type_id
-                                                          : (npc ? npc->npc_type_id : -1);
-            if( npc && game->buildcachedat && npc_type_id >= 0 )
-            {
-                struct CacheDatConfigNpc* npc_cfg =
-                    buildcachedat_get_npc(game->buildcachedat, npc_type_id);
-                if( npc_cfg )
-                {
-                    const char* name = npc_cfg->name ? npc_cfg->name : "NPC";
-                    /* op[0]=Talk-to (primary) at top: add op[4]..op[1], op[0] so op0 drawn last. */
-                    for( int i = 4; i >= 1; i-- )
-                    {
-                        if( npc_cfg->op[i] && npc_cfg->op[i][0] )
-                        {
-                            char buf[MINIMENU_OPTION_LEN];
-                            snprintf(buf, sizeof(buf), "%s @cya@%s", npc_cfg->op[i], name);
-                            add_option(game, buf, i);
-                        }
-                    }
-                    if( npc_cfg->op[0] && npc_cfg->op[0][0] )
-                    {
-                        char buf[MINIMENU_OPTION_LEN];
-                        snprintf(buf, sizeof(buf), "%s @cya@%s", npc_cfg->op[0], name);
-                        add_option(game, buf, 0);
-                    }
-                }
-            }
-        }
-        else if( el->entity_kind == 2 )
-        {
-            /* Player: Client.ts addPlayerOptions - Follow, Trade, Attack, etc. */
-            struct PlayerEntity* player = (struct PlayerEntity*)el->entity_ptr;
-            if( player && player != &game->players[ACTIVE_PLAYER_SLOT] )
-            {
-                add_option(game, "Follow", 0);
-                add_option(game, "Trade with", 1);
-                add_option(game, "Attack", 2);
-            }
-        }
-        else if( el->config_loc && el->config_loc_id >= 0 )
-        {
-            /* Loc: Client.ts - actions[4]..[0], then Examine */
-            struct CacheConfigLocation* loc = el->config_loc;
-            const char* name = loc->name ? loc->name : "Object";
-            /* actions[0] (primary) at top: add [4]..[1], [0] so action0 drawn last. */
-            for( int i = 4; i >= 1; i-- )
-            {
-                if( i < 10 && loc->actions[i] && loc->actions[i][0] )
-                {
-                    char buf[MINIMENU_OPTION_LEN];
-                    snprintf(buf, sizeof(buf), "%s @cya@%s", loc->actions[i], name);
-                    add_option(game, buf, i);
-                }
-            }
-            if( 0 < 10 && loc->actions[0] && loc->actions[0][0] )
-            {
-                char buf[MINIMENU_OPTION_LEN];
-                snprintf(buf, sizeof(buf), "%s @cya@%s", loc->actions[0], name);
-                add_option(game, buf, 0);
-            }
-        }
-    }
-
-    /* Walk here, then Examine (after Walk here), then Cancel at index 0. */
-    add_option(game, "Walk here", 100);
-    if( el )
-    {
-        if( el->entity_kind == 1 )
-        {
-            struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
-            int npc_type_id = el->entity_npc_type_id >= 0 ? el->entity_npc_type_id
-                                                          : (npc ? npc->npc_type_id : -1);
-            if( npc && game->buildcachedat && npc_type_id >= 0 )
-            {
-                struct CacheDatConfigNpc* npc_cfg =
-                    buildcachedat_get_npc(game->buildcachedat, npc_type_id);
-                if( npc_cfg )
-                {
-                    const char* name = npc_cfg->name ? npc_cfg->name : "NPC";
-                    char buf[MINIMENU_OPTION_LEN];
-                    snprintf(buf, sizeof(buf), "Examine @cya@%s", name);
-                    add_option(game, buf, 5);
-                }
-            }
-        }
-        else if( el->entity_kind == 2 )
-        {
-            /* Player has no Examine */
-        }
-        else if( el->config_loc && el->config_loc_id >= 0 )
-        {
-            struct CacheConfigLocation* loc = el->config_loc;
-            const char* name = loc->name ? loc->name : "Object";
-            char buf[MINIMENU_OPTION_LEN];
-            snprintf(buf, sizeof(buf), "Examine @cya@%s", name);
-            add_option(game, buf, 5);
-        }
-    }
 
     /* Always add Cancel at index 0. Client.ts puts Cancel first. */
     for( int i = game->menu_size; i > 0; i-- )
@@ -427,150 +305,6 @@ minimenu_use_option(
     /* Walk Here (action 100): handled in frame - find tile and path. */
     if( action == 100 )
         return;
-
-    struct SceneElement* el = game->menu_entity;
-    if( !el )
-        return;
-
-    if( el->entity_kind == 1 )
-    {
-        /* NPC: Client.ts tryMove to entity tile, then OPNPC1-5 */
-        struct NPCEntity* npc = (struct NPCEntity*)el->entity_ptr;
-        if( !npc || action > 5 )
-            return;
-        if( action == 5 )
-        {
-            /* Examine - OPNPC6 or similar; for now skip */
-            return;
-        }
-        int npc_id = (int)(npc - game->npcs);
-        int opcode = 0;
-        switch( action )
-        {
-        case 0:
-            opcode = PKTOUT_LC245_2_OPNPC1;
-            break;
-        case 1:
-            opcode = PKTOUT_LC245_2_OPNPC2;
-            break;
-        case 2:
-            opcode = PKTOUT_LC245_2_OPNPC3;
-            break;
-        case 3:
-            opcode = PKTOUT_LC245_2_OPNPC4;
-            break;
-        case 4:
-            opcode = PKTOUT_LC245_2_OPNPC5;
-            break;
-        default:
-            return;
-        }
-        int dest_local_x = npc->pathing.route_x[0];
-        int dest_local_z = npc->pathing.route_z[0];
-        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
-        int src_local_x = pl->pathing.route_x[0];
-        int src_local_z = pl->pathing.route_z[0];
-        if( game->scene && game->scene->collision_maps[0] &&
-            send_move_path_to(
-                game,
-                game->scene->collision_maps[0],
-                src_local_x,
-                src_local_z,
-                dest_local_x,
-                dest_local_z) &&
-            game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
-        {
-            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-            game->outbound_buffer[game->outbound_size++] = (npc_id >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = npc_id & 0xff;
-        }
-    }
-    else if( el->entity_kind == 2 )
-    {
-        /* Player */
-        struct PlayerEntity* player = (struct PlayerEntity*)el->entity_ptr;
-        if( !player || player == &game->players[ACTIVE_PLAYER_SLOT] || action > 2 )
-            return;
-        int player_id = (int)(player - game->players);
-        int dest_local_x = player->pathing.route_x[0];
-        int dest_local_z = player->pathing.route_z[0];
-        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
-        int src_local_x = pl->pathing.route_x[0];
-        int src_local_z = pl->pathing.route_z[0];
-
-        if( action == 0 )
-        { /* Follow */
-            int opcode = PKTOUT_LC245_2_OPPLAYER3;
-            if( game->scene && game->scene->collision_maps[0] &&
-                send_move_path_to(
-                    game,
-                    game->scene->collision_maps[0],
-                    src_local_x,
-                    src_local_z,
-                    dest_local_x,
-                    dest_local_z) &&
-                game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
-            {
-                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                game->outbound_buffer[game->outbound_size++] = (player_id >> 8) & 0xff;
-                game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
-            }
-        }
-        else if( action == 1 || action == 2 )
-        {
-            /* Trade, Attack - Client.ts tryMove then OPPLAYER2, OPPLAYER4 */
-            int opcode = action == 1 ? PKTOUT_LC245_2_OPPLAYER2 : PKTOUT_LC245_2_OPPLAYER4;
-            if( game->scene && game->scene->collision_maps[0] &&
-                send_move_path_to(
-                    game,
-                    game->scene->collision_maps[0],
-                    src_local_x,
-                    src_local_z,
-                    dest_local_x,
-                    dest_local_z) &&
-                game->outbound_size + 3 <= (int)sizeof(game->outbound_buffer) )
-            {
-                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                game->outbound_buffer[game->outbound_size++] = (player_id >> 8) & 0xff;
-                game->outbound_buffer[game->outbound_size++] = player_id & 0xff;
-            }
-        }
-    }
-    else if( el->config_loc && action < 5 )
-    {
-        /* Loc */
-        int tile_sx = el->tile_sx;
-        int tile_sz = el->tile_sz;
-        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
-        int src_local_x = pl->pathing.route_x[0];
-        int src_local_z = pl->pathing.route_z[0];
-        int world_x = game->scene_base_tile_x + tile_sx;
-        int world_z = game->scene_base_tile_z + tile_sz;
-
-        if( game->scene && game->scene->collision_maps[0] &&
-            send_move_path_to(
-                game,
-                game->scene->collision_maps[0],
-                src_local_x,
-                src_local_z,
-                tile_sx,
-                tile_sz) &&
-            game->outbound_size + 7 <= (int)sizeof(game->outbound_buffer) )
-        {
-            int opcode = PKTOUT_LC245_2_OPLOC1 + action;
-            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-            game->outbound_buffer[game->outbound_size++] = (world_x >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = world_x & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (world_z >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = world_z & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (el->config_loc_id >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = el->config_loc_id & 0xff;
-        }
-    }
 
     game->menu_visible = 0;
 }

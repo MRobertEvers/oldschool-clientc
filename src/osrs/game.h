@@ -5,7 +5,6 @@
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
 #include "datastruct/ringbuf.h"
-#include "datastruct/vec.h"
 #include "game_entity.h"
 #include "graphics/dash.h"
 #include "osrs/buildcache.h"
@@ -19,8 +18,6 @@
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
-#include "osrs/scene.h"
-#include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
@@ -139,15 +136,10 @@ struct GGame
     struct DashMap* init_texture_definitions_configmap;
     struct DashMap* init_sequences_configmap;
 
-    struct SceneBuilder* scenebuilder;
-
     uint64_t tick_ms;
     uint64_t next_tick_ms;
 
     struct RevPacket_LC245_2_Item* packets_lc245_2;
-
-    struct Vec* scene_elements;
-    struct Scene* scene;
 
     struct World* world;
 
@@ -298,8 +290,7 @@ struct GGame
     int menu_size;
     char menu_options[MINIMENU_MAX_OPTIONS][MINIMENU_OPTION_LEN];
     int menu_option_action[MINIMENU_MAX_OPTIONS]; /* op index 0-4 for NPC/loc/player; 5=Examine;
-                                                     100=Walk here */
-    struct SceneElement* menu_entity;             /* entity when menu was built */
+
     int menu_walk_click_x;                        /* viewport x for Walk Here */
     int menu_walk_click_y;                        /* viewport y for Walk Here */
 

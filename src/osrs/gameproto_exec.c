@@ -24,198 +24,6 @@
 #include <assert.h>
 #include <stdlib.h>
 
-struct StepCoord
-{
-    int x;
-    int z;
-};
-
-static void
-coord_step(
-    struct StepCoord* step,
-    int direction)
-{
-    int next_x = step->x;
-    int next_z = step->z;
-    if( direction == 0 )
-    {
-        next_x--;
-        next_z++;
-    }
-    else if( direction == 1 )
-    {
-        next_z++;
-    }
-    else if( direction == 2 )
-    {
-        next_x++;
-        next_z++;
-    }
-    else if( direction == 3 )
-    {
-        next_x--;
-    }
-    else if( direction == 4 )
-    {
-        next_x++;
-    }
-    else if( direction == 5 )
-    {
-        next_x--;
-        next_z--;
-    }
-    else if( direction == 6 )
-    {
-        next_z--;
-    }
-    else if( direction == 7 )
-    {
-        next_x++;
-        next_z--;
-    }
-
-    step->x = next_x;
-    step->z = next_z;
-}
-
-static void
-npc_move(
-    struct GGame* game,
-    int npc_entity_id,
-    int tile_x,
-    int tile_z)
-{
-    struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
-
-    // Hack
-    struct SceneElement* scene_element = (struct SceneElement*)npc_entity->scene_element;
-
-    int dx = tile_x - npc_entity->pathing.route_x[0];
-    int dz = tile_z - npc_entity->pathing.route_z[0];
-    int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
-    if( animatable_distance )
-    {
-        if( npc_entity->pathing.route_length < 9 )
-            npc_entity->pathing.route_length++;
-
-        for( int i = npc_entity->pathing.route_length; i > 0; i-- )
-        {
-            npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i - 1];
-            npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i - 1];
-        }
-        npc_entity->pathing.route_x[0] = tile_x;
-        npc_entity->pathing.route_z[0] = tile_z;
-        npc_entity->pathing.route_run[0] = 0;
-    }
-    else
-    {
-        npc_entity->pathing.route_x[0] = tile_x;
-        npc_entity->pathing.route_z[0] = tile_z;
-        npc_entity->pathing.route_length = 0;
-    }
-
-    npc_entity->position.x = tile_x * 128 + npc_entity->size_x * 64;
-    npc_entity->position.z = tile_z * 128 + npc_entity->size_z * 64;
-
-    scene_element->dash_position->x = npc_entity->position.x;
-    scene_element->dash_position->z = npc_entity->position.z;
-}
-
-static void
-npc_move_world(
-    struct World* world,
-    int npc_entity_id,
-    int tile_x,
-    int tile_z)
-{
-    struct NPCEntity* npc_entity = &world->npcs[npc_entity_id];
-    struct Scene2Element* scene_element =
-        scene2_element_at(world->scene2, npc_entity->scene_element2.element_id);
-    if( !scene_element )
-        return;
-
-    int dx = tile_x - npc_entity->pathing.route_x[0];
-    int dz = tile_z - npc_entity->pathing.route_z[0];
-    int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
-    if( animatable_distance )
-    {
-        if( npc_entity->pathing.route_length < 9 )
-            npc_entity->pathing.route_length++;
-
-        for( int i = npc_entity->pathing.route_length; i > 0; i-- )
-        {
-            npc_entity->pathing.route_x[i] = npc_entity->pathing.route_x[i - 1];
-            npc_entity->pathing.route_z[i] = npc_entity->pathing.route_z[i - 1];
-            npc_entity->pathing.route_run[i] = npc_entity->pathing.route_run[i - 1];
-        }
-        npc_entity->pathing.route_x[0] = tile_x;
-        npc_entity->pathing.route_z[0] = tile_z;
-        npc_entity->pathing.route_run[0] = 0;
-    }
-    else
-    {
-        npc_entity->pathing.route_x[0] = tile_x;
-        npc_entity->pathing.route_z[0] = tile_z;
-        npc_entity->pathing.route_length = 0;
-    }
-
-    npc_entity->position.x = tile_x * 128 + npc_entity->size_x * 64;
-    npc_entity->position.z = tile_z * 128 + npc_entity->size_z * 64;
-
-    if( !scene_element->dash_position )
-        scene_element->dash_position = dashposition_new();
-    scene_element->dash_position->x = npc_entity->position.x;
-    scene_element->dash_position->z = npc_entity->position.z;
-}
-
-static void
-player_move_world(
-    struct World* world,
-    int player_id,
-    int x,
-    int z)
-{
-    struct PlayerEntity* player = &world->players[player_id];
-    struct Scene2Element* scene_element =
-        scene2_element_at(world->scene2, player->scene_element2.element_id);
-    if( !scene_element )
-        return;
-
-    int dx = x / 128 - player->pathing.route_x[0];
-    int dz = z / 128 - player->pathing.route_z[0];
-    int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
-    if( animatable_distance )
-    {
-        if( player->pathing.route_length < 9 )
-            player->pathing.route_length++;
-
-        for( int i = player->pathing.route_length; i > 0; i-- )
-        {
-            player->pathing.route_x[i] = player->pathing.route_x[i - 1];
-            player->pathing.route_z[i] = player->pathing.route_z[i - 1];
-            player->pathing.route_run[i] = player->pathing.route_run[i - 1];
-        }
-        player->pathing.route_x[0] = x / 128;
-        player->pathing.route_z[0] = z / 128;
-        player->pathing.route_run[0] = 0;
-    }
-    else
-    {
-        player->pathing.route_length = 0;
-        player->pathing.route_x[0] = x / 128;
-        player->pathing.route_z[0] = z / 128;
-        player->pathing.route_run[0] = 0;
-
-        player->position.x = player->pathing.route_x[0] * 128 + 64;
-        player->position.z = player->pathing.route_z[0] * 128 + 64;
-    }
-
-    if( !scene_element->dash_position )
-        scene_element->dash_position = dashposition_new();
-    scene_element->dash_position->x = player->position.x;
-    scene_element->dash_position->z = player->position.z;
-}
-
 static struct NPCEntity*
 world_npc_ensure_scene_element(
     struct World* world,
@@ -273,7 +81,6 @@ gameproto_exec_npc_info(
     npc_info_reader.current_op = 0;
     npc_info_reader.max_ops = 2048;
     struct PktNpcInfoOp ops[2048];
-    struct StepCoord step = { 0 };
     int count = pkt_npc_info_reader_read(&npc_info_reader, &packet->_npc_info, ops, 2048);
 
     struct PlayerEntity* player = &game->players[ACTIVE_PLAYER_SLOT];
@@ -284,7 +91,6 @@ gameproto_exec_npc_info(
     int prev_count = game->npc_count;
     int removed_count = 0;
     game->npc_count = 0;
-    struct SceneElement* scene_element = NULL;
     struct NPCEntity* npc = NULL;
     for( int i = 0; i < count; i++ )
     {
@@ -293,11 +99,9 @@ gameproto_exec_npc_info(
         if( npc_id != -1 )
         {
             npc = entity_scenebuild_npc_get(game, npc_id);
-            scene_element = (struct SceneElement*)npc->scene_element;
         }
         else
         {
-            scene_element = NULL;
             npc = NULL;
         }
 
@@ -335,16 +139,16 @@ gameproto_exec_npc_info(
         }
         case PKT_NPC_INFO_OPBITS_COUNT_RESET:
         {
-            for( int idx = op->_bitvalue; idx < prev_count; idx++ )
-            {
-                entity_scenebuild_npc_release(game, game->active_npcs[idx]);
-            }
+            // for( int idx = op->_bitvalue; idx < prev_count; idx++ )
+            // {
+            //     entity_scenebuild_npc_release(game, game->active_npcs[idx]);
+            // }
             break;
         }
         case PKT_NPC_INFO_OP_DELTA_XZ:
         {
             world_npc_entity_path_jump_relative_to_active(
-                game, npc_id, false, op->_delta_xz.x, op->_delta_xz.z);
+                game->world, npc_id, false, op->_delta_xz.x, op->_delta_xz.z);
             break;
         }
         case PKT_NPC_INFO_OPBITS_WALKDIR:
@@ -352,7 +156,7 @@ gameproto_exec_npc_info(
         {
             int direction = op->_bitvalue;
             world_npc_entity_path_push_step(
-                game,
+                game->world,
                 npc_id,
                 op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
                 direction);
@@ -420,48 +224,6 @@ gameproto_exec_npc_info(
 
 static struct PktPlayerInfoReader player_info_reader = { 0 };
 
-static void
-player_move(
-    struct GGame* game,
-    int player_id,
-    int x,
-    int z)
-{
-    struct PlayerEntity* player = &game->players[player_id];
-
-    // Hack
-    struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
-
-    int dx = x / 128 - player->pathing.route_x[0];
-    int dz = z / 128 - player->pathing.route_z[0];
-    int animatable_distance = dx >= -8 && dx <= 8 && dz >= -8 && dz <= 8;
-    if( animatable_distance )
-    {
-        if( player->pathing.route_length < 9 )
-            player->pathing.route_length++;
-
-        for( int i = player->pathing.route_length; i > 0; i-- )
-        {
-            player->pathing.route_x[i] = player->pathing.route_x[i - 1];
-            player->pathing.route_z[i] = player->pathing.route_z[i - 1];
-            player->pathing.route_run[i] = player->pathing.route_run[i - 1];
-        }
-        player->pathing.route_x[0] = x / 128;
-        player->pathing.route_z[0] = z / 128;
-        player->pathing.route_run[0] = 0;
-    }
-    else
-    {
-        player->pathing.route_length = 0;
-        player->pathing.route_x[0] = x / 128;
-        player->pathing.route_z[0] = z / 128;
-        player->pathing.route_run[0] = 0;
-
-        player->position.x = player->pathing.route_x[0] * 128 + 64;
-        player->position.z = player->pathing.route_z[0] * 128 + 64;
-    }
-}
-
 void
 add_player_info(
     struct GGame* game,
@@ -469,7 +231,6 @@ add_player_info(
 {
     struct BitBuffer buf;
     struct RSBuffer rsbuf;
-    struct StepCoord step = { 0 };
     rsbuf_init(&rsbuf, packet->_player_info.data, packet->_player_info.length);
     bitbuffer_init_from_rsbuf(&buf, &rsbuf);
     bits(&buf);
@@ -480,7 +241,7 @@ add_player_info(
     struct PlayerEntity* active_player = &game->players[ACTIVE_PLAYER_SLOT];
 
     int count = pkt_player_info_reader_read(&player_info_reader, &packet->_player_info, ops, 2048);
-    int player_id = ACTIVE_PLAYER_SLOT;
+    int player_id = -1;
 
     game->player_count = 0;
     for( int i = 0; i < count; i++ )
@@ -519,7 +280,7 @@ add_player_info(
         case PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX:
         {
             player_id = game->active_players[op->_bitvalue];
-            entity_scenebuild_player_release(game, player_id);
+            world_cleanup_player_entity(game->world, player_id);
             game->active_players[op->_bitvalue] = -1;
             player_id = -1;
             break;
@@ -532,7 +293,7 @@ add_player_info(
             int direction = op->_bitvalue;
 
             world_player_entity_path_push_step(
-                game,
+                game->world,
                 player_id,
                 op->kind == PKT_PLAYER_INFO_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
                 direction);
@@ -553,7 +314,7 @@ add_player_info(
                 break;
 
             world_player_entity_path_jump(
-                game,
+                game->world,
                 player_id,
                 op->_local_xz_level.jump,
                 op->_local_xz_level.x,
@@ -786,8 +547,8 @@ gameproto_exec_rebuild_normal_world(
             npc->pathing.route_x[j] -= dx;
             npc->pathing.route_z[j] -= dz;
         }
-        npc->position.x -= dx * 128;
-        npc->position.z -= dz * 128;
+        npc->draw_position.x -= dx * 128;
+        npc->draw_position.z -= dz * 128;
     }
 
     for( int i = 0; i < MAX_PLAYERS; i++ )
@@ -800,8 +561,8 @@ gameproto_exec_rebuild_normal_world(
             player->pathing.route_x[j] -= dx;
             player->pathing.route_z[j] -= dz;
         }
-        player->position.x -= dx * 128;
-        player->position.z -= dz * 128;
+        player->draw_position.x -= dx * 128;
+        player->draw_position.z -= dz * 128;
     }
 }
 
@@ -1229,9 +990,6 @@ gameproto_exec_obj_add(
     entry->count = count;
     entry->next = game->obj_stacks[level][sx][sz];
     game->obj_stacks[level][sx][sz] = entry;
-
-    if( game->scene )
-        entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
 }
 
 void
@@ -1257,9 +1015,6 @@ gameproto_exec_obj_del(
             break;
         }
     }
-
-    if( game->scene )
-        entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
 }
 
 void
@@ -1299,9 +1054,6 @@ gameproto_exec_obj_count(
             break;
         }
     }
-
-    if( game->scene )
-        entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
 }
 
 void

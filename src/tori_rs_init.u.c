@@ -14,7 +14,6 @@
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
-#include "osrs/scenebuilder.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
 // #include "tori_rs.h"
@@ -110,9 +109,9 @@ LibToriRS_GameNew(
     game->running = true;
 
     game->players[ACTIVE_PLAYER_SLOT].alive = false;
-    game->players[ACTIVE_PLAYER_SLOT].position.x = 50;
-    game->players[ACTIVE_PLAYER_SLOT].position.z = 50;
-    game->players[ACTIVE_PLAYER_SLOT].position.height = 0;
+    game->players[ACTIVE_PLAYER_SLOT].draw_position.x = 50;
+    game->players[ACTIVE_PLAYER_SLOT].draw_position.z = 50;
+    game->players[ACTIVE_PLAYER_SLOT].draw_position.height = 0;
 
     game->netin = ringbuf_new(4096);
     game->netout = ringbuf_new(4096);
@@ -151,8 +150,6 @@ LibToriRS_GameNew(
     game->latched = false;
 
     game->sys_dash = dash_new();
-
-    game->scene_elements = vec_new(sizeof(struct SceneElement), 1024);
 
     game->position = malloc(sizeof(struct DashPosition));
     memset(game->position, 0, sizeof(struct DashPosition));

@@ -199,8 +199,8 @@ dash3d_fast_cull(
     int ortho_screen_x_min = mid_x - model_edge_radius;
     int ortho_screen_x_max = mid_x + model_edge_radius;
 
-    int screen_x_min_unoffset = project_divide(ortho_screen_x_min, max_z, camera->fov_rpi2048);
-    int screen_x_max_unoffset = project_divide(ortho_screen_x_max, max_z, camera->fov_rpi2048);
+    int screen_x_min_unoffset = project_divide(ortho_screen_x_min, mid_z, camera->fov_rpi2048);
+    int screen_x_max_unoffset = project_divide(ortho_screen_x_max, mid_z, camera->fov_rpi2048);
     int screen_edge_width = view_port->width >> 1;
 
     if( screen_x_min_unoffset > screen_edge_width || screen_x_max_unoffset < -screen_edge_width )

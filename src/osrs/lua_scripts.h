@@ -29,7 +29,6 @@
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables/sprites.h"
 #include "osrs/rscache/tables/textures.h"
-#include "osrs/scenebuilder.h"
 #include "osrs/texture.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
@@ -993,8 +992,8 @@ l_buildcache_ensure(lua_State* L)
     {
         game->sys_minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
     }
-    if( !game->scenebuilder )
-        game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
+    // if( !game->scenebuilder )
+    //     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
 
     lua_buildcache_free_init_configmaps(game);
     return 0;
@@ -1531,10 +1530,10 @@ l_buildcache_build_scene(lua_State* L)
     int wz_ne = luaL_checkinteger(L, 4);
     int size_x = luaL_checkinteger(L, 5);
     int size_z = luaL_checkinteger(L, 6);
-    game->scene_base_tile_x = wx_sw;
-    game->scene_base_tile_z = wz_sw;
-    game->scene = scenebuilder_load_from_buildcache(
-        game->scenebuilder, wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z, game->buildcache);
+    // game->scene_base_tile_x = wx_sw;
+    // game->scene_base_tile_z = wz_sw;
+    // game->scene = scenebuilder_load_from_buildcache(
+    //     game->scenebuilder, wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z, game->buildcache);
     return 0;
 }
 

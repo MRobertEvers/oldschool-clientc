@@ -109,9 +109,6 @@ struct NPCEntity
     struct EntityOrientation orientation;
     struct EntityAnimation animation;
 
-    // Deprecated below
-    struct EntityPosition position;
-
     /* Client.ts: primary from packet (attack/spell), secondary from movement */
     void* scene_element;
     int npc_type_id; /* CacheDatConfigNpc id for name/options */
@@ -154,13 +151,12 @@ struct PlayerEntity
     struct EntityPathing pathing;
     struct EntitySceneElement scene_element2;
     struct EntityDrawPosition draw_position;
+    struct EntityOrientation orientation;
     struct EntityAnimation animation;
 
     // Deprecated below
-    void* scene_element;
 
-    struct EntityPosition position;
-    struct EntityOrientation orientation;
+    // struct EntityPosition position;
     /* Client.ts: primary from packet (attack/spell), secondary from movement */
     int primary_anim;
     int primary_anim_frame;

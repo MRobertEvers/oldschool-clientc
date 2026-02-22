@@ -80,8 +80,6 @@ endif()
 
         src/osrs/texture.c
         src/osrs/collision_map.c
-        src/osrs/scene.c
-        src/osrs/scenebuilder.c
         src/osrs/rscache/filelist.c
         src/osrs/rscache/archive.c
         src/osrs/gio.c
@@ -130,7 +128,6 @@ endif()
 
         src/osrs/rscache/cache.c
         src/osrs/rscache/cache_dat.c
-        src/osrs/scene.c
         src/osrs/frustrum_cullmap.c
         src/osrs/palette.c
         src/osrs/rscache/archive_decompress.c

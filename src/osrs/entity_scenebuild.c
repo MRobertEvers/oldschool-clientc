@@ -7,7 +7,6 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/model_transforms.h"
-#include "osrs/scene.h"
 #include "osrs/zone_state.h"
 #include "rscache/tables/model.h"
 #include "rscache/tables_dat/config_idk.h"
@@ -150,63 +149,6 @@ entity_scenebuild_obj_stack_update_tile(
     int sz)
 {
     struct ObjStackEntry* head = game->obj_stacks[level][sx][sz];
-
-    if( !head )
-    {
-        if( game->obj_stack_elements[level][sx][sz] )
-        {
-            scene_element_free(game->obj_stack_elements[level][sx][sz]);
-            game->obj_stack_elements[level][sx][sz] = NULL;
-        }
-        return;
-    }
-
-    /* Find top obj by cost (Client.ts sortObjStacks) */
-    int top_cost = -99999999;
-    struct ObjStackEntry* top_entry = NULL;
-    for( struct ObjStackEntry* e = head; e; e = e->next )
-    {
-        struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, e->obj_id);
-        int cost = obj ? obj->cost : 0;
-        if( obj && obj->stackable )
-            cost *= e->count + 1;
-        if( cost > top_cost )
-        {
-            top_cost = cost;
-            top_entry = e;
-        }
-    }
-
-    if( !top_entry )
-        return;
-
-    struct CacheModel* cache_model = obj_ground_model(game, top_entry->obj_id, top_entry->count);
-    if( !cache_model )
-        return;
-
-    struct SceneElement* element = game->obj_stack_elements[level][sx][sz];
-    if( !element )
-    {
-        element = scene_element_new(game->scene);
-        element->dash_model = dashmodel_new();
-        game->obj_stack_elements[level][sx][sz] = element;
-    }
-    else
-    {
-        scene_element_reset(element);
-    }
-
-    dashmodel_move_from_cache_model(element->dash_model, cache_model);
-    model_free(cache_model);
-    _light_model_default(element->dash_model, 0, 0);
-
-    int scene_x = sx * 128 + 64;
-    int scene_z = sz * 128 + 64;
-    element->dash_position->x = scene_x;
-    element->dash_position->z = scene_z;
-    element->dash_position->y =
-        scene_terrain_height_at_interpolated(game->scene, scene_x, scene_z, level);
-    element->entity_kind = 0;
 }
 
 static void
@@ -252,30 +194,13 @@ player_appearance_model(
     _light_model_default(dash_model, 0, 0);
 }
 
-struct PlayerEntity*
-entity_scenebuild_player_get(
-    struct GGame* game,
-    int player_id)
-{
-    struct PlayerEntity* player = &game->players[player_id];
-    if( player->alive )
-        return player;
-    if( !game->scene )
-        return player;
-
-    player->alive = true;
-    player->scene_element = (void*)scene_element_new(game->scene);
-
-    return player;
-}
-
 void
 entity_scenebuild_player_change_appearance(
     struct GGame* game,
     int player_id,
     struct PlayerAppearance* appearance)
 {
-    struct PlayerEntity* player = entity_scenebuild_player_get(game, player_id);
+    struct PlayerEntity* player = &game->players[player_id];
     struct Scene2Element* scene_element =
         scene2_element_at(game->world->scene2, player->scene_element2.element_id);
 
@@ -302,17 +227,6 @@ entity_scenebuild_player_change_appearance(
     player_appearance_model(game, appearance, scene_element->dash_model);
 }
 
-void
-entity_scenebuild_player_release(
-    struct GGame* game,
-    int player_id)
-{
-    struct PlayerEntity* player = &game->players[player_id];
-    assert(player->alive && "Player must be alive");
-    scene_element_free((struct SceneElement*)player->scene_element);
-    memset(player, 0, sizeof(struct PlayerEntity));
-}
-
 struct NPCEntity*
 entity_scenebuild_npc_get(
     struct GGame* game,
@@ -325,7 +239,6 @@ entity_scenebuild_npc_get(
     assert(!npc->scene_element && "Npc must not have a scene element");
     npc->alive = true;
     npc->npc_type_id = -1;
-    npc->scene_element = (void*)scene_element_new(game->scene);
 
     return npc;
 }
@@ -385,28 +298,28 @@ entity_scenebuild_npc_change_type(
     int npc_id,
     int npc_type)
 {
-    struct NPCEntity* npc = entity_scenebuild_npc_get(game, npc_id);
-    struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(game->buildcachedat, npc_type);
-    struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
+    // struct NPCEntity* npc = entity_scenebuild_npc_get(game, npc_id);
+    // struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(game->buildcachedat, npc_type);
+    // struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
 
-    npc->npc_type_id = npc_type;
-    npc->size_x = npc_config->size;
-    npc->size_z = npc_config->size;
+    // npc->npc_type_id = npc_type;
+    // npc->size_x = npc_config->size;
+    // npc->size_z = npc_config->size;
 
-    npc->animation.readyanim = npc_config->readyanim;
-    npc->animation.walkanim = npc_config->walkanim;
-    npc->animation.turnanim = -1; /* CacheDatConfigNpc has no turnanim */
-    npc->animation.runanim = -1;  /* CacheDatConfigNpc has no runanim */
-    npc->animation.walkanim_b = npc_config->walkanim_b;
-    npc->animation.walkanim_r = npc_config->walkanim_r;
-    npc->animation.walkanim_l = npc_config->walkanim_l;
+    // npc->animation.readyanim = npc_config->readyanim;
+    // npc->animation.walkanim = npc_config->walkanim;
+    // npc->animation.turnanim = -1; /* CacheDatConfigNpc has no turnanim */
+    // npc->animation.runanim = -1;  /* CacheDatConfigNpc has no runanim */
+    // npc->animation.walkanim_b = npc_config->walkanim_b;
+    // npc->animation.walkanim_r = npc_config->walkanim_r;
+    // npc->animation.walkanim_l = npc_config->walkanim_l;
 
-    npc->secondary_anim = npc_config->readyanim;
-    npc->secondary_anim_frame = 0;
-    npc->secondary_anim_cycle = 0;
+    // npc->secondary_anim = npc_config->readyanim;
+    // npc->secondary_anim_frame = 0;
+    // npc->secondary_anim_cycle = 0;
 
-    scene_element_reset(scene_element);
-    npc_model(game, npc_type, scene_element->dash_model);
+    // scene_element_reset(scene_element);
+    // npc_model(game, npc_type, scene_element->dash_model);
 }
 
 void
@@ -417,9 +330,6 @@ entity_scenebuild_npc_release(
     struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
     assert(npc_entity->alive && "Npc entity must be alive");
 
-    struct SceneElement* scene_element = (struct SceneElement*)npc_entity->scene_element;
-    scene_element_free(scene_element);
-    npc_entity->scene_element = NULL;
     npc_entity->alive = false;
     memset(npc_entity, 0, sizeof(struct NPCEntity));
 }

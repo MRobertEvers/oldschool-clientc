@@ -22,7 +22,6 @@
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
-#include "osrs/scenebuilder.h"
 #include "osrs/texture.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
