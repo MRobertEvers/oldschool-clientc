@@ -124,17 +124,22 @@ world_player_entity_set_appearance(
     int player_entity_id,
     struct PlayerAppearance* appearance);
 
+#define ANIMATION_TYPE_PRIMARY 0
+#define ANIMATION_TYPE_SECONDARY 1
+
 void
 world_player_entity_set_animation(
     struct World* world,
     int player_entity_id,
-    int animation_id);
+    int animation_id,
+    int animation_type);
 
 void
 world_npc_entity_set_animation(
     struct World* world,
     int npc_entity_id,
-    int animation_id);
+    int animation_id,
+    int animation_type);
 
 struct PassiveAnimationInfo
 {

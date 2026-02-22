@@ -1025,8 +1025,12 @@ static void
 load_scene_animation(
     struct World* world,
     struct Scene2Element* element,
-    int animation_id)
+    int animation_id,
+    int animation_type)
 {
+    if( animation_id == -1 )
+        return;
+
     struct CacheAnimframe* animframe = NULL;
     struct CacheDatSequence* sequence =
         buildcachedat_get_sequence(world->buildcachedat, animation_id);
@@ -1052,8 +1056,16 @@ load_scene_animation(
         if( length == 0 )
             length = animframe->delay;
 
-        scene2_element_push_animation_frame(
-            element, dashframe_new_from_animframe(animframe), length);
+        if( animation_type == ANIMATION_TYPE_PRIMARY )
+        {
+            scene2_element_push_animation_frame(
+                element, dashframe_new_from_animframe(animframe), length);
+        }
+        else
+        {
+            scene2_element_push_secondary_animation_frame(
+                element, dashframe_new_from_animframe(animframe), length);
+        }
     }
 }
 
@@ -1061,26 +1073,70 @@ void
 world_player_entity_set_animation(
     struct World* world,
     int player_entity_id,
-    int animation_id)
+    int animation_id,
+    int animation_type)
 {
     struct PlayerEntity* player = &world->players[player_entity_id];
 
-    load_scene_animation(world, &player->scene_element2, animation_id);
+    struct Scene2Element* element =
+        scene2_element_at(world->scene2, player->scene_element2.element_id);
 
-    player->animation.primary_anim = animation_id;
+    if( animation_type == ANIMATION_TYPE_PRIMARY )
+    {
+        scene2_element_clear_animation(element);
+    }
+    else
+    {
+        scene2_element_clear_secondary_animation(element);
+    }
+
+    load_scene_animation(world, element, animation_id, animation_type);
+
+    if( animation_type == ANIMATION_TYPE_PRIMARY )
+    {
+        memset(&player->animation.primary_anim, 0, sizeof(struct EntityAnimationStep));
+        player->animation.primary_anim.anim_id = animation_id;
+    }
+    else
+    {
+        memset(&player->animation.secondary_anim, 0, sizeof(struct EntityAnimationStep));
+        player->animation.secondary_anim.anim_id = animation_id;
+    }
 }
 
 void
 world_npc_entity_set_animation(
     struct World* world,
     int npc_entity_id,
-    int animation_id)
+    int animation_id,
+    int animation_type)
 {
     struct NPCEntity* npc = &world->npcs[npc_entity_id];
 
-    load_scene_animation(world, &npc->scene_element2, animation_id);
+    struct Scene2Element* element =
+        scene2_element_at(world->scene2, npc->scene_element2.element_id);
 
-    npc->animation.primary_anim = animation_id;
+    if( animation_type == ANIMATION_TYPE_PRIMARY )
+    {
+        scene2_element_clear_animation(element);
+    }
+    else
+    {
+        scene2_element_clear_secondary_animation(element);
+    }
+
+    load_scene_animation(world, element, animation_id, animation_type);
+
+    if( animation_type == ANIMATION_TYPE_PRIMARY )
+    {
+        memset(&npc->animation.primary_anim, 0, sizeof(struct EntityAnimationStep));
+        npc->animation.primary_anim.anim_id = animation_id;
+    }
+    else
+    {
+        memset(&npc->animation.secondary_anim, 0, sizeof(struct EntityAnimationStep));
+        npc->animation.secondary_anim.anim_id = animation_id;
+    }
 }
 
 void

@@ -220,10 +220,6 @@ entity_scenebuild_player_change_appearance(
     player->animation.walkanim_r = appearance->walkanim_r;
     player->animation.runanim = appearance->runanim;
 
-    player->secondary_anim = appearance->readyanim;
-    player->secondary_anim_frame = 0;
-    player->secondary_anim_cycle = 0;
-
     if( !scene_element->dash_model )
         scene_element->dash_model = dashmodel_new();
     player_appearance_model(game, appearance, scene_element->dash_model);

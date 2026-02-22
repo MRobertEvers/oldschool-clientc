@@ -145,9 +145,11 @@ scene2_element_push_animation_frame(
         element->dash_frame_capacity *= 2;
         element->dash_frames =
             realloc(element->dash_frames, element->dash_frame_capacity * sizeof(struct DashFrame*));
+
         element->dash_frame_lengths =
             realloc(element->dash_frame_lengths, element->dash_frame_capacity * sizeof(int));
     }
+
     element->dash_frames[element->dash_frame_count] = dash_frame;
     element->dash_frame_lengths[element->dash_frame_count] = length;
     element->dash_frame_count++;

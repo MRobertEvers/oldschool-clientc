@@ -76,6 +76,7 @@ struct EntityOrientation
 
 struct EntityAnimationStep
 {
+    int anim_id;
     int frame;
     int cycle;
     int delay;
@@ -91,9 +92,8 @@ struct EntityAnimation
     int walkanim_r;
     int walkanim_l;
 
-    int primary_anim;
-    int secondary_anim;
-    struct EntityAnimationStep step;
+    struct EntityAnimationStep primary_anim;
+    struct EntityAnimationStep secondary_anim;
 };
 
 #define ENTITY_DAMAGE_SLOTS 4
@@ -133,19 +133,6 @@ struct PlayerEntity
     struct EntityDrawPosition draw_position;
     struct EntityOrientation orientation;
     struct EntityAnimation animation;
-
-    // Deprecated below
-
-    // struct EntityPosition position;
-    /* Client.ts: primary from packet (attack/spell), secondary from movement */
-    int primary_anim;
-    int primary_anim_frame;
-    int primary_anim_cycle;
-    int primary_anim_delay;
-    int primary_anim_loop;
-    int secondary_anim;
-    int secondary_anim_frame;
-    int secondary_anim_cycle;
 
     /* Client.ts: damage/health for hitsplat and health bar */
     int damage_values[ENTITY_DAMAGE_SLOTS];
@@ -195,7 +182,7 @@ entity_unified_id(
     enum EntityKind kind,
     int entity_id)
 {
-    uint8_t kind_bits = kind << 28;
+    uint32_t kind_bits = kind << 28;
     return kind_bits | entity_id;
 }
 

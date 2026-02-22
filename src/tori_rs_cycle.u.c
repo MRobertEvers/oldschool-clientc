@@ -329,6 +329,7 @@ struct EntityAnimUpdateView
     struct EntityDrawPosition* draw_position;
     struct EntityOrientation* orientation;
     struct EntityAnimation* animation;
+    int entity_id;
     int size_x;
     int size_z;
 };
@@ -576,12 +577,18 @@ anim:;
         struct Scene2Element* element =
             scene2_element_at(game->world->scene2, view->scene2_element->element_id);
         /* Client.ts routeMove: secondaryAnim = seqId (readyanim, walkanim, runanim, turnanim) */
-        view->animation->secondary_anim = seqId;
+        view->animation->secondary_anim.anim_id = seqId;
         if( seqId == -1 )
         {
-            if( view->scene2_element )
+            if( player )
             {
-                scene2_element_clear_secondary_animation(view->scene2_element);
+                world_player_entity_set_animation(
+                    game->world, view->entity_id, -1, ANIMATION_TYPE_SECONDARY);
+            }
+            else
+            {
+                world_npc_entity_set_animation(
+                    game->world, view->entity_id, seqId, ANIMATION_TYPE_SECONDARY);
             }
         }
         else
@@ -590,22 +597,15 @@ anim:;
                 buildcachedat_get_sequence(game->world->buildcachedat, seqId);
             if( sequence )
             {
-                scene2_element_clear_secondary_animation(view->scene2_element);
-                for( int i = 0; i < sequence->frame_count; i++ )
+                if( player )
                 {
-                    int frame_id = sequence->frames[i];
-                    struct CacheAnimframe* animframe =
-                        buildcachedat_get_animframe(game->world->buildcachedat, frame_id);
-                    if( !animframe )
-                        continue;
-                    if( !element->dash_framemap )
-                        scene2_element_set_framemap(
-                            element, dashframemap_new_from_animframe(animframe));
-                    int length = sequence->delay[i];
-                    if( length == 0 )
-                        length = animframe->delay;
-                    scene2_element_push_secondary_animation_frame(
-                        element, dashframe_new_from_animframe(animframe), length);
+                    world_player_entity_set_animation(
+                        game->world, view->entity_id, seqId, ANIMATION_TYPE_SECONDARY);
+                }
+                else
+                {
+                    world_npc_entity_set_animation(
+                        game->world, view->entity_id, seqId, ANIMATION_TYPE_SECONDARY);
                 }
             }
         }
@@ -626,6 +626,7 @@ update_npc_anim(
         .animation = &npc_entity->animation,
         .size_x = npc_entity->size.x,
         .size_z = npc_entity->size.z,
+        .entity_id = npc_entity_id,
     };
     update_entity_movement_and_animation(game, &view, false);
 }
@@ -644,6 +645,7 @@ update_player_anim(
         .animation = &player_entity->animation,
         .size_x = 1,
         .size_z = 1,
+        .entity_id = player_entity_id,
     };
     update_entity_movement_and_animation(game, &view, true);
 }
@@ -666,109 +668,40 @@ sequence_get_frame_duration(
     return d > 0 ? d : 1;
 }
 
-/* Client.ts entityAnim: advance primary and secondary anim cycles/frames. */
-static void
-entity_advance_anim(
-    struct GGame* game,
-    int* primary_anim,
-    int* primary_anim_frame,
-    int* primary_anim_cycle,
-    int* primary_anim_delay,
-    int* primary_anim_loop,
-    int secondary_anim,
-    int* secondary_anim_frame,
-    int* secondary_anim_cycle,
-    int cycles)
-{
-    struct CacheDatSequence* seq = NULL;
-
-    for( int c = 0; c < cycles; c++ )
-    {
-        /* Secondary: Client.ts e.secondaryAnimCycle++, advance frame when cycle > duration */
-        if( secondary_anim >= 0 )
-        {
-            seq = buildcachedat_get_sequence(game->buildcachedat, secondary_anim);
-            if( seq )
-            {
-                (*secondary_anim_cycle)++;
-                int dur =
-                    sequence_get_frame_duration(game->buildcachedat, seq, *secondary_anim_frame);
-                if( *secondary_anim_cycle > dur )
-                {
-                    *secondary_anim_cycle = 0;
-                    (*secondary_anim_frame)++;
-                }
-                if( *secondary_anim_frame >= seq->frame_count )
-                {
-                    *secondary_anim_cycle = 0;
-                    *secondary_anim_frame = 0;
-                }
-            }
-        }
-
-        /* Primary: decrement delay first; when 0, advance cycle/frame */
-        if( *primary_anim_delay > 0 )
-        {
-            (*primary_anim_delay)--;
-            continue;
-        }
-
-        if( *primary_anim < 0 )
-            continue;
-
-        seq = buildcachedat_get_sequence(game->buildcachedat, *primary_anim);
-        if( !seq )
-            continue;
-
-        (*primary_anim_cycle)++;
-        while( *primary_anim_frame < seq->frame_count &&
-               *primary_anim_cycle >
-                   sequence_get_frame_duration(game->buildcachedat, seq, *primary_anim_frame) )
-        {
-            *primary_anim_cycle -=
-                sequence_get_frame_duration(game->buildcachedat, seq, *primary_anim_frame);
-            (*primary_anim_frame)++;
-        }
-
-        if( *primary_anim_frame >= seq->frame_count )
-        {
-            int loops = seq->loops >= 0 ? seq->loops : seq->frame_count;
-            *primary_anim_frame -= loops;
-            (*primary_anim_loop)++;
-            if( *primary_anim_loop >= seq->maxloops )
-            {
-                *primary_anim = -1;
-                continue;
-            }
-            if( *primary_anim_frame < 0 || *primary_anim_frame >= seq->frame_count )
-            {
-                *primary_anim = -1;
-                continue;
-            }
-        }
-    }
-}
-
 // /* Advance scene animation frame for static scenery (non-entity) elements. */
 static void
 advance_animation_step(
     struct EntityAnimationStep* animation_step,
-    int cycles)
+    int cycles,
+    int const* frame_lengths,
+    int frame_count)
 {
-    if( !animation_step )
+    if( !animation_step || !frame_lengths || frame_count <= 0 )
         return;
 
     for( int i = 0; i < cycles; i++ )
     {
+        /* Initialize delay from current frame if not set */
+        if( animation_step->delay <= 0 && animation_step->frame < frame_count )
+        {
+            animation_step->delay = frame_lengths[animation_step->frame];
+            if( animation_step->delay <= 0 )
+                animation_step->delay = 1;
+        }
+
         animation_step->cycle++;
         if( animation_step->cycle >= animation_step->delay )
         {
             animation_step->cycle = 0;
             animation_step->frame++;
-            if( animation_step->frame >= animation_step->frame )
+            if( animation_step->frame >= frame_count )
             {
                 animation_step->frame = 0;
             }
+            animation_step->delay =
+                (animation_step->frame < frame_count) ? frame_lengths[animation_step->frame] : 1;
+            if( animation_step->delay <= 0 )
+                animation_step->delay = 1;
         }
     }
 }
@@ -782,7 +715,16 @@ entity_advance_anim(
     if( !animation )
         return;
 
-    advance_animation_step(&animation->step, cycles);
+    advance_animation_step(
+        &animation->primary_anim,
+        cycles,
+        scene_element->dash_frame_lengths,
+        scene_element->dash_frame_count);
+    advance_animation_step(
+        &animation->secondary_anim,
+        cycles,
+        scene_element->dash_frame_lengths_secondary,
+        scene_element->dash_frame_count_secondary);
 }
 
 /* Pick active anim (primary if valid and delay==0, else secondary) and sync to scene.
@@ -1075,6 +1017,11 @@ LibToriRS_GameStep(
         if( player->alive && player->scene_element2.element_id != -1 )
         {
             update_player_anim(game, ACTIVE_PLAYER_SLOT);
+            {
+                struct Scene2Element* scene_element =
+                    scene2_element_at(game->world->scene2, player->scene_element2.element_id);
+                entity_advance_anim(scene_element, &player->animation, game->cycles_elapsed);
+            }
             painter_add_normal_scenery(
                 game->world->painter,
                 player->pathing.route_x[0],
@@ -1103,6 +1050,11 @@ LibToriRS_GameStep(
         if( npc->alive && npc->scene_element2.element_id != -1 )
         {
             update_npc_anim(game, npc_id);
+            {
+                struct Scene2Element* scene_element =
+                    scene2_element_at(game->world->scene2, npc->scene_element2.element_id);
+                entity_advance_anim(scene_element, &npc->animation, game->cycles_elapsed);
+            }
             painter_add_normal_scenery(
                 game->world->painter,
                 npc->pathing.route_x[0],

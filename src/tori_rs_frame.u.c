@@ -52,12 +52,33 @@ entity_player_animate(
 {
     struct PlayerEntity* player = &world->players[player_entity_id];
     struct EntityAnimation* animation = &player->animation;
-    struct Scene2Element* scene_element = &player->scene_element2;
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, player->scene_element2.element_id);
+    if( !scene_element )
+        return;
 
-    dashmodel_animate(
-        scene_element->dash_model,
-        scene_element->dash_frames[animation->step.frame],
-        scene_element->dash_framemap);
+    if( animation->primary_anim.anim_id != -1 && scene_element->dash_frames )
+    {
+        int frame = animation->primary_anim.frame;
+        if( frame >= 0 && frame < scene_element->dash_frame_count )
+        {
+            dashmodel_animate(
+                scene_element->dash_model,
+                scene_element->dash_frames[frame],
+                scene_element->dash_framemap);
+        }
+    }
+    else if( animation->secondary_anim.anim_id != -1 && scene_element->dash_frames_secondary )
+    {
+        int frame = animation->secondary_anim.frame;
+        if( frame >= 0 && frame < scene_element->dash_frame_count_secondary )
+        {
+            dashmodel_animate(
+                scene_element->dash_model,
+                scene_element->dash_frames_secondary[frame],
+                scene_element->dash_framemap);
+        }
+    }
 }
 
 static void
@@ -67,12 +88,33 @@ entity_npc_animate(
 {
     struct NPCEntity* npc = &world->npcs[npc_entity_id];
     struct EntityAnimation* animation = &npc->animation;
-    struct Scene2Element* scene_element = &npc->scene_element2;
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, npc->scene_element2.element_id);
+    if( !scene_element )
+        return;
 
-    dashmodel_animate(
-        scene_element->dash_model,
-        scene_element->dash_frames[animation->step.frame],
-        scene_element->dash_framemap);
+    if( animation->primary_anim.anim_id != -1 && scene_element->dash_frames )
+    {
+        int frame = animation->primary_anim.frame;
+        if( frame >= 0 && frame < scene_element->dash_frame_count )
+        {
+            dashmodel_animate(
+                scene_element->dash_model,
+                scene_element->dash_frames[frame],
+                scene_element->dash_framemap);
+        }
+    }
+    else if( animation->secondary_anim.anim_id != -1 && scene_element->dash_frames_secondary )
+    {
+        int frame = animation->secondary_anim.frame;
+        if( frame >= 0 && frame < scene_element->dash_frame_count_secondary )
+        {
+            dashmodel_animate(
+                scene_element->dash_model,
+                scene_element->dash_frames_secondary[frame],
+                scene_element->dash_framemap);
+        }
+    }
 }
 
 static void
@@ -93,7 +135,7 @@ entity_animate(
     case ENTITY_KIND_MAP_BUILD_TILE:
 
     default:
-        return NULL;
+        return;
     }
 }
 

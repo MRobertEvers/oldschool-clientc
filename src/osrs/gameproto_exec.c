@@ -151,7 +151,7 @@ gameproto_exec_npc_info(
             int seq_id = (int)op->_sequence.sequence_id;
             if( seq_id == 65535 )
                 seq_id = -1;
-            world_npc_entity_set_animation(game->world, npc_id, seq_id);
+            world_npc_entity_set_animation(game->world, npc_id, seq_id, ANIMATION_TYPE_PRIMARY);
             break;
         }
         case PKT_NPC_INFO_OP_DAMAGE:
@@ -311,11 +311,8 @@ add_player_info(
             int seq_id = (int)op->_sequence.sequence_id;
             if( seq_id == 65535 )
                 seq_id = -1;
-            player->primary_anim = seq_id;
-            player->primary_anim_frame = 0;
-            player->primary_anim_cycle = 0;
-            player->primary_anim_delay = op->_sequence.delay;
-            player->primary_anim_loop = 0;
+            world_player_entity_set_animation(
+                game->world, player_id, seq_id, ANIMATION_TYPE_PRIMARY);
             break;
         }
         case PKT_PLAYER_INFO_OP_DAMAGE:
