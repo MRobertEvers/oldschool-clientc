@@ -45,6 +45,58 @@ LibToriRS_FrameBegin(
     }
 }
 
+static void
+entity_player_animate(
+    struct World* world,
+    int player_entity_id)
+{
+    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct EntityAnimation* animation = &player->animation;
+    struct Scene2Element* scene_element = &player->scene_element2;
+
+    dashmodel_animate(
+        scene_element->dash_model,
+        scene_element->dash_frames[animation->step.frame],
+        scene_element->dash_framemap);
+}
+
+static void
+entity_npc_animate(
+    struct World* world,
+    int npc_entity_id)
+{
+    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct EntityAnimation* animation = &npc->animation;
+    struct Scene2Element* scene_element = &npc->scene_element2;
+
+    dashmodel_animate(
+        scene_element->dash_model,
+        scene_element->dash_frames[animation->step.frame],
+        scene_element->dash_framemap);
+}
+
+static void
+entity_animate(
+    struct World* world,
+    int entity_uid)
+{
+    switch( entity_kind_from_uid(entity_uid) )
+    {
+    case ENTITY_KIND_PLAYER:
+        entity_player_animate(world, entity_id_from_uid(entity_uid));
+        break;
+    case ENTITY_KIND_NPC:
+        entity_npc_animate(world, entity_id_from_uid(entity_uid));
+        break;
+    case ENTITY_KIND_MAP_BUILD_LOC:
+
+    case ENTITY_KIND_MAP_BUILD_TILE:
+
+    default:
+        return NULL;
+    }
+}
+
 bool
 LibToriRS_FrameNextCommand(
     struct GGame* game,
@@ -85,37 +137,15 @@ LibToriRS_FrameNextCommand(
             position.y = position.y - game->camera_world_y;
             position.z = position.z - game->camera_world_z;
 
-            // if( element->dash_model && element->animation && element->animation->frame_count > 0
-            // )
-            // {
-            //     struct SceneAnimation* anim = element->animation;
-            //     int pi = anim->frame_index;
-            //     int si = anim->frame_index_secondary;
-            //     if( anim->dash_frames_secondary && anim->walkmerge && pi < anim->frame_count &&
-            //         si >= 0 && si < anim->frame_count_secondary )
-            //     {
-            //         dashmodel_animate_mask(
-            //             scene_element_model(game->scene, cmd->_entity._bf_entity),
-            //             anim->dash_frames[pi],
-            //             anim->dash_frames_secondary[si],
-            //             anim->dash_framemap,
-            //             anim->walkmerge);
-            //     }
-            //     else
-            //     {
-            //         dashmodel_animate(
-            //             scene_element_model(game->scene, cmd->_entity._bf_entity),
-            //             anim->dash_frames[pi],
-            //             anim->dash_framemap);
-            //     }
-            // }
-
             int cull = dash3d_project_model(
                 game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
             if( cull != DASHCULL_VISIBLE )
                 break;
 
-            /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit wins.
+            entity_animate(game->world, element->parent_entity_id);
+
+            /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit
+             * wins.
              */
             bool is_hovered = false;
             int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
@@ -246,13 +276,14 @@ LibToriRS_FrameNextCommand(
     //     position.y = -game->camera_world_y;
 
     //     int cull = dash3d_project_model(
-    //         game->sys_dash, tile_model->dash_model, &position, game->view_port, game->camera);
+    //         game->sys_dash, tile_model->dash_model, &position, game->view_port,
+    //         game->camera);
     //     assert(cull == DASHCULL_VISIBLE);
     //     if( cull != DASHCULL_VISIBLE )
     //         goto skip_highlight;
 
-    //     /* Client.ts: click stores mouse; draw sets clickTileX/Z. Copy to clicked_tile for next
-    //     tick
+    //     /* Client.ts: click stores mouse; draw sets clickTileX/Z. Copy to clicked_tile for
+    //     next tick
     //      * tryMove (updateGame). */
     //     if( game->mouse_clicked )
     //     {

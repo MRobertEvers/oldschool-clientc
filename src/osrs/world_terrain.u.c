@@ -166,6 +166,15 @@ apply_shade(
     }
 }
 
+static int
+terrain_element_acquire(
+    struct World* world,
+    int tile_id)
+{
+    return scene2_element_acquire(
+        world->scene2, entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id));
+}
+
 static void
 init_map_build_tile_entity(
     struct MapBuildTileEntity* map_build_tile_entity,
@@ -338,7 +347,7 @@ build_scene_terrain(struct World* world)
                 }
 
                 tile_entity->scene_element.element_id =
-                    scene2_element_acquire(world->scene2, tile_entity->entity_id);
+                    terrain_element_acquire(world, tile_entity->entity_id);
                 assert(tile_entity->scene_element.element_id != 0);
                 scene_element =
                     scene2_element_at(world->scene2, tile_entity->scene_element.element_id);

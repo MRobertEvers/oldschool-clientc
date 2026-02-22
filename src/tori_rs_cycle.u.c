@@ -324,6 +324,7 @@ start_script_from_item(
 /* View of common pathing/movement/animation state shared by NPCs and players. */
 struct EntityAnimUpdateView
 {
+    struct EntitySceneElement* scene2_element;
     struct EntityPathing* pathing;
     struct EntityDrawPosition* draw_position;
     struct EntityOrientation* orientation;
@@ -570,60 +571,44 @@ yaw_turn:;
     }
 
 anim:;
+    if( game->world )
     {
+        struct Scene2Element* element =
+            scene2_element_at(game->world->scene2, view->scene2_element->element_id);
         /* Client.ts routeMove: secondaryAnim = seqId (readyanim, walkanim, runanim, turnanim) */
-        int prev_secondary = view->animation->secondary_anim;
         view->animation->secondary_anim = seqId;
         if( seqId == -1 )
         {
-            view->animation->secondary_anim_frame = 0;
-            view->animation->secondary_anim_cycle = 0;
-            // if( player && view->scene_element && view->scene_element->element_id != -1 &&
-            //     game->world && game->world->scene2 )
-            // {
-            //     struct Scene2Element* element =
-            //         scene2_element_at(game->world->scene2, view->scene_element->element_id);
-            //     if( element )
-            //         scene2_element_clear_secondary_animation(element);
-            // }
-            // else if( view->scene_element )
-            // {
-            //     struct SceneElement* scene_element = (struct SceneElement*)view->scene_element;
-            //     // scene_element_animation_free(scene_element);
-            // }
+            if( view->scene2_element )
+            {
+                scene2_element_clear_secondary_animation(view->scene2_element);
+            }
         }
-        // else if(
-        //     player && prev_secondary != seqId && view->scene_element &&
-        //     view->scene_element->element_id != -1 && game->world && game->world->scene2 &&
-        //     game->world->buildcachedat )
-        // {
-        //     struct Scene2Element* element =
-        //         scene2_element_at(game->world->scene2, view->scene_element->element_id);
-        //     struct CacheDatSequence* sequence =
-        //         buildcachedat_get_sequence(game->world->buildcachedat, seqId);
-        //     if( element && sequence )
-        //     {
-        //         scene2_element_clear_secondary_animation(element);
-        //         for( int i = 0; i < sequence->frame_count; i++ )
-        //         {
-        //             int frame_id = sequence->frames[i];
-        //             struct CacheAnimframe* animframe =
-        //                 buildcachedat_get_animframe(game->world->buildcachedat, frame_id);
-        //             if( !animframe )
-        //                 continue;
-        //             if( !element->dash_framemap )
-        //                 scene2_element_set_framemap(
-        //                     element, dashframemap_new_from_animframe(animframe));
-        //             int length = sequence->delay[i];
-        //             if( length == 0 )
-        //                 length = animframe->delay;
-        //             scene2_element_push_secondary_animation_frame(
-        //                 element, dashframe_new_from_animframe(animframe), length);
-        //         }
-        //     }
-        // }
-        /* Scene sync happens in entity_advance_anim; we don't load here to avoid overwriting
-         * primary. */
+        else
+        {
+            struct CacheDatSequence* sequence =
+                buildcachedat_get_sequence(game->world->buildcachedat, seqId);
+            if( sequence )
+            {
+                scene2_element_clear_secondary_animation(view->scene2_element);
+                for( int i = 0; i < sequence->frame_count; i++ )
+                {
+                    int frame_id = sequence->frames[i];
+                    struct CacheAnimframe* animframe =
+                        buildcachedat_get_animframe(game->world->buildcachedat, frame_id);
+                    if( !animframe )
+                        continue;
+                    if( !element->dash_framemap )
+                        scene2_element_set_framemap(
+                            element, dashframemap_new_from_animframe(animframe));
+                    int length = sequence->delay[i];
+                    if( length == 0 )
+                        length = animframe->delay;
+                    scene2_element_push_secondary_animation_frame(
+                        element, dashframe_new_from_animframe(animframe), length);
+                }
+            }
+        }
     }
 }
 
@@ -634,6 +619,7 @@ update_npc_anim(
 {
     struct NPCEntity* npc_entity = &game->world->npcs[npc_entity_id];
     struct EntityAnimUpdateView view = {
+        .scene2_element = &npc_entity->scene_element2,
         .pathing = &npc_entity->pathing,
         .draw_position = &npc_entity->draw_position,
         .orientation = &npc_entity->orientation,
@@ -651,6 +637,7 @@ update_player_anim(
 {
     struct PlayerEntity* player_entity = &game->world->players[player_entity_id];
     struct EntityAnimUpdateView view = {
+        .scene2_element = &player_entity->scene_element2,
         .pathing = &player_entity->pathing,
         .draw_position = &player_entity->draw_position,
         .orientation = &player_entity->orientation,
@@ -763,28 +750,40 @@ entity_advance_anim(
 }
 
 // /* Advance scene animation frame for static scenery (non-entity) elements. */
-// static void
-// advance_animation(
-//     struct SceneAnimation* animation,
-//     int cycles)
-// {
-//     if( !animation )
-//         return;
+static void
+advance_animation_step(
+    struct EntityAnimationStep* animation_step,
+    int cycles)
+{
+    if( !animation_step )
+        return;
 
-//     for( int i = 0; i < cycles; i++ )
-//     {
-//         animation->cycle++;
-//         if( animation->cycle >= animation->frame_lengths[animation->frame_index] )
-//         {
-//             animation->cycle = 0;
-//             animation->frame_index++;
-//             if( animation->frame_index >= animation->frame_count )
-//             {
-//                 animation->frame_index = 0;
-//             }
-//         }
-//     }
-// }
+    for( int i = 0; i < cycles; i++ )
+    {
+        animation_step->cycle++;
+        if( animation_step->cycle >= animation_step->delay )
+        {
+            animation_step->cycle = 0;
+            animation_step->frame++;
+            if( animation_step->frame >= animation_step->frame )
+            {
+                animation_step->frame = 0;
+            }
+        }
+    }
+}
+
+static void
+entity_advance_anim(
+    struct Scene2Element* scene_element,
+    struct EntityAnimation* animation,
+    int cycles)
+{
+    if( !animation )
+        return;
+
+    advance_animation_step(&animation->step, cycles);
+}
 
 /* Pick active anim (primary if valid and delay==0, else secondary) and sync to scene.
  * Client.ts: when primary has walkmerge and secondary != primary, use maskAnimate. */

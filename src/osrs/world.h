@@ -238,4 +238,14 @@ world_npc_set_size(
     int size_x,
     int size_z);
 
+struct NPCEntity*
+world_npc_ensure_scene_element(
+    struct World* world,
+    int npc_id);
+
+struct PlayerEntity*
+world_player_ensure_scene_element(
+    struct World* world,
+    int player_id);
+
 #endif

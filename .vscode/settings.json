@@ -260,6 +260,7 @@
         "lightmap.h": "c",
         "minimenu.h": "c",
         "isaac.h": "c",
-        "packetout.h": "c"
+        "packetout.h": "c",
+        "shademap.h": "c"
     },
 }

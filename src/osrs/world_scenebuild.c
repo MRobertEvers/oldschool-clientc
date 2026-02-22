@@ -218,4 +218,12 @@ world_scenebuild_npc_entity_set_npc_type(
     assert(npc_config && "Npc config must be found");
     npc->size.x = npc_config->size;
     npc->size.z = npc_config->size;
+
+    npc->animation.readyanim = npc_config->readyanim;
+    npc->animation.walkanim = npc_config->walkanim;
+    npc->animation.turnanim = -1;
+    npc->animation.runanim = -1;
+    npc->animation.walkanim_b = npc_config->walkanim_b;
+    npc->animation.walkanim_r = npc_config->walkanim_r;
+    npc->animation.walkanim_l = npc_config->walkanim_l;
 }

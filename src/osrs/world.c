@@ -1068,10 +1068,6 @@ world_player_entity_set_animation(
     load_scene_animation(world, &player->scene_element2, animation_id);
 
     player->animation.primary_anim = animation_id;
-    player->animation.primary_anim_frame = 0;
-    player->animation.primary_anim_cycle = 0;
-    player->animation.primary_anim_delay = 0;
-    player->animation.primary_anim_loop = 0;
 }
 
 void
@@ -1085,10 +1081,6 @@ world_npc_entity_set_animation(
     load_scene_animation(world, &npc->scene_element2, animation_id);
 
     npc->animation.primary_anim = animation_id;
-    npc->animation.primary_anim_frame = 0;
-    npc->animation.primary_anim_cycle = 0;
-    npc->animation.primary_anim_delay = 0;
-    npc->animation.primary_anim_loop = 0;
 }
 
 void
@@ -1273,4 +1265,52 @@ world_npc_set_size(
     struct NPCEntity* npc = &world->npcs[npc_entity_id];
     npc->size.x = size_x;
     npc->size.z = size_z;
+}
+
+struct NPCEntity*
+world_npc_ensure_scene_element(
+    struct World* world,
+    int npc_id)
+{
+    struct Scene2Element* element = NULL;
+    struct NPCEntity* npc = &world->npcs[npc_id];
+
+    npc->alive = true;
+    if( npc->scene_element2.element_id == -1 )
+    {
+        npc->scene_element2.element_id =
+            scene2_element_acquire(world->scene2, entity_unified_id(ENTITY_KIND_NPC, npc_id));
+
+        npc->orientation.dst_yaw = 0;
+
+        element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
+        if( element && !element->dash_position )
+            element->dash_position = dashposition_new();
+    }
+    return npc;
+}
+
+struct PlayerEntity*
+world_player_ensure_scene_element(
+    struct World* world,
+    int player_id)
+{
+    struct Scene2Element* element = NULL;
+    struct PlayerEntity* player = &world->players[player_id];
+
+    player->alive = true;
+    if( player->scene_element2.element_id == -1 )
+    {
+        player->scene_element2.element_id =
+            scene2_element_acquire(world->scene2, entity_unified_id(ENTITY_KIND_PLAYER, player_id));
+
+        // player->orientation.face_entity = -1;
+        player->orientation.dst_yaw = 0;
+
+        element = scene2_element_at(world->scene2, player->scene_element2.element_id);
+        if( element && !element->dash_position )
+            element->dash_position = dashposition_new();
+    }
+
+    return player;
 }

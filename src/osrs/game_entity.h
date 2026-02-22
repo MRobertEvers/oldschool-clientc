@@ -74,6 +74,13 @@ struct EntityOrientation
     int dst_yaw;
 };
 
+struct EntityAnimationStep
+{
+    int frame;
+    int cycle;
+    int delay;
+    int loop;
+};
 struct EntityAnimation
 {
     int readyanim;
@@ -85,15 +92,8 @@ struct EntityAnimation
     int walkanim_l;
 
     int primary_anim;
-    int primary_anim_frame;
-    int primary_anim_cycle;
-    int primary_anim_delay;
-    int primary_anim_loop;
     int secondary_anim;
-    int secondary_anim_frame;
-    int secondary_anim_cycle;
-    int secondary_anim_delay;
-    int secondary_anim_loop;
+    struct EntityAnimationStep step;
 };
 
 #define ENTITY_DAMAGE_SLOTS 4
@@ -109,7 +109,7 @@ struct NPCEntity
     struct EntityOrientation orientation;
     struct EntityAnimation animation;
 
-      /* Client.ts: damage/health for hitsplat and health bar */
+    /* Client.ts: damage/health for hitsplat and health bar */
     int damage_values[ENTITY_DAMAGE_SLOTS];
     int damage_types[ENTITY_DAMAGE_SLOTS];
     int damage_cycles[ENTITY_DAMAGE_SLOTS];
