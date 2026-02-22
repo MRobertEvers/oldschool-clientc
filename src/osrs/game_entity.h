@@ -109,27 +109,7 @@ struct NPCEntity
     struct EntityOrientation orientation;
     struct EntityAnimation animation;
 
-    /* Client.ts: primary from packet (attack/spell), secondary from movement */
-    void* scene_element;
-    int npc_type_id; /* CacheDatConfigNpc id for name/options */
-    int size_x;
-    int size_z;
-    int primary_anim;
-    int primary_anim_frame;
-    int primary_anim_cycle;
-    int primary_anim_delay;
-    int primary_anim_loop;
-    int secondary_anim;
-    int secondary_anim_frame;
-    int secondary_anim_cycle;
-    void* scene_readyanim;
-    void* scene_walkanim;
-    void* scene_runanim;
-    void* scene_walkanim_b;
-    void* scene_walkanim_r;
-    void* scene_walkanim_l;
-
-    /* Client.ts: damage/health for hitsplat and health bar */
+      /* Client.ts: damage/health for hitsplat and health bar */
     int damage_values[ENTITY_DAMAGE_SLOTS];
     int damage_types[ENTITY_DAMAGE_SLOTS];
     int damage_cycles[ENTITY_DAMAGE_SLOTS];

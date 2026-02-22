@@ -108,12 +108,7 @@ LibToriRS_GameNew(
 
     game->running = true;
 
-    game->players[ACTIVE_PLAYER_SLOT].alive = false;
-    game->players[ACTIVE_PLAYER_SLOT].draw_position.x = 50;
-    game->players[ACTIVE_PLAYER_SLOT].draw_position.z = 50;
-    game->players[ACTIVE_PLAYER_SLOT].draw_position.height = 0;
-
-    game->netin = ringbuf_new(4096);
+     game->netin = ringbuf_new(4096);
     game->netout = ringbuf_new(4096);
 
     game->packet_buffer = malloc(sizeof(struct PacketBuffer));

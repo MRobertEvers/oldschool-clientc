@@ -3,7 +3,6 @@
 #include "dash_utils.h"
 #include "datatypes/appearances.h"
 #include "datatypes/player_appearance.h"
-#include "entity_scenebuild.h"
 #include "game_entity.h"
 #include "graphics/dash.h"
 #include "model_transforms.h"
@@ -36,8 +35,6 @@ world_npc_ensure_scene_element(
     if( npc->scene_element2.element_id == -1 )
     {
         npc->scene_element2.element_id = scene2_element_acquire(world->scene2, npc_id);
-        npc->npc_type_id = -1;
-        // npc->orientation.face_entity = -1;
         npc->orientation.dst_yaw = 0;
 
         element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
@@ -83,14 +80,14 @@ gameproto_exec_npc_info(
     struct PktNpcInfoOp ops[2048];
     int count = pkt_npc_info_reader_read(&npc_info_reader, &packet->_npc_info, ops, 2048);
 
-    struct PlayerEntity* player = &game->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* player = &game->world->players[ACTIVE_PLAYER_SLOT];
     if( !player->alive )
         return;
 
     int npc_id = -1;
-    int prev_count = game->npc_count;
+    int prev_count = game->world->active_npc_count;
     int removed_count = 0;
-    game->npc_count = 0;
+    game->world->active_npc_count = 0;
     struct NPCEntity* npc = NULL;
     for( int i = 0; i < count; i++ )
     {
@@ -98,7 +95,7 @@ gameproto_exec_npc_info(
 
         if( npc_id != -1 )
         {
-            npc = entity_scenebuild_npc_get(game, npc_id);
+            npc = world_npc_ensure_scene_element(game->world, npc_id);
         }
         else
         {
@@ -110,39 +107,40 @@ gameproto_exec_npc_info(
         case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
         {
             npc_id = op->_bitvalue;
-            game->active_npcs[game->npc_count] = npc_id;
-            game->npc_count += 1;
+            game->world->active_npcs[game->world->active_npc_count] = npc_id;
+            game->world->active_npc_count += 1;
 
             break;
         }
         case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
         {
-            assert(op->_bitvalue >= game->npc_count);
-            npc_id = game->active_npcs[op->_bitvalue];
-            game->active_npcs[game->npc_count] = npc_id;
-            game->npc_count += 1;
+            assert(op->_bitvalue >= game->world->active_npc_count);
+            npc_id = game->world->active_npcs[op->_bitvalue];
+            game->world->active_npcs[game->world->active_npc_count] = npc_id;
+            game->world->active_npc_count += 1;
 
             break;
         }
         case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
         {
-            npc_id = game->active_npcs[op->_bitvalue];
+            npc_id = game->world->active_npcs[op->_bitvalue];
             break;
         }
         case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
         {
-            npc_id = game->active_npcs[op->_bitvalue];
-            entity_scenebuild_npc_release(game, npc_id);
-            game->active_npcs[op->_bitvalue] = -1;
+            npc_id = game->world->active_npcs[op->_bitvalue];
+            game->world->active_npcs[op->_bitvalue] = -1;
+            world_cleanup_npc_entity(game->world, npc_id);
             npc_id = -1;
             break;
         }
         case PKT_NPC_INFO_OPBITS_COUNT_RESET:
         {
-            // for( int idx = op->_bitvalue; idx < prev_count; idx++ )
-            // {
-            //     entity_scenebuild_npc_release(game, game->active_npcs[idx]);
-            // }
+            for( int idx = op->_bitvalue; idx < prev_count; idx++ )
+            {
+                world_cleanup_npc_entity(game->world, game->world->active_npcs[idx]);
+                game->world->active_npcs[idx] = -1;
+            }
             break;
         }
         case PKT_NPC_INFO_OP_DELTA_XZ:
@@ -164,7 +162,7 @@ gameproto_exec_npc_info(
         }
         case PKT_NPC_INFO_OPBITS_NPCTYPE:
         {
-            entity_scenebuild_npc_change_type(game, npc_id, op->_bitvalue);
+            world_scenebuild_npc_entity_set_npc_type(game->world, npc_id, op->_bitvalue);
             break;
         }
         case PKT_NPC_INFO_OP_FACE_ENTITY:
@@ -197,11 +195,11 @@ gameproto_exec_npc_info(
             int seq_id = (int)op->_sequence.sequence_id;
             if( seq_id == 65535 )
                 seq_id = -1;
-            npc->primary_anim = seq_id;
-            npc->primary_anim_frame = 0;
-            npc->primary_anim_cycle = 0;
-            npc->primary_anim_delay = op->_sequence.delay;
-            npc->primary_anim_loop = 0;
+            npc->animation.primary_anim = seq_id;
+            npc->animation.primary_anim_frame = 0;
+            npc->animation.primary_anim_cycle = 0;
+            npc->animation.primary_anim_delay = op->_sequence.delay;
+            npc->animation.primary_anim_loop = 0;
             break;
         }
         case PKT_NPC_INFO_OP_DAMAGE:
@@ -238,17 +236,19 @@ add_player_info(
     struct PktPlayerInfoOp ops[2048];
 
     struct SceneElement* scene_element = NULL;
-    struct PlayerEntity* active_player = &game->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* active_player = &game->world->players[ACTIVE_PLAYER_SLOT];
 
     int count = pkt_player_info_reader_read(&player_info_reader, &packet->_player_info, ops, 2048);
     int player_id = -1;
 
-    game->player_count = 0;
+    struct PlayerEntity* player = NULL;
+
+    game->world->active_player_count = 0;
     for( int i = 0; i < count; i++ )
     {
         struct PktPlayerInfoOp* op = &ops[i];
 
-        struct PlayerEntity* player =
+        player =
             (player_id >= 0) ? world_player_ensure_scene_element(game->world, player_id) : NULL;
 
         switch( op->kind )
@@ -260,28 +260,28 @@ add_player_info(
         }
         case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
         {
-            player_id = game->active_players[op->_bitvalue];
-            game->active_players[game->player_count] = player_id;
-            game->player_count += 1;
+            player_id = game->world->active_players[op->_bitvalue];
+            game->world->active_players[game->world->active_player_count] = player_id;
+            game->world->active_player_count += 1;
             break;
         }
         case PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID:
         {
             player_id = op->_bitvalue;
-            game->active_players[game->player_count] = player_id;
-            game->player_count += 1;
+            game->world->active_players[game->world->active_player_count] = player_id;
+            game->world->active_player_count += 1;
             break;
         }
         case PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX:
         {
-            player_id = game->active_players[op->_bitvalue];
+            player_id = game->world->active_players[op->_bitvalue];
             break;
         }
         case PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX:
         {
-            player_id = game->active_players[op->_bitvalue];
+            player_id = game->world->active_players[op->_bitvalue];
             world_cleanup_player_entity(game->world, player_id);
-            game->active_players[op->_bitvalue] = -1;
+            game->world->active_players[op->_bitvalue] = -1;
             player_id = -1;
             break;
         }
@@ -329,7 +329,7 @@ add_player_info(
             struct PlayerAppearance appearance;
             player_appearance_decode(&appearance, op->_appearance.appearance, op->_appearance.len);
 
-            entity_scenebuild_player_change_appearance(game, player_id, &appearance);
+            world_player_entity_set_appearance(game->world, player_id, &appearance);
         }
         break;
         case PKT_PLAYER_INFO_OP_FACE_ENTITY:
@@ -779,7 +779,7 @@ gameproto_exec_if_setplayerhead(
     if( !component )
         return;
 
-    struct PlayerEntity* local_player = &game->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* local_player = &game->world->players[ACTIVE_PLAYER_SLOT];
     if( !local_player->alive )
         return;
 

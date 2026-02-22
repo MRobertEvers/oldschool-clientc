@@ -213,4 +213,9 @@ world_scenebuild_npc_entity_set_npc_type(
     struct DashModel* dash_model = dashmodel_new();
     npc_model(world->buildcachedat, npc_type, dash_model);
     scene2_element_set_dash_model(element, dash_model);
+
+    struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(world->buildcachedat, npc_type);
+    assert(npc_config && "Npc config must be found");
+    npc->size.x = npc_config->size;
+    npc->size.z = npc_config->size;
 }

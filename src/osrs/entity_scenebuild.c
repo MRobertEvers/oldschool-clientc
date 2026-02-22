@@ -3,10 +3,12 @@
 #include "dash_utils.h"
 #include "datatypes/appearances.h"
 #include "datatypes/player_appearance.h"
+#include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/model_transforms.h"
+#include "osrs/world_scenebuild.h"
 #include "osrs/zone_state.h"
 #include "rscache/tables/model.h"
 #include "rscache/tables_dat/config_idk.h"
@@ -200,7 +202,7 @@ entity_scenebuild_player_change_appearance(
     int player_id,
     struct PlayerAppearance* appearance)
 {
-    struct PlayerEntity* player = &game->players[player_id];
+    struct PlayerEntity* player = &game->world->players[player_id];
     struct Scene2Element* scene_element =
         scene2_element_at(game->world->scene2, player->scene_element2.element_id);
 
@@ -225,22 +227,6 @@ entity_scenebuild_player_change_appearance(
     if( !scene_element->dash_model )
         scene_element->dash_model = dashmodel_new();
     player_appearance_model(game, appearance, scene_element->dash_model);
-}
-
-struct NPCEntity*
-entity_scenebuild_npc_get(
-    struct GGame* game,
-    int npc_id)
-{
-    struct NPCEntity* npc = &game->npcs[npc_id];
-    if( npc->alive )
-        return npc;
-
-    assert(!npc->scene_element && "Npc must not have a scene element");
-    npc->alive = true;
-    npc->npc_type_id = -1;
-
-    return npc;
 }
 
 static void
@@ -290,48 +276,6 @@ npc_model(
 
     dashmodel_move_from_cache_model(dash_model, copy);
     _light_model_default(dash_model, 0, 0);
-}
-
-void
-entity_scenebuild_npc_change_type(
-    struct GGame* game,
-    int npc_id,
-    int npc_type)
-{
-    // struct NPCEntity* npc = entity_scenebuild_npc_get(game, npc_id);
-    // struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(game->buildcachedat, npc_type);
-    // struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
-
-    // npc->npc_type_id = npc_type;
-    // npc->size_x = npc_config->size;
-    // npc->size_z = npc_config->size;
-
-    // npc->animation.readyanim = npc_config->readyanim;
-    // npc->animation.walkanim = npc_config->walkanim;
-    // npc->animation.turnanim = -1; /* CacheDatConfigNpc has no turnanim */
-    // npc->animation.runanim = -1;  /* CacheDatConfigNpc has no runanim */
-    // npc->animation.walkanim_b = npc_config->walkanim_b;
-    // npc->animation.walkanim_r = npc_config->walkanim_r;
-    // npc->animation.walkanim_l = npc_config->walkanim_l;
-
-    // npc->secondary_anim = npc_config->readyanim;
-    // npc->secondary_anim_frame = 0;
-    // npc->secondary_anim_cycle = 0;
-
-    // scene_element_reset(scene_element);
-    // npc_model(game, npc_type, scene_element->dash_model);
-}
-
-void
-entity_scenebuild_npc_release(
-    struct GGame* game,
-    int npc_entity_id)
-{
-    struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
-    assert(npc_entity->alive && "Npc entity must be alive");
-
-    npc_entity->alive = false;
-    memset(npc_entity, 0, sizeof(struct NPCEntity));
 }
 
 /* Head model helpers for chat/interface MODEL components.

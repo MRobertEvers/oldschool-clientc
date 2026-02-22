@@ -324,7 +324,7 @@ LibToriRS_FrameEnd(struct GGame* game)
         int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
         int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
         /* Source = route head (Client.ts localPlayer.routeTileX[0], routeTileZ[0]). */
-        struct PlayerEntity* pl = &game->players[ACTIVE_PLAYER_SLOT];
+        struct PlayerEntity* pl = &game->world->players[ACTIVE_PLAYER_SLOT];
         int src_local_x = pl->pathing.route_x[0];
         int src_local_z = pl->pathing.route_z[0];
         int start_world_x = game->scene_base_tile_x + src_local_x;

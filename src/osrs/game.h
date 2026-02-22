@@ -107,13 +107,6 @@ struct GGame
     int camera_movement_speed;
     int camera_rotation_speed;
 
-    struct PlayerEntity players[MAX_PLAYERS];
-    uint32_t active_players[MAX_PLAYERS];
-    int player_count;
-    struct NPCEntity npcs[MAX_NPCS];
-    uint32_t active_npcs[MAX_NPCS];
-    int npc_count;
-
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
 
@@ -289,18 +282,11 @@ struct GGame
     int menu_height;
     int menu_size;
     char menu_options[MINIMENU_MAX_OPTIONS][MINIMENU_OPTION_LEN];
-    int menu_option_action[MINIMENU_MAX_OPTIONS]; /* op index 0-4 for NPC/loc/player; 5=Examine;
-
-    int menu_walk_click_x;                        /* viewport x for Walk Here */
-    int menu_walk_click_y;                        /* viewport y for Walk Here */
-
-    /* Click cross: 0=none, 1=yellow (tile), 2=red (viewport but not tile). Client.ts crossMode. */
+    int menu_option_action[MINIMENU_MAX_OPTIONS];
+    int menu_walk_click_y;
     int cross_mode;
     int cross_x;
     int cross_y;
-
-    /* Chat messages (Client.ts addMessage). type: 0=game, 1=public filtered, 2=public, 3=private,
-     * 4=trade, 5=friend, 6=private out, 7=private staff, 8=duel. */
 #define GAME_CHAT_MAX 100
 #define GAME_CHAT_SENDER_LEN 64
 #define GAME_CHAT_TEXT_LEN 128

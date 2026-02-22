@@ -1602,7 +1602,7 @@ interface_draw_component_model(
     int* colors = NULL;
     if( component->modelType == 3 )
     {
-        struct PlayerEntity* local = &game->players[ACTIVE_PLAYER_SLOT];
+        struct PlayerEntity* local = &game->world->players[ACTIVE_PLAYER_SLOT];
         if( !local->alive )
             return;
         slots = local->appearance.slots;
@@ -1628,7 +1628,7 @@ interface_draw_component_model(
         }
         else if( component->modelType == 3 )
         {
-            struct PlayerEntity* local = &game->players[ACTIVE_PLAYER_SLOT];
+            struct PlayerEntity* local = &game->world->players[ACTIVE_PLAYER_SLOT];
             if( local->alive )
                 sequence_id = local->animation.readyanim;
         }

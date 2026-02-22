@@ -328,10 +328,8 @@ struct EntityAnimUpdateView
     struct EntityDrawPosition* draw_position;
     struct EntityOrientation* orientation;
     struct EntityAnimation* animation;
-    struct EntitySceneElement* scene_element;
     int size_x;
     int size_z;
-    int face_entity;
 };
 
 /* Client.ts entityFace: set dstYaw from faceEntity or faceSquare target. 325.949 ≈ 2048/(2π) for
@@ -343,7 +341,7 @@ entity_face(
     bool is_player)
 {
     (void)is_player;
-    int fe = view->face_entity;
+    int fe = -1;
     if( fe >= 0 )
     {
         int target_x = 0;
@@ -355,7 +353,7 @@ entity_face(
             /* NPC target */
             if( fe < MAX_NPCS )
             {
-                struct NPCEntity* target = &game->npcs[fe];
+                struct NPCEntity* target = &game->world->npcs[fe];
                 if( target->alive )
                 {
                     target_x = target->draw_position.x;
@@ -376,9 +374,9 @@ entity_face(
             else
                 pid = -1;
 
-            if( pid >= 0 && game->players[pid].alive )
+            if( pid >= 0 && game->world->players[pid].alive )
             {
-                struct PlayerEntity* target = &game->players[pid];
+                struct PlayerEntity* target = &game->world->players[pid];
                 target_x = target->draw_position.x;
                 target_z = target->draw_position.z;
                 has_target = 1;
@@ -454,32 +452,32 @@ update_entity_movement_and_animation(
     /* face_entity takes priority over pathing yaw: set dst_yaw from target first */
     // entity_face(game, view, player);
 
-    /* Only use pathing direction when face_entity did not set dst_yaw */
-    if( view->face_entity < 0 )
-    {
-        if( x < dstX )
-        {
-            if( z < dstZ )
-                view->orientation->dst_yaw = 1280;
-            else if( z > dstZ )
-                view->orientation->dst_yaw = 1792;
-            else
-                view->orientation->dst_yaw = 1536;
-        }
-        else if( x > dstX )
-        {
-            if( z < dstZ )
-                view->orientation->dst_yaw = 768;
-            else if( z > dstZ )
-                view->orientation->dst_yaw = 256;
-            else
-                view->orientation->dst_yaw = 512;
-        }
-        else if( z < dstZ )
-            view->orientation->dst_yaw = 1024;
-        else
-            view->orientation->dst_yaw = 0;
-    }
+    // /* Only use pathing direction when face_entity did not set dst_yaw */
+    // if( view->face_entity < 0 )
+    // {
+    //     if( x < dstX )
+    //     {
+    //         if( z < dstZ )
+    //             view->orientation->dst_yaw = 1280;
+    //         else if( z > dstZ )
+    //             view->orientation->dst_yaw = 1792;
+    //         else
+    //             view->orientation->dst_yaw = 1536;
+    //     }
+    //     else if( x > dstX )
+    //     {
+    //         if( z < dstZ )
+    //             view->orientation->dst_yaw = 768;
+    //         else if( z > dstZ )
+    //             view->orientation->dst_yaw = 256;
+    //         else
+    //             view->orientation->dst_yaw = 512;
+    //     }
+    //     else if( z < dstZ )
+    //         view->orientation->dst_yaw = 1024;
+    //     else
+    //         view->orientation->dst_yaw = 0;
+    // }
 
     int deltaYaw = (view->orientation->dst_yaw - view->orientation->yaw) & 0x7ff;
     if( deltaYaw > 1024 )
@@ -580,50 +578,50 @@ anim:;
         {
             view->animation->secondary_anim_frame = 0;
             view->animation->secondary_anim_cycle = 0;
-            if( player && view->scene_element && view->scene_element->element_id != -1 &&
-                game->world && game->world->scene2 )
-            {
-                struct Scene2Element* element =
-                    scene2_element_at(game->world->scene2, view->scene_element->element_id);
-                if( element )
-                    scene2_element_clear_secondary_animation(element);
-            }
-            else if( view->scene_element )
-            {
-                struct SceneElement* scene_element = (struct SceneElement*)view->scene_element;
-                // scene_element_animation_free(scene_element);
-            }
+            // if( player && view->scene_element && view->scene_element->element_id != -1 &&
+            //     game->world && game->world->scene2 )
+            // {
+            //     struct Scene2Element* element =
+            //         scene2_element_at(game->world->scene2, view->scene_element->element_id);
+            //     if( element )
+            //         scene2_element_clear_secondary_animation(element);
+            // }
+            // else if( view->scene_element )
+            // {
+            //     struct SceneElement* scene_element = (struct SceneElement*)view->scene_element;
+            //     // scene_element_animation_free(scene_element);
+            // }
         }
-        else if(
-            player && prev_secondary != seqId && view->scene_element &&
-            view->scene_element->element_id != -1 && game->world && game->world->scene2 &&
-            game->world->buildcachedat )
-        {
-            struct Scene2Element* element =
-                scene2_element_at(game->world->scene2, view->scene_element->element_id);
-            struct CacheDatSequence* sequence =
-                buildcachedat_get_sequence(game->world->buildcachedat, seqId);
-            if( element && sequence )
-            {
-                scene2_element_clear_secondary_animation(element);
-                for( int i = 0; i < sequence->frame_count; i++ )
-                {
-                    int frame_id = sequence->frames[i];
-                    struct CacheAnimframe* animframe =
-                        buildcachedat_get_animframe(game->world->buildcachedat, frame_id);
-                    if( !animframe )
-                        continue;
-                    if( !element->dash_framemap )
-                        scene2_element_set_framemap(
-                            element, dashframemap_new_from_animframe(animframe));
-                    int length = sequence->delay[i];
-                    if( length == 0 )
-                        length = animframe->delay;
-                    scene2_element_push_secondary_animation_frame(
-                        element, dashframe_new_from_animframe(animframe), length);
-                }
-            }
-        }
+        // else if(
+        //     player && prev_secondary != seqId && view->scene_element &&
+        //     view->scene_element->element_id != -1 && game->world && game->world->scene2 &&
+        //     game->world->buildcachedat )
+        // {
+        //     struct Scene2Element* element =
+        //         scene2_element_at(game->world->scene2, view->scene_element->element_id);
+        //     struct CacheDatSequence* sequence =
+        //         buildcachedat_get_sequence(game->world->buildcachedat, seqId);
+        //     if( element && sequence )
+        //     {
+        //         scene2_element_clear_secondary_animation(element);
+        //         for( int i = 0; i < sequence->frame_count; i++ )
+        //         {
+        //             int frame_id = sequence->frames[i];
+        //             struct CacheAnimframe* animframe =
+        //                 buildcachedat_get_animframe(game->world->buildcachedat, frame_id);
+        //             if( !animframe )
+        //                 continue;
+        //             if( !element->dash_framemap )
+        //                 scene2_element_set_framemap(
+        //                     element, dashframemap_new_from_animframe(animframe));
+        //             int length = sequence->delay[i];
+        //             if( length == 0 )
+        //                 length = animframe->delay;
+        //             scene2_element_push_secondary_animation_frame(
+        //                 element, dashframe_new_from_animframe(animframe), length);
+        //         }
+        //     }
+        // }
         /* Scene sync happens in entity_advance_anim; we don't load here to avoid overwriting
          * primary. */
     }
@@ -634,7 +632,7 @@ update_npc_anim(
     struct GGame* game,
     int npc_entity_id)
 {
-    struct NPCEntity* npc_entity = &game->npcs[npc_entity_id];
+    struct NPCEntity* npc_entity = &game->world->npcs[npc_entity_id];
     struct EntityAnimUpdateView view = {
         .pathing = &npc_entity->pathing,
         .draw_position = &npc_entity->draw_position,
@@ -642,8 +640,6 @@ update_npc_anim(
         .animation = &npc_entity->animation,
         .size_x = npc_entity->size.x,
         .size_z = npc_entity->size.z,
-        .scene_element = npc_entity->scene_element,
-        // .face_entity = npc_entity->orientation.face_entity,
     };
     update_entity_movement_and_animation(game, &view, false);
 }
@@ -653,16 +649,14 @@ update_player_anim(
     struct GGame* game,
     int player_entity_id)
 {
-    struct PlayerEntity* player_entity = &game->players[player_entity_id];
+    struct PlayerEntity* player_entity = &game->world->players[player_entity_id];
     struct EntityAnimUpdateView view = {
         .pathing = &player_entity->pathing,
         .draw_position = &player_entity->draw_position,
         .orientation = &player_entity->orientation,
         .animation = &player_entity->animation,
-        .scene_element = &player_entity->scene_element2,
         .size_x = 1,
         .size_z = 1,
-        // .face_entity = player_entity->orientation.face_entity,
     };
     update_entity_movement_and_animation(game, &view, true);
 }
@@ -1109,6 +1103,7 @@ LibToriRS_GameStep(
         struct NPCEntity* npc = &game->world->npcs[npc_id];
         if( npc->alive && npc->scene_element2.element_id != -1 )
         {
+            update_npc_anim(game, npc_id);
             painter_add_normal_scenery(
                 game->world->painter,
                 npc->pathing.route_x[0],

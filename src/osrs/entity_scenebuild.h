@@ -12,25 +12,10 @@ entity_scenebuild_player_change_appearance(
     struct PlayerAppearance* appearance);
 
 void
-entity_scenebuild_player_release(
-    struct GGame* game,
-    int player_id);
-
-struct NPCEntity*
-entity_scenebuild_npc_get(
-    struct GGame* game,
-    int npc_id);
-
-void
 entity_scenebuild_npc_change_type(
     struct GGame* game,
     int npc_id,
     int npc_type);
-
-void
-entity_scenebuild_npc_release(
-    struct GGame* game,
-    int npc_id);
 
 /** Update or create SceneElement for top obj at (level, sx, sz). Call after obj_add, obj_del,
  * obj_count. */

@@ -41,6 +41,26 @@ next_map_build_loc_entity(struct World* world)
     return NULL;
 }
 
+static void
+init_player_entity(
+    struct World* world,
+    int player_id)
+{
+    struct PlayerEntity* player = &world->players[player_id];
+    player->alive = false;
+    player->scene_element2.element_id = -1;
+}
+
+static void
+init_npc_entity(
+    struct World* world,
+    int npc_id)
+{
+    struct NPCEntity* npc = &world->npcs[npc_id];
+    npc->alive = false;
+    npc->scene_element2.element_id = -1;
+}
+
 struct World*
 world_new(struct BuildCacheDat* buildcachedat)
 {
@@ -71,6 +91,15 @@ world_new(struct BuildCacheDat* buildcachedat)
     for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
     {
         init_map_build_tile_entity(&world->map_build_tile_entities[i], i);
+    }
+
+    for( int i = 0; i < MAX_PLAYERS; i++ )
+    {
+        init_player_entity(world, i);
+    }
+    for( int i = 0; i < MAX_NPCS; i++ )
+    {
+        init_npc_entity(world, i);
     }
 
     return world;
