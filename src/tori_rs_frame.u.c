@@ -232,67 +232,16 @@ LibToriRS_FrameNextCommand(
             position.y = position.y - game->camera_world_y;
             position.z = position.z - game->camera_world_z;
 
-            // tile_model = scene_terrain_tile_at(game->scene->terrain, sx, sz, slevel);
-            // if( !tile_model || !tile_model->dash_model )
-            //     break;
-
-            // position.x = sx * 128 - game->camera_world_x;
-            // position.z = sz * 128 - game->camera_world_z;
-            // position.y = -game->camera_world_y;
-
-            // int cull = dash3d_project_model(
-            //     game->sys_dash, tile_model->dash_model, &position, game->view_port,
-            //     game->camera);
-            // if( cull != DASHCULL_VISIBLE )
-            //     continue;
-
-            // /* Client.ts: click(mouseX-8, mouseY-11); draw tests
-            // pointInsideTriangle(World3D.mouseX,
-            //  * World3D.mouseY). Only record tile when we have a click (taking input).
-            //  * Only acknowledge 3D clicks within the viewport bounds (graphics3d_width x height).
-            //  */
-            // int click_vp_x = game->mouse_clicked_x - game->viewport_offset_x - 8;
-            // int click_vp_y = game->mouse_clicked_y - game->viewport_offset_y - 11;
-            // bool in_viewport =
-            //     game->view_port && game->mouse_clicked_x >= game->viewport_offset_x &&
-            //     game->mouse_clicked_x < game->viewport_offset_x + game->view_port->width &&
-            //     game->mouse_clicked_y >= game->viewport_offset_y &&
-            //     game->mouse_clicked_y < game->viewport_offset_y + game->view_port->height;
-            // if( in_viewport && dash3d_projected_model_contains(
-            //                        game->sys_dash,
-            //                        tile_model->dash_model,
-            //                        game->view_port,
-            //                        click_vp_x,
-            //                        click_vp_y) )
-            // {
-            //     game->tile_clicked_x = sx;
-            //     game->tile_clicked_z = sz;
-            //     game->tile_clicked_level = slevel;
-            // }
-
             int cull = dash3d_project_model(
                 game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
             if( cull != DASHCULL_VISIBLE )
                 break;
-
-            bool is_hovered = false;
-            int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
-            int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
-            if( game->view_port && mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
-                mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
-                dash3d_projected_model_contains(
-                    game->sys_dash, element->dash_model, game->view_port, mouse_vp_x, mouse_vp_y) )
-            {
-                game->hovered_scene2_element = element;
-                is_hovered = true;
-            }
 
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
                         .model = element->dash_model,
                         .position = position,
-                        .is_hovered = is_hovered,
                     },
                 };
         }
