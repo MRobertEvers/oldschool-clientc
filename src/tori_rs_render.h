@@ -32,7 +32,6 @@ struct ToriRSRenderCommand
         {
             struct DashModel* model;
             struct DashPosition position;
-            bool is_hovered;
         } _model_draw;
     };
 };

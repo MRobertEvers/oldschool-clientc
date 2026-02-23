@@ -108,7 +108,7 @@ LibToriRS_GameNew(
 
     game->running = true;
 
-     game->netin = ringbuf_new(4096);
+    game->netin = ringbuf_new(4096);
     game->netout = ringbuf_new(4096);
 
     game->packet_buffer = malloc(sizeof(struct PacketBuffer));

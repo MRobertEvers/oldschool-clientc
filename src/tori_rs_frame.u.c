@@ -25,8 +25,6 @@ LibToriRS_FrameBegin(
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
-    game->hovered_scene_element = NULL;
-    game->hovered_scene2_element = NULL;
 
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
@@ -148,9 +146,6 @@ LibToriRS_FrameNextCommand(
     memset(command, 0, sizeof(*command));
 
     struct DashPosition position = { 0 };
-    // struct SceneElement* element = NULL;
-    // struct SceneTerrainTile* tile_model = NULL;
-
     struct Scene2Element* element = NULL;
 
     while( command->kind == TORIRS_GFX_NONE )
@@ -186,26 +181,10 @@ LibToriRS_FrameNextCommand(
 
             entity_animate(game->world, element->parent_entity_id);
 
-            /* Client.ts: detect interactable loc, NPC, or player; check mouse hover. Last hit
-             * wins.
-             */
-            bool is_hovered = false;
-            int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
-            int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
-            if( game->view_port && mouse_vp_x >= 0 && mouse_vp_x < game->view_port->width &&
-                mouse_vp_y >= 0 && mouse_vp_y < game->view_port->height &&
-                dash3d_projected_model_contains(
-                    game->sys_dash, element->dash_model, game->view_port, mouse_vp_x, mouse_vp_y) )
-            {
-                game->hovered_scene2_element = element;
-                is_hovered = true;
-            }
-
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
                         .model = element->dash_model,
-                        .is_hovered = is_hovered,
                     },
                 };
             memcpy(&command->_model_draw.position, &position, sizeof(struct DashPosition));
@@ -291,30 +270,9 @@ LibToriRS_FrameNextCommand(
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
-    /* Client.ts: if mouse outside menu bounds, menuVisible = false. Close minimenu when mouse
-     * moves off the menu. */
-    if( game->menu_visible && game->menu_area == 0 && game->view_port )
+    if( game->mouse_clicked )
     {
-        int mouse_vp_x = game->mouse_x - game->viewport_offset_x;
-        int mouse_vp_y = game->mouse_y - game->viewport_offset_y;
-        if( mouse_vp_x < game->menu_x - 10 || mouse_vp_x > game->menu_x + game->menu_width + 10 ||
-            mouse_vp_y < game->menu_y - 10 || mouse_vp_y > game->menu_y + game->menu_height + 10 )
-        {
-            game->menu_visible = 0;
-        }
-    }
-
-    /* Client.ts crossMode: yellow (1) when tile clicked, red (2) when viewport clicked but not
-     * tile. No cross when clicking on 2D interface. */
-    if( game->mouse_clicked && game->view_port )
-    {
-        int vp_ox = game->viewport_offset_x;
-        int vp_oy = game->viewport_offset_y;
-        int in_viewport = game->mouse_clicked_x >= vp_ox &&
-                          game->mouse_clicked_x < vp_ox + game->view_port->width &&
-                          game->mouse_clicked_y >= vp_oy &&
-                          game->mouse_clicked_y < vp_oy + game->view_port->height;
-        if( game->interface_consumed_click || !in_viewport )
+        if( game->interface_consumed_click )
         {
             game->mouse_cycle = -1;
             game->cross_mode = 0;
@@ -322,8 +280,8 @@ LibToriRS_FrameEnd(struct GGame* game)
         else
         {
             game->cross_mode = game->clicked_tile_valid ? 1 : 2;
-            game->cross_x = game->mouse_clicked_x - vp_ox;
-            game->cross_y = game->mouse_clicked_y - vp_oy;
+            game->cross_x = game->mouse_clicked_x;
+            game->cross_y = game->mouse_clicked_y;
         }
     }
 
@@ -357,35 +315,6 @@ LibToriRS_FrameEnd(struct GGame* game)
     {
         game->clicked_tile_valid = 0;
     }
-}
-
-bool
-LibToriRS_FindTileAtViewport(
-    struct GGame* game,
-    int vp_x,
-    int vp_y,
-    int* out_tile_x,
-    int* out_tile_z,
-    int* out_level)
-{
-    if( !game->sys_painter_buffer || !game->sys_dash || !game->view_port || !game->camera ||
-        !out_tile_x || !out_tile_z || !out_level )
-        return false;
-
-    int click_x = vp_x - 8;
-    int click_y = vp_y - 11;
-
-    for( int i = 0; i < game->sys_painter_buffer->command_count && i < game->cc; i++ )
-    {
-        struct PaintersElementCommand* cmd = &game->sys_painter_buffer->commands[i];
-        if( cmd->_bf_kind != PNTR_CMD_TERRAIN )
-            continue;
-
-        int sx = cmd->_terrain._bf_terrain_x;
-        int sz = cmd->_terrain._bf_terrain_z;
-        int slevel = cmd->_terrain._bf_terrain_y;
-    }
-    return false;
 }
 
 #endif

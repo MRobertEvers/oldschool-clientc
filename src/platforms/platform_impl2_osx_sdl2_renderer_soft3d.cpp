@@ -712,6 +712,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         game->iface_view_port->y_center = new_height / 2;
         game->iface_view_port->width = new_width;
         game->iface_view_port->height = new_height;
+
+        game->iface_view_port->clip_bottom = new_height;
+        game->iface_view_port->clip_right = new_width;
+        game->iface_view_port->clip_left = 0;
+        game->iface_view_port->clip_top = 0;
     }
 
     // Allocate/update dash buffer if viewport exists

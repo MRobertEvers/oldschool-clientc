@@ -44,16 +44,6 @@ LibToriRS_FrameNextCommand(
 void
 LibToriRS_FrameEnd(struct GGame* game);
 
-/* Find terrain tile at viewport (x,y). Client.ts uses (-8,-11) offset for projection. */
-bool
-LibToriRS_FindTileAtViewport(
-    struct GGame* game,
-    int vp_x,
-    int vp_y,
-    int* out_tile_x,
-    int* out_tile_z,
-    int* out_level);
-
 int
 LibToriRS_NetIsReady(struct GGame* game);
 
