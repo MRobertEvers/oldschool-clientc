@@ -889,8 +889,10 @@ step:;
 
 struct PainterPadding
 {
-    int x;
-    int z;
+    int x_sw;
+    int z_sw;
+    int x_size;
+    int z_size;
 };
 static void
 entity_calculate_painter_padding(
@@ -929,8 +931,10 @@ entity_calculate_painter_padding(
     x1 = (x1 / 128) | 0;
     z1 = (z1 / 128) | 0;
 
-    size->x = x1 - x0 + 1;
-    size->z = z1 - z0 + 1;
+    size->x_sw = x0;
+    size->z_sw = z0;
+    size->x_size = x1 - x0 + 1;
+    size->z_size = z1 - z0 + 1;
 }
 
 void
@@ -1040,12 +1044,12 @@ LibToriRS_GameStep(
 
             painter_add_normal_scenery(
                 game->world->painter,
-                player->pathing.route_x[0],
-                player->pathing.route_z[0],
+                padding.x_sw,
+                padding.z_sw,
                 0,
                 player->scene_element2.element_id,
-                padding.x,
-                padding.z);
+                padding.x_size,
+                padding.z_size);
 
             scene_element =
                 scene2_element_at(game->world->scene2, player->scene_element2.element_id);
@@ -1079,12 +1083,12 @@ LibToriRS_GameStep(
 
             painter_add_normal_scenery(
                 game->world->painter,
-                npc->pathing.route_x[0],
-                npc->pathing.route_z[0],
+                padding.x_sw,
+                padding.z_sw,
                 0,
                 npc->scene_element2.element_id,
-                padding.x,
-                padding.z);
+                padding.x_size,
+                padding.z_size);
         }
 
         scene_element = scene2_element_at(game->world->scene2, npc->scene_element2.element_id);
