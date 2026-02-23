@@ -30,6 +30,8 @@ LibToriRS_FrameBegin(
     game->camera->yaw = game->camera_yaw;
     game->camera->roll = game->camera_roll;
 
+    world_pickset_reset(&game->pickset);
+
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
 
     if( game->world )
@@ -188,6 +190,66 @@ entity_animate(
     }
 }
 
+static bool
+entity_interactable(
+    struct World* world,
+    int entity_id)
+{
+    switch( entity_kind_from_uid(entity_id) )
+    {
+    case ENTITY_KIND_PLAYER:
+        return true;
+    case ENTITY_KIND_NPC:
+        return true;
+    case ENTITY_KIND_MAP_BUILD_LOC:
+    {
+        struct MapBuildLocEntity* map_build_loc_entity =
+            &world->map_build_loc_entities[entity_id_from_uid(entity_id)];
+        return map_build_loc_entity->interactable;
+    }
+    }
+    return false;
+}
+
+struct EntityCoords
+{
+    int x;
+    int z;
+};
+
+static void
+entity_coords_from_element(
+    struct World* world,
+    int entity_uid,
+    struct EntityCoords* coords)
+{
+    switch( entity_kind_from_uid(entity_uid) )
+    {
+    case ENTITY_KIND_PLAYER:
+    {
+        struct PlayerEntity* player = &world->players[entity_id_from_uid(entity_uid)];
+        coords->x = player->pathing.route_x[0];
+        coords->z = player->pathing.route_z[0];
+    }
+    break;
+    case ENTITY_KIND_NPC:
+    {
+        struct NPCEntity* npc = &world->npcs[entity_id_from_uid(entity_uid)];
+        coords->x = npc->pathing.route_x[0];
+        coords->z = npc->pathing.route_z[0];
+    }
+    break;
+    case ENTITY_KIND_MAP_BUILD_LOC:
+    {
+        struct MapBuildLocEntity* map_build_loc_entity =
+            &world->map_build_loc_entities[entity_id_from_uid(entity_uid)];
+        coords->x = map_build_loc_entity->scene_coord.sx;
+        coords->z = map_build_loc_entity->scene_coord.sz;
+    }
+    break;
+    }
+}
+
 bool
 LibToriRS_FrameNextCommand(
     struct GGame* game,
@@ -197,6 +259,7 @@ LibToriRS_FrameNextCommand(
     memset(command, 0, sizeof(*command));
 
     struct DashPosition position = { 0 };
+    struct EntityCoords coords = { 0 };
     struct Scene2Element* element = NULL;
 
     while( command->kind == TORIRS_GFX_NONE )
@@ -231,6 +294,31 @@ LibToriRS_FrameNextCommand(
                 break;
 
             entity_animate(game->world, element->parent_entity_id);
+
+            if( entity_interactable(game->world, element->parent_entity_id) )
+            {
+                int vp_ox = game->viewport_offset_x;
+                int vp_oy = game->viewport_offset_y;
+                int click_vp_x = game->mouse_clicked_x - vp_ox;
+                int click_vp_y = game->mouse_clicked_y - vp_oy;
+                if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0 &&
+                    click_vp_y < game->view_port->height &&
+                    dash3d_projected_model_contains(
+                        game->sys_dash,
+                        element->dash_model,
+                        game->view_port,
+                        click_vp_x,
+                        click_vp_y) )
+                {
+                    entity_coords_from_element(game->world, element->parent_entity_id, &coords);
+                    world_pickset_add(
+                        &game->pickset,
+                        coords.x,
+                        coords.z,
+                        entity_kind_from_uid(element->parent_entity_id),
+                        entity_id_from_uid(element->parent_entity_id));
+                }
+            }
 
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,

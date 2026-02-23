@@ -682,6 +682,7 @@ scenery_add_wall_decor_diagonal_outside(
     struct CacheConfigLocation* config_loc)
 {
     entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -749,6 +750,7 @@ scenery_add_wall_decor_diagonal_inside(
     struct CacheConfigLocation* config_loc)
 {
     entity->scene_element.element_id = scene2_element_acquire(world->scene2, entity->entity_id);
+    entity->interactable = config_loc->is_interactive;
 
     int orientation = (map_tile->orientation + 2) & 0x3;
     int rotation = config_loc->seq_id != -1 ? 0 : orientation;
@@ -826,6 +828,7 @@ scenery_add_wall_decor_diagonal_double(
 {
     entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
     entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->interactable = config_loc->is_interactive;
 
     int outside_rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int outside_orientation = map_tile->orientation;
@@ -985,6 +988,7 @@ scenery_add_normal(
     struct CacheConfigLocation* config_loc)
 {
     entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;

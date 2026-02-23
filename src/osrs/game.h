@@ -22,6 +22,7 @@
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
 #include "osrs/zone_state.h"
+#include "world_pickset.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -135,6 +136,7 @@ struct GGame
     struct RevPacket_LC245_2_Item* packets_lc245_2;
 
     struct World* world;
+    struct WorldPickSet pickset;
 
     struct DashGraphics* sys_dash;
     struct Minimap* sys_minimap;

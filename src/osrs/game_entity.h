@@ -152,6 +152,7 @@ struct MapBuildLocEntity
     struct EntityAnimation animation_two;
     struct EntitySceneCoord scene_coord;
     struct EntityAction actions[10];
+    bool interactable;
 };
 
 struct MapBuildTileEntity
