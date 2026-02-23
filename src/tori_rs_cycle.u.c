@@ -454,32 +454,29 @@ update_entity_movement_and_animation(
     /* face_entity takes priority over pathing yaw: set dst_yaw from target first */
     // entity_face(game, view, player);
 
-    // /* Only use pathing direction when face_entity did not set dst_yaw */
-    // if( view->face_entity < 0 )
-    // {
-    //     if( x < dstX )
-    //     {
-    //         if( z < dstZ )
-    //             view->orientation->dst_yaw = 1280;
-    //         else if( z > dstZ )
-    //             view->orientation->dst_yaw = 1792;
-    //         else
-    //             view->orientation->dst_yaw = 1536;
-    //     }
-    //     else if( x > dstX )
-    //     {
-    //         if( z < dstZ )
-    //             view->orientation->dst_yaw = 768;
-    //         else if( z > dstZ )
-    //             view->orientation->dst_yaw = 256;
-    //         else
-    //             view->orientation->dst_yaw = 512;
-    //     }
-    //     else if( z < dstZ )
-    //         view->orientation->dst_yaw = 1024;
-    //     else
-    //         view->orientation->dst_yaw = 0;
-    // }
+    /* Only use pathing direction when face_entity did not set dst_yaw */
+    if( x < dstX )
+    {
+        if( z < dstZ )
+            view->orientation->dst_yaw = 1280;
+        else if( z > dstZ )
+            view->orientation->dst_yaw = 1792;
+        else
+            view->orientation->dst_yaw = 1536;
+    }
+    else if( x > dstX )
+    {
+        if( z < dstZ )
+            view->orientation->dst_yaw = 768;
+        else if( z > dstZ )
+            view->orientation->dst_yaw = 256;
+        else
+            view->orientation->dst_yaw = 512;
+    }
+    else if( z < dstZ )
+        view->orientation->dst_yaw = 1024;
+    else
+        view->orientation->dst_yaw = 0;
 
     int deltaYaw = (view->orientation->dst_yaw - view->orientation->yaw) & 0x7ff;
     if( deltaYaw > 1024 )
@@ -890,6 +887,52 @@ step:;
     return SCRIPTS_IDLE;
 }
 
+struct PainterPadding
+{
+    int x;
+    int z;
+};
+static void
+entity_calculate_painter_padding(
+    struct World* world,
+    struct EntityDrawPosition* draw_position,
+    int draw_padding,
+    struct PainterPadding* size)
+{
+    int x0 = draw_position->x - draw_padding;
+    int z0 = draw_position->z - draw_padding;
+    int x1 = draw_position->x + draw_padding;
+    int z1 = draw_position->z + draw_padding;
+
+    // if( forwardPadding )
+    // {
+    //     if( yaw > 640 && yaw < 1408 )
+    //     {
+    //         z1 += 128;
+    //     }
+    //     if( yaw > 1152 && yaw < 1920 )
+    //     {
+    //         x1 += 128;
+    //     }
+    //     if( yaw > 1664 || yaw < 384 )
+    //     {
+    //         z0 -= 128;
+    //     }
+    //     if( yaw > 128 && yaw < 896 )
+    //     {
+    //         x0 -= 128;
+    //     }
+    // }
+
+    x0 = (x0 / 128) | 0;
+    z0 = (z0 / 128) | 0;
+    x1 = (x1 / 128) | 0;
+    z1 = (z1 / 128) | 0;
+
+    size->x = x1 - x0 + 1;
+    size->z = z1 - z0 + 1;
+}
+
 void
 LibToriRS_GameStep(
     struct GGame* game,
@@ -979,6 +1022,7 @@ LibToriRS_GameStep(
     LibToriRS_GameProcessInput(game, input);
 
     painter_reset_to_static(game->world->painter);
+    struct Scene2Element* scene_element = NULL;
     if( game->world )
     {
         struct PlayerEntity* player = &game->world->players[ACTIVE_PLAYER_SLOT];
@@ -986,20 +1030,24 @@ LibToriRS_GameStep(
         {
             update_player_anim(game, ACTIVE_PLAYER_SLOT);
             {
-                struct Scene2Element* scene_element =
+                scene_element =
                     scene2_element_at(game->world->scene2, player->scene_element2.element_id);
                 entity_advance_anim(scene_element, &player->animation, game->cycles_elapsed);
             }
+
+            struct PainterPadding padding = { 0 };
+            entity_calculate_painter_padding(game->world, &player->draw_position, 60, &padding);
+
             painter_add_normal_scenery(
                 game->world->painter,
                 player->pathing.route_x[0],
                 player->pathing.route_z[0],
                 0,
                 player->scene_element2.element_id,
-                1,
-                1);
+                padding.x,
+                padding.z);
 
-            struct Scene2Element* scene_element =
+            scene_element =
                 scene2_element_at(game->world->scene2, player->scene_element2.element_id);
             scene_element->dash_position->yaw = player->orientation.yaw;
             scene_element->dash_position->x = player->draw_position.x;
@@ -1019,215 +1067,33 @@ LibToriRS_GameStep(
         {
             update_npc_anim(game, npc_id);
             {
-                struct Scene2Element* scene_element =
+                scene_element =
                     scene2_element_at(game->world->scene2, npc->scene_element2.element_id);
                 entity_advance_anim(scene_element, &npc->animation, game->cycles_elapsed);
             }
+
+            struct PainterPadding padding = { 0 };
+            int padding_size = 60 + (npc->size.x - 1) * 64;
+            entity_calculate_painter_padding(
+                game->world, &npc->draw_position, padding_size, &padding);
+
             painter_add_normal_scenery(
                 game->world->painter,
                 npc->pathing.route_x[0],
                 npc->pathing.route_z[0],
                 0,
                 npc->scene_element2.element_id,
-                1,
-                1);
+                padding.x,
+                padding.z);
         }
 
-        struct Scene2Element* scene_element =
-            scene2_element_at(game->world->scene2, npc->scene_element2.element_id);
+        scene_element = scene2_element_at(game->world->scene2, npc->scene_element2.element_id);
         scene_element->dash_position->yaw = npc->orientation.yaw;
         scene_element->dash_position->x = npc->draw_position.x;
         scene_element->dash_position->z = npc->draw_position.z;
         scene_element->dash_position->y = heightmap_get_interpolated(
             game->world->heightmap, npc->draw_position.x, npc->draw_position.z, 0);
     }
-
-    // /* Always update scene with current players/NPCs so they are drawn even when a script
-    //  * is yielded (e.g. interface loading). Otherwise we return early below and never push
-    //  * dynamic elements, so the renderer sees an empty scene. */
-    // if( game->scenebuilder && game->scene )
-    // {
-    //     scenebuilder_reset_dynamic_elements(game->scenebuilder, game->scene);
-
-    //     for( int i = 0; i < game->npc_count; i++ )
-    //     {
-    //         int npc_id = game->active_npcs[i];
-    //         if( npc_id == -1 )
-    //             continue;
-    //         struct NPCEntity* npc = &game->npcs[game->active_npcs[i]];
-    //         if( npc->alive && npc->scene_element )
-    //         {
-    //             /* Client.ts: one updateMovement per loop cycle; move at most moveSpeed per cycle
-    //              * and stop at each waypoint. */
-    //             for( int c = 0; c < game->cycles_elapsed; c++ )
-    //                 update_npc_anim(game, game->active_npcs[i]);
-
-    //             struct SceneElement* scene_element = (struct SceneElement*)npc->scene_element;
-    //             entity_advance_anim(
-    //                 game,
-    //                 &npc->primary_anim,
-    //                 &npc->primary_anim_frame,
-    //                 &npc->primary_anim_cycle,
-    //                 &npc->primary_anim_delay,
-    //                 &npc->primary_anim_loop,
-    //                 npc->secondary_anim,
-    //                 &npc->secondary_anim_frame,
-    //                 &npc->secondary_anim_cycle,
-    //                 game->cycles_elapsed);
-    //             entity_sync_anim_to_scene(
-    //                 game,
-    //                 scene_element,
-    //                 npc->primary_anim,
-    //                 npc->primary_anim_frame,
-    //                 npc->primary_anim_delay,
-    //                 npc->secondary_anim,
-    //                 npc->secondary_anim_frame,
-    //                 npc->secondary_anim_cycle);
-
-    //             scene_element->dash_position->yaw = npc->orientation.yaw;
-    //             scene_element->dash_position->x = npc->position.x;
-    //             scene_element->dash_position->z = npc->position.z;
-    //             scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-    //                 game->scene, npc->position.x, npc->position.z, 0);
-    //             scene_element->entity_ptr = npc;
-    //             scene_element->entity_kind = 1;
-    //             scene_element->entity_npc_type_id = npc->npc_type_id;
-    //             scenebuilder_push_dynamic_element(
-    //                 game->scenebuilder,
-    //                 game->scene,
-    //                 npc->position.x / 128,
-    //                 npc->position.z / 128,
-    //                 0,
-    //                 npc->size_x,
-    //                 npc->size_z,
-    //                 npc->scene_element);
-    //         }
-    //     }
-
-    //     for( int i = 0; i < game->player_count; i++ )
-    //     {
-    //         int player_id = game->active_players[i];
-    //         /* Active player is updated and pushed in the block below; avoid double movement. */
-    //         if( player_id == ACTIVE_PLAYER_SLOT )
-    //             continue;
-    //         struct PlayerEntity* player = &game->players[player_id];
-    //         if( player->alive && player->scene_element )
-    //         {
-    //             for( int c = 0; c < game->cycles_elapsed; c++ )
-    //                 update_player_anim(game, player_id);
-
-    //             struct SceneElement* scene_element = (struct SceneElement*)player->scene_element;
-    //             entity_advance_anim(
-    //                 game,
-    //                 &player->primary_anim,
-    //                 &player->primary_anim_frame,
-    //                 &player->primary_anim_cycle,
-    //                 &player->primary_anim_delay,
-    //                 &player->primary_anim_loop,
-    //                 player->secondary_anim,
-    //                 &player->secondary_anim_frame,
-    //                 &player->secondary_anim_cycle,
-    //                 game->cycles_elapsed);
-    //             entity_sync_anim_to_scene(
-    //                 game,
-    //                 scene_element,
-    //                 player->primary_anim,
-    //                 player->primary_anim_frame,
-    //                 player->primary_anim_delay,
-    //                 player->secondary_anim,
-    //                 player->secondary_anim_frame,
-    //                 player->secondary_anim_cycle);
-
-    //             scene_element->dash_position->yaw = player->orientation.yaw;
-    //             scene_element->dash_position->x = player->position.x;
-    //             scene_element->dash_position->z = player->position.z;
-    //             scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-    //                 game->scene, player->position.x, player->position.z, 0);
-    //             scene_element->entity_ptr = player;
-    //             scene_element->entity_kind = 2;
-    //             scenebuilder_push_dynamic_element(
-    //                 game->scenebuilder,
-    //                 game->scene,
-    //                 player->position.x / 128,
-    //                 player->position.z / 128,
-    //                 0,
-    //                 1,
-    //                 1,
-    //                 player->scene_element);
-    //         }
-    //     }
-
-    //     if( game->players[ACTIVE_PLAYER_SLOT].alive &&
-    //         game->players[ACTIVE_PLAYER_SLOT].scene_element )
-    //     {
-    //         struct PlayerEntity* ap = &game->players[ACTIVE_PLAYER_SLOT];
-    //         for( int c = 0; c < game->cycles_elapsed; c++ )
-    //             update_player_anim(game, ACTIVE_PLAYER_SLOT);
-
-    //         struct SceneElement* scene_element = (struct SceneElement*)ap->scene_element;
-    //         entity_advance_anim(
-    //             game,
-    //             &ap->primary_anim,
-    //             &ap->primary_anim_frame,
-    //             &ap->primary_anim_cycle,
-    //             &ap->primary_anim_delay,
-    //             &ap->primary_anim_loop,
-    //             ap->secondary_anim,
-    //             &ap->secondary_anim_frame,
-    //             &ap->secondary_anim_cycle,
-    //             game->cycles_elapsed);
-    //         entity_sync_anim_to_scene(
-    //             game,
-    //             scene_element,
-    //             ap->primary_anim,
-    //             ap->primary_anim_frame,
-    //             ap->primary_anim_delay,
-    //             ap->secondary_anim,
-    //             ap->secondary_anim_frame,
-    //             ap->secondary_anim_cycle);
-
-    //         scene_element->dash_position->yaw = ap->orientation.yaw;
-    //         scene_element->dash_position->x = ap->position.x;
-    //         scene_element->dash_position->z = ap->position.z;
-    //         scene_element->dash_position->y = scene_terrain_height_at_interpolated(
-    //             game->scene, ap->position.x, ap->position.z, 0);
-    //         scene_element->entity_ptr = ap;
-    //         scene_element->entity_kind = 2;
-    //         scenebuilder_push_dynamic_element(
-    //             game->scenebuilder,
-    //             game->scene,
-    //             ap->position.x / 128,
-    //             ap->position.z / 128,
-    //             0,
-    //             1,
-    //             1,
-    //             ap->scene_element);
-    //     }
-
-    //     /* Push obj stack elements (ground items) as dynamic elements */
-    //     for( int level = 0; level < ZONE_LEVELS; level++ )
-    //     {
-    //         for( int sx = 0; sx < ZONE_SCENE_SIZE; sx++ )
-    //         {
-    //             for( int sz = 0; sz < ZONE_SCENE_SIZE; sz++ )
-    //             {
-    //                 struct SceneElement* elem = game->obj_stack_elements[level][sx][sz];
-    //                 if( elem )
-    //                 {
-    //                     scenebuilder_push_dynamic_element(
-    //                         game->scenebuilder,
-    //                         game->scene,
-    //                         sx,
-    //                         sz,
-    //                         level,
-    //                         1,
-    //                         1,
-    //                         elem);
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
 
     /* Scrollbar arrow hold: while mouse is down and over up/down arrow, scroll at rate *
      * game_cycles */

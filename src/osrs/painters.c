@@ -412,10 +412,6 @@ painter_add_normal_scenery(
     int size_z)
 {
     int element = painter_push_element(painter);
-    if( entity == 2246 )
-    {
-        printf("scenery_element: %d, %d, %d, %d, %d, %d\n", sx, sz, slevel, entity, size_x, size_z);
-    }
 
     compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);
 
@@ -452,14 +448,31 @@ tile_recalculate_spans(struct PaintersTile* tile)
 void
 painter_reset_to_static(struct Painter* painter)
 {
+    struct PaintersTile* tile = NULL;
     for( int i = painter->static_element_count; i < painter->element_count; i++ )
     {
-        struct PaintersTile* tile = painter_tile_at(
-            painter, painter->elements[i].sx, painter->elements[i].sz, painter->elements[i].slevel);
+        int size_x = 1;
+        int size_z = 1;
 
-        assert(tile->scenery_count > 0);
-        tile->scenery_count--;
-        tile_recalculate_spans(tile);
+        if( painter->elements[i].kind == PNTRELEM_SCENERY )
+        {
+            size_x = painter->elements[i]._scenery.size_x;
+            size_z = painter->elements[i]._scenery.size_z;
+        }
+
+        for( int x = 0; x < size_x; x++ )
+        {
+            for( int z = 0; z < size_z; z++ )
+            {
+                tile = painter_tile_at(
+                    painter,
+                    painter->elements[i].sx + x,
+                    painter->elements[i].sz + z,
+                    painter->elements[i].slevel);
+                tile->scenery_count--;
+                tile_recalculate_spans(tile);
+            }
+        }
     }
 
     painter->element_count = painter->static_element_count;
