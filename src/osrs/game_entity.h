@@ -148,6 +148,8 @@ struct MapBuildLocEntity
     int entity_id;
     struct EntitySceneElement scene_element;
     struct EntitySceneElement scene_element_two;
+    struct EntityAnimation animation;
+    struct EntityAnimation animation_two;
     struct EntitySceneCoord scene_coord;
     struct EntityAction actions[10];
 };

@@ -124,6 +124,12 @@ world_player_entity_set_appearance(
     int player_entity_id,
     struct PlayerAppearance* appearance);
 
+void
+world_map_build_loc_entity_set_animation(
+    struct World* world,
+    int map_build_loc_entity_id,
+    int animation_id);
+
 #define ANIMATION_TYPE_PRIMARY 0
 #define ANIMATION_TYPE_SECONDARY 1
 

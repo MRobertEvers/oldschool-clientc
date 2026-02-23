@@ -116,6 +116,56 @@ entity_npc_animate(
 }
 
 static void
+entity_map_build_loc_entity_animate(
+    struct World* world,
+    int map_build_loc_entity_id)
+{
+    struct MapBuildLocEntity* map_build_loc_entity =
+        &world->map_build_loc_entities[map_build_loc_entity_id];
+
+    struct EntityAnimation* animation = NULL;
+    struct Scene2Element* scene_element = NULL;
+
+    if( map_build_loc_entity->scene_element.element_id != -1 )
+    {
+        animation = &map_build_loc_entity->animation;
+        scene_element =
+            scene2_element_at(world->scene2, map_build_loc_entity->scene_element.element_id);
+
+        if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+        {
+            int frame = animation->primary_anim.frame;
+            if( frame >= 0 && frame < scene_element->primary_frames.count )
+            {
+                dashmodel_animate(
+                    scene_element->dash_model,
+                    scene_element->primary_frames.frames[frame],
+                    scene_element->dash_framemap);
+            }
+        }
+    }
+
+    if( map_build_loc_entity->scene_element_two.element_id != -1 )
+    {
+        animation = &map_build_loc_entity->animation_two;
+        scene_element =
+            scene2_element_at(world->scene2, map_build_loc_entity->scene_element_two.element_id);
+
+        if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+        {
+            int frame = animation->primary_anim.frame;
+            if( frame >= 0 && frame < scene_element->primary_frames.count )
+            {
+                dashmodel_animate(
+                    scene_element->dash_model,
+                    scene_element->primary_frames.frames[frame],
+                    scene_element->dash_framemap);
+            }
+        }
+    }
+}
+
+static void
 entity_animate(
     struct World* world,
     int entity_uid)
@@ -129,7 +179,8 @@ entity_animate(
         entity_npc_animate(world, entity_id_from_uid(entity_uid));
         break;
     case ENTITY_KIND_MAP_BUILD_LOC:
-
+        entity_map_build_loc_entity_animate(world, entity_id_from_uid(entity_uid));
+        break;
     case ENTITY_KIND_MAP_BUILD_TILE:
 
     default:

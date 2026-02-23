@@ -1083,6 +1083,42 @@ load_scene_animation(
 }
 
 void
+world_map_build_loc_entity_set_animation(
+    struct World* world,
+    int map_build_loc_entity_id,
+    int animation_id)
+{
+    if( animation_id == -1 )
+        return;
+
+    struct Scene2Element* element = NULL;
+    struct MapBuildLocEntity* map_build_loc_entity =
+        &world->map_build_loc_entities[map_build_loc_entity_id];
+
+    if( map_build_loc_entity->scene_element.element_id != -1 )
+    {
+        element = scene2_element_at(world->scene2, map_build_loc_entity->scene_element.element_id);
+        assert(element && "Element must be found");
+        load_scene_animation(world, element, animation_id, ANIMATION_TYPE_PRIMARY);
+
+        memset(&map_build_loc_entity->animation, 0, sizeof(struct EntityAnimation));
+        map_build_loc_entity->animation.primary_anim.anim_id = animation_id;
+    }
+
+    if( map_build_loc_entity->scene_element_two.element_id != -1 )
+    {
+        element =
+            scene2_element_at(world->scene2, map_build_loc_entity->scene_element_two.element_id);
+        assert(element && "Element must be found");
+
+        load_scene_animation(world, element, animation_id, ANIMATION_TYPE_PRIMARY);
+
+        memset(&map_build_loc_entity->animation_two, 0, sizeof(struct EntityAnimation));
+        map_build_loc_entity->animation_two.primary_anim.anim_id = animation_id;
+    }
+}
+
+void
 world_player_entity_set_animation(
     struct World* world,
     int player_entity_id,

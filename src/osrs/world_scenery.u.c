@@ -565,6 +565,7 @@ scenery_add_wall_decor_inside(
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
         config_loc);
+    world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
@@ -627,6 +628,7 @@ scenery_add_wall_decor_outside(
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
         config_loc);
+    world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
@@ -691,6 +693,7 @@ scenery_add_wall_decor_diagonal_outside(
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
         config_loc);
+    world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
@@ -757,6 +760,7 @@ scenery_add_wall_decor_diagonal_inside(
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
         config_loc);
+    world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
@@ -842,6 +846,7 @@ scenery_add_wall_decor_diagonal_double(
         LOC_SHAPE_WALL_DECOR_INSIDE,
         inside_rotation,
         config_loc);
+    world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element_two, 1, 1);
 
@@ -1000,6 +1005,7 @@ scenery_add_normal(
         LOC_SHAPE_SCENERY,
         rotation,
         config_loc);
+    world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(
         world, &entity->scene_coord, &entity->scene_element, size_x, size_z);
 

@@ -215,6 +215,41 @@ world_cycle_step_element_animations(
 }
 
 static void
+world_cycle_advance_map_build_loc_entity_animation(
+    struct World* world,
+    int entity_id,
+    int cycles_elapsed)
+{
+    struct MapBuildLocEntity* entity = &world->map_build_loc_entities[entity_id];
+    struct Scene2Element* scene_element = NULL;
+    if( entity->scene_element.element_id != -1 )
+    {
+        scene_element = scene2_element_at(world->scene2, entity->scene_element.element_id);
+        world_cycle_step_element_animations(&entity->animation, scene_element, cycles_elapsed);
+    }
+
+    if( entity->scene_element_two.element_id != -1 )
+    {
+        scene_element = scene2_element_at(world->scene2, entity->scene_element_two.element_id);
+        world_cycle_step_element_animations(&entity->animation_two, scene_element, cycles_elapsed);
+    }
+}
+
+static void
+world_cycle_update_map_build_loc_entities(
+    struct World* world,
+    int cycles_elapsed)
+{
+    for( int i = 0; i < world->active_loc_entity_count; i++ )
+    {
+        int entity_id = world->active_loc_entities[i];
+        if( entity_id == -1 )
+            continue;
+        world_cycle_advance_map_build_loc_entity_animation(world, entity_id, cycles_elapsed);
+    }
+}
+
+static void
 world_cycle_update_player_movement_and_animation(
     struct World* world,
     int player_id)
@@ -424,6 +459,8 @@ world_cycle(
     int cycles_elapsed)
 {
     world_cycle_begin(world);
+
+    world_cycle_update_map_build_loc_entities(world, cycles_elapsed);
 
     world_cycle_update_players(world, cycles_elapsed);
     world_cycle_push_players(world);
