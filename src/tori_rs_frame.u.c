@@ -237,6 +237,28 @@ LibToriRS_FrameNextCommand(
             if( cull != DASHCULL_VISIBLE )
                 break;
 
+            /* If tile was clicked this frame, record it (last hit wins). */
+            if( game->mouse_clicked && game->view_port )
+            {
+                int vp_ox = game->viewport_offset_x;
+                int vp_oy = game->viewport_offset_y;
+                int click_vp_x = game->mouse_clicked_x - vp_ox;
+                int click_vp_y = game->mouse_clicked_y - vp_oy;
+                if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0 &&
+                    click_vp_y < game->view_port->height &&
+                    dash3d_projected_model_contains(
+                        game->sys_dash,
+                        element->dash_model,
+                        game->view_port,
+                        click_vp_x,
+                        click_vp_y) )
+                {
+                    game->tile_clicked_x = sx;
+                    game->tile_clicked_z = sz;
+                    game->tile_clicked_level = slevel;
+                }
+            }
+
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
@@ -251,49 +273,14 @@ LibToriRS_FrameNextCommand(
         }
     }
 
-    // if( game->tile_clicked_x != -1 && game->tile_clicked_z != -1 &&
-    //     command->kind == TORIRS_GFX_NONE && !game->interface_consumed_click )
-    // {
-    //     tile_model = scene_terrain_tile_at(
-    //         game->scene->terrain,
-    //         game->tile_clicked_x,
-    //         game->tile_clicked_z,
-    //         game->tile_clicked_level);
-    //     if( !tile_model || !tile_model->dash_model )
-    //         goto skip_highlight;
-
-    //     position.x = game->tile_clicked_x * 128 - game->camera_world_x;
-    //     position.z = game->tile_clicked_z * 128 - game->camera_world_z;
-    //     position.y = -game->camera_world_y;
-
-    //     int cull = dash3d_project_model(
-    //         game->sys_dash, tile_model->dash_model, &position, game->view_port,
-    //         game->camera);
-    //     assert(cull == DASHCULL_VISIBLE);
-    //     if( cull != DASHCULL_VISIBLE )
-    //         goto skip_highlight;
-
-    //     /* Client.ts: click stores mouse; draw sets clickTileX/Z. Copy to clicked_tile for
-    //     next tick
-    //      * tryMove (updateGame). */
-    //     if( game->mouse_clicked )
-    //     {
-    //         game->clicked_tile_x = game->tile_clicked_x;
-    //         game->clicked_tile_z = game->tile_clicked_z;
-    //         game->clicked_tile_valid = 1;
-    //     }
-    //     game->tile_clicked_x = -1;
-    //     game->tile_clicked_z = -1;
-    //     game->tile_clicked_level = -1;
-    //     *command = (struct ToriRSRenderCommand) {
-    //         .kind = TORIRS_GFX_MODEL_DRAW_HIGHLIGHT,
-    //         ._model_draw = {
-    //             .model = tile_model->dash_model,
-    //             .position = position,
-    //         },
-    //     };
-    // }
-skip_highlight:;
+    /* Copy recorded tile click to clicked_tile for FrameEnd (tryMove / MOVE_OPCLICK). */
+    if( command->kind == TORIRS_GFX_NONE && game->tile_clicked_x != -1 &&
+        game->tile_clicked_z != -1 && game->mouse_clicked && !game->interface_consumed_click )
+    {
+        game->clicked_tile_x = game->tile_clicked_x;
+        game->clicked_tile_z = game->tile_clicked_z;
+        game->clicked_tile_valid = 1;
+    }
 
     return command->kind != TORIRS_GFX_NONE;
 }
@@ -341,7 +328,7 @@ LibToriRS_FrameEnd(struct GGame* game)
     }
 
     if( game->mouse_clicked && game->clicked_tile_valid && !game->interface_consumed_click &&
-        GAME_NET_STATE_GAME == game->net_state )
+        GAME_NET_STATE_GAME == game->net_state && game->world && game->world->collision_map )
     {
         int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
         int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
@@ -355,17 +342,16 @@ LibToriRS_FrameEnd(struct GGame* game)
         {
             int dst_local_x = game->clicked_tile_x;
             int dst_local_z = game->clicked_tile_z;
-
-            int path_local_x[25];
-            int path_local_z[25];
-            int waypoints = 0;
-            int have_path = 0;
+            send_move_opclick_to(
+                game,
+                game->world->collision_map,
+                src_local_x,
+                src_local_z,
+                dst_local_x,
+                dst_local_z);
         }
-        else
-        {
-            game->mouse_clicked = false;
-            game->clicked_tile_valid = 0;
-        }
+        game->mouse_clicked = false;
+        game->clicked_tile_valid = 0;
     }
     else if( game->clicked_tile_valid )
     {

@@ -53,4 +53,14 @@ send_move_path_to(
     int dest_local_x,
     int dest_local_z);
 
+/* BFS path to dest and send MOVE_OPCLICK (tile click) if path exists. Returns true if waypoints >= 0. */
+bool
+send_move_opclick_to(
+    struct GGame* game,
+    struct CollisionMap* cm,
+    int src_local_x,
+    int src_local_z,
+    int dest_local_x,
+    int dest_local_z);
+
 #endif

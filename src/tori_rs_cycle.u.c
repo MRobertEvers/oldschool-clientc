@@ -496,9 +496,8 @@ update_entity_movement_and_animation(
     /* Client.ts routeMove: only reduce speed when turning AND not facing entity AND turnspeed != 0
      */
     int moveSpeed = 4;
-    // if( view->orientation->yaw != view->orientation->dst_yaw && view->face_entity < 0 &&
-    //     view->orientation->face_square_x == 0 && view->orientation->face_square_z == 0 )
-    //     moveSpeed = 2;
+    if( view->orientation->yaw != view->orientation->dst_yaw )
+        moveSpeed = 2;
     if( route_length > 2 )
         moveSpeed = 6;
     if( route_length > 3 )
@@ -1032,8 +1031,9 @@ LibToriRS_GameStep(
         struct PlayerEntity* player = &game->world->players[ACTIVE_PLAYER_SLOT];
         if( player->alive && player->scene_element2.element_id != -1 )
         {
-            update_player_anim(game, ACTIVE_PLAYER_SLOT);
+            if( game->cycles_elapsed > 0 )
             {
+                update_player_anim(game, ACTIVE_PLAYER_SLOT);
                 scene_element =
                     scene2_element_at(game->world->scene2, player->scene_element2.element_id);
                 entity_advance_anim(scene_element, &player->animation, game->cycles_elapsed);
@@ -1069,8 +1069,9 @@ LibToriRS_GameStep(
         struct NPCEntity* npc = &game->world->npcs[npc_id];
         if( npc->alive && npc->scene_element2.element_id != -1 )
         {
-            update_npc_anim(game, npc_id);
+            if( game->cycles_elapsed > 0 )
             {
+                update_npc_anim(game, npc_id);
                 scene_element =
                     scene2_element_at(game->world->scene2, npc->scene_element2.element_id);
                 entity_advance_anim(scene_element, &npc->animation, game->cycles_elapsed);
