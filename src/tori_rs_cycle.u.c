@@ -572,41 +572,37 @@ yaw_turn:;
     }
 
 anim:;
-    if( game->world )
+    struct Scene2Element* element =
+        scene2_element_at(game->world->scene2, view->scene2_element->element_id);
+    /* Client.ts routeMove: secondaryAnim = seqId (readyanim, walkanim, runanim, turnanim) */
+    if( seqId == -1 )
     {
-        struct Scene2Element* element =
-            scene2_element_at(game->world->scene2, view->scene2_element->element_id);
-        /* Client.ts routeMove: secondaryAnim = seqId (readyanim, walkanim, runanim, turnanim) */
-        view->animation->secondary_anim.anim_id = seqId;
-        if( seqId == -1 )
+        if( player )
+        {
+            world_player_entity_set_animation(
+                game->world, view->entity_id, -1, ANIMATION_TYPE_SECONDARY);
+        }
+        else
+        {
+            world_npc_entity_set_animation(
+                game->world, view->entity_id, -1, ANIMATION_TYPE_SECONDARY);
+        }
+    }
+    else if( seqId != view->animation->secondary_anim.anim_id )
+    {
+        struct CacheDatSequence* sequence =
+            buildcachedat_get_sequence(game->world->buildcachedat, seqId);
+        if( sequence )
         {
             if( player )
             {
                 world_player_entity_set_animation(
-                    game->world, view->entity_id, -1, ANIMATION_TYPE_SECONDARY);
+                    game->world, view->entity_id, seqId, ANIMATION_TYPE_SECONDARY);
             }
             else
             {
                 world_npc_entity_set_animation(
                     game->world, view->entity_id, seqId, ANIMATION_TYPE_SECONDARY);
-            }
-        }
-        else
-        {
-            struct CacheDatSequence* sequence =
-                buildcachedat_get_sequence(game->world->buildcachedat, seqId);
-            if( sequence )
-            {
-                if( player )
-                {
-                    world_player_entity_set_animation(
-                        game->world, view->entity_id, seqId, ANIMATION_TYPE_SECONDARY);
-                }
-                else
-                {
-                    world_npc_entity_set_animation(
-                        game->world, view->entity_id, seqId, ANIMATION_TYPE_SECONDARY);
-                }
             }
         }
     }
@@ -650,58 +646,38 @@ update_player_anim(
     update_entity_movement_and_animation(game, &view, true);
 }
 
-static int
-sequence_get_frame_duration(
-    struct BuildCacheDat* buildcachedat,
-    struct CacheDatSequence* seq,
-    int frame_i)
-{
-    if( !seq || frame_i < 0 || frame_i >= seq->frame_count )
-        return 1;
-    int d = seq->delay[frame_i];
-    if( d == 0 )
-    {
-        struct CacheAnimframe* af =
-            buildcachedat_get_animframe(buildcachedat, seq->frames[frame_i]);
-        d = af ? af->delay : 1;
-    }
-    return d > 0 ? d : 1;
-}
-
 // /* Advance scene animation frame for static scenery (non-entity) elements. */
 static void
 advance_animation_step(
     struct EntityAnimationStep* animation_step,
-    int cycles,
-    int const* frame_lengths,
-    int frame_count)
+    struct Scene2Frames* frames,
+    int cycles)
 {
-    if( !animation_step || !frame_lengths || frame_count <= 0 )
+    if( !animation_step || !frames || frames->count == 0 )
         return;
+
+    assert(frames->lengths != NULL);
+    assert(frames->frames != NULL);
 
     for( int i = 0; i < cycles; i++ )
     {
-        /* Initialize delay from current frame if not set */
-        if( animation_step->delay <= 0 && animation_step->frame < frame_count )
+        if( animation_step->frame >= frames->count )
         {
-            animation_step->delay = frame_lengths[animation_step->frame];
-            if( animation_step->delay <= 0 )
-                animation_step->delay = 1;
+            animation_step->frame = 0;
+            animation_step->cycle = 0;
         }
 
         animation_step->cycle++;
-        if( animation_step->cycle >= animation_step->delay )
+        if( animation_step->cycle >= frames->lengths[animation_step->frame] )
         {
             animation_step->cycle = 0;
             animation_step->frame++;
-            if( animation_step->frame >= frame_count )
+
+            if( animation_step->frame >= frames->count )
             {
                 animation_step->frame = 0;
+                animation_step->cycle = 0;
             }
-            animation_step->delay =
-                (animation_step->frame < frame_count) ? frame_lengths[animation_step->frame] : 1;
-            if( animation_step->delay <= 0 )
-                animation_step->delay = 1;
         }
     }
 }
@@ -715,16 +691,8 @@ entity_advance_anim(
     if( !animation )
         return;
 
-    advance_animation_step(
-        &animation->primary_anim,
-        cycles,
-        scene_element->dash_frame_lengths,
-        scene_element->dash_frame_count);
-    advance_animation_step(
-        &animation->secondary_anim,
-        cycles,
-        scene_element->dash_frame_lengths_secondary,
-        scene_element->dash_frame_count_secondary);
+    advance_animation_step(&animation->primary_anim, &scene_element->primary_frames, cycles);
+    advance_animation_step(&animation->secondary_anim, &scene_element->secondary_frames, cycles);
 }
 
 /* Pick active anim (primary if valid and delay==0, else secondary) and sync to scene.

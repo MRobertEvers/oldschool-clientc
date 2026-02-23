@@ -57,25 +57,25 @@ entity_player_animate(
     if( !scene_element )
         return;
 
-    if( animation->primary_anim.anim_id != -1 && scene_element->dash_frames )
+    if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
     {
         int frame = animation->primary_anim.frame;
-        if( frame >= 0 && frame < scene_element->dash_frame_count )
+        if( frame >= 0 && frame < scene_element->primary_frames.count )
         {
             dashmodel_animate(
                 scene_element->dash_model,
-                scene_element->dash_frames[frame],
+                scene_element->primary_frames.frames[frame],
                 scene_element->dash_framemap);
         }
     }
-    else if( animation->secondary_anim.anim_id != -1 && scene_element->dash_frames_secondary )
+    else if( animation->secondary_anim.anim_id != -1 && scene_element->secondary_frames.count > 0 )
     {
         int frame = animation->secondary_anim.frame;
-        if( frame >= 0 && frame < scene_element->dash_frame_count_secondary )
+        if( frame >= 0 && frame < scene_element->secondary_frames.count )
         {
             dashmodel_animate(
                 scene_element->dash_model,
-                scene_element->dash_frames_secondary[frame],
+                scene_element->secondary_frames.frames[frame],
                 scene_element->dash_framemap);
         }
     }
@@ -93,25 +93,25 @@ entity_npc_animate(
     if( !scene_element )
         return;
 
-    if( animation->primary_anim.anim_id != -1 && scene_element->dash_frames )
+    if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
     {
         int frame = animation->primary_anim.frame;
-        if( frame >= 0 && frame < scene_element->dash_frame_count )
+        if( frame >= 0 && frame < scene_element->primary_frames.count )
         {
             dashmodel_animate(
                 scene_element->dash_model,
-                scene_element->dash_frames[frame],
+                scene_element->primary_frames.frames[frame],
                 scene_element->dash_framemap);
         }
     }
-    else if( animation->secondary_anim.anim_id != -1 && scene_element->dash_frames_secondary )
+    else if( animation->secondary_anim.anim_id != -1 && scene_element->secondary_frames.count > 0 )
     {
         int frame = animation->secondary_anim.frame;
-        if( frame >= 0 && frame < scene_element->dash_frame_count_secondary )
+        if( frame >= 0 && frame < scene_element->secondary_frames.count )
         {
             dashmodel_animate(
                 scene_element->dash_model,
-                scene_element->dash_frames_secondary[frame],
+                scene_element->secondary_frames.frames[frame],
                 scene_element->dash_framemap);
         }
     }

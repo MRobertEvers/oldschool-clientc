@@ -1019,6 +1019,18 @@ world_player_entity_set_appearance(
 
     world_scenebuild_player_entity_set_appearance(
         world, player_entity_id, appearance->appearance, appearance->color);
+
+    struct PassiveAnimationInfo passive_animations = {
+        .readyanim = appearance->readyanim,
+        .walkanim = appearance->walkanim,
+        .turnanim = appearance->turnanim,
+        .runanim = appearance->runanim,
+        .walkanim_b = appearance->walkanim_b,
+        .walkanim_r = appearance->walkanim_r,
+        .walkanim_l = appearance->walkanim_l,
+    };
+
+    world_player_entity_set_passive_animations(world, player_entity_id, &passive_animations);
 }
 
 static void

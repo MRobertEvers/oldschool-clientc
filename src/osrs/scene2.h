@@ -3,6 +3,14 @@
 
 #include "graphics/dash.h"
 
+struct Scene2Frames
+{
+    struct DashFrame** frames;
+    int* lengths;
+    int count;
+    int capacity;
+};
+
 struct Scene2Element
 {
     int id;
@@ -16,15 +24,8 @@ struct Scene2Element
 
     struct DashFramemap* dash_framemap;
 
-    struct DashFrame** dash_frames;
-    int* dash_frame_lengths;
-    int dash_frame_count;
-    int dash_frame_capacity;
-
-    struct DashFrame** dash_frames_secondary;
-    int* dash_frame_lengths_secondary;
-    int dash_frame_count_secondary;
-    int dash_frame_capacity_secondary;
+    struct Scene2Frames primary_frames;
+    struct Scene2Frames secondary_frames;
 };
 
 struct Scene2

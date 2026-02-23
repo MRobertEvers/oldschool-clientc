@@ -76,42 +76,34 @@ scene2_element_acquire(
     return element_id;
 }
 
+static void
+scene2_element_clear_frames(struct Scene2Frames* frames)
+{
+    if( !frames )
+        return;
+
+    for( int i = 0; i < frames->count; i++ )
+    {
+        dashframe_free(frames->frames[i]);
+    }
+    free(frames->frames);
+    free(frames->lengths);
+    frames->count = 0;
+    frames->capacity = 0;
+    frames->frames = NULL;
+    frames->lengths = NULL;
+}
+
 void
 scene2_element_clear_animation(struct Scene2Element* element)
 {
-    if( !element->dash_frames )
-        return;
-
-    for( int i = 0; i < element->dash_frame_count; i++ )
-    {
-        dashframe_free(element->dash_frames[i]);
-    }
-    free(element->dash_frames);
-    free(element->dash_frame_lengths);
-
-    element->dash_frame_count = 0;
-    element->dash_frame_capacity = 0;
-    element->dash_frames = NULL;
-    element->dash_frame_lengths = NULL;
+    scene2_element_clear_frames(&element->primary_frames);
 }
 
 void
 scene2_element_clear_secondary_animation(struct Scene2Element* element)
 {
-    if( !element->dash_frames_secondary )
-        return;
-
-    for( int i = 0; i < element->dash_frame_count_secondary; i++ )
-    {
-        dashframe_free(element->dash_frames_secondary[i]);
-    }
-    free(element->dash_frames_secondary);
-    free(element->dash_frame_lengths_secondary);
-
-    element->dash_frame_count_secondary = 0;
-    element->dash_frame_capacity_secondary = 0;
-    element->dash_frames_secondary = NULL;
-    element->dash_frame_lengths_secondary = NULL;
+    scene2_element_clear_frames(&element->secondary_frames);
 }
 
 void
@@ -132,27 +124,33 @@ scene2_element_set_dash_model(
     element->dash_model = dash_model;
 }
 
+static void
+scene2_element_push_frame(
+    struct Scene2Frames* frames,
+    struct DashFrame* dash_frame,
+    int length)
+{
+    if( frames->count >= frames->capacity )
+    {
+        if( frames->capacity == 0 )
+            frames->capacity = 8;
+        frames->capacity *= 2;
+        frames->frames = realloc(frames->frames, frames->capacity * sizeof(struct DashFrame*));
+        frames->lengths = realloc(frames->lengths, frames->capacity * sizeof(int));
+    }
+
+    frames->frames[frames->count] = dash_frame;
+    frames->lengths[frames->count] = length;
+    frames->count++;
+}
+
 void
 scene2_element_push_animation_frame(
     struct Scene2Element* element,
     struct DashFrame* dash_frame,
     int length)
 {
-    if( element->dash_frame_count >= element->dash_frame_capacity )
-    {
-        if( element->dash_frame_capacity == 0 )
-            element->dash_frame_capacity = 8;
-        element->dash_frame_capacity *= 2;
-        element->dash_frames =
-            realloc(element->dash_frames, element->dash_frame_capacity * sizeof(struct DashFrame*));
-
-        element->dash_frame_lengths =
-            realloc(element->dash_frame_lengths, element->dash_frame_capacity * sizeof(int));
-    }
-
-    element->dash_frames[element->dash_frame_count] = dash_frame;
-    element->dash_frame_lengths[element->dash_frame_count] = length;
-    element->dash_frame_count++;
+    scene2_element_push_frame(&element->primary_frames, dash_frame, length);
 }
 
 void
@@ -161,22 +159,7 @@ scene2_element_push_secondary_animation_frame(
     struct DashFrame* dash_frame,
     int length)
 {
-    if( element->dash_frame_count_secondary >= element->dash_frame_capacity_secondary )
-    {
-        if( element->dash_frame_capacity_secondary == 0 )
-            element->dash_frame_capacity_secondary = 8;
-        element->dash_frame_capacity_secondary *= 2;
-        element->dash_frames_secondary = realloc(
-            element->dash_frames_secondary,
-            element->dash_frame_capacity_secondary * sizeof(struct DashFrame*));
-        element->dash_frame_lengths_secondary = realloc(
-            element->dash_frame_lengths_secondary,
-            element->dash_frame_capacity_secondary * sizeof(int));
-    }
-
-    element->dash_frames_secondary[element->dash_frame_count_secondary] = dash_frame;
-    element->dash_frame_lengths_secondary[element->dash_frame_count_secondary] = length;
-    element->dash_frame_count_secondary++;
+    scene2_element_push_frame(&element->secondary_frames, dash_frame, length);
 }
 
 void
