@@ -253,4 +253,9 @@ world_player_ensure_scene_element(
     struct World* world,
     int player_id);
 
+void
+world_cycle(
+    struct World* world,
+    int cycles_elapsed);
+
 #endif

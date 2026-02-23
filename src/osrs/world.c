@@ -13,6 +13,7 @@
 #include "world_scenery.u.c"
 #include "world_terrain.u.c"
 #include "world_sharelight.u.c"
+#include "world_cycle.u.c"
 // clang-format on
 
 static void
