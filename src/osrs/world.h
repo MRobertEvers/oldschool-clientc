@@ -264,4 +264,11 @@ world_cycle(
     struct World* world,
     int cycles_elapsed);
 
+void
+world_map_build_loc_entity_push_action(
+    struct World* world,
+    int map_build_loc_entity_id,
+    int code,
+    char* action);
+
 #endif

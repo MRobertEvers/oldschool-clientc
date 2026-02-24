@@ -3,10 +3,11 @@
 
 #include <stdint.h>
 // Taken from Client-TS Lostcity rev 254
+// These are just randomized numbers.
+// They are converted to serverprot codes before being sent to the network
+
 enum MinimenuAction
 {
-    MINIMENU_ACTION_PRIORITY = 2000,
-
     MINIMENU_ACTION_CANCEL = 1106,
 
     MINIMENU_ACTION_OPOBJ1 = 139,
@@ -81,5 +82,24 @@ enum MinimenuAction
 
     MINIMENU_ACTION_MESSAGE_PRIVATE = 902,
 };
+
+#define MINIMENU_ACTION_PRIORITY_OFFSET 2000
+
+#define MINIMENU_ACTION_PRIORITY 1
+
+static inline int
+minimenu_action_priority(
+    enum MinimenuAction action,
+    int is_priority)
+{
+    if( is_priority )
+    {
+        return action + MINIMENU_ACTION_PRIORITY_OFFSET;
+    }
+    else
+    {
+        return action;
+    }
+}
 
 #endif

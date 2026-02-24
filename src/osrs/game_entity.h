@@ -74,6 +74,15 @@ struct EntityOrientation
     int dst_yaw;
 };
 
+struct EntityName
+{
+    char name[32];
+};
+
+struct EntityDescription
+{
+    char description[64];
+};
 struct EntityAnimationStep
 {
     int anim_id;
@@ -96,6 +105,11 @@ struct EntityAnimation
     struct EntityAnimationStep secondary_anim;
 };
 
+struct EntityVisibleLevel
+{
+    uint8_t level;
+};
+
 #define ENTITY_DAMAGE_SLOTS 4
 
 struct NPCEntity
@@ -108,6 +122,11 @@ struct NPCEntity
     struct EntityDrawPosition draw_position;
     struct EntityOrientation orientation;
     struct EntityAnimation animation;
+    struct EntityDescription description;
+    struct EntityName name;
+    struct EntityVisibleLevel visible_level;
+    struct EntityAction actions[10];
+    int action_count;
 
     /* Client.ts: damage/health for hitsplat and health bar */
     int damage_values[ENTITY_DAMAGE_SLOTS];
@@ -133,6 +152,9 @@ struct PlayerEntity
     struct EntityDrawPosition draw_position;
     struct EntityOrientation orientation;
     struct EntityAnimation animation;
+    struct EntityVisibleLevel visible_level;
+    struct EntityName name;
+    struct EntityDescription description;
 
     /* Client.ts: damage/health for hitsplat and health bar */
     int damage_values[ENTITY_DAMAGE_SLOTS];
@@ -152,6 +174,9 @@ struct MapBuildLocEntity
     struct EntityAnimation animation_two;
     struct EntitySceneCoord scene_coord;
     struct EntityAction actions[10];
+    struct EntityName name;
+    struct EntityDescription description;
+    int action_count;
     bool interactable;
 };
 

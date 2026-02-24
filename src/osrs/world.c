@@ -1419,3 +1419,20 @@ world_player_ensure_scene_element(
 
     return player;
 }
+
+void
+world_map_build_loc_entity_push_action(
+    struct World* world,
+    int map_build_loc_entity_id,
+    int code,
+    char* action)
+{
+    struct MapBuildLocEntity* entity = &world->map_build_loc_entities[map_build_loc_entity_id];
+    assert(entity->action_count < 10);
+    entity->actions[entity->action_count].code = code;
+    strncpy(
+        entity->actions[entity->action_count].name,
+        action,
+        sizeof(entity->actions[entity->action_count].name));
+    entity->action_count++;
+}

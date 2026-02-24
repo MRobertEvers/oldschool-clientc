@@ -261,6 +261,9 @@
         "minimenu.h": "c",
         "isaac.h": "c",
         "packetout.h": "c",
-        "shademap.h": "c"
+        "shademap.h": "c",
+        "world_options.h": "c",
+        "game_entity.h": "c",
+        "world_pickset.h": "c"
     },
 }

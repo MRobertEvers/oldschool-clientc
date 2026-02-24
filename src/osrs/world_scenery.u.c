@@ -278,6 +278,33 @@ scenery_element_acquire(
 }
 
 static void
+scenery_init_from_config_loc(
+    struct World* world,
+    struct MapBuildLocEntity* entity,
+    struct CacheConfigLocation* config_loc)
+{
+    entity->interactable = config_loc->is_interactive;
+
+    if( config_loc->name )
+        strncpy(entity->name.name, config_loc->name, sizeof(entity->name.name));
+
+    if( config_loc->desc )
+        strncpy(
+            entity->description.description,
+            config_loc->desc,
+            sizeof(entity->description.description));
+
+    for( int i = 0; i < 10; i++ )
+    {
+        if( config_loc->actions[i] )
+        {
+            world_map_build_loc_entity_push_action(
+                world, entity->entity_id, i, config_loc->actions[i]);
+        }
+    }
+}
+
+static void
 scenery_add_wall_single(
     struct World* world,
     struct MapBuildLocEntity* entity,
@@ -1154,6 +1181,8 @@ scenery_add(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
+    scenery_init_from_config_loc(world, entity, config_loc);
+
     switch( map_tile->shape_select )
     {
     case LOC_SHAPE_WALL_SINGLE_SIDE:
