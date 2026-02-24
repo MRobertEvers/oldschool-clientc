@@ -226,4 +226,17 @@ world_scenebuild_npc_entity_set_npc_type(
     npc->animation.walkanim_b = npc_config->walkanim_b;
     npc->animation.walkanim_r = npc_config->walkanim_r;
     npc->animation.walkanim_l = npc_config->walkanim_l;
+
+    strncpy(npc->name.name, npc_config->name, sizeof(npc->name.name));
+    strncpy(npc->description.description, npc_config->desc, sizeof(npc->description.description));
+    npc->visible_level.level = npc_config->vislevel;
+
+    for( int i = 0; i < 5; i++ )
+    {
+        if( npc_config->op[i] )
+        {
+            strncpy(npc->actions[i].name, npc_config->op[i], sizeof(npc->actions[i].name));
+            npc->actions[i].code = i;
+        }
+    }
 }

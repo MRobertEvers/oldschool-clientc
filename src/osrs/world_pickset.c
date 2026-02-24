@@ -1,6 +1,7 @@
 #include "world_pickset.h"
 
 #include <assert.h>
+#include <stdio.h>
 
 void
 world_pickset_reset(struct WorldPickSet* pickset)
@@ -21,6 +22,11 @@ world_pickset_add(
     pickset->entities[pickset->count].z = z;
     pickset->entities[pickset->count].entity_type = entity_type;
     pickset->entities[pickset->count].entity_id = entity_id;
+
+    if( entity_type == ENTITY_KIND_NPC )
+    {
+        printf("NPC: %d\n", entity_id);
+    }
 
     pickset->count++;
 }

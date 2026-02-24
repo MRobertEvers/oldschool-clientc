@@ -1032,6 +1032,9 @@ world_player_entity_set_appearance(
     };
 
     world_player_entity_set_passive_animations(world, player_entity_id, &passive_animations);
+
+    strncpy(player->name.name, appearance->name, sizeof(player->name.name));
+    player->visible_level.level = appearance->combat_level;
 }
 
 static void

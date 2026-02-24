@@ -2479,7 +2479,64 @@ dashfont_evaluate_tag(const char* tag)
         return MAGENTA;
     if( tag[0] == 'b' && tag[1] == 'l' && tag[2] == 'a' )
         return BLACK;
+    if( tag[0] == 'o' && tag[1] == 'r' && tag[2] == '1' )
+        return ORANGE1;
+    if( tag[0] == 'o' && tag[1] == 'r' && tag[2] == '2' )
+        return ORANGE2;
+    if( tag[0] == 'o' && tag[1] == 'r' && tag[2] == '3' )
+        return ORANGE3;
+    if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == '1' )
+        return GREEN1;
+    if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == '2' )
+        return GREEN2;
+    if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == '3' )
+        return GREEN3;
     return -1;
+}
+
+void
+dashfont_draw_text_ex(
+    struct DashPixFont* pixfont,
+    uint8_t* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    int* pixels,
+    int stride)
+{
+    int length = (int)strlen((char*)text);
+    int color = default_color_rgb;
+
+    for( int i = 0; i < length; i++ )
+    {
+        if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
+        {
+            int new_color = dashfont_evaluate_tag((char*)&text[i + 1]);
+            if( new_color >= 0 )
+                color = new_color;
+
+            if( i + 6 <= length && text[i + 5] == ' ' )
+                i += 5;
+            else
+                i += 4;
+            continue;
+        }
+        uint8_t code_point = text[i];
+        int c = DASH_FONT_CHARCODESET[code_point];
+        if( c < DASH_FONT_CHAR_COUNT )
+        {
+            int w = pixfont->char_mask_width[c];
+            int h = pixfont->char_mask_height[c];
+            int* mask = pixfont->char_mask[c];
+            int dst_offset =
+                y * stride + x + pixfont->char_offset_x[c] + pixfont->char_offset_y[c] * stride;
+            dashfont_draw_mask(w, h, mask, 0, 0, pixels, dst_offset, stride - w, color);
+        }
+        int adv = pixfont->char_advance[c];
+        if( adv <= 0 )
+            adv = 4;
+        x += adv;
+    }
 }
 
 void

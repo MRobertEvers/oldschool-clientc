@@ -264,6 +264,7 @@
         "shademap.h": "c",
         "world_options.h": "c",
         "game_entity.h": "c",
-        "world_pickset.h": "c"
+        "world_pickset.h": "c",
+        "string_utils.h": "c"
     },
 }

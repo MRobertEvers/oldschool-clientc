@@ -2,6 +2,7 @@
 
 #include "game_entity.h"
 #include "minimenu_action.h"
+#include "rscache/tables/string_utils.h"
 
 #include <assert.h>
 #include <string.h>
@@ -27,6 +28,7 @@ options_add_loc(
         if( map_build_loc_entity->actions[i].code != 0 )
         {
             option = &option_set->options[option_set->option_count];
+            memset(option, 0, sizeof(*option));
 
             snprintf(
                 text,
@@ -67,6 +69,8 @@ options_add_loc(
     }
 
     option = &option_set->options[option_set->option_count];
+    memset(option, 0, sizeof(*option));
+
     snprintf(text, sizeof(text), "Examine @cya@ %s", map_build_loc_entity->name.name);
     strncpy(option->text, text, sizeof(option->text));
     option->action = MINIMENU_ACTION_OPLOC6;
@@ -149,20 +153,26 @@ options_add_npc(
     {
         char const* color_tag = options_npc_combat_level_color_tag(
             player->visible_level.level, npc->visible_level.level);
-        snprintf(
-            tooltip,
-            sizeof(tooltip),
-            "%s %s (level-%d)",
-            npc->name.name,
-            color_tag,
-            npc->visible_level.level);
+        char* ptr = tooltip;
+        ptr += snprintf(ptr, sizeof(tooltip) - (ptr - tooltip), "%s", npc->name.name);
+        if( npc->visible_level.level != 0 )
+        {
+            ptr += snprintf(
+                ptr,
+                sizeof(tooltip) - (ptr - tooltip),
+                " %s (level-%d)",
+                color_tag,
+                npc->visible_level.level);
+        }
         for( int i = 4; i >= 0; i-- )
         {
-            if( npc->actions[i].code != 0 )
+            if( strcasecmp(npc->actions[i].name, "attack") != 0 )
             {
                 snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
 
                 option = &option_set->options[option_set->option_count];
+                memset(option, 0, sizeof(*option));
+
                 strncpy(option->text, text, sizeof(option->text));
                 option->param_a = entity_id;
                 option->param_b = x;
@@ -195,7 +205,7 @@ options_add_npc(
 
         for( int i = 4; i >= 0; i-- )
         {
-            if( strcmp(npc->actions[i].name, "attack") == 0 )
+            if( strcasecmp(npc->actions[i].name, "attack") == 0 )
             {
                 int priority = player->visible_level.level < npc->visible_level.level
                                    ? MINIMENU_ACTION_PRIORITY
@@ -204,6 +214,8 @@ options_add_npc(
                 snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
 
                 option = &option_set->options[option_set->option_count];
+                memset(option, 0, sizeof(*option));
+
                 strncpy(option->text, text, sizeof(option->text));
                 option->param_a = entity_id;
                 option->param_b = x;
@@ -234,8 +246,12 @@ options_add_npc(
             }
         }
 
-        option = &option_set->options[option_set->option_count];
         snprintf(text, sizeof(text), "Examine @yel@ %s", tooltip);
+
+        option = &option_set->options[option_set->option_count];
+        memset(option, 0, sizeof(*option));
+
+        strncpy(option->text, text, sizeof(option->text));
         option->action = MINIMENU_ACTION_OPNPC6;
         option->param_a = entity_id;
         option->param_b = x;
@@ -264,6 +280,70 @@ world_options_add_pickset_options(
                 picked_entity->entity_type,
                 picked_entity->entity_id);
             break;
+        case ENTITY_KIND_NPC:
+            options_add_npc(
+                world,
+                option_set,
+                picked_entity->x,
+                picked_entity->z,
+                picked_entity->entity_type,
+                picked_entity->entity_id);
+            break;
+        }
+    }
+
+    // Sort the options
+
+    // let sorted: boolean = false;
+    // while (!sorted) {
+    //     sorted = true;
+
+    //     for (let i: number = 0; i < this.menuNumEntries - 1; i++) {
+    //         if (this.menuAction[i] < 1000 && this.menuAction[i + 1] > 1000) {
+    //             const tmp0: string = this.menuOption[i];
+    //             this.menuOption[i] = this.menuOption[i + 1];
+    //             this.menuOption[i + 1] = tmp0;
+
+    //             const tmp1: number = this.menuAction[i];
+    //             this.menuAction[i] = this.menuAction[i + 1];
+    //             this.menuAction[i + 1] = tmp1;
+
+    //             const tmp2: number = this.menuParamB[i];
+    //             this.menuParamB[i] = this.menuParamB[i + 1];
+    //             this.menuParamB[i + 1] = tmp2;
+
+    //             const tmp3: number = this.menuParamC[i];
+    //             this.menuParamC[i] = this.menuParamC[i + 1];
+    //             this.menuParamC[i + 1] = tmp3;
+
+    //             const tmp4: number = this.menuParamA[i];
+    //             this.menuParamA[i] = this.menuParamA[i + 1];
+    //             this.menuParamA[i + 1] = tmp4;
+
+    //             sorted = false;
+    //         }
+    //     }
+    // }
+
+    for( int i = 0; i < option_set->option_count; i++ )
+        option_set->order[i] = i;
+
+    bool sorted = false;
+    while( !sorted )
+    {
+        sorted = true;
+        for( int i = 0; i < option_set->option_count - 1; i++ )
+        {
+            int idx0 = option_set->order[i];
+            int idx1 = option_set->order[i + 1];
+            if( option_set->options[idx0].action < 1000 && option_set->options[idx1].action > 1000 )
+            {
+                sorted = false;
+
+                int tmp = option_set->order[i];
+                option_set->order[i] = option_set->order[i + 1];
+                option_set->order[i + 1] = tmp;
+            }
         }
     }
 }

@@ -497,6 +497,16 @@ dashfont_draw_text(
     int stride);
 
 void
+dashfont_draw_text_ex(
+    struct DashPixFont* pixfont,
+    uint8_t* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    int* pixels,
+    int stride);
+
+void
 dashfont_draw_text_clipped(
     struct DashPixFont* pixfont,
     uint8_t* text,

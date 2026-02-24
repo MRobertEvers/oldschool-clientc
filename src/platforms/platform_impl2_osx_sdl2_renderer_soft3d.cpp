@@ -2262,23 +2262,23 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     if( renderer->dash_buffer && game->pixfont_b12 && game->option_set.option_count > 0 )
     {
         struct WorldOption* top =
-            &game->option_set.options[game->option_set.option_count - 1];
+            world_option_set_get_option(&game->option_set, game->option_set.option_count - 1);
         char tooltip_buf[80];
         size_t len = (size_t)snprintf(tooltip_buf, sizeof(tooltip_buf), "%s", top->text);
         if( game->option_set.option_count > 1 && len < sizeof(tooltip_buf) - 16 )
             snprintf(
                 tooltip_buf + len,
                 sizeof(tooltip_buf) - len,
-                " / %d more options",
+                "@whi@  / %d more options",
                 game->option_set.option_count - 1);
-        dashfont_draw_text(
+        dashfont_draw_text_ex(
             game->pixfont_b12,
             (uint8_t*)tooltip_buf,
             4,
             15,
             0xFFFFFF,
-            renderer->dash_buffer,
-            renderer->dash_buffer_width);
+            renderer->pixel_buffer,
+            renderer->width);
     }
 
     // Render minimap to buffer starting at (0,0)

@@ -154,7 +154,6 @@ struct PlayerEntity
     struct EntityAnimation animation;
     struct EntityVisibleLevel visible_level;
     struct EntityName name;
-    struct EntityDescription description;
 
     /* Client.ts: damage/health for hitsplat and health bar */
     int damage_values[ENTITY_DAMAGE_SLOTS];
