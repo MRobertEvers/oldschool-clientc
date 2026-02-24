@@ -8,6 +8,7 @@
 #include "osrs/isaac.h"
 #include "osrs/minimenu.h"
 #include "osrs/packetout.h"
+#include "osrs/world_options.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
 
@@ -299,16 +300,17 @@ LibToriRS_FrameNextCommand(
             {
                 int vp_ox = game->viewport_offset_x;
                 int vp_oy = game->viewport_offset_y;
-                int click_vp_x = game->mouse_clicked_x - vp_ox;
-                int click_vp_y = game->mouse_clicked_y - vp_oy;
-                if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0 &&
-                    click_vp_y < game->view_port->height &&
+                /* Hover: add to pickset when cursor is over model (tooltip + options). */
+                int cursor_vp_x = game->mouse_x - vp_ox;
+                int cursor_vp_y = game->mouse_y - vp_oy;
+                if( cursor_vp_x >= 0 && cursor_vp_y >= 0 && cursor_vp_x < game->view_port->width &&
+                    cursor_vp_y < game->view_port->height &&
                     dash3d_projected_model_contains(
                         game->sys_dash,
                         element->dash_model,
                         game->view_port,
-                        click_vp_x,
-                        click_vp_y) )
+                        cursor_vp_x,
+                        cursor_vp_y) )
                 {
                     entity_coords_from_element(game->world, element->parent_entity_id, &coords);
                     world_pickset_add(
@@ -409,6 +411,14 @@ LibToriRS_FrameNextCommand(
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
+    /* Build optionset from pickset for tooltip and context menu (Client.ts menuOption /
+     * drawTooltip). */
+    if( game->world )
+    {
+        game->option_set.option_count = 0;
+        world_options_add_pickset_options(game->world, &game->pickset, &game->option_set);
+    }
+
     if( game->mouse_clicked )
     {
         if( game->interface_consumed_click )

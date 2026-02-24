@@ -20,13 +20,14 @@ options_add_loc(
     char text[64];
 
     struct MapBuildLocEntity* map_build_loc_entity = &world->map_build_loc_entities[entity_id];
-
-    struct WorldOption* option = &option_set->options[option_set->option_count];
+    struct WorldOption* option = NULL;
 
     for( int i = 4; i >= 0; i-- )
     {
         if( map_build_loc_entity->actions[i].code != 0 )
         {
+            option = &option_set->options[option_set->option_count];
+
             snprintf(
                 text,
                 sizeof(text),
@@ -34,13 +35,10 @@ options_add_loc(
                 map_build_loc_entity->actions[i].name,
                 map_build_loc_entity->name.name);
 
-            option->action = map_build_loc_entity->actions[i].code;
             strncpy(option->text, text, sizeof(option->text));
             option->param_a = entity_id;
             option->param_b = x;
             option->param_c = z;
-
-            option_set->option_count += 1;
 
             switch( i )
             {
@@ -63,11 +61,14 @@ options_add_loc(
                 assert(0 && "Invalid action index");
                 break;
             }
+
+            option_set->option_count += 1;
         }
     }
 
     option = &option_set->options[option_set->option_count];
     snprintf(text, sizeof(text), "Examine @cya@ %s", map_build_loc_entity->name.name);
+    strncpy(option->text, text, sizeof(option->text));
     option->action = MINIMENU_ACTION_OPLOC6;
     option->param_a = entity_id;
     option->param_b = x;
@@ -84,39 +85,39 @@ options_npc_combat_level_color_tag(
     int diff = viewer_combat_level - npc_combat_level;
     if( diff < -9 )
     {
-        return '@red@';
+        return "@red@";
     }
     else if( diff < -6 )
     {
-        return '@or3@';
+        return "@or3@";
     }
     else if( diff < -3 )
     {
-        return '@or2@';
+        return "@or2@";
     }
     else if( diff < 0 )
     {
-        return '@or1@';
+        return "@or1@";
     }
     else if( diff > 9 )
     {
-        return '@gre@';
+        return "@gre@";
     }
     else if( diff > 6 )
     {
-        return '@gr3@';
+        return "@gr3@";
     }
     else if( diff > 3 )
     {
-        return '@gr2@';
+        return "@gr2@";
     }
     else if( diff > 0 )
     {
-        return '@gr1@';
+        return "@gr1@";
     }
     else
     {
-        return '@yel@';
+        return "@yel@";
     }
 }
 
@@ -155,7 +156,6 @@ options_add_npc(
             npc->name.name,
             color_tag,
             npc->visible_level.level);
-
         for( int i = 4; i >= 0; i-- )
         {
             if( npc->actions[i].code != 0 )
@@ -163,7 +163,7 @@ options_add_npc(
                 snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
 
                 option = &option_set->options[option_set->option_count];
-                strncat(option->text, text, sizeof(option->text));
+                strncpy(option->text, text, sizeof(option->text));
                 option->param_a = entity_id;
                 option->param_b = x;
                 option->param_c = z;
@@ -204,7 +204,7 @@ options_add_npc(
                 snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
 
                 option = &option_set->options[option_set->option_count];
-                strncat(option->text, text, sizeof(option->text));
+                strncpy(option->text, text, sizeof(option->text));
                 option->param_a = entity_id;
                 option->param_b = x;
                 option->param_c = z;

@@ -2259,6 +2259,27 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
 
     /* Client.ts drawTooltip: draw hovered loc/NPC/player text at (4, 15) in top left. */
+    if( renderer->dash_buffer && game->pixfont_b12 && game->option_set.option_count > 0 )
+    {
+        struct WorldOption* top =
+            &game->option_set.options[game->option_set.option_count - 1];
+        char tooltip_buf[80];
+        size_t len = (size_t)snprintf(tooltip_buf, sizeof(tooltip_buf), "%s", top->text);
+        if( game->option_set.option_count > 1 && len < sizeof(tooltip_buf) - 16 )
+            snprintf(
+                tooltip_buf + len,
+                sizeof(tooltip_buf) - len,
+                " / %d more options",
+                game->option_set.option_count - 1);
+        dashfont_draw_text(
+            game->pixfont_b12,
+            (uint8_t*)tooltip_buf,
+            4,
+            15,
+            0xFFFFFF,
+            renderer->dash_buffer,
+            renderer->dash_buffer_width);
+    }
 
     // Render minimap to buffer starting at (0,0)
     // Calculate the center of the minimap content for rotation anchor

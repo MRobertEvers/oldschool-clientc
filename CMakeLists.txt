@@ -81,6 +81,7 @@ endif()
         src/osrs/texture.c
         src/osrs/collision_map.c
         src/osrs/world_pickset.c
+        src/osrs/world_options.c
         src/osrs/rscache/filelist.c
         src/osrs/rscache/archive.c
         src/osrs/gio.c

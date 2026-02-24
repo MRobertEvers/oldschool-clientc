@@ -16,6 +16,7 @@
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_versionlist_mapsquare.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/world_options.h"
 
 // clang-format off
 #include "osrs/gameproto_packets_write.u.c"
