@@ -4,6 +4,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct EntitySprite
+{
+    int id;
+};
+
 struct EntitySize
 {
     int x;
@@ -185,6 +190,48 @@ struct MapBuildTileEntity
     struct EntitySceneElement scene_element;
     struct EntitySceneCoord scene_coord;
 };
+
+struct IFaceRedstoneEntity
+{
+    struct EntitySprite inactive_sprite;
+    struct EntitySprite active_sprite;
+};
+
+struct IFaceMinimapEntity
+{};
+
+struct IFaceCrosshairEntity
+{
+    struct EntitySprite sprite;
+};
+
+struct IFaceCompassEntity
+{
+    struct EntitySprite sprite;
+};
+
+struct IFaceMinimenuEntity
+{
+    struct EntitySprite background_sprite;
+};
+
+struct IFaceSpriteEntity
+{
+    struct EntitySprite sprite;
+};
+
+struct IFaceOrbEntity
+{
+    struct EntitySprite active_sprite;
+    struct EntitySprite inactive_sprite;
+};
+
+// Top Left
+struct IFaceTooltipEntity
+{};
+
+struct IFaceInventoryTabsEntity
+{};
 
 void
 entity_add_hitmark(
