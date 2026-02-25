@@ -3,6 +3,8 @@
 
 #include "platform_impl2_osx_sdl2.h"
 
+struct StaticUiElementCommandBuffer;
+
 struct Platform2_OSX_SDL2_Renderer_Soft3D
 {
     SDL_Renderer* renderer;
@@ -51,6 +53,9 @@ struct Platform2_OSX_SDL2_Renderer_Soft3D
     int client_target_tile_x;
     int client_target_tile_z;
     uint64_t last_move_time_ms;
+
+    /* INI-driven static UI: command buffer filled at load, drawn each frame. */
+    struct StaticUiElementCommandBuffer* static_ui_buffer;
 };
 
 struct Platform2_OSX_SDL2_Renderer_Soft3D*

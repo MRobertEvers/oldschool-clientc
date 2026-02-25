@@ -21,6 +21,7 @@ extern "C" {
 #include "osrs/gio_cache_dat.h"
 #include "osrs/interface.h"
 #include "osrs/minimap.h"
+#include "osrs/static_ui_buffer.h"
 #include "osrs/minimenu.h"
 #include "osrs/model_transforms.h"
 #include "osrs/rscache/rsbuf.h"
@@ -250,6 +251,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(struct Platform2_OSX_SDL2_Renderer_S
     if( renderer->minimap_buffer )
     {
         free(renderer->minimap_buffer);
+    }
+    if( renderer->static_ui_buffer )
+    {
+        static_ui_buffer_free(renderer->static_ui_buffer);
+        renderer->static_ui_buffer = nullptr;
     }
     free(renderer);
 }
@@ -627,6 +633,77 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(
         renderer->dash_offset_x = offset_x;
         renderer->dash_offset_y = offset_y;
     }
+}
+
+static void
+blit_rotated_buffer(
+    int* src_buffer,
+    int src_width,
+    int src_height,
+    int src_anchor_x,
+    int src_anchor_y,
+    int* dst_buffer,
+    int dst_stride,
+    int dst_x,
+    int dst_y,
+    int dst_width,
+    int dst_height,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int angle_r2pi2048);
+
+/* Callbacks for static UI buffer execute (C-compatible). */
+static void
+static_ui_blit_sprite_cb(
+    void* userdata,
+    struct GGame* game,
+    struct DashSprite* sprite,
+    int x,
+    int y)
+{
+    auto* r = (struct Platform2_OSX_SDL2_Renderer_Soft3D*)userdata;
+    if( game->sys_dash && sprite && r->pixel_buffer )
+        dash2d_blit_sprite(
+            game->sys_dash,
+            sprite,
+            game->iface_view_port,
+            x,
+            y,
+            r->pixel_buffer);
+}
+
+static void
+static_ui_blit_rotated_cb(
+    void* userdata,
+    struct GGame* game,
+    struct DashSprite* sprite,
+    int x,
+    int y,
+    int dest_w,
+    int dest_h,
+    int dest_anchor_x,
+    int dest_anchor_y,
+    int rotation_cw)
+{
+    (void)game;
+    auto* r = (struct Platform2_OSX_SDL2_Renderer_Soft3D*)userdata;
+    if( !sprite || !r->pixel_buffer )
+        return;
+    blit_rotated_buffer(
+        (int*)sprite->pixels_argb,
+        sprite->width,
+        sprite->height,
+        sprite->width >> 1,
+        sprite->height >> 1,
+        r->pixel_buffer,
+        r->width,
+        x,
+        y,
+        dest_w,
+        dest_h,
+        dest_anchor_x,
+        dest_anchor_y,
+        rotation_cw);
 }
 
 static void
@@ -1202,416 +1279,43 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         75,
         game->camera_yaw);
 
-    if( game->sprite_compass )
-        blit_rotated_buffer(
-            (int*)game->sprite_compass->pixels_argb,
-            game->sprite_compass->width,
-            game->sprite_compass->height,
-            game->sprite_compass->width >> 1,
-            game->sprite_compass->height >> 1,
-            renderer->pixel_buffer,
-            renderer->width,
-            550,
-            4,
-            33,
-            33,
-            // The game always assumes the dest anchor is the center of the the width and height.
-            16,
-            16,
-            game->camera_yaw);
-
-    if( game->sprite_invback )
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_invback,
-            game->iface_view_port,
-            553,
-            205,
-            renderer->pixel_buffer);
-
-    /* Chat Y: below viewport. Client.ts viewport 334px -> bottom 338; bar at 338, chat at 357.
-     * C viewport may differ; align chat to viewport_bottom + 19. */
+    /* Chat Y and bind positions: computed once per frame for static UI. */
     int chat_y = 357;
     if( game->view_port )
         chat_y = game->view_port->height + 19;
-
-    if( game->sprite_backleft1 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backleft1,
-            game->iface_view_port,
-            0,
-            4,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_backleft2 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backleft2,
-            game->iface_view_port,
-            0,
-            chat_y,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_backright1 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backright1,
-            game->iface_view_port,
-            722,
-            4,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_backright2 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backright2,
-            game->iface_view_port,
-            743,
-            205,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_backtop1 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backtop1,
-            game->iface_view_port,
-            0,
-            0,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_backvmid1 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backvmid1,
-            game->iface_view_port,
-            516,
-            4,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_backvmid2 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backvmid2,
-            game->iface_view_port,
-            516,
-            205,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_backvmid3 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backvmid3,
-            game->iface_view_port,
-            496,
-            chat_y,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_backhmid2 )
-    {
-        /* Bar between viewport and chat: 19px above chat */
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backhmid2,
-            game->iface_view_port,
-            0,
-            chat_y - 19,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_mapback )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_mapback,
-            game->iface_view_port,
-            550,
-            4,
-            renderer->pixel_buffer);
-    }
-
-    /* Top tab strip at (516, 160) - Client.ts areaBackhmid1.draw(516, 160) */
     int bind_x = 516;
     int bind_y = 160;
-
-    if( game->sprite_backhmid1 )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backhmid1,
-            game->iface_view_port,
-            bind_x,
-            bind_y,
-            renderer->pixel_buffer);
-    }
-
-    /* Redstone for selected tab (top row 0-6) - Client.ts lines 4459-4471, only when sidebar is -1
-     */
-    if( game->sidebar_interface_id == -1 && game->selected_tab >= 0 && game->selected_tab <= 6 )
-    {
-        struct DashSprite* redstone = NULL;
-        int rx = 0, ry = 0;
-        switch( game->selected_tab )
-        {
-        case 0:
-            redstone = game->sprite_redstone1;
-            rx = 22;
-            ry = 10;
-            break;
-        case 1:
-            redstone = game->sprite_redstone2;
-            rx = 54;
-            ry = 8;
-            break;
-        case 2:
-            redstone = game->sprite_redstone2;
-            rx = 82;
-            ry = 8;
-            break;
-        case 3:
-            redstone = game->sprite_redstone3;
-            rx = 110;
-            ry = 8;
-            break;
-        case 4:
-            redstone = game->sprite_redstone2h;
-            rx = 153;
-            ry = 8;
-            break;
-        case 5:
-            redstone = game->sprite_redstone2h;
-            rx = 181;
-            ry = 8;
-            break;
-        case 6:
-            redstone = game->sprite_redstone1h;
-            rx = 209;
-            ry = 9;
-            break;
-        default:
-            break;
-        }
-        if( redstone )
-            dash2d_blit_sprite(
-                game->sys_dash,
-                redstone,
-                game->iface_view_port,
-                bind_x + rx,
-                bind_y + ry,
-                renderer->pixel_buffer);
-    }
-
-    if( game->sprite_sideicons[0] )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[0],
-            game->iface_view_port,
-            bind_x + 29,
-            bind_y + 13,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_sideicons[1] )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[1],
-            game->iface_view_port,
-            bind_x + 53,
-            bind_y + 11,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_sideicons[2] )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[2],
-            game->iface_view_port,
-            bind_x + 82,
-            bind_y + 11,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_sideicons[3] )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[3],
-            game->iface_view_port,
-            bind_x + 115,
-            bind_y + 12,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_sideicons[4] )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[4],
-            game->iface_view_port,
-            bind_x + 153,
-            bind_y + 13,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_sideicons[5] )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[5],
-            game->iface_view_port,
-            bind_x + 180,
-            bind_y + 11,
-            renderer->pixel_buffer);
-    }
-
-    if( game->sprite_sideicons[6] )
-    {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[6],
-            game->iface_view_port,
-            bind_x + 208,
-            bind_y + 13,
-            renderer->pixel_buffer);
-    }
-
-    /* Bottom tab strip at (496, 466) - Client.ts areaBackbase2.draw(496, 466) */
     int bind_bottom_x = 496;
     int bind_bottom_y = 466;
-    if( game->sprite_backbase2 )
+
+    /* Load static UI buffer on first use. */
+    if( !renderer->static_ui_buffer )
     {
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_backbase2,
-            game->iface_view_port,
-            bind_bottom_x,
-            bind_bottom_y,
-            renderer->pixel_buffer);
+        renderer->static_ui_buffer = static_ui_buffer_load("assets/static_ui.ini", "assets/static_ui_order.txt");
+        if( !renderer->static_ui_buffer )
+            renderer->static_ui_buffer = static_ui_buffer_load("static_ui.ini", "static_ui_order.txt");
     }
 
-    /* Redstone for selected tab (bottom row 7-13) - Client.ts lines 4512-4526 */
-    if( game->sidebar_interface_id == -1 && game->selected_tab >= 7 && game->selected_tab <= 13 )
+    if( renderer->static_ui_buffer )
     {
-        struct DashSprite* redstone = NULL;
-        int rx = 0, ry = 0;
-        switch( game->selected_tab )
-        {
-        case 7:
-            redstone = game->sprite_redstone1v;
-            rx = 42;
-            ry = 0;
-            break;
-        case 8:
-            redstone = game->sprite_redstone2v;
-            rx = 74;
-            ry = 0;
-            break;
-        case 9:
-            redstone = game->sprite_redstone2v;
-            rx = 102;
-            ry = 0;
-            break;
-        case 10:
-            redstone = game->sprite_redstone3v;
-            rx = 130;
-            ry = 1;
-            break;
-        case 11:
-            redstone = game->sprite_redstone2hv;
-            rx = 173;
-            ry = 0;
-            break;
-        case 12:
-            redstone = game->sprite_redstone2hv;
-            rx = 201;
-            ry = 0;
-            break;
-        case 13:
-            redstone = game->sprite_redstone1hv;
-            rx = 229;
-            ry = 0;
-            break;
-        default:
-            break;
-        }
-        if( redstone )
-            dash2d_blit_sprite(
-                game->sys_dash,
-                redstone,
-                game->iface_view_port,
-                bind_bottom_x + rx,
-                bind_bottom_y + ry,
-                renderer->pixel_buffer);
+        struct StaticUiFrameContext frame_ctx = {
+            .chat_y = chat_y,
+            .bind_x = bind_x,
+            .bind_y = bind_y,
+            .bind_bottom_x = bind_bottom_x,
+            .bind_bottom_y = bind_bottom_y,
+        };
+        struct StaticUiRenderCallbacks callbacks = {
+            .userdata = renderer,
+            .blit_sprite = static_ui_blit_sprite_cb,
+            .blit_rotated = static_ui_blit_rotated_cb,
+        };
+        static_ui_buffer_execute(
+            renderer->static_ui_buffer,
+            game,
+            &frame_ctx,
+            &callbacks);
     }
-
-    /* Bottom row sideicons (tabs 7-13) - Client.ts lines 4529-4551 */
-    if( game->sprite_sideicons[7] )
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[7],
-            game->iface_view_port,
-            bind_bottom_x + 74,
-            bind_bottom_y + 2,
-            renderer->pixel_buffer);
-    if( game->sprite_sideicons[8] )
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[8],
-            game->iface_view_port,
-            bind_bottom_x + 102,
-            bind_bottom_y + 3,
-            renderer->pixel_buffer);
-    if( game->sprite_sideicons[9] )
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[9],
-            game->iface_view_port,
-            bind_bottom_x + 137,
-            bind_bottom_y + 4,
-            renderer->pixel_buffer);
-    if( game->sprite_sideicons[10] )
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[10],
-            game->iface_view_port,
-            bind_bottom_x + 174,
-            bind_bottom_y + 2,
-            renderer->pixel_buffer);
-    if( game->sprite_sideicons[11] )
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[11],
-            game->iface_view_port,
-            bind_bottom_x + 201,
-            bind_bottom_y + 2,
-            renderer->pixel_buffer);
-    if( game->sprite_sideicons[12] )
-        dash2d_blit_sprite(
-            game->sys_dash,
-            game->sprite_sideicons[12],
-            game->iface_view_port,
-            bind_bottom_x + 226,
-            bind_bottom_y + 2,
-            renderer->pixel_buffer);
 
     // Initialize clipping bounds for interface viewport
     // if( game->iface_view_port )

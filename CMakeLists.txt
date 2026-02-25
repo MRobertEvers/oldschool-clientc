@@ -90,6 +90,7 @@ endif()
 
 
     src/osrs/rscache/tables_dat/config_component.c
+    src/osrs/static_ui.c
     src/osrs/interface.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
