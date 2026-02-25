@@ -74,7 +74,9 @@ init_component(struct CacheDatConfigComponent* component)
 }
 
 static struct CacheDatConfigComponent*
-decode_component(struct RSBuffer* inb, int* layer_inout)
+decode_component(
+    struct RSBuffer* inb,
+    int* layer_inout)
 {
     struct CacheDatConfigComponent* component = malloc(sizeof(struct CacheDatConfigComponent));
     init_component(component);
@@ -88,97 +90,96 @@ decode_component(struct RSBuffer* inb, int* layer_inout)
 
     component->id = id;
     component->layer = *layer_inout;
-        component->type = g1(inb);
-        component->buttonType = g1(inb);
-        component->clientCode = g2(inb);
-        component->width = g2(inb);
-        component->height = g2(inb);
-        component->alpha = g1(inb);
+    component->type = g1(inb);
+    component->buttonType = g1(inb);
+    component->clientCode = g2(inb);
+    component->width = g2(inb);
+    component->height = g2(inb);
+    component->alpha = g1(inb);
 
-        component->overlayer = g1(inb);
-        if( component->overlayer == 0 )
+    component->overlayer = g1(inb);
+    if( component->overlayer == 0 )
+    {
+        component->overlayer = -1;
+    }
+    else
+    {
+        component->overlayer = ((component->overlayer - 1) << 8) + g1(inb);
+    }
+
+    int comparatorCount = g1(inb);
+    if( comparatorCount > 0 )
+    {
+        component->scriptComparator = malloc(comparatorCount * sizeof(int));
+        memset(component->scriptComparator, 0, comparatorCount * sizeof(int));
+        component->scriptOperand = malloc(comparatorCount * sizeof(int));
+        memset(component->scriptOperand, 0, comparatorCount * sizeof(int));
+
+        for( int i = 0; i < comparatorCount; i++ )
         {
-            component->overlayer = -1;
+            component->scriptComparator[i] = g1(inb);
+            component->scriptOperand[i] = g2(inb);
         }
-        else
-        {
-            component->overlayer = ((component->overlayer - 1) << 8) + g1(inb);
-        }
+    }
 
-        int comparatorCount = g1(inb);
-        if( comparatorCount > 0 )
-        {
-            component->scriptComparator = malloc(comparatorCount * sizeof(int));
-            memset(component->scriptComparator, 0, comparatorCount * sizeof(int));
-            component->scriptOperand = malloc(comparatorCount * sizeof(int));
-            memset(component->scriptOperand, 0, comparatorCount * sizeof(int));
+    int scriptCount = g1(inb);
+    if( scriptCount > 0 )
+    {
+        component->scripts_count = scriptCount;
+        component->scripts = malloc(scriptCount * sizeof(int*));
+        memset(component->scripts, 0, scriptCount * sizeof(int*));
 
-            for( int i = 0; i < comparatorCount; i++ )
+        component->scripts_lengths = malloc(scriptCount * sizeof(int));
+        memset(component->scripts_lengths, 0, scriptCount * sizeof(int));
+
+        for( int i = 0; i < scriptCount; i++ )
+        {
+            int opcodeCount = g2(inb);
+
+            component->scripts_lengths[i] = opcodeCount;
+            component->scripts[i] = malloc(opcodeCount * sizeof(int));
+            memset(component->scripts[i], 0, opcodeCount * sizeof(int));
+
+            for( int j = 0; j < opcodeCount; j++ )
             {
-                component->scriptComparator[i] = g1(inb);
-                component->scriptOperand[i] = g2(inb);
+                component->scripts[i][j] = g2(inb);
             }
         }
+    }
 
-        int scriptCount = g1(inb);
-        if( scriptCount > 0 )
+    if( component->type == COMPONENT_TYPE_LAYER )
+    {
+        component->scroll = g2(inb);
+        component->hide = g1(inb) == 1;
+
+        int childCount = g2(inb);
+        component->children_count = childCount;
+        component->children = malloc(childCount * sizeof(int));
+        memset(component->children, 0, childCount * sizeof(int));
+        component->childX = malloc(childCount * sizeof(int));
+        memset(component->childX, 0, childCount * sizeof(int));
+        component->childY = malloc(childCount * sizeof(int));
+        memset(component->childY, 0, childCount * sizeof(int));
+
+        for( int i = 0; i < childCount; i++ )
         {
-            component->scripts_count = scriptCount;
-            component->scripts = malloc(scriptCount * sizeof(int*));
-            memset(component->scripts, 0, scriptCount * sizeof(int*));
-
-            component->scripts_lengths = malloc(scriptCount * sizeof(int));
-            memset(component->scripts_lengths, 0, scriptCount * sizeof(int));
-
-            for( int i = 0; i < scriptCount; i++ )
-            {
-                int opcodeCount = g2(inb);
-
-                component->scripts_lengths[i] = opcodeCount;
-                component->scripts[i] = malloc(opcodeCount * sizeof(int));
-                memset(component->scripts[i], 0, opcodeCount * sizeof(int));
-
-                for( int j = 0; j < opcodeCount; j++ )
-                {
-                    component->scripts[i][j] = g2(inb);
-                }
-            }
+            component->children[i] = g2(inb);
+            component->childX[i] = g2b(inb);
+            component->childY[i] = g2b(inb);
         }
+    }
 
-        if( component->type == COMPONENT_TYPE_LAYER )
-        {
-            component->scroll = g2(inb);
-            component->hide = g1(inb) == 1;
-
-            int childCount = g2(inb);
-            component->children_count = childCount;
-            component->children = malloc(childCount * sizeof(int));
-            memset(component->children, 0, childCount * sizeof(int));
-            component->childX = malloc(childCount * sizeof(int));
-            memset(component->childX, 0, childCount * sizeof(int));
-            component->childY = malloc(childCount * sizeof(int));
-            memset(component->childY, 0, childCount * sizeof(int));
-
-            for( int i = 0; i < childCount; i++ )
-            {
-                component->children[i] = g2(inb);
-                component->childX[i] = g2b(inb);
-                component->childY[i] = g2b(inb);
-            }
-        }
-
-        if( component->type == COMPONENT_TYPE_UNUSED )
-        {
-            inb->position += 3;
-        }
+    if( component->type == COMPONENT_TYPE_UNUSED )
+    {
+        inb->position += 3;
+    }
 
     if( component->type == COMPONENT_TYPE_INV )
     {
         component->invSlotObjId = malloc(component->width * component->height * sizeof(int));
         memset(component->invSlotObjId, 0, component->width * component->height * sizeof(int));
         component->invSlotObjCount = malloc(component->width * component->height * sizeof(int));
-        memset(
-            component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
+        memset(component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
 
         component->draggable = g1(inb) == 1;
         component->interactable = g1(inb) == 1;
@@ -222,10 +223,10 @@ decode_component(struct RSBuffer* inb, int* layer_inout)
     }
 
     if( component->type == COMPONENT_TYPE_TEXT || component->type == COMPONENT_TYPE_UNUSED )
-        {
-            component->center = g1(inb) == 1;
-            int font = g1(inb);
-            component->font = font;
+    {
+        component->center = g1(inb) == 1;
+        int font = g1(inb);
+        component->font = font;
         component->shadowed = g1(inb) == 1;
     }
 
@@ -258,40 +259,40 @@ decode_component(struct RSBuffer* inb, int* layer_inout)
     }
 
     if( component->type == COMPONENT_TYPE_MODEL )
+    {
+        int model = g1(inb);
+        if( model != 0 )
         {
-            int model = g1(inb);
-            if( model != 0 )
-            {
-                component->modelType = 1;
-                component->model = ((model - 1) << 8) + g1(inb);
-            }
+            component->modelType = 1;
+            component->model = ((model - 1) << 8) + g1(inb);
+        }
 
-            int activeModel = g1(inb);
-            if( activeModel != 0 )
-            {
-                component->activeModelType = 1;
-                component->activeModel = ((activeModel - 1) << 8) + g1(inb);
-            }
+        int activeModel = g1(inb);
+        if( activeModel != 0 )
+        {
+            component->activeModelType = 1;
+            component->activeModel = ((activeModel - 1) << 8) + g1(inb);
+        }
 
-            component->anim = g1(inb);
-            if( component->anim == 0 )
-            {
-                component->anim = -1;
-            }
-            else
-            {
-                component->anim = ((component->anim - 1) << 8) + g1(inb);
-            }
+        component->anim = g1(inb);
+        if( component->anim == 0 )
+        {
+            component->anim = -1;
+        }
+        else
+        {
+            component->anim = ((component->anim - 1) << 8) + g1(inb);
+        }
 
-            component->activeAnim = g1(inb);
-            if( component->activeAnim == 0 )
-            {
-                component->activeAnim = -1;
-            }
-            else
-            {
-                component->activeAnim = ((component->activeAnim - 1) << 8) + g1(inb);
-            }
+        component->activeAnim = g1(inb);
+        if( component->activeAnim == 0 )
+        {
+            component->activeAnim = -1;
+        }
+        else
+        {
+            component->activeAnim = ((component->activeAnim - 1) << 8) + g1(inb);
+        }
 
         component->zoom = g2(inb);
         component->xan = g2(inb);
@@ -299,27 +300,26 @@ decode_component(struct RSBuffer* inb, int* layer_inout)
     }
 
     if( component->type == COMPONENT_TYPE_INV_TEXT )
+    {
+        component->invSlotObjId = malloc(component->width * component->height * sizeof(int));
+        memset(component->invSlotObjId, 0, component->width * component->height * sizeof(int));
+        component->invSlotObjCount = malloc(component->width * component->height * sizeof(int));
+        memset(component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
+
+        component->center = g1(inb) == 1;
+        component->font = g1(inb);
+
+        component->shadowed = g1(inb) == 1;
+        component->colour = g4(inb);
+        component->marginX = g2b(inb);
+        component->marginY = g2b(inb);
+        component->interactable = g1(inb) == 1;
+
+        component->iop = malloc(5 * sizeof(char*));
+        memset(component->iop, 0, 5 * sizeof(char*));
+        for( int i = 0; i < 5; i++ )
         {
-            component->invSlotObjId = malloc(component->width * component->height * sizeof(int));
-            memset(component->invSlotObjId, 0, component->width * component->height * sizeof(int));
-            component->invSlotObjCount = malloc(component->width * component->height * sizeof(int));
-            memset(
-                component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
-
-            component->center = g1(inb) == 1;
-            component->font = g1(inb);
-
-            component->shadowed = g1(inb) == 1;
-            component->colour = g4(inb);
-            component->marginX = g2b(inb);
-            component->marginY = g2b(inb);
-            component->interactable = g1(inb) == 1;
-
-            component->iop = malloc(5 * sizeof(char*));
-            memset(component->iop, 0, 5 * sizeof(char*));
-            for( int i = 0; i < 5; i++ )
-            {
-                component->iop[i] = gstringnewline(inb);
+            component->iop[i] = gstringnewline(inb);
             if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
                 component->iop[i] = NULL;
         }
@@ -393,13 +393,13 @@ cache_dat_config_component_list_new_decode(
             assert(false && "Failed to decode component");
             return NULL;
         }
-        
+
         // Store component at its ID index
         if( comp->id >= 0 && comp->id < component_count )
         {
             component_list->components[comp->id] = comp;
         }
     }
-    
+
     return component_list;
 }

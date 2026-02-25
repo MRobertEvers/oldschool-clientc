@@ -120,6 +120,37 @@ enum FloorFlags
     FLOFLAG_FORCE_HIGH_DETAIL = 0x10,
 };
 
+// { 1, 3, 5, 7 },
+// { 1, 3, 5, 7 }, // PLAIN_SHAPE
+// { 1, 3, 5, 7 }, // DIAGONAL_SHAPE
+// { 1, 3, 5, 7, 6 }, // LEFT_SEMI_DIAGONAL_SMALL_SHAPE
+// { 1, 3, 5, 7, 6 }, // RIGHT_SEMI_DIAGONAL_SMALL_SHAPE
+// { 1, 3, 5, 7, 6 }, // LEFT_SEMI_DIAGONAL_BIG_SHAPE
+// { 1, 3, 5, 7, 6 }, // RIGHT_SEMI_DIAGONAL_BIG_SHAPE
+// { 1, 3, 5, 7, 2, 6 }, // HALF_SQUARE_SHAPE
+// { 1, 3, 5, 7, 2, 8 }, // CORNER_SMALL_SHAPE
+// { 1, 3, 5, 7, 2, 8 }, // CORNER_BIG_SHAPE
+// { 1, 3, 5, 7, 11, 12 }, // FAN_SMALL_SHAPE
+// { 1, 3, 5, 7, 11, 12 }, // FAN_BIG_SHAPE
+// { 1, 3, 5, 7, 13, 14 } // TRAPEZIUM_SHAPE
+
+enum FloorShape
+{
+    FLOOR_SHAPE_NONE = 0,
+    FLOOR_SHAPE_FLAT = 1,
+    FLOOR_SHAPE_DIAGONAL = 2,
+    FLOOR_SHAPE_LEFT_SEMI_DIAGONAL_SMALL = 3,
+    FLOOR_SHAPE_RIGHT_SEMI_DIAGONAL_SMALL = 4,
+    FLOOR_SHAPE_LEFT_SEMI_DIAGONAL_BIG = 5,
+    FLOOR_SHAPE_RIGHT_SEMI_DIAGONAL_BIG = 6,
+    FLOOR_SHAPE_HALF_SQUARE = 7,
+    FLOOR_SHAPE_CORNER_SMALL = 8,
+    FLOOR_SHAPE_CORNER_BIG = 9,
+    FLOOR_SHAPE_FAN_SMALL = 10,
+    FLOOR_SHAPE_FAN_BIG = 11,
+    FLOOR_SHAPE_TRAPEZIUM = 12,
+};
+
 struct CacheMapFloor
 {
     int height;
@@ -127,6 +158,7 @@ struct CacheMapFloor
     // enum FloorFlags
     int settings;
     int overlay_id;
+    // enum FloorShape
     int shape;
     int rotation;
     int underlay_id;

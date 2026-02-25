@@ -1463,3 +1463,12 @@ pacman -S mingw-w64-x86_64-gdb
 ## Runescape Character Encoding
 
 Use Windows CP1252 for characters and fonts.
+
+
+## UI Inventory Component Type
+
+The 20 slot check is for special "INV" components that do special things
+and are limited to that special logic for 20 slots. Consider the equipment screen.
+
+The 20 slots can have special offsets and "null" graphics. Higher than that,
+they cannot.

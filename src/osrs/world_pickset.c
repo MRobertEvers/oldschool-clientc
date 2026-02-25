@@ -23,10 +23,5 @@ world_pickset_add(
     pickset->entities[pickset->count].entity_type = entity_type;
     pickset->entities[pickset->count].entity_id = entity_id;
 
-    if( entity_type == ENTITY_KIND_NPC )
-    {
-        printf("NPC: %d\n", entity_id);
-    }
-
     pickset->count++;
 }

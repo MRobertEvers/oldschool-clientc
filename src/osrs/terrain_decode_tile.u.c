@@ -14,23 +14,46 @@
 #define OVERLAY_HSL_TRANSPARENT -2
 #define UNDERLAY_HSL_NONE -1
 
-static int g_tile_shape_vertex_indices[15][6] = {
-    { 1, 3, 5, 7 },
-    { 1, 3, 5, 7 },
-    { 1, 3, 5, 7 },
-    { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 2, 6 },
-    { 1, 3, 5, 7, 2, 8 },
-    { 1, 3, 5, 7, 2, 8 },
-    { 1, 3, 5, 7, 11, 12 },
-    { 1, 3, 5, 7, 11, 12 },
-    { 1, 3, 5, 7, 13, 14 },
+enum VertexType
+{
+    VERTEX_TYPE_SW = 1,
+    VERTEX_TYPE_SOUTHEDGE_MIDDLE = 2,
+    VERTEX_TYPE_SE = 3,
+    VERTEX_TYPE_EASTEDGE_MIDDLE = 4,
+    VERTEX_TYPE_NE = 5,
+    VERTEX_TYPE_NORTHEDGE_MIDDLE = 6,
+    VERTEX_TYPE_NW = 7,
+    VERTEX_TYPE_WESTEDGE_MIDDLE = 8,
+    VERTEX_TYPE_SOUTH_QUARTER_MIDLINE = 9,
+    VERTEX_TYPE_EAST_QUARTER_MIDLINE = 10,
+    VERTEX_TYPE_NORTH_QUARTER_MIDLINE = 11,
+    VERTEX_TYPE_WEST_QUARTER_MIDLINE = 12,
+    VERTEX_TYPE_SW_QUARTER_CENTER = 13,
+    VERTEX_TYPE_SE_QUARTER_CENTER = 14,
+    VERTEX_TYPE_NE_QUARTER_CENTER = 15,
+    VERTEX_TYPE_NW_QUARTER_CENTER = 16,
 };
 
-static int g_tile_shape_vertex_indices_lengths[15] = {
+/**
+ * These specify the subtile position on the x-z plane for the tile vertices.
+ */
+static int g_tile_shape_vertex_types[15][6] = {
+    { 1, 3, 5, 7 },
+    { 1, 3, 5, 7 }, // PLAIN_SHAPE
+    { 1, 3, 5, 7 }, // DIAGONAL_SHAPE
+    { 1, 3, 5, 7, 6 }, // LEFT_SEMI_DIAGONAL_SMALL_SHAPE
+    { 1, 3, 5, 7, 6 }, // RIGHT_SEMI_DIAGONAL_SMALL_SHAPE
+    { 1, 3, 5, 7, 6 }, // LEFT_SEMI_DIAGONAL_BIG_SHAPE
+    { 1, 3, 5, 7, 6 }, // RIGHT_SEMI_DIAGONAL_BIG_SHAPE
+    { 1, 3, 5, 7, 2, 6 }, // HALF_SQUARE_SHAPE
+    { 1, 3, 5, 7, 2, 8 }, // CORNER_SMALL_SHAPE
+    { 1, 3, 5, 7, 2, 8 }, // CORNER_BIG_SHAPE
+    { 1, 3, 5, 7, 11, 12 }, // FAN_SMALL_SHAPE
+    { 1, 3, 5, 7, 11, 12 }, // FAN_BIG_SHAPE
+    { 1, 3, 5, 7, 13, 14 }  // TRAPEZIUM_SHAPE
+};
+
+static int g_tile_shape_vertex_types_lengths[15] = {
     4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6,
 };
 
@@ -208,8 +231,8 @@ decode_tile(
     int tile_x = 0; // tile_coord_x * TILE_SIZE;
     int tile_z = 0; // tile_coord_z * TILE_SIZE;
 
-    int* vertex_indices = g_tile_shape_vertex_indices[shape];
-    int vertex_count = g_tile_shape_vertex_indices_lengths[shape];
+    int* vertex_indices = g_tile_shape_vertex_types[shape];
+    int vertex_count = g_tile_shape_vertex_types_lengths[shape];
 
     int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
     int* vertices_y = (int*)malloc(vertex_count * sizeof(int));
