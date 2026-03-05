@@ -1611,7 +1611,7 @@ y=
 254
 ```
 
-// Sprites
+// Sprites (rev->load)
 [compass]
 rev=225
 load=jagfile://MEDIA/compass.dat
