@@ -1472,3 +1472,171 @@ and are limited to that special logic for 20 slots. Consider the equipment scree
 
 The 20 slots can have special offsets and "null" graphics. Higher than that,
 they cannot.
+
+## Revision Config
+
+Organization
+
+```
+config/
+  out/
+    rev225/
+      layouts.ini
+      elements.ini
+      sprites.ini
+    rev254/
+      layouts.ini
+      elements.ini
+      sprites.ini
+  elements/
+    # These are templates that get compiled 
+    compass.ini
+    redstone.ini
+  layouts/
+    legacy-wide.txt
+    legacy.txt
+  revisions
+    254.ini
+  targets.txt
+```
+
+```
+# compass.ini
+
+# Loading of the sprite based on revs.
+[compass:sprite]
+rev=225-245.2
+load=jagfile://MEDIA/compass.dat
+
+[compass:sprite]
+rev=254
+load=jagfile://MEDIA/compass.dat
+
+[compass]
+rev=225-245.2
+sprite=compass
+x=1
+y=3
+
+[compass]
+rev=254
+sprite=compass
+l=54
+t=10
+
+[compass_resizeable]
+rev=254
+sprite=compass
+l=54
+t=10
+
+
+```
+
+```
+# legacy-wide.txt
+
+compass
+invback
+backleft1
+backleft2
+backright1
+backright2
+backtop1
+backvmid1
+backvmid2
+backvmid3
+backhmid2
+mapback
+backhmid1
+tab_redstone_top
+sideicon0
+sideicon1
+sideicon2
+sideicon3
+sideicon4
+sideicon5
+sideicon6
+backbase2
+tab_redstone_bottom
+sideicon7
+sideicon8
+sideicon9
+sideicon10
+sideicon11
+sideicon12
+chatback
+```
+
+```
+# manifests
+
+[revision]
+rev=225
+layouts=fixed,resizeable_classic,resizeable_modern
+cache=osrs://1/matthew/...
+cache=rs://225/
+```
+
+```
+/layouts
+  fixed.ini
+  resizeable_classic.ini
+  resizeable_modern.ini
+```
+
+```
+# fixed.ini
+
+[layout]
+rev=225
+e=compass
+s=compass
+x=
+y=
+a=camera_yaw
+=
+e=backmid
+x=
+y=
+=
+
+```
+
+```
+# targets.txt
+225
+245
+245.2
+254
+```
+
+// Sprites
+[compass]
+rev=225
+load=jagfile://MEDIA/compass.dat
+
+
+[compass]
+rev=245
+load=jagfile://MEDIA/compass.dat
+
+// Facets of an element
+// element(rev)
+name
+behavior
+sprites
+
+
+// Facets of a layout
+layout(rev)
+element
+position
+
+
+
+layouts
+  -> sprites
+    - specified by rev-specific loads
+  -> behaviors
+    - rev?
