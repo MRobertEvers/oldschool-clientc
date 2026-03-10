@@ -250,6 +250,7 @@ load_sprite(
     int element_id = uiscene_element_acquire(ui_scene, -1);
     struct UISceneElement* element = uiscene_element_at(ui_scene, element_id);
     element->dash_sprites = sprites;
+    element->dash_sprites_count = count;
     strncpy(element->name, load->name, sizeof(element->name) - 1);
 
     struct SpriteEntry* sprite_entry = dashmap_search(sprite_hmap, load->name, DASHMAP_INSERT);
