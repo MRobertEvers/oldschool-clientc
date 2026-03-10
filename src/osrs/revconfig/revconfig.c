@@ -33,10 +33,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_FORMAT";
     case RCFIELD_CACHE_ATLAS_INDEX:
         return "RCFIELD_CACHE_ATLAS_INDEX";
-    case RCFIELD_UIASSET_SPRITE:
-        return "RCFIELD_UIASSET_SPRITE";
-    case RCFIELD_UILAYOUT_COMPONENT:
-        return "RCFIELD_UILAYOUT_COMPONENT";
+    case RCFIELD_UICOMPONENT_SPRITE:
+        return "RCFIELD_UICOMPONENT_SPRITE";
     case RCFIELD_UILAYOUT_X:
         return "RCFIELD_UILAYOUT_X";
     case RCFIELD_UILAYOUT_Y:

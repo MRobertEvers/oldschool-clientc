@@ -1,3 +1,4 @@
+#include "bmp.h"
 #include "osrs/buildcachedat.h"
 #include "revconfig.h"
 #include "revconfig_load.h"
@@ -11,11 +12,14 @@ main()
 {
     const char* filename = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
                            "configs/rev_254_2/rev_245_2_cache.ini";
+    char const* filename_ui = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
+                              "configs/rev_254_2/rev_245_2_ui.ini";
 
     struct RevConfigBuffer* buffer = revconfig_buffer_new(16);
     uint32_t field_count = 0;
 
     revconfig_load_fields_from_ini(filename, buffer);
+    revconfig_load_fields_from_ini(filename_ui, buffer);
 
     struct BuildCacheDat* buildcachedat = buildcachedat_new();
     struct CacheDat* cache_dat =
@@ -29,7 +33,57 @@ main()
 
     buildcachedat_set_2d_media_jagfile(buildcachedat, filelist);
 
-    struct UIScene* static_ui = uiscene_new(32);
-    static_ui_from_revconfig_buildcachedat(static_ui, buildcachedat, buffer);
+    struct UIScene* ui_scene = uiscene_new(128);
+    struct StaticUIBuffer* static_ui = static_ui_buffer_new(16);
+    static_ui_from_revconfig_buildcachedat(static_ui, ui_scene, buildcachedat, buffer);
+
+    struct DashGraphics* dash = dash_new();
+    struct DashViewPort view_port = { 0 };
+    view_port.width = 1024;
+    view_port.height = 1024;
+    view_port.stride = 1024;
+    view_port.clip_left = 0;
+    view_port.clip_top = 0;
+    view_port.clip_right = 1024;
+    view_port.clip_bottom = 1024;
+
+    int* pixels = malloc(1024 * 1024 * sizeof(int));
+    for( int i = 0; i < static_ui->component_count; i++ )
+    {
+        struct StaticUIComponent* component = &static_ui->components[i];
+        if( component->type == UIELEM_SPRITE )
+        {
+            assert(component->scene_id != -1 && "Sprite components must have a valid scene_id");
+            struct UISceneElement* element = uiscene_element_at(ui_scene, component->scene_id);
+            printf(
+                "Blitting component %d of type %d using scene element id %d at x=%d, y=%d\n",
+                i,
+                component->type,
+                component->scene_id,
+                component->position.x,
+                component->position.y);
+            if( element )
+            {
+                struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+                dash2d_blit_sprite(
+                    dash,
+                    sprite,
+                    &view_port,
+                    component->position.x + sprite->crop_x,
+                    component->position.y + sprite->crop_y,
+                    pixels);
+            }
+            else
+            {
+                printf(
+                    "Failed to find sprite with id %d for sprite component\n", component->scene_id);
+            }
+        }
+    }
+
+    bmp_write_file("output.bmp", pixels, 1024, 1024);
+
+    free(pixels);
+
     return 0;
 }

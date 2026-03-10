@@ -15,6 +15,7 @@ CFLAGS = -Wall -Wextra -g -I$(PROJECT_ROOT) -I.
 # 3. List Sources with absolute/relative paths
 SRCS = static_ui_load_test.c \
        static_ui_load.c \
+       static_ui.c \
        uiscene.c \
 	   $(PROJECT_ROOT)/bmp.c \
 	   $(PROJECT_ROOT)/graphics/dash.c \

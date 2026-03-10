@@ -51,7 +51,8 @@ struct StaticUIComponent
 {
     enum StaticUIComponentType type;
     struct StaticUIElemPosition position;
-    int sprite_id;
+    int scene_id;
+    int atlas_index;
 };
 
 struct StaticUIBuffer
@@ -68,9 +69,10 @@ void
 static_ui_buffer_free(struct StaticUIBuffer* buffer);
 
 void
-static_ui_buffer_push_xy(
+static_ui_buffer_push_sprite_xy(
     struct StaticUIBuffer* buffer,
     int sprite_id,
+    int atlas_index,
     int x,
     int y);
 
@@ -80,13 +82,33 @@ static_ui_buffer_push_xy(
 #define STATIC_UI_RELATIVE_FLAG_BOTTOM 8
 
 void
-static_ui_buffer_push_relative(
+static_ui_buffer_push_sprite_relative(
     struct StaticUIBuffer* buffer,
     int sprite_id,
+    int atlas_index,
     int flags,
     int top,
     int right,
     int bottom,
     int left);
+
+void
+static_ui_buffer_push_world(
+    struct StaticUIBuffer* buffer,
+    int x,
+    int y);
+
+void
+static_ui_buffer_push_compass(
+    struct StaticUIBuffer* buffer,
+    int sprite_id,
+    int x,
+    int y);
+
+void
+static_ui_buffer_push_minimap(
+    struct StaticUIBuffer* buffer,
+    int x,
+    int y);
 
 #endif

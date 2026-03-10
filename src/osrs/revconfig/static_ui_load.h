@@ -8,7 +8,8 @@
 
 void
 static_ui_from_revconfig_buildcachedat(
-    struct UIScene* static_ui,
+    struct StaticUIBuffer* ui,
+    struct UIScene* ui_scene,
     struct BuildCacheDat* buildcachedat,
     struct RevConfigBuffer* revconfig_buffer);
 

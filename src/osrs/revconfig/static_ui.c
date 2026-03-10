@@ -1,6 +1,7 @@
 #include "static_ui.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 static struct StaticUIComponent*
 push_element(struct StaticUIBuffer* buffer)
@@ -44,9 +45,10 @@ static_ui_buffer_free(struct StaticUIBuffer* buffer)
 }
 
 void
-static_ui_buffer_push_xy(
+static_ui_buffer_push_sprite_xy(
     struct StaticUIBuffer* buffer,
     int sprite_id,
+    int atlas_index,
     int x,
     int y)
 {
@@ -58,7 +60,8 @@ static_ui_buffer_push_xy(
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
-    component->sprite_id = sprite_id;
+    component->scene_id = sprite_id;
+    component->atlas_index = atlas_index;
 }
 
 #define STATIC_UI_RELATIVE_FLAG_LEFT 1
@@ -67,9 +70,10 @@ static_ui_buffer_push_xy(
 #define STATIC_UI_RELATIVE_FLAG_BOTTOM 8
 
 void
-static_ui_buffer_push_relative(
+static_ui_buffer_push_sprite_relative(
     struct StaticUIBuffer* buffer,
     int sprite_id,
+    int atlas_index,
     int flags,
     int top,
     int right,
@@ -93,5 +97,62 @@ static_ui_buffer_push_relative(
         component->position.right = right;
     if( (flags & STATIC_UI_RELATIVE_FLAG_BOTTOM) != 0 )
         component->position.bottom = bottom;
-    component->sprite_id = sprite_id;
+    component->scene_id = sprite_id;
+    component->atlas_index = atlas_index;
+}
+
+void
+static_ui_buffer_push_world(
+    struct StaticUIBuffer* buffer,
+    int x,
+    int y)
+{
+    struct StaticUIComponent* component = push_element(buffer);
+    if( !component )
+        return;
+
+    memset(component, 0, sizeof(struct StaticUIComponent));
+
+    component->type = UIELEM_WORLD;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+}
+
+void
+static_ui_buffer_push_compass(
+    struct StaticUIBuffer* buffer,
+    int sprite_id,
+    int x,
+    int y)
+{
+    struct StaticUIComponent* component = push_element(buffer);
+    if( !component )
+        return;
+
+    memset(component, 0, sizeof(struct StaticUIComponent));
+
+    component->type = UIELEM_COMPASS;
+    component->position.kind = UIPOS_XY;
+    component->scene_id = sprite_id;
+    component->position.x = x;
+    component->position.y = y;
+}
+
+void
+static_ui_buffer_push_minimap(
+    struct StaticUIBuffer* buffer,
+    int x,
+    int y)
+{
+    struct StaticUIComponent* component = push_element(buffer);
+    if( !component )
+        return;
+
+    memset(component, 0, sizeof(struct StaticUIComponent));
+
+    component->type = UIELEM_MINIMAP;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
 }

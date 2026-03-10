@@ -35,8 +35,10 @@ push_element_from_ini_header(
     strncpy(item_name, space + 1, sizeof(item_name) - 1);
     item_name[sizeof(item_name) - 1] = '\0';
 
-    push_field(revconfig_buffer, RCFIELD_ITEMNAME, item_name);
+    printf("Parsed section header: type='%s', name='%s'\n", item_type, item_name);
+
     push_field(revconfig_buffer, RCFIELD_ITEMTYPE, item_type);
+    push_field(revconfig_buffer, RCFIELD_ITEMNAME, item_name);
 }
 
 static void
@@ -47,7 +49,11 @@ push_field_from_ini_kv(
 {
     uint8_t kind = RCFIELD_NONE;
     if( strcmp(key, "sprite") == 0 )
-        kind = RCFIELD_UIASSET_SPRITE;
+        kind = RCFIELD_UICOMPONENT_SPRITE;
+    else if( strcmp(key, "type") == 0 )
+        kind = RCFIELD_UICOMPONENT_TYPE;
+    else if( strcmp(key, "c") == 0 )
+        kind = RCFIELD_UILAYOUT_COMPONENT;
     else if( strcmp(key, "x") == 0 )
         kind = RCFIELD_UILAYOUT_X;
     else if( strcmp(key, "y") == 0 )
@@ -138,6 +144,8 @@ revconfig_load_fields_from_ini(
             break;
         }
     }
+
+    push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
 
     assert(reader.state == INI_READER_STATE_DONE);
     free(file_data);
