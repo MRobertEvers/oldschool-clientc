@@ -2,6 +2,12 @@
 
 #include "graphics/dash.h"
 
+struct SpriteEntry
+{
+    char name[64]; // Key must be first field and fixed size for DashMap
+    struct DashSprite* sprite;
+};
+
 struct MapTerrainEntry
 {
     int id;
@@ -255,6 +261,14 @@ buildcachedat_new(void)
     };
     buildcachedat->component_sprites_hmap = dashmap_new(&config, 0);
 
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = 64, // Max sprite name length
+        .entry_size = sizeof(struct SpriteEntry),
+    };
+    buildcachedat->sprites = dashmap_new(&config, 0);
+
     return buildcachedat;
 }
 
@@ -299,6 +313,14 @@ struct FileListDat*
 buildcachedat_versionlist_jagfile(struct BuildCacheDat* buildcachedat)
 {
     return buildcachedat->cfg_versionlist_jagfile;
+}
+
+void
+buildcachedat_set_2d_media_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct FileListDat* media_jagile)
+{
+    buildcachedat->cfg_media_jagfile = media_jagile;
 }
 
 void

@@ -21,8 +21,8 @@
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
-#include "osrs/zone_state.h"
 #include "osrs/world_option_set.h"
+#include "osrs/zone_state.h"
 #include "world_pickset.h"
 
 #include <stdbool.h>

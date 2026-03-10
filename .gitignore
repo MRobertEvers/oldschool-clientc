@@ -19,4 +19,8 @@ debug.keystore
 gradle.properties
 
 lib/python*
-.venv
+.venve
+
+*.out
+*.dSYM
+*.o

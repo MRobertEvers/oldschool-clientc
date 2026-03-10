@@ -195,7 +195,7 @@ continue_reading:;
     done:;
         reader->state = INI_READER_STATE_DONE;
         element->kind = INI_ELEMENT_SECTION_END;
-        return TORI_INI_ERR_OK; // End of file, flush last section
+        return TORI_INI_ERR_NONE; // End of file, flush last section
     }
 
     return TORI_INI_ERR_NONE;

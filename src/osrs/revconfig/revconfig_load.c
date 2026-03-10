@@ -66,14 +66,16 @@ push_field_from_ini_kv(
         kind = RCFIELD_CACHE_ARCHIVE;
     else if( strcmp(key, "container") == 0 )
         kind = RCFIELD_CACHE_CONTAINER;
-    else if( strcmp(key, "index_filename") == 0 )
+    else if( strcmp(key, "index") == 0 )
         kind = RCFIELD_CACHE_INDEX_FILENAME;
-    else if( strcmp(key, "data_filename") == 0 )
+    else if( strcmp(key, "filename") == 0 )
         kind = RCFIELD_CACHE_DATA_FILENAME;
     else if( strcmp(key, "format") == 0 )
         kind = RCFIELD_CACHE_FORMAT;
     else if( strcmp(key, "atlas_index") == 0 )
         kind = RCFIELD_CACHE_ATLAS_INDEX;
+    else if( strcmp(key, "atlas_count") == 0 )
+        kind = RCFIELD_CACHE_ATLAS_COUNT;
     else if(
         strcmp(key, "transform1") == 0 || strcmp(key, "transform2") == 0 ||
         strcmp(key, "transform3") == 0 || strcmp(key, "transform4") == 0 )

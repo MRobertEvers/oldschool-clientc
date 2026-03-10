@@ -1,11 +1,21 @@
 #include "static_ui_load.h"
 
+#include "bmp.h"
 #include "graphics/dash.h"
+#include "osrs/dash_utils.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 
 #include <assert.h>
+
+struct SpriteEntry
+{
+    char name[64]; // Key must be first field and fixed size for DashMap
+    struct DashSprite** sprites;
+    int count;
+    int id;
+};
 
 struct SpriteLoad
 {
@@ -17,8 +27,10 @@ struct SpriteLoad
     char data_filename[64];
     char format[16];
     int atlas_index;
+    int atlas_count;
 
     char transforms[5][32];
+    int transform_count;
 };
 
 enum LoadKind
@@ -87,6 +99,7 @@ load_sprite_pix32(
 static void
 load_sprite(
     struct SpriteLoad* load,
+    struct DashMap* sprite_hmap,
     struct UIScene* static_ui,
     struct BuildCacheDat* buildcachedat)
 {
@@ -103,44 +116,73 @@ load_sprite(
         return;
     }
 
-    struct DashSprite* sprite = NULL;
-    if( strcmp(load->format, "pix8") == 0 )
-    {
-        sprite = load_sprite_pix8(filelist, load->data_filename, index_file_idx, load->atlas_index);
-    }
-    else if( strcmp(load->format, "pix32") == 0 )
-    {
-        sprite =
-            load_sprite_pix32(filelist, load->data_filename, index_file_idx, load->atlas_index);
-    }
-    else
-    {
-        assert(0 && "Unknown sprite format");
-    }
+    struct DashSprite** sprites = NULL;
 
-    if( !sprite )
+    int count = load->atlas_index < 0 ? load->atlas_count : 1;
+    sprites = malloc(count * sizeof(struct DashSprite*));
+    if( !sprites )
     {
-        assert(0 && "Failed to load sprite");
+        assert(0 && "Failed to allocate sprites array");
         return;
     }
 
-    for( int i = 0; i < 5; i++ )
+    for( int atlas_index = 0; atlas_index < count; atlas_index++ )
     {
-        if( load->transforms[i][0] != '\0' )
+        if( strcmp(load->format, "pix8") == 0 )
         {
-            if( strcmp(load->transforms[i], "flip_h") == 0 )
-                dashsprite_flip_horizontal(sprite);
-            else if( strcmp(load->transforms[i], "flip_v") == 0 )
-                dashsprite_flip_vertical(sprite);
-            else
-                assert(0 && "Unknown transform");
+            sprites[atlas_index] =
+                load_sprite_pix8(filelist, data_file_idx, index_file_idx, atlas_index);
         }
+        else if( strcmp(load->format, "pix32") == 0 )
+        {
+            sprites[atlas_index] =
+                load_sprite_pix32(filelist, data_file_idx, index_file_idx, atlas_index);
+        }
+        else
+        {
+            assert(0 && "Unknown sprite format");
+        }
+
+        if( !sprites[atlas_index] )
+        {
+            // Ignore failed loads?
+            continue;
+        }
+
+        for( int i = 0; i < 5; i++ )
+        {
+            if( load->transforms[i][0] != '\0' )
+            {
+                if( strcmp(load->transforms[i], "flip_h") == 0 )
+                    dashsprite_flip_horizontal(sprites[atlas_index]);
+                else if( strcmp(load->transforms[i], "flip_v") == 0 )
+                    dashsprite_flip_vertical(sprites[atlas_index]);
+                else
+                    assert(0 && "Unknown transform");
+            }
+        }
+
+        char filename[128] = { 0 };
+        snprintf(filename, sizeof(filename), "build/%s%d.bmp", load->name, atlas_index);
+        bmp_write_file(
+            filename,
+            sprites[atlas_index]->pixels_argb,
+            sprites[atlas_index]->width,
+            sprites[atlas_index]->height);
     }
 
     int element_id = uiscene_element_acquire(static_ui, -1);
     struct UISceneElement* element = uiscene_element_at(static_ui, element_id);
-    element->dash_sprite = sprite;
+    element->dash_sprites = sprites;
     strncpy(element->name, load->name, sizeof(element->name) - 1);
+
+    struct SpriteEntry* sprite_entry = dashmap_search(sprite_hmap, load->name, DASHMAP_INSERT);
+
+    assert(sprite_entry && "Sprite must be inserted into hmap");
+    sprite_entry->sprites = sprites;
+    sprite_entry->id = element_id;
+    sprite_entry->count = count;
+    strncpy(sprite_entry->name, load->name, sizeof(sprite_entry->name) - 1);
 };
 
 static uint32_t
@@ -154,13 +196,14 @@ load_kind(const char* str)
 static void
 load_item(
     struct CurrentLoad* load,
+    struct DashMap* sprite_hmap,
     struct UIScene* static_ui,
     struct BuildCacheDat* buildcachedat)
 {
     switch( load->kind )
     {
     case LOAD_KIND_SPRITE:
-        load_sprite(&load->_sprite, static_ui, buildcachedat);
+        load_sprite(&load->_sprite, sprite_hmap, static_ui, buildcachedat);
         break;
     }
 }
@@ -172,6 +215,14 @@ static_ui_from_revconfig_buildcachedat(
     struct RevConfigBuffer* revconfig_buffer)
 {
     struct CurrentLoad load = { 0 };
+
+    struct DashMapConfig config = {
+        .buffer = malloc(1024 * sizeof(struct SpriteEntry)),
+        .buffer_size = 1024 * sizeof(struct SpriteEntry),
+        .key_size = 64, // Max sprite name length
+        .entry_size = sizeof(struct SpriteEntry),
+    };
+    struct DashMap* sprite_hmap = dashmap_new(&config, 0);
 
     for( uint32_t i = 0; i < revconfig_buffer->field_count; i++ )
     {
@@ -185,8 +236,9 @@ static_ui_from_revconfig_buildcachedat(
             strncpy(load._sprite.name, field->value, sizeof(load._sprite.name) - 1);
             break;
         case RCFIELD_ITEMDONE:
-            load_item(&load, static_ui, buildcachedat);
+            load_item(&load, sprite_hmap, static_ui, buildcachedat);
             load.kind = LOAD_KIND_NONE;
+            memset(&load._sprite, 0, sizeof(load._sprite));
             break;
         case RCFIELD_CACHE_TABLE:
             strncpy(load._sprite.table, field->value, sizeof(load._sprite.table) - 1);
@@ -210,6 +262,24 @@ static_ui_from_revconfig_buildcachedat(
             break;
         case RCFIELD_CACHE_ATLAS_INDEX:
             load._sprite.atlas_index = atoi(field->value);
+            break;
+        case RCFIELD_CACHE_ATLAS_COUNT:
+            load._sprite.atlas_count = atoi(field->value);
+            load._sprite.atlas_index = -1;
+            break;
+        case RCFIELD_CACHE_TRANSFORM:
+            if( load._sprite.transform_count < 5 )
+            {
+                strncpy(
+                    load._sprite.transforms[load._sprite.transform_count],
+                    field->value,
+                    sizeof(load._sprite.transforms[load._sprite.transform_count]) - 1);
+                load._sprite.transform_count++;
+            }
+            else
+            {
+                assert(0 && "Too many transforms specified for sprite");
+            }
             break;
         }
     }

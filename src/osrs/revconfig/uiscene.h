@@ -15,7 +15,8 @@ struct UISceneElement
     struct UISceneElement* prev;
 
     char name[64];
-    struct DashSprite* dash_sprite;
+    struct DashSprite** dash_sprites;
+    int dash_sprites_count;
 };
 
 struct UIScene

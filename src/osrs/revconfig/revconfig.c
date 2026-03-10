@@ -1,6 +1,6 @@
 #include "revconfig.h"
 
-#include "string_utils.h"
+#include "osrs/rscache/tables/string_utils.h"
 
 #include <stdint.h>
 #include <stdlib.h>

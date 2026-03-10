@@ -1,6 +1,7 @@
 #include "string_utils.h"
 
 #include <ctype.h>
+#include <string.h>
 
 int
 strcasecmp(
@@ -73,4 +74,31 @@ str_ascii_toupper(
 {
     for( int i = 0; str[i] != '\0' && i < len; i++ )
         str[i] = toupper(str[i]);
+}
+
+void
+strncpy_trimmed(
+    char* dest,
+    const char* src,
+    size_t n,
+    char const* trim_chars)
+{
+    size_t i = 0;
+    size_t j = 0;
+
+    // Find the first non-trim character
+    while( src[i] != '\0' && strchr(trim_chars, src[i]) != NULL )
+        i++;
+
+    // Copy the non-trim characters to the
+    // destination buffer, ensuring we don't exceed the limit
+    while( src[i] != '\0' && j < n - 1 )
+        dest[j++] = src[i++];
+
+    // Go backwards trim trailing trim characters
+    while( j > 0 && strchr(trim_chars, dest[j - 1]) != NULL )
+        j--;
+
+    // Null-terminate the destination buffer
+    dest[j] = '\0';
 }

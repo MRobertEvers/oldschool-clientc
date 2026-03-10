@@ -12,9 +12,9 @@
 #include "osrs/rscache/tables/sprites.h"
 #include "osrs/rscache/tables/textures.h"
 #include "osrs/rscache/tables_dat/animframe.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_idk.h"
 #include "osrs/rscache/tables_dat/config_npc.h"
-#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/rscache/tables_dat/pix32.h"
@@ -25,6 +25,9 @@ struct BuildCacheDat
 {
     struct FileListDat* cfg_config_jagfile;
     struct FileListDat* cfg_versionlist_jagfile;
+    struct FileListDat* cfg_media_jagfile;
+
+    struct DashMap* sprites;
 
     struct DashMap* map_terrains_hmap;
     struct DashMap* flotype_hmap;
@@ -60,6 +63,11 @@ buildcachedat_set_config_jagfile(
 
 struct FileListDat*
 buildcachedat_config_jagfile(struct BuildCacheDat* buildcachedat);
+
+void
+buildcachedat_set_2d_media_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct FileListDat* media_jagile);
 
 void
 buildcachedat_set_versionlist_jagfile(
