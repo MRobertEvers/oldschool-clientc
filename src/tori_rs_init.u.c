@@ -11,6 +11,10 @@
 #include "osrs/loginproto.h"
 #include "osrs/lua_scripts.h"
 #include "osrs/player_stats.h"
+#include "osrs/revconfig/revconfig_load.h"
+#include "osrs/revconfig/static_ui.h"
+#include "osrs/revconfig/static_ui_load.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
@@ -177,12 +181,14 @@ LibToriRS_GameNew(
     game->loginproto =
         loginproto_new(game->random_in, game->random_out, &game->rsa, "asdf2", "a", NULL);
 
-    // Load and store cache_dat for synchronous asset loading
+    game->ui_scene = uiscene_new(512);
+    game->static_ui = static_ui_buffer_new(512);
+
     game->cache_dat = cache_dat_new_from_directory(CACHE_DAT_PATH);
 
-    /* Load varp/varbit from config at init so vars are ready before any packets arrive */
+    struct CacheDatArchive* config_archive = NULL;
     {
-        struct CacheDatArchive* config_archive =
+        config_archive =
             cache_dat_archive_new_load(game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
         if( config_archive )
         {
@@ -197,10 +203,33 @@ LibToriRS_GameNew(
         }
     }
 
-    struct CacheDatArchive* archive =
-        cache_dat_archive_new_load(game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES);
+    struct CacheDatArchive* archive = NULL;
+    struct FileListDat* filelist = NULL;
+    struct RevConfigBuffer* revconfig_buffer = revconfig_buffer_new(1024);
+    const char* cache_ini = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
+                            "configs/rev_254_2/rev_245_2_cache.ini";
+    char const* ui_ini = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
+                         "configs/rev_254_2/rev_245_2_ui.ini";
+    {
+        archive = cache_dat_archive_new_load(
+            game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);
+        if( archive )
+        {
+            filelist = filelist_dat_new_from_cache_dat_archive(archive);
+            buildcachedat_set_2d_media_jagfile(game->buildcachedat, filelist);
+            cache_dat_archive_free(archive);
+        }
 
-    struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
+        revconfig_load_fields_from_ini(cache_ini, revconfig_buffer);
+        revconfig_load_fields_from_ini(ui_ini, revconfig_buffer);
+
+        static_ui_from_revconfig_buildcachedat(
+            game->static_ui, game->ui_scene, game->buildcachedat, revconfig_buffer);
+    }
+
+    archive = cache_dat_archive_new_load(game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES);
+
+    filelist = filelist_dat_new_from_cache_dat_archive(archive);
 
     game->sys_painter_buffer = painter_buffer_new();
 

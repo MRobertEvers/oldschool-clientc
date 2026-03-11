@@ -28,38 +28,41 @@ struct SpriteTableEntry
 };
 
 static const struct SpriteTableEntry sprite_table[] = {
-    { "sprite_invback", offsetof(struct GGame, sprite_invback), 0 },
-    { "sprite_chatback", offsetof(struct GGame, sprite_chatback), 0 },
-    { "sprite_mapback", offsetof(struct GGame, sprite_mapback), 0 },
-    { "sprite_backbase1", offsetof(struct GGame, sprite_backbase1), 0 },
-    { "sprite_backbase2", offsetof(struct GGame, sprite_backbase2), 0 },
-    { "sprite_backhmid1", offsetof(struct GGame, sprite_backhmid1), 0 },
-    { "sprite_backhmid2", offsetof(struct GGame, sprite_backhmid2), 0 },
-    { "sprite_sideicons", offsetof(struct GGame, sprite_sideicons), 13 },
-    { "sprite_compass", offsetof(struct GGame, sprite_compass), 0 },
-    { "sprite_redstone1", offsetof(struct GGame, sprite_redstone1), 0 },
-    { "sprite_redstone2", offsetof(struct GGame, sprite_redstone2), 0 },
-    { "sprite_redstone3", offsetof(struct GGame, sprite_redstone3), 0 },
-    { "sprite_redstone1h", offsetof(struct GGame, sprite_redstone1h), 0 },
-    { "sprite_redstone2h", offsetof(struct GGame, sprite_redstone2h), 0 },
-    { "sprite_redstone1v", offsetof(struct GGame, sprite_redstone1v), 0 },
-    { "sprite_redstone2v", offsetof(struct GGame, sprite_redstone2v), 0 },
-    { "sprite_redstone3v", offsetof(struct GGame, sprite_redstone3v), 0 },
-    { "sprite_redstone1hv", offsetof(struct GGame, sprite_redstone1hv), 0 },
-    { "sprite_redstone2hv", offsetof(struct GGame, sprite_redstone2hv), 0 },
-    { "sprite_backleft1", offsetof(struct GGame, sprite_backleft1), 0 },
-    { "sprite_backleft2", offsetof(struct GGame, sprite_backleft2), 0 },
-    { "sprite_backright1", offsetof(struct GGame, sprite_backright1), 0 },
-    { "sprite_backright2", offsetof(struct GGame, sprite_backright2), 0 },
-    { "sprite_backtop1", offsetof(struct GGame, sprite_backtop1), 0 },
-    { "sprite_backvmid1", offsetof(struct GGame, sprite_backvmid1), 0 },
-    { "sprite_backvmid2", offsetof(struct GGame, sprite_backvmid2), 0 },
-    { "sprite_backvmid3", offsetof(struct GGame, sprite_backvmid3), 0 },
+    { "sprite_invback",     offsetof(struct GGame, sprite_invback),     0  },
+    { "sprite_chatback",    offsetof(struct GGame, sprite_chatback),    0  },
+    { "sprite_mapback",     offsetof(struct GGame, sprite_mapback),     0  },
+    { "sprite_backbase1",   offsetof(struct GGame, sprite_backbase1),   0  },
+    { "sprite_backbase2",   offsetof(struct GGame, sprite_backbase2),   0  },
+    { "sprite_backhmid1",   offsetof(struct GGame, sprite_backhmid1),   0  },
+    { "sprite_backhmid2",   offsetof(struct GGame, sprite_backhmid2),   0  },
+    { "sprite_sideicons",   offsetof(struct GGame, sprite_sideicons),   13 },
+    { "sprite_compass",     offsetof(struct GGame, sprite_compass),     0  },
+    { "sprite_redstone1",   offsetof(struct GGame, sprite_redstone1),   0  },
+    { "sprite_redstone2",   offsetof(struct GGame, sprite_redstone2),   0  },
+    { "sprite_redstone3",   offsetof(struct GGame, sprite_redstone3),   0  },
+    { "sprite_redstone1h",  offsetof(struct GGame, sprite_redstone1h),  0  },
+    { "sprite_redstone2h",  offsetof(struct GGame, sprite_redstone2h),  0  },
+    { "sprite_redstone1v",  offsetof(struct GGame, sprite_redstone1v),  0  },
+    { "sprite_redstone2v",  offsetof(struct GGame, sprite_redstone2v),  0  },
+    { "sprite_redstone3v",  offsetof(struct GGame, sprite_redstone3v),  0  },
+    { "sprite_redstone1hv", offsetof(struct GGame, sprite_redstone1hv), 0  },
+    { "sprite_redstone2hv", offsetof(struct GGame, sprite_redstone2hv), 0  },
+    { "sprite_backleft1",   offsetof(struct GGame, sprite_backleft1),   0  },
+    { "sprite_backleft2",   offsetof(struct GGame, sprite_backleft2),   0  },
+    { "sprite_backright1",  offsetof(struct GGame, sprite_backright1),  0  },
+    { "sprite_backright2",  offsetof(struct GGame, sprite_backright2),  0  },
+    { "sprite_backtop1",    offsetof(struct GGame, sprite_backtop1),    0  },
+    { "sprite_backvmid1",   offsetof(struct GGame, sprite_backvmid1),   0  },
+    { "sprite_backvmid2",   offsetof(struct GGame, sprite_backvmid2),   0  },
+    { "sprite_backvmid3",   offsetof(struct GGame, sprite_backvmid3),   0  },
 };
 #define SPRITE_TABLE_COUNT (sizeof(sprite_table) / sizeof(sprite_table[0]))
 
 static struct DashSprite*
-get_sprite_from_game(struct GGame* game, size_t offset, int index)
+get_sprite_from_game(
+    struct GGame* game,
+    size_t offset,
+    int index)
 {
     if( index < 0 )
         return *(struct DashSprite**)((char*)game + offset);
@@ -68,7 +71,9 @@ get_sprite_from_game(struct GGame* game, size_t offset, int index)
 
 /* Return offset and set *out_index to -1 or array index. Returns (size_t)-1 if not found. */
 static size_t
-lookup_sprite_key(const char* key, int* out_index)
+lookup_sprite_key(
+    const char* key,
+    int* out_index)
 {
     *out_index = -1;
     char base[INI_MAX_KEY];
@@ -106,7 +111,9 @@ lookup_sprite_key(const char* key, int* out_index)
 
 /* ---- Position expression ---- */
 static int
-parse_position_type(const char* s, int* out_value)
+parse_position_type(
+    const char* s,
+    int* out_value)
 {
     *out_value = 0;
     if( strcmp(s, "chat_y") == 0 )
@@ -201,14 +208,43 @@ state_tab_redstone_top(
     int rx = 0, ry = 0;
     switch( game->selected_tab )
     {
-    case 0: r = game->sprite_redstone1; rx = 22; ry = 10; break;
-    case 1: r = game->sprite_redstone2; rx = 54; ry = 8; break;
-    case 2: r = game->sprite_redstone2; rx = 82; ry = 8; break;
-    case 3: r = game->sprite_redstone3; rx = 110; ry = 8; break;
-    case 4: r = game->sprite_redstone2h; rx = 153; ry = 8; break;
-    case 5: r = game->sprite_redstone2h; rx = 181; ry = 8; break;
-    case 6: r = game->sprite_redstone1h; rx = 209; ry = 9; break;
-    default: break;
+    case 0:
+        r = game->sprite_redstone1;
+        rx = 22;
+        ry = 10;
+        break;
+    case 1:
+        r = game->sprite_redstone2;
+        rx = 54;
+        ry = 8;
+        break;
+    case 2:
+        r = game->sprite_redstone2;
+        rx = 82;
+        ry = 8;
+        break;
+    case 3:
+        r = game->sprite_redstone3;
+        rx = 110;
+        ry = 8;
+        break;
+    case 4:
+        r = game->sprite_redstone2h;
+        rx = 153;
+        ry = 8;
+        break;
+    case 5:
+        r = game->sprite_redstone2h;
+        rx = 181;
+        ry = 8;
+        break;
+    case 6:
+        r = game->sprite_redstone1h;
+        rx = 209;
+        ry = 9;
+        break;
+    default:
+        break;
     }
     if( !r )
         return;
@@ -237,14 +273,43 @@ state_tab_redstone_bottom(
     int rx = 0, ry = 0;
     switch( game->selected_tab )
     {
-    case 7: r = game->sprite_redstone1v; rx = 42; ry = 0; break;
-    case 8: r = game->sprite_redstone2v; rx = 74; ry = 0; break;
-    case 9: r = game->sprite_redstone2v; rx = 102; ry = 0; break;
-    case 10: r = game->sprite_redstone3v; rx = 130; ry = 1; break;
-    case 11: r = game->sprite_redstone2hv; rx = 173; ry = 0; break;
-    case 12: r = game->sprite_redstone2hv; rx = 201; ry = 0; break;
-    case 13: r = game->sprite_redstone1hv; rx = 229; ry = 0; break;
-    default: break;
+    case 7:
+        r = game->sprite_redstone1v;
+        rx = 42;
+        ry = 0;
+        break;
+    case 8:
+        r = game->sprite_redstone2v;
+        rx = 74;
+        ry = 0;
+        break;
+    case 9:
+        r = game->sprite_redstone2v;
+        rx = 102;
+        ry = 0;
+        break;
+    case 10:
+        r = game->sprite_redstone3v;
+        rx = 130;
+        ry = 1;
+        break;
+    case 11:
+        r = game->sprite_redstone2hv;
+        rx = 173;
+        ry = 0;
+        break;
+    case 12:
+        r = game->sprite_redstone2hv;
+        rx = 201;
+        ry = 0;
+        break;
+    case 13:
+        r = game->sprite_redstone1hv;
+        rx = 229;
+        ry = 0;
+        break;
+    default:
+        break;
     }
     if( !r )
         return;
@@ -299,8 +364,13 @@ static int
 parse_ini(
     const char* path,
     void* ud,
-    int (*on_section)(void* ud, const char* section_id),
-    int (*on_keyval)(void* ud, const char* key, const char* value))
+    int (*on_section)(
+        void* ud,
+        const char* section_id),
+    int (*on_keyval)(
+        void* ud,
+        const char* key,
+        const char* value))
 {
     FILE* f = fopen(path, "r");
     if( !f )
@@ -361,7 +431,9 @@ struct ParseState
 };
 
 static int
-on_section_cb(void* ud, const char* section_id)
+on_section_cb(
+    void* ud,
+    const char* section_id)
 {
     struct ParseState* st = (struct ParseState*)ud;
     if( st->has_sprite && st->current_sprite[0] )
@@ -381,7 +453,10 @@ on_section_cb(void* ud, const char* section_id)
         d->y_type = parse_position_type(st->current_y, &d->y_value);
         if( st->current_state_handler[0] )
         {
-            strncpy(d->state_handler_name, st->current_state_handler, STATIC_UI_MAX_HANDLER_NAME_LEN - 1);
+            strncpy(
+                d->state_handler_name,
+                st->current_state_handler,
+                STATIC_UI_MAX_HANDLER_NAME_LEN - 1);
             d->state_handler = lookup_state_handler(d->state_handler_name);
         }
         if( strcmp(st->current_draw_type, "sprite_rotated") == 0 )
@@ -408,7 +483,10 @@ on_section_cb(void* ud, const char* section_id)
 }
 
 static int
-on_keyval_cb(void* ud, const char* key, const char* value)
+on_keyval_cb(
+    void* ud,
+    const char* key,
+    const char* value)
 {
     struct ParseState* st = (struct ParseState*)ud;
     if( strcmp(key, "sprite") == 0 )
@@ -468,7 +546,8 @@ static_ui_buffer_load(
     const char* ini_path,
     const char* order_path)
 {
-    struct StaticUiElementDescriptor* descriptors = malloc(MAX_DESCRIPTORS * sizeof(struct StaticUiElementDescriptor));
+    struct StaticUiElementDescriptor* descriptors =
+        malloc(MAX_DESCRIPTORS * sizeof(struct StaticUiElementDescriptor));
     if( !descriptors )
         return NULL;
     int descriptor_count = 0;
@@ -495,20 +574,24 @@ static_ui_buffer_load(
         return NULL;
     }
     int order_capacity = 256;
-    struct StaticUiElementCommand* commands = malloc(order_capacity * sizeof(struct StaticUiElementCommand));
+    struct StaticUiElementCommand* commands =
+        malloc(order_capacity * sizeof(struct StaticUiElementCommand));
     if( !commands )
     {
         free(descriptors);
         return NULL;
     }
     int command_count = 0;
-    if( parse_order_file(order_path, descriptors, descriptor_count, commands, &command_count, order_capacity) != 0 )
+    if( parse_order_file(
+            order_path, descriptors, descriptor_count, commands, &command_count, order_capacity) !=
+        0 )
     {
         free(commands);
         free(descriptors);
         return NULL;
     }
-    struct StaticUiElementCommandBuffer* buffer = malloc(sizeof(struct StaticUiElementCommandBuffer));
+    struct StaticUiElementCommandBuffer* buffer =
+        malloc(sizeof(struct StaticUiElementCommandBuffer));
     if( !buffer )
     {
         free(commands);

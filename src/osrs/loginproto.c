@@ -61,7 +61,7 @@ loginproto_new(
     loginproto->jag_checksum[2] = -323580723;
     loginproto->jag_checksum[3] = 1539972921;
     loginproto->jag_checksum[4] = -259567598;
-    loginproto->jag_checksum[5] = -446588279;
+    loginproto->jag_checksum[5] = 260912122;
     loginproto->jag_checksum[6] = -1840622973;
     loginproto->jag_checksum[7] = -87627495;
     loginproto->jag_checksum[8] = -1625923170;

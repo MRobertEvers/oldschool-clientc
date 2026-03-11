@@ -10,87 +10,90 @@ endif()
 
 # Enable AddressSanitizer for Debug builds
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
     add_link_options(-fsanitize=address)
 endif()
 
-
 # OSX SDL2 Game executable (macOS only)
-    # On Windows, ensure we use console subsystem (not GUI) to avoid WinMain requirement
-    if(WIN32)
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
-    endif()
+# On Windows, ensure we use console subsystem (not GUI) to avoid WinMain requirement
+if(WIN32)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
+endif()
 
+file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
 
-    file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
-    # Do this:
-    # Exclude standalone interpreter
-    list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c")  
-    # Exclude standalone compiler
-    list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c") 
+# Do this:
+# Exclude standalone interpreter
+list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c")
 
-    add_executable(osx
-        ${LUA_SOURCES}
-        ${LUA_GEN_SOURCES}
-        test/osx.cpp
-        src/osrs/isaac.c
-        src/jbase37.c
-        src/tori_rs.c
-        src/bmp.c
-        src/server/server.c
-        src/osrs/buildcachedat.c
-        src/osrs/buildcachedat_loader.c
-        src/osrs/buildcache.c
-        src/osrs/buildcache_loader.c
-        src/server/prot.c
-        src/datastruct/list.c
-        src/datastruct/vec.c
-        src/datastruct/ringbuf.c
-        src/graphics/shared_tables.c
-        src/graphics/lighting.c
-        src/osrs/rscache/tables/model.c
-        src/osrs/rscache/tables/maps.c
-        src/osrs/rscache/tables/config_locs.c
-        src/osrs/rscache/tables/config_floortype.c
-        src/osrs/rscache/tables/config_object.c
-        src/osrs/rscache/tables/config_sequence.c
-        src/osrs/rscache/tables/config_npctype.c
-        src/osrs/rscache/tables/noise.c
-        src/osrs/rscache/tables/framemap.c
-        src/osrs/rscache/tables/frame.c
-        src/osrs/rscache/tables/textures.c
-        src/osrs/rscache/tables/sprites.c
-        src/osrs/rscache/tables_dat/config_textures.c
-        src/osrs/rscache/tables_dat/config_idk.c
-        src/osrs/rscache/tables_dat/config_varp.c
-        src/osrs/rscache/tables_dat/config_obj.c
-        src/osrs/rscache/tables_dat/animframe.c
-        src/osrs/rscache/tables_dat/pix8.c
-        src/osrs/rscache/tables_dat/pix32.c
-        src/osrs/rscache/tables_dat/pixfont.c
-        src/osrs/painters.c
-        src/osrs/cache_utils.c
-        src/osrs/minimap.c
-        src/osrs/minimenu.c
-        src/osrs/model_transforms.c
-        src/tori_rs_render.c
+# Exclude standalone compiler
+list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c")
 
-        src/graphics/dash.c
-        src/graphics/dashmap.c
+add_executable(osx
+    ${LUA_SOURCES}
+    ${LUA_GEN_SOURCES}
+    test/osx.cpp
+    src/osrs/isaac.c
+    src/jbase37.c
+    src/tori_rs.c
+    src/bmp.c
+    src/server/server.c
+    src/osrs/buildcachedat.c
+    src/osrs/buildcachedat_loader.c
+    src/osrs/buildcache.c
+    src/osrs/buildcache_loader.c
+    src/server/prot.c
+    src/datastruct/list.c
+    src/datastruct/vec.c
+    src/datastruct/ringbuf.c
+    src/graphics/shared_tables.c
+    src/graphics/lighting.c
+    src/osrs/rscache/tables/model.c
+    src/osrs/rscache/tables/maps.c
+    src/osrs/rscache/tables/config_locs.c
+    src/osrs/rscache/tables/config_floortype.c
+    src/osrs/rscache/tables/config_object.c
+    src/osrs/rscache/tables/config_sequence.c
+    src/osrs/rscache/tables/config_npctype.c
+    src/osrs/rscache/tables/noise.c
+    src/osrs/rscache/tables/framemap.c
+    src/osrs/rscache/tables/frame.c
+    src/osrs/rscache/tables/textures.c
+    src/osrs/rscache/tables/sprites.c
+    src/osrs/rscache/tables_dat/config_textures.c
+    src/osrs/rscache/tables_dat/config_idk.c
+    src/osrs/rscache/tables_dat/config_varp.c
+    src/osrs/rscache/tables_dat/config_obj.c
+    src/osrs/rscache/tables_dat/animframe.c
+    src/osrs/rscache/tables_dat/pix8.c
+    src/osrs/rscache/tables_dat/pix32.c
+    src/osrs/rscache/tables_dat/pixfont.c
+    src/osrs/painters.c
+    src/osrs/cache_utils.c
+    src/osrs/minimap.c
+    src/osrs/minimenu.c
+    src/osrs/model_transforms.c
+    src/tori_rs_render.c
 
-        src/osrs/texture.c
-        src/osrs/collision_map.c
-        src/osrs/world_pickset.c
-        src/osrs/world_options.c
-        src/osrs/rscache/filelist.c
-        src/osrs/rscache/archive.c
-        src/osrs/gio.c
-        src/osrs/gio_assets.c
-        src/osrs/gio_cache.c
+    src/graphics/dash.c
+    src/graphics/dashmap.c
 
+    src/osrs/texture.c
+    src/osrs/collision_map.c
+    src/osrs/world_pickset.c
+    src/osrs/world_options.c
+    src/osrs/rscache/filelist.c
+    src/osrs/rscache/archive.c
+    src/osrs/gio.c
+    src/osrs/gio_assets.c
+    src/osrs/gio_cache.c
 
+    src/osrs/revconfig/revconfig.c
+    src/osrs/revconfig/revconfig_load.c
+    src/osrs/revconfig/static_ui.c
+    src/osrs/revconfig/static_ui_load.c
+    src/osrs/revconfig/uiscene.c
     src/osrs/rscache/tables_dat/config_component.c
-    src/osrs/static_ui.c
     src/osrs/interface.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
@@ -105,87 +108,88 @@ endif()
     src/osrs/sharelight_map.c
     src/osrs/shademap.c
     src/osrs/world_scenebuild.c
-        src/osrs/configmap.c
-        src/osrs/filepack.c
-        src/osrs/dash_utils.c
-        src/osrs/script_queue.c
-        src/osrs/player_stats.c
-        src/osrs/varp_varbit_manager.c
-        src/osrs/gameproto_exec.c
-        src/osrs/gameproto_parse.c
-        src/osrs/gameproto_process.c
-        src/osrs/game.c
-        src/osrs/game_entity.c
-        src/osrs/wordpack.c
-        src/osrs/loginproto.c
-        src/osrs/datatypes/appearances.c
-        src/osrs/datatypes/player_appearance.c
-        src/osrs/packets/pkt_player_info.c
-        src/osrs/packets/pkt_npc_info.c
-        src/osrs/packetbuffer.c
-        src/osrs/rscache/compression.c
-        src/osrs/rscache/tables/string_utils.c
-        src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
-        src/osrs/rscache/tables_dat/config_npc.c
-        src/platforms/common/sockstream.c
+    src/osrs/configmap.c
+    src/osrs/filepack.c
+    src/osrs/dash_utils.c
+    src/osrs/script_queue.c
+    src/osrs/player_stats.c
+    src/osrs/varp_varbit_manager.c
+    src/osrs/gameproto_exec.c
+    src/osrs/gameproto_parse.c
+    src/osrs/gameproto_process.c
+    src/osrs/game.c
+    src/osrs/game_entity.c
+    src/osrs/wordpack.c
+    src/osrs/loginproto.c
+    src/osrs/datatypes/appearances.c
+    src/osrs/datatypes/player_appearance.c
+    src/osrs/packets/pkt_player_info.c
+    src/osrs/packets/pkt_npc_info.c
+    src/osrs/packetbuffer.c
+    src/osrs/rscache/compression.c
+    src/osrs/rscache/tables/string_utils.c
+    src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
+    src/osrs/rscache/tables_dat/config_npc.c
+    src/platforms/common/sockstream.c
 
-        src/osrs/rscache/cache.c
-        src/osrs/rscache/cache_dat.c
-        src/osrs/frustrum_cullmap.c
-        src/osrs/palette.c
-        src/osrs/rscache/archive_decompress.c
-        src/osrs/rscache/disk.c
-        src/osrs/rscache/reference_table.c
-        src/osrs/rscache/xtea_config.c
-        src/3rd/bzip/bzip.c
-        src/3rd/miniz/miniz.c
-        src/3rd/tommath/mpi.c
-        src/osrs/rsa.c
-        src/osrs/rscache/rsbuf.c
-        src/osrs/rscache/bitbuffer.c
-        src/osrs/rscache/xtea.c
-        src/osrs/revs/revpacket_lc245_2_query.c
-        src/osrs/entity_scenebuild.c
+    src/osrs/rscache/cache.c
+    src/osrs/rscache/cache_dat.c
+    src/osrs/frustrum_cullmap.c
+    src/osrs/palette.c
+    src/osrs/rscache/archive_decompress.c
+    src/osrs/rscache/disk.c
+    src/osrs/rscache/reference_table.c
+    src/osrs/rscache/xtea_config.c
+    src/3rd/bzip/bzip.c
+    src/3rd/miniz/miniz.c
+    src/3rd/tommath/mpi.c
+    src/3rd/ini/ini.c
+    src/osrs/rsa.c
+    src/osrs/rscache/rsbuf.c
+    src/osrs/rscache/bitbuffer.c
+    src/osrs/rscache/xtea.c
+    src/osrs/revs/revpacket_lc245_2_query.c
+    src/osrs/entity_scenebuild.c
 
-        src/platforms/platform_impl2_osx_sdl2.cpp
-        src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
+    src/platforms/platform_impl2_osx_sdl2.cpp
+    src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
 
-        src/imgui/imgui.cpp
-        src/imgui/imgui_draw.cpp
-        src/imgui/imgui_tables.cpp
-        src/imgui/imgui_widgets.cpp
-        src/imgui/imgui_impl_sdl2.cpp
-        src/imgui/imgui_impl_opengl3.cpp
-        src/imgui/imgui_impl_sdlrenderer2.cpp
-    )
+    src/imgui/imgui.cpp
+    src/imgui/imgui_draw.cpp
+    src/imgui/imgui_tables.cpp
+    src/imgui/imgui_widgets.cpp
+    src/imgui/imgui_impl_sdl2.cpp
+    src/imgui/imgui_impl_opengl3.cpp
+    src/imgui/imgui_impl_sdlrenderer2.cpp
+)
 
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(osx PRIVATE MAKE_LIB)
-    target_compile_options(osx PRIVATE -fpermissive) 
-
+    target_compile_options(osx PRIVATE -fpermissive)
 endif()
 
+target_include_directories(osx PRIVATE src src/imgui)
 
-    target_include_directories(osx PRIVATE src src/imgui)
+find_package(SDL2 REQUIRED)
+find_package(Freetype REQUIRED)
 
-    find_package(SDL2 REQUIRED)
-    find_package(Freetype REQUIRED)
+target_link_libraries(osx SDL2::SDL2)
+target_include_directories(osx PRIVATE ${SDL2_INCLUDE_DIRS})
 
-    target_link_libraries(osx SDL2::SDL2)
-    target_include_directories(osx PRIVATE ${SDL2_INCLUDE_DIRS})
+# Link Winsock library on Windows
+if(WIN32)
+    target_link_libraries(osx ws2_32)
 
-    # Link Winsock library on Windows
-    if(WIN32)
-        target_link_libraries(osx ws2_32)
-        # Set console subsystem to use main() instead of WinMain()
-        set_target_properties(osx PROPERTIES
-            WIN32_EXECUTABLE FALSE
-        )
-        # Explicitly set console subsystem - ensure it's applied
-        target_link_options(osx PRIVATE 
-            -Wl,-subsystem,console
-        )
-    endif()
+    # Set console subsystem to use main() instead of WinMain()
+    set_target_properties(osx PROPERTIES
+        WIN32_EXECUTABLE FALSE
+    )
+
+    # Explicitly set console subsystem - ensure it's applied
+    target_link_options(osx PRIVATE
+        -Wl,-subsystem,console
+    )
+endif()
 
 set_target_properties(osx PROPERTIES
     C_STANDARD 11

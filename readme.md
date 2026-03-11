@@ -91,14 +91,18 @@ and compile with `-O0 -g`.
 1. Contour Ground
 2. Minimap
 3. Fast Shaded Texture (Textures are masked and shifted for shade).
-  - The textures are tile [0-4095, 4096-etc.]. Then each of the pixels are masked 0xf8f8ff (lower 3 bits)
-  - The texture rasterizer selects a tile by `curU += (shadeShiftFP16 >> 3) & 0xc0000`.
-  - 0xC = 0b1100, 
-  - Since the shadeShift is upshifted by 16, this is effectively `(shadeShift >> 16) / 8 * 4096` (for tiles tiled by 4096)
-  - Then the color is shifted by the remaining shade shift 0xf8f8ff mask guarantees the colors don't bleed into eachother.
+
+- The textures are tile [0-4095, 4096-etc.]. Then each of the pixels are masked 0xf8f8ff (lower 3 bits)
+- The texture rasterizer selects a tile by `curU += (shadeShiftFP16 >> 3) & 0xc0000`.
+- 0xC = 0b1100,
+- Since the shadeShift is upshifted by 16, this is effectively `(shadeShift >> 16) / 8 * 4096` (for tiles tiled by 4096)
+- Then the color is shifted by the remaining shade shift 0xf8f8ff mask guarantees the colors don't bleed into eachother.
+
 4. RGB Gouraud vs HSL Gouraud
 5. Projection no ortho.
-  - Need to create SIMD versions for each too.
+
+- Need to create SIMD versions for each too.
+
 6. Forcedraw loop in painters
 
 Software rester
@@ -1052,7 +1056,6 @@ Also set up and a .bashrc script so you can type `make` instead of `mingw32-make
    ```
 
 2. **MSYS2 Terminal (Alternative):**
-
    - Install MSYS2 from https://www.msys2.org/
    - Use the MSYS2 terminal (not MinGW64 terminal) for a Unix-like environment
    - Install packages with: `pacman -S gcc cmake make`
@@ -1345,15 +1348,13 @@ Some locs and tiles are drawn on the tile below. e.g. Fire on the standing torch
 Level tile flags seem to indicate when a loc or something should be drawn on a different level.
 LevelTileFlags are stored in the terrain. For example the standing torch's flame is on level 1, but the terrain indicates it is on level 0.
 
-
 from Dane's
 
-<!-- 
+<!--
 } else if (type <= 81) {
                     levelTileFlags[level][x][z] = (byte) (type - 49); -->
 
-
-Then 
+Then
 
 ```
     public int getDrawLevel(int level, int stx, int stz) {
@@ -1367,11 +1368,9 @@ Then
     }
 ```
 
-
 # Contour Ground
 
 TODO: Need to rework contour ground.
-
 
 # Managing State
 
@@ -1382,19 +1381,19 @@ Dash owns the dash assets.
 
 struct BuildCacheDat
 {
-  struct FileListDat* config_jagfile;
+struct FileListDat\* config_jagfile;
 
-  struct DashMap* models_hmap;
-  struct DashMap* textures_hmap;
+struct DashMap* models_hmap;
+struct DashMap* textures_hmap;
 };
 
 ## Inferno
 
-Region 
+Region
 x = (region >> 8)
 y = (region 0xFF)
 
-Inferno region 
+Inferno region
 
 Region ID: 9043
 (regionX = 35, regionY = 83)
@@ -1403,7 +1402,7 @@ Instances -> Load region chunk, server has instance area for you.
 
 ## Shade Blending
 
-Old revs use 
+Old revs use
 0-127 / 32 := {0, 1, 2, 3}
 Then
 (texel & 0xF8F8FF) >> 0-3
@@ -1412,13 +1411,12 @@ F8 masks the lower 3 bits of the color.
 ```typescript
 const rgb: number = (texels[i] = palette[texture.pixels[i]] & 0xf8f8ff);
 if (rgb === 0) {
-    this.textureTranslucent[id] = true;
+  this.textureTranslucent[id] = true;
 }
 texels[i + 4096] = (rgb - (rgb >>> 3)) & 0xf8f8ff;
 texels[i + 8192] = (rgb - (rgb >>> 2)) & 0xf8f8ff;
 texels[i + 12288] = (rgb - (rgb >>> 2) - (rgb >>> 3)) & 0xf8f8ff;
 ```
-
 
 ## Rendering Commands
 
@@ -1449,7 +1447,6 @@ SET_BUFFER (For drawing somewhere else and later blitting to main buffer.)
 BLIT_BUFFER ()
 ```
 
-
 ## Positions
 
 NPC Positions are sent relative to the local player. (routeTile[0])
@@ -1459,11 +1456,9 @@ The local player position is sent in the first Player Info packet.
 
 pacman -S mingw-w64-x86_64-gdb
 
-
 ## Runescape Character Encoding
 
 Use Windows CP1252 for characters and fonts.
-
 
 ## UI Inventory Component Type
 
@@ -1489,7 +1484,7 @@ config/
       elements.ini
       sprites.ini
   elements/
-    # These are templates that get compiled 
+    # These are templates that get compiled
     compass.ini
     redstone.ini
   layouts/
@@ -1616,7 +1611,6 @@ y=
 rev=225
 load=jagfile://MEDIA/compass.dat
 
-
 [compass]
 rev=245
 load=jagfile://MEDIA/compass.dat
@@ -1627,20 +1621,21 @@ name
 behavior
 sprites
 
-
 // Facets of a layout
 layout(rev)
 element
 position
 
-
-
 layouts
-  -> sprites
-    - specified by rev-specific loads
-  -> behaviors
-    - rev?
-
+-> sprites - specified by rev-specific loads
+-> behaviors - rev?
 
 ```
 cache.ini
+
+
+
+Side Icons hmid
+516, 160
+496, 466
+```

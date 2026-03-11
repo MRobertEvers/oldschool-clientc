@@ -19,6 +19,11 @@ struct DashCamera;
 struct ToriRSRenderCommandBuffer;
 struct ToriRSRenderCommand;
 
+struct ToriRSPlatformScript
+{
+    char name[64];
+};
+
 struct GGame*
 LibToriRS_GameNew(
     struct GIOQueue* io,
@@ -43,6 +48,14 @@ LibToriRS_FrameNextCommand(
 
 void
 LibToriRS_FrameEnd(struct GGame* game);
+
+bool
+LibToriRS_LuaScriptQueueIsEmpty(struct GGame* game);
+
+void
+LibToriRS_LuaScriptQueuePop(
+    struct GGame* game,
+    struct ToriRSPlatformScript* out);
 
 int
 LibToriRS_NetIsReady(struct GGame* game);

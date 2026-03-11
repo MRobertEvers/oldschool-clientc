@@ -15,6 +15,8 @@
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/player_stats.h"
+#include "osrs/revconfig/static_ui.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
@@ -80,6 +82,9 @@ struct GGame
     struct Isaac* random_in;
     struct Isaac* random_out;
     struct rsa rsa;
+
+    struct UIScene* ui_scene;
+    struct StaticUIBuffer* static_ui;
 
     int cycles_elapsed;
     int cycle;
