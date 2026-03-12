@@ -130,7 +130,6 @@ add_executable(osx
     src/osrs/rscache/tables/string_utils.c
     src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
     src/osrs/rscache/tables_dat/config_npc.c
-    src/platforms/common/sockstream.c
 
     src/osrs/rscache/cache.c
     src/osrs/rscache/cache_dat.c
@@ -153,6 +152,8 @@ add_executable(osx
 
     src/platforms/platform_impl2_osx_sdl2.cpp
     src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
+    src/platforms/common/sockstream.c
+    src/platforms/common/luac_sidecar.c
 
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp

@@ -12,7 +12,7 @@ local function add_unique(tbl, value)
 end
 
 -- Called with (item, io) from C when an IF_SETPLAYERHEAD packet is received.
-local item, io = ...
+local item = ...
 
 -- Get local player appearance from game state (already set by PLAYER_INFO)
 local idk_ids, obj_ids = GameProto.get_local_player_appearance_ids()

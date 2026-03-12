@@ -12,7 +12,7 @@ local function add_unique(tbl, value)
 end
 
 -- Called with (item, io) from C when an UPDATE_INV_FULL packet is received.
-local item, io = ...
+local item = ...
 
 -- Load interface components only once (use global flag to persist across script invocations)
 if not _G.interfaces_loaded_flag then

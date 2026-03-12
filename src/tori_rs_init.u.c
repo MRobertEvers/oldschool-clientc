@@ -296,6 +296,10 @@ LibToriRS_GameNew(
             },
         };
         script_queue_push(&game->script_queue, &args);
+        args = (struct ScriptArgs){
+            .tag = SCRIPT_INIT,
+        };
+        script_queue_push(&game->script_queue, &args);
     }
 
     return game;

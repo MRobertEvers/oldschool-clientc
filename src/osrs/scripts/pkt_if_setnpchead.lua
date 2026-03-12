@@ -3,7 +3,7 @@
 local HostIOUtils = require("hostio_utils")
 
 -- Called with (item, io) from C when an IF_SETNPCHEAD packet is received.
-local item, io = ...
+local item = ...
 
 local component_id, npc_id = GameProto.get_if_setnpchead_data(item)
 

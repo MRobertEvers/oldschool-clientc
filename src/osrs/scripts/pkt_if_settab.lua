@@ -3,7 +3,7 @@
 local HostIOUtils = require("hostio_utils")
 
 -- Called with (item, io) from C when an IF_SETTAB packet is received.
-local item, io = ...
+local item = ...
 
 -- Load interface components only once (use global flag to persist across script invocations)
 if not _G.interfaces_loaded_flag then

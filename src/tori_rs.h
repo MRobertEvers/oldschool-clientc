@@ -49,6 +49,9 @@ LibToriRS_FrameNextCommand(
 void
 LibToriRS_FrameEnd(struct GGame* game);
 
+struct ScriptQueue*
+LibToriRS_LuaScriptQueue(struct GGame* game);
+
 bool
 LibToriRS_LuaScriptQueueIsEmpty(struct GGame* game);
 

@@ -301,16 +301,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Init(
     return true;
 }
 
-// Public function to initialize the example interface after game is loaded
-void
-PlatformImpl2_OSX_SDL2_Renderer_Soft3D_InitExampleInterface(
-    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
-    struct GGame* game)
-{
-    printf("\n=== Initializing Example Interface ===\n");
-    printf("=====================================\n\n");
-}
-
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer);
@@ -1000,74 +990,4 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
         renderer->clicked_tile_z = -1;
         renderer->clicked_tile_level = -1;
     }
-
-    // Send outgoing message to server if there is one
-    if( renderer->outgoing_message_size > 0 )
-    {
-        printf("Sending tile click to server: message size %d\n", renderer->outgoing_message_size);
-        server_receive(server, renderer->outgoing_message_buffer, renderer->outgoing_message_size);
-        renderer->outgoing_message_size = 0;
-    }
-
-    // Step the server (convert timestamp_ms to int, using milliseconds)
-    server_step(server, (int)(timestamp_ms % 2147483647)); // Clamp to int range
-
-    // Get and process server's outgoing message (player location update)
-    // uint8_t* server_message_data = NULL;
-    // int server_message_size = 0;
-    // server_get_outgoing_message(server, &server_message_data, &server_message_size);
-
-    // struct RSBuffer buffer;
-    // rsbuf_init(&buffer, (int8_t*)server_message_data, server_message_size);
-
-    // while( buffer.position < buffer.size )
-    // {
-    //     int message_kind = buffer.data[buffer.position];
-    //     int message_size = client_prot_get_packet_size((enum ClientProtKind)message_kind);
-
-    //     void* data = buffer.data + buffer.position;
-    //     int data_size = message_size - buffer.position;
-
-    //     switch( message_kind )
-    //     {
-    //     case CLIENT_PROT_PLAYER_MOVE:
-    //     {
-    //         struct ClientProtPlayerMove player_move;
-    //         buffer.position +=
-    //             client_prot_player_move_decode(&player_move, (uint8_t*)data, data_size);
-
-    //         game->player_tx = player_move.x;
-    //         game->player_tz = player_move.z;
-    //     }
-    //     break;
-    //     case CLIENT_PROT_PLAYER:
-    //     {
-    //         struct ClientProtPlayer player;
-    //         buffer.position += client_prot_player_decode(&player, (uint8_t*)data, data_size);
-
-    //         game->player_tx = player.x;
-    //         game->player_tz = player.z;
-    //         for( int i = 0; i < 12; i++ )
-    //         {
-    //             game->player_slots[i] = player.slots[i];
-    //         }
-    //         game->player_walkanim = player.walkanim;
-    //         game->player_runanim = player.runanim;
-    //         game->player_walkanim_b = player.walkanim_b;
-    //         game->player_walkanim_r = player.walkanim_r;
-    //         game->player_walkanim_l = player.walkanim_l;
-    //         game->player_turnanim = player.turnanim;
-    //         game->player_readyanim = player.readyanim;
-
-    //         game->build_player = 1;
-    //     }
-    //     break;
-    //     }
-
-    //     if( game->player_draw_x == -1 && game->player_draw_z == -1 )
-    //     {
-    //         game->player_draw_x = game->player_tx * 128;
-    //         game->player_draw_z = game->player_tz * 128;
-    //     }
-    // }
 }

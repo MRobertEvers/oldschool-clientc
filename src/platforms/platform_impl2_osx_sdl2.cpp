@@ -1,11 +1,10 @@
 #include "platform_impl2_osx_sdl2.h"
 
 extern "C" {
+#include "common/luac_sidecar.h"
 #include "osrs/filepack.h"
-#include "osrs/gio.h"
-#include "osrs/gio_assets.h"
-#include "osrs/gio_cache.h"
-#include "osrs/gio_cache_dat.h"
+#include "osrs/rscache/cache_dat.h"
+#include "tori_rs.h"
 #include "tori_rs_render.h"
 }
 
@@ -15,9 +14,12 @@ extern "C" {
 #include "imgui_impl_sdl2.h"
 
 #include <SDL.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define CACHE_PATH "../cache254"
 
 static void
 transform_mouse_coordinates(
@@ -77,12 +79,26 @@ Platform2_OSX_SDL2_New(void)
     struct Platform2_OSX_SDL2* platform =
         (struct Platform2_OSX_SDL2*)malloc(sizeof(struct Platform2_OSX_SDL2));
     memset(platform, 0, sizeof(struct Platform2_OSX_SDL2));
+
+    platform->lua_sidecar = LuaCSidecar_New();
+    if( !platform->lua_sidecar )
+    {
+        free(platform);
+        return NULL;
+    }
+
+    platform->cache_dat = cache_dat_new_from_directory(CACHE_PATH);
+
     return platform;
 }
 
 void
 Platform2_OSX_SDL2_Free(struct Platform2_OSX_SDL2* platform)
 {
+    if( platform->lua_sidecar )
+        LuaCSidecar_Free(platform->lua_sidecar);
+    if( platform->cache_dat )
+        cache_dat_free(platform->cache_dat);
     free(platform);
 }
 
@@ -457,27 +473,29 @@ on_gio_req_init(
     struct GIOQueue* io,
     struct GIOMessage* message)
 {
-    assert(message->command == GIO_REQ_INIT);
-    switch( message->status )
-    {
-    case GIO_STATUS_PENDING:
-    {
-        // platform->cache = gioqb_cache_new();
-        platform->cache_dat = gioqb_cache_dat_new();
-        gioqb_mark_done(
-            io, message->message_id, message->command, message->param_b, message->param_a, NULL, 0);
-    }
-    break;
-    case GIO_STATUS_DONE:
-        break;
-    case GIO_STATUS_INFLIGHT:
-        break;
-    case GIO_STATUS_FINALIZED:
-        break;
-    case GIO_STATUS_ERROR:
-        assert(false && "GIO_STATUS_ERROR in on_gio_req_init");
-        break;
-    }
+    // assert(message->command == GIO_REQ_INIT);
+    // switch( message->status )
+    // {
+    // case GIO_STATUS_PENDING:
+    // {
+    //     // platform->cache = gioqb_cache_new();
+    //     // platform->cache_dat = gioqb_cache_dat_new();
+    //     // gioqb_mark_done(
+    //     //     io, message->message_id, message->command, message->param_b, message->param_a,
+    //     NULL,
+    //     //     0);
+    // }
+    // break;
+    // case GIO_STATUS_DONE:
+    //     break;
+    // case GIO_STATUS_INFLIGHT:
+    //     break;
+    // case GIO_STATUS_FINALIZED:
+    //     break;
+    // case GIO_STATUS_ERROR:
+    //     assert(false && "GIO_STATUS_ERROR in on_gio_req_init");
+    //     break;
+    // }
 }
 
 static void
@@ -486,23 +504,23 @@ on_gio_req_asset(
     struct GIOQueue* io,
     struct GIOMessage* message)
 {
-    switch( message->status )
-    {
-    case GIO_STATUS_PENDING:
-        // if( platform->cache != NULL )
-        //     gioqb_cache_fullfill(io, platform->cache, message);
-        if( platform->cache_dat != NULL )
-            gioqb_cache_dat_fullfill(io, platform->cache_dat, message);
-        break;
-    case GIO_STATUS_DONE:
-        break;
-    case GIO_STATUS_INFLIGHT:
-        break;
-    case GIO_STATUS_FINALIZED:
-        break;
-    case GIO_STATUS_ERROR:
-        break;
-    }
+    // switch( message->status )
+    // {
+    // case GIO_STATUS_PENDING:
+    //     // if( platform->cache != NULL )
+    //     //     gioqb_cache_fullfill(io, platform->cache, message);
+    //     if( platform->cache_dat != NULL )
+    //         gioqb_cache_dat_fullfill(io, platform->cache_dat, message);
+    //     break;
+    // case GIO_STATUS_DONE:
+    //     break;
+    // case GIO_STATUS_INFLIGHT:
+    //     break;
+    // case GIO_STATUS_FINALIZED:
+    //     break;
+    // case GIO_STATUS_ERROR:
+    //     break;
+    // }
 }
 
 void
@@ -510,22 +528,77 @@ Platform2_OSX_SDL2_PollIO(
     struct Platform2_OSX_SDL2* platform,
     struct GIOQueue* queue)
 {
-    struct GIOMessage message = { 0 };
-    while( gioqb_read_next(queue, &message) )
+    // struct GIOMessage message = { 0 };
+    // while( gioqb_read_next(queue, &message) )
+    // {
+    //     switch( message.kind )
+    //     {
+    //     case GIO_REQ_INIT:
+    //         on_gio_req_init(platform, queue, &message);
+    //         break;
+    //     case GIO_REQ_ASSET:
+    //         on_gio_req_asset(platform, queue, &message);
+    //         break;
+    //     default:
+    //         assert(false && "Unknown GIO request kind");
+    //         break;
+    //     }
+    // }
+
+    // gioqb_remove_finalized(queue);
+}
+
+static void
+on_lua_async_call(
+    struct Platform2_OSX_SDL2* platform,
+    struct LuaCAsyncCall* async_call,
+    struct LuaCAsyncResult* result)
+{
+    struct CacheDatArchive* archive = NULL;
+    memset(result, 0, sizeof(*result));
+    if( strcmp(async_call->command, "cache_read") == 0 )
     {
-        switch( message.kind )
+        assert(async_call->nargs == 2); // cache type 0 = dat
+        int table_no = async_call->args[0];
+        int archive_no = async_call->args[1];
+
+        archive = cache_dat_archive_new_load(platform->cache_dat, table_no, archive_no);
+
+        result->nargs = 1;
+        result->args[0].type = 1;
+        result->args[0].ptr_val = archive;
+    }
+}
+
+void
+Platform2_OSX_SDL2_RunLuaScripts(
+    struct Platform2_OSX_SDL2* platform,
+    struct GGame* game)
+{
+    if( !platform->lua_sidecar )
+        return;
+
+    struct ToriRSPlatformScript script;
+    struct LuaCAsyncCall async_call = { 0 };
+    struct LuaCAsyncResult async_result = { 0 };
+    int script_status = 0;
+    while( !LibToriRS_LuaScriptQueueIsEmpty(game) )
+    {
+        memset(&async_call, 0, sizeof(async_call));
+        memset(&async_result, 0, sizeof(async_result));
+        memset(&script, 0, sizeof(script));
+
+        LibToriRS_LuaScriptQueuePop(game, &script);
+
+        script_status = LuaCSidecar_RunScript(platform->lua_sidecar, script.name, &async_call);
+        while( script_status == LUACSIDECAR_YIELDED )
         {
-        case GIO_REQ_INIT:
-            on_gio_req_init(platform, queue, &message);
-            break;
-        case GIO_REQ_ASSET:
-            on_gio_req_asset(platform, queue, &message);
-            break;
-        default:
-            assert(false && "Unknown GIO request kind");
-            break;
+            on_lua_async_call(platform, &async_call, &async_result);
+            memset(&async_call, 0, sizeof(async_call));
+
+            script_status =
+                LuaCSidecar_ResumeScript(platform->lua_sidecar, &async_call, &async_result);
+            memset(&async_result, 0, sizeof(async_result));
         }
     }
-
-    gioqb_remove_finalized(queue);
 }

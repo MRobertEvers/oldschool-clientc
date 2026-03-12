@@ -31,8 +31,66 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const char*
+libtorirs_script_name_for_kind(enum ScriptKind kind)
+{
+    switch( kind )
+    {
+    case SCRIPT_INIT:
+        return "init_cache_dat.lua";
+    case SCRIPT_LOAD_SCENE_DAT:
+        return "empty.lua";
+    default:
+        return "empty.lua";
+    }
+}
+
 bool
 LibToriRS_GameIsRunning(struct GGame* game)
 {
     return game->running;
+}
+
+struct ScriptQueue*
+LibToriRS_LuaScriptQueue(struct GGame* game)
+{
+    if( !game )
+        return NULL;
+    return &game->script_queue;
+}
+
+bool
+LibToriRS_LuaScriptQueueIsEmpty(struct GGame* game)
+{
+    if( !game )
+        return true;
+    return script_queue_empty(&game->script_queue) != 0;
+}
+
+void
+LibToriRS_LuaScriptQueuePop(
+    struct GGame* game,
+    struct ToriRSPlatformScript* out)
+{
+    struct ScriptQueueItem* item = NULL;
+    const char* script_name = NULL;
+
+    if( out )
+        out->name[0] = '\0';
+
+    if( !game || !out )
+        return;
+
+    item = script_queue_pop(&game->script_queue);
+    if( !item )
+        return;
+
+    script_name = libtorirs_script_name_for_kind(item->args.tag);
+    if( script_name )
+    {
+        strncpy(out->name, script_name, sizeof(out->name) - 1);
+        out->name[sizeof(out->name) - 1] = '\0';
+    }
+
+    script_queue_free_item(item);
 }

@@ -446,6 +446,7 @@ world_cycle_push_npcs(struct World* world)
 static void
 world_cycle_begin(struct World* world)
 {
+    assert(world && world->painter != NULL);
     painter_reset_to_static(world->painter);
 }
 

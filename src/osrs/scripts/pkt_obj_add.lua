@@ -2,7 +2,7 @@
 -- Ensures model is loaded then calls GameProto.exec_obj_add.
 local HostIOUtils = require("hostio_utils")
 
-local item, io, zone_base_x, zone_base_z = ...
+local item, zone_base_x, zone_base_z = ...
 
 -- Load object configurations if not already loaded
 if not _G.objects_loaded_flag then

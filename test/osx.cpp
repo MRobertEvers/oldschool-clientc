@@ -25,41 +25,6 @@ extern "C" {
 #define SCREEN_HEIGHT 500
 #define LOGIN_PORT 43594
 
-void
-test_gio(void)
-{
-    struct GIOQueue* queue = gioq_new();
-    struct GIOMessage message = { 0 };
-
-    gioq_submit(queue, GIO_REQ_ASSET, 1, 0, 0);
-
-    bool has_message = gioq_poll(queue, &message);
-    assert(!has_message);
-
-    memset(&message, 0, sizeof(struct GIOMessage));
-    while( gioqb_read_next(queue, &message) )
-    {
-        printf(
-            "Message: %d, kind: %d, command: %d, param_b: %lld, param_a: %lld, data: %p, "
-            "data_size: %d\n",
-            message.message_id,
-            message.kind,
-            message.command,
-            message.param_b,
-            message.param_a,
-            message.data,
-            message.data_size);
-        gioqb_mark_inflight(queue, message.message_id);
-        gioqb_mark_done(
-            queue, message.message_id, message.command, message.param_b, message.param_a, NULL, 0);
-    }
-
-    has_message = gioq_poll(queue, &message);
-    assert(has_message);
-
-    gioq_free(queue);
-}
-
 int
 main(
     int argc,
@@ -118,7 +83,7 @@ main(
     struct SockStream* login_stream = NULL;
     sockstream_init();
     // Create socket connection to login server
-    login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
+    // login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
     if( !login_stream )
     {
         printf("Failed to create login socket\n");
@@ -162,6 +127,8 @@ main(
     LibToriRS_NetConnect(game, "asdf2", "a");
     while( LibToriRS_GameIsRunning(game) )
     {
+        Platform2_OSX_SDL2_RunLuaScripts(platform, game);
+
         if( LibToriRS_NetIsReady(game) && sockstream_is_connected(login_stream) )
         {
             LibToriRS_NetPump(game);
@@ -197,7 +164,7 @@ main(
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(renderer, server, game, timestamp_ms);
 
         // Poll backend
-        Platform2_OSX_SDL2_PollIO(platform, io);
+        // Platform2_OSX_SDL2_PollIO(platform, io);
         Platform2_OSX_SDL2_PollEvents(
             platform, &input, (game->chat_interface_id == -1 && game->chat_input_focused) ? 1 : 0);
 
@@ -205,18 +172,6 @@ main(
         game->tick_ms = timestamp_ms;
 
         LibToriRS_GameStep(game, &input, render_command_buffer);
-
-        // Initialize example interface once at startup
-        // The models will load asynchronously via the queued Lua script
-        if( !example_interface_initialized )
-        {
-            printf("\n");
-            printf("=====================================================\n");
-            printf("  Initializing example interface\n");
-            printf("=====================================================\n");
-            PlatformImpl2_OSX_SDL2_Renderer_Soft3D_InitExampleInterface(renderer, game);
-            example_interface_initialized = true;
-        }
 
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(renderer, game, render_command_buffer);
     }

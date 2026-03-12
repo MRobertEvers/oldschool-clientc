@@ -30,7 +30,7 @@ local function add_unique(tbl, value)
     table.insert(tbl, value)
 end
 
-local item, io = ...
+local item = ...
 
 local zonex, zonez = GameProto.get_rebuild_bounds(item)
 local zone_sw_x = zonex - zone_padding

@@ -2,7 +2,7 @@
 -- Ensures scenery config and models are loaded then calls GameProto.exec_loc_add_change.
 local HostIOUtils = require("hostio_utils")
 
-local item, io = ...
+local item = ...
 
 -- Load scenery configs if not already loaded (needed for get_scenery_model_ids)
 if not _G.scenery_configs_loaded_flag then

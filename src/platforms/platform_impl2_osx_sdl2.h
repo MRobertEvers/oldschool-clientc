@@ -2,6 +2,7 @@
 #define PLATFORM_IMPL2_OSX_SDL2_H
 
 extern "C" {
+#include "common/luac_sidecar.h"
 #include "osrs/ginput.h"
 #include "tori_rs_render.h"
 }
@@ -15,6 +16,7 @@ struct Cache;
 struct Platform2_OSX_SDL2
 {
     SDL_Window* window;
+    struct LuaCSidecar* lua_sidecar;
 
     int* pixel_buffer;
 
@@ -55,5 +57,10 @@ void
 Platform2_OSX_SDL2_PollIO(
     struct Platform2_OSX_SDL2* platform,
     struct GIOQueue* queue);
+
+void
+Platform2_OSX_SDL2_RunLuaScripts(
+    struct Platform2_OSX_SDL2* platform,
+    struct GGame* game);
 
 #endif

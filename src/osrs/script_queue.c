@@ -1,6 +1,21 @@
 #include "script_queue.h"
+
 #include <stdlib.h>
 #include <string.h>
+
+const char*
+script_queue_scriptkind_file(enum ScriptKind kind)
+{
+    switch( kind )
+    {
+    case SCRIPT_LOAD_SCENE_DAT:
+        return "load_scene_dat.lua";
+    case SCRIPT_LOAD_SCENE:
+        return "load_scene.lua";
+    default:
+        return NULL;
+    }
+}
 
 void
 script_queue_init(struct ScriptQueue* q)
@@ -24,7 +39,9 @@ script_queue_clear(struct ScriptQueue* q)
 }
 
 struct ScriptQueueItem*
-script_queue_push(struct ScriptQueue* q, const struct ScriptArgs* args)
+script_queue_push(
+    struct ScriptQueue* q,
+    const struct ScriptArgs* args)
 {
     struct ScriptQueueItem* item = malloc(sizeof(struct ScriptQueueItem));
     if( !item )

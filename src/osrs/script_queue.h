@@ -4,18 +4,9 @@
 /* Script kind; one entry per runnable script. */
 enum ScriptKind
 {
+    SCRIPT_INIT,
     SCRIPT_LOAD_SCENE_DAT,
     SCRIPT_LOAD_SCENE,
-    SCRIPT_PKT_NPC_INFO,
-    SCRIPT_PKT_REBUILD_NORMAL,
-    SCRIPT_PKT_PLAYER_INFO,
-    SCRIPT_LOAD_INVENTORY_MODELS, // New script for loading inventory models
-    SCRIPT_PKT_UPDATE_INV_FULL,
-    SCRIPT_PKT_IF_SETTAB,
-    SCRIPT_PKT_IF_SETNPCHEAD,
-    SCRIPT_PKT_IF_SETPLAYERHEAD,
-    SCRIPT_PKT_OBJ_ADD,
-    SCRIPT_PKT_LOC_ADD_CHANGE,
     SCRIPT_COUNT
 };
 
@@ -40,69 +31,6 @@ struct ScriptArgsLoadScene
     int size_z;
 };
 
-/* Args for pkt_npc_info: item = RevPacket_LC245_2_Item*, io = GIOQueue* */
-struct ScriptArgsPktNpcInfo
-{
-    void* item;
-    void* io;
-};
-
-/* Args for pkt_rebuild_normal / pkt_player_info: same as pkt_npc_info */
-struct ScriptArgsPktRebuildNormal
-{
-    void* item;
-    void* io;
-};
-struct ScriptArgsPktPlayerInfo
-{
-    void* item;
-    void* io;
-};
-
-struct ScriptArgsPktUpdateInvFull
-{
-    void* item;
-    void* io;
-};
-
-struct ScriptArgsPktIfSetTab
-{
-    void* item;
-    void* io;
-};
-
-struct ScriptArgsPktIfSetNpcHead
-{
-    void* item;
-    void* io;
-};
-
-struct ScriptArgsPktIfSetPlayerHead
-{
-    void* item;
-    void* io;
-};
-
-struct ScriptArgsPktObjAdd
-{
-    void* item;
-    void* io;
-    int zone_base_x; /* captured when queued; used when exec runs */
-    int zone_base_z;
-};
-
-struct ScriptArgsPktLocAddChange
-{
-    void* item;
-    void* io;
-};
-
-/* Args for load_inventory_models: no args needed */
-struct ScriptArgsLoadInventoryModels
-{
-    int dummy; // Unused, but C doesn't allow empty structs
-};
-
 /* Tagged union of all script argument structs (one member per runnable script). */
 struct ScriptArgs
 {
@@ -111,16 +39,6 @@ struct ScriptArgs
     {
         struct ScriptArgsLoadSceneDat load_scene_dat;
         struct ScriptArgsLoadScene load_scene;
-        struct ScriptArgsPktNpcInfo pkt_npc_info;
-        struct ScriptArgsPktRebuildNormal pkt_rebuild_normal;
-        struct ScriptArgsPktPlayerInfo pkt_player_info;
-        struct ScriptArgsLoadInventoryModels load_inventory_models;
-        struct ScriptArgsPktUpdateInvFull pkt_update_inv_full;
-        struct ScriptArgsPktIfSetTab pkt_if_settab;
-        struct ScriptArgsPktIfSetNpcHead pkt_if_setnpchead;
-        struct ScriptArgsPktIfSetPlayerHead pkt_if_setplayerhead;
-        struct ScriptArgsPktObjAdd pkt_obj_add;
-        struct ScriptArgsPktLocAddChange pkt_loc_add_change;
     } u;
 };
 

@@ -10,7 +10,7 @@ local function add_unique(tbl, value)
     table.insert(tbl, value)
 end
 
-local item, io = ...
+local item = ...
 
 local idk_ids, obj_ids = GameProto.get_player_appearance_ids(item)
 

@@ -12,7 +12,7 @@ local function add_unique(tbl, value)
 end
 
 -- Called with (item, io) from C when an NPC_INFO packet is received.
-local item, io = ...
+local item = ...
 
 local npc_ids = GameProto.get_npc_ids_from_packet(item)
 
