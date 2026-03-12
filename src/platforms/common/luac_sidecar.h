@@ -34,6 +34,16 @@ struct LuaCAsyncResult
     int nargs;
 };
 
+void
+LuaCSidecar_ResultPushInt(
+    struct LuaCAsyncResult* result,
+    int val);
+
+void
+LuaCSidecar_ResultLightUserData(
+    struct LuaCAsyncResult* result,
+    void* val);
+
 int
 LuaCSidecar_RunScript(
     struct LuaCSidecar* sidecar,

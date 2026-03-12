@@ -211,6 +211,26 @@ LuaCSidecar_Free(struct LuaCSidecar* sidecar)
     }
 }
 
+void
+LuaCSidecar_ResultPushInt(
+    struct LuaCAsyncResult* result,
+    int val)
+{
+    result->args[result->nargs].type = 0;
+    result->args[result->nargs].int_val = val;
+    result->nargs += 1;
+}
+
+void
+LuaCSidecar_ResultLightUserData(
+    struct LuaCAsyncResult* result,
+    void* val)
+{
+    result->args[result->nargs].type = 1;
+    result->args[result->nargs].ptr_val = val;
+    result->nargs += 1;
+}
+
 int
 LuaCSidecar_RunScript(
     struct LuaCSidecar* sidecar,

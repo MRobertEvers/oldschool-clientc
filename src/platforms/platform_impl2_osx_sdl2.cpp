@@ -564,9 +564,7 @@ on_lua_async_call(
 
         archive = cache_dat_archive_new_load(platform->cache_dat, table_no, archive_no);
 
-        result->nargs = 1;
-        result->args[0].type = 1;
-        result->args[0].ptr_val = archive;
+        LuaCSidecar_ResultLightUserData(result, archive);
     }
 }
 
