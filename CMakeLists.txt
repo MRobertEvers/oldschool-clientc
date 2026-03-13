@@ -162,12 +162,16 @@ endif()
 
 # --- Emscripten Target ---
 if(EMSCRIPTEN)
+    set(EM_SHELL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/shell2.html")
+
     add_executable(web_client
         ${COMMON_SOURCES}
         test/browser.cpp
         src/platforms/platform_impl2_emscripten_sdl2.cpp
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
+
+        ${EM_SHELL_FILE}
     )
 
     # Emscripten-specific Compile/Link flags
@@ -178,11 +182,23 @@ if(EMSCRIPTEN)
         -sALLOW_MEMORY_GROWTH=1
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
-        --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/shell2.html # Optional: if you have a custom HTML template
+        --shell-file ${EM_SHELL_FILE}
     )
 
     # Set the output name to .html so Emscripten generates the wrapper
     set_target_properties(web_client PROPERTIES OUTPUT_NAME "index" SUFFIX ".html")
+
+    # Define the directory containing your JS files
+    set(BROWSER_JS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2")
+
+    # Create a command to copy the directory contents to the build folder
+    add_custom_command(
+        TARGET web_client POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${BROWSER_JS_DIR}"
+        "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMENT "Copying browser JS files to build directory"
+    )
 endif()
 
 # --- Global Properties ---

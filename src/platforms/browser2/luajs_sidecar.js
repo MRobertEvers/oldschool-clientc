@@ -90,8 +90,13 @@ export class LuaJSSidecar {
     const threadIdx = lua.lua_gettop(this.L);
 
     const buffer = await this.fetchOrCached(scriptPath);
-    const decoder = new TextDecoder();
-    const code = decoder.decode(buffer);
+    let code;
+    if (buffer instanceof ArrayBuffer) {
+      const decoder = new TextDecoder();
+      code = decoder.decode(buffer);
+    } else if (typeof buffer === "string") {
+      code = buffer;
+    }
 
     if (lauxlib.luaL_loadstring(co, to_luastring(code)) !== lua.LUA_OK) {
       const err = lua.lua_tostring(co, -1);

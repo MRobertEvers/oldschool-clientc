@@ -110,6 +110,9 @@
           `;
           const request = indexedDB.open("RSClientScripts", 2); // Ensure version is at least 1
 
+
+
+          
           request.onupgradeneeded = (event) => {
               const db = event.target.result;
               
