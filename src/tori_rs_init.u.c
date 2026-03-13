@@ -282,9 +282,15 @@ LibToriRS_GameNew(
     lua_settable(game->L, -3);                         /* preload["hostio_utils"] = loader */
     lua_pop(game->L, 2);                               /* drop package, preload */
 
+    struct ScriptArgs args;
     script_queue_init(&game->script_queue);
     {
-        struct ScriptArgs args = {
+        args = (struct ScriptArgs){
+            .tag = SCRIPT_INIT,
+        };
+        script_queue_push(&game->script_queue, &args);
+
+        args  = (struct ScriptArgs){
             .tag = SCRIPT_LOAD_SCENE_DAT,
             .u.load_scene_dat = {
                 .wx_sw = 50 * 64,
@@ -294,10 +300,6 @@ LibToriRS_GameNew(
                 .size_x = 104,
                 .size_z = 104,
             },
-        };
-        script_queue_push(&game->script_queue, &args);
-        args = (struct ScriptArgs){
-            .tag = SCRIPT_INIT,
         };
         script_queue_push(&game->script_queue, &args);
     }

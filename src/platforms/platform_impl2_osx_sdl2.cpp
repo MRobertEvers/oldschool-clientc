@@ -556,15 +556,33 @@ on_lua_async_call(
 {
     struct CacheDatArchive* archive = NULL;
     memset(result, 0, sizeof(*result));
-    if( strcmp(async_call->command, "cache_read") == 0 )
+
+    switch( async_call->command )
     {
-        assert(async_call->nargs == 2); // cache type 0 = dat
-        int table_no = async_call->args[0];
-        int archive_no = async_call->args[1];
-
-        archive = cache_dat_archive_new_load(platform->cache_dat, table_no, archive_no);
-
-        LuaCSidecar_ResultLightUserData(result, archive);
+    case FUNC_LOAD_ARCHIVE:
+    {
+        int table_id = (int)async_call->args[0];
+        int archive_id = (int)async_call->args[1];
+        archive = cache_dat_archive_new_load(platform->cache_dat, table_id, archive_id);
+        if( archive )
+        {
+            result->args[0].type = 2; // string
+            result->args[0]._ptrarg = archive->data;
+            result->argno = 1;
+        }
+        else
+        {
+            printf("Failed to load archive: table_id=%d, archive_id=%d\n", table_id, archive_id);
+            result->argno = 0;
+        }
+    }
+    break;
+    default:
+    {
+        printf("Unknown async command: %d\n", async_call->command);
+        assert(false && "Unknown async command in on_lua_async_call");
+    }
+    break;
     }
 }
 
@@ -577,6 +595,7 @@ Platform2_OSX_SDL2_RunLuaScripts(
         return;
 
     struct ToriRSPlatformScript script;
+    struct LuaCScriptCall script_call = { 0 };
     struct LuaCAsyncCall async_call = { 0 };
     struct LuaCAsyncResult async_result = { 0 };
     int script_status = 0;
@@ -588,7 +607,18 @@ Platform2_OSX_SDL2_RunLuaScripts(
 
         LibToriRS_LuaScriptQueuePop(game, &script);
 
-        script_status = LuaCSidecar_RunScript(platform->lua_sidecar, script.name, &async_call);
+        strcpy(script_call.name, script.name);
+        for( int i = 0; i < script.argno && i < 10; i++ )
+        {
+            script_call.args[i].type = script.args[i].type;
+            if( script.args[i].type == 0 )
+                script_call.args[i]._iarg = script.args[i]._iarg;
+            else if( script.args[i].type == 1 )
+                script_call.args[i]._strarg = script.args[i]._strarg;
+            script_call.argno += 1;
+        }
+
+        script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script_call, &async_call);
         while( script_status == LUACSIDECAR_YIELDED )
         {
             on_lua_async_call(platform, &async_call, &async_result);

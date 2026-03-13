@@ -5,6 +5,10 @@
 #include <stdio.h>
 
 extern "C" {
+#include "platforms/browser2/luajs_sidecar.h"
+}
+
+extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void
 test_export(
@@ -40,15 +44,21 @@ emscripten_main_loop(void* arg)
 
     uint64_t timestamp_ms = SDL_GetTicks64();
 
-    // Poll backend
-    // Platform2_OSX_SDL2_PollIO(platform, io);
     Platform2_Emscripten_SDL2_PollEvents(platform);
-
-    printf("F pressed: %d \n", platform->input->f_pressed);
 
     Platform2_Emscripten_SDL2_RunLuaScripts(platform);
 
     signal_browser_looped();
+}
+
+void
+luajs_sidecar_callback(
+    void* arg,
+    int command,
+    int argno,
+    uint64_t* args)
+{
+    struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)arg;
 }
 
 int
@@ -57,6 +67,7 @@ main(
     char* argv[])
 {
     struct Platform2_Emscripten_SDL2* platform = Platform2_Emscripten_SDL2_New();
+    platform->secret = 5;
 
     if( !platform )
     {
@@ -65,6 +76,8 @@ main(
     }
 
     Platform2_Emscripten_SDL2_InitForSoft3D(platform, 1024, 768);
+
+    luajs_sidecar_set_callback(luajs_sidecar_callback, platform);
 
     signal_browser_ready();
 

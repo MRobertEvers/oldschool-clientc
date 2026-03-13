@@ -85,6 +85,7 @@
       };
     </script>
 
+    <script type="module" src="./luajs_sidecar_fnnos.js"></script>
     <script type="module">
         import { LuaJSSidecar } from './luajs_sidecar.js';
 
@@ -104,7 +105,7 @@
           const testLuaScript = `
             print("Hello from Lua!")
             function my_lua_function(arg1, arg2)
-              return coroutine.yield("test_export", arg1, arg2)
+              return coroutine.yield(3, arg1, arg2)
             end
 
             my_lua_function(1, 123)

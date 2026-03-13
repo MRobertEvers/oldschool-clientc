@@ -23,6 +23,17 @@ struct ToriRSRenderCommand;
 struct ToriRSPlatformScript
 {
     char name[64];
+
+    struct
+    {
+        int type;
+        union
+        {
+            int _iarg;
+            char* _strarg;
+        };
+    } args[10];
+    int argno;
 };
 
 struct GGame*

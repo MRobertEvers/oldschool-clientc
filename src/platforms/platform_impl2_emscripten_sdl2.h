@@ -19,6 +19,8 @@ struct Platform2_Emscripten_SDL2
     SDL_Window* window;
     struct GInput* input;
 
+    int secret;
+
     int* pixel_buffer;
 
     int window_width;

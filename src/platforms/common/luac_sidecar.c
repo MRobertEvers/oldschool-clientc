@@ -116,12 +116,14 @@ step_coroutine(
     int nresume = 0; /* values on co's stack to pass as results of the yield */
     if( in_async_result )
     {
-        for( int i = 0; i < in_async_result->nargs && i < 6; i++ )
+        for( int i = 0; i < in_async_result->argno && i < 6; i++ )
         {
             if( in_async_result->args[i].type == 0 ) /* int */
-                lua_pushnumber(co, in_async_result->args[i].int_val);
-            else if( in_async_result->args[i].type == 1 ) /* lightuserdata */
-                lua_pushlightuserdata(co, in_async_result->args[i].ptr_val);
+                lua_pushnumber(co, in_async_result->args[i]._iarg);
+            else if( in_async_result->args[i].type == 1 ) /* string */
+                lua_pushstring(co, in_async_result->args[i]._strarg);
+            else if( in_async_result->args[i].type == 2 ) /* lightuserdata */
+                lua_pushlightuserdata(co, in_async_result->args[i]._ptrarg);
 
             nresume++;
         }
@@ -147,20 +149,18 @@ step_coroutine(
 
     /* ── Coroutine yielded – read the command tuple ────────────────── */
     int n = lua_gettop(co);
-    const char* cmd = (n >= 1) ? lua_tostring(co, 1) : NULL;
-
-    out_async_call->command[0] = '\0';
-    if( cmd )
-        strncpy(out_async_call->command, cmd, sizeof(out_async_call->command) - 1);
+    int cmd = (n >= 1) ? lua_tonumber(co, 1) : 0;
+    out_async_call->command = cmd;
+    out_async_call->argno = 0;
 
     for( int i = 1; i < n; i++ )
     {
-        int argno = out_async_call->nargs;
+        int argno = out_async_call->argno;
         if( i < 6 && lua_isnumber(co, i + 1) )
             out_async_call->args[argno] = (int)lua_tonumber(co, i + 1);
         else
             out_async_call->args[argno] = 0;
-        out_async_call->nargs += 1;
+        out_async_call->argno += 1;
     }
 
     return LUACSIDECAR_YIELDED;
@@ -192,10 +192,10 @@ LuaCSidecar_New(void)
      * this global state, so require("platform") inside core.lua finds it.
      */
     char platform_path[512];
-    snprintf(platform_path, sizeof(platform_path), "%s/%s", LUA_SCRIPTS_DIR, "platform.lua");
+    snprintf(platform_path, sizeof(platform_path), "%s/%s", LUA_SCRIPTS_DIR, "buildcache.lua");
 
     /* Pass the FULL path to the preloader */
-    preload_module(sidecar->L, "platform", platform_path);
+    preload_module(sidecar->L, "buildcache", platform_path);
 
     return sidecar;
 }
@@ -216,9 +216,9 @@ LuaCSidecar_ResultPushInt(
     struct LuaCAsyncResult* result,
     int val)
 {
-    result->args[result->nargs].type = 0;
-    result->args[result->nargs].int_val = val;
-    result->nargs += 1;
+    result->args[result->argno].type = 0;
+    result->args[result->argno]._iarg = val;
+    result->argno += 1;
 }
 
 void
@@ -226,22 +226,22 @@ LuaCSidecar_ResultLightUserData(
     struct LuaCAsyncResult* result,
     void* val)
 {
-    result->args[result->nargs].type = 1;
-    result->args[result->nargs].ptr_val = val;
-    result->nargs += 1;
+    result->args[result->argno].type = 1;
+    result->args[result->argno]._strarg = val;
+    result->argno += 1;
 }
 
 int
 LuaCSidecar_RunScript(
     struct LuaCSidecar* sidecar,
-    const char* script_path,
+    struct LuaCScriptCall* script_call,
     struct LuaCAsyncCall* out_async_call)
 {
     lua_State* co = lua_newthread(sidecar->L);
     sidecar->L_coro = co;
 
     char filepath[256] = { 0 };
-    snprintf(filepath, sizeof filepath, "%s/%s", LUA_SCRIPTS_DIR, script_path);
+    snprintf(filepath, sizeof filepath, "%s/%s", LUA_SCRIPTS_DIR, script_call->name);
 
     if( luaL_loadfile(co, filepath) != LUA_OK )
     {
@@ -252,7 +252,18 @@ LuaCSidecar_RunScript(
 
     printf("=== Lua native host ===\n\n");
 
-    int rc = step_coroutine(co, sidecar->L, "native", out_async_call, NULL);
+    struct LuaCAsyncResult in_args = { 0 };
+    for( int i = 0; i < script_call->argno && i < 10; i++ )
+    {
+        in_args.args[i].type = script_call->args[i].type;
+        if( script_call->args[i].type == 1 )
+            in_args.args[i]._strarg = script_call->args[i]._strarg;
+        else
+            in_args.args[i]._iarg = script_call->args[i]._iarg;
+        in_args.argno += 1;
+    }
+
+    int rc = step_coroutine(co, sidecar->L, "native", out_async_call, &in_args);
     if( rc == LUACSIDECAR_YIELDED )
         return rc;
     else if( rc != LUACSIDECAR_DONE )

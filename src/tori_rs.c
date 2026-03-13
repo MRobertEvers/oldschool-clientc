@@ -37,9 +37,9 @@ libtorirs_script_name_for_kind(enum ScriptKind kind)
     switch( kind )
     {
     case SCRIPT_INIT:
-        return "init_cache_dat.lua";
-    case SCRIPT_LOAD_SCENE_DAT:
         return "empty.lua";
+    case SCRIPT_LOAD_SCENE_DAT:
+        return "init_cache_dat.lua";
     default:
         return "empty.lua";
     }
@@ -90,6 +90,19 @@ LibToriRS_LuaScriptQueuePop(
     {
         strncpy(out->name, script_name, sizeof(out->name) - 1);
         out->name[sizeof(out->name) - 1] = '\0';
+    }
+
+    if( item->args.tag == SCRIPT_LOAD_SCENE_DAT )
+    {
+        out->args[0].type = 0;
+        out->args[0]._iarg = item->args.u.load_scene_dat.wx_sw;
+        out->args[1].type = 0;
+        out->args[1]._iarg = item->args.u.load_scene_dat.wz_sw;
+        out->args[2].type = 0;
+        out->args[2]._iarg = item->args.u.load_scene_dat.wx_ne;
+        out->args[3].type = 0;
+        out->args[3]._iarg = item->args.u.load_scene_dat.wz_ne;
+        out->argno = 4;
     }
 
     script_queue_free_item(item);

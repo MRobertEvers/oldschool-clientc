@@ -1,6 +1,10 @@
 #ifndef LUAC_SIDECAR_H
 #define LUAC_SIDECAR_H
 
+#include "osrs/scripts/buildcache.lua.h"
+
+#include <stdint.h>
+
 struct LuaCSidecar;
 struct GGame;
 
@@ -13,11 +17,28 @@ LuaCSidecar_Free(struct LuaCSidecar* sidecar);
 #define LUACSIDECAR_DONE 0
 #define LUACSIDECAR_YIELDED 1
 
+struct LuaCScriptCall
+{
+    char name[64];
+
+    struct
+    {
+        int type;
+        union
+        {
+            int _iarg;
+            char* _strarg;
+        };
+    } args[10];
+
+    int argno;
+};
+
 struct LuaCAsyncCall
 {
-    char command[32];
-    int args[6];
-    int nargs;
+    int command;
+    int argno;
+    uint64_t args[10];
 };
 
 struct LuaCAsyncResult
@@ -27,11 +48,12 @@ struct LuaCAsyncResult
         int type; /* 0=int, 1=string, etc. */
         union
         {
-            int int_val;
-            void* ptr_val;
+            int _iarg;
+            char* _strarg;
+            void* _ptrarg;
         };
     } args[6];
-    int nargs;
+    int argno;
 };
 
 void
@@ -47,7 +69,7 @@ LuaCSidecar_ResultLightUserData(
 int
 LuaCSidecar_RunScript(
     struct LuaCSidecar* sidecar,
-    const char* script_path,
+    struct LuaCScriptCall* script_call,
     struct LuaCAsyncCall* out_async_call /* optional output parameter for async command */);
 
 int

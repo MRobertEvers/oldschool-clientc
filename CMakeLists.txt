@@ -168,6 +168,7 @@ if(EMSCRIPTEN)
     set(EXPORTED_FUNC_LIST
         "_main"
         "_free"
+        "_malloc"
         "_test_export"
     )
 
@@ -175,6 +176,7 @@ if(EMSCRIPTEN)
         "cwrap"
         "ccall"
         "UTF8ToString"
+        "HEAPU8"
     )
 
     # Join them into the comma-separated format Emscripten wants
@@ -185,6 +187,7 @@ if(EMSCRIPTEN)
         ${COMMON_SOURCES}
         test/browser.cpp
         src/platforms/platform_impl2_emscripten_sdl2.cpp
+        src/platforms/browser2/luajs_sidecar.c
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
     )
