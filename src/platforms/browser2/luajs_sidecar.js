@@ -1,5 +1,12 @@
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
+function luaString(str) {
+  if (str instanceof Uint8Array) {
+    str = new TextDecoder().decode(str);
+  }
+  return str;
+}
+
 export class LuaJSSidecar {
   constructor(wasm) {
     this.wasm = wasm;
@@ -13,7 +20,7 @@ export class LuaJSSidecar {
     // Fix: index 1 is the message
     lua.lua_register(this.L, to_luastring("_lua_log"), (L) => {
       const msg = lua.lua_tostring(L, 1);
-      console.log(`[Lua] ${msg}`);
+      console.log(`[Lua] ${luaString(msg)}`);
       return 0;
     });
   }
@@ -101,7 +108,7 @@ export class LuaJSSidecar {
     if (lauxlib.luaL_loadstring(co, to_luastring(code)) !== lua.LUA_OK) {
       const err = lua.lua_tostring(co, -1);
       lua.lua_remove(this.L, threadIdx); // Cleanup
-      throw new Error(err);
+      throw new Error(luaString(err));
     }
 
     await this.drive(co, 0);
@@ -114,18 +121,15 @@ export class LuaJSSidecar {
     const status = lua.lua_resume(co, this.L, nres);
 
     if (status === lua.LUA_YIELD) {
-      let cmd = lua.lua_tostring(co, 1);
-      if (cmd instanceof Uint8Array) {
-        cmd = new TextDecoder().decode(cmd);
-      } else if (typeof cmd === "string") {
-        // Already a string, do nothing
-      }
+      let cmd = luaString(lua.lua_tostring(co, 1));
+
       const args = [];
       const top = lua.lua_gettop(co);
 
       for (let i = 2; i <= top; i++) {
         if (lua.lua_isnumber(co, i)) args.push(lua.lua_tonumber(co, i));
-        else if (lua.lua_isstring(co, i)) args.push(lua.lua_tostring(co, i));
+        else if (lua.lua_isstring(co, i))
+          args.push(luaString(lua.lua_tostring(co, i)));
         else args.push(null);
       }
 
@@ -142,7 +146,10 @@ export class LuaJSSidecar {
     }
 
     if (status !== lua.LUA_OK) {
-      console.error("Lua execution error:", lua.lua_tostring(co, -1));
+      console.error(
+        "Lua execution error:",
+        luaString(lua.lua_tostring(co, -1)),
+      );
     }
   }
 
