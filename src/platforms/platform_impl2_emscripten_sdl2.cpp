@@ -251,3 +251,34 @@ Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform)
         }
     }
 }
+
+static void
+send_string_to_js(const char* str)
+{
+    // clang-format off
+    EM_ASM(
+        {
+            if (typeof window.done === 'undefined') {
+                window.done = false;
+            }
+            var str = UTF8ToString($0); // Convert C++ pointer to JS String
+            window.LUA_SCRIPT_QUEUE = window.LUA_SCRIPT_QUEUE || [];
+            if( window.LUA_SCRIPT_QUEUE.length === 0 && !window.done )
+            {
+                window.LUA_SCRIPT_QUEUE.push(str); // Add to queue
+                window.done = true; // Prevent multiple pushes until loop processes it
+            }  
+        },
+        str);
+
+    // clang-format on
+}
+
+void
+Platform2_Emscripten_SDL2_RunLuaScripts(struct Platform2_Emscripten_SDL2* platform)
+{
+    // In a real implementation, you'd have some way to get Lua scripts to run.
+    // For this example, we'll just send a test script every frame.
+    const char* test_script = "test.lua";
+    send_string_to_js(test_script);
+}

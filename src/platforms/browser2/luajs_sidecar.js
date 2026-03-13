@@ -1,30 +1,108 @@
-// sidecar.js
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
-export class LuaSidecar {
+export class LuaJSSidecar {
   constructor(wasm) {
     this.wasm = wasm;
     this.L = lauxlib.luaL_newstate();
     lualib.luaL_openlibs(this.L);
 
-    // Define global _lua_log for platform.lua
+    // Queue state
+    this.queue = [];
+    this.isProcessing = false;
+
+    // Fix: index 1 is the message
     lua.lua_register(this.L, to_luastring("_lua_log"), (L) => {
-      const msg = lua.lua_tostring(L, 2);
+      const msg = lua.lua_tostring(L, 1);
       console.log(`[Lua] ${msg}`);
       return 0;
     });
   }
 
-  async runScript(scriptPath) {
-    const co = lua.lua_newthread(this.L);
-    const response = await fetch(scriptPath);
-    const code = await response.text();
+  // Entrance point: adds to queue and triggers processing
+  enqueueScript(scriptPath) {
+    this.queue.push(scriptPath);
+    console.log(
+      `Script queued: ${scriptPath} (Queue size: ${this.queue.length})`,
+    );
 
-    if (lauxlib.luaL_loadstring(co, to_luastring(code)) !== lua.LUA_OK) {
-      throw new Error(lua.lua_tostring(co, -1));
+    if (!this.isProcessing) {
+      this.processNext();
+    }
+  }
+
+  async processNext() {
+    if (this.queue.length === 0) {
+      this.isProcessing = false;
+      return;
     }
 
-    return this.drive(co, 0);
+    this.isProcessing = true;
+    const scriptPath = this.queue.shift();
+
+    try {
+      await this.runScript(scriptPath);
+    } catch (err) {
+      console.error(`Failed to execute script ${scriptPath}:`, err);
+    }
+
+    // When one finishes, check for the next
+    this.processNext();
+  }
+
+  async fetchOrCached(path) {
+    return await new Promise((resolve, reject) => {
+      const openRequest = indexedDB.open("RSClientScripts", 2);
+
+      openRequest.onerror = () => reject("IDB Open Failed");
+
+      openRequest.onsuccess = (event) => {
+        const db = event.target.result;
+        const transaction = db.transaction(["cache"], "readonly");
+        const store = transaction.objectStore("cache");
+        const request = store.get(path);
+
+        request.onsuccess = () => {
+          if (request.result) {
+            // Assume request.result.data is an ArrayBuffer
+            resolve(request.result.content);
+          } else {
+            fetch(path)
+              .then((res) => {
+                if (!res.ok) throw new Error("Fetch failed");
+                return res.arrayBuffer();
+              })
+              .then((data) => {
+                const writeTransaction = db.transaction(["cache"], "readwrite");
+                const writeStore = writeTransaction.objectStore("cache");
+                writeStore.put({ path, data }, path);
+                resolve(data);
+              })
+              .catch(reject);
+          }
+        };
+      };
+    });
+  }
+
+  async runScript(scriptPath) {
+    // 1. Create thread and keep track of its position on main stack
+    const co = lua.lua_newthread(this.L);
+    const threadIdx = lua.lua_gettop(this.L);
+
+    const buffer = await this.fetchOrCached(scriptPath);
+    const decoder = new TextDecoder();
+    const code = decoder.decode(buffer);
+
+    if (lauxlib.luaL_loadstring(co, to_luastring(code)) !== lua.LUA_OK) {
+      const err = lua.lua_tostring(co, -1);
+      lua.lua_remove(this.L, threadIdx); // Cleanup
+      throw new Error(err);
+    }
+
+    await this.drive(co, 0);
+
+    // 2. Cleanup: Remove ONLY this thread from main stack
+    lua.lua_remove(this.L, threadIdx);
   }
 
   async drive(co, nres) {
@@ -34,14 +112,16 @@ export class LuaSidecar {
       const cmd = lua.lua_tostring(co, 1);
       const args = [];
       const top = lua.lua_gettop(co);
+
       for (let i = 2; i <= top; i++) {
-        args.push(lua.lua_isnumber(co, i) ? lua.lua_tonumber(co, i) : null);
+        if (lua.lua_isnumber(co, i)) args.push(lua.lua_tonumber(co, i));
+        else if (lua.lua_isstring(co, i)) args.push(lua.lua_tostring(co, i));
+        else args.push(null);
       }
 
-      // Handle the Platform Request
       const results = await this.handleYield(cmd, args);
 
-      // Push results back to coroutine stack for resume
+      // Clear yield results and push return values
       lua.lua_settop(co, 0);
       results.forEach((res) => {
         if (typeof res === "number") lua.lua_pushnumber(co, res);
@@ -51,32 +131,23 @@ export class LuaSidecar {
       return this.drive(co, results.length);
     }
 
-    // Clean up thread from main stack
-    lua.lua_settop(this.L, 0);
+    if (status !== lua.LUA_OK) {
+      console.error("Lua execution error:", lua.lua_tostring(co, -1));
+    }
   }
 
   async handleYield(cmd, args) {
     switch (cmd) {
       case "cache_read":
         const [table, archive] = args;
-        // Imagine an async fetch for the OSRS cache
-        const data = await fetch(`./cache/${table}/${archive}.dat`).then((r) =>
-          r.arrayBuffer(),
-        );
+        const res = await fetch(`./cache/${table}/${archive}.dat`);
+        const data = await res.arrayBuffer();
 
-        // ALLOCATE in WASM
         const ptr = this.wasm.exports.malloc(data.byteLength);
-
-        // WRITE to WASM Memory
         const heap = new Uint8Array(this.wasm.exports.memory.buffer);
         heap.set(new Uint8Array(data), ptr);
 
-        return [ptr, data.byteLength]; // Return pointer and size to Lua
-
-      case "set_player_pos":
-        const [x, y, z] = args;
-        this.wasm.exports.update_entity_position(0, x, y, z);
-        return [];
+        return [ptr, data.byteLength];
 
       case "sleep":
         await new Promise((r) => setTimeout(r, args[0]));

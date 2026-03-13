@@ -178,7 +178,7 @@ if(EMSCRIPTEN)
         -sALLOW_MEMORY_GROWTH=1
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
-        --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/public/shell2.html # Optional: if you have a custom HTML template
+        --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/shell2.html # Optional: if you have a custom HTML template
     )
 
     # Set the output name to .html so Emscripten generates the wrapper

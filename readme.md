@@ -1639,3 +1639,8 @@ Side Icons hmid
 516, 160
 496, 466
 ```
+
+## Emscripten
+
+python3 -m http.server 8080
+python3 -m http.server -d build_emscripten 8080

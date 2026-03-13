@@ -49,4 +49,7 @@ Platform2_Emscripten_SDL2_Shutdown(struct Platform2_Emscripten_SDL2* platform);
 void
 Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform);
 
+void
+Platform2_Emscripten_SDL2_RunLuaScripts(struct Platform2_Emscripten_SDL2* platform);
+
 #endif

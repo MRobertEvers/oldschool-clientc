@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>RSClient Web</title>
+    <style>
+      body {
+        font-family: Tahoma, Geneva, sans-serif;
+        background-color: #222;
+        color: white;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* The canvas must be styled to maintain aspect ratio or fill the screen */
+      canvas.emscripten {
+        border: 0 none;
+        background-color: black;
+        width: 800px;  /* Match your game's default resolution */
+        height: 600px;
+        image-rendering: pixelated; /* Keeps the OSRS aesthetic crisp */
+      }
+
+      .status {
+        margin-top: 10px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+    
+    <div class="status" id="status">Downloading...</div>
+    <script src="./fengari-web.js"></script>
+
+    <script type='text/javascript'>
+      var statusElement = document.getElementById('status');
+
+      var Module = {
+        preRun: [],
+        postRun: [
+          function() {
+            window.ev
+          }
+        ],
+        print: (function() {
+          return function(text) {
+            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+            console.log(text);
+          };
+        })(),
+        canvas: (function() {
+          var canvas = document.getElementById('canvas');
+          // This allows the canvas to capture resize events
+          canvas.addEventListener("webglcontextlost", function(e) { 
+            alert('WebGL context lost. You will need to reload the page.'); 
+            e.preventDefault(); 
+          }, false);
+          return canvas;
+        })(),
+        setStatus: function(text) {
+          if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+          if (text === Module.setStatus.last.text) return;
+          statusElement.innerHTML = text;
+        },
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+        }
+      };
+      Module.setStatus('Downloading...');
+      window.onerror = function() {
+        Module.setStatus('Exception thrown, see JavaScript console');
+        Module.setStatus = function(text) {
+          if (text) console.error('[post-exception status] ' + text);
+        };
+      };
+    </script>
+
+    <script type="module">
+        import { LuaJSSidecar } from './luajs_sidecar.js';
+
+        function onRSClientLooped(event, luaSidecar) {  
+          if (window.LUA_SCRIPT_QUEUE && window.LUA_SCRIPT_QUEUE.length > 0) {
+            const scriptPath = window.LUA_SCRIPT_QUEUE.shift();
+            console.log(`Executing Lua script from queue: ${scriptPath}`);
+            luaSidecar.enqueueScript(scriptPath);
+          }
+        }
+
+        function onRSClientReady(event) {
+          console.log('RSClient is ready! Event detail:', event.detail);
+          const luaSidecar = new LuaJSSidecar(Module);
+
+          // write a test.lua script to indexedDB for testing
+          const testLuaScript = `
+            print("Hello from Lua!")
+            function my_lua_function(arg1, arg2)
+              print("Lua function called with args:", arg1, arg2)
+              return arg1 + arg2
+            end
+          `;
+          const request = indexedDB.open("RSClientScripts", 2); // Ensure version is at least 1
+
+          request.onupgradeneeded = (event) => {
+              const db = event.target.result;
+              
+              // Check if the store already exists to avoid errors on version bumps
+              if (!db.objectStoreNames.contains("cache")) {
+                  // Create the store. 'path' will be the unique key (like a file system)
+                  db.createObjectStore("cache", { keyPath: "path" });
+                  console.log("IndexedDB 'cache' store created.");
+              }
+          };
+
+          request.onsuccess = (event) => {
+              // NOW you can run your code
+              const db = event.target.result;
+              const tx = db.transaction("cache", "readwrite");
+              const store = tx.objectStore("cache");
+              
+              store.put({ path: "test.lua", content: testLuaScript });
+              
+              tx.oncomplete = () => {
+                  console.log("Test Lua script cached in IndexedDB.");
+                  window.addEventListener('rs_client_looped', (e) => onRSClientLooped(e, luaSidecar));
+              };
+          };
+
+          // Example: Call a Lua function from JavaScript
+          // luaSidecar.callLuaFunction('my_lua_function', arg1, arg2);
+          window.removeEventListener('rs_client_ready', onRSClientReady);
+        }
+        
+        window.addEventListener('rs_client_ready', onRSClientReady);
+
+    </script>
+    
+    {{{ SCRIPT }}}
+  </body>
+</html>
