@@ -187,9 +187,6 @@ if(EMSCRIPTEN)
         src/platforms/platform_impl2_emscripten_sdl2.cpp
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
-
-        ${EM_SHELL_FILE}
-        src/platforms/browser2/luajs_sidecar.js
     )
 
     # Emscripten-specific Compile/Link flags
@@ -203,6 +200,16 @@ if(EMSCRIPTEN)
         --shell-file ${EM_SHELL_FILE}
         -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
         -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}
+    )
+
+    set(BROWSER_ASSETS
+        ${EM_SHELL_FILE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_sidecar.js
+    )
+
+    # Tell the linker these are dependencies
+    set_target_properties(web_client PROPERTIES
+        LINK_DEPENDS "${BROWSER_ASSETS}"
     )
 
     # Set the output name to .html so Emscripten generates the wrapper
