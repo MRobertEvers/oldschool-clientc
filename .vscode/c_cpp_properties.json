@@ -19,7 +19,8 @@
             "compilerPath": "/usr/bin/clang",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/homebrew/include/SDL2"
+                "/opt/homebrew/include/SDL2",
+                "/opt/homebrew/opt/emscripten/libexec/system/include"
             ],
             "defines": [],
             "cStandard": "c17",

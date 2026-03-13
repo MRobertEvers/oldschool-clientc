@@ -1,44 +1,23 @@
-
 cmake_minimum_required(VERSION 3.7)
-project(RSClient
-    LANGUAGES C CXX
-)
+project(RSClient LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-# Enable AddressSanitizer for Debug builds
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
-    add_link_options(-fsanitize=address)
-endif()
-
-# OSX SDL2 Game executable (macOS only)
-# On Windows, ensure we use console subsystem (not GUI) to avoid WinMain requirement
-if(WIN32)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
-endif()
-
 file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
+list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c")
 
-# Do this:
-# Exclude standalone interpreter
-list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c")
-
-# Exclude standalone compiler
-list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c")
-
-add_executable(osx
+# --- Common Sources (Logic shared by all platforms) ---
+set(COMMON_SOURCES
     ${LUA_SOURCES}
-    ${LUA_GEN_SOURCES}
-    test/osx.cpp
     src/osrs/isaac.c
     src/jbase37.c
     src/tori_rs.c
     src/bmp.c
     src/server/server.c
     src/osrs/buildcachedat.c
+    src/osrs/isaac.c
     src/osrs/buildcachedat_loader.c
     src/osrs/buildcache.c
     src/osrs/buildcache_loader.c
@@ -74,10 +53,8 @@ add_executable(osx
     src/osrs/minimenu.c
     src/osrs/model_transforms.c
     src/tori_rs_render.c
-
     src/graphics/dash.c
     src/graphics/dashmap.c
-
     src/osrs/texture.c
     src/osrs/collision_map.c
     src/osrs/world_pickset.c
@@ -87,7 +64,6 @@ add_executable(osx
     src/osrs/gio.c
     src/osrs/gio_assets.c
     src/osrs/gio_cache.c
-
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
     src/osrs/revconfig/static_ui.c
@@ -130,7 +106,6 @@ add_executable(osx
     src/osrs/rscache/tables/string_utils.c
     src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
     src/osrs/rscache/tables_dat/config_npc.c
-
     src/osrs/rscache/cache.c
     src/osrs/rscache/cache_dat.c
     src/osrs/frustrum_cullmap.c
@@ -149,52 +124,74 @@ add_executable(osx
     src/osrs/rscache/xtea.c
     src/osrs/revs/revpacket_lc245_2_query.c
     src/osrs/entity_scenebuild.c
-
-    src/platforms/platform_impl2_osx_sdl2.cpp
-    src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
+    src/osrs/rscache/xtea.c
+    src/osrs/revs/revpacket_lc245_2_query.c
+    src/osrs/entity_scenebuild.c
     src/platforms/common/sockstream.c
     src/platforms/common/luac_sidecar.c
-
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
     src/imgui/imgui_widgets.cpp
-    src/imgui/imgui_impl_sdl2.cpp
-    src/imgui/imgui_impl_opengl3.cpp
-    src/imgui/imgui_impl_sdlrenderer2.cpp
 )
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(osx PRIVATE MAKE_LIB)
-    target_compile_options(osx PRIVATE -fpermissive)
-endif()
-
-target_include_directories(osx PRIVATE src src/imgui)
-
-find_package(SDL2 REQUIRED)
-find_package(Freetype REQUIRED)
-
-target_link_libraries(osx SDL2::SDL2)
-target_include_directories(osx PRIVATE ${SDL2_INCLUDE_DIRS})
-
-# Link Winsock library on Windows
-if(WIN32)
-    target_link_libraries(osx ws2_32)
-
-    # Set console subsystem to use main() instead of WinMain()
-    set_target_properties(osx PROPERTIES
-        WIN32_EXECUTABLE FALSE
+# --- Native (OSX/Windows) Target ---
+if(NOT EMSCRIPTEN)
+    add_executable(osx
+        ${COMMON_SOURCES}
+        test/osx.cpp
+        src/platforms/platform_impl2_osx_sdl2.cpp
+        src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_opengl3.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
     )
 
-    # Explicitly set console subsystem - ensure it's applied
-    target_link_options(osx PRIVATE
-        -Wl,-subsystem,console
-    )
+    find_package(SDL2 REQUIRED)
+    target_link_libraries(osx SDL2::SDL2)
+
+    if(WIN32)
+        target_link_libraries(osx ws2_32)
+        target_link_options(osx PRIVATE -Wl,-subsystem,console)
+    endif()
+
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(osx PRIVATE -fpermissive)
+    endif()
 endif()
 
-set_target_properties(osx PROPERTIES
-    C_STANDARD 11
-    C_STANDARD_REQUIRED ON
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
+# --- Emscripten Target ---
+if(EMSCRIPTEN)
+    add_executable(web_client
+        ${COMMON_SOURCES}
+        test/browser.cpp
+        src/platforms/platform_impl2_emscripten_sdl2.cpp
+        src/imgui/imgui_impl_sdl2.cpp
+        src/imgui/imgui_impl_sdlrenderer2.cpp
+    )
+
+    # Emscripten-specific Compile/Link flags
+    target_compile_options(web_client PUBLIC -sUSE_SDL=2)
+    target_link_options(web_client PRIVATE
+        -sUSE_SDL=2
+        -sWASM=1
+        -sALLOW_MEMORY_GROWTH=1
+        -sNO_EXIT_RUNTIME=1
+        -sASSERTions=1
+        --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/public/shell2.html # Optional: if you have a custom HTML template
+    )
+
+    # Set the output name to .html so Emscripten generates the wrapper
+    set_target_properties(web_client PROPERTIES OUTPUT_NAME "index" SUFFIX ".html")
+endif()
+
+# --- Global Properties ---
+foreach(target osx web_client)
+    if(TARGET ${target})
+        target_include_directories(${target} PRIVATE src src/imgui)
+        set_target_properties(${target} PROPERTIES
+            C_STANDARD 11
+            CXX_STANDARD 17
+        )
+    endif()
+endforeach()

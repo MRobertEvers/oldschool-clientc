@@ -399,7 +399,7 @@ dashmap_search(
         {
             /* remember the first tombstone for possible reuse on ENTER */
             if( tomb_i < 0 )
-                tomb_i = (ssize_t)idx;
+                tomb_i = (uint32_t)idx;
         }
         else if( h->state == DASHMAP_SLOT_FULL && h->hash == hash )
         {
