@@ -27,6 +27,8 @@ struct BuildCacheDat
     struct FileListDat* cfg_versionlist_jagfile;
     struct FileListDat* cfg_media_jagfile;
 
+    struct DashMap* containers_hmap;
+
     struct DashMap* sprites;
 
     struct DashMap* map_terrains_hmap;
@@ -76,6 +78,17 @@ buildcachedat_set_versionlist_jagfile(
 
 struct FileListDat*
 buildcachedat_versionlist_jagfile(struct BuildCacheDat* buildcachedat);
+
+void
+buildcachedat_set_named_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    const char* name,
+    struct FileListDat* jagfile);
+
+void
+buildcachedat_named_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    char const* name);
 
 void
 buildcachedat_add_flotype(

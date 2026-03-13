@@ -116,7 +116,7 @@ step_coroutine(
     int nresume = 0; /* values on co's stack to pass as results of the yield */
     if( in_async_result )
     {
-        for( int i = 0; i < in_async_result->argno && i < 6; i++ )
+        for( int i = 0; i < in_async_result->argno && i < 10; i++ )
         {
             if( in_async_result->args[i].type == 0 ) /* int */
                 lua_pushnumber(co, in_async_result->args[i]._iarg);
@@ -155,11 +155,15 @@ step_coroutine(
 
     for( int i = 1; i < n; i++ )
     {
+        if( i >= 10 )
+            break; /* too many args, ignore the rest */
         int argno = out_async_call->argno;
-        if( i < 6 && lua_isnumber(co, i + 1) )
+        if( lua_isnumber(co, i + 1) )
             out_async_call->args[argno] = (int)lua_tonumber(co, i + 1);
-        else
-            out_async_call->args[argno] = 0;
+        else if( lua_isstring(co, i + 1) )
+            out_async_call->args[argno] = (uint64_t)lua_tostring(co, i + 1);
+        else if( lua_islightuserdata(co, i + 1) )
+            out_async_call->args[argno] = (uint64_t)lua_touserdata(co, i + 1);
         out_async_call->argno += 1;
     }
 

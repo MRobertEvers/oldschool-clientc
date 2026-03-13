@@ -88,6 +88,7 @@ Platform2_OSX_SDL2_New(void)
     }
 
     platform->cache_dat = cache_dat_new_from_directory(CACHE_PATH);
+    platform->buildcachedat = buildcachedat_new();
 
     return platform;
 }
@@ -566,8 +567,8 @@ on_lua_async_call(
         archive = cache_dat_archive_new_load(platform->cache_dat, table_id, archive_id);
         if( archive )
         {
-            result->args[0].type = 2; // string
-            result->args[0]._ptrarg = archive->data;
+            result->args[0].type = 2; // ptr
+            result->args[0]._ptrarg = archive;
             result->argno = 1;
         }
         else
@@ -577,6 +578,16 @@ on_lua_async_call(
         }
     }
     break;
+    case FUNC_STORE_CONTAINER_JAGFILE:
+    {
+        assert(async_call->argno >= 2);
+        char* filename = (char*)async_call->args[0];
+        archive = (struct CacheDatArchive*)async_call->args[1];
+
+        struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
+
+        buildcachedat_set_named_jagfile(platform->buildcachedat, filename, filelist);
+    }
     default:
     {
         printf("Unknown async command: %d\n", async_call->command);

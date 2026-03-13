@@ -2,6 +2,12 @@
 
 #include "graphics/dash.h"
 
+struct ContainerEntry
+{
+    char name[64]; // Key must be first field and fixed size for DashMap
+    struct FileListDat* filelist;
+};
+
 struct SpriteEntry
 {
     char name[64]; // Key must be first field and fixed size for DashMap
@@ -313,6 +319,57 @@ struct FileListDat*
 buildcachedat_versionlist_jagfile(struct BuildCacheDat* buildcachedat)
 {
     return buildcachedat->cfg_versionlist_jagfile;
+}
+
+void
+buildcachedat_set_named_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    const char* name,
+    struct FileListDat* jagfile)
+{
+    if( strcmp(name, "config_jagfile") == 0 )
+    {
+        buildcachedat_set_config_jagfile(buildcachedat, jagfile);
+        return;
+    }
+    else if( strcmp(name, "versionlist_jagfile") == 0 )
+    {
+        buildcachedat_set_versionlist_jagfile(buildcachedat, jagfile);
+        return;
+    }
+    else if( strcmp(name, "media_jagfile") == 0 )
+    {
+        buildcachedat_set_2d_media_jagfile(buildcachedat, jagfile);
+        return;
+    }
+
+    struct ContainerEntry* container_entry = (struct ContainerEntry*)dashmap_search(
+        buildcachedat->containers_hmap, name, DASHMAP_INSERT);
+    assert(container_entry && "Container must be inserted into hmap");
+    strncpy(container_entry->name, name, sizeof(container_entry->name) - 1);
+    container_entry->filelist = jagfile;
+}
+
+void
+buildcachedat_named_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    char const* name)
+{
+    char jagfile_name[64] = { 0 };
+    strncpy(jagfile_name, name, 63);
+
+    if( strcmp(jagfile_name, "config_jagfile") == 0 )
+        return buildcachedat_config_jagfile(buildcachedat);
+    else if( strcmp(jagfile_name, "versionlist_jagfile") == 0 )
+        return buildcachedat_versionlist_jagfile(buildcachedat);
+    else if( strcmp(jagfile_name, "media_jagfile") == 0 )
+        return buildcachedat->cfg_media_jagfile;
+
+    struct ContainerEntry* container_entry = (struct ContainerEntry*)dashmap_search(
+        buildcachedat->containers_hmap, name, DASHMAP_INSERT);
+    assert(container_entry && "Container must be inserted into hmap");
+
+    return container_entry->filelist;
 }
 
 void

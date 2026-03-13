@@ -21,6 +21,7 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
 
     print("=== Step 0: Load Configs & VersionList ===")
     local config_ptr = BuildCache.load_archive(BuildCache.Tables.CACHE_DAT_CONFIGS, BuildCache.ConfigDatKind.CONFIG_DAT_CONFIGS)
+    print(config_ptr)
     BuildCache.store_container_jagfile("config_jagfile", config_ptr)
     
     local vlist_ptr = BuildCache.load_archive(BuildCache.Tables.CACHE_DAT_CONFIGS, BuildCache.ConfigDatKind.CONFIG_DAT_VERSION_LIST)

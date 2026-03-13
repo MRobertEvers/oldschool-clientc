@@ -3,6 +3,7 @@
 
 extern "C" {
 #include "common/luac_sidecar.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/ginput.h"
 #include "tori_rs_render.h"
 }
@@ -33,6 +34,7 @@ struct Platform2_OSX_SDL2
 
     struct Cache* cache;
     struct CacheDat* cache_dat;
+    struct BuildCacheDat* buildcachedat;
 };
 
 struct Platform2_OSX_SDL2*
