@@ -5,7 +5,25 @@
 struct ContainerEntry
 {
     char name[64]; // Key must be first field and fixed size for DashMap
-    struct FileListDat* filelist;
+    enum BuildCacheContainerKind kind;
+
+    union
+    {
+        struct FileListDat* _filelist;
+        struct
+        {
+            char* data;
+            int data_size;
+        } _jagfilepack;
+
+        struct
+        {
+            char* data;
+            int data_size;
+            char* index_data;
+            int index_data_size;
+        } _jagfilepack_indexed;
+    };
 };
 
 struct SpriteEntry
@@ -275,6 +293,14 @@ buildcachedat_new(void)
     };
     buildcachedat->sprites = dashmap_new(&config, 0);
 
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = 64, // Max container name length
+        .entry_size = sizeof(struct ContainerEntry),
+    };
+    buildcachedat->containers_hmap = dashmap_new(&config, 0);
+
     return buildcachedat;
 }
 
@@ -347,10 +373,11 @@ buildcachedat_set_named_jagfile(
         buildcachedat->containers_hmap, name, DASHMAP_INSERT);
     assert(container_entry && "Container must be inserted into hmap");
     strncpy(container_entry->name, name, sizeof(container_entry->name) - 1);
-    container_entry->filelist = jagfile;
+    container_entry->kind = BuildCacheContainerKind_Jagfile;
+    container_entry->_filelist = jagfile;
 }
 
-void
+struct FileListDat*
 buildcachedat_named_jagfile(
     struct BuildCacheDat* buildcachedat,
     char const* name)
@@ -369,7 +396,116 @@ buildcachedat_named_jagfile(
         buildcachedat->containers_hmap, name, DASHMAP_INSERT);
     assert(container_entry && "Container must be inserted into hmap");
 
-    return container_entry->filelist;
+    return container_entry->_filelist;
+}
+
+void
+buildcachedat_add_jagfilepack(
+    struct BuildCacheDat* buildcachedat,
+    const char* name,
+    void* data,
+    int size)
+{
+    struct ContainerEntry* container_entry = (struct ContainerEntry*)dashmap_search(
+        buildcachedat->containers_hmap, name, DASHMAP_INSERT);
+    assert(container_entry && "Container must be inserted into hmap");
+    strncpy(container_entry->name, name, sizeof(container_entry->name) - 1);
+    container_entry->kind = BuildCacheContainerKind_JagfilePack;
+    container_entry->_jagfilepack.data = data;
+    container_entry->_jagfilepack.data_size = size;
+}
+
+void
+buildcachedat_add_jagfilepack_indexed(
+    struct BuildCacheDat* buildcachedat,
+    const char* name,
+    void* data,
+    int data_size,
+    void* index_data,
+    int index_data_size)
+{
+    struct ContainerEntry* container_entry = (struct ContainerEntry*)dashmap_search(
+        buildcachedat->containers_hmap, name, DASHMAP_INSERT);
+    assert(container_entry && "Container must be inserted into hmap");
+    strncpy(container_entry->name, name, sizeof(container_entry->name) - 1);
+    container_entry->kind = BuildCacheContainerKind_JagfilePackIndexed;
+    container_entry->_jagfilepack_indexed.data = data;
+    container_entry->_jagfilepack_indexed.data_size = data_size;
+    container_entry->_jagfilepack_indexed.index_data = index_data;
+    container_entry->_jagfilepack_indexed.index_data_size = index_data_size;
+}
+
+struct JagfilePack*
+buildcachedat_named_jagfilepack(
+    struct BuildCacheDat* buildcachedat,
+    const char* name)
+{
+    struct ContainerEntry* container_entry =
+        (struct ContainerEntry*)dashmap_search(buildcachedat->containers_hmap, name, DASHMAP_FIND);
+    if( !container_entry )
+        return NULL;
+
+    struct JagfilePack* container = malloc(sizeof(struct JagfilePack));
+    container->data = container_entry->_jagfilepack.data;
+    container->data_size = container_entry->_jagfilepack.data_size;
+    return container;
+}
+
+struct BuildCacheDatContainer*
+buildcachedat_named_container(
+    struct BuildCacheDat* buildcachedat,
+    const char* name)
+{
+    struct ContainerEntry* container_entry =
+        (struct ContainerEntry*)dashmap_search(buildcachedat->containers_hmap, name, DASHMAP_FIND);
+    if( !container_entry )
+        return NULL;
+
+    struct FileListDat* jagfile = NULL;
+    if( strcmp(name, "config_jagfile") == 0 )
+    {
+        jagfile = buildcachedat_config_jagfile(buildcachedat);
+    }
+    else if( strcmp(name, "versionlist_jagfile") == 0 )
+    {
+        jagfile = buildcachedat_versionlist_jagfile(buildcachedat);
+    }
+    else if( strcmp(name, "media_jagfile") == 0 )
+    {
+        jagfile = buildcachedat->cfg_media_jagfile;
+    }
+
+    if( jagfile )
+    {
+        struct BuildCacheDatContainer* container = malloc(sizeof(struct BuildCacheDatContainer));
+        container->kind = BuildCacheContainerKind_Jagfile;
+        container->_filelist = jagfile;
+        return container;
+    }
+
+    struct BuildCacheDatContainer* container = malloc(sizeof(struct BuildCacheDatContainer));
+    switch( container_entry->kind )
+    {
+    case BuildCacheContainerKind_Jagfile:
+        container->kind = BuildCacheContainerKind_Jagfile;
+        container->_filelist = container_entry->_filelist;
+        break;
+    case BuildCacheContainerKind_JagfilePack:
+        container->kind = BuildCacheContainerKind_JagfilePack;
+        container->_jagfilepack.data = container_entry->_jagfilepack.data;
+        container->_jagfilepack.data_size = container_entry->_jagfilepack.data_size;
+        break;
+    case BuildCacheContainerKind_JagfilePackIndexed:
+        container->kind = BuildCacheContainerKind_JagfilePackIndexed;
+        container->_jagfilepack_indexed.data = container_entry->_jagfilepack_indexed.data;
+        container->_jagfilepack_indexed.data_size = container_entry->_jagfilepack_indexed.data_size;
+        container->_jagfilepack_indexed.index_data =
+            container_entry->_jagfilepack_indexed.index_data;
+        container->_jagfilepack_indexed.index_data_size =
+            container_entry->_jagfilepack_indexed.index_data_size;
+        break;
+    }
+    return container;
 }
 
 void

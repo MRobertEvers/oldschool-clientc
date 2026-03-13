@@ -28,6 +28,8 @@ struct LuaCScriptCall
         {
             int _iarg;
             char* _strarg;
+            int _iarg;
+            void* _ptrarg;
         };
     } args[10];
 
@@ -51,6 +53,7 @@ struct LuaCAsyncResult
             int _iarg;
             char* _strarg;
             void* _ptrarg;
+            bool _barg;
         };
     } args[6];
     int argno;

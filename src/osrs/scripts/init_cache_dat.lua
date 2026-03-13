@@ -25,7 +25,7 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     BuildCache.store_container_jagfile("config_jagfile", config_ptr)
     
     local vlist_ptr = BuildCache.load_archive(BuildCache.Tables.CACHE_DAT_CONFIGS, BuildCache.ConfigDatKind.CONFIG_DAT_VERSION_LIST)
-    BuildCache.store_container_jagfile("version_list_jagfile", vlist_ptr)
+    BuildCache.store_container_jagfile("versionlist_jagfile", vlist_ptr)
 
     print("=== Step 1: Load Terrain (Batched) ===")
     local terrain_ids = {}

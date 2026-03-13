@@ -2,6 +2,7 @@
 
 extern "C" {
 #include "common/luac_sidecar.h"
+#include "osrs/buildcachedat_loader.h"
 #include "osrs/filepack.h"
 #include "osrs/rscache/cache_dat.h"
 #include "tori_rs.h"
@@ -588,6 +589,98 @@ on_lua_async_call(
 
         buildcachedat_set_named_jagfile(platform->buildcachedat, filename, filelist);
     }
+    case FUNC_STORE_CONTAINER_JAGFILEPACK:
+        break;
+    case FUNC_STORE_CONTAINER_JAGFILEPACK_INDEXED:
+        break;
+    case FUNC_STORE_CONTAINER_JAGFILEPACK_FROM_JAGFILE:
+    {
+        char const* container_name = (char const*)async_call->args[0];
+        char const* source_container_name = (char const*)async_call->args[1];
+        char const* filename = (char const*)async_call->args[2];
+
+        struct FileListDat* source_filelist =
+            buildcachedat_named_jagfile(platform->buildcachedat, source_container_name);
+
+        int filename_idx = filelist_dat_find_file_by_name(source_filelist, filename);
+        if( filename_idx == -1 )
+        {
+            printf(
+                "File '%s' not found in source container '%s' for indexed jagfilepack\n",
+                filename,
+                source_container_name);
+            assert(false && "Source file not found in source container");
+            break;
+        }
+
+        void* data_ptr = source_filelist->files[filename_idx];
+        int data_size = source_filelist->file_sizes[filename_idx];
+
+        buildcachedat_add_jagfilepack(platform->buildcachedat, container_name, data_ptr, data_size);
+    }
+    break;
+    case FUNC_STORE_CONTAINER_JAGFILEPACK_INDEXED_FROM_JAGFILE:
+    {
+        char const* container_name = (char const*)async_call->args[0];
+        char const* source_container_name = (char const*)async_call->args[1];
+        char const* filename = (char const*)async_call->args[2];
+        char const* index_filename = (char const*)async_call->args[3];
+
+        struct FileListDat* source_filelist =
+            buildcachedat_named_jagfile(platform->buildcachedat, source_container_name);
+
+        int filename_idx = filelist_dat_find_file_by_name(source_filelist, filename);
+        int index_idx = filelist_dat_find_file_by_name(source_filelist, index_filename);
+        if( filename_idx == -1 || index_idx == -1 )
+        {
+            printf(
+                "File '%s' not found in source container '%s' for indexed jagfilepack\n",
+                filename,
+                source_container_name);
+            assert(false && "Source file not found in source container");
+            break;
+        }
+
+        void* data_ptr = source_filelist->files[filename_idx];
+        int data_size = source_filelist->file_sizes[filename_idx];
+        void* index_data_ptr = source_filelist->files[index_idx];
+        int index_data_size = source_filelist->file_sizes[index_idx];
+
+        buildcachedat_add_jagfilepack_indexed(
+            platform->buildcachedat,
+            container_name,
+            data_ptr,
+            data_size,
+            index_data_ptr,
+            index_data_size);
+    }
+    break;
+    case FUNC_STORE_DATA_RAW:
+        break;
+    case FUNC_STORE_DATA_FROM_CONTAINER_WITH_ID:
+        break;
+    case FUNC_STORE_DATA_FROM_CONTAINER_WITH_IDS:
+        break;
+    case FUNC_STORE_DATA_FROM_CONTAINER_WITH_NAME:
+        break;
+    case FUNC_STORE_DATA_FROM_CONTAINER_ALL:
+        break;
+    case FUNC_HAS_DATA:
+    {
+        // Return false
+        result->args[0].type = 0; // int
+        result->args[0]._iarg = 0;
+        result->argno = 1;
+    }
+    break;
+    case FUNC_HAS_CONT:
+        break;
+    case FUNC_LIST_IDS:
+        break;
+    case FUNC_LIST_FIELD:
+        break;
+    case FUNC_LOAD_ARCHIVES:
+        break;
     default:
     {
         printf("Unknown async command: %d\n", async_call->command);

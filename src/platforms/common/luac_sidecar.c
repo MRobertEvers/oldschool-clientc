@@ -124,6 +124,8 @@ step_coroutine(
                 lua_pushstring(co, in_async_result->args[i]._strarg);
             else if( in_async_result->args[i].type == 2 ) /* lightuserdata */
                 lua_pushlightuserdata(co, in_async_result->args[i]._ptrarg);
+            else if( in_async_result->args[i].type == 3 ) /* bool */
+                lua_pushboolean(co, in_async_result->args[i]._barg);
 
             nresume++;
         }
@@ -164,6 +166,8 @@ step_coroutine(
             out_async_call->args[argno] = (uint64_t)lua_tostring(co, i + 1);
         else if( lua_islightuserdata(co, i + 1) )
             out_async_call->args[argno] = (uint64_t)lua_touserdata(co, i + 1);
+        else if( lua_isboolean(co, i + 1) )
+            out_async_call->args[argno] = (uint64_t)lua_toboolean(co, i + 1);
         out_async_call->argno += 1;
     }
 
@@ -260,10 +264,25 @@ LuaCSidecar_RunScript(
     for( int i = 0; i < script_call->argno && i < 10; i++ )
     {
         in_args.args[i].type = script_call->args[i].type;
-        if( script_call->args[i].type == 1 )
-            in_args.args[i]._strarg = script_call->args[i]._strarg;
-        else
+        switch( script_call->args[i].type )
+        {
+        case 0: /* int */
             in_args.args[i]._iarg = script_call->args[i]._iarg;
+            break;
+        case 1: /* string */
+            in_args.args[i]._strarg = script_call->args[i]._strarg;
+            break;
+        case 2: /* lightuserdata */
+            in_args.args[i]._ptrarg = (void*)script_call->args[i]._ptrarg;
+            break;
+        case 3: /* bool */
+            in_args.args[i]._barg = script_call->args[i]._iarg != 0;
+            break;
+        default:
+            fprintf(stderr, "Unsupported argument type: %d\n", script_call->args[i].type);
+            break;
+        }
+
         in_args.argno += 1;
     }
 

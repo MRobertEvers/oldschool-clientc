@@ -85,10 +85,63 @@ buildcachedat_set_named_jagfile(
     const char* name,
     struct FileListDat* jagfile);
 
-void
+struct FileListDat*
 buildcachedat_named_jagfile(
     struct BuildCacheDat* buildcachedat,
     char const* name);
+
+struct JagfilePack
+{
+    void* data;
+    int data_size;
+};
+struct JagfilePackIndexed
+{
+    void* data;
+    int data_size;
+    void* index_data;
+    int index_data_size;
+};
+
+enum BuildCacheContainerKind
+{
+    BuildCacheContainerKind_Jagfile = 0,
+    BuildCacheContainerKind_JagfilePack = 1,
+    BuildCacheContainerKind_JagfilePackIndexed = 2
+};
+
+struct BuildCacheDatContainer
+{
+    enum BuildCacheContainerKind kind;
+
+    union
+    {
+        struct FileListDat* _filelist;
+        struct JagfilePack _jagfilepack;
+        struct JagfilePackIndexed _jagfilepack_indexed;
+    };
+};
+
+void
+buildcachedat_add_jagfilepack(
+    struct BuildCacheDat* buildcachedat,
+    const char* name,
+    void* data,
+    int size);
+
+void
+buildcachedat_add_jagfilepack_indexed(
+    struct BuildCacheDat* buildcachedat,
+    const char* name,
+    void* data,
+    int data_size,
+    void* index_data,
+    int index_data_size);
+
+struct BuildCacheDatContainer*
+buildcachedat_named_container(
+    struct BuildCacheDat* buildcachedat,
+    const char* name);
 
 void
 buildcachedat_add_flotype(
