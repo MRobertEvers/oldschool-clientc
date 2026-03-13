@@ -164,6 +164,23 @@ endif()
 if(EMSCRIPTEN)
     set(EM_SHELL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/shell2.html")
 
+    # Define your functions in a clean list
+    set(EXPORTED_FUNC_LIST
+        "_main"
+        "_free"
+        "_test_export"
+    )
+
+    set(EXPORTED_METHODS_LIST
+        "cwrap"
+        "ccall"
+        "UTF8ToString"
+    )
+
+    # Join them into the comma-separated format Emscripten wants
+    list(JOIN EXPORTED_FUNC_LIST "," EXPORTED_FUNC_STR)
+    list(JOIN EXPORTED_METHODS_LIST "," EXPORTED_METHODS_STR)
+
     add_executable(web_client
         ${COMMON_SOURCES}
         test/browser.cpp
@@ -172,6 +189,7 @@ if(EMSCRIPTEN)
         src/imgui/imgui_impl_sdlrenderer2.cpp
 
         ${EM_SHELL_FILE}
+        src/platforms/browser2/luajs_sidecar.js
     )
 
     # Emscripten-specific Compile/Link flags
@@ -183,6 +201,8 @@ if(EMSCRIPTEN)
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
         --shell-file ${EM_SHELL_FILE}
+        -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
+        -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}
     )
 
     # Set the output name to .html so Emscripten generates the wrapper

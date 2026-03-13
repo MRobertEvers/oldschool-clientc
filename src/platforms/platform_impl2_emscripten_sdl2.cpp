@@ -261,6 +261,7 @@ send_string_to_js(const char* str)
             if (typeof window.done === 'undefined') {
                 window.done = false;
             }
+            
             var str = UTF8ToString($0); // Convert C++ pointer to JS String
             window.LUA_SCRIPT_QUEUE = window.LUA_SCRIPT_QUEUE || [];
             if( window.LUA_SCRIPT_QUEUE.length === 0 && !window.done )

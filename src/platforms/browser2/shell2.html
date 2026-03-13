@@ -85,6 +85,7 @@
       };
     </script>
 
+
     <script type="module">
         import { LuaJSSidecar } from './luajs_sidecar.js';
 
@@ -104,15 +105,16 @@
           const testLuaScript = `
             print("Hello from Lua!")
             function my_lua_function(arg1, arg2)
-              print("Lua function called with args:", arg1, arg2)
-              return arg1 + arg2
+              return coroutine.yield("test_export", arg1, arg2)
             end
+
+            my_lua_function(1, 123)
           `;
           const request = indexedDB.open("RSClientScripts", 2); // Ensure version is at least 1
 
 
 
-          
+
           request.onupgradeneeded = (event) => {
               const db = event.target.result;
               

@@ -114,7 +114,12 @@ export class LuaJSSidecar {
     const status = lua.lua_resume(co, this.L, nres);
 
     if (status === lua.LUA_YIELD) {
-      const cmd = lua.lua_tostring(co, 1);
+      let cmd = lua.lua_tostring(co, 1);
+      if (cmd instanceof Uint8Array) {
+        cmd = new TextDecoder().decode(cmd);
+      } else if (typeof cmd === "string") {
+        // Already a string, do nothing
+      }
       const args = [];
       const top = lua.lua_gettop(co);
 
@@ -143,6 +148,11 @@ export class LuaJSSidecar {
 
   async handleYield(cmd, args) {
     switch (cmd) {
+      case "test_export": {
+        const [arg1, arg2] = args;
+        this.wasm._test_export(arg1, arg2);
+        return [];
+      }
       case "cache_read":
         const [table, archive] = args;
         const res = await fetch(`./cache/${table}/${archive}.dat`);

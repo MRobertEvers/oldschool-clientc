@@ -2,6 +2,18 @@
 #include "tori_rs.h"
 
 #include <emscripten.h>
+#include <stdio.h>
+
+extern "C" {
+EMSCRIPTEN_KEEPALIVE
+void
+test_export(
+    int x,
+    int y)
+{
+    printf("C++ received: %d, %d\n", x, y);
+}
+}
 
 void
 signal_browser_ready()
