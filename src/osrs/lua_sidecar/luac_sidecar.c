@@ -4,6 +4,7 @@
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
 #include "osrs/game.h"
+#include "osrs/lua_scripts.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +12,88 @@
 #include <time.h>
 
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
+
+static int
+c_wasm_dispatcher(lua_State* L)
+{
+    // Upvalue 1: The method name
+    const char* func_name = lua_tostring(L, lua_upvalueindex(1));
+    // Upvalue 2: The Context Pointer (e.g., your WASM environment or C struct)
+    void* ctx = lua_touserdata(L, lua_upvalueindex(2));
+
+    // Logic: Look up func_name in your WASM exports and execute it.
+    // This part depends on your specific WASM runtime (e.g., Wasmtime, Wasmer, or a custom engine)
+    printf("C Dispatch: Calling '%s' on context %p\n", func_name, ctx);
+
+    // Pull arguments from the Lua stack (1, 2, ...) and pass to WASM
+    // Push results back to L
+    return 1;
+}
+
+static int
+mt_index(lua_State* L)
+{
+    // Stack: [1] table, [2] key (name)
+
+    // 1. Get the cache from the metatable
+    lua_getmetatable(L, 1);
+    lua_getfield(L, -1, "__cache"); // Stack: [3] metatable, [4] cache_table
+
+    // 2. Check cache[key]
+    lua_pushvalue(L, 2);
+    lua_gettable(L, 4);
+    if( !lua_isnil(L, -1) )
+    {
+        return 1; // Hit! Return existing closure
+    }
+    lua_pop(L, 1); // Pop nil
+
+    // 3. Cache Miss: Create closure
+    lua_pushvalue(L, 2);         // Upvalue 1: Name
+    lua_getfield(L, 1, "__ptr"); // Upvalue 2: Context Pointer
+    lua_pushcclosure(L, c_wasm_dispatcher, 2);
+
+    // 4. Update Cache: cache[name] = closure
+    lua_pushvalue(L, 2);
+    lua_pushvalue(L, -2);
+    lua_settable(L, 4);
+
+    return 1;
+}
+
+int
+create_wasm_object(
+    lua_State* L,
+    void* wasm_ctx)
+{
+    // 1. Create the Object Table
+    lua_newtable(L);
+    lua_pushlightuserdata(L, wasm_ctx);
+    lua_setfield(L, -2, "__ptr");
+
+    // 2. Create the Metatable
+    lua_newtable(L);
+
+    // 3. Create the Cache Table (with weak values)
+    lua_newtable(L); // The cache table
+    lua_newtable(L); // Metatable for the cache
+    lua_pushstring(L, "v");
+    lua_setfield(L, -2, "__mode");
+    lua_setmetatable(L, -2);
+    lua_setfield(L, -2, "__cache");
+
+    // 4. Bind the indexer
+    lua_pushcfunction(L, mt_index);
+    lua_setfield(L, -2, "__index");
+
+    // 5. Attach metatable to Object
+    lua_setmetatable(L, -2);
+
+    // 2. Pop it from the stack and assign it to the global name 'wasmObj'
+    lua_setglobal(L, "Game");
+
+    return 1; // Returns the object to Lua
+}
 
 /* ── Lua version compatibility ───────────────────────────────────────────── */
 /*
@@ -110,24 +193,21 @@ step_coroutine(
     lua_State* co,
     lua_State* from,
     const char* instance_id,
-    struct LuaCAsyncCall* out_async_call,
-    struct LuaCAsyncResult* in_async_result)
+    struct LuaCYield* out_yield,
+    struct LuaCYieldResult* in_yield_result)
 {
     int nresume = 0; /* values on co's stack to pass as results of the yield */
-    if( in_async_result )
+    if( in_yield_result )
     {
-        for( int i = 0; i < in_async_result->argno && i < 10; i++ )
+        if( in_yield_result->type == 0 )
         {
-            if( in_async_result->args[i].type == 0 ) /* int */
-                lua_pushnumber(co, in_async_result->args[i]._iarg);
-            else if( in_async_result->args[i].type == 1 ) /* string */
-                lua_pushstring(co, in_async_result->args[i]._strarg);
-            else if( in_async_result->args[i].type == 2 ) /* lightuserdata */
-                lua_pushlightuserdata(co, in_async_result->args[i]._ptrarg);
-            else if( in_async_result->args[i].type == 3 ) /* bool */
-                lua_pushboolean(co, in_async_result->args[i]._barg);
-
+            lua_pushlightuserdata(co, in_yield_result->_archive.ptr);
             nresume++;
+        }
+        else
+        {
+            fprintf(stderr, "Unknown yield result type: %d\n", in_yield_result->type);
+            return -1;
         }
     }
 
@@ -136,8 +216,6 @@ step_coroutine(
 
     if( status == LUA_OK )
         return LUACSIDECAR_DONE; /* coroutine returned normally (won't happen with infinite loop) */
-
-    assert(out_async_call != NULL);
 
     if( status != LUA_YIELD )
     {
@@ -152,23 +230,20 @@ step_coroutine(
     /* ── Coroutine yielded – read the command tuple ────────────────── */
     int n = lua_gettop(co);
     int cmd = (n >= 1) ? lua_tonumber(co, 1) : 0;
-    out_async_call->command = cmd;
-    out_async_call->argno = 0;
+    out_yield->command = cmd;
+    out_yield->argno = 0;
 
     for( int i = 1; i < n; i++ )
     {
         if( i >= 10 )
             break; /* too many args, ignore the rest */
-        int argno = out_async_call->argno;
+        int argno = out_yield->argno;
         if( lua_isnumber(co, i + 1) )
-            out_async_call->args[argno] = (int)lua_tonumber(co, i + 1);
+            out_yield->args[argno] = (int)lua_tonumber(co, i + 1);
         else if( lua_isstring(co, i + 1) )
-            out_async_call->args[argno] = (uint64_t)lua_tostring(co, i + 1);
-        else if( lua_islightuserdata(co, i + 1) )
-            out_async_call->args[argno] = (uint64_t)lua_touserdata(co, i + 1);
-        else if( lua_isboolean(co, i + 1) )
-            out_async_call->args[argno] = (uint64_t)lua_toboolean(co, i + 1);
-        out_async_call->argno += 1;
+            out_yield->args[argno] = (uint64_t)lua_tostring(co, i + 1);
+
+        out_yield->argno += 1;
     }
 
     return LUACSIDECAR_YIELDED;
@@ -200,10 +275,12 @@ LuaCSidecar_New(void)
      * this global state, so require("platform") inside core.lua finds it.
      */
     char platform_path[512];
-    snprintf(platform_path, sizeof(platform_path), "%s/%s", LUA_SCRIPTS_DIR, "buildcache.lua");
+    snprintf(platform_path, sizeof(platform_path), "%s/%s", LUA_SCRIPTS_DIR, "cachedat.lua");
 
     /* Pass the FULL path to the preloader */
-    preload_module(sidecar->L, "buildcache", platform_path);
+    preload_module(sidecar->L, "cachedat", platform_path);
+
+    create_wasm_object(sidecar->L, NULL);
 
     return sidecar;
 }
@@ -220,149 +297,10 @@ LuaCSidecar_Free(struct LuaCSidecar* sidecar)
 }
 
 void
-LuaCSidecar_ResultPushInt(
-    struct LuaCAsyncResult* result,
-    int val)
+LuaCSidecar_YieldResultPushArchive(
+    struct LuaCYieldResult* result,
+    void* archive)
 {
-    result->args[result->argno].type = 0;
-    result->args[result->argno]._iarg = val;
-    result->argno += 1;
-}
-
-void
-LuaCSidecar_ResultLightUserData(
-    struct LuaCAsyncResult* result,
-    void* val)
-{
-    result->args[result->argno].type = 1;
-    result->args[result->argno]._strarg = val;
-    result->argno += 1;
-}
-
-int
-LuaCSidecar_RunScript(
-    struct LuaCSidecar* sidecar,
-    struct LuaCScriptCall* script_call,
-    struct LuaCAsyncCall* out_async_call)
-{
-    lua_State* co = lua_newthread(sidecar->L);
-    sidecar->L_coro = co;
-
-    char filepath[256] = { 0 };
-    snprintf(filepath, sizeof filepath, "%s/%s", LUA_SCRIPTS_DIR, script_call->name);
-
-    if( luaL_loadfile(co, filepath) != LUA_OK )
-    {
-        fprintf(stderr, "core.lua load error: %s\n", lua_tostring(co, -1));
-        lua_close(sidecar->L);
-        return -1;
-    }
-
-    printf("=== Lua native host ===\n\n");
-
-    struct LuaCAsyncResult in_args = { 0 };
-    for( int i = 0; i < script_call->argno && i < 10; i++ )
-    {
-        in_args.args[i].type = script_call->args[i].type;
-        switch( script_call->args[i].type )
-        {
-        case 0: /* int */
-            in_args.args[i]._iarg = script_call->args[i]._iarg;
-            break;
-        case 1: /* string */
-            in_args.args[i]._strarg = script_call->args[i]._strarg;
-            break;
-        case 2: /* lightuserdata */
-            in_args.args[i]._ptrarg = (void*)script_call->args[i]._ptrarg;
-            break;
-        case 3: /* bool */
-            in_args.args[i]._barg = script_call->args[i]._iarg != 0;
-            break;
-        default:
-            fprintf(stderr, "Unsupported argument type: %d\n", script_call->args[i].type);
-            break;
-        }
-
-        in_args.argno += 1;
-    }
-
-    int rc = step_coroutine(co, sidecar->L, "native", out_async_call, &in_args);
-    if( rc == LUACSIDECAR_YIELDED )
-        return rc;
-    else if( rc != LUACSIDECAR_DONE )
-    {
-        fprintf(stderr, "core.lua runtime error: %s\n", lua_tostring(co, -1));
-        assert(false && "Lua error");
-        return -1;
-    }
-
-    // pop the thread
-    lua_pop(sidecar->L, 1);
-    sidecar->L_coro = NULL;
-    return LUACSIDECAR_DONE;
-}
-
-int
-LuaCSidecar_ResumeScript(
-    struct LuaCSidecar* sidecar,
-    struct LuaCAsyncCall* out_async_call,
-    struct LuaCAsyncResult* in_async_result)
-{
-    lua_State* co = sidecar->L_coro;
-    assert(co != NULL && "No coroutine to resume");
-
-    int rc = step_coroutine(co, sidecar->L, "native", out_async_call, in_async_result);
-    if( rc == LUACSIDECAR_YIELDED )
-        return rc;
-    else if( rc != LUACSIDECAR_DONE )
-    {
-        fprintf(stderr, "core.lua runtime error: %s\n", lua_tostring(co, -1));
-        assert(false && "Lua error");
-        return -1;
-    }
-
-    // pop the thread
-    lua_pop(sidecar->L, 1);
-    sidecar->L_coro = NULL;
-    return LUACSIDECAR_DONE;
-}
-
-void
-LuaCSidecar_ResultPushInt(
-    struct LuaCAsyncResult* result,
-    int val)
-{
-    result->args[result->argno].type = 0;
-    result->args[result->argno]._iarg = val;
-    result->argno += 1;
-}
-
-void
-LuaCSidecar_ResultPushString(
-    struct LuaCAsyncResult* result,
-    const char* val)
-{
-    result->args[result->argno].type = 1;
-    result->args[result->argno]._strarg = val;
-    result->argno += 1;
-}
-
-void
-LuaCSidecar_ResultPushPtr(
-    struct LuaCAsyncResult* result,
-    void* val)
-{
-    result->args[result->argno].type = 2;
-    result->args[result->argno]._ptrarg = val;
-    result->argno += 1;
-}
-
-void
-LuaCSidecar_ResultPushBool(
-    struct LuaCAsyncResult* result,
-    bool val)
-{
-    result->args[result->argno].type = 3;
-    result->args[result->argno]._barg = val;
-    result->argno += 1;
+    result->type = 0;
+    result->_archive.ptr = archive;
 }

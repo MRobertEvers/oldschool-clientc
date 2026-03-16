@@ -266,6 +266,8 @@
         "game_entity.h": "c",
         "world_pickset.h": "c",
         "string_utils.h": "c",
-        "luac_sidecar.h": "c"
+        "luac_sidecar.h": "c",
+        "gio_cache_dat.h": "c",
+        "lua_cachedat_sidecar.h": "c"
     },
 }

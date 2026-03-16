@@ -1,4 +1,4 @@
-import { LuaBuildCacheFunctionNo } from "./luajs_sidecar_fnnos.js";
+import { LuaCacheFunctionNo } from "./luajs_sidecar_fnnos.js";
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
 function luaString(str) {
@@ -6,6 +6,28 @@ function luaString(str) {
     str = new TextDecoder().decode(str);
   }
   return str;
+}
+
+function jsDispatcher(L) {
+  const methodName = lua.lua_tostring(L, lua.lua_upvalueindex(1));
+  // Retrieve your JS context object from upvalue 2
+  const context = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
+
+  console.log(`Executing ${methodName} on:`, context);
+
+  return 0;
+}
+
+function mtIndex(L) {
+  // Push Name
+  lua.lua_pushvalue(L, 2);
+
+  // Push Context (Assumes you stored it in the table earlier)
+  lua.lua_getfield(L, 1, "__ptr");
+
+  // Create closure with 2 upvalues
+  lua.lua_pushcclosure(L, jsDispatcher, 2);
+  return 1;
 }
 
 function stringToWasm(instance, str) {
@@ -32,6 +54,86 @@ function freeStringWasm(instance, ptr) {
   free(ptr);
 }
 
+// 1. The Core Dispatcher (The Bridge to WASM)
+function wasmDispatcher(L) {
+  // Upvalue 1: The function name (string)
+  const methodName = lua.lua_tostring(L, lua.lua_upvalueindex(1));
+  // Upvalue 2: Your WASM Exports or Context Object
+  const wasmInstance = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
+
+  // Check if the method exists in your WASM exports
+  if (wasmInstance.exports[methodName]) {
+    // Collect arguments from Lua stack to pass to WASM
+    const args = [];
+    const top = lua.lua_gettop(L);
+    for (let i = 1; i <= top; i++) {
+      args.push(lua.lua_tonumber(L, i)); // Assuming numeric/WASM compatible types
+    }
+
+    // Execute WASM function
+    const result = wasmInstance.exports[methodName](...args);
+
+    // Push result back to Lua
+    lua.lua_pushnumber(L, result);
+    return 1;
+  }
+
+  return lua.luaL_error(L, `WASM method ${methodName} not found`);
+}
+
+// 2. The __index with Weak Caching
+function mtIndex(L) {
+  // Stack: [1] table (obj), [2] key (name)
+
+  lua.lua_getmetatable(L, 1);
+  lua.lua_getfield(L, -1, "__cache"); // The weak cache table
+  const cacheIdx = lua.lua_gettop(L);
+
+  // Check Cache
+  lua.lua_pushvalue(L, 2);
+  lua.lua_gettable(L, cacheIdx);
+  if (!lua.lua_isnil(L, -1)) return 1; // Hit!
+  lua.lua_pop(L, 1);
+
+  // Miss: Create Closure [Name, WASM_Context]
+  lua.lua_pushvalue(L, 2);
+  lua.lua_getfield(L, 1, "__ptr"); // The WASM instance we stored earlier
+  lua.lua_pushcclosure(L, wasmDispatcher, 2);
+
+  // Save to Cache
+  lua.lua_pushvalue(L, 2);
+  lua.lua_pushvalue(L, -2);
+  lua.lua_settable(L, cacheIdx);
+
+  return 1;
+}
+
+function createWasmLuaBridge(L, wasmInstance) {
+  lua.lua_newtable(L); // The Proxy Object
+  lua.lua_pushlightuserdata(L, wasmInstance);
+  lua.lua_setfield(L, -2, "__ptr");
+
+  // Create Metatable
+  lua.lua_newtable(L);
+
+  // Create the Cache Table
+  lua.lua_newtable(L);
+  lua.lua_newtable(L); // Metatable for the Cache
+  lua.lua_pushstring(L, "v");
+  lua.lua_setfield(L, -2, "__mode"); // Make it weak-valued
+  lua.lua_setmetatable(L, -2);
+  lua.lua_setfield(L, -2, "__cache");
+
+  // Set __index
+  lua.lua_pushcfunction(L, mt_index);
+  lua.lua_setfield(L, -2, "__index");
+
+  lua.lua_setmetatable(L, -2);
+
+  lua.lua_setglobal(L, "Game");
+  return 1;
+}
+
 export class LuaJSSidecar {
   constructor(wasm) {
     this.wasm = wasm;
@@ -41,6 +143,8 @@ export class LuaJSSidecar {
     // Queue state
     this.queue = [];
     this.isProcessing = false;
+
+    createWasmLuaBridge(this.L, this.wasm);
 
     // Fix: index 1 is the message
     lua.lua_register(this.L, to_luastring("_lua_log"), (L) => {
@@ -180,7 +284,7 @@ export class LuaJSSidecar {
 
   async handleYield(cmd, args) {
     switch (cmd) {
-      case LuaBuildCacheFunctionNo.FUNC_LOAD_ARCHIVE: {
+      case LuaCacheFunctionNo.FUNC_LOAD_ARCHIVE: {
         const searchParams = new URLSearchParams();
         searchParams.append("epoch", "base");
         searchParams.append("table_id", args[0]);
@@ -193,6 +297,22 @@ export class LuaJSSidecar {
         }
 
         const data = await response.arrayBuffer();
+      }
+      case LuaCacheFunctionNo.FUNC_LOAD_ARCHIVES: {
+        const searchParams = new URLSearchParams();
+        searchParams.append("epoch", "base");
+        searchParams.append("table_id", args[0]);
+        searchParams.append("archive_ids", args[1]);
+        searchParams.append("flags", args[2]);
+        const response = await fetch(
+          `/api/load_archives?${searchParams.toString()}`,
+        );
+        if (!response.ok) {
+          return [];
+        }
+
+        const data = await response.arrayBuffer();
+        return [];
       }
       default: {
         const argsPtr = this.wasm._malloc(args.length * 8);

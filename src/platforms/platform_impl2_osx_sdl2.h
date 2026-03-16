@@ -2,9 +2,9 @@
 #define PLATFORM_IMPL2_OSX_SDL2_H
 
 extern "C" {
-#include "common/luac_sidecar.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/ginput.h"
+#include "osrs/lua_sidecar/luac_sidecar.h"
 #include "tori_rs_render.h"
 }
 #include <SDL.h>

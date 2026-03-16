@@ -128,7 +128,8 @@ set(COMMON_SOURCES
     src/osrs/revs/revpacket_lc245_2_query.c
     src/osrs/entity_scenebuild.c
     src/platforms/common/sockstream.c
-    src/platforms/common/luac_sidecar.c
+    src/osrs/lua_sidecar/lua_cachedat_sidecar.c
+    src/osrs/lua_sidecar/luac_sidecar.c
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
