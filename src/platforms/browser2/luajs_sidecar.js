@@ -39,10 +39,14 @@ function wasmDispatcher(L) {
   const args = gt.newVarTypeArray(nargs + 1);
   if (!args) return lua.lua_error(L);
 
-  const [strPtr, strLen] = gt.stringToWasm(func_name ?? "");
+  const [strPtr, strLen] = gt.stringToWasm(luaString(func_name) ?? "");
+
+  console.log("strPtr: ", strPtr);
+  console.log("strLen: ", strLen);
   const funcNameElem = gt.newString(strPtr, strLen);
   if (funcNameElem) gt.varTypeArrayPush(args, funcNameElem);
-  if (strPtr) ctx.wasm._free(strPtr);
+
+  console.log("func_name: ", luaString(func_name));
 
   for (let i = 1; i <= nargs; i++) {
     const elem = fromLua(L, i, gt, ctx.wasm);

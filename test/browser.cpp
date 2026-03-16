@@ -59,7 +59,23 @@ luajs_sidecar_callback(
     struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)ctx;
 
     // Dispatch by string name.
+    struct LuaGameType* command_gametype = LuaGameType_GetVarTypeArrayAt(args, 0);
+    assert(command_gametype->kind == LUAGAMETYPE_STRING);
+    printf("Lua callback received command gametype\n");
+    int len = LuaGameType_GetStringLength(command_gametype);
+    printf("Command length: %d\n", len);
+    const char* command = LuaGameType_GetString(command_gametype);
+    for( int i = 0; i < 10; i++ )
+    {
+        printf("%c", (uint8_t)command[i]);
+    }
+    printf("\n");
+    printf("Command: %s\n", command);
 
+    if( strcmp(command, "multiply") == 0 )
+    {
+        printf("Test command received\n");
+    }
     return LuaGameType_NewVoid();
 }
 

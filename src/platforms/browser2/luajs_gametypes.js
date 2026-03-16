@@ -168,9 +168,23 @@ export function createLuaGameTypes(wasm) {
       const encoder = new TextEncoder();
       const encoded = encoder.encode(str);
       const len = encoded.length;
+
+      // 1. Allocate memory
       const ptr = malloc(len + 1);
-      new Uint8Array(memory, ptr, len + 1).set(encoded);
-      new Uint8Array(memory, ptr + len, 1)[0] = 0;
+
+      // 2. Access the LIVE buffer.
+
+      const buffer = wasm.HEAPU8.buffer;
+
+      // 3. Create a view of the ENTIRE heap
+      const heap = new Uint8Array(buffer);
+
+      // 4. Copy the encoded bytes directly into the heap at the pointer offset
+      heap.set(encoded, ptr);
+
+      // 5. Explicitly null-terminate
+      heap[ptr + len] = 0;
+
       return [ptr, len];
     },
 
@@ -272,7 +286,6 @@ export function fromLua(L, idx, gt, wasm) {
         lua.lua_tostring(L, absIdx) ?? "",
       );
       const elem = gt.newString(strPtr, strLen);
-      if (strPtr) wasm._free(strPtr);
       return elem;
     }
     case lua.LUA_TLIGHTUSERDATA:
