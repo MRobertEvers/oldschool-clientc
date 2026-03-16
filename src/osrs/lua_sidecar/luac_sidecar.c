@@ -304,3 +304,70 @@ LuaCSidecar_YieldResultPushArchive(
     result->type = 0;
     result->_archive.ptr = archive;
 }
+
+int
+LuaCSidecar_RunScript(
+    struct LuaCSidecar* sidecar,
+    struct LuaCScriptCall* script_call,
+    struct LuaCYield* out_yield)
+{
+    lua_State* co = lua_newthread(sidecar->L);
+    sidecar->L_coro = co;
+
+    char filepath[256] = { 0 };
+    snprintf(filepath, sizeof filepath, "%s/%s", LUA_SCRIPTS_DIR, script_call->name);
+
+    if( luaL_loadfile(co, filepath) != LUA_OK )
+    {
+        fprintf(stderr, "core.lua load error: %s\n", lua_tostring(co, -1));
+        lua_close(sidecar->L);
+        return -1;
+    }
+
+    printf("=== Lua native host ===\n\n");
+
+    struct LuaCYieldResult in_yield_result = { 0 };
+    for( int i = 0; i < script_call->argno && i < 10; i++ )
+    {
+    }
+
+    int rc = step_coroutine(co, sidecar->L, "native", out_yield, &in_yield_result);
+    if( rc == LUACSIDECAR_YIELDED )
+        return rc;
+    else if( rc != LUACSIDECAR_DONE )
+    {
+        fprintf(stderr, "core.lua runtime error: %s\n", lua_tostring(co, -1));
+        assert(false && "Lua error");
+        return -1;
+    }
+
+    // pop the thread
+    lua_pop(sidecar->L, 1);
+    sidecar->L_coro = NULL;
+    return LUACSIDECAR_DONE;
+}
+
+int
+LuaCSidecar_ResumeScript(
+    struct LuaCSidecar* sidecar,
+    struct LuaCAsyncCall* out_async_call,
+    struct LuaCAsyncResult* in_async_result)
+{
+    lua_State* co = sidecar->L_coro;
+    assert(co != NULL && "No coroutine to resume");
+
+    int rc = step_coroutine(co, sidecar->L, "native", out_async_call, in_async_result);
+    if( rc == LUACSIDECAR_YIELDED )
+        return rc;
+    else if( rc != LUACSIDECAR_DONE )
+    {
+        fprintf(stderr, "core.lua runtime error: %s\n", lua_tostring(co, -1));
+        assert(false && "Lua error");
+        return -1;
+    }
+
+    // pop the thread
+    lua_pop(sidecar->L, 1);
+    sidecar->L_coro = NULL;
+    return LUACSIDECAR_DONE;
+}

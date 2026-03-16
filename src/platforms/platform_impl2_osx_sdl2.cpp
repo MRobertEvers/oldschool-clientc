@@ -542,22 +542,19 @@ static void
 on_lua_async_call(
     struct Platform2_OSX_SDL2* platform,
     struct GGame* game,
-    struct LuaCAsyncCall* async_call,
-    struct LuaCAsyncResult* result)
+    struct LuaCYield* yield,
+    struct LuaCYieldResult* yield_result)
 {
     struct CacheDatArchive* archive = NULL;
     struct BuildCacheDat* buildcachedat = game ? game->buildcachedat : platform->buildcachedat;
     struct CacheDat* cache_dat = game ? game->cache_dat : platform->cache_dat;
 
-    memset(result, 0, sizeof(*result));
+    memset(yield_result, 0, sizeof(*yield_result));
 
-    switch( async_call->command )
+    switch( yield->command )
     {
     case FUNC_LOAD_ARCHIVE:
-        LuaCSidecar_CachedatLoadArchive(cache_dat, async_call, result);
-        break;
-    case FUNC_LOAD_ARCHIVES:
-        LuaCSidecar_CachedatLoadArchives(cache_dat, async_call, result);
+        LuaCSidecar_CachedatLoadArchive(cache_dat, yield, yield_result);
         break;
     default:
         assert(false && "Unknown cachedat function");
@@ -594,8 +591,8 @@ Platform2_OSX_SDL2_RunLuaScripts(
             return;
 
         struct LuaCScriptCall script_call = { 0 };
-        struct LuaCAsyncCall async_call = { 0 };
-        struct LuaCAsyncResult async_result = { 0 };
+        struct LuaCYield yield = { 0 };
+        struct LuaCYieldResult yield_result = { 0 };
         int script_status = 0;
 
         strcpy(script_call.name, script.name);
@@ -609,14 +606,13 @@ Platform2_OSX_SDL2_RunLuaScripts(
             script_call.argno += 1;
         }
 
-        script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script_call, &async_call);
+        script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script_call, &yield);
         while( script_status == LUACSIDECAR_YIELDED )
         {
-            on_lua_async_call(platform, NULL, &async_call, &async_result);
-            memset(&async_call, 0, sizeof(async_call));
+            on_lua_async_call(platform, NULL, &yield, &yield_result);
+            memset(&yield, 0, sizeof(yield));
 
-            script_status =
-                LuaCSidecar_ResumeScript(platform->lua_sidecar, &async_call, &async_result);
+            script_status = LuaCSidecar_ResumeScript(platform->lua_sidecar, &yield, &yield_result);
             memset(&async_result, 0, sizeof(async_result));
         }
     }

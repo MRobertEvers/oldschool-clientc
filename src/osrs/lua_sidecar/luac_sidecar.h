@@ -65,4 +65,16 @@ LuaCSidecar_YieldResultPushArchive(
     struct LuaCYieldResult* result,
     void* archive);
 
+void
+LuaCSidecar_RunScript(
+    struct LuaCSidecar* sidecar,
+    struct LuaCScriptCall* script_call,
+    struct LuaCYield* yield);
+
+void
+LuaCSidecar_ResumeScript(
+    struct LuaCSidecar* sidecar,
+    struct LuaCYield* yield,
+    struct LuaCYieldResult* yield_result);
+
 #endif
