@@ -47,6 +47,56 @@ LuaGameType_NewIntArray(
 }
 
 struct LuaGameType*
+LuaGameType_NewVarTypeArray(int hint)
+{
+    struct LuaGameType* game_type = malloc(sizeof(struct LuaGameType));
+    if( !game_type )
+        return NULL;
+    memset(game_type, 0, sizeof(*game_type));
+    game_type->kind = LUAGAMETYPE_VARTYPE_ARRAY;
+    game_type->_var_type_array.var_types = malloc(sizeof(struct LuaGameType*) * hint);
+    game_type->_var_type_array.count = 0;
+    game_type->_var_type_array.capacity = hint;
+    return game_type;
+}
+
+void
+LuaGameType_VarTypeArrayPush(
+    struct LuaGameType* var_type_array,
+    struct LuaGameType* var_type)
+{
+    if( var_type_array->kind != LUAGAMETYPE_VARTYPE_ARRAY )
+        return;
+
+    if( var_type_array->_var_type_array.count >= var_type_array->_var_type_array.capacity )
+    {
+        var_type_array->_var_type_array.capacity *= 2;
+        var_type_array->_var_type_array.var_types = realloc(
+            var_type_array->_var_type_array.var_types,
+            sizeof(struct LuaGameType*) * var_type_array->_var_type_array.capacity);
+    }
+
+    var_type_array->_var_type_array.var_types[var_type_array->_var_type_array.count++] = var_type;
+}
+
+int
+LuaGameType_GetVarTypeArrayCount(struct LuaGameType* game_type)
+{
+    assert(game_type->kind == LUAGAMETYPE_VARTYPE_ARRAY);
+    return game_type->_var_type_array.count;
+}
+
+struct LuaGameType*
+LuaGameType_GetVarTypeArrayAt(
+    struct LuaGameType* game_type,
+    int index)
+{
+    assert(game_type->kind == LUAGAMETYPE_VARTYPE_ARRAY);
+    assert(index >= 0 && index < game_type->_var_type_array.count);
+    return game_type->_var_type_array.var_types[index];
+}
+
+struct LuaGameType*
 LuaGameType_NewBool(bool value)
 {
     struct LuaGameType* game_type = malloc(sizeof(struct LuaGameType));
@@ -111,8 +161,15 @@ LuaGameType_NewVoid(void)
 void
 LuaGameType_Free(struct LuaGameType* game_type)
 {
-    if( game_type )
-        free(game_type);
+    if( !game_type )
+        return;
+    if( game_type->kind == LUAGAMETYPE_VARTYPE_ARRAY )
+    {
+        for( int i = 0; i < game_type->_var_type_array.count; i++ )
+            LuaGameType_Free(game_type->_var_type_array.var_types[i]);
+        free(game_type->_var_type_array.var_types);
+    }
+    free(game_type);
 }
 
 enum LuaGameTypeKind

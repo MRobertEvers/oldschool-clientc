@@ -51,7 +51,7 @@ emscripten_main_loop(void* arg)
     signal_browser_looped();
 }
 
-void
+struct LuaGameType*
 luajs_sidecar_callback(
     void* arg,
     char* name,
@@ -61,6 +61,8 @@ luajs_sidecar_callback(
     struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)arg;
 
     // Dispatch by string name.
+
+    return LuaGameType_NewVoid();
 }
 
 int

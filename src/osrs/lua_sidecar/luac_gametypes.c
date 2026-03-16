@@ -102,7 +102,19 @@ LuacGameType_FromLua(struct lua_State* L, int idx)
                 return gt;
             }
 
-            return LuaGameType_NewVoid();
+            /* Mixed sequence -> VarTypeArray */
+            struct LuaGameType* arr = LuaGameType_NewVarTypeArray((int)n > 0 ? (int)n : 4);
+            if( !arr )
+                return NULL;
+            for( lua_Integer i = 1; i <= n; i++ )
+            {
+                lua_rawgeti(L, idx, i);
+                struct LuaGameType* elem = LuacGameType_FromLua(L, -1);
+                lua_pop(L, 1);
+                if( elem )
+                    LuaGameType_VarTypeArrayPush(arr, elem);
+            }
+            return arr;
         }
 
         default:
@@ -173,6 +185,18 @@ LuacGameType_PushToLua(struct lua_State* L, struct LuaGameType* gt)
             break;
         }
 
+        case LUAGAMETYPE_VARTYPE_ARRAY: {
+            int n = LuaGameType_GetVarTypeArrayCount(gt);
+            lua_createtable(L, n, 0);
+            for( int i = 0; i < n; i++ )
+            {
+                struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(gt, i);
+                LuacGameType_PushToLua(L, elem);
+                lua_rawseti(L, -2, i + 1);
+            }
+            break;
+        }
+
         default:
             lua_pushnil(L);
             break;
@@ -199,5 +223,6 @@ LuacGameType_Free(struct LuaGameType* gt)
         void* data = LuaGameType_GetUserDataArray(gt);
         free(data);
     }
+    /* VARTYPE_ARRAY is freed recursively by LuaGameType_Free */
     LuaGameType_Free(gt);
 }

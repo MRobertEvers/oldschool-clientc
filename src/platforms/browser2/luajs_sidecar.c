@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 EMSCRIPTEN_KEEPALIVE
-void
+struct LuaGameType*
 dispatch_lua_command(
     int cmd,
     int argc,
@@ -20,14 +20,17 @@ dispatch_lua_command(
 
     assert(fn != 0 && ctx != 0);
 
-    void (*callback)(void*, int, int, uint64_t*) = (void (*)(void*, int, int, uint64_t*))fn;
-    callback((void*)ctx, cmd, argc, args);
+    struct LuaGameType* (*callback)(void*, int, int, uint64_t*) =
+        (struct LuaGameType * (*)(void*, int, int, uint64_t*)) fn;
+    struct LuaGameType* result = callback((void*)ctx, cmd, argc, args);
+
+    return result;
 }
 
 // TODO: This should be tied to the wasm module.
 void
 luajs_sidecar_set_callback(
-    void (*callback)(
+    struct LuaGameType* (*callback)(
         void*,
         int,
         int,

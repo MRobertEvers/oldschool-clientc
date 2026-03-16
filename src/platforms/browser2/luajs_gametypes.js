@@ -9,11 +9,12 @@ export const LuaGameTypeKind = {
   USERDATA: 0,
   USERDATA_ARRAY: 1,
   INT_ARRAY: 2,
-  BOOL: 3,
-  INT: 4,
-  FLOAT: 5,
-  STRING: 6,
-  VOID: 7,
+  VARTYPE_ARRAY: 3,
+  BOOL: 4,
+  INT: 5,
+  FLOAT: 6,
+  STRING: 7,
+  VOID: 8,
 };
 
 /**
@@ -42,6 +43,12 @@ export function createLuaGameTypes(wasm) {
   const newUserData = getExport("luajs_LuaGameType_NewUserData");
   const newUserDataArray = getExport("luajs_LuaGameType_NewUserDataArray");
   const newIntArray = getExport("luajs_LuaGameType_NewIntArray");
+  const newVarTypeArray = getExport("luajs_LuaGameType_NewVarTypeArray");
+  const varTypeArrayPush = getExport("luajs_LuaGameType_VarTypeArrayPush");
+  const getVarTypeArrayCount = getExport(
+    "luajs_LuaGameType_GetVarTypeArrayCount",
+  );
+  const getVarTypeArrayAt = getExport("luajs_LuaGameType_GetVarTypeArrayAt");
   const newBool = getExport("luajs_LuaGameType_NewBool");
   const newInt = getExport("luajs_LuaGameType_NewInt");
   const newFloat = getExport("luajs_LuaGameType_NewFloat");
@@ -91,6 +98,15 @@ export function createLuaGameTypes(wasm) {
         const arr = new Int32Array(memory, dataPtr, count);
         return { kind: "int_array", value: Array.from(arr) };
       }
+      case LuaGameTypeKind.VARTYPE_ARRAY: {
+        const count = getVarTypeArrayCount(ptr);
+        const arr = [];
+        for (let i = 0; i < count; i++) {
+          const elemPtr = getVarTypeArrayAt(ptr, i);
+          arr.push(read(elemPtr));
+        }
+        return { kind: "var_type_array", value: arr };
+      }
       case LuaGameTypeKind.BOOL:
         return { kind: "bool", value: !!getBool(ptr) };
       case LuaGameTypeKind.INT:
@@ -124,6 +140,9 @@ export function createLuaGameTypes(wasm) {
     newUserData: (userdata) => newUserData(userdata),
     newUserDataArray: (userdata, count) => newUserDataArray(userdata, count),
     newIntArray: (valuesPtr, count) => newIntArray(valuesPtr, count),
+    newVarTypeArray: (hint) => newVarTypeArray(hint),
+    varTypeArrayPush: (arrPtr, elemPtr) =>
+      varTypeArrayPush(arrPtr, elemPtr),
     newBool: (value) => newBool(value ? 1 : 0),
     newInt: (value) => newInt(value),
     newFloat: (value) => newFloat(value),
@@ -151,48 +170,4 @@ export function createLuaGameTypes(wasm) {
       return ptr;
     },
   };
-}
-
-/**
- * Pushes a JS value onto the Lua stack. Arrays become Lua tables (1-based).
- * Objects become Lua tables with string keys.
- *
- * @param {lua_State} L - Lua state
- * @param {*} value - JS value: number, boolean, string, null, undefined, Array, or plain object
- */
-export function pushToLua(L, value) {
-  if (value === null || value === undefined) {
-    lua.lua_pushnil(L);
-    return;
-  }
-  if (typeof value === "number") {
-    lua.lua_pushnumber(L, value);
-    return;
-  }
-  if (typeof value === "boolean") {
-    lua.lua_pushboolean(L, value ? 1 : 0);
-    return;
-  }
-  if (typeof value === "string") {
-    lua.lua_pushstring(L, to_luastring(value));
-    return;
-  }
-  if (Array.isArray(value)) {
-    lua.lua_newtable(L);
-    for (let i = 0; i < value.length; i++) {
-      pushToLua(L, value[i]);
-      lua.lua_rawseti(L, -2, i + 1);
-    }
-    return;
-  }
-  if (typeof value === "object" && value !== null) {
-    lua.lua_newtable(L);
-    for (const k of Object.keys(value)) {
-      pushToLua(L, k);
-      pushToLua(L, value[k]);
-      lua.lua_settable(L, -3);
-    }
-    return;
-  }
-  lua.lua_pushnil(L);
 }

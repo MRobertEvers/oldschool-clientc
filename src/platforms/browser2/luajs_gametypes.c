@@ -33,6 +33,38 @@ luajs_LuaGameType_NewIntArray(
 
 EMSCRIPTEN_KEEPALIVE
 struct LuaGameType*
+luajs_LuaGameType_NewVarTypeArray(int hint)
+{
+    return LuaGameType_NewVarTypeArray(hint);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+luajs_LuaGameType_VarTypeArrayPush(
+    struct LuaGameType* var_type_array,
+    struct LuaGameType* var_type)
+{
+    LuaGameType_VarTypeArrayPush(var_type_array, var_type);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int
+luajs_LuaGameType_GetVarTypeArrayCount(struct LuaGameType* game_type)
+{
+    return LuaGameType_GetVarTypeArrayCount(game_type);
+}
+
+EMSCRIPTEN_KEEPALIVE
+struct LuaGameType*
+luajs_LuaGameType_GetVarTypeArrayAt(
+    struct LuaGameType* game_type,
+    int index)
+{
+    return LuaGameType_GetVarTypeArrayAt(game_type, index);
+}
+
+EMSCRIPTEN_KEEPALIVE
+struct LuaGameType*
 luajs_LuaGameType_NewBool(bool value)
 {
     return LuaGameType_NewBool(value);
