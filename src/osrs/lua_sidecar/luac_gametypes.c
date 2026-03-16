@@ -223,6 +223,14 @@ LuacGameType_Free(struct LuaGameType* gt)
         void* data = LuaGameType_GetUserDataArray(gt);
         free(data);
     }
-    /* VARTYPE_ARRAY is freed recursively by LuaGameType_Free */
+    else if( LuaGameType_GetKind(gt) == LUAGAMETYPE_VARTYPE_ARRAY )
+    {
+        int n = LuaGameType_GetVarTypeArrayCount(gt);
+        for( int i = 0; i < n; i++ )
+            LuacGameType_Free(LuaGameType_GetVarTypeArrayAt(gt, i));
+        free(gt->_var_type_array.var_types);
+        free(gt);
+        return;
+    }
     LuaGameType_Free(gt);
 }

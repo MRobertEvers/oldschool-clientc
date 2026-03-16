@@ -5,6 +5,8 @@
 #include "3rd/lua/lualib.h"
 #include "osrs/game.h"
 #include "osrs/lua_scripts.h"
+#include "osrs/lua_sidecar/lua_gametypes.h"
+#include "osrs/lua_sidecar/luac_gametypes.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,83 +18,117 @@
 static int
 c_wasm_dispatcher(lua_State* L)
 {
-    // Upvalue 1: The method name
+    printf("c_wasm_dispatcher\n");
     const char* func_name = lua_tostring(L, lua_upvalueindex(1));
-    // Upvalue 2: The Context Pointer (e.g., your WASM environment or C struct)
     void* ctx = lua_touserdata(L, lua_upvalueindex(2));
+    LuaCSidecar_GameCallback callback =
+        (LuaCSidecar_GameCallback)lua_touserdata(L, lua_upvalueindex(3));
 
-    // Logic: Look up func_name in your WASM exports and execute it.
-    // This part depends on your specific WASM runtime (e.g., Wasmtime, Wasmer, or a custom engine)
-    printf("C Dispatch: Calling '%s' on context %p\n", func_name, ctx);
+    if( !callback )
+    {
+        printf("C Dispatch: Calling '%s' on context %p (no callback)\n", func_name, ctx);
+        return 1;
+    }
 
-    // Pull arguments from the Lua stack (1, 2, ...) and pass to WASM
-    // Push results back to L
-    return 1;
+    /* Build args as VarTypeArray [func_name_string, arg1, arg2, ...] */
+    int nargs = lua_gettop(L);
+    struct LuaGameType* args = LuaGameType_NewVarTypeArray(nargs + 1);
+    if( !args )
+        return lua_error(L);
+
+    char* func_name_copy = func_name ? strdup(func_name) : strdup("");
+    if( !func_name_copy )
+    {
+        LuaGameType_Free(args);
+        return lua_error(L);
+    }
+    LuaGameType_VarTypeArrayPush(
+        args, LuaGameType_NewString(func_name_copy, (int)strlen(func_name_copy)));
+
+    for( int i = 1; i <= nargs; i++ )
+    {
+        struct LuaGameType* elem = LuacGameType_FromLua(L, i);
+        if( elem )
+            LuaGameType_VarTypeArrayPush(args, elem);
+    }
+
+    struct LuaGameType* result = callback(ctx, args);
+    LuacGameType_Free(args);
+
+    if( result )
+    {
+        LuacGameType_PushToLua(L, result);
+        LuacGameType_Free(result);
+        return 1;
+    }
+    return 0;
 }
-
 static int
 mt_index(lua_State* L)
 {
-    // Stack: [1] table, [2] key (name)
+    // Access the pointers baked into THIS specific mt_index instance
+    void* ctx = lua_touserdata(L, lua_upvalueindex(1));
+    void* callback = lua_touserdata(L, lua_upvalueindex(2));
 
     // 1. Get the cache from the metatable
-    lua_getmetatable(L, 1);
-    lua_getfield(L, -1, "__cache"); // Stack: [3] metatable, [4] cache_table
+    if( !lua_getmetatable(L, 1) )
+        return 0;
+    lua_pushstring(L, "__cache");
+    lua_rawget(L, -2);
+    int cache_idx = lua_gettop(L);
 
-    // 2. Check cache[key]
+    // 2. Check cache
     lua_pushvalue(L, 2);
-    lua_gettable(L, 4);
+    lua_rawget(L, cache_idx);
     if( !lua_isnil(L, -1) )
-    {
-        return 1; // Hit! Return existing closure
-    }
-    lua_pop(L, 1); // Pop nil
+        return 1;
+    lua_pop(L, 1);
 
-    // 3. Cache Miss: Create closure
-    lua_pushvalue(L, 2);         // Upvalue 1: Name
-    lua_getfield(L, 1, "__ptr"); // Upvalue 2: Context Pointer
-    lua_pushcclosure(L, c_wasm_dispatcher, 2);
+    // 3. Create dispatcher with 3 upvalues
+    lua_pushvalue(L, 2);                // UV 1: func_name
+    lua_pushlightuserdata(L, ctx);      // UV 2: ctx
+    lua_pushlightuserdata(L, callback); // UV 3: callback
+    lua_pushcclosure(L, c_wasm_dispatcher, 3);
 
-    // 4. Update Cache: cache[name] = closure
+    // 4. Store in cache
     lua_pushvalue(L, 2);
     lua_pushvalue(L, -2);
-    lua_settable(L, 4);
+    lua_rawset(L, cache_idx);
 
     return 1;
 }
-
-int
+static int
 create_wasm_object(
     lua_State* L,
-    void* wasm_ctx)
+    void* wasm_ctx,
+    LuaCSidecar_GameCallback callback)
 {
-    // 1. Create the Object Table
-    lua_newtable(L);
-    lua_pushlightuserdata(L, wasm_ctx);
-    lua_setfield(L, -2, "__ptr");
+    lua_newtable(L); // The Object "Game"
 
-    // 2. Create the Metatable
+    // 1. Create the metatable
     lua_newtable(L);
 
-    // 3. Create the Cache Table (with weak values)
-    lua_newtable(L); // The cache table
-    lua_newtable(L); // Metatable for the cache
+    // 2. Create and attach the cache table to the metatable
+    lua_pushstring(L, "__cache");
+    lua_newtable(L);
+    lua_newtable(L); // Cache metatable for weak values
     lua_pushstring(L, "v");
     lua_setfield(L, -2, "__mode");
     lua_setmetatable(L, -2);
-    lua_setfield(L, -2, "__cache");
+    lua_rawset(L, -3); // mt.__cache = {}
 
-    // 4. Bind the indexer
-    lua_pushcfunction(L, mt_index);
+    // 3. Bind mt_index with 2 UPVALUES (ctx and callback)
+    // This is the "Magic" part: the pointers live in the C-closure of mt_index
+    lua_pushlightuserdata(L, wasm_ctx);
+    lua_pushlightuserdata(L, (void*)callback);
+    lua_pushcclosure(L, mt_index, 2);
     lua_setfield(L, -2, "__index");
 
-    // 5. Attach metatable to Object
+    // 4. Set metatable and Global
     lua_setmetatable(L, -2);
-
-    // 2. Pop it from the stack and assign it to the global name 'wasmObj'
     lua_setglobal(L, "Game");
 
-    return 1; // Returns the object to Lua
+    return 1;
 }
 
 /* ── Lua version compatibility ───────────────────────────────────────────── */
@@ -118,6 +154,8 @@ struct LuaCSidecar
 {
     lua_State* L;
     lua_State* L_coro;
+    void* ctx;
+    LuaCSidecar_GameCallback callback;
 };
 
 /* ── _lua_log(instance_id, msg) ──────────────────────────────────────────── */
@@ -199,15 +237,10 @@ step_coroutine(
     int nresume = 0; /* values on co's stack to pass as results of the yield */
     if( in_yield_result )
     {
-        if( in_yield_result->type == 0 )
+        if( in_yield_result->type == 1 )
         {
             lua_pushlightuserdata(co, in_yield_result->_archive.ptr);
             nresume++;
-        }
-        else
-        {
-            fprintf(stderr, "Unknown yield result type: %d\n", in_yield_result->type);
-            return -1;
         }
     }
 
@@ -250,12 +283,16 @@ step_coroutine(
 }
 
 struct LuaCSidecar*
-LuaCSidecar_New(void)
+LuaCSidecar_New(
+    void* ctx,
+    LuaCSidecar_GameCallback callback)
 {
     struct LuaCSidecar* sidecar = malloc(sizeof(struct LuaCSidecar));
     if( !sidecar )
         return NULL;
     memset(sidecar, 0, sizeof(*sidecar));
+    sidecar->ctx = ctx;
+    sidecar->callback = callback;
 
     sidecar->L = luaL_newstate();
     if( !sidecar->L )
@@ -280,7 +317,7 @@ LuaCSidecar_New(void)
     /* Pass the FULL path to the preloader */
     preload_module(sidecar->L, "cachedat", platform_path);
 
-    create_wasm_object(sidecar->L, NULL);
+    create_wasm_object(sidecar->L, sidecar->ctx, sidecar->callback);
 
     return sidecar;
 }
@@ -301,7 +338,7 @@ LuaCSidecar_YieldResultPushArchive(
     struct LuaCYieldResult* result,
     void* archive)
 {
-    result->type = 0;
+    result->type = 1;
     result->_archive.ptr = archive;
 }
 
@@ -350,13 +387,13 @@ LuaCSidecar_RunScript(
 int
 LuaCSidecar_ResumeScript(
     struct LuaCSidecar* sidecar,
-    struct LuaCAsyncCall* out_async_call,
-    struct LuaCAsyncResult* in_async_result)
+    struct LuaCYield* out_yield,
+    struct LuaCYieldResult* in_yield_result)
 {
     lua_State* co = sidecar->L_coro;
     assert(co != NULL && "No coroutine to resume");
 
-    int rc = step_coroutine(co, sidecar->L, "native", out_async_call, in_async_result);
+    int rc = step_coroutine(co, sidecar->L, "native", out_yield, in_yield_result);
     if( rc == LUACSIDECAR_YIELDED )
         return rc;
     else if( rc != LUACSIDECAR_DONE )

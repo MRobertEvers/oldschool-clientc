@@ -8,6 +8,9 @@ extern "C" {
 #include "osrs/game.h"
 #include "osrs/gio.h"
 #include "osrs/gio_cache_dat.h"
+#include "osrs/lua_sidecar/lua_buildcachedat.h"
+#include "osrs/lua_sidecar/lua_gametypes.h"
+#include "osrs/lua_sidecar/luac_gametypes.h"
 #include "osrs/lua_sidecar/luac_sidecar.h"
 #include "osrs/lua_sidecar/luac_sidecar_cachedat.h"
 #include "osrs/rscache/cache_dat.h"
@@ -38,6 +41,102 @@ extern "C" {
 
 #define CACHE_PATH "../cache254"
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
+
+static struct LuaGameType*
+game_callback(
+    void* ctx,
+    struct LuaGameType* args)
+{
+    struct Platform2_OSX_SDL2* platform = (struct Platform2_OSX_SDL2*)ctx;
+    return LuaGameType_NewVoid();
+    // struct BuildCacheDat* bcd = platform->buildcachedat;
+    // struct GGame* game = platform->current_game;
+
+    // if( !args || LuaGameType_GetKind(args) != LUAGAMETYPE_VARTYPE_ARRAY )
+    //     return NULL;
+    // int n = LuaGameType_GetVarTypeArrayCount(args);
+    // if( n < 1 )
+    //     return NULL;
+
+    // struct LuaGameType* func_name_gt = LuaGameType_GetVarTypeArrayAt(args, 0);
+    // if( LuaGameType_GetKind(func_name_gt) != LUAGAMETYPE_STRING )
+    //     return NULL;
+    // const char* name = LuaGameType_GetString(func_name_gt);
+
+    // /* call_args = VarTypeArray of args[1..n-1] (actual method args, no func name) */
+    // struct LuaGameType* call_args = LuaGameType_NewVarTypeArray(n > 1 ? n - 1 : 1);
+    // if( !call_args )
+    //     return NULL;
+    // for( int i = 1; i < n; i++ )
+    //     LuaGameType_VarTypeArrayPush(call_args, LuaGameType_GetVarTypeArrayAt(args, i));
+
+    // /* Functions needing GGame: ga = [game, args[1], args[2], ...]. ga owns elements from args.
+    // */ auto build_ga_with_game = [&]() {
+    //     struct LuaGameType* ga = LuaGameType_NewVarTypeArray(n);
+    //     LuaGameType_VarTypeArrayPush(ga, LuaGameType_NewUserData(game));
+    //     for( int i = 1; i < n; i++ )
+    //         LuaGameType_VarTypeArrayPush(ga, LuaGameType_GetVarTypeArrayAt(args, i));
+    //     return ga;
+    // };
+
+    // if( strcmp(name, "init_varp_varbit_from_config_jagfile") == 0 )
+    // {
+    //     struct LuaGameType* ga = build_ga_with_game();
+    //     LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(bcd, ga);
+    //     LuacGameType_Free(ga);
+    //     free(call_args->_var_type_array.var_types);
+    //     free(call_args);
+    //     return NULL;
+    // }
+    // if( strcmp(name, "load_component_sprites_from_media") == 0 )
+    // {
+    //     struct LuaGameType* ga = LuaGameType_NewVarTypeArray(1);
+    //     LuaGameType_VarTypeArrayPush(ga, LuaGameType_NewUserData(game));
+    //     LuaBuildCacheDat_load_component_sprites_from_media(bcd, ga);
+    //     LuaGameType_Free(ga);
+    //     LuaGameType_Free(call_args);
+    //     return NULL;
+    // }
+    // if( strcmp(name, "cache_textures") == 0 )
+    // {
+    //     struct LuaGameType* ga = build_ga_with_game();
+    //     LuaBuildCacheDat_cache_textures(bcd, ga);
+    //     LuacGameType_Free(ga);
+    //     free(call_args->_var_type_array.var_types);
+    //     free(call_args);
+    //     return NULL;
+    // }
+    // if( strcmp(name, "cache_media") == 0 )
+    // {
+    //     struct LuaGameType* ga = build_ga_with_game();
+    //     LuaBuildCacheDat_cache_media(bcd, ga);
+    //     LuacGameType_Free(ga);
+    //     free(call_args->_var_type_array.var_types);
+    //     free(call_args);
+    //     return NULL;
+    // }
+    // if( strcmp(name, "cache_title") == 0 )
+    // {
+    //     struct LuaGameType* ga = build_ga_with_game();
+    //     LuaBuildCacheDat_cache_title(bcd, ga);
+    //     LuacGameType_Free(ga);
+    //     free(call_args->_var_type_array.var_types);
+    //     free(call_args);
+    //     return NULL;
+    // }
+    // if( strcmp(name, "finalize_scene") == 0 )
+    // {
+    //     struct LuaGameType* ga = build_ga_with_game();
+    //     LuaBuildCacheDat_finalize_scene(bcd, ga);
+    //     LuacGameType_Free(ga);
+    //     free(call_args->_var_type_array.var_types);
+    //     free(call_args);
+    //     return NULL;
+    // }
+
+    // LuaGameType_Free(call_args);
+    // return NULL;
+}
 
 static void
 transform_mouse_coordinates(
@@ -98,7 +197,7 @@ Platform2_OSX_SDL2_New(void)
         (struct Platform2_OSX_SDL2*)malloc(sizeof(struct Platform2_OSX_SDL2));
     memset(platform, 0, sizeof(struct Platform2_OSX_SDL2));
 
-    platform->lua_sidecar = LuaCSidecar_New();
+    platform->lua_sidecar = LuaCSidecar_New(platform, game_callback);
     if( !platform->lua_sidecar )
     {
         free(platform);
@@ -581,6 +680,7 @@ Platform2_OSX_SDL2_RunLuaScripts(
     struct Platform2_OSX_SDL2* platform,
     struct GGame* game)
 {
+    platform->current_game = game;
     while( !LibToriRS_LuaScriptQueueIsEmpty(game) )
     {
         struct ToriRSPlatformScript script;
@@ -609,11 +709,11 @@ Platform2_OSX_SDL2_RunLuaScripts(
         script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script_call, &yield);
         while( script_status == LUACSIDECAR_YIELDED )
         {
-            on_lua_async_call(platform, NULL, &yield, &yield_result);
+            on_lua_async_call(platform, game, &yield, &yield_result);
             memset(&yield, 0, sizeof(yield));
 
             script_status = LuaCSidecar_ResumeScript(platform->lua_sidecar, &yield, &yield_result);
-            memset(&async_result, 0, sizeof(async_result));
+            memset(&yield_result, 0, sizeof(yield_result));
         }
     }
 }

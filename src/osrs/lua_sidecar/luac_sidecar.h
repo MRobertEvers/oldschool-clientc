@@ -5,9 +5,14 @@
 #include <stdint.h>
 
 struct LuaCSidecar;
+struct LuaGameType;
+
+/** Callback: (ctx, args) -> result. args is VarTypeArray [func_name_string, arg1, arg2, ...].
+ * Returns malloc'd LuaGameType* or NULL for void. Caller frees result via LuacGameType_Free. */
+typedef struct LuaGameType* (*LuaCSidecar_GameCallback)(void* ctx, struct LuaGameType* args);
 
 struct LuaCSidecar*
-LuaCSidecar_New(void);
+LuaCSidecar_New(void* ctx, LuaCSidecar_GameCallback callback);
 
 void
 LuaCSidecar_Free(struct LuaCSidecar* sidecar);
@@ -65,13 +70,13 @@ LuaCSidecar_YieldResultPushArchive(
     struct LuaCYieldResult* result,
     void* archive);
 
-void
+int
 LuaCSidecar_RunScript(
     struct LuaCSidecar* sidecar,
     struct LuaCScriptCall* script_call,
     struct LuaCYield* yield);
 
-void
+int
 LuaCSidecar_ResumeScript(
     struct LuaCSidecar* sidecar,
     struct LuaCYield* yield,

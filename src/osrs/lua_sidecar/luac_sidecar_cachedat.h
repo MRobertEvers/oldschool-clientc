@@ -7,7 +7,7 @@
 void
 LuaCSidecar_CachedatLoadArchive(
     struct CacheDat* cache_dat,
-    struct LuaCAsyncCall* async_call,
-    struct LuaCAsyncResult* result);
+    struct LuaCYield* yield,
+    struct LuaCYieldResult* result);
 
 #endif

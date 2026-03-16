@@ -1,0 +1,174 @@
+#ifndef LUA_BUILDCACHEDAT_H
+#define LUA_BUILDCACHEDAT_H
+
+struct BuildCacheDat;
+struct GGame;
+struct LuaGameType;
+
+/** All functions take (struct BuildCacheDat*, struct LuaGameType* args).
+ * args is typically a VarTypeArray of positional arguments.
+ * For functions needing GGame, args[0] is userdata(GGame*).
+ * Functions that return values return a malloc'd LuaGameType* (caller must LuaGameType_Free).
+ * Functions that return void return NULL. */
+
+void
+LuaBuildCacheDat_cache_map_scenery(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_set_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_set_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_cache_map_terrain(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_has_map_terrain(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_has_map_scenery(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_has_model(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_has_animbaseframes(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_init_floortypes_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_init_scenery_configs_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_all_scenery_locs(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_scenery_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_npc_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_npc_head_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_idk_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_idk_head_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_obj_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_obj_head_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_obj(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_cache_model(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_load_interfaces(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_load_component_sprites_from_media(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_cache_textures(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_init_sequences_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_animbaseframes_count_from_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_cache_animbaseframes(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_cache_media(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_cache_title(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_init_idkits_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_init_objects_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+void
+LuaBuildCacheDat_finalize_scene(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+#endif
