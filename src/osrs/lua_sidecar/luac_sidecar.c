@@ -231,17 +231,15 @@ step_coroutine(
     lua_State* co,
     lua_State* from,
     const char* instance_id,
-    struct LuaCYield* out_yield,
-    struct LuaCYieldResult* in_yield_result)
+    struct LuaGameType* args,
+    struct LuaCYield* yield)
 {
     int nresume = 0; /* values on co's stack to pass as results of the yield */
-    if( in_yield_result )
+
+    if( args )
     {
-        if( in_yield_result->type == 1 )
-        {
-            lua_pushlightuserdata(co, in_yield_result->_archive.ptr);
-            nresume++;
-        }
+        LuacGameType_PushToLua(co, args);
+        nresume++;
     }
 
     int status = lua_resume_compat(co, from, nresume);
@@ -262,21 +260,25 @@ step_coroutine(
 
     /* ── Coroutine yielded – read the command tuple ────────────────── */
     int n = lua_gettop(co);
-    int cmd = (n >= 1) ? lua_tonumber(co, 1) : 0;
-    out_yield->command = cmd;
-    out_yield->argno = 0;
+    int cmd = (n >= 1) ? (int)lua_tonumber(co, 1) : 0;
+    yield->command = cmd;
 
-    for( int i = 1; i < n; i++ )
+    /* Build yield args as a VarTypeArray from Lua stack indices 2..n */
+    int narg = (n > 1) ? n - 1 : 0;
+    yield->args = NULL;
+    if( narg > 0 )
     {
-        if( i >= 10 )
-            break; /* too many args, ignore the rest */
-        int argno = out_yield->argno;
-        if( lua_isnumber(co, i + 1) )
-            out_yield->args[argno] = (int)lua_tonumber(co, i + 1);
-        else if( lua_isstring(co, i + 1) )
-            out_yield->args[argno] = (uint64_t)lua_tostring(co, i + 1);
-
-        out_yield->argno += 1;
+        struct LuaGameType* arr = LuaGameType_NewVarTypeArray(narg);
+        if( arr )
+        {
+            for( int i = 2; i <= n; i++ )
+            {
+                struct LuaGameType* elem = LuacGameType_FromLua(co, i);
+                if( elem )
+                    LuaGameType_VarTypeArrayPush(arr, elem);
+            }
+            yield->args = arr;
+        }
     }
 
     return LUACSIDECAR_YIELDED;
@@ -333,20 +335,12 @@ LuaCSidecar_Free(struct LuaCSidecar* sidecar)
     }
 }
 
-void
-LuaCSidecar_YieldResultPushArchive(
-    struct LuaCYieldResult* result,
-    void* archive)
-{
-    result->type = 1;
-    result->_archive.ptr = archive;
-}
-
 int
 LuaCSidecar_RunScript(
     struct LuaCSidecar* sidecar,
     struct LuaCScriptCall* script_call,
-    struct LuaCYield* out_yield)
+    struct LuaGameType* args,
+    struct LuaCYield* yield)
 {
     lua_State* co = lua_newthread(sidecar->L);
     sidecar->L_coro = co;
@@ -361,14 +355,7 @@ LuaCSidecar_RunScript(
         return -1;
     }
 
-    printf("=== Lua native host ===\n\n");
-
-    struct LuaCYieldResult in_yield_result = { 0 };
-    for( int i = 0; i < script_call->argno && i < 10; i++ )
-    {
-    }
-
-    int rc = step_coroutine(co, sidecar->L, "native", out_yield, &in_yield_result);
+    int rc = step_coroutine(co, sidecar->L, "native", args, yield);
     if( rc == LUACSIDECAR_YIELDED )
         return rc;
     else if( rc != LUACSIDECAR_DONE )
@@ -387,21 +374,15 @@ LuaCSidecar_RunScript(
 int
 LuaCSidecar_ResumeScript(
     struct LuaCSidecar* sidecar,
-    struct LuaCYield* out_yield,
-    struct LuaCYieldResult* in_yield_result)
+    struct LuaGameType* args,
+    struct LuaCYield* yield)
 {
     lua_State* co = sidecar->L_coro;
     assert(co != NULL && "No coroutine to resume");
 
-    int rc = step_coroutine(co, sidecar->L, "native", out_yield, in_yield_result);
+    int rc = step_coroutine(co, sidecar->L, "native", args, yield);
     if( rc == LUACSIDECAR_YIELDED )
         return rc;
-    else if( rc != LUACSIDECAR_DONE )
-    {
-        fprintf(stderr, "core.lua runtime error: %s\n", lua_tostring(co, -1));
-        assert(false && "Lua error");
-        return -1;
-    }
 
     // pop the thread
     lua_pop(sidecar->L, 1);

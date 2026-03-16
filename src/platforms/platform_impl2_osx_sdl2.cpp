@@ -48,9 +48,7 @@ game_callback(
     struct LuaGameType* args)
 {
     struct Platform2_OSX_SDL2* platform = (struct Platform2_OSX_SDL2*)ctx;
-    return LuaGameType_NewVoid();
-    // struct BuildCacheDat* bcd = platform->buildcachedat;
-    // struct GGame* game = platform->current_game;
+    struct BuildCacheDat* bcd = platform->buildcachedat;
 
     // if( !args || LuaGameType_GetKind(args) != LUAGAMETYPE_VARTYPE_ARRAY )
     //     return NULL;
@@ -637,27 +635,21 @@ Platform2_OSX_SDL2_PollIO(
     gioqb_remove_finalized(game->io);
 }
 
-static void
+static struct LuaGameType*
 on_lua_async_call(
     struct Platform2_OSX_SDL2* platform,
-    struct GGame* game,
-    struct LuaCYield* yield,
-    struct LuaCYieldResult* yield_result)
+    int command,
+    struct LuaGameType* args)
 {
-    struct CacheDatArchive* archive = NULL;
-    struct BuildCacheDat* buildcachedat = game ? game->buildcachedat : platform->buildcachedat;
-    struct CacheDat* cache_dat = game ? game->cache_dat : platform->cache_dat;
+    struct CacheDat* cache_dat = platform->cache_dat;
 
-    memset(yield_result, 0, sizeof(*yield_result));
-
-    switch( yield->command )
+    switch( command )
     {
     case FUNC_LOAD_ARCHIVE:
-        LuaCSidecar_CachedatLoadArchive(cache_dat, yield, yield_result);
-        break;
+        return LuaCSidecar_CachedatLoadArchive(cache_dat, args);
     default:
         assert(false && "Unknown cachedat function");
-        break;
+        return NULL;
     }
 }
 
@@ -675,6 +667,33 @@ lua_resume_compat(
 #define lua_resume_compat lua_resume
 #endif
 
+static struct LuaGameType*
+build_args(struct ToriRSPlatformScript* script)
+{
+    struct LuaGameType* args = LuaGameType_NewVarTypeArray(script->argno);
+
+    if( args )
+    {
+        for( int i = 0; i < script->argno && i < 10; i++ )
+        {
+            struct LuaGameType* arg = NULL;
+            switch( script->args[i].type )
+            {
+            case 0:
+                arg = LuaGameType_NewInt(script->args[i]._iarg);
+                break;
+            case 1:
+                arg =
+                    LuaGameType_NewString(script->args[i]._strarg, strlen(script->args[i]._strarg));
+                break;
+            }
+            if( arg )
+                LuaGameType_VarTypeArrayPush(args, arg);
+        }
+    }
+    return args;
+}
+
 void
 Platform2_OSX_SDL2_RunLuaScripts(
     struct Platform2_OSX_SDL2* platform,
@@ -691,29 +710,21 @@ Platform2_OSX_SDL2_RunLuaScripts(
             return;
 
         struct LuaCScriptCall script_call = { 0 };
+        strcpy(script_call.name, script.name);
         struct LuaCYield yield = { 0 };
-        struct LuaCYieldResult yield_result = { 0 };
         int script_status = 0;
 
-        strcpy(script_call.name, script.name);
-        for( int i = 0; i < script.argno && i < 10; i++ )
-        {
-            script_call.args[i].type = script.args[i].type;
-            if( script.args[i].type == 0 )
-                script_call.args[i]._iarg = script.args[i]._iarg;
-            else if( script.args[i].type == 1 )
-                script_call.args[i]._strarg = script.args[i]._strarg;
-            script_call.argno += 1;
-        }
+        struct LuaGameType* args = build_args(&script);
 
-        script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script_call, &yield);
+        script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script_call, args, &yield);
+        LuaGameType_Free(args);
+
         while( script_status == LUACSIDECAR_YIELDED )
         {
-            on_lua_async_call(platform, game, &yield, &yield_result);
-            memset(&yield, 0, sizeof(yield));
+            struct LuaGameType* result = on_lua_async_call(platform, yield.command, yield.args);
 
-            script_status = LuaCSidecar_ResumeScript(platform->lua_sidecar, &yield, &yield_result);
-            memset(&yield_result, 0, sizeof(yield_result));
+            script_status = LuaCSidecar_ResumeScript(platform->lua_sidecar, result, &yield);
+            LuaGameType_Free(result);
         }
     }
 }

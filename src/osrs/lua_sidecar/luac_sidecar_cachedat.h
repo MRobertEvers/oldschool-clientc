@@ -4,10 +4,9 @@
 #include "osrs/lua_sidecar/luac_sidecar.h"
 #include "osrs/rscache/cache_dat.h"
 
-void
+struct LuaGameType*
 LuaCSidecar_CachedatLoadArchive(
     struct CacheDat* cache_dat,
-    struct LuaCYield* yield,
-    struct LuaCYieldResult* result);
+    struct LuaGameType* args);
 
 #endif

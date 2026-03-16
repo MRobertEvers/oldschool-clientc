@@ -1,20 +1,22 @@
 #include "luac_sidecar_cachedat.h"
 
 #include "osrs/gio_cache_dat.h"
+#include "osrs/lua_sidecar/lua_gametypes.h"
 #include "osrs/lua_sidecar/luac_sidecar.h"
 #include "osrs/rscache/cache_dat.h"
 
 #include <assert.h>
 
-void
+struct LuaGameType*
 LuaCSidecar_CachedatLoadArchive(
     struct CacheDat* cache_dat,
-    struct LuaCYield* yield,
-    struct LuaCYieldResult* yield_result)
+    struct LuaGameType* args)
 {
-    int table_id = (int)yield->args[0];
-    int archive_id = (int)yield->args[1];
-    int flags = (int)yield->args[2];
+    assert(args && LuaGameType_GetVarTypeArrayCount(args) >= 3);
+
+    int table_id = LuaGameType_GetInt(LuaGameType_GetVarTypeArrayAt(args, 0));
+    int archive_id = LuaGameType_GetInt(LuaGameType_GetVarTypeArrayAt(args, 1));
+    int flags = LuaGameType_GetInt(LuaGameType_GetVarTypeArrayAt(args, 2));
 
     int cache_dat_table = table_id;
     struct CacheDatArchive* archive = NULL;
@@ -41,5 +43,5 @@ LuaCSidecar_CachedatLoadArchive(
     }
 
     assert(archive);
-    LuaCSidecar_YieldResultPushArchive(yield_result, archive);
+    return LuaGameType_NewUserData(archive);
 }
