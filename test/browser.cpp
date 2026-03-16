@@ -53,12 +53,10 @@ emscripten_main_loop(void* arg)
 
 struct LuaGameType*
 luajs_sidecar_callback(
-    void* arg,
-    char* name,
-    int argno,
-    uint64_t* args)
+    void* ctx,
+    struct LuaGameType* args)
 {
-    struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)arg;
+    struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)ctx;
 
     // Dispatch by string name.
 

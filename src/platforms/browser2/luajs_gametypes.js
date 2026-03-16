@@ -3,6 +3,18 @@
  * Structs are malloc'd in WASM; pointers are passed to JS.
  * Use this module to create, read, and free LuaGameType values.
  */
+const { lua } = window.fengari;
+
+/**
+ * Push a LuaGameType (by ptr) onto the Lua stack. Same as gt.pushToLua(lua, L, ptr).
+ * @param {Object} lua - Fengari lua namespace
+ * @param {lua_State} L - Lua state
+ * @param {number} ptr - Pointer to LuaGameType in WASM heap
+ * @param {Object} gt - LuaGameTypes API from createLuaGameTypes(wasm)
+ */
+export function LuajsGameType_PushToLua(lua, L, ptr, gt) {
+  gt.pushToLua(lua, L, ptr);
+}
 
 /** LuaGameTypeKind enum values (must match lua_gametypes.h) */
 export const LuaGameTypeKind = {
@@ -141,8 +153,7 @@ export function createLuaGameTypes(wasm) {
     newUserDataArray: (userdata, count) => newUserDataArray(userdata, count),
     newIntArray: (valuesPtr, count) => newIntArray(valuesPtr, count),
     newVarTypeArray: (hint) => newVarTypeArray(hint),
-    varTypeArrayPush: (arrPtr, elemPtr) =>
-      varTypeArrayPush(arrPtr, elemPtr),
+    varTypeArrayPush: (arrPtr, elemPtr) => varTypeArrayPush(arrPtr, elemPtr),
     newBool: (value) => newBool(value ? 1 : 0),
     newInt: (value) => newInt(value),
     newFloat: (value) => newFloat(value),
@@ -170,4 +181,161 @@ export function createLuaGameTypes(wasm) {
       return ptr;
     },
   };
+}
+
+export function pushToLua(L, obj) {
+  if (!obj) {
+    lua.lua_pushnil(L);
+    return;
+  }
+  switch (obj.kind) {
+    case "void":
+      lua.lua_pushnil(L);
+      break;
+    case "bool":
+      lua.lua_pushboolean(L, obj.value ? 1 : 0);
+      break;
+    case "int":
+      lua.lua_pushinteger(L, obj.value);
+      break;
+    case "float":
+      lua.lua_pushnumber(L, obj.value);
+      break;
+    case "string":
+      lua.lua_pushstring(L, obj.value ?? "");
+      break;
+    case "userdata":
+      lua.lua_pushlightuserdata(L, obj.value);
+      break;
+    case "userdata_array": {
+      lua.lua_createtable(L, obj.value.length, 0);
+      for (let i = 0; i < obj.value.length; i++) {
+        lua.lua_pushlightuserdata(L, obj.value[i]);
+        lua.lua_rawseti(L, -2, i + 1);
+      }
+      break;
+    }
+    case "int_array": {
+      lua.lua_createtable(L, obj.value.length, 0);
+      for (let i = 0; i < obj.value.length; i++) {
+        lua.lua_pushinteger(L, obj.value[i]);
+        lua.lua_rawseti(L, -2, i + 1);
+      }
+      break;
+    }
+    case "var_type_array": {
+      lua.lua_createtable(L, obj.value.length, 0);
+      for (let i = 0; i < obj.value.length; i++) {
+        pushToLua(L, obj.value[i]);
+        lua.lua_rawseti(L, -2, i + 1);
+      }
+      break;
+    }
+    default:
+      lua.lua_pushnil(L);
+  }
+}
+
+/**
+ * JS equivalent of LuacGameType_FromLua(L, idx).
+ * Reads the Lua value at stack index idx and returns a LuaGameType pointer (WASM).
+ * Handles nil, boolean, number (int/float), string, lightuserdata, and tables
+ * (int array, userdata array, or mixed VarTypeArray). Caller must gt.free(ptr).
+ *
+ * @param {lua_State} L - Lua state (or coroutine)
+ * @param {number} idx - Stack index (1-based or negative)
+ * @param {Object} gt - LuaGameTypes API from createLuaGameTypes(wasm)
+ * @param {Object} wasm - WASM instance (for _free when allocating temp buffers)
+ * @returns {number} LuaGameType pointer, or 0 on failure
+ */
+export function fromLua(L, idx, gt, wasm) {
+  const absIdx = lua.lua_absindex
+    ? lua.lua_absindex(L, idx)
+    : idx > 0
+      ? idx
+      : lua.lua_gettop(L) + idx + 1;
+  const t = lua.lua_type(L, absIdx);
+
+  switch (t) {
+    case lua.LUA_TNIL:
+      return gt.newVoid();
+    case lua.LUA_TBOOLEAN:
+      return gt.newBool(lua.lua_toboolean(L, absIdx));
+    case lua.LUA_TNUMBER: {
+      const n = lua.lua_tonumber(L, absIdx);
+      const i = Math.floor(n);
+      if (i === n) return gt.newInt(i);
+      return gt.newFloat(n);
+    }
+    case lua.LUA_TSTRING: {
+      const [strPtr, strLen] = gt.stringToWasm(
+        lua.lua_tostring(L, absIdx) ?? "",
+      );
+      const elem = gt.newString(strPtr, strLen);
+      if (strPtr) wasm._free(strPtr);
+      return elem;
+    }
+    case lua.LUA_TLIGHTUSERDATA:
+      return gt.newUserData(lua.lua_touserdata(L, absIdx));
+    case lua.LUA_TTABLE: {
+      const n = lauxlib.luaL_len(L, absIdx);
+      if (n <= 0) return gt.newVoid();
+
+      let allInt = true;
+      for (let i = 1; i <= n && allInt; i++) {
+        lua.lua_rawgeti(L, absIdx, i);
+        if (lua.lua_type(L, -1) !== lua.LUA_TNUMBER) allInt = false;
+        lua.lua_pop(L, 1);
+      }
+      if (allInt) {
+        const vals = [];
+        for (let i = 1; i <= n; i++) {
+          lua.lua_rawgeti(L, absIdx, i);
+          vals.push(lua.lua_tointeger(L, -1));
+          lua.lua_pop(L, 1);
+        }
+        const ptr = gt.intArrayToWasm(vals);
+        const result = gt.newIntArray(ptr, n);
+        if (ptr) wasm._free(ptr);
+        return result;
+      }
+
+      let allUd = true;
+      for (let i = 1; i <= n && allUd; i++) {
+        lua.lua_rawgeti(L, absIdx, i);
+        if (lua.lua_type(L, -1) !== lua.LUA_TLIGHTUSERDATA) allUd = false;
+        lua.lua_pop(L, 1);
+      }
+      if (allUd) {
+        const ptrSize = 4;
+        const bufPtr = wasm._malloc(n * ptrSize);
+        if (!bufPtr) return 0;
+        const buffer = wasm.HEAPU8 ? wasm.HEAPU8.buffer : wasm.memory.buffer;
+        const heap = new Uint32Array(buffer, bufPtr, n);
+        for (let i = 1; i <= n; i++) {
+          lua.lua_rawgeti(L, absIdx, i);
+          heap[i - 1] = lua.lua_touserdata(L, -1);
+          lua.lua_pop(L, 1);
+        }
+        const result = gt.newUserDataArray(bufPtr, n);
+        wasm._free(bufPtr);
+        return result;
+      }
+
+      const arr = gt.newVarTypeArray(n > 0 ? n : 4);
+      if (!arr) return 0;
+      for (let i = 1; i <= n; i++) {
+        lua.lua_rawgeti(L, absIdx, i);
+        const elem = LuajsGameType_FromLua(L, -1, gt, wasm);
+        lua.lua_pop(L, 1);
+        if (elem) {
+          gt.varTypeArrayPush(arr, elem);
+          gt.free(elem);
+        }
+      }
+      return arr;
+    }
+    default:
+      return gt.newVoid();
+  }
 }

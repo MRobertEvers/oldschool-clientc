@@ -99,7 +99,10 @@
 
         function onRSClientReady(event) {
           console.log('RSClient is ready! Event detail:', event.detail);
-          const luaSidecar = new LuaJSSidecar(Module);
+          // When a script is not in IndexedDB, load it from this URL (e.g. node serve-lua-scripts.js)
+          const luaSidecar = new LuaJSSidecar(Module, {
+            scriptBaseUrl: 'http://localhost:8081/'
+          });
 
           // write a test.lua script to indexedDB for testing
           const testLuaScript = `

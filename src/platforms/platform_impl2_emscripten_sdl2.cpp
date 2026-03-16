@@ -280,6 +280,6 @@ Platform2_Emscripten_SDL2_RunLuaScripts(struct Platform2_Emscripten_SDL2* platfo
 {
     // In a real implementation, you'd have some way to get Lua scripts to run.
     // For this example, we'll just send a test script every frame.
-    const char* test_script = "test.lua";
+    const char* test_script = "init_cache_dat.lua";
     send_string_to_js(test_script);
 }

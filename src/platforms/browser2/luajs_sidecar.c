@@ -7,12 +7,9 @@
 
 EMSCRIPTEN_KEEPALIVE
 struct LuaGameType*
-dispatch_lua_command(
-    int cmd,
-    int argc,
-    uint64_t* args)
+dispatch_lua_command(struct LuaGameType* args)
 {
-    printf("dispatch_lua_command: cmd=%d, argc=%d\n", cmd, argc);
+    printf("dispatch_lua_command\n");
     // clang-format off
     int fn = EM_ASM_INT({ return window.LuaSidecarCallback || 0; });
     int ctx = EM_ASM_INT({ return window.LuaSidecarCallbackArg || 0; });
@@ -20,9 +17,9 @@ dispatch_lua_command(
 
     assert(fn != 0 && ctx != 0);
 
-    struct LuaGameType* (*callback)(void*, int, int, uint64_t*) =
-        (struct LuaGameType * (*)(void*, int, int, uint64_t*)) fn;
-    struct LuaGameType* result = callback((void*)ctx, cmd, argc, args);
+    struct LuaGameType* (*callback)(void*, struct LuaGameType*) =
+        (struct LuaGameType * (*)(void*, struct LuaGameType*)) fn;
+    struct LuaGameType* result = callback((void*)ctx, args);
 
     return result;
 }
@@ -32,9 +29,7 @@ void
 luajs_sidecar_set_callback(
     struct LuaGameType* (*callback)(
         void*,
-        int,
-        int,
-        uint64_t*),
+        struct LuaGameType*),
     void* ctx)
 {
     // clang-format off

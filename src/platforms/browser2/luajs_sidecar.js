@@ -1,5 +1,5 @@
 import { LuaCacheFunctionNo } from "./luajs_sidecar_fnnos.js";
-import { pushToLua, luaGameTypes } from "./luajs_gametypes.js";
+import { createLuaGameTypes, pushToLua, fromLua } from "./luajs_gametypes.js";
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
 function luaString(str) {
@@ -9,137 +9,115 @@ function luaString(str) {
   return str;
 }
 
-function jsDispatcher(L) {
-  const methodName = lua.lua_tostring(L, lua.lua_upvalueindex(1));
-  // Retrieve your JS context object from upvalue 2
-  const context = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
+// function stringToWasm(instance, str) {
+//   const { memory, malloc } = instance.exports;
 
-  console.log(`Executing ${methodName} on:`, context);
+//   // 1. Encode the JS string into a UTF-8 byte array
+//   const encoder = new TextEncoder();
+//   const encodedString = encoder.encode(str);
 
+//   // 2. Allocate memory in Wasm for the string (+1 for null terminator)
+//   const len = encodedString.length;
+//   const ptr = malloc(len + 1);
+
+//   // 3. Copy the bytes into Wasm's linear memory
+//   const heap = new Uint8Array(memory.buffer, ptr, len + 1);
+//   heap.set(encodedString);
+//   heap[len] = 0; // Null terminator for C-style strings
+
+//   return ptr; // Return the address (pointer) to pass to Wasm functions
+// }
+
+// 1. The Core Dispatcher (matches c_wasm_dispatcher)
+function wasmDispatcher(L) {
+  const func_name = lua.lua_tostring(L, lua.lua_upvalueindex(1));
+  const ctx = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
+  const wasm = lua.lua_touserdata(L, lua.lua_upvalueindex(3));
+
+  const nargs = lua.lua_gettop(L);
+  const gt = ctx.luaGameTypes;
+  const args = gt.newVarTypeArray(nargs + 1);
+  if (!args) return lua.lua_error(L);
+
+  const [strPtr, strLen] = gt.stringToWasm(func_name ?? "");
+  const funcNameElem = gt.newString(strPtr, strLen);
+  if (funcNameElem) gt.varTypeArrayPush(args, funcNameElem);
+  if (strPtr) ctx.wasm._free(strPtr);
+
+  for (let i = 1; i <= nargs; i++) {
+    const elem = fromLua(L, i, gt, ctx.wasm);
+    if (elem) {
+      gt.varTypeArrayPush(args, elem);
+    }
+  }
+
+  const result = wasm._dispatch_lua_command(args);
+  gt.free(args);
+
+  if (result) {
+    pushToLua(L, result);
+    gt.free(result);
+    return 1;
+  }
   return 0;
 }
 
+// 2. The __index with Weak Caching (matches mt_index in luac_sidecar.c)
 function mtIndex(L) {
-  // Push Name
-  lua.lua_pushvalue(L, 2);
+  const ctx = lua.lua_touserdata(L, lua.lua_upvalueindex(1));
+  const callback = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
 
-  // Push Context (Assumes you stored it in the table earlier)
-  lua.lua_getfield(L, 1, "__ptr");
-
-  // Create closure with 2 upvalues
-  lua.lua_pushcclosure(L, jsDispatcher, 2);
-  return 1;
-}
-
-function stringToWasm(instance, str) {
-  const { memory, malloc } = instance.exports;
-
-  // 1. Encode the JS string into a UTF-8 byte array
-  const encoder = new TextEncoder();
-  const encodedString = encoder.encode(str);
-
-  // 2. Allocate memory in Wasm for the string (+1 for null terminator)
-  const len = encodedString.length;
-  const ptr = malloc(len + 1);
-
-  // 3. Copy the bytes into Wasm's linear memory
-  const heap = new Uint8Array(memory.buffer, ptr, len + 1);
-  heap.set(encodedString);
-  heap[len] = 0; // Null terminator for C-style strings
-
-  return ptr; // Return the address (pointer) to pass to Wasm functions
-}
-
-function freeStringWasm(instance, ptr) {
-  const { free } = instance.exports;
-  free(ptr);
-}
-
-// 1. The Core Dispatcher (The Bridge to WASM)
-function wasmDispatcher(L) {
-  // Upvalue 1: The function name (string)
-  const methodName = lua.lua_tostring(L, lua.lua_upvalueindex(1));
-  // Upvalue 2: Your WASM Exports or Context Object
-  const wasmInstance = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
-
-  // Check if the method exists in your WASM exports
-  if (wasmInstance.exports[methodName]) {
-    // Collect arguments from Lua stack to pass to WASM
-    const args = [];
-    const top = lua.lua_gettop(L);
-    for (let i = 1; i <= top; i++) {
-      args.push(lua.lua_tonumber(L, i)); // Assuming numeric/WASM compatible types
-    }
-
-    // Execute WASM function
-    const result = wasmInstance.exports[methodName](...args);
-
-    // Push result back to Lua
-    lua.lua_pushnumber(L, result);
-    return 1;
-  }
-
-  return lua.luaL_error(L, `WASM method ${methodName} not found`);
-}
-
-// 2. The __index with Weak Caching
-function mtIndex(L) {
-  // Stack: [1] table (obj), [2] key (name)
-
-  lua.lua_getmetatable(L, 1);
-  lua.lua_getfield(L, -1, "__cache"); // The weak cache table
+  if (!lua.lua_getmetatable(L, 1)) return 0;
+  lua.lua_pushstring(L, "__cache");
+  lua.lua_rawget(L, -2);
   const cacheIdx = lua.lua_gettop(L);
 
-  // Check Cache
   lua.lua_pushvalue(L, 2);
-  lua.lua_gettable(L, cacheIdx);
-  if (!lua.lua_isnil(L, -1)) return 1; // Hit!
+  lua.lua_rawget(L, cacheIdx);
+  if (!lua.lua_isnil(L, -1)) return 1;
   lua.lua_pop(L, 1);
 
-  // Miss: Create Closure [Name, WASM_Context]
   lua.lua_pushvalue(L, 2);
-  lua.lua_getfield(L, 1, "__ptr"); // The WASM instance we stored earlier
-  lua.lua_pushcclosure(L, wasmDispatcher, 2);
+  lua.lua_pushlightuserdata(L, ctx);
+  lua.lua_pushlightuserdata(L, callback);
+  lua.lua_pushcclosure(L, wasmDispatcher, 3);
 
-  // Save to Cache
   lua.lua_pushvalue(L, 2);
   lua.lua_pushvalue(L, -2);
-  lua.lua_settable(L, cacheIdx);
+  lua.lua_rawset(L, cacheIdx);
 
   return 1;
 }
 
-function createWasmLuaBridge(L, wasmInstance) {
-  lua.lua_newtable(L); // The Proxy Object
-  lua.lua_pushlightuserdata(L, wasmInstance);
-  lua.lua_setfield(L, -2, "__ptr");
-
-  // Create Metatable
+function createWasmLuaBridge(L, ctx, callback) {
   lua.lua_newtable(L);
 
-  // Create the Cache Table
   lua.lua_newtable(L);
-  lua.lua_newtable(L); // Metatable for the Cache
+  lua.lua_pushstring(L, "__cache");
+  lua.lua_newtable(L);
+  lua.lua_newtable(L);
   lua.lua_pushstring(L, "v");
-  lua.lua_setfield(L, -2, "__mode"); // Make it weak-valued
+  lua.lua_setfield(L, -2, "__mode");
   lua.lua_setmetatable(L, -2);
-  lua.lua_setfield(L, -2, "__cache");
+  lua.lua_rawset(L, -3);
 
-  // Set __index
-  lua.lua_pushcfunction(L, mt_index);
+  lua.lua_pushlightuserdata(L, ctx);
+  lua.lua_pushlightuserdata(L, callback ?? null);
+  lua.lua_pushcclosure(L, mtIndex, 2);
   lua.lua_setfield(L, -2, "__index");
 
   lua.lua_setmetatable(L, -2);
-
   lua.lua_setglobal(L, "Game");
   return 1;
 }
 
 export class LuaJSSidecar {
-  constructor(wasm) {
+  constructor(wasm, options = {}) {
     this.wasm = wasm;
+    /** Base URL for fetching scripts when not in IndexedDB (e.g. 'http://localhost:8080/') */
+    this.scriptBaseUrl = options.scriptBaseUrl ?? "";
     this.luaGameTypes = createLuaGameTypes(wasm);
-    this.pushToLua = (value) => pushToLua(this.L, value);
+    this.pushToLua = (value) => pushToLua(lua, this.L, value);
     this.L = lauxlib.luaL_newstate();
     lualib.luaL_openlibs(this.L);
 
@@ -147,7 +125,7 @@ export class LuaJSSidecar {
     this.queue = [];
     this.isProcessing = false;
 
-    createWasmLuaBridge(this.L, this.wasm);
+    createWasmLuaBridge(this.L, this, this.wasm);
 
     // Fix: index 1 is the message
     lua.lua_register(this.L, to_luastring("_lua_log"), (L) => {
@@ -155,6 +133,63 @@ export class LuaJSSidecar {
       console.log(`[Lua] ${luaString(msg)}`);
       return 0;
     });
+
+    // Preload cachedat.lua into package.preload so require("cachedat") works
+    this._cachedatPreloaded = this._preloadCachedat();
+  }
+
+  /**
+   * Registers a Lua module in package.preload so require(name) returns it.
+   * Loader must run synchronously (no yield).
+   */
+  _registerModuleInPreload(name, source) {
+    const L = this.L;
+    const luaSource = to_luastring(source);
+    const chunkName = to_luastring(`@${name}.lua`);
+
+    lua.lua_getglobal(L, to_luastring("package"));
+    lua.lua_getfield(L, -1, to_luastring("preload"));
+
+    lua.lua_pushcfunction(L, (state) => {
+      if (
+        lauxlib.luaL_loadbuffer(
+          state,
+          luaSource,
+          luaSource.length,
+          chunkName,
+        ) !== lua.LUA_OK
+      ) {
+        lua.lua_error(state);
+        return 0;
+      }
+      if (lua.lua_pcall(state, 0, 1, 0) !== lua.LUA_OK) {
+        lua.lua_error(state);
+        return 0;
+      }
+      return 1;
+    });
+
+    lua.lua_setfield(L, -2, to_luastring(name));
+    lua.lua_pop(L, 2);
+  }
+
+  /**
+   * Fetches cachedat.lua (from IndexedDB or network) and puts it in package.preload
+   * so require("cachedat") works. Resolves when done; safe to await before running scripts.
+   */
+  async _preloadCachedat() {
+    try {
+      const path = "cachedat.lua";
+      const content = await this.fetchOrCached(path);
+      const code =
+        typeof content === "string"
+          ? content
+          : new TextDecoder().decode(content);
+      this._registerModuleInPreload("cachedat", code);
+      console.log("[LuaJSSidecar] cachedat.lua preloaded into package.preload");
+    } catch (err) {
+      console.warn("[LuaJSSidecar] failed to preload cachedat.lua:", err);
+    }
   }
 
   // Entrance point: adds to queue and triggers processing
@@ -202,19 +237,22 @@ export class LuaJSSidecar {
 
         request.onsuccess = () => {
           if (request.result) {
-            // Assume request.result.data is an ArrayBuffer
             resolve(request.result.content);
           } else {
-            fetch(path)
+            const url = this.scriptBaseUrl
+              ? this.scriptBaseUrl.replace(/\/?$/, "/") +
+                path.replace(/^\//, "")
+              : path;
+            fetch(url)
               .then((res) => {
-                if (!res.ok) throw new Error("Fetch failed");
-                return res.arrayBuffer();
+                if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+                return res.text();
               })
-              .then((data) => {
+              .then((content) => {
                 const writeTransaction = db.transaction(["cache"], "readwrite");
                 const writeStore = writeTransaction.objectStore("cache");
-                writeStore.put({ path, data }, path);
-                resolve(data);
+                writeStore.put({ path, content });
+                resolve(content);
               })
               .catch(reject);
           }
@@ -224,6 +262,8 @@ export class LuaJSSidecar {
   }
 
   async runScript(scriptPath) {
+    await this._cachedatPreloaded;
+
     // 1. Create thread and keep track of its position on main stack
     const co = lua.lua_newthread(this.L);
     const threadIdx = lua.lua_gettop(this.L);
@@ -253,19 +293,27 @@ export class LuaJSSidecar {
     const status = lua.lua_resume(co, this.L, nres);
 
     if (status === lua.LUA_YIELD) {
-      let cmd = luaString(lua.lua_tostring(co, 1));
-
-      const args = [];
       const top = lua.lua_gettop(co);
+      const cmd = lua.lua_tonumber(co, 1);
+      const narg = top > 1 ? top - 1 : 0;
+      let args = null;
+      if (narg > 0) {
+        const gt = this.luaGameTypes;
+        args = gt.newVarTypeArray(narg);
+        if (args) {
+          const top = lua.lua_gettop(co);
+          for (let i = 2; i <= top; i++) {
+            lua.lua_pushvalue(co, i);
+            const elem = fromLua(co, -1, gt, this.wasm);
+            lua.lua_pop(co, 1);
 
-      for (let i = 2; i <= top; i++) {
-        if (lua.lua_isnumber(co, i)) args.push(lua.lua_tonumber(co, i));
-        else if (lua.lua_isstring(co, i))
-          args.push(luaString(lua.lua_tostring(co, i)));
-        else args.push(null);
+            if (elem) gt.varTypeArrayPush(args, elem);
+          }
+        }
       }
 
       const results = await this.handleYield(cmd, args);
+      if (args) this.luaGameTypes.free(args);
 
       // Clear yield results and push return values
       lua.lua_settop(co, 0);
@@ -300,51 +348,10 @@ export class LuaJSSidecar {
         }
 
         const data = await response.arrayBuffer();
-      }
-      case LuaCacheFunctionNo.FUNC_LOAD_ARCHIVES: {
-        const searchParams = new URLSearchParams();
-        searchParams.append("epoch", "base");
-        searchParams.append("table_id", args[0]);
-        searchParams.append("archive_ids", args[1]);
-        searchParams.append("flags", args[2]);
-        const response = await fetch(
-          `/api/load_archives?${searchParams.toString()}`,
-        );
-        if (!response.ok) {
-          return [];
-        }
-
-        const data = await response.arrayBuffer();
-        return [];
+        break;
       }
       default: {
-        const argsPtr = this.wasm._malloc(args.length * 8);
-        const view = new BigUint64Array(
-          this.wasm.HEAPU8.buffer,
-          argsPtr,
-          args.length,
-        );
-        // Assuming 64-bit pointers/numbers, adjust as needed
-        for (let i = 0; i < args.length; i++) {
-          const arg = args[i];
-          if (typeof arg === "number") {
-            view[i] = BigInt(Math.floor(arg));
-          } else if (typeof arg === "string") {
-            const strPtr = stringToWasm(this.wasm, arg);
-            view[i] = BigInt(strPtr);
-          }
-        }
-
-        this.wasm._dispatch_lua_command(cmd, args.length, argsPtr);
-
-        for (let i = 0; i < args.length; i++) {
-          if (typeof args[i] === "string") {
-            freeStringWasm(this.wasm, argsPtr[i]);
-          }
-        }
-
-        this.wasm._free(argsPtr);
-
+        console.error(`Unknown command: ${cmd}`);
         return [];
       }
     }

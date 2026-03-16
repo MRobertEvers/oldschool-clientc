@@ -22,7 +22,6 @@ M.ConfigDatKind = {
 -- --- Function ID Mapping ---
 M.Func = {
     LOAD_ARCHIVE = 1,
-    LOAD_ARCHIVES = 17,
 }
 
 M.ArchiveIdFlags = {
@@ -32,10 +31,6 @@ M.ArchiveIdFlags = {
 
 function M.load_archive(table_id, archive_id, flags)
     return coroutine.yield(M.Func.LOAD_ARCHIVE, table_id, archive_id, flags or 0)
-end
-
-function M.load_archives(table_id, archive_ids, flags)
-    return coroutine.yield(M.Func.LOAD_ARCHIVES, table_id, #archive_ids, archive_ids, flags or 0)
 end
 
 return M
