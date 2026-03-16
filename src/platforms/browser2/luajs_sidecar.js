@@ -1,4 +1,5 @@
 import { LuaCacheFunctionNo } from "./luajs_sidecar_fnnos.js";
+import { pushToLua, luaGameTypes } from "./luajs_gametypes.js";
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
 function luaString(str) {
@@ -137,6 +138,8 @@ function createWasmLuaBridge(L, wasmInstance) {
 export class LuaJSSidecar {
   constructor(wasm) {
     this.wasm = wasm;
+    this.luaGameTypes = createLuaGameTypes(wasm);
+    this.pushToLua = (value) => pushToLua(this.L, value);
     this.L = lauxlib.luaL_newstate();
     lualib.luaL_openlibs(this.L);
 

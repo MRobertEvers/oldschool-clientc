@@ -129,6 +129,8 @@ set(COMMON_SOURCES
     src/osrs/entity_scenebuild.c
     src/platforms/common/sockstream.c
     src/osrs/lua_sidecar/lua_cachedat_sidecar.c
+    src/osrs/lua_sidecar/lua_gametypes.c
+    src/osrs/lua_sidecar/luac_gametypes.c
     src/osrs/lua_sidecar/luac_sidecar.c
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
@@ -171,6 +173,26 @@ if(EMSCRIPTEN)
         "_free"
         "_malloc"
         "_test_export"
+        "_luajs_LuaGameType_NewUserData"
+        "_luajs_LuaGameType_NewUserDataArray"
+        "_luajs_LuaGameType_NewIntArray"
+        "_luajs_LuaGameType_NewBool"
+        "_luajs_LuaGameType_NewInt"
+        "_luajs_LuaGameType_NewFloat"
+        "_luajs_LuaGameType_NewString"
+        "_luajs_LuaGameType_NewVoid"
+        "_luajs_LuaGameType_Free"
+        "_luajs_LuaGameType_GetKind"
+        "_luajs_LuaGameType_GetUserData"
+        "_luajs_LuaGameType_GetUserDataArray"
+        "_luajs_LuaGameType_GetUserDataArrayCount"
+        "_luajs_LuaGameType_GetIntArray"
+        "_luajs_LuaGameType_GetIntArrayCount"
+        "_luajs_LuaGameType_GetBool"
+        "_luajs_LuaGameType_GetInt"
+        "_luajs_LuaGameType_GetFloat"
+        "_luajs_LuaGameType_GetString"
+        "_luajs_LuaGameType_GetStringLength"
     )
 
     set(EXPORTED_METHODS_LIST
@@ -189,6 +211,7 @@ if(EMSCRIPTEN)
         test/browser.cpp
         src/platforms/platform_impl2_emscripten_sdl2.cpp
         src/platforms/browser2/luajs_sidecar.c
+        src/platforms/browser2/luajs_gametypes.c
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
     )

@@ -54,11 +54,13 @@ emscripten_main_loop(void* arg)
 void
 luajs_sidecar_callback(
     void* arg,
-    int command,
+    char* name,
     int argno,
     uint64_t* args)
 {
     struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)arg;
+
+    // Dispatch by string name.
 }
 
 int
