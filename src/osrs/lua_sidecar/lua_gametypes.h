@@ -51,12 +51,19 @@ struct LuaGameTypeVarTypeArray
     struct LuaGameType** var_types;
 };
 
+struct LuaGameTypeVarTypeArrayView
+{
+    struct LuaGameType* var_types;
+    int offset;
+};
+
 enum LuaGameTypeKind
 {
     LUAGAMETYPE_USERDATA,
     LUAGAMETYPE_USERDATA_ARRAY,
     LUAGAMETYPE_INT_ARRAY,
     LUAGAMETYPE_VARTYPE_ARRAY,
+    LUAGAMETYPE_VARTYPE_ARRAY_VIEW,
     LUAGAMETYPE_BOOL,
     LUAGAMETYPE_INT,
     LUAGAMETYPE_FLOAT,
@@ -77,6 +84,7 @@ struct LuaGameType
         struct LuaGameTypeFloat _float;
         struct LuaGameTypeString _string;
         struct LuaGameTypeVarTypeArray _var_type_array;
+        struct LuaGameTypeVarTypeArrayView _var_type_array_view;
     };
 };
 
@@ -97,9 +105,9 @@ struct LuaGameType*
 LuaGameType_NewVarTypeArray(int hint);
 
 struct LuaGameType*
-LuaGameType_NewVarTypeArraySliceMove(
-    struct LuaGameType* game_type,
-    int start);
+LuaGameType_NewVarTypeArrayView(
+    struct LuaGameType* var_types,
+    int offset);
 
 void
 LuaGameType_VarTypeArrayPush(

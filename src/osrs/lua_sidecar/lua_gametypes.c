@@ -61,24 +61,18 @@ LuaGameType_NewVarTypeArray(int hint)
 }
 
 struct LuaGameType*
-LuaGameType_NewVarTypeArraySliceMove(
-    struct LuaGameType* game_type,
-    int start)
+LuaGameType_NewVarTypeArrayView(
+    struct LuaGameType* var_types,
+    int offset)
 {
-    struct LuaGameType* new_game_type =
-        LuaGameType_NewVarTypeArray(game_type->_var_type_array.capacity - start);
-    if( !new_game_type )
+    struct LuaGameType* game_type = malloc(sizeof(struct LuaGameType));
+    if( !game_type )
         return NULL;
-
-    struct LuaGameTypeVarTypeArray* in = &game_type->_var_type_array;
-    struct LuaGameTypeVarTypeArray* out = &new_game_type->_var_type_array;
-
-    int move_size = sizeof(struct LuaGameType*) * (in->capacity - start);
-    memcpy(out->var_types, in->var_types + start, move_size);
-    out->count = in->capacity - start;
-    memset(in->var_types + start, 0, move_size);
-
-    return new_game_type;
+    memset(game_type, 0, sizeof(*game_type));
+    game_type->kind = LUAGAMETYPE_VARTYPE_ARRAY_VIEW;
+    game_type->_var_type_array_view.var_types = var_types;
+    game_type->_var_type_array_view.offset = offset;
+    return game_type;
 }
 
 void
@@ -103,8 +97,17 @@ LuaGameType_VarTypeArrayPush(
 int
 LuaGameType_GetVarTypeArrayCount(struct LuaGameType* game_type)
 {
-    assert(game_type->kind == LUAGAMETYPE_VARTYPE_ARRAY);
-    return game_type->_var_type_array.count;
+    switch( game_type->kind )
+    {
+    case LUAGAMETYPE_VARTYPE_ARRAY:
+        return game_type->_var_type_array.count;
+    case LUAGAMETYPE_VARTYPE_ARRAY_VIEW:
+        return LuaGameType_GetVarTypeArrayCount(LuaGameType_GetVarTypeArrayAt(game_type, 0)) -
+               game_type->_var_type_array_view.offset;
+    default:
+        assert(false);
+        return 0;
+    }
 }
 
 struct LuaGameType*
@@ -112,9 +115,21 @@ LuaGameType_GetVarTypeArrayAt(
     struct LuaGameType* game_type,
     int index)
 {
-    assert(game_type->kind == LUAGAMETYPE_VARTYPE_ARRAY);
-    assert(index >= 0 && index < game_type->_var_type_array.count);
-    return game_type->_var_type_array.var_types[index];
+    switch( game_type->kind )
+    {
+    case LUAGAMETYPE_VARTYPE_ARRAY:
+    {
+        assert(index >= 0 && index < game_type->_var_type_array.count);
+        return game_type->_var_type_array.var_types[index];
+    }
+    case LUAGAMETYPE_VARTYPE_ARRAY_VIEW:
+        return LuaGameType_GetVarTypeArrayAt(
+            game_type->_var_type_array_view.var_types,
+            index + game_type->_var_type_array_view.offset);
+    default:
+        assert(false);
+        return NULL;
+    }
 }
 
 struct LuaGameType*

@@ -54,98 +54,20 @@ game_callback(
     assert(command_gametype->kind == LUAGAMETYPE_STRING);
     const char* command = LuaGameType_GetString(command_gametype);
 
+    struct LuaGameType* result = NULL;
+    struct LuaGameType* args_view = LuaGameType_NewVarTypeArrayView(args, 1);
+
     if( LuaBuildCacheDat_CommandHasPrefix((char*)command) )
     {
-        return LuaBuildCacheDat_DispatchCommand(
-            bcd, (char*)command, LuaGameType_NewVarTypeArraySliceMove(args, 1));
+        result = LuaBuildCacheDat_DispatchCommand(bcd, (char*)command, args_view);
     }
 
-    // if( !args || LuaGameType_GetKind(args) != LUAGAMETYPE_VARTYPE_ARRAY )
-    //     return NULL;
-    // int n = LuaGameType_GetVarTypeArrayCount(args);
-    // if( n < 1 )
-    //     return NULL;
+    LuaGameType_Free(args_view);
 
-    // struct LuaGameType* func_name_gt = LuaGameType_GetVarTypeArrayAt(args, 0);
-    // if( LuaGameType_GetKind(func_name_gt) != LUAGAMETYPE_STRING )
-    //     return NULL;
-    // const char* name = LuaGameType_GetString(func_name_gt);
-
-    // /* call_args = VarTypeArray of args[1..n-1] (actual method args, no func name) */
-    // struct LuaGameType* call_args = LuaGameType_NewVarTypeArray(n > 1 ? n - 1 : 1);
-    // if( !call_args )
-    //     return NULL;
-    // for( int i = 1; i < n; i++ )
-    //     LuaGameType_VarTypeArrayPush(call_args, LuaGameType_GetVarTypeArrayAt(args, i));
-
-    // /* Functions needing GGame: ga = [game, args[1], args[2], ...]. ga owns elements from args.
-    // */ auto build_ga_with_game = [&]() {
-    //     struct LuaGameType* ga = LuaGameType_NewVarTypeArray(n);
-    //     LuaGameType_VarTypeArrayPush(ga, LuaGameType_NewUserData(game));
-    //     for( int i = 1; i < n; i++ )
-    //         LuaGameType_VarTypeArrayPush(ga, LuaGameType_GetVarTypeArrayAt(args, i));
-    //     return ga;
-    // };
-
-    // if( strcmp(name, "init_varp_varbit_from_config_jagfile") == 0 )
-    // {
-    //     struct LuaGameType* ga = build_ga_with_game();
-    //     LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(bcd, ga);
-    //     LuacGameType_Free(ga);
-    //     free(call_args->_var_type_array.var_types);
-    //     free(call_args);
-    //     return NULL;
-    // }
-    // if( strcmp(name, "load_component_sprites_from_media") == 0 )
-    // {
-    //     struct LuaGameType* ga = LuaGameType_NewVarTypeArray(1);
-    //     LuaGameType_VarTypeArrayPush(ga, LuaGameType_NewUserData(game));
-    //     LuaBuildCacheDat_load_component_sprites_from_media(bcd, ga);
-    //     LuaGameType_Free(ga);
-    //     LuaGameType_Free(call_args);
-    //     return NULL;
-    // }
-    // if( strcmp(name, "cache_textures") == 0 )
-    // {
-    //     struct LuaGameType* ga = build_ga_with_game();
-    //     LuaBuildCacheDat_cache_textures(bcd, ga);
-    //     LuacGameType_Free(ga);
-    //     free(call_args->_var_type_array.var_types);
-    //     free(call_args);
-    //     return NULL;
-    // }
-    // if( strcmp(name, "cache_media") == 0 )
-    // {
-    //     struct LuaGameType* ga = build_ga_with_game();
-    //     LuaBuildCacheDat_cache_media(bcd, ga);
-    //     LuacGameType_Free(ga);
-    //     free(call_args->_var_type_array.var_types);
-    //     free(call_args);
-    //     return NULL;
-    // }
-    // if( strcmp(name, "cache_title") == 0 )
-    // {
-    //     struct LuaGameType* ga = build_ga_with_game();
-    //     LuaBuildCacheDat_cache_title(bcd, ga);
-    //     LuacGameType_Free(ga);
-    //     free(call_args->_var_type_array.var_types);
-    //     free(call_args);
-    //     return NULL;
-    // }
-    // if( strcmp(name, "finalize_scene") == 0 )
-    // {
-    //     struct LuaGameType* ga = build_ga_with_game();
-    //     LuaBuildCacheDat_finalize_scene(bcd, ga);
-    //     LuacGameType_Free(ga);
-    //     free(call_args->_var_type_array.var_types);
-    //     free(call_args);
-    //     return NULL;
-    // }
-
-    // LuaGameType_Free(call_args);
-    // return NULL;
-
-    return LuaGameType_NewVoid();
+    if( result )
+        return result;
+    else
+        return LuaGameType_NewVoid();
 }
 
 static void
