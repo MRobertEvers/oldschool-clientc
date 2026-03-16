@@ -3,6 +3,7 @@
 
 #include "osrs/scripts/buildcache.lua.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct LuaCSidecar;
@@ -28,7 +29,6 @@ struct LuaCScriptCall
         {
             int _iarg;
             char* _strarg;
-            int _iarg;
             void* _ptrarg;
         };
     } args[10];
@@ -47,7 +47,7 @@ struct LuaCAsyncResult
 {
     struct
     {
-        int type; /* 0=int, 1=string, etc. */
+        int type; /* 0=int, 1=string, 2=ptr, 3=bool, 5=int_array */
         union
         {
             int _iarg;
@@ -57,6 +57,22 @@ struct LuaCAsyncResult
         };
     } args[6];
     int argno;
+};
+
+/** For type 5 (int_array): _ptrarg points to this. Caller allocates; luac_sidecar
+ * pushes table and frees both ids and the struct. */
+struct LuaCIntArray
+{
+    int* ids;
+    int count;
+};
+
+/** For type 6 (ptr_array): _ptrarg points to this. Caller allocates; luac_sidecar
+ * pushes table of lightuserdata and frees ptrs array and struct (not the ptrs themselves). */
+struct LuaCPtrArray
+{
+    void** ptrs;
+    int count;
 };
 
 void
@@ -80,5 +96,25 @@ LuaCSidecar_ResumeScript(
     struct LuaCSidecar* sidecar,
     struct LuaCAsyncCall* out_async_call,
     struct LuaCAsyncResult* in_async_result);
+
+void
+LuaCSidecar_ResultPushInt(
+    struct LuaCAsyncResult* result,
+    int val);
+
+void
+LuaCSidecar_ResultPushString(
+    struct LuaCAsyncResult* result,
+    const char* val);
+
+void
+LuaCSidecar_ResultPushPtr(
+    struct LuaCAsyncResult* result,
+    void* val);
+
+void
+LuaCSidecar_ResultPushBool(
+    struct LuaCAsyncResult* result,
+    bool val);
 
 #endif

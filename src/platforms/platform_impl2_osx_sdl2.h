@@ -58,7 +58,7 @@ Platform2_OSX_SDL2_PollEvents(
 void
 Platform2_OSX_SDL2_PollIO(
     struct Platform2_OSX_SDL2* platform,
-    struct GIOQueue* queue);
+    struct GGame* game);
 
 void
 Platform2_OSX_SDL2_RunLuaScripts(

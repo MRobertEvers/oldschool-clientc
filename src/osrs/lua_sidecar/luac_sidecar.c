@@ -326,3 +326,43 @@ LuaCSidecar_ResumeScript(
     sidecar->L_coro = NULL;
     return LUACSIDECAR_DONE;
 }
+
+void
+LuaCSidecar_ResultPushInt(
+    struct LuaCAsyncResult* result,
+    int val)
+{
+    result->args[result->argno].type = 0;
+    result->args[result->argno]._iarg = val;
+    result->argno += 1;
+}
+
+void
+LuaCSidecar_ResultPushString(
+    struct LuaCAsyncResult* result,
+    const char* val)
+{
+    result->args[result->argno].type = 1;
+    result->args[result->argno]._strarg = val;
+    result->argno += 1;
+}
+
+void
+LuaCSidecar_ResultPushPtr(
+    struct LuaCAsyncResult* result,
+    void* val)
+{
+    result->args[result->argno].type = 2;
+    result->args[result->argno]._ptrarg = val;
+    result->argno += 1;
+}
+
+void
+LuaCSidecar_ResultPushBool(
+    struct LuaCAsyncResult* result,
+    bool val)
+{
+    result->args[result->argno].type = 3;
+    result->args[result->argno]._barg = val;
+    result->argno += 1;
+}

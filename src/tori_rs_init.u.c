@@ -39,6 +39,18 @@ hostio_utils_loader(lua_State* L)
     return 1;
 }
 
+/** Load buildcache.lua from filepath (upvalue 1) and return its module table. */
+static int
+buildcache_file_loader(lua_State* L)
+{
+    const char* filepath = lua_tostring(L, lua_upvalueindex(1));
+    if( luaL_loadfile(L, filepath) != LUA_OK )
+        return lua_error(L);
+    if( lua_pcall(L, 0, 1, 0) != LUA_OK )
+        return lua_error(L);
+    return 1;
+}
+
 static void
 init_rsa(struct GGame* game)
 {
@@ -280,6 +292,13 @@ LibToriRS_GameNew(
     lua_pushcclosure(game->L, hostio_utils_loader, 1); /* loader that returns that table */
     lua_remove(game->L, -2);                           /* stack: ..., "hostio_utils", loader */
     lua_settable(game->L, -3);                         /* preload["hostio_utils"] = loader */
+
+    /* Register package.preload["buildcache"] so require("buildcache") works (init_cache_dat.lua). */
+    lua_pushstring(game->L, "buildcache");
+    lua_pushstring(game->L, LUA_SCRIPTS_DIR "/buildcache.lua");
+    lua_pushcclosure(game->L, buildcache_file_loader, 1);
+    lua_settable(game->L, -3);                         /* preload["buildcache"] = loader */
+
     lua_pop(game->L, 2);                               /* drop package, preload */
 
     struct ScriptArgs args;

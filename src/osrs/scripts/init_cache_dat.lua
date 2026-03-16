@@ -1,5 +1,14 @@
 local BuildCache = require("buildcache")
 
+local function print_table(t, label)
+    label = label or "table"
+    local parts = {}
+    for i, v in ipairs(t) do
+        table.insert(parts, tostring(v))
+    end
+    print(string.format("%s (%d): [%s]", label, #t, table.concat(parts, ", ")))
+end
+
 local function world_to_map_chunks(wx_sw, wz_sw, wx_ne, wz_ne)
     local map_sw_x = math.floor(wx_sw / 64)
     local map_sw_z = math.floor(wz_sw / 64)
@@ -21,7 +30,6 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
 
     print("=== Step 0: Load Configs & VersionList ===")
     local config_ptr = BuildCache.load_archive(BuildCache.Tables.CACHE_DAT_CONFIGS, BuildCache.ConfigDatKind.CONFIG_DAT_CONFIGS)
-    print(config_ptr)
     BuildCache.store_container_jagfile("config_jagfile", config_ptr)
     
     local vlist_ptr = BuildCache.load_archive(BuildCache.Tables.CACHE_DAT_CONFIGS, BuildCache.ConfigDatKind.CONFIG_DAT_VERSION_LIST)
@@ -30,12 +38,14 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     print("=== Step 1: Load Terrain (Batched) ===")
     local terrain_ids = {}
     for _, chunk in ipairs(chunks) do
-        local map_id = (chunk.x << 7) | chunk.z
+        local map_id = (chunk.x << 16) | chunk.z
         if not BuildCache.has_datatype(BuildCache.DataTypes.MapTerrain, map_id) then
             table.insert(terrain_ids, map_id)
         end
     end
     if #terrain_ids > 0 then
+        print(string.format("Loading %d terrain chunks...", #terrain_ids))
+        print_table(terrain_ids, "terrain_ids")
         local t_ptrs = BuildCache.load_archives(BuildCache.Tables.CACHE_DAT_MAPS, terrain_ids)
         for i, ptr in ipairs(t_ptrs) do
             BuildCache.store_datatype_from_raw(terrain_ids[i], ptr, BuildCache.DataTypes.MapTerrain)
@@ -49,7 +59,7 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     print("=== Step 3: Load Scenery (Batched) ===")
     local scenery_ids = {}
     for _, chunk in ipairs(chunks) do
-        local map_id = (chunk.x << 7) | chunk.z
+        local map_id = (chunk.x << 16) | chunk.z
         if not BuildCache.has_datatype(BuildCache.DataTypes.MapScenery, map_id) then
             table.insert(scenery_ids, map_id + 1) -- Archive ID offset
         end
@@ -68,6 +78,7 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
 
     print("=== Step 5: Queue and Load Models (Batched) ===")
     local all_model_ids = BuildCache.list_datatypes_field(BuildCache.DataTypes.MapScenery, "model_id")
+    print_table(all_model_ids, "all_model_ids")
     local missing_model_ids = {}
     for _, mid in ipairs(all_model_ids) do
         if mid > 0 and not BuildCache.has_datatype(BuildCache.DataTypes.Model, mid) then
@@ -132,8 +143,8 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     BuildCache.store_container_jagfilepack_indexed_from_jagfile("objtypes", "config_jagfile", "obj.dat", "obj.idx") 
     BuildCache.store_datatype_from_container_all("objtypes", BuildCache.DataTypes.ConfigObject)
 
-    -- print("=== Scene Loading Complete ===")
-    -- coroutine.yield(99, msw_x, msw_z, mne_x, mne_z)
+    print("=== Scene Loading Complete ===")
+    coroutine.yield(99, msw_x, msw_z, mne_x, mne_z)
 end
 
 
