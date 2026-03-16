@@ -50,6 +50,16 @@ game_callback(
     struct Platform2_OSX_SDL2* platform = (struct Platform2_OSX_SDL2*)ctx;
     struct BuildCacheDat* bcd = platform->buildcachedat;
 
+    struct LuaGameType* command_gametype = LuaGameType_GetVarTypeArrayAt(args, 0);
+    assert(command_gametype->kind == LUAGAMETYPE_STRING);
+    const char* command = LuaGameType_GetString(command_gametype);
+
+    if( LuaBuildCacheDat_CommandHasPrefix((char*)command) )
+    {
+        return LuaBuildCacheDat_DispatchCommand(
+            bcd, (char*)command, LuaGameType_NewVarTypeArraySliceMove(args, 1));
+    }
+
     // if( !args || LuaGameType_GetKind(args) != LUAGAMETYPE_VARTYPE_ARRAY )
     //     return NULL;
     // int n = LuaGameType_GetVarTypeArrayCount(args);
@@ -134,6 +144,8 @@ game_callback(
 
     // LuaGameType_Free(call_args);
     // return NULL;
+
+    return LuaGameType_NewVoid();
 }
 
 static void

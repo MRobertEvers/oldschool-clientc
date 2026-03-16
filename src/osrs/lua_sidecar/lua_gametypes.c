@@ -60,6 +60,27 @@ LuaGameType_NewVarTypeArray(int hint)
     return game_type;
 }
 
+struct LuaGameType*
+LuaGameType_NewVarTypeArraySliceMove(
+    struct LuaGameType* game_type,
+    int start)
+{
+    struct LuaGameType* new_game_type =
+        LuaGameType_NewVarTypeArray(game_type->_var_type_array.capacity - start);
+    if( !new_game_type )
+        return NULL;
+
+    struct LuaGameTypeVarTypeArray* in = &game_type->_var_type_array;
+    struct LuaGameTypeVarTypeArray* out = &new_game_type->_var_type_array;
+
+    int move_size = sizeof(struct LuaGameType*) * (in->capacity - start);
+    memcpy(out->var_types, in->var_types + start, move_size);
+    out->count = in->capacity - start;
+    memset(in->var_types + start, 0, move_size);
+
+    return new_game_type;
+}
+
 void
 LuaGameType_VarTypeArrayPush(
     struct LuaGameType* var_type_array,

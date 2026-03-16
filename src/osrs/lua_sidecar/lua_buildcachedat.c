@@ -1,16 +1,19 @@
 #include "lua_buildcachedat.h"
-#include "lua_gametypes.h"
 
+#include "lua_gametypes.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/game.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* Helper: get int at args[i]. args must be VarTypeArray. */
 static int
-arg_int(struct LuaGameType* args, int i)
+arg_int(
+    struct LuaGameType* args,
+    int i)
 {
     struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(args, i);
     return LuaGameType_GetInt(elem);
@@ -18,7 +21,9 @@ arg_int(struct LuaGameType* args, int i)
 
 /* Helper: get userdata at args[i]. */
 static void*
-arg_userdata(struct LuaGameType* args, int i)
+arg_userdata(
+    struct LuaGameType* args,
+    int i)
 {
     struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(args, i);
     return LuaGameType_GetUserData(elem);
@@ -31,7 +36,7 @@ arg_game(struct LuaGameType* args)
     return (struct GGame*)arg_userdata(args, 0);
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_cache_map_scenery(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -42,40 +47,42 @@ LuaBuildCacheDat_cache_map_scenery(
     void* data = arg_userdata(args, 3);
 
     buildcachedat_loader_cache_map_scenery(buildcachedat, param_a, param_b, data_size, data);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    int data_size = arg_int(args, 0);
-    void* data = arg_userdata(args, 1);
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
 
-    buildcachedat_loader_set_config_jagfile(buildcachedat, data_size, data);
+    buildcachedat_loader_set_config_jagfile(buildcachedat, archive->data_size, archive->data);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     struct GGame* game = arg_game(args);
     buildcachedat_loader_init_varp_varbit(buildcachedat, game);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_set_versionlist_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    int data_size = arg_int(args, 0);
-    void* data = arg_userdata(args, 1);
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
 
-    buildcachedat_loader_set_versionlist_jagfile(buildcachedat, data_size, data);
+    buildcachedat_loader_set_versionlist_jagfile(buildcachedat, archive->data_size, archive->data);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_cache_map_terrain(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -86,6 +93,8 @@ LuaBuildCacheDat_cache_map_terrain(
     void* data = arg_userdata(args, 3);
 
     buildcachedat_loader_cache_map_terrain(buildcachedat, param_a, param_b, data_size, data);
+
+    return LuaGameType_NewVoid();
 }
 
 struct LuaGameType*
@@ -131,22 +140,26 @@ LuaBuildCacheDat_has_animbaseframes(
     return LuaGameType_NewBool(ab != NULL);
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_init_floortypes_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
     buildcachedat_loader_init_floortypes_from_config_jagfile(buildcachedat);
+
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_init_scenery_configs_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
     buildcachedat_loader_init_scenery_configs_from_config_jagfile(buildcachedat);
+
+    return LuaGameType_NewVoid();
 }
 
 struct LuaGameType*
@@ -394,7 +407,7 @@ LuaBuildCacheDat_get_obj(
     return result;
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_cache_model(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -404,9 +417,10 @@ LuaBuildCacheDat_cache_model(
     void* data = arg_userdata(args, 2);
 
     buildcachedat_loader_cache_model(buildcachedat, model_id, data_size, data);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_load_interfaces(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -415,18 +429,20 @@ LuaBuildCacheDat_load_interfaces(
     void* data = arg_userdata(args, 1);
 
     buildcachedat_loader_load_interfaces(buildcachedat, data, data_size);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_load_component_sprites_from_media(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     struct GGame* game = arg_game(args);
     buildcachedat_loader_load_component_sprites_from_media(buildcachedat, game);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_cache_textures(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -436,15 +452,17 @@ LuaBuildCacheDat_cache_textures(
     void* data = arg_userdata(args, 2);
 
     buildcachedat_loader_cache_textures(buildcachedat, game, data_size, data);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_init_sequences_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
     buildcachedat_loader_init_sequences_from_config_jagfile(buildcachedat);
+    return LuaGameType_NewVoid();
 }
 
 struct LuaGameType*
@@ -458,7 +476,7 @@ LuaBuildCacheDat_get_animbaseframes_count_from_versionlist_jagfile(
     return LuaGameType_NewInt(count);
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_cache_animbaseframes(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -468,9 +486,10 @@ LuaBuildCacheDat_cache_animbaseframes(
     void* data = arg_userdata(args, 2);
 
     buildcachedat_loader_cache_animbaseframes(buildcachedat, animbaseframes_id, data_size, data);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_cache_media(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -480,9 +499,10 @@ LuaBuildCacheDat_cache_media(
     void* data = arg_userdata(args, 2);
 
     buildcachedat_loader_cache_media(buildcachedat, game, data_size, data);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_cache_title(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -492,27 +512,30 @@ LuaBuildCacheDat_cache_title(
     void* data = arg_userdata(args, 2);
 
     buildcachedat_loader_cache_title(buildcachedat, game, data_size, data);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_init_idkits_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
     buildcachedat_loader_init_idkits_from_config_jagfile(buildcachedat);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_init_objects_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
     buildcachedat_loader_init_objects_from_config_jagfile(buildcachedat);
+    return LuaGameType_NewVoid();
 }
 
-void
+struct LuaGameType*
 LuaBuildCacheDat_finalize_scene(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -525,4 +548,69 @@ LuaBuildCacheDat_finalize_scene(
 
     buildcachedat_loader_finalize_scene(
         buildcachedat, game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    return LuaGameType_NewVoid();
+}
+
+static char const g_prefix[] = "buildcachedat_";
+
+#define DISPATCH_COMMAND(command, func)                                                            \
+    if( strncmp(command, #func, sizeof(#func) - 1) == 0 )                                          \
+    {                                                                                              \
+        return LuaBuildCacheDat_##func(buildcachedat, args);                                       \
+    }
+
+bool
+LuaBuildCacheDat_CommandHasPrefix(char* command)
+{
+    return strncmp(command, g_prefix, sizeof(g_prefix) - 1) == 0;
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_DispatchCommand(
+    struct BuildCacheDat* buildcachedat,
+    char* full_command,
+    struct LuaGameType* args)
+{
+    assert(memcmp(full_command, g_prefix, sizeof(g_prefix) - 1) == 0);
+    char command[strlen(full_command) - sizeof(g_prefix) + 1];
+    strncpy(
+        command, full_command + sizeof(g_prefix) - 1, strlen(full_command) - sizeof(g_prefix) + 1);
+    command[strlen(full_command) - sizeof(g_prefix) + 1] = '\0';
+
+    // clang-format off
+    DISPATCH_COMMAND(command, cache_map_scenery)
+    else DISPATCH_COMMAND(command, set_config_jagfile)
+    else DISPATCH_COMMAND(command, init_varp_varbit_from_config_jagfile)
+    else DISPATCH_COMMAND(command, set_versionlist_jagfile)
+    else DISPATCH_COMMAND(command, cache_map_terrain)
+    else DISPATCH_COMMAND(command, has_map_terrain)
+    else DISPATCH_COMMAND(command, has_map_scenery)
+    else DISPATCH_COMMAND(command, has_model)
+    else DISPATCH_COMMAND(command, has_animbaseframes)
+    else DISPATCH_COMMAND(command, init_floortypes_from_config_jagfile)
+    else DISPATCH_COMMAND(command, init_scenery_configs_from_config_jagfile)
+    else DISPATCH_COMMAND(command, get_all_scenery_locs)
+    else DISPATCH_COMMAND(command, get_scenery_model_ids)
+    else DISPATCH_COMMAND(command, get_npc_model_ids)
+    else DISPATCH_COMMAND(command, get_npc_head_model_ids)
+    else DISPATCH_COMMAND(command, get_idk_model_ids)
+    else DISPATCH_COMMAND(command, get_idk_head_model_ids)
+    else DISPATCH_COMMAND(command, get_obj_model_ids)
+    else DISPATCH_COMMAND(command, get_obj_head_model_ids)
+    else DISPATCH_COMMAND(command, get_obj)
+    else DISPATCH_COMMAND(command, cache_model)
+    else DISPATCH_COMMAND(command, load_interfaces)
+    else DISPATCH_COMMAND(command, load_component_sprites_from_media)
+    else DISPATCH_COMMAND(command, cache_textures)
+    else DISPATCH_COMMAND(command, init_sequences_from_config_jagfile)
+    else DISPATCH_COMMAND(command, get_animbaseframes_count_from_versionlist_jagfile)
+    else DISPATCH_COMMAND(command, cache_animbaseframes)
+    else DISPATCH_COMMAND(command, cache_media)
+    else DISPATCH_COMMAND(command, cache_title)
+    else DISPATCH_COMMAND(command, init_idkits_from_config_jagfile)
+    else DISPATCH_COMMAND(command, init_objects_from_config_jagfile)
+    else DISPATCH_COMMAND(command, finalize_scene);
+    // clang-format on
+
+    return LuaGameType_NewVoid();
 }

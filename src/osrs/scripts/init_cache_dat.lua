@@ -11,7 +11,10 @@ local function init_cache_dat()
         CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST)
     print("versionlist_ptr", versionlist_ptr)
 
-    local result = Game.multiply(10, 5)
+    Game.buildcachedat_set_config_jagfile(config_ptr)
+    Game.buildcachedat_set_versionlist_jagfile(versionlist_ptr)
+
+    local result = Game.buildcachedat_init_floortypes_from_config_jagfile()
     print(result)
 end
 

@@ -96,6 +96,11 @@ LuaGameType_NewIntArray(
 struct LuaGameType*
 LuaGameType_NewVarTypeArray(int hint);
 
+struct LuaGameType*
+LuaGameType_NewVarTypeArraySliceMove(
+    struct LuaGameType* game_type,
+    int start);
+
 void
 LuaGameType_VarTypeArrayPush(
     struct LuaGameType* var_type_array,

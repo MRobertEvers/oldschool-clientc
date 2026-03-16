@@ -72,10 +72,6 @@ luajs_sidecar_callback(
     printf("\n");
     printf("Command: %s\n", command);
 
-    if( strcmp(command, "multiply") == 0 )
-    {
-        printf("Test command received\n");
-    }
     return LuaGameType_NewVoid();
 }
 
