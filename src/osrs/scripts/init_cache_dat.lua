@@ -37,6 +37,8 @@ end
 
 
 local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
+    local start = os.time()
+
     local config_requests = {
         { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS,      flags = 0 },
         { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST, flags = 0 },
@@ -48,6 +50,9 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
 
     print("=== Loading Map Data ===")
     local chunks, map_sw_x, map_sw_z, map_ne_x, map_ne_z = world_to_map_chunks(wx_sw, wz_sw, wx_ne, wz_ne)
+    -- Long process...
+    print("Time elapsed: " .. os.difftime(os.time(), start) .. "s")
+
 
     local terrain_requests = {}
     local terrain_map_ids = {}
@@ -71,6 +76,9 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
         end
     end
 
+    -- Long process...
+    print("Time elapsed: " .. os.difftime(os.time(), start) .. "s")
+
     local scenery_requests = {}
     local scenery_map_ids = {}
     for _, chunk in ipairs(chunks) do
@@ -92,6 +100,9 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
             Game.buildcachedat_cache_map_scenery(scenery_archives[i], map_id)
         end
     end
+    -- Long process...
+    print("Time elapsed: " .. os.difftime(os.time(), start) .. "s")
+
 
     print("=== Loading Config ===")
     Game.buildcachedat_init_floortypes_from_config_jagfile()
@@ -100,18 +111,34 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     Game.buildcachedat_init_objects_from_config_jagfile()
     Game.buildcachedat_init_sequences_from_config_jagfile()
 
+    -- Long process...
+    print("Time elapsed: " .. os.difftime(os.time(), start) .. "s")
+
     print("=== Loading Models ===")
+    print("Time elapsed Pre Add Unique: " .. os.difftime(os.time(), start) .. "s")
     local models_to_load = {}
     local scenery_locs = Game.buildcachedat_get_all_scenery_locs()
+    local seen = {}
+    local models_to_load = {}
+
     for _, loc in ipairs(scenery_locs) do
-        local loc_id, chunk_x, chunk_z = table.unpack(loc)
+        local loc_id = loc[1] -- Optimization: Direct indexing is faster than table.unpack
         local model_ids = Game.buildcachedat_get_scenery_model_ids(loc_id)
+
         for _, model_id in ipairs(model_ids) do
-            add_unique(models_to_load, model_id)
+            -- 1. Ensure Uniqueness (O(1) lookup)
+            if not seen[model_id] then
+                table.insert(models_to_load, model_id)
+                seen[model_id] = true
+            end
         end
     end
 
+    -- 2. Sort once at the end (O(n log n))
+    print("Time elapsed Pre Sort: " .. os.difftime(os.time(), start) .. "s")
+
     table.sort(models_to_load)
+    print("Time elapsed Post Sort: " .. os.difftime(os.time(), start) .. "s")
     local model_requests = {}
     local models_needed = {}
     for _, model_id in ipairs(models_to_load) do
@@ -127,6 +154,10 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
             Game.buildcachedat_cache_model(model_archives[i], model_id)
         end
     end
+
+    -- Long process...
+    print("Time elapsed: " .. os.difftime(os.time(), start) .. "s")
+
 
     print("=== Loading Textures ===")
     local texture_sprites_ptr = CacheDat.load_archive(
