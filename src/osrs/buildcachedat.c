@@ -566,6 +566,33 @@ buildcachedat_get_texture(
     return texture_entry->texture;
 }
 
+struct DashMapIter*
+buildcachedat_iter_new_textures(struct BuildCacheDat* buildcachedat)
+{
+    return dashmap_iter_new(buildcachedat->textures_hmap);
+}
+
+struct DashTexture*
+buildcachedat_iter_next_texture(struct DashMapIter* iter)
+{
+    struct TextureEntry* texture_entry = (struct TextureEntry*)dashmap_iter_next(iter);
+    if( !texture_entry )
+        return NULL;
+    return texture_entry->texture;
+}
+
+struct DashTexture*
+buildcachedat_iter_next_texture_id(
+    struct DashMapIter* iter,
+    int* out_id)
+{
+    struct TextureEntry* texture_entry = (struct TextureEntry*)dashmap_iter_next(iter);
+    if( !texture_entry )
+        return NULL;
+    *out_id = texture_entry->id;
+    return texture_entry->texture;
+}
+
 void
 buildcachedat_add_scenery(
     struct BuildCacheDat* buildcachedat,

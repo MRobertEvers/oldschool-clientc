@@ -52,7 +52,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
 
     for _, chunk in ipairs(chunks) do
         if not Game.buildcachedat_has_map_terrain(chunk.x, chunk.z) then
-            local map_id = chunk.x | (chunk.z << 16)
+            local map_id = (chunk.x << 16) | (chunk.z)
             local terrain_ptr = CacheDat.load_archive(
                 CacheDat.Tables.CACHE_DAT_MAPS, map_id,
                 CacheDat.ArchiveIdFlags.MAP_TERRAIN)
@@ -62,7 +62,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
 
     for _, chunk in ipairs(chunks) do
         if not Game.buildcachedat_has_map_scenery(chunk.x, chunk.z) then
-            local map_id = chunk.x | (chunk.z << 16)
+            local map_id = (chunk.x << 16) | (chunk.z)
             local scenery_ptr = CacheDat.load_archive(
                 CacheDat.Tables.CACHE_DAT_MAPS, map_id,
                 CacheDat.ArchiveIdFlags.MAP_SCENERY)
@@ -103,6 +103,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
         CacheDat.Tables.CACHE_DAT_CONFIGS,
         CacheDat.ConfigDatKind.CONFIG_DAT_TEXTURES)
     Game.buildcachedat_cache_textures(texture_sprites_ptr)
+    Game.dash_load_textures()
 
     print("=== Loading Animations ===")
     local animbaseframes_count = Game.buildcachedat_get_animbaseframes_count_from_versionlist_jagfile()
@@ -115,6 +116,8 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
             Game.buildcachedat_cache_animbaseframes(animbase_ptr, i)
         end
     end
+
+    Game.game_build_scene(50, 50, 51, 51)
 end
 
 init_cache_dat(50 * 64, 50 * 64, 52 * 64, 52 * 64)

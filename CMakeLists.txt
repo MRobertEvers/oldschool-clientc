@@ -130,6 +130,8 @@ set(COMMON_SOURCES
     src/platforms/common/sockstream.c
     src/osrs/lua_sidecar/luac_sidecar_cachedat.c
     src/osrs/lua_sidecar/lua_buildcachedat.c
+    src/osrs/lua_sidecar/lua_dash.c
+    src/osrs/lua_sidecar/lua_game.c
     src/osrs/lua_sidecar/lua_gametypes.c
     src/osrs/lua_sidecar/luac_gametypes.c
     src/osrs/lua_sidecar/luac_sidecar.c

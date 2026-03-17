@@ -38,6 +38,7 @@ main(
         LibToriRS_RenderCommandBufferNew(1024);
     struct GIOMessage message = { 0 };
     struct Platform2_OSX_SDL2* platform = Platform2_OSX_SDL2_New();
+    platform->current_game = game;
     if( !platform )
     {
         printf("Failed to create platform\n");

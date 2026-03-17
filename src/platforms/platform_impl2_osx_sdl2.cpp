@@ -9,6 +9,8 @@ extern "C" {
 #include "osrs/gio.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_buildcachedat.h"
+#include "osrs/lua_sidecar/lua_dash.h"
+#include "osrs/lua_sidecar/lua_game.h"
 #include "osrs/lua_sidecar/lua_gametypes.h"
 #include "osrs/lua_sidecar/luac_gametypes.h"
 #include "osrs/lua_sidecar/luac_sidecar.h"
@@ -48,7 +50,7 @@ game_callback(
     struct LuaGameType* args)
 {
     struct Platform2_OSX_SDL2* platform = (struct Platform2_OSX_SDL2*)ctx;
-    struct BuildCacheDat* bcd = platform->buildcachedat;
+    struct BuildCacheDat* bcd = platform->current_game->buildcachedat;
 
     struct LuaGameType* command_gametype = LuaGameType_GetVarTypeArrayAt(args, 0);
     assert(command_gametype->kind == LUAGAMETYPE_STRING);
@@ -60,6 +62,15 @@ game_callback(
     if( LuaBuildCacheDat_CommandHasPrefix((char*)command) )
     {
         result = LuaBuildCacheDat_DispatchCommand(bcd, (char*)command, args_view);
+    }
+    else if( LuaDash_CommandHasPrefix((char*)command) )
+    {
+        result = LuaDash_DispatchCommand(
+            platform->current_game->sys_dash, bcd, (char*)command, args_view);
+    }
+    else if( LuaGame_CommandHasPrefix((char*)command) )
+    {
+        result = LuaGame_DispatchCommand(platform->current_game, (char*)command, args_view);
     }
 
     LuaGameType_Free(args_view);
@@ -137,7 +148,6 @@ Platform2_OSX_SDL2_New(void)
     }
 
     platform->cache_dat = cache_dat_new_from_directory(CACHE_PATH);
-    platform->buildcachedat = buildcachedat_new();
 
     return platform;
 }
@@ -633,7 +643,6 @@ Platform2_OSX_SDL2_RunLuaScripts(
     struct Platform2_OSX_SDL2* platform,
     struct GGame* game)
 {
-    platform->current_game = game;
     while( !LibToriRS_LuaScriptQueueIsEmpty(game) )
     {
         struct ToriRSPlatformScript script;

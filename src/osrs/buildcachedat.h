@@ -177,6 +177,11 @@ buildcachedat_iter_new_textures(struct BuildCacheDat* buildcachedat);
 struct DashTexture*
 buildcachedat_iter_next_texture(struct DashMapIter* iter);
 
+struct DashTexture*
+buildcachedat_iter_next_texture_id(
+    struct DashMapIter* iter,
+    int* out_id);
+
 void
 buildcachedat_add_scenery(
     struct BuildCacheDat* buildcachedat,

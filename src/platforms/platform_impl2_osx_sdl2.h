@@ -34,7 +34,6 @@ struct Platform2_OSX_SDL2
 
     struct Cache* cache;
     struct CacheDat* cache_dat;
-    struct BuildCacheDat* buildcachedat;
 
     /** Set during RunLuaScripts for Game callback dispatch. */
     struct GGame* current_game;

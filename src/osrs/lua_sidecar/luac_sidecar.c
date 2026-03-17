@@ -18,7 +18,6 @@
 static int
 c_wasm_dispatcher(lua_State* L)
 {
-    printf("c_wasm_dispatcher\n");
     const char* func_name = lua_tostring(L, lua_upvalueindex(1));
     void* ctx = lua_touserdata(L, lua_upvalueindex(2));
     LuaCSidecar_GameCallback callback =
