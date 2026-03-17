@@ -114,46 +114,58 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         0x000000FF,
         0xFF000000);
 
-    // Copy the pixels into the texture
+    // Copy the pixels into the texture, taking SDL pitch into account
     int* pix_write = NULL;
     int texture_pitch = 0;
     if( SDL_LockTexture(renderer->texture, NULL, (void**)&pix_write, &texture_pitch) < 0 )
-        return;
-
-    int row_size = renderer->width * sizeof(int);
-    int* src_pixels = (int*)surface->pixels;
-    int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
-
-    for( int src_y = 0; src_y < (renderer->height); src_y++ )
     {
-        int* row = &pix_write[(src_y * renderer->width)];
-        for( int x = 0; x < renderer->width; x++ )
-        {
-            int pixel = src_pixels[src_y * renderer->width + x];
-            if( pixel != 0 )
-            {
-                row[x] = pixel;
-            }
-        }
-        // memcpy(row, &src_pixels[(src_y - 0) * renderer->width], row_size);
+        SDL_FreeSurface(surface);
+        return;
+    }
+
+    int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
+    int* src_pixels = (int*)surface->pixels;
+
+    for( int src_y = 0; src_y < renderer->height; src_y++ )
+    {
+        int* dst_row = &pix_write[src_y * texture_w];
+        int* src_row = &src_pixels[src_y * renderer->width];
+        memcpy(dst_row, src_row, renderer->width * sizeof(int));
     }
 
     // Unlock the texture so that it may be used elsewhere
     SDL_UnlockTexture(renderer->texture);
 
-    // window_width and window_height already retrieved at the top of function
-    // Calculate destination rectangle to scale the texture to fill the window
+    // Clear renderer and draw the texture with aspect-ratio–preserving scaling
+    SDL_SetRenderDrawColor(renderer->renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer->renderer);
+
+    int dst_w = 0;
+    int dst_h = 0;
+    SDL_GetRendererOutputSize(renderer->renderer, &dst_w, &dst_h);
+
+    float src_aspect = (float)renderer->width / (float)renderer->height;
+    float dst_aspect = (dst_h != 0) ? ((float)dst_w / (float)dst_h) : 1.0f;
+
     SDL_Rect dst_rect;
-    dst_rect.x = 0;
-    dst_rect.y = 0;
-    dst_rect.w = renderer->width;
-    dst_rect.h = renderer->height;
+    if( dst_aspect > src_aspect )
+    {
+        // Destination is wider than source: fit by height, letterbox left/right
+        dst_rect.h = dst_h;
+        dst_rect.w = (int)(dst_h * src_aspect);
+        dst_rect.x = (dst_w - dst_rect.w) / 2;
+        dst_rect.y = 0;
+    }
+    else
+    {
+        // Destination is taller than source: fit by width, letterbox top/bottom
+        dst_rect.w = dst_w;
+        dst_rect.h = (int)(dst_w / src_aspect);
+        dst_rect.x = 0;
+        dst_rect.y = (dst_h - dst_rect.h) / 2;
+    }
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); // Nearest
-
-    // Calculate aspect ratio preserving dimensions
-    float src_aspect = (float)renderer->width / (float)renderer->height;
-
     SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
     SDL_FreeSurface(surface);
 

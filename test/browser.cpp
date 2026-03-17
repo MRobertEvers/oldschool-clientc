@@ -174,7 +174,11 @@ main(
 {
     struct Platform2_Emscripten_SDL2* platform = Platform2_Emscripten_SDL2_New();
     struct GIOQueue* io = gioq_new();
-    struct GGame* game = LibToriRS_GameNew(io, 513, 335);
+    // These dimensions define the internal 3D render resolution used by the game/viewport.
+    const int graphics3d_width = 513;
+    const int graphics3d_height = 335;
+
+    struct GGame* game = LibToriRS_GameNew(io, graphics3d_width, graphics3d_height);
     struct GInput input = { 0 };
     struct ToriRSRenderCommandBuffer* render_command_buffer =
         LibToriRS_RenderCommandBufferNew(1024);
@@ -190,7 +194,9 @@ main(
 
     Platform2_Emscripten_SDL2_InitForSoft3D(platform, 1024, 768);
 
-    renderer = PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(1024, 768, 1600, 900);
+    // Renderer source buffer should match the game's 3D viewport resolution
+    renderer = PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(
+        graphics3d_width, graphics3d_height, 1600, 900);
     if( !renderer )
     {
         printf("Failed to create soft3d renderer\n");
