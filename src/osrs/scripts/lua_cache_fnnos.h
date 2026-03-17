@@ -4,6 +4,7 @@
 enum LuaCacheFunctionNo
 {
     FUNC_LOAD_ARCHIVE = 1,
+    FUNC_LOAD_ARCHIVES = 2,
 };
 
 #endif

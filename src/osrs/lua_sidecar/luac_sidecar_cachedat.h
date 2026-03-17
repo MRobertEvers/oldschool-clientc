@@ -9,4 +9,9 @@ LuaCSidecar_CachedatLoadArchive(
     struct CacheDat* cache_dat,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaCSidecar_CachedatLoadArchives(
+    struct CacheDat* cache_dat,
+    struct LuaGameType* args);
+
 #endif

@@ -591,6 +591,8 @@ on_lua_async_call(
     {
     case FUNC_LOAD_ARCHIVE:
         return LuaCSidecar_CachedatLoadArchive(cache_dat, args);
+    case FUNC_LOAD_ARCHIVES:
+        return LuaCSidecar_CachedatLoadArchives(cache_dat, args);
     default:
         assert(false && "Unknown cachedat function");
         return NULL;

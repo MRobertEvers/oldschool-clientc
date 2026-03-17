@@ -377,6 +377,93 @@ export class LuaJSSidecar {
 
         return [archive];
       }
+      case LuaCacheFunctionNo.FUNC_LOAD_ARCHIVES: {
+        const requests = [];
+        for (let i = 0; i + 2 < args.length; i += 3) {
+          requests.push({
+            table_id: args[i],
+            archive_id: args[i + 1],
+            flags: args[i + 2],
+          });
+        }
+
+        const response = await fetch(
+          "http://localhost:8096/api/load_archives",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requests),
+          },
+        );
+
+        if (!response.ok) {
+          return [];
+        }
+
+        const contentTypeRaw = response.headers.get("Content-Type") || "";
+        const boundaryMatch = contentTypeRaw.match(/boundary=([^;,\s]+)/i);
+        if (!boundaryMatch) {
+          return [];
+        }
+        let boundary = boundaryMatch[1].trim();
+        if (boundary.startsWith('"') && boundary.endsWith('"')) {
+          boundary = boundary.slice(1, -1);
+        }
+
+        const raw = await response.arrayBuffer();
+        const bytes = new Uint8Array(raw);
+
+        const enc = new TextEncoder();
+        const boundaryBytes = enc.encode(`--${boundary}`);
+        const crlf = new Uint8Array([0x0d, 0x0a]);
+        const headerSep = new Uint8Array([0x0d, 0x0a, 0x0d, 0x0a]);
+
+        function indexOfBytes(haystack, needle, from) {
+          for (let i = from; i <= haystack.length - needle.length; i++) {
+            let j = 0;
+            while (j < needle.length && haystack[i + j] === needle[j]) j++;
+            if (j === needle.length) return i;
+          }
+          return -1;
+        }
+
+        const archives = [];
+        let pos = indexOfBytes(bytes, boundaryBytes, 0);
+        if (pos === -1) return [];
+
+        while (true) {
+          let lineEnd = indexOfBytes(bytes, crlf, pos);
+          if (lineEnd === -1) break;
+          const afterBoundary = lineEnd + crlf.length;
+          const headerEnd = indexOfBytes(bytes, headerSep, afterBoundary);
+          if (headerEnd === -1) break;
+          const bodyStart = headerEnd + headerSep.length;
+          const nextBoundary = indexOfBytes(bytes, boundaryBytes, bodyStart);
+          if (nextBoundary === -1) break;
+          /* Body ends at CRLF before next boundary; strip those 2 bytes */
+          const bodyEnd =
+            nextBoundary >= 2 &&
+            bytes[nextBoundary - 2] === 0x0d &&
+            bytes[nextBoundary - 1] === 0x0a
+              ? nextBoundary - 2
+              : nextBoundary;
+          if (bodyEnd > bodyStart) {
+            const bodyLen = bodyEnd - bodyStart;
+            const deserialize = this.wasm._luajs_CacheDatArchive_deserialize;
+            const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
+            const ptr = this.wasm._malloc(bodyLen);
+            heapu8.set(bytes.subarray(bodyStart, bodyEnd), ptr);
+            const archive = deserialize(ptr, bodyLen);
+            this.wasm._free(ptr);
+            if (archive) archives.push(archive);
+          }
+          pos = nextBoundary;
+        }
+
+        return archives;
+      }
       default: {
         console.error(`Unknown command: ${cmd}`);
         return [];

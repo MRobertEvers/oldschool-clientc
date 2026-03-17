@@ -22,12 +22,26 @@ M.ConfigDatKind = {
 -- --- Function ID Mapping ---
 M.Func = {
     LOAD_ARCHIVE = 1,
+    LOAD_ARCHIVES = 2,
 }
 
 M.ArchiveIdFlags = {
     MAP_TERRAIN = 1,
     MAP_SCENERY = 2,
 }
+
+function M.load_archives(requests)
+    local args = {}
+    for i = 1, #requests do
+        local r = requests[i]
+        args[#args + 1] = r.table_id
+        args[#args + 1] = r.archive_id
+        args[#args + 1] = r.flags or 0
+    end
+    -- Pack all yielded values into an array
+    local archives = { coroutine.yield(M.Func.LOAD_ARCHIVES, table.unpack(args)) }
+    return archives
+end
 
 function M.load_archive(table_id, archive_id, flags)
     return coroutine.yield(M.Func.LOAD_ARCHIVE, table_id, archive_id, flags or 0)
