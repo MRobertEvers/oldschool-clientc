@@ -100,7 +100,9 @@ LuacGameType_FromLua(
                 ptrs[i - 1] = lua_touserdata(L, -1);
                 lua_pop(L, 1);
             }
-            struct LuaGameType* gt = LuaGameType_NewUserDataArray(ptrs, (int)n);
+            struct LuaGameType* gt = LuaGameType_NewUserDataArray((int)n);
+            for( int i = 0; i < n; i++ )
+                LuaGameType_UserDataArrayPush(gt, ptrs[i]);
             if( !gt )
                 free(ptrs);
             return gt;
@@ -126,7 +128,7 @@ LuacGameType_FromLua(
     }
 }
 
-void
+int
 LuacGameType_PushToLua(
     struct lua_State* L,
     struct LuaGameType* gt)
@@ -134,38 +136,38 @@ LuacGameType_PushToLua(
     if( !gt )
     {
         lua_pushnil(L);
-        return;
+        return 1;
     }
 
     switch( LuaGameType_GetKind(gt) )
     {
     case LUAGAMETYPE_VOID:
         lua_pushnil(L);
-        break;
+        return 1;
 
     case LUAGAMETYPE_BOOL:
         lua_pushboolean(L, LuaGameType_GetBool(gt) ? 1 : 0);
-        break;
+        return 1;
 
     case LUAGAMETYPE_INT:
         lua_pushinteger(L, LuaGameType_GetInt(gt));
-        break;
+        return 1;
 
     case LUAGAMETYPE_FLOAT:
         lua_pushnumber(L, LuaGameType_GetFloat(gt));
-        break;
+        return 1;
 
     case LUAGAMETYPE_STRING:
     {
         char* s = LuaGameType_GetString(gt);
         int len = LuaGameType_GetStringLength(gt);
         lua_pushlstring(L, s ? s : "", (size_t)len);
-        break;
+        return 1;
     }
 
     case LUAGAMETYPE_USERDATA:
         lua_pushlightuserdata(L, LuaGameType_GetUserData(gt));
-        break;
+        return 1;
 
     case LUAGAMETYPE_INT_ARRAY:
     {
@@ -177,7 +179,7 @@ LuacGameType_PushToLua(
             lua_pushinteger(L, vals[i]);
             lua_rawseti(L, -2, i + 1);
         }
-        break;
+        return 1;
     }
 
     case LUAGAMETYPE_USERDATA_ARRAY:
@@ -191,9 +193,18 @@ LuacGameType_PushToLua(
             lua_pushlightuserdata(L, ptrs[i]);
             lua_rawseti(L, -2, i + 1);
         }
-        break;
+        return 1;
     }
-
+    case LUAGAMETYPE_USERDATA_ARRAY_SPREAD:
+    {
+        int n = LuaGameType_GetUserDataArrayCount(gt);
+        for( int i = 0; i < n; i++ )
+        {
+            void* ptr = LuaGameType_GetUserDataArrayAt(gt, i);
+            lua_pushlightuserdata(L, ptr);
+        }
+        return n;
+    }
     case LUAGAMETYPE_VARTYPE_ARRAY:
     {
         int n = LuaGameType_GetVarTypeArrayCount(gt);
@@ -204,12 +215,12 @@ LuacGameType_PushToLua(
             LuacGameType_PushToLua(L, elem);
             lua_rawseti(L, -2, i + 1);
         }
-        break;
+        return 1;
     }
 
     default:
         lua_pushnil(L);
-        break;
+        return 1;
     }
 }
 

@@ -71,6 +71,7 @@ export function createLuaGameTypes(wasm) {
   const getKind = getExport("luajs_LuaGameType_GetKind");
   const getUserData = getExport("luajs_LuaGameType_GetUserData");
   const getUserDataArray = getExport("luajs_LuaGameType_GetUserDataArray");
+  const getUserDataArrayAt = getExport("luajs_LuaGameType_GetUserDataArrayAt");
   const getUserDataArrayCount = getExport(
     "luajs_LuaGameType_GetUserDataArrayCount",
   );
@@ -99,14 +100,22 @@ export function createLuaGameTypes(wasm) {
       case LuaGameTypeKind.USERDATA:
         return { kind: "userdata", value: getUserData(ptr) };
       case LuaGameTypeKind.USERDATA_ARRAY: {
-        const dataPtr = getUserDataArray(ptr);
         const count = getUserDataArrayCount(ptr);
         const arr = [];
-        const ptrSize = 4; // WASM32 pointers
         for (let i = 0; i < count; i++) {
-          arr.push(new Uint32Array(memory, dataPtr + i * ptrSize, 1)[0]);
+          const ptr = getUserDataArrayAt(ptr, i);
+          arr.push(ptr);
         }
         return { kind: "userdata_array", value: arr };
+      }
+      case LuaGameTypeKind.USERDATA_ARRAY_SPREAD: {
+        const count = getUserDataArrayCount(ptr);
+        const arr = [];
+        for (let i = 0; i < count; i++) {
+          const ptr = getUserDataArrayAt(ptr, i);
+          arr.push(ptr);
+        }
+        return { kind: "userdata_array_spread", value: arr };
       }
       case LuaGameTypeKind.INT_ARRAY: {
         const dataPtr = getIntArray(ptr);
@@ -205,34 +214,40 @@ export function createLuaGameTypes(wasm) {
 export function pushToLua(L, obj) {
   if (!obj) {
     lua.lua_pushnil(L);
-    return;
+    return 1;
   }
   switch (obj.kind) {
     case "void":
       lua.lua_pushnil(L);
-      break;
+      return 1;
     case "bool":
       lua.lua_pushboolean(L, obj.value ? 1 : 0);
-      break;
+      return 1;
     case "int":
       lua.lua_pushinteger(L, obj.value);
-      break;
+      return 1;
     case "float":
       lua.lua_pushnumber(L, obj.value);
-      break;
+      return 1;
     case "string":
       lua.lua_pushstring(L, obj.value ?? "");
-      break;
+      return 1;
     case "userdata":
       lua.lua_pushlightuserdata(L, obj.value);
-      break;
+      return 1;
     case "userdata_array": {
       lua.lua_createtable(L, obj.value.length, 0);
       for (let i = 0; i < obj.value.length; i++) {
         lua.lua_pushlightuserdata(L, obj.value[i]);
         lua.lua_rawseti(L, -2, i + 1);
       }
-      break;
+      return 1;
+    }
+    case "userdata_array_spread": {
+      for (let i = 0; i < obj.value.length; i++) {
+        lua.lua_pushlightuserdata(L, obj.value[i]);
+      }
+      return obj.value.length;
     }
     case "int_array": {
       lua.lua_createtable(L, obj.value.length, 0);
@@ -240,7 +255,7 @@ export function pushToLua(L, obj) {
         lua.lua_pushinteger(L, obj.value[i]);
         lua.lua_rawseti(L, -2, i + 1);
       }
-      break;
+      return 1;
     }
     case "var_type_array": {
       lua.lua_createtable(L, obj.value.length, 0);
@@ -248,10 +263,11 @@ export function pushToLua(L, obj) {
         pushToLua(L, obj.value[i]);
         lua.lua_rawseti(L, -2, i + 1);
       }
-      break;
+      return 1;
     }
     default:
       lua.lua_pushnil(L);
+      return 1;
   }
 }
 

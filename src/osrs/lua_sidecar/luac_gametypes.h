@@ -11,7 +11,7 @@ LuacGameType_FromLua(
     int idx);
 
 /** Push LuaGameType onto stack. Does not free gt. */
-void
+int
 LuacGameType_PushToLua(
     struct lua_State* L,
     struct LuaGameType* gt);

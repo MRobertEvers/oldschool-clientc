@@ -237,8 +237,7 @@ step_coroutine(
 
     if( args )
     {
-        LuacGameType_PushToLua(co, args);
-        nresume++;
+        nresume = LuacGameType_PushToLua(co, args);
     }
 
     int status = lua_resume_compat(co, from, nresume);

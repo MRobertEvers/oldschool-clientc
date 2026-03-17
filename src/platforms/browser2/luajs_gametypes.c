@@ -15,11 +15,16 @@ luajs_LuaGameType_NewUserData(void* userdata)
 
 EMSCRIPTEN_KEEPALIVE
 struct LuaGameType*
-luajs_LuaGameType_NewUserDataArray(
-    void* userdata,
-    int count)
+luajs_LuaGameType_NewUserDataArray(int count)
 {
-    return LuaGameType_NewUserDataArray(userdata, count);
+    return LuaGameType_NewUserDataArray(count);
+}
+
+EMSCRIPTEN_KEEPALIVE
+struct LuaGameType*
+luajs_LuaGameType_NewUserDataArraySpread(int count)
+{
+    return LuaGameType_NewUserDataArraySpread(count);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -126,6 +131,15 @@ void*
 luajs_LuaGameType_GetUserDataArray(struct LuaGameType* game_type)
 {
     return LuaGameType_GetUserDataArray(game_type);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void*
+luajs_LuaGameType_GetUserDataArrayAt(
+    struct LuaGameType* game_type,
+    int index)
+{
+    return LuaGameType_GetUserDataArrayAt(game_type, index);
 }
 
 EMSCRIPTEN_KEEPALIVE

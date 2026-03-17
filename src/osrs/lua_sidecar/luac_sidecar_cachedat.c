@@ -57,7 +57,7 @@ LuaCSidecar_CachedatLoadArchives(
 
     int triplet_count = count / 3;
     if( triplet_count <= 0 )
-        return LuaGameType_NewUserDataArray(NULL, 0);
+        return LuaGameType_NewUserDataArraySpread(0);
 
     struct CacheDatArchive** archives =
         (struct CacheDatArchive**)malloc((size_t)triplet_count * sizeof(struct CacheDatArchive*));
@@ -98,7 +98,9 @@ LuaCSidecar_CachedatLoadArchives(
         archives[i] = archive;
     }
 
-    struct LuaGameType* result = LuaGameType_NewUserDataArray(archives, triplet_count);
+    struct LuaGameType* result = LuaGameType_NewUserDataArraySpread(triplet_count);
+    for( int i = 0; i < triplet_count; i++ )
+        LuaGameType_UserDataArrayPush(result, archives[i]);
     free(archives);
     return result;
 }

@@ -18,17 +18,30 @@ LuaGameType_NewUserData(void* userdata)
 }
 
 struct LuaGameType*
-LuaGameType_NewUserDataArray(
-    void* userdata,
-    int count)
+LuaGameType_NewUserDataArray(int count)
 {
     struct LuaGameType* game_type = malloc(sizeof(struct LuaGameType));
     if( !game_type )
         return NULL;
     memset(game_type, 0, sizeof(*game_type));
     game_type->kind = LUAGAMETYPE_USERDATA_ARRAY;
-    game_type->_userdata_array.userdata = userdata;
-    game_type->_userdata_array.count = count;
+    game_type->_userdata_array.userdata = malloc(sizeof(void*) * count);
+    game_type->_userdata_array.count = 0;
+    game_type->_userdata_array.capacity = count;
+    return game_type;
+}
+
+struct LuaGameType*
+LuaGameType_NewUserDataArraySpread(int count)
+{
+    struct LuaGameType* game_type = malloc(sizeof(struct LuaGameType));
+    if( !game_type )
+        return NULL;
+    memset(game_type, 0, sizeof(*game_type));
+    game_type->kind = LUAGAMETYPE_USERDATA_ARRAY_SPREAD;
+    game_type->_userdata_array_spread.userdata = malloc(sizeof(void*) * count);
+    game_type->_userdata_array_spread.count = 0;
+    game_type->_userdata_array_spread.capacity = count;
     return game_type;
 }
 
@@ -74,6 +87,73 @@ LuaGameType_NewVarTypeArrayView(
     game_type->_var_type_array_view.var_types = var_types;
     game_type->_var_type_array_view.offset = offset;
     return game_type;
+}
+
+void
+LuaGameType_UserDataArrayPush(
+    struct LuaGameType* userdata_array,
+    void* userdata)
+{
+    switch( userdata_array->kind )
+    {
+    case LUAGAMETYPE_USERDATA_ARRAY:
+        if( userdata_array->_userdata_array.count >= userdata_array->_userdata_array.capacity )
+        {
+            userdata_array->_userdata_array.capacity *= 2;
+            userdata_array->_userdata_array.userdata = realloc(
+                userdata_array->_userdata_array.userdata,
+                sizeof(void*) * userdata_array->_userdata_array.capacity);
+        }
+        userdata_array->_userdata_array.userdata[userdata_array->_userdata_array.count] = userdata;
+        userdata_array->_userdata_array.count++;
+        break;
+    case LUAGAMETYPE_USERDATA_ARRAY_SPREAD:
+        userdata_array->_userdata_array_spread
+            .userdata[userdata_array->_userdata_array_spread.count] = userdata;
+        userdata_array->_userdata_array_spread.count++;
+        break;
+    default:
+        assert(false);
+        break;
+    }
+}
+
+void*
+LuaGameType_GetUserDataArrayAt(
+    struct LuaGameType* game_type,
+    int index)
+{
+    switch( game_type->kind )
+    {
+    case LUAGAMETYPE_USERDATA_ARRAY:
+    {
+        assert(index >= 0 && index < game_type->_userdata_array.count);
+        return game_type->_userdata_array.userdata[index];
+    }
+    case LUAGAMETYPE_USERDATA_ARRAY_SPREAD:
+    {
+        assert(index >= 0 && index < game_type->_userdata_array_spread.count);
+        return game_type->_userdata_array_spread.userdata[index];
+    }
+    default:
+        assert(false);
+        return NULL;
+    }
+}
+
+int
+LuaGameType_GetUserDataArrayCount(struct LuaGameType* game_type)
+{
+    switch( game_type->kind )
+    {
+    case LUAGAMETYPE_USERDATA_ARRAY:
+        return game_type->_userdata_array.count;
+    case LUAGAMETYPE_USERDATA_ARRAY_SPREAD:
+        return game_type->_userdata_array_spread.count;
+    default:
+        assert(false);
+        return 0;
+    }
 }
 
 void
@@ -225,15 +305,16 @@ LuaGameType_GetUserData(struct LuaGameType* game_type)
 void*
 LuaGameType_GetUserDataArray(struct LuaGameType* game_type)
 {
-    assert(game_type->kind == LUAGAMETYPE_USERDATA_ARRAY);
-    return game_type->_userdata_array.userdata;
-}
-
-int
-LuaGameType_GetUserDataArrayCount(struct LuaGameType* game_type)
-{
-    assert(game_type->kind == LUAGAMETYPE_USERDATA_ARRAY);
-    return game_type->_userdata_array.count;
+    switch( game_type->kind )
+    {
+    case LUAGAMETYPE_USERDATA_ARRAY:
+        return game_type->_userdata_array.userdata;
+    case LUAGAMETYPE_USERDATA_ARRAY_SPREAD:
+        return game_type->_userdata_array_spread.userdata;
+    default:
+        assert(false);
+        return NULL;
+    }
 }
 
 int*

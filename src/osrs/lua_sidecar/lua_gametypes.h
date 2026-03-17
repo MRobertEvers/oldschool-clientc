@@ -10,8 +10,9 @@ struct LuaGameTypeUserData
 
 struct LuaGameTypeUserDataArray
 {
-    void* userdata;
+    void** userdata;
     int count;
+    int capacity;
 };
 
 struct LuaGameTypeIntArray
@@ -69,6 +70,7 @@ enum LuaGameTypeKind
     LUAGAMETYPE_FLOAT = 8,
     LUAGAMETYPE_STRING = 9,
     LUAGAMETYPE_VOID = 10,
+    LUAGAMETYPE_USERDATA_ARRAY_SPREAD = 11,
 };
 
 struct LuaGameType
@@ -78,6 +80,7 @@ struct LuaGameType
     {
         struct LuaGameTypeUserData _userdata;
         struct LuaGameTypeUserDataArray _userdata_array;
+        struct LuaGameTypeUserDataArray _userdata_array_spread;
         struct LuaGameTypeIntArray _int_array;
         struct LuaGameTypeBool _bool;
         struct LuaGameTypeInt _int;
@@ -92,9 +95,10 @@ struct LuaGameType*
 LuaGameType_NewUserData(void* userdata);
 
 struct LuaGameType*
-LuaGameType_NewUserDataArray(
-    void* userdata,
-    int count);
+LuaGameType_NewUserDataArray(int count);
+
+struct LuaGameType*
+LuaGameType_NewUserDataArraySpread(int count);
 
 struct LuaGameType*
 LuaGameType_NewIntArray(
@@ -108,6 +112,19 @@ struct LuaGameType*
 LuaGameType_NewVarTypeArrayView(
     struct LuaGameType* var_types,
     int offset);
+
+void
+LuaGameType_UserDataArrayPush(
+    struct LuaGameType* userdata_array,
+    void* userdata);
+
+void*
+LuaGameType_GetUserDataArrayAt(
+    struct LuaGameType* game_type,
+    int index);
+
+int
+LuaGameType_GetUserDataArrayCount(struct LuaGameType* game_type);
 
 void
 LuaGameType_VarTypeArrayPush(
