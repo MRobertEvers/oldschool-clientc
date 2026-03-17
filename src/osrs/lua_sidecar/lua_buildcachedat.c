@@ -41,12 +41,11 @@ LuaBuildCacheDat_cache_map_scenery(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    int param_a = arg_int(args, 0);
-    int param_b = arg_int(args, 1);
-    int data_size = arg_int(args, 2);
-    void* data = arg_userdata(args, 3);
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    int map_id = arg_int(args, 1);
 
-    buildcachedat_loader_cache_map_scenery(buildcachedat, param_a, param_b, data_size, data);
+    buildcachedat_loader_cache_map_scenery_mapid(
+        buildcachedat, map_id, archive->data_size, archive->data);
     return LuaGameType_NewVoid();
 }
 
@@ -66,8 +65,8 @@ LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct GGame* game = arg_game(args);
-    buildcachedat_loader_init_varp_varbit(buildcachedat, game);
+    // struct GGame* game = arg_game(args);
+    // buildcachedat_loader_init_varp_varbit(buildcachedat, game);
     return LuaGameType_NewVoid();
 }
 
@@ -87,12 +86,11 @@ LuaBuildCacheDat_cache_map_terrain(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    int param_a = arg_int(args, 0);
-    int param_b = arg_int(args, 1);
-    int data_size = arg_int(args, 2);
-    void* data = arg_userdata(args, 3);
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    int map_id = arg_int(args, 1);
 
-    buildcachedat_loader_cache_map_terrain(buildcachedat, param_a, param_b, data_size, data);
+    buildcachedat_loader_cache_map_terrain_mapid(
+        buildcachedat, map_id, archive->data_size, archive->data);
 
     return LuaGameType_NewVoid();
 }
@@ -412,11 +410,10 @@ LuaBuildCacheDat_cache_model(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    int model_id = arg_int(args, 0);
-    int data_size = arg_int(args, 1);
-    void* data = arg_userdata(args, 2);
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    int model_id = archive->archive_id;
 
-    buildcachedat_loader_cache_model(buildcachedat, model_id, data_size, data);
+    buildcachedat_loader_cache_model(buildcachedat, model_id, archive->data_size, archive->data);
     return LuaGameType_NewVoid();
 }
 
@@ -447,11 +444,8 @@ LuaBuildCacheDat_cache_textures(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct GGame* game = arg_game(args);
-    int data_size = arg_int(args, 1);
-    void* data = arg_userdata(args, 2);
-
-    buildcachedat_loader_cache_textures(buildcachedat, game, data_size, data);
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    buildcachedat_loader_cache_textures(buildcachedat, archive->data_size, archive->data);
     return LuaGameType_NewVoid();
 }
 
@@ -481,11 +475,10 @@ LuaBuildCacheDat_cache_animbaseframes(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    int animbaseframes_id = arg_int(args, 0);
-    int data_size = arg_int(args, 1);
-    void* data = arg_userdata(args, 2);
-
-    buildcachedat_loader_cache_animbaseframes(buildcachedat, animbaseframes_id, data_size, data);
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    int animbaseframes_id = arg_int(args, 1);
+    buildcachedat_loader_cache_animbaseframes(
+        buildcachedat, animbaseframes_id, archive->data_size, archive->data);
     return LuaGameType_NewVoid();
 }
 

@@ -41,7 +41,7 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     print("=== Step 0: Load Configs ===")
     local configs_promise = HostIO.dat_config_configs_load()
     local versionlist_promise = HostIO.dat_config_version_list_load()
-    
+
     local success, param_a, param_b, data_size, data = HostIOUtils.await(configs_promise)
     if not success then error("Failed to load configs") end
     BuildCacheDat.set_config_jagfile(data_size, data)
@@ -55,7 +55,8 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     local terrain_to_load = {}
     for _, chunk in ipairs(chunks) do
         if not BuildCacheDat.has_map_terrain(chunk.x, chunk.z) then
-            terrain_to_load[#terrain_to_load + 1] = { chunk = chunk, req_id = HostIO.dat_map_terrain_load(chunk.x, chunk.z) }
+            terrain_to_load[#terrain_to_load + 1] = { chunk = chunk, req_id = HostIO.dat_map_terrain_load(chunk.x,
+                chunk.z) }
         end
     end
     local terrain_req_ids = {}
@@ -78,7 +79,8 @@ function load_scene_dat(wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z)
     local scenery_to_load = {}
     for _, chunk in ipairs(chunks) do
         if not BuildCacheDat.has_map_scenery(chunk.x, chunk.z) then
-            scenery_to_load[#scenery_to_load + 1] = { chunk = chunk, req_id = HostIO.dat_map_scenery_load(chunk.x, chunk.z) }
+            scenery_to_load[#scenery_to_load + 1] = { chunk = chunk, req_id = HostIO.dat_map_scenery_load(chunk.x,
+                chunk.z) }
         end
     end
     local scenery_req_ids = {}
@@ -191,4 +193,3 @@ if not debug.getinfo(2) then
 end
 
 return load_scene_dat
-

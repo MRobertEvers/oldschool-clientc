@@ -61,6 +61,22 @@ buildcachedat_loader_set_versionlist_jagfile(
 }
 
 void
+buildcachedat_loader_cache_map_terrain_mapid(
+    struct BuildCacheDat* buildcachedat,
+    int map_id,
+    int data_size,
+    void* data)
+{
+    int map_x = (map_id >> 16) & 0xFFFF;
+    int map_z = map_id & 0xFFFF;
+
+    struct CacheMapTerrain* terrain =
+        map_terrain_new_from_decode_flags(data, data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
+
+    buildcachedat_add_map_terrain(buildcachedat, map_x, map_z, terrain);
+}
+
+void
 buildcachedat_loader_cache_map_terrain(
     struct BuildCacheDat* buildcachedat,
     int param_a,
@@ -68,13 +84,28 @@ buildcachedat_loader_cache_map_terrain(
     int data_size,
     void* data)
 {
-    int map_x = (param_b >> 16) & 0xFFFF;
+    int map_x = param_b >> 16;
     int map_z = param_b & 0xFFFF;
 
     struct CacheMapTerrain* terrain =
         map_terrain_new_from_decode_flags(data, data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
 
     buildcachedat_add_map_terrain(buildcachedat, map_x, map_z, terrain);
+}
+
+void
+buildcachedat_loader_cache_map_scenery_mapid(
+    struct BuildCacheDat* buildcachedat,
+    int map_id,
+    int data_size,
+    void* data)
+{
+    int mapx = map_id >> 16;
+    int mapz = map_id & 0xFFFF;
+    struct CacheMapLocs* locs = map_locs_new_from_decode(data, data_size);
+    locs->_chunk_mapx = mapx;
+    locs->_chunk_mapz = mapz;
+    buildcachedat_add_scenery(buildcachedat, mapx, mapz, locs);
 }
 
 void
@@ -273,7 +304,6 @@ buildcachedat_loader_cache_model(
 void
 buildcachedat_loader_cache_textures(
     struct BuildCacheDat* buildcachedat,
-    struct GGame* game,
     int data_size,
     void* data)
 {
@@ -299,7 +329,6 @@ buildcachedat_loader_cache_textures(
         assert(dash_texture != NULL);
 
         buildcachedat_add_texture(buildcachedat, i, dash_texture);
-        dash3d_add_texture(game->sys_dash, i, dash_texture);
     }
 
     filelist_dat_free(filelist);

@@ -24,10 +24,24 @@ buildcachedat_loader_set_versionlist_jagfile(
     void* data);
 
 void
+buildcachedat_loader_cache_map_terrain_mapid(
+    struct BuildCacheDat* buildcachedat,
+    int map_id,
+    int data_size,
+    void* data);
+
+void
 buildcachedat_loader_cache_map_terrain(
     struct BuildCacheDat* buildcachedat,
     int param_a,
     int param_b,
+    int data_size,
+    void* data);
+
+void
+buildcachedat_loader_cache_map_scenery_mapid(
+    struct BuildCacheDat* buildcachedat,
+    int map_id,
     int data_size,
     void* data);
 
@@ -68,7 +82,6 @@ buildcachedat_loader_cache_model(
 void
 buildcachedat_loader_cache_textures(
     struct BuildCacheDat* buildcachedat,
-    struct GGame* game,
     int data_size,
     void* data);
 
