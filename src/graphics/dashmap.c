@@ -599,3 +599,14 @@ dashmap_iter_next(struct DashMapIter* it)
     }
     return NULL;
 }
+
+uint32_t
+dashmap_count(struct DashMap* h)
+{
+    return h->size;
+}
+uint32_t
+dashmap_capacity(struct DashMap* h)
+{
+    return h->capacity;
+}

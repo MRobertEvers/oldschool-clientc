@@ -203,6 +203,7 @@ buildcachedat_new(void)
     };
     buildcachedat->animbaseframes_hmap = dashmap_new(&config, 0);
 
+    buffer_size = 10000 * sizeof(struct SequenceEntry);
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
@@ -211,6 +212,7 @@ buildcachedat_new(void)
     };
     buildcachedat->sequences_hmap = dashmap_new(&config, 0);
 
+    buffer_size = 4096 * sizeof(struct IdkEntry);
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
         .buffer_size = buffer_size,
@@ -876,8 +878,10 @@ buildcachedat_add_sequence(
     int sequence_id,
     struct CacheDatSequence* sequence)
 {
-    struct SequenceEntry* sequence_entry = (struct SequenceEntry*)dashmap_search(
-        buildcachedat->sequences_hmap, &sequence_id, DASHMAP_INSERT);
+    struct SequenceEntry* sequence_entry = (struct SequenceEntry*)
+
+        dashmap_search(buildcachedat->sequences_hmap, &sequence_id, DASHMAP_INSERT);
+
     assert(sequence_entry && "Sequence must be inserted into hmap");
     sequence_entry->id = sequence_id;
     sequence_entry->sequence = sequence;

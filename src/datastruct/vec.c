@@ -83,18 +83,27 @@ vec_init(
 
     memset(v, 0, sizeof(*v));
 
+    // Note: This can cause issues when targeting older
+    // architectures where malloc aligns to 8 bytes instead of 16.
+
     const size_t align = 16; /* same alignment as hmap */
     unsigned char* base = (unsigned char*)buffer;
     unsigned char* aligned = vec_align_up_ptr(base, align);
 
     if( aligned > base + buffer_size )
+    {
+        assert(0 && "Buffer size is too small");
         return VEC_NOMEM;
+    }
 
     size_t remaining = (size_t)((base + buffer_size) - aligned);
     size_t needed = initial_capacity * element_size;
 
     if( needed > remaining )
+    {
+        assert(0 && "Buffer size is too small");
         return VEC_NOMEM;
+    }
 
     v->buffer = aligned;
     v->original_buffer = buffer;
@@ -123,6 +132,9 @@ vec_new(
     size_t buffer_size = initial_capacity * element_size;
     if( buffer_size == 0 )
         buffer_size = 16; /* minimum buffer size */
+
+    // For systems that are 32 bit and malloc aligns to 8 bytes instead of 16,
+    buffer_size += 8;
 
     void* buffer = malloc(buffer_size);
     if( !buffer )

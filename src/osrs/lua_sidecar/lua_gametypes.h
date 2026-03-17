@@ -59,16 +59,16 @@ struct LuaGameTypeVarTypeArrayView
 
 enum LuaGameTypeKind
 {
-    LUAGAMETYPE_USERDATA,
-    LUAGAMETYPE_USERDATA_ARRAY,
-    LUAGAMETYPE_INT_ARRAY,
-    LUAGAMETYPE_VARTYPE_ARRAY,
-    LUAGAMETYPE_VARTYPE_ARRAY_VIEW,
-    LUAGAMETYPE_BOOL,
-    LUAGAMETYPE_INT,
-    LUAGAMETYPE_FLOAT,
-    LUAGAMETYPE_STRING,
-    LUAGAMETYPE_VOID,
+    LUAGAMETYPE_USERDATA = 1,
+    LUAGAMETYPE_USERDATA_ARRAY = 2,
+    LUAGAMETYPE_INT_ARRAY = 3,
+    LUAGAMETYPE_VARTYPE_ARRAY = 4,
+    LUAGAMETYPE_VARTYPE_ARRAY_VIEW = 5,
+    LUAGAMETYPE_BOOL = 6,
+    LUAGAMETYPE_INT = 7,
+    LUAGAMETYPE_FLOAT = 8,
+    LUAGAMETYPE_STRING = 9,
+    LUAGAMETYPE_VOID = 10,
 };
 
 struct LuaGameType
@@ -174,5 +174,8 @@ LuaGameType_GetString(struct LuaGameType* game_type);
 
 int
 LuaGameType_GetStringLength(struct LuaGameType* game_type);
+
+void
+LuaGameType_Print(struct LuaGameType* game_type);
 
 #endif

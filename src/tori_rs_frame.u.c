@@ -35,7 +35,7 @@ LibToriRS_FrameBegin(
 
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
 
-    if( game->world )
+    if( game->world && game->world->painter && game->sys_painter_buffer )
     {
         painter_paint(
             game->world->painter,
@@ -257,7 +257,10 @@ LibToriRS_FrameNextCommand(
     struct ToriRSRenderCommandBuffer* render_command_buffer,
     struct ToriRSRenderCommand* command)
 {
+    assert(game && render_command_buffer && command);
     memset(command, 0, sizeof(*command));
+    if( !game->sys_painter_buffer || !game->sys_painter )
+        return false;
 
     struct DashPosition position = { 0 };
     struct EntityCoords coords = { 0 };

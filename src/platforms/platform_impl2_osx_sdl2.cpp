@@ -556,7 +556,7 @@ Platform2_OSX_SDL2_PollIO(
     struct GGame* game)
 {
     (void)platform;
-    if( !game || !game->io || !game->cache_dat )
+    if( !game || !game->io )
         return;
 
     struct GIOMessage message = { 0 };
@@ -568,7 +568,7 @@ Platform2_OSX_SDL2_PollIO(
             on_gio_req_init(platform, game->io, &message);
             break;
         case GIO_REQ_ASSET:
-            on_gio_req_asset(platform, game->io, &message, game->cache_dat);
+            // on_gio_req_asset(platform, game->io, &message, game->cache_dat);
             break;
         default:
             assert(false && "Unknown GIO request kind");

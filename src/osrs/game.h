@@ -52,8 +52,6 @@ enum GameNetState
 
 struct GGame
 {
-    lua_State* L;
-    lua_State* L_coro;
     struct ScriptQueue script_queue;
     struct ScriptQueueItem* lua_current_script_item; /* script we're running from queue */
 
@@ -118,7 +116,6 @@ struct GGame
     struct BuildCache* buildcache;
 
     struct VarPVarBitManager varp_varbit;
-    struct CacheDat* cache_dat; // Raw cache.dat accessor for synchronous loading
 
     /* Local player stats (UPDATE_STAT, UPDATE_RUNENERGY) */
     int player_stat_xp[PLAYER_STAT_COUNT];

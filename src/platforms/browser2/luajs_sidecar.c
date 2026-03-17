@@ -9,7 +9,7 @@ EMSCRIPTEN_KEEPALIVE
 struct LuaGameType*
 dispatch_lua_command(struct LuaGameType* args)
 {
-    printf("dispatch_lua_command\n");
+    // printf("dispatch_lua_command\n");
     // clang-format off
     int fn = EM_ASM_INT({ return window.LuaSidecarCallback || 0; });
     int ctx = EM_ASM_INT({ return window.LuaSidecarCallbackArg || 0; });

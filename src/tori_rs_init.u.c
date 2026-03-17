@@ -143,16 +143,18 @@ LibToriRS_GameNew(
 
     // Camera (x, y, z): 3790, -780, 4355 : 29, 34
     // Camera (x, y, z): 79, -150, -64 : 0, 0
-    game->camera_world_x = 79;
-    game->camera_world_y = -150;
-    game->camera_world_z = -64;
+    // Camera (x, y, z): -194, -850, -470 : -1, -3
+    game->camera_world_x = -194;
+    game->camera_world_y = -850;
+    game->camera_world_z = -470;
 
     // game->camera_world_x = 3939;
     // game->camera_world_y = -800;
     // game->camera_world_z = 12589;
     // Camera (pitch, yaw, roll): 1916, 328, 0
-    game->camera_pitch = 1916;
-    game->camera_yaw = 328;
+    // Camera (pitch, yaw, roll): 48, 1856, 0
+    game->camera_pitch = 48;
+    game->camera_yaw = 1856;
     game->camera_roll = 0;
     game->camera_fov = 512;
     game->camera_movement_speed = 70;
@@ -161,6 +163,8 @@ LibToriRS_GameNew(
     game->latched = false;
 
     game->sys_dash = dash_new();
+    game->sys_painter_buffer = painter_buffer_new();
+    game->sys_painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
 
     game->position = malloc(sizeof(struct DashPosition));
     memset(game->position, 0, sizeof(struct DashPosition));
@@ -196,110 +200,10 @@ LibToriRS_GameNew(
     game->ui_scene = uiscene_new(512);
     game->static_ui = static_ui_buffer_new(512);
 
-    game->cache_dat = cache_dat_new_from_directory(CACHE_DAT_PATH);
-
-    struct CacheDatArchive* config_archive = NULL;
-    {
-        config_archive =
-            cache_dat_archive_new_load(game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_CONFIGS);
-        if( config_archive )
-        {
-            struct FileListDat* config_jagfile =
-                filelist_dat_new_from_cache_dat_archive(config_archive);
-            if( config_jagfile )
-            {
-                varp_varbit_load_from_config_jagfile(&game->varp_varbit, config_jagfile);
-                filelist_dat_free(config_jagfile);
-            }
-            cache_dat_archive_free(config_archive);
-        }
-    }
-
-    struct CacheDatArchive* archive = NULL;
-    struct FileListDat* filelist = NULL;
-    struct RevConfigBuffer* revconfig_buffer = revconfig_buffer_new(1024);
-    const char* cache_ini = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
-                            "configs/rev_254_2/rev_245_2_cache.ini";
-    char const* ui_ini = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
-                         "configs/rev_254_2/rev_245_2_ui.ini";
-    {
-        archive = cache_dat_archive_new_load(
-            game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);
-        if( archive )
-        {
-            filelist = filelist_dat_new_from_cache_dat_archive(archive);
-            buildcachedat_set_2d_media_jagfile(game->buildcachedat, filelist);
-            cache_dat_archive_free(archive);
-        }
-
-        revconfig_load_fields_from_ini(cache_ini, revconfig_buffer);
-        revconfig_load_fields_from_ini(ui_ini, revconfig_buffer);
-
-        static_ui_from_revconfig_buildcachedat(
-            game->static_ui, game->ui_scene, game->buildcachedat, revconfig_buffer);
-    }
-
-    archive = cache_dat_archive_new_load(game->cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_INTERFACES);
-
-    filelist = filelist_dat_new_from_cache_dat_archive(archive);
-
-    game->sys_painter_buffer = painter_buffer_new();
-
-    int idx = -1;
-    int name_hash = archive_name_hash_dat("data");
-    for( int i = 0; i < filelist->file_count; i++ )
-    {
-        if( filelist->file_name_hashes[i] == name_hash )
-        {
-            idx = i;
-            break;
-        }
-    }
-
-    assert(idx != -1);
-
-    char* file_data = filelist->files[idx];
-    int file_data_size = filelist->file_sizes[idx];
-
     // struct CacheDatConfigComponentList* config_interface_list =
     //     cache_dat_config_component_list_new_decode(file_data, file_data_size);
 
     // assert(config_interface_list != NULL);
-
-    game->L = luaL_newstate();
-    luaL_openlibs(game->L);
-    game->L_coro = lua_newthread(game->L);
-
-    register_host_io(game->L, game->io);
-    register_buildcachedat(game->L, game->buildcachedat, game);
-    register_buildcache(game->L, game);
-    register_gameproto(game->L, game);
-
-    luaL_dostring(game->L, "HostIO.init()");
-
-    /* Register package.preload["hostio_utils"] so require("hostio_utils") works from any
-     * script/coro. preload must hold a loader function (require() calls it), not the table. */
-    lua_getglobal(game->L, "package");
-    lua_getfield(game->L, -1, "preload");
-    lua_pushstring(game->L, "hostio_utils");
-    if( luaL_dofile(game->L, LUA_SCRIPTS_DIR "/hostio_utils.lua") != 0 )
-    {
-        fprintf(stderr, "hostio_utils.lua: %s\n", lua_tostring(game->L, -1));
-        lua_pop(game->L, 1);
-        assert(0 && "failed to load hostio_utils.lua");
-    }
-    lua_pushvalue(game->L, -1);                        /* duplicate module table for upvalue */
-    lua_pushcclosure(game->L, hostio_utils_loader, 1); /* loader that returns that table */
-    lua_remove(game->L, -2);                           /* stack: ..., "hostio_utils", loader */
-    lua_settable(game->L, -3);                         /* preload["hostio_utils"] = loader */
-
-    /* Register package.preload["buildcache"] so require("buildcache") works (init_cache_dat.lua). */
-    lua_pushstring(game->L, "buildcache");
-    lua_pushstring(game->L, LUA_SCRIPTS_DIR "/buildcache.lua");
-    lua_pushcclosure(game->L, buildcache_file_loader, 1);
-    lua_settable(game->L, -3);                         /* preload["buildcache"] = loader */
-
-    lua_pop(game->L, 2);                               /* drop package, preload */
 
     struct ScriptArgs args;
     script_queue_init(&game->script_queue);

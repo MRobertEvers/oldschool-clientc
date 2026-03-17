@@ -201,6 +201,8 @@ world_load_scenery_model(
             assert(model_id);
 
             model = buildcachedat_get_model(world->buildcachedat, model_id);
+            if( !model )
+                printf("Model not found: %d\n", model_id);
             assert(model);
 
             models[models_count] = model;
@@ -224,6 +226,8 @@ world_load_scenery_model(
                     assert(model_id);
 
                     model = buildcachedat_get_model(world->buildcachedat, model_id);
+                    if( !model )
+                        printf("Model not found: %d\n", model_id);
                     assert(model);
 
                     models[models_count] = model;

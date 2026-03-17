@@ -200,6 +200,10 @@ if(EMSCRIPTEN)
         "_luajs_LuaGameType_GetFloat"
         "_luajs_LuaGameType_GetString"
         "_luajs_LuaGameType_GetStringLength"
+        "_luajs_CacheDatArchive_deserialize"
+        "_luajs_CacheDatArchive_serialized_size"
+        "_luajs_CacheDatArchive_serialize_to_buffer"
+        "_luajs_CacheDatArchive_free"
     )
 
     set(EXPORTED_METHODS_LIST
@@ -217,8 +221,10 @@ if(EMSCRIPTEN)
         ${COMMON_SOURCES}
         test/browser.cpp
         src/platforms/platform_impl2_emscripten_sdl2.cpp
+        src/platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.cpp
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
+        src/platforms/browser2/luajs_archives.c
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
     )
@@ -234,6 +240,7 @@ if(EMSCRIPTEN)
         --shell-file ${EM_SHELL_FILE}
         -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
         -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}
+        --bind
     )
 
     set(BROWSER_ASSETS

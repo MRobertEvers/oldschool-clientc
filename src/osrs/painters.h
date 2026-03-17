@@ -230,6 +230,7 @@ struct PaintersElementCommand
             uint32_t _bf_terrain_y : 4;
         } _terrain;
     };
+    uint32_t _padding;
 };
 
 struct Painter;

@@ -181,6 +181,8 @@ buildcachedat_loader_init_scenery_configs_from_config_jagfile(struct BuildCacheD
             memset(config_loc, 0, sizeof(struct CacheConfigLocation));
 
             struct CacheMapLoc* loc = &locs->locs[i];
+            assert(loc->loc_id != -1 && "Loc id must be valid");
+            assert(loc->loc_id < filelist_indexed->offset_count && "Loc id must be within range");
             int offset = filelist_indexed->offsets[loc->loc_id];
 
             config_locs_decode_inplace(
@@ -564,7 +566,8 @@ buildcachedat_loader_cache_media(
     game->media_filelist = filelist;
 }
 
-/** Try to load a single component sprite by name (e.g. "miscgraphics,0") from media filelist. */
+/** Try to load a single component sprite by name (e.g. "miscgraphics,0") from media filelist.
+ */
 static void
 load_one_component_sprite(
     struct BuildCacheDat* buildcachedat,
@@ -744,8 +747,6 @@ buildcachedat_loader_init_objects_from_config_jagfile(struct BuildCacheDat* buil
 
     for( int i = 0; i < obj_list->objs_count; i++ )
     {
-        if( i == 842 )
-            printf("buildcachedat_loader_init_objects_from_config_jagfile: %d\n", i);
         buildcachedat_add_obj(buildcachedat, i, obj_list->objs[i]);
     }
 }
@@ -863,7 +864,8 @@ buildcachedat_loader_finalize_scene(
     //     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
     // }
 
-    /* World tile SW: CHUNK = WORLD_TILE / 64, so WORLD_TILE = chunk * 64 (pkt_rebuild_normal.lua)
+    /* World tile SW: CHUNK = WORLD_TILE / 64, so WORLD_TILE = chunk * 64
+     * (pkt_rebuild_normal.lua)
      */
     game->scene_base_tile_x = map_sw_x * 64;
     game->scene_base_tile_z = map_sw_z * 64;

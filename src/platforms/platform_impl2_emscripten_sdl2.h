@@ -4,8 +4,10 @@
 #define PLATFORM_IMPL2_BROWSER_SDL2_H
 
 extern "C" {
+#include "osrs/game.h"
 #include "osrs/ginput.h"
-// #include "tori_rs.h"
+#include "tori_rs.h"
+#include "tori_rs_render.h"
 }
 #include <SDL.h>
 #include <stdbool.h>
@@ -18,6 +20,8 @@ struct Platform2_Emscripten_SDL2
 {
     SDL_Window* window;
     struct GInput* input;
+    struct GGame* current_game;
+    struct ToriRSRenderCommandBuffer* render_command_buffer;
 
     int secret;
 

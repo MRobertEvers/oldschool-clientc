@@ -98,4 +98,9 @@ dashmap_iter_free(struct DashMapIter* it);
 void*
 dashmap_iter_next(struct DashMapIter* it);
 
+uint32_t
+dashmap_count(struct DashMap* h);
+uint32_t
+dashmap_capacity(struct DashMap* h);
+
 #endif

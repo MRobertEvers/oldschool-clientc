@@ -55,7 +55,8 @@ function wasmDispatcher(L) {
   gt.free(args);
 
   if (result) {
-    pushToLua(L, result);
+    const decoded = gt.read(result);
+    pushToLua(L, decoded);
     gt.free(result);
     return 1;
   }
@@ -223,42 +224,58 @@ export class LuaJSSidecar {
     this.processNext();
   }
 
-  async fetchOrCached(path) {
-    return await new Promise((resolve, reject) => {
+  /** Get script content from IndexedDB cache. Returns null if not found or on error. */
+  _getFromCache(path) {
+    return new Promise((resolve) => {
       const openRequest = indexedDB.open("RSClientScripts", 2);
-
-      openRequest.onerror = () => reject("IDB Open Failed");
-
+      openRequest.onerror = () => resolve(null);
       openRequest.onsuccess = (event) => {
         const db = event.target.result;
-        const transaction = db.transaction(["cache"], "readonly");
-        const store = transaction.objectStore("cache");
+        const tx = db.transaction(["cache"], "readonly");
+        const store = tx.objectStore("cache");
         const request = store.get(path);
-
-        request.onsuccess = () => {
-          if (request.result) {
-            resolve(request.result.content);
-          } else {
-            const url = this.scriptBaseUrl
-              ? this.scriptBaseUrl.replace(/\/?$/, "/") +
-                path.replace(/^\//, "")
-              : path;
-            fetch(url)
-              .then((res) => {
-                if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-                return res.text();
-              })
-              .then((content) => {
-                const writeTransaction = db.transaction(["cache"], "readwrite");
-                const writeStore = writeTransaction.objectStore("cache");
-                writeStore.put({ path, content });
-                resolve(content);
-              })
-              .catch(reject);
-          }
-        };
+        request.onsuccess = () =>
+          resolve(request.result ? request.result.content : null);
+        request.onerror = () => resolve(null);
       };
     });
+  }
+
+  /** Write script content to IndexedDB cache. Best-effort; ignores errors. */
+  _writeToCache(path, content) {
+    return new Promise((resolve) => {
+      const openRequest = indexedDB.open("RSClientScripts", 2);
+      openRequest.onerror = () => resolve();
+      openRequest.onsuccess = (event) => {
+        const db = event.target.result;
+        const tx = db.transaction(["cache"], "readwrite");
+        const store = tx.objectStore("cache");
+        store.put({ path, content });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      };
+    });
+  }
+
+  /**
+   * Load script: always try network first; use IndexedDB cache only if fetch fails.
+   */
+  async fetchOrCached(path) {
+    const url = this.scriptBaseUrl
+      ? this.scriptBaseUrl.replace(/\/?$/, "/") + path.replace(/^\//, "")
+      : path;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const content = await res.text();
+      await this._writeToCache(path, content);
+      return content;
+    } catch (err) {
+      const cached = await this._getFromCache(path);
+      if (cached != null) return cached;
+      throw err;
+    }
   }
 
   async runScript(scriptPath) {
@@ -290,46 +307,45 @@ export class LuaJSSidecar {
   }
 
   async drive(co, nres) {
-    const status = lua.lua_resume(co, this.L, nres);
+    let q = [[co, nres]];
 
-    if (status === lua.LUA_YIELD) {
-      const top = lua.lua_gettop(co);
-      const cmd = lua.lua_tonumber(co, 1);
-      const narg = top > 1 ? top - 1 : 0;
-      let args = null;
-      if (narg > 0) {
-        const gt = this.luaGameTypes;
-        args = gt.newVarTypeArray(narg);
-        if (args) {
-          const top = lua.lua_gettop(co);
-          for (let i = 2; i <= top; i++) {
-            lua.lua_pushvalue(co, i);
-            const elem = fromLua(co, -1, gt, this.wasm);
-            lua.lua_pop(co, 1);
+    while (q.length > 0) {
+      const [co, nres] = q.shift();
 
-            if (elem) gt.varTypeArrayPush(args, elem);
+      const status = lua.lua_resume(co, this.L, nres);
+
+      if (status === lua.LUA_YIELD) {
+        const top = lua.lua_gettop(co);
+        const cmd = lua.lua_tonumber(co, 1);
+        let args = [];
+        for (let i = 2; i <= top; i++) {
+          lua.lua_pushvalue(co, i);
+          if (lua.lua_type(co, -1) === lua.LUA_TNUMBER) {
+            let num = lua.lua_tointeger(co, -1);
+            args.push(num);
+          } else if (lua.lua_type(co, -1) === lua.LUA_TSTRING) {
+            let str = lua.lua_tostring(co, -1);
+            args.push(luaString(str));
           }
+          lua.lua_pop(co, 1);
         }
+
+        const results = await this.handleYield(cmd, args);
+        lua.lua_settop(co, 0);
+        results.forEach((res) => {
+          lua.lua_pushlightuserdata(co, res);
+        });
+
+        q.push([co, results.length]);
       }
 
-      const results = await this.handleYield(cmd, args);
-      if (args) this.luaGameTypes.free(args);
-
-      // Clear yield results and push return values
-      lua.lua_settop(co, 0);
-      results.forEach((res) => {
-        if (typeof res === "number") lua.lua_pushnumber(co, res);
-        else lua.lua_pushlightuserdata(co, res);
-      });
-
-      return this.drive(co, results.length);
-    }
-
-    if (status !== lua.LUA_OK) {
-      console.error(
-        "Lua execution error:",
-        luaString(lua.lua_tostring(co, -1)),
-      );
+      if (status !== lua.LUA_OK && status !== lua.LUA_YIELD) {
+        console.error(
+          "Lua execution error:",
+          luaString(lua.lua_tostring(co, -1)),
+          status,
+        );
+      }
     }
   }
 
@@ -340,15 +356,26 @@ export class LuaJSSidecar {
         searchParams.append("epoch", "base");
         searchParams.append("table_id", args[0]);
         searchParams.append("archive_id", args[1]);
+        searchParams.append("flags", args[2]);
         const response = await fetch(
-          `/api/load_archive?${searchParams.toString()}`,
+          `http://localhost:8096/api/load_archive?${searchParams.toString()}`,
         );
         if (!response.ok) {
           return [];
         }
 
         const data = await response.arrayBuffer();
-        break;
+
+        // Copy the ArrayBuffer to WASM memory and then deserialize
+        const deserialize = this.wasm._luajs_CacheDatArchive_deserialize;
+        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
+        const dataView = new Uint8Array(data);
+        const ptr = this.wasm._malloc(dataView.length);
+        heapu8.set(dataView, ptr);
+        const archive = deserialize(ptr, dataView.length);
+        this.wasm._free(ptr);
+
+        return [archive];
       }
       default: {
         console.error(`Unknown command: ${cmd}`);

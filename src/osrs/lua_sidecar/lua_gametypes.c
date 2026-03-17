@@ -1,6 +1,7 @@
 #include "lua_gametypes.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -282,4 +283,63 @@ LuaGameType_GetStringLength(struct LuaGameType* game_type)
 {
     assert(game_type->kind == LUAGAMETYPE_STRING);
     return game_type->_string.length;
+}
+
+void
+LuaGameType_Print(struct LuaGameType* game_type)
+{
+    switch( game_type->kind )
+    {
+    case LUAGAMETYPE_USERDATA:
+        printf("LuaGameType_UserData: %p\n", game_type->_userdata.userdata);
+        break;
+    case LUAGAMETYPE_INT_ARRAY:
+        printf("LuaGameType_IntArray: (%d) [", game_type->_int_array.count);
+        for( int i = 0; i < game_type->_int_array.count; i++ )
+            printf("%d, ", game_type->_int_array.values[i]);
+        printf("]\n");
+        break;
+    case LUAGAMETYPE_BOOL:
+        printf("LuaGameType_Bool: %d\n", game_type->_bool.value);
+        break;
+    case LUAGAMETYPE_INT:
+        printf("LuaGameType_Int: %d\n", game_type->_int.value);
+        break;
+    case LUAGAMETYPE_FLOAT:
+        printf("LuaGameType_Float: %f\n", game_type->_float.value);
+        break;
+    case LUAGAMETYPE_STRING:
+        printf("LuaGameType_String: %s\n", game_type->_string.value);
+        printf("LuaGameType_StringLength: %d\n", game_type->_string.length);
+        break;
+    case LUAGAMETYPE_VOID:
+        printf("LuaGameType_Void\n");
+        break;
+    case LUAGAMETYPE_VARTYPE_ARRAY:
+        printf("LuaGameType_VarTypeArray: (%d) [\n", game_type->_var_type_array.count);
+        for( int i = 0; i < game_type->_var_type_array.count; i++ )
+        {
+            LuaGameType_Print(game_type->_var_type_array.var_types[i]);
+        }
+        printf("]\n");
+        break;
+    case LUAGAMETYPE_USERDATA_ARRAY:
+        printf("LuaGameType_UserDataArray: (%d) [", game_type->_userdata_array.count);
+        for( int i = 0; i < game_type->_userdata_array.count; i++ )
+            printf("%p, ", game_type->_userdata_array.userdata + i);
+        printf("]\n");
+        break;
+    case LUAGAMETYPE_VARTYPE_ARRAY_VIEW:
+        printf(
+            "LuaGameType_VarTypeArrayView: (%d) [",
+            LuaGameType_GetVarTypeArrayCount(LuaGameType_GetVarTypeArrayAt(game_type, 0)));
+        for( int i = 0;
+             i < LuaGameType_GetVarTypeArrayCount(LuaGameType_GetVarTypeArrayAt(game_type, 0));
+             i++ )
+            printf("%p, ", LuaGameType_GetVarTypeArrayAt(game_type, i));
+        printf("]\n");
+    default:
+        printf("LuaGameType_Unknown: %d\n", game_type->kind);
+        break;
+    }
 }

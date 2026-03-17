@@ -80,7 +80,6 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     print("=== Loading Models ===")
     local models_to_load = {}
     local scenery_locs = Game.buildcachedat_get_all_scenery_locs()
-    print("scenery_locs", scenery_locs)
     for _, loc in ipairs(scenery_locs) do
         local loc_id, chunk_x, chunk_z = table.unpack(loc)
         local model_ids = Game.buildcachedat_get_scenery_model_ids(loc_id)
@@ -89,6 +88,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
         end
     end
 
+    table.sort(models_to_load)
     for _, model_id in ipairs(models_to_load) do
         if not Game.buildcachedat_has_model(model_id) then
             local model_ptr = CacheDat.load_archive(
@@ -117,7 +117,10 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
         end
     end
 
+    print("=== Building Scene ===")
     Game.game_build_scene(50, 50, 51, 51)
+
+    print("=== Scene Built ===")
 end
 
 init_cache_dat(50 * 64, 50 * 64, 52 * 64, 52 * 64)

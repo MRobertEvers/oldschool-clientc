@@ -18,15 +18,16 @@ export function LuajsGameType_PushToLua(lua, L, ptr, gt) {
 
 /** LuaGameTypeKind enum values (must match lua_gametypes.h) */
 export const LuaGameTypeKind = {
-  USERDATA: 0,
-  USERDATA_ARRAY: 1,
-  INT_ARRAY: 2,
-  VARTYPE_ARRAY: 3,
-  BOOL: 4,
-  INT: 5,
-  FLOAT: 6,
-  STRING: 7,
-  VOID: 8,
+  USERDATA: 1,
+  USERDATA_ARRAY: 2,
+  INT_ARRAY: 3,
+  VARTYPE_ARRAY: 4,
+  VARTYPE_ARRAY_VIEW: 5,
+  BOOL: 6,
+  INT: 7,
+  FLOAT: 8,
+  STRING: 9,
+  VOID: 10,
 };
 
 /**
@@ -34,13 +35,13 @@ export const LuaGameTypeKind = {
  * @returns {Object} LuaGameTypes API
  */
 export function createLuaGameTypes(wasm) {
-  const heap = wasm.HEAPU8;
-  const memory = heap?.buffer ?? wasm.memory?.buffer;
   const malloc = wasm._malloc ?? wasm.malloc;
   const free = wasm._free ?? wasm.free;
   const UTF8ToString =
     wasm.UTF8ToString ??
     ((ptr, len) => {
+      const heap = wasm.HEAPU8;
+      const memory = heap?.buffer ?? wasm.memory?.buffer;
       if (ptr === 0) return null;
       const view = new Uint8Array(memory, ptr, len ?? 0);
       return new TextDecoder().decode(view);
@@ -89,6 +90,9 @@ export function createLuaGameTypes(wasm) {
   function read(ptr) {
     if (!ptr) return null;
 
+    const heap = wasm.HEAPU8;
+    const memory = heap?.buffer ?? wasm.memory?.buffer;
+
     const kind = getKind(ptr);
 
     switch (kind) {
@@ -115,7 +119,8 @@ export function createLuaGameTypes(wasm) {
         const arr = [];
         for (let i = 0; i < count; i++) {
           const elemPtr = getVarTypeArrayAt(ptr, i);
-          arr.push(read(elemPtr));
+          const elem = read(elemPtr);
+          arr.push(elem);
         }
         return { kind: "var_type_array", value: arr };
       }
