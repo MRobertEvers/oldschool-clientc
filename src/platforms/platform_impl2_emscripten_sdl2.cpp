@@ -83,11 +83,18 @@ void
 Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform)
 {
     struct GInput* input = platform->input;
+
+    /* Advance input time accumulator based on real frame time, so
+     * LibToriRS_GameProcessInput can step movement in fixed quanta. */
+    uint64_t current_frame_time = SDL_GetTicks64();
+    input->time_delta_accumulator_seconds +=
+        (double)(current_frame_time - platform->last_frame_time_ticks) / 1000.0f;
+    platform->last_frame_time_ticks = current_frame_time;
     SDL_Event event;
     while( SDL_PollEvent(&event) )
     {
         // Forward events to ImGui for processing (mouse, keyboard, etc.)
-        // ImGui_ImplSDL2_ProcessEvent(&event);
+        ImGui_ImplSDL2_ProcessEvent(&event);
 
         switch( event.type )
         {

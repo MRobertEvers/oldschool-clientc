@@ -2,6 +2,115 @@
 
 #include "platform_impl2_emscripten_sdl2_renderer_soft3d.h"
 
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_sdlrenderer2.h"
+
+extern "C" {
+#include "osrs/game.h"
+}
+
+extern int g_trap_command;
+extern int g_trap_x;
+extern int g_trap_z;
+
+static bool g_show_collision_map = false;
+
+static void
+render_imgui(
+    struct Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer,
+    struct GGame* game)
+{
+    ImGui_ImplSDLRenderer2_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+
+    ImGui::Begin("Info");
+    ImGui::Text(
+        "Application average %.3f ms/frame (%.1f FPS)",
+        1000.0f / ImGui::GetIO().Framerate,
+        ImGui::GetIO().Framerate);
+
+    ImGui::Text("Max paint command: %d", game->cc);
+    ImGui::Text("Trap command: %d", g_trap_command);
+    if( ImGui::Button("Trap command") )
+    {
+        if( g_trap_command == -1 )
+            g_trap_command = game->cc;
+        else
+            g_trap_command = -1;
+    }
+
+    ImGui::InputInt("Trap X", &g_trap_x);
+    ImGui::InputInt("Trap Z", &g_trap_z);
+
+    ImGui::Text("Mouse (game x, y): %d, %d", game->mouse_x, game->mouse_y);
+
+    if( renderer->platform && renderer->platform->window )
+    {
+        int window_mouse_x = 0;
+        int window_mouse_y = 0;
+        SDL_GetMouseState(&window_mouse_x, &window_mouse_y);
+        ImGui::Text("Mouse (window x, y): %d, %d", window_mouse_x, window_mouse_y);
+    }
+
+    char camera_pos_text[256];
+    snprintf(
+        camera_pos_text,
+        sizeof(camera_pos_text),
+        "Camera (x, y, z): %d, %d, %d : %d, %d",
+        game->camera_world_x,
+        game->camera_world_y,
+        game->camera_world_z,
+        game->camera_world_x / 128,
+        game->camera_world_z / 128);
+    ImGui::Text("%s", camera_pos_text);
+    ImGui::SameLine();
+    if( ImGui::SmallButton("Copy##pos") )
+    {
+        ImGui::SetClipboardText(camera_pos_text);
+    }
+
+    char camera_rot_text[256];
+    snprintf(
+        camera_rot_text,
+        sizeof(camera_rot_text),
+        "Camera (pitch, yaw, roll): %d, %d, %d",
+        game->camera_pitch,
+        game->camera_yaw,
+        game->camera_roll);
+    ImGui::Text("%s", camera_rot_text);
+    ImGui::SameLine();
+    if( ImGui::SmallButton("Copy##rot") )
+    {
+        ImGui::SetClipboardText(camera_rot_text);
+    }
+
+    ImGui::Separator();
+    ImGui::Checkbox("Show collision map", &g_show_collision_map);
+
+    ImGui::Separator();
+    ImGui::Text("Interface System:");
+    ImGui::Text("Current viewport ID: %d", game->viewport_interface_id);
+    ImGui::Text("Current sidebar ID: %d", game->sidebar_interface_id);
+    ImGui::Text("Selected tab: %d", game->selected_tab);
+    if( game->selected_tab >= 0 && game->selected_tab < 14 )
+    {
+        ImGui::Text(
+            "Tab %d interface ID: %d",
+            game->selected_tab,
+            game->tab_interface_id[game->selected_tab]);
+    }
+
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer->renderer);
+}
+
 struct Platform2_Emscripten_SDL2_Renderer_Soft3D*
 PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(
     int width,
@@ -68,6 +177,22 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Init(
         return false;
     }
 
+    // Initialize ImGui (same panel as OSX soft3d renderer)
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    if( !ImGui_ImplSDL2_InitForSDLRenderer(platform->window, renderer->renderer) )
+    {
+        printf("ImGui SDL2 init failed\n");
+        return false;
+    }
+    if( !ImGui_ImplSDLRenderer2_Init(renderer->renderer) )
+    {
+        printf("ImGui SDLRenderer init failed\n");
+        return false;
+    }
+
     return true;
 }
 
@@ -77,6 +202,9 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
+    // Clear software pixel buffer each frame so old pixels don't persist
+    memset(renderer->pixel_buffer, 0, renderer->width * renderer->height * sizeof(int));
+
     struct ToriRSRenderCommand command;
     LibToriRS_FrameBegin(game, render_command_buffer);
     assert(game && render_command_buffer && renderer);
@@ -169,7 +297,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
     SDL_FreeSurface(surface);
 
-    // render_imgui(renderer, game);
+    render_imgui(renderer, game);
 
     SDL_RenderPresent(renderer->renderer);
 }
