@@ -299,21 +299,19 @@ LibToriRS_GameStep(
                 wordpack_pack(&buf, game->chat_typed);
                 int wordpack_len = buf.position;
                 int payload_len = 2 + wordpack_len;
-                if( game->outbound_size + 2 + payload_len <= (int)sizeof(game->outbound_buffer) )
+                if( 2 + payload_len <= 268 && GAME_NET_STATE_GAME == game->net_state )
                 {
+                    uint8_t pkt[268];
                     uint32_t op =
                         (PKTOUT_LC245_2_MESSAGE_PUBLIC + isaac_next(game->random_out)) & 0xff;
-                    game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                    game->outbound_buffer[game->outbound_size++] = 0;
-                    int start = game->outbound_size;
-                    game->outbound_buffer[game->outbound_size++] = (uint8_t)color;
-                    game->outbound_buffer[game->outbound_size++] = (uint8_t)effect;
-                    memcpy(
-                        game->outbound_buffer + game->outbound_size,
-                        temp_buf,
-                        (size_t)wordpack_len);
-                    game->outbound_size += wordpack_len;
-                    game->outbound_buffer[start - 1] = (uint8_t)payload_len;
+                    int sz = 0;
+                    pkt[sz++] = (uint8_t)op;
+                    pkt[sz++] = (uint8_t)payload_len;
+                    pkt[sz++] = (uint8_t)color;
+                    pkt[sz++] = (uint8_t)effect;
+                    memcpy(pkt + sz, temp_buf, (size_t)wordpack_len);
+                    sz += wordpack_len;
+                    LibToriRS_NetSend(game, pkt, sz);
                     game_add_message(game, 2, game->chat_typed, "Player");
                     game->chat_typed[0] = '\0';
                     game->chat_input_focused = 0;
@@ -541,39 +539,57 @@ LibToriRS_GameStep(
                                 &menu_param_b,
                                 &menu_param_c) )
                         {
-                            if( hit_client_code == CC_LOGOUT )
+                            if( GAME_NET_STATE_GAME == game->net_state )
                             {
-                                int opcode = PKTOUT_LC245_2_LOGOUT;
-                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                uint16_t c = menu_param_c;
-                                game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                                game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                            }
-                            else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
-                            {
-                                int opcode = PKTOUT_LC245_2_CLOSE_MODAL;
-                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            }
-                            else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
-                            {
-                                int opcode = PKTOUT_LC245_2_RESUME_PAUSEBUTTON;
-                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                uint16_t c = menu_param_c;
-                                game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                                game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                            }
-                            else
-                            {
-                                int opcode = PKTOUT_LC245_2_IF_BUTTON;
-                                uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                                game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                                uint16_t c = menu_param_c;
-                                game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                                game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                                interface_apply_button_click_varp_optimistic(game, menu_param_c);
+                                uint8_t pkt[8];
+                                int pkt_sz;
+                                if( hit_client_code == CC_LOGOUT )
+                                {
+                                    uint32_t op =
+                                        (PKTOUT_LC245_2_LOGOUT + isaac_next(game->random_out)) &
+                                        0xff;
+                                    uint16_t c = menu_param_c;
+                                    pkt[0] = (uint8_t)op;
+                                    pkt[1] = (c >> 8) & 0xFF;
+                                    pkt[2] = c & 0xFF;
+                                    pkt_sz = 3;
+                                    LibToriRS_NetSend(game, pkt, pkt_sz);
+                                }
+                                else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
+                                {
+                                    uint32_t op = (PKTOUT_LC245_2_CLOSE_MODAL +
+                                                   isaac_next(game->random_out)) &
+                                                  0xff;
+                                    pkt[0] = (uint8_t)op;
+                                    pkt_sz = 1;
+                                    LibToriRS_NetSend(game, pkt, pkt_sz);
+                                }
+                                else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
+                                {
+                                    uint32_t op = (PKTOUT_LC245_2_RESUME_PAUSEBUTTON +
+                                                   isaac_next(game->random_out)) &
+                                                  0xff;
+                                    uint16_t c = menu_param_c;
+                                    pkt[0] = (uint8_t)op;
+                                    pkt[1] = (c >> 8) & 0xFF;
+                                    pkt[2] = c & 0xFF;
+                                    pkt_sz = 3;
+                                    LibToriRS_NetSend(game, pkt, pkt_sz);
+                                }
+                                else
+                                {
+                                    uint32_t op =
+                                        (PKTOUT_LC245_2_IF_BUTTON + isaac_next(game->random_out)) &
+                                        0xff;
+                                    uint16_t c = menu_param_c;
+                                    pkt[0] = (uint8_t)op;
+                                    pkt[1] = (c >> 8) & 0xFF;
+                                    pkt[2] = c & 0xFF;
+                                    pkt_sz = 3;
+                                    LibToriRS_NetSend(game, pkt, pkt_sz);
+                                    interface_apply_button_click_varp_optimistic(
+                                        game, menu_param_c);
+                                }
                             }
                         }
                     }
@@ -658,40 +674,56 @@ LibToriRS_GameStep(
                             &menu_param_b,
                             &menu_param_c) )
                     {
-                        if( hit_client_code == CC_LOGOUT )
+                        if( GAME_NET_STATE_GAME == game->net_state )
                         {
-                            int opcode = PKTOUT_LC245_2_LOGOUT;
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            uint16_t c = menu_param_c;
-                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                        }
-                        else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
-                        {
-                            int opcode = PKTOUT_LC245_2_CLOSE_MODAL;
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                        }
-                        else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
-                        {
-                            int opcode = PKTOUT_LC245_2_RESUME_PAUSEBUTTON;
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            uint16_t c = menu_param_c;
-                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                        }
-                        else
-                        {
-                            int opcode = PKTOUT_LC245_2_IF_BUTTON;
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            uint16_t c = menu_param_c;
-                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                            /* Client.ts doAction: optimistic varp update for TOGGLE/SELECT */
-                            interface_apply_button_click_varp_optimistic(game, menu_param_c);
+                            uint8_t pkt[8];
+                            int pkt_sz;
+                            if( hit_client_code == CC_LOGOUT )
+                            {
+                                uint32_t op =
+                                    (PKTOUT_LC245_2_LOGOUT + isaac_next(game->random_out)) & 0xff;
+                                uint16_t c = menu_param_c;
+                                pkt[0] = (uint8_t)op;
+                                pkt[1] = (c >> 8) & 0xFF;
+                                pkt[2] = c & 0xFF;
+                                pkt_sz = 3;
+                                LibToriRS_NetSend(game, pkt, pkt_sz);
+                            }
+                            else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
+                            {
+                                uint32_t op =
+                                    (PKTOUT_LC245_2_CLOSE_MODAL + isaac_next(game->random_out)) &
+                                    0xff;
+                                pkt[0] = (uint8_t)op;
+                                pkt_sz = 1;
+                                LibToriRS_NetSend(game, pkt, pkt_sz);
+                            }
+                            else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
+                            {
+                                uint32_t op = (PKTOUT_LC245_2_RESUME_PAUSEBUTTON +
+                                               isaac_next(game->random_out)) &
+                                              0xff;
+                                uint16_t c = menu_param_c;
+                                pkt[0] = (uint8_t)op;
+                                pkt[1] = (c >> 8) & 0xFF;
+                                pkt[2] = c & 0xFF;
+                                pkt_sz = 3;
+                                LibToriRS_NetSend(game, pkt, pkt_sz);
+                            }
+                            else
+                            {
+                                uint32_t op =
+                                    (PKTOUT_LC245_2_IF_BUTTON + isaac_next(game->random_out)) &
+                                    0xff;
+                                uint16_t c = menu_param_c;
+                                pkt[0] = (uint8_t)op;
+                                pkt[1] = (c >> 8) & 0xFF;
+                                pkt[2] = c & 0xFF;
+                                pkt_sz = 3;
+                                LibToriRS_NetSend(game, pkt, pkt_sz);
+                                /* Client.ts doAction: optimistic varp update for TOGGLE/SELECT */
+                                interface_apply_button_click_varp_optimistic(game, menu_param_c);
+                            }
                         }
                     }
                     else if(
@@ -802,41 +834,58 @@ LibToriRS_GameStep(
                             &menu_param_b,
                             &menu_param_c) )
                     {
-                        if( hit_client_code == CC_LOGOUT )
+                        if( GAME_NET_STATE_GAME == game->net_state )
                         {
-                            int opcode = PKTOUT_LC245_2_LOGOUT;
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            uint16_t c = menu_param_c;
-                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                        }
-                        else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
-                        {
-                            int opcode = PKTOUT_LC245_2_CLOSE_MODAL;
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                        }
-                        else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
-                        {
-                            int opcode = PKTOUT_LC245_2_RESUME_PAUSEBUTTON;
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            uint16_t c = menu_param_c;
-                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                        }
-                        else
-                        {
-                            /* IF_BUTTON, TOGGLE_BUTTON, SELECT_BUTTON: all send IF_BUTTON p2(c) */
-                            int opcode = PKTOUT_LC245_2_IF_BUTTON;
-                            uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-                            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-                            uint16_t c = menu_param_c;
-                            game->outbound_buffer[game->outbound_size++] = (c >> 8) & 0xFF;
-                            game->outbound_buffer[game->outbound_size++] = c & 0xFF;
-                            /* Client.ts doAction: optimistic varp update for TOGGLE/SELECT */
-                            interface_apply_button_click_varp_optimistic(game, menu_param_c);
+                            uint8_t pkt[8];
+                            int pkt_sz;
+                            if( hit_client_code == CC_LOGOUT )
+                            {
+                                uint32_t op =
+                                    (PKTOUT_LC245_2_LOGOUT + isaac_next(game->random_out)) & 0xff;
+                                uint16_t c = menu_param_c;
+                                pkt[0] = (uint8_t)op;
+                                pkt[1] = (c >> 8) & 0xFF;
+                                pkt[2] = c & 0xFF;
+                                pkt_sz = 3;
+                                LibToriRS_NetSend(game, pkt, pkt_sz);
+                            }
+                            else if( button_action == IF_BUTTON_ACTION_CLOSE_MODAL )
+                            {
+                                uint32_t op =
+                                    (PKTOUT_LC245_2_CLOSE_MODAL + isaac_next(game->random_out)) &
+                                    0xff;
+                                pkt[0] = (uint8_t)op;
+                                pkt_sz = 1;
+                                LibToriRS_NetSend(game, pkt, pkt_sz);
+                            }
+                            else if( button_action == IF_BUTTON_ACTION_RESUME_PAUSEBUTTON )
+                            {
+                                uint32_t op = (PKTOUT_LC245_2_RESUME_PAUSEBUTTON +
+                                               isaac_next(game->random_out)) &
+                                              0xff;
+                                uint16_t c = menu_param_c;
+                                pkt[0] = (uint8_t)op;
+                                pkt[1] = (c >> 8) & 0xFF;
+                                pkt[2] = c & 0xFF;
+                                pkt_sz = 3;
+                                LibToriRS_NetSend(game, pkt, pkt_sz);
+                            }
+                            else
+                            {
+                                /* IF_BUTTON, TOGGLE_BUTTON, SELECT_BUTTON: all send IF_BUTTON p2(c)
+                                 */
+                                uint32_t op =
+                                    (PKTOUT_LC245_2_IF_BUTTON + isaac_next(game->random_out)) &
+                                    0xff;
+                                uint16_t c = menu_param_c;
+                                pkt[0] = (uint8_t)op;
+                                pkt[1] = (c >> 8) & 0xFF;
+                                pkt[2] = c & 0xFF;
+                                pkt_sz = 3;
+                                LibToriRS_NetSend(game, pkt, pkt_sz);
+                                /* Client.ts doAction: optimistic varp update for TOGGLE/SELECT */
+                                interface_apply_button_click_varp_optimistic(game, menu_param_c);
+                            }
                         }
                     }
                     else
@@ -912,8 +961,8 @@ LibToriRS_GameStep(
     {
         game->next_notimeout_cycle = game->cycle + 50;
         int opcode = 206;
-        uint32_t op = (opcode + isaac_next(game->random_out)) & 0xff;
-        game->outbound_buffer[game->outbound_size++] = op;
+        uint8_t op_byte = (uint8_t)((opcode + isaac_next(game->random_out)) & 0xff);
+        LibToriRS_NetSend(game, &op_byte, 1);
     }
 
     /* Scene dynamic elements (players/NPCs) are updated earlier in GameStep so they
@@ -933,14 +982,6 @@ LibToriRS_GameStep(
     //     }
     // }
     game->cycles_elapsed = 0;
-
-    // Flush outbound buffer to network
-    if( game->outbound_size > 0 && GAME_NET_STATE_GAME == game->net_state )
-    {
-        printf("Flushing %d bytes to network\n", game->outbound_size);
-        ringbuf_write(game->netout, game->outbound_buffer, game->outbound_size);
-        game->outbound_size = 0;
-    }
 }
 
 #endif

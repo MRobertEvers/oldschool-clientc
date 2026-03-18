@@ -52,6 +52,9 @@ loginproto_new(
     int32_t* jag_checksum);
 
 void
+loginproto_free(struct LoginProto* loginproto);
+
+void
 loginproto_recv(
     struct LoginProto* loginproto,
     uint8_t* data,

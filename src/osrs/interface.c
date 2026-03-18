@@ -1853,17 +1853,17 @@ interface_handle_inv_button(
 
     // Send packet with Isaac cipher encryption (p1isaac)
     // Based on Client.ts out.p1isaac() and example at tori_rs_cycle.u.c:788-790
-    uint32_t encrypted_opcode = (opcode + isaac_next(game->random_out)) & 0xff;
-    game->outbound_buffer[game->outbound_size++] = encrypted_opcode;
+    // uint32_t encrypted_opcode = (opcode + isaac_next(game->random_out)) & 0xff;
+    // game->outbound_buffer[game->outbound_size++] = encrypted_opcode;
 
-    // Send payload: p2(obj_id) + p2(slot) + p2(component_id)
-    // Based on Client.ts lines 9051-9053
-    game->outbound_buffer[game->outbound_size++] = (obj_id >> 8) & 0xFF;
-    game->outbound_buffer[game->outbound_size++] = obj_id & 0xFF;
-    game->outbound_buffer[game->outbound_size++] = (slot >> 8) & 0xFF;
-    game->outbound_buffer[game->outbound_size++] = slot & 0xFF;
-    game->outbound_buffer[game->outbound_size++] = (component_id >> 8) & 0xFF;
-    game->outbound_buffer[game->outbound_size++] = component_id & 0xFF;
+    // // Send payload: p2(obj_id) + p2(slot) + p2(component_id)
+    // // Based on Client.ts lines 9051-9053
+    // game->outbound_buffer[game->outbound_size++] = (obj_id >> 8) & 0xFF;
+    // game->outbound_buffer[game->outbound_size++] = obj_id & 0xFF;
+    // game->outbound_buffer[game->outbound_size++] = (slot >> 8) & 0xFF;
+    // game->outbound_buffer[game->outbound_size++] = slot & 0xFF;
+    // game->outbound_buffer[game->outbound_size++] = (component_id >> 8) & 0xFF;
+    // game->outbound_buffer[game->outbound_size++] = component_id & 0xFF;
 
     // Update selection state (Client.ts lines 9055-9066)
     game->selected_cycle = 0;

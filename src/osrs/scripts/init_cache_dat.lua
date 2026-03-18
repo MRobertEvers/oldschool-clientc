@@ -35,8 +35,6 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
         { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST, flags = 0 },
     }
     local config_archives = CacheDat.load_archives(config_requests)
-    print(config_archives[1])
-    print(config_archives[2])
     Game.buildcachedat_set_config_jagfile(config_archives[1])
     Game.buildcachedat_set_versionlist_jagfile(config_archives[2])
 

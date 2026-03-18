@@ -88,6 +88,7 @@
     <script type="module" src="./luajs_sidecar_fnnos.js"></script>
     <script type="module">
         import { LuaJSSidecar } from './luajs_sidecar.js';
+        import { setupNetWSBridge } from './net_ws_bridge.js';
 
         function onRSClientLooped(event, luaSidecar) {  
           if (window.LUA_SCRIPT_QUEUE && window.LUA_SCRIPT_QUEUE.length > 0) {
@@ -97,8 +98,14 @@
           }
         }
 
+        function getWsUrl() {
+          const params = new URLSearchParams(window.location.search);
+          return params.get('ws') || 'ws://localhost:43594';
+        }
+
         function onRSClientReady(event) {
           console.log('RSClient is ready! Event detail:', event.detail);
+          setupNetWSBridge(Module, { url: getWsUrl() });
           // When a script is not in IndexedDB, load it from this URL (e.g. node serve-lua-scripts.js)
           const luaSidecar = new LuaJSSidecar(Module, {
             scriptBaseUrl: 'http://localhost:8081/'

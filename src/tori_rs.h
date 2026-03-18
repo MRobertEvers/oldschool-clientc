@@ -3,6 +3,7 @@
 
 #include "datastruct/vec.h"
 #include "osrs/game.h"
+#include "tori_rs_net_shared.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/painters.h"
@@ -72,32 +73,57 @@ LibToriRS_LuaScriptQueuePop(
     struct GGame* game,
     struct ToriRSPlatformScript* out);
 
-int
-LibToriRS_NetIsReady(struct GGame* game);
+/* Network status for host and game to read/set */
+typedef enum
+{
+    NET_IDLE = 0,
+    NET_CONNECTING,
+    NET_CONNECTED,
+    NET_ERROR
+} NetStatus;
+
+NetStatus
+LibToriRS_NetGetStatus(struct GGame* game);
 
 void
-LibToriRS_NetConnect(
+LibToriRS_NetInit(
     struct GGame* game,
-    char* username,
-    char* password);
-
-int
-LibToriRS_NetPump(struct GGame* game);
+    LibToriRS_NetContext* ctx);
 
 void
-LibToriRS_NetRecv(
-    struct GGame* game,
-    uint8_t* data,
-    int data_size);
+LibToriRS_NetPoll(LibToriRS_NetContext* ctx);
 
 void
-LibToriRS_NetDisconnected(struct GGame* game);
-
-int
-LibToriRS_NetGetOutgoing(
+LibToriRS_NetSend(
     struct GGame* game,
-    uint8_t* buffer,
-    int buffer_size);
+    const uint8_t* data,
+    int size);
+
+void
+LibToriRS_NetSendReconnect(struct GGame* game);
+
+void
+LibToriRS_OnMessage(
+    struct GGame* game,
+    const uint8_t* data,
+    int size);
+
+void
+LibToriRS_OnStatusChange(
+    struct GGame* game,
+    NetStatus status);
+
+void
+LibToriRS_NetConnectLogin(
+    struct GGame* game,
+    const char* username,
+    const char* password);
+
+void
+LibToriRS_NetConnectGame(struct GGame* game);
+
+void
+LibToriRS_NetProcessInbound(struct GGame* game);
 
 void
 LibToriRS_GameFree(struct GGame* game);

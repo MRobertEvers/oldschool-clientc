@@ -26,38 +26,39 @@ send_move_path_to(
     int dest_local_x,
     int dest_local_z)
 {
-    int path_local_x[25];
-    int path_local_z[25];
-    int waypoints = collision_map_bfs_path(
-        cm, src_local_x, src_local_z, dest_local_x, dest_local_z, path_local_x, path_local_z, 25);
-    if( waypoints < 0 )
-        return false;
-    if( waypoints > 0 )
-    {
-        int buffer_size = (waypoints + 1) > 25 ? 25 : waypoints + 1;
-        int steps_to_send = buffer_size - 1;
-        int payload_size = 1 + 2 + 2 + steps_to_send * 2;
-        int start_world_x = game->scene_base_tile_x + src_local_x;
-        int start_world_z = game->scene_base_tile_z + src_local_z;
-        if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
-        {
-            uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-            game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
-            game->outbound_buffer[game->outbound_size++] = 0;
-            game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
-            for( int i = 0; i < steps_to_send && i < waypoints; i++ )
-            {
-                game->outbound_buffer[game->outbound_size++] =
-                    (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
-                game->outbound_buffer[game->outbound_size++] =
-                    (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
-            }
-        }
-    }
+    // int path_local_x[25];
+    // int path_local_z[25];
+    // int waypoints = collision_map_bfs_path(
+    //     cm, src_local_x, src_local_z, dest_local_x, dest_local_z, path_local_x, path_local_z,
+    //     25);
+    // if( waypoints < 0 )
+    //     return false;
+    // if( waypoints > 0 )
+    // {
+    //     int buffer_size = (waypoints + 1) > 25 ? 25 : waypoints + 1;
+    //     int steps_to_send = buffer_size - 1;
+    //     int payload_size = 1 + 2 + 2 + steps_to_send * 2;
+    //     int start_world_x = game->scene_base_tile_x + src_local_x;
+    //     int start_world_z = game->scene_base_tile_z + src_local_z;
+    //     if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
+    //     {
+    //         uint32_t op = (MOVE_GAMECLICK_OPCODE + isaac_next(game->random_out)) & 0xff;
+    //         game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+    //         game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+    //         game->outbound_buffer[game->outbound_size++] = 0;
+    //         game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
+    //         game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
+    //         game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
+    //         game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
+    //         for( int i = 0; i < steps_to_send && i < waypoints; i++ )
+    //         {
+    //             game->outbound_buffer[game->outbound_size++] =
+    //                 (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
+    //             game->outbound_buffer[game->outbound_size++] =
+    //                 (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
+    //         }
+    //     }
+    // }
     return true;
 }
 
@@ -70,39 +71,39 @@ send_move_opclick_to(
     int dest_local_x,
     int dest_local_z)
 {
-    int path_local_x[25];
-    int path_local_z[25];
-    int waypoints = collision_map_bfs_path(
-        cm, src_local_x, src_local_z, dest_local_x, dest_local_z, path_local_x, path_local_z, 25);
-    if( waypoints < 0 )
-        return false;
-    if( waypoints > 0 )
-    {
-        int buffer_size = (waypoints + 1) > 25 ? 25 : waypoints + 1;
-        int steps_to_send = buffer_size - 1;
-        int payload_size = 1 + 2 + 2 + steps_to_send * 2;
-        int start_world_x = game->scene_base_tile_x + src_local_x;
-        int start_world_z = game->scene_base_tile_z + src_local_z;
-        if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
-        {
-            uint32_t op =
-                (PKTOUT_LC245_2_MOVE_OPCLICK + isaac_next(game->random_out)) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
-            game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
-            game->outbound_buffer[game->outbound_size++] = 0;
-            game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
-            game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
-            game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
-            for( int i = 0; i < steps_to_send && i < waypoints; i++ )
-            {
-                game->outbound_buffer[game->outbound_size++] =
-                    (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
-                game->outbound_buffer[game->outbound_size++] =
-                    (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
-            }
-        }
-    }
+    // int path_local_x[25];
+    // int path_local_z[25];
+    // int waypoints = collision_map_bfs_path(
+    //     cm, src_local_x, src_local_z, dest_local_x, dest_local_z, path_local_x, path_local_z,
+    //     25);
+    // if( waypoints < 0 )
+    //     return false;
+    // if( waypoints > 0 )
+    // {
+    //     int buffer_size = (waypoints + 1) > 25 ? 25 : waypoints + 1;
+    //     int steps_to_send = buffer_size - 1;
+    //     int payload_size = 1 + 2 + 2 + steps_to_send * 2;
+    //     int start_world_x = game->scene_base_tile_x + src_local_x;
+    //     int start_world_z = game->scene_base_tile_z + src_local_z;
+    //     if( game->outbound_size + 2 + payload_size <= (int)sizeof(game->outbound_buffer) )
+    //     {
+    //         uint32_t op = (PKTOUT_LC245_2_MOVE_OPCLICK + isaac_next(game->random_out)) & 0xff;
+    //         game->outbound_buffer[game->outbound_size++] = (uint8_t)op;
+    //         game->outbound_buffer[game->outbound_size++] = (uint8_t)payload_size;
+    //         game->outbound_buffer[game->outbound_size++] = 0;
+    //         game->outbound_buffer[game->outbound_size++] = (start_world_x >> 8) & 0xff;
+    //         game->outbound_buffer[game->outbound_size++] = start_world_x & 0xff;
+    //         game->outbound_buffer[game->outbound_size++] = (start_world_z >> 8) & 0xff;
+    //         game->outbound_buffer[game->outbound_size++] = start_world_z & 0xff;
+    //         for( int i = 0; i < steps_to_send && i < waypoints; i++ )
+    //         {
+    //             game->outbound_buffer[game->outbound_size++] =
+    //                 (uint8_t)(int8_t)(path_local_x[i] - src_local_x);
+    //             game->outbound_buffer[game->outbound_size++] =
+    //                 (uint8_t)(int8_t)(path_local_z[i] - src_local_z);
+    //         }
+    //     }
+    // }
     return true;
 }
 

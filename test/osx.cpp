@@ -1,6 +1,7 @@
 #define SDL_MAIN_HANDLED
 
 extern "C" {
+#include "LibToriRSPlatformC.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "platforms/common/sockstream.h"
@@ -83,82 +84,52 @@ main(
 
     struct SockStream* login_stream = NULL;
     sockstream_init();
-    // Create socket connection to login server
-    // login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
-    if( !login_stream )
-    {
-        printf("Failed to create login socket\n");
-        // Continue anyway - login will fail gracefully
-    }
-    else
-    {
-        // Poll for connection completion since connect is non-blocking
-        printf("Polling for connection...\n");
-        int poll_count = 0;
-        const int max_polls = 50; // 5 seconds max (50 * 100ms)
-        while( !sockstream_is_connected(login_stream) && poll_count < max_polls )
-        {
-            if( sockstream_poll_connect(login_stream) )
-            {
-                printf("Login socket connected\n");
-                break;
-            }
-            // Wait a bit before polling again (non-blocking, so we can do other work)
-            SDL_Delay(100);
-            poll_count++;
-        }
-        if( !sockstream_is_connected(login_stream) )
-        {
-            printf("Login socket connection timeout or failed\n");
-            sockstream_close(login_stream);
-            login_stream = NULL;
-        }
-    }
-
-    printf("Login socket created\n");
+    /* Optional: start connection; LibToriRSPlatformC_NetPoll will poll for completion each frame. */
+    login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
 
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;
 
-    // Flag to track if we've initialized the example interface
-    bool example_interface_initialized = false;
+    LibToriRS_NetContext* net_ctx = LibToriRS_NetNewContext();
+    if( !net_ctx )
+    {
+        printf("Failed to create net context\n");
+        return 1;
+    }
+    LibToriRS_NetInit(game, net_ctx);
 
-    uint8_t buffer[4096];
+    LibToriRS_NetConnectLogin(game, "asdf2", "a");
 
-    LibToriRS_NetConnect(game, "asdf2", "a");
+    uint8_t recv_buffer[4096];
+    int reconnect_requested = 0;
     while( LibToriRS_GameIsRunning(game) )
     {
         Platform2_OSX_SDL2_RunLuaScripts(platform, game);
 
-        if( LibToriRS_NetIsReady(game) && sockstream_is_connected(login_stream) )
+        reconnect_requested = 0;
+        int poll_status = LibToriRSPlatformC_NetPoll(
+            login_stream, net_ctx, recv_buffer, sizeof(recv_buffer), &reconnect_requested);
+        if( poll_status == LibToriRSPlatformC_NetPoll_ReconnectRequested )
         {
-            LibToriRS_NetPump(game);
-
-            int outgoing_size = LibToriRS_NetGetOutgoing(game, buffer, sizeof(buffer));
-            if( outgoing_size > 0 )
+            if( login_stream )
             {
-                sockstream_send(login_stream, buffer, outgoing_size);
+                sockstream_close(login_stream);
+                login_stream = NULL;
             }
-            int received = sockstream_recv(login_stream, buffer, sizeof(buffer));
-            if( received > 0 )
+            /* LibToriRSPlatformC_NetPoll will call sockstream_poll_connect each frame. */
+            login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
+        }
+        else if( poll_status == LibToriRSPlatformC_NetPoll_Error )
+        {
+            printf("Login socket error\n");
+            if( login_stream )
             {
-                LibToriRS_NetRecv(game, buffer, received);
-            }
-            else if( received < 0 )
-            {
-                int error = sockstream_lasterror(login_stream);
-                if( error != SOCKSTREAM_ERROR_WOULDBLOCK )
-                {
-                    // Connection error
-                    printf("Login socket error: %s\n", sockstream_strerror(error));
-                    sockstream_close(login_stream);
-                    login_stream = NULL;
-                    LibToriRS_NetDisconnected(game);
-                }
+                sockstream_close(login_stream);
+                login_stream = NULL;
             }
         }
 
-        // Socket error
+        LibToriRS_NetPoll(net_ctx);
 
         // Process server messages from previous frame and step server
         uint64_t timestamp_ms = SDL_GetTicks64();
@@ -186,6 +157,8 @@ main(
         sockstream_close(login_stream);
         login_stream = NULL;
     }
+
+    LibToriRS_NetFreeContext(net_ctx);
 
     // Cleanup server
     server_free(server);

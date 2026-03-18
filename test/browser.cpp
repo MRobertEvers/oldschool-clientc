@@ -3,7 +3,10 @@
 #include "tori_rs.h"
 
 #include <emscripten.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
 #include "osrs/game.h"
@@ -12,6 +15,7 @@ extern "C" {
 #include "osrs/lua_sidecar/lua_dash.h"
 #include "osrs/lua_sidecar/lua_game.h"
 #include "platforms/browser2/luajs_sidecar.h"
+#include "tori_rs_net_shared.h"
 }
 
 #include <emscripten/bind.h>
@@ -74,6 +78,8 @@ EMSCRIPTEN_BINDINGS(painters_module) {
 }
 // clang-format on
 
+static LibToriRS_NetContext* g_net_ctx = NULL;
+
 extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void
@@ -88,6 +94,12 @@ test_export(
 void
 signal_browser_ready()
 {
+    if( g_net_ctx )
+    {
+        EM_ASM(
+            { Module.toriNetCtx = $0; },
+            (int)(uintptr_t)g_net_ctx);
+    }
     emscripten_run_script(
         "window.dispatchEvent(new CustomEvent('rs_client_ready', { "
         "detail: { timestamp: Date.now() } "
@@ -110,11 +122,17 @@ emscripten_main_loop(void* arg)
 {
     struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)arg;
 
+    if( !renderer || !platform->window )
+        return;
+
     uint64_t timestamp_ms = SDL_GetTicks64();
 
     Platform2_Emscripten_SDL2_PollEvents(platform);
 
     Platform2_Emscripten_SDL2_RunLuaScripts(platform);
+
+    if( g_net_ctx )
+        LibToriRS_NetPoll(g_net_ctx);
 
     LibToriRS_GameStep(platform->current_game, platform->input, platform->render_command_buffer);
 
@@ -185,6 +203,14 @@ main(
     platform->render_command_buffer = render_command_buffer;
     platform->current_game = game;
     platform->secret = 5;
+
+    g_net_ctx = LibToriRS_NetNewContext();
+    if( !g_net_ctx )
+    {
+        printf("Failed to create net context\n");
+        return 1;
+    }
+    LibToriRS_NetInit(game, g_net_ctx);
 
     if( !platform )
     {

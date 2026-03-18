@@ -71,6 +71,24 @@ loginproto_new(
 }
 
 void
+loginproto_free(struct LoginProto* loginproto)
+{
+    if( !loginproto )
+        return;
+    if( loginproto->out )
+    {
+        ringbuf_free(loginproto->out);
+        loginproto->out = NULL;
+    }
+    if( loginproto->in )
+    {
+        ringbuf_free(loginproto->in);
+        loginproto->in = NULL;
+    }
+    free(loginproto);
+}
+
+void
 loginproto_recv(
     struct LoginProto* loginproto,
     uint8_t* data,

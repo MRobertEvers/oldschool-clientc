@@ -20,7 +20,7 @@
 #include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
-// #include "tori_rs.h"
+#include "tori_rs.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -83,7 +83,8 @@ LibToriRS_GameNew(
 
     dash_init();
 
-    game->io = io;
+    (void)io;
+    game->net_shared = NULL;
 
     // Initialize interface IDs to -1 (no interface)
     game->viewport_interface_id = -1;
@@ -124,8 +125,7 @@ LibToriRS_GameNew(
 
     game->running = true;
 
-    game->netin = ringbuf_new(4096);
-    game->netout = ringbuf_new(4096);
+    game->net_status = (int)NET_IDLE;
 
     game->packet_buffer = malloc(sizeof(struct PacketBuffer));
     memset(game->packet_buffer, 0, sizeof(struct PacketBuffer));
@@ -194,8 +194,7 @@ LibToriRS_GameNew(
     game->random_out = isaac_new(NULL, 0);
     init_rsa(game);
 
-    game->loginproto =
-        loginproto_new(game->random_in, game->random_out, &game->rsa, "asdf2", "a", NULL);
+    game->loginproto = NULL; /* created by LibToriRS_NetConnectLogin */
 
     game->ui_scene = uiscene_new(512);
     game->static_ui = static_ui_buffer_new(512);

@@ -128,6 +128,9 @@ set(COMMON_SOURCES
     src/osrs/revs/revpacket_lc245_2_query.c
     src/osrs/entity_scenebuild.c
     src/platforms/common/sockstream.c
+    src/LibToriPlatform.c
+    src/LibToriRSPlatformC.c
+    src/LibToriRSPlatformJS.c
     src/osrs/lua_sidecar/luac_sidecar_cachedat.c
     src/osrs/lua_sidecar/lua_buildcachedat.c
     src/osrs/lua_sidecar/lua_dash.c
@@ -204,6 +207,16 @@ if(EMSCRIPTEN)
         "_luajs_CacheDatArchive_serialized_size"
         "_luajs_CacheDatArchive_serialize_to_buffer"
         "_luajs_CacheDatArchive_free"
+        "_LibToriRSPlatformJS_GetP2GDataPtr"
+        "_LibToriRSPlatformJS_GetG2PDataPtr"
+        "_LibToriRSPlatformJS_GetP2GWritePos"
+        "_LibToriRSPlatformJS_SetP2GWritePos"
+        "_LibToriRSPlatformJS_GetG2PReadPos"
+        "_LibToriRSPlatformJS_SetG2PReadPos"
+        "_LibToriRSPlatformJS_GetG2PWritePos"
+        "_LibToriRSPlatformJS_SetState"
+        "_LibToriRSPlatformJS_GetP2GCapacity"
+        "_LibToriRSPlatformJS_GetG2PCapacity"
     )
 
     set(EXPORTED_METHODS_LIST
