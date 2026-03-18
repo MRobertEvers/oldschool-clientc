@@ -221,6 +221,7 @@ isaac_free(struct Isaac* isaac)
 int
 isaac_next(struct Isaac* isaac)
 {
+    assert(isaac);
     if( isaac->count-- == 0 )
     {
         isaac_scramble(isaac);

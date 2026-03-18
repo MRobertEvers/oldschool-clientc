@@ -101,13 +101,13 @@ LibToriRSPlatformC_NetPoll(
         if( connect_result == SOCKSTREAM_CONNECT_SUCCESS )
         {
             sb->status = NET_CONNECTED;
-            LibToriRS_NetPush(sb, TORI_RS_NET_MSG_CONN_STATUS, NULL, 0);
+            LibToriRS_NetPush(&sb->platform_to_game, TORI_RS_NET_MSG_CONN_STATUS, NULL, 0);
             drain_pending(sb, stream_ptr);
         }
         else if( connect_result == SOCKSTREAM_CONNECT_FAILED )
         {
             sb->status = NET_ERROR;
-            LibToriRS_NetPush(sb, TORI_RS_NET_MSG_CONN_STATUS, NULL, 0);
+            LibToriRS_NetPush(&sb->platform_to_game, TORI_RS_NET_MSG_CONN_STATUS, NULL, 0);
             clear_pending(sb);
         }
         else if( connect_result == SOCKSTREAM_CONNECT_INFLIGHT )
@@ -123,13 +123,17 @@ LibToriRSPlatformC_NetPoll(
 
         if( bytes_received > 0 )
         {
-            LibToriRS_NetPush(sb, TORI_RS_NET_MSG_RECV_DATA, payload, (uint16_t)bytes_received);
+            LibToriRS_NetPush(
+                &sb->platform_to_game,
+                TORI_RS_NET_MSG_RECV_DATA,
+                payload,
+                (uint16_t)bytes_received);
         }
         else if( bytes_received == 0 )
         {
             // Remote host closed connection
             sb->status = NET_IDLE;
-            LibToriRS_NetPush(sb, TORI_RS_NET_MSG_CONN_STATUS, NULL, 0);
+            LibToriRS_NetPush(&sb->platform_to_game, TORI_RS_NET_MSG_CONN_STATUS, NULL, 0);
             sockstream_close(stream_ptr);
             stream_ptr = NULL;
         }

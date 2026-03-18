@@ -87,7 +87,6 @@ sockstream_connect(
     {
         return;
     }
-
     memset(stream, 0, sizeof(struct SockStream));
     stream->sockfd = -1;
     stream->status = SOCKSTREAM_STATUS_CONNECTING;
@@ -98,7 +97,6 @@ sockstream_connect(
     if( sock == INVALID_SOCKET )
     {
         printf("Failed to create socket: %d\n", WSAGetLastError());
-        free(stream);
         return;
     }
     stream->sockfd = (int)sock;
@@ -107,7 +105,6 @@ sockstream_connect(
     if( stream->sockfd < 0 )
     {
         printf("Failed to create socket: %s\n", strerror(errno));
-        free(stream);
         return;
     }
 #endif
@@ -128,7 +125,6 @@ sockstream_connect(
     {
         printf("Failed to set non-blocking: %s\n", strerror(errno));
         close(stream->sockfd);
-        free(stream);
         return;
     }
 #endif
@@ -147,7 +143,8 @@ sockstream_connect(
 #else
         close(stream->sockfd);
 #endif
-        free(stream);
+        stream->sockfd = -1;
+        stream->status = SOCKSTREAM_STATUS_ERROR;
         return;
     }
 
@@ -168,7 +165,8 @@ sockstream_connect(
         {
             printf("Failed to connect: %d\n", connect_err);
             closesocket(stream->sockfd);
-            free(stream);
+            stream->sockfd = -1;
+            stream->status = SOCKSTREAM_STATUS_ERROR;
             return;
         }
     }
@@ -187,7 +185,8 @@ sockstream_connect(
     {
         printf("Failed to connect: %s\n", strerror(errno));
         close(stream->sockfd);
-        free(stream);
+        stream->sockfd = -1;
+        stream->status = SOCKSTREAM_STATUS_ERROR;
         return;
     }
     // Connection in progress - return stream, caller should poll with sockstream_poll_connect
@@ -246,8 +245,10 @@ sockstream_send(
     const void* buffer,
     int size)
 {
-    if( !stream || stream->status != 1 || stream->sockfd < 0 || !buffer || size <= 0 )
+    if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || stream->sockfd < 0 || !buffer ||
+        size <= 0 )
     {
+        printf("Socket send error: invalid stream\n");
         return -1;
     }
 
@@ -269,6 +270,8 @@ sockstream_send(
         }
 #endif
     }
+
+    printf("[DEBUG] Socket sent: %d\n", sent);
     return sent;
 }
 
@@ -281,19 +284,22 @@ sockstream_recv(
     if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || stream->sockfd < 0 || !buffer ||
         size <= 0 )
     {
-        return -1;
+        printf("Socket recv error: invalid stream\n");
+        return SOCKSTREAM_ERROR_INVALID_STREAM;
     }
 
     int received = recv(stream->sockfd, (char*)buffer, size, MSG_DONTWAIT);
     if( received > 0 )
     {
+        printf("[DEBUG] Socket received: %d\n", received);
         return received;
     }
     else if( received == 0 )
     {
         // Connection closed
         stream->status = SOCKSTREAM_STATUS_IDLE;
-        return 0;
+        printf("Socket recv error: connection closed\n");
+        return SOCKSTREAM_ERROR_CLOSED;
     }
     else
     {
@@ -304,19 +310,21 @@ sockstream_recv(
         {
             printf("Socket recv error: %d\n", recv_err);
             stream->status = SOCKSTREAM_STATUS_ERROR;
-            return -1;
+            return SOCKSTREAM_ERROR_NODATA;
         }
         // Would block - return -1, caller should check errno/WSAGetLastError
-        return -1;
+        return SOCKSTREAM_ERROR_NODATA;
 #else
         if( errno != EAGAIN && errno != EWOULDBLOCK )
         {
             printf("Socket recv error: %s\n", strerror(errno));
             stream->status = SOCKSTREAM_STATUS_ERROR;
-            return -1;
+            return SOCKSTREAM_ERROR_NODATA;
         }
+
+        printf("Socket recv error: %s\n", strerror(errno));
         // Would block - return -1, caller should check errno
-        return -1;
+        return SOCKSTREAM_ERROR_NODATA;
 #endif
     }
 }
@@ -436,5 +444,4 @@ sockstream_close(struct SockStream* stream)
     }
 
     stream->status = SOCKSTREAM_STATUS_IDLE;
-    free(stream);
 }

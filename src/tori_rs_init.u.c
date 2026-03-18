@@ -124,9 +124,6 @@ LibToriRS_GameNew(
 
     game->running = true;
 
-    game->packet_buffer = malloc(sizeof(struct PacketBuffer));
-    memset(game->packet_buffer, 0, sizeof(struct PacketBuffer));
-
     // x =
     // 7616
     // z =
@@ -190,6 +187,10 @@ LibToriRS_GameNew(
     game->random_in = isaac_new(NULL, 0);
     game->random_out = isaac_new(NULL, 0);
     init_rsa(game);
+
+    game->packet_buffer = malloc(sizeof(struct PacketBuffer));
+    memset(game->packet_buffer, 0, sizeof(struct PacketBuffer));
+    packetbuffer_init(game->packet_buffer, game->random_in, GAMEPROTO_REVISION_LC245_2);
 
     game->loginproto = NULL; /* created by LibToriRS_NetConnectLogin */
 

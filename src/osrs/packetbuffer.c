@@ -55,6 +55,7 @@ packetbuffer_read(
     uint8_t* data,
     int data_size)
 {
+    assert(packetbuffer && packetbuffer->random);
     assert(data_size > 0);
 
     struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };

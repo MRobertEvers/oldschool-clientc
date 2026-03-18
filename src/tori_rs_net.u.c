@@ -173,6 +173,7 @@ LibToriRS_NetPump(struct GGame* game)
         if( poll_result == LOGINPROTO_SUCCESS )
         {
             game->net_state = GAME_NET_STATE_GAME;
+
             loginproto_free(game->loginproto);
             game->loginproto = NULL;
         }
