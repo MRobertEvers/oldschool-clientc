@@ -25,7 +25,6 @@
 #include "osrs/world.h"
 #include "osrs/world_option_set.h"
 #include "osrs/zone_state.h"
-#include "tori_rs_net_shared.h"
 #include "world_pickset.h"
 
 #include <stdbool.h>
@@ -72,8 +71,7 @@ struct GGame
 
     struct RingBuf* netin;
 
-    int net_status; /* NetStatus enum from tori_rs.h */
-    LibToriRS_NetShared* net_shared;
+    struct ToriRSNetSharedBuffer* net_shared;
 
     enum GameNetState net_state;
     char login_username[64];

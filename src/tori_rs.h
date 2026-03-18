@@ -3,7 +3,6 @@
 
 #include "datastruct/vec.h"
 #include "osrs/game.h"
-#include "tori_rs_net_shared.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
 #include "osrs/painters.h"
@@ -11,6 +10,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#define TORI_BUFFER_SIZE 65536 // 64KB
 
 struct DashGraphics;
 struct DashModel;
@@ -37,9 +38,47 @@ struct ToriRSPlatformScript
     int argno;
 };
 
+#pragma pack(push, 1)
+struct ToriRSNetMessageHeader
+{
+    uint32_t type;   // 4 bytes
+    uint16_t length; // 2 bytes
+};
+#pragma pack(pop)
+
+struct ToriRSNetRingBuffer
+{
+    uint8_t data[TORI_BUFFER_SIZE];
+    uint32_t head;
+    uint32_t tail;
+};
+
+struct ToriRSNetSharedBuffer
+{
+    struct ToriRSNetRingBuffer game_to_platform;
+    struct ToriRSNetRingBuffer platform_to_game;
+    int32_t status;
+};
+
+enum ToriRSNetMessageType
+{
+    TORI_RS_NET_MSG_CONNECT = 1,     // Game -> Platform
+    TORI_RS_NET_MSG_SEND_DATA = 2,   // Game -> Platform
+    TORI_RS_NET_MSG_CONN_STATUS = 3, // Platform -> Game
+    TORI_RS_NET_MSG_RECV_DATA = 4    // Platform -> Game
+};
+
+enum ToriRSNetConnectionStatus
+{
+    TORI_RS_NET_STATUS_DISCONNECTED = 0,
+    TORI_RS_NET_STATUS_CONNECTING = 1,
+    TORI_RS_NET_STATUS_CONNECTED = 2,
+    TORI_RS_NET_STATUS_FAILED = 3
+};
+
 struct GGame*
 LibToriRS_GameNew(
-    struct GIOQueue* io,
+    struct ToriRSNetSharedBuffer* net_shared,
     int graphics3d_width,
     int graphics3d_height);
 
@@ -86,32 +125,10 @@ NetStatus
 LibToriRS_NetGetStatus(struct GGame* game);
 
 void
-LibToriRS_NetInit(
-    struct GGame* game,
-    LibToriRS_NetContext* ctx);
-
-void
-LibToriRS_NetPoll(LibToriRS_NetContext* ctx);
-
-void
 LibToriRS_NetSend(
     struct GGame* game,
     const uint8_t* data,
     int size);
-
-void
-LibToriRS_NetSendReconnect(struct GGame* game);
-
-void
-LibToriRS_OnMessage(
-    struct GGame* game,
-    const uint8_t* data,
-    int size);
-
-void
-LibToriRS_OnStatusChange(
-    struct GGame* game,
-    NetStatus status);
 
 void
 LibToriRS_NetConnectLogin(
@@ -120,10 +137,7 @@ LibToriRS_NetConnectLogin(
     const char* password);
 
 void
-LibToriRS_NetConnectGame(struct GGame* game);
-
-void
-LibToriRS_NetProcessInbound(struct GGame* game);
+LibToriRS_NetPump(struct GGame* game);
 
 void
 LibToriRS_GameFree(struct GGame* game);
@@ -136,5 +150,49 @@ LibToriRS_GameStep(
 
 bool
 LibToriRS_GameIsRunning(struct GGame* game);
+
+// --- Interface Functions ---
+struct ToriRSNetSharedBuffer*
+LibToriRS_NetNewBuffer();
+
+void
+LibToriRS_NetFreeBuffer(struct ToriRSNetSharedBuffer* sb);
+
+int
+LibToriRS_NetPush(
+    struct ToriRSNetRingBuffer* rb,
+    uint32_t type,
+    const uint8_t* data,
+    uint16_t len);
+
+int
+LibToriRS_NetPop(
+    struct ToriRSNetRingBuffer* rb,
+    struct ToriRSNetMessageHeader* out_header,
+    uint8_t* out_data);
+
+uint32_t
+LibToriRS_NetGetSharedBufferSize();
+
+uint32_t
+LibToriRS_NetGetOffset_G2P_Data();
+
+uint32_t
+LibToriRS_NetGetOffset_G2P_Head();
+
+uint32_t
+LibToriRS_NetGetOffset_G2P_Tail();
+
+uint32_t
+LibToriRS_NetGetOffset_P2G_Data();
+
+uint32_t
+LibToriRS_NetGetOffset_P2G_Head();
+
+uint32_t
+LibToriRS_NetGetOffset_P2G_Tail();
+
+uint32_t
+LibToriRS_NetGetOffset_Status();
 
 #endif

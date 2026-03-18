@@ -1,9 +1,9 @@
 #include "sockstream.h"
 
 #ifdef _WIN32
+#include <io.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <io.h>
 #define close closesocket
 #ifndef EAGAIN
 #define EAGAIN WSAEWOULDBLOCK
@@ -21,6 +21,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+
 #include <unistd.h>
 #endif
 
@@ -47,7 +48,7 @@ sockstream_init(void)
     return 0;
 }
 
- void
+void
 sockstream_cleanup(void)
 {
 #ifdef _WIN32
@@ -58,13 +59,14 @@ sockstream_cleanup(void)
 struct SockStream
 {
     int sockfd;
-    int is_valid;
+    int status;
 };
 
-
-
 struct SockStream*
-sockstream_connect(const char* host, int port, int timeout_sec)
+sockstream_connect(
+    const char* host,
+    int port,
+    int timeout_sec)
 {
     if( !host || port <= 0 )
     {
@@ -78,7 +80,7 @@ sockstream_connect(const char* host, int port, int timeout_sec)
     }
     memset(stream, 0, sizeof(struct SockStream));
     stream->sockfd = -1;
-    stream->is_valid = 0;
+    stream->status = SOCKSTREAM_STATUS_CONNECTING;
 
     // Create socket
 #ifdef _WIN32
@@ -145,7 +147,7 @@ sockstream_connect(const char* host, int port, int timeout_sec)
     if( result == 0 )
     {
         // Connection succeeded immediately
-        stream->is_valid = 1;
+        stream->status = 1;
         printf("Connected to %s:%d\n", host, port);
         return stream;
     }
@@ -167,7 +169,7 @@ sockstream_connect(const char* host, int port, int timeout_sec)
     if( result == 0 )
     {
         // Connection succeeded immediately
-        stream->is_valid = 1;
+        stream->status = 1;
         printf("Connected to %s:%d\n", host, port);
         return stream;
     }
@@ -184,8 +186,7 @@ sockstream_connect(const char* host, int port, int timeout_sec)
 #endif
 }
 
-
-int 
+int
 sockstream_lasterror(struct SockStream* stream)
 {
     if( !stream )
@@ -198,7 +199,8 @@ sockstream_lasterror(struct SockStream* stream)
     {
         return SOCKSTREAM_ERROR_WOULDBLOCK;
     }
-    else {
+    else
+    {
         return SOCKSTREAM_ERROR;
     }
 #else
@@ -207,31 +209,34 @@ sockstream_lasterror(struct SockStream* stream)
     {
         return SOCKSTREAM_ERROR_WOULDBLOCK;
     }
-    else {
+    else
+    {
         return SOCKSTREAM_ERROR;
     }
 #endif
 }
-
 
 char*
 sockstream_strerror(int error)
 {
     switch( error )
     {
-        case SOCKSTREAM_ERROR_WOULDBLOCK:
-            return "WOULDBLOCK";
-        case SOCKSTREAM_ERROR:
-            return "ERROR";
-        default:
-            return "UNKNOWN";
+    case SOCKSTREAM_ERROR_WOULDBLOCK:
+        return "WOULDBLOCK";
+    case SOCKSTREAM_ERROR:
+        return "ERROR";
+    default:
+        return "UNKNOWN";
     }
 }
 
 int
-sockstream_send(struct SockStream* stream, const void* buffer, int size)
+sockstream_send(
+    struct SockStream* stream,
+    const void* buffer,
+    int size)
 {
-    if( !stream || !stream->is_valid || stream->sockfd < 0 || !buffer || size <= 0 )
+    if( !stream || stream->status != 1 || stream->sockfd < 0 || !buffer || size <= 0 )
     {
         return -1;
     }
@@ -244,13 +249,13 @@ sockstream_send(struct SockStream* stream, const void* buffer, int size)
         if( send_err != WSAEWOULDBLOCK )
         {
             printf("Socket send error: %d\n", send_err);
-            stream->is_valid = 0;
+            stream->status = SOCKSTREAM_STATUS_ERROR;
         }
 #else
         if( errno != EAGAIN && errno != EWOULDBLOCK )
         {
             printf("Socket send error: %s\n", strerror(errno));
-            stream->is_valid = 0;
+            stream->status = SOCKSTREAM_STATUS_ERROR;
         }
 #endif
     }
@@ -258,9 +263,13 @@ sockstream_send(struct SockStream* stream, const void* buffer, int size)
 }
 
 int
-sockstream_recv(struct SockStream* stream, void* buffer, int size)
+sockstream_recv(
+    struct SockStream* stream,
+    void* buffer,
+    int size)
 {
-    if( !stream || !stream->is_valid || stream->sockfd < 0 || !buffer || size <= 0 )
+    if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED || stream->sockfd < 0 || !buffer ||
+        size <= 0 )
     {
         return -1;
     }
@@ -273,7 +282,7 @@ sockstream_recv(struct SockStream* stream, void* buffer, int size)
     else if( received == 0 )
     {
         // Connection closed
-        stream->is_valid = 0;
+        stream->status = SOCKSTREAM_STATUS_IDLE;
         return 0;
     }
     else
@@ -284,7 +293,7 @@ sockstream_recv(struct SockStream* stream, void* buffer, int size)
         if( recv_err != WSAEWOULDBLOCK )
         {
             printf("Socket recv error: %d\n", recv_err);
-            stream->is_valid = 0;
+            stream->status = SOCKSTREAM_STATUS_ERROR;
             return -1;
         }
         // Would block - return -1, caller should check errno/WSAGetLastError
@@ -293,7 +302,7 @@ sockstream_recv(struct SockStream* stream, void* buffer, int size)
         if( errno != EAGAIN && errno != EWOULDBLOCK )
         {
             printf("Socket recv error: %s\n", strerror(errno));
-            stream->is_valid = 0;
+            stream->status = SOCKSTREAM_STATUS_ERROR;
             return -1;
         }
         // Would block - return -1, caller should check errno
@@ -305,15 +314,15 @@ sockstream_recv(struct SockStream* stream, void* buffer, int size)
 int
 sockstream_poll_connect(struct SockStream* stream)
 {
-    if( !stream || stream->sockfd < 0 )
+    if( !stream || stream->sockfd < 0 || stream->status != SOCKSTREAM_STATUS_CONNECTING )
     {
-        return 0;
+        return SOCKSTREAM_CONNECT_FAILED;
     }
 
     // If already connected, return success
-    if( stream->is_valid )
+    if( stream->status == SOCKSTREAM_STATUS_CONNECTED )
     {
-        return 1;
+        return SOCKSTREAM_CONNECT_SUCCESS;
     }
 
     // Check if socket is writable (connected sockets are writable)
@@ -333,13 +342,13 @@ sockstream_poll_connect(struct SockStream* stream)
     if( result <= 0 )
     {
         // Still connecting or error
-        return 0;
+        return SOCKSTREAM_CONNECT_INFLIGHT;
     }
 
     // Socket is writable, check if connection succeeded
     if( !FD_ISSET(stream->sockfd, &write_fds) )
     {
-        return 0;
+        return SOCKSTREAM_CONNECT_INFLIGHT;
     }
 
     // Check if connection succeeded
@@ -348,42 +357,45 @@ sockstream_poll_connect(struct SockStream* stream)
     int len = sizeof(error);
     if( getsockopt(stream->sockfd, SOL_SOCKET, SO_ERROR, (char*)&error, &len) == SOCKET_ERROR )
     {
-        return 0;
+        stream->status = SOCKSTREAM_STATUS_ERROR;
+        return SOCKSTREAM_CONNECT_FAILED;
     }
     if( error != 0 )
     {
         printf("Connection failed with error: %d\n", error);
-        return 0;
+        stream->status = SOCKSTREAM_STATUS_ERROR;
+        return SOCKSTREAM_CONNECT_FAILED;
     }
 #else
     socklen_t len = sizeof(error);
     if( getsockopt(stream->sockfd, SOL_SOCKET, SO_ERROR, (char*)&error, &len) < 0 )
     {
-        return 0;
+        return SOCKSTREAM_CONNECT_INFLIGHT;
     }
     if( error != 0 )
     {
         printf("Connection failed with error: %s\n", strerror(error));
-        return 0;
+        stream->status = SOCKSTREAM_STATUS_ERROR;
+        return SOCKSTREAM_CONNECT_FAILED;
     }
 #endif
 
     // Connection succeeded
-    stream->is_valid = 1;
+    stream->status = SOCKSTREAM_STATUS_CONNECTED;
     printf("Connection completed\n");
-    return 1;
+    return SOCKSTREAM_CONNECT_SUCCESS;
 }
 
 int
 sockstream_is_connected(struct SockStream* stream)
 {
-    return (stream && stream->is_valid && stream->sockfd >= 0) ? 1 : 0;
+    return (stream && stream->status == SOCKSTREAM_STATUS_CONNECTED && stream->sockfd >= 0) ? 1 : 0;
 }
 
 int
 sockstream_get_fd(struct SockStream* stream)
 {
-    if( !stream || !stream->is_valid )
+    if( !stream || stream->status != 1 )
     {
         return -1;
     }
@@ -408,6 +420,6 @@ sockstream_close(struct SockStream* stream)
         stream->sockfd = -1;
     }
 
-    stream->is_valid = 0;
+    stream->status = SOCKSTREAM_STATUS_IDLE;
     free(stream);
 }

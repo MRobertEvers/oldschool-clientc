@@ -8,6 +8,11 @@ extern "C" {
 #define SOCKSTREAM_ERROR_WOULDBLOCK -1
 #define SOCKSTREAM_ERROR -2
 
+#define SOCKSTREAM_STATUS_IDLE 0
+#define SOCKSTREAM_STATUS_CONNECTING 1
+#define SOCKSTREAM_STATUS_CONNECTED 2
+#define SOCKSTREAM_STATUS_ERROR -1
+
 // Opaque structure for socket stream
 struct SockStream;
 
@@ -17,7 +22,7 @@ sockstream_init(void);
 void
 sockstream_cleanup(void);
 
-int 
+int
 sockstream_lasterror(struct SockStream* stream);
 
 char*
@@ -32,7 +37,11 @@ sockstream_strerror(int error);
  * @param timeout_sec Connection timeout in seconds (0 = use default 5 seconds)
  * @return Pointer to SockStream on success, NULL on failure
  */
-struct SockStream* sockstream_connect(const char* host, int port, int timeout_sec);
+struct SockStream*
+sockstream_connect(
+    const char* host,
+    int port,
+    int timeout_sec);
 
 /**
  * Send data on the socket stream.
@@ -42,7 +51,11 @@ struct SockStream* sockstream_connect(const char* host, int port, int timeout_se
  * @param size The number of bytes to send
  * @return Number of bytes sent on success, -1 on error
  */
-int sockstream_send(struct SockStream* stream, const void* buffer, int size);
+int
+sockstream_send(
+    struct SockStream* stream,
+    const void* buffer,
+    int size);
 
 /**
  * Receive data from the socket stream (non-blocking).
@@ -50,9 +63,14 @@ int sockstream_send(struct SockStream* stream, const void* buffer, int size);
  * @param stream The socket stream
  * @param buffer The buffer to receive data into
  * @param size The maximum number of bytes to receive
- * @return Number of bytes received on success, 0 if connection closed, -1 on error (check errno/WSAGetLastError)
+ * @return Number of bytes received on success, 0 if connection closed, -1 on error (check
+ * errno/WSAGetLastError)
  */
-int sockstream_recv(struct SockStream* stream, void* buffer, int size);
+int
+sockstream_recv(
+    struct SockStream* stream,
+    void* buffer,
+    int size);
 
 /**
  * Check if the socket stream is valid and connected.
@@ -60,9 +78,14 @@ int sockstream_recv(struct SockStream* stream, void* buffer, int size);
  * @param stream The socket stream
  * @return 1 if valid and connected, 0 otherwise
  */
-int sockstream_is_connected(struct SockStream* stream);
+int
+sockstream_is_connected(struct SockStream* stream);
 
-int sockstream_poll_connect(struct SockStream* stream);
+#define SOCKSTREAM_CONNECT_INFLIGHT 0
+#define SOCKSTREAM_CONNECT_SUCCESS 1
+#define SOCKSTREAM_CONNECT_FAILED 2
+int
+sockstream_poll_connect(struct SockStream* stream);
 
 /**
  * Get the underlying socket file descriptor.
@@ -71,14 +94,16 @@ int sockstream_poll_connect(struct SockStream* stream);
  * @param stream The socket stream
  * @return Socket file descriptor, or -1 if invalid
  */
-int sockstream_get_fd(struct SockStream* stream);
+int
+sockstream_get_fd(struct SockStream* stream);
 
 /**
  * Close and free the socket stream.
  *
  * @param stream The socket stream to close (can be NULL)
  */
-void sockstream_close(struct SockStream* stream);
+void
+sockstream_close(struct SockStream* stream);
 
 #ifdef __cplusplus
 }

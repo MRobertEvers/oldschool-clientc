@@ -74,7 +74,7 @@ init_rsa(struct GGame* game)
 
 struct GGame*
 LibToriRS_GameNew(
-    struct GIOQueue* io,
+    struct ToriRSNetSharedBuffer* net_shared,
     int graphics3d_width,
     int graphics3d_height)
 {
@@ -83,8 +83,7 @@ LibToriRS_GameNew(
 
     dash_init();
 
-    (void)io;
-    game->net_shared = NULL;
+    game->net_shared = net_shared;
 
     // Initialize interface IDs to -1 (no interface)
     game->viewport_interface_id = -1;
@@ -124,8 +123,6 @@ LibToriRS_GameNew(
     game->path_tile_count = 0;
 
     game->running = true;
-
-    game->net_status = (int)NET_IDLE;
 
     game->packet_buffer = malloc(sizeof(struct PacketBuffer));
     memset(game->packet_buffer, 0, sizeof(struct PacketBuffer));

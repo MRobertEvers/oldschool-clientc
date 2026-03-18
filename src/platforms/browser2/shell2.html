@@ -88,9 +88,12 @@
     <script type="module" src="./luajs_sidecar_fnnos.js"></script>
     <script type="module">
         import { LuaJSSidecar } from './luajs_sidecar.js';
-        import { setupNetWSBridge } from './net_ws_bridge.js';
+        import { LibToriRSPlatformJS } from './netjs.js';
+
+        let netSidecar = null;
 
         function onRSClientLooped(event, luaSidecar) {  
+          netSidecar?.tick();
           if (window.LUA_SCRIPT_QUEUE && window.LUA_SCRIPT_QUEUE.length > 0) {
             const scriptPath = window.LUA_SCRIPT_QUEUE.shift();
             console.log(`Executing Lua script from queue: ${scriptPath}`);
@@ -105,7 +108,11 @@
 
         function onRSClientReady(event) {
           console.log('RSClient is ready! Event detail:', event.detail);
-          setupNetWSBridge(Module, { url: getWsUrl() });
+          if (!window.gamePtr) {
+            console.error('Game pointer not found');
+            return;
+          }
+          netSidecar = new LibToriRSPlatformJS(Module, window.gamePtr);
           // When a script is not in IndexedDB, load it from this URL (e.g. node serve-lua-scripts.js)
           const luaSidecar = new LuaJSSidecar(Module, {
             scriptBaseUrl: 'http://localhost:8081/'

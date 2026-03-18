@@ -3,7 +3,6 @@
 #include "tori_rs.h"
 
 #include <emscripten.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +14,6 @@ extern "C" {
 #include "osrs/lua_sidecar/lua_dash.h"
 #include "osrs/lua_sidecar/lua_game.h"
 #include "platforms/browser2/luajs_sidecar.h"
-#include "tori_rs_net_shared.h"
 }
 
 #include <emscripten/bind.h>
@@ -78,8 +76,6 @@ EMSCRIPTEN_BINDINGS(painters_module) {
 }
 // clang-format on
 
-static LibToriRS_NetContext* g_net_ctx = NULL;
-
 extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void
@@ -94,12 +90,6 @@ test_export(
 void
 signal_browser_ready()
 {
-    if( g_net_ctx )
-    {
-        EM_ASM(
-            { Module.toriNetCtx = $0; },
-            (int)(uintptr_t)g_net_ctx);
-    }
     emscripten_run_script(
         "window.dispatchEvent(new CustomEvent('rs_client_ready', { "
         "detail: { timestamp: Date.now() } "
@@ -115,6 +105,16 @@ signal_browser_looped()
         "}));");
 }
 
+void
+set_game_ptr(struct GGame* game)
+{
+    // clang-format off
+    EM_ASM({
+        window.gamePtr = $0;
+    }, (uintptr_t)game);
+    // clang-format on
+}
+
 static struct Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer = NULL;
 
 void
@@ -127,12 +127,11 @@ emscripten_main_loop(void* arg)
 
     uint64_t timestamp_ms = SDL_GetTicks64();
 
+    LibToriRS_NetPump(platform->current_game);
+
     Platform2_Emscripten_SDL2_PollEvents(platform);
 
     Platform2_Emscripten_SDL2_RunLuaScripts(platform);
-
-    if( g_net_ctx )
-        LibToriRS_NetPoll(g_net_ctx);
 
     LibToriRS_GameStep(platform->current_game, platform->input, platform->render_command_buffer);
 
@@ -191,26 +190,20 @@ main(
     char* argv[])
 {
     struct Platform2_Emscripten_SDL2* platform = Platform2_Emscripten_SDL2_New();
-    struct GIOQueue* io = gioq_new();
     // These dimensions define the internal 3D render resolution used by the game/viewport.
     const int graphics3d_width = 513;
     const int graphics3d_height = 335;
 
-    struct GGame* game = LibToriRS_GameNew(io, graphics3d_width, graphics3d_height);
+    struct ToriRSNetSharedBuffer* net_shared = LibToriRS_NetNewBuffer();
+    struct GGame* game = LibToriRS_GameNew(net_shared, graphics3d_width, graphics3d_height);
+    set_game_ptr(game);
+
     struct GInput input = { 0 };
     struct ToriRSRenderCommandBuffer* render_command_buffer =
         LibToriRS_RenderCommandBufferNew(1024);
     platform->render_command_buffer = render_command_buffer;
     platform->current_game = game;
     platform->secret = 5;
-
-    g_net_ctx = LibToriRS_NetNewContext();
-    if( !g_net_ctx )
-    {
-        printf("Failed to create net context\n");
-        return 1;
-    }
-    LibToriRS_NetInit(game, g_net_ctx);
 
     if( !platform )
     {
@@ -237,6 +230,9 @@ main(
 
     luajs_sidecar_set_callback(luajs_sidecar_callback, platform);
 
+    const char* host = "127.0.0.1:43594";
+    LibToriRS_NetPush(
+        &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
     signal_browser_ready();
 
     emscripten_set_main_loop_arg(emscripten_main_loop, platform, 0, 1);
