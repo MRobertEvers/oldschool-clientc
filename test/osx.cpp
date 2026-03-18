@@ -74,7 +74,7 @@ main(
 
     struct SockStream* login_stream = NULL;
     sockstream_init();
-    login_stream = sockstream_connect("127.0.0.1", LOGIN_PORT, 5);
+    login_stream = sockstream_new();
 
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;

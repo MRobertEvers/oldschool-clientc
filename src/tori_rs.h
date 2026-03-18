@@ -57,6 +57,7 @@ struct ToriRSNetSharedBuffer
 {
     struct ToriRSNetRingBuffer game_to_platform;
     struct ToriRSNetRingBuffer platform_to_game;
+    struct ToriRSNetRingBuffer pending;
     int32_t status;
 };
 

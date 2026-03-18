@@ -76,7 +76,7 @@ LibToriRS_NetConnectLogin(
 
     game->net_state = GAME_NET_STATE_LOGIN;
 
-    char const* host = "127.0.0.1:45454";
+    char const* host = "127.0.0.1:43594";
     LibToriRS_NetPush(
         &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
 }

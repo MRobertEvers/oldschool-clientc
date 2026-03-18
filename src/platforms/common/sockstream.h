@@ -38,7 +38,11 @@ sockstream_strerror(int error);
  * @return Pointer to SockStream on success, NULL on failure
  */
 struct SockStream*
+sockstream_new(void);
+
+void
 sockstream_connect(
+    struct SockStream* stream,
     const char* host,
     int port,
     int timeout_sec);

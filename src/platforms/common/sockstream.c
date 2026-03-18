@@ -63,21 +63,31 @@ struct SockStream
 };
 
 struct SockStream*
-sockstream_connect(
-    const char* host,
-    int port,
-    int timeout_sec)
+sockstream_new(void)
 {
-    if( !host || port <= 0 )
-    {
-        return NULL;
-    }
-
     struct SockStream* stream = malloc(sizeof(struct SockStream));
     if( !stream )
     {
         return NULL;
     }
+    memset(stream, 0, sizeof(struct SockStream));
+    stream->sockfd = -1;
+    stream->status = SOCKSTREAM_STATUS_IDLE;
+    return stream;
+}
+
+void
+sockstream_connect(
+    struct SockStream* stream,
+    const char* host,
+    int port,
+    int timeout_sec)
+{
+    if( !host || port <= 0 || !stream )
+    {
+        return;
+    }
+
     memset(stream, 0, sizeof(struct SockStream));
     stream->sockfd = -1;
     stream->status = SOCKSTREAM_STATUS_CONNECTING;
@@ -89,7 +99,7 @@ sockstream_connect(
     {
         printf("Failed to create socket: %d\n", WSAGetLastError());
         free(stream);
-        return NULL;
+        return;
     }
     stream->sockfd = (int)sock;
 #else
@@ -98,7 +108,7 @@ sockstream_connect(
     {
         printf("Failed to create socket: %s\n", strerror(errno));
         free(stream);
-        return NULL;
+        return;
     }
 #endif
 
@@ -110,7 +120,7 @@ sockstream_connect(
         printf("Failed to set non-blocking: %d\n", WSAGetLastError());
         closesocket(stream->sockfd);
         free(stream);
-        return NULL;
+        return;
     }
 #else
     int flags = fcntl(stream->sockfd, F_GETFL, 0);
@@ -119,7 +129,7 @@ sockstream_connect(
         printf("Failed to set non-blocking: %s\n", strerror(errno));
         close(stream->sockfd);
         free(stream);
-        return NULL;
+        return;
     }
 #endif
 
@@ -138,7 +148,7 @@ sockstream_connect(
         close(stream->sockfd);
 #endif
         free(stream);
-        return NULL;
+        return;
     }
 
     // Try to connect (non-blocking)
@@ -147,9 +157,9 @@ sockstream_connect(
     if( result == 0 )
     {
         // Connection succeeded immediately
-        stream->status = 1;
+        stream->status = SOCKSTREAM_STATUS_CONNECTED;
         printf("Connected to %s:%d\n", host, port);
-        return stream;
+        return;
     }
     if( result == SOCKET_ERROR )
     {
@@ -159,30 +169,30 @@ sockstream_connect(
             printf("Failed to connect: %d\n", connect_err);
             closesocket(stream->sockfd);
             free(stream);
-            return NULL;
+            return;
         }
     }
     // Connection in progress - return stream, caller should poll with sockstream_poll_connect
     printf("Connection in progress to %s:%d\n", host, port);
-    return stream;
+    return;
 #else
     if( result == 0 )
     {
         // Connection succeeded immediately
-        stream->status = 1;
+        stream->status = SOCKSTREAM_STATUS_CONNECTED;
         printf("Connected to %s:%d\n", host, port);
-        return stream;
+        return;
     }
     if( result < 0 && errno != EINPROGRESS )
     {
         printf("Failed to connect: %s\n", strerror(errno));
         close(stream->sockfd);
         free(stream);
-        return NULL;
+        return;
     }
     // Connection in progress - return stream, caller should poll with sockstream_poll_connect
     printf("Connection in progress to %s:%d\n", host, port);
-    return stream;
+    return;
 #endif
 }
 
@@ -316,6 +326,11 @@ sockstream_poll_connect(struct SockStream* stream)
 {
     if( !stream || stream->sockfd < 0 || stream->status != SOCKSTREAM_STATUS_CONNECTING )
     {
+        // If already connected, return success
+        if( stream->status == SOCKSTREAM_STATUS_CONNECTED )
+        {
+            return SOCKSTREAM_CONNECT_SUCCESS;
+        }
         return SOCKSTREAM_CONNECT_FAILED;
     }
 
