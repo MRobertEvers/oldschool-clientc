@@ -21,8 +21,6 @@ gameproto_parse_lc245_2(
 
     packet->packet_type = packet_type;
 
-    static int g_already = 0;
-
     switch( packet_type )
     {
     case PKTIN_LC245_2_REBUILD_NORMAL:
@@ -380,7 +378,7 @@ gameproto_parse_lc245_2(
         return 1;
     }
     default:
-        printf("Unknown packet type: %d\n", packet_type);
+        printf("[gameproto_parse_lc245_2] Unknown packet type: %d\n", packet_type);
         break;
     }
 

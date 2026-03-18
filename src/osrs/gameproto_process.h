@@ -5,8 +5,6 @@
 #include "gio.h"
 
 void
-gameproto_process(
-    struct GGame* game,
-    struct GIOQueue* io);
+gameproto_process(struct GGame* game);
 
 #endif

@@ -26,6 +26,20 @@ LuaGame_build_scene(
     return LuaGameType_NewVoid();
 }
 
+struct LuaGameType*
+LuaGame_build_scene_centerzone(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    int zonex = arg_int(args, 0);
+    int zonez = arg_int(args, 1);
+    int size = arg_int(args, 2);
+
+    buildcachedat_loader_finalize_scene_centerzone(game->buildcachedat, game, zonex, zonez, size);
+
+    return LuaGameType_NewVoid();
+}
+
 static char const g_prefix[] = "game_";
 
 bool
@@ -48,5 +62,7 @@ LuaGame_DispatchCommand(
 
     if( strcmp(command, "build_scene") == 0 )
         return LuaGame_build_scene(game, args);
+    if( strcmp(command, "build_scene_centerzone") == 0 )
+        return LuaGame_build_scene_centerzone(game, args);
     return NULL;
 }

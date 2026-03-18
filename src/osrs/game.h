@@ -158,9 +158,6 @@ struct GGame
     struct DashPixFont* pixfont_p12;
     struct DashPixFont* pixfont_q8;
 
-    struct GIOQueue* io;
-    struct GameTask* tasks_nullable;
-
     struct DashSprite* sprite_invback;
     struct DashSprite* sprite_chatback;
     struct DashSprite* sprite_mapback;

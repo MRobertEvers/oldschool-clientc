@@ -881,3 +881,19 @@ buildcachedat_loader_finalize_scene(
     //     104,
     //     buildcachedat);
 }
+
+void
+buildcachedat_loader_finalize_scene_centerzone(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
+    int zonex,
+    int zonez,
+    int size)
+{
+    if( game->world )
+        world_free(game->world);
+
+    game->world = world_new(buildcachedat);
+
+    world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size);
+}

@@ -13,10 +13,9 @@
 #include <string.h>
 
 void
-gameproto_process(
-    struct GGame* game,
-    struct GIOQueue* io)
+gameproto_process(struct GGame* game)
 {
+    struct ScriptArgs args;
     if( game->packets_lc245_2 )
     {
         struct RevPacket_LC245_2_Item* item = game->packets_lc245_2;
@@ -24,6 +23,14 @@ gameproto_process(
 
         switch( item->packet.packet_type )
         {
+        case PKTIN_LC245_2_REBUILD_NORMAL:
+            args = (struct ScriptArgs){
+                .tag = SCRIPT_PKT_REBUILD_NORMAL,
+                .u.rebuild_normal = { .zonex = item->packet._map_rebuild.zonex,
+                                     .zonez = item->packet._map_rebuild.zonez },
+            };
+            script_queue_push(&game->script_queue, &args);
+            break;
         default:
             break;
         }

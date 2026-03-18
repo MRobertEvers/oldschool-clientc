@@ -1,6 +1,7 @@
 #ifndef TORI_RS_NET_U_C
 #define TORI_RS_NET_U_C
 
+#include "osrs/gameproto_parse.h"
 #include "osrs/loginproto.h"
 #include "tori_rs.h"
 
@@ -97,6 +98,30 @@ LibToriRS_NetConnectGame(
 }
 
 static void
+push_packet_lc245_2(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    struct RevPacket_LC245_2_Item* item = malloc(sizeof(struct RevPacket_LC245_2_Item));
+    memset(item, 0, sizeof(struct RevPacket_LC245_2_Item));
+
+    item->packet = *packet;
+    if( !game->packets_lc245_2 )
+    {
+        game->packets_lc245_2 = item;
+    }
+    else
+    {
+        struct RevPacket_LC245_2_Item* list = game->packets_lc245_2;
+        while( list->next_nullable )
+        {
+            list = list->next_nullable;
+        }
+        list->next_nullable = item;
+    }
+}
+
+static void
 net_process_packets(struct GGame* game)
 {
     if( !game || !game->packet_buffer )
@@ -104,16 +129,21 @@ net_process_packets(struct GGame* game)
 
     // The PacketBuffer has internally handled ISAAC decryption of the opcode
     // and accumulated the full payload.
-    while( packetbuffer_ready(game->packet_buffer) )
+    if( packetbuffer_ready(game->packet_buffer) )
     {
-        int opcode = packetbuffer_packet_type(game->packet_buffer);
-        int len = packetbuffer_size(game->packet_buffer);
-        uint8_t* payload = (uint8_t*)packetbuffer_data(game->packet_buffer);
+        struct RevPacket_LC245_2 packet;
+        memset(&packet, 0, sizeof(struct RevPacket_LC245_2));
+        int success = 0;
 
-        // --- Route Packet to Game Logic ---
-        // Example: if (opcode == 123) { handle_player_update(game, payload, len); }
+        success = gameproto_parse_lc245_2(
+            packetbuffer_packet_type(game->packet_buffer),
+            packetbuffer_data(game->packet_buffer),
+            packetbuffer_size(game->packet_buffer),
+            &packet);
 
-        // Clear the state machine to start parsing the next opcode in the stream
+        if( success )
+            push_packet_lc245_2(game, &packet);
+
         packetbuffer_reset(game->packet_buffer);
     }
 }
@@ -142,6 +172,7 @@ LibToriRS_NetPump(struct GGame* game)
             {
                 // Feed raw bytes into the packet stream processor
                 packetbuffer_read(game->packet_buffer, temp_buffer, header.length);
+                net_process_packets(game);
             }
             break;
         }
@@ -185,7 +216,6 @@ LibToriRS_NetPump(struct GGame* game)
     }
     else if( game->net_state == GAME_NET_STATE_GAME )
     {
-        net_process_packets(game);
     }
 }
 

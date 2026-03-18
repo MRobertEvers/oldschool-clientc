@@ -270,6 +270,7 @@
         "gio_cache_dat.h": "c",
         "lua_cachedat_sidecar.h": "c",
         "varp_varbit_manager.h": "c",
-        "game.h": "c"
+        "game.h": "c",
+        "revpacket_lc245_2_query.h": "c"
     },
 }

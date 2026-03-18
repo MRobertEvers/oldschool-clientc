@@ -320,8 +320,7 @@ LibToriRS_GameStep(
         }
     }
 
-    gameproto_process(game, game->io);
-
+    gameproto_process(game);
     LibToriRS_GameProcessInput(game, input);
 
     if( game->world )

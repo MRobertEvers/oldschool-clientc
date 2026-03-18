@@ -7,6 +7,7 @@ enum ScriptKind
     SCRIPT_INIT,
     SCRIPT_LOAD_SCENE_DAT,
     SCRIPT_LOAD_SCENE,
+    SCRIPT_PKT_REBUILD_NORMAL,
     SCRIPT_COUNT
 };
 
@@ -31,6 +32,12 @@ struct ScriptArgsLoadScene
     int size_z;
 };
 
+struct ScriptArgsRebuildNormal
+{
+    int zonex;
+    int zonez;
+};
+
 /* Tagged union of all script argument structs (one member per runnable script). */
 struct ScriptArgs
 {
@@ -39,6 +46,7 @@ struct ScriptArgs
     {
         struct ScriptArgsLoadSceneDat load_scene_dat;
         struct ScriptArgsLoadScene load_scene;
+        struct ScriptArgsRebuildNormal rebuild_normal;
     } u;
 };
 

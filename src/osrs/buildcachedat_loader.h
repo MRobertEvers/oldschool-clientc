@@ -141,4 +141,12 @@ buildcachedat_loader_finalize_scene(
     int map_ne_x,
     int map_ne_z);
 
+void
+buildcachedat_loader_finalize_scene_centerzone(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
+    int zonex,
+    int zonez,
+    int size);
+
 #endif

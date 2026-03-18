@@ -527,58 +527,6 @@ Platform2_OSX_SDL2_PollEvents(
     }
 }
 
-static void
-on_gio_req_init(
-    struct Platform2_OSX_SDL2* platform,
-    struct GIOQueue* io,
-    struct GIOMessage* message)
-{
-    (void)platform;
-    (void)io;
-    (void)message;
-}
-
-static void
-on_gio_req_asset(
-    struct Platform2_OSX_SDL2* platform,
-    struct GIOQueue* io,
-    struct GIOMessage* message,
-    struct CacheDat* cache_dat)
-{
-    (void)platform;
-    if( cache_dat )
-        gioqb_cache_dat_fullfill(io, cache_dat, message);
-}
-
-void
-Platform2_OSX_SDL2_PollIO(
-    struct Platform2_OSX_SDL2* platform,
-    struct GGame* game)
-{
-    (void)platform;
-    if( !game || !game->io )
-        return;
-
-    struct GIOMessage message = { 0 };
-    while( gioqb_read_next(game->io, &message) )
-    {
-        switch( message.kind )
-        {
-        case GIO_REQ_INIT:
-            on_gio_req_init(platform, game->io, &message);
-            break;
-        case GIO_REQ_ASSET:
-            // on_gio_req_asset(platform, game->io, &message, game->cache_dat);
-            break;
-        default:
-            assert(false && "Unknown GIO request kind");
-            break;
-        }
-    }
-
-    gioqb_remove_finalized(game->io);
-}
-
 static struct LuaGameType*
 on_lua_async_call(
     struct Platform2_OSX_SDL2* platform,
