@@ -79,7 +79,8 @@ main(
     renderer->clicked_tile_x = -1;
     renderer->clicked_tile_z = -1;
 
-    LibToriRS_NetConnectLogin(game, "asdf2", "a");
+    char const* host = "127.0.0.1:43594";
+    LibToriRS_NetConnectLogin(game, host, "asdf2", "a");
 
     uint8_t recv_buffer[4096];
     int reconnect_requested = 0;

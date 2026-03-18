@@ -32,6 +32,7 @@ LibToriRS_NetSend(
 void
 LibToriRS_NetConnectLogin(
     struct GGame* game,
+    const char* host,
     const char* username,
     const char* password)
 {
@@ -76,13 +77,14 @@ LibToriRS_NetConnectLogin(
 
     game->net_state = GAME_NET_STATE_LOGIN;
 
-    char const* host = "127.0.0.1:43594";
     LibToriRS_NetPush(
         &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
 }
 
 void
-LibToriRS_NetConnectGame(struct GGame* game)
+LibToriRS_NetConnectGame(
+    struct GGame* game,
+    const char* host)
 {
     if( !game )
         return;
@@ -90,7 +92,6 @@ LibToriRS_NetConnectGame(struct GGame* game)
     packetbuffer_init(game->packet_buffer, game->random_in, GAMEPROTO_REVISION_LC245_2);
     game->net_state = GAME_NET_STATE_GAME;
 
-    const char* host = "127.0.0.1:43594";
     LibToriRS_NetPush(
         &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
 }

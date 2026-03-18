@@ -257,6 +257,9 @@ if(EMSCRIPTEN)
     set(BROWSER_ASSETS
         ${EM_SHELL_FILE}
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_sidecar.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_gametypes.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/netjs.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/fengari-web.js
     )
 
     # Tell the linker these are dependencies

@@ -7,6 +7,8 @@ export class LibToriRSPlatformJS {
     this.mod = wasmModule;
     this.sbPtr = this.mod._LibToriRS_GetBuffer(gamePtr);
     this.socket = null;
+    /** @type {Uint8Array[]} Messages to send once connection is established */
+    this.pendingMessages = [];
 
     // Map WASM memory offsets
     this.off = {
@@ -52,6 +54,7 @@ export class LibToriRSPlatformJS {
     const head = this._readU32(this.off.g2pHead);
 
     while (tail !== head) {
+      const status = this._readU32(this.off.status);
       const msgPtr = this.off.g2pData + tail;
 
       // Header is 4 bytes (type) + 2 bytes (length)
@@ -62,12 +65,34 @@ export class LibToriRSPlatformJS {
         const host = this._readString(tail + 6, len);
         this._connect(host);
       } else if (type === TORI_MSG.SEND_DATA) {
-        this._sendToSocket(tail + 6, len);
+        if (status === TORI_STATUS.CONNECTED) {
+          this._sendToSocket(tail + 6, len);
+        } else if (status === TORI_STATUS.CONNECTING) {
+          const data = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            const readIdx = (tail + 6 + i) % BUF_SIZE;
+            data[i] = this.mod.HEAPU8[this.off.g2pData + readIdx];
+          }
+          this.pendingMessages.push(data);
+        }
       }
 
       tail = (tail + 6 + len) % BUF_SIZE;
       this._writeU32(this.off.g2pTail, tail);
     }
+  }
+
+  _drainPending() {
+    while (this.pendingMessages.length > 0) {
+      const data = this.pendingMessages.shift();
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        this.socket.send(data);
+      }
+    }
+  }
+
+  _clearPending() {
+    this.pendingMessages = [];
   }
 
   _connect(host) {
@@ -82,6 +107,7 @@ export class LibToriRSPlatformJS {
     this.socket.onopen = () => {
       this._writeU32(this.off.status, TORI_STATUS.CONNECTED);
       this._pushToGame(TORI_MSG.CONN_STATUS);
+      this._drainPending();
     };
 
     this.socket.onmessage = (e) => {
@@ -89,7 +115,13 @@ export class LibToriRSPlatformJS {
     };
 
     this.socket.onclose = () => {
-      this._writeU32(this.off.status, TORI_STATUS.DISCONNECTED);
+      const wasConnecting = this._readU32(this.off.status) === TORI_STATUS.CONNECTING;
+      if (wasConnecting) {
+        this._writeU32(this.off.status, TORI_STATUS.FAILED);
+        this._clearPending();
+      } else {
+        this._writeU32(this.off.status, TORI_STATUS.DISCONNECTED);
+      }
       this._pushToGame(TORI_MSG.CONN_STATUS);
     };
   }

@@ -142,6 +142,7 @@ packetbuffer_read(
         }
         break;
         case PKTBUF_PROCESS:
+            goto done;
             break;
         }
     }

@@ -134,11 +134,14 @@ LibToriRS_NetSend(
 void
 LibToriRS_NetConnectLogin(
     struct GGame* game,
+    const char* host,
     const char* username,
     const char* password);
 
 void
-LibToriRS_NetConnectGame(struct GGame* game);
+LibToriRS_NetConnectGame(
+    struct GGame* game,
+    const char* host);
 
 void
 LibToriRS_NetPump(struct GGame* game);

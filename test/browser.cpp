@@ -230,9 +230,8 @@ main(
 
     luajs_sidecar_set_callback(luajs_sidecar_callback, platform);
 
-    const char* host = "127.0.0.1:43594";
-    LibToriRS_NetPush(
-        &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
+    const char* host = "127.0.0.1:80";
+    LibToriRS_NetConnectLogin(game, host, "asdf2", "a");
     signal_browser_ready();
 
     emscripten_set_main_loop_arg(emscripten_main_loop, platform, 0, 1);
