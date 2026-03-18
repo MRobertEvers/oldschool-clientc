@@ -81,8 +81,22 @@ LibToriRS_NetConnectLogin(
         &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
 }
 
+void
+LibToriRS_NetConnectGame(struct GGame* game)
+{
+    if( !game )
+        return;
+
+    packetbuffer_init(game->packet_buffer, game->random_in, GAMEPROTO_REVISION_LC245_2);
+    game->net_state = GAME_NET_STATE_GAME;
+
+    const char* host = "127.0.0.1:43594";
+    LibToriRS_NetPush(
+        &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
+}
+
 static void
-LibToriRS_NetProcessPackets(struct GGame* game)
+net_process_packets(struct GGame* game)
 {
     if( !game || !game->packet_buffer )
         return;
@@ -169,18 +183,8 @@ LibToriRS_NetPump(struct GGame* game)
     }
     else if( game->net_state == GAME_NET_STATE_GAME )
     {
-        LibToriRS_NetProcessPackets(game);
+        net_process_packets(game);
     }
-}
-
-void
-LibToriRS_NetConnectGame(struct GGame* game)
-{
-    if( !game )
-        return;
-
-    packetbuffer_init(game->packet_buffer, game->random_in, GAMEPROTO_REVISION_LC245_2);
-    game->net_state = GAME_NET_STATE_GAME;
 }
 
 #endif

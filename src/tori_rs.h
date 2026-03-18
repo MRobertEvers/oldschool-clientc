@@ -137,6 +137,9 @@ LibToriRS_NetConnectLogin(
     const char* password);
 
 void
+LibToriRS_NetConnectGame(struct GGame* game);
+
+void
 LibToriRS_NetPump(struct GGame* game);
 
 void
