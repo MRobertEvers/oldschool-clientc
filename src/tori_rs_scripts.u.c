@@ -36,7 +36,7 @@ script_convert_to_lua(
             out->args, LuaGameType_NewInt(item->args.u.load_scene_dat.wz_ne));
         break;
     case SCRIPT_PKT_REBUILD_NORMAL:
-        set_name(out, "pkt_rebuild_normal.lua");
+        set_name(out, "rev245_2/pkt_rebuild_normal.lua");
         out->args = LuaGameType_NewVarTypeArraySpread(2);
         LuaGameType_VarTypeArrayPush(
             out->args, LuaGameType_NewInt(item->args.u.rebuild_normal.zonex));

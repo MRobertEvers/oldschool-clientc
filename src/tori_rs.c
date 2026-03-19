@@ -22,22 +22,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const char*
-libtorirs_script_name_for_kind(enum ScriptKind kind)
-{
-    switch( kind )
-    {
-    case SCRIPT_INIT:
-        return "empty.lua";
-    case SCRIPT_LOAD_SCENE_DAT:
-        return "init_cache_dat.lua";
-    case SCRIPT_PKT_REBUILD_NORMAL:
-        return "rev245_2/pkt_rebuild_normal.lua";
-    default:
-        return "empty.lua";
-    }
-}
-
 bool
 LibToriRS_GameIsRunning(struct GGame* game)
 {

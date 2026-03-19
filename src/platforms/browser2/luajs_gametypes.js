@@ -28,6 +28,8 @@ export const LuaGameTypeKind = {
   FLOAT: 8,
   STRING: 9,
   VOID: 10,
+  USERDATA_ARRAY_SPREAD: 11,
+  VARTYPE_ARRAY_SPREAD: 12,
 };
 
 /**
@@ -82,6 +84,9 @@ export function createLuaGameTypes(wasm) {
   const getFloat = getExport("luajs_LuaGameType_GetFloat");
   const getString = getExport("luajs_LuaGameType_GetString");
   const getStringLength = getExport("luajs_LuaGameType_GetStringLength");
+  const getLuaGameScriptName = getExport("luajs_LuaGameScript_GetName");
+  const getLuaGameScriptArgs = getExport("luajs_LuaGameScript_GetArgs");
+  const freeLuaGameScript = getExport("luajs_LuaGameScript_Free");
 
   /**
    * Read a LuaGameType from WASM into a JS object. Caller must free the ptr when done.
@@ -133,6 +138,16 @@ export function createLuaGameTypes(wasm) {
         }
         return { kind: "var_type_array", value: arr };
       }
+      case LuaGameTypeKind.VARTYPE_ARRAY_SPREAD: {
+        const count = getVarTypeArrayCount(ptr);
+        const arr = [];
+        for (let i = 0; i < count; i++) {
+          const elemPtr = getVarTypeArrayAt(ptr, i);
+          const elem = read(elemPtr);
+          arr.push(elem);
+        }
+        return { kind: "var_type_array_spread", value: arr };
+      }
       case LuaGameTypeKind.BOOL:
         return { kind: "bool", value: !!getBool(ptr) };
       case LuaGameTypeKind.INT:
@@ -174,6 +189,10 @@ export function createLuaGameTypes(wasm) {
     newString: (strPtr, length) => newString(strPtr, length),
     newVoid: () => newVoid(),
 
+    getLuaGameScriptName: (scriptPtr) => getLuaGameScriptName(scriptPtr),
+    getLuaGameScriptArgs: (scriptPtr) => getLuaGameScriptArgs(scriptPtr),
+    freeLuaGameScript: (scriptPtr) => freeLuaGameScript(scriptPtr),
+
     free: freeTypeSafe,
     read,
 
@@ -207,6 +226,9 @@ export function createLuaGameTypes(wasm) {
       const ptr = malloc(arr.length * 4);
       new Int32Array(memory, ptr, arr.length).set(arr);
       return ptr;
+    },
+    wasmStringToJsString(ptr, len) {
+      return UTF8ToString(ptr, len);
     },
   };
 }
@@ -264,6 +286,12 @@ export function pushToLua(L, obj) {
         lua.lua_rawseti(L, -2, i + 1);
       }
       return 1;
+    }
+    case "var_type_array_spread": {
+      for (let i = 0; i < obj.value.length; i++) {
+        pushToLua(L, obj.value[i]);
+      }
+      return obj.value.length;
     }
     default:
       lua.lua_pushnil(L);

@@ -1,4 +1,5 @@
 #include "osrs/lua_sidecar/lua_gametypes.h"
+#include "osrs/lua_sidecar/lua_platform.h"
 
 #include <emscripten.h>
 #include <stdbool.h>
@@ -196,4 +197,25 @@ int
 luajs_LuaGameType_GetStringLength(struct LuaGameType* game_type)
 {
     return LuaGameType_GetStringLength(game_type);
+}
+
+EMSCRIPTEN_KEEPALIVE
+char*
+luajs_LuaGameScript_GetName(struct LuaGameScript* game_script)
+{
+    return LuaGameScript_GetName(game_script);
+}
+
+EMSCRIPTEN_KEEPALIVE
+struct LuaGameType*
+luajs_LuaGameScript_GetArgs(struct LuaGameScript* game_script)
+{
+    return LuaGameScript_GetArgs(game_script);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+luajs_LuaGameScript_Free(struct LuaGameScript* game_script)
+{
+    LuaGameScript_Free(game_script);
 }

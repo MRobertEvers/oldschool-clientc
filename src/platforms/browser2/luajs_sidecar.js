@@ -194,10 +194,10 @@ export class LuaJSSidecar {
   }
 
   // Entrance point: adds to queue and triggers processing
-  enqueueScript(scriptPath) {
-    this.queue.push(scriptPath);
+  enqueueScript(scriptPtr) {
+    this.queue.push(scriptPtr);
     console.log(
-      `Script queued: ${scriptPath} (Queue size: ${this.queue.length})`,
+      `Script queued: ${scriptPtr} (Queue size: ${this.queue.length})`,
     );
 
     if (!this.isProcessing) {
@@ -212,12 +212,12 @@ export class LuaJSSidecar {
     }
 
     this.isProcessing = true;
-    const scriptPath = this.queue.shift();
+    const scriptPtr = this.queue.shift();
 
     try {
-      await this.runScript(scriptPath);
+      await this.runScript(scriptPtr);
     } catch (err) {
-      console.error(`Failed to execute script ${scriptPath}:`, err);
+      console.error(`Failed to execute script ${scriptPtr}:`, err);
     }
 
     // When one finishes, check for the next
@@ -278,12 +278,19 @@ export class LuaJSSidecar {
     }
   }
 
-  async runScript(scriptPath) {
+  async runScript(luaGameScriptPtr) {
     await this._cachedatPreloaded;
 
     // 1. Create thread and keep track of its position on main stack
     const co = lua.lua_newthread(this.L);
     const threadIdx = lua.lua_gettop(this.L);
+
+    const scriptPathPtr =
+      this.luaGameTypes.getLuaGameScriptName(luaGameScriptPtr);
+    const scriptPath = this.luaGameTypes.wasmStringToJsString(scriptPathPtr);
+    const scriptArgsPtr =
+      this.luaGameTypes.getLuaGameScriptArgs(luaGameScriptPtr);
+    const scriptArgs = this.luaGameTypes.read(scriptArgsPtr);
 
     const buffer = await this.fetchOrCached(scriptPath);
     let code;
@@ -300,18 +307,31 @@ export class LuaJSSidecar {
       throw new Error(luaString(err));
     }
 
-    await this.drive(co, 0);
+    await this.drive(co, scriptArgs);
+
+    this.luaGameTypes.freeLuaGameScript(luaGameScriptPtr);
 
     // 2. Cleanup: Remove ONLY this thread from main stack
     lua.lua_remove(this.L, threadIdx);
   }
 
-  async drive(co, nres) {
+  async drive(co, scriptArgs) {
+    let nres = 0;
+    if (scriptArgs) {
+      nres = pushToLua(co, scriptArgs);
+    }
+
     let q = [[co, nres]];
 
+    let iters = 0;
     while (q.length > 0) {
-      const [co, nres] = q.shift();
+      iters++;
+      console.log("Iterations", iters);
+      let element = q.shift();
+      co = element[0];
+      nres = element[1];
 
+      console.log("nres", nres);
       const status = lua.lua_resume(co, this.L, nres);
 
       if (status === lua.LUA_YIELD) {

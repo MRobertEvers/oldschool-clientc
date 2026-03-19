@@ -136,6 +136,7 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/lua_gametypes.c
     src/osrs/lua_sidecar/luac_gametypes.c
     src/osrs/lua_sidecar/luac_sidecar.c
+    src/osrs/lua_sidecar/lua_platform.c
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
@@ -210,6 +211,8 @@ if(EMSCRIPTEN)
         "_luajs_LuaGameType_GetFloat"
         "_luajs_LuaGameType_GetString"
         "_luajs_LuaGameType_GetStringLength"
+        "_luajs_LuaGameScript_GetName"
+        "_luajs_LuaGameScript_GetArgs"
         "_luajs_CacheDatArchive_deserialize"
         "_luajs_CacheDatArchive_serialized_size"
         "_luajs_CacheDatArchive_serialize_to_buffer"

@@ -23,9 +23,7 @@ local function world_to_map_chunks(wx_sw, wz_sw, wx_ne, wz_ne)
 end
 
 
-local lua_gameargs = ...
-local zonex = lua_gameargs[1]
-local zonez = lua_gameargs[2]
+local zonex, zonez = ...
 print(zonex, zonez)
 local zone_sw_x = zonex - zone_padding
 local zone_sw_z = zonez - zone_padding
