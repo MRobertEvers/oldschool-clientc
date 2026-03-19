@@ -252,6 +252,12 @@ sockstream_send(
         return -1;
     }
 
+    printf("[DEBUG] Socket send: %d bytes\n", size);
+    for( int i = 0; i < size; i++ )
+    {
+        printf("%d,", ((uint8_t*)buffer)[i]);
+    }
+    printf("\n");
     int sent = send(stream->sockfd, (const char*)buffer, size, 0);
     if( sent < 0 )
     {
@@ -291,7 +297,13 @@ sockstream_recv(
     int received = recv(stream->sockfd, (char*)buffer, size, MSG_DONTWAIT);
     if( received > 0 )
     {
-        printf("[DEBUG] Socket received: %d\n", received);
+        printf("[DEBUG] Socket received: %d bytes\n", received);
+
+        for( int i = 0; i < received; i++ )
+        {
+            printf("%d,", ((uint8_t*)buffer)[i]);
+        }
+        printf("\n");
         return received;
     }
     else if( received == 0 )
@@ -322,7 +334,6 @@ sockstream_recv(
             return SOCKSTREAM_ERROR_NODATA;
         }
 
-        printf("Socket recv error: %s\n", strerror(errno));
         // Would block - return -1, caller should check errno
         return SOCKSTREAM_ERROR_NODATA;
 #endif

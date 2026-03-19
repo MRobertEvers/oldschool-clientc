@@ -2,7 +2,9 @@
 #define TORI_RS_NET_U_C
 
 #include "osrs/gameproto_parse.h"
+#include "osrs/gameproto_revisions.h"
 #include "osrs/loginproto.h"
+#include "osrs/packetbuffer.h"
 #include "tori_rs.h"
 
 #include <assert.h>
@@ -75,6 +77,7 @@ LibToriRS_NetConnectLogin(
         game->login_username,
         game->login_password,
         NULL);
+    assert(game->loginproto);
 
     game->net_state = GAME_NET_STATE_LOGIN;
 
@@ -148,6 +151,154 @@ net_process_packets(struct GGame* game)
     }
 }
 
+static void
+loginproto_drive(struct GGame* game)
+{
+    if( !game || !game->loginproto )
+        return;
+
+    char scratch_out_buffer[4096];
+
+    int poll_result = loginproto_poll(game->loginproto);
+
+    // Flush outbound login bytes (handshakes/credentials)
+    int bytes_to_send;
+    while( (bytes_to_send = loginproto_send(
+                game->loginproto, scratch_out_buffer, sizeof(scratch_out_buffer))) > 0 )
+    {
+        LibToriRS_NetSend(game, scratch_out_buffer, bytes_to_send);
+    }
+
+    if( poll_result == LOGINPROTO_SUCCESS )
+    {
+        game->net_state = GAME_NET_STATE_GAME;
+
+        loginproto_free(game->loginproto);
+
+        printf("[DEBUG] Login successful\n");
+        game->loginproto = NULL;
+    }
+    else if( poll_result == LOGINPROTO_ERROR )
+    {
+        game->net_state = GAME_NET_STATE_DISCONNECTED;
+    }
+}
+
+static int
+loginproto_drain(
+    struct GGame* game,
+    uint8_t* buffer,
+    int size)
+{
+    int remaining = size;
+    int consumed = 0;
+    do
+    {
+        consumed = loginproto_recv(game->loginproto, buffer, remaining);
+
+        buffer += consumed;
+        remaining -= consumed;
+
+        loginproto_drive(game);
+    } while( consumed > 0 && remaining > 0 );
+
+    return size - remaining;
+}
+
+static void
+gameproto_drive(struct GGame* game)
+{
+    // No Op
+}
+
+static int
+gameproto_drain(
+    struct GGame* game,
+    uint8_t* data,
+    int size)
+{
+    if( !game || !game->packet_buffer )
+        return 0;
+
+    int remaining = size;
+
+    int consumed = 0;
+    do
+    {
+        consumed = packetbuffer_read(game->packet_buffer, data, size);
+        data += consumed;
+        remaining -= consumed;
+
+        net_process_packets(game);
+    } while( consumed > 0 && remaining > 0 );
+
+    return size - remaining;
+}
+
+static void
+net_drain(
+    struct GGame* game,
+    uint8_t* data,
+    int size)
+{
+    if( !game || !game->net_shared )
+        return;
+
+    int remaining = size;
+    int consumed = 0;
+
+    do
+    {
+        switch( game->net_state )
+        {
+        case GAME_NET_STATE_LOGIN:
+            consumed = loginproto_drain(game, data, remaining);
+            data += consumed;
+            remaining -= consumed;
+            break;
+        case GAME_NET_STATE_GAME:
+            consumed = gameproto_drain(game, data, remaining);
+            data += consumed;
+            remaining -= consumed;
+            break;
+        case GAME_NET_STATE_DISCONNECTED:
+            break;
+        }
+    } while( consumed > 0 && remaining > 0 );
+}
+
+static void
+game_poll(struct GGame* game)
+{
+    if( !game || !game->packet_buffer )
+        return;
+
+    switch( game->net_state )
+    {
+    case GAME_NET_STATE_LOGIN:
+        loginproto_drive(game);
+        break;
+    case GAME_NET_STATE_GAME:
+        gameproto_drive(game);
+        break;
+    case GAME_NET_STATE_DISCONNECTED:
+        break;
+    }
+}
+
+static void
+net_status_check(struct GGame* game)
+{
+    if( !game || !game->net_shared )
+        return;
+
+    if( game->net_shared->status == TORI_RS_NET_STATUS_DISCONNECTED ||
+        game->net_shared->status == TORI_RS_NET_STATUS_FAILED )
+    {
+        game->net_state = GAME_NET_STATE_DISCONNECTED;
+    }
+}
+
 void
 LibToriRS_NetPump(struct GGame* game)
 {
@@ -157,65 +308,21 @@ LibToriRS_NetPump(struct GGame* game)
     struct ToriRSNetMessageHeader header;
     uint8_t temp_buffer[4096];
 
+    game_poll(game);
+
     /* --- STEP 1: Drain Inbound messages from Platform --- */
     while( LibToriRS_NetPop(&game->net_shared->platform_to_game, &header, temp_buffer) )
     {
         switch( header.type )
         {
         case TORI_RS_NET_MSG_RECV_DATA:
-        {
-            if( game->net_state == GAME_NET_STATE_LOGIN && game->loginproto )
-            {
-                loginproto_recv(game->loginproto, temp_buffer, header.length);
-            }
-            else if( game->net_state == GAME_NET_STATE_GAME && game->packet_buffer )
-            {
-                // Feed raw bytes into the packet stream processor
-                packetbuffer_read(game->packet_buffer, temp_buffer, header.length);
-                net_process_packets(game);
-            }
+            net_drain(game, temp_buffer, header.length);
             break;
-        }
 
         case TORI_RS_NET_MSG_CONN_STATUS:
-        {
-            if( game->net_shared->status == TORI_RS_NET_STATUS_DISCONNECTED ||
-                game->net_shared->status == TORI_RS_NET_STATUS_FAILED )
-            {
-                game->net_state = GAME_NET_STATE_DISCONNECTED;
-            }
+            net_status_check(game);
             break;
         }
-        }
-    }
-
-    /* --- STEP 2: Progress Logic & Handle Outbound --- */
-    if( game->net_state == GAME_NET_STATE_LOGIN && game->loginproto )
-    {
-        int poll_result = loginproto_poll(game->loginproto);
-
-        // Flush outbound login bytes (handshakes/credentials)
-        int bytes_to_send;
-        while( (bytes_to_send =
-                    loginproto_send(game->loginproto, temp_buffer, sizeof(temp_buffer))) > 0 )
-        {
-            LibToriRS_NetSend(game, temp_buffer, bytes_to_send);
-        }
-
-        if( poll_result == LOGINPROTO_SUCCESS )
-        {
-            game->net_state = GAME_NET_STATE_GAME;
-
-            loginproto_free(game->loginproto);
-            game->loginproto = NULL;
-        }
-        else if( poll_result == LOGINPROTO_ERROR )
-        {
-            game->net_state = GAME_NET_STATE_DISCONNECTED;
-        }
-    }
-    else if( game->net_state == GAME_NET_STATE_GAME )
-    {
     }
 }
 

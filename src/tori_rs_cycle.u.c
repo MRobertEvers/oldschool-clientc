@@ -961,7 +961,7 @@ LibToriRS_GameStep(
         game->next_notimeout_cycle = game->cycle + 50;
         int opcode = 206;
         uint8_t op_byte = (uint8_t)((opcode + isaac_next(game->random_out)) & 0xff);
-        LibToriRS_NetSend(game, &op_byte, 1);
+        // LibToriRS_NetSend(game, &op_byte, 1);
     }
 
     /* Scene dynamic elements (players/NPCs) are updated earlier in GameStep so they

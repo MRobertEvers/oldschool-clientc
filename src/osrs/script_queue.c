@@ -3,20 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char*
-script_queue_scriptkind_file(enum ScriptKind kind)
-{
-    switch( kind )
-    {
-    case SCRIPT_LOAD_SCENE_DAT:
-        return "load_scene_dat.lua";
-    case SCRIPT_LOAD_SCENE:
-        return "load_scene.lua";
-    default:
-        return NULL;
-    }
-}
-
 void
 script_queue_init(struct ScriptQueue* q)
 {

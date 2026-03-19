@@ -41,7 +41,8 @@ scene2_free(struct Scene2* scene2)
     // Free the elements
     for( int i = 0; i < scene2->elements_count; i++ )
     {
-        scene2_element_release(scene2, i);
+        if( scene2->elements[i].active )
+            scene2_element_release(scene2, i);
     }
     free(scene2->elements);
     free(scene2);

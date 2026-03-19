@@ -71,6 +71,7 @@ enum LuaGameTypeKind
     LUAGAMETYPE_STRING = 9,
     LUAGAMETYPE_VOID = 10,
     LUAGAMETYPE_USERDATA_ARRAY_SPREAD = 11,
+    LUAGAMETYPE_VARTYPE_ARRAY_SPREAD = 12,
 };
 
 struct LuaGameType
@@ -87,6 +88,7 @@ struct LuaGameType
         struct LuaGameTypeFloat _float;
         struct LuaGameTypeString _string;
         struct LuaGameTypeVarTypeArray _var_type_array;
+        struct LuaGameTypeVarTypeArray _var_type_array_spread;
         struct LuaGameTypeVarTypeArrayView _var_type_array_view;
     };
 };
@@ -107,6 +109,9 @@ LuaGameType_NewIntArray(
 
 struct LuaGameType*
 LuaGameType_NewVarTypeArray(int hint);
+
+struct LuaGameType*
+LuaGameType_NewVarTypeArraySpread(int count);
 
 struct LuaGameType*
 LuaGameType_NewVarTypeArrayView(

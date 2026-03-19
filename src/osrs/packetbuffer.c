@@ -74,9 +74,8 @@ packetbuffer_read(
         {
         case PKTBUF_AWAITING_PACKET:
             packet_type = g1(&buffer);
-            // isaac_next(login->random_in);
-            // int decoded_byte = (encrypted_byte - isaac_value) & 0xff
-            packet_type = (packet_type - isaac_next(packetbuffer->random)) & 0xff;
+            int isaac_value = isaac_next(packetbuffer->random);
+            packet_type = (packet_type - isaac_value) & 0xff;
             packet_size = packetsize(packetbuffer->revision, packet_type);
             packetbuffer->packet_type = packet_type;
 

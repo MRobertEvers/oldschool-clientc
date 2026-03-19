@@ -88,18 +88,25 @@ loginproto_free(struct LoginProto* loginproto)
     free(loginproto);
 }
 
-void
+int
 loginproto_recv(
     struct LoginProto* loginproto,
     uint8_t* data,
     int size)
 {
+    if( !loginproto || !data || size <= 0 )
+        return 0;
+
     if( size > 0 )
     {
         int to_read_cnt = loginproto->await_recv_cnt > size ? size : loginproto->await_recv_cnt;
+        printf("[DEBUG] Login proto recv: %d bytes %d\n", to_read_cnt, size);
         ringbuf_write(loginproto->in, data, to_read_cnt);
         loginproto->await_recv_cnt -= to_read_cnt;
+
+        return to_read_cnt;
     }
+    return 0;
 }
 
 int

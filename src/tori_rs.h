@@ -5,6 +5,7 @@
 #include "osrs/game.h"
 #include "osrs/ginput.h"
 #include "osrs/gio.h"
+#include "osrs/lua_sidecar/lua_platform.h"
 #include "osrs/painters.h"
 #include "tori_rs_render.h"
 
@@ -21,22 +22,6 @@ struct DashCamera;
 
 struct ToriRSRenderCommandBuffer;
 struct ToriRSRenderCommand;
-
-struct ToriRSPlatformScript
-{
-    char name[64];
-
-    struct
-    {
-        int type;
-        union
-        {
-            int _iarg;
-            char* _strarg;
-        };
-    } args[10];
-    int argno;
-};
 
 #pragma pack(push, 1)
 struct ToriRSNetMessageHeader
@@ -111,7 +96,7 @@ LibToriRS_LuaScriptQueueIsEmpty(struct GGame* game);
 void
 LibToriRS_LuaScriptQueuePop(
     struct GGame* game,
-    struct ToriRSPlatformScript* out);
+    struct LuaGameScript* out);
 
 /* Network status for host and game to read/set */
 typedef enum

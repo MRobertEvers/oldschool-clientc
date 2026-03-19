@@ -561,33 +561,6 @@ lua_resume_compat(
 #define lua_resume_compat lua_resume
 #endif
 
-static struct LuaGameType*
-build_args(struct ToriRSPlatformScript* script)
-{
-    struct LuaGameType* args = LuaGameType_NewVarTypeArray(script->argno);
-
-    if( args )
-    {
-        for( int i = 0; i < script->argno && i < 10; i++ )
-        {
-            struct LuaGameType* arg = NULL;
-            switch( script->args[i].type )
-            {
-            case 0:
-                arg = LuaGameType_NewInt(script->args[i]._iarg);
-                break;
-            case 1:
-                arg =
-                    LuaGameType_NewString(script->args[i]._strarg, strlen(script->args[i]._strarg));
-                break;
-            }
-            if( arg )
-                LuaGameType_VarTypeArrayPush(args, arg);
-        }
-    }
-    return args;
-}
-
 void
 Platform2_OSX_SDL2_RunLuaScripts(
     struct Platform2_OSX_SDL2* platform,
@@ -595,22 +568,15 @@ Platform2_OSX_SDL2_RunLuaScripts(
 {
     while( !LibToriRS_LuaScriptQueueIsEmpty(game) )
     {
-        struct ToriRSPlatformScript script;
+        struct LuaGameScript script;
         memset(&script, 0, sizeof(script));
         LibToriRS_LuaScriptQueuePop(game, &script);
 
         if( !platform->lua_sidecar )
             return;
 
-        struct LuaCScriptCall script_call = { 0 };
-        strcpy(script_call.name, script.name);
         struct LuaCYield yield = { 0 };
-        int script_status = 0;
-
-        struct LuaGameType* args = build_args(&script);
-
-        script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script_call, args, &yield);
-        LuaGameType_Free(args);
+        int script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script, &yield);
 
         while( script_status == LUACSIDECAR_YIELDED )
         {

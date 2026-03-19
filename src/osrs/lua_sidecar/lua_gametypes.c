@@ -75,6 +75,21 @@ LuaGameType_NewVarTypeArray(int hint)
 }
 
 struct LuaGameType*
+LuaGameType_NewVarTypeArraySpread(int count)
+{
+    struct LuaGameType* game_type = malloc(sizeof(struct LuaGameType));
+    if( !game_type )
+        return NULL;
+    memset(game_type, 0, sizeof(*game_type));
+    game_type->kind = LUAGAMETYPE_VARTYPE_ARRAY_SPREAD;
+    game_type->_var_type_array_spread.var_types =
+        malloc(sizeof(struct LuaGameType*) * count);
+    game_type->_var_type_array_spread.count = 0;
+    game_type->_var_type_array_spread.capacity = count;
+    return game_type;
+}
+
+struct LuaGameType*
 LuaGameType_NewVarTypeArrayView(
     struct LuaGameType* var_types,
     int offset)
@@ -161,18 +176,27 @@ LuaGameType_VarTypeArrayPush(
     struct LuaGameType* var_type_array,
     struct LuaGameType* var_type)
 {
-    if( var_type_array->kind != LUAGAMETYPE_VARTYPE_ARRAY )
-        return;
-
-    if( var_type_array->_var_type_array.count >= var_type_array->_var_type_array.capacity )
+    if( var_type_array->kind == LUAGAMETYPE_VARTYPE_ARRAY )
     {
-        var_type_array->_var_type_array.capacity *= 2;
-        var_type_array->_var_type_array.var_types = realloc(
-            var_type_array->_var_type_array.var_types,
-            sizeof(struct LuaGameType*) * var_type_array->_var_type_array.capacity);
+        if( var_type_array->_var_type_array.count >= var_type_array->_var_type_array.capacity )
+        {
+            var_type_array->_var_type_array.capacity *= 2;
+            var_type_array->_var_type_array.var_types = realloc(
+                var_type_array->_var_type_array.var_types,
+                sizeof(struct LuaGameType*) * var_type_array->_var_type_array.capacity);
+        }
+        var_type_array->_var_type_array.var_types[var_type_array->_var_type_array.count++] =
+            var_type;
+        return;
     }
-
-    var_type_array->_var_type_array.var_types[var_type_array->_var_type_array.count++] = var_type;
+    if( var_type_array->kind == LUAGAMETYPE_VARTYPE_ARRAY_SPREAD )
+    {
+        assert(var_type_array->_var_type_array_spread.count <
+               var_type_array->_var_type_array_spread.capacity);
+        var_type_array->_var_type_array_spread
+            .var_types[var_type_array->_var_type_array_spread.count++] = var_type;
+        return;
+    }
 }
 
 int
@@ -182,6 +206,8 @@ LuaGameType_GetVarTypeArrayCount(struct LuaGameType* game_type)
     {
     case LUAGAMETYPE_VARTYPE_ARRAY:
         return game_type->_var_type_array.count;
+    case LUAGAMETYPE_VARTYPE_ARRAY_SPREAD:
+        return game_type->_var_type_array_spread.count;
     case LUAGAMETYPE_VARTYPE_ARRAY_VIEW:
         return LuaGameType_GetVarTypeArrayCount(LuaGameType_GetVarTypeArrayAt(game_type, 0)) -
                game_type->_var_type_array_view.offset;
@@ -202,6 +228,11 @@ LuaGameType_GetVarTypeArrayAt(
     {
         assert(index >= 0 && index < game_type->_var_type_array.count);
         return game_type->_var_type_array.var_types[index];
+    }
+    case LUAGAMETYPE_VARTYPE_ARRAY_SPREAD:
+    {
+        assert(index >= 0 && index < game_type->_var_type_array_spread.count);
+        return game_type->_var_type_array_spread.var_types[index];
     }
     case LUAGAMETYPE_VARTYPE_ARRAY_VIEW:
         return LuaGameType_GetVarTypeArrayAt(
@@ -285,6 +316,12 @@ LuaGameType_Free(struct LuaGameType* game_type)
         for( int i = 0; i < game_type->_var_type_array.count; i++ )
             LuaGameType_Free(game_type->_var_type_array.var_types[i]);
         free(game_type->_var_type_array.var_types);
+    }
+    else if( game_type->kind == LUAGAMETYPE_VARTYPE_ARRAY_SPREAD )
+    {
+        for( int i = 0; i < game_type->_var_type_array_spread.count; i++ )
+            LuaGameType_Free(game_type->_var_type_array_spread.var_types[i]);
+        free(game_type->_var_type_array_spread.var_types);
     }
     free(game_type);
 }
@@ -401,6 +438,15 @@ LuaGameType_Print(struct LuaGameType* game_type)
         for( int i = 0; i < game_type->_var_type_array.count; i++ )
         {
             LuaGameType_Print(game_type->_var_type_array.var_types[i]);
+        }
+        printf("]\n");
+        break;
+    case LUAGAMETYPE_VARTYPE_ARRAY_SPREAD:
+        printf("LuaGameType_VarTypeArraySpread: (%d) [\n",
+               game_type->_var_type_array_spread.count);
+        for( int i = 0; i < game_type->_var_type_array_spread.count; i++ )
+        {
+            LuaGameType_Print(game_type->_var_type_array_spread.var_types[i]);
         }
         printf("]\n");
         break;

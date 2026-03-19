@@ -228,7 +228,8 @@ isaac_next(struct Isaac* isaac)
         isaac->count = 255;
     }
 
-    return isaac->rsl[isaac->count];
+    int value = isaac->rsl[isaac->count];
+    return value;
 }
 
 size_t

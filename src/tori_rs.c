@@ -15,6 +15,7 @@
 #include "tori_rs_cycle.u.c"
 #include "tori_rs_init.u.c"
 #include "tori_rs_frame.u.c"
+#include "tori_rs_scripts.u.c"
 // clang-format on
 
 #include <math.h>
@@ -62,40 +63,16 @@ LibToriRS_LuaScriptQueueIsEmpty(struct GGame* game)
 void
 LibToriRS_LuaScriptQueuePop(
     struct GGame* game,
-    struct ToriRSPlatformScript* out)
+    struct LuaGameScript* out)
 {
     struct ScriptQueueItem* item = NULL;
     const char* script_name = NULL;
-
-    if( out )
-        out->name[0] = '\0';
-
-    if( !game || !out )
-        return;
 
     item = script_queue_pop(&game->script_queue);
     if( !item )
         return;
 
-    script_name = libtorirs_script_name_for_kind(item->args.tag);
-    if( script_name )
-    {
-        strncpy(out->name, script_name, sizeof(out->name) - 1);
-        out->name[sizeof(out->name) - 1] = '\0';
-    }
-
-    if( item->args.tag == SCRIPT_LOAD_SCENE_DAT )
-    {
-        out->args[0].type = 0;
-        out->args[0]._iarg = item->args.u.load_scene_dat.wx_sw;
-        out->args[1].type = 0;
-        out->args[1]._iarg = item->args.u.load_scene_dat.wz_sw;
-        out->args[2].type = 0;
-        out->args[2]._iarg = item->args.u.load_scene_dat.wx_ne;
-        out->args[3].type = 0;
-        out->args[3]._iarg = item->args.u.load_scene_dat.wz_ne;
-        out->argno = 4;
-    }
+    script_convert_to_lua(item, out);
 
     script_queue_free_item(item);
 }

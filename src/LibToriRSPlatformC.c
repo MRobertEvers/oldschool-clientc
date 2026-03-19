@@ -2,6 +2,7 @@
 
 #include "tori_rs.h"
 
+#include <stdio.h>
 #include <string.h>
 
 void
@@ -47,8 +48,8 @@ LibToriRSPlatformC_NetPoll(
     if( !sb )
         return;
 
-    struct ToriRSNetMessageHeader header;
-    uint8_t payload[4096];
+    struct ToriRSNetMessageHeader header = { 0 };
+    uint8_t payload[4096] = { 0 };
 
     // --- 1. Process Game -> Platform (Outgoing Commands) ---
     while( LibToriRS_NetPop(sb, &header, payload) )
@@ -123,6 +124,7 @@ LibToriRSPlatformC_NetPoll(
 
         if( bytes_received > 0 )
         {
+            printf("First Byte: %d\n", payload[0]);
             LibToriRS_NetPush(
                 &sb->platform_to_game,
                 TORI_RS_NET_MSG_RECV_DATA,

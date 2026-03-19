@@ -54,7 +54,7 @@ loginproto_new(
 void
 loginproto_free(struct LoginProto* loginproto);
 
-void
+int
 loginproto_recv(
     struct LoginProto* loginproto,
     uint8_t* data,

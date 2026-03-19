@@ -6,6 +6,7 @@
 #include "osrs/game.h"
 #include "osrs/lua_scripts.h"
 #include "osrs/lua_sidecar/lua_gametypes.h"
+#include "osrs/lua_sidecar/lua_platform.h"
 #include "osrs/lua_sidecar/luac_gametypes.h"
 
 #include <stdio.h>
@@ -336,15 +337,14 @@ LuaCSidecar_Free(struct LuaCSidecar* sidecar)
 int
 LuaCSidecar_RunScript(
     struct LuaCSidecar* sidecar,
-    struct LuaCScriptCall* script_call,
-    struct LuaGameType* args,
+    struct LuaGameScript* script,
     struct LuaCYield* yield)
 {
     lua_State* co = lua_newthread(sidecar->L);
     sidecar->L_coro = co;
 
     char filepath[256] = { 0 };
-    snprintf(filepath, sizeof filepath, "%s/%s", LUA_SCRIPTS_DIR, script_call->name);
+    snprintf(filepath, sizeof filepath, "%s/%s", LUA_SCRIPTS_DIR, script->name);
 
     if( luaL_loadfile(co, filepath) != LUA_OK )
     {
@@ -353,7 +353,7 @@ LuaCSidecar_RunScript(
         return -1;
     }
 
-    int rc = step_coroutine(co, sidecar->L, "native", args, yield);
+    int rc = step_coroutine(co, sidecar->L, "native", script->args, yield);
     if( rc == LUACSIDECAR_YIELDED )
         return rc;
     else if( rc != LUACSIDECAR_DONE )
