@@ -217,6 +217,17 @@ LuacGameType_PushToLua(
         }
         return 1;
     }
+    case LUAGAMETYPE_VARTYPE_ARRAY_SPREAD:
+    {
+        int n = LuaGameType_GetVarTypeArrayCount(gt);
+        for( int i = 0; i < n; i++ )
+        {
+            struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(gt, i);
+            LuacGameType_PushToLua(L, elem);
+        }
+
+        return n;
+    }
 
     default:
         lua_pushnil(L);
