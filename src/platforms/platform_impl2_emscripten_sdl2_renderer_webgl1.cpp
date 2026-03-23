@@ -67,8 +67,8 @@ init_blit_pipeline(struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer)
     }
 
     const float quad[] = {
-        -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, -1.0f, 1.0f, 0.0f,
-        1.0f,  1.0f,  1.0f, 1.0f, -1.0f, 1.0f,  0.0f, 1.0f,
+        -1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f,
+        1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 1.0f,  0.0f, 0.0f,
     };
     const uint16_t indices[] = { 0, 1, 2, 0, 2, 3 };
 
@@ -108,6 +108,34 @@ draw_blit_texture(struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
+}
+
+static void
+render_imgui_overlay(
+    struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer,
+    struct GGame* game)
+{
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(320, 170), ImGuiCond_FirstUseEver);
+    ImGui::Begin("WebGL1 Debug");
+    ImGui::Text(
+        "Application average %.3f ms/frame (%.1f FPS)",
+        1000.0f / ImGui::GetIO().Framerate,
+        ImGui::GetIO().Framerate);
+    ImGui::Text("Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
+    ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);
+    ImGui::Text("Loaded model keys: %zu", renderer->loaded_model_keys.size());
+    ImGui::Text("Loaded scene keys: %zu", renderer->loaded_scene_element_keys.size());
+    ImGui::Text("Loaded textures: %zu", renderer->loaded_texture_ids.size());
+    ImGui::End();
+
+    ImGui::Render();
+    glDisable(GL_DEPTH_TEST);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 static void
@@ -343,6 +371,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
         GL_UNSIGNED_BYTE,
         renderer->blit_rgba.data());
     draw_blit_texture(renderer);
+    render_imgui_overlay(renderer, game);
 
     if( renderer->platform && renderer->platform->window )
         SDL_GL_SwapWindow(renderer->platform->window);
