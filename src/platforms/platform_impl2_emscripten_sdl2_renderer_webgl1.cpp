@@ -26,16 +26,31 @@ model_gpu_cache_key(const struct DashModel* model)
 #else
     uintptr_t key = 1469598103934665603ull;
 #endif
-    key ^= (uintptr_t)model->vertices_x;
-    key *= (uintptr_t)16777619u;
-    key ^= (uintptr_t)model->face_indices_a;
-    key *= (uintptr_t)16777619u;
-    key ^= (uintptr_t)model->face_indices_b;
-    key *= (uintptr_t)16777619u;
-    key ^= (uintptr_t)model->face_indices_c;
-    key *= (uintptr_t)16777619u;
-    key ^= (uintptr_t)model->face_count;
-    key *= (uintptr_t)16777619u;
+    const uintptr_t fnv_prime = (uintptr_t)16777619u;
+    auto mix_word = [&](uintptr_t word) {
+        key ^= word;
+        key *= fnv_prime;
+    };
+
+    mix_word((uintptr_t)model->vertices_x);
+    mix_word((uintptr_t)model->face_indices_a);
+    mix_word((uintptr_t)model->face_indices_b);
+    mix_word((uintptr_t)model->face_indices_c);
+    mix_word((uintptr_t)model->face_count);
+
+    // Animated models are deformed in-place, so pointer-based keys are not enough:
+    // hash current vertex contents to get a distinct GPU mesh per keyframe pose.
+    const bool is_animated = model->original_vertices_x && model->original_vertices_y &&
+                             model->original_vertices_z && model->vertex_count > 0;
+    if( is_animated )
+    {
+        for( int i = 0; i < model->vertex_count; ++i )
+        {
+            mix_word((uintptr_t)(uint32_t)model->vertices_x[i]);
+            mix_word((uintptr_t)(uint32_t)model->vertices_y[i]);
+            mix_word((uintptr_t)(uint32_t)model->vertices_z[i]);
+        }
+    }
     return key;
 }
 
