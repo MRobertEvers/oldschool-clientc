@@ -62,20 +62,24 @@ uv_pnm_compute(
     float vV_y = n_y - p_y;
     float vV_z = n_z - p_z;
 
-    int vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
-    int vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
-    int vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
+    // U × V (texture-plane normal). Must stay in float: assigning cross products or
+    // vertex deltas to int truncates — small normals become 0 and UVs go wrong (often
+    // fully off-tile / transparent after atlas sampling). The software rasterizer uses
+    // integer math on int vertex coords; this path uses float inputs (GL loaders, etc.).
+    float vUVPlane_normal_xhat = vU_y * vV_z - vU_z * vV_y;
+    float vUVPlane_normal_yhat = vU_z * vV_x - vU_x * vV_z;
+    float vUVPlane_normal_zhat = vU_x * vV_y - vU_y * vV_x;
 
-    // Compute the positions of A, B, C relative to P.
-    int dxa = a_x - p_x;
-    int dya = a_y - p_y;
-    int dza = a_z - p_z;
-    int dxb = b_x - p_x;
-    int dyb = b_y - p_y;
-    int dzb = b_z - p_z;
-    int dxc = c_x - p_x;
-    int dyc = c_y - p_y;
-    int dzc = c_z - p_z;
+    // Positions of A, B, C relative to P (float — do not truncate to int).
+    float dxa = a_x - p_x;
+    float dya = a_y - p_y;
+    float dza = a_z - p_z;
+    float dxb = b_x - p_x;
+    float dyb = b_y - p_y;
+    float dzb = b_z - p_z;
+    float dxc = c_x - p_x;
+    float dyc = c_y - p_y;
+    float dzc = c_z - p_z;
 
     // The derivation is the same, this is the coefficient on U given by cramer's rule
     float U_xhat = vV_y * vUVPlane_normal_zhat - vV_z * vUVPlane_normal_yhat;
