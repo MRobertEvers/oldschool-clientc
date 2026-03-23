@@ -1,6 +1,8 @@
 #ifndef OSRS_UV_PNM_H
 #define OSRS_UV_PNM_H
 
+#include <stdio.h>
+
 struct UVFaceCoords
 {
     float u1;

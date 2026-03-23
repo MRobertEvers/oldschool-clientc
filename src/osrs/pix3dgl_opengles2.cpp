@@ -1259,16 +1259,26 @@ pix3dgl_model_load(
         }
         model.face_textures[(size_t)face] = texture_id;
 
-        if( texture_id != -1 && face_texture_coords_nullable && textured_p_coordinate_nullable &&
-            textured_m_coordinate_nullable && textured_n_coordinate_nullable )
+        if( texture_id != -1 )
         {
-            int texture_face_idx = face_texture_coords_nullable[face];
-            if( texture_face_idx == -1 )
-                texture_face_idx = face;
+            int texture_face_idx = face;
+            int tp = 0;
+            int tm = 0;
+            int tn = 0;
 
-            int tp = textured_p_coordinate_nullable[texture_face_idx];
-            int tm = textured_m_coordinate_nullable[texture_face_idx];
-            int tn = textured_n_coordinate_nullable[texture_face_idx];
+            if( face_texture_coords_nullable && face_texture_coords_nullable[face] != -1 )
+            {
+                texture_face_idx = face_texture_coords_nullable[face];
+                tp = textured_p_coordinate_nullable[texture_face_idx];
+                tm = textured_m_coordinate_nullable[texture_face_idx];
+                tn = textured_n_coordinate_nullable[texture_face_idx];
+            }
+            else
+            {
+                tp = face_indices_a[texture_face_idx];
+                tm = face_indices_b[texture_face_idx];
+                tn = face_indices_c[texture_face_idx];
+            }
 
             struct UVFaceCoords uv;
             uv_pnm_compute(
