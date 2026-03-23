@@ -99,11 +99,13 @@ Or use the complete example in `src/osrs/ui_integration_example.c`.
 ## API Overview
 
 ### Initialization
+
 - `ui_new()` - Create UI context
 - `ui_free()` - Cleanup UI context
 - `ui_set_state()` - Change UI state
 
 ### Drawing
+
 - `ui_draw_title_screen()` - Draw title screen
 - `ui_draw_login_screen()` - Draw login interface
 - `ui_draw_game_frame()` - Draw game interface
@@ -114,11 +116,13 @@ Or use the complete example in `src/osrs/ui_integration_example.c`.
 - `ui_draw_tooltip()` - Draw tooltip
 
 ### Components
+
 - `ui_draw_button()` - Draw button
 - `ui_draw_textbox()` - Draw text input
 - `ui_draw_scrollbar()` - Draw scrollbar
 
 ### Primitives
+
 - `ui_draw_line()` - Draw line
 - `ui_draw_rect_outline()` - Draw rectangle
 - `ui_draw_circle()` - Draw circle
@@ -126,15 +130,18 @@ Or use the complete example in `src/osrs/ui_integration_example.c`.
 - `ui_draw_vertical_gradient()` - Draw gradient
 
 ### Input
+
 - `ui_handle_mouse_click()` - Handle mouse clicks
 - `ui_handle_mouse_move()` - Handle mouse movement
 - `ui_handle_key_press()` - Handle keyboard input
 
 ### Chat
+
 - `ui_chat_add_message()` - Add chat message
 - `ui_chat_clear()` - Clear chat history
 
 ### Animation
+
 - `ui_flame_animation_new()` - Create flame animation
 - `ui_flame_animation_update()` - Update animation
 - `ui_flame_animation_draw()` - Draw flames
@@ -197,6 +204,7 @@ All layout and color constants are in `ui.h`:
 ## Memory Usage
 
 Approximate memory per component:
+
 - UI Context: ~2 KB
 - Flame Animation: ~400 KB (4 buffers + gradients)
 - Chat Messages: ~100 KB (100 messages max)
@@ -207,6 +215,7 @@ Total: ~512 KB for full UI system
 ## Performance
 
 Frame time breakdown (approximate):
+
 - Flame update: ~1-2 ms
 - UI draw (full): ~2-3 ms
 - UI draw (partial): ~0.5-1 ms
@@ -216,12 +225,14 @@ Total overhead: 2-5 ms per frame (200-500 FPS capable)
 ## Platform Support
 
 ✅ **Fully Supported:**
+
 - macOS (x64, ARM64)
 - Linux (x64, ARM64)
 - Windows (x64)
 - Emscripten/WASM
 
 ✅ **Build Systems:**
+
 - CMake
 - Ninja
 - Make
@@ -231,11 +242,13 @@ Total overhead: 2-5 ms per frame (200-500 FPS capable)
 ## Dependencies
 
 **Required:**
+
 - Existing dash graphics system (dash.h)
 - SDL2 (for platform layer)
 - Standard C library (math.h, string.h, etc.)
 
 **Optional:**
+
 - Game sprites (for backgrounds)
 - Game fonts (for text rendering)
 
@@ -246,6 +259,7 @@ None! The implementation is complete and ready to use.
 ## Future Enhancements
 
 Potential additions:
+
 - Interface config loading from cache
 - Drag and drop for inventory
 - Advanced text rendering
@@ -256,11 +270,13 @@ Potential additions:
 ## Testing
 
 Run tests with:
+
 ```bash
 ./build/osx  # or your platform executable
 ```
 
 Test checklist:
+
 - [ ] Title screen flames animate
 - [ ] Login fields accept input
 - [ ] Tab switches fields
@@ -289,6 +305,7 @@ See `docs/UI_SYSTEM.md` for more troubleshooting.
 ## Examples
 
 ### Example 1: Show title screen
+
 ```c
 struct UIContext* ui = ui_new();
 ui->flames = ui_flame_animation_new();
@@ -300,12 +317,14 @@ ui_draw_title_screen(ui, pixels, 765);
 ```
 
 ### Example 2: Add chat message
+
 ```c
 ui_chat_add_message(ui, "Hello world!", NULL, 0);
 ui_chat_add_message(ui, "Player says hi", "Player1", 1);
 ```
 
 ### Example 3: Show menu
+
 ```c
 ui->menu_visible = true;
 ui->menu_x = 100;
@@ -349,3 +368,6 @@ Production-ready code.
 **Full docs:** `docs/UI_SYSTEM.md`
 
 **Example code:** `src/osrs/ui_integration_example.c`
+
+emcmake cmake -B build_emscripten -DCMAKE_BUILD_TYPE=Release
+cmake --build build_emscripten -j

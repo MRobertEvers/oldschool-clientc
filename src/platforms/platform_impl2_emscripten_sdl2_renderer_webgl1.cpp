@@ -200,16 +200,27 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // Match software projection math: project using the game viewport dimensions,
+    // then scale to the actual canvas viewport for presentation.
+    float projection_width = (float)renderer->width;
+    float projection_height = (float)renderer->height;
+    if( game->view_port && game->view_port->width > 0 && game->view_port->height > 0 )
+    {
+        projection_width = (float)game->view_port->width;
+        projection_height = (float)game->view_port->height;
+    }
+
     pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(emscripten_get_now() / 1000.0));
     pix3dgl_begin_frame(
         renderer->pix3dgl,
-        (float)game->camera_world_x,
-        (float)game->camera_world_y,
-        (float)game->camera_world_z,
+        (float)0,
+        (float)0,
+        (float)0,
         (float)game->camera_pitch,
         (float)game->camera_yaw,
-        (float)renderer->width,
-        (float)renderer->height);
+        projection_width,
+        projection_height);
+    glViewport(0, 0, renderer->width, renderer->height);
 
     // Process the command buffer in three ordered passes so that textures are always uploaded
     // to the atlas before any model that references them is uploaded to the GPU.  Atlas slots
@@ -222,17 +233,19 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     // and RenderCommandBufferCount only reflect what has already been iterated.  We therefore
     // drain the buffer into a local vector first, then do the three passes over that vector.
 
+    double frame_begin_start_ms = emscripten_get_now();
     LibToriRS_FrameBegin(game, render_command_buffer);
 
     static std::vector<ToriRSRenderCommand> commands;
     commands.clear();
     {
         struct ToriRSRenderCommand cmd = { 0 };
-        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd) )
+        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, false) )
         {
             commands.push_back(cmd);
         }
     }
+    double frame_begin_ms = emscripten_get_now() - frame_begin_start_ms;
 
     int total_commands = (int)commands.size();
 
@@ -407,21 +420,24 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     }
 
     LibToriRS_FrameEnd(game);
-    pix3dgl_end_frame(renderer->pix3dgl);
 
-    s_frame++;
-    if( (s_frame % 120) == 0 )
-    {
-        printf(
-            "WebGL1 frame stats: cmds=%d draws=%d loaded_models=%zu loaded_scene=%zu\n",
-            total_commands,
-            model_draw_count,
-            renderer->loaded_model_keys.size(),
-            renderer->loaded_scene_element_keys.size());
-    }
+    pix3dgl_end_frame(renderer->pix3dgl);
 
     render_imgui_overlay(renderer, game);
 
     if( renderer->platform && renderer->platform->window )
         SDL_GL_SwapWindow(renderer->platform->window);
+
+    s_frame++;
+    if( (s_frame % 120) == 0 )
+    {
+        printf(
+            "WebGL1 frame stats: cmds=%d draws=%d loaded_models=%zu loaded_scene=%zu "
+            "frame_begin_ms=%.3f\n",
+            total_commands,
+            model_draw_count,
+            renderer->loaded_model_keys.size(),
+            renderer->loaded_scene_element_keys.size(),
+            frame_begin_ms);
+    }
 }

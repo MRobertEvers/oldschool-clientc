@@ -1359,6 +1359,113 @@ dash3d_project_model(
     return cull;
 }
 
+int
+dash3d_cull_fast(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    struct ProjectedVertex center_projection;
+    if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
+        return DASHCULL_ERROR;
+
+    return dash3d_fast_cull(
+        &dash->cylinder_fast_aabb, view_port, model, position, camera, &center_projection);
+}
+
+int
+dash3d_cull_aabb(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
+        return DASHCULL_ERROR;
+
+    dash3d_calculate_cylinder_aabb_8point(&dash->aabb, model, position, view_port, camera);
+    return dash3d_aabb_cull(&dash->aabb, view_port, camera);
+}
+
+int
+dash3d_project_raw(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    struct ProjectedVertex center_projection;
+    if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
+        return DASHCULL_ERROR;
+
+    project_orthographic_fast(
+        &center_projection,
+        0,
+        0,
+        0,
+        position->yaw,
+        position->x,
+        position->y,
+        position->z,
+        camera->pitch,
+        camera->yaw);
+
+    project_vertices_array(
+        dash->orthographic_vertices_x,
+        dash->orthographic_vertices_y,
+        dash->orthographic_vertices_z,
+        dash->screen_vertices_x,
+        dash->screen_vertices_y,
+        dash->screen_vertices_z,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z,
+        model->vertex_count,
+        position->yaw,
+        center_projection.z,
+        position->x,
+        position->y,
+        position->z,
+        camera->near_plane_z,
+        camera->fov_rpi2048,
+        camera->pitch,
+        camera->yaw);
+
+    return DASHCULL_VISIBLE;
+}
+
+int
+dash3d_cull(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    struct ProjectedVertex center_projection;
+    int cull = DASHCULL_VISIBLE;
+
+    if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
+        return DASHCULL_ERROR;
+
+    cull = dash3d_fast_cull(
+        &dash->cylinder_fast_aabb, view_port, model, position, camera, &center_projection);
+    if( cull != DASHCULL_VISIBLE )
+        return cull;
+
+    dash3d_calculate_cylinder_aabb_8point(&dash->aabb, model, position, view_port, camera);
+
+    cull = dash3d_aabb_cull(&dash->aabb, view_port, camera);
+    if( cull != DASHCULL_VISIBLE )
+        return cull;
+
+    return cull;
+}
+
 void
 dash3d_copy_screen_vertices_float(
     struct DashGraphics* dash,

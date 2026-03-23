@@ -585,7 +585,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     renderer->highlight_poly_valid = 0;
 
     LibToriRS_FrameBegin(game, render_command_buffer);
-    while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command) )
+    while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command, true) )
     {
         switch( command.kind )
         {

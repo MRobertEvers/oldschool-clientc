@@ -118,17 +118,57 @@ set_game_ptr(struct GGame* game)
 
 static struct Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer = NULL;
 static struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer_webgl1 = NULL;
-static bool g_use_webgl1 = true;
+bool g_use_webgl1 = false;
+
+static bool
+read_use_webgl1_from_window()
+{
+    // clang-format off
+    return EM_ASM_INT(
+               {
+                let use_webgl1 = true;
+                try {
+                    const parseRendererValue = (value) => {
+                        if( value === null || typeof value === "undefined" )
+                            return null;
+                        const normalized = String(value).trim().toLowerCase();
+                        if( normalized === "1" || normalized === "true" || normalized === "webgl1" )
+                            return true;
+                        if( normalized === "0" || normalized === "false" || normalized === "soft3d" )
+                            return false;
+                        return null;
+                    };
+
+                    // Prefer explicit boolean key first.
+                    const storedUseWebgl1 = parseRendererValue(localStorage.getItem("g_use_webgl1"));
+                    if( storedUseWebgl1 !== null )
+                    {
+                        use_webgl1 = storedUseWebgl1;
+                    }
+                    else
+                    {
+                        // Compatibility key.
+                        const storedRenderer = parseRendererValue(localStorage.getItem("renderer"));
+                        if( storedRenderer !== null )
+                            use_webgl1 = storedRenderer;
+                    }
+                } catch (err) {
+                    // localStorage can throw in restricted contexts; keep default.
+                }
+                console.log("g_use_webgl1: " + use_webgl1);
+                return use_webgl1 ? 1 : 0;
+               }) != 0;
+
+    // clang-format on
+}
 
 void
 emscripten_main_loop(void* arg)
 {
     struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)arg;
 
-    if( !renderer_webgl1 || !platform->window )
+    if( !platform->window )
         return;
-
-    uint64_t timestamp_ms = SDL_GetTicks64();
 
     LibToriRS_NetPump(platform->current_game);
 
@@ -138,8 +178,20 @@ emscripten_main_loop(void* arg)
 
     LibToriRS_GameStep(platform->current_game, platform->input, platform->render_command_buffer);
 
-    PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
-        renderer_webgl1, platform->current_game, platform->render_command_buffer);
+    if( g_use_webgl1 )
+    {
+        if( !renderer_webgl1 )
+            return;
+        PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
+            renderer_webgl1, platform->current_game, platform->render_command_buffer);
+    }
+    else
+    {
+        if( !renderer )
+            return;
+        PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
+            renderer, platform->current_game, platform->render_command_buffer);
+    }
 
     signal_browser_looped();
 }
@@ -214,22 +266,42 @@ main(
         return 1;
     }
 
-    g_use_webgl1 = true;
-    if( !Platform2_Emscripten_SDL2_InitForWebGL1(platform, 1024, 768) )
+    g_use_webgl1 = read_use_webgl1_from_window();
+    if( g_use_webgl1 )
     {
-        printf("Failed to initialize SDL window for WebGL1\n");
-        return 1;
-    }
+        if( !Platform2_Emscripten_SDL2_InitForWebGL1(platform, 1024, 768) )
+        {
+            printf("Failed to initialize SDL window for WebGL1\n");
+            return 1;
+        }
 
-    renderer_webgl1 = PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(1024, 768);
-    printf("renderer_webgl1: %p\n", renderer_webgl1);
-    if( !renderer_webgl1 ||
-        !PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(renderer_webgl1, platform) )
-    {
-        printf("WebGL1 renderer init failed\n");
-        return 1;
+        renderer_webgl1 = PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(1024, 768);
+        printf("renderer_webgl1: %p\n", renderer_webgl1);
+        if( !renderer_webgl1 ||
+            !PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(renderer_webgl1, platform) )
+        {
+            printf("WebGL1 renderer init failed\n");
+            return 1;
+        }
+        printf("WebGL1 renderer init succeeded\n");
     }
-    printf("WebGL1 renderer init succeeded\n");
+    else
+    {
+        if( !Platform2_Emscripten_SDL2_InitForSoft3D(platform, 1024, 768) )
+        {
+            printf("Failed to initialize SDL window for Soft3D\n");
+            return 1;
+        }
+
+        renderer = PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(
+            graphics3d_width, graphics3d_height, graphics3d_width, graphics3d_height);
+        if( !renderer || !PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Init(renderer, platform) )
+        {
+            printf("Soft3D renderer init failed\n");
+            return 1;
+        }
+        printf("Soft3D renderer init succeeded\n");
+    }
 
     luajs_sidecar_set_callback(luajs_sidecar_callback, platform);
 

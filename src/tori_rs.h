@@ -82,7 +82,8 @@ bool
 LibToriRS_FrameNextCommand(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer,
-    struct ToriRSRenderCommand* command);
+    struct ToriRSRenderCommand* command,
+    bool project_models);
 
 void
 LibToriRS_FrameEnd(struct GGame* game);

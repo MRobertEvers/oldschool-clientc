@@ -456,7 +456,8 @@ bool
 LibToriRS_FrameNextCommand(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer,
-    struct ToriRSRenderCommand* command)
+    struct ToriRSRenderCommand* command,
+    bool project_models)
 {
     assert(game && render_command_buffer && command);
     memset(command, 0, sizeof(*command));
@@ -503,8 +504,51 @@ LibToriRS_FrameNextCommand(
             position.y = position.y - game->camera_world_y;
             position.z = position.z - game->camera_world_z;
 
-            int cull = dash3d_project_model(
-                game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
+            int cull = DASHCULL_VISIBLE;
+            if( project_models )
+            {
+                cull = dash3d_project_model(
+                    game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
+            }
+            else
+            {
+                cull = dash3d_cull_fast(
+                    game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
+                if( cull == DASHCULL_VISIBLE )
+                    cull = dash3d_cull_aabb(
+                        game->sys_dash,
+                        element->dash_model,
+                        &position,
+                        game->view_port,
+                        game->camera);
+                if( cull == DASHCULL_VISIBLE && game->view_port )
+                {
+                    int cursor_vp_x = game->mouse_x - game->viewport_offset_x;
+                    int cursor_vp_y = game->mouse_y - game->viewport_offset_y;
+                    bool cursor_in_viewport = cursor_vp_x >= 0 && cursor_vp_y >= 0 &&
+                                              cursor_vp_x < game->view_port->width &&
+                                              cursor_vp_y < game->view_port->height;
+                    struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+                    bool cursor_in_aabb =
+                        cursor_vp_x >= aabb->min_screen_x && cursor_vp_x <= aabb->max_screen_x &&
+                        cursor_vp_y >= aabb->min_screen_y && cursor_vp_y <= aabb->max_screen_y;
+                    if( cursor_in_viewport && cursor_in_aabb )
+                    {
+                        dash3d_project_raw(
+                            game->sys_dash,
+                            element->dash_model,
+                            &position,
+                            game->view_port,
+                            game->camera);
+                        (void)dash3d_projected_model_contains(
+                            game->sys_dash,
+                            element->dash_model,
+                            game->view_port,
+                            cursor_vp_x,
+                            cursor_vp_y);
+                    }
+                }
+            }
             if( cull != DASHCULL_VISIBLE )
                 break;
 
@@ -513,31 +557,32 @@ LibToriRS_FrameNextCommand(
 
             entity_animate(game->world, element->parent_entity_id);
 
-            if( entity_interactable(game->world, element->parent_entity_id) )
-            {
-                int vp_ox = game->viewport_offset_x;
-                int vp_oy = game->viewport_offset_y;
-                /* Hover: add to pickset when cursor is over model (tooltip + options). */
-                int cursor_vp_x = game->mouse_x - vp_ox;
-                int cursor_vp_y = game->mouse_y - vp_oy;
-                if( cursor_vp_x >= 0 && cursor_vp_y >= 0 && cursor_vp_x < game->view_port->width &&
-                    cursor_vp_y < game->view_port->height &&
-                    dash3d_projected_model_contains(
-                        game->sys_dash,
-                        element->dash_model,
-                        game->view_port,
-                        cursor_vp_x,
-                        cursor_vp_y) )
-                {
-                    entity_coords_from_element(game->world, element->parent_entity_id, &coords);
-                    world_pickset_add(
-                        &game->pickset,
-                        coords.x,
-                        coords.z,
-                        entity_kind_from_uid(element->parent_entity_id),
-                        entity_id_from_uid(element->parent_entity_id));
-                }
-            }
+            // if( entity_interactable(game->world, element->parent_entity_id) )
+            // {
+            //     int vp_ox = game->viewport_offset_x;
+            //     int vp_oy = game->viewport_offset_y;
+            //     /* Hover: add to pickset when cursor is over model (tooltip + options). */
+            //     int cursor_vp_x = game->mouse_x - vp_ox;
+            //     int cursor_vp_y = game->mouse_y - vp_oy;
+            //     if( cursor_vp_x >= 0 && cursor_vp_y >= 0 && cursor_vp_x < game->view_port->width
+            //     &&
+            //         cursor_vp_y < game->view_port->height &&
+            //         dash3d_projected_model_contains(
+            //             game->sys_dash,
+            //             element->dash_model,
+            //             game->view_port,
+            //             cursor_vp_x,
+            //             cursor_vp_y) )
+            //     {
+            //         entity_coords_from_element(game->world, element->parent_entity_id, &coords);
+            //         world_pickset_add(
+            //             &game->pickset,
+            //             coords.x,
+            //             coords.z,
+            //             entity_kind_from_uid(element->parent_entity_id),
+            //             entity_id_from_uid(element->parent_entity_id));
+            //     }
+            // }
 
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,
@@ -580,26 +625,26 @@ LibToriRS_FrameNextCommand(
                 break;
 
             /* If tile was clicked this frame, record it (last hit wins). */
-            if( game->mouse_clicked && game->view_port )
-            {
-                int vp_ox = game->viewport_offset_x;
-                int vp_oy = game->viewport_offset_y;
-                int click_vp_x = game->mouse_clicked_x - vp_ox;
-                int click_vp_y = game->mouse_clicked_y - vp_oy;
-                if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0 &&
-                    click_vp_y < game->view_port->height &&
-                    dash3d_projected_model_contains(
-                        game->sys_dash,
-                        element->dash_model,
-                        game->view_port,
-                        click_vp_x,
-                        click_vp_y) )
-                {
-                    game->tile_clicked_x = sx;
-                    game->tile_clicked_z = sz;
-                    game->tile_clicked_level = slevel;
-                }
-            }
+            // if( game->mouse_clicked && game->view_port )
+            // {
+            //     int vp_ox = game->viewport_offset_x;
+            //     int vp_oy = game->viewport_offset_y;
+            //     int click_vp_x = game->mouse_clicked_x - vp_ox;
+            //     int click_vp_y = game->mouse_clicked_y - vp_oy;
+            //     if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0 &&
+            //         click_vp_y < game->view_port->height &&
+            //         dash3d_projected_model_contains(
+            //             game->sys_dash,
+            //             element->dash_model,
+            //             game->view_port,
+            //             click_vp_x,
+            //             click_vp_y) )
+            //     {
+            //         game->tile_clicked_x = sx;
+            //         game->tile_clicked_z = sz;
+            //         game->tile_clicked_level = slevel;
+            //     }
+            // }
 
             *command = (struct ToriRSRenderCommand) {
                     .kind = TORIRS_GFX_MODEL_DRAW,

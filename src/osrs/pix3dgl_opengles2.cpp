@@ -516,6 +516,14 @@ compute_projection_matrix(
 {
     float y = 1.0f / tan(fov * 0.5f);
     float x = y;
+    // Software renderer clips against z >= 50 and has no practical far-plane clip.
+    // Use a large far value while keeping proper perspective depth so GL depth
+    // ordering matches the software math/path.
+    const float near_plane_z = 50.0f;
+    const float far_plane_z = 65536.0f;
+    const float depth_a = (far_plane_z + near_plane_z) / (far_plane_z - near_plane_z);
+    const float depth_b =
+        (-2.0f * far_plane_z * near_plane_z) / (far_plane_z - near_plane_z);
 
     // Column-major for OpenGL
     // The 512.0f / (screen_width/2.0f) and 512.0f / (screen_height/2.0f) scaling
@@ -532,12 +540,12 @@ compute_projection_matrix(
 
     out_matrix[8] = 0.0f;
     out_matrix[9] = 0.0f;
-    out_matrix[10] = 0.0f;
+    out_matrix[10] = depth_a;
     out_matrix[11] = 1.0f;
 
     out_matrix[12] = 0.0f;
     out_matrix[13] = 0.0f;
-    out_matrix[14] = -1.0f;
+    out_matrix[14] = depth_b;
     out_matrix[15] = 0.0f;
 }
 

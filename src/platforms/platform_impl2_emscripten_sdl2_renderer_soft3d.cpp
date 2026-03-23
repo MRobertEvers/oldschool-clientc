@@ -208,7 +208,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     struct ToriRSRenderCommand command;
     LibToriRS_FrameBegin(game, render_command_buffer);
     assert(game && render_command_buffer && renderer);
-    while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command) )
+    while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command, true) )
     {
         switch( command.kind )
         {
