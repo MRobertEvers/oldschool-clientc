@@ -292,9 +292,10 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
         }
         else if( cmd->kind == TORIRS_GFX_SCENE_ELEMENT_LOAD )
         {
-            // Upload the static scene model keyed on scene_element_key.
-            // All scene element models are uploaded here as a single batch (pass 2),
-            // after all textures are available (pass 1).
+            // Pre-load all static scene models in a single batch (pass 2), after all textures
+            // are in the atlas (pass 1).  We key on model_gpu_cache_key so that MODEL_DRAW
+            // commands referencing the same model pointer can find this GPU upload.
+            // scene_element_key is used only to deduplicate the element-level load.
             uintptr_t scene_key = cmd->_scene_element_load.scene_element_key;
             renderer->loaded_scene_element_keys.insert(scene_key);
 
@@ -305,10 +306,12 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             {
                 continue;
             }
-            if( renderer->model_index_by_key.find(scene_key) == renderer->model_index_by_key.end() )
+            uintptr_t model_key = model_gpu_cache_key(model);
+            renderer->loaded_model_keys.insert(model_key);
+            if( renderer->model_index_by_key.find(model_key) == renderer->model_index_by_key.end() )
             {
                 int model_idx = renderer->next_model_index++;
-                renderer->model_index_by_key[scene_key] = model_idx;
+                renderer->model_index_by_key[model_key] = model_idx;
                 pix3dgl_model_load(
                     renderer->pix3dgl,
                     model_idx,
@@ -354,7 +357,35 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
         uintptr_t model_key = model_gpu_cache_key(model);
         auto it = renderer->model_index_by_key.find(model_key);
         if( it == renderer->model_index_by_key.end() )
-            continue;
+        {
+            // Some models arrive only via MODEL_DRAW with no prior MODEL_LOAD.
+            // Lazy-load them here. Textures were uploaded in pass 1, so atlas slots
+            // and UV data will be baked correctly.
+            int model_idx = renderer->next_model_index++;
+            renderer->model_index_by_key[model_key] = model_idx;
+            renderer->loaded_model_keys.insert(model_key);
+            pix3dgl_model_load(
+                renderer->pix3dgl,
+                model_idx,
+                model->vertices_x,
+                model->vertices_y,
+                model->vertices_z,
+                model->face_indices_a,
+                model->face_indices_b,
+                model->face_indices_c,
+                model->face_count,
+                model->face_textures,
+                model->face_texture_coords,
+                model->textured_p_coordinate,
+                model->textured_m_coordinate,
+                model->textured_n_coordinate,
+                model->lighting->face_colors_hsl_a,
+                model->lighting->face_colors_hsl_b,
+                model->lighting->face_colors_hsl_c,
+                model->face_infos,
+                model->face_alphas);
+            it = renderer->model_index_by_key.find(model_key);
+        }
 
         pix3dgl_model_draw(
             renderer->pix3dgl,
