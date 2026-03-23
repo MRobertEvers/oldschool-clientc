@@ -217,16 +217,30 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     // afterwards (pix3dgl_model_load skips already-cached models), so correct ordering is
     // critical.  All static scene models (SCENE_ELEMENT_LOAD) are uploaded in pass 2 as a
     // single batch, guaranteed to follow every texture upload in pass 1.
+    //
+    // The render command buffer is populated lazily by FrameNextCommand — RenderCommandBufferAt
+    // and RenderCommandBufferCount only reflect what has already been iterated.  We therefore
+    // drain the buffer into a local vector first, then do the three passes over that vector.
 
     LibToriRS_FrameBegin(game, render_command_buffer);
-    int total_commands = LibToriRS_RenderCommandBufferCount(render_command_buffer);
+
+    static std::vector<ToriRSRenderCommand> commands;
+    commands.clear();
+    {
+        struct ToriRSRenderCommand cmd = { 0 };
+        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd) )
+        {
+            commands.push_back(cmd);
+        }
+    }
+
+    int total_commands = (int)commands.size();
 
     // ── Pass 1: upload textures ───────────────────────────────────────────────────────────
     for( int i = 0; i < total_commands; i++ )
     {
-        struct ToriRSRenderCommand* cmd =
-            LibToriRS_RenderCommandBufferAt(render_command_buffer, i);
-        if( !cmd || cmd->kind != TORIRS_GFX_TEXTURE_LOAD )
+        const ToriRSRenderCommand* cmd = &commands[i];
+        if( cmd->kind != TORIRS_GFX_TEXTURE_LOAD )
             continue;
 
         renderer->loaded_texture_ids.insert(cmd->_texture_load.texture_id);
@@ -248,10 +262,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     // ── Pass 2: upload models (textures are now in the atlas) ─────────────────────────────
     for( int i = 0; i < total_commands; i++ )
     {
-        struct ToriRSRenderCommand* cmd =
-            LibToriRS_RenderCommandBufferAt(render_command_buffer, i);
-        if( !cmd )
-            continue;
+        const ToriRSRenderCommand* cmd = &commands[i];
 
         if( cmd->kind == TORIRS_GFX_MODEL_LOAD )
         {
@@ -340,9 +351,8 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     int model_draw_count = 0;
     for( int i = 0; i < total_commands; i++ )
     {
-        struct ToriRSRenderCommand* cmd =
-            LibToriRS_RenderCommandBufferAt(render_command_buffer, i);
-        if( !cmd || cmd->kind != TORIRS_GFX_MODEL_DRAW )
+        const ToriRSRenderCommand* cmd = &commands[i];
+        if( cmd->kind != TORIRS_GFX_MODEL_DRAW )
             continue;
 
         model_draw_count++;

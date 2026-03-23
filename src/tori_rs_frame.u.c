@@ -13,8 +13,8 @@
 #include "tori_rs_render.h"
 
 #include <stdbool.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 struct FrameRenderLoadKeyInt
 {
@@ -49,8 +49,8 @@ mark_model_load_seen(
     if( model_key == 0 )
         return false;
     if( !game->render_loaded_model_keys )
-        game->render_loaded_model_keys =
-            new_frame_render_load_map(sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
+        game->render_loaded_model_keys = new_frame_render_load_map(
+            sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
     if( dashmap_search(game->render_loaded_model_keys, &model_key, DASHMAP_FIND) )
         return false;
     struct FrameRenderLoadKeyPtr* entry =
@@ -89,8 +89,8 @@ mark_scene_element_load_seen(
     if( element_key == 0 )
         return false;
     if( !game->render_loaded_scene_element_keys )
-        game->render_loaded_scene_element_keys =
-            new_frame_render_load_map(sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
+        game->render_loaded_scene_element_keys = new_frame_render_load_map(
+            sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
     if( dashmap_search(game->render_loaded_scene_element_keys, &element_key, DASHMAP_FIND) )
         return false;
     struct FrameRenderLoadKeyPtr* entry =
@@ -187,10 +187,10 @@ queue_static_load_commands(
             dashmap_free(game->render_loaded_model_keys);
         if( game->render_loaded_scene_element_keys )
             dashmap_free(game->render_loaded_scene_element_keys);
-        game->render_loaded_model_keys =
-            new_frame_render_load_map(sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
-        game->render_loaded_scene_element_keys =
-            new_frame_render_load_map(sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
+        game->render_loaded_model_keys = new_frame_render_load_map(
+            sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
+        game->render_loaded_scene_element_keys = new_frame_render_load_map(
+            sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
         game->render_load_world_key = world_key;
     }
 
@@ -495,7 +495,8 @@ LibToriRS_FrameNextCommand(
             element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
             if( !element || !element->dash_model )
                 continue;
-            bool queued_load = queue_scene_element_load_if_needed(game, render_command_buffer, element);
+            bool queued_load =
+                queue_scene_element_load_if_needed(game, render_command_buffer, element);
             memcpy(&position, element->dash_position, sizeof(struct DashPosition));
 
             position.x = position.x - game->camera_world_x;
@@ -561,7 +562,8 @@ LibToriRS_FrameNextCommand(
             element = scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
             if( !element || !element->dash_model )
                 break;
-            bool queued_load = queue_scene_element_load_if_needed(game, render_command_buffer, element);
+            bool queued_load =
+                queue_scene_element_load_if_needed(game, render_command_buffer, element);
 
             memcpy(&position, element->dash_position, sizeof(struct DashPosition));
 

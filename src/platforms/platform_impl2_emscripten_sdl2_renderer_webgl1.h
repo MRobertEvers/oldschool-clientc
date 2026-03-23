@@ -2,12 +2,11 @@
 #define PLATFORM_IMPL2_EMSCRIPTEN_SDL2_RENDERER_WEBGL1_H
 
 #include "platform_impl2_emscripten_sdl2.h"
+#include <GLES2/gl2.h>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <SDL.h>
-#include <GLES2/gl2.h>
-
-#include <unordered_set>
-#include <unordered_map>
 #include <vector>
 
 extern "C" {
