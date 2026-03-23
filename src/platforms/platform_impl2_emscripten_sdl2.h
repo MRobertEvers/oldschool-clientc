@@ -49,6 +49,11 @@ Platform2_Emscripten_SDL2_InitForSoft3D(
     struct Platform2_Emscripten_SDL2* platform,
     int screen_width,
     int screen_height);
+bool
+Platform2_Emscripten_SDL2_InitForWebGL1(
+    struct Platform2_Emscripten_SDL2* platform,
+    int screen_width,
+    int screen_height);
 void
 Platform2_Emscripten_SDL2_Shutdown(struct Platform2_Emscripten_SDL2* platform);
 

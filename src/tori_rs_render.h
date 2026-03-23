@@ -10,17 +10,9 @@ enum ToriRSRenderCommandKind
 {
     TORIRS_GFX_NONE,
     TORIRS_GFX_MODEL_LOAD,
+    TORIRS_GFX_TEXTURE_LOAD,
+    TORIRS_GFX_SCENE_ELEMENT_LOAD,
     TORIRS_GFX_MODEL_DRAW,
-    TORIRS_GFX_MODEL_DRAW_HIGHLIGHT,
-    TORIRS_GFX_SPRITE_DRAW,
-    TORIRS_GFX_LINE_DRAW,
-    TORIRS_GFX_RECT_DRAW,
-    TORIRS_GFX_POLYLINE_START,
-    TORIRS_GFX_POLYLINE_POINT,
-    TORIRS_GFX_POLYLINE_FILL,
-    TORIRS_GFX_POLYLINE_END,
-    TORIRS_GFX_TEXT_DRAW,
-    TORIRS_GFX_BUFFER_BLIT,
 };
 
 struct ToriRSRenderCommand
@@ -28,6 +20,24 @@ struct ToriRSRenderCommand
     uint8_t kind;
     union
     {
+        struct
+        {
+            struct DashModel* model;
+            uintptr_t model_key;
+            int model_id;
+        } _model_load;
+        struct
+        {
+            int texture_id;
+            struct DashTexture* texture_nullable;
+        } _texture_load;
+        struct
+        {
+            int scene_element_id;
+            int parent_entity_id;
+            uintptr_t scene_element_key;
+            struct DashModel* model;
+        } _scene_element_load;
         struct
         {
             struct DashModel* model;
@@ -43,6 +53,11 @@ LibToriRS_RenderCommandBufferNew(int capacity);
 
 void
 LibToriRS_RenderCommandBufferFree(struct ToriRSRenderCommandBuffer* buffer);
+
+void
+LibToriRS_RenderCommandBufferAddCommand(
+    struct ToriRSRenderCommandBuffer* buffer,
+    struct ToriRSRenderCommand command);
 
 void
 LibToriRS_RenderCommandBufferReset(struct ToriRSRenderCommandBuffer* buffer);

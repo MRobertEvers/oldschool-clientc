@@ -72,6 +72,31 @@ init_rsa(struct GGame* game)
     rsa_init(&game->rsa, default_e_hex, default_n_hex);
 }
 
+struct RenderLoadKeyInt
+{
+    int key;
+};
+
+struct RenderLoadKeyPtr
+{
+    uintptr_t key;
+};
+
+static struct DashMap*
+new_render_load_map(
+    size_t key_size,
+    size_t entry_size,
+    int capacity)
+{
+    struct DashMapConfig config = {
+        .buffer = malloc((size_t)capacity * entry_size),
+        .buffer_size = (size_t)capacity * entry_size,
+        .key_size = key_size,
+        .entry_size = entry_size,
+    };
+    return dashmap_new(&config, 0);
+}
+
 struct GGame*
 LibToriRS_GameNew(
     struct ToriRSNetSharedBuffer* net_shared,
@@ -180,6 +205,15 @@ LibToriRS_GameNew(
 
     game->buildcachedat = buildcachedat_new();
     game->buildcache = buildcache_new();
+    game->render_loaded_model_keys =
+        new_render_load_map(sizeof(uintptr_t), sizeof(struct RenderLoadKeyPtr), 8192);
+    game->render_loaded_texture_ids =
+        new_render_load_map(sizeof(int), sizeof(struct RenderLoadKeyInt), 1024);
+    game->render_loaded_scene_element_keys =
+        new_render_load_map(sizeof(uintptr_t), sizeof(struct RenderLoadKeyPtr), 8192);
+    game->render_load_world_key = 0;
+    game->render_load_generation = 1;
+    game->render_load_generation_emitted = 0;
 
     player_stats_init();
     varp_varbit_init(&game->varp_varbit);

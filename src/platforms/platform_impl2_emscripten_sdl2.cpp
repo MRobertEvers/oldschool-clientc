@@ -68,6 +68,42 @@ Platform2_Emscripten_SDL2_InitForSoft3D(
     return true;
 }
 
+bool
+Platform2_Emscripten_SDL2_InitForWebGL1(
+    struct Platform2_Emscripten_SDL2* platform,
+    int canvas_width,
+    int canvas_height)
+{
+    if( SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    platform->window = SDL_CreateWindow(
+        "3D Raster - WebGL1",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        canvas_width,
+        canvas_height,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->last_frame_time_ticks = SDL_GetTicks64();
+
+    return true;
+}
+
 void
 Platform2_Emscripten_SDL2_Shutdown(struct Platform2_Emscripten_SDL2* platform)
 {
@@ -93,8 +129,9 @@ Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform)
     SDL_Event event;
     while( SDL_PollEvent(&event) )
     {
-        // Forward events to ImGui for processing (mouse, keyboard, etc.)
-        ImGui_ImplSDL2_ProcessEvent(&event);
+        // Forward events to ImGui only if backend was initialized.
+        if( ImGui::GetCurrentContext() != nullptr )
+            ImGui_ImplSDL2_ProcessEvent(&event);
 
         switch( event.type )
         {

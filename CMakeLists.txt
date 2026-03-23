@@ -235,12 +235,14 @@ if(EMSCRIPTEN)
         test/browser.cpp
         src/platforms/platform_impl2_emscripten_sdl2.cpp
         src/platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.cpp
+        src/platforms/platform_impl2_emscripten_sdl2_renderer_webgl1.cpp
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
         src/platforms/browser2/netjs.c
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
+        src/imgui/imgui_impl_opengl3.cpp
     )
 
     # Emscripten-specific Compile/Link flags

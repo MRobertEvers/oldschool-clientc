@@ -133,6 +133,12 @@ struct GGame
     struct DashMap* init_scenery_configmap;
     struct DashMap* init_texture_definitions_configmap;
     struct DashMap* init_sequences_configmap;
+    struct DashMap* render_loaded_model_keys;
+    struct DashMap* render_loaded_texture_ids;
+    struct DashMap* render_loaded_scene_element_keys;
+    uintptr_t render_load_world_key;
+    int render_load_generation;
+    int render_load_generation_emitted;
 
     uint64_t tick_ms;
     uint64_t next_tick_ms;

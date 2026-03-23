@@ -1,5 +1,6 @@
 #include "platforms/platform_impl2_emscripten_sdl2.h"
 #include "platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.h"
+#include "platforms/platform_impl2_emscripten_sdl2_renderer_webgl1.h"
 #include "tori_rs.h"
 
 #include <emscripten.h>
@@ -116,13 +117,15 @@ set_game_ptr(struct GGame* game)
 }
 
 static struct Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer = NULL;
+static struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer_webgl1 = NULL;
+static bool g_use_webgl1 = true;
 
 void
 emscripten_main_loop(void* arg)
 {
     struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)arg;
 
-    if( !renderer || !platform->window )
+    if( !renderer_webgl1 || !platform->window )
         return;
 
     uint64_t timestamp_ms = SDL_GetTicks64();
@@ -135,8 +138,8 @@ emscripten_main_loop(void* arg)
 
     LibToriRS_GameStep(platform->current_game, platform->input, platform->render_command_buffer);
 
-    PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
-        renderer, platform->current_game, platform->render_command_buffer);
+    PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
+        renderer_webgl1, platform->current_game, platform->render_command_buffer);
 
     signal_browser_looped();
 }
@@ -211,22 +214,22 @@ main(
         return 1;
     }
 
-    Platform2_Emscripten_SDL2_InitForSoft3D(platform, 1024, 768);
-
-    // Renderer source buffer should match the game's 3D viewport resolution
-    renderer = PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(
-        graphics3d_width, graphics3d_height, 1600, 900);
-    if( !renderer )
+    g_use_webgl1 = true;
+    if( !Platform2_Emscripten_SDL2_InitForWebGL1(platform, 1024, 768) )
     {
-        printf("Failed to create soft3d renderer\n");
+        printf("Failed to initialize SDL window for WebGL1\n");
         return 1;
     }
 
-    if( !PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Init(renderer, platform) )
+    renderer_webgl1 = PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(1024, 768);
+    printf("renderer_webgl1: %p\n", renderer_webgl1);
+    if( !renderer_webgl1 ||
+        !PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(renderer_webgl1, platform) )
     {
-        printf("Failed to initialize soft3d renderer\n");
+        printf("WebGL1 renderer init failed\n");
         return 1;
     }
+    printf("WebGL1 renderer init succeeded\n");
 
     luajs_sidecar_set_callback(luajs_sidecar_callback, platform);
 
