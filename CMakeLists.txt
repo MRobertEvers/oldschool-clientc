@@ -151,7 +151,7 @@ if(NOT EMSCRIPTEN)
         src/platforms/platform_impl2_osx_sdl2.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_opengl3.cpp
-        src/osrs/pix3dgl_opengles2.cpp
+        src/osrs/pix3dgl.cpp
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_opengl3.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp

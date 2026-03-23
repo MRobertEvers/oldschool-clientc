@@ -155,7 +155,7 @@ static bool g_has_vao_extension = false;
 // Atlas UVs are pre-calculated on CPU and stored in aTexCoord
 const char* g_vertex_shader_es2 = R"(
 #version 100
-precision mediump float;
+precision highp float;
 
 attribute vec3 aPos;
 attribute vec4 aColor;
@@ -170,7 +170,7 @@ uniform mat4 uModelMatrix;      // Per-model transformation
 uniform mediump float uClock;   // Animation clock
 
 varying vec4 vColor;
-varying vec2 vTexCoord;
+varying highp vec2 vTexCoord;
 varying float vTexBlend;       // 1.0 if textured, 0.0 if not
 varying float vAtlasSlot;      // Atlas slot ID for wrapping
 varying float vTextureOpaque;  // 1.0 if opaque, 0.0 if transparent
@@ -207,26 +207,26 @@ varying float vTextureOpaque;
 varying float vTextureAnimSpeed;
 
 uniform sampler2D uTextureAtlas;
-uniform mediump float uClock;
+uniform highp float uClock;
 
 void main() {
-    vec2 finalTexCoord = vTexCoord;
+    highp vec2 finalTexCoord = vTexCoord;
     
     // Apply texture wrapping if this is a textured face
     if (vTexBlend > 0.5 && vAtlasSlot >= 0.0) {
         // Atlas configuration (must match CPU values)
-        float atlasSize = 2048.0;
-        float tileSize = 128.0;
-        float tilesPerRow = 16.0;
-        float tileSizeNorm = tileSize / atlasSize;  // Size of one tile in normalized coords
+        highp float atlasSize = 2048.0;
+        highp float tileSize = 128.0;
+        highp float tilesPerRow = 16.0;
+        highp float tileSizeNorm = tileSize / atlasSize;  // Size of one tile in normalized coords
         
         // Calculate tile position in atlas
-        float tileU = mod(vAtlasSlot, tilesPerRow);
-        float tileV = floor(vAtlasSlot / tilesPerRow);
-        vec2 tileOrigin = vec2(tileU, tileV) * tileSizeNorm;
+        highp float tileU = mod(vAtlasSlot, tilesPerRow);
+        highp float tileV = floor(vAtlasSlot / tilesPerRow);
+        highp vec2 tileOrigin = vec2(tileU, tileV) * tileSizeNorm;
         
         // Extract local UV within the tile (0 to 1 range within the tile)
-        vec2 localUV = (vTexCoord - tileOrigin) / tileSizeNorm;
+        highp vec2 localUV = (vTexCoord - tileOrigin) / tileSizeNorm;
         
         // Apply texture animation based on direction encoded in speed sign
         // Positive speed = U direction, Negative speed = V direction
@@ -238,9 +238,13 @@ void main() {
             localUV.y = localUV.y - (uClock * -vTextureAnimSpeed);
         }
         
-        // Apply wrapping: clamp U, tile V
-        localUV.x = clamp(fract(localUV.x), 0.008, 0.992);  // Wrap and clamp U coordinate
-        localUV.y = clamp(fract(localUV.y), 0.008, 0.992);  // Wrap and clamp V coordinate
+        // Match software rasterizer behavior:
+        // - U is clamped (no horizontal tiling)
+        // - V is tiled/repeated (vertical wrapping)
+        // Inset by 0.008/0.992 to prevent bilinear sampling from bleeding into zero-alpha
+        // empty margins between atlas tile slots.
+        localUV.x = clamp(localUV.x, 0.008, 0.992);          // Clamp U
+        localUV.y = clamp(fract(localUV.y), 0.008, 0.992);   // Tile V
         
         // Transform back to atlas space
         finalTexCoord = tileOrigin + localUV * tileSizeNorm;
@@ -257,16 +261,20 @@ void main() {
     float finalAlpha = vColor.a;
     
     if (vTexBlend > 0.5) {
-        // This is a textured face
+        // This is a textured face.
+        // vTextureOpaque == 0.0  →  texture has transparent regions (black = transparent).
+        // vTextureOpaque == 1.0  →  texture is fully opaque (no transparent pixels).
         if (vTextureOpaque < 0.5) {
-            // Opaque texture: discard black pixels (for transparency mask), use face alpha only
-            if (dot(texColor.rgb, vec3(0.299, 0.587, 0.114)) < 0.05) {
+            // Transparent texture: discard pixels whose alpha was set to 0 at upload time.
+            // Using the alpha channel directly is exact; luminance thresholds can discard
+            // valid dark-but-non-transparent pixels.
+            if (texColor.a < 0.5) {
                 discard;
             }
             finalAlpha = vColor.a;
         } else {
-            // Transparent texture: use texture's alpha channel combined with face alpha
-            finalAlpha = texColor.a * vColor.a;
+            // Opaque texture: every pixel is solid.  texColor.a == 1.0 here by construction.
+            finalAlpha = vColor.a;
         }
     }
     
@@ -529,8 +537,7 @@ compute_projection_matrix(
     const float near_plane_z = 50.0f;
     const float far_plane_z = 65536.0f;
     const float depth_a = (far_plane_z + near_plane_z) / (far_plane_z - near_plane_z);
-    const float depth_b =
-        (-2.0f * far_plane_z * near_plane_z) / (far_plane_z - near_plane_z);
+    const float depth_b = (-2.0f * far_plane_z * near_plane_z) / (far_plane_z - near_plane_z);
 
     // Column-major for OpenGL
     // The 512.0f / (screen_width/2.0f) and 512.0f / (screen_height/2.0f) scaling
@@ -704,7 +711,9 @@ pix3dgl_new()
     glGenTextures(1, &pix3dgl->texture_atlas);
     glBindTexture(GL_TEXTURE_2D, pix3dgl->texture_atlas);
 
-    // Create empty atlas texture
+    // Create empty atlas texture.
+    // Use GL_RGBA8 (sized internal format) — required on Core Profile / Metal-backed GL;
+    // GL_RGBA (unsized) causes "unloadable texture" warnings and falls back to zero-alpha.
     std::vector<unsigned char> empty_atlas(pix3dgl->atlas_size * pix3dgl->atlas_size * 4, 0);
     glTexImage2D(
         GL_TEXTURE_2D,
@@ -740,28 +749,40 @@ pix3dgl_new()
     const GLubyte* renderer = glGetString(GL_RENDERER);
     const GLubyte* version = glGetString(GL_VERSION);
     const GLubyte* vendor = glGetString(GL_VENDOR);
-    const GLubyte* extensions = glGetString(GL_EXTENSIONS);
     printf("========================================\n");
-    printf(
-        "OpenGL ES 2.0 / WebGL1 Renderer: %s\n",
-        renderer ? (const char*)renderer : "(null)");
+    printf("OpenGL ES 2.0 / WebGL1 Renderer: %s\n", renderer ? (const char*)renderer : "(null)");
     printf("OpenGL ES Version: %s\n", version ? (const char*)version : "(null)");
     printf("OpenGL ES Vendor: %s\n", vendor ? (const char*)vendor : "(null)");
     printf("========================================\n");
 
-    // Check for required/recommended extensions
-    const char* ext_str = extensions ? (const char*)extensions : "";
-    bool has_vao = strstr(ext_str, "OES_vertex_array_object") != nullptr;
-    bool has_uint_indices = strstr(ext_str, "OES_element_index_uint") != nullptr;
-    bool has_npot = strstr(ext_str, "OES_texture_npot") != nullptr ||
-                    strstr(ext_str, "ARB_texture_non_power_of_two") != nullptr;
-
-#if defined(__APPLE__) && !TARGET_OS_IPHONE
-    // Core profile often reports extensions via glGetStringi, and VAO/uint indices are core.
-    if( !has_vao )
-        has_vao = true;
-    if( !has_uint_indices )
-        has_uint_indices = true;
+    // glGetString(GL_EXTENSIONS) is illegal in a Core Profile context (OpenGL 3.1+) and
+    // generates GL_INVALID_ENUM, poisoning the error state for subsequent checks.
+    // On non-Emscripten / non-iOS platforms assume Core Profile capabilities are present.
+    bool has_vao = false;
+    bool has_uint_indices = false;
+    bool has_npot = false;
+#if defined(__EMSCRIPTEN__)
+    {
+        const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+        const char* ext_str = extensions ? (const char*)extensions : "";
+        has_vao = strstr(ext_str, "OES_vertex_array_object") != nullptr;
+        has_uint_indices = strstr(ext_str, "OES_element_index_uint") != nullptr;
+        has_npot = strstr(ext_str, "OES_texture_npot") != nullptr ||
+                   strstr(ext_str, "ARB_texture_non_power_of_two") != nullptr;
+    }
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+    {
+        const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+        const char* ext_str = extensions ? (const char*)extensions : "";
+        has_vao = strstr(ext_str, "OES_vertex_array_object") != nullptr;
+        has_uint_indices = strstr(ext_str, "OES_element_index_uint") != nullptr;
+        has_npot = strstr(ext_str, "OES_texture_npot") != nullptr;
+    }
+#else
+    // Desktop Core Profile: VAO and uint indices are core features; don't call GL_EXTENSIONS.
+    has_vao = true;
+    has_uint_indices = true;
+    has_npot = true;
 #endif
 
     // Set global VAO extension flag
