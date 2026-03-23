@@ -371,3 +371,5 @@ Production-ready code.
 
 emcmake cmake -B build_emscripten -DCMAKE_BUILD_TYPE=Release
 cmake --build build_emscripten -j
+
+emcmake cmake .. -DCMAKE_BUILD_TYPE=Debug

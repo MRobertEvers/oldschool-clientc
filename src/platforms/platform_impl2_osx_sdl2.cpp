@@ -203,6 +203,58 @@ Platform2_OSX_SDL2_InitForSoft3D(
     return true;
 }
 
+bool
+Platform2_OSX_SDL2_InitForOpenGL3(
+    struct Platform2_OSX_SDL2* platform,
+    int screen_width,
+    int screen_height)
+{
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+#if defined(__APPLE__)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+    platform->window = SDL_CreateWindow(
+        "Game",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        screen_width,
+        screen_height,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->window_width = screen_width;
+    platform->window_height = screen_height;
+    platform->drawable_width = screen_width;
+    platform->drawable_height = screen_height;
+    SDL_GL_GetDrawableSize(platform->window, &platform->drawable_width, &platform->drawable_height);
+
+    platform->game_screen_width = screen_width;
+    platform->game_screen_height = screen_height;
+    platform->last_frame_time_ticks = SDL_GetTicks64();
+
+    return true;
+}
+
 void
 Platform2_OSX_SDL2_PollEvents(
     struct Platform2_OSX_SDL2* platform,
@@ -250,9 +302,14 @@ Platform2_OSX_SDL2_PollEvents(
             {
                 SDL_GetWindowSize(
                     platform->window, &platform->window_width, &platform->window_height);
-                // Since we don't have SDL renderer, drawable size = window size
-                platform->drawable_width = platform->window_width;
-                platform->drawable_height = platform->window_height;
+                if( platform->window && (SDL_GetWindowFlags(platform->window) & SDL_WINDOW_OPENGL) )
+                    SDL_GL_GetDrawableSize(
+                        platform->window, &platform->drawable_width, &platform->drawable_height);
+                else
+                {
+                    platform->drawable_width = platform->window_width;
+                    platform->drawable_height = platform->window_height;
+                }
 
                 // Update ImGui display size for proper scaling
                 io.DisplaySize =

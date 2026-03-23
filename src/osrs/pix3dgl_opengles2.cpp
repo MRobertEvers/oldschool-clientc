@@ -43,10 +43,17 @@
 #pragma clang diagnostic ignored "-Wunused-variable"
 #endif
 #elif defined(__APPLE__)
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
 // iOS uses OpenGL ES 2.0
 #include <OpenGLES/ES2/gl.h>
 #include <OpenGLES/ES2/glext.h>
 #define GLES2_IOS
+#else
+// macOS builds use desktop OpenGL headers for this ES2-style implementation.
+#include <OpenGL/gl3.h>
+#define GLES2_DESKTOP
+#endif
 #elif defined(__ANDROID__)
 // Android uses OpenGL ES 2.0
 #include <GLES2/gl2.h>
@@ -735,17 +742,27 @@ pix3dgl_new()
     const GLubyte* vendor = glGetString(GL_VENDOR);
     const GLubyte* extensions = glGetString(GL_EXTENSIONS);
     printf("========================================\n");
-    printf("OpenGL ES 2.0 / WebGL1 Renderer: %s\n", renderer);
-    printf("OpenGL ES Version: %s\n", version);
-    printf("OpenGL ES Vendor: %s\n", vendor);
+    printf(
+        "OpenGL ES 2.0 / WebGL1 Renderer: %s\n",
+        renderer ? (const char*)renderer : "(null)");
+    printf("OpenGL ES Version: %s\n", version ? (const char*)version : "(null)");
+    printf("OpenGL ES Vendor: %s\n", vendor ? (const char*)vendor : "(null)");
     printf("========================================\n");
 
     // Check for required/recommended extensions
-    const char* ext_str = (const char*)extensions;
+    const char* ext_str = extensions ? (const char*)extensions : "";
     bool has_vao = strstr(ext_str, "OES_vertex_array_object") != nullptr;
     bool has_uint_indices = strstr(ext_str, "OES_element_index_uint") != nullptr;
     bool has_npot = strstr(ext_str, "OES_texture_npot") != nullptr ||
                     strstr(ext_str, "ARB_texture_non_power_of_two") != nullptr;
+
+#if defined(__APPLE__) && !TARGET_OS_IPHONE
+    // Core profile often reports extensions via glGetStringi, and VAO/uint indices are core.
+    if( !has_vao )
+        has_vao = true;
+    if( !has_uint_indices )
+        has_uint_indices = true;
+#endif
 
     // Set global VAO extension flag
     g_has_vao_extension = has_vao;
@@ -789,7 +806,7 @@ pix3dgl_new()
     }
 
     // Check if we're using software rendering (this would be a problem!)
-    const char* renderer_str = (const char*)renderer;
+    const char* renderer_str = renderer ? (const char*)renderer : "";
     if( strstr(renderer_str, "Software") || strstr(renderer_str, "software") ||
         strstr(renderer_str, "llvmpipe") || strstr(renderer_str, "SwiftShader") )
     {

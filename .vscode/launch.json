@@ -145,10 +145,13 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/osx",
-            "args": [],
+            "args": [
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
-            "environment": [],
+            "environment": [{
+                "TORIRS_RENDERER": "gl3"
+            }],
             "externalConsole": false,
             "MIMode": "lldb",
             "setupCommands": [

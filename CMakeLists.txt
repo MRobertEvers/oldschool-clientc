@@ -150,13 +150,16 @@ if(NOT EMSCRIPTEN)
         test/osx.cpp
         src/platforms/platform_impl2_osx_sdl2.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
+        src/platforms/platform_impl2_osx_sdl2_renderer_opengl3.cpp
+        src/osrs/pix3dgl_opengles2.cpp
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_opengl3.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
     )
 
     find_package(SDL2 REQUIRED)
-    target_link_libraries(osx SDL2::SDL2)
+    find_package(OpenGL REQUIRED)
+    target_link_libraries(osx SDL2::SDL2 OpenGL::GL)
 
     if(WIN32)
         target_link_libraries(osx ws2_32)

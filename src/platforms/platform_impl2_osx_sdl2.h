@@ -49,6 +49,11 @@ Platform2_OSX_SDL2_InitForSoft3D(
     struct Platform2_OSX_SDL2* platform,
     int screen_width,
     int screen_height);
+bool
+Platform2_OSX_SDL2_InitForOpenGL3(
+    struct Platform2_OSX_SDL2* platform,
+    int screen_width,
+    int screen_height);
 void
 Platform2_OSX_SDL2_Shutdown(struct Platform2_OSX_SDL2* platform);
 
