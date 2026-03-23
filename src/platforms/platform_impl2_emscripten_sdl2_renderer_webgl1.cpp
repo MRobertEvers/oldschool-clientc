@@ -6,108 +6,14 @@
 #include <GLES2/gl2.h>
 #include <emscripten/html5.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
-
-static GLuint
-compile_shader(GLenum type, const char* src)
+#include <emscripten.h>
+static float
+yaw_to_radians(int yaw_r2pi2048)
 {
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &src, NULL);
-    glCompileShader(shader);
-    GLint ok = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
-    if( !ok )
-    {
-        char log[512] = { 0 };
-        glGetShaderInfoLog(shader, sizeof(log), NULL, log);
-        printf("WebGL shader compile failed: %s\n", log);
-        glDeleteShader(shader);
-        return 0;
-    }
-    return shader;
-}
-
-static bool
-init_blit_pipeline(struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer)
-{
-    const char* vs_src =
-        "attribute vec2 a_pos;\n"
-        "attribute vec2 a_uv;\n"
-        "varying vec2 v_uv;\n"
-        "void main(){ v_uv = a_uv; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
-    const char* fs_src =
-        "precision mediump float;\n"
-        "varying vec2 v_uv;\n"
-        "uniform sampler2D u_tex;\n"
-        "void main(){ gl_FragColor = texture2D(u_tex, v_uv); }\n";
-
-    GLuint vs = compile_shader(GL_VERTEX_SHADER, vs_src);
-    GLuint fs = compile_shader(GL_FRAGMENT_SHADER, fs_src);
-    if( !vs || !fs )
-        return false;
-
-    renderer->blit_program = glCreateProgram();
-    glAttachShader(renderer->blit_program, vs);
-    glAttachShader(renderer->blit_program, fs);
-    glBindAttribLocation(renderer->blit_program, 0, "a_pos");
-    glBindAttribLocation(renderer->blit_program, 1, "a_uv");
-    glLinkProgram(renderer->blit_program);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-
-    GLint ok = 0;
-    glGetProgramiv(renderer->blit_program, GL_LINK_STATUS, &ok);
-    if( !ok )
-    {
-        char log[512] = { 0 };
-        glGetProgramInfoLog(renderer->blit_program, sizeof(log), NULL, log);
-        printf("WebGL program link failed: %s\n", log);
-        return false;
-    }
-
-    const float quad[] = {
-        -1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f,
-        1.0f,  1.0f,  1.0f, 0.0f, -1.0f, 1.0f,  0.0f, 0.0f,
-    };
-    const uint16_t indices[] = { 0, 1, 2, 0, 2, 3 };
-
-    glGenBuffers(1, &renderer->blit_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->blit_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
-
-    glGenBuffers(1, &renderer->blit_ebo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->blit_ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    glGenTextures(1, &renderer->blit_texture);
-    glBindTexture(GL_TEXTURE_2D, renderer->blit_texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    renderer->blit_width = 0;
-    renderer->blit_height = 0;
-    return true;
-}
-
-static void
-draw_blit_texture(struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer)
-{
-    glUseProgram(renderer->blit_program);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderer->blit_texture);
-    GLint tex_loc = glGetUniformLocation(renderer->blit_program, "u_tex");
-    glUniform1i(tex_loc, 0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->blit_vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->blit_ebo);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
+    return (yaw_r2pi2048 * 2.0f * 3.14159265358979323846f) / 2048.0f;
 }
 
 static void
@@ -126,7 +32,8 @@ render_imgui_overlay(
         "Application average %.3f ms/frame (%.1f FPS)",
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
-    ImGui::Text("Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
+    ImGui::Text(
+        "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
     ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);
     ImGui::Text("Loaded model keys: %zu", renderer->loaded_model_keys.size());
     ImGui::Text("Loaded scene keys: %zu", renderer->loaded_scene_element_keys.size());
@@ -171,12 +78,8 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(
     renderer->width = width;
     renderer->height = height;
     renderer->webgl_context_ready = false;
-    renderer->blit_program = 0;
-    renderer->blit_vbo = 0;
-    renderer->blit_ebo = 0;
-    renderer->blit_texture = 0;
-    renderer->blit_width = 0;
-    renderer->blit_height = 0;
+    renderer->pix3dgl = NULL;
+    renderer->next_model_index = 1;
     return renderer;
 }
 
@@ -186,6 +89,11 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Free(
 {
     if( !renderer )
         return;
+    if( renderer->pix3dgl )
+    {
+        pix3dgl_cleanup(renderer->pix3dgl);
+        renderer->pix3dgl = NULL;
+    }
     delete renderer;
 }
 
@@ -227,9 +135,10 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(
     renderer->webgl_context_ready = true;
     emscripten_set_canvas_element_size("#canvas", renderer->width, renderer->height);
     glViewport(0, 0, renderer->width, renderer->height);
-    if( !init_blit_pipeline(renderer) )
+    renderer->pix3dgl = pix3dgl_new();
+    if( !renderer->pix3dgl )
     {
-        printf("WebGL1 init failed: blit pipeline setup failed\n");
+        printf("WebGL1 init failed: Pix3DGL setup failed\n");
         return false;
     }
 
@@ -257,7 +166,8 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
     static uint64_t s_frame = 0;
-    if( !renderer || !renderer->webgl_context_ready || !game || !render_command_buffer )
+    if( !renderer || !renderer->webgl_context_ready || !renderer->pix3dgl || !game ||
+        !render_command_buffer )
         return;
 
     emscripten_webgl_make_context_current((EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)renderer->gl_context);
@@ -267,27 +177,16 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    const int fb_w = game->view_port ? game->view_port->width : 513;
-    const int fb_h = game->view_port ? game->view_port->height : 335;
-    if( renderer->blit_width != fb_w || renderer->blit_height != fb_h )
-    {
-        renderer->blit_width = fb_w;
-        renderer->blit_height = fb_h;
-        renderer->blit_pixels.resize((size_t)fb_w * (size_t)fb_h);
-        renderer->blit_rgba.resize((size_t)fb_w * (size_t)fb_h * 4u);
-        glBindTexture(GL_TEXTURE_2D, renderer->blit_texture);
-        glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_RGBA,
-            renderer->blit_width,
-            renderer->blit_height,
-            0,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            renderer->blit_rgba.data());
-    }
-    memset(renderer->blit_pixels.data(), 0, renderer->blit_pixels.size() * sizeof(uint32_t));
+    pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(emscripten_get_now() / 1000.0));
+    pix3dgl_begin_frame(
+        renderer->pix3dgl,
+        0.0f,
+        0.0f,
+        0.0f,
+        (float)game->camera_pitch,
+        (float)game->camera_yaw,
+        (float)renderer->width,
+        (float)renderer->height);
 
     LibToriRS_FrameBegin(game, render_command_buffer);
     struct ToriRSRenderCommand command = { 0 };
@@ -300,15 +199,66 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
         switch( command.kind )
         {
         case TORIRS_GFX_MODEL_LOAD:
+        {
+            printf("WebGL1 model load: %p\n", command._model_load.model);
             renderer->loaded_model_keys.insert(command._model_load.model_key);
+            struct DashModel* model = command._model_load.model;
+            if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+                !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+                !model->face_indices_c || model->face_count <= 0 )
+            {
+                break;
+            }
+            if( renderer->model_index_by_key.find(command._model_load.model_key) ==
+                renderer->model_index_by_key.end() )
+            {
+                int model_idx = renderer->next_model_index++;
+                renderer->model_index_by_key[command._model_load.model_key] = model_idx;
+                pix3dgl_model_load(
+                    renderer->pix3dgl,
+                    model_idx,
+                    model->vertices_x,
+                    model->vertices_y,
+                    model->vertices_z,
+                    model->face_indices_a,
+                    model->face_indices_b,
+                    model->face_indices_c,
+                    model->face_count,
+                    model->face_textures,
+                    model->face_texture_coords,
+                    model->textured_p_coordinate,
+                    model->textured_m_coordinate,
+                    model->textured_n_coordinate,
+                    model->lighting->face_colors_hsl_a,
+                    model->lighting->face_colors_hsl_b,
+                    model->lighting->face_colors_hsl_c,
+                    model->face_infos,
+                    model->face_alphas);
+            }
             break;
+        }
         case TORIRS_GFX_SCENE_ELEMENT_LOAD:
             renderer->loaded_scene_element_keys.insert(
                 command._scene_element_load.scene_element_key);
             break;
         case TORIRS_GFX_TEXTURE_LOAD:
+        {
             renderer->loaded_texture_ids.insert(command._texture_load.texture_id);
+            struct DashTexture* texture = command._texture_load.texture_nullable;
+            if( texture && texture->texels )
+            {
+                pix3dgl_load_texture(
+                    renderer->pix3dgl,
+                    command._texture_load.texture_id,
+                    texture->texels,
+                    texture->width,
+                    texture->height,
+                    texture->animation_direction,
+                    texture->animation_speed,
+                    texture->opaque);
+            }
             break;
+        }
         case TORIRS_GFX_MODEL_DRAW:
         {
             uintptr_t model_key = (uintptr_t)command._model_draw.model;
@@ -317,14 +267,23 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             model_draw_count++;
             if( !ready )
                 model_draw_not_ready++;
-            dash3d_raster_projected_model(
-                game->sys_dash,
-                command._model_draw.model,
-                &command._model_draw.position,
-                game->view_port,
-                game->camera,
-                (int*)renderer->blit_pixels.data(),
-                false);
+            struct DashModel* model = command._model_draw.model;
+            if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+                !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+                !model->face_indices_c || model->face_count <= 0 )
+            {
+                break;
+            }
+            auto it = renderer->model_index_by_key.find(model_key);
+            if( it == renderer->model_index_by_key.end() )
+                break;
+            pix3dgl_model_draw(
+                renderer->pix3dgl,
+                it->second,
+                (float)command._model_draw.position.x,
+                (float)command._model_draw.position.y,
+                (float)command._model_draw.position.z,
+                yaw_to_radians(command._model_draw.position.yaw));
             break;
         }
         default:
@@ -332,21 +291,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
         }
     }
     LibToriRS_FrameEnd(game);
-
-    // dash3d writes 0xAARRGGBB-style packed ints; convert explicitly to RGBA bytes for WebGL.
-    for( size_t i = 0; i < renderer->blit_pixels.size(); ++i )
-    {
-        uint32_t argb = renderer->blit_pixels[i];
-        uint8_t a = (uint8_t)((argb >> 24) & 0xFF);
-        uint8_t r = (uint8_t)((argb >> 16) & 0xFF);
-        uint8_t g = (uint8_t)((argb >> 8) & 0xFF);
-        uint8_t b = (uint8_t)(argb & 0xFF);
-        size_t out = i * 4u;
-        renderer->blit_rgba[out + 0] = r;
-        renderer->blit_rgba[out + 1] = g;
-        renderer->blit_rgba[out + 2] = b;
-        renderer->blit_rgba[out + 3] = (a == 0 ? 255 : a);
-    }
+    pix3dgl_end_frame(renderer->pix3dgl);
 
     s_frame++;
     if( (s_frame % 120) == 0 )
@@ -359,18 +304,6 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             renderer->loaded_model_keys.size());
     }
 
-    glBindTexture(GL_TEXTURE_2D, renderer->blit_texture);
-    glTexSubImage2D(
-        GL_TEXTURE_2D,
-        0,
-        0,
-        0,
-        renderer->blit_width,
-        renderer->blit_height,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        renderer->blit_rgba.data());
-    draw_blit_texture(renderer);
     render_imgui_overlay(renderer, game);
 
     if( renderer->platform && renderer->platform->window )

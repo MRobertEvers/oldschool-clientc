@@ -185,11 +185,20 @@ load_static_scene(
             {
                 if( scene_tile->face_texture_ids[face] != -1 )
                 {
-                    pix3dgl_load_texture(
-                        renderer->pix3dgl,
-                        scene_tile->face_texture_ids[face],
-                        game->scene->textures_cache,
-                        game->cache);
+                    struct Texture* texture = textures_cache_get(
+                        game->scene->textures_cache, scene_tile->face_texture_ids[face]);
+                    if( texture )
+                    {
+                        pix3dgl_load_texture(
+                            renderer->pix3dgl,
+                            scene_tile->face_texture_ids[face],
+                            texture->texels,
+                            texture->width,
+                            texture->height,
+                            texture->animation_direction,
+                            texture->animation_speed,
+                            texture->opaque);
+                    }
                 }
             }
         }
@@ -230,11 +239,20 @@ load_static_scene(
             {
                 if( scene_model->model->face_textures[face] != -1 )
                 {
-                    pix3dgl_load_texture(
-                        renderer->pix3dgl,
-                        scene_model->model->face_textures[face],
-                        game->scene->textures_cache,
-                        game->cache);
+                    struct Texture* texture = textures_cache_get(
+                        game->scene->textures_cache, scene_model->model->face_textures[face]);
+                    if( texture )
+                    {
+                        pix3dgl_load_texture(
+                            renderer->pix3dgl,
+                            scene_model->model->face_textures[face],
+                            texture->texels,
+                            texture->width,
+                            texture->height,
+                            texture->animation_direction,
+                            texture->animation_speed,
+                            texture->opaque);
+                    }
                 }
             }
         }

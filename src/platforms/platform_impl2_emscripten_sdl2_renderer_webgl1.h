@@ -7,10 +7,12 @@
 #include <GLES2/gl2.h>
 
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 extern "C" {
 #include "osrs/game.h"
+#include "osrs/pix3dgl.h"
 #include "tori_rs.h"
 }
 
@@ -21,14 +23,9 @@ struct Platform2_Emscripten_SDL2_Renderer_WebGL1
     int width;
     int height;
     bool webgl_context_ready;
-    GLuint blit_program;
-    GLuint blit_vbo;
-    GLuint blit_ebo;
-    GLuint blit_texture;
-    int blit_width;
-    int blit_height;
-    std::vector<uint32_t> blit_pixels;
-    std::vector<uint8_t> blit_rgba;
+    struct Pix3DGL* pix3dgl;
+    int next_model_index;
+    std::unordered_map<uintptr_t, int> model_index_by_key;
     std::unordered_set<uintptr_t> loaded_model_keys;
     std::unordered_set<uintptr_t> loaded_scene_element_keys;
     std::unordered_set<int> loaded_texture_ids;

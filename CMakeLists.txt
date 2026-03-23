@@ -236,6 +236,7 @@ if(EMSCRIPTEN)
         src/platforms/platform_impl2_emscripten_sdl2.cpp
         src/platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.cpp
         src/platforms/platform_impl2_emscripten_sdl2_renderer_webgl1.cpp
+        src/osrs/pix3dgl_opengles2.cpp
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
