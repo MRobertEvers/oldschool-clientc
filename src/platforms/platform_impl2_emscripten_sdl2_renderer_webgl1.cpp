@@ -16,6 +16,29 @@ yaw_to_radians(int yaw_r2pi2048)
     return (yaw_r2pi2048 * 2.0f * 3.14159265358979323846f) / 2048.0f;
 }
 
+static uintptr_t
+model_gpu_cache_key(const struct DashModel* model)
+{
+    if( !model )
+        return 0;
+#if UINTPTR_MAX == 0xffffffffu
+    uintptr_t key = 2166136261u;
+#else
+    uintptr_t key = 1469598103934665603ull;
+#endif
+    key ^= (uintptr_t)model->vertices_x;
+    key *= (uintptr_t)16777619u;
+    key ^= (uintptr_t)model->face_indices_a;
+    key *= (uintptr_t)16777619u;
+    key ^= (uintptr_t)model->face_indices_b;
+    key *= (uintptr_t)16777619u;
+    key ^= (uintptr_t)model->face_indices_c;
+    key *= (uintptr_t)16777619u;
+    key ^= (uintptr_t)model->face_count;
+    key *= (uintptr_t)16777619u;
+    return key;
+}
+
 static void
 render_imgui_overlay(
     struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer,
@@ -180,40 +203,71 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(emscripten_get_now() / 1000.0));
     pix3dgl_begin_frame(
         renderer->pix3dgl,
-        0.0f,
-        0.0f,
-        0.0f,
+        (float)game->camera_world_x,
+        (float)game->camera_world_y,
+        (float)game->camera_world_z,
         (float)game->camera_pitch,
         (float)game->camera_yaw,
         (float)renderer->width,
         (float)renderer->height);
 
+    // Process the command buffer in three ordered passes so that textures are always uploaded
+    // to the atlas before any model that references them is uploaded to the GPU.  Atlas slots
+    // and UV coordinates are baked into model VBOs at upload time and cannot be patched
+    // afterwards (pix3dgl_model_load skips already-cached models), so correct ordering is
+    // critical.  All static scene models (SCENE_ELEMENT_LOAD) are uploaded in pass 2 as a
+    // single batch, guaranteed to follow every texture upload in pass 1.
+
     LibToriRS_FrameBegin(game, render_command_buffer);
-    struct ToriRSRenderCommand command = { 0 };
-    int command_count = 0;
-    int model_draw_count = 0;
-    int model_draw_not_ready = 0;
-    while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command) )
+    int total_commands = LibToriRS_RenderCommandBufferCount(render_command_buffer);
+
+    // ── Pass 1: upload textures ───────────────────────────────────────────────────────────
+    for( int i = 0; i < total_commands; i++ )
     {
-        command_count++;
-        switch( command.kind )
+        struct ToriRSRenderCommand* cmd =
+            LibToriRS_RenderCommandBufferAt(render_command_buffer, i);
+        if( !cmd || cmd->kind != TORIRS_GFX_TEXTURE_LOAD )
+            continue;
+
+        renderer->loaded_texture_ids.insert(cmd->_texture_load.texture_id);
+        struct DashTexture* texture = cmd->_texture_load.texture_nullable;
+        if( texture && texture->texels )
         {
-        case TORIRS_GFX_MODEL_LOAD:
+            pix3dgl_load_texture(
+                renderer->pix3dgl,
+                cmd->_texture_load.texture_id,
+                texture->texels,
+                texture->width,
+                texture->height,
+                texture->animation_direction,
+                texture->animation_speed,
+                texture->opaque);
+        }
+    }
+
+    // ── Pass 2: upload models (textures are now in the atlas) ─────────────────────────────
+    for( int i = 0; i < total_commands; i++ )
+    {
+        struct ToriRSRenderCommand* cmd =
+            LibToriRS_RenderCommandBufferAt(render_command_buffer, i);
+        if( !cmd )
+            continue;
+
+        if( cmd->kind == TORIRS_GFX_MODEL_LOAD )
         {
-            printf("WebGL1 model load: %p\n", command._model_load.model);
-            renderer->loaded_model_keys.insert(command._model_load.model_key);
-            struct DashModel* model = command._model_load.model;
+            struct DashModel* model = cmd->_model_load.model;
             if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
                 !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
                 !model->face_indices_c || model->face_count <= 0 )
             {
-                break;
+                continue;
             }
-            if( renderer->model_index_by_key.find(command._model_load.model_key) ==
-                renderer->model_index_by_key.end() )
+            uintptr_t model_key = model_gpu_cache_key(model);
+            renderer->loaded_model_keys.insert(model_key);
+            if( renderer->model_index_by_key.find(model_key) == renderer->model_index_by_key.end() )
             {
                 int model_idx = renderer->next_model_index++;
-                renderer->model_index_by_key[command._model_load.model_key] = model_idx;
+                renderer->model_index_by_key[model_key] = model_idx;
                 pix3dgl_model_load(
                     renderer->pix3dgl,
                     model_idx,
@@ -235,61 +289,82 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
                     model->face_infos,
                     model->face_alphas);
             }
-            break;
         }
-        case TORIRS_GFX_SCENE_ELEMENT_LOAD:
-            renderer->loaded_scene_element_keys.insert(
-                command._scene_element_load.scene_element_key);
-            break;
-        case TORIRS_GFX_TEXTURE_LOAD:
+        else if( cmd->kind == TORIRS_GFX_SCENE_ELEMENT_LOAD )
         {
-            renderer->loaded_texture_ids.insert(command._texture_load.texture_id);
-            struct DashTexture* texture = command._texture_load.texture_nullable;
-            if( texture && texture->texels )
-            {
-                pix3dgl_load_texture(
-                    renderer->pix3dgl,
-                    command._texture_load.texture_id,
-                    texture->texels,
-                    texture->width,
-                    texture->height,
-                    texture->animation_direction,
-                    texture->animation_speed,
-                    texture->opaque);
-            }
-            break;
-        }
-        case TORIRS_GFX_MODEL_DRAW:
-        {
-            uintptr_t model_key = (uintptr_t)command._model_draw.model;
-            bool ready =
-                renderer->loaded_model_keys.find(model_key) != renderer->loaded_model_keys.end();
-            model_draw_count++;
-            if( !ready )
-                model_draw_not_ready++;
-            struct DashModel* model = command._model_draw.model;
+            // Upload the static scene model keyed on scene_element_key.
+            // All scene element models are uploaded here as a single batch (pass 2),
+            // after all textures are available (pass 1).
+            uintptr_t scene_key = cmd->_scene_element_load.scene_element_key;
+            renderer->loaded_scene_element_keys.insert(scene_key);
+
+            struct DashModel* model = cmd->_scene_element_load.model;
             if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
                 !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
                 !model->face_indices_c || model->face_count <= 0 )
             {
-                break;
+                continue;
             }
-            auto it = renderer->model_index_by_key.find(model_key);
-            if( it == renderer->model_index_by_key.end() )
-                break;
-            pix3dgl_model_draw(
-                renderer->pix3dgl,
-                it->second,
-                (float)command._model_draw.position.x,
-                (float)command._model_draw.position.y,
-                (float)command._model_draw.position.z,
-                yaw_to_radians(command._model_draw.position.yaw));
-            break;
-        }
-        default:
-            break;
+            if( renderer->model_index_by_key.find(scene_key) == renderer->model_index_by_key.end() )
+            {
+                int model_idx = renderer->next_model_index++;
+                renderer->model_index_by_key[scene_key] = model_idx;
+                pix3dgl_model_load(
+                    renderer->pix3dgl,
+                    model_idx,
+                    model->vertices_x,
+                    model->vertices_y,
+                    model->vertices_z,
+                    model->face_indices_a,
+                    model->face_indices_b,
+                    model->face_indices_c,
+                    model->face_count,
+                    model->face_textures,
+                    model->face_texture_coords,
+                    model->textured_p_coordinate,
+                    model->textured_m_coordinate,
+                    model->textured_n_coordinate,
+                    model->lighting->face_colors_hsl_a,
+                    model->lighting->face_colors_hsl_b,
+                    model->lighting->face_colors_hsl_c,
+                    model->face_infos,
+                    model->face_alphas);
+            }
         }
     }
+
+    // ── Pass 3: draw models ────────────────────────────────────────────────────────────────
+    int model_draw_count = 0;
+    for( int i = 0; i < total_commands; i++ )
+    {
+        struct ToriRSRenderCommand* cmd =
+            LibToriRS_RenderCommandBufferAt(render_command_buffer, i);
+        if( !cmd || cmd->kind != TORIRS_GFX_MODEL_DRAW )
+            continue;
+
+        model_draw_count++;
+        struct DashModel* model = cmd->_model_draw.model;
+        if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+            !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+            !model->face_indices_c || model->face_count <= 0 )
+        {
+            continue;
+        }
+
+        uintptr_t model_key = model_gpu_cache_key(model);
+        auto it = renderer->model_index_by_key.find(model_key);
+        if( it == renderer->model_index_by_key.end() )
+            continue;
+
+        pix3dgl_model_draw(
+            renderer->pix3dgl,
+            it->second,
+            (float)cmd->_model_draw.position.x,
+            (float)cmd->_model_draw.position.y,
+            (float)cmd->_model_draw.position.z,
+            yaw_to_radians(cmd->_model_draw.position.yaw));
+    }
+
     LibToriRS_FrameEnd(game);
     pix3dgl_end_frame(renderer->pix3dgl);
 
@@ -297,11 +372,11 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     if( (s_frame % 120) == 0 )
     {
         printf(
-            "WebGL1 frame stats: cmds=%d draws=%d not_ready=%d loaded_models=%zu\n",
-            command_count,
+            "WebGL1 frame stats: cmds=%d draws=%d loaded_models=%zu loaded_scene=%zu\n",
+            total_commands,
             model_draw_count,
-            model_draw_not_ready,
-            renderer->loaded_model_keys.size());
+            renderer->loaded_model_keys.size(),
+            renderer->loaded_scene_element_keys.size());
     }
 
     render_imgui_overlay(renderer, game);

@@ -588,6 +588,7 @@ create_shader_program(
     glBindAttribLocation(program, 2, "aTexCoord");
     glBindAttribLocation(program, 3, "aTextureId");
     glBindAttribLocation(program, 4, "aTextureOpaque");
+    glBindAttribLocation(program, 5, "aTextureAnimSpeed");
 
     glLinkProgram(program);
 
@@ -1019,7 +1020,11 @@ pix3dgl_begin_frame(
     // Set viewport
     glViewport(0, 0, (GLsizei)screen_width, (GLsizei)screen_height);
 
-    // Enable depth testing and alpha blending
+    // Enable depth testing so geometry is correctly occluded regardless of draw order.
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+
+    // Enable alpha blending for transparent faces.
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -1060,20 +1065,24 @@ pix3dgl_begin_frame(
         glUniform1f(pix3dgl->uniform_clock, pix3dgl->animation_clock);
     }
 
+    // Bind the texture atlas once for the whole frame.
+    // texture_ids maps texture_id -> atlas_slot (an integer index, NOT a GL handle).
+    // The atlas GL object is the only texture we ever bind; the shader uses the per-vertex
+    // aTextureId attribute to select the correct tile inside the atlas.
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pix3dgl->texture_atlas);
+    if( pix3dgl->uniform_texture_atlas >= 0 )
+    {
+        glUniform1i(pix3dgl->uniform_texture_atlas, 0);
+    }
+    pix3dgl->currently_bound_texture = pix3dgl->texture_atlas;
+
     // Reset state tracking for new frame
-    pix3dgl->currently_bound_texture = 0;
     pix3dgl->current_texture_state = -1;
 
     // Clear batching data for new frame
     pix3dgl->draw_batches.clear();
     pix3dgl->scene_batches.clear();
-
-    // Disable texture usage by default (will be enabled for textured models later)
-    if( pix3dgl->uniform_use_texture >= 0 )
-    {
-        glUniform1i(pix3dgl->uniform_use_texture, 0);
-        pix3dgl->current_texture_state = 0;
-    }
 }
 
 extern "C" void
@@ -1482,60 +1491,9 @@ pix3dgl_model_draw_face(
         glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, modelMatrix);
     }
 
-    // Enable/disable texture based on model (using cached locations and state tracking)
-    if( model.has_textures && model.first_texture_id != -1 )
-    {
-        // Find the OpenGL texture ID for this texture
-        auto tex_it = pix3dgl->texture_ids.find(model.first_texture_id);
-        if( tex_it != pix3dgl->texture_ids.end() )
-        {
-            GLuint gl_texture_id = tex_it->second;
+    // The texture atlas is already bound to unit 0 for the whole frame (set in begin_frame).
+    // The shader determines texturing per-vertex via aTextureId/vAtlasSlot—no CPU switch needed.
 
-            // Only bind texture if it's different from currently bound
-            if( pix3dgl->currently_bound_texture != gl_texture_id )
-            {
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, gl_texture_id);
-                pix3dgl->currently_bound_texture = gl_texture_id;
-            }
-
-            // Enable texture usage
-            if( pix3dgl->current_texture_state != 1 )
-            {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 1);
-                    pix3dgl->current_texture_state = 1;
-                }
-            }
-        }
-        else
-        {
-            // Texture not loaded, disable texturing
-            if( pix3dgl->current_texture_state != 0 )
-            {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 0);
-                    pix3dgl->current_texture_state = 0;
-                }
-            }
-        }
-    }
-    else
-    {
-        // No textures, disable texturing
-        if( pix3dgl->current_texture_state != 0 )
-        {
-            if( pix3dgl->uniform_use_texture >= 0 )
-            {
-                glUniform1i(pix3dgl->uniform_use_texture, 0);
-                pix3dgl->current_texture_state = 0;
-            }
-        }
-    }
-
-    // Desktop: Use VAO for better performance
     BIND_VERTEX_ARRAY(model.VAO);
     // Draw only the specified face (3 vertices starting at face_idx * 3)
     glDrawArrays(GL_TRIANGLES, face_idx * 3, 3);
@@ -1660,58 +1618,18 @@ pix3dgl_model_end_draw(struct Pix3DGL* pix3dgl)
 
     GLModel& model = *pix3dgl->current_model;
 
-    // OPTIMIZATION: Flush all batches using glMultiDrawArrays
-    // This replaces thousands of individual glDrawArrays calls with a few batch draws
-
+    // The atlas is bound for the whole frame. Flush all per-face batches accumulated by
+    // pix3dgl_model_draw_face_fast, drawing each range in insertion order.
     for( auto& [texture_id, batch] : pix3dgl->draw_batches )
     {
-        if( batch.face_starts.empty() )
-            continue;
-
-        // Set texture state for this batch
-        if( texture_id == -1 )
+        for( size_t i = 0; i < batch.face_starts.size(); i++ )
         {
-            // Untextured batch - disable texturing
-            if( pix3dgl->current_texture_state != 0 )
-            {
-                if( pix3dgl->uniform_use_texture >= 0 )
-                {
-                    glUniform1i(pix3dgl->uniform_use_texture, 0);
-                    pix3dgl->current_texture_state = 0;
-                }
-            }
-        }
-        else
-        {
-            // Textured batch - bind texture
-            auto tex_it = pix3dgl->texture_ids.find(texture_id);
-            if( tex_it != pix3dgl->texture_ids.end() )
-            {
-                GLuint gl_texture_id = tex_it->second;
-
-                if( pix3dgl->currently_bound_texture != gl_texture_id )
-                {
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, gl_texture_id);
-                    pix3dgl->currently_bound_texture = gl_texture_id;
-                }
-
-                if( pix3dgl->current_texture_state != 1 )
-                {
-                    if( pix3dgl->uniform_use_texture >= 0 )
-                    {
-                        glUniform1i(pix3dgl->uniform_use_texture, 1);
-                        pix3dgl->current_texture_state = 1;
-                    }
-                }
-            }
+            glDrawArrays(GL_TRIANGLES, batch.face_starts[i], batch.face_counts[i]);
         }
     }
 
-    // Clear batches for next draw
     pix3dgl->draw_batches.clear();
 
-    // Desktop: Unbind VAO
     BIND_VERTEX_ARRAY(0);
 
     pix3dgl->current_model = nullptr;
@@ -1799,16 +1717,13 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
     if( pix3dgl->scene_batches.empty() )
         return;
 
-    // Sort batches by texture ID to minimize texture binding
-    std::sort(
-        pix3dgl->scene_batches.begin(),
-        pix3dgl->scene_batches.end(),
-        [](const SceneDrawBatch& a, const SceneDrawBatch& b) {
-            return a.texture_id < b.texture_id;
-        });
+    // The texture atlas is bound once per frame in pix3dgl_begin_frame.
+    // All textures live inside it; the per-vertex aTextureId/vAtlasSlot attributes
+    // tell the fragment shader which tile to sample—no CPU-side texture switching needed.
+    // Preserve insertion order (painter's order from the game engine) — do NOT sort by
+    // texture_id, which would destroy back-to-front ordering.
 
     GLuint last_vao = 0;
-    int last_texture_id = -999; // Invalid value to force first bind
 
     for( const auto& batch : pix3dgl->scene_batches )
     {
@@ -1828,50 +1743,7 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
             glUniformMatrix4fv(pix3dgl->uniform_model_matrix, 1, GL_FALSE, batch.model_matrix);
         }
 
-        // Set texture state only if it changed
-        if( batch.texture_id != last_texture_id )
-        {
-            if( batch.texture_id == -1 )
-            {
-                // Untextured - disable texturing
-                if( pix3dgl->current_texture_state != 0 )
-                {
-                    if( pix3dgl->uniform_use_texture >= 0 )
-                    {
-                        glUniform1i(pix3dgl->uniform_use_texture, 0);
-                        pix3dgl->current_texture_state = 0;
-                    }
-                }
-            }
-            else
-            {
-                // Textured - bind texture
-                auto tex_it = pix3dgl->texture_ids.find(batch.texture_id);
-                if( tex_it != pix3dgl->texture_ids.end() )
-                {
-                    GLuint gl_texture_id = tex_it->second;
-
-                    if( pix3dgl->currently_bound_texture != gl_texture_id )
-                    {
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, gl_texture_id);
-                        pix3dgl->currently_bound_texture = gl_texture_id;
-                    }
-
-                    if( pix3dgl->current_texture_state != 1 )
-                    {
-                        if( pix3dgl->uniform_use_texture >= 0 )
-                        {
-                            glUniform1i(pix3dgl->uniform_use_texture, 1);
-                            pix3dgl->current_texture_state = 1;
-                        }
-                    }
-                }
-            }
-            last_texture_id = batch.texture_id;
-        }
-
-        for( int face = 0; face < batch.face_starts.size(); face++ )
+        for( size_t face = 0; face < batch.face_starts.size(); face++ )
         {
             int start_index = batch.face_starts[face];
             int count = batch.face_counts[face];
