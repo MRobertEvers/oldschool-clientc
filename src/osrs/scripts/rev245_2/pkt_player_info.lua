@@ -27,6 +27,7 @@ Game.buildcachedat_init_idkits_from_config_jagfile()
 Game.buildcachedat_init_objects_from_config_jagfile()
 
 
+
 local idk_ids, obj_ids = Game.buildcachedat_get_player_appearance_ids_from_packet(data, length)
 print_table(idk_ids)
 print_table(obj_ids)
@@ -62,6 +63,7 @@ end
 
 local model_requests = {}
 local models_needed = {}
+print("player info models_needed", #models_needed)
 for _, model_id in ipairs(queued_model_ids) do
     if not Game.buildcachedat_has_model(model_id) then
         table.insert(
@@ -79,4 +81,5 @@ if #model_requests > 0 then
     end
 end
 
+print("player info exec")
 Game.game_exec_pkt_player_info(data, length)

@@ -14,6 +14,7 @@ local function queue_unique(seen, list, model_id)
 end
 
 local data, length = ...
+print("pkt_npc_info", data, length)
 local npc_ids = Game.buildcachedat_get_npc_ids_from_packet(data, length)
 
 local seen = {}

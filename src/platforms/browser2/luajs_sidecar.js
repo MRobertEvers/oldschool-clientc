@@ -56,6 +56,7 @@ function wasmDispatcher(L) {
 
   if (result) {
     const decoded = gt.read(result);
+
     pushToLua(L, decoded);
     gt.free(result);
     return 1;
@@ -288,6 +289,8 @@ export class LuaJSSidecar {
     const scriptPathPtr =
       this.luaGameTypes.getLuaGameScriptName(luaGameScriptPtr);
     const scriptPath = this.luaGameTypes.wasmStringToJsString(scriptPathPtr);
+
+    console.log("scriptPath", scriptPath);
     const scriptArgsPtr =
       this.luaGameTypes.getLuaGameScriptArgs(luaGameScriptPtr);
     const scriptArgs = this.luaGameTypes.read(scriptArgsPtr);

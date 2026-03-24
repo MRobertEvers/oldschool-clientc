@@ -255,6 +255,7 @@ if(EMSCRIPTEN)
         -sUSE_SDL=2
         -sWASM=1
         -sALLOW_MEMORY_GROWTH=1
+        -sSTACK_SIZE=128kb
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
         --shell-file ${EM_SHELL_FILE}

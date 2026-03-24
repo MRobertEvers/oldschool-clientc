@@ -9,7 +9,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const PORT = parseInt(process.argv[2], 10) || 8080;
+const PORT = parseInt(process.argv[2], 10) || 8081;
 const SCRIPTS_DIR = path.resolve(__dirname, "src", "osrs", "scripts");
 const MIME = { ".lua": "text/plain", ".h": "text/plain" };
 
