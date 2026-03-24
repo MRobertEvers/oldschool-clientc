@@ -1068,8 +1068,8 @@ pix3dgl_model_draw(
     float cos_yaw = cos(yaw);
     float sin_yaw = sin(yaw);
 
-    float modelMatrix[16] = { cos_yaw,    0.0f,       sin_yaw,    0.0f, 0.0f,    1.0f,
-                              0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
+    float modelMatrix[16] = { cos_yaw,    0.0f,       -sin_yaw,   0.0f, 0.0f,    1.0f,
+                              0.0f,       0.0f,       sin_yaw,    0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
     pix3dgl->reusable_batches.clear();

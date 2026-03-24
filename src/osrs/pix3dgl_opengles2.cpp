@@ -1421,8 +1421,8 @@ pix3dgl_model_draw(
     float sin_yaw = sin(yaw);
 
     // Model matrix: first rotate around Y axis, then translate
-    float modelMatrix[16] = { cos_yaw,    0.0f,       sin_yaw,    0.0f, 0.0f,    1.0f,
-                              0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
+    float modelMatrix[16] = { cos_yaw,    0.0f,       -sin_yaw,   0.0f, 0.0f,    1.0f,
+                              0.0f,       0.0f,       sin_yaw,    0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
     // OPTIMIZATION: Use scene-level batching - accumulate draw calls instead of rendering
@@ -1534,8 +1534,8 @@ pix3dgl_model_draw_face(
     float sin_yaw = sin(yaw);
 
     // Model matrix: first rotate around Y axis, then translate
-    float modelMatrix[16] = { cos_yaw,    0.0f,       sin_yaw,    0.0f, 0.0f,    1.0f,
-                              0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
+    float modelMatrix[16] = { cos_yaw,    0.0f,       -sin_yaw,   0.0f, 0.0f,    1.0f,
+                              0.0f,       0.0f,       sin_yaw,    0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
     // Set model matrix uniform (using cached location)
@@ -1592,8 +1592,8 @@ pix3dgl_model_begin_draw(
     float sin_yaw = sin(yaw);
 
     // Model matrix: first rotate around Y axis, then translate
-    float modelMatrix[16] = { cos_yaw,    0.0f,       sin_yaw,    0.0f, 0.0f,    1.0f,
-                              0.0f,       0.0f,       -sin_yaw,   0.0f, cos_yaw, 0.0f,
+    float modelMatrix[16] = { cos_yaw,    0.0f,       -sin_yaw,   0.0f, 0.0f,    1.0f,
+                              0.0f,       0.0f,       sin_yaw,    0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
     // Set model matrix uniform (using cached location)
