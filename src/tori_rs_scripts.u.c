@@ -51,6 +51,13 @@ script_convert_to_lua(
         LuaGameType_VarTypeArrayPush(
             out->args, LuaGameType_NewInt(item->args.u.player_info.length));
         break;
+    case SCRIPT_PKT_NPC_INFO:
+        set_name(out, "rev245_2/pkt_npc_info.lua");
+        out->args = LuaGameType_NewVarTypeArraySpread(2);
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewUserData(item->args.u.npc_info.data));
+        LuaGameType_VarTypeArrayPush(out->args, LuaGameType_NewInt(item->args.u.npc_info.length));
+        break;
     default:
         assert(false && "Unknown script kind");
         break;

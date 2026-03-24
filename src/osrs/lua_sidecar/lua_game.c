@@ -61,6 +61,17 @@ LuaGame_exec_pkt_player_info(
     return LuaGameType_NewVoid();
 }
 
+struct LuaGameType*
+LuaGame_exec_pkt_npc_info(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    void* data = arg_userdata(args, 0);
+    int length = arg_int(args, 1);
+    gameproto_exec_npc_info_raw(game, data, length);
+    return LuaGameType_NewVoid();
+}
+
 static char const g_prefix[] = "game_";
 
 bool
@@ -87,5 +98,12 @@ LuaGame_DispatchCommand(
         return LuaGame_build_scene_centerzone(game, args);
     else if( strcmp(command, "exec_pkt_player_info") == 0 )
         return LuaGame_exec_pkt_player_info(game, args);
-    return NULL;
+    else if( strcmp(command, "exec_pkt_npc_info") == 0 )
+        return LuaGame_exec_pkt_npc_info(game, args);
+    else
+    {
+        printf("Unknown command: %s\n", command);
+        assert(false);
+        return NULL;
+    }
 }

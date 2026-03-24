@@ -6,6 +6,7 @@
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
 #include "osrs/game.h"
+#include "osrs/packets/pkt_npc_info.h"
 #include "osrs/packets/pkt_player_info.h"
 
 #include <assert.h>
@@ -389,7 +390,7 @@ LuaBuildCacheDat_get_obj(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_get_player_appearance_ids(
+LuaBuildCacheDat_get_player_appearance_ids_from_packet(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
@@ -438,6 +439,36 @@ LuaBuildCacheDat_get_player_appearance_ids(
     struct LuaGameType* result = LuaGameType_NewVarTypeArraySpread(2);
     LuaGameType_VarTypeArrayPush(result, idk_ids);
     LuaGameType_VarTypeArrayPush(result, obj_ids);
+    return result;
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_get_npc_ids_from_packet(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    void* data = arg_userdata(args, 0);
+    int length = arg_int(args, 1);
+
+    struct PktNpcInfo pkt;
+    pkt.data = data;
+    pkt.length = length;
+
+    static struct PktNpcInfoReader reader;
+    reader.extended_count = 0;
+    reader.current_op = 0;
+    reader.max_ops = 2048;
+    struct PktNpcInfoOp ops[2048];
+    int count = pkt_npc_info_reader_read(&reader, &pkt, ops, 2048);
+
+    struct LuaGameType* result = LuaGameType_NewIntArray(count);
+    for( int i = 0; i < count; i++ )
+    {
+        if( ops[i].kind == PKT_NPC_INFO_OPBITS_NPCTYPE )
+        {
+            LuaGameType_IntArrayPush(result, ops[i]._bitvalue);
+        }
+    }
     return result;
 }
 
@@ -627,7 +658,8 @@ LuaBuildCacheDat_DispatchCommand(
     else DISPATCH_COMMAND(command, get_obj_model_ids)
     else DISPATCH_COMMAND(command, get_obj_head_model_ids)
     else DISPATCH_COMMAND(command, get_obj)
-    else DISPATCH_COMMAND(command, get_player_appearance_ids)
+    else DISPATCH_COMMAND(command, get_player_appearance_ids_from_packet)
+    else DISPATCH_COMMAND(command, get_npc_ids_from_packet)
     else DISPATCH_COMMAND(command, cache_model)
     else DISPATCH_COMMAND(command, load_interfaces)
     else DISPATCH_COMMAND(command, load_component_sprites_from_media)
@@ -639,7 +671,13 @@ LuaBuildCacheDat_DispatchCommand(
     else DISPATCH_COMMAND(command, cache_title)
     else DISPATCH_COMMAND(command, init_idkits_from_config_jagfile)
     else DISPATCH_COMMAND(command, init_objects_from_config_jagfile)
-    else DISPATCH_COMMAND(command, finalize_scene);
+    else DISPATCH_COMMAND(command, finalize_scene)
+    else 
+    {
+        printf("Unknown command: %s\n", command);
+        assert(false);
+        return NULL;
+    }
     // clang-format on
 
     return LuaGameType_NewVoid();

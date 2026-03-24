@@ -19,6 +19,11 @@ LuaGame_exec_pkt_player_info(
     struct GGame* game,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaGame_exec_pkt_npc_info(
+    struct GGame* game,
+    struct LuaGameType* args);
+
 bool
 LuaGame_CommandHasPrefix(const char* command);
 

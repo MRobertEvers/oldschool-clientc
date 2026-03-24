@@ -27,7 +27,7 @@ Game.buildcachedat_init_idkits_from_config_jagfile()
 Game.buildcachedat_init_objects_from_config_jagfile()
 
 
-local idk_ids, obj_ids = Game.buildcachedat_get_player_appearance_ids(data, length)
+local idk_ids, obj_ids = Game.buildcachedat_get_player_appearance_ids_from_packet(data, length)
 print_table(idk_ids)
 print_table(obj_ids)
 
@@ -79,4 +79,4 @@ if #model_requests > 0 then
     end
 end
 
-Game.game_exec_player_info(item)
+Game.game_exec_pkt_player_info(data, length)

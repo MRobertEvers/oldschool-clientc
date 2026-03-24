@@ -11,6 +11,12 @@ gameproto_exec_lc245_2(
     struct RevPacket_LC245_2* packet);
 
 void
+gameproto_exec_npc_info_raw(
+    struct GGame* game,
+    void* data,
+    int length);
+
+void
 gameproto_exec_npc_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);

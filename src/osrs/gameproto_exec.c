@@ -26,6 +26,18 @@
 static struct PktNpcInfoReader npc_info_reader = { 0 };
 
 void
+gameproto_exec_npc_info_raw(
+    struct GGame* game,
+    void* data,
+    int length)
+{
+    struct RevPacket_LC245_2 packet = { 0 };
+    packet._npc_info.length = length;
+    packet._npc_info.data = data;
+    gameproto_exec_npc_info(game, &packet);
+}
+
+void
 gameproto_exec_npc_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
