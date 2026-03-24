@@ -30,11 +30,9 @@ luajs_LuaGameType_NewUserDataArraySpread(int count)
 
 EMSCRIPTEN_KEEPALIVE
 struct LuaGameType*
-luajs_LuaGameType_NewIntArray(
-    int* values,
-    int count)
+luajs_LuaGameType_NewIntArray(int count)
 {
-    return LuaGameType_NewIntArray(values, count);
+    return LuaGameType_NewIntArray(count);
 }
 
 EMSCRIPTEN_KEEPALIVE

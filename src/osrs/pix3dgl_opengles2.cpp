@@ -1063,9 +1063,6 @@ pix3dgl_begin_frame(
     // Use our shader program
     glUseProgram(pix3dgl->program_es2);
 
-    // Set viewport
-    glViewport(0, 0, (GLsizei)screen_width, (GLsizei)screen_height);
-
     // Enable depth testing so geometry is correctly occluded regardless of draw order.
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);

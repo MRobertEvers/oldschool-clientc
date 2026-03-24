@@ -116,19 +116,20 @@ main(
         }
     }
 
-    const int initial_width = use_opengl3 ? renderer_opengl3->width : renderer_soft3d->width;
-    const int initial_height = use_opengl3 ? renderer_opengl3->height : renderer_soft3d->height;
+    const int initial_width = platform->window_width > 0 ? platform->window_width : SCREEN_WIDTH;
+    const int initial_height = platform->window_height > 0 ? platform->window_height : SCREEN_HEIGHT;
     game->iface_view_port->width = initial_width;
     game->iface_view_port->height = initial_height;
     game->iface_view_port->x_center = initial_width / 2;
     game->iface_view_port->y_center = initial_height / 2;
     game->iface_view_port->stride = initial_width;
 
+    /* Keep viewport config identical across renderer backends. */
+    game->viewport_offset_x = 4;
+    game->viewport_offset_y = 4;
     if( !use_opengl3 )
     {
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer_soft3d, 4, 4);
-        game->viewport_offset_x = 4;
-        game->viewport_offset_y = 4;
     }
 
     struct SockStream* login_stream = NULL;

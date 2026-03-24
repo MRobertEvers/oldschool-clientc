@@ -11,6 +11,102 @@
 #include <cmath>
 #include <cstdio>
 
+struct GLViewportRect
+{
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
+struct LogicalViewportRect
+{
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
+static LogicalViewportRect
+compute_logical_viewport_rect(
+    int window_width,
+    int window_height,
+    const struct GGame* game)
+{
+    LogicalViewportRect rect = { 0, 0, window_width, window_height };
+    if( window_width <= 0 || window_height <= 0 || !game || !game->view_port )
+        return rect;
+
+    int x = game->viewport_offset_x;
+    int y = game->viewport_offset_y;
+    int w = game->view_port->width;
+    int h = game->view_port->height;
+    if( w <= 0 || h <= 0 )
+        return rect;
+
+    if( x < 0 )
+        x = 0;
+    if( y < 0 )
+        y = 0;
+    if( x >= window_width || y >= window_height )
+        return rect;
+    if( x + w > window_width )
+        w = window_width - x;
+    if( y + h > window_height )
+        h = window_height - y;
+    if( w <= 0 || h <= 0 )
+        return rect;
+
+    rect.x = x;
+    rect.y = y;
+    rect.width = w;
+    rect.height = h;
+    return rect;
+}
+
+static GLViewportRect
+compute_world_viewport_rect(
+    int framebuffer_width,
+    int framebuffer_height,
+    int window_width,
+    int window_height,
+    const LogicalViewportRect& logical_rect)
+{
+    GLViewportRect rect = { 0, 0, framebuffer_width, framebuffer_height };
+    if( framebuffer_width <= 0 || framebuffer_height <= 0 || window_width <= 0 || window_height <= 0 )
+        return rect;
+
+    const double scale_x =
+        (window_width > 0) ? ((double)framebuffer_width / (double)window_width) : 1.0;
+    const double scale_y =
+        (window_height > 0) ? ((double)framebuffer_height / (double)window_height) : 1.0;
+
+    int scaled_x = (int)lround((double)logical_rect.x * scale_x);
+    int scaled_top_y = (int)lround((double)logical_rect.y * scale_y);
+    int scaled_w = (int)lround((double)logical_rect.width * scale_x);
+    int scaled_h = (int)lround((double)logical_rect.height * scale_y);
+
+    int clamped_x = scaled_x < 0 ? 0 : scaled_x;
+    int clamped_top_y = scaled_top_y < 0 ? 0 : scaled_top_y;
+    if( clamped_x >= framebuffer_width || clamped_top_y >= framebuffer_height )
+        return rect;
+
+    int clamped_w = scaled_w;
+    int clamped_h = scaled_h;
+    if( clamped_x + clamped_w > framebuffer_width )
+        clamped_w = framebuffer_width - clamped_x;
+    if( clamped_top_y + clamped_h > framebuffer_height )
+        clamped_h = framebuffer_height - clamped_top_y;
+    if( clamped_w <= 0 || clamped_h <= 0 )
+        return rect;
+
+    rect.x = clamped_x;
+    rect.y = framebuffer_height - (clamped_top_y + clamped_h);
+    rect.width = clamped_w;
+    rect.height = clamped_h;
+    return rect;
+}
+
 static float
 yaw_to_radians(int yaw_r2pi2048)
 {
@@ -94,12 +190,8 @@ sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer)
     if( drawable_width <= 0 || drawable_height <= 0 )
         return;
 
-    if( drawable_width != renderer->width || drawable_height != renderer->height )
-    {
-        renderer->width = drawable_width;
-        renderer->height = drawable_height;
-        glViewport(0, 0, renderer->width, renderer->height);
-    }
+    renderer->width = drawable_width;
+    renderer->height = drawable_height;
 }
 
 struct Platform2_OSX_SDL2_Renderer_OpenGL3*
@@ -214,13 +306,22 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    float projection_width = (float)renderer->width;
-    float projection_height = (float)renderer->height;
-    if( game->view_port && game->view_port->width > 0 && game->view_port->height > 0 )
+    int window_width = 0;
+    int window_height = 0;
+    SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
+    if( window_width <= 0 || window_height <= 0 )
     {
-        projection_width = (float)game->view_port->width;
-        projection_height = (float)game->view_port->height;
+        window_width = renderer->platform->game_screen_width;
+        window_height = renderer->platform->game_screen_height;
     }
+    const LogicalViewportRect logical_viewport =
+        compute_logical_viewport_rect(window_width, window_height, game);
+    const GLViewportRect world_viewport = compute_world_viewport_rect(
+        renderer->width, renderer->height, window_width, window_height, logical_viewport);
+    glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
+
+    const float projection_width = (float)logical_viewport.width;
+    const float projection_height = (float)logical_viewport.height;
 
     pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(SDL_GetTicks64() / 1000.0));
     pix3dgl_begin_frame(
@@ -232,7 +333,6 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
         (float)game->camera_yaw,
         projection_width,
         projection_height);
-    glViewport(0, 0, renderer->width, renderer->height);
 
     LibToriRS_FrameBegin(game, render_command_buffer);
 
@@ -368,8 +468,11 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             yaw_to_radians(cmd->_model_draw.position.yaw));
     }
 
+    // Re-assert world viewport right before draw submission in case any state changed.
+    glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
     LibToriRS_FrameEnd(game);
     pix3dgl_end_frame(renderer->pix3dgl);
+    glViewport(0, 0, renderer->width, renderer->height);
     render_imgui_overlay(renderer, game);
     SDL_GL_SwapWindow(renderer->platform->window);
 
