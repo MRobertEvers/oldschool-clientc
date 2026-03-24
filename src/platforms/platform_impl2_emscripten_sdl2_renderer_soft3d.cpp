@@ -187,8 +187,8 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Init(
         renderer->renderer,
         SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING,
-        renderer->width,
-        renderer->height);
+        renderer->max_width,
+        renderer->max_height);
     if( !renderer->texture )
     {
         printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
@@ -220,8 +220,22 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
-    // Clear software pixel buffer each frame so old pixels don't persist
-    memset(renderer->pixel_buffer, 0, renderer->width * renderer->height * sizeof(int));
+    int vw = renderer->width;
+    int vh = renderer->height;
+    if( game && game->view_port )
+    {
+        vw = game->view_port->width;
+        vh = game->view_port->height;
+        if( vw > renderer->max_width )
+            vw = renderer->max_width;
+        if( vh > renderer->max_height )
+            vh = renderer->max_height;
+    }
+
+    memset(
+        renderer->pixel_buffer,
+        0,
+        (size_t)renderer->max_width * (size_t)renderer->max_height * sizeof(int));
 
     struct ToriRSRenderCommand command;
     LibToriRS_FrameBegin(game, render_command_buffer);
@@ -252,12 +266,13 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     // Render minimap to buffer starting at (0,0)
     // Calculate the center of the minimap content for rotation anchor
 
+    const int src_pitch_px = game && game->view_port ? game->view_port->stride : vw;
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,
-        renderer->width,
-        renderer->height,
+        vw,
+        vh,
         32,
-        renderer->width * sizeof(int),
+        src_pitch_px * (int)sizeof(int),
         0x00FF0000,
         0x0000FF00,
         0x000000FF,
@@ -275,11 +290,11 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
     int* src_pixels = (int*)surface->pixels;
 
-    for( int src_y = 0; src_y < renderer->height; src_y++ )
+    for( int src_y = 0; src_y < vh; src_y++ )
     {
         int* dst_row = &pix_write[src_y * texture_w];
-        int* src_row = &src_pixels[src_y * renderer->width];
-        memcpy(dst_row, src_row, renderer->width * sizeof(int));
+        int* src_row = &src_pixels[src_y * src_pitch_px];
+        memcpy(dst_row, src_row, (size_t)vw * sizeof(int));
     }
 
     // Unlock the texture so that it may be used elsewhere
@@ -317,7 +332,8 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     }
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); // Nearest
-    SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
+    SDL_Rect src_rect = { 0, 0, vw, vh };
+    SDL_RenderCopy(renderer->renderer, renderer->texture, &src_rect, &dst_rect);
     SDL_FreeSurface(surface);
 
     render_imgui(renderer, game);

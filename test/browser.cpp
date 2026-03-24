@@ -248,6 +248,9 @@ main(
     // These dimensions define the internal 3D render resolution used by the game/viewport.
     const int graphics3d_width = 513;
     const int graphics3d_height = 335;
+    /* Upper bound for world viewport / soft pixel buffer (ImGui can raise view_port up to this). */
+    const int render_max_width = 1600;
+    const int render_max_height = 900;
 
     struct ToriRSNetSharedBuffer* net_shared = LibToriRS_NetNewBuffer();
     struct GGame* game = LibToriRS_GameNew(net_shared, graphics3d_width, graphics3d_height);
@@ -275,7 +278,8 @@ main(
             return 1;
         }
 
-        renderer_webgl1 = PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(1024, 768);
+        renderer_webgl1 = PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(
+            1024, 768, render_max_width, render_max_height);
         printf("renderer_webgl1: %p\n", renderer_webgl1);
         if( !renderer_webgl1 ||
             !PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(renderer_webgl1, platform) )
@@ -294,7 +298,7 @@ main(
         }
 
         renderer = PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(
-            graphics3d_width, graphics3d_height, graphics3d_width, graphics3d_height);
+            graphics3d_width, graphics3d_height, render_max_width, render_max_height);
         if( !renderer || !PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Init(renderer, platform) )
         {
             printf("Soft3D renderer init failed\n");

@@ -180,10 +180,12 @@ render_imgui_overlay(
         changed |= ImGui::InputInt("World viewport H", &h);
         if( changed )
         {
-            if( w > 4096 )
-                w = 4096;
-            if( h > 4096 )
-                h = 4096;
+            int mw = renderer->max_width > 0 ? renderer->max_width : 4096;
+            int mh = renderer->max_height > 0 ? renderer->max_height : 4096;
+            if( w > mw )
+                w = mw;
+            if( h > mh )
+                h = mh;
             LibToriRS_GameSetWorldViewportSize(game, w, h);
         }
     }
@@ -222,13 +224,17 @@ sync_canvas_size(struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer)
 struct Platform2_Emscripten_SDL2_Renderer_WebGL1*
 PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(
     int width,
-    int height)
+    int height,
+    int max_width,
+    int max_height)
 {
     auto* renderer = new Platform2_Emscripten_SDL2_Renderer_WebGL1();
     renderer->gl_context = NULL;
     renderer->platform = NULL;
     renderer->width = width;
     renderer->height = height;
+    renderer->max_width = max_width;
+    renderer->max_height = max_height;
     renderer->webgl_context_ready = false;
     renderer->pix3dgl = NULL;
     renderer->next_model_index = 1;
