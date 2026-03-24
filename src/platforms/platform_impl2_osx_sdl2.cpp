@@ -255,6 +255,43 @@ Platform2_OSX_SDL2_InitForOpenGL3(
     return true;
 }
 
+bool
+Platform2_OSX_SDL2_InitForMetal(
+    struct Platform2_OSX_SDL2* platform,
+    int screen_width,
+    int screen_height)
+{
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->window = SDL_CreateWindow(
+        "Game",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        screen_width,
+        screen_height,
+        SDL_WINDOW_METAL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->window_width = screen_width;
+    platform->window_height = screen_height;
+    platform->drawable_width = screen_width;
+    platform->drawable_height = screen_height;
+
+    platform->game_screen_width = screen_width;
+    platform->game_screen_height = screen_height;
+    platform->last_frame_time_ticks = SDL_GetTicks64();
+
+    return true;
+}
+
 void
 Platform2_OSX_SDL2_PollEvents(
     struct Platform2_OSX_SDL2* platform,

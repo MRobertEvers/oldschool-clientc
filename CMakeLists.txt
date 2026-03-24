@@ -145,7 +145,7 @@ set(COMMON_SOURCES
 
 # --- Native (OSX/Windows) Target ---
 if(NOT EMSCRIPTEN)
-    add_executable(osx
+    set(OSX_SOURCES
         ${COMMON_SOURCES}
         test/osx.cpp
         src/platforms/platform_impl2_osx_sdl2.cpp
@@ -157,9 +157,48 @@ if(NOT EMSCRIPTEN)
         src/imgui/imgui_impl_sdlrenderer2.cpp
     )
 
+    if(APPLE)
+        list(APPEND OSX_SOURCES
+            src/platforms/platform_impl2_osx_sdl2_renderer_metal.mm
+            src/imgui/imgui_impl_metal.mm
+        )
+    endif()
+
+    add_executable(osx ${OSX_SOURCES})
+
     find_package(SDL2 REQUIRED)
     find_package(OpenGL REQUIRED)
     target_link_libraries(osx SDL2::SDL2 OpenGL::GL)
+
+    if(APPLE)
+        target_link_libraries(osx
+            "-framework Metal"
+            "-framework MetalKit"
+            "-framework QuartzCore"
+            "-framework Foundation"
+        )
+        # Enable ARC only for the Objective-C++ Metal files
+        set_source_files_properties(
+            src/platforms/platform_impl2_osx_sdl2_renderer_metal.mm
+            src/imgui/imgui_impl_metal.mm
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc"
+        )
+
+        # Compile src/Shaders.metal -> Shaders.metallib next to the osx binary (runtime load path)
+        set(_SHADERS_METAL "${CMAKE_CURRENT_SOURCE_DIR}/src/Shaders.metal")
+        set(_SHADERS_AIR "${CMAKE_CURRENT_BINARY_DIR}/Shaders.air")
+        set(_SHADERS_METALLIB "${CMAKE_CURRENT_BINARY_DIR}/Shaders.metallib")
+        add_custom_command(
+            OUTPUT "${_SHADERS_METALLIB}"
+            COMMAND xcrun -sdk macosx metal -c "${_SHADERS_METAL}" -o "${_SHADERS_AIR}"
+            COMMAND xcrun -sdk macosx metallib "${_SHADERS_AIR}" -o "${_SHADERS_METALLIB}"
+            DEPENDS "${_SHADERS_METAL}"
+            BYPRODUCTS "${_SHADERS_AIR}"
+            COMMENT "Compiling Shaders.metal -> Shaders.metallib"
+        )
+        add_custom_target(shaders_metallib DEPENDS "${_SHADERS_METALLIB}")
+        add_dependencies(osx shaders_metallib)
+    endif()
 
     if(WIN32)
         target_link_libraries(osx ws2_32)

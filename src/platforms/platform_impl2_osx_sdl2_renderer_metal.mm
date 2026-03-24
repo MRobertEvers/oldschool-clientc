@@ -1,0 +1,857 @@
+// System ObjC/Metal headers must come before any game headers to avoid
+// the rsbuf.h #define pwrite macro colliding with unistd.h's declaration.
+#import <Foundation/Foundation.h>
+#import <Metal/Metal.h>
+#import <QuartzCore/CAMetalLayer.h>
+
+#include "platform_impl2_osx_sdl2_renderer_metal.h"
+
+#include "imgui.h"
+#include "imgui_impl_metal.h"
+#include "imgui_impl_sdl2.h"
+
+#include <cmath>
+#include <cstdio>
+#include <vector>
+
+extern "C" {
+#include "graphics/dash.h"
+#include "graphics/shared_tables.h"
+#include "osrs/game.h"
+}
+
+// ---------------------------------------------------------------------------
+// Vertex layout that matches Shaders.metal
+// ---------------------------------------------------------------------------
+struct MetalVertex
+{
+    float position[3]; // x, y, z
+    float color[4];    // r, g, b, a
+};
+
+// ---------------------------------------------------------------------------
+// Uniform buffer that matches Shaders.metal
+// ---------------------------------------------------------------------------
+struct MetalUniforms
+{
+    float modelViewMatrix[16];
+    float projectionMatrix[16];
+};
+
+// ---------------------------------------------------------------------------
+// Viewport helpers (identical to opengl3 renderer)
+// ---------------------------------------------------------------------------
+struct MTLViewportRect
+{
+    int x, y, width, height;
+};
+
+struct LogicalViewportRect
+{
+    int x, y, width, height;
+};
+
+static LogicalViewportRect
+compute_logical_viewport_rect(int window_width, int window_height, const struct GGame* game)
+{
+    LogicalViewportRect rect = { 0, 0, window_width, window_height };
+    if( window_width <= 0 || window_height <= 0 || !game || !game->view_port )
+        return rect;
+
+    int x = game->viewport_offset_x;
+    int y = game->viewport_offset_y;
+    int w = game->view_port->width;
+    int h = game->view_port->height;
+    if( w <= 0 || h <= 0 )
+        return rect;
+
+    if( x < 0 ) x = 0;
+    if( y < 0 ) y = 0;
+    if( x >= window_width || y >= window_height )
+        return rect;
+    if( x + w > window_width )  w = window_width  - x;
+    if( y + h > window_height ) h = window_height - y;
+    if( w <= 0 || h <= 0 )
+        return rect;
+
+    rect.x = x; rect.y = y; rect.width = w; rect.height = h;
+    return rect;
+}
+
+static MTLViewportRect
+compute_world_viewport_rect(
+    int fb_width, int fb_height,
+    int win_width, int win_height,
+    const LogicalViewportRect& lr)
+{
+    MTLViewportRect rect = { 0, 0, fb_width, fb_height };
+    if( fb_width <= 0 || fb_height <= 0 || win_width <= 0 || win_height <= 0 )
+        return rect;
+
+    const double sx = (double)fb_width  / (double)win_width;
+    const double sy = (double)fb_height / (double)win_height;
+
+    int x  = (int)lround(lr.x      * sx);
+    int ty = (int)lround(lr.y      * sy);
+    int w  = (int)lround(lr.width  * sx);
+    int h  = (int)lround(lr.height * sy);
+
+    if( x  < 0 ) x  = 0;
+    if( ty < 0 ) ty = 0;
+    if( x  >= fb_width  || ty >= fb_height ) return rect;
+    if( x  + w > fb_width  ) w = fb_width  - x;
+    if( ty + h > fb_height ) h = fb_height - ty;
+    if( w <= 0 || h <= 0 ) return rect;
+
+    // Metal viewport origin is top-left (unlike OpenGL bottom-left)
+    rect.x = x; rect.y = ty; rect.width = w; rect.height = h;
+    return rect;
+}
+
+static float
+yaw_to_radians(int yaw_r2pi2048)
+{
+    return (yaw_r2pi2048 * 2.0f * 3.14159265358979323846f) / 2048.0f;
+}
+
+static uintptr_t
+model_gpu_cache_key(const struct DashModel* model)
+{
+    if( !model )
+        return 0;
+#if UINTPTR_MAX == 0xffffffffu
+    uintptr_t key = 2166136261u;
+#else
+    uintptr_t key = 1469598103934665603ull;
+#endif
+    const uintptr_t fnv_prime = (uintptr_t)16777619u;
+    auto mix_word = [&](uintptr_t word) { key ^= word; key *= fnv_prime; };
+
+    mix_word((uintptr_t)model->vertices_x);
+    mix_word((uintptr_t)model->face_indices_a);
+    mix_word((uintptr_t)model->face_indices_b);
+    mix_word((uintptr_t)model->face_indices_c);
+    mix_word((uintptr_t)model->face_count);
+
+    const bool is_animated = model->original_vertices_x && model->original_vertices_y &&
+                             model->original_vertices_z && model->vertex_count > 0;
+    if( is_animated )
+        for( int i = 0; i < model->vertex_count; ++i )
+        {
+            mix_word((uintptr_t)(uint32_t)model->vertices_x[i]);
+            mix_word((uintptr_t)(uint32_t)model->vertices_y[i]);
+            mix_word((uintptr_t)(uint32_t)model->vertices_z[i]);
+        }
+    return key;
+}
+
+// ---------------------------------------------------------------------------
+// Build a flat (positions + colors) vertex array for a model, in face order.
+// Vertices are transformed from model-local space to world space using the
+// draw position offset and yaw rotation.
+//
+// face_order[0..face_count) maps draw order → model face index.
+// If face_order is nullptr, faces are drawn in their natural order.
+// Returns the number of vertices written.
+// ---------------------------------------------------------------------------
+static int
+build_ordered_vertices(
+    const struct DashModel* model,
+    const int* face_order,
+    int face_count,
+    float world_x, float world_y, float world_z,
+    float yaw_rad,
+    std::vector<MetalVertex>& out)
+{
+    out.clear();
+    if( !model || face_count <= 0 )
+        return 0;
+
+    const float cos_yaw = cosf(yaw_rad);
+    const float sin_yaw = sinf(yaw_rad);
+
+    out.reserve(face_count * 3);
+    for( int fi = 0; fi < face_count; ++fi )
+    {
+        const int f = face_order ? face_order[fi] : fi;
+        if( f < 0 || f >= model->face_count )
+            continue;
+
+        const int ia = model->face_indices_a[f];
+        const int ib = model->face_indices_b[f];
+        const int ic = model->face_indices_c[f];
+
+        if( ia < 0 || ia >= model->vertex_count ||
+            ib < 0 || ib >= model->vertex_count ||
+            ic < 0 || ic >= model->vertex_count )
+            continue;
+
+        // Per-face color (use lighting if available)
+        float r = 0.5f, g = 0.5f, b = 0.5f, a = 1.0f;
+        if( model->lighting && model->lighting->face_colors_hsl_a )
+        {
+            int hsl = model->lighting->face_colors_hsl_a[f];
+            if( hsl >= 0 && hsl < 65536 )
+            {
+                int rgb = g_hsl16_to_rgb_table[hsl];
+                r = ((rgb >> 16) & 0xFF) / 255.0f;
+                g = ((rgb >>  8) & 0xFF) / 255.0f;
+                b = ( rgb        & 0xFF) / 255.0f;
+            }
+        }
+
+        if( model->face_alphas )
+        {
+            int alpha_raw = model->face_alphas[f];
+            if( alpha_raw >= 0 )
+                a = (255 - (alpha_raw & 0xFF)) / 255.0f;
+        }
+
+        const int verts[3] = { ia, ib, ic };
+        for( int v = 0; v < 3; ++v )
+        {
+            // Model-local position
+            float lx = (float)model->vertices_x[verts[v]];
+            float ly = (float)model->vertices_y[verts[v]];
+            float lz = (float)model->vertices_z[verts[v]];
+
+            // Rotate by yaw around the Y axis, then translate to world space
+            MetalVertex mv;
+            mv.position[0] = cos_yaw * lx + sin_yaw * lz + world_x;
+            mv.position[1] = ly + world_y;
+            mv.position[2] = -sin_yaw * lx + cos_yaw * lz + world_z;
+            mv.color[0] = r;
+            mv.color[1] = g;
+            mv.color[2] = b;
+            mv.color[3] = a;
+            out.push_back(mv);
+        }
+    }
+    return (int)out.size();
+}
+
+// Pre-cache placeholder (we still track load keys, but actual vertex buffers
+// are built per-draw with the correct world offset so this is a no-op).
+static void
+preload_model_key(
+    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
+    const struct DashModel* model)
+{
+    if( !model )
+        return;
+    uintptr_t key = model_gpu_cache_key(model);
+    renderer->loaded_model_keys.insert(key);
+    if( renderer->model_index_by_key.find(key) == renderer->model_index_by_key.end() )
+        renderer->model_index_by_key[key] = renderer->next_model_index++;
+}
+
+// ---------------------------------------------------------------------------
+// Build column-major 4x4 identity
+// ---------------------------------------------------------------------------
+static void
+mat4_identity(float m[16])
+{
+    for( int i = 0; i < 16; ++i ) m[i] = 0.0f;
+    m[0] = m[5] = m[10] = m[15] = 1.0f;
+}
+
+// Construct view-only matrix from camera world position + pitch/yaw.
+// OSRS coordinate system: X/Z are the ground plane, Y is up.
+// pitch_rad and yaw_rad are already in radians (convert before calling).
+static void
+build_camera_modelview(
+    float camera_x, float camera_y, float camera_z,
+    float pitch_rad, float yaw_rad,
+    float out[16])
+{
+    // Translation
+    float T[16]; mat4_identity(T);
+    T[12] = -camera_x;
+    T[13] = -camera_y;
+    T[14] = -camera_z;
+
+    float cosYaw   = cosf(-yaw_rad);
+    float sinYaw   = sinf(-yaw_rad);
+    float cosPitch = cosf(-pitch_rad);
+    float sinPitch = sinf(-pitch_rad);
+
+    // Yaw rotation around Y axis (column-major)
+    float Y[16]; mat4_identity(Y);
+    Y[0]  =  cosYaw;  Y[8]  = sinYaw;
+    Y[2]  = -sinYaw;  Y[10] = cosYaw;
+
+    // Pitch rotation around X axis
+    float P[16]; mat4_identity(P);
+    P[5]  =  cosPitch; P[9]  = -sinPitch;
+    P[6]  =  sinPitch; P[10] =  cosPitch;
+
+    // Combined: P * Y * T  (column-major multiply)
+    // First: YT = Y * T
+    float YT[16];
+    for( int col = 0; col < 4; ++col )
+        for( int row = 0; row < 4; ++row )
+        {
+            float v = 0.0f;
+            for( int k = 0; k < 4; ++k )
+                v += Y[k*4+row] * T[col*4+k];
+            YT[col*4+row] = v;
+        }
+    // Then: out = P * YT
+    for( int col = 0; col < 4; ++col )
+        for( int row = 0; row < 4; ++row )
+        {
+            float v = 0.0f;
+            for( int k = 0; k < 4; ++k )
+                v += P[k*4+row] * YT[col*4+k];
+            out[col*4+row] = v;
+        }
+}
+
+// Projection matrix matching the game's 512 focal length convention
+// (same as metal_main.mm matrix4x4_perspective).
+static void
+build_projection(float proj_width, float proj_height, float out[16])
+{
+    for( int i = 0; i < 16; ++i ) out[i] = 0.0f;
+    // x scale: 512 / (proj_width/2)
+    out[0]  =  512.0f / (proj_width  * 0.5f);
+    // y scale: -512 / (proj_height/2), negated for Metal (y-down NDC → y-up)
+    out[5]  = -512.0f / (proj_height * 0.5f);
+    // depth: no far plane, near = 50
+    out[10] = 1.0f;
+    out[14] = -50.0f;
+    // w = z
+    out[11] = 1.0f;
+}
+
+// ---------------------------------------------------------------------------
+// ImGui overlay
+// ---------------------------------------------------------------------------
+static void
+render_imgui_overlay(
+    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
+    struct GGame* game,
+    id<MTLCommandBuffer> commandBuffer,
+    id<MTLRenderCommandEncoder> encoder,
+    MTLRenderPassDescriptor* renderPassDesc)
+{
+    ImGui_ImplMetal_NewFrame(renderPassDesc);
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(320, 220), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Metal Debug");
+    ImGui::Text(
+        "Application average %.3f ms/frame (%.1f FPS)",
+        1000.0f / ImGui::GetIO().Framerate,
+        ImGui::GetIO().Framerate);
+    ImGui::Text(
+        "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
+    ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);
+    if( game->view_port )
+    {
+        ImGui::Separator();
+        int w = game->view_port->width;
+        int h = game->view_port->height;
+        bool changed = ImGui::InputInt("World viewport W", &w);
+        changed |= ImGui::InputInt("World viewport H", &h);
+        if( changed )
+        {
+            if( w > 4096 ) w = 4096;
+            if( h > 4096 ) h = 4096;
+            LibToriRS_GameSetWorldViewportSize(game, w, h);
+        }
+    }
+    ImGui::Text("Loaded model keys: %zu",   renderer->loaded_model_keys.size());
+    ImGui::Text("Loaded scene keys: %zu",   renderer->loaded_scene_element_keys.size());
+    ImGui::Text("Loaded textures: %zu",     renderer->loaded_texture_ids.size());
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), commandBuffer, encoder);
+}
+
+// ---------------------------------------------------------------------------
+// Sync drawable size from SDL Metal view
+// ---------------------------------------------------------------------------
+static void
+sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
+{
+    if( !renderer || !renderer->metal_view )
+        return;
+
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(renderer->metal_view);
+    if( !layer )
+        return;
+
+    CGSize sz = layer.drawableSize;
+    if( sz.width > 0  ) renderer->width  = (int)sz.width;
+    if( sz.height > 0 ) renderer->height = (int)sz.height;
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+struct Platform2_OSX_SDL2_Renderer_Metal*
+PlatformImpl2_OSX_SDL2_Renderer_Metal_New(int width, int height)
+{
+    auto* renderer = new Platform2_OSX_SDL2_Renderer_Metal();
+    renderer->mtl_device         = nil;
+    renderer->mtl_command_queue  = nil;
+    renderer->mtl_pipeline_state = nil;
+    renderer->mtl_depth_stencil  = nil;
+    renderer->mtl_uniform_buffer = nil;
+    renderer->metal_view         = nullptr;
+    renderer->platform           = nullptr;
+    renderer->width              = width;
+    renderer->height             = height;
+    renderer->metal_ready        = false;
+    renderer->next_model_index   = 1;
+    return renderer;
+}
+
+void
+PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(
+    struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
+{
+    if( !renderer )
+        return;
+
+    // Release cached textures
+    for( auto& kv : renderer->texture_by_id )
+        if( kv.second )
+            CFRelease(kv.second);
+
+    ImGui_ImplMetal_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    // ARC manages the Metal objects; clear pointers so the bridged refs release
+    if( renderer->mtl_uniform_buffer )
+    {
+        CFRelease(renderer->mtl_uniform_buffer);
+        renderer->mtl_uniform_buffer = nullptr;
+    }
+    if( renderer->mtl_depth_stencil )
+    {
+        CFRelease(renderer->mtl_depth_stencil);
+        renderer->mtl_depth_stencil = nullptr;
+    }
+    if( renderer->mtl_pipeline_state )
+    {
+        CFRelease(renderer->mtl_pipeline_state);
+        renderer->mtl_pipeline_state = nullptr;
+    }
+    if( renderer->mtl_command_queue )
+    {
+        CFRelease(renderer->mtl_command_queue);
+        renderer->mtl_command_queue = nullptr;
+    }
+    if( renderer->mtl_device )
+    {
+        CFRelease(renderer->mtl_device);
+        renderer->mtl_device = nullptr;
+    }
+
+    if( renderer->metal_view )
+    {
+        SDL_Metal_DestroyView(renderer->metal_view);
+        renderer->metal_view = nullptr;
+    }
+
+    delete renderer;
+}
+
+bool
+PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
+    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
+    struct Platform2_OSX_SDL2* platform)
+{
+    if( !renderer || !platform || !platform->window )
+        return false;
+
+    renderer->platform   = platform;
+    renderer->metal_view = SDL_Metal_CreateView(platform->window);
+    if( !renderer->metal_view )
+    {
+        printf("Metal init failed: SDL_Metal_CreateView returned null: %s\n", SDL_GetError());
+        return false;
+    }
+
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(renderer->metal_view);
+    if( !layer )
+    {
+        printf("Metal init failed: could not obtain CAMetalLayer\n");
+        return false;
+    }
+
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    if( !device )
+    {
+        printf("Metal init failed: MTLCreateSystemDefaultDevice returned nil\n");
+        return false;
+    }
+    layer.device = device;
+    renderer->mtl_device = (__bridge_retained void*)device;
+
+    id<MTLCommandQueue> queue = [device newCommandQueue];
+    renderer->mtl_command_queue = (__bridge_retained void*)queue;
+
+    // -----------------------------------------------------------------------
+    // Pipeline state — load Shaders.metal compiled library
+    // -----------------------------------------------------------------------
+    NSError* error = nil;
+
+    // Resolve Shaders.metallib: same directory as this binary (CMake places it there),
+    // then cwd, then bundle resources / source-tree fallbacks.
+    NSMutableArray<NSString*>* candidates = [NSMutableArray array];
+    NSString* exePath = [[NSBundle mainBundle] executablePath];
+    if( exePath.length > 0 )
+    {
+        NSString* exeDir = [exePath stringByDeletingLastPathComponent];
+        [candidates addObject:[exeDir stringByAppendingPathComponent:@"Shaders.metallib"]];
+    }
+    NSString* bundleShader = [[NSBundle mainBundle] pathForResource:@"Shaders" ofType:@"metallib"];
+    if( bundleShader.length > 0 )
+        [candidates addObject:bundleShader];
+    [candidates addObject:@"Shaders.metallib"];
+    [candidates addObject:@"../Shaders.metallib"];
+    [candidates addObject:@"../src/Shaders.metallib"];
+    NSArray<NSString*>* candidatePaths = candidates;
+
+    id<MTLLibrary> shaderLibrary = nil;
+    for( NSString* path in candidatePaths )
+    {
+        if( path.length == 0 ) continue;
+        NSData* data = [NSData dataWithContentsOfFile:path];
+        if( !data ) continue;
+        dispatch_data_t dd = dispatch_data_create(
+            data.bytes, data.length,
+            dispatch_get_main_queue(),
+            DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+        shaderLibrary = [device newLibraryWithData:dd error:&error];
+        if( shaderLibrary ) break;
+    }
+
+    if( !shaderLibrary )
+    {
+        printf("Metal init failed: could not load Shaders.metallib: %s\n",
+               error ? error.localizedDescription.UTF8String : "unknown");
+        return false;
+    }
+
+    id<MTLFunction> vertFn = [shaderLibrary newFunctionWithName:@"vertexShader"];
+    id<MTLFunction> fragFn = [shaderLibrary newFunctionWithName:@"fragmentShader"];
+    if( !vertFn || !fragFn )
+    {
+        printf("Metal init failed: shader functions not found in library\n");
+        return false;
+    }
+
+    // Vertex descriptor matching MetalVertex layout
+    MTLVertexDescriptor* vtxDesc = [[MTLVertexDescriptor alloc] init];
+    vtxDesc.attributes[0].format      = MTLVertexFormatFloat3;
+    vtxDesc.attributes[0].offset      = offsetof(MetalVertex, position);
+    vtxDesc.attributes[0].bufferIndex = 0;
+    vtxDesc.attributes[1].format      = MTLVertexFormatFloat4;
+    vtxDesc.attributes[1].offset      = offsetof(MetalVertex, color);
+    vtxDesc.attributes[1].bufferIndex = 0;
+    vtxDesc.layouts[0].stride         = sizeof(MetalVertex);
+    vtxDesc.layouts[0].stepFunction   = MTLVertexStepFunctionPerVertex;
+
+    MTLRenderPipelineDescriptor* pipeDesc = [[MTLRenderPipelineDescriptor alloc] init];
+    pipeDesc.vertexFunction   = vertFn;
+    pipeDesc.fragmentFunction = fragFn;
+    pipeDesc.vertexDescriptor = vtxDesc;
+    pipeDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
+
+    // Enable alpha blending for transparent faces
+    pipeDesc.colorAttachments[0].blendingEnabled             = YES;
+    pipeDesc.colorAttachments[0].rgbBlendOperation           = MTLBlendOperationAdd;
+    pipeDesc.colorAttachments[0].sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
+    pipeDesc.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
+    pipeDesc.colorAttachments[0].alphaBlendOperation         = MTLBlendOperationAdd;
+    pipeDesc.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorOne;
+    pipeDesc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    pipeDesc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+
+    id<MTLRenderPipelineState> pipeState = [device newRenderPipelineStateWithDescriptor:pipeDesc error:&error];
+    if( !pipeState )
+    {
+        printf("Metal init failed: could not create pipeline state: %s\n",
+               error ? error.localizedDescription.UTF8String : "unknown");
+        return false;
+    }
+    renderer->mtl_pipeline_state = (__bridge_retained void*)pipeState;
+
+    // Depth stencil
+    MTLDepthStencilDescriptor* dsDesc = [[MTLDepthStencilDescriptor alloc] init];
+    dsDesc.depthCompareFunction = MTLCompareFunctionLess;
+    dsDesc.depthWriteEnabled    = YES;
+    id<MTLDepthStencilState> dsState = [device newDepthStencilStateWithDescriptor:dsDesc];
+    renderer->mtl_depth_stencil = (__bridge_retained void*)dsState;
+
+    // Uniform buffer
+    id<MTLBuffer> unifBuf = [device newBufferWithLength:sizeof(MetalUniforms)
+                                                options:MTLResourceStorageModeShared];
+    renderer->mtl_uniform_buffer = (__bridge_retained void*)unifBuf;
+
+    // Sync initial drawable size
+    sync_drawable_size(renderer);
+
+    // -----------------------------------------------------------------------
+    // ImGui
+    // -----------------------------------------------------------------------
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+    ImGui_ImplSDL2_InitForMetal(platform->window);
+    ImGui_ImplMetal_Init(device);
+
+    renderer->metal_ready = true;
+    return true;
+}
+
+void
+PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
+    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
+    struct GGame* game,
+    struct ToriRSRenderCommandBuffer* render_command_buffer)
+{
+    if( !renderer || !renderer->metal_ready || !game || !render_command_buffer ||
+        !renderer->platform || !renderer->platform->window )
+        return;
+
+    id<MTLDevice>             device    = (__bridge id<MTLDevice>)renderer->mtl_device;
+    id<MTLCommandQueue>       queue     = (__bridge id<MTLCommandQueue>)renderer->mtl_command_queue;
+    id<MTLRenderPipelineState> pipeState = (__bridge id<MTLRenderPipelineState>)renderer->mtl_pipeline_state;
+    id<MTLDepthStencilState>  dsState   = (__bridge id<MTLDepthStencilState>)renderer->mtl_depth_stencil;
+    id<MTLBuffer>             unifBuf   = (__bridge id<MTLBuffer>)renderer->mtl_uniform_buffer;
+
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(renderer->metal_view);
+    if( !layer )
+        return;
+
+    sync_drawable_size(renderer);
+
+    // Resize the depth texture if the drawable size changed
+    layer.drawableSize = CGSizeMake(renderer->width, renderer->height);
+
+    id<CAMetalDrawable> drawable = [layer nextDrawable];
+    if( !drawable )
+        return;
+
+    // -----------------------------------------------------------------------
+    // Build render pass descriptor with depth attachment
+    // -----------------------------------------------------------------------
+    MTLTextureDescriptor* depthTexDesc =
+        [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                                                           width:(NSUInteger)renderer->width
+                                                          height:(NSUInteger)renderer->height
+                                                       mipmapped:NO];
+    depthTexDesc.storageMode = MTLStorageModePrivate;
+    depthTexDesc.usage       = MTLTextureUsageRenderTarget;
+    id<MTLTexture> depthTex  = [device newTextureWithDescriptor:depthTexDesc];
+
+    MTLRenderPassDescriptor* rpDesc = [MTLRenderPassDescriptor renderPassDescriptor];
+    rpDesc.colorAttachments[0].texture     = drawable.texture;
+    rpDesc.colorAttachments[0].loadAction  = MTLLoadActionClear;
+    rpDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
+    rpDesc.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+    rpDesc.depthAttachment.texture         = depthTex;
+    rpDesc.depthAttachment.loadAction      = MTLLoadActionClear;
+    rpDesc.depthAttachment.storeAction     = MTLStoreActionDontCare;
+    rpDesc.depthAttachment.clearDepth      = 1.0;
+
+    // -----------------------------------------------------------------------
+    // Compute viewport rects
+    // -----------------------------------------------------------------------
+    int win_width  = renderer->platform->game_screen_width;
+    int win_height = renderer->platform->game_screen_height;
+    if( win_width <= 0 || win_height <= 0 )
+        SDL_GetWindowSize(renderer->platform->window, &win_width, &win_height);
+
+    const LogicalViewportRect logical_vp =
+        compute_logical_viewport_rect(win_width, win_height, game);
+    const MTLViewportRect world_vp = compute_world_viewport_rect(
+        renderer->width, renderer->height, win_width, win_height, logical_vp);
+
+    const float projection_width  = (float)logical_vp.width;
+    const float projection_height = (float)logical_vp.height;
+
+    // -----------------------------------------------------------------------
+    // Update uniforms: camera view matrix (world→camera) + projection
+    // camera_pitch and camera_yaw are in OSRS units (0-2048 = 2*pi)
+    // -----------------------------------------------------------------------
+    MetalUniforms uniforms;
+    build_camera_modelview(
+        (float)game->camera_world_x,
+        (float)game->camera_world_y,
+        (float)game->camera_world_z,
+        yaw_to_radians(game->camera_pitch),
+        yaw_to_radians(game->camera_yaw),
+        uniforms.modelViewMatrix);
+    build_projection(projection_width, projection_height, uniforms.projectionMatrix);
+    memcpy(unifBuf.contents, &uniforms, sizeof(uniforms));
+
+    // -----------------------------------------------------------------------
+    // Command buffer + render encoder
+    // -----------------------------------------------------------------------
+    id<MTLCommandBuffer> cmdBuf = [queue commandBuffer];
+    id<MTLRenderCommandEncoder> encoder =
+        [cmdBuf renderCommandEncoderWithDescriptor:rpDesc];
+
+    [encoder setRenderPipelineState:pipeState];
+    [encoder setDepthStencilState:dsState];
+    [encoder setCullMode:MTLCullModeBack];
+    [encoder setFrontFacingWinding:MTLWindingCounterClockwise];
+
+    // Set world viewport (Metal origin is top-left)
+    MTLViewport metalVp = {
+        .originX = (double)world_vp.x,
+        .originY = (double)world_vp.y,
+        .width   = (double)world_vp.width,
+        .height  = (double)world_vp.height,
+        .znear   = 0.0,
+        .zfar    = 1.0
+    };
+    [encoder setViewport:metalVp];
+
+    // -----------------------------------------------------------------------
+    // Drain the render command buffer (three-pass, same as OpenGL3 renderer)
+    // -----------------------------------------------------------------------
+    LibToriRS_FrameBegin(game, render_command_buffer);
+
+    static std::vector<ToriRSRenderCommand> commands;
+    commands.clear();
+    {
+        struct ToriRSRenderCommand cmd = { 0 };
+        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, false) )
+            commands.push_back(cmd);
+    }
+
+    const int total_commands = (int)commands.size();
+
+    // Pass 1: texture loads
+    for( int i = 0; i < total_commands; ++i )
+    {
+        const ToriRSRenderCommand* cmd = &commands[i];
+        if( cmd->kind != TORIRS_GFX_TEXTURE_LOAD )
+            continue;
+
+        const int tex_id = cmd->_texture_load.texture_id;
+        renderer->loaded_texture_ids.insert(tex_id);
+        struct DashTexture* tex = cmd->_texture_load.texture_nullable;
+        if( !tex || !tex->texels )
+            continue;
+
+        // Create/replace Metal texture
+        if( renderer->texture_by_id.count(tex_id) && renderer->texture_by_id[tex_id] )
+            CFRelease(renderer->texture_by_id[tex_id]);
+
+        MTLTextureDescriptor* texDesc =
+            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                               width:(NSUInteger)tex->width
+                                                              height:(NSUInteger)tex->height
+                                                           mipmapped:NO];
+        texDesc.usage = MTLTextureUsageShaderRead;
+#if TARGET_OS_OSX || TARGET_OS_MACCATALYST
+        texDesc.storageMode = MTLStorageModeManaged;
+#else
+        texDesc.storageMode = MTLStorageModeShared;
+#endif
+        id<MTLTexture> mtlTex = [device newTextureWithDescriptor:texDesc];
+        [mtlTex replaceRegion:MTLRegionMake2D(0, 0, tex->width, tex->height)
+                  mipmapLevel:0
+                    withBytes:tex->texels
+                  bytesPerRow:(NSUInteger)tex->width * 4];
+        renderer->texture_by_id[tex_id] = (__bridge_retained void*)mtlTex;
+    }
+
+    // Pass 2: model loads — record cache keys (vertex buffers are built per-draw)
+    for( int i = 0; i < total_commands; ++i )
+    {
+        const ToriRSRenderCommand* cmd = &commands[i];
+        if( cmd->kind != TORIRS_GFX_MODEL_LOAD )
+            continue;
+
+        struct DashModel* model = cmd->_model_load.model;
+        if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+            !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+            !model->face_indices_c || model->face_count <= 0 )
+            continue;
+
+        preload_model_key(renderer, model);
+    }
+
+    // Pass 3: model draws
+    static std::vector<MetalVertex> frame_verts;
+    for( int i = 0; i < total_commands; ++i )
+    {
+        const ToriRSRenderCommand* cmd = &commands[i];
+        if( cmd->kind != TORIRS_GFX_MODEL_DRAW )
+            continue;
+
+        struct DashModel* model = cmd->_model_draw.model;
+        if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+            !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+            !model->face_indices_c || model->face_count <= 0 )
+            continue;
+
+        preload_model_key(renderer, model);
+
+        struct DashPosition draw_position = cmd->_model_draw.position;
+        const int cull = dash3d_project_model(
+            game->sys_dash, model, &draw_position, game->view_port, game->camera);
+        if( cull != DASHCULL_VISIBLE )
+            continue;
+
+        int face_order_count = dash3d_prepare_projected_face_order(
+            game->sys_dash, model, &draw_position, game->view_port, game->camera);
+        const int* face_order = dash3d_projected_face_order(game->sys_dash, &face_order_count);
+
+        // Build ordered vertex data in world space for this draw call
+        const int nVerts = build_ordered_vertices(
+            model, face_order, face_order_count,
+            (float)draw_position.x,
+            (float)draw_position.y,
+            (float)draw_position.z,
+            yaw_to_radians(draw_position.yaw),
+            frame_verts);
+        if( nVerts <= 0 )
+            continue;
+
+        id<MTLBuffer> drawBuf =
+            [device newBufferWithBytes:frame_verts.data()
+                                 length:(NSUInteger)(nVerts * sizeof(MetalVertex))
+                                options:MTLResourceStorageModeShared];
+
+        [encoder setVertexBuffer:drawBuf offset:0 atIndex:0];
+        [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                    vertexStart:0
+                    vertexCount:(NSUInteger)nVerts];
+    }
+
+    // -----------------------------------------------------------------------
+    // Finish scene pass, render ImGui overlay in the same render encoder
+    // -----------------------------------------------------------------------
+    // Reset viewport to full drawable for ImGui
+    MTLViewport fullVp = {
+        .originX = 0.0, .originY = 0.0,
+        .width   = (double)renderer->width,
+        .height  = (double)renderer->height,
+        .znear   = 0.0, .zfar = 1.0
+    };
+    [encoder setViewport:fullVp];
+
+    render_imgui_overlay(renderer, game, cmdBuf, encoder, rpDesc);
+
+    LibToriRS_FrameEnd(game);
+
+    [encoder endEncoding];
+    [cmdBuf presentDrawable:drawable];
+    [cmdBuf commit];
+}

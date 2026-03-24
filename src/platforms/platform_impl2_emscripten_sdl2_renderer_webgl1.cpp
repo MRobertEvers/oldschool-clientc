@@ -534,15 +534,4 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
         SDL_GL_SwapWindow(renderer->platform->window);
 
     s_frame++;
-    if( (s_frame % 120) == 0 )
-    {
-        printf(
-            "WebGL1 frame stats: cmds=%d draws=%d loaded_models=%zu loaded_scene=%zu "
-            "frame_begin_ms=%.3f\n",
-            total_commands,
-            model_draw_count,
-            renderer->loaded_model_keys.size(),
-            renderer->loaded_scene_element_keys.size(),
-            frame_begin_ms);
-    }
 }
